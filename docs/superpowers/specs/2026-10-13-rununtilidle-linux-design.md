@@ -4,6 +4,8 @@ Item C29 (user request 2026-10-02; not a plan task), found by item 10b (record 1
 Rulings: [`../2026-10-13-rununtilidle-linux-decisions.md`](../2026-10-13-rununtilidle-linux-decisions.md).
 Record: `../../record/106-rununtilidle-linux.md`.
 
+**Status: LANDED** (record §106; one lane verified `ok`).
+
 ## 1 The defect
 
 In `swift:6.4-noble` on arm64, `TestWindow.runUntilIdle()` throws `notIdle(rounds: 64)` once a window

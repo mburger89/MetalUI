@@ -1,7 +1,7 @@
 # 106 — `runUntilIdle()` after a click on Linux
 
 Branch `fix/rununtilidle-linux` from `848ee029`. **Not a plan task**: item C29 of the gpui-gap
-priority list (user request 2026-10-02), found by item 10b (record 103 §7, `DG-P`). Spec
+priority list (user request 2026-10-02), found by item 10b (record 103 §7, `DG-P`). Merged with master `b17aee19` (§103, no conflict; no other 106 on master). Spec
 `docs/superpowers/specs/2026-10-13-rununtilidle-linux-design.md`; rulings `RU-A`, `RU-B` in the new
 decisions doc `docs/superpowers/2026-10-13-rununtilidle-linux-decisions.md` (next unused `RU-C`).
 **No public API, no divergence (labels 365–374 unused), no probe (no SwiftUI claim).** One source
@@ -50,7 +50,7 @@ pins) stay green.
 ## §5 Counts
 
 macOS, `swift package` native build, `swift test --build-system native --no-parallel`: **3584 tests in
-3 suites** (3582 + 2), the five `AppKitPresentationTests` sheet issues of `CI-AF` on a locked screen and
+3 suites** (3582 + 2) on the branch alone; **3626 tests in 3 suites** (master's 3624 + 2) after the merge with `b17aee19`, 229 guards unmoved, the five `AppKitPresentationTests` sheet issues of `CI-AF` on a locked screen and
 nothing else, 0 `error:`, `FR-J no-argument frame: succeeded=true`; `swift build --build-tests` 0
 `warning:`. Linux image: `MetalUITestingTests` + observation tests 127 passed with the two new tests green; the
 unfiltered image run of the root package was started but only its last 60 lines were kept, and they
