@@ -136,7 +136,102 @@ parameterised tests counted by cases, guard 1.13), exactly the five locked-scree
 build system) 0 warnings; one new typecheck guard (1.13). The verify-mode run at the same commit:
 3583 tests, the same five issues, 0 verification traps.
 
-**Carried.** Lane 2 (`.equatable()`), C14-b retained subtrees (`IV-H`). Keys for rich text, images,
+**Carried.** C14-b retained subtrees (`IV-H`); lane 2 landed, §5. Keys for rich text, images,
 `Canvas` and controls (each one line plus a covering test). A subtree placement memo (a moved
 subtree's rects need the same arithmetic as a fresh placement; spec §4.1). The list-row leaves are
 unkeyed, so a `List` window gets no memo. The release timing of the integer-tag signature stream.
+
+## §5 Lane 2: the equatable content memo (built on `415c7fbd`)
+
+**What landed.** `Component.equatable()` (`where Self: Equatable`) returning
+`EquatableComponent<Self>` (`Sources/MetalUI/EquatableComponent.swift`, no initialiser, no identity
+level, no cursor index); `ContentMemoStore` (`ContentMemo.swift`, `package`, hosted as
+`StateTable.contentMemos`, swept by the last line of `StateTable.sweep()`); `Component`'s
+`requestGroupLayout` split into `enterComponent`/`finishComponent` with the bare path unchanged in
+order; `StateTable.entryVersion` (a monotonic counter bumped by `write` and `withState`);
+`StateBinder.memoShape` (the `@State` ordinals; `@Environment`/`@FocusState` refuse, via the
+`BindableFocusState` marker); one observation session per memo over the getter only, with a
+serial-checked `onChange` that reports through `markDirtyFromObservation`; `FrameWork`
+`contentEvaluations`/`contentSkips`/`contentRefusals` (census 3466 -> 3476); the demo
+(`METALUI_INVALIDATION_DEMO=1`, `InvalidationDemo.swift`, its own function, in
+`DemoStackBudgetTests`); divergence 346 (`@Environment`; probe arms `E0`/`E-env`/`E-env2`, separating
+`EnvQuiet`); inventory family `equatable-component` (class A) and one `M` row. Six amendments are
+`IV-P`; the mutation findings are `IV-Q`. `Backends/SDL` untouched.
+
+**Counted result** (test 2.1, one leaf written per frame, every component `.equatable()`):
+
+| tree | bodies evaluated per frame, before | after |
+|---|---|---|
+| 3 levels: 27 leaves + 13 branches | 27 + 13 | **1** leaf, 0 branches; 39 skips |
+| 4 levels: 81 leaves + 40 branches | 81 + 40 | **1** leaf, 0 branches; 120 skips |
+| demo, one bump (`theInvalidationDemoEvaluatesOneGetterToTheOtherTreesHundredAndTwentyOne`) | 121 | **1** |
+
+Build recursion, prepaint and paint stay whole (spec §2); only the getters are saved. Not timed.
+
+**Red first** (commit `24246005`, against an evaluate-always stub; first lines, the filtered run):
+2.1 `IVStats.leaves == frames`, `branches == 0`, `contentEvaluations == frames`,
+`contentSkips == frames * (components - 1)` at L = 2, 3, 4; 2.2 `leaves == 0`, `== 1`, `== 1`; 2.3
+`leaves == 0`, `== 1`, `== 2`; 2.4 `branches == 0 && leaves == 0`, `branches == 1`, `leaves == 0`,
+`contentEvaluations == 1 && contentSkips == 3`; 2.6 `branches == 0`, `== 1`; 2.7 `entryCount == 1 &&
+armedSessions == 1`, `leaves == 0`, `armedSessions <= entryCount && entryCount == 1`; 2.8 `leaves == 0`,
+`entryCount == 1`; 2.9 `skipped > 0` (the differential itself stayed equal: the stub is correct, just
+unskipped); 2.10 `contentSkips > 0`. Green against the stub, as controls: 2.5 (the refusal is
+counted), 2.11b, 2.13. 2.11a's first fixture was wrong (a `public func` over an internal type) and is
+fixed in that commit. 2.7b and the quiet-frame count of 2.10 were added after `IV-Q`.
+
+**Mutation table** (each committed first, applied to the file named, restored by `git checkout`, the
+full suite run with the seven hanging AppKit sheet tests skipped (see counts), `git status --short`
+empty after each; names are the reddened tests):
+
+| # | declaration and spelling | reddened |
+|---|---|---|
+| A | `ContentMemo.swift` hit condition gains `&& false` (never hits) | 2.1 (12), 2.2 (3), 2.3 (3), 2.4 (4), 2.6 (2), 2.7, 2.8, 2.9, 2.10, demo test |
+| B | `onChange` body replaced by `_ = 0` (no session effect) | 2.2 (2), 2.9 (12), 2.1 (9), 2.13, demo test |
+| C | recorded `@State` versions not compared (`true`) | 2.3 (2), 2.9 (8), 2.10 (2) |
+| D | `previous == component` replaced by `true \|\| ...` | 2.4 (3), 2.6 (3), 2.1 (12: its `==`-false arm now hits), 2.9, demo test |
+| E | `!shape.refused` replaced by `true` | 2.5 (3) |
+| G | `guard entry.serial == serial` replaced by `_ = serial` | **2.7b only** (`runUntilIdle`: still drawing after 64 rounds); the spec's 2.7 loop stayed green (`IV-Q` 2) |
+| H | every entry's token written at `endFrame` (a per-frame flush) | 2.8, 2.7 (not idle), 2.1 (12), 2.2, 2.3, 2.4, 2.6, 2.9, 2.10 |
+| I | pristine copy re-taken after `finishComponent` (`repristine`) | **2.10 only** (5 issues); 2.9 stayed green (`IV-Q` 3) |
+| J | entry keyed by `(constant id, type)` | 2.1 (12), 2.4 (3), **2.10** (the quiet-frame count), demo test |
+| K | `entry.touched = true` removed from the hit path | 2.8, 2.7, 2.1 (12), 2.2, 2.3, 2.4, 2.6, demo test |
+| L | `EquatableComponent.init(component:)` made `public` | 2.11a |
+| M | an unconstrained `public func equatable() -> Self` overload | 2.11b |
+
+The first G and J runs (before 2.7b and the quiet-frame count existed) were the findings of `IV-Q`:
+G reddened nothing and J reddened no 2.10 pin. The existing `ComponentTests` mutations (the two
+recorded in `Component.swift`) are not re-run here: `requestGroupLayout` is the same two halves in
+the same order, and the bare path's tests all passed unfiltered (`IV-M` 2.12 is not a test).
+
+**Fourteen images.** `docs/probes/demo-pixels/compare.sh <scratch> f6f865c1 HEAD` (HEAD `b8506dfe`,
+controls as recorded): 14 of 14 `differing=0`, scene identical.
+
+**Linux image (`swift:6.4-noble`).** `swift build --build-tests` then `swift test --skip-build`, parallel
+and `--no-parallel`: `MetalUITestingTests` 142, `MetalUICoreTests` 22, `MetalUILayoutTests` 208,
+`MetalUICrossPlatformTests` 79, the three small ones 9, 40, 25: all pass. Two findings, both from
+the first run: (1) a main-actor test does not run on the main thread there (`Thread.isMainThread` is
+false), so every `onChange` takes the hop, `armedSessions` lags a frame and **even a plain window does not
+idle after a tracked frame** (measured with a window of one `Text`: `observationDirtyings` 6 after 6
+drawn frames, `runUntilIdle` throws); the two tests that count sessions or idle frames (2.7, 2.7b) are
+`.enabled(if:)` Darwin; (2) the `async` tests interleaved at their `await`s under the default parallel
+run and corrupted `IVStats`; they now count in their own `MemoStats` behind a main-actor FIFO gate.
+Windows CI runs the same two paths and is not run here.
+
+**Counts** (`swift package clean`, `swift build --build-system native --build-tests`, then
+`swift test --build-system native --no-parallel --skip-build`): **3591 tests in 3 suites passed**,
+`FR-J no-argument frame: succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
+`swift build --build-tests` (default build system) 0 warnings. **Not an unfiltered run**: the machine's
+screen was locked and the display asleep, and `NSOpenPanel.init()` in the seven `AppKitPresentationTests`
+tests that present a sheet hangs there (sampled twice: `AppKitWindow.presentFileDialog` -> `NSOpenPanel
+__allocating_init`, 0 % CPU), so those seven were `--skip`ped by name (the earlier locked-screen runs
+read them as the five `CI-AF` issues; a `caffeinate -d` woke the display and did not cure it). 3591 run + 7 skipped = 3598 in a screen-unlocked run (lane 1's 3583 + the window file's 12 functions, 2.1 counted by its three cases, +2 guards, +1 demo test, within 2 of that sum; the difference was not chased). Typecheck guards: two new (2.11a, 2.11b), each
+mutated red once (L, M).
+
+**GT-F.** Unchanged by this lane (`IV-O`): `theOverlayCostIsLinearAndCounted` passes in the full run;
+`drawText` stays deferred and is re-taken at C14-b's close-out.
+
+**Carried.** C14-b (retained subtrees, `IV-H`); C14-c (an environment epoch, divergence 346);
+`@Environment`/`@FocusState` components stay refused; per-row `List`/`ForEach` scopes (C14-d); the
+memo's cost (the `==` comparison and the pristine copy) is not timed; the demo's real window and
+human checks IV1-IV4 (spec §10) are not run (screen locked; an agent cannot).
+
