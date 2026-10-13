@@ -476,7 +476,7 @@ spins, `ProgressView(value:total:)` fills, with `.progressViewStyle`; `.keyframe
 (divergences 168, 169, 171); `LinearGradient` and `RadialGradient` fill shapes and backgrounds
 (rasterized on the CPU, no shader change); `.blur(radius:)` blurs per drawn leaf (divergence
 167); `.ultraThinMaterial` … `.bar` blur what is drawn beneath them (a GPU surface
-included) and tint it, on Metal and SDL (item C21, record §94; divergences 166, 245–249). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: groups CL and BB, unrun.
+included) and tint it, on Metal and SDL (item C21, record §94; divergences 166, 245–248), `Material.tint(in:)` reads a material's tint, and `\.accessibilityReduceTransparency` swaps the blur for an opaque grey (item C27, record §101; divergence 315). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: groups CL and BB, unrun.
 **App shell** (user request 2026-10-02, item C8, not a plan task; record §87):
 `Window.onCloseRequest` vetoes or defers a close (`.now`, `.cancel`, `.later` and
 `replyToCloseRequest(_:)`, so an alert can come first); `App.onTerminateRequest` does the same
@@ -494,6 +494,7 @@ pointer while nothing is focused; `.focusable(interactions: .edit)` focuses on a
 94, narrowed); a proposal `KeyboardModifier` carries all of it onto `MetalView`/`GPUSurface`;
 `.onGeometryChange` reports a size or frame in the first presented frame and during a resize;
 `TimelineView` runs `.animation`, `.periodic`, `.everyMinute`, `.explicit` and custom schedules.
+**Resign on press** (user request 2026-10-02, item C24, not a plan task; record §98): `.resignsFocusOnPress()` (MetalUI-only) makes a primary press inside it end a focused field's editing without routing keys by hover; a press on another field moves focus directly. `METALUI_KEY_FOCUS_DEMO=1` shows it. Human checks: group RF, unrun.
 A `for` over an opaque-returning helper in a builder is a Swift 6.4 defect (use `ForEach`), pinned
 by a guard. Divergences 185–188. `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` shows it. Human
 checks: group KF, unrun.
@@ -511,6 +512,13 @@ group PF, unrun.
 SwiftUI's `TextSelection` and `TextField(_:text:selection:)` / `TextEditor(_:text:selection:)` (macOS 15):
 the binding carries a whole-title selection or a caret at the end of a note from code, and reads back
 after typing, clicks, arrows and undo. `METALUI_SELECTION_DEMO=1 swift run MetalUIDemo` shows it.
+
+**Measuring text** (user request 2026-10-02, item C23, MetalCreator's S5-c, not a plan task; record §99):
+`@Environment(\.textMeasurer)` answers the size a `Text` would lay out at, with no layout, for placing
+labels or chips over a `GPUSurface` before they exist as elements (SwiftUI's `resolve(_:)` +
+`ResolvedText.measure(in:)`, carried by the environment; divergences 295, 296). A drawn-in-the-surface
+`drawText` was measured and deferred; the portable text system now caches a layout so a moving label
+shapes once.
 
 **Overlays and coordinates** (user request 2026-10-02, item C15, MetalCreator's EP-a and EP-b, not a
 plan task; record §92): `anchoredOverlay(isPresented:at:in:anchor:content:)` (MetalUI-only) puts a

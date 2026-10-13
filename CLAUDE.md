@@ -64,8 +64,12 @@ summary.
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
   `2026-10-10-backdrop-blur-decisions.md`, next `BB-U`), `WD-` (window drag:
   `2026-10-12-window-drag-decisions.md`, next `WD-L`), `SL-` (text selection:
-  `2026-10-12-text-selection-decisions.md`, next `SL-O`), `GC-` (continuing press cancel:
-  `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), …; the full
+  `2026-10-12-text-selection-decisions.md`, next `SL-O`), `GT-` (text over a GPU surface:
+  `2026-10-12-surface-text-decisions.md`, next `GT-J`), `GC-` (continuing press cancel:
+  `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), `RF-` (resign on press:
+  `2026-10-12-resign-on-press-decisions.md`, next `RF-J`), `MT-` (material follow-ups:
+  `2026-10-12-material-followups-decisions.md`, next `MT-L`), `IM-` (input-method
+  driver: `2026-10-12-ime-driver-decisions.md`, next `IM-K`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -78,9 +82,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **147 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–304 and 315–324 reserved by open branches, 305–314 unused by C26, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **151 live, next label 206** (196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD and SL, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT and IM, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -100,7 +104,12 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-12, `fix/continuing-press-cancel` from `930db4a`, merged with master `3fce05f` (§96 text selection): 3513 tests, 0 goldens, 221 typecheck guards** (master's 3504 + 9 tests, no new guard; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`, no issue recorded; census 3446 unmoved, no public declaration; no divergence label taken); record §100 §3). Before it:
+- **Counts (2026-10-13, `feat/material-followups` from `930db4a`, merged with master `7f891629` (§99, §100), then `0fb2ea6e` (§98), then `f6f865c1` (§102 input-method driver): 3582 tests, 0 goldens, 229 typecheck guards** (master's 3566 + 16 tests, 225 + 4 guards; 3565 / 228 at `0fb2ea6e`'s merge; lane A's 4 tests and 2 guards, lane B's 12 tests and 2 guards; `swift package clean`, native run 0 `Issue`, 0 `error:`, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; the fourteen images scene-identical, 0 px against `930db4a`; divergence 315 added, 249 retired, 151 live after §102; `Backends/SDL` and the Linux image not re-taken; record §101 §6). Before it:
+  **(2026-10-12, `feat/ime-driver` from `3fce05f`, merged with master `ff8a1ea` (§100 continuing press cancel), then `7f891629` (§99 text over a GPU surface), then `0fb2ea6e` (§98 resign on press): 3566 tests, 0 goldens, 225 typecheck guards** (master's 3549 + 17 tests, 224 + 1 guard 3.4; 3530 / 222 at `ff8a1ea`'s merge, 3546 / 223 at `7f891629`'s; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`; census 3453 (3446 + 7: the input-method verbs and read-backs); divergences 325, 326 added, 151 live after §99; record §102 §5). Before it:
+  **(2026-10-12, `feat/resign-on-press` from `5f35df6`, merged with master `ff8a1ea4` (§94 backdrop blur, §96 text selection, §97 window drag, §100 continuing press cancel), then `7f891629` (§99 text over a GPU surface): 3549 tests, 0 goldens, 224 typecheck guards** (master's 3529 + 20 tests, 222 + 2 guards; 3533 / 223 at `ff8a1ea4`'s merge; `swift package clean`, native build and run 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`, no issue recorded; inventory and undocumented scripts print nothing, one public family; the fourteen images 0 px against `5f35df6`; divergence labels 285–294 unused, no divergence; record §98 §2). Before it:
+  **(2026-10-12, `feat/surface-text` from `d6a815c`, merged with master `3fce05f` (§96 text selection, §97 window drag), then `ff8a1ea4` (§100 continuing press cancel): 3529 tests, 0 goldens, 222 typecheck guards** (master's 3513 + 16 tests (3520 at `3fce05f`'s merge), 221 + 1 guard 1.11: lane 1's 11, lane 2's 5; `swift package clean`, native run on an unlocked screen, all passed, 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `FR-J no-argument frame: succeeded=true`; census 3452 (3446 + 6); divergences 295, 296 added, 149 live; the fourteen images scene-identical, 0 px against `d6a815c` at both lanes; `Backends/SDL` untouched; record §99 §7).
+  Before it:
+  **(2026-10-12, `fix/continuing-press-cancel` from `930db4a`, merged with master `3fce05f` (§96 text selection): 3513 tests, 0 goldens, 221 typecheck guards** (master's 3504 + 9 tests, no new guard; `swift package clean`, native run 0 `error:`, `FR-J no-argument frame: succeeded=true`, no issue recorded; census 3446 unmoved, no public declaration; no divergence label taken); record §100 §3). Before it:
 - **Counts (2026-10-12, `feat/text-selection` from `0abce86`, merged with master `930db4a` (§93–§95, §97): 3504 tests, 0 goldens, 221 typecheck guards** (master's 3472 + 32 tests, 218 + 3 guards G1–G3; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`; census 3446 (master's 3424 + 22); divergences 265, 266 added, 147 live; the merge's one source edit `Window.onInput` keeps both the selection `defer` and master's modifier report; record §96 §5). Before it:
 - **Counts (2026-10-12, `feat/window-drag` from `a720fba`, merged with master `5f35df6` (§95 `ForEach` identity), then master `d6a815c` (§94 backdrop blur): 3472 tests, 0 goldens, 218 typecheck guards** (master's 3446 + 26 tests, 217 + 1 guard 3.2; at `5f35df6`'s merge 3441 / 217; native run after `swift package clean` on a locked screen read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else; census 3415 (3405 + 10: `WindowDragGesture` and its members, `performWindowDrag`, `windowDrags`, `performsWindowDrag`; the tsv re-recorded after the merge for AppKit's line shifts); divergences 275–277 added, 145 live after §94, next label 206; `Backends/SDL` 24 + 114 on macOS (113 + 1), the Linux image not re-taken after the merge; the fourteen images 0 px against `a720fba` on the merged tree; record §97 §4, §6). Before it,
   **(2026-10-12, `feat/backdrop-blur` from `f2fe54a`, merged with master `5f35df6` (§91 harness, §92 overlays, §93 input follow-ups, §95 `ForEach` identity), then record 94 §11's three pins: 3446 tests, 0 goldens, 217 typecheck guards**
@@ -213,7 +222,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -305,7 +314,7 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`), and `performWindowDrag() -> Bool` (`WD-E`) — have no
+  `onAccessibilityReduceMotionChange`, `accessibilityReduceTransparency`/`onAccessibilityReduceTransparencyChange` (`MT-D`), `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`), and `performWindowDrag() -> Bool` (`WD-E`) — have no
   default so a conformer that forgets one fails to compile. Both conformers,
   the headless `HeadlessPlatform*` of `MetalUITesting` (**a new requirement owes it an honest
   answer in the same change**, `HT-X` 1) and every test fake implement all of them. **`Platform` (not a window) has
@@ -736,6 +745,18 @@ call, check WD1); SDL records and answers `false` (divergence 276, no hit-test r
 gesture rule and `.opacity(0)` does not disable it (divergence 277). Not built:
 `windowBackgroundDragBehavior` (a Scene modifier), a double-click zoom in a handle.
 
+**Text over a GPU surface (`GT-`, record §99).** A `Text` overlay over a `GPUSurface` costs
+1 leaf measure, 2 seam measures and 1 `placeGlyphs` per label per frame, linear in N, no raster or
+upload (`GT-A`; re-take with `theOverlayCostIsLinearAndCounted`), so **`MetalDrawContext.drawText`
+and its SDL twin are deferred** (`GT-F`, owner C14's close-out). `@Environment(\.textMeasurer)` is a
+get-only `TextMeasurer` (no public initialiser; SwiftUI's `resolve(_:)` + `ResolvedText.measure(in:)`
+carried by the environment, divergence 296) that calls the one layout measure through
+`resolveTextStyle` and `Frame.textSystem`: the **unrounded** leaf answer, a laid-out frame being
+it rounded; an empty `Text` is one line tall (divergence 295, `GT-I`); the frame stamps its system
+box and a `\.self` reset keeps it (`GT-D`). `PortableTextSystem` caches an **origin-free**
+`[LaidOutLine]` per `MeasureKey` (two-frame lifetime) so a moving plain label shapes once; rich text
+still shapes per frame there (`GT-E`, `GT-H`).
+
 **Continuing press cancel (`GC-`, record §100).** A reported leaf owes `onCancelled` whatever
 ends it. `GestureArena.press(… continuing: true)` takes `cancelCallback(leaf)` before it fails an
 undecided drag (`GC-B`), and `Window`'s `.mouseDown` treats a press that finds the arena **still
@@ -743,6 +764,36 @@ pressing** as a lost release, not a tap sequence's second press: `abandon()` and
 form, as for a press on another element (`GC-C`; SwiftUI agrees, probe `swiftui-lost-release.swift`).
 A real double-click (arena released) still continues. A bare `.mouseMoved` does not cancel the
 primary arena (rejected, `GC-C`). No public API, no divergence.
+
+**Resign on press (`RF-`, record §98).** `.resignsFocusOnPress(_ isEnabled: Bool = true)`
+(`StyledElement` returns `Self`; proposal content merges into the one `KeyboardModifier` layer,
+`KF-H`) is an opt-in container modifier: a primary press inside it resigns a focused field and
+**routes no key by hover**. It is `KeyboardAttachment.resignsOnPress` (every factory carries all four
+fields; `Handlers` keeps nineteen members) registered by the same non-opaque region and gates as a
+key region and counted apart (`resignRegionCount`, never `keyRegionCount`: `hoveredKeyRegion`,
+`keyChain`, `coversKeys(withPressRegions: false)` and `onKeyPress` routing are untouched, `KF-U`,
+test 2b); it widens only `focusOnPress`'s region predicate, so `KF-E` item 5's ladder holds (a text
+field or click-focusable inside focuses directly, one change and no `nil` between) and the one
+ranking is the only lookup. A secondary or other press never resigns (`MN-B`), a `Deferred`
+presentation's press does not reach a region below (`IX-Q`), a `Button` inside fires **and**
+resigns. MetalUI-only (class `M`, no divergence): SwiftUI has no such modifier (probe
+`swiftui-resign-on-press.swift`); `KF-G`'s default stands. Rejected: `hoverKeyRegion(routesKeys:)`
+(`RF-B`); not built: a per-subtree opt-out, a window option.
+
+**Material follow-ups (`MT-`, record §101).** `Material.tint(in: ColorScheme) -> Color` is the
+fitted table's tint as API (MetalUI-only, class `M`; SwiftUI has no read, probe
+`swiftui-material-followups.swift` `A3`/`A4`); a material takes no colour and has no initialiser
+(`MT-C`). `EnvironmentValues.accessibilityReduceTransparency` is SwiftUI's read-only key
+(`public internal(set)`), stamped by `Window` from two **defaultless** `PlatformWindow` requirements
+(`accessibilityReduceTransparency`, `onAccessibilityReduceTransparencyChange`) the reduce-motion way
+(guarded `didSet`, never a `Window.environment` write; AppKit's one display-options observer serves both
+values; SDL answers `false` and never fires, `MT-E`; `HeadlessPlatform.Options` and
+`TestWindow.setReduceTransparency(_:)`, `MT-G`). **Every material site draws through
+`Frame.fillMaterial`** (a guard scans for any other `fillBackdrop(` or `material.color` read): off, it is
+`fillBackdrop` byte for byte; on, an ordinary rect or path of `Material.opaqueColor(in:)` (the table's
+grey at alpha 1) with no backdrop record, so no split, no blur pass, no copy, and a change snaps.
+SwiftUI's own fallback is unmeasured (the probe cannot move it), so the grey is a ruling (divergence
+315; 249 retired).
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
@@ -1030,9 +1081,18 @@ answered at the seam, or driven through the tree where the option makes the wind
 (`presentsAlertsNatively`, `presentsMenusNatively`, `showsToolbarNatively`,
 `HeadlessPlatform.showsMenuBarNatively`); `FrameWork` counts a frame's work (benchmarks count work,
 never time). `MetalUI` gains only `package` read-back hooks in `TestingHooks.swift` and
-`TestingMenuHooks.swift` (plain-import guards 3.1–3.3 pin them unreachable); no pixels, no GPU
+`TestingMenuHooks.swift` (plain-import guards 3.1–3.4 pin them unreachable); no pixels, no GPU
 surface draws. `metalui new` generates a test target over it, and `Testing` is a refused name
 (`HT-V`). MetalUI-only by class `M`: SwiftUI tests out of process.
+
+**Input-method driver (`IM-`, record §102, `docs/testing.md`).** `TestWindow.setMarkedText(_:selectedRange:)`,
+`commitMarkedText()` (AppKit's `unmarkText`, which is a commit), `commitMarkedText(_:)` (`insertText`) and
+`cancelMarkedText()` (SDL's empty `TEXT_EDITING`) send the platforms' own `InputEvent`s through `onInput`, so the
+real `Window` composition path runs, never a test-only shortcut; with no text field holding the caret they send
+nothing and answer `false` (`IM-B`, `IM-C`). `HeadlessPlatformWindow.markedText` mirrors `MetalHostView`'s. A field's
+AX value is the **committed** text while composing (divergence 325) and a selection write while composing is held
+back until the commit (`SL-H`, divergence 326). `Window.focusedElement`'s `didSet` drops the composition of a field
+that lost focus (`IM-I`). A selection write ends the open typing group (`SL-O`, measured and pinned).
 
 **Overlays and coordinates (`OV-`, record §92).** `CoordinateSpace.named` and `.coordinateSpace(_:)` (a
 transparent `CoordinateSpaceScope`: no node, no id level) resolve against the **nearest ancestor so
@@ -1191,7 +1251,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (147 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (151 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

@@ -223,6 +223,21 @@ public final class Window {
         }
     }
 
+    /// The root source of every frame's `accessibilityReduceTransparency`
+    /// (`MT-D`), as ``accessibilityReduceMotion`` is: read from
+    /// `PlatformWindow.accessibilityReduceTransparency` at construction, updated
+    /// through `onAccessibilityReduceTransparencyChange`, stamped over
+    /// `environment` at every draw -- never a `Window.environment` write (that
+    /// dirties every draw). **Guarded**: a report of the value the window already
+    /// has does not repaint. Pinned by
+    /// `theWindowStampsReduceTransparencyFromItsPlatformWindow`.
+    private(set) var accessibilityReduceTransparency: Bool {
+        didSet {
+            guard accessibilityReduceTransparency != oldValue else { return }
+            setNeedsRedraw()
+        }
+    }
+
     // MARK: Colour scheme (rulings `CR-J`, `CR-K`, `CR-L`, `CR-M`)
 
     /// The colour scheme this window draws in (ruling `CR-J` item 3): the
@@ -501,7 +516,16 @@ public final class Window {
     /// answer is applied only while this property is still what the frame was
     /// handed; see `drawFrameIfNeeded` for why that condition is exactly "the
     /// frame's decision is still about the current focus".
-    public private(set) var focusedElement: GlobalElementID?
+    public private(set) var focusedElement: GlobalElementID? {
+        didSet {
+            // A composition does not survive its field losing focus (ruling
+            // `IM-I`): AppKit discards the input context's marked text and
+            // sends nothing, so the stored composition is dropped here.
+            guard let old = oldValue, old != focusedElement,
+                  lastFocusRegistry.textTarget(for: old) != nil else { return }
+            stateTable.withState(old, initial: TextEditState()) { $0.composition = .none }
+        }
+    }
 
     /// The focus registry the most recent frame's prepaint built, captured
     /// alongside `lastHitboxes` and for its reason: the frame that built it is
@@ -852,6 +876,7 @@ public final class Window {
         self.theme = platformWindow.appearance == .dark ? Theme.dark : Theme.light
         self.controlActiveState = platformWindow.controlActiveState
         self.accessibilityReduceMotion = platformWindow.accessibilityReduceMotion
+        self.accessibilityReduceTransparency = platformWindow.accessibilityReduceTransparency
         self.renderRoot = { frame in
             var root = content()
             frame.render(&root)
@@ -905,6 +930,10 @@ public final class Window {
             // Assigning drives the guarded `didSet`, which marks the window
             // dirty (ruling `AN-AD`).
             self?.accessibilityReduceMotion = reduceMotion
+        }
+        platformWindow.onAccessibilityReduceTransparencyChange = { [weak self] reduceTransparency in
+            // The guarded `didSet` marks the window dirty (`MT-D`).
+            self?.accessibilityReduceTransparency = reduceTransparency
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
@@ -1761,6 +1790,7 @@ public final class Window {
         var rootEnvironment = environment
         rootEnvironment.controlActiveState = controlActiveState
         rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
+        rootEnvironment.accessibilityReduceTransparency = accessibilityReduceTransparency  // MT-D, the same stamp
         rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
         rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
         rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
@@ -1811,6 +1841,7 @@ public final class Window {
         lastPointerStyleRegionCount = frame.pointerStyleRegionCount   // CI-H item 7
         lastKeyRegionCount = frame.keyRegionCount   // KF-E item 4
         lastFocusOnPressCount = frame.focusOnPressCount   // KF-F item 3
+        lastResignRegionCount = frame.resignRegionCount   // RF-C item 2
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
@@ -2380,6 +2411,7 @@ public final class Window {
     /// a key event and a press do no lookup.
     var lastKeyRegionCount = 0
     var lastFocusOnPressCount = 0
+    var lastResignRegionCount = 0
 
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.

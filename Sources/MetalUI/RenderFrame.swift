@@ -31,6 +31,7 @@ public func renderFrame<Root: Element>(_ content: () -> Root, size: Size<Pixels>
                       glyphAtlas: atlas, theme: theme)
     var environment = frame.rootEnvironment
     environment.accessibilityReduceMotion = false
+    environment.accessibilityReduceTransparency = false
     environment.windowSize = size  // OV-R: a window of `size` stamps its contentSize
     frame.rootEnvironment = environment
     var root = content()

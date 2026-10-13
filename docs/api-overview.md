@@ -91,7 +91,9 @@ the window's top layer — a portal for modals, popovers and tooltips
   **`ForEach`** (identity by the id's Hashable value, as SwiftUI; the `List` residue is 255), **`@Environment`**/`EnvironmentValues`/
   `.environment`/`.transformEnvironment`/`.disabled`; `displayScale`,
   `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
-  (inert as on macOS), `accessibilityReduceMotion`; `layoutDirection` is
+  (inert as on macOS), `accessibilityReduceMotion`, `accessibilityReduceTransparency` (SwiftUI's
+  key, read-only outside; stamped from the platform; while true every `Material` draws an opaque
+  grey with no blur, divergence 315; C27, `MT-D`, `MT-F`); `layoutDirection` is
   carried and mirrors nothing (25); `colorScheme`, readable while building
   ([Colour](#colour--a--d--m)). `Theme`/`ColorToken`/`.theme(_:)` are
   MetalUI's scoped, paint-only colour tokens (M). An `@Observable` object is
@@ -203,6 +205,19 @@ also `inlinePresentationIntent`. Links are styled in the accent and inert
 (150); underlines and strikethroughs are the face's unsnapped bands (152);
 only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
 defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
+
+**Measuring text.** `@Environment(\.textMeasurer)` is a get-only `TextMeasurer`
+(no public initialiser): `resolve(_:)` takes a `Text` or a `ProposalText` in the
+environment of the element reading it, and `ResolvedText.measure(in:)` answers
+the size layout gives that text under a proposal — a finite width wraps it, a
+finite height caps its lines, an infinite axis is unbounded — through
+`resolveTextStyle` and the frame's text system, with no layout, no node and no
+state. The answer is the unrounded leaf answer (a laid-out frame is that rounded
+to whole points), and an empty `Text` is one line tall (295). SwiftUI spells it
+`GraphicsContext.resolve(_:)` + `ResolvedText.measure(in:)` in a `Canvas`; the
+environment is the carrier here because MetalUI has no `Canvas` context (296) —
+M / D. Use it to place a label or a chip over a `GPUSurface` before the labels
+exist as elements (rulings `GT-B`…`GT-D`, `GT-I`).
 
 ## Shapes and images — A
 
@@ -404,7 +419,13 @@ menu item's ⌘-key is offered too (D 188). `focusable(_:)` (replacing
 window shows (D 186). **MetalUI-only**: `.hoverKeyRegion(_:)` — with nothing
 focused, keys (and the `Keymap`'s contexts) go to the key region under the
 pointer; a press in it clears a field's focus (`KF-D`, `KF-E`); a press
-elsewhere never resigns focus (`KF-G`, SwiftUI's answer). On proposal content
+elsewhere never resigns focus (`KF-G`, SwiftUI's answer). **MetalUI-only**: `.resignsFocusOnPress(_:)` (on an element and on proposal
+content, where it joins the one `KeyboardModifier` layer) — an opt-in container
+modifier: a primary press inside it resigns a focused field **without** routing
+keys by hover (a text field or `.focusable(interactions: .edit)` inside takes
+focus directly, no `nil` between; a secondary press never resigns; SwiftUI has
+no equivalent, `RF-A`). Put it on an app root so a press on inert chrome ends
+in-place editing. On proposal content
 — a `MetalView`, a `GPUSurface` — the keyboard modifiers (`onKeyPress`,
 `focusable`, `keyContext`, `focused`, `hoverKeyRegion`) wrap once in a
 **`KeyboardModifier`** and every later one joins that layer, so focus, the
@@ -813,10 +834,12 @@ backdrop blur** of what is already drawn beneath it, GPU surfaces included, on b
 renderers (item C21, record §94: sigma 52 pt, rounded rectangle or ellipse, clip,
 transform, opacity and transitions; the flat tint of `LK-L` remains for a path
 fill, inside a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` leaf and where
-a renderer cannot blur; divergences 166, 245–249; `BB-A`…`BB-T`). Not built:
+a renderer cannot blur; divergences 166, 245–248, Reduce Transparency 315; `BB-A`…`BB-T`); `Material.tint(in:)`
+reads a material's tint as a `Color` (MetalUI-only, class M; C27, `MT-B`; a material takes
+no colour, `MT-C`). Not built:
 `AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`,
 `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, `phaseAnimator`, a native
-`NSColorPanel` route, Reduce Transparency for materials, saturation lift — each a
+`NSColorPanel` route, a material that takes a colour or an opacity (`MT-C`), saturation lift — each a
 named deferral (`LK-A`, `BB-I`).
 
 ## Testing — M
@@ -832,7 +855,7 @@ input by point and by element in XCUITest's names (`click`, `typeText`,
 (`frame(ofID:)`), presentations answered at the seam (`respondToAlert`,
 `chooseMenuItem`, `performToolbarItem`, the menu bar's `performMenuBarItem`,
 `MenuEvaluation`; `HeadlessPlatform` options such as `presentsMenusNatively` and `showsMenuBarNatively` choose whether the platform or the window draws) and per-frame work counters (`FrameWork`) for benchmarks
-that count work. SwiftUI tests UI out of process, so this is MetalUI-only.
+that count work, and an input-method driver beside `typeText` (M; `IM-A`, record §102: `setMarkedText(_:selectedRange:)`, `commitMarkedText()`, `commitMarkedText(_:)`, `cancelMarkedText()`, `markedText`, `markedSelection`, sending the platforms' own composition events through `onInput`). SwiftUI tests UI out of process, so this is MetalUI-only.
 How an app uses it: [`testing.md`](testing.md).
 
 ## Backends and infrastructure — M

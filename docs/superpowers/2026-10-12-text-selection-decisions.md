@@ -10,7 +10,7 @@ SwiftUI's side: `docs/probes/swiftui-text-selection.swift` (arms C, P, R, W, F, 
 byte-identical; recorded in its header). gpui's side, where SwiftUI has nothing, is recalled
 (`EntityInputHandler`, no binding) and rests no ruling.
 
-**Next unused id: `SL-O`.**
+**Next unused id: `SL-P`.**
 
 ## SL-A — The API is SwiftUI's `TextSelection` and `selection:` initialisers; no `selectAll()` hook
 
@@ -157,3 +157,15 @@ own root behind `METALUI_SELECTION_DEMO=1`, built by `everyProductionTreeBuildsO
 Nothing is in the default demo: the fourteen images are unmoved. **Cost**: one more env var in the
 list. Test 4.15 also gained a work arm (the frame after a publish converts nothing): with the equal-range
 guard in `reconcile`, a missing `seenBinding` store is otherwise invisible in write counts.
+
+## SL-O — The undo contract after a selection write (measured through the harness; amends `SL-H`)
+
+Measured by `theUndoContractAfterASelectionWrite` and
+`aCommitOfOneGraphemeContinuesTheTypingGroupAndALongerOneDoesNot` (ime-driver `IM-H`), which matched the
+code reading: (1) after typing `a`,`b`, a selection write to a different range and typing `c`,
+⌘Z removes only `c` and restores the **written** selection (the snapshot is taken after `reconcile` moved
+the selection), (2) a second ⌘Z removes `ab`; (3) with no write, one ⌘Z removes `abc`; (4) a write
+equal to the field's own selection ends no group; (5) a write while composing is held, so it ends no
+group, and the commit's `insert` continues a typing group for one grapheme and is its own step for
+several. Not changed. Amendment to `SL-H`: SwiftUI evidence for the held write is `IM-G` (divergence
+326; SwiftUI publishes during composition and applies a write at once). Documented in `docs/testing.md`.

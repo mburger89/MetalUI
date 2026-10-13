@@ -574,7 +574,7 @@ extension LayoutModifier: ModifierLayerKind {
             inside()
         case let .backgroundMaterial(material):
             // One backdrop record (`BB-A`); a change of material snaps.
-            pass.fillBackdrop(bounds, tint: pass.resolve(material.color))
+            pass.fillMaterial(bounds, material: material)
             inside()
         case let .clip(cornerRadius):
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),

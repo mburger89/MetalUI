@@ -121,7 +121,7 @@ test sees its effect.
 
 A text field that commits on the shortcut-modified Return, submits on a plain
 Return, handles Escape, and loses focus to a click on the canvas around it
-(a `.hoverKeyRegion()`, `KF-E`). `.primary` is the platform's shortcut
+(a `.hoverKeyRegion()`, `KF-E`; or `.resignsFocusOnPress()` on the root when the canvas should not route keys, `RF-C`). `.primary` is the platform's shortcut
 modifier (⌘ on macOS, Ctrl elsewhere), so the same chord works on every
 platform; `typeText` reaches the field as text input, and `onKeyPress` runs
 before the field's own editing keys, so the handler decides the chord and a
@@ -185,6 +185,74 @@ it cannot rot; change both together.** (`harnessWindow` is the test target's hel
     #expect(model.text == "Ada", "the committed text is untouched")
 }
 ```
+
+### Recipe: driving an input method
+
+An input method (Pinyin, Kana, IBus) hands a field *marked text* first and
+the committed text later. `setMarkedText(_:selectedRange:)`,
+`commitMarkedText()` / `commitMarkedText(_:)` and `cancelMarkedText()` send
+the events the two platforms send (AppKit's `NSTextInputClient`, SDL's
+`TEXT_EDITING`) through `onInput`, so `Window`'s own composition path runs; they
+answer `false` and send nothing when no text field holds the caret, as a
+platform would. During composition `TestElement.value` is the **committed**
+text (divergence 325), and `markedText` / `markedSelection` read the window's
+composition. **This exact code is `HarnessInputMethodTests.swift`'s
+`theInputMethodRecipeRuns`; change both together.**
+
+```swift
+@MainActor final class ComposeRecipeModel {
+    var text = "hello"
+    var writes: [String] = []
+}
+
+@Test @MainActor func theInputMethodRecipeRuns() throws {
+    let model = ComposeRecipeModel()
+    let window = try harnessWindow {
+        TextField("Name", text: model.text) { model.writes.append($0); model.text = $0 }
+            .frame(width: Pixels(200), height: Pixels(24))
+            .accessibilityIdentifier("name")
+    }
+    try window.click(try window.element(identifier: "name"))
+
+    // The input method marks text: the field shows it, the model has not heard.
+    #expect(window.setMarkedText("ni"))
+    #expect(window.markedText == "ni")
+    #expect(model.writes.isEmpty)
+    #expect(try window.focusedElement?.value == "hello", "the AX value is the committed text")
+
+    // It commits the candidate it chose: one write, the marked text gone.
+    #expect(window.commitMarkedText("你"))
+    #expect(model.writes.count == 1)
+    #expect(window.markedText == "")
+
+    // A cancelled composition writes nothing.
+    window.setMarkedText("hao")
+    window.cancelMarkedText()
+    #expect(model.writes.count == 1)
+}
+```
+
+| Verb | Platform call it stands for |
+|---|---|
+| `setMarkedText(_:selectedRange:)` | `setMarkedText(_:selectedRange:replacementRange:)` / non-empty `TEXT_EDITING` |
+| `commitMarkedText()` | `unmarkText()`: the marked text becomes committed text |
+| `commitMarkedText(_:)` | `insertText(_:)`: the chosen candidate replaces the marked text |
+| `cancelMarkedText()` | empty `TEXT_EDITING`: nothing committed, the field as before |
+
+A composition does not survive its field losing focus (`IM-I`), as with
+AppKit. A selection written to a `selection:` binding while composing is held
+back and superseded by the commit (`SL-H`, divergence 326).
+
+### Undo after a selection write
+
+A selection written from code (a `selection:` binding set to a different
+range) ends the open typing group. After typing `a`, `b`, writing a caret at 0
+and typing `c`: the first ⌘Z removes only `c` and restores the written caret;
+the second removes `ab`. With no write between, one ⌘Z removes `abc`. A write
+equal to the field's own selection ends nothing. A commit of one grapheme
+continues an open typing group; a longer commit is its own undo step. Measured
+through the harness (`SL-O`, `IM-H`), pinned by
+`theUndoContractAfterASelectionWrite`.
 
 ## Queries
 
@@ -275,6 +343,32 @@ window.drag(from: start, to: end, steps: 8)
 #expect(window.lastFrameWork.layoutCacheMisses <= 6)
 #expect(window.lastFrameWork.rasterizedPixels == 0)
 ```
+
+## Measuring text
+
+`@Environment(\.textMeasurer)` answers the size a `Text` would lay out at, in
+a `Component`, with no layout (rulings `GT-B`…`GT-D`). A test measures in a
+component body, stores the answer in a plain class, and asserts it against the
+laid-out frame (within one point: frames are rounded to whole points):
+
+```swift
+@MainActor final class Measured { var size = Size<Pixels>(width: 0, height: 0) }
+struct Probe: Component {
+    let measured: Measured
+    @Environment(\.textMeasurer) var measurer
+    var content: some ElementGroup {
+        let _ = measured.size = measurer.resolve(Text("12.5 mm"))
+            .measure(in: Size(width: .infinity, height: .infinity))
+        Box().frame(width: 1, height: 1)
+    }
+}
+let window = try TestWindow { VStack(spacing: 0) { Probe(measured: m); Text("12.5 mm").id("t") } }
+let laid = try window.frame(ofID: "t")
+#expect(abs(m.size.width.value - laid.size.width.value) < 1)
+```
+
+Measuring adds no layout measure call and no build to a frame (test 1.4 counts
+it), so it is safe in a per-frame body.
 
 ## What it cannot do
 

@@ -1453,6 +1453,17 @@ agent cannot: these are looks, an input method and other platforms.*
   undo: the undo removes the typing, not the caret move (`SL-I`).
   **Observed:**
 
+## GT. Text over a GPU surface — measured labels (item C23, user request 2026-10-02, MetalCreator S5-c, not a plan task; record §99)
+
+*No demo changed and the fourteen images read 0 px; the measure and the portable layout cache
+are counted headless. This look is shared with MetalCreator's own check S5c-6. An agent
+cannot: a camera moving over a real viewport is a look.*
+
+- [ ] **GT1.** In a 20-label sketch (MetalCreator's viewport), labels sized with
+  `@Environment(\.textMeasurer)` get chips that hug their text (no 7-points-a-character
+  slack); moving the camera shows no label hitching on a Mac and on the SDL backend; labels
+  placed from a `MetalView` viewport's pose stay on their anchors during a pan. **Observed:**
+
 ## GC. Continuing press cancel — a lost release (item C26, user request 2026-10-02, MetalCreator VI-b, not a plan task; record §100)
 
 *Run `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` (a drag with `onCancelled` in the readout pad) or an app with a
@@ -1463,6 +1474,50 @@ reporting `DragGesture`. An agent cannot: these need a real lost release.*
   press starts a drag. **Observed:**
 - [ ] **GC2.** A real double-click on an element with `SpatialTapGesture(count: 2)` still fires the count-2 tap once
   and nothing spurious. **Observed:**
+
+## RF. Resign on press — `.resignsFocusOnPress()` (item C24, user request 2026-10-02, not a plan task; record 98)
+
+Run `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` (the root column carries the
+modifier). **An agent cannot post these events.** Rulings `RF-A`…`RF-H`; pinned
+headless by `ResignOnPressTests` and `ResignOnPressHarnessTests`.
+
+- [ ] **RF-1.** With a real mouse, click the Name field, then the blank padding
+  or a gap at the window's edge: the caret goes, typing goes nowhere. **Observed:**
+- [ ] **RF-2.** Click Name, then the Depth field: focus moves in one step, the
+  caret never flickers to nothing between. **Observed:**
+- [ ] **RF-3.** Focus a field, right-click the padding: any context menu opens
+  and the field stays focused (`MN-B`). Also check hovering the padding with
+  nothing focused and pressing Tab opens nothing (no key routing by hover).
+  **Observed:**
+
+## MT. Material follow-ups — Reduce Transparency and the tint read (item C27, user request 2026-10-02, not a plan task; record §101; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*Run `METALUI_LOOKS_DEMO=1 swift run MetalUIDemo` (the material section). **An agent cannot toggle the
+system's Reduce Transparency setting** (it changes the user's own settings; probe
+`swiftui-material-followups.swift` `T0`/`T1` could not move SwiftUI either).* Rulings `MT-A`…`MT-K`;
+pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` and `HarnessReduceTransparencyTests`.
+
+- [ ] **MT-1.** AppKit: with the looks demo open, turn System Settings ▸ Accessibility ▸ Display ▸ Reduce
+  transparency on and off; every material goes to its flat grey and back with no relaunch and no
+  flicker. Compare the grey against a SwiftUI app's `.regularMaterial` panel with the setting on
+  (divergence 315, `MT-F`): note the difference per scheme. **Observed:**
+- [ ] **MT-2.** AppKit: while the setting is on, Instruments (Metal System Trace) or Activity Monitor's
+  GPU history shows no backdrop blur passes in the looks demo. **Observed:**
+- [ ] **MT-3.** MetalCreator adoption (`Material.tint(in:)`): a glass panel at the solved tint
+  `t = 1 − (1 − g)/(1 − m)` over a grey backdrop hides `g` of it (compare the panel's pixel with
+  `1 − g` of the backdrop). **Observed:**
+
+## IM. Input-method driver — what only a real input method shows (item C28, user request 2026-10-02, MetalCreator CT-d, not a plan task; record §102)
+
+*An agent cannot: these need a real input method (Pinyin, Kana, IBus/fcitx, Windows IME) and VoiceOver.*
+
+- [ ] **IM1.** VoiceOver on a `TextField` while a Pinyin/Kana candidate is marked: the field is not re-announced
+  per keystroke; the input method announces its candidates (`IM-E`, divergence 325). **Observed:**
+- [ ] **IM2.** A real input method on macOS (Pinyin, Kana) and on SDL (IBus/fcitx or Windows IME): the marked text is
+  underlined at the caret, a commit writes once, Escape cancels and leaves a selected word intact (`IM-F`); the
+  candidate window sits at the caret (the harness sends the platforms' own events, `IM-B`, but cannot see this).
+  **Observed:**
+- [ ] **IM3.** Cancel over a selection on AppKit's own `NSTextField`, for comparison with `IM-F`. **Observed:**
 
 ## Sign-off
 

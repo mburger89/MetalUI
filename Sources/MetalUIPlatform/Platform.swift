@@ -84,6 +84,23 @@ public protocol PlatformWindow: AnyObject {
     /// `onAppearanceChange`'s reason.
     var onAccessibilityReduceMotionChange: ((Bool) -> Void)? { get set }
 
+    /// Whether the user asked the system to reduce transparency (`MT-D`,
+    /// C27). Read at window construction and re-read on every
+    /// `onAccessibilityReduceTransparencyChange`; `Window` stamps it over its
+    /// root environment's `accessibilityReduceTransparency`, and a material then
+    /// draws an opaque grey instead of a blur (`MT-F`). AppKit reads
+    /// `NSWorkspace.accessibilityDisplayShouldReduceTransparency`, as SwiftUI
+    /// does; SDL answers `false` (SDL3 has no query, `MT-E`).
+    ///
+    /// **No default implementation, for either requirement**
+    /// (`accessibilityReduceMotion`'s reason). **Migration**: a conformer outside
+    /// this repository adds `var accessibilityReduceTransparency: Bool { false }`
+    /// and `var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?`.
+    var accessibilityReduceTransparency: Bool { get }
+    /// Fired with the new value when the setting changes -- a passed value, for
+    /// `onAppearanceChange`'s reason.
+    var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)? { get set }
+
     var onClose: (() -> Void)? { get set }
 
     /// Fired by the platform when an accessibility client asks for something

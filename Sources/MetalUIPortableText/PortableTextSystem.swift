@@ -30,6 +30,10 @@ public final class PortableTextSystem: TextSystem {
         var generation: Int
     }
     private var measurements: [MeasureKey: Entry<TextMeasurement>] = [:]
+    /// The origin-free lines of a plain text (ruling GT-E), same key and same
+    /// two-frame lifetime: a label that only moves places cached lines. Styled
+    /// text is not cached here (ruling GT-H).
+    private var layouts: [MeasureKey: Entry<[LaidOutLine]>] = [:]
     /// A styled text's measurement key (ruling RT-F item 5): the whole value,
     /// so two run splits of one string are two entries.
     private struct StyledKey: Hashable {
@@ -43,6 +47,9 @@ public final class PortableTextSystem: TextSystem {
     private(set) var styledHits = 0
     private(set) var styledMisses = 0
     private var generation = 0
+    /// `PortableText.layOut` calls this system made for plain text — what the
+    /// layout cache (ruling GT-E) is counted by.
+    private(set) var layOutCount = 0
 
     /// The portable text system over `resolver`'s registered fonts — HarfBuzz,
     /// FreeType and libunibreak, no CoreText (`TS-C`).
@@ -76,9 +83,7 @@ public final class PortableTextSystem: TextSystem {
             return hit.value
         }
         let portable = registered(font)
-        let lines = trapping {
-            try PortableText.layOut(string, font: portable, wrappingAt: width, options: options).map(\.line)
-        }
+        let lines = laidOut(key, portable).map(\.line)
         let value = TextMeasurement(widestLine: lines.reduce(0) { max($0, $1.advance) },
                                     totalHeight: Double(lines.count) * portable.metrics.lineHeight)
         measurements[key] = Entry(value: value, generation: generation)
@@ -93,9 +98,8 @@ public final class PortableTextSystem: TextSystem {
     /// Each display line's character range when `string` is wrapped at `width`.
     public func lineRanges(_ string: String, font: FontKey, wrappingAt width: Double?,
                            options: TextLayoutOptions) -> [Range<Int>] {
-        trapping {
-            try PortableText.layOut(string, font: registered(font), wrappingAt: width, options: options).map(\.line.range)
-        }
+        let key = MeasureKey(string: string, font: font, width: width, options: options)
+        return laidOut(key, registered(font)).map(\.line.range)
     }
 
     /// The glyphs of `string` laid out at `width`, placed on the device pixel
@@ -104,10 +108,9 @@ public final class PortableTextSystem: TextSystem {
                             options: TextLayoutOptions,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let portable = registered(font)
-        let placements = trapping {
-            try PortableText.placements(string, font: portable, origin: origin, wrappingAt: width,
-                                        options: options, scaleFactor: scaleFactor).placements
-        }
+        let key = MeasureKey(string: string, font: font, width: width, options: options)
+        let placements = PortableText.placements(of: laidOut(key, portable), font: portable, origin: origin,
+                                                 wrappingAt: width, options: options, scaleFactor: scaleFactor)
         return placements.map { placement in
             let split = GlyphImage.subpixelPlacement(forDeviceX: placement.deviceX)
             return TextGlyph(key: GlyphKey(font: placement.font.key, glyph: placement.id, size: placement.font.size,
@@ -174,7 +177,22 @@ public final class PortableTextSystem: TextSystem {
     /// same two-frame lifetime `ShapingCache` gives its entries.
     public func endFrame() {
         measurements = measurements.filter { generation - $0.value.generation <= 1 }
+        layouts = layouts.filter { generation - $0.value.generation <= 1 }
         styledMeasurements = styledMeasurements.filter { generation - $0.value.generation <= 1 }
+    }
+
+    /// The origin-free lines of `key`'s string.
+    private func laidOut(_ key: MeasureKey, _ portable: PortableFont) -> [LaidOutLine] {
+        if let hit = layouts[key] {
+            layouts[key]?.generation = generation
+            return hit.value
+        }
+        layOutCount += 1
+        let lines = trapping {
+            try PortableText.layOut(key.string, font: portable, wrappingAt: key.width, options: key.options)
+        }
+        layouts[key] = Entry(value: lines, generation: generation)
+        return lines
     }
 
     private func registered(_ key: FontKey) -> PortableFont {

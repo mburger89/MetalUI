@@ -2227,9 +2227,45 @@ caret at the end; SL3 a Japanese input method composing in the title field while
 (`SL-H`); SL4 click, arrows and Shift-arrows publish to the binding; SL5 the same on Linux (SDL) and
 Windows; SL6 undo after "Caret to start" removes the typing, not the caret move (`SL-I`).
 
+## 2026-10-12: text over a GPU surface (record §99) — one look owed
+
+The fourteen offscreen images read 0 differing pixels against `d6a815c`; no demo changed and no
+real-window capture was taken. **Owed, new here — `docs/verification/human-checks.md` group GT,
+none performed (an agent cannot)**: GT1 measured chips hug a 20-label viewport's text, no hitching
+under camera motion on a Mac and on SDL, labels stay on their anchors during a pan (shared with
+MetalCreator's S5c-6).
+
 ## 2026-10-12: continuing press cancel (record §100) — looks owed
 
 The fourteen offscreen images read 0 differing pixels against `930db4a`; no window was driven. **Owed, new
 here — `docs/verification/human-checks.md` group GC, none performed (an agent cannot)**: GC1 a real orbit or
 drag interrupted by Mission Control or a native menu, then pressed again, gives one `onCancelled` and a new
 drag; GC2 a real double-click still fires a `count: 2` tap once.
+
+## 2026-10-12: resign on press (record §98) — looks owed
+
+The fourteen offscreen images read 0 differing pixels against `5f35df6`; the probe
+`swiftui-resign-on-press.swift` was taken with the screen locked (its controls reproduce the
+unlocked key-focus arms); no real mouse was used. **Owed, new here —
+`docs/verification/human-checks.md` group RF, none performed (an agent cannot)**: RF-1 a real click
+on the blank padding ends editing in the Name field (`METALUI_KEY_FOCUS_DEMO=1`); RF-2 Name to Depth
+is one move with no flicker; RF-3 a right-click on the padding resigns nothing and hovering it with
+nothing focused routes no Tab.
+
+## 2026-10-13: material follow-ups (record §101) — looks owed
+
+The fourteen offscreen images are compared against `930db4a` in record §101 §6; no window was driven and
+the system's Reduce Transparency setting was never touched (probe `swiftui-material-followups.swift` `T0`
+shows the swizzle cannot move SwiftUI). **Owed, new here — `docs/verification/human-checks.md` group MT,
+none performed (an agent cannot)**: MT-1 the system setting on and off turns every material to a flat grey
+and back with no relaunch, and the grey is compared with a SwiftUI material (divergence 315); MT-2 no
+backdrop blur passes while it is on; MT-3 MetalCreator's glass panel at the solved `Material.tint(in:)`
+hides the role's share of the backdrop.
+
+## 2026-10-12: input-method driver (record §102) — looks owed
+
+No window was driven and no real input method was run; the fourteen offscreen images are compared in §102 §5.
+**Owed, new here — `docs/verification/human-checks.md` group IM, none performed (an agent cannot)**: IM1
+VoiceOver on a field while a candidate is marked (`IM-E`); IM2 a real input method on macOS and SDL: underline at
+the caret, one write per commit, Escape keeps a selected word, the candidate window at the caret; IM3 cancel over a
+selection on AppKit's `NSTextField` for comparison.
