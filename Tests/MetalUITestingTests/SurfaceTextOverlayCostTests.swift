@@ -54,17 +54,30 @@ import Testing
     }
 }
 
-@Test @MainActor func measureTheOverlayCost() throws {
-    for (n, distinct) in [(0, true), (20, true), (100, true), (20, false), (100, false)] {
-        let model = CameraModel()
-        let counting = CountingTextSystem(harnessTextSystem())
-        let window = try overlayWindow(labels: n, distinct: distinct, model: model, counting: counting)
-        for _ in 0..<2 { model.phase += 1; window.window.setNeedsRedraw(); window.tick() } // warm
-        counting.reset()
-        window.resetFrameWork()
-        for _ in 0..<5 { model.phase += 1; window.window.setNeedsRedraw(); window.tick() }
-        let w = window.frameWork
-        let sum = w.dropFirst().reduce(w[0], +)
-        print("C23 n=\(n) distinct=\(distinct) per-frame: builds=\(sum.builds / 5) measureCalls=\(sum.layoutMeasureCalls / 5) hits=\(sum.layoutCacheHits / 5) misses=\(sum.layoutCacheMisses / 5) glyphs=\(sum.glyphs / 5) atlasUpload=\(sum.atlasUploadPixels / 5) | textSystem measure=\(counting.measures / 5) place=\(counting.places / 5) styled=\(counting.styledMeasures / 5) layOut=\(counting.layouts / 5) raster=\(counting.rasters / 5)")
-    }
+/// 1.10 — the C23 baseline (`GT-A`), for C14 to re-take: N moving `Text` labels
+/// over a `GPUSurface` cost, per camera frame, one build, N + 1 leaf measures,
+/// 2N text-system measures and N `placeGlyphs`, and no atlas upload, raster or
+/// texture. **Expected to change when C14 lands; the change is the result.**
+/// Mutation: a doubled `ForEach` reddens it.
+@Test(arguments: [20, 100]) @MainActor func theOverlayCostIsLinearAndCounted(labels n: Int) throws {
+    let model = CameraModel()
+    let counting = CountingTextSystem(harnessTextSystem())
+    let window = try overlayWindow(labels: n, distinct: true, model: model, counting: counting)
+    for _ in 0..<2 { model.phase += 1; window.window.setNeedsRedraw(); window.tick() } // warm
+    counting.reset()
+    window.resetFrameWork()
+    let frames = 5
+    for _ in 0..<frames { model.phase += 1; window.window.setNeedsRedraw(); window.tick() }
+    let w = window.frameWork
+    let sum = w.dropFirst().reduce(w[0], +)
+    try #require(w.count == frames)
+    #expect(sum.builds == frames)
+    #expect(sum.layoutMeasureCalls == frames * (n + 1))
+    #expect(sum.layoutCacheHits == frames * (n + 1))
+    #expect(sum.layoutCacheMisses == frames * (n + 2))
+    #expect(counting.measures == frames * 2 * n)
+    #expect(counting.places == frames * n)
+    #expect(sum.atlasUploadPixels == 0)
+    #expect(sum.rasterizedPixels == 0)
+    #expect(sum.newTextures == 0)
 }
