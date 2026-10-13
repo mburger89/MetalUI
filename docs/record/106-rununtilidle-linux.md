@@ -47,6 +47,12 @@ mutation reddens nothing** (the main-thread branch is still guarded by `isFlushi
 value-identical there, by construction, and the existing `ObservationTests` (the `observationDirtyings`
 pins) stay green.
 
+**Checker's mutations (macOS, full unfiltered suite).** Removing `isFlushing = false` from the `defer` reddened 122
+distinct tests (117 beyond the five sheet issues), so `isFlushing` stays load-bearing beside the thread check (RX-K).
+**`FlushingThread.isCurrent` widened to `thread != nil`** (drop any thread's write during a flush) **reddened nothing**:
+the clause "another thread's write still hops" is **unpinned**. Pinning it needs a second thread writing an
+`@Observable` while the flush runs; owner: the next change to `markDirtyFromObservation`.
+
 ## §5 Counts
 
 macOS, `swift package` native build, `swift test --build-system native --no-parallel`: **3584 tests in
