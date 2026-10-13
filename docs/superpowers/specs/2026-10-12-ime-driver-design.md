@@ -6,7 +6,7 @@ Prefix `IM-`. Decisions: [`../2026-10-12-ime-driver-decisions.md`](../2026-10-12
 Record: `../../record/102-ime-driver.md`. Branch `feat/ime-driver` from `3fce05f`. Divergence labels
 reserved: 325–334 (used: 325, 326). Probe: `docs/probes/swiftui-ime-composition.swift`.
 
-**Status: DESIGNED 2026-10-12.** One lane. Nothing outside `MetalUITesting`, tests and docs
+**Status: LANDED 2026-10-12 (record §102).** One lane. Nothing outside `MetalUITesting`, tests and docs
 changes behaviour, except `IM-I`'s conditional one-line `Window` fix.
 
 ## 1. The gap

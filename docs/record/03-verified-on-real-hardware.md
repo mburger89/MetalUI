@@ -2233,3 +2233,11 @@ The fourteen offscreen images read 0 differing pixels against `930db4a`; no wind
 here — `docs/verification/human-checks.md` group GC, none performed (an agent cannot)**: GC1 a real orbit or
 drag interrupted by Mission Control or a native menu, then pressed again, gives one `onCancelled` and a new
 drag; GC2 a real double-click still fires a `count: 2` tap once.
+
+## 2026-10-12: input-method driver (record §102) — looks owed
+
+No window was driven and no real input method was run; the fourteen offscreen images are compared in §102 §5.
+**Owed, new here — `docs/verification/human-checks.md` group IM, none performed (an agent cannot)**: IM1
+VoiceOver on a field while a candidate is marked (`IM-E`); IM2 a real input method on macOS and SDL: underline at
+the caret, one write per commit, Escape keeps a selected word, the candidate window at the caret; IM3 cancel over a
+selection on AppKit's `NSTextField` for comparison.

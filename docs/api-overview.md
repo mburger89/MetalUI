@@ -832,7 +832,7 @@ input by point and by element in XCUITest's names (`click`, `typeText`,
 (`frame(ofID:)`), presentations answered at the seam (`respondToAlert`,
 `chooseMenuItem`, `performToolbarItem`, the menu bar's `performMenuBarItem`,
 `MenuEvaluation`; `HeadlessPlatform` options such as `presentsMenusNatively` and `showsMenuBarNatively` choose whether the platform or the window draws) and per-frame work counters (`FrameWork`) for benchmarks
-that count work. SwiftUI tests UI out of process, so this is MetalUI-only.
+that count work, and an input-method driver beside `typeText` (M; `IM-A`, record §102: `setMarkedText(_:selectedRange:)`, `commitMarkedText()`, `commitMarkedText(_:)`, `cancelMarkedText()`, `markedText`, `markedSelection`, sending the platforms' own composition events through `onInput`). SwiftUI tests UI out of process, so this is MetalUI-only.
 How an app uses it: [`testing.md`](testing.md).
 
 ## Backends and infrastructure — M

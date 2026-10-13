@@ -1464,6 +1464,18 @@ reporting `DragGesture`. An agent cannot: these need a real lost release.*
 - [ ] **GC2.** A real double-click on an element with `SpatialTapGesture(count: 2)` still fires the count-2 tap once
   and nothing spurious. **Observed:**
 
+## IM. Input-method driver — what only a real input method shows (item C28, user request 2026-10-02, MetalCreator CT-d, not a plan task; record §102)
+
+*An agent cannot: these need a real input method (Pinyin, Kana, IBus/fcitx, Windows IME) and VoiceOver.*
+
+- [ ] **IM1.** VoiceOver on a `TextField` while a Pinyin/Kana candidate is marked: the field is not re-announced
+  per keystroke; the input method announces its candidates (`IM-E`, divergence 325). **Observed:**
+- [ ] **IM2.** A real input method on macOS (Pinyin, Kana) and on SDL (IBus/fcitx or Windows IME): the marked text is
+  underlined at the caret, a commit writes once, Escape cancels and leaves a selected word intact (`IM-F`); the
+  candidate window sits at the caret (the harness sends the platforms' own events, `IM-B`, but cannot see this).
+  **Observed:**
+- [ ] **IM3.** Cancel over a selection on AppKit's own `NSTextField`, for comparison with `IM-F`. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

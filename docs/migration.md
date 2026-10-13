@@ -364,6 +364,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | **SDL: `SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE` is `"0"`** (set by `SDLPlatform`'s initialiser), so SDL itself never sends `SDL_EVENT_QUIT` after the last window's close request; **`SDL_EVENT_QUIT` asks `onTerminateRequest` before stopping** (with none set it stops, as before) and **a window's close request asks `onCloseRequest`** (with none set it closes, as before); a file dropped on the application with no window (SDL's Cocoa `openFile:`) reaches `onOpenURLs` — it reached nobody | nothing for an app with no handlers; an app that relied on SIGINT ending the loop unconditionally sets no `onTerminateRequest` | `AS-B` item 6, `AS-C` item 8, `AS-G` item 5, `AS-L` |
 | **Closing one of several windows no longer ends the app on AppKit** (at `c62d6ba` every window's close called `NSApplication.terminate`); the last window's close still does, now through `Platform.terminate()`, and `App.windows` drops a window when it closes | nothing for a one-window app; a multi-window app that relied on any close quitting calls `app.terminate()` from that window's `onCloseRequest` or `onDisappear` | `AS-C` item 5, `AS-K` |
 | **⌘Q, a system quit, `SDL_EVENT_QUIT` and `App.terminate()` close every window first**: with no `App.onTerminateRequest`, each window's `Window.onCloseRequest` is asked in turn (a `.cancel` cancels the quit), and each window's `onDisappear` now runs on quit (at `c62d6ba` none ran) | nothing for an app with no handlers; an `onDisappear` that must not run at quit checks its own state; an app whose windows should not be asked sets `App.onTerminateRequest` | `AS-C` items 2–3 |
+| **a composition does not survive its field losing focus** (input-method driver): `Window.focusedElement`'s `didSet` drops the marked text of a text field that lost focus (measured red first: the stale marked text came back when the field was refocused); committed text is untouched | none; nothing relied on it | `IM-I` |
 | `Window.title`, `isDocumentEdited`, `representedURL`, `windowStyle`, `onCloseRequest`, `isCloseRequestPending`, `replyToCloseRequest(_:)`, `close()`, `performClose()`; `App.onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURL`, `open(_:)`; `WindowStyle`; `EnvironmentValues.titleBarInsets`; `.navigationTitle(_:)`, `.navigationDocument(_:)`, `.onOpenURL(perform:)`; `openWindow(…, windowStyle:)` exist: an app's own member or method of one of these names on these types is now ambiguous or shadowed | rename the app's own | `AS-B`…`AS-G` |
 | `PointerStyle`, `FrameResizePosition`, `FrameResizeDirection`, `.pointerStyle(_:)`, `.onScrollWheel(perform:)`, `PointerStyleModifier` and `ScrollWheelModifier` exist: an app's own type or method of one of those names is now ambiguous or shadowed | rename the app's own | `CI-H`, `CI-I` |
 | `MemoryLayout<Handlers>.size` is 480 (was 472): one more reference member, `pointer` (internal) | nothing | `CI-Q` |
@@ -411,6 +412,13 @@ waits for a threshold chosen against them (`PE-T`).
 None: additive. `TextSelection` and the `selection:` initialisers are `@available(macOS 15, *)`; no
 `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added, so no conformer
 changes. A field with no `selection:` runs no new code beyond one `nil` check.
+
+### Input-method driver (`IM-`, record §102)
+
+None for the API: additive (`TestWindow.setMarkedText`, `commitMarkedText`, `cancelMarkedText`, `markedText`,
+`markedSelection`); no `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added, so no
+conformer changes. One behaviour change (`IM-I`, a row in the table above): a text field that loses focus while
+an input method is composing drops that composition, so a field refocused later no longer shows stale marked text.
 
 ## See also
 
