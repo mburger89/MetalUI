@@ -4,6 +4,8 @@ Rulings: [`../2026-10-12-material-followups-decisions.md`](../2026-10-12-materia
 (`MT-A`…`MT-H`). Probe: `docs/probes/swiftui-material-followups.swift`. Branch
 `feat/material-followups` from `930db4a`.
 
+**Status: LANDED** (record §101). Rulings `MT-A`…`MT-K`. Test 2's mutation reads "returns an opaque colour" (`opacity(1)` is an equivalent mutant, `MT-K`).
+
 ## API
 
 ```swift

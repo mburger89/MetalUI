@@ -12,12 +12,12 @@ Evidence: [`../probes/swiftui-material-followups.swift`](../probes/swiftui-mater
 header). SwiftUI's answer is the authority; gpui is not read (SwiftUI answers the API question,
 and the platform seam is the reduce-motion pattern).
 
-Prefix **`MT-`**, lettered. **Next unused: `MT-K`.** (This line moves in the commit that
+Prefix **`MT-`**, lettered. **Next unused: `MT-L`.** (This line moves in the commit that
 appends a ruling; read the last `## MT-` heading.)
 
 Branch `feat/material-followups` from `930db4a`. `docs/divergences.md`: this branch's reserved
 labels are **315–324**; `MT-F` uses 315; the header's next-label line is the merge's.
-Human checks: group **MT** (provisional).
+Human checks: group **MT** (provisional; MT-1…MT-3).
 
 ## MT-A — What SwiftUI answers (probe, positive control and separating arm per claim)
 
@@ -176,3 +176,17 @@ guard; the snap is by construction (`fillMaterial` draws through `fill`, never
 
 **Cost if wrong.** A material whose colour is animated between two opaque states (none
 exists) would need a real arm.
+
+## MT-K — Record phase: the ledger, the evidence that is owed, what was not re-run
+
+**Ruling.** (1) Divergence **315** is added and **249 retired** (the label never reused): live
+count unmoved at 149; the header's next-label line is the merge's. (2) The inventory map's
+`materials` family gains `315` and `MT-B MT-C MT-F`; the environment key stays in the
+`environment-control` family (SwiftUI-aligned, read-only). (3) The verifiers' mutations
+(record §101 §4) are the only ones recorded as run; the implementer's wider set (nine guards)
+is not claimed. (4) **Not re-run by the verifiers or the record writer unless record §101 §6
+says so**: `Backends/SDL` tests on macOS, the Linux image, the real-window capture. (5) The
+spec's test-2 mutation reads "returns an opaque colour", not `opacity(1)`: `Color.opacity`
+multiplies, so `fill.opacity(1)` is an equivalent mutant (the lane A verifier's finding).
+
+**Cost if wrong.** A later re-run that reddens a claim here is a finding for `MT-L`.

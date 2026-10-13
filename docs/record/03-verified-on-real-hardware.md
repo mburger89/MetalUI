@@ -2251,3 +2251,13 @@ unlocked key-focus arms); no real mouse was used. **Owed, new here —
 on the blank padding ends editing in the Name field (`METALUI_KEY_FOCUS_DEMO=1`); RF-2 Name to Depth
 is one move with no flicker; RF-3 a right-click on the padding resigns nothing and hovering it with
 nothing focused routes no Tab.
+
+## 2026-10-13: material follow-ups (record §101) — looks owed
+
+The fourteen offscreen images are compared against `930db4a` in record §101 §6; no window was driven and
+the system's Reduce Transparency setting was never touched (probe `swiftui-material-followups.swift` `T0`
+shows the swizzle cannot move SwiftUI). **Owed, new here — `docs/verification/human-checks.md` group MT,
+none performed (an agent cannot)**: MT-1 the system setting on and off turns every material to a flat grey
+and back with no relaunch, and the grey is compared with a SwiftUI material (divergence 315); MT-2 no
+backdrop blur passes while it is on; MT-3 MetalCreator's glass panel at the solved `Material.tint(in:)`
+hides the role's share of the backdrop.
