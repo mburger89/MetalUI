@@ -160,9 +160,7 @@ Root target, by file (counted by name; the suite total is §4):
     `hostView.forgetHeldPress()` removed (a clear-after-act call not in the implementer's table):
     reddened `appKitASecondDownReplacesTheStoredPressAndASecondaryDownIsNotStored` (2 issues) and
     `appKitWindowDragActsOnlyDuringTheDraggedEventOfAHeldPress` (1 issue).
-  - **Not mutated by anyone**: `windowWillClose`'s `forgetHeldPress()` — the close-clears-the-press
-    claim has no confirmed reddening test (`AppKitWindowDragTests` 4.2 pins the up and `resignKey`).
-    Owner: none; add a pin if the claim is relied on.
+  - `windowWillClose`'s `forgetHeldPress()`: closed by §8.
 - **Counts.** Lane 1 (`458ae26`): **3424 tests**, five issues all the locked screen's
   `AppKitPresentationTests` sheet tests (`CI-AF`). Lane 2 (`6c4d47d`): **3427 tests in 3 suites**,
   the same five, `FR-J no-argument frame: succeeded=true`, 0 `error:`, `swift build --build-tests`
@@ -223,3 +221,17 @@ Root target, by file (counted by name; the suite total is §4):
    affected today.
 6. **Looks owed, none performed (an agent cannot)**: `docs/verification/human-checks.md` group **WD**
    (WD1–WD7); the screen was locked for both lanes.
+
+## §8 The close-clears-the-press gap (closed, 2026-10-12)
+
+`windowWillClose`'s `hostView.forgetHeldPress()` had no reddening test (§4). Test 4.4
+`appKitWindowWillCloseForgetsTheHeldPress` (`AppKitWindowDragTests`) holds a press, delivers the
+close through `appKit.windowWillClose(Notification(name: NSWindow.willCloseNotification, ...))`
+(never a real `performClose(_:)`, `AS-O` item 7), and expects `heldPress == nil` and a later drag
+dispatch answering `false` with nothing dragged.
+
+**Mutation** (`AppKitPlatform.swift`, the call removed from `windowWillClose` only; restored from a
+copy, `git status --short` empty): full unfiltered `swift test --build-system native --no-parallel`,
+`Test run with 3441 tests in 3 suites failed after 556.422 seconds with 7 issues`: the five
+`AppKitPresentationTests` sheet tests (locked screen, `CI-AF`) and
+`appKitWindowWillCloseForgetsTheHeldPress` (2 issues, both expectations). Nothing else reddened.
