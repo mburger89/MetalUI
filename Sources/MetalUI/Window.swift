@@ -708,6 +708,16 @@ public final class Window {
     /// flush happening to run on the main thread, rather than resting on that.
     private var isFlushing = false
 
+    /// The thread currently running the sentinel flush, readable from the
+    /// thread `onChange` fires on (ruling `RU-A`). `isFlushing` is main-actor
+    /// state, so a callback that is not on the main *thread* can only read it
+    /// after a hop — by which time the flush has returned and it reads
+    /// `false`. Where the main actor is not the main thread (Swift Testing and
+    /// `TestWindow` on Linux), every flush's own `onChange` took that hop and
+    /// dirtied the window again, forever. The flush fires `onChange`
+    /// synchronously on its own thread, so this identity recognises it there.
+    private nonisolated let flushingThread = FlushingThread()
+
     /// Whether `drainLifecycle()` is running (ruling `LC-E` item 4).
     private var isDrainingLifecycle = false
 
@@ -1420,6 +1430,10 @@ public final class Window {
     /// cause to redraw — nobody has written it, and per this project's
     /// taxonomy shape 4, its absence must be stated rather than left silent.
     nonisolated private func markDirtyFromObservation() {
+        // The sentinel flush's own change, on the flushing thread: nothing to
+        // dirty, whether or not that thread is the process's main thread
+        // (`RU-A`). Another thread's write still hops below.
+        if flushingThread.isCurrent { return }
         if Thread.isMainThread {
             MainActor.assumeIsolated {
                 guard !self.isFlushing else { return }
@@ -1499,7 +1513,11 @@ public final class Window {
         // not a live bug it is presently papering over.
         do {
             isFlushing = true
-            defer { isFlushing = false }
+            flushingThread.set(Thread.current)
+            defer {
+                isFlushing = false
+                flushingThread.set(nil)
+            }
             redrawSentinel.tick &+= 1
         }
 
@@ -3326,5 +3344,27 @@ public final class Window {
 
     private func topmostHitboxOwner(at point: Point<Pixels>) -> GlobalElementID? {
         topmostOpaqueHitbox(in: lastHitboxes, at: point).map { lastHitboxes[$0].id }
+    }
+}
+
+
+/// The thread running a window's sentinel flush, readable from any thread
+/// (ruling `RU-A`). A lock, not an actor: `markDirtyFromObservation` is
+/// `nonisolated` and must decide before it hops.
+private final class FlushingThread: @unchecked Sendable {
+    private let lock = NSLock()
+    private var thread: Thread?
+
+    func set(_ thread: Thread?) {
+        lock.lock()
+        self.thread = thread
+        lock.unlock()
+    }
+
+    /// Whether the calling thread is the one flushing now.
+    var isCurrent: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return thread === Thread.current
     }
 }
