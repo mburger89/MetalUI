@@ -58,6 +58,6 @@ The five other issues are the `AppKitPresentationTests` sheet issues of a locked
 **3629 tests in 3 suites** (3624 + 5), 0 goldens, 229 typecheck guards unmoved. Native run: exactly the five
 `AppKitPresentationTests` sheet issues of a locked screen (the lock probe read `CGSSessionScreenIsLocked = 1`,
 `displayAsleep main: 1`, so no real-window capture was taken), 0 `error:`, `FR-J no-argument frame: succeeded=true`.
-Inventory and undocumented scripts print nothing. The fourteen offscreen images: see the commit message of the
-final commit. Not run: the Linux image (no `Backends/SDL` change; the guide tests are portable and were
+Inventory and undocumented scripts print nothing. The fourteen offscreen images: 0 px, scene identical,
+against `b17aee19` (`docs/probes/demo-pixels/compare.sh`, controls as recorded). `swift build --build-tests` 0 warnings. Not run: the Linux image (no `Backends/SDL` change; the guide tests are portable and were
 not re-taken there).
