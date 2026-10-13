@@ -549,6 +549,7 @@ public final class Frame {
                          "Frame.rootEnvironment set during render: it would replace every open scope's values (ruling EV-Z)")
             var values = newValue
             values.theme = rootTheme
+            values.textSystemBox = storedRootEnvironment.textSystemBox
             values.displayScale = Self.displayScale(forScaleFactor: scaleFactor)
             storedRootEnvironment = values
             environmentTop = values
@@ -583,6 +584,7 @@ public final class Frame {
         case .transform(let transform):
             transform(&values)
             values.theme = environmentTop.theme
+            values.textSystemBox = environmentTop.textSystemBox   // GT-D: a reset keeps the measurer's system
             // A scope that changes the scheme gets the window's variant for
             // it (rulings `CR-K` item 2, `CR-S`): SwiftUI's subtree flips with
             // the write (probe `V1`), so the tokens flip too. Pinned by
@@ -2432,6 +2434,7 @@ public final class Frame {
         self.darkTheme = darkTheme
         var root = EnvironmentValues()
         root.theme = theme
+        root.textSystemBox = TextSystemBox(self.textSystem)
         root.displayScale = Self.displayScale(forScaleFactor: scaleFactor)
         self.storedRootEnvironment = root
         self.environmentTop = root

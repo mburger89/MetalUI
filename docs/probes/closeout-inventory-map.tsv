@@ -207,6 +207,7 @@ F	anchored-overlay	M	swiftui-overlays-coords.swift	A1	anOverlayPutsItsTopLeading
 
 F	test-harness-host	M	-	-	-	-	HT-A HT-B HT-C HT-D HT-E HT-F HT-G HT-I HT-J HT-K HT-S	MetalUITesting (lane 1, the host): HeadlessPlatform/HeadlessPlatformWindow/HeadlessWindowRenderer implementing every platform requirement (recorded requests, simulated events, AppKit-default options), TestApp/TestWindow over the real App.openWindow, input by point with AppKit key routing, a simulated clock and runUntilIdle, resize/scale/appearance/close, frame(ofID:) laid-out rects, FrameWork per presented frame; MetalUI-only: SwiftUI has no in-process harness (probe swiftui-xcuitest-test-surface.sh, S1)
 F	test-harness-inspection	M	-	-	-	-	HT-B HT-G HT-H HT-R HT-T	MetalUITesting (lane 2, inspection): TestElement snapshots of the published accessibility tree, queries by identifier/label/role/predicate in tree pre-order, focusedElement, accessibility actions and focus, input aimed at an element's visible-frame centre (.notHittable at zero area), the latest unanswered native alert/file dialog/menu and the native toolbar answered as queued InputEvents, the menu bar read from PlatformMenuBar.content() at each read and performed, MenuEvaluation over MenuSession.number; MetalUI-only: SwiftUI has no in-process harness (probe swiftui-xcuitest-test-surface.sh, S1)
+F	text-measurer	M	-	-	-	295 296	GT-B GT-C GT-D GT-I	TextMeasurer/TextMeasurer.ResolvedText/EnvironmentValues.textMeasurer: SwiftUI's GraphicsContext.resolve(_:) + ResolvedText.measure(in:) with the environment as carrier (probe swiftui-surface-text.swift A0-G); the unrounded size layout gives a Text/ProposalText under a proposal through resolveTextStyle and the frame's text system, no layout, no state; an empty Text is one line tall (295); get-only, no public initialiser, traps with no stamped system
 
 # ---------------------------------------------------------------- MetalUI
 M	MetalUI	AccessibilityAdjustment.swift	.*	.*	.*	accessibility-modifiers
@@ -543,4 +544,5 @@ M	MetalUI	ScrollWheel.swift	.*	.*	.*	input-apis-wheel
 M	MetalUITesting	(TestHarnessError|HeadlessPlatform|HeadlessPlatformWindow|HeadlessWindowRenderer|TestApp|TestWindow|TestWindowInput|FrameWork)\.swift	.*	.*	.*	test-harness-host
 M	MetalUITesting	(TestElement|TestWindowQueries|TestWindowElementInput|TestWindowPresentations|TestAppMenuBar|MenuEvaluation)\.swift	.*	.*	.*	test-harness-inspection
 M	MetalUI	ModifierKeysChange.swift	.*	.*	.*	input-followups-modkeys
+M	MetalUI	TextMeasurer.swift	.*	.*	.*	text-measurer
 M	MetalUI	WindowDragGesture.swift	.*	.*	.*	window-drag

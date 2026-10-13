@@ -276,6 +276,32 @@ window.drag(from: start, to: end, steps: 8)
 #expect(window.lastFrameWork.rasterizedPixels == 0)
 ```
 
+## Measuring text
+
+`@Environment(\.textMeasurer)` answers the size a `Text` would lay out at, in
+a `Component`, with no layout (rulings `GT-B`…`GT-D`). A test measures in a
+component body, stores the answer in a plain class, and asserts it against the
+laid-out frame (within one point: frames are rounded to whole points):
+
+```swift
+@MainActor final class Measured { var size = Size<Pixels>(width: 0, height: 0) }
+struct Probe: Component {
+    let measured: Measured
+    @Environment(\.textMeasurer) var measurer
+    var content: some ElementGroup {
+        let _ = measured.size = measurer.resolve(Text("12.5 mm"))
+            .measure(in: Size(width: .infinity, height: .infinity))
+        Box().frame(width: 1, height: 1)
+    }
+}
+let window = try TestWindow { VStack(spacing: 0) { Probe(measured: m); Text("12.5 mm").id("t") } }
+let laid = try window.frame(ofID: "t")
+#expect(abs(m.size.width.value - laid.size.width.value) < 1)
+```
+
+Measuring adds no layout measure call and no build to a frame (test 1.4 counts
+it), so it is safe in a per-frame body.
+
 ## What it cannot do
 
 Each is a ruled deferral (`HT-Q`):
