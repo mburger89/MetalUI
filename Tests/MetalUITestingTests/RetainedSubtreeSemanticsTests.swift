@@ -605,16 +605,44 @@ private struct RSIdleKeyframes: Component, @MainActor Equatable {
     for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
     f = rsFrame(window)
     #expect(f.retainedHits == 2, "settled: both replay again: \(f.retainedHits)/\(f.retainedMisses)/\(f.retainedIneligible)")
-    // The settled animation's entries were kept alive by the replays (`SB-I`, the recorded touches): the
-    // next flip animates from where it was instead of snapping to its target.
+}
+
+// MARK: 1.10b — a replay keeps the animation store's entries alive
+
+/// A box whose colour follows `tint` under `.animation(value:)`, always `==`.
+private struct RSTinted: Component, @MainActor Equatable {
+    let model: RSModel
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(40), height: Pixels(10))
+            .background(model.tint == 0 ? Color.black : Color.white)
+            .animation(.linear(duration: 1), value: model.tint)
+    }
+    static func == (l: RSTinted, r: RSTinted) -> Bool { true }
+}
+
+/// 1.10b (`SB-I`) — the colour's `AnimatedColorState` lives in the window's `AnimationStore` and is swept when a
+/// frame does not touch it. A replayed frame paints nothing, so the record replays the touch; without it a
+/// subtree settled for a few frames loses its entry, and the next change snaps instead of animating.
+/// Mutation: the recorded touches not replayed — the flip is at its target after 0.3 s.
+@Test @MainActor func aReplayKeepsTheAnimationStoresEntriesSoTheNextChangeAnimates() async throws {
+    let model = RSModel()
+    let window = try TestWindow(size: sz(200, 60), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) { RSTinted(model: model).equatable() }
+    }
+    for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
+    var f = rsFrame(window)
+    try #require(f.retainedHits == 1, "settled and replaying")
     for _ in 0..<6 { window.window.setNeedsRedraw(); window.tick() }
-    flag.on = false
+    let start = window.scene.rects.last?.background.l ?? -1
+    model.tint = 1
     await rsSettle()
     window.window.setNeedsRedraw(); window.tick()
     window.advance(by: 0.3)
     window.window.setNeedsRedraw(); window.tick()
-    let mid = window.scene.rects.last?.background.a ?? 0
-    #expect(mid > 0.3 && mid < 0.95, "the flip back is mid-animation after 0.3 s, not snapped: \(mid)")
+    f = window.lastFrameWork
+    let c = window.scene.rects.last?.background
+    let now = c?.l ?? -1
+    #expect(now > start + 0.05 && now < 0.95, "mid-animation after 0.3 s, not snapped: lightness \(now) from \(start)")
 }
 
 // MARK: 1.3 — every key component separates
