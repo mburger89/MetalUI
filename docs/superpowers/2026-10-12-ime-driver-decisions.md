@@ -11,7 +11,7 @@ It drives a SwiftUI `TextField`/`TextEditor`'s field editor through `NSTextInput
 side is recalled and rests no ruling (`EntityInputHandler::replace_and_mark_text_in_range` /
 `unmark_text`: a handler the platform calls, no test driver in the crate).
 
-**Next unused id: `IM-J`.**
+**Next unused id: `IM-K`.**
 
 ## IM-A — Three verbs beside `typeText`, named for the platform calls they stand for
 
@@ -152,3 +152,28 @@ in the record (no public API changes; a field refocused after an abandoned compo
 stale marked text). If it is green on arrival (the platform's own caret-nil path already clears),
 the test stays as the pin. **Cost if wrong**: low; an abandoned composition's stale underline
 is the current worst case.
+
+## IM-J — Critic's amendments (2026-10-12): a mutation that was the code as it stands, a miscount, and a probe confound
+
+1. **Test 5.13's mutation was not a mutant.** `TextEditing.compose` applies `singleLine` to every
+   composition, `TextEditor` included, so "singleLine applied to a TextEditor" is today's code and
+   reddens nothing. Replaced by the `display` splice (`TextField.swift` 254–261) placing a
+   `TextEditor`'s marked text at the end instead of at the caret. A line break in a `TextEditor`'s marked
+   text is dropped today; no input method sends one; deferred in spec §9, no label.
+2. **The census delta is +7, not 8**: four functions (`commitMarkedText` is two overloads), two
+   `TestWindow` properties, one `HeadlessPlatformWindow` property.
+3. **The probe's arms start select-all, not caret-at-end.** Re-run byte for byte on 2026-10-12 (arms U and W,
+   unlocked, compiled; the same lines as the header): the setup shows `sel->sel@0..5` (a focus
+   from code selects all), so U's `text=ni` is the commit replacing "hello" and A's `editor='ni'` is
+   the marked text replacing the selection in the editor's string. This **agrees** with `IM-F`'s
+   display (marked text spliced over the selection) and does not touch `IM-G`'s end state (the
+   binding after the commit is the caret after the committed text, `ins@2`); but `IM-G` and
+   `IM-F` compare MetalUI's caret-at-end tests with SwiftUI's select-all arms, so only the
+   *shape* of each reading is claimed, not a text equality. D2 (`editor=''` after the clear while the model
+   keeps "hello") still cannot say whether SwiftUI restores the selection after a cancel; `IM-F` stays a MetalUI
+   ruling with human check IM-3.
+4. **Divergence 325 is worded against AppKit's field editor, not against SwiftUI's element**: the
+   probe cannot read the SwiftUI element's own AX value (`ax=[]`), so the row says "differs from the
+   field editor's value; the SwiftUI element is unprobed" and takes no claim about SwiftUI itself.
+5. **Rejected**: making the verbs return `Void` like `typeText` (a defect: a test forgetting to focus
+   would pass silently; `IM-C` keeps the `Bool`); a `Bool`-free `unmarkText()` spelling (`IM-A`).

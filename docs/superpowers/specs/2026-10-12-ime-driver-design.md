@@ -105,14 +105,14 @@ and does nothing; the mutations below are the real separating arms.
 | 5.3 | `commitMarkedTextWithACandidateReplacesTheMarkedText` | marked "ni" then `commitMarkedText("你")` → "hello你", 1 write | verb sends the marked text instead of the argument |
 | 5.4 | `cancelMarkedTextRestoresTheFieldAndWritesNothing` | field "hello world" with "world" selected; `setMarkedText("ni")`; cancel → text unchanged, selection still 6..<11, 0 writes, `markedText == ""` (IM-F) | cancel sends `.textInput("")` (a commit that deletes the selection) |
 | 5.5 | `aSelectionRangeInTheMarkedTextIsKept` | `setMarkedText("ni hao", selectedRange: 3..<6)` → `markedSelection == 3..<6`; clamped for 10..<20 → 6..<6 | range ignored (always end) |
-| 5.6 | `aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit` | selection binding: `ins@5`; compose "ni"; model writes `span(0,1)` + `redraw`, tick; the log gains **no** publish and the field's caret is not 0..<1 (`markedSelection` still 2..<2); after commit `published.last == 7..<7` (caret after "helloni") and the held write is gone from the field; control: same write with no composition applies (`published` unchanged, selection 0..<1) | `reconcile`'s `guard state.composition.text.isEmpty` removed (`TextEditing.swift:307`); and `publication`'s same guard removed (publishes mid-composition) — **both** spellings |
+| 5.6 | `aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit` | selection binding: `ins@5`; compose "ni"; model writes `span(0,1)` + `redraw`, tick; the log gains **no** publish and the field's caret is not 0..<1 (`markedSelection` still 2..<2); after commit `published.last == 7..<7` (caret after "helloni") and the held write is gone from the field; control: same write with no composition applies (`published` unchanged, selection 0..<1) | `reconcile`'s `guard state.composition.text.isEmpty` removed (`TextEditing.swift`, the guard after the `nil`-binding one); and `publication`'s same guard removed (publishes mid-composition) — **both** spellings |
 | 5.7 | `theFieldsAccessibilityValueIsTheCommittedTextWhileComposing` | `focusedElement?.value == "hello"` before, during (`"ni"` marked, and after update) and `"helloni"` after commit | AX node built from the displayed (spliced) string |
 | 5.8 | `typingWhileComposingBelongsToTheInputMethod` | `typeKey(.leftArrow)` and `typeKey(.delete)` while marked change neither text nor `markedSelection` | the `composition.text.isEmpty` early return in `TextEditing.keyDown` (line 136) removed |
 | 5.9 | `anInputMethodCannotBeDrivenWithoutAFocusedField` | no field focused: each verb answers `false`, `markedText == ""`, no event reaches `Window` (text unchanged); a click focuses, then `setMarkedText` answers `true` | `isTextInputActive` guard removed |
 | 5.10 | `theHeadlessPlatformDropsMarkedTextWhenTheCaretGoes` | mirror `markedText` non-empty while composing; `setTextInputArea(nil)` → `""` and no event | `setTextInputArea` does not clear the mirror |
 | 5.11 | `aCompositionDoesNotSurviveItsFieldLosingFocus` (`IM-I`) | compose "ni" in field A, focus B from code, refocus A: `markedText == ""` and the model's text is "hello"; **measured first** (may be red on arrival: the fix is `IM-I`'s) | the fix removed (or, if green on arrival, the platform-clear path removed) |
 | 5.12 | `aCompositionIntoATextFieldsBindingReachesTheModelsDraft` | a `Binding<String>` draft model with `didSet` log: the draft sees **only** committed text, once per commit; a two-step "n", "ni", commit "你" gives the single write "hello你"; guard against a regression in how a field hands a composition to a model | `Window.dispatch .textComposition` also calls `applyEdit` |
-| 5.13 | `aTextEditorComposesLikeAField` | 5.1/5.2 on a `TextEditor`, multi-line text, caret mid-text: marked text spliced at the caret (`markedSelection` in marked coordinates), commit inserts at the caret | `compose` ignores `multiline` handling (`singleLine` applied to a `TextEditor` composition: a newline in marked text is dropped) |
+| 5.13 | `aTextEditorComposesLikeAField` | 5.1/5.2 on a `TextEditor`, multi-line text, caret mid-text: marked text spliced at the caret (`markedSelection` in marked coordinates), commit inserts at the caret | the `display` splice in `TextField.swift` (lines 254–261) puts a `TextEditor`'s marked text at the end of the text instead of at the caret (`IM-J` 1: the earlier newline mutation was the code as it stands, not a mutant) |
 | 5.14 | `theUndoContractAfterASelectionWrite` (`IM-H`) | cases (1)–(4) of `IM-H`, measured; **expected values written from the measurement** into the test and into `SL-O` and `docs/testing.md` | `reconcile` stops clearing `openGroup` (4.17's mutation) and `recording` keeps the old selection — both |
 | 5.15 | `aCommitOfOneGraphemeContinuesTheTypingGroupAndALongerOneDoesNot` (`IM-H` (5)) | type "a", compose "你" commit, ⌘Z → "" (one step); type "a", compose "你好" commit, ⌘Z → "a" | `insert`'s `inserted.count == 1` kind rule changed |
 | 3.4 | `theCompositionHookIsUnreachableFromAPlainImport` | typecheck guard | `package` → `public` |
@@ -143,8 +143,8 @@ spelling mutated. A mutation that reddens nothing is the finding.
   alternation (or a row of its own, class `M`, family `test-harness-host`, rulings
   `IM-A IM-B IM-C IM-D`), then `zsh docs/probes/closeout-inventory-check.sh`,
   `closeout-undocumented.sh` print nothing and re-record the census with
-  `closeout-public-api.sh` (+7 public declarations: 4 verbs counted per overload = 5 functions, 2
-  properties on `TestWindow`, 1 on `HeadlessPlatformWindow`).
+  `closeout-public-api.sh` (+7 public declarations: 4 functions (`commitMarkedText` counted per overload), 2
+  properties on `TestWindow`, 1 on `HeadlessPlatformWindow`; `IM-J` 2).
 * Record `docs/record/102-ime-driver.md`, CLAUDE.md/AGENTS.md rule, `README`/`api-overview`
   ("Record" phase, not this one): a two-sentence `HT-` rule: the input-method verbs send the
   platforms' own events and answer `false` with no focused field.
@@ -173,6 +173,7 @@ images are 0 px against `3fce05f` (`docs/probes/demo-pixels/compare.sh <scratch>
 | Attributed marked text (clause segmentation, underline styles) | `validAttributesForMarkedText` is `[]`; MetalUI draws one underline | none |
 | Candidate-window position read-back (`firstRect`) | `textInputAreas.last` already public; the platform call is AppKit-only | none |
 | The AX value including marked text | ruled `IM-E`; additive if a human check says otherwise | human check IM-1 |
+| Marked text containing a line break in a `TextEditor` (`compose` applies `singleLine` to every composition, today's behaviour; no input method sends one) | not a regression, nothing to drive | none (`IM-J` 1) |
 | Cancel via AppKit `discardMarkedText` as a distinct event | AppKit sends none; the caret-nil path (5.10/5.11) is its honest form | none |
 
 ## 10. Lanes
