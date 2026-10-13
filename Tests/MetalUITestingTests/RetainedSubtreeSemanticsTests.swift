@@ -649,16 +649,25 @@ private struct RSTinted: Component, @MainActor Equatable {
 
 enum RSKeyArm: String, CaseIterable, CustomTestStringConvertible {
     // Geometry (spec §4.1).
-    case topRect
+    case topRect, flexRect
     // Ambient context at paint (spec §4.2, `SB-AA`).
     case clip, opacity, shadow, blur, rotation, offsetEffect, scroll, foreground, font, disabled
     // The whole window.
     case colorScheme, scaleFactor, contentSize
     var testDescription: String { rawValue }
     /// Arms that move the control's context too (the whole window, or a padding that shifts its neighbour).
-    var isGlobal: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .topRect }
+    var isGlobal: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .topRect || self == .flexRect }
     /// Arms whose action draws the frame that shows the reaction (the window's own events).
     var actsOnTheWindow: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .scroll }
+}
+
+/// A component whose top-level node fills its proposal, around an interior child that does not move with it.
+private struct RSFlex: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        Text("flex").frame(width: Pixels(30), height: Pixels(14))
+            .frame(maxWidth: Pixels(.infinity), alignment: .leading)
+            .background(.accent)
+    }
 }
 
 /// The probe card under one arm's modifier, `flip` toggling the one input the arm changes.
@@ -667,6 +676,9 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
     switch arm {
     case .topRect:
         ZStack { RSCard(title: "P", shade: 1).equatable() }.padding(Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: Pixels(flip ? 6 : 0)))
+    case .flexRect:
+        // The top-level node's width follows the proposal; the text inside keeps its place: only the top rect moves.
+        RSFlex().equatable().frame(width: Pixels(flip ? 120 : 100))
     case .clip:
         ZStack { RSCard(title: "P", shade: 1).equatable() }.clipShape(RoundedRectangle(cornerRadius: Pixels(flip ? 3 : 9)))
     case .opacity:
