@@ -111,6 +111,11 @@ script that bundles a signed `.app` — see
 swift run --package-path MetalUI metalui new MyApp   # from beside a clone
 ```
 
+Task-led guides for an app author coming from SwiftUI (layout, state and
+identity, input, presentations and the app shell, drawing and the GPU,
+cross-platform) are in [`docs/guides/`](docs/guides/README.md); every code
+block in them is compiled by the test suite.
+
 Demo keys: **M** modal, **Space** theme, **F**/**Escape** focus, **=**/**-**
 count, **A** animation, **Q** quit.
 

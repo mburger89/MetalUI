@@ -8,6 +8,10 @@ is `probes/closeout-inventory-map.tsv`, checked by
 declaration is classified), and the human-readable table with each family's
 evidence is [`record/66-closeout.md`](record/66-closeout.md) §1.
 
+For task-led walk-throughs (layout, state and identity, input, presentations,
+drawing, cross-platform) see [`guides/README.md`](guides/README.md); this page
+is the reference they link to.
+
 **Classes.** **A** — SwiftUI-aligned: the behaviour matches a measured
 SwiftUI answer (a probe arm in `probes/`) and a test pins it; numbered
 exceptions are in [`divergences.md`](divergences.md). **M** — MetalUI-only by

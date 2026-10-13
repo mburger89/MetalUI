@@ -208,3 +208,11 @@ the continuation of an awaited `window.fileDialogs.openFiles(…)`, never runs
 (ruling `SV-H` item 2; probe `swift-main-queue-drain-nested.swift` `J1`, `J3`,
 macOS and Linux). From top-level code SDL's loop drains the main queue once per
 iteration, so such work runs on Linux and Windows too (`SV-H` item 1).
+
+## Where next
+
+The task-led guides in [`docs/guides/`](guides/README.md) (layout, state and
+identity, input, presentations and the app shell, drawing and the GPU,
+cross-platform) pick up where this page stops. Every `swift` block in them is
+compiled by the `MetalUITestingTests` target, so a block that no longer builds
+is a red test (`DG-C`, `DG-D`).
