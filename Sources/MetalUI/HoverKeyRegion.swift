@@ -33,6 +33,27 @@ extension StyledElement {
     public func hoverKeyRegion(_ isEnabled: Bool = true) -> Self {
         handling { $0.keyboard = KeyboardAttachment.keyRegion(isEnabled, over: $0.keyboard) }
     }
+
+    /// A primary press anywhere inside this element **resigns focus**, and no
+    /// key is routed by hover (rulings `RF-A`…`RF-F`). Opt-in: by default a
+    /// press elsewhere resigns nothing (`KF-G`, SwiftUI's answer). Put it on an
+    /// app root and a press on inert chrome ends in-place editing.
+    ///
+    /// A press on a text field or a `focusable(_:interactions:)` `.edit`
+    /// element inside moves focus there directly (one change, never `nil`
+    /// between); a press on a `Button` or tap target inside still runs it **and**
+    /// resigns. A secondary or other-button press never resigns (`MN-B`). The
+    /// region is non-opaque (it blocks no click, hover, wheel, drop or
+    /// gesture), is withdrawn by `.disabled(true)`, `.hidden()` and
+    /// `.allowsHitTesting(false)`, and a `Deferred` presentation's press is on
+    /// its own layer and does not reach it. A `hoverKeyRegion()` on the same
+    /// element wins: it clears either way (`RF-F`). MetalUI-only (SwiftUI has no
+    /// such modifier, probe `RP0`–`RP12`).
+    ///
+    /// Returns `Self` — no identity level; `false` turns it off.
+    public func resignsFocusOnPress(_ isEnabled: Bool = true) -> Self {
+        handling { $0.keyboard = KeyboardAttachment.resigning(isEnabled, over: $0.keyboard) }
+    }
 }
 
 extension Window {
@@ -52,7 +73,7 @@ extension Window {
     /// click-focusable press regions (`KF-F` item 3, spec §4.3).
     private func coversKeys(_ box: Hitbox, withPressRegions: Bool) -> Bool {
         box.opaque || box.handlers.hover != nil || box.handlers.isKeyRegion
-            || (withPressRegions && box.handlers.focusesOnPress)
+            || (withPressRegions && (box.handlers.focusesOnPress || box.handlers.keyboard?.resignsOnPress == true))
     }
 
     /// The innermost hovered key region at the last pointer position, or `nil`
@@ -93,7 +114,8 @@ extension Window {
     ///
     /// A window whose last frame registered neither region does no lookup.
     func focusOnPress(_ event: InputEvent) {
-        guard case .mouseDown(let mouse) = event, lastKeyRegionCount > 0 || lastFocusOnPressCount > 0 else {
+        guard case .mouseDown(let mouse) = event,
+              lastKeyRegionCount > 0 || lastResignRegionCount > 0 || lastFocusOnPressCount > 0 else {
             return
         }
         let point = mouse.position
@@ -112,7 +134,8 @@ extension Window {
             if box.handlers.focusesOnPress, focusable.map({ box.id.isOrDescends(from: $0) }) ?? true {
                 focusable = box.id
             }
-            if box.handlers.isKeyRegion, region.map({ box.id.isOrDescends(from: $0) }) ?? true {
+            if box.handlers.isKeyRegion || box.handlers.keyboard?.resignsOnPress == true,
+               region.map({ box.id.isOrDescends(from: $0) }) ?? true {
                 region = box.id
             }
         }
