@@ -50,9 +50,16 @@ func aScopeCannotWriteReduceMotion() throws {
             "the write must be refused FOR the key path's writability:\n\(write.output)")
 }
 
+/// The Reduce Transparency pair (`MT-D`), spelled as the migration note does.
+private let transparencyPair = """
+        var accessibilityReduceTransparency: Bool { false }
+        var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
+    """
+
 /// A `PlatformWindow` conformer with every requirement except the Reduce
-/// Motion pair, which the caller splices in (or not).
-private func conformer(pair: String) -> String {
+/// Motion pair, which the caller splices in (or not), and the Reduce
+/// Transparency pair (`MT-D`), present unless `transparency` says otherwise.
+private func conformer(pair: String, transparency: String = transparencyPair) -> String {
     """
     import MetalUICore
     import MetalUIScene
@@ -102,6 +109,7 @@ private func conformer(pair: String) -> String {
         // it; `ColorSchemeCompileGuards` pins it.
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
     \(pair)
+    \(transparency)
     }
     """
 }
@@ -141,4 +149,72 @@ func aPlatformWindowWithoutTheReduceMotionPairDoesNotCompile() throws {
             "the negative must be refused FOR accessibilityReduceMotion:\n\(without.output)")
     #expect(without.messages.contains("onAccessibilityReduceMotionChange"),
             "the negative must be refused FOR onAccessibilityReduceMotionChange:\n\(without.output)")
+}
+
+
+/// **7a** (`MT-D`). `accessibilityReduceTransparency` is get-only outside the module,
+/// as SwiftUI's key path is: a read compiles, a scope write does not. Mutation: the
+/// setter made `public`.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), metalUISkipReason))
+func aScopeCannotWriteReduceTransparency() throws {
+    let read = try typecheckFile("""
+        @MainActor func probe(_ values: EnvironmentValues) -> Bool { values.accessibilityReduceTransparency }
+        """, importing: "MetalUI")
+    let write = try typecheckFile("""
+        @MainActor func probe() -> some ElementGroup {
+            Box().environment(\\.accessibilityReduceTransparency, true)
+        }
+        """, importing: "MetalUI")
+
+    print("""
+        MT-D reduce transparency: read succeeded=\(read.succeeded) messages=[\(read.messages)]; \
+        write succeeded=\(write.succeeded) messages=[\(write.messages)]
+        """)
+
+    try #require(read.succeeded && !write.succeeded,
+                 """
+                 the read must compile and the scope write must not, or this guard \
+                 cannot fail:
+                 read:
+                 \(read.output)
+                 write:
+                 \(write.output)
+                 """)
+    #expect(write.messages.contains("WritableKeyPath") || write.messages.contains("get-only")
+                || write.messages.contains("accessibilityReduceTransparency"),
+            "the write must be refused FOR the key path's writability:\n\(write.output)")
+}
+
+/// **7b** (`MT-D`). `accessibilityReduceTransparency` and
+/// `onAccessibilityReduceTransparencyChange` have **no default implementation**: a
+/// conformer without them fails to compile, naming both; with them (the migration
+/// note's spelling) it compiles. Mutation: a protocol-extension default for the pair.
+@Test(.enabled(if: canTypecheck(module: "MetalUIPlatform"), platformSkipReason))
+func aPlatformWindowWithoutTheReduceTransparencyPairDoesNotCompile() throws {
+    let motion = """
+            var accessibilityReduceMotion: Bool { false }
+            var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
+        """
+    let without = try typecheckFile(conformer(pair: motion, transparency: ""), importing: "MetalUIPlatform")
+    let with = try typecheckFile(conformer(pair: motion), importing: "MetalUIPlatform")
+
+    print("""
+        MT-D pair required: without succeeded=\(without.succeeded) \
+        messages=[\(without.messages)]; with succeeded=\(with.succeeded) \
+        messages=[\(with.messages)]
+        """)
+
+    try #require(with.succeeded && !without.succeeded,
+                 """
+                 the control must compile and the negative must not, or this guard \
+                 cannot fail:
+                 with:
+                 \(with.output)
+                 without:
+                 \(without.output)
+                 """)
+    #expect(without.messages.contains("accessibilityReduceTransparency"),
+            "the negative must be refused FOR accessibilityReduceTransparency:\n\(without.output)")
+    #expect(without.messages.contains("onAccessibilityReduceTransparencyChange"),
+            "the negative must be refused FOR onAccessibilityReduceTransparencyChange:\n\(without.output)")
 }

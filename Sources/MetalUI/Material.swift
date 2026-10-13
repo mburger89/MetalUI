@@ -8,14 +8,17 @@ import MetalUILayout
 /// SwiftUI's `Material` (`LK-L`): `.ultraThinMaterial` … `.ultraThickMaterial`
 /// and `.bar`, as a background or a shape's fill.
 ///
-/// **A fitted flat tint, with no backdrop blur** (divergence 166): SwiftUI
-/// blurs what lies beneath and tints it; MetalUI draws one colour at an alpha
-/// per material and scheme, fitted from ImageRenderer so that over uniform
-/// white and black it matches SwiftUI's material within one level (probe
-/// `M5`; a real window's tint is unmeasured, `LK-O` item 2). Over a striped
-/// or coloured backdrop it differs — the blur is deferred (`LK-A`, C10-c).
-/// Every material site draws exactly what the colour site draws with that
-/// colour: no new primitive.
+/// **A backdrop blur plus a fitted tint** (`BB-A`, record §94): SwiftUI blurs
+/// what lies beneath a material and tints it; MetalUI blurs what is already
+/// drawn beneath it (sigma 52 pt, on both renderers) and composites the tint on
+/// top. The tint is one grey at an alpha per material and scheme, fitted from
+/// ImageRenderer so that over uniform white and black it matches SwiftUI's
+/// material within one level (probe `M5`; a real window's tint is unmeasured,
+/// `LK-O` item 2), and `tint(in:)` reads it. Where the fill is a path, or sits
+/// inside a CPU-rasterized shadow/blur/compositingGroup leaf, only the flat
+/// tint is drawn (divergence 248); there is no saturation lift (divergence 166).
+/// Every material site draws the colour site's rect plus one backdrop record:
+/// no new colour primitive.
 public struct Material: Hashable, Sendable {
     enum Kind: Hashable, Sendable { case ultraThin, thin, regular, thick, ultraThick, bar }
     let kind: Kind
@@ -52,6 +55,19 @@ public struct Material: Hashable, Sendable {
         case (.bar, true): (grey, alpha) = (0.1779, 0.8157)
         }
         return Color(white: grey, opacity: alpha)
+    }
+
+    /// The tint this material composites over its blur in `scheme`: a grey at an
+    /// opacity (`LK-L` item 3's table; `.ultraThinMaterial` is 0.4706 in light,
+    /// 0.5059 in dark). **MetalUI-only** (`MT-B`): SwiftUI exposes no such read.
+    ///
+    /// Read the opacity with `tint(in: scheme).resolve(in: environment).opacity`.
+    /// A panel colour of opacity `t` drawn over this material hides
+    /// `1 - (1 - t)(1 - m)` of the backdrop, `m` being that opacity, so a role that
+    /// should hide `g` takes `t = 1 - (1 - g) / (1 - m)` (for `g >= m`).
+    /// The values are the fitted table, so a retune moves them, not the signature.
+    public func tint(in scheme: ColorScheme) -> Color {
+        fill(for: scheme)
     }
 
     /// The tint as one colour following the scheme — what every site draws.

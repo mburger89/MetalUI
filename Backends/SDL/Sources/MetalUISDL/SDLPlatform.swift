@@ -559,6 +559,15 @@ public final class SDLWindow: PlatformWindow {
     /// Never fired — the value never changes (see ``accessibilityReduceMotion``).
     public var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
 
+    /// Always `false` (`MT-E`): SDL3 has no accessibility-display query, and the
+    /// OS settings (GNOME's, the Windows transparency effect) are reachable only
+    /// through a new dependency or a per-OS shell-out -- a documented platform
+    /// constraint, not a divergence: `false` is SwiftUI's default.
+    public var accessibilityReduceTransparency: Bool { false }
+
+    /// Never fired -- the value never changes (see ``accessibilityReduceTransparency``).
+    public var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
+
     func publishControlActiveStateIfChanged() {
         let state = controlActiveState
         guard state != reportedControlActiveState else { return }

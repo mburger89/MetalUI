@@ -91,7 +91,9 @@ the window's top layer — a portal for modals, popovers and tooltips
   **`ForEach`** (identity by the id's Hashable value, as SwiftUI; the `List` residue is 255), **`@Environment`**/`EnvironmentValues`/
   `.environment`/`.transformEnvironment`/`.disabled`; `displayScale`,
   `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
-  (inert as on macOS), `accessibilityReduceMotion`; `layoutDirection` is
+  (inert as on macOS), `accessibilityReduceMotion`, `accessibilityReduceTransparency` (SwiftUI's
+  key, read-only outside; stamped from the platform; while true every `Material` draws an opaque
+  grey with no blur, divergence 315; C27, `MT-D`, `MT-F`); `layoutDirection` is
   carried and mirrors nothing (25); `colorScheme`, readable while building
   ([Colour](#colour--a--d--m)). `Theme`/`ColorToken`/`.theme(_:)` are
   MetalUI's scoped, paint-only colour tokens (M). An `@Observable` object is
@@ -832,10 +834,12 @@ backdrop blur** of what is already drawn beneath it, GPU surfaces included, on b
 renderers (item C21, record §94: sigma 52 pt, rounded rectangle or ellipse, clip,
 transform, opacity and transitions; the flat tint of `LK-L` remains for a path
 fill, inside a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` leaf and where
-a renderer cannot blur; divergences 166, 245–249; `BB-A`…`BB-T`). Not built:
+a renderer cannot blur; divergences 166, 245–248, Reduce Transparency 315; `BB-A`…`BB-T`); `Material.tint(in:)`
+reads a material's tint as a `Color` (MetalUI-only, class M; C27, `MT-B`; a material takes
+no colour, `MT-C`). Not built:
 `AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`,
 `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, `phaseAnimator`, a native
-`NSColorPanel` route, Reduce Transparency for materials, saturation lift — each a
+`NSColorPanel` route, a material that takes a colour or an opacity (`MT-C`), saturation lift — each a
 named deferral (`LK-A`, `BB-I`).
 
 ## Testing — M

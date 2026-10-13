@@ -518,7 +518,7 @@ extension PaintPass {
         if let material {
             // A legacy material background (`BB-A`): one backdrop record, under
             // the corner radius, before a pointer-state colour and the border.
-            fillBackdrop(bounds, tint: resolve(material.color), cornerRadii: radii)
+            fillMaterial(bounds, material: material, cornerRadii: radii)
         }
         if let background {
             fill(bounds, color: background, cornerRadii: radii)

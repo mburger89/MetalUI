@@ -183,6 +183,12 @@ public final class TestWindow {
         tick()
     }
 
+    /// Changes Reduce Transparency, then draws (`MT-G`).
+    public func setReduceTransparency(_ value: Bool) {
+        platformWindow.simulateReduceTransparencyChange(to: value)
+        tick()
+    }
+
     /// Closes the window as the platform does, asking nobody: every
     /// `onDisappear` runs once (`LC-J`), and the app ends if it was the last.
     public func close() {
