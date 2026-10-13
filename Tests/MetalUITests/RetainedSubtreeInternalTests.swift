@@ -15,49 +15,51 @@ import MetalUITesting
 
 // MARK: 1.11 — the ledger's classification
 
-/// What a stored channel is to a retained subtree (`SB-E`).
+/// What a stored channel is to a retained subtree (`SB-E`, `SB-AA`).
 private enum Channel: String {
-    /// Recorded and replayed.
+    /// Recorded and replayed (the scene, the marks and touches paint makes).
     case recorded
-    /// In the replay key.
+    /// In the replay key, or the pointer/press/focus rule.
     case keyed
-    /// A change makes the occurrence ineligible.
+    /// A change in a paint makes the occurrence ineligible.
     case ledger
+    /// Written by prepaint only, which runs every frame in lane 1 (`SB-AA`).
+    case prepaintOnly
     /// Not touched by prepaint or paint, or constant for the frame.
     case frameLocal
     /// Written in the layout phase only (the build runs in lane 1).
     case buildOnly
 }
 
-/// Every stored property of `Frame`, with its class and the line that justifies it. **Adding a stored
-/// property to `Frame` owes a row** (`everyFrameChannelIsClassified`).
+/// Every stored property of `Frame`, with its class. **Adding a stored property to `Frame` owes a row**
+/// (`everyFrameChannelIsClassified`).
 private let frameChannels: [String: Channel] = [
     // Frame constants and window inputs.
-    "contentSize": .keyed, "scaleFactor": .keyed, "timestamp": .frameLocal, "mousePosition": .keyed,
+    "contentSize": .keyed, "scaleFactor": .keyed, "timestamp": .frameLocal, "mousePosition": .prepaintOnly,
     "activeElement": .keyed, "stateTable": .recorded, "animationStore": .recorded, "textSystem": .frameLocal,
     "shapingCache": .frameLocal, "glyphAtlas": .frameLocal, "surfaceRegistry": .ledger,
     "tree": .frameLocal, "rootFontSize": .frameLocal, "rootTheme": .frameLocal, "lightTheme": .frameLocal,
     "darkTheme": .frameLocal, "transaction": .keyed, "snapsEveryChange": .frameLocal,
-    "collectsAccessibility": .keyed, "reportsUnlowerableFields": .frameLocal, "recordsElementBounds": .frameLocal,
-    // Scroll requests and keys (layout, or ineligible).
+    "collectsAccessibility": .prepaintOnly, "reportsUnlowerableFields": .frameLocal, "recordsElementBounds": .frameLocal,
+    // Scroll requests and keys (layout, or prepaint).
     "scrollRequestQueue": .buildOnly, "scrollRequests": .buildOnly, "scrollRequestResolved": .buildOnly,
-    "unresolvedScrollRequestCount": .keyed, "notesScrollKeys": .buildOnly, "scrollKeys": .ledger,
-    "scrollResolutions": .ledger, "scrollAnchorAdjustments": .ledger, "forEachIdentityWork": .buildOnly,
+    "unresolvedScrollRequestCount": .prepaintOnly, "notesScrollKeys": .buildOnly, "scrollKeys": .buildOnly,
+    "scrollResolutions": .prepaintOnly, "scrollAnchorAdjustments": .prepaintOnly, "forEachIdentityWork": .buildOnly,
     // Animation and lifecycle.
     "wantsAnotherFrame": .ledger, "hasActiveAnimations": .ledger, "timeVaryingNotes": .ledger,
     "transactionTop": .keyed, "transactionDepth": .keyed, "lifecycleDepth": .buildOnly,
     "effectScopesPushed": .frameLocal, "compositeScopesPushed": .frameLocal,
-    // Tallies, replayed.
-    "hoverRegionCount": .recorded, "pointerStyleRegionCount": .recorded, "keyRegionCount": .recorded,
-    "focusOnPressCount": .recorded, "resignRegionCount": .recorded,
+    // Tallies, prepaint's.
+    "hoverRegionCount": .prepaintOnly, "pointerStyleRegionCount": .prepaintOnly, "keyRegionCount": .prepaintOnly,
+    "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,
     // Presentations, toolbar, menu bar, popovers.
-    "presentationDepth": .keyed, "presentationRecords": .ledger, "presentationOccurrences": .ledger,
-    "toolbarRecords": .ledger, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,
+    "presentationDepth": .buildOnly, "presentationRecords": .buildOnly, "presentationOccurrences": .buildOnly,
+    "toolbarRecords": .buildOnly, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,
     "menuBarTitles": .frameLocal, "menuBarOpenIndex": .frameLocal, "menuBarOpen": .frameLocal,
-    "drewMenuBar": .frameLocal, "menuBarTitleFrames": .frameLocal, "openPopovers": .ledger,
-    "tooltip": .frameLocal, "menuPresenter": .frameLocal, "presentationAnchors": .ledger,
-    "previousPresentationAnchors": .frameLocal, "presentationSpaces": .ledger,
-    "previousPresentationSpaces": .frameLocal, "wantsAccessibilityRetry": .ledger,
+    "drewMenuBar": .frameLocal, "menuBarTitleFrames": .frameLocal, "openPopovers": .prepaintOnly,
+    "tooltip": .frameLocal, "menuPresenter": .frameLocal, "presentationAnchors": .prepaintOnly,
+    "previousPresentationAnchors": .frameLocal, "presentationSpaces": .prepaintOnly,
+    "previousPresentationSpaces": .frameLocal, "wantsAccessibilityRetry": .prepaintOnly,
     // Environment and colour.
     "environmentTop": .keyed, "storedRootEnvironment": .frameLocal, "isRendering": .frameLocal,
     "colorSchemePreferenceDepth": .buildOnly, "mainColorSchemePreference": .buildOnly,
@@ -68,23 +70,23 @@ private let frameChannels: [String: Channel] = [
     "environmentTransformCount": .frameLocal,
     // The scene and its stacks.
     "scene": .recorded, "clipStack": .keyed, "clipBase": .keyed, "flatteningClipBase": .keyed,
-    "layerStack": .keyed, "opacityStack": .keyed, "portalCount": .ledger, "portalStack": .keyed,
-    "scrollContextStack": .keyed, "scrollerFrameStack": .keyed, "paintScopes": .keyed,
-    "leafGroup": .keyed, "prepaintEffects": .keyed, "shareCandidates": .keyed, "shareCollecting": .keyed,
-    "shareFloor": .keyed, "shareFloorAtEntry": .keyed,
-    // Hitboxes, accessibility, focus, hover.
-    "hitboxes": .recorded, "hitTestingDisabledDepth": .keyed, "keyboardHiddenDepth": .keyed,
-    "axNodes": .recorded, "axEmissions": .recorded, "accessibilityPressOnly": .recorded,
-    "contextMenuRecords": .recorded, "namedSpaces": .keyed, "hitboxNamedSpaces": .recorded,
-    "namedSpaceSnapshots": .recorded, "accessibilitySuppressionExceptions": .keyed,
-    "focusRegistry": .recorded, "focusedElement": .keyed, "focusedElementProducedThisFrame": .recorded,
-    "hoveredHitbox": .keyed, "stackAxes": .keyed,
+    "layerStack": .keyed, "opacityStack": .keyed, "portalCount": .frameLocal, "portalStack": .prepaintOnly,
+    "scrollContextStack": .buildOnly, "scrollerFrameStack": .prepaintOnly, "paintScopes": .keyed,
+    "leafGroup": .keyed, "prepaintEffects": .prepaintOnly, "shareCandidates": .prepaintOnly,
+    "shareCollecting": .prepaintOnly, "shareFloor": .prepaintOnly, "shareFloorAtEntry": .prepaintOnly,
+    // Hitboxes, accessibility, focus, hover: prepaint's.
+    "hitboxes": .prepaintOnly, "hitTestingDisabledDepth": .prepaintOnly, "keyboardHiddenDepth": .prepaintOnly,
+    "axNodes": .prepaintOnly, "axEmissions": .prepaintOnly, "accessibilityPressOnly": .prepaintOnly,
+    "contextMenuRecords": .prepaintOnly, "namedSpaces": .prepaintOnly, "hitboxNamedSpaces": .prepaintOnly,
+    "namedSpaceSnapshots": .prepaintOnly, "accessibilitySuppressionExceptions": .prepaintOnly,
+    "focusRegistry": .prepaintOnly, "focusedElement": .keyed, "focusedElementProducedThisFrame": .prepaintOnly,
+    "hoveredHitbox": .keyed, "stackAxes": .buildOnly,
     // Layout results.
-    "lowering": .buildOnly, "hiddenNodes": .buildOnly, "elementBounds": .recorded, "unlowerableFields": .ledger,
+    "lowering": .buildOnly, "hiddenNodes": .buildOnly, "elementBounds": .prepaintOnly, "unlowerableFields": .buildOnly,
     // Surfaces.
     "surfaceRequests": .ledger,
     // The drawn overlays and the drag preview: owned by the window, painted at the root.
-    "dragSourceID": .keyed, "menuPanelLevels": .frameLocal, "menuRowsPainted": .frameLocal,
+    "dragSourceID": .frameLocal, "menuPanelLevels": .frameLocal, "menuRowsPainted": .frameLocal,
     "pickerTitleWidths": .frameLocal, "alertPanel": .frameLocal, "dragPreviewTranslation": .frameLocal,
     "dragPreviewOrigin": .frameLocal, "previousDragSnapshot": .frameLocal, "dragSnapshot": .frameLocal,
     "dragCapturedPrimitives": .frameLocal,
@@ -254,30 +256,76 @@ private struct PaintHolder: Component, @MainActor Equatable {
 private struct SlotHolder: Component, @MainActor Equatable {
     var content: some ElementGroup {
         VStack(spacing: 0) {
-            Text("go").accessibilityLabel("go label").frame(width: Pixels(40), height: Pixels(20))
+            Box().frame(width: Pixels(40), height: Pixels(20)).background(Color.accent)
         }
     }
     static func == (l: SlotHolder, r: SlotHolder) -> Bool { true }
 }
 
-/// 1.9 — the accessibility retention slot (`$ax`) of a button inside a replayed subtree stays live over
-/// frames that replay it: the replay re-runs the slot's `withState` (a mark), so `sweep()` never sees it
-/// unproduced. Mutation: the `axNodes` loop of `replayPrepaint` dropped — after the first replayed frame's
-/// sweep the slot reads `isLive == false`.
-@MainActor @Test func aReplayedFrameKeepsItsAccessibilitySlotsAlive() throws {
+/// 1.9 — the animated-colour slot (`$anim-color`) of a legacy box inside a replayed subtree stays live over
+/// frames that replay it: paint's steady-state `mark` (`AnimatedColor.swift`) is journalled and replayed, so
+/// `sweep()` never sees the slot unproduced. Mutation: the `marks` loop of `replayPaint` dropped — after the
+/// first replayed frame's sweep the slot reads `isLive == false`.
+@MainActor @Test func aReplayedFrameKeepsItsAnimatedColourSlotsAlive() throws {
     let window = try TestWindow(size: Size(width: Pixels(100), height: Pixels(60))) {
         VStack(spacing: 0) { SlotHolder().equatable() }
     }
-    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
     let slots = window.window.stateTable.ids.filter {
-        if case .named(let name) = $0.component { return name.name == "$ax" }
+        if case .named(let name) = $0.component { return name.name == "$anim-color" }
         return false
     }
-    try #require(slots.isEmpty == false, "the declared label left an accessibility retention slot")
-    try #require(slots.contains { window.window.stateTable.isLive($0) }, "the slot is live after recording")
+    try #require(slots.isEmpty == false, "the legacy background left an animated-colour slot")
     for _ in 0..<3 {
         window.window.setNeedsRedraw(); window.tick()
         #expect(window.lastFrameWork.retainedHits == 1)
-        #expect(slots.contains { window.window.stateTable.isLive($0) }, "live after a replayed frame")
+        #expect(slots.allSatisfy { window.window.stateTable.isLive($0) }, "live after a replayed frame")
     }
+}
+
+// MARK: 1.7b — an observed read in prepaint that paint draws
+
+private struct TonedBox: Element {
+    let model: PaintModel
+    var elementID: ElementID? { nil }
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }.layoutNodeID, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) -> Hsla {
+        // The tone read here, and only here, is the colour paint draws.
+        model.tone == 0 ? Hsla(h: 0.6, s: 1, l: 0.5, a: 1) : Hsla(h: 0.0, s: 1, l: 0.5, a: 1)
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Hsla,
+               pass: inout PaintPass) {
+        pass.fill(bounds, color: prepaint)
+    }
+}
+
+private struct TonedHolder: Component, @MainActor Equatable {
+    let model: PaintModel
+    var content: some ElementGroup { TonedBox(model: model) }
+    static func == (l: TonedHolder, r: TonedHolder) -> Bool { true }
+}
+
+/// 1.7b — an `@Observable` read in an element's `prepaint` whose result paint draws invalidates the record
+/// (`SB-V`, the prepaint window): prepaint ran with the new tone, and the replayed paint must not show the
+/// old. Mutation: the prepaint session dropped (`RetainedSession.run` returns the body for it) — the old
+/// colour stays.
+@MainActor @Test func anObservedReadInPrepaintInvalidatesTheRecord() async throws {
+    let model = PaintModel()
+    let window = try TestWindow(size: Size(width: Pixels(100), height: Pixels(60))) {
+        VStack(spacing: 0) { TonedHolder(model: model).equatable() }
+    }
+    for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(window.lastFrameWork.retainedHits == 1)
+    let before = window.scene.rects.last?.background
+    model.tone = 1
+    await Task.yield()
+    window.window.setNeedsRedraw(); window.tick()
+    let after = window.scene.rects.last?.background
+    #expect(after != nil && before != nil && after!.h != before!.h, "the new tone was drawn")
+    #expect(window.lastFrameWork.retainedHits == 0)
 }

@@ -5,32 +5,32 @@ import MetalUIPlatform
 import MetalUIScene
 import Observation
 
-// C14b (`SB-A`…`SB-R`): retained subtrees. One record per `.equatable()` occurrence, hung off
-// its content-memo entry: the hitboxes, focus registrations, accessibility records, scene
-// operations and cache touches its prepaint and paint produced, replayed instead of run while its
-// replay key is equal. Lane 1 (this file) leaves the build recursion running, so a miss is always
-// safe: every element's layout record exists and prepaint and paint run as they always did.
+// C14b (`SB-A`…`SB-AA`): retained subtrees. One record per `.equatable()` occurrence, hung off its
+// content-memo entry: the scene operations its **paint** produced and the cache touches that paint made,
+// replayed instead of run while its replay key is equal. Lane 1 (this file) leaves the build recursion and
+// the **prepaint** running, so a miss is always safe: every element's layout record and prepaint state exist
+// and paint runs as it always did. (The design replayed prepaint too; `SB-AA` records why it cannot be decided
+// there: a paint-only ambient — an opacity, a shadow or blur scope — is not on the frame yet.)
 // Spec `docs/superpowers/specs/2026-10-13-retained-subtrees-design.md`, rulings
 // `docs/superpowers/2026-10-13-retained-subtrees-decisions.md`.
 
 /// The work counters of retained subtrees for one build (`SB-`): work, never time.
 package struct RetainedCounters: Sendable, Equatable {
-    /// Occurrences whose prepaint and paint were replayed from a record.
+    /// Occurrences whose paint was replayed from a record.
     package var hits = 0
-    /// Occurrences that ran prepaint and paint and left a record (first sight, or a key,
-    /// version or observation that no longer matched), or ran because a pointer, press or focus
-    /// is inside them.
+    /// Occurrences that ran paint and left a record (first sight, or a key, version or observation that
+    /// no longer matched), or ran because the pointer, a press or focus is inside them.
     package var misses = 0
-    /// Occurrences that ran and left no record: a channel outside the replayable set moved
+    /// Occurrences that ran paint and left no record: a channel a record cannot replay moved
     /// (`SB-J`), or a context the key cannot hold was open.
     package var ineligible = 0
-    /// Element prepaints and paints a hit stood for (the conservation law of test 1.1).
+    /// Element prepaints a hit stood for: always 0 in lane 1, which runs every prepaint (`SB-AA`).
     package var skippedPrepaints = 0
+    /// Element paints a hit stood for (the conservation law of test 1.1).
     package var skippedPaints = 0
-    /// Ledger snapshots taken (four per recorded occurrence).
+    /// Ledger snapshots taken (two per recorded occurrence: before and after its paint).
     package var ledgerSnapshots = 0
-    /// Recorded operations replayed (hitboxes, registrations, accessibility records, scene
-    /// operations).
+    /// Recorded scene operations replayed.
     package var replayedOps = 0
     package init() {}
 }
@@ -39,32 +39,26 @@ package struct RetainedCounters: Sendable, Equatable {
 /// every ineligible occurrence the channel that moved. A diagnostic, never read by a test.
 let retainedTraces: Bool = ProcessInfo.processInfo.environment["METALUI_TRACE_RETAINED"] == "1"
 
-/// Whether `METALUI_VERIFY_RETAINED=1` (read once, `SB-M`): a hit also runs the fresh prepaint and
-/// paint and traps if its products differ from the record's.
+/// Whether `METALUI_VERIFY_RETAINED=1` (read once, `SB-W`): a hit also runs the fresh paint and traps if
+/// its products differ from the record's.
 let retainedVerifiesFromEnvironment: Bool =
     ProcessInfo.processInfo.environment["METALUI_VERIFY_RETAINED"] == "1"
 
 // MARK: - The log
 
-/// What every open recorder shares (`SB-D`): the calls the frame's few funnels make while a
-/// recorder is open, in order. A recorder remembers the log's lengths where its window opened and
-/// closed and keeps the slice. **`Frame.retainLog` is `nil` unless a recorder is open**, so every
-/// hook is one nil check on a frame that retains nothing.
+/// What every open recorder shares (`SB-D`): the calls the frame's few paint funnels make while a recorder
+/// is open, in order. A recorder remembers the log's lengths where its window opened and closed and keeps
+/// the slice. **`Frame.retainLog` is `nil` unless a recorder is open**, so every hook is one nil check on a
+/// frame that retains nothing.
 @MainActor
 final class RetainLog {
-    enum FocusOp {
-        case register(Handlers, GlobalElementID)
-        case shortcut(Handlers, GlobalElementID)
-        case binding(FocusBindingTarget, GlobalElementID)
-    }
-
     enum Touch {
         case touch(GlobalElementID)
         case set(GlobalElementID, Any)
     }
 
-    /// The leaves as they stand where a recorder's own paint scopes end (`boundary` scopes still
-    /// to process, counting from the outermost), and the clip depth they were emitted at.
+    /// The leaves as they stand where a recorder's own paint scopes end (`boundary` scopes still to
+    /// process, counting from the outermost), and the clip depth they were emitted at (`SB-T`).
     struct SceneOp {
         let boundary: Int
         let leaves: [([CapturedPrimitive], [Int]?)]
@@ -72,29 +66,21 @@ final class RetainLog {
     }
 
     struct Marks: Equatable {
-        var focus = 0, bounds = 0, scene = 0, marks = 0, touches = 0
-        var axNodes = 0, pressOnly = 0, contextMenus = 0, withStates = 0
+        var scene = 0, marks = 0, touches = 0, withStates = 0
     }
 
     var recorders: [SubtreeRecorder] = []
-    var focus: [FocusOp] = []
-    var bounds: [(GlobalElementID, Bounds<Pixels>)] = []
     var scene: [SceneOp] = []
     var marks: [GlobalElementID] = []
     var touches: [Touch] = []
-    var axNodes: [(GlobalElementID, AXNode)] = []
-    var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
-    var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
     var withStates: [GlobalElementID] = []
 
     var current: Marks {
-        Marks(focus: focus.count, bounds: bounds.count, scene: scene.count, marks: marks.count,
-              touches: touches.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
-              contextMenus: contextMenus.count, withStates: withStates.count)
+        Marks(scene: scene.count, marks: marks.count, touches: touches.count, withStates: withStates.count)
     }
 
-    /// Marks every open recorder (or, with `scopeIndex`, every one whose own scopes include
-    /// that index) as unable to leave a record, naming the first reason.
+    /// Marks every open recorder (or, with `scopeIndex`, every one whose own scopes include that index)
+    /// as unable to leave a record, naming the first reason.
     func taint(_ reason: String, scopeIndex: Int? = nil) {
         for recorder in recorders {
             if let scopeIndex, recorder.entryHeight > scopeIndex { continue }
@@ -102,20 +88,8 @@ final class RetainLog {
         }
     }
 
-    /// A shared-registration patch (`Frame.shareWithEnclosingWrappers`) reached a hitbox or an
-    /// accessibility record registered before a recorder's window opened: its record would be
-    /// incomplete, so it is not made.
-    func notePatch(hitbox: Int?, axEmission: Int?) {
-        for recorder in recorders {
-            if let hitbox, hitbox < recorder.before.hitboxes, recorder.taint == nil { recorder.taint = "sharedPatch" }
-            if let axEmission, axEmission < recorder.before.axEmissions, recorder.taint == nil {
-                recorder.taint = "sharedPatch"
-            }
-        }
-    }
-
     func noteBoundary(_ boundary: Int, _ leaves: [([CapturedPrimitive], [Int]?)], _ depth: Int) {
-        for recorder in recorders where recorder.recordsScene && recorder.entryHeight == boundary {
+        for recorder in recorders where recorder.entryHeight == boundary {
             scene.append(SceneOp(boundary: boundary, leaves: leaves, depth: depth))
             return
         }
@@ -126,67 +100,43 @@ final class RetainLog {
     }
 }
 
-/// One occurrence's recording of one phase.
+/// One occurrence's recording of its paint.
 @MainActor
 final class SubtreeRecorder {
     var taint: String?
     /// The paint scopes open where the paint window opened: the height the scene is recorded at.
     var entryHeight = 0
-    /// Only the paint window records scene operations.
-    var recordsScene = false
     var from = RetainLog.Marks()
     var before = LedgerSnapshot()
 }
 
 // MARK: - The ledger
 
-/// The counts a recorder reads before and after a phase (`SB-E`, about thirty integer reads).
+/// The counts a recorder reads before and after a paint (`SB-E`).
 struct LedgerSnapshot {
-    // Replayable: the difference is the product.
-    var hitboxes = 0, axEmissions = 0, hitboxSpaces = 0, namedSnapshots = 0
-    var hover = 0, pointerStyle = 0, key = 0, focusOnPress = 0, resign = 0
-    // Pinned: a change makes the occurrence ineligible.
-    var presentationRecords = 0, presentationAnchors = 0, presentationSpaces = 0
-    var presentationOccurrences = 0, toolbarRecords = 0, openPopovers = 0, surfaceRequests = 0
-    var unlowerable = 0, scrollKeys = 0, portals = 0, timeNotes = 0, interpolations = 0
-    var accessibilityRetry = false
-    /// Work a replay stands for: elements run, plus those nested hits stood for.
+    var surfaceRequests = 0, timeNotes = 0, interpolations = 0
+    /// Work a replay stands for: element paints run, plus those nested hits stood for.
     var work = 0
 
     /// The first pinned channel that moved from `self` to `other`, or `nil`.
     func movedChannel(to other: LedgerSnapshot) -> String? {
-        if presentationRecords != other.presentationRecords { return "presentationRecords" }
-        if presentationAnchors != other.presentationAnchors { return "presentationAnchors" }
-        if presentationSpaces != other.presentationSpaces { return "presentationSpaces" }
-        if presentationOccurrences != other.presentationOccurrences { return "presentationOccurrences" }
-        if toolbarRecords != other.toolbarRecords { return "toolbarRecords" }
-        if openPopovers != other.openPopovers { return "openPopovers" }
         if surfaceRequests != other.surfaceRequests { return "surfaceRequests" }
-        if unlowerable != other.unlowerable { return "unlowerableFields" }
-        if scrollKeys != other.scrollKeys { return "scrollKeys" }
-        if portals != other.portals { return "portals" }
         if timeNotes != other.timeNotes { return "timeNotes" }
         if interpolations != other.interpolations { return "interpolations" }
-        if accessibilityRetry != other.accessibilityRetry { return "accessibilityRetry" }
         return nil
     }
 }
 
 // MARK: - The replay key
 
-/// Everything prepaint and paint read that is not in the subtree (`SB-F`, spec §4.2), as flat
-/// `Equatable` parts. **Every part has a separating arm in `everyKeyComponentSeparates`.**
+/// Everything paint reads that is not in the subtree (`SB-F`, spec §4.2), as flat `Equatable` parts.
+/// **Every part has a separating arm in `everyKeyComponentSeparates`.**
 struct AmbientKey: Equatable {
     var clip: [Float]
     var offset: [Float]
     var layerOpacityScale: [Float]
     var depths: [Int]
     var scopes: [[Double]]
-    var effect: [Double]
-    var namedSpaces: [NamedSpace]
-    var suppression: [GlobalElementID?]
-    var collectsAccessibility: Bool
-    var stackAxis: ProposalStackAxis?
     var environment: EnvironmentFingerprint
     var snappingTransaction: Bool
     var disablesAnimations: Bool
@@ -201,8 +151,7 @@ struct ReplayKey: Equatable {
 
 // MARK: - The record
 
-/// One occurrence's render products (`SB-B`): everything its prepaint and paint registered,
-/// recorded or journalled, replayed in registration order.
+/// One occurrence's paint products (`SB-B`), replayed in the order a fresh paint makes them.
 @MainActor
 final class RetainedRecord {
     var key: ReplayKey
@@ -210,39 +159,17 @@ final class RetainedRecord {
     var contentSerial = 0
     /// The `@State` slots bound under the component and their versions (`SB-K`).
     var versions: [(GlobalElementID, UInt64)] = []
-
-    // Prepaint products.
-    var hitboxes: [Hitbox] = []
-    var hitboxSpaces: [(Int, [NamedSpace])] = []
-    var namedSnapshots = 0
-    var axEmissions: [AXEmission] = []
-    var axNodes: [(GlobalElementID, AXNode)] = []
-    var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
-    var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
-    var focus: [RetainLog.FocusOp] = []
-    var bounds: [(GlobalElementID, Bounds<Pixels>)] = []
-    var prepaintMarks: [GlobalElementID] = []
-    var prepaintTouches: [RetainLog.Touch] = []
-    var tallies = RetainedTallies()
-    var prepaintWork = 0
-    var owned: Set<GlobalElementID> = []
-
-    // Paint products.
     var scene: [RetainLog.SceneOp] = []
-    var paintMarks: [GlobalElementID] = []
-    var paintTouches: [RetainLog.Touch] = []
+    var marks: [GlobalElementID] = []
+    var touches: [RetainLog.Touch] = []
     var paintWork = 0
 
     init(key: ReplayKey) { self.key = key }
 }
 
-struct RetainedTallies: Equatable {
-    var hover = 0, pointerStyle = 0, key = 0, focusOnPress = 0, resign = 0
-}
-
 // MARK: - Observation sessions
 
-/// One observation window of an occurrence (`SB-D`): the build recursion, prepaint or paint.
+/// One observation window of an occurrence (`SB-V`): the build recursion, prepaint or paint.
 final class RetainedSession {
     let token = ContentMemoToken()
     var serial = 0
@@ -293,8 +220,8 @@ private final class RetainedHandle: @unchecked Sendable {
 
 // MARK: - The build window
 
-/// What the build recursion of one occurrence leaves for its prepaint (`SB-K`): kept in the
-/// component's layout box.
+/// What the build recursion of one occurrence leaves for its paint (`SB-K`): kept in the component's
+/// layout box.
 @MainActor
 final class RetainedBuild {
     let key: ContentMemoStore.Key
@@ -333,32 +260,26 @@ struct RetainedBuildWindow {
 
 // MARK: - The phase object
 
-/// What the decision in prepaint hands to paint (`SB-`): carried in `ComponentPrepaint`'s box.
+/// What prepaint hands to paint (`SB-`): carried in `ComponentPrepaint`'s box.
 @MainActor
 final class RetainedPhase {
-    enum Mode {
-        /// Replay the record's prepaint (done) and paint.
-        case hit(RetainedRecord)
-        /// Prepaint and paint run, recording; `old` is the record verify mode compares against.
-        case record(old: RetainedRecord?)
-        /// Prepaint and paint run, nothing recorded (ineligible now).
-        case plain
-    }
-
-    let mode: Mode
     let build: RetainedBuild
     let entry: ContentMemoStore.Entry
-    let key: ReplayKey?
-    let recorder: SubtreeRecorder?
-    var record: RetainedRecord?
 
-    init(mode: Mode, build: RetainedBuild, entry: ContentMemoStore.Entry, key: ReplayKey?, recorder: SubtreeRecorder?) {
-        self.mode = mode
+    init(build: RetainedBuild, entry: ContentMemoStore.Entry) {
         self.build = build
         self.entry = entry
-        self.key = key
-        self.recorder = recorder
     }
+}
+
+/// What paint does with an occurrence (`SB-AA`).
+enum RetainedPaintMode {
+    /// Replay the record.
+    case hit(RetainedRecord)
+    /// Run paint under a recorder; `old` is the record verify mode compares against.
+    case record(SubtreeRecorder, ReplayKey, old: RetainedRecord?)
+    /// Run paint, record nothing (ineligible now).
+    case plain
 }
 
 // MARK: - Frame: the key, the ledger, windows, replay
@@ -367,30 +288,11 @@ extension Frame {
     /// A snapshot of the ledger channels (`SB-E`).
     func ledgerSnapshot() -> LedgerSnapshot {
         var s = LedgerSnapshot()
-        s.hitboxes = hitboxes.count
-        s.axEmissions = axEmissions.count
-        s.hitboxSpaces = hitboxNamedSpaces.count
-        s.namedSnapshots = namedSpaceSnapshots
-        s.hover = hoverRegionCount
-        s.pointerStyle = pointerStyleRegionCount
-        s.key = keyRegionCount
-        s.focusOnPress = focusOnPressCount
-        s.resign = resignRegionCount
-        s.presentationRecords = presentationRecords.count
-        s.presentationAnchors = presentationAnchors.count
-        s.presentationSpaces = presentationSpaces.count
-        s.presentationOccurrences = presentationOccurrences.count
-        s.toolbarRecords = toolbarRecords.count
-        s.openPopovers = openPopovers.count
         s.surfaceRequests = surfaceRequests.count
-        s.unlowerable = unlowerableFields.count
-        s.scrollKeys = scrollKeys.count
-        s.portals = portalCount
         s.timeNotes = timeVaryingNotes
         s.interpolations = animationStore.interpolationsSoFar
-        s.accessibilityRetry = wantsAccessibilityRetry
         let retained = stateTable.contentMemos.retained
-        s.work = elementPrepaints &+ elementPaints &+ retained.skippedPrepaints &+ retained.skippedPaints
+        s.work = elementPaints &+ retained.skippedPaints
         return s
     }
 
@@ -398,13 +300,8 @@ extension Frame {
     func retainedEntryRefusal(build: RetainedBuild) -> String? {
         if build.timeVarying { return "timeVarying" }
         if leafGroup != nil { return "leafGroup" }
-        if presentationDepth != 0 { return "presentation" }
-        if hasUnresolvedScrollRequests { return "scrollRequests" }
-        if activeScrollContext != nil || activeScrollerFrame != nil { return "scroller" }
-        if dragSourceID != nil { return "dragSource" }
         if environmentTop.customKeyCount > 0 { return "customEnvironmentKey" }
         if transactionTop.animation != nil { return "transaction" }
-        if !shareCollecting.isEmpty { return "shareCollecting" }
         return nil
     }
 
@@ -422,7 +319,8 @@ extension Frame {
         [Double(c.topLeft), Double(c.topRight), Double(c.bottomRight), Double(c.bottomLeft)]
     }
 
-    /// The ambient half of the replay key (spec §4.2).
+    /// The ambient half of the replay key (spec §4.2), read **at paint**: the paint-only stacks (opacity,
+    /// scopes) exist only there.
     func retainedAmbientKey() -> AmbientKey {
         let radii = activeClipRadii
         var scopeVectors: [[Double]] = []
@@ -445,27 +343,14 @@ extension Frame {
             if let blur = scope.blur { v += [1, blur.radius] + flat(blur.mask) + flat(blur.radii) } else { v += [0] }
             scopeVectors.append(v)
         }
-        var effect: [Double] = [Double(prepaintEffects.count)]
-        if let top = prepaintEffects.last {
-            effect += flat(top.composed)
-            if let inverse = top.inverse { effect += [1] + flat(inverse) } else { effect += [0] }
-            effect += flat(top.outerClip).map(Double.init) + [Double(top.savedClipBase)]
-        }
         return AmbientKey(
             clip: flat(activeClip) + [radii.topLeft.value, radii.topRight.value, radii.bottomRight.value,
                                       radii.bottomLeft.value],
             offset: [activeOffset.x.value, activeOffset.y.value],
             layerOpacityScale: [Float(activeLayer), activeOpacity, scaleFactor,
                                 contentSize.width.value, contentSize.height.value],
-            depths: [clipStack.count, clipBase, flatteningClipBase ?? -1, shareFloor, shareFloorAtEntry,
-                     shareCandidates.count, hitTestingDisabledDepth, keyboardHiddenDepth, portalStack.last ?? -1,
-                     paintScopes.count],
+            depths: [clipDepth, clipBase, flatteningClipBase ?? -1, paintScopes.count],
             scopes: scopeVectors,
-            effect: effect,
-            namedSpaces: namedSpaces,
-            suppression: accessibilitySuppressionExceptions,
-            collectsAccessibility: collectsAccessibility,
-            stackAxis: stackAxis,
             environment: environmentTop.retainedFingerprint,
             snappingTransaction: transactionTop.animation == nil,
             disablesAnimations: transactionTop.disablesAnimations)
@@ -479,12 +364,22 @@ extension Frame {
         return ReplayKey(rects: rects, interior: hash, nodeCount: count, ambient: retainedAmbientKey())
     }
 
+    /// Whether the hovered element, the pressed one or the focused one is the component or under it (`SB-F`
+    /// item 4): identity is structural, so an element inside the occurrence has its component's id as an
+    /// ancestor. Exact where the design's "pointer inside an owned hitbox" was conservative: a hover that is
+    /// elsewhere (another node on top of this one) costs this occurrence nothing.
+    func retainedSubtreeHasPointerPressOrFocus(under id: GlobalElementID) -> Bool {
+        if let hovered = hoveredElement, hovered.isOrDescends(from: id) { return true }
+        if let active = activeElement, active.isOrDescends(from: id) { return true }
+        if let focused = focusedElement, focused.isOrDescends(from: id) { return true }
+        return false
+    }
+
     // MARK: Windows
 
-    func openRecorderWindow(_ recorder: SubtreeRecorder, recordsScene: Bool) {
+    func openRecorderWindow(_ recorder: SubtreeRecorder) {
         if retainLog == nil { retainLog = RetainLog() }
         let log = retainLog!
-        recorder.recordsScene = recordsScene
         recorder.entryHeight = paintScopes.count
         recorder.from = log.current
         recorder.before = ledgerSnapshot()
@@ -499,222 +394,102 @@ extension Frame {
         let after = ledgerSnapshot()
         stateTable.contentMemos.retained.ledgerSnapshots += 1
         if let reason = recorder.before.movedChannel(to: after), recorder.taint == nil { recorder.taint = reason }
-        log.recorders.removeAll { $0 === recorder }
         return (to, after)
-    }
-
-    func releaseRetainLogIfIdle() {
-        if let log = retainLog, log.recorders.isEmpty { retainLog = nil }
     }
 
     // MARK: Replay
 
-    static func axSlot(_ id: GlobalElementID) -> GlobalElementID {
-        .child(of: id, at: 0, name: ElementID("$ax"))
-    }
-
-    func replayPrepaint(_ r: RetainedRecord) {
-        let base = hitboxes.count
-        hitboxes.append(contentsOf: r.hitboxes)
-        for (offset, spaces) in r.hitboxSpaces { hitboxNamedSpaces[base + offset] = spaces }
-        namedSpaceSnapshots += r.namedSnapshots
-        axEmissions.append(contentsOf: r.axEmissions)
-        for (id, node) in r.axNodes {
-            axNodes[id] = node
-            stateTable.withState(Self.axSlot(id), initial: node) { $0 = node }
-            retainLog?.axNodes.append((id, node))
-        }
-        for (id, action) in r.pressOnly {
-            accessibilityPressOnly[id] = action
-            retainLog?.pressOnly.append((id, action))
-        }
-        for (id, record) in r.contextMenus {
-            contextMenuRecords[id] = record
-            retainLog?.contextMenus.append((id, record))
-        }
-        for op in r.focus {
-            switch op {
-            case .register(let handlers, let id): focusRegistry.register(handlers, id: id)
-            case .shortcut(let handlers, let id): focusRegistry.registerShortcut(handlers, id: id)
-            case .binding(let binding, let id): focusRegistry.registerFocusBinding(binding, id: id)
-            }
-            retainLog?.focus.append(op)
-        }
-        for (id, rect) in r.bounds {
-            elementBounds[id] = rect
-            retainLog?.bounds.append((id, rect))
-        }
-        for id in r.prepaintMarks { stateTable.mark(id) }
-        for touch in r.prepaintTouches { animationStore.replay(touch) }
-        hoverRegionCount += r.tallies.hover
-        pointerStyleRegionCount += r.tallies.pointerStyle
-        keyRegionCount += r.tallies.key
-        focusOnPressCount += r.tallies.focusOnPress
-        resignRegionCount += r.tallies.resign
-        stateTable.contentMemos.retained.skippedPrepaints += r.prepaintWork
-        stateTable.contentMemos.retained.replayedOps +=
-            r.hitboxes.count + r.axEmissions.count + r.axNodes.count + r.focus.count
-    }
-
     func replayPaint(_ r: RetainedRecord) {
         for op in r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
-        for id in r.paintMarks { stateTable.mark(id) }
-        for touch in r.paintTouches { animationStore.replay(touch) }
+        for id in r.marks { stateTable.mark(id) }
+        for touch in r.touches { animationStore.replay(touch) }
         stateTable.contentMemos.retained.skippedPaints += r.paintWork
         stateTable.contentMemos.retained.replayedOps += r.scene.count
     }
 
     // MARK: Decision and recording
 
-    /// The decision of `EquatableComponent.prepaintGroup` (spec §3.1): replay, record, or run
-    /// plain. `nil`: not a retaining occurrence (retention off), nothing counted.
-    func retainedPrepaintDecision(build: RetainedBuild) -> RetainedPhase? {
+    /// What prepaint hands to paint: the phase of an occurrence that retains, or `nil` (retention off,
+    /// or no memo entry).
+    func retainedPrepaintPhase(build: RetainedBuild) -> RetainedPhase? {
         let memos = stateTable.contentMemos
         guard let entry = memos.entry(for: build.key) else { return nil }
         guard memos.retainsSubtrees else {
             entry.record = nil
             return nil
         }
-        if retainedEntryRefusal(build: build) != nil {
+        return RetainedPhase(build: build, entry: entry)
+    }
+
+    /// The decision of `EquatableComponent.paintGroup` (spec §3.1, `SB-AA`): replay, record, or run plain.
+    func retainedPaintDecision(_ phase: RetainedPhase) -> RetainedPaintMode {
+        let build = phase.build, entry = phase.entry
+        let memos = stateTable.contentMemos
+        if let reason = retainedEntryRefusal(build: build) {
+            if retainedTraces { print("retained refused \(sbPath(build.key.id).suffix(60)) because \(reason)") }
             entry.record = nil
             memos.retained.ineligible += 1
-            return RetainedPhase(mode: .plain, build: build, entry: entry, key: nil, recorder: nil)
+            return .plain
         }
         let key = retainedKey(build: build)
+        let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
             if !entry.observedChange, old.contentSerial == entry.serial, old.key == key,
-               old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }),
-               !retainedRecordOwnsPointerPressOrFocus(old) {
+               old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }), !underPointer {
                 memos.retained.hits += 1
-                if retainedVerifiesFromEnvironment {
-                    return RetainedPhase(mode: .record(old: old), build: build, entry: entry, key: key,
-                                         recorder: SubtreeRecorder())
-                }
-                return RetainedPhase(mode: .hit(old), build: build, entry: entry, key: key, recorder: nil)
+                if retainedVerifiesFromEnvironment { return .record(SubtreeRecorder(), key, old: old) }
+                return .hit(old)
             }
-        }
-        if retainedTraces, let old = entry.record {
-            var why: [String] = []
-            if entry.observedChange { why.append("observed") }
-            if old.contentSerial != entry.serial { why.append("serial") }
-            if old.key != key {
-                if old.key.rects != key.rects { why.append("rects") }
-                if old.key.interior != key.interior { why.append("interior") }
-                if old.key.ambient != key.ambient {
-                    let a = old.key.ambient, b = key.ambient
-                    if a.clip != b.clip { why.append("clip") }
-                    if a.offset != b.offset { why.append("offset") }
-                    if a.layerOpacityScale != b.layerOpacityScale { why.append("layerOpacityScale") }
-                    if a.depths != b.depths { why.append("depths \(a.depths) \(b.depths)") }
-                    if a.scopes != b.scopes { why.append("scopes") }
-                    if a.effect != b.effect { why.append("effect") }
-                    if a.namedSpaces != b.namedSpaces { why.append("namedSpaces") }
-                    if a.suppression != b.suppression { why.append("suppression") }
-                    if a.environment != b.environment {
-                        let x = a.environment, y = b.environment
-                        for (name, differs) in [("isEnabled", x.isEnabled != y.isEnabled), ("layoutDirection", x.layoutDirection != y.layoutDirection),
-                            ("locale", x.locale != y.locale), ("dynamicTypeSize", x.dynamicTypeSize != y.dynamicTypeSize),
-                            ("displayScale", x.displayScale != y.displayScale), ("controlActiveState", x.controlActiveState != y.controlActiveState),
-                            ("reduceMotion", x.accessibilityReduceMotion != y.accessibilityReduceMotion),
-                            ("titleBarInsets", "\(x.titleBarInsets)" != "\(y.titleBarInsets)"), ("windowSize", x.windowSize != y.windowSize),
-                            ("colorScheme", x.colorScheme != y.colorScheme), ("controlSize", x.controlSize != y.controlSize),
-                            ("font", x.font != y.font), ("foreground", x.foregroundStyle != y.foregroundStyle), ("theme", x.theme != y.theme),
-                            ("textSystem", x.hasTextSystem != y.hasTextSystem), ("objects", x.objects != y.objects), ("custom", x.customKeyCount != y.customKeyCount)]
-                        where differs { why.append("env.\(name)") }
-                    }
-                    if a.collectsAccessibility != b.collectsAccessibility { why.append("collects") }
-                }
-            }
-            if !old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) { why.append("versions") }
-            if retainedRecordOwnsPointerPressOrFocus(old) { why.append("pointer/focus/active") }
-            print("retained miss \(build.key.id) \(why)")
-        }
-        if retainedTraces, entry.record == nil {
-            print("retained first-or-dropped \(sbPath(build.key.id))")
+            if retainedTraces { traceMiss(old, key: key, build: build, entry: entry, underPointer: underPointer) }
+        } else if retainedTraces {
+            print("retained first-or-dropped \(sbPath(build.key.id).suffix(60))")
         }
         entry.record = nil
-        return RetainedPhase(mode: .record(old: nil), build: build, entry: entry, key: key, recorder: SubtreeRecorder())
+        return .record(SubtreeRecorder(), key, old: nil)
     }
 
-    func retainedRecordOwnsPointerPressOrFocus(_ record: RetainedRecord) -> Bool {
-        if let focused = focusedElement, record.owned.contains(focused) { return true }
-        if let active = activeElement, record.owned.contains(active) { return true }
-        if let point = mousePosition, record.hitboxes.contains(where: { $0.contains(point) }) { return true }
-        return false
-    }
-
-    /// Closes the prepaint window of a recording phase and keeps what it produced.
-    func finishRetainedPrepaint(_ phase: RetainedPhase) {
-        guard let recorder = phase.recorder, let key = phase.key else { return }
-        let (to, after) = closeRecorderWindow(recorder)
-        let log = retainLog!
-        let from = recorder.from
-        let before = recorder.before
-        let record = RetainedRecord(key: key)
-        record.versions = phase.build.bindIDs.map { ($0, stateTable.entryVersion($0)) }
-        record.contentSerial = phase.entry.serial
-        record.hitboxes = Array(hitboxes[before.hitboxes..<after.hitboxes])
-        for index in before.hitboxes..<after.hitboxes {
-            if let spaces = hitboxNamedSpaces[index] { record.hitboxSpaces.append((index - before.hitboxes, spaces)) }
-        }
-        record.namedSnapshots = after.namedSnapshots - before.namedSnapshots
-        record.axEmissions = Array(axEmissions[before.axEmissions..<after.axEmissions])
-        record.axNodes = Array(log.axNodes[from.axNodes..<to.axNodes])
-        record.pressOnly = Array(log.pressOnly[from.pressOnly..<to.pressOnly])
-        record.contextMenus = Array(log.contextMenus[from.contextMenus..<to.contextMenus])
-        record.focus = Array(log.focus[from.focus..<to.focus])
-        record.bounds = Array(log.bounds[from.bounds..<to.bounds])
-        record.prepaintMarks = Array(log.marks[from.marks..<to.marks])
-        record.prepaintTouches = Array(log.touches[from.touches..<to.touches])
-        record.tallies = RetainedTallies(hover: after.hover - before.hover,
-                                         pointerStyle: after.pointerStyle - before.pointerStyle,
-                                         key: after.key - before.key,
-                                         focusOnPress: after.focusOnPress - before.focusOnPress,
-                                         resign: after.resign - before.resign)
-        record.prepaintWork = after.work - before.work
-        // The state a prepaint wrote must be the accessibility retention slots and nothing else.
-        let allowed = Set(record.axNodes.map { Self.axSlot($0.0) })
-        for id in log.withStates[from.withStates..<to.withStates] where !allowed.contains(id) {
-            if recorder.taint == nil { recorder.taint = "stateWrite" }
-        }
-        // A hitbox that scrolls registered a scroll region.
-        if record.hitboxes.contains(where: { $0.scroll != nil }), recorder.taint == nil { recorder.taint = "scrollRegion" }
-        var owned = Set<GlobalElementID>()
-        for box in record.hitboxes { owned.insert(box.id) }
-        for op in record.focus {
-            switch op {
-            case .register(_, let id), .shortcut(_, let id), .binding(_, let id): owned.insert(id)
+    private func traceMiss(_ old: RetainedRecord, key: ReplayKey, build: RetainedBuild, entry: ContentMemoStore.Entry,
+                           underPointer: Bool) {
+        var why: [String] = []
+        if entry.observedChange { why.append("observed") }
+        if old.contentSerial != entry.serial { why.append("serial") }
+        if old.key.rects != key.rects { why.append("rects") }
+        if old.key.interior != key.interior { why.append("interior") }
+        if old.key.ambient != key.ambient {
+            let a = old.key.ambient, b = key.ambient
+            if a.clip != b.clip { why.append("clip") }
+            if a.offset != b.offset { why.append("offset") }
+            if a.layerOpacityScale != b.layerOpacityScale { why.append("layerOpacityScale") }
+            if a.depths != b.depths { why.append("depths") }
+            if a.scopes != b.scopes { why.append("scopes") }
+            if a.environment != b.environment { why.append("environment") }
+            if a.snappingTransaction != b.snappingTransaction || a.disablesAnimations != b.disablesAnimations {
+                why.append("transaction")
             }
         }
-        for (id, _) in record.axNodes { owned.insert(id) }
-        record.owned = owned
-        phase.record = record
-        releaseRetainLogIfIdle()
-    }
-
-    /// Opens the paint window of a recording phase.
-    func beginRetainedPaint(_ phase: RetainedPhase) {
-        guard let recorder = phase.recorder else { return }
-        openRecorderWindow(recorder, recordsScene: true)
+        if !old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) { why.append("versions") }
+        if underPointer { why.append("pointer/press/focus") }
+        print("retained miss \(sbPath(build.key.id).suffix(60)) \(why)")
     }
 
     /// Closes the paint window; stores the record, or counts why not.
-    func finishRetainedPaint(_ phase: RetainedPhase) {
-        guard let recorder = phase.recorder, let record = phase.record else { return }
+    func finishRetainedPaint(_ phase: RetainedPhase, recorder: SubtreeRecorder, key: ReplayKey, old: RetainedRecord?) {
         let (to, after) = closeRecorderWindow(recorder)
         let log = retainLog!
-        let from = recorder.from
-        let before = recorder.before
+        log.recorders.removeAll { $0 === recorder }
+        let from = recorder.from, before = recorder.before
+        let record = RetainedRecord(key: key)
+        record.versions = phase.build.bindIDs.map { ($0, stateTable.entryVersion($0)) }
+        record.contentSerial = phase.entry.serial
         record.scene = log.scene[from.scene..<to.scene].filter { $0.boundary == recorder.entryHeight }
-        record.paintMarks = Array(log.marks[from.marks..<to.marks])
-        record.paintTouches = Array(log.touches[from.touches..<to.touches])
+        record.marks = Array(log.marks[from.marks..<to.marks])
+        record.touches = Array(log.touches[from.touches..<to.touches])
         record.paintWork = after.work - before.work
-        if !log.withStates[from.withStates..<to.withStates].isEmpty, recorder.taint == nil {
-            recorder.taint = "stateWrite"
-        }
-        releaseRetainLogIfIdle()
+        // Paint may touch the state table only to keep a slot alive (`mark`); a `withState` is a write.
+        if !log.withStates[from.withStates..<to.withStates].isEmpty, recorder.taint == nil { recorder.taint = "stateWrite" }
+        if log.recorders.isEmpty { retainLog = nil }
         let memos = stateTable.contentMemos
-        if case .record(let old) = phase.mode, let old {
+        if let old {
             // Verify mode: the record made now must equal the one a replay would have used.
             if let reason = recorder.taint {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed subtree is ineligible now (\(reason))")
@@ -726,18 +501,13 @@ extension Frame {
             return
         }
         if let reason = recorder.taint {
-            if retainedTraces {
-                print("retained ineligible \(sbPath(phase.build.key.id).suffix(60)) because \(reason)")
-            }
+            if retainedTraces { print("retained ineligible \(sbPath(phase.build.key.id).suffix(60)) because \(reason)") }
             phase.entry.record = nil
             memos.retained.ineligible += 1
             return
         }
         memos.retained.misses += 1
-        if retainedRecordOwnsPointerPressOrFocus(record) {
-            if retainedTraces {
-                print("retained volatile \(sbPath(phase.build.key.id)) boxes=\(record.hitboxes.map { "\($0.bounds)" }) mouse=\(String(describing: mousePosition))")
-            }
+        if retainedSubtreeHasPointerPressOrFocus(under: phase.build.key.id) {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
@@ -749,39 +519,10 @@ extension Frame {
 // MARK: - Verify mode
 
 extension RetainedRecord {
-    /// How `other` (a fresh run's record) differs from this one, or `nil` (`SB-M`): bounds, ids,
-    /// layers, scene operations and registration order, element for element.
+    /// How `other` (a fresh run's record) differs from this one, or `nil` (`SB-W`): every scene
+    /// operation (kind, layer, masks, texture identity, raster key), the marks and touches, and the
+    /// element work the record stands for.
     func differences(from other: RetainedRecord) -> String? {
-        func describe(_ boxes: [Hitbox]) -> [String] {
-            boxes.map { box in
-                let handlers = Mirror(reflecting: box.handlers).children.map { child -> String in
-                    let m = Mirror(reflecting: child.value)
-                    return m.displayStyle == .optional && m.children.isEmpty ? "-" : "+"
-                }.joined()
-                return "\(box.id)|\(box.bounds)|\(box.layer)|\(box.opaque)|\(String(describing: box.scroll))|\(box.origin)|\(String(describing: box.transform?.inverse))|\(String(describing: box.transform?.outerClip))|\(box.contextualEnabled)|\(handlers)"
-            }
-        }
-        if describe(hitboxes) != describe(other.hitboxes) { return "hitboxes" }
-        if axEmissions.count != other.axEmissions.count { return "axEmissions.count" }
-        for (a, b) in zip(axEmissions, other.axEmissions)
-        where "\(a.id)|\(String(describing: a.text))|\(a.geometry)|\(a.portal)|\(a.isEnabled)|\(a.isClickable)"
-            != "\(b.id)|\(String(describing: b.text))|\(b.geometry)|\(b.portal)|\(b.isEnabled)|\(b.isClickable)" {
-            return "axEmissions"
-        }
-        if axNodes.map({ "\($0.0)" }) != other.axNodes.map({ "\($0.0)" }) { return "axNodes" }
-        if focus.count != other.focus.count { return "focus.count" }
-        for (a, b) in zip(focus, other.focus) {
-            switch (a, b) {
-            case (.register(_, let x), .register(_, let y)), (.shortcut(_, let x), .shortcut(_, let y)),
-                 (.binding(_, let x), .binding(_, let y)):
-                if x != y { return "focus order" }
-            default: return "focus kind"
-            }
-        }
-        if bounds.count != other.bounds.count { return "bounds.count" }
-        if zip(bounds, other.bounds).contains(where: { $0.0 != $1.0 || "\($0.1)" != "\($1.1)" }) { return "bounds" }
-        if tallies != other.tallies { return "tallies" }
-        if prepaintMarks != other.prepaintMarks { return "prepaint marks" }
         if scene.count != other.scene.count { return "scene.count \(scene.count) vs \(other.scene.count)" }
         func kindDescription(_ kind: CapturedPrimitive.Kind) -> String {
             switch kind {
@@ -810,7 +551,8 @@ extension RetainedRecord {
         for (a, b) in zip(scene, other.scene) where describe(a) != describe(b) {
             return "scene op \(describe(a)) vs \(describe(b))"
         }
-        if prepaintWork != other.prepaintWork { return "prepaintWork \(prepaintWork) vs \(other.prepaintWork)" }
+        if marks != other.marks { return "marks" }
+        if touches.count != other.touches.count { return "touches.count" }
         if paintWork != other.paintWork { return "paintWork \(paintWork) vs \(other.paintWork)" }
         return nil
     }

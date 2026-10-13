@@ -8,14 +8,12 @@ import Testing
 // (`BracketFixture.swift`). Counts, never time. Predictions are fixed before the run (spec §8.1).
 
 /// Test 1.1's predictions, fixed before the first run (record §109): per drag frame,
-/// `hits / misses / ineligible`. They held for the 11 frames from the tenth on (`.value`
-/// 29 / 3 / 0, `.environment` 19 / 2 / 0, `.panels` 30 / 3 / 2). **In the nine frames before, one
-/// hit less and one miss more in the arms that retain nodes, and it is correct**: the press at
-/// x = 20 and the 2 pt drags keep the pointer over the status badge of node 14 (Edge Filter, flush
-/// right of x = 48) until x = 38 + 2 pt per frame passes it; the badge's `.help` hitbox is the
-/// subtree's own, so "the pointer is inside an owned hitbox" (`SB-F` item 4) makes it re-paint.
-/// The `.environment` arm has no record for a node (it is refused), so it reads as predicted
-/// throughout. The release frame (no value moves) replays every occurrence.
+/// `hits / misses / ineligible`. They held for the 11 frames from the tenth on of the **first design**
+/// (prepaint and paint replayed; `.value` 29 / 3 / 0, `.environment` 19 / 2 / 0, `.panels` 30 / 3 / 2; the third arm's last figure was a mispredicted ineligible top bar, see below) and,
+/// after `SB-AA` moved the decision to paint with an exact "the hovered element is under me" rule, for all
+/// of them: the nine earlier frames' extra miss (the pointer over node 14's status badge) is gone, because
+/// the hovered element there is the node on top, not node 14. The release frame (no value moves) replays
+/// every occurrence.
 private struct Prediction {
     let arm: BracketArm
     let hits: Int, misses: Int, ineligible: Int
@@ -25,9 +23,10 @@ private struct Prediction {
 private let predictions = [
     Prediction(arm: .value, hits: 29, misses: 3, ineligible: 0, retainsNodes: true),
     Prediction(arm: .environment, hits: 19, misses: 2, ineligible: 0, retainsNodes: false),
-    // `.value` plus the panels: the inspector replays; the graph panel (a `List` and a `ScrollView`
-    // register scroll regions, `SB-J`) and the top bar (a menu `Picker`) are ineligible.
-    Prediction(arm: .panels, hits: 30, misses: 3, ineligible: 2, retainsNodes: true),
+    // `.value` plus the panels: the inspector and the top bar replay; the graph panel (a `List`, a `ScrollView`
+    // and a `TextField` paint through `withState`, `SB-J`) is ineligible. Predicted 30 / 3 / 2 (the top bar
+    // ineligible for its menu `Picker`): a Picker's paint writes nothing a record cannot replay.
+    Prediction(arm: .panels, hits: 31, misses: 3, ineligible: 1, retainsNodes: true),
 ]
 
 @Test(arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
@@ -41,21 +40,19 @@ func theBracketNodeDragReplaysEveryUnchangedSubtree(arm: BracketArm) throws {
         let f = on.frames[index], base = off.frames[index]
         // The conservation identity (`SB-Q`): every evaluated or skipped occurrence is counted once.
         #expect(f.retainedHits + f.retainedMisses + f.retainedIneligible == f.contentEvaluations + f.contentSkips)
-        // Drag frames 0...8: the pointer is over node 14's badge. Frame 20: the release, nothing moved.
-        let overBadge = predicted.retainsNodes && index <= 8
+        // Frame 20 is the release: nothing moved, every retaining occurrence replays.
         if index == 20 {
             #expect(f.retainedMisses == 0)
             #expect(f.retainedHits == f.contentEvaluations + f.contentSkips - f.retainedIneligible)
         } else {
-            #expect(f.retainedHits == predicted.hits - (overBadge ? 1 : 0))
-            #expect(f.retainedMisses == predicted.misses + (overBadge ? 1 : 0))
+            #expect(f.retainedHits == predicted.hits)
+            #expect(f.retainedMisses == predicted.misses)
         }
         #expect(f.retainedIneligible == predicted.ineligible)
-        // The work a hit stands for is the work memo-off does: prepaint and paint, element by element.
-        #expect(f.elementPrepaints + f.retainedSkippedPrepaints == base.elementPrepaints)
+        // Paint is the work a hit stands for, element by element; prepaint and the build run in full.
         #expect(f.elementPaints + f.retainedSkippedPaints == base.elementPaints)
         #expect(f.elementPaints < base.elementPaints)
-        // The build recursion is still paid in full (lane 1).
+        #expect(f.elementPrepaints == base.elementPrepaints && f.retainedSkippedPrepaints == 0)
         #expect(f.elementRequests == base.elementRequests)
         #expect(f.layoutMeasureCalls == base.layoutMeasureCalls)
         // The scene is the same scene, and the two changed wires are still rasterized.

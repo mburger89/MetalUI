@@ -77,7 +77,7 @@ public final class Frame {
     /// **A borrowed M4 primitive** (spec §8 of the clipping/scroll design): the
     /// input to animation, not an animation system. `Window` reads it after
     /// render and marks itself dirty, which unpauses the display link.
-    var wantsAnotherFrame = false
+    private(set) var wantsAnotherFrame = false
 
     /// Ask for another frame after this one — for an animation in progress.
     func requestAnotherFrame() {
@@ -86,12 +86,12 @@ public final class Frame {
         retainLog?.taint("requestAnotherFrame")
     }
 
-    /// Times this frame's build or phases noted a live animation or another-frame request
-    /// (`SB-`): a retained subtree whose build moved it is time-varying and never replays.
+    /// Times this frame's build or paint noted a live animation or another-frame request
+    /// (`SB-S`): a retained subtree whose build moved it is time-varying and never replays.
     var timeVaryingNotes = 0
 
     /// The open recorders' shared log (`RetainedSubtree.swift`): `nil` unless a retained
-    /// subtree is being recorded, so every hook below costs one nil check.
+    /// subtree's paint is being recorded, so every hook below costs one nil check.
     var retainLog: RetainLog? {
         didSet {
             stateTable.retainLog = retainLog
@@ -138,8 +138,8 @@ public final class Frame {
     /// members entered in the build (`GlobalElementID.enteringGroupMember`), elements
     /// prepainted (each `recordElementBounds` site, one per element and per modifier
     /// layer) and painted (`Element`/`AnyElement` `paintGroup` and each modifier
-    /// layer's paint). A replayed subtree adds none: the conservation law of the
-    /// retained-subtree tests is `elementPaints + skipped == the memo-off figure`.
+    /// layer's paint). A replayed subtree paints none of its elements: the conservation
+    /// law of the retained-subtree tests is `elementPaints + skipped == the unretained figure`.
     var elementRequests = 0
     var elementPrepaints = 0
     var elementPaints = 0
@@ -344,7 +344,7 @@ public final class Frame {
     /// "an `Animation` is interpolating", and it keeps the loop running
     /// *without* dirtying the window — so a window mid-fade reports
     /// `needsRedraw == false`, which is true: nobody changed anything.
-    var hasActiveAnimations = false
+    private(set) var hasActiveAnimations = false
 
     /// Report that an `Animation` in this frame is still interpolating.
     func noteActiveAnimation() {
@@ -412,23 +412,23 @@ public final class Frame {
     /// The hover regions this frame registered (ruling `SV-N` item 2) — read
     /// by `Window`, which skips every hover recompute for a frame with none
     /// (`SV-U`).
-    var hoverRegionCount = 0
+    private(set) var hoverRegionCount = 0
 
     /// The pointer-style regions this frame registered (ruling `CI-H` item 7)
     /// — read by `Window`, which does no per-hitbox style work for a frame
     /// with none (`SV-U`'s shape).
-    var pointerStyleRegionCount = 0
+    private(set) var pointerStyleRegionCount = 0
 
     /// How many key regions (`hoverKeyRegion`) and click-focusable press
     /// regions (`focusable(_:interactions:)` with `.edit`) this frame
     /// registered (rulings `KF-E` item 4, `KF-F` item 3): with neither, a key
     /// event and a press do no lookup.
-    var keyRegionCount = 0
-    var focusOnPressCount = 0
+    private(set) var keyRegionCount = 0
+    private(set) var focusOnPressCount = 0
     /// The resign-only regions (`resignsFocusOnPress`, ruling `RF-C` item 2)
     /// this frame registered: not key regions, so `keyRegionCount` and the
     /// hover lookup never see them; a press does a lookup for them.
-    var resignRegionCount = 0
+    private(set) var resignRegionCount = 0
 
     /// The presentation scopes enclosing the one being laid out — the depth in
     /// its registry key (`SV-K` item 2, `LC-U`'s reason).
@@ -805,7 +805,7 @@ public final class Frame {
     /// about scrolling. It is the same division `fill` already makes for the
     /// scale factor, and for the same reason: a caller who could see the value
     /// would apply it a second time.
-    var clipStack: [(clip: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>)] = []
+    private var clipStack: [(clip: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>)] = []
 
     /// The clip currently in effect, in logical points. The whole surface when
     /// no `clipped(to:offsetBy:)` block is active — the same "no clip" answer
@@ -878,10 +878,10 @@ public final class Frame {
     /// Layers, shaped exactly like `clipStack` above and for the same reason:
     /// `deferred` pushes one, `fill`/`draw` stamp whichever is active, and the
     /// closure form that pushes it keeps the stack balanced.
-    var layerStack: [Int] = []
+    private var layerStack: [Int] = []
 
     /// Multiplicative opacity scopes used by native paint modifiers.
-    var opacityStack: [Float] = []
+    private var opacityStack: [Float] = []
     var activeOpacity: Float { opacityStack.reduce(1, *) }
     func pushOpacity(_ opacity: Float) { opacityStack.append(opacity) }
     func popOpacity() { opacityStack.removeLast() }
@@ -922,8 +922,8 @@ public final class Frame {
 
     /// Portal ordinals issued this frame, and the ones open now, innermost last
     /// (AB-V). Untouched while not collecting.
-    var portalCount = 0
-    var portalStack: [Int] = []
+    private var portalCount = 0
+    private var portalStack: [Int] = []
 
     /// Pushes an **intersected** clip (radii included, see `intersect(_:radii:_:radii:)`)
     /// and an **accumulated** offset.
@@ -1010,7 +1010,7 @@ public final class Frame {
     /// so it needs the answer a subtree outside every `ScrollView` gets — and
     /// popping the enclosing entry instead would expose the *next* scroller
     /// out, which is a different wrong answer.
-    var scrollContextStack: [ScrollContext?] = []
+    private var scrollContextStack: [ScrollContext?] = []
 
     /// The scroll context currently in effect, or `nil` outside every
     /// `ScrollView`'s subtree — the same "nothing special" answer `activeClip`
@@ -1055,7 +1055,7 @@ public final class Frame {
     /// escaped its scroller — popping the entry instead would expose the next
     /// scroller out, a different wrong answer. Prepaint-only; empty between
     /// phases.
-    var scrollerFrameStack: [ScrollerFrame?] = []
+    private var scrollerFrameStack: [ScrollerFrame?] = []
 
     /// The scroller frame in effect, or `nil` outside every scroller (or
     /// inside a `Deferred`).
@@ -1293,7 +1293,6 @@ public final class Frame {
     /// used to be `insertHitbox`'s alone and this function's omission of it was
     /// a live routing defect. See `insertHitbox`.
     func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
-        retainLog?.taint("scrollRegion")
         _ = insertHitbox(bounds, id: id, opaque: true, scroll: axis)
     }
 
@@ -1302,13 +1301,13 @@ public final class Frame {
     /// Rebuilt from scratch every frame, exactly like the `LayoutTree` — which
     /// is why a `HitboxID` is a per-frame handle and every record carries a
     /// `GlobalElementID` for anything that must outlive one.
-    var hitboxes: [Hitbox] = []
+    private(set) var hitboxes: [Hitbox] = []
 
     /// Pointer-disable scopes are inherited by descendants during prepaint.
     /// Keyboard registration stays outside this gate: disabling hit testing is
     /// a pointer decision, not an instruction to discard a focused control's
     /// key handler.
-    var hitTestingDisabledDepth = 0
+    private var hitTestingDisabledDepth = 0
 
     func withHitTestingDisabled<R>(_ body: () -> R) -> R {
         hitTestingDisabledDepth += 1
@@ -1343,7 +1342,7 @@ public final class Frame {
 
     /// Inside a hidden node's prepaint (`disablingHitTestingIfHidden`) — the
     /// keyboard focus half's hidden condition (`IX-K` item 3).
-    var keyboardHiddenDepth = 0
+    private var keyboardHiddenDepth = 0
 
     /// Records a hitbox at the rect it actually **paints** at: translated by
     /// the active offset, then intersected with the active clip, carrying the
@@ -1490,7 +1489,6 @@ public final class Frame {
         // by the focusability it would need (`Window.applyPendingFocusStateWrites`).
         if let binding = handlers.focusBinding {
             focusRegistry.registerFocusBinding(binding, id: id)
-            retainLog?.focus.append(.binding(binding, id))
         }
         // The keyboard side first: focus registration is not gated on the
         // pointer gate below, and an element can ask for one without the
@@ -1501,10 +1499,8 @@ public final class Frame {
         if enabled {
             if keyboardVisible {
                 focusRegistry.register(handlers, id: id)
-                retainLog?.focus.append(.register(handlers, id))
             } else {
                 focusRegistry.registerShortcut(handlers, id: id)
-                retainLog?.focus.append(.shortcut(handlers, id))
             }
         }
         // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
@@ -1615,7 +1611,6 @@ public final class Frame {
         if collectsAccessibility, enabled, hitTestingDisabledDepth > 0, let onClick = handlers.onClick,
            !isAccessibilitySuppressed(for: id) {
             accessibilityPressOnly[id] = onClick
-            retainLog?.pressOnly.append((id, onClick))
         }
         // The pointer target's and the draggable region's handlers carry no
         // hover attachment: the hover region below is the one hitbox that
@@ -1682,7 +1677,6 @@ public final class Frame {
                     bounds: Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                                                  y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
                                    size: bounds.size))
-                retainLog?.contextMenus.append((id, contextMenuRecords[id]!))
             }
         }
         // Hover (ruling `SV-N` item 2): a NON-opaque region carrying only the
@@ -1901,7 +1895,7 @@ public final class Frame {
     /// per-frame view, because Task 7 and any future tree walk still want
     /// "what was produced this frame" as a distinct question from "is this id
     /// still valid".
-    var axNodes: [GlobalElementID: AXNode] = [:]
+    private(set) var axNodes: [GlobalElementID: AXNode] = [:]
 
     /// Whether an accessibility client is active for this frame's window
     /// (ruling AB-B). `Window` passes `WindowAccessibility.isActive`; a `Frame`
@@ -1916,7 +1910,7 @@ public final class Frame {
     /// This frame's accessibility records, in prepaint order — **empty unless
     /// `collectsAccessibility`**. Read by `AccessibilityTreeBuilder` once per
     /// frame. See `AXEmission`.
-    var axEmissions: [AXEmission] = []
+    private(set) var axEmissions: [AXEmission] = []
 
     /// The `onClick` of each **enabled** element whose hitbox the
     /// `allowsHitTesting(false)` gate withheld — **empty unless
@@ -1926,12 +1920,12 @@ public final class Frame {
     /// advertises `.press` for these ids and `Window` runs the handler when no
     /// hitbox answers; a mouse click still finds nothing. Last registration
     /// wins, as click dispatch ranks a later hitbox above an earlier one.
-    var accessibilityPressOnly: [GlobalElementID: @MainActor () -> Void] = [:]
+    private(set) var accessibilityPressOnly: [GlobalElementID: @MainActor () -> Void] = [:]
 
     /// The context menus this frame's elements declared, by element (menus,
     /// spec §3.1): `Window`'s keyboard and accessibility openers' table
     /// (`MN-G`). Frame-scoped, never `StateTable`.
-    var contextMenuRecords: [GlobalElementID: ContextMenuRecord] = [:]
+    private(set) var contextMenuRecords: [GlobalElementID: ContextMenuRecord] = [:]
 
     /// The presentation anchors this frame's elements recorded, by element, in
     /// window points (spec §3.4): `Window.lastPresentationAnchors` after the
@@ -1955,11 +1949,11 @@ public final class Frame {
     /// hitbox index (`OV-E` item 3) — filled only while `namedSpaces` is
     /// non-empty, so a tree with no scope stores nothing. `Window` keeps it as
     /// `lastHitboxNamedSpaces`; hit testing never reads it.
-    var hitboxNamedSpaces: [Int: [NamedSpace]] = [:]
+    private(set) var hitboxNamedSpaces: [Int: [NamedSpace]] = [:]
 
     /// How many snapshots `hitboxNamedSpaces` took this frame (`OV-E` item 3's
     /// work counter, test A7).
-    var namedSpaceSnapshots = 0
+    private(set) var namedSpaceSnapshots = 0
 
     /// The spaces presentation declarers recorded this frame, by declarer
     /// (`OV-N`, `OV-P`): `Window.lastPresentationSpaces` after the frame.
@@ -1990,7 +1984,6 @@ public final class Frame {
 
     /// Registers an open popover (`AnchoredPresentation.prepaint`).
     func registerOpenPopover(_ popover: OpenPopover) {
-        retainLog?.taint("popover")
         openPopovers.append(popover)
     }
 
@@ -2029,7 +2022,7 @@ public final class Frame {
     }
 
     /// The exceptions of the open suppression scopes, outermost first.
-    var accessibilitySuppressionExceptions: [GlobalElementID?] = []
+    private var accessibilitySuppressionExceptions: [GlobalElementID?] = []
 
     /// Runs `body` with accessibility records suppressed for everything except
     /// `exception` — for a subtree a client must not see even though it runs
@@ -2135,7 +2128,6 @@ public final class Frame {
         resolved.isValid = true
         axNodes[id] = resolved
         stateTable.withState(Self.axRetentionSlot(for: id), initial: resolved) { $0 = resolved }
-        retainLog?.axNodes.append((id, resolved))
         return resolved
     }
 
@@ -2218,7 +2210,7 @@ public final class Frame {
     ///
     /// `Window` captures this after the frame the way it captures `hitboxes`,
     /// because the frame is gone by the time a key event arrives.
-    var focusRegistry = FocusRegistry()
+    private(set) var focusRegistry = FocusRegistry()
 
     /// The focused element for this frame — handed in from `Window`, then
     /// possibly **cleared here** by `resolveFocus()` — see that method's own
@@ -2237,7 +2229,7 @@ public final class Frame {
     /// See `registerHandlers`'s own doc. Defaults `false`; nothing has to reset
     /// it between frames because `Frame` itself is rebuilt fresh every frame
     /// (`Window.drawFrameIfNeeded`).
-    var focusedElementProducedThisFrame = false
+    private var focusedElementProducedThisFrame = false
 
     /// Drops focus when the focused element was not produced this frame AND
     /// is no longer retained by the state table (design spec §4.2, closing
@@ -2544,7 +2536,7 @@ public final class Frame {
     /// (`Element.prepaintGroup`, and `AnyElement`'s own group entry, a copy of it —
     /// lane 5), and every inner `ModifiedElement` layer (`prepaintLayer`). An id
     /// placed twice keeps its last rect.
-    var elementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
+    private(set) var elementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
 
     /// Records `bounds` for `id` when this frame records element bounds.
     ///
@@ -2556,7 +2548,6 @@ public final class Frame {
         if hasUnresolvedScrollRequests { matchScrollRequests(id, bounds) }
         guard recordsElementBounds else { return }
         elementBounds[id] = bounds
-        retainLog?.bounds.append((id, bounds))
     }
 
     /// Records an `IdentifiedGroup`'s row: the union of the rects of the nodes its content
@@ -2565,7 +2556,6 @@ public final class Frame {
     func recordIdentifiedBounds(_ id: GlobalElementID, nodes: [LayoutNodeID]) {
         guard recordsElementBounds, !nodes.isEmpty else { return }
         elementBounds[id] = union(of: nodes)
-        retainLog?.bounds.append((id, elementBounds[id]!))
     }
 
     /// A legacy site met a field (or is a site) with no proposal lowering.
@@ -2595,7 +2585,7 @@ public final class Frame {
     /// `.vertical`, and `ZStack`/`Grid` `nil` ("no stack"). A `Divider` reads
     /// the top at its layout request. Every other container pushes nothing, so
     /// it is transparent. Layout-only: the phases after layout never read it.
-    var stackAxes: [ProposalStackAxis?] = []
+    private var stackAxes: [ProposalStackAxis?] = []
 
     /// The innermost enclosing stack's axis, or `nil` outside any stack or
     /// inside a `ZStack` or `Grid` (`SV-O` item 2, `V3`, `V4`).
@@ -2827,7 +2817,7 @@ public final class Frame {
                                 left: borderWidths.left.scaled(by: scaleFactor)),
             order: 0, shape: shape)
         if paintScopes.isEmpty {
-            retainLog?.noteDirect(CapturedPrimitive(kind: .rect(rect), layer: activeLayer, innerMask: false), depth: clipStack.count)
+            retainLog?.noteDirect(CapturedPrimitive(kind: .rect(rect), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(rect, layer: activeLayer)
         } else {
             insertThroughScopes(.rect(rect, layer: activeLayer, innerMask: false))
@@ -2860,7 +2850,7 @@ public final class Frame {
             sigma: Float(MUIBackdropSigmaPoints) * scaleFactor,
             opacity: activeOpacity)
         if paintScopes.isEmpty {
-            retainLog?.noteDirect(CapturedPrimitive(kind: .backdrop(record), layer: activeLayer, innerMask: false), depth: clipStack.count)
+            retainLog?.noteDirect(CapturedPrimitive(kind: .backdrop(record), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(record, layer: activeLayer)
         } else {
             insertThroughScopes(.backdrop(record, layer: activeLayer, innerMask: false))
@@ -2882,7 +2872,7 @@ public final class Frame {
                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
                              opacity: activeOpacity, filter: filter, order: 0)
         if paintScopes.isEmpty {
-            retainLog?.noteDirect(CapturedPrimitive(kind: .image(image, texture: texture), layer: activeLayer, innerMask: false), depth: clipStack.count)
+            retainLog?.noteDirect(CapturedPrimitive(kind: .image(image, texture: texture), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(image, texture: texture, layer: activeLayer)
         } else {
             insertThroughScopes(.image(image, texture: texture, layer: activeLayer, innerMask: false))
@@ -2903,7 +2893,7 @@ public final class Frame {
     /// This frame's app-owned surfaces' draw requests, in paint order —
     /// handed by `Window` to `WindowRenderer.finishFrame(scene:atlas:surfaces:)`
     /// (`MV-F`). A headless `renderFrame` drops them.
-    var surfaceRequests: [SurfaceDrawRequest] = []
+    private(set) var surfaceRequests: [SurfaceDrawRequest] = []
 
     /// Emits one app-owned surface's quad and its draw request (MetalView,
     /// rulings `MV-D`, `MV-E` item 2, `MV-G`) — ``drawImage(_:in:filter:)``'s
@@ -3035,7 +3025,7 @@ public final class Frame {
                              color: Hsla(h: color.h, s: color.s, l: color.l,
                                          a: color.a * activeOpacity), order: 0)
         if paintScopes.isEmpty {
-            retainLog?.noteDirect(CapturedPrimitive(kind: .glyph(glyph), layer: activeLayer, innerMask: false), depth: clipStack.count)
+            retainLog?.noteDirect(CapturedPrimitive(kind: .glyph(glyph), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(glyph, layer: activeLayer)
         } else {
             insertThroughScopes(.glyph(glyph, layer: activeLayer, innerMask: false))
@@ -3131,7 +3121,6 @@ public final class Frame {
             let candidate = shareCandidates[k]
             guard candidate.rect == rect else { break }
             for entry in candidate.hitboxes {
-                retainLog?.notePatch(hitbox: entry.index, axEmission: nil)
                 var hitbox = hitboxes[entry.index]
                 let outerClip = hitbox.transform?.outerClip ?? entry.clip
                 hitbox.bounds = entry.raw
@@ -3139,7 +3128,6 @@ public final class Frame {
                 hitboxes[entry.index] = hitbox
             }
             for index in candidate.accessibility where index < axEmissions.count {
-                retainLog?.notePatch(hitbox: nil, axEmission: index)
                 var geometry = axEmissions[index].geometry
                 // As `accessibilityGeometry` computes it inside an effect: the
                 // bounding box of the pre-effect visible rect (the rect cut by
@@ -3240,11 +3228,12 @@ public final class Frame {
         processScopes([(leaf, depths)], from: paintScopes.count, depth: clipStack.count)
     }
 
-    /// `leaves` through the paint scopes below index `boundary` (innermost first), then into
-    /// the scene: the loop of ``insertThroughScopes(leaf:depths:)``, split out so a retained
-    /// subtree can note the leaves as they stand where its own scopes end (`SB-D`) and replay
-    /// them from there (`replayScene`). `depth` is the clip depth the leaves were emitted at.
-    /// With no recorder open `retainLog` is `nil` and this is the old loop line for line.
+    /// `initial` leaves through the paint scopes below index `boundary` (innermost first), then
+    /// into the scene: the loop of ``insertThroughScopes(leaf:depths:)``, split out so a retained
+    /// subtree can note the leaves as they stand where its own scopes end (`SB-T`) and replay
+    /// them from there. `depth` is the clip depth the leaves were emitted at. With no recorder
+    /// open `retainLog` is `nil` and this is the old loop line for line. Each group carries its
+    /// primitives' emission depths, `nil` for "all at `depth`" (no array on the ordinary path).
     func processScopes(_ initial: [([CapturedPrimitive], [Int]?)], from boundary: Int, depth: Int) {
         var leaves = initial
         var pastBarrier = false
@@ -3471,7 +3460,7 @@ public final class Frame {
                               maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)))
         let primitive = CapturedPrimitive(kind: .path(paint), layer: activeLayer, innerMask: false)
         if paintScopes.isEmpty {
-            retainLog?.noteDirect(primitive, depth: clipStack.count)
+            retainLog?.noteDirect(primitive, depth: clipDepth)
             insertIntoScene(primitive)
         } else {
             insertThroughScopes(primitive)

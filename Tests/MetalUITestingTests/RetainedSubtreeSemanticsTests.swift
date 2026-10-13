@@ -72,6 +72,17 @@ private struct RSObservedParent: Component, @MainActor Equatable {
     static func == (l: RSObservedParent, r: RSObservedParent) -> Bool { true }
 }
 
+/// A hover region (a tally the record must replay): the log records the window's hover events.
+private struct RSHoverCard: Component, @MainActor Equatable {
+    let log: HarnessLog
+    var content: some ElementGroup {
+        Text("hover me").frame(width: Pixels(70), height: Pixels(20)).onHover { [log] inside in
+            log.add(inside ? "in" : "out")
+        }
+    }
+    static func == (l: RSHoverCard, r: RSHoverCard) -> Bool { l.log === r.log }
+}
+
 /// Sliders, a toggle, a material (a backdrop primitive) and a button: the inspector of the fixture, small.
 private struct RSInspector: Component, @MainActor Equatable {
     @State var on = true
@@ -91,18 +102,26 @@ private struct RSInspector: Component, @MainActor Equatable {
 
 /// The differential's tree: cards under outer effects (an offset, a shadow, a rotation), a stateful holder,
 /// an observed reader, an inspector with a backdrop.
-@MainActor private func rsRoot(_ model: RSModel) -> some Element {
+@MainActor private func rsRoot(_ model: RSModel, _ log: HarnessLog) -> some Element {
     VStack(spacing: 6) {
         HStack(spacing: 6) {
             RSCard(title: "A", shade: model.n % 3).equatable()
             ZStack { RSCard(title: "B", shade: 1).equatable() }.offset(x: Pixels(3))
             ZStack { RSCard(title: "C", shade: 2).equatable() }.shadow(radius: Pixels(4))
             ZStack { RSCard(title: "D", shade: 0).equatable() }.rotationEffect(.degrees(4))
+            ScrollView(.vertical) {
+                VStack(spacing: 2) {
+                    RSCard(title: "E", shade: 2).equatable()
+                    RSCard(title: "F", shade: 1).equatable()
+                    RSCard(title: "G", shade: 0).equatable()
+                }
+            }.frame(width: Pixels(100), height: Pixels(70))
         }
         HStack(spacing: 6) {
             RSHolder().equatable()
             RSObservedParent(model: model).equatable()
             RSInspector().equatable()
+            RSHoverCard(log: log).equatable()
         }
     }
 }
@@ -145,15 +164,16 @@ private struct RSInspector: Component, @MainActor Equatable {
 @MainActor private final class RSPair {
     let on: TestWindow, off: TestWindow
     let onModel = RSModel(), offModel = RSModel()
+    let onLog = HarnessLog(), offLog = HarnessLog()
     var hits = 0, misses = 0, ineligible = 0
 
     init(size: Size<Pixels> = sz(420, 200), scale: Float = 1, colorScheme: ColorScheme = .light) throws {
-        let onModel = self.onModel, offModel = self.offModel
+        let onModel = self.onModel, offModel = self.offModel, onLog = self.onLog, offLog = self.offLog
         on = try TestWindow(size: size, colorScheme: colorScheme, scaleFactor: scale, textSystem: harnessTextSystem) {
-            rsRoot(onModel)
+            rsRoot(onModel, onLog)
         }
         off = try TestWindow(size: size, colorScheme: colorScheme, scaleFactor: scale, textSystem: harnessTextSystem) {
-            rsRoot(offModel)
+            rsRoot(offModel, offLog)
         }
         off.window.testingRetainedSubtrees = false
         redraw(); redraw()
@@ -168,6 +188,7 @@ private struct RSInspector: Component, @MainActor Equatable {
     func compare(_ step: String) throws {
         let differences = try RSSnapshot(on).differences(from: RSSnapshot(off))
         #expect(differences.isEmpty, "after \(step): \(differences)")
+        #expect(onLog.entries == offLog.entries, "hover events after \(step): \(onLog.entries) vs \(offLog.entries)")
         #expect(off.lastFrameWork.retainedHits == 0)
     }
 }
@@ -182,7 +203,7 @@ private struct RSInspector: Component, @MainActor Equatable {
 /// bounds are equal. The retained side must have hit, or the test proves nothing. Mutation: any one
 /// component dropped from the key (1.3 names them); a replay appended at the end of the frame (1.15).
 @Test @MainActor func aRetainedFrameEqualsAFreshFrameOverAScript() async throws {
-    let pair = try RSPair()
+    let pair = try RSPair(size: sz(640, 200))
     try pair.compare("the first frames")
     func centre(_ w: TestWindow, _ label: String) throws -> Point<Pixels> {
         let f = try w.element(label: label).frame
@@ -194,6 +215,10 @@ private struct RSInspector: Component, @MainActor Equatable {
         ("a hover over card B's button", {
             pair.on.hover(at: try centre(pair.on, "go B")); pair.off.hover(at: try centre(pair.off, "go B")) }),
         ("a quiet frame under the pointer", {}),
+        ("the pointer over the hover card", {
+            pair.on.hover(at: try centre(pair.on, "hover me")); pair.off.hover(at: try centre(pair.off, "hover me")) }),
+        ("the pointer off the hover card", {
+            pair.on.hover(at: pt(2, 2)); pair.off.hover(at: pt(2, 2)) }),
         ("the pointer leaving", { pair.on.exitPointer(); pair.off.exitPointer() }),
         ("a click on card A's button", {
             pair.on.click(at: try centre(pair.on, "go A")); pair.off.click(at: try centre(pair.off, "go A")) }),
@@ -201,6 +226,12 @@ private struct RSInspector: Component, @MainActor Equatable {
         ("a Tab to the second", { pair.on.typeKey(.tab); pair.off.typeKey(.tab) }),
         ("a click on the holder's counter", {
             pair.on.click(at: try centre(pair.on, "count 0")); pair.off.click(at: try centre(pair.off, "count 0")) }),
+        ("a scroll of the scroll view", {
+            pair.on.scroll(at: try centre(pair.on, "go F"), byDeltaX: 0, deltaY: -25)
+            pair.off.scroll(at: try centre(pair.off, "go F"), byDeltaX: 0, deltaY: -25) }),
+        ("a second scroll", {
+            pair.on.scroll(at: try centre(pair.on, "go F"), byDeltaX: 0, deltaY: -10)
+            pair.off.scroll(at: try centre(pair.off, "go F"), byDeltaX: 0, deltaY: -10) }),
         ("a tint write (no reader)", { pair.onModel.tint += 1; pair.offModel.tint += 1 }),
         ("the observed child's model write", { pair.onModel.n += 1; pair.offModel.n += 1 }),
         ("a resize", { pair.on.resize(to: sz(380, 220)); pair.off.resize(to: sz(380, 220)) }),
@@ -247,8 +278,8 @@ private struct RSInspector: Component, @MainActor Equatable {
 /// 1.4 — a subtree the pointer is inside, a press is on or focus is in re-paints, and the three others
 /// replay; once the pointer has left it, it re-records once and replays again (`SB-F` item 4). The
 /// harness draws a frame for each action, so the action's own frame is read with `lastFrameWork`.
-/// A focused subtree is **ineligible** rather than a miss: the focused element's `$focus` retention
-/// write is a state write a record cannot replay (`SB-J`). Mutation: the pointer test forced false
+/// The pointer, press and focus rules are exact (`SB-F` item 4, `SB-AA`): the hovered, pressed or focused
+/// element must be the occurrence or under it. Mutation: the pointer test forced false
 /// (the hovered card replays a stale frame and 1.2 reddens with it); forced true (a quiet frame misses).
 @Test @MainActor func aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays() throws {
     let window = try rsCards()
@@ -278,12 +309,12 @@ private struct RSInspector: Component, @MainActor Equatable {
     // Focus: Tab to the first stop.
     window.typeKey(.tab)
     f = window.lastFrameWork
-    #expect(f.retainedIneligible == 1 && f.retainedHits == 3, "focus is in the first card: \(f.retainedHits)/\(f.retainedIneligible)")
+    #expect(f.retainedMisses == 1 && f.retainedHits == 3, "focus is in the first card: \(f.retainedHits)/\(f.retainedMisses)")
     f = rsFrame(window)
-    #expect(f.retainedIneligible == 1 && f.retainedHits == 3, "and stays there")
+    #expect(f.retainedMisses == 1 && f.retainedHits == 3, "and stays there")
     window.typeKey(.tab)
     f = rsFrame(window)
-    #expect(f.retainedIneligible == 1 && f.retainedHits == 3, "focus moved to the second card: still exactly one")
+    #expect(f.retainedMisses == 1 && f.retainedHits == 3, "focus moved to the second card: still exactly one")
     let first = try window.element(label: "go A")
     #expect(!first.isFocused, "and the first card, no longer focused, replays")
 }
@@ -350,7 +381,7 @@ extension EnvironmentValues {
 }
 
 enum RSChannel: String, CaseIterable, CustomTestStringConvertible {
-    case scrollRegion, surface, geometryChange, activeAnimation, customEnvironmentKey, stateWrite
+    case scrollRegion, surface, activeAnimation, customEnvironmentKey, stateWrite, popover
     var testDescription: String { rawValue }
 }
 
@@ -367,9 +398,6 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
                 .frame(width: Pixels(80), height: Pixels(30))
         case .surface:
             GPUSurface(redraw: .onDemand, value: 0) { _ in }.frame(width: Pixels(40), height: Pixels(30))
-        case .geometryChange:
-            Text("geometry").frame(width: Pixels(60), height: Pixels(14))
-                .onGeometryChange(for: Double.self, of: { Double($0.size.width.value) }) { _ in }
         case .activeAnimation:
             Box().frame(width: Pixels(40), height: Pixels(10)).background(.accent)
                 .opacity(flag.on ? 1 : 0.2)
@@ -378,13 +406,16 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
             Text("custom").frame(width: Pixels(60), height: Pixels(14))
         case .stateWrite:
             TextField("t", text: $text).frame(width: Pixels(80), height: Pixels(24))
+        case .popover:
+            Text("anchor").frame(width: Pixels(60), height: Pixels(20))
+                .popover(isPresented: Binding(get: { true }, set: { _ in })) { Text("popover") }
         }
     }
     static func == (l: RSChannelProbe, r: RSChannelProbe) -> Bool { l.channel == r.channel }
 }
 
-/// 1.5 — one arm per ledger channel: the occurrence registers or writes something a record cannot
-/// replay, so it runs as today, is counted `retainedIneligible` and is tried again (`SB-J`). Each arm
+/// 1.5 — one arm per ledger channel: the occurrence's paint writes or raises something a record cannot
+/// replay, so it paints as today, is counted `retainedIneligible` and is tried again (`SB-J`). Each arm
 /// first shows a plain neighbour of the same window replaying, so "ineligible" is not "nothing replays".
 /// Mutation, per arm: the channel removed from the ledger comparison or its taint call — the arm's
 /// occurrence is recorded (`retainedMisses == 1`) and, but for the scene, nothing else notices.
@@ -468,4 +499,233 @@ private struct RSIdleKeyframes: Component, @MainActor Equatable {
     for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
     f = rsFrame(window)
     #expect(f.retainedHits == 2, "settled: both replay again: \(f.retainedHits)/\(f.retainedMisses)/\(f.retainedIneligible)")
+}
+
+// MARK: 1.3 — every key component separates
+
+enum RSKeyArm: String, CaseIterable, CustomTestStringConvertible {
+    // Geometry (spec §4.1).
+    case topRect
+    // Ambient context at paint (spec §4.2, `SB-AA`).
+    case clip, opacity, shadow, blur, rotation, offsetEffect, foreground, font, disabled
+    // The whole window.
+    case colorScheme, scaleFactor, contentSize
+    var testDescription: String { rawValue }
+    /// Arms that move the control's context too (the whole window, or a padding that shifts its neighbour).
+    var isGlobal: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize || self == .topRect }
+    /// Arms whose action draws the frame that shows the reaction (the window's own events).
+    var actsOnTheWindow: Bool { self == .colorScheme || self == .scaleFactor || self == .contentSize }
+}
+
+/// The probe card under one arm's modifier, `flip` toggling the one input the arm changes.
+@MainActor @ElementBuilder
+private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
+    switch arm {
+    case .topRect:
+        ZStack { RSCard(title: "P", shade: 1).equatable() }.padding(Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: Pixels(flip ? 6 : 0)))
+    case .clip:
+        ZStack { RSCard(title: "P", shade: 1).equatable() }.clipShape(RoundedRectangle(cornerRadius: Pixels(flip ? 3 : 9)))
+    case .opacity:
+        ZStack { RSCard(title: "P", shade: 1).equatable() }.opacity(flip ? 0.5 : 0.9)
+    case .shadow:
+        ZStack { RSCard(title: "P", shade: 1).equatable() }.shadow(radius: Pixels(flip ? 3 : 5))
+    case .blur:
+        ZStack { RSCard(title: "P", shade: 1).equatable() }.blur(radius: Pixels(flip ? 1 : 2))
+    case .rotation:
+        ZStack { RSCard(title: "P", shade: 1).equatable() }.rotationEffect(.degrees(flip ? 3 : 5))
+    case .offsetEffect:
+        ZStack { RSCard(title: "P", shade: 1).equatable() }.offset(x: Pixels(flip ? 1 : 2))
+    case .foreground:
+        RSCard(title: "P", shade: 1).equatable().foregroundColor(flip ? Color.red : Color.blue)
+    case .font:
+        RSCard(title: "P", shade: 1).equatable().font(Font.system(size: flip ? 12 : 14))
+    case .disabled:
+        RSCard(title: "P", shade: 1).equatable().disabled(flip)
+    case .colorScheme, .scaleFactor, .contentSize:
+        RSCard(title: "P", shade: 1).equatable()
+    }
+}
+
+@MainActor private func rsKeyWindow(arm: RSKeyArm, model: RSModel, retained: Bool) throws -> TestWindow {
+    let window = try TestWindow(size: sz(300, 160), textSystem: harnessTextSystem) {
+        HStack(spacing: 6) {
+            RSCard(title: "Q", shade: 2).equatable()
+            rsProbe(arm, flip: model.n % 2 == 1)
+        }
+    }
+    window.window.testingRetainedSubtrees = retained
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    return window
+}
+
+/// 1.3 — **each component of the replay key has a separating arm** (`SB-F`): between two frames exactly one
+/// input moves (a modifier outside the probe card, or the window), and the probe misses (a global arm
+/// makes the control miss too) while the retained scene, hitbox list and accessibility tree equal an
+/// unretained window's. Mutation: that component made constant in `retainedAmbientKey()` / `retainedKey`
+/// — the probe replays the old frame, and the scene (or the miss count) differs. Recorded per arm in §109.
+@Test(arguments: RSKeyArm.allCases) @MainActor func everyKeyComponentSeparates(arm: RSKeyArm) async throws {
+    let onModel = RSModel(), offModel = RSModel()
+    let on = try rsKeyWindow(arm: arm, model: onModel, retained: true)
+    let off = try rsKeyWindow(arm: arm, model: offModel, retained: false)
+    func apply() {
+        switch arm {
+        case .colorScheme: on.setAppearance(.dark); off.setAppearance(.dark)
+        case .scaleFactor: on.setScaleFactor(2); off.setScaleFactor(2)
+        case .contentSize: on.resize(to: sz(280, 150)); off.resize(to: sz(280, 150))
+        default: onModel.n += 1; offModel.n += 1
+        }
+    }
+    let quiet = rsFrame(on); _ = rsFrame(off)
+    #expect(quiet.retainedHits == 2, "both cards replay while nothing moves: \(quiet.retainedHits)")
+    apply()
+    await Task.yield()
+    // A window event draws its own frame (the reaction); a model write waits for the next tick.
+    if !arm.actsOnTheWindow { on.window.setNeedsRedraw(); on.tick(); off.window.setNeedsRedraw(); off.tick() }
+    let f = on.lastFrameWork
+    let reaction = f.retainedMisses + f.retainedIneligible
+    #expect(f.retainedHits + reaction == 2)
+    #expect(reaction >= (arm.isGlobal ? 2 : 1), "\(arm.rawValue): hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible)")
+    if !arm.isGlobal { #expect(f.retainedHits >= 1, "the control card still replays") }
+    let differences = try RSSnapshot(on).differences(from: RSSnapshot(off))
+    #expect(differences.isEmpty, "\(arm.rawValue): \(differences)")
+}
+
+// MARK: 1.13 — rasters, 1.14 — backdrops and outer scopes
+
+private struct RSWire: Component, @MainActor Equatable {
+    let seed: Int
+    var content: some ElementGroup {
+        RSWireShape(a: Float(seed))
+            .stroke(Color.accent, lineWidth: Pixels(2))
+            .frame(width: Pixels(80), height: Pixels(40))
+    }
+}
+
+private struct RSWireShape: Shape, Equatable {
+    var a: Float
+    func path(in rect: Bounds<Pixels>) -> Path {
+        var p = Path()
+        p.move(to: Point(x: Pixels(2), y: Pixels(2)))
+        p.addCurve(to: Point(x: Pixels(76), y: Pixels(36)), control1: Point(x: Pixels(30 + a), y: Pixels(2)),
+                   control2: Point(x: Pixels(40), y: Pixels(36)))
+        return p
+    }
+}
+
+/// 1.13 — a replayed path keeps its raster: the same `ImageTexture` for the next frame, nothing
+/// rasterized and no new texture (`SB-I`; the replay goes through `insertIntoScene`, which looks the raster
+/// up and so touches it, `GX-K`). Mutation: the path ops dropped from the replay — the scene loses its image.
+@Test @MainActor func aReplayTouchesItsRastersSoTheyAreNotDropped() throws {
+    let window = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) { RSWire(seed: 3).equatable() }
+    }
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    let images = window.scene.images.count
+    try #require(images >= 1, "the stroke is an image")
+    window.resetFrameWork()
+    for _ in 0..<6 { window.window.setNeedsRedraw(); window.tick() }
+    let w = window.frameWork
+    let sum = w.dropFirst().reduce(w[0], +)
+    #expect(sum.retainedHits == 6)
+    #expect(sum.rasterizedPixels == 0 && sum.newTextures == 0, "no raster redone, no texture made")
+    #expect(sum.images == 6 * images)
+}
+
+private struct RSLogCard: Component, @MainActor Equatable {
+    let title: String
+    let log: HarnessLog
+    var content: some ElementGroup {
+        VStack(spacing: 0) {
+            Button("\(title)") { [log, title] in log.add(title) }.frame(width: Pixels(80), height: Pixels(40))
+        }
+    }
+    static func == (l: RSLogCard, r: RSLogCard) -> Bool { l.title == r.title && l.log === r.log }
+}
+
+/// 1.15 — registration order is a fresh frame's: two overlapping cards, the later above the earlier; the
+/// retained window and the unretained one agree on the hitbox list and on who a click in the overlap
+/// reaches (the later one), after the cards have replayed. Mutation: a replay that appends at the end of
+/// the frame (`replayPrepaint` called from the window instead of the group) swaps the order.
+@Test @MainActor func aReplayedHitboxKeepsTheRankingAtAnOverlap() throws {
+    func make(retained: Bool, log: HarnessLog) throws -> TestWindow {
+        let w = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
+            ZStack(alignment: .topLeading) {
+                RSLogCard(title: "A", log: log).equatable()
+                ZStack(alignment: .topLeading) { RSLogCard(title: "B", log: log).equatable() }.offset(x: Pixels(30), y: Pixels(0))
+            }
+        }
+        w.window.testingRetainedSubtrees = retained
+        for _ in 0..<4 { w.window.setNeedsRedraw(); w.tick() }
+        return w
+    }
+    let onLog = HarnessLog(), offLog = HarnessLog()
+    let on = try make(retained: true, log: onLog), off = try make(retained: false, log: offLog)
+    on.window.setNeedsRedraw(); on.tick()
+    #expect(on.lastFrameWork.retainedHits == 2)
+    #expect(try RSSnapshot(on).differences(from: RSSnapshot(off)).isEmpty)
+    // The overlap: from B's left edge to A's right edge (the root is centred, so ask for the frames).
+    let a = try on.element(label: "A").frame, b = try on.elements(role: .button).map(\.frame).max { $0.origin.x.value < $1.origin.x.value }!
+    let inOverlap = pt(b.origin.x.value + 10, a.origin.y.value + 10)
+    let onlyA = pt(a.origin.x.value + 5, a.origin.y.value + 10)
+    on.click(at: inOverlap); off.click(at: inOverlap)
+    #expect(onLog.entries == offLog.entries && onLog.entries == ["B"], "\(onLog.entries) vs \(offLog.entries)")
+    on.click(at: onlyA); off.click(at: onlyA)
+    #expect(onLog.entries == offLog.entries && onLog.entries == ["B", "A"])
+}
+
+/// 1.14 — a backdrop inside a replayed subtree and a replay inside an outer shadow are byte for byte a fresh
+/// frame's (`SB-D`, `BB-H`): the inspector's material and a shadowed card, compared with the same tree
+/// unretained after the frames in which they replay. Mutation: `emit` bypassed in the replay with
+/// `scene.insert` — the shadowed card loses its shadow image.
+@Test @MainActor func aBackdropInsideAReplayedSubtreeIsByteIdentical() throws {
+    func make(retained: Bool) throws -> TestWindow {
+        let w = try TestWindow(size: sz(300, 200), textSystem: harnessTextSystem) {
+            HStack(spacing: 8) {
+                RSInspector().equatable()
+                ZStack { RSCard(title: "S", shade: 1).equatable() }.shadow(radius: Pixels(5))
+            }
+        }
+        w.window.testingRetainedSubtrees = retained
+        for _ in 0..<4 { w.window.setNeedsRedraw(); w.tick() }
+        return w
+    }
+    let on = try make(retained: true), off = try make(retained: false)
+    on.window.setNeedsRedraw(); on.tick()
+    #expect(on.lastFrameWork.retainedHits >= 1, "something replayed: \(on.lastFrameWork.retainedHits)")
+    func bytes<T>(_ array: [T]) -> Data { array.withUnsafeBytes { Data($0) } }
+    #expect(bytes(on.scene.backdrops) == bytes(off.scene.backdrops))
+    #expect(!on.scene.backdrops.isEmpty, "the material drew a backdrop")
+    #expect(try RSSnapshot(on).differences(from: RSSnapshot(off)).isEmpty)
+    #expect(on.scene.images.count == off.scene.images.count && on.scene.images.count >= 1, "the card's shadow is an image")
+}
+
+// MARK: 1.16 — the cost of a miss
+
+/// 1.16 — a miss pays the old work plus two ledger snapshots (before and after its paint) and nothing else a
+/// counter sees; a hit takes none. Mutation: a snapshot taken per element — the count reads far above 2
+/// per occurrence.
+@Test @MainActor func aMissCostsTheOldWorkPlusTwoSnapshots() throws {
+    func make(retained: Bool) throws -> TestWindow {
+        let w = try TestWindow(size: sz(420, 120), textSystem: harnessTextSystem, content: {
+            HStack(spacing: 6) {
+                RSCard(title: "A", shade: 0).equatable()
+                RSCard(title: "B", shade: 1).equatable()
+                RSCard(title: "C", shade: 2).equatable()
+            }
+        })
+        w.window.testingRetainedSubtrees = retained
+        return w
+    }
+    // Set the switch before the first frame is drawn is not possible through the initializer; compare the
+    // first recorded frame of each window, which the switch (set right after open) leaves a record-only frame.
+    let on = try make(retained: true), off = try make(retained: false)
+    let history = on.frameWork
+    let totals = history.dropFirst().reduce(history[0], +)
+    let recorded = totals.retainedMisses + totals.retainedIneligible
+    #expect(recorded >= 3)
+    #expect(totals.retainedLedgerSnapshots == 2 * recorded, "\(totals.retainedLedgerSnapshots) snapshots for \(recorded) recorded occurrences")
+    // A hit takes none.
+    on.window.setNeedsRedraw(); on.tick(); on.window.setNeedsRedraw(); on.tick()
+    #expect(on.lastFrameWork.retainedHits == 3 && on.lastFrameWork.retainedLedgerSnapshots == 0)
+    _ = off
 }

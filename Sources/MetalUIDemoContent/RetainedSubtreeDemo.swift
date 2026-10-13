@@ -48,12 +48,20 @@ public final class RetainedSubtreeDemoModel {
     @ObservationIgnored private var dragStartY: Float = 0
     @ObservationIgnored private var dragging: Int?
 
-    /// A fresh model: eight nodes in two rows.
+    /// A fresh model: eight nodes in two rows. Written with loops, not closures: the demo's tree is built
+    /// off the main thread by `everyProductionTreeBuildsOnAOneMegabyteThread`, where a closure formed in a
+    /// `@MainActor` initialiser checks its executor.
     public init() {
-        nodes = (0..<8).map { i in
-            RetainedDemoNodeData(id: i, title: ["Plane", "Extrude", "Boolean", "Fillet", "Chamfer", "Mirror", "Shell", "Output"][i],
-                                 rows: 2 + i % 3, x: Float(i % 4) * 190 + 20, y: Float(i / 4) * 150 + 20)
+        let titles = ["Plane", "Extrude", "Boolean", "Fillet", "Chamfer", "Mirror", "Shell", "Output"]
+        var made: [RetainedDemoNodeData] = []
+        for i in 0..<8 {
+            made.append(RetainedDemoNodeData(id: i, title: titles[i], rows: 2 + i % 3,
+                                             x: Float(i % 4) * 190 + 20, y: Float(i / 4) * 150 + 20))
         }
+        nodes = made
+        var chain: [(Int, Int)] = []
+        for i in 0..<7 { chain.append((i, i + 1)) }
+        links = chain
     }
 
     /// Puts the nodes back where they start.
@@ -76,7 +84,7 @@ public final class RetainedSubtreeDemoModel {
     }
 
     /// The links: a chain through all eight nodes.
-    let links: [(Int, Int)] = (0..<7).map { ($0, $0 + 1) }
+    let links: [(Int, Int)]
 }
 
 /// The one model the demo and its tests share.

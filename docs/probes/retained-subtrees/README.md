@@ -25,4 +25,16 @@ workflows: read shares and ranges, not single milliseconds.
 The counted baseline is `swift test --build-system native --no-parallel --filter
 theBracketNodeDragRebuildsTheWholeWindow` (prints the `SB baseline` lines).
 
+## Lane 1 instruments (`perf/retained-subtrees`)
+
+* `METALUI_VERIFY_RETAINED=1` (read once): a retained hit runs the occurrence as a miss and traps if the
+  record it makes differs from the one a replay would have used (`SB-W`). Run the whole suite under it:
+  `METALUI_VERIFY_RETAINED=1 swift test --build-system native --no-parallel` (a trap is a finding).
+* `METALUI_TRACE_RETAINED=1` (read once): prints why a record missed (`serial`, `rects`, `interior`, a key
+  component, `versions`, `pointer/focus/active`) and why an occurrence was ineligible (the channel).
+* `zsh docs/probes/perf-baselines.sh release bracket` (three whole-process runs, the median) times the drag
+  through the public API; the replay switch is package API, so the **before** column is the same script run
+  against a `git archive` of `e85cb07a` with `BracketFixture.swift` and this harness copied in (the dated
+  measurements are in record §109 §6).
+
 @@READINGS@@

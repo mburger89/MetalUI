@@ -1,11 +1,18 @@
 /// A `Component` whose `content` is not evaluated again while its value is
-/// unchanged (SwiftUI's `View.equatable()`, `IV-B`); made by
-/// ``Component/equatable()``.
+/// unchanged (SwiftUI's `View.equatable()`, `IV-B`), and whose **paint** is
+/// replayed while nothing it reads has changed (retained subtrees, `SB-B`); made
+/// by ``Component/equatable()``.
 ///
 /// The component keeps its identity level, `@State` slots and cursor index: the
-/// wrapper adds none of its own. Everything after the `content` getter —
-/// `requestGroupLayout`, layout, prepaint, paint — runs exactly as for the
-/// bare component, so only the getter's work is saved.
+/// wrapper adds none of its own. The build recursion (`requestGroupLayout`),
+/// layout and prepaint run exactly as for the bare component. Paint runs, once,
+/// when the occurrence is first drawn or anything it depends on changes, and is
+/// then replayed from a record of the scene primitives it made, in the order a
+/// fresh run makes them. What it depends on is the **replay key**: the
+/// occurrence's rectangles and the layout under it, the clip, offset, layer,
+/// opacity and open paint scopes at paint, the built-in environment and theme,
+/// the window's scale and size, and whether the pointer, a press or focus is
+/// inside it.
 ///
 /// There is no initialiser: make one with `equatable()`.
 public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
@@ -56,25 +63,16 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
     public mutating func prepaintGroup(layout: inout ComponentLayout<C>,
                                        pass: inout PrepaintPass) -> ComponentPrepaint<C> {
         guard let build = layout.storage.retained,
-              let phase = pass.frame.retainedPrepaintDecision(build: build) else {
+              let phase = pass.frame.retainedPrepaintPhase(build: build) else {
             return component.prepaintGroup(layout: &layout, pass: &pass)
         }
-        switch phase.mode {
-        case .hit(let record):
-            pass.frame.replayPrepaint(record)
-            return ComponentPrepaint(replayed: phase)
-        case .plain:
-            return component.prepaintGroup(layout: &layout, pass: &pass)
-        case .record:
-            let frame = pass.frame
-            frame.openRecorderWindow(phase.recorder!, recordsScene: false)
-            let result = phase.entry.prepaintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
-                component.prepaintGroup(layout: &layout, pass: &pass)
-            }
-            frame.finishRetainedPrepaint(phase)
-            result.storage.retained = phase
-            return result
+        // Prepaint always runs (`SB-AA`) — its states feed paint — in an observation window of its own
+        // (`SB-V`): an `@Observable` read there that a prepaint state carries into paint kills the record.
+        let result = phase.entry.prepaintSession.run(entry: phase.entry, store: pass.frame.stateTable.contentMemos) {
+            component.prepaintGroup(layout: &layout, pass: &pass)
         }
+        result.storage.retained = phase
+        return result
     }
 
     public mutating func paintGroup(layout: inout ComponentLayout<C>,
@@ -84,25 +82,26 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
             component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
             return
         }
-        switch phase.mode {
+        let frame = pass.frame
+        switch frame.retainedPaintDecision(phase) {
         case .hit(let record):
-            pass.frame.replayPaint(record)
+            frame.replayPaint(record)
         case .plain:
             component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
-        case .record:
-            let frame = pass.frame
-            frame.beginRetainedPaint(phase)
+        case .record(let recorder, let key, let old):
+            frame.openRecorderWindow(recorder)
             phase.entry.paintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
             }
-            frame.finishRetainedPaint(phase)
+            frame.finishRetainedPaint(phase, recorder: recorder, key: key, old: old)
         }
     }
 }
 
 extension Component where Self: Equatable {
     /// Skips this component's `content` getter while its value is `==` to the
-    /// value of its last evaluation (SwiftUI's `View.equatable()`).
+    /// value of its last evaluation (SwiftUI's `View.equatable()`), and replays its
+    /// paint while nothing it reads has changed.
     ///
     /// The content is a function of the value, the component's own `@State` and
     /// the `@Observable` properties it reads; `==` decides for every stored
@@ -113,8 +112,18 @@ extension Component where Self: Equatable {
     /// that declares `@Environment` or `@FocusState` is never skipped (it is
     /// evaluated every frame and counted as a refusal).
     ///
-    /// Only the getter is skipped: layout, prepaint and paint of the content run
-    /// as usual, so the result is pixel-identical to the unmemoized component.
+    /// **What is saved.** The getter, and — when the occurrence is laid out where it
+    /// was and its surroundings at paint are unchanged — the paint of everything
+    /// under it. **The contract that buys the second half:** the subtree's picture is
+    /// a function of the value, the component's `@State`, the `@Observable`
+    /// properties its elements read in a getter, `prepaint` or `paint`, and the
+    /// built-in environment; an element under it that draws from anything else (a
+    /// global, a `Binding` read in `paint`, the clock) must not be under an
+    /// `.equatable()` that cannot see the change. The build recursion, layout and
+    /// prepaint still run every frame, so hit testing, focus and accessibility are
+    /// always current. A subtree that scrolls, edits text, animates, shows a
+    /// popover, draws a `GPUSurface` or sits under a custom environment key paints as
+    /// it always did (counted in `FrameWork.retainedIneligible`).
     public func equatable() -> EquatableComponent<Self> {
         EquatableComponent(component: self)
     }

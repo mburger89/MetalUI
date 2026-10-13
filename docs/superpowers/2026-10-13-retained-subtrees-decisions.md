@@ -1,7 +1,7 @@
 # Retained subtrees — decisions
 
 Rulings for item C14b of the gpui-gap priority list (user request 2026-10-02; **not a plan
-task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-S`.**
+task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AA`.**
 Spec: [`specs/2026-10-13-retained-subtrees-design.md`](specs/2026-10-13-retained-subtrees-design.md);
 fixture: [`specs/2026-10-13-retained-subtrees-fixture.md`](specs/2026-10-13-retained-subtrees-fixture.md).
 Record: `../record/109-retained-subtrees.md` (Record phase). Branch `perf/retained-subtrees` from
@@ -358,3 +358,155 @@ graft. Lane 2's tests are written with red-before and mutation in a table before
 redo once, N frames of doubled cost).
 
 **Cost if wrong.** A resize drag pays one redo then plain builds for 8 frames; no worse than lane 1.
+
+## SB-S — Corrections to the design from the build: a tooltip is replayable, a time read is not a channel
+
+**Question.** Spec §8.1 test 1.15 and `SB-J` named a "tooltip registration" ineligible, and spec §6 item 4
+and §5 named "timestamp reads" a ledger channel. Do those survive contact with the source?
+
+**Evidence.** (1) `.help` is a **contextual hitbox attachment** (`Handlers.contextual`, registered by
+`Frame.registerHandlers` as a non-opaque hitbox); the tooltip itself is the window's (`Tooltip.swift`:
+`TooltipTracker` reads the hitbox list under the pointer, `Window` sets `Frame.tooltip` before the render).
+A subtree with `.help` registers nothing a hitbox slice does not hold, and the fixture's nodes carry one on
+their status badge (so ineligible would have made `hits` 0 in all three arms). (2) `Frame.timestamp` is
+read every frame by idle machinery: a `.trigger`-mode `keyframeAnimator` reads `frame.timestamp` in its
+build (`KeyframeAnimator.currentValue`), every `.animation(_:value:)` track reads it in `advanceColor`
+and `animateField`, whether or not anything is in flight. A "timestamp was read" ledger would make the
+fixture's nodes (which hold an idle shake) permanently ineligible, against spec §6 item 4's own
+`aKeyframeIdleSubtreeReplays`. What is time-varying is what *says so*: `Frame.noteActiveAnimation()`,
+`requestAnotherFrame()` and `AnimationStore.noteInterpolation()`, which every running animation, spinner and
+timeline calls.
+
+**Ruling.** (1) A tooltip is not a channel; `.help` replays with its hitbox. (2) The time-varying signal is
+`Frame.timeVaryingNotes` (the first two calls) and `AnimationStore.interpolationsSoFar`: an occurrence whose
+**build** moved either is time-varying and **never keys** (`retainedEntryRefusal`: `timeVarying`), and one
+whose prepaint or paint moved either, or `taint`ed the log through those calls, is **ineligible**. The
+timestamp is not read-counted. An animation that has just ended is not time-varying on the frame it settles
+and has no record from its running frames, so its first quiet frame records and the next replays
+(`aLiveAnimationNeverReplaysAndAnIdleKeyframeSubtreeDoes`). Cost: a view that varies with the time **without**
+noting an animation would be replayed stale; no such element exists in `Sources/` (the framework's own
+contract is that a time-varying frame keeps the display link awake), and the verify mode would name one.
+
+**Cost if wrong.** A stale frame for a custom element that reads `timestamp` and notes nothing.
+
+## SB-T — The scene is recorded where a subtree's own paint scopes end
+
+**Question.** `SB-D` item 2 routed 14 sites through one `Frame.emit`. What is the funnel actually?
+
+**Evidence.** Every primitive reaches the scene by `insertIntoScene`, from one of two places: the five
+direct fast paths (`fill`, `fillBackdrop`, `drawImage`, `drawSprite`, `drawPath`, `drawGradient`, taken when
+`paintScopes` is empty) and the loop of `insertThroughScopes(leaf:depths:)` (every leaf, text draw's glyph
+group and composite re-emission). The loop already is a pipeline of scopes, innermost first; a subtree's own
+scopes (a keyframe animator's `.offset`, an inner `.shadow`) are applied inside it, and its outer scopes (the
+fixture's per-node `.offset`) are the ones a replay must meet.
+
+**Ruling.** The loop is split into `Frame.processScopes(_:from:depth:)`, which notes the leaves at every
+boundary an open recorder wants (`RetainLog.noteBoundary`), and a recorded subtree's scene is **the leaves as
+they stand where its own scopes end** (boundary = `paintScopes.count` at the paint window's open), with the
+clip depth they were emitted at. A replay calls `processScopes` from that boundary with those leaves: the
+outer scopes capture, shadow, blur, composite, flatten and cut them exactly as they treat a fresh emission,
+and `RasterCache` lookups for paths, shadows, gradients and blurs happen in `insertIntoScene` as they always
+did (so a replayed raster is touched without a journal, and `rasterizedPixels` and `newTextures` are the
+fresh frame's). The five fast paths call `retainLog?.noteDirect` before inserting (boundary 0). A scope
+**pushed inside** the subtree that captures (a transition, a drag source) or is a barrier (a `Deferred`) taints
+the recorder (`taint(scopeIndex:)`: only recorders whose own scopes include that index); `pushLayer` taints too.
+`Frame.emit` as a single method was not built: two funnels already existed and one is now split, with no
+behaviour change (0 px, the fourteen images; every existing test green with replay on). Rejected: capturing
+at the `Scene` arrays (not sliceable, `SB-D`); recording only with no outer scope (every fixture node sits
+under a per-node `.offset`).
+
+**Cost if wrong.** A scope kind that reads state besides its parameters would replay stale; the key holds
+each scope's kind, effect map, depth, flattening flag, outer mask, shadow and blur parameters.
+
+## SB-U — Hitboxes and accessibility are slices, registrations are logged, and what is outside is tainted
+
+**Question.** How are the products captured without a hook at every mutation?
+
+**Ruling.** Prepaint's products are taken as **differences**: `hitboxes` and `axEmissions` by length (a
+recorded slice), `hitboxNamedSpaces` by the indices in the slice (re-keyed on replay), the five region tallies
+and `namedSpaceSnapshots` by value. What is not an append-only array is **logged by the funnel that makes it**
+while a recorder is open (one nil check otherwise): `FocusRegistry.register`/`registerShortcut`/
+`registerFocusBinding` (the three calls `registerHandlers` makes), `emitAXNode` (its `axNodes` entry and its
+`$ax` retention slot), `accessibilityPressOnly`, `contextMenuRecords`, `recordElementBounds` and
+`recordIdentifiedBounds`, `StateTable.mark`, and `AnimationStore.value(at:)`/`set(_:at:)`. A replay appends the
+slices at the traversal position the subtree has now and repeats the logged calls through the same
+functions, so a nested replay is logged for the occurrence around it. **Outside this set the recorder is
+tainted** (the occurrence is `ineligible`, counted, retried): a `StateTable.withState` other than the `$ax`
+slots of the recorded nodes (an `$anim-color` snap, a `TextField`'s edit state, a focused element's `$focus`
+retention — which is why a **focused** subtree is ineligible, not a miss), a `StateTable.write`, a scroll
+region, an open popover, a `GPUSurface` leaf, a portal, a geometry-change note, and any move of a pinned count
+(presentation, toolbar and anchor records, surface requests, unlowerable fields, scroll keys, portals, the
+time-varying notes, an accessibility retry). A shared-registration patch (`shareWithEnclosingWrappers`) that
+reaches a hitbox or accessibility record from before the window is a taint (`notePatch`). `Frame` relaxes 29
+`private` to internal for this (the guards of `PhaseSeparationTests` are about the passes, not `Frame`).
+
+**Cost if wrong.** A channel the recorder neither logs nor pins is a stale or missing product: the three
+instruments are the classification guard (`everyFrameChannelIsClassified`, `SB-E`), the differential and the
+verify mode.
+
+## SB-V — Observation is three windows per occurrence, reopened every build
+
+**Question.** `SB-D` item 4 wrote three sessions over `finishComponent`, prepaint and paint.
+
+**Ruling.** Each memo entry owns a `RetainedSession` per window. The build window opens **every build** (a
+`withObservationTracking` per `.equatable()` occurrence per frame, the previous session retired by the serial
+and the token write exactly as `IV-L` item 5), because whether the occurrence will hit is not known until
+prepaint. Prepaint and paint open only when the occurrence records. A session that fires sets
+`entry.observedChange`; a record is replayed only while that is false, and the flag is cleared when a new record
+is made. The window's own sentinel still dirties the window (the reads inside a nested window merge upward),
+so the sessions need only invalidate. The getter memo's session is unchanged and separate: a child's
+observed read re-evaluates the child and kills the parent's record, not the parent's getter memo
+(`aChildGetterReadInvalidatesItsEquatableParentsRecord`). Cost measured in release at the close-out.
+
+## SB-W — The verify mode compares records, not frames
+
+**Question.** `SB-M` item 1 wrote "on a hit, replay and also run the fresh prepaint and paint into a scratch
+and truncate away". A frame cannot truncate the focus registry, the state table's marks or the animation
+store's touched set.
+
+**Ruling.** With `METALUI_VERIFY_RETAINED=1` a hit **runs the occurrence as a miss** (the frame is the fresh
+one) and compares the record it makes with the record a replay would have used (`RetainedRecord.differences`):
+hitbox fields, handler shape (which members are non-nil), accessibility emissions and nodes, focus-call order,
+element bounds, the five tallies, the prepaint marks, every scene operation (kind, layer, masks, texture
+identity, raster key) and the element work the record stands for. A trap names the first difference. The
+replay mechanism itself (calling the recorded operations back) is compared with a fresh frame by the
+differential over the script, which runs on every build. `METALUI_TRACE_RETAINED=1` prints why a record missed
+and why an occurrence was ineligible (a diagnostic).
+
+## SB-X — The pointer rule costs a neighbour's frame while the pointer crosses it
+
+**Evidence.** The first run of test 1.1 read 28 hits and 4 misses against the predicted 29 and 3 in the first
+nine drag frames: the pointer (press at x = 20, 2 pt per event) is over the status badge of node 14, whose
+`.help` hitbox is the occurrence's own; `SB-F` item 4's rule ("the pointer is inside an owned hitbox") makes
+it re-paint each of those frames. From the tenth frame on the predictions hold (29/3/0, 19/2/0, 30/3/2); the
+release frame replays every occurrence.
+
+**Ruling.** The rule stays conservative (the pointer in any owned hitbox, hit or not hit by it): the neighbour
+re-paints for the frames the pointer is over its hitbox. The prediction table in `RetainedSubtreeWindowTests`
+carries both figures and why. A topmost-aware rule would need the whole frame's hitbox list before the first
+paint decision and is not built.
+
+## SB-Y — The lane 1 ineligible set as built, and what is carried
+
+**Ruling.** Ineligible in lane 1 (counted `retainedIneligible`, retried each frame): anything inside a
+`ScrollView`/`List`/scroller frame or scroll context, anything with a scroll region; a `TextField`/`TextEditor`
+(edit state is `withState`); an element whose paint snaps an animated colour or border (`withState`, first
+sighting included: the first frame of every `.background(color)` on a legacy element, so a window records on
+its second frame and replays from its third); a focused element's subtree; any subtree with a popover, a
+`GPUSurface`, a portal, a geometry-change note, a drag source, a presentation record, a time-varying build, a
+custom environment key at its entry (`customKeyCount`), a non-nil transaction animation at its entry, or a
+leaf group open at its entry. Carried: scroll regions and `List` (C14b-3), popovers and presentations
+(C14b-3), `TextField` (a read-only `withState` is not a write; the `TextEditState` tombstone would need a
+journal), surfaces, custom environment keys (C14-c), translated replay (`SB-H`), lane 2.
+
+## SB-Z — Counters
+
+**Ruling.** `hits + misses + ineligible == contentEvaluations + contentSkips` for a tree in which no
+occurrence sits inside a hit (an occurrence inside another's replay is not prepainted, so it counts in the
+build only). `misses` counts an occurrence that ran and left a record or ran because the pointer, a press or
+focus is inside it; `ineligible` one that ran and left none (counted when the window closes, or at entry for
+a refusal). `retainedLedgerSnapshots` is 4 per occurrence that opened both windows (2 per window), 0 on a hit
+and on an entry refusal. `retainedSkippedPrepaints`/`Paints` are the element prepaints and paints a hit stood
+for, so `elementPrepaints + retainedSkippedPrepaints` is the unretained frame's (pinned frame by frame in
+`theBracketNodeDragReplaysEveryUnchangedSubtree`).
+
