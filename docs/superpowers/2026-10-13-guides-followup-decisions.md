@@ -7,7 +7,7 @@ Record: `../record/107-guides-followup.md`. Continues the namespace of
 Evidence: records §98, §99, §101, §102 and their pinning tests; no SwiftUI probe was run (the guides
 make no new SwiftUI claim; the divergence rows carry the items' own probes).
 
-Prefix **`DG-`**. **Next unused: `DG-W`.** (Moves in the commit that appends a ruling.)
+Prefix **`DG-`**. **Next unused: `DG-X`.** (Moves in the commit that appends a ruling.)
 Branch `docs/guides-followup` from `b17aee19`. Reserved divergence labels 375–384: none used.
 
 ## DG-R — New sections go after the old ones, so no mirror number moves
@@ -48,3 +48,11 @@ not fixed here (a retired-label check would be a new rule).
 **Ruling.** Each claim cites the item's own pin from its record. `theOverlayCostIsLinearAndCounted` is not
 cited: its doc comment says it is expected to change when C14 lands, so a guide citing it would pin a number
 the next item moves. The guide makes no cost claim.
+
+## DG-W — The `DG-P` workaround is dropped (item C30)
+
+**Ruling.** Guides, `docs/testing.md` and the mirrors no longer tell a test to avoid `runUntilIdle()` after a click or
+to draw a model write with `setNeedsRedraw()` then `tick()`; they use `try await window.runUntilIdle()`. Text and mirrors
+stay byte-identical. **Reasoning.** C29 (record §106, `RunUntilIdleAfterClickTests`) made it return after a click on every
+platform; `DG-P` existed only for that defect. **Evidence.** The Linux image run of `MetalUITestingTests` (the only place
+the hop is asynchronous). **Cost if wrong.** A guide test hangs or throws `.notIdle` on Linux; revert the three lines.
