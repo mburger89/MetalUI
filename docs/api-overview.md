@@ -365,6 +365,11 @@ that loses key reports them released. A scroll's events, momentum included, go t
 element under its `.began`, and a scroll whose end never arrives (the window resigned key,
 or closed) gets a synthesized `.cancelled`.
 
+**Continuing press cancel** (`GC-`, record §100; no new API, no divergence). A leaf that
+reported owes `onCancelled` whatever ends it: a primary press on the element whose press is
+still down (a release the app never saw) cancels a reported `DragGesture` and starts a fresh
+arena, instead of dropping the drag silently. A real double-click is unchanged.
+
 **Window drag** (`WD-`, record §97;
 [`superpowers/2026-10-12-window-drag-decisions.md`](superpowers/2026-10-12-window-drag-decisions.md);
 probe `probes/swiftui-window-drag.swift`). `WindowDragGesture` (A; SwiftUI's macOS 15 spelling,
