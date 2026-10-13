@@ -23,7 +23,7 @@ TestWindow.setReduceTransparency(_:)
 ```
 
 Internal: `Material.opaqueColor(in:)` (a new file `MaterialTransparency.swift`, so lane A's
-`Material.swift` and lane B never share a file), `Frame.fillMaterial(...)`.
+`Material.swift` and lane B never share a file), `Frame.fillMaterial(...)`. Test 8's site list is not trusted from this spec: lane B first greps every caller of `fillBackdrop(` / `material.color` (today `AnimatedColor.swift:521`, `ModifiedContent.swift:577`, `Shape.swift:280`, the `ShapeView` material layers) and gives each its own arm, plus a guard that no caller outside `fillMaterial` remains (`MT-I`).
 
 ## Lanes (disjoint files)
 
@@ -37,7 +37,7 @@ class comment, `MT-B`), `docs/probes/closeout-inventory-map.tsv` (row for `Mater
 new `MaterialTransparency.swift`, `Sources/MetalUIAppKit/AppKitPlatform.swift`,
 `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, `Sources/MetalUITesting/*`,
 `Tests/MetalUITests/Fakes.swift`, `Tests/MetalUICrossPlatformTests/PortableFakeWindow.swift`,
-new tests, `docs/migration.md`, inventory rows for the environment value. Lane B calls
+new tests, `docs/migration.md`, inventory rows for the environment value, **and every test file that declares a `PlatformWindow` conformer** (found by `grep -rl onAccessibilityReduceMotionChange Tests Backends`: `InputAPISeamCompileGuards`, `MenuCompileGuards`, `TransactionCompileGuards`, `AppShellSeamCompileGuards`, `ToolbarCompileGuards`, `ColorSchemeCompileGuards`, `ControlStateCompileGuards`, `PlatformServicesCompileGuards`, `DragAndDropCompileGuards`; `MT-I`). Lanes run one after the other (A, then B); the shared `closeout-inventory-map.tsv` and `api-overview.md` are edited by each lane for its own rows only, and the census is re-recorded once, after B. Lane B calls
 `fill(for:)` (internal) only; no lane A symbol. Record/CLAUDE.md/divergence 315 + retire 249 at
 the Record phase.
 

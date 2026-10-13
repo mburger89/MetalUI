@@ -12,7 +12,7 @@ Evidence: [`../probes/swiftui-material-followups.swift`](../probes/swiftui-mater
 header). SwiftUI's answer is the authority; gpui is not read (SwiftUI answers the API question,
 and the platform seam is the reduce-motion pattern).
 
-Prefix **`MT-`**, lettered. **Next unused: `MT-I`.** (This line moves in the commit that
+Prefix **`MT-`**, lettered. **Next unused: `MT-J`.** (This line moves in the commit that
 appends a ruling; read the last `## MT-` heading.)
 
 Branch `feat/material-followups` from `930db4a`. `docs/divergences.md`: this branch's reserved
@@ -136,3 +136,18 @@ changed path runs); `DemoFrameDeterminismTests` Expected unedited; identity, hit
 accessibility, animation, focus, `List`, `Deferred`, text input untouched. The material
 sites' ordering is unchanged when the setting is off: `fillMaterial` calls
 `fillBackdrop(tint: resolve(material.color))` byte for byte.
+
+## MT-I — Critic's corrections: conformers, call sites, shared files
+
+**Ruling.** Three defects in the first design, fixed in the spec. (1) Nine compile-guard test
+files declare their own `PlatformWindow` conformers (all carry the reduce-motion pair) and were
+missing from lane B, so the defaultless pair would break the test build; they are now lane B's.
+(2) The four-site list for `fillMaterial` was written from memory; the callers of `fillBackdrop(`
+are `AnimatedColor.swift:521`, `ModifiedContent.swift:577`, `Shape.swift:280` and the `ShapeView`
+material layers, so lane B greps first, arms each caller, and adds a guard that nothing outside
+`fillMaterial` calls `fillBackdrop(tint: resolve(material.color))`. (3) The lanes share the
+inventory map, `api-overview.md` and the census; they run in order A then B, each editing only its
+own rows, the census re-recorded once after B. Rejected: a probe that forces Reduce Transparency
+(touches the user's system setting; `MT-A`); an SDL OS query (`MT-E`); a coloured material
+(`MT-C`). No other defect found: `Color.resolve(in:)` and the BB counters exist as the spec cites,
+and the `fill(for:)` table matches `MT-F`'s quoted greys.
