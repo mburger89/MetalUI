@@ -1259,7 +1259,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 - **Human verification**: `docs/verification/human-checks.md`. Paint order,
   portals, scroll direction, presentation, the display link and real hover
   are looks; nothing in the suite sees them.
-- **Performance**: record §07; most figures stale — re-measure.
+- **Performance**: record §105 (`BL-`, 2026-10-13, `848ee029`; §07's CSS-engine tables are history). Wall clock is re-taken by `zsh docs/probes/perf-baselines.sh` and recorded dated, never pinned; a pin counts work.
 - **CI hazards** (record §08, §61 §9):
   - A proposal-path regression that reports an `…unconsumed` or presentation
     field **traps in a `Window` test and truncates the run with no summary
