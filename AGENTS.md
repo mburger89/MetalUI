@@ -59,7 +59,8 @@ summary.
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
   `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `OV-` (overlays and coordinates:
-  `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), …; the full
+  `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `SL-` (text selection:
+  `2026-10-12-text-selection-decisions.md`, next `SL-O`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -90,11 +91,12 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-12, `feat/overlays-coords` from `ebcf3c7`, merged with master `280d706`: 3363 tests, 0 goldens, 213 typecheck guards**
+- **Counts (2026-10-12, `feat/text-selection` from `0abce86`): 3395 tests, 0 goldens** (master's 3363 + 32 tests, + 3 typecheck guards; the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else; `swift:6.4-noble` root `MetalUITestingTests` 93 + 9 + 40 + 21 + 199 + 78 + 22; `Backends/SDL` untouched; record §96 §5). Before it:
+  **Counts (2026-10-12, `feat/overlays-coords` from `ebcf3c7`, merged with master `280d706`: 3363 tests, 0 goldens, 213 typecheck guards**
   (master's 3312 + 51 tests, 208 + 5 guards; the native run after `swift package clean` read exactly the five
   `AppKitPresentationTests` sheet issues of `CI-AF` on a locked screen and nothing else; census 3392 (3356 + 36);
   the fourteen images 0 px against `ebcf3c7`; divergence 225 added, the header's count and next label the merge's;
@@ -545,6 +547,16 @@ keys arrive as `.textInput` — **plain-letter `Keymap` bindings are silent**.
 come only from `TextSystem.caretOffsets` (`TI-E`) — never re-derive from
 advances. Undo history (`TI-G`) is valid only for the text its last edit
 produced.
+
+**Text selection (`SL-`, record §96).** `TextField(_:text:selection:)`/`TextEditor(_:text:selection:)`
+over `Binding<TextSelection?>` (macOS 15 like `RangeSet`; the field's state holds it type-erased,
+`SL-L`) are **two-way and echo-free**: one `defer` in `Window`'s `onInput` publishes the focused field's
+selection after an input that changed it (against `currentText`, under `StateDispatch`), and `prepaint`
+applies a binding value that differs from the last one published (`seenBinding`); nil is never an
+instruction, a write is held back while composing, a stale index clamps, and a write ends the typing
+group but touches no undo stack (`SL-B`…`SL-I`). A field focused from code keeps its stored caret and
+focus or resign writes nothing (divergences 265, 266). `TextInputTarget` keeps `Handlers` at 488 bytes
+through class-boxed closures (`SL-M`); the demo is `METALUI_SELECTION_DEMO=1`, a root of its own (`SL-N`).
 
 **Text.** `Text`/`ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`); a new text-drawing element goes through the
