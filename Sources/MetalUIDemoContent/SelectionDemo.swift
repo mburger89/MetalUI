@@ -54,8 +54,10 @@ public final class SelectionDemoModel {
     /// `selection a..<b` for `selection` in `text`, or `selection none`.
     public static func readout(_ selection: TextSelection?, in text: String) -> String {
         guard case .selection(let range)? = selection?.indices else { return "selection none" }
-        let lower = text.distance(from: text.startIndex, to: range.lowerBound)
-        let upper = text.distance(from: text.startIndex, to: range.upperBound)
+        func offset(_ index: String.Index) -> Int {   // a stale index reads as the end
+            index >= text.endIndex ? text.count : text.distance(from: text.startIndex, to: index)
+        }
+        let lower = offset(range.lowerBound), upper = offset(range.upperBound)
         return "selection \(lower)..<\(upper)"
     }
 }
