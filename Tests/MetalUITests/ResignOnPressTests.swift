@@ -246,7 +246,11 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
 /// registration condition.
 @MainActor
 @Test func disabledHiddenAndAllowsHitTestingWithdrawTheResignRegion() throws {
-    for gate in ["none", "disabled", "hidden", "allowsHitTesting"] {
+    // `allowsHitTestingProposal` is the proposal-content spelling (a `Rectangle`
+    // layer). Mutation M6b (drop `hitTestingDisabledDepth == 0` from the
+    // registration condition) stays green under BOTH `allowsHitTesting` arms,
+    // measured (`RF-I`, record 98); the cause is not established.
+    for gate in ["none", "disabled", "hidden", "allowsHitTesting", "allowsHitTestingProposal"] {
         let (window, platform) = try rpWindow {
             HStack(spacing: 0) {
                 let region = square(100).resignsFocusOnPress()
@@ -254,6 +258,8 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
                 case "disabled": region.disabled(true)
                 case "hidden": region.hidden()
                 case "allowsHitTesting": region.allowsHitTesting(false)
+                case "allowsHitTestingProposal":
+                    Rectangle(width: px(100), height: px(100)).resignsFocusOnPress().allowsHitTesting(false)
                 default: region
                 }
                 square(100).focusable()
