@@ -385,7 +385,13 @@ menu item's ⌘-key is offered too (D 188). `focusable(_:)` (replacing
 window shows (D 186). **MetalUI-only**: `.hoverKeyRegion(_:)` — with nothing
 focused, keys (and the `Keymap`'s contexts) go to the key region under the
 pointer; a press in it clears a field's focus (`KF-D`, `KF-E`); a press
-elsewhere never resigns focus (`KF-G`, SwiftUI's answer). On proposal content
+elsewhere never resigns focus (`KF-G`, SwiftUI's answer). **MetalUI-only**: `.resignsFocusOnPress(_:)` (on an element and on proposal
+content, where it joins the one `KeyboardModifier` layer) — an opt-in container
+modifier: a primary press inside it resigns a focused field **without** routing
+keys by hover (a text field or `.focusable(interactions: .edit)` inside takes
+focus directly, no `nil` between; a secondary press never resigns; SwiftUI has
+no equivalent, `RF-A`). Put it on an app root so a press on inert chrome ends
+in-place editing. On proposal content
 — a `MetalView`, a `GPUSurface` — the keyboard modifiers (`onKeyPress`,
 `focusable`, `keyContext`, `focused`, `hoverKeyRegion`) wrap once in a
 **`KeyboardModifier`** and every later one joins that layer, so focus, the

@@ -112,7 +112,10 @@ func keyFocusDemoDescribe(_ key: KeyEquivalent) -> String {
 
 /// The root: the header, a row of canvas, inspector and viewport, the palette
 /// and the status line. Its `onKeyPress` runs first for every key (outermost
-/// first, `KF-C`) and only records the walk.
+/// first, `KF-C`) and only records the walk. It is also a resign region
+/// (`.resignsFocusOnPress()`, `RF-A`…`RF-F`): a press on the padding or a gap
+/// ends editing in a field, and routes no key by hover (the canvas stays the
+/// only key region).
 @MainActor
 private func keyFocusRoot(header: some Element, canvas: some Element, inspector: some Element,
                           palette: some Element, viewport: some Element,
@@ -132,6 +135,7 @@ private func keyFocusRoot(header: some Element, canvas: some Element, inspector:
     .padding(Pixels(24))
     .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity), alignment: .topLeading)
     .background(.surface)
+    .resignsFocusOnPress()
     .onKeyPress { press in
         keyFocusDemoModel.begin(press)
         return .ignored
@@ -140,7 +144,7 @@ private func keyFocusRoot(header: some Element, canvas: some Element, inspector:
 
 @MainActor
 private func keyFocusHeader() -> some Element {
-    Text("Key and focus — hover the canvas and press Tab · click the canvas to leave a field · click the viewport to focus it")
+    Text("Key and focus — hover the canvas and press Tab · click the canvas or blank space to leave a field · click the viewport to focus it")
         .font(size: 13)
 }
 

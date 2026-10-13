@@ -118,7 +118,7 @@ test sees its effect.
 
 A text field that commits on the shortcut-modified Return, submits on a plain
 Return, handles Escape, and loses focus to a click on the canvas around it
-(a `.hoverKeyRegion()`, `KF-E`). `.primary` is the platform's shortcut
+(a `.hoverKeyRegion()`, `KF-E`; or `.resignsFocusOnPress()` on the root when the canvas should not route keys, `RF-C`). `.primary` is the platform's shortcut
 modifier (⌘ on macOS, Ctrl elsewhere), so the same chord works on every
 platform; `typeText` reaches the field as text input, and `onKeyPress` runs
 before the field's own editing keys, so the handler decides the chord and a
