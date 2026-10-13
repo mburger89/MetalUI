@@ -7,7 +7,7 @@ Record: `../record/107-guides-followup.md`. Continues the namespace of
 Evidence: records §98, §99, §101, §102 and their pinning tests; no SwiftUI probe was run (the guides
 make no new SwiftUI claim; the divergence rows carry the items' own probes).
 
-Prefix **`DG-`**. **Next unused: `DG-V`.** (Moves in the commit that appends a ruling.)
+Prefix **`DG-`**. **Next unused: `DG-W`.** (Moves in the commit that appends a ruling.)
 Branch `docs/guides-followup` from `b17aee19`. Reserved divergence labels 375–384: none used.
 
 ## DG-R — New sections go after the old ones, so no mirror number moves
