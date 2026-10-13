@@ -59,6 +59,9 @@ private func sizedStyle(width: Float, height: Float) -> Style {
             }
         }
     }
+    // A recording frame is the only one that writes the group's row (`TW-A`).
+    window.recordsElementBounds = true
+    window.setNeedsRedraw()
     var frames = 0
     while window.needsRedraw && frames < 6 { window.drawFrameIfNeeded(); frames += 1 }
     let proxy = try #require(Holder.proxy)
