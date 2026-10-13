@@ -101,6 +101,8 @@ F	text-proposal-bridge	M	-	-	-	-	LR-S CN-A	Text.proposalLayout(): converts a leg
 F	font	A	swiftui-text-semantics.swift	F1	aTextStyleResolvesToMacOSsFace	-	TE-B TE-C TE-D TE-E	Font, Font.Weight, Font.Design, Font.TextStyle: system sizes/weights/designs, the eleven text styles, custom families
 F	text-modifiers	A	swiftui-text-semantics.swift	L1	aLineLimitCapsLinesAndAnswersTheWidestKeptLine	-	TE-H TE-I TE-J TE-AA	.font/.fontWeight/.italic/.foregroundStyle/.foregroundColor/.lineLimit/.truncationMode/.multilineTextAlignment, TextAlignment, Text.TruncationMode
 F	text-input	M	-	-	-	-	TI-A TI-B TI-D TI-G TI-H	TextField/TextEditor controlled initialisers, submit, undo, paging: MetalUI's own text-input surface
+F	text-selection	A	swiftui-text-selection.swift	W1	aTextSelectionHasSwiftUIsThreeShapes	265 266	SL-A SL-B SL-C SL-D SL-E SL-F SL-G SL-L	TextSelection (indices, isInsertion, init(range:)/(insertionPoint:)/(ranges:)) and TextField/TextEditor(_:text:selection:) over Binding<TextSelection?>: SwiftUI's spellings, macOS 15 like SwiftUI (SL-L); a write is applied on the next frame, nil is ignored, stale indices clamp, multi-selection acts on its first range (arms C P R W F S); the focus defaults and the write at focus/resign differ (265, 266)
+F	text-selection-controlled	M	-	-	-	-	SL-A	The controlled spellings of the selection binding (selection: value plus onChange/onSelectionChange), beside the controlled text initialisers (DD-E's pattern): MetalUI-only
 F	text-input-binding	M	-	-	-	-	DD-E	TextField(_:text:)/TextEditor(_:text:) over Binding<String>, forwarding to the controlled initialisers; MetalUI-only evidence: no probe arm exercises TextField(text:)/TextEditor(text:) (data-and-scrolling's B4 is a Binding built outside any view), so the forwarding is pinned by aTextFieldBoundToStateUpdatesItOnEveryEdit alone; the Binding surface itself is the binding family's (B4/B5)
 F	shapes	A	swiftui-shapes-and-rendering.swift	S1	everyBuiltInShapeAnswersItsProposalAndACircleTheSmallerSquare	90	TE-AC TE-AG TE-AH TE-AE	Shape/ShapeGeometry/Rectangle/RoundedRectangle/Circle/Capsule/Ellipse/ShapeView/.fill/.stroke/.strokeBorder; continuous corners drawn circular (90)
 F	clip-shape	A	swiftui-shapes-and-rendering.swift	C3	clippedAndCornerRadiusClipOnTheProposalPath	91 92	TE-AJ	.clipShape/.clipped/.cornerRadius/.clip on proposal content: one clip layer; an ellipse clip traps (91); crossing rounded clips square (92)
@@ -443,6 +445,11 @@ M	MetalUI	LocalizedStringKey.swift	.*	.*	.*	text-markdown
 M	MetalUI	TextAttributes.swift	.*	.*	.*	attributed-text
 M	MetalUI	Text.swift	Text	\+	.*	text-concatenation
 M	MetalUI	Text.swift	.*	.*	.*	text
+M	MetalUI	TextSelection.swift	.*	.*	.*	text-selection
+M	MetalUI	TextField.swift	TextField	init	.*onSelectionChange.*	text-selection-controlled
+M	MetalUI	TextEditor.swift	TextEditor	init	.*onSelectionChange.*	text-selection-controlled
+M	MetalUI	TextEditor.swift	TextEditor	init	.*Binding<TextSelection\?>.*	text-selection
+M	MetalUI	TextField.swift	TextField	init	.*Binding<TextSelection\?>.*	text-selection
 M	MetalUI	TextFieldStyle.swift	.*	.*	.*	field-style
 M	MetalUI	TextEditor.swift	TextEditor	textEditorStyle	.*	field-style
 M	MetalUI	TextField.swift	TextField	textFieldStyle	.*	field-style
