@@ -116,13 +116,19 @@ private struct HarnessSettling: Component {
         }
         return false
     }
-    let perFrame = [1, 6, 78, 67]
+    // C14 lane 1 (`IV-E`) moved this pin: the layout memo answers an unchanged
+    // root whole, so a warm drag frame (the `.offset` registers no node; same tree,
+    // same proposal, same bounds) is one build and NO layout work, and the press
+    // frame, whose V2 is V1 by signature, misses only the proposals V1 was not
+    // asked at (measured: 25 misses, 44 hits, 0 calls; was 67 / 78 / 6).
+    let pressFrame = [1, 0, 44, 25]
+    let perFrame = [1, 0, 0, 0]
     func layout(_ work: FrameWork) -> [Int] {
         [work.builds, work.layoutMeasureCalls, work.layoutCacheHits, work.layoutCacheMisses]
     }
     window.send(.mouseDown(MouseEvent(position: pt(10, 10))))
     window.tick()
-    #expect(layout(window.lastFrameWork) == perFrame, "the press frame, V2 inserted")
+    #expect(layout(window.lastFrameWork) == pressFrame, "the press frame, V2 inserted")
 
     window.resetFrameWork()
     for step in 1...10 {
@@ -134,7 +140,7 @@ private struct HarnessSettling: Component {
         #expect(layout(work) == perFrame, "drag frame \(index + 1)")
     }
     let sum = window.frameWork.reduce(FrameWork(), +)
-    #expect(layout(sum) == [10, 60, 780, 670])
+    #expect(layout(sum) == [10, 0, 0, 0])
 }
 
 /// 1.36 — an unchanged path is rasterized once: frame 1 rasterizes its

@@ -32,7 +32,7 @@ extension Divider: Element, ProposalElement {
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let vertical = pass.frame.stackAxis == .horizontal
-        let node = pass.requestNativeLeaf { Self.measurement(for: $0, vertical: vertical) }
+        let node = pass.requestNativeLeaf(key: DividerLeafKey(vertical: vertical)) { Self.measurement(for: $0, vertical: vertical) }
         return (node, Layout(node: node.layoutNodeID))
     }
 

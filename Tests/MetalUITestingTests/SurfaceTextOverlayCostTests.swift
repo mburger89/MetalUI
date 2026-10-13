@@ -72,10 +72,15 @@ import Testing
     let sum = w.dropFirst().reduce(w[0], +)
     try #require(w.count == frames)
     #expect(sum.builds == frames)
-    #expect(sum.layoutMeasureCalls == frames * (n + 1))
-    #expect(sum.layoutCacheHits == frames * (n + 1))
-    #expect(sum.layoutCacheMisses == frames * (n + 2))
-    #expect(counting.measures == frames * 2 * n)
+    // Re-taken by C14 lane 1 (`IV-E`, GT-F): the labels' `.offset` registers no
+    // layout node, so the frame is signature-identical to the last and the layout
+    // memo answers it whole. What remains is paint's one seam measure and one
+    // `placeGlyphs` per label (before: n + 1 leaf measures, 2n seam measures).
+    #expect(sum.layoutMeasureCalls == 0)
+    #expect(sum.layoutCacheHits == 0)
+    #expect(sum.layoutCacheMisses == 0)
+    #expect(sum.layoutMemoRootHits == frames)
+    #expect(counting.measures == frames * n)
     #expect(counting.places == frames * n)
     #expect(sum.atlasUploadPixels == 0)
     #expect(sum.rasterizedPixels == 0)

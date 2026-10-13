@@ -354,7 +354,7 @@ extension RadialGradient: ProposalElement {
 
 @MainActor
 private func gradientViewLayout(pass: inout LayoutPass) -> (ProposalNodeID, GradientViewLayout) {
-    let node = pass.requestNativeLeaf { LayoutMeasurement(size: SizeD(width: $0.width ?? 10, height: $0.height ?? 10)) }
+    let node = pass.requestNativeLeaf(key: GradientLeafKey()) { LayoutMeasurement(size: SizeD(width: $0.width ?? 10, height: $0.height ?? 10)) }
     return (node, GradientViewLayout(node: node.layoutNodeID))
 }
 

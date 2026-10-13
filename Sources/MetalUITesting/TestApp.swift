@@ -161,6 +161,10 @@ final class FrameWorkRecorder {
         pending.layoutMeasureCalls += work.measureCalls
         pending.layoutCacheHits += work.cacheHits
         pending.layoutCacheMisses += work.cacheMisses
+        pending.layoutMemoHits += work.memoHits
+        pending.layoutMemoMisses += work.memoMisses
+        pending.layoutMemoRootHits += work.memoRootHits
+        pending.layoutSignatureNodes += work.signatureNodesHashed
         pending.rasterizedPixels += work.rasterizedPixels
         pending.blurredPixels += work.blurredPixels
     }

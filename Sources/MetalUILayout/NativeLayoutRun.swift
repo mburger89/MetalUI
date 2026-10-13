@@ -122,6 +122,18 @@ final class NativeLayoutRun {
     /// 72 / 73.
     static let maxDepth = 72
 
+    /// The window's layout memo while this run consults it (`IV-E`): `nil` when the
+    /// tree has none, the memo is disabled, or a verification recompute is
+    /// running (`memoSuspended`). Its `signatures` hold this run's signatures.
+    var memo: LayoutMemo?
+
+    /// Greater than zero while `LayoutMemo.verifies` recomputes a hit: lookups and
+    /// stores are off, so the recomputation is fresh.
+    var memoSuspended = 0
+
+    /// The nodes reachable from the run's root, in pre-order, when `memo` is set.
+    var order: [Int] = []
+
     init(tree: LayoutTree) { self.tree = tree }
 
     /// Enters one native recursion level for `node`; `leave()` on return.
@@ -164,4 +176,14 @@ package struct NativeLayoutWork: Equatable {
     package var cacheHits = 0
     /// Measurement bodies run, every node kind.
     package var cacheMisses = 0
+    /// Keyed `(signature, proposal)` lookups the layout memo answered (`IV-E`);
+    /// not counted in `cacheMisses`.
+    package var memoHits = 0
+    /// Keyed lookups the memo could not answer.
+    package var memoMisses = 0
+    /// Root runs whose whole placement the memo restored (`IV-E` (P)).
+    package var memoRootHits = 0
+    /// Nodes the run's signature pass hashed (`IV-M`): the reachable node count
+    /// when a memo is attached, else 0.
+    package var signatureNodesHashed = 0
 }

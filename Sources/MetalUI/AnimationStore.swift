@@ -1,4 +1,11 @@
+import Foundation
 import MetalUICore
+import MetalUILayout
+
+/// Whether the layout memo recomputes and compares every hit (`IV-J`): the
+/// environment variable `METALUI_VERIFY_LAYOUT_MEMO` equal to `1`, read once.
+let layoutMemoVerifiesFromEnvironment: Bool =
+    ProcessInfo.processInfo.environment["METALUI_VERIFY_LAYOUT_MEMO"] == "1"
 
 /// Animation state that must **not** be `StateTable` state (rulings `AN-AB`,
 /// `AN-Y` item 5): `.animation(_:value:)`'s previous values now, and — lanes 2
@@ -36,6 +43,11 @@ final class AnimationStore {
     /// The window's CPU rasters — paths and shadows (ruling `GX-K`), owned
     /// here so a `Window`'s frames share one and a headless frame gets its own.
     let rasters = RasterCache()
+
+    /// The window's layout memo (`IV-E`), owned here as `rasters` is: a `Window`'s
+    /// frames share one and a headless frame gets its own. **Not a `StateTable`
+    /// entry** (the seven slots unmoved) and holds no node id.
+    let layoutMemo = LayoutMemo(verifies: layoutMemoVerifiesFromEnvironment)
 
     /// The lifecycle modifiers' entries, parked disappearances and unrun
     /// events (ruling `LC-D`), owned here so a `Window`'s frames share one and

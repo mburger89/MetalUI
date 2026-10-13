@@ -13,6 +13,15 @@ public struct FrameWork: Sendable, Equatable {
     public var layoutCacheHits: Int
     /// Layout measurement bodies run, every node kind.
     public var layoutCacheMisses: Int
+    /// Keyed layout-memo lookups answered without measuring (`IV-E`); not in
+    /// ``layoutCacheMisses``.
+    public var layoutMemoHits: Int
+    /// Keyed layout-memo lookups that missed.
+    public var layoutMemoMisses: Int
+    /// Root layout runs whose whole placement the memo restored.
+    public var layoutMemoRootHits: Int
+    /// Nodes the layout runs' signature passes hashed (`IV-M`).
+    public var layoutSignatureNodes: Int
     /// Device pixels rasterized on the CPU (paths, shadow and blur coverage,
     /// gradients) — cache misses only.
     public var rasterizedPixels: Int
@@ -33,13 +42,18 @@ public struct FrameWork: Sendable, Equatable {
 
     /// A record with every count given; all zero by default.
     public init(builds: Int = 0, layoutMeasureCalls: Int = 0, layoutCacheHits: Int = 0,
-                layoutCacheMisses: Int = 0, rasterizedPixels: Int = 0, blurredPixels: Int = 0,
+                layoutCacheMisses: Int = 0, layoutMemoHits: Int = 0, layoutMemoMisses: Int = 0,
+                layoutMemoRootHits: Int = 0, layoutSignatureNodes: Int = 0, rasterizedPixels: Int = 0, blurredPixels: Int = 0,
                 atlasUploadPixels: Int = 0, newTextures: Int = 0, newTexturePixels: Int = 0,
                 rects: Int = 0, glyphs: Int = 0, images: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
         self.layoutCacheMisses = layoutCacheMisses
+        self.layoutMemoHits = layoutMemoHits
+        self.layoutMemoMisses = layoutMemoMisses
+        self.layoutMemoRootHits = layoutMemoRootHits
+        self.layoutSignatureNodes = layoutSignatureNodes
         self.rasterizedPixels = rasterizedPixels
         self.blurredPixels = blurredPixels
         self.atlasUploadPixels = atlasUploadPixels
@@ -56,6 +70,10 @@ public struct FrameWork: Sendable, Equatable {
                   layoutMeasureCalls: l.layoutMeasureCalls + r.layoutMeasureCalls,
                   layoutCacheHits: l.layoutCacheHits + r.layoutCacheHits,
                   layoutCacheMisses: l.layoutCacheMisses + r.layoutCacheMisses,
+                  layoutMemoHits: l.layoutMemoHits + r.layoutMemoHits,
+                  layoutMemoMisses: l.layoutMemoMisses + r.layoutMemoMisses,
+                  layoutMemoRootHits: l.layoutMemoRootHits + r.layoutMemoRootHits,
+                  layoutSignatureNodes: l.layoutSignatureNodes + r.layoutSignatureNodes,
                   rasterizedPixels: l.rasterizedPixels + r.rasterizedPixels,
                   blurredPixels: l.blurredPixels + r.blurredPixels,
                   atlasUploadPixels: l.atlasUploadPixels + r.atlasUploadPixels,

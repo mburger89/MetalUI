@@ -56,6 +56,14 @@ public struct LayoutPass {
         ProposalNodeID(frame.requestNativeLeaf(measure: measure))
     }
 
+    /// A leaf the layout memo may reuse across frames (`IV-E`): `key` must cover
+    /// every input `measure` reads besides the proposal. **`package`**: an app
+    /// cannot spell it; its leaves are unkeyed and make their ancestors
+    /// unmatchable instead.
+    package func requestNativeLeaf(key: AnyHashable, measure: @escaping ProposalMeasureFunction) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLeaf(key: key, measure: measure))
+    }
+
     /// Registers a native `ZStack`-style overlay container.
     public func requestNativeOverlay(children: [ProposalNodeID],
                                      alignment: ProposalAlignment = .center) -> ProposalNodeID {

@@ -22,6 +22,14 @@ package struct BuildWork: Sendable, Equatable {
     package var rasterizedPixels: Int
     /// Device pixels the build blurred (`RasterCache.lastBlurredPixels`).
     package var blurredPixels: Int
+    /// Keyed memo lookups the root's layout run answered (`IV-E`).
+    package var memoHits = 0
+    /// Keyed memo lookups it could not answer.
+    package var memoMisses = 0
+    /// Root runs whose whole placement the memo restored.
+    package var memoRootHits = 0
+    /// Nodes the run's signature pass hashed (`IV-M`).
+    package var signatureNodesHashed = 0
 }
 
 extension Window {
@@ -48,9 +56,17 @@ extension Window {
             observer(BuildWork(measureCalls: work.measureCalls, cacheHits: work.cacheHits,
                                cacheMisses: work.cacheMisses,
                                rasterizedPixels: rasters?.lastRasterizedPixels ?? 0,
-                               blurredPixels: rasters?.lastBlurredPixels ?? 0))
+                               blurredPixels: rasters?.lastBlurredPixels ?? 0,
+                               memoHits: work.memoHits, memoMisses: work.memoMisses,
+                               memoRootHits: work.memoRootHits,
+                               signatureNodesHashed: work.signatureNodesHashed))
         }
     }
+}
+
+extension Window {
+    /// The window's layout memo (`IV-E`), for the harness and the memo's tests.
+    package var testingLayoutMemo: LayoutMemo { animationStore.layoutMemo }
 }
 
 extension Window {

@@ -115,7 +115,7 @@ public struct ProposalText: ProposalElement {
         let style = resolveTextStyle(plain.request, in: pass.environment)
         let key = system.resolveFont(style.descriptor)
         let string = plain.string
-        let node = pass.requestNativeLeaf { proposal in
+        let node = pass.requestNativeLeaf(key: TextLeafKey(string, font: key, style: style, system: system)) { proposal in
             MainActor.assumeIsolated {
                 proposalTextMeasurement(string, font: key, system: system, proposal: proposal, style: style)
             }
