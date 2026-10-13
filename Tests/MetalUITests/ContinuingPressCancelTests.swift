@@ -103,6 +103,8 @@ private func loggedDrag(_ log: CLog, minimumDistance: Pixels = 0) -> some Gestur
     run(arena.press(at: pt(50, 60), clickCount: 1, continuing: false))
     run(arena.move(to: pt(60, 60)))
     run(arena.press(at: pt(50, 60), clickCount: 2, continuing: true))
+    run(arena.cancel())   // the leaf failed with its cancel: nothing is owed twice
+    run(arena.abandon())
     #expect(log.entries == ["changed", "changed", "cancelled"], "\(log.entries)")
 }
 
@@ -150,7 +152,7 @@ private func moved(_ x: Float, _ y: Float) -> InputEvent { .mouseMoved(MouseEven
                                           ancestors: []))
     run(arena.press(at: pt(50, 60), clickCount: 1, continuing: false))
     run(arena.move(to: pt(60, 60)))
-    run(arena.press(at: pt(50, 60), clickCount: 2, continuing: true))
+    run(arena.cancel())
     run(arena.cancel())
     run(arena.abandon())
     #expect(arenaLog.entries == ["changed", "changed", "cancelled"], "\(arenaLog.entries)")
