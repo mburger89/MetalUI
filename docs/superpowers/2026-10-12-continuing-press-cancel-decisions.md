@@ -8,7 +8,7 @@ planning C16's adoption; not blocking — stopgaps in `ViewportModel`/`EditorMod
 Spec: [`specs/2026-10-12-continuing-press-cancel-design.md`](specs/2026-10-12-continuing-press-cancel-design.md).
 Record: `../record/100-continuing-press-cancel.md` (written at the Record phase).
 
-Prefix **`GC-`**, lettered. **Next unused: `GC-G`.** (This line moves in the
+Prefix **`GC-`**, lettered. **Next unused: `GC-H`.** (This line moves in the
 commit that appends a ruling; read the last `## GC-` heading.)
 
 Branch `fix/continuing-press-cancel` from `930db4a`. `docs/divergences.md`: this
@@ -161,3 +161,25 @@ arena honest when driven directly (1.4), and costs one line.
 
 **Probe re-run (critic, 2026-10-12, screen state as at the original run).** Arms
 `L0`..`L3` reproduced byte for byte against the header.
+
+---
+
+## GC-G — Implementation findings: 1.10 dropped, 1.7 is a pin not a separator, 1.3 re-shaped
+
+**Ruling.** (1) Test 1.10 (`cancelBehindEndedMembers` owing a cancel) is **dropped**:
+a leaf that reported was unblocked by `isBlocked`, so every exclusive member ahead of
+it has failed; none can end afterwards, and a member behind a reported one is
+cancelled by the *reported* leaf ending, which is a normal end. No arena shape
+reaches it; `GC-D`'s "unreachable" stands as reasoning, unpinned by a test. (2) The
+spec's claim that the always-abandon mutation reddens 1.7 was **measured false**:
+after a release the drag leaf has ended, the arena is dead and the next press forms
+a fresh arena with its own click count either way. 1.7 stays as a regression pin for
+`IF-C` beside `GC-C`; the always-abandon mutation is separated by 1.6 and by the
+existing tap-sequence tests (record 100 §3). (3) Test 1.3's arena half was reshaped
+after its first mutation (`cancel()` not failing the leaf) reddened nothing: the
+continuing-press path had already failed the leaf, so a second `cancel()` was
+unreachable there. It now drives `press`, `move`, `cancel()`, `cancel()`,
+`abandon()`; test 1.4 gains a trailing `cancel()`/`abandon()` that separates the
+`fail(leaf)` in `GC-B`'s arm.
+
+**Cost if wrong.** None to behaviour; only the test inventory differs from the spec's.
