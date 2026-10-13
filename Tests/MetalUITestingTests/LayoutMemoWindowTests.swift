@@ -144,6 +144,8 @@ private struct MemoBranch<Child: Component>: Component {
     var spacing: Float = 4
     var fontSize: Float = 13
     var showSection = true
+    var limit: Int?
+    var weight = false
 }
 
 @MainActor private func scriptWindow(_ model: ScriptModel, memo: Bool, verifies: Bool) throws -> TestWindow {
@@ -160,7 +162,8 @@ private struct MemoBranch<Child: Component>: Component {
                 }
                 Circle().frame(width: 20, height: 20)
             }
-            Text("a fractional wrapping paragraph that needs several lines to fit").frame(width: 97.5).id("wrap")
+            Text("a fractional wrapping paragraph that needs several lines to fit")
+                .lineLimit(model.limit).fontWeight(model.weight ? .bold : .regular).frame(width: 97.5).id("wrap")
         }
     }
     window.window.testingLayoutMemo.isEnabled = memo
@@ -185,7 +188,7 @@ private struct MemoBranch<Child: Component>: Component {
     let plainWindow = try scriptWindow(b, memo: false, verifies: false)
     var hits = 0
     for step in 0..<40 {
-        switch step % 8 {
+        switch step % 10 {
         case 0: a.texts[step % 4] += "x"; b.texts[step % 4] += "x"
         case 1: a.spacing += 1.5; b.spacing += 1.5
         case 2: a.fontSize += 1; b.fontSize += 1
@@ -199,6 +202,8 @@ private struct MemoBranch<Child: Component>: Component {
         case 6:
             let appearance: Appearance = step % 16 == 6 ? .dark : .light
             memoWindow.setAppearance(appearance); plainWindow.setAppearance(appearance)
+        case 7:
+            if step % 16 == 7 { a.limit = 2; b.limit = 2 } else { a.limit = nil; b.limit = nil; a.weight.toggle(); b.weight.toggle() }
         default: break   // an unchanged frame: a pure (P) hit
         }
         memoWindow.window.setNeedsRedraw(); plainWindow.window.setNeedsRedraw()

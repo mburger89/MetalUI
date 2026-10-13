@@ -18,7 +18,7 @@ baseline `Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift`
 to borrow: it re-requests layout for a whole view each time the entity is
 notified; where this document says "SwiftUI" a probe arm backs it.
 
-**Next unused id: `IV-N`.**
+**Next unused id: `IV-O`.**
 
 ## IV-A — Measure first: the build recursion is half a frame, the layout kernel a fifth, and nothing is a hot spot
 
@@ -393,3 +393,40 @@ stub returning a wrong rect, recorded as such.
 
 **Cost if wrong.** A memo whose signature pass eats its savings ships as a
 no-gain; the counter and the share make that visible instead of assumed.
+
+## IV-N — Lane 1 as built: five amendments to IV-E, each measured
+
+**Question.** Building `IV-E` met five places where the spec's wording was wrong or
+under-specified.
+
+**Ruling.** (1) **The scale factor is not in the text key.** No measure call takes
+it (`TextSystem.measure` has no scale; only `placeGlyphs` and `layOut` do), so a
+1 -> 2 move is signature-identical and a root hit. Test 1.9 pins that
+(`aWindowResizeMissesByProposalAndAScaleChangeDoesNot`); a key that carried the
+scale would redden it. The key is `TextLeafKey`: string, resolved `FontKey`, the
+style's line-limit min/max, truncation and alignment, and the `TextSystem` object's
+identity; never the foreground colour. (2) **`GPUSurface` and `Rectangle` are
+keyed** (`GPUSurfaceLeafKey`, `RectangleLeafKey(width, height, respondsToProposal)`):
+their closures are pure functions of the proposal, and without the surface key the
+GT-A tree's root is unmatchable (a `ZStack` over an unkeyed leaf), so test 1.1
+cannot read 0. Still unkeyed: rich text, images, `Canvas`, controls, third-party.
+Built-in shapes are `RoundedRectangle`, `Circle`, `Capsule`, `Ellipse`
+(`builtInShapeLeafKey`); a user `Shape` is unkeyed. A `ProposalLayout` that is
+`Hashable` is keyed by its type and value; none in `Sources/` is. (3) **(P) stores
+unrounded rects only.** `measuredWidth` is written by the rounding walk from the
+unrounded width, and a hit still runs that walk, so there is nothing separate to
+restore; test 1.10's mutation is "skip the rounding walk after a hit". Placements
+are keyed `(signature, proposal, bounds)` in a two-generation table beside the
+measurements (not "the previous run's"), so presentation roots, a toolbar strip and
+the root each hit in one frame. (4) **The seam still measures in paint.**
+`Text.paint` calls `system.measure` once per label per frame (line cap), so GT-F's
+prediction "seam measures 0" was wrong: after the memo, N labels cost N seam
+measures and N `placeGlyphs` per frame (before: 2N and N). Layout contributes 0.
+(5) **A hit is neither a cache hit nor a miss**: `memoHits` count it, the run cache
+then stores it, and `cacheMisses` counts bodies run. The press frame of
+`aWarmDragLoopCountsLayoutWorkPerFrame` (V2 equal to V1 by signature) reads 25
+misses / 44 hits / 0 calls where it read 67 / 78 / 6; its warm frames read 0.
+Two pins moved by name: that one and `theOverlayCostIsLinearAndCounted`.
+
+**Cost if wrong.** A leaf key that omits an input is a stale measurement; defences
+are test 1.5, per-key tests, `LayoutMemo.verifies` over the whole suite (`IV-J`).
