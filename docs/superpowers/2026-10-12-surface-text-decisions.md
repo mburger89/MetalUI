@@ -15,7 +15,7 @@ SwiftUI has nothing: `WindowTextSystem::layout_line`/`shape_line` (a `ShapedLine
 carries its `width`), which is how a gpui editor measures a string outside any
 element.
 
-**Next unused id: `GT-H`.**
+**Next unused id: `GT-I`.**
 
 ## GT-A — Measure first; the overlay is linear, cache-served and rebuild-bound, so `drawText` is deferred
 
@@ -214,3 +214,24 @@ work, S5c-6 looks at them) and gains the measure for the collision part.
 - `MetalCreator`'s `PlacedLabel.size(of:)` 7-points-a-character guess: replaced
   by the measure on their side after merge; MetalUI never edits their tree.
 
+
+## GT-H — The portable layout cache covers plain text only; a moving styled label still shapes per frame there (critic pass)
+
+**Question.** GT-E caches `[LaidOutLine]` for the plain `placeGlyphs`; does it
+remove the portable per-frame shape for every label?
+
+**Evidence.** `PortableTextSystem.layOut(_ text: StyledText, …)` calls
+`PortableText.styledLayout` on every call (only its `measure` is cached,
+`styledMeasurements`); a rich or Markdown `Text` (RT-) that only moves therefore
+shapes once per frame on SDL/Linux/Windows. Dimension labels like "12.5 mm" are
+plain strings (S5-c), and CoreText caches both paths. The one-run unstyled `Text`
+takes the plain calls byte for byte (RT-M), so it is covered.
+
+**Ruling.** Rejected for this branch: extending the cache to `styledLayout` needs
+an origin-free styled layout and a split of `styledLayout`'s placement step, a
+second oracle surface (`RichTextTests`) with no requester. Stated in the record
+and the spec so GT-E is not read as covering rich text. Owner: the first request
+for moving rich labels on SDL, after C14's re-take.
+
+**Cost if wrong.** A moving Markdown label on SDL shapes once per frame, as
+today; no regression.

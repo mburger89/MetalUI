@@ -16,6 +16,7 @@ design phase as a printing measurement; the lane-1 agent turns it into test
 | Built | `PortableTextSystem` caches the origin-free layout, so a moving text shapes once | GT-E |
 | Built | the overlay cost measurement kept as a baseline pin for C14's re-take | GT-A |
 | Deferred | `MetalDrawContext.drawText`, `SDLGPUDrawContext` twin, shader work | GT-F |
+| Deferred | the layout cache for styled (rich) text on the portable system, `GT-H` |
 | Deferred | `firstBaseline(in:)`/`lastBaseline(in:)`, `GraphicsContext` | GT-G |
 
 No platform/protocol requirement changes: `TextSystem`, `PlatformWindow`,
@@ -58,6 +59,8 @@ probe E vs E2) and 296 (carrier is the environment, no `GraphicsContext`),
 imports, `harnessWindow`) and `Tests/MetalUITests/TextMeasurerGuardTests.swift`.
 
 ## 3. Portable layout cache (lane 2)
+
+Plain text only (`GT-H`): `layOut(_ text: StyledText…)` is unchanged.
 
 `PortableTextSystem`: `private var layouts: [MeasureKey: Entry<[LaidOutLine]>]`
 beside `measurements`, same generation filter in `endFrame`; `measure`,

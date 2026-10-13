@@ -4,7 +4,7 @@ Branch `feat/surface-text` from `d6a815c`. Not a plan task: item C23 of the
 gpui-gap priority list (user request 2026-10-02), requested by MetalCreator
 (gap S5-c). Spec `docs/superpowers/specs/2026-10-12-surface-text-design.md`;
 rulings `GT-A`…`GT-G` in `docs/superpowers/2026-10-12-surface-text-decisions.md`
-(next unused `GT-H`); probe `docs/probes/swiftui-surface-text.swift`.
+(next unused `GT-I`); probe `docs/probes/swiftui-surface-text.swift`.
 Divergence labels reserved: 295–304.
 
 **Status: DESIGNED — not yet built.** Phase log below grows with each phase.
@@ -40,4 +40,4 @@ view; baselines are functions of a size.
 
 ## §3 Deferred
 
-`drawText` (GT-F), baselines and `GraphicsContext` (GT-G).
+`drawText` (GT-F), baselines and `GraphicsContext` (GT-G), the portable layout cache for styled text (GT-H).
