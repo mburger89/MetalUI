@@ -507,6 +507,11 @@ unchanged); `compositingGroup()` (both vocabularies) makes a container one leaf 
 `.shadow` or `.blur`, SwiftUI's one-shadow-per-container spelling, but does not composite an
 opacity (divergence 205); the portable `BoxBlur` is faster with identical output. Human checks:
 group PF, unrun.
+**Text selection** (user request 2026-10-02, item C25, MetalCreator's CT-b, not a plan task; record §96):
+SwiftUI's `TextSelection` and `TextField(_:text:selection:)` / `TextEditor(_:text:selection:)` (macOS 15):
+the binding carries a whole-title selection or a caret at the end of a note from code, and reads back
+after typing, clicks, arrows and undo. `METALUI_SELECTION_DEMO=1 swift run MetalUIDemo` shows it.
+
 **Overlays and coordinates** (user request 2026-10-02, item C15, MetalCreator's EP-a and EP-b, not a
 plan task; record §92): `anchoredOverlay(isPresented:at:in:anchor:content:)` (MetalUI-only) puts a
 chrome-less presentation's corner at a point, flipped inside the window, dismissed by an outside

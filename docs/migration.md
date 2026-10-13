@@ -405,6 +405,12 @@ debug-only meter), but **does not warn yet**: four of the repository's own
 demos measure above the 512 KiB threshold the design chose, so the warning
 waits for a threshold chosen against them (`PE-T`).
 
+### Text selection (`SL-`, record §96)
+
+None: additive. `TextSelection` and the `selection:` initialisers are `@available(macOS 15, *)`; no
+`PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added, so no conformer
+changes. A field with no `selection:` runs no new code beyond one `nil` check.
+
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.

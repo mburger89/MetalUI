@@ -414,6 +414,16 @@ macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
 the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
 `METALUI_KEY_FOCUS_DEMO=1`.
 
+**Text selection** (`SL-`, record §96;
+[`superpowers/2026-10-12-text-selection-decisions.md`](superpowers/2026-10-12-text-selection-decisions.md);
+probe `probes/swiftui-text-selection.swift`). `TextSelection` (A, macOS 15: `indices`, `isInsertion`,
+`init(range:)`, `init(insertionPoint:)`, `init(ranges:)`) and `TextField(_:text:selection:)` /
+`TextEditor(_:text:selection:)` over `Binding<TextSelection?>` (A), plus the controlled spellings with
+`selection:` and `onSelectionChange:` (M). The field writes the binding after each input that moved the
+selection and applies a value it did not write on the next frame; nil is never an instruction.
+Divergences 265 (a field focused from code keeps its caret) and 266 (nothing is written at focus or
+resign). The demo: `METALUI_SELECTION_DEMO=1`.
+
 **Overlays and coordinates** (`OV-`, record §92;
 [`superpowers/2026-10-10-overlays-coords-decisions.md`](superpowers/2026-10-10-overlays-coords-decisions.md);
 probe `probes/swiftui-overlays-coords.swift`). **Coordinates** (A): `CoordinateSpace` gains
