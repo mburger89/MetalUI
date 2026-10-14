@@ -84,7 +84,7 @@ the app pans with an `.offset` over its nodes (the bracket fixture does). The ve
 ## §5 Mutations (each pin reddens; filtered runs, see the note)
 
 Method (`docs/practices/verifying-tests-can-fail.md`): commit first; apply the edit to the committed file; build and run `swift test --filter` over every test of the
-retained-subtree files (25 functions, about 100 s); restore from the copy; `git status --short` clean after each (it was, every time). **Deviation from the brief:** the *unfiltered*
+retained-subtree files (25 functions, about 100 s); restore from the copy; `git status --short` clean after each completed run (it was; one batch I killed part-way left one file mutated, restored with `git checkout`, and was re-run). **Deviation from the brief:** the *unfiltered*
 suite was run unmutated before and after (§7), not once per mutation — a run is seven minutes on this shared Mac and the 25 functions are every test that names the
 retained-subtree machinery. Independent edits share a build where the failing assertion names the channel. **A bare `return` before a function's body parses as
 `return <first statement>`** (warning "expression following 'return'"): the first spelling of the rollback mutations kept their first statement and was not a no-op; they were
