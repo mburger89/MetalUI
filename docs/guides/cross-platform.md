@@ -142,6 +142,27 @@ func crossDecode(_ data: Data) -> (grey: DecodedImage, upright: ImageBitmap)? {
 A one-pixel PNG decodes to one grey byte and a 1x1 bitmap, and bytes that are not an image are `nil`
 (pin: `theCrossPlatformGuideDecodesOnceAndRejectsGarbage`).
 
+To refuse an image before any pixel is decoded, read its header: `ImageInfo(data:)` (or
+`ImageInfo(contentsOfFile:)`, which seeks over the pixels) gives the format, the stored size, the EXIF
+orientation, the bit depth and the channel count for PNG and JPEG, and is `nil` for anything else. It applies
+no size limit of its own, so a 20000 x 20000 PNG reports its size although `DecodedImage` will not decode it.
+`DecodedImage.Limits` runs that read first: an image over `maxInputBytes`, `maxSide` or `maxPixels` is `nil`
+and the decoder never allocates for it.
+
+```swift
+/// Decodes only what fits: 16 MB of input, 8192 pixels a side, 24 million pixels.
+func crossDecodeBounded(_ data: Data) -> (info: ImageInfo, image: DecodedImage)? {
+    let limits = DecodedImage.Limits(maxInputBytes: 16 << 20, maxSide: 8192, maxPixels: 24_000_000)
+    guard let info = ImageInfo(data: data),
+          let image = DecodedImage(data: data, limits: limits) else { return nil }
+    return (info, image)
+}
+```
+
+A one-pixel PNG reports 1 x 1 and decodes inside the limits, a limit of zero pixels refuses it, and bytes that
+are not an image are `nil` (pin: `theCrossPlatformGuideBoundsADecodeFromTheHeader`). Cancelling a decode that
+is inside the limits is not offered.
+
 Text uses CoreText on macOS and MetalUI's portable system (HarfBuzz shaping, FreeType glyphs,
 libunibreak line breaking) elsewhere, measured against CoreText. Fonts come from the platform's
 installed fonts through `SystemFonts.resolver()`; the one place you will see a difference is joined

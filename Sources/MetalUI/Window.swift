@@ -552,6 +552,11 @@ public final class Window {
     /// the same walk. See `focusChain(from:)`.
     var focusChain: [GlobalElementID] { MetalUI.focusChain(from: focusedElement) }
 
+    /// The clipboard commands last sent to the platform (`CB-E`); `[]` at the
+    /// start, which is the platform's own default, so a window with no clipboard
+    /// handler sends nothing.
+    var lastClipboardCommands: ClipboardCommands = []
+
     /// This window's key bindings (framework spec §8.3).
     ///
     /// **Window-level rather than per-element, because a keymap is a
@@ -1186,6 +1191,14 @@ public final class Window {
                 return true
             }
             if self.dispatchKey(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // The clipboard handlers (ruling `CB-B`): primary + C, X and V to
+            // the innermost `copyable`/`cuttable`/`pasteDestination` on the
+            // focus chain, after the keymap, `onKeyPress`, a focused field's own
+            // copy and `onKey`, and before shortcuts and commands.
+            if self.dispatchClipboardKey(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -1964,6 +1977,7 @@ public final class Window {
         // Every `@FocusState` the frame bound follows the focus it settled on —
         // between frames, never in a phase, and writing only a changed value
         // (ruling `IX-J` item 4).
+        updateClipboardCommands()   // CB-E: sent to the platform on change only
         lastFocusStates = stateTable.takeFocusStates()
         reconcileFocusStates()
         // An element asked for another frame — an animation in progress. Marking

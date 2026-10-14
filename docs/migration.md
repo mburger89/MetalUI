@@ -355,6 +355,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | an alert the platform declines (SDL) is **drawn in the window and modal**: while it is up, pointer, wheel and key events reach nothing beneath, and an open drawn menu closes | nothing; answer it with its buttons, Return/Escape or an accessibility press | `SV-J` items 2–4 |
 | **`ImageBitmap(contentsOfFile:)` decodes PNG and JPEG with MetalUI's own decoder on macOS too** (it used ImageIO): a colour-tagged file (`iCCP`, `gAMA`, `cHRM`) is no longer converted — its samples are drawn as sRGB (divergence 138); a truncated or corrupt PNG (a bad CRC on any chunk, a missing `IEND`) and a JPEG with no end marker are `nil` where ImageIO returned a partial image; a JPEG's bytes may move by up to 2 per channel. Other formats (GIF, TIFF, HEIC, …) still go through ImageIO on macOS and are `nil` on Linux/Windows. The initialiser now exists on every platform, beside `init?(data:)` and `init?(resource:withExtension:subdirectory:bundle:)` | convert colour-tagged assets to untagged sRGB PNGs; a hand-written bundle-image cache can become `ImageBitmap(resource:…bundle:)` | `PX-C`, `PX-D`, `PX-E` |
 | **`DecodedImage`, `Image.Orientation` and `ImageBitmap.oriented(_:)` are new names; `Image` gains two `orientation:` initialisers** (no default for `orientation`, so every existing `Image(decorative:scale:)` call still resolves to the old init): a third-party `extension Image { enum Orientation }` or a `DecodedImage` of your own now collides. A bitmap from a file tagged with an EXIF orientation still draws its stored pixels, where SwiftUI's `Image(nsImage:)` of the same file draws upright (divergence 435) | read the tag with `DecodedImage` and draw through `Image(_:scale:orientation:label:)`, or call `applyingOrientation()` before `ImageBitmap(_:)`; delete a vendored second copy of stb_image or an EXIF parser | `IB-A`, `IB-F`, `IB-G`, `IB-K` |
+| **`ImageInfo` and `DecodedImage.Limits` are new names; `DecodedImage` gains two `limits:` initialisers and one new refusal**: a third-party `ImageInfo` or `DecodedImage.Limits` of your own now collides. `DecodedImage(data:)` and `DecodedImage(contentsOfFile:)` return `nil` when the decoder's size disagrees with the header's (an image the two parsers read differently; none of the repository's fixtures does) | read `ImageInfo` first and apply your own bound, or pass `limits:` and delete a hand-written PNG/JPEG header reader that existed only to bound a decode | `IH-A`, `IH-I`, `IH-J` |
 | **a control-drag on AppKit is a secondary drag**: between a control-press (`.rightMouseDown`, `MN-AC` item 1) and its release, motion arrives as `.rightMouseDragged` (it was dropped); on SDL, motion with the right button held is `.rightMouseDragged` (it was `.mouseMoved`), with the middle or an extra button `.otherMouseDragged`, and those buttons' presses `.otherMouseDown`/`.otherMouseUp` (they were dropped) | a platform `onInput` that read right-held motion as a move handles `.rightMouseDragged` | `CI-E` items 3 and 4, `CI-T`, `CI-X` item 1 |
 | `ScrollEvent.isMomentum` is computed from the new `momentumPhase` (still assignable); AppKit fills `phase`, `momentumPhase` and `isPrecise`, SDL `.none`, `.none`, `false` | nothing; read the new fields for gesture phases | `CI-I` items 1 and 6, `CI-V` item 1 |
 | `DragGesture.Value`'s equality compares the new `modifiers` (the keys held at the event that produced the value); every existing construction defaults it to `[]` | nothing, unless a test compares a recorded value with one built without the modifiers it carried | `CI-G`, divergence 140 |
@@ -491,6 +492,19 @@ by the same import). No `PlatformWindow`, `Platform`, `WindowRenderer` or `TextS
 conformer changes; `SDLGPUDrawContext` is unchanged. An app that bound SDL3 itself keeps working and may drop its
 binding. An app's own shaders are built with `Backends/SDL/scripts/compile-app-shaders.py` and shipped as
 `MetalUIAppShaders` (`docs/packaging.md` section 4a).
+
+### Clipboard beyond text (`CB-`, record 115)
+
+**Four defaultless `PlatformWindow` requirements** (`CB-E`): a conformer outside this repository adds
+`func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool`, `func clipboardTypeIdentifiers() -> [String]`,
+`func readClipboard(identifier: String) -> [UInt8]?` and `func setClipboardCommands(_ commands: ClipboardCommands)`.
+A platform with no typed clipboard answers `{ false }`, `{ [] }`, `{ _ in nil }` and `{ _ in }`; the text-only
+`readClipboard()` and `writeClipboard(_ text:)` stay and text fields keep using them. `HeadlessPlatformWindow.clipboard`
+is now a view of its `public.utf8-plain-text` representation (`clipboardRepresentations` holds all of them).
+New API (additive): `copyable(_:)`, `cuttable(for:action:)`, `pasteDestination(for:action:validator:)` in both
+vocabularies, `Window.clipboard`/`Clipboard`; a file importing CoreTransferable spells `MetalUI.Transferable`.
+Behaviour: a key the Edit menu or the keyboard sends as primary C/X/V now reaches a clipboard handler on the focus
+chain before a `Button`'s shortcut or an app command bound to the same key (`CB-B`); with no handler nothing moves.
 
 ## See also
 

@@ -194,7 +194,14 @@ extension MetalHostView: NSMenuItemValidation {
     /// is set (`MN-K`); any other item is not the host view's to disable.
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard let action = menuItem.action, Self.editActions.contains(action) else { return true }
-        return textInputCaret != nil
+        if textInputCaret != nil { return true }
+        // `CB-G`: the focus chain's clipboard handlers enable their own item.
+        switch action {
+        case #selector(cut(_:)): return clipboardCommands.contains(.cut)
+        case #selector(copy(_:)): return clipboardCommands.contains(.copy)
+        case #selector(paste(_:)): return clipboardCommands.contains(.paste)
+        default: return false
+        }
     }
 }
 #endif

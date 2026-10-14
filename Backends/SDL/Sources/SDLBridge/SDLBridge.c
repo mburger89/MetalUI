@@ -1907,6 +1907,103 @@ char *mui_clipboard_text(void) {
 }
 bool mui_set_clipboard_text(const char *text) { return SDL_SetClipboardText(text); }
 void mui_free(void *memory) { SDL_free(memory); }
+
+/* ---- The typed clipboard (rulings CB-H, CB-I) ------------------------------
+ * One malloc'd box holds every representation (mime, bytes), copied at set time.
+ * SDL calls the data callback on whichever thread asks (the caller's for our own
+ * data, the event-pumping thread for a remote request), so the callback is pure:
+ * a lookup by mime returning a pointer into the box. No Swift closure, no actor
+ * hop, no allocation. The cleanup callback frees the box exactly once. */
+typedef struct {
+    char *mime;
+    const uint8_t *bytes;
+    size_t size;
+} MUIClipboardEntry;
+
+typedef struct {
+    size_t count;
+    MUIClipboardEntry entries[];
+} MUIClipboardBox;
+
+static SDL_AtomicInt mui_clipboard_cleanups;
+static SDL_AtomicInt mui_clipboard_live;
+
+static const void *mui_clipboard_data(void *userdata, const char *mime, size_t *size) {
+    const MUIClipboardBox *box = (const MUIClipboardBox *)userdata;
+    *size = 0;
+    if (!box || !mime) return NULL;
+    for (size_t i = 0; i < box->count; i++) {
+        if (strcmp(box->entries[i].mime, mime) == 0) {
+            *size = box->entries[i].size;
+            return box->entries[i].bytes;
+        }
+    }
+    return NULL;
+}
+
+static void mui_clipboard_cleanup(void *userdata) {
+    if (!userdata) return;
+    SDL_AddAtomicInt(&mui_clipboard_cleanups, 1);
+    SDL_AddAtomicInt(&mui_clipboard_live, -1);
+    free(userdata);
+}
+
+bool mui_clipboard_set(const char *const *mimes, const uint8_t *const *bytes,
+                       const size_t *sizes, size_t count) {
+    if (count == 0) return false;
+    size_t total = sizeof(MUIClipboardBox) + count * sizeof(MUIClipboardEntry);
+    for (size_t i = 0; i < count; i++) total += strlen(mimes[i]) + 1 + sizes[i];
+    MUIClipboardBox *box = (MUIClipboardBox *)malloc(total);
+    if (!box) return false;
+    box->count = count;
+    uint8_t *cursor = (uint8_t *)box + sizeof(MUIClipboardBox) + count * sizeof(MUIClipboardEntry);
+    const char **names = (const char **)malloc(count * sizeof(char *));
+    if (!names) { free(box); return false; }
+    for (size_t i = 0; i < count; i++) {
+        size_t n = strlen(mimes[i]) + 1;
+        memcpy(cursor, mimes[i], n);
+        box->entries[i].mime = (char *)cursor;
+        names[i] = (const char *)cursor;
+        cursor += n;
+        if (sizes[i] > 0) memcpy(cursor, bytes[i], sizes[i]);
+        box->entries[i].bytes = cursor;
+        box->entries[i].size = sizes[i];
+        cursor += sizes[i];
+    }
+    SDL_AddAtomicInt(&mui_clipboard_live, 1);
+    bool ok = SDL_SetClipboardData(mui_clipboard_data, mui_clipboard_cleanup, box, names, count);
+    free(names); /* SDL copies the mime list */
+    /* A failed set may or may not have stored the box (a late platform failure
+     * leaves it stored): clearing makes SDL run the cleanup if it holds it, and
+     * only SDL ever frees the box, so it is freed exactly once either way. */
+    if (!ok) SDL_ClearClipboardData();
+    return ok;
+}
+
+char **mui_clipboard_mime_types(size_t *count) {
+    *count = 0;
+    return SDL_GetClipboardMimeTypes(count);
+}
+
+void *mui_clipboard_get(const char *mime, size_t *size) {
+    *size = 0;
+    if (!SDL_HasClipboardData(mime)) return NULL;
+    return SDL_GetClipboardData(mime, size);
+}
+
+bool mui_clipboard_has(const char *mime) { return SDL_HasClipboardData(mime); }
+void mui_clipboard_clear(void) { SDL_ClearClipboardData(); }
+int32_t mui_clipboard_cleanup_count(void) { return SDL_GetAtomicInt(&mui_clipboard_cleanups); }
+int32_t mui_clipboard_live_count(void) { return SDL_GetAtomicInt(&mui_clipboard_live); }
+/* Test hook (CB-H, test 4.2): calls the data callback of this process's own
+ * clipboard through the pure path, on the calling thread, without SDL. Returns
+ * the number of bytes the callback reports for `mime`. */
+size_t mui_clipboard_callback_probe(const char *mime) {
+    size_t n = 0;
+    void *p = mui_clipboard_get(mime, &n);
+    if (p) SDL_free(p);
+    return n;
+}
 void mui_window_position(void *w, int32_t *x, int32_t *y) { SDL_GetWindowPosition((SDL_Window *)w, x, y); }
 void *mui_window_native_handle(void *w) {
     SDL_PropertiesID props = SDL_GetWindowProperties((SDL_Window *)w);

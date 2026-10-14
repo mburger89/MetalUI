@@ -268,6 +268,16 @@ default for `orientation`, `IB-K`) draw a bitmap turned by it through `ImageBitm
 one cached texture per orientation). A bitmap decoded from a tagged file still draws its stored
 pixels (435).
 
+**Header-only read and bounded decode** (`IH-A`…`IH-P`, record 117): `ImageInfo` (M; `init?(data:)`,
+`init?(contentsOfFile:)`) reads a PNG's IHDR or a JPEG's first SOF (all thirteen dimension-bearing
+markers) and the EXIF orientation without decoding a pixel: `format`, stored `width`/`height`,
+`orientation`, `bitDepth`, `channelCount`, `orientedSize`. PNG and JPEG only, `nil` for anything else or a
+damaged header, no size limit of its own; the file form seeks over the pixels through one 64 KiB window.
+`DecodedImage.Limits` (`maxInputBytes`, `maxSide`, `maxPixels`, all optional and inclusive) with
+`DecodedImage(data:format:limits:)` and `DecodedImage(contentsOfFile:format:limits:)` refuse an oversize
+image from the header, before the decoder allocates; `DecodedImage` also refuses a decode whose size
+disagrees with the header. Cancelling a decode is not offered (`IH-K`).
+
 **Paths** (rulings `GX-B`…`GX-E`, `GX-K`): `Path` — SwiftUI's initialisers and
 mutators (`move`, `addLine`, `addLines`, `addQuadCurve`, `addCurve`, both
 `addArc`s, `addRect`, `addRects`, `addRoundedRect`, `addEllipse`, `addPath`,
@@ -368,6 +378,19 @@ elsewhere; SwiftUI's default, `.command`, is the same value on macOS, and SwiftU
 no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
 `@FocusState`/`.focused` (A, 94). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
+
+**The clipboard beyond text** (`CB-`, record 115;
+[`superpowers/2026-10-14-clipboard-types-decisions.md`](superpowers/2026-10-14-clipboard-types-decisions.md)).
+`.copyable(_:)`, `.cuttable(for:action:)` and `.pasteDestination(for:action:validator:)` on every `StyledElement`
+and, once, on proposal content (A: SwiftUI's signatures, probe `swiftui-clipboard-types.swift` arm S) over MetalUI's
+`Transferable`: the primary-modifier C, X and V and the Edit menu reach the handler of the focused element or its
+nearest ancestor, after the keymap, `onKeyPress` and a focused field's own keys (D, 455, 456: one item, enablement by
+presence). A copy writes one representation per exported type, most preferred first, so a type lists
+`.utf8PlainText` after its own for a text fallback; a paste walks the destination's imported types in order.
+`Window.clipboard` (M) is the same from code: `write(_:)`, `read(_:)`, `contentTypes`, `hasContent(of:)`.
+`ClipboardRepresentation` and `ClipboardCommands` are the platform seam's (M). On SDL a custom identifier is the mime
+type `application/x-<identifier>` with each byte outside `[a-z0-9.+-]` percent-encoded (`ClipboardMime`, `CB-D`).
+`PasteButton` is not built (`CB-N`).
 
 **Input for viewports and canvases** (`CI-`, record §81;
 [`superpowers/2026-10-08-input-apis-decisions.md`](superpowers/2026-10-08-input-apis-decisions.md)).
@@ -923,7 +946,7 @@ input by point and by element in XCUITest's names (`click`, `typeText`,
 (`frame(ofID:)`), presentations answered at the seam (`respondToAlert`,
 `chooseMenuItem`, `performToolbarItem`, the menu bar's `performMenuBarItem`,
 `MenuEvaluation`; `HeadlessPlatform` options such as `presentsMenusNatively` and `showsMenuBarNatively` choose whether the platform or the window draws) and per-frame work counters (`FrameWork`) for benchmarks
-that count work, and an input-method driver beside `typeText` (M; `IM-A`, record §102: `setMarkedText(_:selectedRange:)`, `commitMarkedText()`, `commitMarkedText(_:)`, `cancelMarkedText()`, `markedText`, `markedSelection`, sending the platforms' own composition events through `onInput`). SwiftUI tests UI out of process, so this is MetalUI-only.
+that count work, and an input-method driver beside `typeText` (M; `IM-A`, record §102: `setMarkedText(_:selectedRange:)`, `commitMarkedText()`, `commitMarkedText(_:)`, `cancelMarkedText()`, `markedText`, `markedSelection`, sending the platforms' own composition events through `onInput`) and the clipboard read-backs (M; `CB-K`: `clipboardRepresentations`, `setClipboard(_:)`, `setClipboard(text:)`). SwiftUI tests UI out of process, so this is MetalUI-only.
 How an app uses it: [`testing.md`](testing.md).
 
 ## Backends and infrastructure — M

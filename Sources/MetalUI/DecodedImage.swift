@@ -64,15 +64,11 @@ public struct DecodedImage: Sendable, Equatable {
     /// Decodes PNG or JPEG bytes in `format`, or `nil` (never a trap) for any other or damaged
     /// input. See the type's comment for the grey rule and the orientation.
     public init?(data: Data, format: Format = .rgba) {
-        let decoded: (width: Int, height: Int, samples: [UInt8], orientation: Image.Orientation)? =
-            data.withUnsafeBytes { bytes in
-                guard let image = decodeImage(bytes, channels: format == .rgba ? 4 : 1) else { return nil }
-                let orientation = isPNG(bytes) ? exifOrientation(inPNG: bytes) : exifOrientation(inJPEG: bytes)
-                return (image.width, image.height, image.samples, orientation ?? .up)
-            }
-        guard let decoded else { return nil }
-        self.init(format: format, width: decoded.width, height: decoded.height, pixels: decoded.samples,
-                  orientation: decoded.orientation)
+        // The unlimited spelling of ``init(data:format:limits:)`` (`IH-I`): the header's size must
+        // equal the decoder's.
+        guard let decoded = DecodedImage.limitedDecode(data: data, format: format, limits: Limits(), trace: nil)
+        else { return nil }
+        self = decoded
     }
 
     /// Decodes the PNG or JPEG file at `path` as ``init(data:format:)`` does; `nil` when the file
