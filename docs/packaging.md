@@ -263,6 +263,8 @@ a source build (`libsdl-org/SDL_shadercross`); its shared libraries sit in a `li
 `bin`, which the script puts on the loader path. **Check in the compiled directory**: a test can
 recompute each source's SHA-256 against `SOURCE.sha256` with no shadercross, so a source edited
 without a rebuild fails anywhere (the repository's own kernel does this, `aCheckedInAppShaderBlobMatchesItsSource`).
+
+**Two Windows rules** (ruling `GA-Q`, found by Windows CI): **a fragment stage must read every vertex output it declares as an input** — the cross-compiled stage numbers only the inputs it reads, and D3D12 links stages by register, so a fragment that skips `TEXCOORD0` puts `TEXCOORD1` at the wrong register and pipeline creation fails with `E_INVALIDARG` (`0x80070057`); and **mark the shader files `eol=lf` (`*.dxil`, `*.spv` binary) in `.gitattributes`**, or a CRLF checkout changes the sources' hashes.
 **Ship** the directory as `MetalUIAppShaders` beside the executable:
 
 ```sh
