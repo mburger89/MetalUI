@@ -154,13 +154,6 @@ extension Frame {
            let ledger = old.prepaint, !entry.observedChange, old.coverageComplete,
            old.contentSerial == entry.serial, old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }),
            ledger.key == key, !retainedPointerIsInside(ledger) {
-            if !old.stateEntriesExist {
-                // RK-O: a bound `@State` slot the table never held (never written) has a box the table does
-                // not own; the occurrence runs its prepaint until a write made it an entry.
-                if retainedTraces { print("retained prepaint refused \(sbPath(build.key.id).suffix(60)) because unwrittenState") }
-                memos.retained.prepaintIneligible += 1
-                return .run(openPrepaintWindow())
-            }
             memos.retained.prepaintHits += 1
             memos.retained.skippedPrepaints += ledger.prepaints
             return .replay(ledger)

@@ -103,7 +103,7 @@ package final class ContentMemoStore {
 
     /// Test switch (`RK-E`): off, an occurrence's prepaint runs every frame and records nothing for
     /// replay; paint replay is `SB-B`'s, unchanged. The `fb9a7e42` arm of the prepaint differentials.
-    package var replaysPrepaint = true
+    package var replaysPrepaint = ProcessInfo.processInfo.environment["METALUI_RETAINED_PREPAINT"] != "0"
 
     /// Builds completed (`endFrame`), the window-wide backoff's clock (`RK-D` item 3), the first build at which
     /// prepaint replay may run again, and whether the build in progress is a redo.

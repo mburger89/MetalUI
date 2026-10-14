@@ -195,10 +195,6 @@ final class RetainedRecord {
     var coverageComplete = true
     /// What the occurrence's prepaint registered (`RK-E`), or `nil` when it could not be recorded.
     var prepaint: PrepaintLedger?
-    /// Whether every `@State` slot bound under the component was an entry of the table when the record was made
-    /// (version non-zero): a slot never written has a box the table does not own, so a replayed prepaint's
-    /// handlers are refused for it (`RK-O`).
-    var stateEntriesExist = true
 
     init(key: ReplayKey) { self.key = key }
 }
@@ -554,7 +550,6 @@ extension Frame {
         }
         record.coverageComplete = phase.build.observed && phase.prepaintObserved
         record.prepaint = phase.ledger
-        record.stateEntriesExist = record.versions.allSatisfy { $0.1 != 0 }
         record.contentSerial = phase.entry.serial
         let ops = log.scene[from.scene..<to.scene]
         record.scene = ops.filter { $0.boundary == recorder.entryHeight }

@@ -523,11 +523,12 @@ private struct RPStateCard: Component, @MainActor Equatable {
     static func == (l: RPStateCard, r: RPStateCard) -> Bool { l.log === r.log }
 }
 
-/// 9 — a replayed handler acts like a fresh one (`RK-O`): the cards' buttons, context menus and a `@State` button are
-/// invoked on a retaining window after replay and on a retention-off window; state, log, focus and scene agree. A
-/// bound `@State` slot the table never held (never written) is not prepaint replayed — its box is not the table's
-/// entry (counted ineligible) — and replays once a write made it one. Mutations: a fixture handler capturing a
-/// stale id or a re-seeded box (the log differs); the never-written rule removed (the first frames replay).
+/// 9 — a replayed handler acts like a fresh one (`RK-O`, `RK-T`): the cards' buttons, context menus and a `@State`
+/// button are invoked on a retaining window after replay and on a retention-off window; state, log, focus and scene
+/// agree. The `@State` card has never been written when its first click is dispatched against replayed hitboxes:
+/// a replayed closure's box holds the table and the slot id, not a value, so the write lands in the table's entry
+/// (`RK-T` refutes `RK-O` item 2's refusal of a never-written slot by this arm). Mutations: a fixture handler
+/// capturing a stale id (the log differs); a replayed hitbox list from another frame (the click goes elsewhere).
 @Test @MainActor func aReplayedHandlerActsLikeAFreshOne() async throws {
     let pair = try RPPair(size: sz(300, 120), warm: 4) { side in
         HStack(spacing: 6) {
@@ -535,12 +536,9 @@ private struct RPStateCard: Component, @MainActor Equatable {
             RPStateCard(log: side.log).equatable()
         }
     }
-    let first = pair.frames
-    _ = first
     pair.redraw()
     var f = try #require(pair.frames.last)
-    #expect(f.retainedPrepaintHits == 1, "the card replays; the never-written @State card does not: \(f.retainedPrepaintHits)")
-    #expect(f.retainedPrepaintIneligible >= 1, "the @State card is refused by name")
+    #expect(f.retainedPrepaintHits == 2, "both cards replay, the never-written @State card included: \(f.retainedPrepaintHits)")
     try pair.compare("before any write")
     for w in [pair.on, pair.off] { try w.click(w.element(label: "go A")) }
     try pair.compare("a replayed button")
