@@ -316,19 +316,36 @@ final class RasterCache {
         func byte(_ v: Float) -> Int { Int((min(max(v, 0), 1) * 255).rounded()) }
         let r = byte(rgb.r), g = byte(rgb.g), b = byte(rgb.b), a = byte(color.a)
         let count = mask.alpha.count
-        tinted += count
-        let pixels = [UInt8](unsafeUninitializedCapacity: count * 4) { out, initialized in
+        var multiplied = 0
+        // Zero-filled; a zero coverage byte tints to four zero bytes, so only
+        // the 8-byte words holding a nonzero byte run the multiply (`PN-D`).
+        var pixels = [UInt8](repeating: 0, count: count * 4)
+        pixels.withUnsafeMutableBufferPointer { out in
             mask.alpha.withUnsafeBufferPointer { source in
-                for i in 0..<count {
+                guard let base = source.baseAddress else { return }
+                let raw = UnsafeRawPointer(base)
+                @inline(__always) func put(_ i: Int) {
                     let alpha = (Int(source[i]) * a + 127) / 255
                     out[i &* 4] = UInt8(truncatingIfNeeded: (r * alpha + 127) / 255)
                     out[i &* 4 &+ 1] = UInt8(truncatingIfNeeded: (g * alpha + 127) / 255)
                     out[i &* 4 &+ 2] = UInt8(truncatingIfNeeded: (b * alpha + 127) / 255)
                     out[i &* 4 &+ 3] = UInt8(truncatingIfNeeded: alpha)
                 }
+                var i = 0
+                while i &+ 8 <= count {
+                    if raw.loadUnaligned(fromByteOffset: i, as: UInt64.self) != 0 {
+                        for j in i..<(i &+ 8) { put(j) }
+                        multiplied &+= 8
+                    }
+                    i &+= 8
+                }
+                while i < count {
+                    if source[i] != 0 { put(i); multiplied &+= 1 }
+                    i &+= 1
+                }
             }
-            initialized = count * 4
         }
+        tinted += multiplied
         return ImageTexture(width: mask.rect.width, height: mask.rect.height, premultipliedRGBA: pixels)
     }
 }
@@ -502,11 +519,17 @@ extension Frame {
         let outer = transform?.affine ?? .identity
         let full = outer.concatenating(paint.local)
         let (rx, ry) = RasterAnchor.outlineAnchor(paint.geometry, map: full) ?? (0, 0)
-        var box = ExtentBox()
-        box.add(outer.boundingBox(of: paint.bounds))
-        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: box.rect(grownBy: 1), placement: placement)
+        let extent = RasterAnchor.pathExtent(paint, outer: outer)
+        var anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
+        // `PN-A`: a wire cut by its clip is rasterized over its whole extent and
+        // keyed uncut, the image's content mask doing the cut at draw time.
+        var rasterClip = placement.clip
+        if let overscan = anchor.overscanned(extent: extent, clip: placement.clip, target: rasterTarget) {
+            anchor = overscan
+            rasterClip = extent
+        }
         let geometry = anchor.isCanonical ? paint.geometry.translated(dx: -rx, dy: -ry) : paint.geometry
-        let clip = anchor.canonical(placement.clip)
+        let clip = anchor.canonical(rasterClip)
         var key = RasterKey()
         key.addPath(geometry)
         switch paint.mode {

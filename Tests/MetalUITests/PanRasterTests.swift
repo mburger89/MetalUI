@@ -161,3 +161,65 @@ private struct Work {
     let half = render(g, canvas(wire(), pan: 0.5), scale: 1)
     #expect(half.rasterized > 0, "a half-pixel pan misses: \(half.rasterized)")
 }
+
+/// **T2** (`PN-A`). Rasterized over its extent, a path's coverage equals the
+/// one rasterized over the clip, on every pixel of the clip: a stroked cubic,
+/// a mitred triangle whose tip crosses the edge, and a filled blob, at 1× and
+/// 2×. Mutation: `pathExtent` without the miter pad (`PathPaint.bounds`
+/// without it): the tip is cut inside the clip.
+@Test @MainActor func anOverscannedRasterEqualsTheCutOneInsideTheClip() throws {
+    let blob = Path { p in
+        p.move(to: gxPoint(0, 10))
+        p.addCurve(to: gxPoint(70, 50), control1: gxPoint(40, -20), control2: gxPoint(90, 10))
+        p.addCurve(to: gxPoint(0, 10), control1: gxPoint(40, 90), control2: gxPoint(-30, 60))
+        p.closeSubpath()
+    }
+    let miter = gxTriangle(80).stroke(.accent, style: StrokeStyle(lineWidth: px(6), lineJoin: .miter))
+    for scale: Float in [1, 2] {
+        let h = TransitionHarness()
+        var seen: [(PathPaint, PrimitiveTransform?)] = []
+        h.store.rasters.onRaster = { kind, transform in
+            if case let .path(paint) = kind { seen.append((paint, transform)) }
+        }
+        let tree = canvas(ZStack {
+            wire()
+            miter.frame(width: px(80), height: px(80))
+            blob.fill(.accent).frame(width: px(70), height: px(60))
+        }, pan: 45)
+        let frame = h.frame(0, nil, tree, side: 300, scaleFactor: scale)
+        let target = frame.rasterTarget
+        try #require(seen.count >= 3, "three paths seen: \(seen.count)")
+        var compared = 0
+        for (paint, transform) in seen {
+            let placement = RasterPlacement(contentMask: paint.contentMask, radii: paint.maskCornerRadii,
+                                            transform: transform, target: target)
+            let outer = transform?.affine ?? .identity
+            let map = outer.concatenating(paint.local).pathAffine
+            let extent = RasterAnchor.pathExtent(paint, outer: outer)
+            func raster(over clip: RasterRect) -> AlphaMask {
+                var rasterizer = CoverageRasterizer()
+                switch paint.mode {
+                case let .fill(rule, antialiased):
+                    return PathRaster.fill(paint.geometry, rule: rule, transform: map, clip: clip,
+                                           antialiased: antialiased, rasterizer: &rasterizer)
+                case let .stroke(style):
+                    return PathRaster.stroke(paint.geometry, style: style, transform: map, clip: clip,
+                                             rasterizer: &rasterizer)
+                }
+            }
+            let clip = placement.clip
+            guard !clip.isEmpty, !extent.intersection(clip).isEmpty else { continue }
+            let cut = raster(over: clip), over = raster(over: extent)
+            var differing = 0, maxDelta = 0
+            for y in clip.y..<clip.maxY {
+                for x in clip.x..<clip.maxX {
+                    let d = abs(Int(cut.value(atX: x, y: y)) - Int(over.value(atX: x, y: y)))
+                    if d != 0 { differing += 1; maxDelta = max(maxDelta, d) }
+                }
+            }
+            compared += 1
+            #expect(differing == 0, "\(scale)×: \(differing) clip bytes differ, max delta \(maxDelta)")
+        }
+        #expect(compared >= 3, "\(scale)×: compared \(compared) paths")
+    }
+}
