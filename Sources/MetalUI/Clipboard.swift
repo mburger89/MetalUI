@@ -171,7 +171,7 @@ final class ClipboardAttachment {
                                          validator: @escaping @MainActor ([T]) -> [T],
                                          over existing: ClipboardAttachment?) -> ClipboardAttachment {
         let paste: @MainActor (DropItem) -> Bool = { item in
-            guard let value = importClipboardItem(item, as: type) else { return false }
+            guard let value = importClipboardItem(item, as: T.self) else { return false }
             let accepted = validator([value])
             guard !accepted.isEmpty else { return false }
             action(Array(accepted.prefix(1)))
