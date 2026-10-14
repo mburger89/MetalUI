@@ -2328,3 +2328,11 @@ here — `docs/verification/human-checks.md` group IC, none performed (an agent 
 supplied hand and zoom images, hot spot on the clicked point, and the largest cursor each platform draws; IC2 macOS at 1x and
 2x draws the ring crisp and the same point size; IC3 the hot spot lands on the clicked pixel at the four corners of the image;
 IC4 a `HeadlessLaunchCheck`-shaped app exits 0 in CI with no display on Windows and Linux.
+
+## 2026-10-14: retained build skip (record §110) — looks owed
+
+No real window was driven (the screen was locked for most of the branch; the demo launched once on an unlocked screen and was killed after
+8 s); the fourteen offscreen images are compared against `fb9a7e42` in §110 §7 and §10, 0 px, scenes identical. **Owed, new here —
+`docs/verification/human-checks.md` group RK, none performed (an agent cannot)**: RK1 a node drag looks identical with Prepaint and Skip
+build on and off; RK2 hover, click and Tab on a replayed or grafted panel; RK3 VoiceOver on one; RK4 a resize, an opacity animation and a
+light/dark switch show no stale frame; RK5 a trackpad pan keeps text and shadows sharp at 1x and 2x.

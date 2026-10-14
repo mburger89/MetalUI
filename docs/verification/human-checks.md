@@ -1564,6 +1564,21 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
   C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
 
+## RK. Retained build skip — what only a real window shows (item C14b-2, user request 2026-10-02, not a plan task; record §110)
+
+*An agent cannot: these need a real window, a pointer, a screen reader and an eye. They extend group SB to prepaint replay, translated replay and the graft.*
+
+- [ ] **RK1.** A real-window node drag looks identical with the switches off and on: `METALUI_RETAINED_DEMO=1 swift run MetalUIDemo`,
+  drag a node with Prepaint and Skip build ticked and unticked mid-drag: no flicker, no stale wire, no node left behind; the readout
+  shows prepaint hits, grafts and translated replays with the switches on and 0 with them off (`RK-C`, `RK-S`, `RK-X`). **Observed:**
+- [ ] **RK2.** Hover, click and Tab on a replayed or grafted panel act as on a fresh one: the pointer entering a panel runs its
+  prepaint that frame (hover ring, tooltip), a click reaches the right element at an overlap, Tab visits the same order (`RK-E`). **Observed:**
+- [ ] **RK3.** VoiceOver walks a replayed or grafted panel as a fresh one (equality is pinned, the reading is a person's, `IX-AE`). **Observed:**
+- [ ] **RK4.** A window resize, an opacity animation and a light/dark switch around the panels show no stale frame and no stutter beyond
+  the single redo frame (`RK-C`, `RK-D`). **Observed:**
+- [ ] **RK5.** A trackpad pan with the Prepaint switch on keeps text and shadows sharp and in place at 1x and 2x (translated replay refuses
+  a fractional device translation, `RK-G`). **Observed:**
+
 ## GA. SDL GPU for apps — compute and graphics on a real GPU (items S5 and S6, MetalCreator's SDL-port gaps 1 and 2, not a plan task; record §114)
 
 *An agent cannot: the suites run on this Mac's Metal, on lavapipe in the Linux image and, in CI, on WARP; these need

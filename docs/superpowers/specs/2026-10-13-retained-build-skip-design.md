@@ -1,6 +1,6 @@
 # Retained build skip (C14b-2) — design
 
-Status: **DESIGN, reviewed (RK-M..RK-Q: redo checkpoint and replay-off, verify by double build, handler test, derived figures withdrawn)** (2026-10-13, base `fb9a7e42`). Rulings `RK-A`…`RK-L`, lane 1's `RK-R`…`RK-V` (and `RK-W` for its readings) in
+Status: **BUILT (2026-10-14; lane 1 M1 and M3, lane 2 M2, merged with master `565abe67`; record §110, rulings `RK-A`…`RK-AC`; carried items in record §9 and §10).** Design status as reviewed: (RK-M..RK-Q: redo checkpoint and replay-off, verify by double build, handler test, derived figures withdrawn) (2026-10-13, base `fb9a7e42`). Rulings `RK-A`…`RK-L`, lane 1's `RK-R`…`RK-V` (and `RK-W` for its readings) in
 [`../2026-10-13-retained-build-skip-decisions.md`](../2026-10-13-retained-build-skip-decisions.md). Continues
 [`2026-10-13-retained-subtrees-design.md`](2026-10-13-retained-subtrees-design.md) (§9 and §10 are as built by record §109 §13).
 No public API, no SwiftUI-visible behaviour, no divergence (labels 405–414 unused), `Backends/SDL` and every platform seam untouched.
