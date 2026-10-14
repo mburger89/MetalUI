@@ -112,7 +112,7 @@ unfiltered suite (or the named package's), name the reddened tests, restore from
 3. `aBitmapRebuiltEveryFrameSendsOneCursor` - hover, 3 `tick`s with a fresh `Image(...)` each build:
    `pointerStyles.count` is 1 (`IC-F`). *Mutation:* key equality on a fresh id per `Image`.
 4. `twoBitmapsWithEqualBytesAreTwoCursors` - identity, not bytes (`IC-A` 2). *Mutation:* hash the pixels.
-5. `aNilStyleOutsideAnImageCursorKeepsIt` and `anInnerStyleBeatsAnOuterImage` - the ranking (probe `I7`, `P11`).
+5. `aNilStyleOutsideAnImageCursorKeepsItAndAnInnerStyleBeatsAnOuterImage` (built as one test) - the ranking (probe `I7`, `P11`).
    *Mutation:* resolve outermost first.
 6. `anImageIgnoresResizableAndInterpolation` (`IC-B`, probe `I5`). *Mutation:* read `isResizable` into the size.
 
@@ -161,7 +161,7 @@ needs a real created cursor is `.enabled(if:)` on a driver that makes one. Tests
     bound with `task ran=false` (red). The plain import is itself the guard that `Options` needs no SPI.
 21. `theSPIInitialiserStillForwards` - `MainQueueDrainCheck`'s existing `task-modifier-offscreen` test stays
     green through the SPI spelling. *Mutation:* make the SPI init ignore `offscreenRenderers`.
-22. `theUnavailableStubNamesTheOptionsInitialiser` - extends guard 1.6 (trait off): `SDLPlatform(options:)`
+22. `anSDLPlatformWithoutTheSDLTraitNamesTheTraitForItsOptionsInitialiser` - extends guard 1.6 (trait off): `SDLPlatform(options:)`
     reports the trait message. *Mutation:* delete the stub's init.
 
 Counts (a plan, re-measured, never trusted): root = items 1-8 as tests (6 + 2 AppKit; some are parameterised,
