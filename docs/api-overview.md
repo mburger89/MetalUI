@@ -266,6 +266,16 @@ default for `orientation`, `IB-K`) draw a bitmap turned by it through `ImageBitm
 one cached texture per orientation). A bitmap decoded from a tagged file still draws its stored
 pixels (435).
 
+**Header-only read and bounded decode** (`IH-A`…`IH-P`, record 117): `ImageInfo` (M; `init?(data:)`,
+`init?(contentsOfFile:)`) reads a PNG's IHDR or a JPEG's first SOF (all thirteen dimension-bearing
+markers) and the EXIF orientation without decoding a pixel: `format`, stored `width`/`height`,
+`orientation`, `bitDepth`, `channelCount`, `orientedSize`. PNG and JPEG only, `nil` for anything else or a
+damaged header, no size limit of its own; the file form seeks over the pixels through one 64 KiB window.
+`DecodedImage.Limits` (`maxInputBytes`, `maxSide`, `maxPixels`, all optional and inclusive) with
+`DecodedImage(data:format:limits:)` and `DecodedImage(contentsOfFile:format:limits:)` refuse an oversize
+image from the header, before the decoder allocates; `DecodedImage` also refuses a decode whose size
+disagrees with the header. Cancelling a decode is not offered (`IH-K`).
+
 **Paths** (rulings `GX-B`…`GX-E`, `GX-K`): `Path` — SwiftUI's initialisers and
 mutators (`move`, `addLine`, `addLines`, `addQuadCurve`, `addCurve`, both
 `addArc`s, `addRect`, `addRects`, `addRoundedRect`, `addEllipse`, `addPath`,

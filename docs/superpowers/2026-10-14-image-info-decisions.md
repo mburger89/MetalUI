@@ -1,7 +1,7 @@
 # Header-only image read and bounded decode — decisions
 
 Rulings for item S9 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), MetalCreator gap
-XP-G10. Prefix `IH-`. **Next unused: `IH-O`.** Spec: [`specs/2026-10-14-image-info-design.md`](specs/2026-10-14-image-info-design.md).
+XP-G10. Prefix `IH-`. **Next unused: `IH-Q`.** Spec: [`specs/2026-10-14-image-info-design.md`](specs/2026-10-14-image-info-design.md).
 Record: `../record/117-image-info.md` (Record phase). Branch `feat/image-info` from `ceca59f6`.
 Divergence labels reserved 475–484: none taken.
 
@@ -117,3 +117,26 @@ then reads; a read that returns short of the recorded size is damage (`nil` for 
 that grows after the check is read only to the recorded size. **Evidence.** Each is a branch a test can reach with a
 temp file (a directory path, a size recorded then shortened). **Cost if wrong.** A wrong answer to `maxInputBytes` is the one
 failure the limit exists to prevent.
+
+
+## IH-O — The regular-file check is path metadata, the size is the handle's; counters are a passed trace
+
+**Ruling.** `IH-N` item 2 asks for the handle's own metadata. Foundation's `FileHandle` exposes no portable
+`fstat` (its descriptor is a `HANDLE` on Windows), so the type is read once from `FileManager.attributesOfItem` of the
+symlink-resolved path **before the file is opened** (a FIFO is therefore never opened, which would block), and the size
+comes from the opened handle (`seekToEnd`) and is recorded once. A file swapped for a non-regular one between the two
+calls is read through the handle and ends as a short read (`nil`). Work counters are an optional `HeaderTrace` instance
+passed to the internal `FileHeaderSource` and `DecodedImage.limitedDecode`, never a global (tests run concurrently
+and a global hook would race). **Evidence.** Tests 11 and 15 reach the directory, FIFO and shrinking-file branches.
+**Cost if wrong.** A TOCTOU on the file type only; it cannot defeat `maxInputBytes`, which uses the handle's size.
+
+## IH-P — A JPEG damaged after its frame still answers; a damaged first frame and an unreadable header are `nil`
+
+**Ruling.** The segment walk ends at the first damaged segment with what it found: once the first SOF is read, a
+later truncation or bad length leaves the size right and the orientation `.up` unless an `Exif` `APP1` came first
+(a truncated-prefix answer, tests 6 and 7); a first SOF that is malformed (length under 8 + 3 components, 0 or over 4
+components, a zero side) is `nil` even when a good SOF follows. The unlimited `DecodedImage(data:)` goes through the
+same limited path with every limit `nil`, so an image whose header cannot be read is `nil` there too (`IH-I`).
+**Evidence.** The decoder refuses what truncation damages after the frame (`jpegScanIsTerminated` needs the SOS and
+EOI), so a prefix answer from `ImageInfo` never makes a broken file decodable. **Cost if wrong.** A stricter rule
+(`nil` on any damage) is additive.
