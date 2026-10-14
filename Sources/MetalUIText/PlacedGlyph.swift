@@ -38,6 +38,17 @@ public struct PlacedGlyph {
     public let baselineY: Int
 }
 
+/// Work counters of one shape's placement (`HP-A`, `HP-H`): pins count these,
+/// never time. A class so a `ShapedText` copy shares it.
+final class PlacementBox {
+    /// Times a line's runs were read back from CoreText.
+    var runReads = 0
+    /// Times a whole placement pass ran (a memo miss).
+    var placementsComputed = 0
+    /// `GlyphKey`s built.
+    var keysBuilt = 0
+}
+
 extension ShapedText {
     /// Every glyph of every line, placed on the device pixel grid.
     ///
@@ -91,6 +102,8 @@ extension ShapedText {
         precondition(scaleFactor > 0, "a scale factor must be positive")
         let scale = Double(scaleFactor)
         var placed: [PlacedGlyph] = []
+        placement.runReads += 1
+        placement.placementsComputed += 1
 
         for (index, shapedLine) in lines.enumerated() {
             let baseline = origin.y
@@ -121,7 +134,7 @@ extension ShapedText {
                 let lineX = origin.x + lineOffsets[index]
                 for i in 0..<count {
                     let deviceX = (lineX + Double(positions[i].x)) * scale
-                    let placement = GlyphRaster.subpixelPlacement(forDeviceX: deviceX)
+                    let subpixel = GlyphRaster.subpixelPlacement(forDeviceX: deviceX)
                     // CoreText's run positions are y-**up** from the baseline
                     // (a superscript sits at a positive y), and every device
                     // coordinate in this framework is y-down, so this subtracts.
@@ -131,12 +144,13 @@ extension ShapedText {
                     // first attributed string, which is M6.
                     let y = baselineY - Int((Double(positions[i].y) * scale).rounded())
 
+                    placement.keysBuilt += 1
                     placed.append(PlacedGlyph(
                         key: GlyphKey(font: runFont.key, glyph: glyphs[i], size: size,
-                                      subpixelVariant: placement.variant,
+                                      subpixelVariant: subpixel.variant,
                                       scaleFactor: scaleFactor),
                         font: runFont,
-                        pixelX: placement.pixelX,
+                        pixelX: subpixel.pixelX,
                         baselineY: y))
                 }
             }

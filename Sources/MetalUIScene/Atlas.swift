@@ -36,9 +36,13 @@ public struct GlyphKey: Hashable, Sendable {
     /// Device pixels per point the glyph is rasterized for.
     public let scaleFactor: Float
 
+    /// STUB (red-first, `HP-B`): the stored hash, not yet computed.
+    package let precomputedHash: Int
+
     /// A glyph key.
     public init(font: FontKey, glyph: UInt16, size: Double,
                 subpixelVariant: Int, scaleFactor: Float) {
+        self.precomputedHash = 0
         self.font = font
         self.glyph = glyph
         self.size = size
