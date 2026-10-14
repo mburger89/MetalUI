@@ -1,10 +1,10 @@
 # Clipboard beyond text — decisions
 
 Rulings for item S3 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
-MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-O`.**
+MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-P`.**
 Spec: [`specs/2026-10-14-clipboard-types-design.md`](specs/2026-10-14-clipboard-types-design.md).
 Record: `../record/115-clipboard-types.md` (Record phase). Branch `feat/clipboard-types` from
-`fb9a7e42`. Divergence labels reserved 455–464: **455 taken** (`CB-G`).
+`fb9a7e42`. Divergence labels reserved 455–464: **455 taken** (`CB-G`), **456 taken** (`CB-C`).
 
 Sources of truth. SwiftUI: `docs/probes/swiftui-clipboard-types.swift` — the **signatures** of
 `copyable`, `cuttable`, `pasteDestination`, `PasteButton` and the compile-time Transferable
@@ -57,7 +57,7 @@ is not a parameter: a type that wants plain text lists `.utf8PlainText` after it
 is written (the clipboard here is one item; SwiftUI's array form writes several pasteboard items on
 AppKit — **unprobed**, `CB-N` carries multi-item). An empty array, or items exporting nothing,
 **clears nothing and writes nothing** (`CB-I`). A write replaces everything the clipboard held,
-text included, as `writeClipboard(_:)` does.
+text included, as `writeClipboard(_:)` does. **Divergence 456**: `copyable([a, b])` and `cuttable` returning several write only the first, and a paste action receives at most one value (SwiftUI's array is unprobed; arm R). Reason: one clipboard item here.
 **Cost if wrong.** A multi-item destination on another platform sees one item; low.
 
 ## CB-D — Identifier ↔ platform type
@@ -70,7 +70,7 @@ a reverse-DNS string an app declares needs no registration to be written and rea
 mime `SDL_GetClipboardText` asks for, probe), `public.plain-text` ↔ `text/plain`, `public.json` ↔
 `application/json`, `public.url` ↔ `text/uri-list`, `public.data` ↔ `application/octet-stream`;
 every other identifier ↔ `application/x-` + the identifier with each byte outside
-`[A-Za-z0-9.+-]` percent-encoded (`%XX`, upper case), decoded on the way back. A mime with no entry and
+`[a-z0-9.+-]` (so every upper-case letter too) percent-encoded as `%xx` (lower-case hex), decoded on the way back, accepting either hex case. The mime is then all lower case and survives a platform that case-folds mime types (X11 atoms are exact, Windows registered formats and some Wayland offers are not); identifiers are case-sensitive, mimes are not. A mime with no entry and
 no `application/x-` prefix (e.g. `image/png`) reads back as the identifier `mime:` + the mime, so a
 foreign type is listed and readable by a destination that names it, never dropped. The round trip
 `id → mime → id` is the identity for every `ContentType` (a test over the built-ins, a custom id and a
@@ -114,7 +114,7 @@ non-empty one is passed to `action` and the key is claimed. Enablement is by pre
 enabled when a `copyable` is on the chain, Cut a `cuttable`, Paste a `pasteDestination` — or a
 focused text field, as today. A destination whose validator would reject the current clipboard
 therefore shows Paste enabled and does nothing. SwiftUI disables it (documented behaviour, **unprobed**
-here). **Divergence 455** (MetalUI-only enablement). Reason: the clipboard changes outside the
+here). **Divergence 455** (MetalUI-only enablement), **provisional**: it rests on SwiftUI's documented disabling, which no probe has measured (arm R needs an unlocked screen; re-checked 2026-10-14, still locked). The divergences.md row says so and CB1 confirms or retires it. Reason: the clipboard changes outside the
 frame and AppKit's `validateMenuItem` has no frame to read; polling per menu open would need a
 fifth requirement and a synchronous read of foreign data on the main thread.
 **Cost if wrong.** A Paste item enabled with nothing to paste; cosmetic.
@@ -196,7 +196,16 @@ text through `writeClipboard(_ text:)`, which on AppKit/SDL **replaces** the cus
 `keyPresses` are and counted apart (`clipboardRegionCount`, never `keyPressCount`); no identity,
 state, accessibility, hit-test, animation or layout code moves.
 **Cost if wrong.** A `KeyboardAttachment` factory missing the new field drops a modifier chain's
-clipboard; the spec's test 2.5 pins every factory.
+clipboard; spec test 1.10 pins every factory.
+
+## CB-O — Rejected on review: building `PasteButton` now, and a hover-routed copy
+
+**Ruling.** Rejected again after the design critique. `PasteButton` is a third control look plus
+permission behaviour (macOS 15 paste prompt) with no probe possible on a locked screen, and a button
+over `Window.clipboard` composes in six lines (the guide block shows it); a hover-routed copy
+contradicts `KF-U`. The deferral stays in `CB-N` with owner S3b. Also rejected: a text-fallback
+parameter on `copyable` (SwiftUI has none; `CB-C`). The SDL callback test must fail by a bounded wait,
+never a hang (spec 4.2).
 
 ## CB-N — Deferred, named
 
