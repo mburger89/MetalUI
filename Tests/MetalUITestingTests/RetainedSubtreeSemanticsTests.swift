@@ -397,7 +397,7 @@ private struct RSShortcutHolder: Component, @MainActor Equatable {
     let on = try make(true), off = try make(false)
     func glyphs(_ w: TestWindow) -> Data { w.scene.glyphs.withUnsafeBytes { Data($0) } }
     try #require(rsFrame(on).retainedHits == 1)
-    for w in [on, off] { w.typeKey("j", modifierFlags: [.command]) }
+    for w in [on, off] { w.typeKey("j", modifierFlags: [.primary]) }
     _ = try on.element(label: "tally 1")
     #expect(on.lastFrameWork.retainedHits == 0, "the shortcut's frame replays nothing")
     #expect(glyphs(on) == glyphs(off), "and draws the new label")

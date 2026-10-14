@@ -3,12 +3,12 @@
 Branch `perf/retained-subtrees` from `e85cb07a`. Not a plan task: item C14b of the gpui-gap priority list (user
 request 2026-10-02), the second half of C14 (record §104), requested by MetalCreator (gap PERF-b). Spec
 `docs/superpowers/specs/2026-10-13-retained-subtrees-design.md` (design phase; amended by `SB-S`…`SB-AC`), fixture spec
-`docs/superpowers/specs/2026-10-13-retained-subtrees-fixture.md`; rulings `SB-A`…`SB-AC` (`SB-A`…`SB-R` the design
-phase's, `SB-S`…`SB-AC` lane 1's) in `docs/superpowers/2026-10-13-retained-subtrees-decisions.md` (next unused `SB-AD`);
+`docs/superpowers/specs/2026-10-13-retained-subtrees-fixture.md`; rulings `SB-A`…`SB-AE` (`SB-A`…`SB-R` the design
+phase's, `SB-S`…`SB-AC` lane 1's, `SB-AD`, `SB-AE` lane 2's) in `docs/superpowers/2026-10-13-retained-subtrees-decisions.md` (next unused `SB-AF`);
 probes `docs/probes/retained-subtrees/`. Divergence labels reserved 395–404: **none taken** (no SwiftUI-visible
 behaviour; the new public declarations are `FrameWork`'s ten counters and the demo's content, census 3492 -> 3510).
 
-**Status: LANE 1 BUILT — as paint replay, not prepaint-and-paint replay (`SB-AA`).** Built: a retained record per `.equatable()` occurrence replays its paint on a hit; build, layout and prepaint still
+**Status: LANE 1 BUILT — as paint replay, not prepaint-and-paint replay (`SB-AA`). LANE 2 BUILT AS THE SUBTREE PLACEMENT MEMO ALONE (`SB-AD`, §13); the graft, the journal, the redo and prepaint replay are carried (`SB-AE`).** Built: a retained record per `.equatable()` occurrence replays its paint on a hit; build, layout and prepaint still
 run (lane 2). The node drag's release median per frame is **-10 to -14 %** (`.value` 7.44 -> 6.68 ms, `.panels` 7.62 -> 6.56 ms in the final
 head's reading, 7.42 -> 6.53 and 7.45 -> 6.52 in the quiet one) and its element paints 1084 -> 178; the lane 2 gate reads 57 % and opens (§10).
 Verify mode ran over the whole suite with no trap after finding `SB-AC` (§5). Deferred: prepaint replay, the build skip, the graft and the
@@ -345,3 +345,92 @@ exists because their combined win on the node drag is 4 % of a frame.
 * Demo: `METALUI_RETAINED_DEMO=1 swift run MetalUIDemo`: drag a node, read hits / misses / ineligible of the last frame; untick
   "Replay" and the same drag reads 0 hits.
 * Human checks `docs/verification/human-checks.md` group **SB** (SB1-SB6), not run: an agent cannot.
+
+
+## §13 Lane 2: the subtree placement memo (`SB-AD`, `SB-AE`)
+
+The gate read 57 % (§10) and lane 2 landed **one of its four parts** behind unchanged semantics: marked subtree roots restore
+their placement in place. The graft, the `StateTable` journal, the counted redo and prepaint replay are carried together
+(`SB-AE`: none can land alone; no graft was prototyped, so "a graft is cheaper than the build" is untested).
+
+**What it is.** `LayoutTree.markPlacementRoot` (`package`), called by `EquatableComponent` for the top-level nodes of each
+retained occurrence while retention is on; in `placeNative` a marked node with a signature and children asks `LayoutMemo` for
+`PlacementKey(signature, proposal, bounds)` (all four bounds fields bit for bit, origin included); a hit writes the recorded
+unrounded pre-order rects and returns, a miss places as before and stores on the way out. No translation (`SB-H`).
+Verify mode (`LayoutMemo(verifies:)`, `METALUI_VERIFY_LAYOUT_MEMO=1`) recomputes every subtree hit from zeroed rects and traps.
+Counter `memoSubtreeHits` (`BuildWork`, `FrameWork.layoutSubtreeHits`, census 3510 -> 3511).
+
+**What the first run found.** (1) Nothing restored: every marked subtree had no signature because a `Color` used as a view
+and an empty legacy container were unkeyed leaves (a temporary print of the unkeyed leaves under each marked root, then of the registrar's caller). Both are now keyed (`ColorLeafKey`, `EmptyContainerLeafKey`: pure functions of the proposal), which moved slice 1's counts
+for any tree holding either: the baseline test's retention-off layout literals 81/805/527/1106/30 at `e85cb07a` read 52/366/217/1258/55
+(`theBracketNodeDragRebuildsTheWholeWindow`), and `aStretchedBranchingTreeRegistersAHandDerivedAmountOfNativeWork` (hand-derived
+without a memo; its `Box()` leaves are empty containers) now renders with `layoutMemo: false`, a parameter `LayoutDifferential.render`
+gained, so its derivation stands. (2) The prediction "at least 15 restores" was wrong: **11**, because 11 of the 20 nodes are on screen
+(canvas cull) and the list, inspector and top bar hold unkeyed leaves. (3) `.offset` is a render effect, so the drag never moves a
+node's *layout*: the fixture cannot see the origin in the key; the resize arm can (`aResizedWindowPlacesLikeAFreshOneAtEverySize`).
+(4) Restores do not refresh the measure entries below them (they lapse after two frames), so the first miss after a rest re-measures
+its subtree: frame 0 of the drag measures 135 leaves against 52 (`SB-AE` 1, pinned).
+
+**Pins and their red lines (stub: the marks recorded, the kernel never consulting them).**
+
+| pin | red before | mutation (§13 table) |
+|---|---|---|
+| `aMarkedSubtreeInTheSamePlaceIsRestoredNotPlaced` | `memoSubtreeHits == 1` read 0 | M1, M2, M11, M14 |
+| `aRestoredSubtreeIsNotDescended` | requests not fewer than the unmarked control's | M1, M5, M11, M14, M15 |
+| `aMovedSubtreeIsPlacedFreshNotRestored` | passes on the stub (a mutation instrument) | M3 |
+| `aDifferentProposalOverTheSameBoundsIsPlacedFresh` | passes on the stub | M4 |
+| `onlyAMarkedKeyedSubtreeIsRestored` | passes on the stub | M5, M6 |
+| `aVerifiedRestoreStillCountsAndAgrees` | count read 0 | M1, M11, M14 |
+| `aRestoreIsRoundedLikeAFreshPlacement` | `restored == 3` read 0 | M1, M2, M7, M11, M14 |
+| `aVerifiedRestoreThatDiffersFromAFreshPlacementTraps` (exit test) | (new with the verify branch) | M1, M8, M11, M14 |
+| `aDragFrameRestoresTheUnmovedOccurrencesPlacement` (value, panels) | `layoutSubtreeHits == 11` read 0 (6 issues) | M1, M5, M6, M10-M15 |
+| `aRestoredDragEqualsAFreshOneAtEveryStep` (value, panels) | `restores > 0` read 0 (2 issues) | M1, M2, M6, M7, M10-M12, M14 |
+| `aResizedWindowPlacesLikeAFreshOneAtEverySize` (value, panels) | passes on the stub | M3 |
+| `aColorAndAnEmptyContainerKeepTheirAncestorsMatchable` | 0 root hits | M12, M13 |
+
+Red lines at the stub commits (kernel): `memoSubtreeHits == 1` (read 0) in tests 2.1 and 2.6, `aRestoredSubtreeIsNotDescended` (deepest level;
+re-specified after the mutation batch showed M15 survived), `restored == 3` in the rounding test; (window): `f.layoutSubtreeHits >= 15`,
+`f.layoutMemoHits < g.layoutMemoHits`, `f.layoutCacheHits < g.layoutCacheHits` for both arms and `restores > 0` for both arms
+(8 issues).
+
+**Mutations** (each run on the committed tree, the full unfiltered suite with `AppKitPresentationTests` skipped, the mutated file
+restored from git, `git status --short` clean after each; spelling in `/tmp` scripts, reproduced here):
+
+| id | mutation | tests reddened |
+|---|---|---|
+| M1 | lookup disabled (`order.count < 0` added to the restore guard) | the five kernel pins above + `aVerifiedRestoreThatDiffers...` (exit status success) + both window pins + `theBracketNodeDragReplaysEveryUnchangedSubtree` (16 issues) |
+| M2 | restore writes nothing | `aMarkedSubtree...`, `aRestoreIsRounded...`, `aRestoredDragEquals...` (24), `aRetainedFrameEqualsAFreshFrameOverAScript` (37), `aBackdropInsideAReplayedSubtreeIsByteIdentical`, `lifecycleAnimationAndListInsideAMemoizedComponent`, `theBracketNodeDragReplays...` (21), `theRetainedSubtreeDemoReplays...` (113 issues) |
+| M3 | key origin zeroed | **first batch: only `aRetainedFrameEqualsAFreshFrameOverAScript` (5)**: the kernel pin did not separate (the proposal moved with the origin) and the drag never moves layout. After the rewrite (trailing alignment, centred root) and the resize arm: `aMovedSubtreeIsPlacedFreshNotRestored` (3), `aResizedWindowPlacesLikeAFreshOneAtEverySize` (6), `aRetainedFrameEqualsAFreshFrameOverAScript` (5) |
+| M4 | proposal ignored in the key | `aDifferentProposalOverTheSameBoundsIsPlacedFresh` (3) |
+| M5 | every node treated as marked (first spelling kept the `isEmpty` fast path, so the unmarked arm's empty set never reached it: a no-op mutant; second spelling `if true`) | `aDragFrame...` (8), `aRestoredSubtreeIsNotDescended` (2), `onlyAMarkedKeyedSubtreeIsRestored`, `everyProductionRootsDeepestNativeLevelIsMeasured` (8), `oneChangedTextRemeasuresOnlyItsPath` (7), `theBracketNodeDragRebuildsTheWholeWindow` (9), `theBracketNodeDragReplays...` (38 issues) |
+| M6 | a missing signature hashed as a constant | `onlyAMarkedKeyedSubtreeIsRestored`, both window pins (the restores run over unkeyed subtrees and miss the differential), `theBracketNodeDragReplays...` (20) |
+| M7 | restore rounds x and y | `aRestoreIsRoundedLikeAFreshPlacement` (3), `aRestoredDragEquals...` (24), `aRetainedFrameEqualsAFreshFrameOverAScript` (21), `aBackdropInsideAReplayedSubtreeIsByteIdentical` (49) |
+| M8 | verify branch not consulted | `aVerifiedRestoreThatDiffersFromAFreshPlacementTraps` (2) |
+| M10 | occurrences not marked | `aDragFrame...` (6), `aRestoredDragEquals...` (2), `theBracketNodeDragReplays...` (2) |
+| M11 | `markPlacementRoot` inserts nothing | the kernel pins (except 2.3-2.5, which pass without a hit) and both window pins (16) |
+| M12 | `Color` unkeyed | `aColorAndAnEmptyContainer...`, `aDragFrame...` (8), `aRestoredDragEquals...` (2), `theBracketNodeDragRebuildsTheWholeWindow` (15), `theBracketNodeDragReplays...` (29) |
+| M13 | empty container unkeyed | `aColorAndAnEmptyContainer...`, `aDragFrame...` (6), `theBracketNodeDragRebuildsTheWholeWindow` (12), `theBracketNodeDragReplays...` (22) |
+| M14 | nothing stored | as M11 (16) |
+| M15 | restore falls through to the placement below | first batch: `aDragFrame...` (4) and `theBracketNodeDragReplays...` (2) only (`aRestoredSubtreeIsNotDescended` survived: its control had a warm memo that hit the whole root); after the control was re-specified: those + `aRestoredSubtreeIsNotDescended` (7) |
+
+Instruments that found the survivors: M3 and M5 and M15 each left a kernel pin green in the first batch; each was re-specified (the
+tests are `SubtreePlacementTests.swift` 2.2, 2.3, 2.5) and the three mutations re-run. Verify modes over the whole suite:
+`METALUI_VERIFY_RETAINED=1` 3707 passed; `METALUI_VERIFY_LAYOUT_MEMO=1` trapped nothing and read exactly three issues (one per arm), the baseline test's
+seam-measure count (`counting.measures == 2898`), which a verified hit changes by design (guarded with `layoutMemoVerifying` as the
+other seam pins are).
+
+**Timing** (dated measurements, 2026-10-13, M1 Max, **shared Mac**; release, `zsh docs/probes/perf-baselines.sh release bracket`, three
+whole-process runs, per-frame total including the harness's input and tick; never a pin):
+
+| arm | `e85cb07a` | lane 1 | lane 2 (`88b9e7b4`, three runs) | lane 2 vs `e85cb07a` |
+|---|---|---|---|---|
+| `.value` | 7.422 | 6.534 | 6.062, 6.044, 6.061 (median 6.061) | **-1.36 ms, -18 %** (lane 2 alone -0.47) |
+| `.environment` (nodes refused) | 7.596 | 7.605 | 7.504, 7.489, 7.491 (7.491) | -0.11 ms, -1.4 % (the key widening only) |
+| `.panels` | 7.453 | 6.519 | 6.052, 6.019, 6.039 (6.039) | **-1.41 ms, -19 %** (lane 2 alone -0.48) |
+
+Counted: the harness's last frame reads `measureCalls=52 cacheHits=331 cacheMisses=162` (`bracket_*`); the baseline test's mid-drag frame
+reads, retention off, 52 / 366 / 217 with 1258 memo hits and, retention on, 331 cache hits and 362 memo hits with 11 restores
+(`aDragFrameRestoresTheUnmovedOccurrencesPlacement`).
+
+**Not changed:** pixels (the fourteen offscreen images 0 px against `e85cb07a`, scenes identical, at `d7c7297b`; table in §6's method);
+a tree with nothing marked (retention off, no `.equatable()`) is slice 1 byte for byte except for the two keyed leaves.
