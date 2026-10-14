@@ -96,7 +96,12 @@ func runDemo() throws {
         // The counters and the switch are package API (the harness's hooks), wired here for the demo.
         let model = retainedSubtreeDemoModel
         window.testingOnFrameAdopted { work in
-            model.counters = (work.retained.hits, work.retained.misses, work.retained.ineligible)
+            model.counters = (work.retained.hits, work.retained.misses, work.retained.ineligible,
+                              work.retained.prepaintHits, work.retained.redos, work.retained.translated)
+        }
+        model.applyPrepaintReplay = { [weak window] on in
+            window?.testingRetainedPrepaint = on
+            window?.setNeedsRedraw()
         }
         model.applyReplay = { [weak window] on in
             window?.testingRetainedSubtrees = on
