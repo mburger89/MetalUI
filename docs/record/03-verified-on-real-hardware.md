@@ -2310,6 +2310,16 @@ pointer style inside a drag region (divergence 425); CW6 double-click on the ban
 not) on X11 and Wayland; CW7 the macOS-through-SDL left cluster; CW8 fullscreen enter and leave; CW9 the DWM shadow and
 corners; CW10 Close through the close veto, minimise and zoom/restore.
 
+## 2026-10-14: SDL GPU for apps (record §114) — looks owed
+
+Run on this Mac's Metal and, for the lanes, in the Linux image on lavapipe; no window was shown to a person and the
+Windows VM (`ssh metalui-win`) did not answer. **Owed, new here — `docs/verification/human-checks.md` group GA, none
+performed (an agent cannot)**: GA1 the instanced, depth-tested, 4x multisampled surface draw on a Linux or Windows
+desktop (smooth edges, a resize rebuilds the multisample and depth textures); GA2 the append kernel and graphics tests
+on real Windows (D3D12) and Linux (Vulkan) hardware with `METALUI_REQUIRE_GPU=1`; GA3 a built app finds its
+`MetalUIAppShaders` after the folder moves, and a missing folder names every directory tried; GA4 the two debug
+traps read clearly in a real console.
+
 ## 2026-10-14: clipboard beyond text (record §115) — looks owed
 
 No window was driven (the screen was locked for the whole branch, so arm R of `swiftui-clipboard-types.swift` printed
@@ -2319,3 +2329,12 @@ compared against `fb9a7e42` in §115 §5. **Owed, new here — `docs/verificatio
 divergences 455 and 456); CB2 paste between the demo and another application, and between two demo processes, on macOS,
 X11, Wayland and Windows; CB3 the Edit menu's enablement with the focus, native and drawn; CB4 a 100 MB payload; CB5
 another application taking the clipboard while the demo owns it.
+
+## 2026-10-14: image cursors and the headless SDL launch (record §116) — looks owed
+
+No window was driven in the lanes (the screen was locked at design time; the Record phase drove none); the cursor is drawn by
+the window server, so the recorders and `NSCursor` read-backs pin what was asked for and nothing sees the pointer. **Owed, new
+here — `docs/verification/human-checks.md` group IC, none performed (an agent cannot)**: IC1 SDL on Linux and Windows shows the
+supplied hand and zoom images, hot spot on the clicked point, and the largest cursor each platform draws; IC2 macOS at 1x and
+2x draws the ring crisp and the same point size; IC3 the hot spot lands on the clicked pixel at the four corners of the image;
+IC4 a `HeadlessLaunchCheck`-shaped app exits 0 in CI with no display on Windows and Linux.

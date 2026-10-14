@@ -16,7 +16,14 @@ enum SDLIcon {
     /// alpha. Lossy at low alpha: (100, 50, 25, 128), what `ImageBitmap`
     /// stores for straight (200, 100, 50, 128), comes back (199, 100, 50, 128).
     static func straightRGBA(_ texture: ImageTexture) -> [UInt8] {
-        var out = texture.pixels
+        straightRGBA(premultiplied: texture.pixels)
+    }
+
+    /// ``straightRGBA(_:)`` over raw premultiplied RGBA8 bytes — the one
+    /// un-premultiply, so a cursor's box-downsampled primary (`IC-E` 2) reuses
+    /// it rather than copying the arithmetic.
+    static func straightRGBA(premultiplied pixels: [UInt8]) -> [UInt8] {
+        var out = pixels
         var i = 0
         while i + 3 < out.count {
             let a = UInt32(out[i + 3])

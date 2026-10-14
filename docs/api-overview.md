@@ -22,7 +22,9 @@ design: no SwiftUI counterpart. **X** — deprecated, with its replacement.
 Platforms: macOS (AppKit + Metal, the default), Linux and Windows (the
 `MetalUISDL` product of the root package, behind its `SDL` and `AccessKit`
 package traits, `PX-H`; [`getting-started.md`](getting-started.md) says what
-to install). iOS and the other Apple platforms are out of
+to install). `SDLPlatform(options:)` takes `SDLPlatform.Options`; `.headless` opens hidden
+windows that render offscreen, for a CI smoke test with no display
+([`testing.md`](testing.md#a-ci-smoke-test-of-the-real-window), `IC-J`). iOS and the other Apple platforms are out of
 scope (`PB-A`).
 
 ## App and window — M
@@ -406,6 +408,18 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
 
+**Image cursors** (`IC-`, record §116;
+[`superpowers/2026-10-14-cursors-headless-decisions.md`](superpowers/2026-10-14-cursors-headless-decisions.md);
+probe `probes/swiftui-image-cursor.swift`). `PointerStyle.image(_ image: Image, hotSpot: UnitPoint)`,
+SwiftUI's macOS 15 spelling (A): the cursor is the `Image`'s bitmap at `pixels / scale` points
+(`resizable()` and `interpolation` are ignored), the hot spot a fraction of that size from the top-left,
+clamped to the image (D 465). It is cached per bitmap identity — a bitmap rebuilt into an `Image` every
+frame is one cursor — on AppKit (an `NSCursor`, sixteen per window) and on SDL (`SDL_CreateColorCursor`,
+straight alpha, eight per platform, a 2x bitmap added as an alternate image). SDL has no hand or zoom
+cursor, so an app that wants one supplies the bitmap (`IC-H`; `guides/input.md`). `shape(_:eoFill:size:)`
+is carried (`IC-G`). At the seam (M): `PlatformPointerStyle.image` and `PlatformCursorImage`
+(`texture`, `scale`, `hotSpotX`/`hotSpotY`, `pixelWidth`/`pixelHeight`, `pointWidth`/`pointHeight`).
+
 **Input follow-ups** (`IF-`, record §93;
 [`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
 probe `probes/swiftui-input-followups.swift`). MetalUI-only by ruling, where SwiftUI's
@@ -438,6 +452,17 @@ built: `Scene.windowBackgroundDragBehavior`, `.windowDragArea()`, a double-click
 (M): the defaultless `PlatformWindow.performWindowDrag() -> Bool`; `MetalUITesting` gains
 `HeadlessPlatformWindow.windowDrags`, `Options.performsWindowDrag` and `TestWindow.windowDrags`.
 Human checks: group WD, unrun.
+
+**SDL GPU for apps** (`GA-`, items S5 and S6, record §114;
+[`superpowers/2026-10-14-sdl-gpu-compute-decisions.md`](superpowers/2026-10-14-sdl-gpu-compute-decisions.md)). All class M,
+in `Backends/SDL` behind the `SDL` trait, outside the public census (`GA-L`); SwiftUI has no GPU API. The product
+`MetalUISDLGPU` is a thin typed layer over SDL_GPU: `SDLGPUDevice` (`make(debug:preferring:)`, `init(borrowing:)`),
+`SDLGPUBuffer`, `SDLGPUTransferBuffer`, `SDLGPUTexture` (MSAA, depth, mips), `SDLGPUSampler`, `SDLGPUComputePipeline`,
+`SDLGPUGraphicsPipeline`, `SDLGPUCommandBuffer` with `SDLGPUComputePass` and `SDLGPURenderPass`, `SDLGPUFence`
+(`await fence.wait()` off the main actor), `SDLGPUShaderLibrary`; `SDLGPUDrawContext.view` records into the frame's own
+command buffer. Every wrapper has `.raw` and the product re-exports `CSDL`. Shipping an app's own shaders is
+`docs/packaging.md` section 4a; the guide is [`guides/drawing-and-gpu.md`](guides/drawing-and-gpu.md). Human checks:
+group GA, unrun.
 
 **Window chrome on SDL** (`CW-`, item S1, record §112;
 [`superpowers/2026-10-13-sdl-chrome-decisions.md`](superpowers/2026-10-13-sdl-chrome-decisions.md);

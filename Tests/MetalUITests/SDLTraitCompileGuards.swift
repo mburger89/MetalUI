@@ -46,3 +46,27 @@ func anSDLPlatformWithoutTheSDLTraitNamesTheTrait() throws {
             "rejected, but not with the trait's remedy:\n\(platform.output)")
     #expect(platform.messages.contains("docs/getting-started.md"), "\(platform.output)")
 }
+
+/// **22 (`IC-J`) - the trait-off stub names the trait for `SDLPlatform(options:)` too.**
+/// `Options` and `init(options:)` are declared by the stub, so a call reports
+/// the remedy and not a missing member.
+///
+/// Mutation: delete the stub's `init(options:)` -> "extra argument 'options'"
+/// without the trait's remedy -> red.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func anSDLPlatformWithoutTheSDLTraitNamesTheTraitForItsOptionsInitialiser() throws {
+    try #require(canTypecheck(module: "MetalUISDL"),
+                 "MetalUISDL is not among the root build's modules (PX-H item 1)")
+    let platform = try typecheckFile("""
+        @MainActor public func bad() throws { _ = try SDLPlatform(options: .headless) }
+        """, importing: "MetalUISDL")
+
+    print("""
+        IC-22 SDLPlatform(options:) without the trait: succeeded=\(platform.succeeded) \
+        messages=[\(platform.messages)]
+        """)
+
+    #expect(!platform.succeeded, "SDLPlatform(options:) must not compile without the SDL trait:\n\(platform.output)")
+    #expect(platform.messages.contains("enable the trait 'SDL'"),
+            "rejected, but not with the trait's remedy:\n\(platform.output)")
+}
