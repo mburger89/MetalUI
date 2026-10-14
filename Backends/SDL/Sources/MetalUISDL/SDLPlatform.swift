@@ -26,10 +26,12 @@ public struct SDLPlatformError: Error, CustomStringConvertible {
 @MainActor
 public final class SDLPlatform: Platform {
     private var windows: [UInt32: SDLWindow] = [:]
-    private let hidden: Bool
+    /// How this platform opens its windows (rulings `IC-J`, `WS-B`, `TF-C`).
+    let options: Options
+    private var hidden: Bool { options.hidesWindows }
     /// Each window renders into an offscreen target instead of claiming its
-    /// swapchain (ruling `TF-C`, `TF-E`; for checks only).
-    private let offscreenRenderers: Bool
+    /// swapchain (ruling `TF-C`, `TF-E`).
+    private var offscreenRenderers: Bool { options.rendersOffscreen }
     private var running = false
     /// The window of this platform with keyboard focus, if any (ruling EV-AB,
     /// amended by EV-AF). Tracked from SDL's focus events rather than read
@@ -47,31 +49,35 @@ public final class SDLPlatform: Platform {
     /// (ruling `CI-Z` item 3).
     var mouseFocusWindowID: () -> UInt32 = { mui_mouse_focus_window_id() }
 
+    /// - Parameter options: how windows open; ``Options/headless`` is the
+    ///   launch for a CI smoke test with no display (ruling `IC-J`).
+    ///
+    /// Every window is created hidden and shown after its AccessKit adapter
+    /// exists (ruling `WS-B`); with ``Options/hidesWindows`` it is never shown.
+    public init(options: Options) throws {
+        guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
+        self.options = options
+        pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
+        #if canImport(AppKit)
+        Self.installAppKitEventSignal()
+        #endif
+    }
+
     /// - Parameter hiddenWindows: open windows hidden — for tests, which need
     ///   a real window and its events but nothing on screen.
     ///
-    /// Every window is created hidden and shown after its AccessKit adapter
-    /// exists (ruling `WS-B`); with `hiddenWindows` it is never shown.
+    /// `SDLPlatform(options: Options(hidesWindows: hiddenWindows))`.
     public convenience init(hiddenWindows: Bool = false) throws {
-        try self.init(hiddenWindows: hiddenWindows, offscreenRenderers: false)
+        try self.init(options: Options(hidesWindows: hiddenWindows))
     }
 
     /// ``init(hiddenWindows:)``, and with `offscreenRenderers` each window's
     /// renderer draws into an offscreen target its pixel size instead of
-    /// claiming the window (ruling `TF-C`) — so under SDL's offscreen video
-    /// driver, where a swapchain never yields a drawable, `Window` still
-    /// builds frames and runs its lifecycle drain. Everything else is the
-    /// production path. A check's option, not API: SPI `Checks` (ruling
-    /// `TF-E` — `package` cannot reach `Backends/SDL`'s executables, which
-    /// are another package).
-    @_spi(Checks) public init(hiddenWindows: Bool = false, offscreenRenderers: Bool) throws {
-        guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
-        hidden = hiddenWindows
-        pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
-        self.offscreenRenderers = offscreenRenderers
-        #if canImport(AppKit)
-        Self.installAppKitEventSignal()
-        #endif
+    /// claiming the window (ruling `TF-C`). Forwards to ``init(options:)``
+    /// (ruling `IC-L`); kept as SPI `Checks` so existing checks build — new
+    /// code uses ``Options/headless``.
+    @_spi(Checks) public convenience init(hiddenWindows: Bool = false, offscreenRenderers: Bool) throws {
+        try self.init(options: Options(hidesWindows: hiddenWindows, rendersOffscreen: offscreenRenderers))
     }
 
     public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
@@ -1205,5 +1211,21 @@ public final class SDLPlatform {
     /// unavailability — an implicit internal `init()` would report only
     /// "inaccessible due to 'internal' protection level" (guard 1.6).
     public init(hiddenWindows: Bool = false) throws {}
+
+    /// The real `Options`' spelling (ruling `IC-J`), so `SDLPlatform(options:)`
+    /// reports the trait's remedy too (guard 1.6).
+    public struct Options: Sendable, Hashable {
+        public var hidesWindows: Bool
+        public var rendersOffscreen: Bool
+        public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false) {
+            self.hidesWindows = hidesWindows
+            self.rendersOffscreen = rendersOffscreen
+        }
+        public static let `default` = Options()
+        public static let headless = Options(hidesWindows: true, rendersOffscreen: true)
+        public static func headlessIfRequested(environment: [String: String] = [:]) -> Options { .default }
+    }
+
+    public init(options: Options) throws {}
 }
 #endif

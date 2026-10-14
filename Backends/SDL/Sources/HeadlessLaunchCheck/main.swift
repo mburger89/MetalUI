@@ -40,7 +40,6 @@ try app.openWindow(title: "HeadlessLaunchCheck", size: Size(width: Pixels(64), h
         Box().frame(width: Pixels(20), height: Pixels(20)).background(.accent)
             .task {
                 state.taskRan = true
-                platform.stop()
             }
     }
 }
@@ -48,7 +47,9 @@ var iterations = 0
 let window = try platform.openSDLWindow(title: "HeadlessLaunchCheckBound", size: Size(width: Pixels(16), height: Pixels(16)))
 window.startDisplayLink { _ in
     iterations += 1
-    if iterations >= iterationLimit { platform.stop() }
+    // `platform.stop()` from the task could run before `run()` begins and be
+    // lost: the loop's own tick reads the flag instead.
+    if state.taskRan || iterations >= iterationLimit { platform.stop() }
 }
 app.run()
 print("task ran=\(state.taskRan) iterations=\(iterations)")
