@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-W`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-X`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -415,3 +415,21 @@ channel and the first differing element (`aVerifiedPrepaintReplayThatDiffersTrap
 (`ContentMemoStore.reportLast`), so the suite's count pins read the build under test. **Found by running it**: a tree that displays its own build counters
 (the invalidation demo's readout) differs between two builds by design, so that one pin is switched off under the variable; the layout-memo verify run changes
 `aDragFrameRestoresTheUnmovedOccurrencesPlacement`'s memo counts as it did before this item.
+
+
+## RK-W — The lane 1 readings and what they settle (`RK-J` gate, `RK-L` expectation, `RK-I` criterion)
+
+**Evidence.** Record 110 §4: prepaint replay off and on alternating inside one process (`bracketab`, release, shared Mac), three whole-process runs, median drag frame
+in thread-CPU milliseconds, off to on: `.value` 7.805 to 6.925, 7.040 to 6.678, 7.137 to 6.632 (−0.88, −0.36, −0.51); `.panels` 7.340 to 6.837, 6.988 to 6.555, 7.396 to 6.938 (−0.50,
+−0.43, −0.46). The wall-clock medians agree to the microsecond when the Mac is quiet (run 2: −0.33 and −0.42) and are damaged by contention when it is not (run 1: 13.99 against
+7.81 CPU, the `.value` off arm). Element prepaints of the tenth drag frame: 886 to 219 (`.value`), 176 (`.panels`), 829 (`.environment`, whose nodes `RK-O`/divergence 346 refuse).
+
+**Ruling.** (1) `RK-J`'s gate for M1 — at least 0.4 ms on release `.panels` — is **met on thread-CPU time in three runs of three** (0.50, 0.43, 0.46 ms) and on wall time in two (the third was
+contended); it was **not met before `RK-T`** (0.32 ms), so the gate is also the evidence that `RK-O` item 2 cost real time. (2) `RK-L`'s M1 expectation (−0.4 to −0.8 ms) holds at its lower edge;
+`RK-A`'s ceiling and the −15 % refutation line are for M1 and M2 together and are lane 2's to judge — M1 alone is 5–8 % of a 6–7 ms frame. (3) M3 moves no drag frame (`translated == 0` in
+every arm of the drag); its win is counted on the pan (`translated >= 64` over eight steps) and **not timed**. (4) `RK-I`'s criterion holds: a moving label under an `.offset`, at scales 1 and 2,
+reads 0 `placeGlyphs` and 0 seam measures on the replay frames (`aStaticLabelOverlayReplaysAndAMovingOneReplaysTranslated`, 8 arms; `theOverlayCostIsLinearAndCounted`, for plain labels, is
+unchanged at one `placeGlyphs` per label per frame), so **`MetalDrawContext.drawText` and its SDL twin stay deferred** (`GT-F`) and the label's remaining per-frame cost is the build. (5) The
+MetalCreator frames (17.05, 18.64, 20.56 ms) are not expected under 16.67 ms from this item alone (`RK-L`); the reading is left to a MetalCreator run.
+
+**Cost if wrong.** A reader takes M1's 0.3–0.5 ms as the item's whole win: lane 2's graft is where the build and layout share (`RK-A`'s 57 % of a render after paint replay, record §109 §10) is attacked.
