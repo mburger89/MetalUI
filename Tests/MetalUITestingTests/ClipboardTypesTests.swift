@@ -94,16 +94,24 @@ private let primary: EventModifiers = .control
     #expect(window.platformWindow.clipboard == "graph g1", "the text property is a view of the text representation (1.15)")
 }
 
-/// 1.2 — the separating arm of 1.1: the same tree with nothing focused writes nothing, and a
-/// hover over the element does not count (`CB-B`, `KF-U`). Mutation: `dispatchClipboardKey`
-/// routes by hover.
+/// 1.2 — the separating arm of 1.1: the same handlers on a **hover key region** with nothing
+/// focused, pointer resting on it, write nothing (`CB-B`, `KF-U`: the key chain of a hover region
+/// feeds only the keymap and `onKeyPress`); focusing it (Tab) then writes. Mutation:
+/// `dispatchClipboardKey` walks `keyChain` (the hover region's) instead of `focusChain`.
 @Test @MainActor func aCopyOnAnUnfocusedAncestorlessElementWritesNothing() throws {
     let m = ClipboardModel()
-    let window = try clipboardWindow(m, focused: false)
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            square("a").focusable().hoverKeyRegion().copyable([m.graph])
+        }
+    }
     let box = try window.element(identifier: "a")
     window.hover(at: Point(x: box.frame.origin.x + box.frame.size.width / 2, y: box.frame.origin.y + box.frame.size.height / 2))
     window.typeKey("c", modifierFlags: primary)
-    #expect(window.clipboardRepresentations.isEmpty)
+    #expect(window.clipboardRepresentations.isEmpty, "hover alone routes no clipboard key")
+    window.typeKey(.tab)
+    window.typeKey("c", modifierFlags: primary)
+    #expect(window.clipboardRepresentations.count == 2, "focus does")
 }
 
 /// 1.3 — cut runs its action exactly once and writes what it returned.
