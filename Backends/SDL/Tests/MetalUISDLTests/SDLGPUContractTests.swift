@@ -83,7 +83,7 @@ private func leaveAPassOpen(_ ctx: any GPUSurfaceContext) {
     /// Mutation: `func submit()` added to the view.
     @Test func theFrameViewDeclaresNoSubmittingVerb() throws {
         let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/MetalUISDLGPU")
+            .deletingLastPathComponent().appendingPathComponent("Sources/MetalUISDLGPU")
         func code(_ name: String) throws -> [String] {
             try String(contentsOf: sources.appendingPathComponent(name), encoding: .utf8)
                 .split(separator: "\n", omittingEmptySubsequences: false)

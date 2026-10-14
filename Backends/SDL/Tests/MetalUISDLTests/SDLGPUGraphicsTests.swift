@@ -17,7 +17,7 @@ import ReplayFixture
 // (C9 relies on it), so GA-M's `windowsPresentFrames` gate is not needed.
 //
 // The triangle set (`AppShaders/tri.vert.hlsl`): one triangle, three
-// instances shifted by (0,0), (0.3,0.3), (0.1,0.5) NDC at depths 0.5, 0.3, 0.7,
+// instances shifted by (0,0), (0.25,0.25), (0.5,0.5) NDC at depths 0.5, 0.3, 0.7,
 // coloured red, green, blue. Instance 1 is nearest everywhere it overlaps; the
 // draw order 0, 1, 2 makes a missing depth test show instance 2 over it.
 
@@ -25,8 +25,8 @@ private let size = 32
 
 /// The CPU reference: which instance covers a point, by exact edge functions.
 private enum TriangleSet {
-    static let corners: [(Double, Double)] = [(-0.9, -0.9), (0.5, -0.9), (-0.9, 0.5)]
-    static let shifts: [(Double, Double)] = [(0, 0), (0.3, 0.3), (0.1, 0.5)]
+    static let corners: [(Double, Double)] = [(-0.9, -0.9), (0.1, -0.9), (-0.9, 0.1)]
+    static let shifts: [(Double, Double)] = [(0, 0), (0.25, 0.25), (0.5, 0.5)]
     static let depths: [Double] = [0.5, 0.3, 0.7]
     static let colors: [[UInt8]] = [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]]
 
@@ -49,15 +49,16 @@ private enum TriangleSet {
         return covering.min { depths[$0] < depths[$1] }
     }
 
-    /// The pixels whose 5 × 5 neighbourhood of centres is all one label: no
-    /// triangle edge crosses them, whatever the sample pattern.
+    /// The pixels whose 3 × 3 neighbourhood of centres is all one label: no
+    /// triangle edge crosses the hull of those centres, which holds every sample
+    /// position of the pixel, so its colour is exact whatever the sample pattern.
     static func stablePixels(instances: Int) -> [(x: Int, y: Int, label: Int?)] {
         var result: [(Int, Int, Int?)] = []
-        for y in 2..<(size - 2) {
-            for x in 2..<(size - 2) {
+        for y in 1..<(size - 1) {
+            for x in 1..<(size - 1) {
                 let here = label(x: x, y: y, instances: instances)
                 var same = true
-                for dy in -2...2 { for dx in -2...2 where label(x: x + dx, y: y + dy, instances: instances) != here { same = false } }
+                for dy in -1...1 { for dx in -1...1 where label(x: x + dx, y: y + dy, instances: instances) != here { same = false } }
                 if same { result.append((x, y, here)) }
             }
         }
@@ -105,8 +106,13 @@ private struct TriangleTargets {
 
     init(device: SDLGPUDevice, resolved: SDLGPUTexture, format: SDLGPUTextureFormat, samples: SDLGPUSampleCount) throws {
         self.resolved = resolved
-        multisample = samples == .one ? nil : try #require(device.makeTexture(SDLGPUTextureDescription(
-            width: size, height: size, format: format, usage: [.colorTarget], sampleCount: samples)))
+        if samples == .one {
+            multisample = nil
+        } else {
+            let made: SDLGPUTexture = try #require(device.makeTexture(SDLGPUTextureDescription(
+                width: size, height: size, format: format, usage: [.colorTarget], sampleCount: samples)))
+            multisample = made
+        }
         depth = try #require(device.makeTexture(SDLGPUTextureDescription(
             width: size, height: size, format: .d32Float, usage: [.depthStencilTarget], sampleCount: samples)))
     }
@@ -138,6 +144,9 @@ private func verifyTriangleSet(_ pixels: [UInt8], bgra: Bool, instances: Int) th
     #expect(pixels.count == size * size * 4)
     let stable = TriangleSet.stablePixels(instances: instances)
     try #require(stable.count > 400, "the reference has interior pixels to compare")
+    for instance in 0..<instances {
+        try #require(stable.filter { $0.label == instance }.count >= 20, "instance \(instance) has pixels of its own")
+    }
     var wrong: [String] = []
     for (x, y, label) in stable {
         let expected = label.map { TriangleSet.colors[$0] } ?? [0, 0, 0, 255]

@@ -35,8 +35,12 @@ import SDLBridge
 /// begins. It must **not** submit, cancel or wait on `commandBuffer`, acquire
 /// a swapchain texture into it, or release `target` — MetalUI submits the
 /// buffer once, after its own pass, and owns the target. **A violation is
-/// undefined behaviour and is not detected** (SDL3 has no command-buffer state
-/// query, unlike Metal's `status`, which `MetalWindowRenderer` traps on).
+/// undefined behaviour and is not detected through the raw pointers** (SDL3
+/// has no command-buffer state query, unlike Metal's `status`, which
+/// `MetalWindowRenderer` traps on). Through the typed layer of `MetalUISDLGPU`
+/// (`view`) a debug build does detect the two violations it can see: a typed
+/// submit, wait or idle called inside the draw, and a draw that returns with a
+/// typed pass still open (ruling `GA-I`).
 public struct SDLGPUDrawContext: GPUSurfaceContext {
     /// The renderer's `SDL_GPUDevice *` — the one the target was made on.
     public let device: OpaquePointer

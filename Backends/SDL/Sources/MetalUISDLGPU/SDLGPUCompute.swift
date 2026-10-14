@@ -1,6 +1,7 @@
 // Compiled only under the `SDL` trait (ruling PX-H item 2; GA-B).
 #if SDL
 import Foundation
+import MetalUISDL
 
 /// An `SDL_GPUComputePipeline` (ruling `GA-A`), released with its last reference.
 public final class SDLGPUComputePipeline: @unchecked Sendable {
@@ -27,6 +28,9 @@ public final class SDLGPUCommandBuffer {
     var retained: [AnyObject] = []
     var openPasses = 0
     var isOpen = true
+    /// Whether this is a surface draw's own frame buffer (``SDLGPUFrameView``): its
+    /// passes are counted for the window guard (ruling `GA-I`).
+    var isFrame = false
 
     init(raw: OpaquePointer, device: SDLGPUDevice) {
         self.raw = raw
@@ -49,7 +53,7 @@ public final class SDLGPUCommandBuffer {
         }
         guard let pass else { return nil }
         retained.append(contentsOf: buffers)
-        openPasses += 1
+        notePassBegan()
         return SDLGPUComputePass(raw: pass, commandBuffer: self)
     }
 
@@ -131,7 +135,7 @@ public struct SDLGPUComputePass {
     /// the batch's closure returns.
     public func end() {
         SDL_EndGPUComputePass(raw)
-        commandBuffer.openPasses -= 1
+        commandBuffer.notePassEnded()
     }
 }
 #endif

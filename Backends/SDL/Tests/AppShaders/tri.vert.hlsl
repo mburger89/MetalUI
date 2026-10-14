@@ -8,8 +8,8 @@ struct VSOutput {
     nointerpolation uint instance : TEXCOORD1;
 };
 
-static const float2 corners[3] = { float2(-0.9, -0.9), float2(0.5, -0.9), float2(-0.9, 0.5) };
-static const float2 shifts[3] = { float2(0.0, 0.0), float2(0.3, 0.3), float2(0.1, 0.5) };
+static const float2 corners[3] = { float2(-0.9, -0.9), float2(0.1, -0.9), float2(-0.9, 0.1) };
+static const float2 shifts[3] = { float2(0.0, 0.0), float2(0.25, 0.25), float2(0.5, 0.5) };
 static const float depths[3] = { 0.5, 0.3, 0.7 };
 static const float4 colors[3] = { float4(1, 0, 0, 1), float4(0, 1, 0, 1), float4(0, 0, 1, 1) };
 

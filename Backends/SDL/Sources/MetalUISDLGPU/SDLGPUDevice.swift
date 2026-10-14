@@ -227,6 +227,7 @@ public final class SDLGPUDevice: @unchecked Sendable {
     /// submission: it adds none to a window's frame. A pass left open at the
     /// closure's end cancels the buffer and throws.
     public func submitBatch(_ record: @escaping @Sendable (SDLGPUCommandBuffer) -> Void) async throws -> SDLGPUFence {
+        SDLGPUWindowGuard.assertNotInsideDraw("SDLGPUDevice.submitBatch")
         let gate = waiterGate
         return try await withCheckedThrowingContinuation { continuation in
             submitWorker.enqueue { [self] in
@@ -286,6 +287,9 @@ public final class SDLGPUDevice: @unchecked Sendable {
 
     /// Blocks until the device is idle (`SDL_WaitForGPUIdle`). Never call it
     /// from a surface draw (ruling `GA-I`).
-    public func waitForIdle() { _ = SDL_WaitForGPUIdle(raw) }
+    public func waitForIdle() {
+        SDLGPUWindowGuard.assertNotInsideDraw("SDLGPUDevice.waitForIdle")
+        _ = SDL_WaitForGPUIdle(raw)
+    }
 }
 #endif

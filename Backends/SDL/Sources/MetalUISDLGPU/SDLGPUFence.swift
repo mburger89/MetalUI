@@ -1,6 +1,7 @@
 // Compiled only under the `SDL` trait (ruling PX-H item 2; GA-B).
 #if SDL
 import Foundation
+import MetalUISDL
 
 /// The completion of one submitted batch (ruling `GA-E`). It is waited for on
 /// the device's **waiter thread**, which `SDL_WaitForGPUFences`-blocks there
@@ -50,6 +51,7 @@ public final class SDLGPUFence: @unchecked Sendable {
     /// waiter thread; cancelling the calling task neither ends the wait nor
     /// releases the fence early (it signals, then the waiter releases it).
     public func wait() async {
+        SDLGPUWindowGuard.assertNotInsideDraw("SDLGPUFence.wait")
         await withTaskCancellationHandler {
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 lock.lock()

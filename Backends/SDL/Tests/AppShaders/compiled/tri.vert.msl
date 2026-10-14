@@ -44,10 +44,10 @@ struct spvUnsafeArray
     }
 };
 
-constant spvUnsafeArray<float2, 3> _46 = spvUnsafeArray<float2, 3>({ float2(-0.89999997615814208984375), float2(0.5, -0.89999997615814208984375), float2(-0.89999997615814208984375, 0.5) });
-constant spvUnsafeArray<float2, 3> _47 = spvUnsafeArray<float2, 3>({ float2(0.0), float2(0.300000011920928955078125), float2(0.100000001490116119384765625, 0.5) });
-constant spvUnsafeArray<float, 3> _48 = spvUnsafeArray<float, 3>({ 0.5, 0.300000011920928955078125, 0.699999988079071044921875 });
-constant spvUnsafeArray<float4, 3> _49 = spvUnsafeArray<float4, 3>({ float4(1.0, 0.0, 0.0, 1.0), float4(0.0, 1.0, 0.0, 1.0), float4(0.0, 0.0, 1.0, 1.0) });
+constant spvUnsafeArray<float2, 3> _47 = spvUnsafeArray<float2, 3>({ float2(-0.89999997615814208984375), float2(0.100000001490116119384765625, -0.89999997615814208984375), float2(-0.89999997615814208984375, 0.100000001490116119384765625) });
+constant spvUnsafeArray<float2, 3> _48 = spvUnsafeArray<float2, 3>({ float2(0.0), float2(0.25), float2(0.5) });
+constant spvUnsafeArray<float, 3> _49 = spvUnsafeArray<float, 3>({ 0.5, 0.300000011920928955078125, 0.699999988079071044921875 });
+constant spvUnsafeArray<float4, 3> _50 = spvUnsafeArray<float4, 3>({ float4(1.0, 0.0, 0.0, 1.0), float4(0.0, 1.0, 0.0, 1.0), float4(0.0, 0.0, 1.0, 1.0) });
 
 struct main0_out
 {
@@ -59,8 +59,8 @@ struct main0_out
 vertex main0_out main0(uint gl_VertexIndex [[vertex_id]], uint gl_InstanceIndex [[instance_id]])
 {
     main0_out out = {};
-    out.gl_Position = float4(_46[gl_VertexIndex] + _47[gl_InstanceIndex], _48[gl_InstanceIndex], 1.0);
-    out.out_var_TEXCOORD0 = _49[gl_InstanceIndex];
+    out.gl_Position = float4(_47[gl_VertexIndex] + _48[gl_InstanceIndex], _49[gl_InstanceIndex], 1.0);
+    out.out_var_TEXCOORD0 = _50[gl_InstanceIndex];
     out.out_var_TEXCOORD1 = gl_InstanceIndex;
     return out;
 }
