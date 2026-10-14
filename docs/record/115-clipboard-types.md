@@ -175,3 +175,16 @@ rule of `CB-B` (no test sends Cmd+Shift+C or Cmd+Option+V to a focused `copyable
 stage's `item.types.isEmpty` early return (mutation D survived; probably equivalent, since `importClipboardItem` returns
 `nil` on an empty item). **Not re-taken at the Record phase:** the Linux image (30 + 130 at lane 2; the merge touched no
 `Backends/SDL` file) and Windows, which is CI's.
+
+## §9 Branch check (adversarial, 2026-10-14, `4311ea9e`)
+
+Re-taken by an independent checker on the merged tree after `swift package clean`: native build 0 `error:`, the only `warning:`
+SwiftPM's deprecation notice; unfiltered native run **3832 tests in 3 suites, 5 issues** (exactly the five `AppKitPresentationTests`
+sheet issues, the screen locked), `FR-J no-argument frame: succeeded=true`; the fourteen offscreen images 0 px and scene-identical
+against `fb9a7e42` (`compare.sh`, controls as recorded); inventory and undocumented scripts print nothing; `cmp CLAUDE.md AGENTS.md`
+clean; `Backends/SDL` on macOS **30 + 153** and in the Linux image **30 + 150**, all passed after the merge (the §8 "not re-taken"
+figures of 130 are lane 2's, before master's chrome tests joined); the probe's arm S compiles and its separating arm (`-D NEG`)
+fails to compile as the header says, arm R skipped on the locked screen (human check `CB1`). Two mutations of the checker's own
+design, each run through the full suite and restored: validator ignored in `ClipboardAttachment.pasting` reddened
+`theValidatorDecidesAndAnEmptyResultDeclines` and `thePasteItemIsEnabledByThePresenceOfADestinationNotItsValidator`; the paste
+stage claiming the key whether or not the action ran (`dispatchClipboardKey`) reddened `aPasteWithNoImportableTypeDeclinesAndTheNextStageRuns`.
