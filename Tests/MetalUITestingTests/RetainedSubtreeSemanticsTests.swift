@@ -793,7 +793,8 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
     return window
 }
 
-/// 1.3 — **each component of the replay key has a separating arm** (`SB-F`): between two frames exactly one
+/// 1.3 — **each component of the replay key has a separating arm** (`SB-F`; the offset effect's translation is
+/// since `RK-S` the exception, which replays translated — its arm reads the translated hit instead): between two frames exactly one
 /// input moves (a modifier outside the probe card, or the window), and the probe misses (a global arm
 /// makes the control miss too) while the retained scene, hitbox list and accessibility tree equal an
 /// unretained window's. Mutation: that component made constant in `retainedAmbientKey()` / `retainedKey`
@@ -824,8 +825,14 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
     let f = on.lastFrameWork
     let reaction = f.retainedMisses + f.retainedIneligible
     #expect(f.retainedHits + reaction == 2)
-    #expect(reaction >= (arm.isGlobal ? 2 : 1), "\(arm.rawValue): hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible)")
-    if !arm.isGlobal { #expect(f.retainedHits >= 1, "the control card still replays") }
+    if arm == .offsetEffect {
+        // `RK-S`: the translation of an outer effect is the one key component that no longer separates; the probe
+        // replays at its new place (translated) and the scene equals the fresh one (the differential below).
+        if !rsVerifying { #expect(reaction == 0 && f.retainedTranslated == 1, "offsetEffect: hits \(f.retainedHits) translated \(f.retainedTranslated)") }
+    } else {
+        #expect(reaction >= (arm.isGlobal ? 2 : 1), "\(arm.rawValue): hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible)")
+        if !arm.isGlobal { #expect(f.retainedHits >= 1, "the control card still replays") }
+    }
     let differences = try RSSnapshot(on).differences(from: RSSnapshot(off))
     #expect(differences.isEmpty, "\(arm.rawValue): \(differences)")
 }

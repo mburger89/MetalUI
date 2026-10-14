@@ -338,6 +338,13 @@ struct RetainedVerifySnapshot {
 }
 
 extension Frame {
+    /// Verify mode presents the second build and reports the first's work (`RK-V`): the element counters too.
+    func adoptElementWork(of other: Frame) {
+        elementRequests = other.elementRequests
+        elementPrepaints = other.elementPrepaints
+        elementPaints = other.elementPaints
+    }
+
     func captureRetainedVerifySnapshot() -> RetainedVerifySnapshot {
         let s = finalizedScene()
         return RetainedVerifySnapshot(

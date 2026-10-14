@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-Q`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-W`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -301,3 +301,117 @@ Rejected as defects: "no SwiftUI probe" (no SwiftUI-facing claim; gpui recall is
 files named); "test 3 passes on the stub" (declared an instrument, mutation named); the demo switch reaching a `package` hook
 (`MetalUIDemoContent` is in the package). Translated replay's mutation arms (test 11) owe a `try #require` that the scale-3 arm
 actually differs under the mutated gate (`SB-H`: 31 of 2999), added to the spec.
+
+
+## RK-R — Lane 1 as built: the prepaint ledger, the prepaint key and the decision (what `RK-E` named, and what it did not)
+
+**Evidence.** Lane 1 (`Sources/MetalUI/RetainedPrepaint.swift`, hooks in `Frame.swift`, `StateTable.withState`/`write`, `GeometryChange`,
+`ModifierKeysChange`; tests `RetainedPrepaintTests`, `RetainedVerifyTests`, `TranslatedReplayTests`). One `PrepaintLog` is shared by every open
+recorder (`Frame.prepaintLog`, `nil` unless one is open, one nil check at each funnel) and each recorder keeps the slice between its open and close:
+the `hitboxes` and `axEmissions` ranges (copied at close, so a share patch inside is in), the journals of `focusRegistry.register`/
+`registerShortcut`/`registerFocusBinding` calls (only calls that registered something are journalled), `axNodes` writes with their `$ax`
+slot write, `accessibilityPressOnly`, `contextMenuRecords` and `elementBounds` (the harness records layout by default, so this one is not
+optional), and the five region tallies as deltas. **Everything else a prepaint can write is audited, not recorded**: a count of
+`timeVaryingNotes`, `openPopovers`, `presentationAnchors`, `presentationSpaces`, the scroll resolution and adjustment queues, the unresolved-request
+count, `wantsAccessibilityRetry`, `portalCount`, `namedSpaceSnapshots`, `hitboxNamedSpaces` and `surfaceRequests` taken at open and close, a
+`withState`/`write` that is not the accessibility node's own retention slot (`StateTable.prepaintLog`), `noteGeometry` and `noteModifierKeys` (explicit
+taints) and a share patch that rewrites a hitbox or record registered before the window opened. A moved count makes the occurrence ineligible by name
+(`retainedPrepaintIneligible`, `METALUI_TRACE_RETAINED=1`). A ledger with a draggable or a drop destination is refused too (`RK-E`'s list).
+**The prepaint key** is the paint key's ambient read at prepaint (clip, offset, layer, scale, size, environment fingerprint, transaction; the opacity
+and scope stacks are empty there) plus `PrepaintExtras`: the open render effects (composed map, inverse, outer clip, clip base), the pointer and
+keyboard gates, the share stack, whether accessibility is collected and the suppression exceptions, the portal ordinal, the innermost scroller frame
+and the hidden-node count. A context the key does not hold refuses the decision: a pending `scrollTo`, an open share collection, an open named space.
+**The decision** (`retainedPrepaintDecision`): replay-able when the record's content serial, observation, coverage and bound `@State` versions are
+what the paint decision requires and the key is equal; the pressed or focused element under the occurrence runs prepaint (exact); **the pointer rule**
+cannot be exact (hover resolves after prepaint), so the occurrence runs prepaint when the pointer is inside **any hitbox its own ledger registered**,
+a superset of the paint rule's "the hovered element is under me", which is what makes a hover entering an occurrence cost no redo
+(`aFocusedOrHoveredElementUnderTheOccurrenceRunsPrepaint`).
+
+**Ruling.** As built. `ComponentPrepaint.Storage.prepaint` is optional, `nil` only for a replayed prepaint; `withPrepaint` traps by name on it (`RK-B`),
+so no element phase can walk a replayed occurrence. A window drives a redo only if it said so (`ContentMemoStore.windowRedoes`): a bare
+`Frame.render` never replays a prepaint, since nobody would build its abandoned frame again.
+
+**Cost if wrong.** A channel missed is caught by the differential (`RPSnapshot`: scene bytes, accessibility tree, every non-closure hitbox field in
+order, tallies, Tab order, element bounds, menus and press-only registrations at every drag step) and by verify mode (`RK-V`).
+
+## RK-S — Translated replay is the paint replay through the live scopes plus moved hitbox transforms; `RK-G`'s scale and device-pixel gates are not owed (narrows `RK-G`)
+
+**Question.** `RK-G` gated a translated replay on a power-of-two scale and a whole-device-pixel delta because `SB-H` measured the float association of
+`(p + o₁)·s + d·s` against `(p + (o₁ + d))·s` (0 of 100 000 differ at scale 2, 31 of 2999 at scale 3) for a translation applied to **recorded final
+primitives**. Is that the translation this design makes?
+
+**Evidence.** No. A record keeps two streams (`SB-AB`): the leaves at the boundary where the occurrence's own paint scopes end (`scene`) and the
+primitives as they reached the scene after plain outer effects (`finalScene`). The occurrence's pre-scope leaves are in the space the outer render
+effect maps **from**, and they do not depend on that effect's translation: glyph bins come from the text system's local device x, clips pushed inside an
+effect are local (`flatteningClipBase`), and every outer scope (the effect's map, its cut by the clip at entry, the `.opacity`) is applied afterwards. So a record
+whose key differs only in the translation of outer **effect** scopes replays its `scene` through `processScopes` **against the live scopes**: the
+arithmetic is the fresh arithmetic, operation for operation. The final stream (the old translation in its coordinates) is not used for such a hit
+(`replayPaint(_:translated:)`). The pins are bit-for-bit differentials against a retention-off window at scales 1, 1.5, 2, 3 and 4 over a pan of whole
+points, a half, a quarter and a third of a point (`aTranslatedReplayEqualsAFreshFrameAtEveryScale`, 10 arms) and over the bracket graph's pan by 4, 0.3 and
+2.5 points (`aPanOfTheWholeGraphReplaysEveryNodeAndEqualsAFreshFrame`): all equal, **at the scales `RK-G` refused**.
+
+**Ruling.** (1) Paint: `ReplayKey.differsOnlyByEffectTranslation(from:)`: rects, interior and every ambient part equal, scope vectors equal except the
+`tx`, `ty` of `.effect` scopes (linear parts, depth, flattening, outer mask equal); the hit counts `FrameWork.retainedTranslated`. (2) Prepaint: the
+effects' composed translations moved by one amount (or not at all: a node moved inside a still canvas), linear parts, inverses' linear parts, outer clips and
+clip bases equal; the ledger replays with each hitbox's `HitboxTransform.inverse` moved by the opposite amount, **exactly in `Double`, checked by round trip**
+(`translatedHitboxes`); a hitbox outside every effect, or one whose outer clip is not the ambient last effect's (its clip depended on the translation), or
+an accessibility record in the ledger (its frames are computed boxes, `accessibilityGeometry`) refuses and counts `retainedTranslationRefused`. Local
+`bounds`, `origin` and `shape` of a hitbox, a context-menu record's bounds and element bounds are layout- or effect-local and do not move. (3) Not built, carried:
+a translation that comes from **layout** (rects) or the **scroll offset** (`activeOffset`) instead of an effect, which re-bins glyphs and moves element bounds
+(`RK-G` stands for that case: whole device pixels and a dyadic scale would be owed); `RK-L` expected a fractional trackpad pan to be the common refusal, and it
+replays instead. (4) A translated hit in verify mode paints fresh and compares the pre-scope leaves, not the final stream.
+
+**Cost if wrong.** A leaf that depended on the outer translation would replay stale under a pan: the pan differentials and verify mode are the instruments; a
+scope kind other than an effect (a shadow, a blur, a composite) must be fully equal, so a moving shadow still misses.
+
+## RK-T — A never-written `@State` slot does not stop a prepaint replay (refutes `RK-O` item 2; `RK-O` item 1 stands)
+
+**Question.** `RK-O` item 2 refused prepaint replay for an occurrence with a bound `@State` slot whose box "is not the table's entry" (never written, re-seeded),
+reasoning that a replayed closure's write "would go nowhere".
+
+**Evidence.** `State.Box` holds the table and the slot id, and `wrappedValue` reads `table.peek(slot) ?? initialValue` and writes `table.write(slot, value)`:
+a closure from a past frame reaches the table's entry whatever box it holds. Measured: `aReplayedHandlerActsLikeAFreshOne` clicks a never-written `@State` button
+against **replayed** hitboxes (the click dispatches against the previous frame's list, with the pointer elsewhere) and the retaining window equals the
+retention-off window in state, log, scene, accessibility tree and hitbox list, before and after the first write. The refusal also cost the `.panels` arm's top
+bar and inspector their replay (every `@State` there is never written): with it, release `.panels` gained 0.32 ms from M1; without it 0.47 ms (record 110 §4).
+
+**Ruling.** The version check the paint decision already makes (`versions` of the slots bound under the component) is the whole `@State` rule; nothing refuses
+a slot for never having been written. `RK-O` item 1 (`noRecordedHitboxStoresALayoutNodeID`, and the handler differential in place of a `Mirror` scan of captures)
+stands.
+
+## RK-U — The redo as built: what is rolled back, what is idempotent, and what never coincides with it (corrects `RK-D` items 1–2 and `RK-M`)
+
+**Evidence.** The abandoned frame ends after the root's paint, before the sweep and every `endFrame`; the window builds the frame again. Per channel,
+read from the source and, where it mattered, from a red run: `StateTable`'s build sets (`marked`, `producedSlots`, `namedPositions`, `loopExtents`,
+`windowedParents`, `departedNames`) are set unions or assignments of the same values and need no rollback; the content memo's entries re-skip (`serial`,
+`pristine`) and its counters restart (`resetBuildCounters`); `LifecycleStore` is **not** idempotent: the occurrence index of a scope counted twice read as a
+new key and ran `onAppear` a second time (observed: `["appear", "appear"]` against `["appear"]`, `aRedoFrameEqualsARetentionOffFrameAndConsumesEachInputOnce`),
+so its in-flight accumulators (`current`, occurrences, orders, geometry and modifier notes) are empty at the start of a build and are cleared
+(`rollbackBuild`); `TimelineStore.occurrences` and `SurfaceRegistry`'s occurrence counts likewise; `TransitionStore` is not idempotent (`claim` answers `false`
+for a key already recorded, and `afterLayout` consumes insertions), so its per-build notes and records are cleared and its insertions, ghosts and capture
+counter restored from a checkpoint; `AnimationStore.entries` is restored from the checkpoint and `touched` cleared. The checkpoint is a few reference copies
+taken **only** when a build can replay a prepaint (a ledger exists, replay allowed): `ContentMemoStore.ledgerEntries`. The scroll queue is restored
+(`ScrollRequestQueue.restore`), `textSystem.endFrame()` is called when the frame is abandoned (`ShapingCache.beginFrame` traps on a second begin without an
+end) and the glyph atlas bracket closes.
+
+**Ruling.** (1) A frame whose **root transaction animates** refuses every replay (`SB-J`'s refusal reads the root transaction at the occurrence), so a redo never
+coincides with a parked `withAnimation`: the transaction is passed to the redo unchanged but `RK-D`'s "pending `withAnimation`" arm is not reachable, and
+`aRedoFrameEqualsARetentionOffFrameAndConsumesEachInputOnce` runs an implicit animation in flight instead, the animation store's entries being what a redo
+must restore. (2) A pending `scrollTo` refuses prepaint replay by name (`prepaintRefusal`); the restore matters for requests a frame **carries** (`VL-H`), which
+the abandoned attempt would otherwise duplicate; it is not pinned by a window test because nothing here can make a frame both carry one and replay (carried).
+(3) Backoff and quarantine as `RK-D` item 3, pinned: gaps between redos of at least 9, 17 and 33 builds under an ancestor that changes every frame
+(`aPersistentlyAnimatedAncestorIsQuarantined`), the exponent resetting at a prepaint-replayed hit whose paint also hit.
+
+**Cost if wrong.** A leaked channel is a state reset or a doubled lifecycle event on the one frame after a paint-only ancestor changes; the differential
+runs a lifecycle appear, a focus request and a running animation across a redo.
+
+## RK-V — Verify mode as built (`RK-N`): the abandoned first attempt is compared, the second is presented, the counters are the first's
+
+**Ruling.** `METALUI_VERIFY_RETAINED=1`: a frame that replayed a prepaint captures a `RetainedVerifySnapshot` after the root's paint (the scene's arrays
+element by element in bytes, every hitbox's fingerprint, the Tab order, the accessibility records, the nodes' ids, the tallies, the context-menu, press-only and
+element-bounds registrations), is abandoned there like a redo, and is built again from the same checkpoint with every replay off; a difference traps naming the
+channel and the first differing element (`aVerifiedPrepaintReplayThatDiffersTraps`, one exit test per ledger channel, damaged through
+`Window.testingCorruptPrepaintLedgers`, and a control that draws normally). The presented frame is the second; the counters it reports are the first's
+(`ContentMemoStore.reportLast`), so the suite's count pins read the build under test. **Found by running it**: a tree that displays its own build counters
+(the invalidation demo's readout) differs between two builds by design, so that one pin is switched off under the variable; the layout-memo verify run changes
+`aDragFrameRestoresTheUnmovedOccurrencesPlacement`'s memo counts as it did before this item.
