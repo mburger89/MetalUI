@@ -19,7 +19,7 @@ private struct Lcg {
 }
 
 /// **HP.14 (spec test 14).** `Window.contextualTarget(in:at:where:)` (plain reverse loop) picks the same
-/// index as the `lastIndex(where:)` closure form it replaced, over 400 random lists of layered, nested,
+/// index as the `lastIndex(where:)` closure form it replaced, over 3000 random lists of layered, nested,
 /// region/opaque hitboxes where ids repeat so several candidates match one ancestor. Mutation: search
 /// forward instead of in reverse.
 @Test @MainActor func contextualTargetPicksTheSameHitboxAsTheClosureForm() throws {
@@ -28,6 +28,7 @@ private struct Lcg {
     let b = GlobalElementID.child(of: a, at: 1, name: nil)
     let ids = [root, a, b]
     var rng = Lcg(state: 7)
+    var ambiguous = 0
     func reference(_ boxes: [Hitbox], _ point: Point<Pixels>, _ wanted: (ContextualAttachment) -> Bool) -> Int? {
         func isRegion(_ box: Hitbox) -> Bool {
             guard !box.opaque, let attachment = box.handlers.contextual else { return false }
@@ -39,6 +40,9 @@ private struct Lcg {
         var cursor: GlobalElementID? = hit.id
         while let id = cursor {
             if let index = boxes.lastIndex(where: { $0.id == id && $0.layer == hit.layer && isRegion($0) && $0.contains(point) }) {
+                if boxes.filter({ $0.id == id && $0.layer == hit.layer && isRegion($0) && $0.contains(point) }).count > 1 {
+                    ambiguous += 1
+                }
                 return index
             }
             cursor = id.parent
@@ -46,16 +50,16 @@ private struct Lcg {
         return nil
     }
     var nonNil = 0, viaAncestor = 0
-    for _ in 0..<400 {
+    for _ in 0..<3000 {
         var boxes: [Hitbox] = []
-        for _ in 0..<(2 + rng.next(6)) {
+        for _ in 0..<(4 + rng.next(9)) {
             var handlers = Handlers()
-            let kind = rng.next(4)
+            let kind = rng.next(3) // 0: none, 1: menu, 2: help
             if kind == 1 { handlers.contextual = ContextualAttachment(locatedMenu: { _ in MenuItems([]) }, help: nil) }
-            if kind == 3 { handlers.contextual = ContextualAttachment(locatedMenu: nil, help: "tip") }
+            if kind == 2 { handlers.contextual = ContextualAttachment(locatedMenu: nil, help: "tip") }
             let x = Float(rng.next(40)), y = Float(rng.next(40)), w = Float(30 + rng.next(70)), h = Float(30 + rng.next(70))
             boxes.append(Hitbox(bounds: Bounds(origin: pt(x, y), size: Size(width: px(w), height: px(h))),
-                                id: ids[rng.next(3)], layer: rng.next(2), opaque: rng.next(2) == 0, scroll: nil,
+                                id: ids[rng.next(3)], layer: rng.next(2), opaque: rng.next(4) == 0, scroll: nil,
                                 handlers: handlers, origin: pt(x, y), shape: nil))
         }
         let point = pt(Float(rng.next(80)), Float(rng.next(80)))
@@ -69,6 +73,7 @@ private struct Lcg {
         }
     }
     try #require(nonNil > 100, "set up: the random lists reach a target often enough, got \(nonNil)")
+    try #require(ambiguous > 15, "set up: several regions of one id and layer contain the point (the search direction decides), got \(ambiguous)")
     try #require(viaAncestor > 5, "set up: some answers come from the ancestor walk, got \(viaAncestor)")
 }
 
