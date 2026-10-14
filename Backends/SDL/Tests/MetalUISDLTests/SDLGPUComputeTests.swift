@@ -93,6 +93,24 @@ private func ownedDevice() throws -> SDLGPUDevice {
                 == Array(pattern[3996..<4000]) + tail + Array(pattern[4016..<4020]))
     }
 
+    /// **C11.** `clear` zeroes exactly its range inside a batch (the append
+    /// counter's reset before a dispatch, `GA-G`) and leaves the bytes around it.
+    /// Mutation: `clear` returns before copying.
+    @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
+    func clearingARangeZeroesOnlyThatRange() async throws {
+        let device = try GPUTestSupport.requireDevice()
+        let buffer = try #require(device.makeBuffer(size: 512, usage: [.computeStorageRead]))
+        let ones = [UInt8](repeating: 0xAB, count: 512)
+        try #require(await device.upload(ones, to: buffer))
+        let fence = try await device.submitBatch { commandBuffer in commandBuffer.clear(buffer, range: 100..<200) }
+        await fence.wait()
+        let bytes = try #require(await device.download(buffer, range: 0..<512))
+        let expected = [UInt8](repeating: 0xAB, count: 100) + [UInt8](repeating: 0, count: 100)
+            + [UInt8](repeating: 0xAB, count: 312)
+        let same = bytes == expected
+        #expect(same, "the range 100..<200 is zero and nothing else changed")
+    }
+
     /// **C3.** The fence is awaited on the waiter thread, not the main actor.
     /// The waiter is held at a gate the main actor opens only after its own
     /// counter has advanced three times across `await`s, so a `wait()` that
