@@ -67,7 +67,7 @@ precision byte, height, width (both `≥ 1`: height 0 means DNL, which stb refus
 at the first `SOS` (a SOF after it is never read) and the first `Exif\0\0` `APP1` before it gives the orientation. A
 file with no SOF before SOS is `nil`.
 **File** (`IH-G`): `init?(contentsOfFile:)` reads **only the structure** through a seek-based reader: segment and
-chunk headers (≤ 8 bytes each) plus the IHDR/SOF/EXIF payloads, never the pixel data; memory is O(1 MiB) and the
+chunk headers (≤ 8 bytes each) plus the IHDR/SOF/EXIF payloads, never the pixel data; memory is O(1 MiB + a 64 KiB window, `IH-M`) and the
 answer **equals `ImageInfo(data:)` of the whole file** (test 11). An EXIF payload larger than 1 MiB is treated as
 damaged (`.up`) on both paths (`IH-G` item 3).
 **Bounded decode** (`IH-J`): with `limits`, in order: input size (`data.count`, or the file's size before reading it)
@@ -110,7 +110,7 @@ mutation column is what must redden **that** test, applied to the named spelling
 | 8 | `aHostileHeaderIsNilNotATrap` | PNG: IHDR length ≠13, bad CRC, width 0, width 2³¹, depth 3, (colour 3, depth 16); JPEG: SOF length 7, height 0, width 0, components 0/5, SOF only after SOS, 2 SOF (first wins), `FF` fill runs, APP1 length 65535 past EOF | drop the CRC check; drop height≥1 |
 | 9 | `aFormatOtherThanPNGOrJPEGIsNil` | GIF, TIFF, WebP, BMP, empty `Data` | add a GIF arm that returns a made-up size |
 | 10 | `aSizeAboveTheDecoderLimitStillReports` | 20000×20000 IHDR-only PNG (no pixels needed: header + IEND) → `ImageInfo` 20000×20000 while `DecodedImage` is nil | add `decodedSizeIsAccepted` to `ImageInfo` |
-| 11 | `theFileReaderEqualsTheDataReaderAndReadsNoPixels` | temp file of every fixture (incl. eXIf after a 3 MB IDAT): equal to `Data` result; a counting `HeaderSource` shows total bytes read ≤ 64 KiB + payloads and **never** an IDAT/scan byte (pins work, not time) | file reader reads `prefix(65536)` only (eXIf-after-IDAT fixture reddens) |
+| 11 | `theFileReaderEqualsTheDataReaderAndReadsNoPixels` | temp file of every fixture (incl. eXIf after a 3 MB IDAT): equal to `Data` result; a counting source shows window refills <= 2 + size/64 KiB + payload reads and no refill starting inside the 3 MB IDAT payload (`IH-M`; pins work, not time); plus a directory path, a FIFO-like non-regular path and a size shortened after recording give `nil` (`IH-N`) | file reader reads `prefix(65536)` only (eXIf-after-IDAT fixture reddens) |
 | 12 | `anEXIFPayloadOverOneMebibyteIsDamagedOnBothPaths` | cap and cap+1 | cap off by one / cap removed on the file path only |
 | 13 | `limitsRefuseBeforeStbSeesTheBytes` | an oversize-side, over-pixels and over-input image with a `decodeImage` hook counter (internal `decodeImageCallCount` on a test seam): 0 calls; inside limits: 1 call and pixels == unlimited init | move the limit check after `decodeImage` |
 | 14 | `eachLimitIsInclusiveAtItsBoundaryAndRefusedOneOver` | `maxSide`, `maxPixels`, `maxInputBytes` at N and N+1; `nil` = unlimited | `<=` → `<` |

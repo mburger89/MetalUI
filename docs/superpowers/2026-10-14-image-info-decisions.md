@@ -1,7 +1,7 @@
 # Header-only image read and bounded decode — decisions
 
 Rulings for item S9 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), MetalCreator gap
-XP-G10. Prefix `IH-`. **Next unused: `IH-M`.** Spec: [`specs/2026-10-14-image-info-design.md`](specs/2026-10-14-image-info-design.md).
+XP-G10. Prefix `IH-`. **Next unused: `IH-O`.** Spec: [`specs/2026-10-14-image-info-design.md`](specs/2026-10-14-image-info-design.md).
 Record: `../record/117-image-info.md` (Record phase). Branch `feat/image-info` from `ceca59f6`.
 Divergence labels reserved 475–484: none taken.
 
@@ -56,7 +56,7 @@ chunk/segment headers and the needed payloads at their offsets, so the answer eq
 file including a PNG whose `eXIf` follows megabytes of `IDAT` (a prefix would silently say `.up`). Memory is bounded
 by the 1 MiB payload cap (applied on the data path too, one walk). **Evidence.** A PNG's metadata may legally follow
 the pixels (`IB-K`); exactness beats a hidden prefix rule. **Cost if wrong.** More syscalls than one prefix read (a
-handful per file, counted by test 11); the cap changes a >1 MiB EXIF from "read" to `.up`, which no real file has
+handful per file, counted by test 11 — **corrected by `IH-M`: not a handful for a PNG with metadata after the pixels**); the cap changes a >1 MiB EXIF from "read" to `.up`, which no real file has
 (APP1 ≤ 64 KiB; PNG eXIf is a few KiB).
 
 ## IH-H — One walk: `ImageEXIF`'s buffer functions wrap the source walks
@@ -93,3 +93,27 @@ An in-range 16384² decode still cannot be stopped; carried to an owner if an ap
 
 **Ruling.** No limits on the drawing path in this item. **Evidence.** `ImageBitmap` pixels must stay byte-identical
 (fourteen images, `PX-` tests); MetalCreator uses `DecodedImage`. **Cost if wrong.** `ImageBitmap(data:limits:)` later, additive.
+
+
+## IH-M — The file source reads through one 64 KiB window; a PNG trailer walk is chunk-count bound, not O(1)
+
+**Question (critic).** `IH-G` said "a handful of syscalls per file". A PNG's after-IDAT `eXIf` lookup must walk every chunk
+header to IEND; a 16 MB PNG has ~2,000 IDAT chunks (8–64 KiB), a hostile one up to ~1.4 million 12-byte chunks, so one
+`read(at:count:)` per header is thousands to millions of syscalls. **Ruling.** The `FileHandle` source keeps one 64 KiB
+window and serves any read inside it from memory; a read outside it refills the window at that offset. The walk still
+**never reads a byte it does not need** only in the sense that skipped IDAT payloads are seeked over, not that every window
+byte is unneeded (a window may span a short chunk). Test 11's bound becomes: refills <= 2 + (file size / 64 KiB) + payload
+reads, and no refill starts inside a chunk's payload larger than the window (the 3 MB IDAT fixture). Total bytes read from the
+file is **not** claimed minimal. **Evidence.** Window size is a work counter, pinned by count, never time. **Cost if wrong.** A
+hostile many-chunk PNG costs one refill per 64 KiB of chunk headers: bounded by file size / 64 KiB.
+
+## IH-N — Overflow, non-regular files and a changing file
+
+**Ruling.** (1) `maxPixels` compares `width.multipliedReportingOverflow(by: height)`; an overflow is a refusal (32-bit
+`Int` on a 32-bit target, and PNG sides reach 2^31-1). Test 14 gains a 2^31-1 x 2^31-1 header-only PNG. (2) `init?(contentsOfFile:)` answers
+`nil` for a path that is not a regular file (directory, FIFO, device: a zero or lying size must not defeat
+`maxInputBytes`), checked from the handle's own metadata. (3) The file's size is read **once**, from the same handle that
+then reads; a read that returns short of the recorded size is damage (`nil` for the walk position, never a trap); a file
+that grows after the check is read only to the recorded size. **Evidence.** Each is a branch a test can reach with a
+temp file (a directory path, a size recorded then shortened). **Cost if wrong.** A wrong answer to `maxInputBytes` is the one
+failure the limit exists to prevent.
