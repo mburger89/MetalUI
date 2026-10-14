@@ -55,13 +55,17 @@ final class TransitionStore {
 
     /// An `if` (untyped or typed copy) was evaluated at `slot`.
     func noteOptional(_ slot: GlobalElementID, produced isProduced: Bool, animation: Animation?) {
+        buildJournal?.record(.transitionEvaluated(slot, animation))
         evaluated[slot] = .some(animation)
-        if isProduced { produced[slot] = slot }
+        if isProduced { buildJournal?.record(.transitionProduced(slot, slot)); produced[slot] = slot }
     }
 
     /// An `if`/`else` (untyped or typed copy) was evaluated: `taken` produced,
     /// `untaken` not.
     func noteEither(taken: GlobalElementID, untaken: GlobalElementID, animation: Animation?) {
+        buildJournal?.record(.transitionEvaluated(taken, animation))
+        buildJournal?.record(.transitionEvaluated(untaken, animation))
+        buildJournal?.record(.transitionProduced(taken, taken))
         evaluated[taken] = .some(animation)
         evaluated[untaken] = .some(animation)
         produced[taken] = taken
@@ -69,23 +73,50 @@ final class TransitionStore {
 
     /// A loop (a `ForEach`, either entry) was evaluated at `slot`.
     func noteLoop(_ slot: GlobalElementID, animation: Animation?) {
+        buildJournal?.record(.transitionEvaluated(slot, animation))
         evaluated[slot] = .some(animation)
     }
 
     /// A `ForEach` produced the element whose scope is `scope` under `slot`.
     func noteLoopElement(_ scope: GlobalElementID, of slot: GlobalElementID) {
+        buildJournal?.record(.transitionProduced(scope, slot))
         produced[scope] = slot
     }
 
     /// A `for` loop (either copy) is being evaluated at `slot`: its iterations
     /// sit directly under the slot, a unit per cursor index.
     func beginArrayLoop(_ slot: GlobalElementID, animation: Animation?) {
+        buildJournal?.record(.transitionEvaluated(slot, animation))
+        buildJournal?.record(.transitionArray(slot, Int.max))
         evaluated[slot] = .some(animation)
         arrayExtents[slot] = Int.max
     }
 
     /// The `for` loop at `slot` consumed `extent` indices.
     func endArrayLoop(_ slot: GlobalElementID, extent: Int) {
+        buildJournal?.record(.transitionArray(slot, extent))
+        arrayExtents[slot] = extent
+    }
+
+    /// The window's build journal (`RK-F`), attached by the animation store.
+    var buildJournal: BuildJournal?
+
+    /// Claimed groups and captures of the build in progress (`RK-F`): a graft window that moves it cannot be replayed.
+    var buildActivity: Int { records.count &+ capturedThisFrame }
+
+    /// Applies a journalled note (`RK-F`): the same writes the build made, recorded again for an enclosing window.
+    func replayEvaluated(_ slot: GlobalElementID, _ animation: Animation?) {
+        buildJournal?.record(.transitionEvaluated(slot, animation))
+        evaluated[slot] = .some(animation)
+    }
+
+    func replayProduced(_ unit: GlobalElementID, _ evaluator: GlobalElementID) {
+        buildJournal?.record(.transitionProduced(unit, evaluator))
+        produced[unit] = evaluator
+    }
+
+    func replayArray(_ slot: GlobalElementID, _ extent: Int) {
+        buildJournal?.record(.transitionArray(slot, extent))
         arrayExtents[slot] = extent
     }
 

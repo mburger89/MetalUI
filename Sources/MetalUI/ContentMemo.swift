@@ -92,6 +92,17 @@ package final class ContentMemoStore {
 
     private var entries: [Key: Entry] = [:]
 
+    /// The build journal of this window (`RK-F`): every funnel a graft window must replay appends to it while a
+    /// window is open.
+    let journal = BuildJournal()
+
+    /// Keeps the memo entry at `key` for this build without evaluating anything (a graft standing for a nested
+    /// occurrence's build). Journalled so an enclosing window sees it.
+    func touch(_ key: Key) {
+        journal.record(.memoTouch(key))
+        entries[key]?.touched = true
+    }
+
     /// Test switch: off, every memoized component takes the miss path without
     /// retaining anything (the lane-0 baseline).
     package var isEnabled = true
@@ -158,6 +169,7 @@ package final class ContentMemoStore {
             return getter()
         }
         let key = Key(id: id, type: ObjectIdentifier(C.self))
+        journal.record(.memoTouch(key))   // `RK-F`: a nested occurrence's entry must survive a grafting parent
         var versions: [UInt64] = []
         versions.reserveCapacity(stateIDs.count)
         for stateID in stateIDs { versions.append(table.entryVersion(stateID)) }

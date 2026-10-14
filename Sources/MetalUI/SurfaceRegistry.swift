@@ -66,6 +66,9 @@ final class SurfaceRegistry {
     }
 
     /// Forgets the build in progress (`RK-M`): the occurrence counts a redo would count twice; the ids stay.
+    /// Surface occurrences reached by the build in progress (`RK-F`).
+    var buildActivity: Int { occurrences.count }
+
     func rollbackBuild() {
         painted.removeAll(keepingCapacity: true)
         occurrences.removeAll(keepingCapacity: true)

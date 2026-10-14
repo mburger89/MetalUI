@@ -557,6 +557,9 @@ final class LifecycleStore {
     /// modifier notes that the redo registers again, and an occurrence index counted twice would read as a new
     /// key (a second `onAppear`). All of it is empty at the start of a build (`endFrame` swaps and clears), so
     /// the rollback is a clear. Pins: `aRedoLeavesEveryTableAsAFreshBuildWould`.
+    /// Registrations made by the build in progress (`RK-F`): a graft window that moves it cannot be replayed.
+    var buildActivity: Int { workThisFrame &+ nextOrder }
+
     func rollbackBuild() {
         current.removeAll(keepingCapacity: true)
         occurrences.removeAll(keepingCapacity: true)

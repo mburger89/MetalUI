@@ -224,6 +224,7 @@ final class StateTable {
     /// starts fresh exactly as the immediate reset left it before `ID-R` item 8
     /// moved the resets into `sweep()`.
     func noteProduced(_ slot: GlobalElementID) {
+        contentMemos.journal.record(.produced(slot))   // `RK-F`
         producedSlots.insert(slot)
         if absentSlots.remove(slot) != nil {
             resetScanWork += storage.count
@@ -246,6 +247,7 @@ final class StateTable {
     /// the window) keeps `TB-AH`'s retention, and `sweep()` never resets a
     /// conditional slot (it resets only a departed NAME, `noteNamed`).
     func noteAbsent(_ slot: GlobalElementID) {
+        contentMemos.journal.record(.absent(slot))   // `RK-F`
         // `remove`, not `contains`: a second note in the same frame (a slot
         // evaluated twice before a sweep) finds nothing and scans nothing.
         guard previouslyProducedSlots.remove(slot) != nil else { return }
@@ -309,6 +311,7 @@ final class StateTable {
     /// `List`'s rows are exempt (`noteWindowedParent`).
     func noteNamed(_ id: GlobalElementID, at index: Int) {
         guard case .named = id.component else { return }
+        contentMemos.journal.record(.named(id, index))   // `RK-F`
         if let parent = id.parent, windowedParents.contains(parent) { return }
         producedNames.insert(id)
         let position = NamedPosition(parent: id.parent, index: index)
@@ -322,6 +325,7 @@ final class StateTable {
     /// `List`'s rows): `noteNamed` ignores them, so a row scrolled out keeps
     /// `TB-AH`'s bounded retention.
     func noteWindowedParent(_ parent: GlobalElementID) {
+        contentMemos.journal.record(.windowedParent(parent))   // `RK-F`
         windowedParents.insert(parent)
     }
 
@@ -353,6 +357,7 @@ final class StateTable {
     /// `aLoopInsideAWindowedListRowKeepsItsStateWhileTheRowIsOut`: a loop inside
     /// an out-of-window `List` row keeps `TB-AH`'s retention; mutation V11).
     func noteLoop(_ slot: GlobalElementID, extent: Int) {
+        contentMemos.journal.record(.loop(slot, extent))   // `RK-F`
         loopExtents[slot] = extent
     }
 
@@ -413,6 +418,7 @@ final class StateTable {
     private(set) var focusStates: [GlobalElementID: any FocusStateReconciling] = [:]
 
     func noteFocusState(_ state: any FocusStateReconciling, at slot: GlobalElementID) {
+        contentMemos.journal.record(.focusState(state, slot))   // `RK-F`
         focusStates[slot] = state
     }
 
@@ -715,6 +721,15 @@ final class StateTable {
                       _ body: (inout S) -> Void) {
         retainLog?.taint("stateWrite")   // a paint that rewrites an entry cannot be replayed (`SB-U`)
         if let log = prepaintLog, log.allowedStateWrites == 0 { log.taint("stateWrite") }
+        // A build that writes an entry cannot be grafted, except an animation baseline, whose value is a function
+        // of what the graft's key holds: it stays live (`RK-F`).
+        if contentMemos.journal.isRecording {
+            if case .named(let name) = id.component, name.name.hasPrefix("$anim") {
+                contentMemos.journal.record(.liveState(id))
+            } else {
+                contentMemos.journal.taint("stateWrite")
+            }
+        }
         marked.insert(id)
         // An absent entry takes `initial()` whatever `S` is (plan task 15's
         // lane-1 fix round, `CX-F`'s rule applied here too): the old
@@ -757,6 +772,7 @@ final class StateTable {
     /// yet.
     func mark(_ id: GlobalElementID) {
         if contentMemos.retainsSubtrees { markJournal.append(id) }
+        contentMemos.journal.record(.mark(id))   // `RK-F`
         retainLog?.marks.append(id)
         marked.insert(id)
         storage[id]?.isLive = true
@@ -820,6 +836,7 @@ final class StateTable {
     func write<S>(_ id: GlobalElementID, _ value: S) {
         retainLog?.taint("stateWrite")
         prepaintLog?.taint("stateWrite")
+        contentMemos.journal.taint("stateWrite")   // `RK-F`
         if departedOverlay != nil, departedOverlay!.roots.contains(where: { id.isOrDescends(from: $0) }) {
             departedOverlay!.values[id] = value   // `LC-I` item 2: discarded with the overlay
             return
@@ -840,6 +857,17 @@ final class StateTable {
     /// `drawFrameIfNeeded` sees it — the same shape `frame.wantsAnotherFrame`
     /// already uses for exactly this reason.
     func clearDirty() { isDirty = false }
+
+    /// Whether an entry exists at `id` (`RK-F`: a graft's live baselines must still be there).
+    func hasEntry(_ id: GlobalElementID) -> Bool { storage[id] != nil }
+
+    /// Keeps the entry at `id` live for this frame's sweep without writing it: what a graft stands for when the
+    /// build it replaces rewrote an animation baseline (`RK-F`). Journalled again so an enclosing window sees it.
+    func markLive(_ id: GlobalElementID) {
+        contentMemos.journal.record(.liveState(id))
+        marked.insert(id)
+        storage[id]?.isLive = true
+    }
 
     /// Read the state at `id` without marking it. Test observability: a reader
     /// that marked would make liveness assertions pass by the act of checking

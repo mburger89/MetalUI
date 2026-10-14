@@ -85,6 +85,7 @@ final class AnimationStore {
 
     /// The value stored at `id`, marking it touched this frame.
     func value(at id: GlobalElementID) -> Any? {
+        buildJournal?.record(.animationTouch(id))
         retainLog?.touches.append(.touch(id))
         touched.insert(id)
         return entries[id]
@@ -97,6 +98,7 @@ final class AnimationStore {
 
     /// Stores `value` at `id`, marking it touched this frame.
     func set(_ value: Any, at id: GlobalElementID) {
+        buildJournal?.record(.animationTouch(id))
         retainLog?.touches.append(.set(id, value))
         entries[id] = value
         touched.insert(id)
@@ -114,6 +116,24 @@ final class AnimationStore {
 
     /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
     var retainLog: RetainLog?
+
+    /// The window's build journal (`RK-F`): the memo store's, attached when a graft window first opens, and shared
+    /// with the transition store.
+    var buildJournal: BuildJournal?
+
+    func attach(_ journal: BuildJournal) {
+        buildJournal = journal
+        transitions.buildJournal = journal
+    }
+
+    /// Keeps the entry at `id` for this frame without reading it (a graft standing for a build that read or set it).
+    func touch(_ id: GlobalElementID) {
+        buildJournal?.record(.animationTouch(id))
+        touched.insert(id)
+    }
+
+    /// Whether an entry is stored at `id`.
+    func hasEntry(_ id: GlobalElementID) -> Bool { entries[id] != nil }
 
     /// Replays a recorded touch: the entry stays alive; a recorded first sighting is stored
     /// again only if the entry was dropped meanwhile.
