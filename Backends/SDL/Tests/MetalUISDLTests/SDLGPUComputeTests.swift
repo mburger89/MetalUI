@@ -17,14 +17,19 @@ private let expectedAppended = (0..<threadCount).filter { ($0 * 7) % 13 < 5 }
 
 /// Runs the append kernel on `device` into a fresh zeroed buffer and returns
 /// the buffer and the batch's fence.
-private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16) async throws
+///
+/// `gate` holds the **kernel batch's** fence unsignalled (the upload before it
+/// is not held): the waiter thread blocks on it until the test signals.
+private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16,
+                            holding gate: DispatchSemaphore? = nil) async throws
     -> (buffer: SDLGPUBuffer, fence: SDLGPUFence) {
     let library = try SDLGPUShaderLibrary(directory: GPUTestSupport.compiledShaders)
     let pipeline = try #require(device.makeComputePipeline(try library.compute("append", for: device)))
     let buffer = try #require(device.makeBuffer(size: bufferBytes, usage: [.computeStorageRead, .computeStorageWrite]))
     let zeros = [UInt8](repeating: 0, count: bufferBytes)
-    let uploaded = await zeros.withUnsafeBytes { await device.upload($0, to: buffer) }
-    try #require(uploaded)
+    try #require(await device.upload(zeros, to: buffer))
+    SDLGPUFence.waiterGate = gate
+    defer { SDLGPUFence.waiterGate = nil }
     let fence = try await device.submitBatch { commandBuffer in
         guard let pass = commandBuffer.beginComputePass(readWrite: [buffer]) else { return }
         pass.bind(pipeline)
@@ -33,6 +38,10 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16) async thr
         pass.end()
     }
     return (buffer, fence)
+}
+
+private func ownedDevice() throws -> SDLGPUDevice {
+    try #require(SDLGPUDevice.make())
 }
 
 @Suite(.serialized) struct SDLGPUComputeTests {
@@ -70,13 +79,11 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16) async thr
         let device = try #require(SDLGPUDevice.make())
         let buffer = try #require(device.makeBuffer(size: 4096, usage: [.computeStorageRead]))
         let pattern = (0..<4096).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ ($0 >> 8)) }
-        let uploaded = await pattern.withUnsafeBytes { await device.upload($0, to: buffer) }
-        try #require(uploaded)
+        try #require(await device.upload(pattern, to: buffer))
         #expect(try #require(await device.download(buffer, range: 0..<4096)) == pattern)
         #expect(try #require(await device.download(buffer, range: 100..<300)) == Array(pattern[100..<300]))
         let tail = [UInt8](repeating: 0xEE, count: 16)
-        let patched = await tail.withUnsafeBytes { await device.upload($0, to: buffer, at: 4000) }
-        try #require(patched)
+        try #require(await device.upload(tail, to: buffer, at: 4000))
         #expect(try #require(await device.download(buffer, range: 3996..<4020))
                 == Array(pattern[3996..<4000]) + tail + Array(pattern[4016..<4020]))
     }
@@ -85,7 +92,7 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16) async thr
     /// The waiter is held at a gate the main actor opens only after its own
     /// counter has advanced three times across `await`s, so a `wait()` that
     /// blocked the main actor would never see the counter move; the hook counts
-    /// `SDL_WaitForGPUFences` calls made on the main thread.
+    /// `SDL_WaitForGPUFences` calls made off the device's waiter thread.
     ///
     /// Mutation: `wait()` calls the blocking wait inline on the caller → the
     /// main-thread count is 1.
@@ -94,10 +101,8 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16) async thr
     func theFenceIsAwaitedOffTheMainActor() async throws {
         let device = try #require(SDLGPUDevice.make())
         let gate = DispatchSemaphore(value: 0)
-        SDLGPUFence.waiterGate = gate
-        SDLGPUFence.mainThreadWaitCount = 0
-        defer { SDLGPUFence.waiterGate = nil }
-        let (_, fence) = try await dispatchAppend(on: device)
+        SDLGPUFence.foreignThreadWaitCount = 0
+        let (_, fence) = try await dispatchAppend(on: device, holding: gate)
         final class Counter: @unchecked Sendable { var value = 0 }
         let counter = Counter()
         let advancing = Task { @MainActor in
@@ -108,7 +113,7 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16) async thr
         await advancing.value
         #expect(counter.value == 3)
         #expect(fence.isSignalled)
-        #expect(SDLGPUFence.mainThreadWaitCount == 0, "the main thread blocked in SDL_WaitForGPUFences")
+        #expect(SDLGPUFence.foreignThreadWaitCount == 0, "SDL_WaitForGPUFences ran off the waiter thread")
     }
 
     /// **C4.** Cancelling a task that awaits a fence does not release the fence
@@ -120,10 +125,8 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16) async thr
     func aFenceIsNeverReleasedBeforeItSignals() async throws {
         let device = try #require(SDLGPUDevice.make())
         let gate = DispatchSemaphore(value: 0)
-        SDLGPUFence.waiterGate = gate
         SDLGPUFence.unsignalledReleaseCount = 0
-        defer { SDLGPUFence.waiterGate = nil }
-        let (_, fence) = try await dispatchAppend(on: device)
+        let (_, fence) = try await dispatchAppend(on: device, holding: gate)
         let waiting = Task { await fence.wait() }
         waiting.cancel()
         #expect(!fence.isSignalled, "the gate holds the waiter")
@@ -148,7 +151,7 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16) async thr
     @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
     func aBorrowedDeviceIsNotDestroyed() throws {
         let before = SDLGPUDevice.destroyedCount
-        var owner: SDLGPUDevice? = try #require(SDLGPUDevice.make())
+        var owner: SDLGPUDevice? = try ownedDevice()
         var borrowed: SDLGPUDevice? = SDLGPUDevice(borrowingRaw: try #require(owner).raw)
         #expect(borrowed?.makeBuffer(size: 16, usage: [.computeStorageRead]) != nil)
         borrowed = nil
