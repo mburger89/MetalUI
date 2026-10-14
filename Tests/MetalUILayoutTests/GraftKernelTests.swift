@@ -85,7 +85,7 @@ private let bounds = LayoutRect(x: 0, y: 0, width: 300, height: 300)
 @Test(arguments: [0, 1, 4]) @MainActor func aGraftedSubtreeEqualsAFreshBuild(prefixCount: Int) throws {
     let expected = fresh(prefixCount: prefixCount, generation: 3)
     let result = try grafted(prefixCount: prefixCount, generation: 3)
-    #expect(result.count == 15, "the content registers 15 nodes: the segment holds \(result.count)")
+    #expect(result.count == 14, "the content registers 14 nodes: the segment holds \(result.count)")
     #expect(result.digest == expected)
     // The digest is not vacuous: it names the grid, a spacer axis, a leaf key and a row mark.
     #expect(expected.contains { $0.contains("grid(") })

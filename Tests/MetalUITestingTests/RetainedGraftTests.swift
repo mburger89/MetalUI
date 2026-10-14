@@ -47,9 +47,9 @@ private struct AfterGraftFrame {
     let prepaints: Int, prepaintHits: Int
 }
 private let afterGraftFrames: [AfterGraftFrame] = [
-    AfterGraftFrame(arm: .value, requests: 0, skippedRequests: 0, grafts: 0, graftIneligible: 0, graftedNodes: 0, prepaints: 0, prepaintHits: 0),
-    AfterGraftFrame(arm: .environment, requests: 0, skippedRequests: 0, grafts: 0, graftIneligible: 0, graftedNodes: 0, prepaints: 0, prepaintHits: 0),
-    AfterGraftFrame(arm: .panels, requests: 0, skippedRequests: 0, grafts: 0, graftIneligible: 0, graftedNodes: 0, prepaints: 0, prepaintHits: 0),
+    AfterGraftFrame(arm: .value, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
+    AfterGraftFrame(arm: .environment, requests: 760, skippedRequests: 38, grafts: 19, graftIneligible: 0, graftedNodes: 38, prepaints: 829, prepaintHits: 19),
+    AfterGraftFrame(arm: .panels, requests: 167, skippedRequests: 631, grafts: 30, graftIneligible: 1, graftedNodes: 641, prepaints: 176, prepaintHits: 30),
 ]
 
 @Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
@@ -160,18 +160,21 @@ func aGraftedFrameKeepsTheStateTableSweepsExact() async throws {
     pair.redraw()
     #expect(pair.frames.last?.retainedGrafts ?? 0 >= 1, "the card grafts on a steady frame: \(String(describing: pair.frames.last))")
     var grafts = 0
-    for step in 0..<9 {
+    for step in 0..<8 {
         pair.onSide.model.n += 1; pair.offSide.model.n += 1
         await rsSettle()
         pair.redraw()
         grafts += pair.frames.last?.retainedGrafts ?? 0
         try pair.compare("step \(step)")
         stateAgrees(pair, "step \(step)")
-        for _ in 0..<2 {
+        // Long enough to leave the window-wide backoff a redo starts (nine builds) and graft again.
+        for settled in 0..<11 {
             pair.redraw()
             grafts += pair.frames.last?.retainedGrafts ?? 0
-            try pair.compare("step \(step) settled")
-            stateAgrees(pair, "step \(step) settled")
+            if settled % 3 == 0 || settled == 10 {
+                try pair.compare("step \(step) settled \(settled)")
+                stateAgrees(pair, "step \(step) settled \(settled)")
+            }
         }
     }
     #expect(grafts > 0, "the script grafted nothing")
@@ -234,8 +237,8 @@ enum RGKind: String, CaseIterable {
         case .control: nil
         case .hidden: "hiddenNodes"
         case .lifecycle: "lifecycle"
-        case .timeline: "timeline"
-        case .scroll: "scrollKeys"
+        case .timeline: "timeVarying"
+        case .scroll: "stateWrite"
         case .popover: "presentation"
         }
     }
@@ -253,7 +256,7 @@ private struct RGKindCard: Component, @MainActor Equatable {
             case .timeline: TimelineView(.animation) { _ in Box().frame(width: Pixels(20), height: Pixels(6)) }
             case .scroll: ScrollView(.vertical) { Text("scrolled").frame(width: Pixels(40), height: Pixels(40)) }
                     .frame(width: Pixels(60), height: Pixels(20))
-            case .popover: Box().frame(width: Pixels(20), height: Pixels(6)).popover(isPresented: .constant(false)) { Text("pop") }
+            case .popover: Box().frame(width: Pixels(20), height: Pixels(6)).popover(isPresented: .constant(true)) { Text("pop") }
             }
         }
     }

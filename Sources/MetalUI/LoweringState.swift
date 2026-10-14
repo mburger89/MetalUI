@@ -286,6 +286,8 @@ extension LoweredItem {
     /// leave it out.
     var reportsFieldsIfUnconsumed: Bool {
         let d = declared
+        // A `.frame` layer's own fields are its frame's and never reported but for an absolute position (`LR-FA`).
+        if kind == .frameLayer { return d.position == .absolute }
         let auto = Size<Dimension>(width: .auto, height: .auto)
         return d.flexGrow != 0 || d.flexShrink != 1 || d.flexBasis != .auto || d.alignSelf != nil
             || d.minSize != auto || d.maxSize != auto || LoweredItem.hasMargin(d) || d.position == .absolute
