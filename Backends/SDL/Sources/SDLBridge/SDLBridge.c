@@ -1693,7 +1693,10 @@ void mui_window_size_limits(void *w, int32_t *min_w, int32_t *min_h, int32_t *ma
 bool mui_window_set_bordered(void *w, bool bordered) {
     SDL_Window *window = (SDL_Window *)w;
     if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) return false;   // CW-S: the platform defers
-    return SDL_SetWindowBordered(window, bordered);
+    if (!SDL_SetWindowBordered(window, bordered)) return false;
+    // SDL answers true even where the driver has no SetWindowBordered (the offscreen one) and the
+    // flag never moves: the answer is what happened, not what SDL said.
+    return ((SDL_GetWindowFlags(window) & SDL_WINDOW_BORDERLESS) != 0) == !bordered;
 }
 bool mui_window_is_borderless(void *w) {
     return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_BORDERLESS) != 0;

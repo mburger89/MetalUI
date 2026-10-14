@@ -205,9 +205,10 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
     #expect(window.documentEditedCalls == [true])
     #expect(window.representedPaths == ["/tmp/x.mcgraph", nil])
     #expect(window.titleBarInsets == Edges(all: Pixels(0)), "the standard style has no band")
-    #expect(window.setTitleBarStyle(.hidden) == true, "SDL makes the window borderless (CW-B)")
+    let applied = window.setTitleBarStyle(.hidden)
+    #expect(applied == window.isBorderless, "the answer is what the driver did (CW-B)")
     #expect(window.titleBarStyles == [.hidden])
-    #expect(window.titleBarInsets.top == Pixels(32), "the hidden style's band (CW-D)")
+    #expect(window.titleBarInsets.top == Pixels(applied ? 32 : 0), "the hidden style's band when applied (CW-D)")
     #expect(window.performTitleBarPress(clickCount: 1) == false)
     #expect(window.titleBarPresses == [1])
 }

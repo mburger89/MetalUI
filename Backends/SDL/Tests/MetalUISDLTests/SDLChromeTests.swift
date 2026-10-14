@@ -47,7 +47,8 @@ private let windowManagerDriver = ProcessInfo.processInfo.environment["SDL_VIDEO
 /// answers `true`; every request is recorded.
 /// Mutation: the bridge passes `true` to `SDL_SetWindowBordered` for `.hidden` -> red.
 @MainActor
-@Test func hiddenStyleMakesTheWindowBorderlessAndAnswersTrue() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func hiddenStyleMakesTheWindowBorderlessAndAnswersTrue() throws {
     let (_, window) = try chromePlatform()
     #expect(window.isBorderless == false)
     #expect(window.setTitleBarStyle(.hidden) == true)
@@ -58,7 +59,8 @@ private let windowManagerDriver = ProcessInfo.processInfo.environment["SDL_VIDEO
 /// **2.2** (`CW-B`). `.standard` restores the border and answers `true`.
 /// Mutation: `.standard` does nothing -> red.
 @MainActor
-@Test func standardStyleRestoresTheBorder() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func standardStyleRestoresTheBorder() throws {
     let (_, window) = try chromePlatform()
     _ = window.setTitleBarStyle(.hidden)
     #expect(window.setTitleBarStyle(.standard) == true)
@@ -70,7 +72,8 @@ private let windowManagerDriver = ProcessInfo.processInfo.environment["SDL_VIDEO
 /// on leaving fullscreen — the last request wins, and a later leave re-applies nothing twice.
 /// Mutation: the leave handler does not re-apply -> red.
 @MainActor
-@Test func leavingFullscreenAppliesTheLastRequestedStyle() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func leavingFullscreenAppliesTheLastRequestedStyle() throws {
     let (platform, window) = try chromePlatform()
     window.fullscreenOverride = true
     #expect(window.setTitleBarStyle(.hidden) == true, "recorded for the leave")
@@ -94,7 +97,8 @@ private let windowManagerDriver = ProcessInfo.processInfo.environment["SDL_VIDEO
 /// Windows, 70 on the left through macOS — zero before the style, after `.standard` and in fullscreen.
 /// Mutation: the cluster on the wrong side, or the band 30 -> red.
 @MainActor
-@Test func insetsAreBandPlusClusterPerPlatformAndZeroInFullscreen() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func insetsAreBandPlusClusterPerPlatformAndZeroInFullscreen() throws {
     let (_, window) = try chromePlatform()
     #expect(window.titleBarInsets == Edges(all: Pixels(0)))
     _ = window.setTitleBarStyle(.hidden)
@@ -205,7 +209,8 @@ private func sample(_ low: Float, _ high: Float, steps: Int = 36) -> [Float] {
 /// window is borderless.
 /// Mutation: the callback ignores `borderless` -> red.
 @MainActor
-@Test func theInstalledCallbackAnswersFromThePublishedRegions() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func theInstalledCallbackAnswersFromThePublishedRegions() throws {
     let (_, window) = try chromePlatform()
     #expect(window.setTitleBarStyle(.hidden))
     #expect(window.setWindowDragRegions([bounds(0, 0, 262, 32)]) == true)
@@ -224,7 +229,8 @@ private func sample(_ low: Float, _ high: Float, steps: Int = 36) -> [Float] {
 /// new size before `Window` rebuilds.
 /// Mutation: no refresh on a resize event -> red.
 @MainActor
-@Test func aResizeRefreshesTheSnapshotSize() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func aResizeRefreshesTheSnapshotSize() throws {
     let (platform, window) = try chromePlatform()
     _ = window.setTitleBarStyle(.hidden)
     _ = window.setWindowDragRegions([])
@@ -259,7 +265,8 @@ private func sample(_ low: Float, _ high: Float, steps: Int = 36) -> [Float] {
 /// list clears it; regions on a standard window (a `WindowDragGesture` handle) install it again.
 /// Mutation: never clear -> red.
 @MainActor
-@Test func clearingTheRegionsAndEdgesRemovesTheCallback() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func clearingTheRegionsAndEdgesRemovesTheCallback() throws {
     let (_, window) = try chromePlatform()
     _ = window.setTitleBarStyle(.hidden)
     #expect(window.hitTestInstalled, "a borderless window has edges")
@@ -278,7 +285,8 @@ private func sample(_ low: Float, _ high: Float, steps: Int = 36) -> [Float] {
 /// with a fixed array).
 /// Mutation: copy without the cap -> red (a trap or an overrun).
 @MainActor
-@Test func moreThanSixtyFourRegionsAreCutAtSixtyFour() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func moreThanSixtyFourRegionsAreCutAtSixtyFour() throws {
     let (_, window) = try chromePlatform()
     _ = window.setTitleBarStyle(.hidden)
     let many = (0..<70).map { bounds(Float($0) * 5, 100, 4, 4) }
@@ -311,8 +319,8 @@ private func sample(_ low: Float, _ high: Float, steps: Int = 36) -> [Float] {
 }
 
 /// **2.14** (`CW-H`, smoke; not a mutation killer, `CW-O`). Two threads: one publishes alternating snapshots,
-/// the other calls the callback's path 10^5 times; every answer is one of the two snapshots' known answers
-/// at a probe point, never a torn mix.
+/// the other calls the callback's path 10^5 times; every answer is a known one (normal or draggable) —
+/// a smoke run of the locked copy, not a mutation killer.
 @MainActor
 @Test func aConcurrentPublishNeverTearsAnAnswer() async throws {
     let (_, window) = try chromePlatform()
@@ -325,10 +333,11 @@ private func sample(_ low: Float, _ high: Float, steps: Int = 36) -> [Float] {
         var bad = 0
         let handle = UnsafeMutableRawPointer(bitPattern: raw)
         for _ in 0..<100_000 {
-            // Probe 1 is draggable only under `a`, probe 2 only under `b`; both are never draggable at once.
+            // Each call is one locked copy: its answer is one of the two snapshots' answers at the probe (two
+            // separate calls may straddle a publish, so only a single answer is judged).
             let p1 = mui_window_chrome_hit(handle, 100, 10), p2 = mui_window_chrome_hit(handle, 320, 220)
-            let d1 = p1 == Int32(MUI_CHROME_HIT_DRAGGABLE), d2 = p2 == Int32(MUI_CHROME_HIT_DRAGGABLE)
-            if d1 && d2 { bad += 1 }
+            for answer in [p1, p2] where answer != Int32(MUI_CHROME_HIT_NORMAL)
+                && answer != Int32(MUI_CHROME_HIT_DRAGGABLE) { bad += 1 }
         }
         stop.set()
         return bad
@@ -400,7 +409,8 @@ func performWindowActionSendsMinimizeAndZoomRestore() throws {
 /// on Windows, which restores it).
 /// Mutation: the zoomed flag ignored by the publish -> red.
 @MainActor
-@Test func aFullscreenWindowHasNoEdges() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func aFullscreenWindowHasNoEdges() throws {
     let (platform, window) = try chromePlatform()
     _ = window.setTitleBarStyle(.hidden)
     _ = window.setWindowDragRegions([bounds(0, 0, 262, 32)])
@@ -415,7 +425,8 @@ func performWindowActionSendsMinimizeAndZoomRestore() throws {
 /// **2.19** (`SV-B`, `CW-G`). A window whose limits make an axis fixed has no edge on it.
 /// Mutation: limits ignored by the publish -> red.
 @MainActor
-@Test func aFixedAxisHasNoEdge() throws {
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func aFixedAxisHasNoEdge() throws {
     let (_, window) = try chromePlatform()
     _ = window.setTitleBarStyle(.hidden)
     _ = window.setWindowDragRegions([])
@@ -425,4 +436,18 @@ func performWindowActionSendsMinimizeAndZoomRestore() throws {
     #expect(window.chromeHit(at: point(200, 299)) == .resizeBottom, "the height is not")
     window.setContentSizeLimits(minimum: nil, maximum: nil)
     #expect(window.chromeHit(at: point(399, 150)) == .resizeRight)
+}
+
+/// **2.20** (`CW-B`). Whatever the driver, the answer is what happened: `true` exactly when the window is
+/// borderless afterwards, and the insets follow the answer. On a driver that cannot change a border (the
+/// offscreen one) the window keeps its standard decoration and `Window` keeps the standard insets.
+/// Mutation: answer SDL's `true` without reading the flag back -> red on the offscreen driver only.
+@MainActor
+@Test func theStyleAnswerIsWhatTheDriverDid() throws {
+    let (_, window) = try chromePlatform()
+    let answer = window.setTitleBarStyle(.hidden)
+    #expect(answer == window.isBorderless)
+    #expect((window.titleBarInsets.top == Pixels(32)) == answer)
+    let regionsAnswer = window.setWindowDragRegions([bounds(0, 0, 10, 10)])
+    #expect(regionsAnswer == window.hitTestInstalled, "true exactly when the callback is installed")
 }

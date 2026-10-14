@@ -312,7 +312,8 @@ bool mui_window_set_size_limits(void *window, int32_t min_w, int32_t min_h, int3
 // SDL_GetWindowMinimumSize / SDL_GetWindowMaximumSize, read back for tests.
 void mui_window_size_limits(void *window, int32_t *min_w, int32_t *min_h, int32_t *max_w, int32_t *max_h);
 // ---- Window chrome (item S1, rulings CW-B, CW-E, CW-G, CW-H, CW-O) ----------
-// SDL_SetWindowBordered; false for a fullscreen window (SDL cannot change its border).
+// SDL_SetWindowBordered; false for a fullscreen window (SDL cannot change its border) and where the
+// driver leaves the flag unchanged (the offscreen driver).
 bool mui_window_set_bordered(void *window, bool bordered);
 // Whether SDL_WINDOW_BORDERLESS is set (SDL_GetWindowFlags) — read back for tests.
 bool mui_window_is_borderless(void *window);
