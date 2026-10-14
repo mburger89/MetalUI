@@ -110,6 +110,9 @@ F	shape-background	A	swiftui-shapes-and-rendering.swift	O2	backgroundInAShapeIsT
 F	image	A	swiftui-shapes-and-rendering.swift	I1	anImageAnswersItsPointSizeAtEveryProposal	93	TE-AL TE-AM	Image/Image.Interpolation: decorative and labelled images, .resizable, .interpolation (.high draws bilinear, 93)
 F	image-bitmap	M	-	-	-	-	TE-AL	ImageBitmap: the portable stand-in for CGImage (premultiplied RGBA8)
 F	image-decoding	M	-	-	-	138	PX-B PX-C PX-D PX-E	ImageBitmap(contentsOfFile:)/(data:)/(resource:withExtension:subdirectory:bundle:): PNG and JPEG decoded by MetalUI's own decoder (CStbImage) on every platform, identical premultiplied sRGB bytes, colour profiles ignored (138), corrupt input nil; MetalUI-only: SwiftUI's images come from CGImage/NSImage/asset catalogs, and its Image(_:bundle:) reads asset catalogs, not loose files (probe swiftui-bundle-image B0-B9); the resource form decodes once per path
+F	image-decode	M	-	-	-	-	IB-A IB-B IB-C IB-D IB-I IB-J IB-K	DecodedImage (+ ImageBitmap(_:)): PNG/JPEG decoded to straight RGBA8 or 8-bit grey by the one vendored decoder on every platform, width, height, bytesPerRow, the EXIF orientation reported and not applied, applyingOrientation(); SwiftUI has no pixel-level decode API, so MetalUI-only
+F	image-orientation-exif	M	-	-	-	-	IB-E	Image.Orientation.init(exifValue:)/exifValue/swapsAxes: the bridge between SwiftUI's own raw values and the EXIF tag 1...8; SwiftUI has no EXIF accessors
+F	image-orientation	A	swiftui-image-orientation.swift	O1	orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip	-	IB-E	Image.Orientation: SwiftUI's eight cases with SwiftUI's raw values (up 0, left 1, upMirrored 2, leftMirrored 3, downMirrored 4, rightMirrored 5, down 6, right 7), CaseIterable, Hashable, Sendable
 F	gestures	A	swiftui-interaction.swift	H2	anOuterHighPriorityGestureBeatsTheInnerOneAndAButton	-	IX-B IX-C IX-D IX-Q	Gesture/TapGesture/LongPressGesture/DragGesture/composition and .gesture/.simultaneousGesture/.highPriorityGesture/.onTapGesture/.onLongPressGesture: one arena per press
 F	keyboard-shortcut	A	swiftui-interaction.swift	B4e	aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch	-	IX-F	KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order
 F	key-press	A	swiftui-key-focus.swift	K2v	onKeyPressRunsOutermostFirstAlongTheFocusChain	-	KF-B KF-C KF-Q KF-X	KeyPress/onKeyPress: SwiftUI's family (keys, characters, phases; .handled/.ignored) along the focus chain outermost first, after the Keymap and before a focused field's editing keys; a typed character on a focused field is offered first (KF-Q); a keystroke an app command binds runs the command (KF-X)
@@ -343,6 +346,9 @@ M	MetalUI	GestureModifiers.swift	.*	.*	.*	gestures
 M	MetalUI	Grid.swift	LayoutPass	.*	.*	kernel-registrars
 M	MetalUI	Grid.swift	.*	.*	.*	grid
 M	MetalUI	Image.swift	.*	.*	.*	image
+M	MetalUI	DecodedImage.swift	.*	.*	.*	image-decode
+M	MetalUI	ImageOrientation.swift	Image\.Orientation	(init\?|exifValue|swapsAxes)	.*	image-orientation-exif
+M	MetalUI	ImageOrientation.swift	.*	.*	.*	image-orientation
 M	MetalUI	ImageBitmap.swift	ImageBitmap	init\??	(contentsOfFile|data|resource)	image-decoding
 M	MetalUI	ImageBitmap.swift	.*	.*	.*	image-bitmap
 M	MetalUI	KeyPress.swift	StyledElement	focusable	.*	focus-interactions

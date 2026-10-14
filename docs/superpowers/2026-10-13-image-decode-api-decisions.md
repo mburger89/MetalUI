@@ -1,7 +1,7 @@
 # Public image decoding — decisions
 
 Rulings for item S2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**).
-Prefix `IB-`. **Next unused: `IB-L`.** Spec: [`specs/2026-10-13-image-decode-api-design.md`](specs/2026-10-13-image-decode-api-design.md).
+Prefix `IB-`. **Next unused: `IB-M`.** Spec: [`specs/2026-10-13-image-decode-api-design.md`](specs/2026-10-13-image-decode-api-design.md).
 Record: `../record/113-image-decode-api.md` (Record phase). Branch `feat/image-decode-api` from `fb9a7e42`.
 Divergence labels reserved 435–444: **435 taken** (`IB-G`).
 
@@ -101,3 +101,18 @@ last `IDAT`. (3) The JPEG walk skips `0xFF` fill bytes and length-less markers (
 segment length below 2. (4) The spec's luma example (10,20,30) was 19; it is 18 by hand. (5) `init(_ decoded:)`
 moved to lane 1 (test 1 needs it; it was a hidden lane 1 -> lane 2 dependency). **Rejected:** a SwiftUI
 claim without a probe: none remains; the probe was re-run, both arms (2x2 table, O10) byte for byte.
+
+## IB-L — Lane 1 as built: whole entries only, the permutation lives in `ImageOrientation.swift`, tests 1-15 pinned
+
+**Ruling.** (1) `tiffOrientation` clamps the entry count to the **whole** 12-byte entries present
+(`(count - firstEntry) / 12`): a tag whose value field is cut by the end of the block is `nil`, not a value
+read from the bytes that happen to be there (mutation M10, dropping the clamp, reddens test 8 at every cut
+between the tag and the end of the entry). Every read is `offset >= 0 && offset <= count - n`, with no
+addition that can overflow; dropping the upper bound of `read16` traps (mutation M8, `Fatal error` in
+`UnsafeRawBufferPointer`, tests 8 and 9). (2) The sample permutation (`permuteSamples`) is in
+`ImageOrientation.swift`, not `DecodedImage.swift` as spec section 3 said, because lane 2's `oriented(_:)` reads it and
+the type file is lane 1's second commit. (3) `decodeImage(_:channels:)` returns `samples` (was `straightRGBA`;
+the only caller outside the file was `decodeImageTexture`); `isPNG`/`isJPEG` are internal so `DecodedImage` can pick
+the EXIF reader after the structure checks passed. (4) The guard G-IB1 is in `Tests/MetalUITests/ImageDecodeCompileGuards.swift`
+(guards need the built `Modules`; the cross-platform target cannot run them). **Evidence.** Mutations M1-M18 (record 113 section
+on lane 1): every one reddened a named test. **Cost if wrong.** None observable: a block cut mid-entry is not a real file.

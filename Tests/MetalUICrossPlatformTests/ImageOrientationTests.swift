@@ -3,7 +3,8 @@ import Testing
 
 // Lane 1 test 14 (rulings IB-E; probe docs/probes/swiftui-image-orientation.swift).
 
-/// **14** `orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip`.
+/// **14** `orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip` (probe arm O1: the eight
+/// orientations and their raw values, recorded in the probe's header).
 /// Mutation: set `up = 1` (shifts every raw value).
 @Test func orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip() throws {
     let probed: [(Image.Orientation, UInt8, Int)] = [
