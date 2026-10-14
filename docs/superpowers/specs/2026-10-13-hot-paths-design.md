@@ -150,8 +150,8 @@ Lane 2 (`Tests/MetalUITests/HotPathAnimationTests.swift`, `HotPathShadowTests.sw
     bit. Mutation: swap min/max for y.
 
 Whole-branch: the unfiltered native suite (3717 + new, one summary line), `FR-J` line, both build
-systems 0 `warning:`, 14 images 0 px, closeout scripts silent, Linux image run only if a portable
-target changes (not planned).
+systems 0 `warning:`, 14 images 0 px, closeout scripts silent, Linux image run **required** (Atlas.swift is portable, HP-G); tests 6 and 16 assert stored-hash
+read-backs, not `!=` (HP-G).
 
 ## 5. Measurements (record, dated, not pins)
 

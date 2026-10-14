@@ -1,6 +1,6 @@
 # Hot paths - decisions
 
-Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-G`.**
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-H`.**
 Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
 `../record/111-hot-paths.md` (Record phase). Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
 reserved 415-424: none taken (none yet).
@@ -58,3 +58,20 @@ live workflow edits them); layout allocation pre-sizing, `measureNative` hashing
 the pan path-raster clip-key and an R8 coverage format are P3 because they change pixels or shaders
 (pan: paint 43 %, `CoverageRasterizer.rasterize` 7.6 %, about 2,400 allocs/frame, `tint` 5.8 %;
 20,431 allocs/frame). **Cost if wrong.** Lost wins only; none is a correctness risk.
+
+## HP-G - Critic amendments: tests that could not be red, the portable Atlas, the parse table, bit-equal
+
+**Defects found and fixed in the spec.** (1) Tests 6 and 16 asserted `!=` on keys differing in one field,
+but `==` compares fields, so omitting a field from the hash mix cannot redden them: both now read the
+stored hash back (`package` read-back) and assert that keys differing in only that field have different
+stored hashes (deterministic, not probabilistic), and a test-only forced-collision initialiser proves `==`
+is not hash-only. (2) `GlyphAtlas.swift` is in `MetalUIScene`, a portable target `PortableTextSystem`
+uses: the Linux image run is **required**, not conditional, and the mix uses no Foundation or `Hasher`
+(PS-A). A stored property on `GlyphKey`/`TextGlyph` crossing a module owes `swift package clean`. (3) The
+`LocalizedStringKey` table is global mutable state: it is `@MainActor`-isolated (or lock-guarded if the
+type is nonisolated), keyed by the resolved source string and markdown flag, never by interpolated
+values' identity; a test calls it from the main actor only. (4) Animation "equal" means `bitPattern`
+equality, so NaN and -0.0 take the old path. (5) The one-entry placement memo thrashes if one `ShapedText`
+is painted at two origins in a frame (shadow leaves); test 2 adds that case and the record states the
+measured miss rate. **Rejected, with reason:** a global (text, x, scale) dictionary (HP-A); an atlas intern
+table (HP-B). No public API, no divergence taken.
