@@ -1,13 +1,13 @@
-# 110 — Retained build skip (C14b-2): lane 1, prepaint replay, the redo and translated replay
+# 110 — Retained build skip (C14b-2): lane 1, prepaint replay, the redo and translated replay; lane 2, the graft
 
 Branch `perf/retained-build-skip` from `fb9a7e42`. Not a plan task: item C14b-2 of the gpui-gap priority list (user request
 2026-10-02), the carried half of record §109. Spec `docs/superpowers/specs/2026-10-13-retained-build-skip-design.md` (§9 is lane 1 as
-built); rulings `RK-A`…`RK-W` in `docs/superpowers/2026-10-13-retained-build-skip-decisions.md` (next unused `RK-X`); probe
+built, §10 is lane 2); rulings `RK-A`…`RK-AB` in `docs/superpowers/2026-10-13-retained-build-skip-decisions.md` (next unused `RK-AC`); probe
 `docs/probes/retained-build-skip/`. Divergence labels reserved 405–414: **none taken** (no SwiftUI-visible behaviour; the only public
-additions are `FrameWork`'s six counters).
+additions are `FrameWork`'s six counters (lane 1) and four more (lane 2: `retainedGrafts`, `retainedGraftIneligible`, `retainedSkippedRequests`, `retainedGraftedNodes`)).
 
-**Status (2026-10-14): LANE 1 BUILT — M1 (prepaint replay and the redo) and M3 (translated replay). Lane 2 (M2: the graft and the
-`StateTable` journal) is NOT built; nothing here measures a graft in the frame.** The orchestrator's gate for M1 (at least 0.4 ms on
+**Status (2026-10-14): LANE 1 BUILT — M1 (prepaint replay and the redo) and M3 (translated replay). LANE 2 BUILT — M2 (the graft and the
+`StateTable` journal), §10: the sections §1 to §9 below are as lane 1 left them and say "lane 2 is not built" where that was true then.** The orchestrator's gate for M1 (at least 0.4 ms on
 release `.panels`): **met** — −0.50, −0.43 and −0.46 ms of thread-CPU time in three runs of `bracketab` (wall time −0.64, −0.42 and −0.06 ms: the first and third runs were contended, `RK-W`), after `RK-T` removed
 the refusal of a never-written `@State` slot; before it the same reading was −0.32 ms.
 

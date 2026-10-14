@@ -76,7 +76,14 @@ struct RGInner: Component, @MainActor Equatable {
     let n: Int
     let log: HarnessLog
     @State var taps = 0
+    /// The write a test makes **from outside the tree** (input, not a phase), by window (its log) and element: set each time the getter runs.
+    @MainActor static var writers: [ObjectIdentifier: [Int: @MainActor () -> Void]] = [:]
+    @MainActor private func register() {
+        let binding = $taps
+        RGInner.writers[ObjectIdentifier(log), default: [:]][n] = { binding.wrappedValue += 1 }
+    }
     var content: some ElementGroup {
+        let _: Void = register()
         HStack(spacing: 2) {
             Text("inner \(n) taps \(taps)").frame(width: Pixels(80), height: Pixels(12))
             Button("tap \(n)") { taps += 1; log.add("tap \(n)") }.frame(width: Pixels(40), height: Pixels(14))
@@ -237,13 +244,14 @@ private struct RGObsInner: Component, @MainActor Equatable {
 
 private struct RGObsOuter: Component, @MainActor Equatable {
     let model: RSModel
+    let title: Int
     var content: some ElementGroup {
         VStack(spacing: 2) {
-            Text("outer").frame(width: Pixels(60), height: Pixels(12))
+            Text("outer \(title)").frame(width: Pixels(60), height: Pixels(12))
             RGObsInner(model: model).equatable()
         }
     }
-    static func == (l: RGObsOuter, r: RGObsOuter) -> Bool { l.model === r.model }
+    static func == (l: RGObsOuter, r: RGObsOuter) -> Bool { l.model === r.model && l.title == r.title }
 }
 
 /// 19c — an `@Observable` read by a **nested** occurrence's getter that changes rebuilds the grafted outer: the outer's value is equal and
@@ -252,9 +260,15 @@ private struct RGObsOuter: Component, @MainActor Equatable {
 /// answering true (the outer grafts over the stale entry and draws the old text: the scene differs from the retention-off window's).
 @Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
 func aNestedOccurrencesObservedChangeRebuildsTheGraftedOuter() async throws {
-    let pair = try RPPair(size: sz(160, 80), warm: 5) { side in VStack(spacing: 0) { RGObsOuter(model: side.model).equatable() } }
+    let pair = try RPPair(size: sz(160, 80), warm: 5) { side in VStack(spacing: 0) { RGObsOuter(model: side.model, title: side.model.tint).equatable() } }
     pair.redraw(); pair.redraw()
     try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "grafting before the change: \(String(describing: pair.frames.last))")
+    // The outer rebuilds with the nested occurrence **skipped** (its own value changed): the outer's new observation window never saw the nested
+    // getter's read, so only the nested entry's own staleness can stop a graft over it later (`SB-AC`'s case at the build).
+    pair.onSide.model.tint += 1; pair.offSide.model.tint += 1
+    await rsSettle()
+    for _ in 0..<4 { pair.redraw() }
+    try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "grafting again after the outer's own change: \(String(describing: pair.frames.last))")
     pair.onSide.model.n += 1; pair.offSide.model.n += 1
     await rsSettle()
     pair.redraw()
@@ -266,6 +280,137 @@ func aNestedOccurrencesObservedChangeRebuildsTheGraftedOuter() async throws {
     for _ in 0..<2 { pair.redraw() }
     #expect((pair.frames.last?.retainedGrafts ?? 0) >= 1, "it grafts again once rebuilt")
     try pair.compare("grafting again")
+}
+
+/// 19d — a write to the `@State` of a nested occurrence **from outside the tree** (input, with no pointer over the card: the pointer rule would
+/// rebuild it anyway) moves a version the grafted card's record holds, so the card builds and shows the new count; the sibling nested occurrence
+/// grafts inside that rebuild. **Red before:** the grafts read 0. **Mutation:** the version compare skipped in `graftRecord(for:)`
+/// (`versionsIgnored`: the card grafts and draws the old count).
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func aStateWriteFromOutsideRebuildsAGraftedOccurrence() async throws {
+    let pair = try RPPair(size: sz(200, 220), warm: 5) { side in VStack(spacing: 0) { RGStable(side: side) } }
+    pair.redraw(); pair.redraw()
+    try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "grafting before the write: \(String(describing: pair.frames.last))")
+    for side in [pair.onSide, pair.offSide] {
+        let write = try #require(RGInner.writers[ObjectIdentifier(side.log)]?[1], "the nested occurrence registered its write")
+        write()
+    }
+    pair.redraw()
+    let after = try #require(pair.frames.last)
+    #expect(after.retainedGrafts == 1, "only the untouched sibling nested occurrence grafts inside the rebuild: \(after.retainedGrafts)")
+    try pair.compare("after the write")
+    stateAgrees(pair, "after the write")
+    _ = try pair.on.element(label: "inner 1 taps 1")
+}
+
+// MARK: 15b — what the journal's other events keep exact
+
+/// A card holding a stateful nested occurrence in a conditional and three in a loop: a graft that did not note the conditional's produced slot or
+/// the loop's extent cannot see the branch leave or the loop shrink, so the state under it survives a removal it must not.
+struct RGStateful: Component, @MainActor Equatable {
+    let showExtra: Bool
+    let count: Int
+    let log: HarnessLog
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text("stateful").frame(width: Pixels(60), height: Pixels(12))
+            if showExtra { RGInner(n: 30, log: log).equatable() }
+            ForEach(Array(0..<count), id: \.self) { i in RGInner(n: 40 + i, log: log).equatable() }
+        }
+    }
+    static func == (l: RGStateful, r: RGStateful) -> Bool { l.showExtra == r.showExtra && l.count == r.count && l.log === r.log }
+}
+
+private struct RGStatefulRoot: Component {
+    let side: RPSide
+    var content: some ElementGroup {
+        VStack(spacing: 0) { RGStateful(showExtra: side.inputs.showExtra, count: 3 - side.model.tint, log: side.log).equatable() }
+    }
+}
+
+@MainActor private func write(_ pair: RPPair<some Element>, _ n: Int) throws {
+    for side in [pair.onSide, pair.offSide] {
+        let write = try #require(RGInner.writers[ObjectIdentifier(side.log)]?[n], "inner \(n) registered its write")
+        write()
+    }
+}
+
+/// 15b — a conditional inside a grafted card still resets its state when it turns false (the produced-slot event of the journal, `RK-F`): the
+/// branch holds a counter, the card grafts for several frames, the branch leaves and returns, and the counter is 0 again, as in the
+/// retention-off window. **Red before:** the grafts read 0 (the graft off). **Mutation:** the journal's `produced` events skipped in
+/// `reapply` (`skipProduced`: the branch's slot is not in the last frame's produced set when it leaves, nothing resets, the counter reads 1).
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func aConditionalInsideAGraftedOccurrenceStillResetsItsState() async throws {
+    let pair = try RPPair(size: sz(200, 260), warm: 5) { side in VStack(spacing: 0) { RGStatefulRoot(side: side) } }
+    for side in [pair.onSide, pair.offSide] { side.inputs.showExtra = true }
+    // The first build after the value change may ask for a redo, which suspends replay for eight frames (`RK-M`): settle past it.
+    pair.redraw()
+    try write(pair, 30)
+    for _ in 0..<12 { pair.redraw() }
+    try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "the card grafts while the branch is shown: \(String(describing: pair.frames.last))")
+    _ = try pair.on.element(label: "inner 30 taps 1")
+    for side in [pair.onSide, pair.offSide] { side.inputs.showExtra = false }
+    pair.redraw()
+    try pair.compare("the branch left")
+    for _ in 0..<3 { pair.redraw() }
+    for side in [pair.onSide, pair.offSide] { side.inputs.showExtra = true }
+    pair.redraw()
+    try pair.compare("the branch returned")
+    stateAgrees(pair, "the branch returned")
+    _ = try pair.on.element(label: "inner 30 taps 0")
+    _ = try pair.off.element(label: "inner 30 taps 0")
+}
+
+/// 15c — a loop inside a grafted card still resets the rows it loses (the loop-extent event): the last row holds a counter, the card grafts, the
+/// loop shrinks by one and grows back, and the row's counter is 0 again, as in the retention-off window. **Red before:** the grafts read 0.
+/// **Mutation:** the journal's `loop` events skipped in `reapply` (`skipLoop`: the previous extent is missing, the shrink resets nothing, the counter reads 1).
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func aLoopInsideAGraftedOccurrenceStillResetsTheRowsItLoses() async throws {
+    let pair = try RPPair(size: sz(200, 260), warm: 5) { side in VStack(spacing: 0) { RGStatefulRoot(side: side) } }
+    for side in [pair.onSide, pair.offSide] { side.inputs.showExtra = true }
+    pair.redraw()
+    try write(pair, 42)
+    for _ in 0..<12 { pair.redraw() }
+    try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "the card grafts while the loop is whole: \(String(describing: pair.frames.last))")
+    _ = try pair.on.element(label: "inner 42 taps 1")
+    for side in [pair.onSide, pair.offSide] { side.model.tint = 1 }
+    await rsSettle()
+    pair.redraw()
+    try pair.compare("the loop shrank")
+    for _ in 0..<3 { pair.redraw() }
+    for side in [pair.onSide, pair.offSide] { side.model.tint = 0 }
+    await rsSettle()
+    pair.redraw()
+    try pair.compare("the loop grew back")
+    stateAgrees(pair, "the loop grew back")
+    _ = try pair.on.element(label: "inner 42 taps 0")
+    _ = try pair.off.element(label: "inner 42 taps 0")
+}
+
+/// An occurrence whose top-level node is a legacy `Box` with a `flexGrow` item: its legacy parent `Row` consumes the record after the occurrence returns.
+struct RGGrow: Component, @MainActor Equatable {
+    let tint: Int
+    var content: some ElementGroup { Box().flexGrow(1).background(Color.accent.opacity(0.3 + Double(tint) * 0.1)).frame(height: Pixels(12)) }
+    static func == (l: RGGrow, r: RGGrow) -> Bool { l.tint == r.tint }
+}
+
+/// 15d — the lowered item of a grafted occurrence's top-level node is recorded again for the new node (`RK-Z` item 3): a legacy `Row` lowers
+/// the `flexGrow` of its grown child from the child's record, so a graft that left it out would not grow the child. The window equals the
+/// retention-off window and the grown box fills the free width. **Red before:** the grafts read 0. **Mutation:** the top items not recorded
+/// (`topItemsNotRecorded`: the child keeps its own width and the scene differs).
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func theLoweredItemOfAGraftedTopNodeIsRecordedAgain() async throws {
+    let pair = try RPPair(size: sz(260, 40), warm: 5) { _ in
+        Row {
+            Box().frame(width: Pixels(40), height: Pixels(12)).background(.accent)
+            RGGrow(tint: 1).equatable()
+            Box().frame(width: Pixels(30), height: Pixels(12)).background(.accent)
+        }.frame(width: Pixels(200), height: Pixels(16))
+    }
+    try pair.compare("warm")
+    pair.redraw(); pair.redraw()
+    #expect((pair.frames.last?.retainedGrafts ?? 0) >= 1, "the grown child grafts: \(String(describing: pair.frames.last))")
+    try pair.compare("grafting")
 }
 
 // MARK: 18 — what a graft refuses, by name
@@ -287,13 +432,14 @@ enum RGKind: String, CaseIterable {
 
 private struct RGKindCard: Component, @MainActor Equatable {
     let kind: RGKind
+    let log: HarnessLog
     var content: some ElementGroup {
         VStack(spacing: 2) {
             Text("kind").frame(width: Pixels(60), height: Pixels(12))
             switch kind {
             case .control: Box().frame(width: Pixels(20), height: Pixels(6)).background(.accent)
             case .hidden: Box().frame(width: Pixels(20), height: Pixels(6)).hidden()
-            case .lifecycle: Box().frame(width: Pixels(20), height: Pixels(6)).onAppear {}
+            case .lifecycle: Box().frame(width: Pixels(20), height: Pixels(6)).onAppear { log.add("appear") }.onDisappear { log.add("disappear") }
             case .timeline: TimelineView(.animation) { _ in Box().frame(width: Pixels(20), height: Pixels(6)) }
             case .scroll: ScrollView(.vertical) { Text("scrolled").frame(width: Pixels(40), height: Pixels(40)) }
                     .frame(width: Pixels(60), height: Pixels(20))
@@ -301,7 +447,7 @@ private struct RGKindCard: Component, @MainActor Equatable {
             }
         }
     }
-    static func == (l: RGKindCard, r: RGKindCard) -> Bool { l.kind == r.kind }
+    static func == (l: RGKindCard, r: RGKindCard) -> Bool { l.kind == r.kind && l.log === r.log }
 }
 
 /// 18 — an occurrence whose build wrote a channel the journal does not replay builds every frame and is counted by name; the control
@@ -310,7 +456,7 @@ private struct RGKindCard: Component, @MainActor Equatable {
 /// the arm's differential or its refusal count reddens), one run per channel.
 @Test(.enabled(if: !rsVerifying, verifyingNote), arguments: RGKind.allCases) @MainActor
 func aGraftIneligibleBuildIsCountedByName(kind: RGKind) throws {
-    let pair = try RPPair(size: sz(160, 120), warm: 5) { _ in VStack(spacing: 0) { RGKindCard(kind: kind).equatable() } }
+    let pair = try RPPair(size: sz(160, 120), warm: 5) { side in VStack(spacing: 0) { RGKindCard(kind: kind, log: side.log).equatable() } }
     try pair.compare("warm")
     pair.redraw()
     let f = try #require(pair.frames.last)
@@ -334,6 +480,8 @@ private struct RGMoving: Component {
         VStack(spacing: 4) {
             Text("pad").frame(width: Pixels(40), height: Pixels(Float(10 + (model.n % 2) * 12)))
             ZStack { RGCard(title: "M", shade: 1, log: side.log).equatable() }.opacity(model.tint % 2 == 1 ? 0.5 : 1)
+            // A neighbour that did not change: it grafts in the frame that asks for a redo, and the redo must not (`RK-M`).
+            RGCard(title: "N", shade: 2, log: side.log).equatable()
         }
     }
 }
@@ -346,7 +494,7 @@ private struct RGMoving: Component {
 /// abandoned frame adopted (hitboxes), the checkpoint's animation entries not restored.
 @Test(.enabled(if: !rsVerifying, verifyingNote), arguments: ["opacity above", "moved by a sibling"]) @MainActor
 func aRedoAfterAGraftMismatchRestoresEverything(arm: String) async throws {
-    let pair = try RPPair(size: sz(220, 260), warm: 5) { side in VStack(spacing: 0) { RGMoving(side: side) } }
+    let pair = try RPPair(size: sz(220, 380), warm: 5) { side in VStack(spacing: 0) { RGMoving(side: side) } }
     try pair.compare("warm")
     pair.redraw()
     try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "grafting before the change: \(String(describing: pair.frames.last))")

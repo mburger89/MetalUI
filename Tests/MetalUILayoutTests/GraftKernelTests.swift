@@ -31,8 +31,10 @@ private struct Shifted: ProposalLayout, Hashable {
     let c1 = keyed(tree, "c1", width: 30, height: 12), c2 = keyed(tree, "c2", width: 10, height: 20)
     let c3 = keyed(tree, "c3", width: 25, height: 8), c4 = keyed(tree, "c4", width: 15, height: 15)
     tree.markNativeGridRow([c1, c2], alignment: .topLeading)
-    tree.markNativeGridCell(c1, columns: 1, anchor: .bottomTrailing)
-    tree.markNativeGridRow([c3, c4])
+    tree.markNativeGridCell(c1, anchor: .bottomTrailing)
+    // A cell spanning both columns: the column count it carries moves the layout (a mark that is 1 would hide a skipped table).
+    tree.markNativeGridRow([c3])
+    tree.markNativeGridCell(c3, columns: 2)
     let grid = tree.newNativeGrid(children: [c1, c2, c3, c4], alignment: .center, horizontalSpacing: 2, verticalSpacing: 3)
     let spacer = tree.newNativeSpacer(minLength: 4)
     let leaf = keyed(tree, "padded", width: 40, height: 10)

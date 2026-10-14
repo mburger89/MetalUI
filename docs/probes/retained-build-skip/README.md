@@ -32,3 +32,25 @@ rounds of fourteen drags, so the two arms see the same machine; it prints each a
 milliseconds and the last frame's work line (now with `elementRequests`, `elementPrepaints`, `skippedPrepaints`, `prepaintHits`,
 `prepaintIneligible`, `redos`, `translated`). A cross-process comparison against `fb9a7e42` is `git archive fb9a7e42 | tar -x -C <dir>` and
 the same script from there; on this shared Mac it moved by 2 ms between runs, which is why the in-process alternation is the reading.
+
+
+## Graft plus journal cost (lane 2 step 1, `RK-X`)
+
+`graft-journal-cost.patch` (applies to `0e32911b`, the commit that had the graft and this probe in `Sources/`; an experiment, never merged) times, inside
+`EquatableComponent.requestGroupLayout`, each **outermost** occurrence's build (graft window open: the journal's recording is in it) and, when that occurrence
+later grafts, the whole `graftOccurrence` path (rows, item records, journal applied again) against the build time the record stored. Run:
+`git apply docs/probes/retained-build-skip/graft-journal-cost.patch && RK_EXPERIMENT=1 zsh docs/probes/perf-baselines.sh release bracket`
+(the harness prints one `RK_EXPERIMENT` line at exit; revert with `git checkout Sources`). It uses `clock_gettime_nsec_np`: macOS only.
+
+Recorded output (2026-10-14, MacBookPro18,2 / M1 Max, release, load average 119–148, so the ratio and not the milliseconds is the reading):
+
+    RK_EXPERIMENT builds=3933 grafts=31047 graftedNodes=417138 buildMs=569.925155 graftMs=333.144257 buildStoodForMs=1877.340749
+
+Per grafted outermost occurrence **60.5 µs of build against 10.7 µs of graft: 17.7 %**, 13.4 nodes on average.
+
+## Graft A/B (lane 2, `RK-X`)
+
+`zsh docs/probes/perf-baselines.sh release bracketgraft` runs the node drag (`.value` and `.panels`) with the graft **off** (prepaint replay on: lane 1's tree) and **on**, alternating
+inside one process (`METALUI_RETAINED_GRAFT=0/1`, read when each window is made) and prints each arm's median and minimum drag frame in wall and thread-CPU milliseconds and the last frame's
+work line (now with `grafts`, `graftIneligible`, `skippedRequests`, `graftedNodes`). `bracketab` (lane 1) alternates prepaint replay, which switches the graft off too, so its off arm is `fb9a7e42`'s behaviour
+and its on arm is the whole item. The readings are in record 110 §10.
