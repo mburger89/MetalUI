@@ -6,7 +6,7 @@ Branch `feat/image-decode-api` from `fb9a7e42`. Not a plan task: item S2 of the 
 `docs/superpowers/2026-10-13-image-decode-api-decisions.md` (next unused `IB-N`); probe
 `docs/probes/swiftui-image-orientation.swift`. Divergence labels reserved 435–444: **435 taken** (`IB-G`).
 
-**Status: BUILT, both lanes.** No C change, no new target, no shader or renderer change (so no `replay.hlsl`), no
+**Status: BUILT, both lanes, verified `ok`.** No C change, no new target, no shader or renderer change (so no `replay.hlsl`), no
 change to `ImageTexture`.
 
 ## §1 What shipped
@@ -47,6 +47,37 @@ Census and closeout scripts: both print nothing after the re-record.
 values and all fourteen images are **0 differing pixels, scene identical**. `git diff fb9a7e42 --stat -- Tests/MetalUITests/DemoFrameDeterminismTests*
 Tests/**/Expected.swift` is empty. Not run: the Linux image and the Windows VM (lane 2 touches no `Backends/SDL` file;
 the portable targets are for CI to confirm). `swift build --build-tests` on the default build system: Build complete, 0 `warning:`, 0 `error:`.
+
+## §2.3 Lane 1 mutations (checker's table, `6b3e8ad7`)
+
+Each applied, the 27 image tests run (filtered), restored. Native unfiltered at `6b3e8ad7` with `AppKitPresentationTests`
+skipped (locked screen): 3723 tests passed (3732 less the 9 skipped); 93 `MetalUICrossPlatformTests` passed in the Linux
+image; `G-IB1` printed `without succeeded=false` and refused `texture`.
+
+| mutation | reddened |
+|---|---|
+| `MM` read little-endian | `exifOrientationOfAllEightValuesInBothByteOrders`, `anExifBlockThatIsTruncatedAtEveryLengthIsUpAndNeverTraps`, `aPngExifChunkIsRead`, `decodeReportsOrientationAndDoesNotApplyIt` |
+| entry-count clamp dropped | `anExifBlockThatIsTruncatedAtEveryLengthIsUpAndNeverTraps` |
+| any tag type accepted | `hostileExifFieldsAreIgnored` |
+| PNG walk stops at first `IDAT` | `aPngExifChunkIsRead` |
+| PNG `eXIf` between `IDAT`s read | `aPngExifChunkIsRead` |
+| `.right` permutation swapped with `.left`'s | `applyingOrientationPermutesEveryOneOfTheEightLikeSwiftUI` |
+| grey `bytesPerRow` rounded up to 4 | `strideIsTheRowWidthWithNoPadding`, `applyingOrientationPermutesEveryOneOfTheEightLikeSwiftUI` |
+| `pngStructureIsIntact` skipped on grey | `aCorruptOrOversizeFileIsNilInEveryFormat` |
+| `exifValue` of `.right` returns 8 | `orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip` |
+| JPEG walk no longer stops at SOS (`0xDA` removed) | **survived**: the fixture's two filler bytes ended the walk anyway |
+
+The survivor was real, not equivalent: with the APP1 directly after the SOS segment the mutation is caught. Fixed in
+`f0ca91ae` (filler dropped from `theFirstExifSegmentWinsAndOnlyBeforeSOS`); re-run, the SOS-stop mutation reddens
+`theFirstExifSegmentWinsAndOnlyBeforeSOS`, source restored, `git status --short` empty. The checker did not re-apply
+the 16-bit `v>>8`, grey-over-black, Rec. 709, premultiplied-storage, `read16`-bound, permute-in-init and `up=1`
+mutations with the full suite; the implementer's list names their reddened tests (`IB-L`).
+
+§2.4 Record phase (after the survivor fix, `f0ca91ae`): `swift package clean`, native build 0 `error:`, then the unfiltered native
+run on a **locked screen**: `Test run with 3737 tests in 3 suites failed ... with 5 issues`, the five being exactly
+`AppKitPresentationTests`' sheet issues (`attachedSheet != nil`, `CI-AF`) and nothing else; `FR-J no-argument frame:
+succeeded=true`; the only `warning:` SwiftPM's deprecation notice. Guards 235 (234 + `G-IB1`, the file's only one). origin/master
+had not moved past `fb9a7e42`, so no merge and no renumbering. Inventory and undocumented scripts print nothing.
 
 ## §3 Deferred
 

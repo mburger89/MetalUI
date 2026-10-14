@@ -6,7 +6,7 @@ gap 4 (developer-c0, 2026-10-13). Rulings: [`../2026-10-13-image-decode-api-deci
 from `fb9a7e42`. Divergence labels reserved 435–444: **435 taken** (`IB-G`).
 Probe: `docs/probes/swiftui-image-orientation.swift` (header holds the output).
 
-**Status: lane 1 built (`Image.Orientation`, `ImageEXIF`, `DecodedImage`, `decodeImage` channels, tests 1-15, rulings `IB-L`); lane 2 built (`ImageBitmap.oriented(_:)`, the two `Image(orientation:)` inits, tests 16-19, guide block, divergence 435, `IB-M`).**
+**Status: BUILT, verified ok (record 113). Lane 1 built (`Image.Orientation`, `ImageEXIF`, `DecodedImage`, `decodeImage` channels, tests 1-15, rulings `IB-L`); lane 2 built (`ImageBitmap.oriented(_:)`, the two `Image(orientation:)` inits, tests 16-19, guide block, divergence 435, `IB-M`).**
 
 ## 1 What exists and what is missing
 
