@@ -45,8 +45,9 @@ let rpScaleArms = [1, 1.5, 2, 3, 4].flatMap { [RPScaleArm(scale: $0, accessibili
 /// (the tree's frames differ), the effect-translation relaxation removed from the paint key (`translated == 0`).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: rpScaleArms) @MainActor
 func aTranslatedReplayEqualsAFreshFrameAtEveryScale(arm: RPScaleArm) async throws {
-    let pair = try RPPair(size: sz(320, 150), scale: arm.scale, warm: 4) { side in VStack(spacing: 0) { RPPanRoot(side: side) } }
-    pair.accessibility = arm.accessibility
+    let pair = try RPPair(size: sz(320, 150), scale: arm.scale, warm: 4, accessibility: arm.accessibility) { side in
+        VStack(spacing: 0) { RPPanRoot(side: side) }
+    }
     try pair.compare("warm")
     var translated = 0, prepaintHits = 0, refused = 0, redos = 0
     for (index, pan) in rpPanScript.enumerated() {

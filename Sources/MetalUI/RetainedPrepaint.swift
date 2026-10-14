@@ -179,6 +179,9 @@ extension Frame {
                     memos.retained.skippedPrepaints += ledger.prepaints
                     return .replay(ledger, moved: moved)
                 }
+                if retainedTraces {
+                    print("retained translation refused \(sbPath(build.key.id).suffix(60)): ax \(ledger.axEmissions.count)/\(ledger.axNodes.count), hitboxes \(ledger.hitboxes.count), moved \(translatedHitboxes(of: ledger, by: delta) != nil)")
+                }
                 memos.retained.translationRefused += 1
             }
         }

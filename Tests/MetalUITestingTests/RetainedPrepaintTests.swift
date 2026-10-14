@@ -153,15 +153,18 @@ struct RPCard: Component, @MainActor Equatable {
     var work = FrameWork()
     var frames: [FrameWork] = []
 
+    /// `accessibility: false` opens both windows with no accessibility client, as an app nobody is inspecting runs
+    /// (the harness default is a client active from the first handler): no frame collects accessibility records.
     init(size: Size<Pixels> = sz(420, 200), scale: Float = 1, colorScheme: ColorScheme = .light, warm: Int = 3,
-         _ root: @escaping @MainActor (RPSide) -> Root) throws {
+         accessibility: Bool = true, _ root: @escaping @MainActor (RPSide) -> Root) throws {
         let onSide = self.onSide, offSide = self.offSide
-        on = try TestWindow(size: size, colorScheme: colorScheme, scaleFactor: scale, textSystem: harnessTextSystem) {
-            root(onSide)
-        }
-        off = try TestWindow(size: size, colorScheme: colorScheme, scaleFactor: scale, textSystem: harnessTextSystem) {
-            root(offSide)
-        }
+        let options = HeadlessPlatformWindow.Options(appearance: colorScheme, scaleFactor: scale,
+                                                     accessibilityClientActive: accessibility)
+        on = try TestWindow(size: size, colorScheme: colorScheme, scaleFactor: scale, options: options,
+                            textSystem: harnessTextSystem) { root(onSide) }
+        off = try TestWindow(size: size, colorScheme: colorScheme, scaleFactor: scale, options: options,
+                             textSystem: harnessTextSystem) { root(offSide) }
+        self.accessibility = accessibility
         off.window.testingRetainedSubtrees = false
         for _ in 0..<warm { redraw() }
         frames = []

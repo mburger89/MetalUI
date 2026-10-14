@@ -174,7 +174,6 @@ struct ReplayKey: Equatable {
     /// `RK-S`): the recorded leaves are those before any outer scope applies, so replaying them through the live
     /// scopes is arithmetic-for-arithmetic what a fresh paint does at the new translation.
     func differsOnlyByEffectTranslation(from old: ReplayKey) -> Bool {
-        return false   // RED RUN
         guard rects == old.rects, interior == old.interior, nodeCount == old.nodeCount,
               ambient.scopes.count == old.ambient.scopes.count else { return false }
         var moved = false
