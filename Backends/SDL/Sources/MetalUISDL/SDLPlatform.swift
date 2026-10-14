@@ -844,6 +844,8 @@ public final class SDLWindow: PlatformWindow {
         let maxW = atLeast(points(maximum?.width.value, .down), minW)
         let maxH = atLeast(points(maximum?.height.value, .down), minH)
         _ = mui_window_set_size_limits(rawHandle, minW, minH, maxW, maxH)
+        sizeLimits = (minW, minH, maxW, maxH)
+        publishChrome()
     }
 
     // MARK: Drops in (ruling `DN-M`)
@@ -998,37 +1000,142 @@ public final class SDLWindow: PlatformWindow {
     /// Every `setTitleBarStyle(_:)` argument, in order.
     public private(set) var titleBarStyles: [PlatformTitleBarStyle] = []
 
-    /// Records the style and answers `false` (ruling `AS-E` item 6, a
-    /// documented constraint): the window keeps its system decoration —
-    /// client-side decorations are deferred — and ``titleBarInsets`` stays
-    /// zero, so content laid out with them is still correct.
+    /// The style `Window` asked for last (`CW-S`): applied at once, or on leaving fullscreen.
+    private var requestedStyle: PlatformTitleBarStyle = .standard
+    /// Whether the window has no system frame now (`SDL_WINDOW_BORDERLESS`).
+    var isBorderless: Bool { mui_window_is_borderless(rawHandle) }
+    /// Tests: stands in for the window manager's fullscreen flag, which a hidden window never sets.
+    var fullscreenOverride: Bool?
+    private var isFullscreen: Bool { fullscreenOverride ?? mui_window_is_fullscreen(rawHandle) }
+    /// Whether a style was requested in fullscreen and waits for the leave.
+    private var styleDeferred = false
+
+    /// `.hidden` makes the window borderless (`SDL_SetWindowBordered`), `.standard` restores the border
+    /// (ruling `CW-B`); both answer `true`. A fullscreen window cannot change its border: the request is
+    /// recorded, answered `true` (the insets are zero in fullscreen anyway) and applied on leaving
+    /// fullscreen (`CW-S`). `false` only where SDL refuses.
     public func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool {
         titleBarStyles.append(style)
-        return false
+        requestedStyle = style
+        if isFullscreen { styleDeferred = true; return true }
+        styleDeferred = false
+        let applied = mui_window_set_bordered(rawHandle, style == .standard)
+        publishChrome()
+        return applied
     }
 
-    /// Always zero: the system title bar never overlaps the content.
-    public var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
+    /// The band `Window` keeps clear while the hidden style is applied and the window is not fullscreen
+    /// (ruling `CW-D`): 32 points, plus the edge of the cluster of window buttons `Window` draws — 138 on
+    /// the right on Linux and Windows, 70 on the left through macOS. Zero otherwise.
+    public var titleBarInsets: Edges<Pixels> {
+        guard isBorderless, !isFullscreen else { return Edges(all: Pixels(0)) }
+        #if os(macOS)
+        return Edges(top: Pixels(32), right: Pixels(0), bottom: Pixels(0), left: Pixels(70))
+        #else
+        return Edges(top: Pixels(32), right: Pixels(138), bottom: Pixels(0), left: Pixels(0))
+        #endif
+    }
 
     /// Every `performTitleBarPress(clickCount:)` argument, in order.
     public private(set) var titleBarPresses: [Int] = []
 
-    /// Records the press and answers `false` (ruling `AS-J` item 2): the
-    /// system title bar drags the window itself, and with zero insets
-    /// `Window` never asks.
+    /// A double click (or more) toggles zoom and answers what the window manager answered; a single click
+    /// answers `false` — the hit test already moved the window (rulings `AS-J` item 2, `CW-I`).
     public func performTitleBarPress(clickCount: Int) -> Bool {
         titleBarPresses.append(clickCount)
-        return false
+        guard clickCount >= 2 else { return false }
+        return performWindowAction(.toggleZoom)
     }
 
     /// Every `performWindowDrag()` call, in order (ruling `WD-F`).
     public private(set) var windowDragRequests = 0
 
-    /// Records the request and answers `false`: the system title bar drags the
-    /// window itself (ruling `WD-F`, divergence 276).
+    /// Records the request and answers `false` (ruling `WD-F`, divergence 276 amended): a handle moves the
+    /// window through a drag region, which SDL honours before the press reaches `Window` (`CW-E`).
     public func performWindowDrag() -> Bool {
         windowDragRequests += 1
         return false
+    }
+
+    // MARK: Window chrome (item S1, rulings `CW-B`…`CW-I`)
+
+    /// The last list `Window` published through `setWindowDragRegions(_:)` (capped at 64).
+    public private(set) var windowDragRegions: [Bounds<Pixels>] = []
+
+    /// The limits last set, to find the axes that cannot change (`CW-G`).
+    private var sizeLimits: (minW: Int32, minH: Int32, maxW: Int32, maxH: Int32) = (0, 0, 0, 0)
+
+    /// Records `regions` and publishes them with the borderless window's edges through
+    /// `SDL_SetWindowHitTest` over a locked snapshot (`CW-E`, `CW-H`). Answers `true` — the platform uses
+    /// regions — unless SDL refuses the callback. A window with neither edges nor regions installs nothing.
+    public func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool {
+        windowDragRegions = Array(regions.prefix(ChromeHitSnapshot.maximumRegions))
+        return publishChrome()
+    }
+
+    /// Builds the snapshot from the window's current size, flags and limits and hands it to the bridge, or
+    /// clears the callback when nothing needs it. Main thread; also called on every resize (`CW-M` 2).
+    @discardableResult
+    func publishChrome() -> Bool {
+        let borderless = isBorderless
+        guard borderless || !windowDragRegions.isEmpty else {
+            return mui_window_set_hit_test(rawHandle, nil)
+        }
+        var width: Int32 = 0, height: Int32 = 0
+        mui_window_size(rawHandle, &width, &height)
+        let zoomed = mui_window_is_maximized(rawHandle) || isFullscreen
+        let fixedW = sizeLimits.maxW > 0 && sizeLimits.maxW <= sizeLimits.minW
+        let fixedH = sizeLimits.maxH > 0 && sizeLimits.maxH <= sizeLimits.minH
+        var snapshot = MUIChromeSnapshot()
+        mui_chrome_snapshot_init(&snapshot, Float(width), Float(height), borderless, zoomed, !fixedW, !fixedH)
+        for r in windowDragRegions {
+            _ = mui_chrome_snapshot_add_rect(&snapshot, r.origin.x.value, r.origin.y.value,
+                                             r.size.width.value, r.size.height.value)
+        }
+        return mui_window_set_hit_test(rawHandle, &snapshot)
+    }
+
+    /// Whether the bridge has the hit-test callback installed.
+    var hitTestInstalled: Bool { mui_window_hit_test_installed(rawHandle) }
+
+    /// The callback's answer at `point`, through the same locked copy SDL's callback takes.
+    func chromeHit(at point: Point<Pixels>) -> ChromeHit {
+        SDLChrome.hit(fromBridge: mui_window_chrome_hit(rawHandle, point.x.value, point.y.value))
+    }
+
+    /// Every `performWindowAction(_:)` argument, in order.
+    public private(set) var windowActions: [PlatformWindowAction] = []
+    /// What the window manager answered the last time.
+    private(set) var lastWindowActionAnswer = false
+
+    /// Minimises, or maximises a normal window and restores a maximised one (`SDL_MinimizeWindow`,
+    /// `SDL_MaximizeWindow`, `SDL_RestoreWindow`); answers SDL's result.
+    public func performWindowAction(_ action: PlatformWindowAction) -> Bool {
+        windowActions.append(action)
+        switch action {
+        case .minimize:
+            lastWindowActionAnswer = mui_window_minimize(rawHandle)
+        case .toggleZoom:
+            lastWindowActionAnswer = mui_window_is_maximized(rawHandle)
+                ? mui_window_restore(rawHandle) : mui_window_maximize(rawHandle)
+        }
+        return lastWindowActionAnswer
+    }
+
+    /// `false`: SDL has no native window buttons under the hidden style (`CW-C`) — `Window` draws them.
+    public var hasNativeWindowControls: Bool { false }
+
+    /// The window manager's maximised flag.
+    public var isZoomed: Bool { mui_window_is_maximized(rawHandle) }
+
+    /// A resize, maximise or fullscreen event: refresh the snapshot (`CW-M` 2) and, on leaving fullscreen,
+    /// apply the style asked for meanwhile (`CW-S`).
+    private func chromeWindowChanged() {
+        if styleDeferred && !isFullscreen {
+            styleDeferred = false
+            _ = mui_window_set_bordered(rawHandle, requestedStyle == .standard)
+        }
+        publishChrome()
     }
 
     /// The last pointer position a motion, button or wheel event delivered —
@@ -1075,6 +1182,7 @@ public final class SDLWindow: PlatformWindow {
         }
         switch Int(event.kind) {
         case Int(MUI_EVENT_RESIZE), Int(MUI_EVENT_EXPOSED):
+            if Int(event.kind) == Int(MUI_EVENT_RESIZE) { chromeWindowChanged() }
             updateAccessibilityWindowBounds()
             onResize?(contentSize, scaleFactor)
         case Int(MUI_EVENT_MOUSE_DOWN):
@@ -1242,6 +1350,24 @@ public enum SDLKeys {
         Point(x: Pixels(x * pointsPerScrollLine), y: Pixels(y * pointsPerScrollLine))
     }
 }
+/// The bridge's hit answers as MetalUI's `ChromeHit` (`CW-H`), converted explicitly.
+enum SDLChrome {
+    static func hit(fromBridge raw: Int32) -> ChromeHit {
+        switch raw {
+        case Int32(MUI_CHROME_HIT_DRAGGABLE): return .draggable
+        case Int32(MUI_CHROME_HIT_TOP_LEFT): return .resizeTopLeft
+        case Int32(MUI_CHROME_HIT_TOP): return .resizeTop
+        case Int32(MUI_CHROME_HIT_TOP_RIGHT): return .resizeTopRight
+        case Int32(MUI_CHROME_HIT_RIGHT): return .resizeRight
+        case Int32(MUI_CHROME_HIT_BOTTOM_RIGHT): return .resizeBottomRight
+        case Int32(MUI_CHROME_HIT_BOTTOM): return .resizeBottom
+        case Int32(MUI_CHROME_HIT_BOTTOM_LEFT): return .resizeBottomLeft
+        case Int32(MUI_CHROME_HIT_LEFT): return .resizeLeft
+        default: return .normal
+        }
+    }
+}
+
 #else
 /// Not built: the `SDL` trait is off (ruling PX-H item 4). `MetalUISDL` is
 /// compiled with SDL3 only when a dependent enables the trait on its MetalUI

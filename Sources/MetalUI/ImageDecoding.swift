@@ -20,7 +20,7 @@ import MetalUIScene
 func decodeImageTexture(_ bytes: UnsafeRawBufferPointer) -> ImageTexture? {
     if isPNG(bytes) || isJPEG(bytes) {
         guard let image = decodeImage(bytes) else { return nil }
-        return ImageTexture(width: image.width, height: image.height, straightRGBA: image.straightRGBA)
+        return ImageTexture(width: image.width, height: image.height, straightRGBA: image.samples)
     }
     #if canImport(ImageIO)
     return decodeThroughImageIO(bytes)
@@ -29,8 +29,9 @@ func decodeImageTexture(_ bytes: UnsafeRawBufferPointer) -> ImageTexture? {
     #endif
 }
 
-/// PNG or JPEG bytes → straight-alpha sRGB RGBA8, row-major from the top-left,
-/// or `nil` (`PX-D`: never a trap). Steps, in order (spec §1.1):
+/// PNG or JPEG bytes → straight-alpha sRGB RGBA8 (`channels` 4, the default) or 8-bit grey
+/// (`channels` 1: stb's own conversion, `(77r + 150g + 29b) >> 8` for colour, a grey source
+/// exact, alpha dropped, `IB-B`), row-major from the top-left, or `nil` (`PX-D`: never a trap). Steps, in order (spec §1.1):
 ///
 /// 0. More than `Int32.max` bytes → `nil`: stb's lengths are `int`, and an
 ///    unchecked `Int32(count)` would trap (`PX-O` item 5).
@@ -43,7 +44,9 @@ func decodeImageTexture(_ bytes: UnsafeRawBufferPointer) -> ImageTexture? {
 ///
 /// Colour profiles are ignored: every sample is taken as sRGB (`PX-C` item 4,
 /// divergence 138).
-func decodeImage(_ bytes: UnsafeRawBufferPointer) -> (width: Int, height: Int, straightRGBA: [UInt8])? {
+func decodeImage(_ bytes: UnsafeRawBufferPointer, channels wanted: Int = 4)
+    -> (width: Int, height: Int, samples: [UInt8])? {
+    precondition(wanted == 1 || wanted == 4, "decodeImage: channels must be 1 or 4")
     guard bytes.count <= Int(Int32.max), let base = bytes.baseAddress else { return nil }
     let sixteenBit: Bool
     if isPNG(bytes) {
@@ -58,11 +61,11 @@ func decodeImage(_ bytes: UnsafeRawBufferPointer) -> (width: Int, height: Int, s
     let input = base.assumingMemoryBound(to: UInt8.self)
     var width: Int32 = 0, height: Int32 = 0, channels: Int32 = 0
     if sixteenBit {
-        guard let samples = stbi_load_16_from_memory(input, Int32(bytes.count), &width, &height, &channels, 4)
+        guard let samples = stbi_load_16_from_memory(input, Int32(bytes.count), &width, &height, &channels, Int32(wanted))
         else { return nil }
         defer { stbi_image_free(samples) }
         guard decodedSizeIsAccepted(width: Int(width), height: Int(height)) else { return nil }
-        let count = Int(width) * Int(height) * 4
+        let count = Int(width) * Int(height) * wanted
         let rgba = [UInt8](unsafeUninitializedCapacity: count) { buffer, initialized in
             for i in 0..<count {
                 buffer[i] = UInt8((UInt32(samples[i]) * 255 + 32767) / 65535)
@@ -71,11 +74,11 @@ func decodeImage(_ bytes: UnsafeRawBufferPointer) -> (width: Int, height: Int, s
         }
         return (Int(width), Int(height), rgba)
     }
-    guard let samples = stbi_load_from_memory(input, Int32(bytes.count), &width, &height, &channels, 4)
+    guard let samples = stbi_load_from_memory(input, Int32(bytes.count), &width, &height, &channels, Int32(wanted))
     else { return nil }
     defer { stbi_image_free(samples) }
     guard decodedSizeIsAccepted(width: Int(width), height: Int(height)) else { return nil }
-    let count = Int(width) * Int(height) * 4
+    let count = Int(width) * Int(height) * wanted
     return (Int(width), Int(height), Array(UnsafeBufferPointer(start: samples, count: count)))
 }
 
@@ -91,11 +94,11 @@ func decodedSizeIsAccepted(width: Int, height: Int) -> Bool {
 
 private let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
 
-private func isPNG(_ bytes: UnsafeRawBufferPointer) -> Bool {
+func isPNG(_ bytes: UnsafeRawBufferPointer) -> Bool {
     bytes.count >= 8 && zip(bytes, pngSignature).allSatisfy { $0 == $1 }
 }
 
-private func isJPEG(_ bytes: UnsafeRawBufferPointer) -> Bool {
+func isJPEG(_ bytes: UnsafeRawBufferPointer) -> Bool {
     bytes.count >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF
 }
 

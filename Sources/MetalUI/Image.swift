@@ -20,7 +20,7 @@ import MetalUIScene
 /// `init(_:scale:label:)`, records one, plan task 12 part 2), and snaps under
 /// animation. **Not offered** (spec §9):
 /// SF Symbols (`Image(systemName:)`, out of the task's scope), asset names,
-/// `Image(nsImage:)`, `orientation:`, cap insets and tiling, rendering modes
+/// `Image(nsImage:)`, cap insets and tiling, rendering modes
 /// (guard `anImageHasNoSystemNameOrAssetInitialiser`).
 public struct Image: ProposalElement {
     /// SwiftUI's four interpolation qualities. `.none` samples the nearest
@@ -36,8 +36,8 @@ public struct Image: ProposalElement {
     var isResizable = false
     var interpolationQuality: Interpolation = .low
 
-    /// `scale` is `Frame.scaleFactor`'s type, `Float` (`TE-AQ` item 9); SwiftUI's
-    /// `orientation:` is not offered. **A scale that is not finite and
+    /// `scale` is `Frame.scaleFactor`'s type, `Float` (`TE-AQ` item 9); the
+    /// oriented spelling is ``init(decorative:scale:orientation:)``. **A scale that is not finite and
     /// positive traps** (SA-J: the point size would be infinite or negative at
     /// every proposal).
     public init(decorative bitmap: ImageBitmap, scale: Float) {
@@ -54,6 +54,20 @@ public struct Image: ProposalElement {
     public init(_ bitmap: ImageBitmap, scale: Float, label: Text) {
         self.init(decorative: bitmap, scale: scale)
         accessibilityLabelText = label.string
+    }
+
+    /// SwiftUI's `Image(decorative:scale:orientation:)`: the bitmap drawn turned by `orientation`
+    /// (``ImageBitmap/oriented(_:)``; a rotated one lays out at the swapped size). **`orientation`
+    /// has no default** (`IB-K`): a defaulted parameter would make `Image(decorative:scale:)`
+    /// ambiguous with the unoriented init, which stays and draws stored pixels (divergence 435).
+    public init(decorative bitmap: ImageBitmap, scale: Float, orientation: Orientation) {
+        self.init(decorative: bitmap.oriented(orientation), scale: scale)
+    }
+
+    /// SwiftUI's `Image(_:scale:orientation:label:)`: a labelled image (as
+    /// ``init(_:scale:label:)``) drawn turned by `orientation`; no default for `orientation` (`IB-K`).
+    public init(_ bitmap: ImageBitmap, scale: Float, orientation: Orientation, label: Text) {
+        self.init(bitmap.oriented(orientation), scale: scale, label: label)
     }
 
     /// `label`'s string for a labelled image; `nil` for a decorative one, which

@@ -1,0 +1,171 @@
+diff --color -ru MetalUI/Sources/MetalUI/AnimatedStyle.swift exp/MetalUI/Sources/MetalUI/AnimatedStyle.swift
+--- MetalUI/Sources/MetalUI/AnimatedStyle.swift	2026-10-13 21:03:30
++++ exp/MetalUI/Sources/MetalUI/AnimatedStyle.swift	2026-10-13 21:31:34
+@@ -414,12 +414,14 @@
+     /// interpolate from, the background's own first-sighting rule — and drops
+     /// any of its keys still in flight. The colour is paint's (`resolvedBorder`).
+     func borderWidths(_ prefix: String, _ declared: BorderStyle?, _ previous: BorderStyle?) -> BorderStyle? {
+-        let edges = ["top", "right", "bottom", "left"]
+         guard let declared, let previous else {
+-            for edge in edges { inFlight["\(prefix).\(edge)"] = nil }
++            if !inFlight.isEmpty {
++                for edge in ["top", "right", "bottom", "left"] { inFlight["\(prefix).\(edge)"] = nil }
++            }
+             return declared
+         }
+         let d = declared.widths, p = previous.widths
++        if inFlight.isEmpty && d == p { return declared }
+         func edge(_ name: String, _ value: Pixels, _ old: Pixels) -> Pixels {
+             Pixels(Float(max(0, number("\(prefix).\(name)", Double(value.value), Double(old.value)))))
+         }
+diff --color -ru MetalUI/Sources/MetalUI/LegacyLowering.swift exp/MetalUI/Sources/MetalUI/LegacyLowering.swift
+--- MetalUI/Sources/MetalUI/LegacyLowering.swift	2026-10-13 21:03:30
++++ exp/MetalUI/Sources/MetalUI/LegacyLowering.swift	2026-10-13 21:31:34
+@@ -783,8 +783,11 @@
+         if isPercent(size.width) || isPercent(size.height) { fields.append(entry("size.percent")) }
+ 
+         func hasPercentEdge(_ edges: Edges<Length>) -> Bool {
+-            [edges.top, edges.right, edges.bottom, edges.left]
+-                .contains { if case .percent = $0 { true } else { false } }
++            if case .percent = edges.top { return true }
++            if case .percent = edges.right { return true }
++            if case .percent = edges.bottom { return true }
++            if case .percent = edges.left { return true }
++            return false
+         }
+         if hasPercentEdge(declared.padding) { fields.append(entry("padding.percent")) }
+         // Stage 5 (ruling `LR-CK`): `.absolute` is reported by the CONSUMER, not
+diff --color -ru MetalUI/Sources/MetalUIText/CoreTextTextSystem.swift exp/MetalUI/Sources/MetalUIText/CoreTextTextSystem.swift
+--- MetalUI/Sources/MetalUIText/CoreTextTextSystem.swift	2026-10-13 21:03:30
++++ exp/MetalUI/Sources/MetalUIText/CoreTextTextSystem.swift	2026-10-13 21:27:23
+@@ -61,12 +61,15 @@
+                             options: TextLayoutOptions,
+                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
+         let requested = registered(font)
+-        return cache.shaped(string, font: requested, wrappingAt: width, options: options)
++        let placedList = cache.shaped(string, font: requested, wrappingAt: width, options: options)
+             .placedGlyphs(at: origin, font: requested, scaleFactor: scaleFactor)
+-            .map { placed in
+-                if placedFonts[placed.font.key] == nil { placedFonts[placed.font.key] = placed.font }
+-                return TextGlyph(key: placed.key, pixelX: placed.pixelX, baselineY: placed.baselineY)
+-            }
++        var out: [TextGlyph] = []
++        out.reserveCapacity(placedList.count)
++        for placed in placedList {
++            if placedFonts[placed.font.key] == nil { placedFonts[placed.font.key] = placed.font }
++            out.append(TextGlyph(key: placed.key, pixelX: placed.pixelX, baselineY: placed.baselineY))
++        }
++        return out
+     }
+ 
+     // MARK: Styled text (ruling RT-F)
+diff --color -ru MetalUI/Sources/MetalUIText/PlacedGlyph.swift exp/MetalUI/Sources/MetalUIText/PlacedGlyph.swift
+--- MetalUI/Sources/MetalUIText/PlacedGlyph.swift	2026-10-13 21:03:30
++++ exp/MetalUI/Sources/MetalUIText/PlacedGlyph.swift	2026-10-13 21:35:14
+@@ -38,6 +38,11 @@
+     public let baselineY: Int
+ }
+ 
++final class PlacementRunBox {
++    struct Run { let font: ResolvedFont; let size: Double; let glyphs: [CGGlyph]; let positions: [CGPoint] }
++    var lines: [[Run]]?
++}
++
+ extension ShapedText {
+     /// Every glyph of every line, placed on the device pixel grid.
+     ///
+@@ -92,50 +97,46 @@
+         let scale = Double(scaleFactor)
+         var placed: [PlacedGlyph] = []
+ 
+-        for (index, shapedLine) in lines.enumerated() {
++        let cachedRuns: [[PlacementRunBox.Run]]
++        if let c = placementRuns.lines { cachedRuns = c } else {
++            var all: [[PlacementRunBox.Run]] = []
++            for shapedLine in lines {
++                var out: [PlacementRunBox.Run] = []
++                if let runs = CTLineGetGlyphRuns(shapedLine.line) as? [CTRun] {
++                    for run in runs {
++                        let count = CTRunGetGlyphCount(run)
++                        guard count > 0 else { continue }
++                        let runFont = resolvedRunFont(of: run, fallingBackTo: font)
++                        let size = Double(CTFontGetSize(runFont.ctFont))
++                        var glyphs = [CGGlyph](repeating: 0, count: count)
++                        var positions = [CGPoint](repeating: .zero, count: count)
++                        CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
++                        CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
++                        out.append(.init(font: runFont, size: size, glyphs: glyphs, positions: positions))
++                    }
++                }
++                all.append(out)
++            }
++            placementRuns.lines = all
++            cachedRuns = all
++        }
++        placed.reserveCapacity(cachedRuns.reduce(0) { $0 + $1.reduce(0) { $0 + $1.glyphs.count } })
++        for (index, runs) in cachedRuns.enumerated() {
+             let baseline = origin.y
+                 + Double(index) * font.metrics.lineHeight
+                 + font.metrics.ascent
+             let baselineY = Int((baseline * scale).rounded())
+-
+-            // `CTLineGetGlyphRuns` is documented to return a CFArray of CTRun,
+-            // so the cast cannot fail for a `CTLine`; it is written as a
+-            // conditional cast rather than `as!` because a failed force cast
+-            // here would be a process abort inside paint, and no run at all is
+-            // the same visible outcome as an empty line.
+-            guard let runs = CTLineGetGlyphRuns(shapedLine.line) as? [CTRun] else { continue }
+-
++            let lineX = origin.x + lineOffsets[index]
+             for run in runs {
+-                let count = CTRunGetGlyphCount(run)
+-                guard count > 0 else { continue }
+-
+-                let runFont = resolvedRunFont(of: run, fallingBackTo: font)
+-                let size = Double(CTFontGetSize(runFont.ctFont))
+-
+-                var glyphs = [CGGlyph](repeating: 0, count: count)
+-                var positions = [CGPoint](repeating: .zero, count: count)
+-                // A zero-length CFRange means "the whole run" for both calls.
+-                CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
+-                CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
+-
+-                let lineX = origin.x + lineOffsets[index]
+-                for i in 0..<count {
+-                    let deviceX = (lineX + Double(positions[i].x)) * scale
++                for i in 0..<run.glyphs.count {
++                    let deviceX = (lineX + Double(run.positions[i].x)) * scale
+                     let placement = GlyphRaster.subpixelPlacement(forDeviceX: deviceX)
+-                    // CoreText's run positions are y-**up** from the baseline
+-                    // (a superscript sits at a positive y), and every device
+-                    // coordinate in this framework is y-down, so this subtracts.
+-                    // It is zero for every run M2 can produce — one font, one
+-                    // size, no attributed runs — and is written out rather than
+-                    // dropped because a dropped term is invisible until the
+-                    // first attributed string, which is M6.
+-                    let y = baselineY - Int((Double(positions[i].y) * scale).rounded())
+-
++                    let y = baselineY - Int((Double(run.positions[i].y) * scale).rounded())
+                     placed.append(PlacedGlyph(
+-                        key: GlyphKey(font: runFont.key, glyph: glyphs[i], size: size,
++                        key: GlyphKey(font: run.font.key, glyph: run.glyphs[i], size: run.size,
+                                       subpixelVariant: placement.variant,
+                                       scaleFactor: scaleFactor),
+-                        font: runFont,
++                        font: run.font,
+                         pixelX: placement.pixelX,
+                         baselineY: y))
+                 }
+diff --color -ru MetalUI/Sources/MetalUIText/ShapedText.swift exp/MetalUI/Sources/MetalUIText/ShapedText.swift
+--- MetalUI/Sources/MetalUIText/ShapedText.swift	2026-10-13 21:03:30
++++ exp/MetalUI/Sources/MetalUIText/ShapedText.swift	2026-10-13 21:35:14
+@@ -84,6 +84,9 @@
+     /// exactly as it always did.
+     public let lineOffsets: [Double]
+ 
++    /// EXPERIMENT: per-run CoreText placement data, read once.
++    let placementRuns = PlacementRunBox()
++
+     init(lines: [ShapedLine], widestLine: Double, totalHeight: Double, lineOffsets: [Double]? = nil) {
+         self.lines = lines
+         self.widestLine = widestLine

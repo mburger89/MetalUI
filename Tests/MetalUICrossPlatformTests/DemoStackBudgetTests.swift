@@ -43,6 +43,15 @@ private func buildEveryProductionTree() {
     buildTheSelectionDemo()   // text selection (SL-N)
     buildTheInvalidationDemo()   // content memo (IV-B, spec §9)
     buildTheRetainedSubtreeDemo()   // retained subtrees (SB-, spec §13)
+    buildTheChromeDemo()   // window chrome (CW-P, spec "Demo")
+}
+
+/// The window chrome demo's tree and its bar and body (components built at layout), in its own frame.
+@MainActor @inline(never)
+private func buildTheChromeDemo() {
+    _ = chromeDemoContent()
+    _ = ChromeDemoBar().content
+    _ = ChromeDemoBody().content
 }
 
 /// The retained-subtree demo's tree and its canvas and strip (components built at layout), in its own frame.

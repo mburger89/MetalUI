@@ -336,6 +336,57 @@ bool mui_test_complete_dialog(uint32_t window_id, int32_t token, const char *joi
 bool mui_window_set_size_limits(void *window, int32_t min_w, int32_t min_h, int32_t max_w, int32_t max_h);
 // SDL_GetWindowMinimumSize / SDL_GetWindowMaximumSize, read back for tests.
 void mui_window_size_limits(void *window, int32_t *min_w, int32_t *min_h, int32_t *max_w, int32_t *max_h);
+// ---- Window chrome (item S1, rulings CW-B, CW-E, CW-G, CW-H, CW-O) ----------
+// SDL_SetWindowBordered; false for a fullscreen window (SDL cannot change its border) and where the
+// driver leaves the flag unchanged (the offscreen driver).
+bool mui_window_set_bordered(void *window, bool bordered);
+// Whether SDL_WINDOW_BORDERLESS is set (SDL_GetWindowFlags) — read back for tests.
+bool mui_window_is_borderless(void *window);
+// SDL_SetWindowSize, in points — for tests.
+bool mui_window_set_size(void *window, int32_t width, int32_t height);
+// Minimise, maximise, restore; the flags read back. SDL's answers.
+bool mui_window_minimize(void *window);
+bool mui_window_maximize(void *window);
+bool mui_window_restore(void *window);
+bool mui_window_is_maximized(void *window);
+bool mui_window_is_minimized(void *window);
+bool mui_window_is_fullscreen(void *window);
+
+// What the hit-test callback reads: an immutable value copied under a lock. The Swift
+// `ChromeHitSnapshot.hit(at:)` is its specification; `mui_chrome_hit` is checked against it.
+// Rects are in window points. Filled only through the two functions below.
+enum { MUI_CHROME_MAX_RECTS = 64 };
+typedef struct { float x, y, w, h; } MUIChromeRect;
+typedef struct {
+    float width, height;
+    int32_t count;
+    bool borderless, zoomed_or_fullscreen, resizable_h, resizable_v;
+    MUIChromeRect rects[MUI_CHROME_MAX_RECTS];
+} MUIChromeSnapshot;
+// The answers, as Int32 (never an SDL enum's rawValue in Swift).
+enum {
+    MUI_CHROME_HIT_NORMAL = 0, MUI_CHROME_HIT_DRAGGABLE,
+    MUI_CHROME_HIT_TOP_LEFT, MUI_CHROME_HIT_TOP, MUI_CHROME_HIT_TOP_RIGHT, MUI_CHROME_HIT_RIGHT,
+    MUI_CHROME_HIT_BOTTOM_RIGHT, MUI_CHROME_HIT_BOTTOM, MUI_CHROME_HIT_BOTTOM_LEFT, MUI_CHROME_HIT_LEFT
+};
+void mui_chrome_snapshot_init(MUIChromeSnapshot *snapshot, float width, float height, bool borderless,
+                              bool zoomed_or_fullscreen, bool resizable_h, bool resizable_v);
+// false (and nothing added) past MUI_CHROME_MAX_RECTS.
+bool mui_chrome_snapshot_add_rect(MUIChromeSnapshot *snapshot, float x, float y, float w, float h);
+int32_t mui_chrome_hit(const MUIChromeSnapshot *snapshot, float x, float y);
+float mui_chrome_resize_border(void);
+int32_t mui_chrome_max_rects(void);
+// Publishes a copy under the window's lock and installs SDL_SetWindowHitTest on the first
+// non-NULL call; NULL clears the callback (the state and its lock live until the window is
+// destroyed). Main thread only (SDL's rule). false when SDL refuses.
+bool mui_window_set_hit_test(void *window, const MUIChromeSnapshot *snapshot);
+bool mui_window_hit_test_installed(void *window);
+// The callback's own body: lock, copy, unlock, evaluate — callable from any thread.
+int32_t mui_window_chrome_hit(void *window, float x, float y);
+// Publishes, callback copies, and lock/unlock pairs taken so far (CW-O); 0 for a window never
+// published to.
+void mui_window_chrome_counters(void *window, uint32_t *publishes, uint32_t *copies, uint32_t *lock_pairs);
+
 // SDL_GetCurrentVideoDriver(), "" before video is initialised.
 const char *mui_current_video_driver(void);
 
