@@ -57,6 +57,7 @@ private let frameChannels: [String: Channel] = [
     "toolbarRecords": .buildOnly, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,
     "menuBarTitles": .frameLocal, "menuBarOpenIndex": .frameLocal, "menuBarOpen": .frameLocal,
     "drewMenuBar": .frameLocal, "menuBarTitleFrames": .frameLocal, "openPopovers": .prepaintOnly,
+    "windowControls": .frameLocal, "drewWindowControls": .frameLocal,   // the drawn window buttons (CW-C), the strips' class
     "tooltip": .frameLocal, "menuPresenter": .frameLocal, "presentationAnchors": .prepaintOnly,
     "previousPresentationAnchors": .frameLocal, "presentationSpaces": .prepaintOnly,
     "previousPresentationSpaces": .frameLocal, "wantsAccessibilityRetry": .prepaintOnly,

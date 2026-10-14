@@ -272,6 +272,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | a `PlatformWindow` conformer outside the package (app shell) | implement the seven new requirements — `var onCloseRequest: (() -> Bool)?` (ask it before a user's close; `nil` or `true` closes), `func close()` (close without asking, then fire `onClose` exactly once), `func setDocumentEdited(_: Bool) {}`, `func setRepresentedFilePath(_: String?) {}`, `func setTitleBarStyle(_: PlatformTitleBarStyle) -> Bool { false }`, `var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }` and `func performTitleBarPress(clickCount: Int) -> Bool { false }` — the empty bodies and `false` answers are honest where the platform has no edited marker, represented file, hidden title bar or title-bar drag; no defaults | `AS-H`, `AS-J` |
 | a `Platform` conformer outside the package (app shell) | implement the four new requirements — `var onTerminateRequest: (() -> CloseRequestReply)?` (ask it before ending the application on the platform's own quit; `nil` answers `.now`), `func replyToTerminateRequest(_: Bool)` (end on `true` if a `.later` is pending, else nothing), `func terminate()` (end, asking nobody) and `var onOpenURLs: (([String]) -> Void)?` (call it with the absolute URL strings the system asks to open, parking them until it is set) — no defaults | `AS-H` |
 | a `PlatformWindow` conformer outside the package (window drag) | implement `func performWindowDrag() -> Bool { false }` — honest where the platform cannot move the window from a press (SDL: its system title bar drags itself); AppKit answers `true` only while dispatching the mouse-dragged of a held press; no default | `WD-E` |
+| a `PlatformWindow` conformer outside the package (window chrome, SDL custom chrome) | implement the four new requirements, AppKit's answers when the platform draws no chrome of its own — `func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }` (`true` only if the platform makes a press inside the rects move the window before the app sees it, the rects being disjoint, in window points, at most 64), `func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }` (`.minimize`, `.toggleZoom`), `var hasNativeWindowControls: Bool { true }` (`false` makes `Window` draw close, minimise and zoom buttons under `.hiddenTitleBar`) and `var isZoomed: Bool { false }`; no default for any. A conformer that applies the hidden style (`setTitleBarStyle` answering `true`) on a platform with no window buttons also answers `titleBarInsets` with the band and the cluster's edge. `HeadlessPlatform.Options` gains `usesWindowDragRegions`, `hasNativeWindowControls`, `isZoomed`, `hiddenTitleBarInsets` and the preset `.sdlChrome` | `CW-F`, `CW-D` |
 | an exhaustive `switch` over `AccessibilityRole` (platform services) | add `.popUpButton` and `.alert` arms (or `default:`) | `SV-S` |
 | an exhaustive `switch` over `AccessibilityRole` (controls and looks) | add `.progressIndicator`, `.busyIndicator` and `.colorWell` arms (or `default:`); a bridge outside the package maps them (AppKit `.progressIndicator`/`.colorWell`, AccessKit `PROGRESS_INDICATOR` — a busy one without a numeric value — and `COLOR_WELL`) | `LK-G` |
 | an exhaustive `switch` over `LayoutModifier` (controls and looks) | add a `.blur(radius:)` arm (or `default:`) | `LK-R` item 3 |
@@ -445,6 +446,20 @@ A subtree that scrolls, edits text, animates, shows a popover or alert, draws a 
 environment key keeps running as before. `METALUI_VERIFY_RETAINED=1` runs the fresh prepaint and paint beside every
 replay and traps on a difference (`SB-W`). A test that must see every frame's prepaint turns replay off with the
 package switch `Window.testingRetainedSubtrees = false` (not public API) or leaves `.equatable()` off.
+
+### Window chrome on SDL (`CW-`, item S1, record §112)
+
+Additive API, class M (SwiftUI has no window-control API, probe `swiftui-window-chrome.swift`):
+`Window.drawsWindowControls` (default `true`), `Window.minimize()`, `Window.toggleZoom()`, `Window.isZoomed`,
+`PlatformWindowAction`, `ChromeHitSnapshot`/`ChromeHit`, `HeadlessPlatform.Options.sdlChrome` and its read-backs
+(`TestWindow.windowDragRegions`, `.windowActions`). **Conformers change:** four defaultless `PlatformWindow`
+requirements (the table above). **Behaviour, compiles and answers differently:** on SDL (once the backend lands the
+borderless window) `.hiddenTitleBar` makes the window borderless, `titleBarInsets` reads the band, 32, and the
+drawn buttons' cluster (`right` 138; `left` 70 under macOS) where it read zero, and a window draws a three-button
+cluster over the top corner unless `drawsWindowControls = false`: an app that laid its own controls there pads by
+the insets and turns the property off. Pointer events inside a drag region are not delivered on SDL (divergence
+425), so a hover or a pointer style under the empty band is lost; a control, a tap, a field or a draggable is carved
+out and keeps its events. AppKit is unchanged.
 
 ### Input-method driver (`IM-`, record §102)
 
