@@ -98,7 +98,7 @@ private func pngOrientation(_ bytes: [UInt8]) -> Image.Orientation? {
     // Two APP1s: the first wins.
     #expect(jpegOrientation(jpegWith([six, three])) == .right)
     // After SOS: ignored.
-    let afterScan = [0xFF, 0xD8] + jpegSegment(0xDA, [1, 1, 0, 0, 0x3F, 0]) + [0x12, 0x34] + six + [0xFF, 0xD9]
+    let afterScan = [0xFF, 0xD8] + jpegSegment(0xDA, [1, 1, 0, 0, 0x3F, 0]) + six + [0xFF, 0xD9]
     #expect(jpegOrientation(afterScan) == nil)
     // A non-Exif APP1 (XMP) is skipped.
     let xmp = jpegSegment(0xE1, Array("http://ns.adobe.com/xap/1.0/\0<x/>".utf8))
