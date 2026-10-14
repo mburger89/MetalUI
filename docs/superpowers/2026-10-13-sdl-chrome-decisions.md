@@ -23,7 +23,7 @@ Evidence:
   regions plus drawn controls on Linux/Windows). SwiftUI has no analogue, so SwiftUI is not the authority
   for anything below beyond `WindowDragGesture`'s spelling (`WD-B`) and `.hiddenTitleBar`.
 
-Next unused: `CW-R`.
+Next unused: `CW-S`.
 
 ## CW-A — Scope: what is built, what is deferred
 
@@ -302,4 +302,74 @@ answers `false`, `performWindowAction` records and answers `false`, `hasNativeWi
 `false`; the SDL demo's `main.swift` wiring of `METALUI_CHROME_DEMO` is lane 2's.
 **Cost if wrong.** (4): if the strip must rank above a presentation's scrim it becomes a `Deferred` (the strip's
 element is unchanged). (7): a handle under a gesture canvas is not draggable on SDL; `CW5`/`CW3` measure it.
+
+## CW-R — Lane 1 verification: how the pins were mutated, and what each reddened
+
+**Ruling.** Lane 1 ended at `3758 tests in 3 suites` passed (3717 + 41: 13 portable snapshot tests, 26 window
+chrome tests, two typecheck guards; **236 guards**), `FR-J no-argument frame: succeeded=true`, 0 `error:`, the only
+`warning:` SwiftPM's deprecation notice, `swift build --build-tests` (default build system) 0 `warning:`; the fourteen
+offscreen images 0 px against `fb9a7e42` (`compare.sh`, controls at their recorded values: light vs dark 1048576,
+default vs modal 1031003, default vs animation 454895, `f0` vs `f3` 0). `Backends/SDL` on macOS 30 + 125 and in `swift:6.4-noble`
+(`metalui-sdl-build-sdl-chrome`) 30 + 122 passed; the root package in the image (`metalui-root-build-sdl-chrome`) 0
+`warning:`, `MetalUITestingTests` 252 and the portable suites passed. **Mutation method, a deviation from the item's letter, stated:** the
+unfiltered suite takes eight minutes and a rebuild four, so the mutations were applied as **one instrumented build**
+(committed tree first; a temporary `cwMutation` read from `CW_MUT`, each site `cwMutation == k ? mutated : original`, so
+the mutated code is real compiled code), and each was run against the **forty-one new tests** by filter — the pins
+the mutations name — not the full suite; the instrumentation was removed with `git checkout -- Sources` (restored from
+the commit) and `git status --short` read clean, then the full unfiltered suite ran on the clean tree. What this does
+not show is collateral reddening of a pre-existing test by a mutation; the reviewer re-takes any of them with the full
+suite. Two guards (`CW-1`, `CW-2`) were mutated by an edit and rebuild: a protocol-extension default for
+`performWindowAction` reddened `aPlatformWindowWithoutEachChromeRequirementDoesNotCompile` on the `performWindowAction`
+arm only (both expectations); `toggleZoom` made `internal` reddened `theChromeVerbsAreReachableFromAPlainImport`
+(`'toggleZoom' is inaccessible due to 'internal' protection level`). **Two pins were weak and were fixed** (commit
+`test(CW): the standard-style insets pin sets…`): mutation 22 (the `titleBarStyleApplied` guard) reddened nothing
+because the headless platform's insets are zero under the standard style anyway, and mutation 34 (regions scaled)
+reddened nothing because the helper's `scaleFactor:` never reached `options` — both reddened after the fix.
+
+| # | mutation (site: `ChromeHit.swift` 1–12, `Frame` 17, `Window` chrome 21–48) | reddened |
+|---|---|---|
+| 1 | `hit` skips the drag-rect loop | aDragRectIsHalfOpenOnItsMaxEdges, aPointInADragRectIsDraggable, anUnborderedWindowHasNoEdges, cornersBeatEdgesBeatDragRects, noEdgeOnAnAxisWithEqualLimits, noEdgesWhenZoomedOrFullscreen |
+| 2 | drag rects closed on the max edge (`<=`) | aDragRectIsHalfOpenOnItsMaxEdges |
+| 3 | `carve` ignores the blocker's y range | aButtonInTheBandIsCarvedOut, aHandleWithAButtonInsideIsRegionsAroundIt, aPressInProgressHoldsTheRegionsStill, aRectCarvedByABlockerLeavesTheRemainderOnly, aSpanningBlockerSplitsAndAnOutsideBlockerChangesNothing, aTextFieldInTheBandIsCarvedOut, aWindowDragHandleOutsideTheBandIsARegion, overlappingCandidatesAreMadeDisjoint |
+| 4 | `carve` does not subtract accepted rects | overlappingCandidatesAreMadeDisjoint |
+| 5 | drag rects tested before the edges | cornersBeatEdgesBeatDragRects, noEdgeOnAnAxisWithEqualLimits, theBorderIsSixPointsAndTheCornerTwelve |
+| 6 | border 6 to 7 | theBorderIsSixPointsAndTheCornerTwelve |
+| 7 | horizontal axis ignored (`resizableHorizontally`) | noEdgeOnAnAxisWithEqualLimits |
+| 8 | `zoomedOrFullscreen` ignored | noEdgesWhenZoomedOrFullscreen |
+| 9 | `borderless` ignored | anUnborderedWindowHasNoEdges |
+| 10 | `maximumRegions` 64 to 65 | aListBeyondSixtyFourRectsIsCappedAndCounted |
+| 11 | `carve` skips the reading-order sort | theResultIsInReadingOrderAndDeduplicated |
+| 12 | outside-window guard dropped | aPointOutsideTheWindowIsNormal |
+| 17 | strip prepainted before the root | theStripIsLastInTabOrder |
+| 21 | `effectiveTitleBarInsets` ignores `drawsWindowControls` | aHiddenStyleOnAnSDLLikePlatformStampsBandAndClusterInsets, drawsWindowControlsFalseDrawsNoStripAndZeroesTheCluster |
+| 22 | `effectiveTitleBarInsets` drops the `titleBarStyleApplied` guard | aStandardStyleWindowReadsZeroInsets |
+| 23 | band candidate dropped | aButtonInTheBandIsCarvedOut, aHandleWithAButtonInsideIsRegionsAroundIt, aHoverRegionInTheBandIsNotABlocker, aPressInProgressHoldsTheRegionsStill, aTapGestureInTheBandIsCarvedOut, aTextFieldInTheBandIsCarvedOut, aWindowDragHandleOutsideTheBandIsARegion, anOpenAlertPublishesNoRegions, regionsAreInWindowPointsOnA2xWindow, regionsArePublishedOnlyOnChange, theBandIsOneRegionWhenNothingIsInIt, theStripDoesNotEmptyTheRegions |
+| 24 | `onClick` hitboxes not blockers | aButtonInTheBandIsCarvedOut, aHandleWithAButtonInsideIsRegionsAroundIt, aPressInProgressHoldsTheRegionsStill, regionsArePublishedOnlyOnChange, theStripDoesNotEmptyTheRegions |
+| 25 | gesture hitboxes not blockers | aTapGestureInTheBandIsCarvedOut, regionsAreInWindowPointsOnA2xWindow |
+| 26 | text-input hitboxes not blockers | aTextFieldInTheBandIsCarvedOut |
+| 27 | hover regions are blockers | aHoverRegionInTheBandIsNotABlocker |
+| 28 | handles ignored | aHandleWithAButtonInsideIsRegionsAroundIt, aWindowDragHandleOutsideTheBandIsARegion |
+| 29 | nothing is a handle | aHandleWithAButtonInsideIsRegionsAroundIt, aWindowDragHandleOutsideTheBandIsARegion |
+| 30 | open presentations ignored | anOpenAlertPublishesNoRegions |
+| 31 | the strip counts as a presentation | aPressInProgressHoldsTheRegionsStill, fullscreenPublishesNoRegionsAndNoStrip, theStripDoesNotEmptyTheRegions |
+| 32 | published every frame | regionsArePublishedOnlyOnChange |
+| 33 | a declining platform computed for anyway | aPlatformDecliningRegionsIsNeverAskedAgain |
+| 34 | regions multiplied by the scale factor | regionsAreInWindowPointsOnA2xWindow |
+| 35 | close button calls `close()` | theCloseButtonGoesThroughTheCloseVeto |
+| 36 | minimise and zoom swapped | theMinimiseAndZoomButtonsSendTheirActions, zoomShowsRestoreAfterIsZoomed |
+| 37 | zoom label constant | zoomShowsRestoreAfterIsZoomed |
+| 38 | strip drawn with no band (fullscreen) | fullscreenPublishesNoRegionsAndNoStrip |
+| 40 | preset `hasNativeWindowControls: true` | aHiddenStyleOnAnSDLLikePlatformStampsBandAndClusterInsets, aPressInProgressHoldsTheRegionsStill, drawsWindowControlsFalseDrawsNoStripAndZeroesTheCluster, regionsArePublishedOnlyOnChange, theCloseButtonGoesThroughTheCloseVeto, theMinimiseAndZoomButtonsSendTheirActions, theSDLChromePresetAnswersAsSDLDoes, theStripDoesNotEmptyTheRegions, theStripDrawsThreeButtonsWhereThePlatformHasNone, theStripIsLastInTabOrder, zoomShowsRestoreAfterIsZoomed |
+| 41 | regions computed with no band and no handle | aStandardStyleWindowIsUntouched |
+| 42 | strip drawn on a native-controls platform | aNativeControlsPlatformDrawsNoStrip |
+| 43 | `minimize()` does nothing | theMinimiseAndZoomButtonsSendTheirActions, theWindowVerbsReachThePlatform |
+| 44 | button width 46 to 45 | aPressInProgressHoldsTheRegionsStill, theStripDoesNotEmptyTheRegions, theStripDrawsThreeButtonsWhereThePlatformHasNone |
+| 45 | `Window.isZoomed` constant `false` | zoomShowsRestoreAfterIsZoomed |
+| 46 | headless `.toggleZoom` does not flip `isZoomed` | zoomShowsRestoreAfterIsZoomed |
+| 48 | the `active == nil` hold dropped | aPressInProgressHoldsTheRegionsStill |
+
+Not mutated, with the reason: the C bridge's `mui_chrome_hit` (lane 2); divergence 425's platform swallow (a human check,
+`CW5`); the AppKit answers (four one-line members; `aPlatformWindowWithoutEachAppShellRequirementDoesNotCompile` and
+the root suite compile them). Not run: Windows UTM / CI; a real window, drag or resize (group `CW`).
+**Cost if wrong.** A collateral reddening the filtered runs could not see is found by the merge's full suite.
 
