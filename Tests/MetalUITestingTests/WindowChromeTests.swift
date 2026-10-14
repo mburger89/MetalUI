@@ -19,8 +19,10 @@ private let windowSize = sz(400, 300)
     controls: Bool = true, scale: Float = 1, _ content: @escaping @MainActor () -> Root
 ) throws -> TestWindow {
     let app = try TestApp(textSystem: harnessTextSystem)
+    var chosen = options
+    chosen.scaleFactor = scale
     let window = try app.openWindow(size: windowSize, windowStyle: style, scaleFactor: scale,
-                                    options: options, content: content)
+                                    options: chosen, content: content)
     if !controls {
         window.window.drawsWindowControls = false
         window.tick()
@@ -88,10 +90,15 @@ extension InsetsLog {
     #expect(without.right == Pixels(0), "the cluster is the app's now")
 }
 
-/// **2.2** (`CW-B`, `CW-J`). A standard-style window reads zero insets, whatever the platform could answer.
+/// **2.2** (`CW-B`, `CW-J`). A standard-style window reads zero insets, whatever the platform could answer:
+/// here the platform's own insets are set to a band and a cluster by hand. Mutation: drop the
+/// `titleBarStyleApplied` guard of `effectiveTitleBarInsets`.
 @Test @MainActor func aStandardStyleWindowReadsZeroInsets() throws {
     let log = InsetsLog()
-    _ = try chromeWindow(style: .automatic) { VStack(spacing: Pixels(0)) { InsetsReader(log: log) } }
+    let window = try chromeWindow(style: .automatic) { VStack(spacing: Pixels(0)) { InsetsReader(log: log) } }
+    window.platformWindow.titleBarInsets = Edges(top: Pixels(32), right: Pixels(138), bottom: Pixels(0), left: Pixels(0))
+    window.resize(to: windowSize)
+    window.tick()
     let insets = try #require(log.last)
     #expect(insets.top == Pixels(0) && insets.right == Pixels(0))
 }
