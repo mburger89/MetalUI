@@ -21,6 +21,8 @@ struct StyledShapedText {
     /// Each line's ascent (RT-G item 1), so its baseline is placed as the
     /// plain path places one: `(origin.y + top) + ascent`.
     let ascents: [Double]
+    /// What placement has computed for this shape (`HP-D`).
+    let placement = PlacementBox()
 }
 
 /// The attribute that marks an ellipsis token's glyphs inside a truncated
@@ -285,6 +287,10 @@ enum StyledShaper {
                        origin: (x: Double, y: Double), scaleFactor: Float)
         -> (glyphs: [(PlacedGlyph, Int)], segments: [TextRunSegment]) {
         precondition(scaleFactor > 0, "a scale factor must be positive")
+        let placementBox = shaped.placement
+        let memoKey = PlacementBox.StyledKey(x: origin.x.bitPattern, y: origin.y.bitPattern, scale: scaleFactor.bitPattern)
+        if placementBox.styledKey == memoKey, let memo = placementBox.styledPlaced { return memo }
+        placementBox.placementsComputed += 1
         let scale = Double(scaleFactor)
         let runOfUnit = text.runOfUnit
         let styles = text.runs.map(\.style)
@@ -324,6 +330,10 @@ enum StyledShaper {
             segments += StyledTextLines.segments(pens, line: index, originX: lineX,
                                                  baseline: { origin.y + box.baseline - styles[$0].baselineOffset })
         }
-        return (placed, segments)
+        let result = (glyphs: placed, segments: segments)
+        shaped.placement.styledKey = memoKey
+        shaped.placement.styledPlaced = result
+        shaped.placement.layout = nil
+        return result
     }
 }

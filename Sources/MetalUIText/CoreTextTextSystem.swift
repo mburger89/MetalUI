@@ -61,12 +61,17 @@ public final class CoreTextTextSystem: TextSystem {
                             options: TextLayoutOptions,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let requested = registered(font)
-        return cache.shaped(string, font: requested, wrappingAt: width, options: options)
+        let placed = cache.shaped(string, font: requested, wrappingAt: width, options: options)
             .placedGlyphs(at: origin, font: requested, scaleFactor: scaleFactor)
-            .map { placed in
-                if placedFonts[placed.font.key] == nil { placedFonts[placed.font.key] = placed.font }
-                return TextGlyph(key: placed.key, pixelX: placed.pixelX, baselineY: placed.baselineY)
-            }
+        // Plain loops, not closures passed to `map`: a closure in `@MainActor` code costs a dynamic
+        // isolation check per call (`HP-F`, profile 2026-10-13).
+        var glyphs: [TextGlyph] = []
+        glyphs.reserveCapacity(placed.count)
+        for glyph in placed {
+            if placedFonts[glyph.font.key] == nil { placedFonts[glyph.font.key] = glyph.font }
+            glyphs.append(TextGlyph(key: glyph.key, pixelX: glyph.pixelX, baselineY: glyph.baselineY))
+        }
+        return glyphs
     }
 
     // MARK: Styled text (ruling RT-F)
@@ -75,23 +80,42 @@ public final class CoreTextTextSystem: TextSystem {
     /// (rulings RT-F, RT-G, RT-H, RT-I), cached by the whole value.
     public func measure(_ text: StyledText, wrappingAt width: Double?,
                         options: TextLayoutOptions) -> StyledTextMeasurement {
-        cache.styled(text, fonts: text.runs.map { registered($0.style.font) }, wrappingAt: width,
-                     options: options).measurement
+        cache.styled(text, fonts: registeredFonts(of: text), wrappingAt: width, options: options).measurement
     }
 
     /// Lays `text` out as ``measure(_:wrappingAt:options:)`` does and places
-    /// every glyph, with its run, and every run segment.
+    /// every glyph, with its run, and every run segment. The placement and the
+    /// finished layout are remembered by the shape for one origin and scale
+    /// (`HP-D`).
     public func layOut(_ text: StyledText, wrappingAt width: Double?, options: TextLayoutOptions,
                        origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout {
-        let fonts = text.runs.map { registered($0.style.font) }
+        let fonts = registeredFonts(of: text)
         let shaped = cache.styled(text, fonts: fonts, wrappingAt: width, options: options)
         let placed = StyledShaper.placed(shaped, text: text, fonts: fonts, origin: origin, scaleFactor: scaleFactor)
-        let glyphs = placed.glyphs.map { glyph, run in
+        let box = shaped.placement
+        // `layout` is nil whenever `placed` was just recomputed; `layoutOwner` is the system whose
+        // `placedFonts` the glyphs' fonts were registered in.
+        if let layout = box.layout, box.layoutOwner === self { return layout }
+        box.layoutsBuilt += 1
+        var glyphs: [StyledGlyph] = []
+        glyphs.reserveCapacity(placed.glyphs.count)
+        for (glyph, run) in placed.glyphs {
             if placedFonts[glyph.font.key] == nil { placedFonts[glyph.font.key] = glyph.font }
-            return StyledGlyph(glyph: TextGlyph(key: glyph.key, pixelX: glyph.pixelX, baselineY: glyph.baselineY),
-                               run: run)
+            glyphs.append(StyledGlyph(glyph: TextGlyph(key: glyph.key, pixelX: glyph.pixelX, baselineY: glyph.baselineY),
+                                      run: run))
         }
-        return StyledTextLayout(measurement: shaped.measurement, glyphs: glyphs, segments: placed.segments)
+        let layout = StyledTextLayout(measurement: shaped.measurement, glyphs: glyphs, segments: placed.segments)
+        box.layout = layout
+        box.layoutOwner = self
+        return layout
+    }
+
+    /// The registered font of each run of `text`, by a plain loop (`HP-F`).
+    private func registeredFonts(of text: StyledText) -> [ResolvedFont] {
+        var fonts: [ResolvedFont] = []
+        fonts.reserveCapacity(text.runs.count)
+        for run in text.runs { fonts.append(registered(run.style.font)) }
+        return fonts
     }
 
     /// `font`'s underline position and thickness, and half its x-height
