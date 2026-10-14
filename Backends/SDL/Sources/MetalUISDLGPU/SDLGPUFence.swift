@@ -17,10 +17,6 @@ public final class SDLGPUFence: @unchecked Sendable {
     /// Every resource the batch touched, kept alive until the fence signals.
     private var retained: [AnyObject]
 
-    /// Test hook: the waiter thread blocks on this before it waits on the GPU,
-    /// so a test can hold a fence unsignalled across a cancel or a main-actor
-    /// advance. `nil` in production.
-    nonisolated(unsafe) static var waiterGate: DispatchSemaphore?
     /// Test hook: fences released before their signal (always 0).
     nonisolated(unsafe) static var unsignalledReleaseCount = 0
     /// Test hook: blocking waits made on a thread other than the device's

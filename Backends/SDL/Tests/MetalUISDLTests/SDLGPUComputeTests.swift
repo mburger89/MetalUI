@@ -28,8 +28,8 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16,
     let buffer = try #require(device.makeBuffer(size: bufferBytes, usage: [.computeStorageRead, .computeStorageWrite]))
     let zeros = [UInt8](repeating: 0, count: bufferBytes)
     try #require(await device.upload(zeros, to: buffer))
-    SDLGPUFence.waiterGate = gate
-    defer { SDLGPUFence.waiterGate = nil }
+    device.waiterGate = gate
+    defer { device.waiterGate = nil }
     let fence = try await device.submitBatch { commandBuffer in
         guard let pass = commandBuffer.beginComputePass(readWrite: [buffer]) else { return }
         pass.bind(pipeline)
@@ -68,7 +68,8 @@ private func ownedDevice() throws -> SDLGPUDevice {
             let words = GPUTestSupport.words(from: bytes)
             #expect(Int(words[0]) == expectedAppended.count, "round \(round): counter \(words[0])")
             let payload = words[1...].prefix(Int(words[0])).sorted()
-            #expect(payload == expectedAppended.map(UInt32.init), "round \(round)")
+            let samePayload = payload == expectedAppended.map(UInt32.init)
+            #expect(samePayload, "round \(round): \(payload.count) payload words differ from the CPU list")
         }
     }
 
@@ -146,18 +147,21 @@ private func ownedDevice() throws -> SDLGPUDevice {
     }
 
     /// **C10.** A borrowed device is not destroyed with its wrapper; an owned
-    /// one is, once. Mutation: `deinit` destroys regardless of ownership (the
-    /// borrowed wrapper's drop moves the count).
+    /// one is, once. The count is of this device's own handle: a fence of an
+    /// earlier test may still be releasing its device on the waiter thread, so a
+    /// process-wide count would race. Mutation: `deinit` destroys regardless of
+    /// ownership (the borrowed wrapper's drop destroys the owner's device).
     @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
     func aBorrowedDeviceIsNotDestroyed() throws {
-        let before = SDLGPUDevice.destroyedCount
         var owner: SDLGPUDevice? = try ownedDevice()
+        let handle = try #require(owner).raw
+        let before = SDLGPUDevice.destroyCount(of: handle)
         var borrowed: SDLGPUDevice? = SDLGPUDevice(borrowingRaw: try #require(owner).raw)
         #expect(borrowed?.makeBuffer(size: 16, usage: [.computeStorageRead]) != nil)
         borrowed = nil
-        #expect(SDLGPUDevice.destroyedCount == before, "dropping a borrowed wrapper destroyed the device")
+        #expect(SDLGPUDevice.destroyCount(of: handle) == before, "dropping a borrowed wrapper destroyed the device")
         #expect(owner?.makeBuffer(size: 16, usage: [.computeStorageRead]) != nil, "the device still works")
         owner = nil
-        #expect(SDLGPUDevice.destroyedCount == before + 1)
+        #expect(SDLGPUDevice.destroyCount(of: handle) == before + 1)
     }
 }

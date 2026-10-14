@@ -30,12 +30,18 @@ public final class SDLGPUDevice: @unchecked Sendable {
     /// Guards creation and release (the headers promise neither thread safe).
     private let lock = NSLock()
     private let workerLock = NSLock()
+    /// Test hook: the next batches' waiter thread blocks on this before it waits
+    /// on the GPU, so a test can hold a fence unsignalled across a cancel or a
+    /// main-actor advance. Per device, so a test on one device never holds
+    /// another's fences. `nil` in production.
+    nonisolated(unsafe) var waiterGate: DispatchSemaphore?
     private var _submitWorker: SDLGPUWorker?
     private var _waiterWorker: SDLGPUWorker?
 
     private static let stateLock = NSLock()
     nonisolated(unsafe) private static var failure = ""
-    nonisolated(unsafe) static var destroyedCount = 0
+    /// Test hook: how many times each owned `SDL_GPUDevice *` (by address) was destroyed.
+    nonisolated(unsafe) static var destroyedByHandle: [UInt: Int] = [:]
 
     /// The reason the last ``make(debug:preferring:)`` returned `nil`, naming
     /// the driver asked for and SDL's message (empty before any failure).
@@ -112,13 +118,18 @@ public final class SDLGPUDevice: @unchecked Sendable {
         self.videoInitialised = videoInitialised
     }
 
+    static func destroyCount(of raw: OpaquePointer) -> Int {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return destroyedByHandle[UInt(bitPattern: raw)] ?? 0
+    }
+
     deinit {
         _submitWorker?.stop()
         _waiterWorker?.stop()
         guard owned else { return }
         SDL_DestroyGPUDevice(raw)
         if videoInitialised { Self.quitVideo() }
-        Self.stateLock.lock(); Self.destroyedCount += 1; Self.stateLock.unlock()
+        Self.stateLock.lock(); Self.destroyedByHandle[UInt(bitPattern: raw), default: 0] += 1; Self.stateLock.unlock()
     }
 
     /// The driver SDL chose: `"metal"`, `"vulkan"` or `"direct3d12"`.
@@ -212,7 +223,7 @@ public final class SDLGPUDevice: @unchecked Sendable {
     /// submission: it adds none to a window's frame. A pass left open at the
     /// closure's end cancels the buffer and throws.
     public func submitBatch(_ record: @escaping @Sendable (SDLGPUCommandBuffer) -> Void) async throws -> SDLGPUFence {
-        let gate = SDLGPUFence.waiterGate
+        let gate = waiterGate
         return try await withCheckedThrowingContinuation { continuation in
             submitWorker.enqueue { [self] in
                 guard let handle = SDL_AcquireGPUCommandBuffer(raw) else {
