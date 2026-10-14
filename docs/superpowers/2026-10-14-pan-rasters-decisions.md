@@ -4,7 +4,7 @@ Rulings for P3 (the pan path-raster miss, user request 2026-10-02). Spec:
 [`specs/2026-10-14-pan-rasters-design.md`](specs/2026-10-14-pan-rasters-design.md). Record: `../record/118-pan-rasters.md`
 (Record phase). Branch `perf/pan-rasters` from `34491ff4`; divergence labels reserved 485–494 (none taken).
 
-**Next unused id: `PN-F`.** (Moves in the commit that appends a ruling; read the last `## PN-` heading if they disagree.)
+**Next unused id: `PN-G`.** (Moves in the commit that appends a ruling; read the last `## PN-` heading if they disagree.)
 
 Evidence: the code at `34491ff4` (`RasterCache.swift` `pathImage`, `tint`; `RasterAnchor.swift`; `Rasterizer.swift`), record §90
 (`PF-A`, `PF-B`, `PF-J`, `PF-N`), §73, §111 §8. No SwiftUI-facing claim is made: the item is internal, pixels equal, so no probe is
@@ -48,3 +48,10 @@ shader, replay-parity or `ReplayFixture` change; (c) is the larger product chang
 sub-pixel one keeps its fraction in the key. **Why.** An endpoint move changes the control points: the outline is a new function
 of the key; resampling a cached raster is rejected by `PF-D`. **Cost if wrong.** None to correctness; the drag stays at its
 rasterization cost (78,312 px for two wires, record §109 §7) and a faster rasterizer (pooled buffers) is P3d.
+
+## PN-F — Critic's rejection: no `SB-E` row for `lastTintedPixels`
+
+**Ruling.** The spec's T8 (`everyNewCounterIsClassified`, `SB-E`) is dropped. **Why.** `SB-E`'s test
+(`everyStateTableAndAnimationStoreChannelIsClassified`, record §111) classifies `StateTable`/`AnimationStore` channels; `RasterCache`
+counters such as `lastTexturesMade` have no classification test, so T8 named a test that does not exist and could not be red. The
+counter is covered by T5 (tinted < ⅓ of area, ≥ nonzero count) and T6. **Cost if wrong.** None.

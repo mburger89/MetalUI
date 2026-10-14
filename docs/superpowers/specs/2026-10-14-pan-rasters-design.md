@@ -21,7 +21,7 @@ corners), which the GPU applies exactly (`RasterPlacement` comment). The CPU cut
 ## 2. API
 
 None. No public declaration, no inventory row, no divergence label. Internal additions: `RasterCache.lastTintedPixels`
-(a work counter beside `lastTexturesMade`, owing `SB-E`'s classification test a row), `RasterAnchor.Mode`'s doc comment, one
+(a work counter beside `lastTexturesMade`, read by T1/T5 through `@testable`; `SB-E` classifies `StateTable`/`AnimationStore` channels only, so it owes no row, PN-F), `RasterAnchor.Mode`'s doc comment, one
 constant `RasterAnchor.overscanLimit`.
 
 ## 3. Changes (two parts, both value-identical in intent)
@@ -78,11 +78,12 @@ All in `PanRasterTests.swift` unless named; work counters only, no sleep; fixtur
 | T5 | `aDiagonalCubicsTintWorkIsItsCoveredWords` : `lastTintedPixels < ⅓` of the mask area and `≥` the nonzero count | tinted = whole area | tint the whole row |
 | T6 | `tintIsByteForByteTheReferenceLoopOnSparseMasks` (extends `RasterMathReferenceTests`): masks with zero runs, tails of 1–7 bytes, alpha 1 and 255 | n/a (equivalence) | off-by-one in the tail; treat alpha 1 as zero |
 | T7 | `aDragRastersOnlyTheMovingWires` : static wires 0 px, moving wire > 0 each frame, sub-pixel pan misses | green on arrival (the instrument for T1) | n/a, a characterization |
-| T8 | `everyNewCounterIsClassified` (`SB-E`) with `lastTintedPixels` | red until classified | remove its row |
 
 The existing pins that name a cut (`aShadowCutByItsClipIsRasterizedOnEveryMove`, `aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove`,
 3.12 `aDiagonalOrClippedGradientRastersInFull`) concern shadows, blurs and gradients and must stay green unmoved; any path pin that
 fails is read before it is edited (a reddening pin may be a fix).
+
+Lane order: lane 2's A/B needs lane 1's HEAD; agents run one at a time, so lane 1 commits first (its own record numbers come from the pins, not from lane 2).
 
 ## 8. Demo expectation
 
