@@ -332,6 +332,23 @@ private struct ChromeAlertPage: Component {
     #expect(close.frame == rect(354, 0, 46, 32))
 }
 
+/// (`CW-C`, `CW-D`, `CW-Q` 5; record §112 §5). A platform whose insets leave the band on the left
+/// (macOS through SDL: left 70, right 0) gets the left cluster: three 12-point circles in AppKit's order,
+/// close, minimise, zoom, inside the first 70 points.
+@Test @MainActor func theMacLikeInsetsDrawTheLeftCluster() throws {
+    var options = HeadlessPlatformWindow.Options.sdlChrome
+    options.hiddenTitleBarInsets = Edges(top: Pixels(32), right: Pixels(0), bottom: Pixels(0), left: Pixels(70))
+    let window = try chromeWindow(options: options, controls: true) {
+        Color.clear.frame(width: Pixels(400), height: Pixels(300))
+    }
+    let close = try window.element(label: "Close")
+    let minimise = try window.element(label: "Minimise")
+    let zoom = try window.element(label: "Zoom")
+    #expect(close.frame == rect(13, 10, 12, 12))
+    #expect(minimise.frame == rect(33, 10, 12, 12))
+    #expect(zoom.frame == rect(53, 10, 12, 12))
+}
+
 /// **2.17** (`CW-C`). A platform with native window buttons (AppKit's traffic lights) draws no strip.
 @Test @MainActor func aNativeControlsPlatformDrawsNoStrip() throws {
     var options = HeadlessPlatformWindow.Options.sdlChrome
