@@ -1,6 +1,6 @@
 # Hot paths - decisions
 
-Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-H`.**
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-I`.**
 Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
 `../record/111-hot-paths.md` (Record phase). Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
 reserved 415-424: none taken (none yet).
@@ -75,3 +75,27 @@ equality, so NaN and -0.0 take the old path. (5) The one-entry placement memo th
 is painted at two origins in a frame (shadow leaves); test 2 adds that case and the record states the
 measured miss rate. **Rejected, with reason:** a global (text, x, scale) dictionary (HP-A); an atlas intern
 table (HP-B). No public API, no divergence taken.
+
+## HP-H - Lane 1 as built: where the spec's spelling moved
+
+**Rulings.** (1) The work counters live on the per-shape `PlacementBox` (`runReads`,
+`placementsComputed`, `keysBuilt`, `layoutsBuilt`), read by tests through `cache.shaped(...).placement` /
+`cache.styled(...).placement`, not on `CoreTextTextSystem.placementWork`: a counter on the (main-actor)
+system would need an isolation hop from the nonisolated `ShapedText.placedGlyphs`, the cost this item
+removes. (2) The memo key carries the requested font's `FontKey` beside origin and scale bit patterns,
+because the font decides the baseline arithmetic and which run fonts fall back to it. (3) The rich path
+memoises two things inside the `StyledShapedText`'s box: the placed glyphs and segments by `(origin, scale)`
+bits, and the finished `StyledTextLayout` with a **weak owner** (the system whose `placedFonts` its glyph
+fonts were registered in); a second system sharing the cache rebuilds the layout from the memoised
+placement. (4) Spec test 7 (`lastFrameProbes`) is re-spelled: `GlyphAtlas` has no counter that is not
+tautological, so `aWarmAtlasFrameProbesOncePerDistinctGlyphKey` pins that a warm frame rasterizes nothing
+and builds no key; the probe saving itself is the stored hash, pinned by test 6's read-back. (5) The
+`GlyphKey` mix is a chain of bijections (xor, odd multiply, xorshift), so keys differing in one component
+store different hashes deterministically; `size`/`scaleFactor` enter as `bitPattern` of `x + 0.0` so `-0.0`
+and `0.0`, equal by `==`, hash alike. (6) `MarkdownContentTable` is lock-guarded (not main-actor):
+`textContent` is nonisolated and runs on a 1 MB thread in `everyProductionTreeBuildsOnAOneMegabyteThread`.
+It keys on `[.format(String)/.value(String)]`, never tables a key holding interpolated runs, and clears
+whole at 256 entries. (7) Test `aLiteralWithNoMarkupRunsNoParser` (3.16) now uses a key unique to it:
+`Text("**b**")` is used elsewhere in the process and is a table hit by design. **Evidence.** Mutations
+M1-M7 each reddened the named tests (record 111). **Cost if wrong.** A stale memo draws misplaced glyphs;
+tests 3 and 4 compare with a fresh shape for every origin and scale variant.
