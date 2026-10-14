@@ -426,6 +426,17 @@ built: `Scene.windowBackgroundDragBehavior`, `.windowDragArea()`, a double-click
 `HeadlessPlatformWindow.windowDrags`, `Options.performsWindowDrag` and `TestWindow.windowDrags`.
 Human checks: group WD, unrun.
 
+**SDL GPU for apps** (`GA-`, items S5 and S6, record §114;
+[`superpowers/2026-10-14-sdl-gpu-compute-decisions.md`](superpowers/2026-10-14-sdl-gpu-compute-decisions.md)). All class M,
+in `Backends/SDL` behind the `SDL` trait, outside the public census (`GA-L`); SwiftUI has no GPU API. The product
+`MetalUISDLGPU` is a thin typed layer over SDL_GPU: `SDLGPUDevice` (`make(debug:preferring:)`, `init(borrowing:)`),
+`SDLGPUBuffer`, `SDLGPUTransferBuffer`, `SDLGPUTexture` (MSAA, depth, mips), `SDLGPUSampler`, `SDLGPUComputePipeline`,
+`SDLGPUGraphicsPipeline`, `SDLGPUCommandBuffer` with `SDLGPUComputePass` and `SDLGPURenderPass`, `SDLGPUFence`
+(`await fence.wait()` off the main actor), `SDLGPUShaderLibrary`; `SDLGPUDrawContext.view` records into the frame's own
+command buffer. Every wrapper has `.raw` and the product re-exports `CSDL`. Shipping an app's own shaders is
+`docs/packaging.md` section 4a; the guide is [`guides/drawing-and-gpu.md`](guides/drawing-and-gpu.md). Human checks:
+group GA, unrun.
+
 **Window chrome on SDL** (`CW-`, item S1, record §112;
 [`superpowers/2026-10-13-sdl-chrome-decisions.md`](superpowers/2026-10-13-sdl-chrome-decisions.md);
 probe `probes/swiftui-window-chrome.swift`). All class M: SwiftUI has no window-control API. On SDL

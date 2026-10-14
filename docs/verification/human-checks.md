@@ -1564,6 +1564,26 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
   C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
 
+## GA. SDL GPU for apps — compute and graphics on a real GPU (items S5 and S6, MetalCreator's SDL-port gaps 1 and 2, not a plan task; record §114)
+
+*An agent cannot: the suites run on this Mac's Metal, on lavapipe in the Linux image and, in CI, on WARP; these need
+a physical GPU, a desktop session and a console.*
+
+- [ ] **GA1.** On a Linux or Windows desktop, a window with an instanced, depth-tested, 4x multisampled
+  `GPUSurface` draw (`ctx.view`, `SDLGPUGraphicsPipelineDescription`) shows the three triangles with smooth
+  edges, and resizing the window rebuilds the multisample and depth textures with no stale or stretched frame
+  (the target is MetalUI's and changes size; the draw's own textures are the app's, `GA-H`). **Observed:**
+- [ ] **GA2.** The append kernel (`SDLGPUComputeTests`) and the graphics tests (`SDLGPUGraphicsTests`) pass
+  on **real GPU hardware** on Windows (D3D12) and on Linux (Vulkan), not only on WARP and lavapipe; run
+  `swift test $(python3 scripts/fetch-accesskit.py --print-flags)` in `Backends/SDL` with `METALUI_REQUIRE_GPU=1`
+  and read the one summary line (`GA-K`, `GA-N`). **Observed:**
+- [ ] **GA3.** A built app that ships its compiled shaders in `MetalUIAppShaders` beside the executable finds
+  them after the folder is moved, and a missing folder names every directory tried
+  (`SDLGPUShaderLibrary.locate`, `docs/packaging.md` section 4a, like `X1`). **Observed:**
+- [ ] **GA4.** In a debug build run in a real console, a draw that calls `SDLGPUDevice.waitForIdle()` and a draw
+  that returns with a pass open each stop with a message that names the contract and reads clearly
+  (`aWaitInsideADrawTrapsInDebug`, `anOpenPassAtTheEndOfADrawTrapsInDebug`; `GA-I`). **Observed:**
+
 ## HP. Hot paths — text and shadows look the same (item P1, user request 2026-10-02, not a plan task; record §111)
 
 *An agent cannot: the fourteen offscreen images are 0 px against `fb9a7e42`; a real display, a scale change and an eye are a person's.*

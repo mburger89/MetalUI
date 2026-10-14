@@ -2309,3 +2309,13 @@ field and a tap target in the bar still work; CW4 resize from each edge and corn
 pointer style inside a drag region (divergence 425); CW6 double-click on the band zooms on Windows and (divergence 427 if
 not) on X11 and Wayland; CW7 the macOS-through-SDL left cluster; CW8 fullscreen enter and leave; CW9 the DWM shadow and
 corners; CW10 Close through the close veto, minimise and zoom/restore.
+
+## 2026-10-14: SDL GPU for apps (record §114) — looks owed
+
+Run on this Mac's Metal and, for the lanes, in the Linux image on lavapipe; no window was shown to a person and the
+Windows VM (`ssh metalui-win`) did not answer. **Owed, new here — `docs/verification/human-checks.md` group GA, none
+performed (an agent cannot)**: GA1 the instanced, depth-tested, 4x multisampled surface draw on a Linux or Windows
+desktop (smooth edges, a resize rebuilds the multisample and depth textures); GA2 the append kernel and graphics tests
+on real Windows (D3D12) and Linux (Vulkan) hardware with `METALUI_REQUIRE_GPU=1`; GA3 a built app finds its
+`MetalUIAppShaders` after the folder moves, and a missing folder names every directory tried; GA4 the two debug
+traps read clearly in a real console.
