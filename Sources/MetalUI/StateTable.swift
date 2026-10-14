@@ -1033,3 +1033,46 @@ struct DepartedState {
     var values: [GlobalElementID: Any]
     let roots: Set<GlobalElementID>
 }
+
+
+// MARK: - The build channels (`RK-N`, verify mode and the graft's journal tests)
+
+/// What a build writes into the table's sweep-visible sets, as comparable values (`RK-N`): the marks, the produced
+/// conditional slots, the named positions and names, the loop extents, the windowed parents, the memo entries kept for
+/// the sweep and the animation entries touched. A grafted build and a fresh one must leave the same sets.
+struct BuildChannels: Equatable {
+    var marked: Set<GlobalElementID> = []
+    var produced: Set<GlobalElementID> = []
+    var names: Set<GlobalElementID> = []
+    var positions: [StateTable.NamedPosition: GlobalElementID] = [:]
+    var loops: [GlobalElementID: Int] = [:]
+    var windowed: Set<GlobalElementID> = []
+    var memoKept: Set<ContentMemoStore.Key> = []
+    var animationTouched: Set<GlobalElementID> = []
+
+    /// The first channel that differs, named, or `nil`.
+    func difference(from other: BuildChannels) -> String? {
+        if marked != other.marked { return "marks: only here \(marked.subtracting(other.marked).count), only there \(other.marked.subtracting(marked).count)" }
+        if produced != other.produced { return "produced slots" }
+        if names != other.names { return "produced names" }
+        if positions != other.positions { return "named positions" }
+        if loops != other.loops { return "loop extents" }
+        if windowed != other.windowed { return "windowed parents" }
+        if memoKept != other.memoKept { return "memo entries kept" }
+        if animationTouched != other.animationTouched { return "animation entries touched" }
+        return nil
+    }
+}
+
+extension StateTable {
+    func buildChannels(animation: AnimationStore) -> BuildChannels {
+        BuildChannels(marked: marked, produced: producedSlots, names: producedNames, positions: namedPositions,
+                      loops: loopExtents, windowed: windowedParents, memoKept: contentMemos.keptKeys,
+                      animationTouched: animation.touchedIDs)
+    }
+
+    /// The `@State` entries and their versions and liveness, sorted: what a test compares across two windows.
+    var entryDigest: [String] {
+        storage.map { "\(sbPath($0.key))|live:\($0.value.isLive)" }.sorted()
+    }
+}

@@ -78,6 +78,16 @@ public struct FrameWork: Sendable, Equatable {
     public var retainedTranslated: Int
     /// Occurrences that moved by a translation the gate refused, and missed (`RK-G`).
     public var retainedTranslationRefused: Int
+    /// `.equatable()` occurrences whose build recursion did not run: their layout rows were copied and the build's calls
+    /// on the state table applied again (`RK-B`, `RK-F`).
+    public var retainedGrafts: Int
+    /// Occurrences that built and could leave no graft record (`RK-F`).
+    public var retainedGraftIneligible: Int
+    /// The element requests the grafts stood for: ``elementRequests`` plus this is what a frame with no grafts counts
+    /// (`RK-K`).
+    public var retainedSkippedRequests: Int
+    /// The layout nodes the grafts appended instead of registering.
+    public var retainedGraftedNodes: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -103,7 +113,9 @@ public struct FrameWork: Sendable, Equatable {
                 retainedSkippedPrepaints: Int = 0, retainedSkippedPaints: Int = 0,
                 retainedLedgerSnapshots: Int = 0, retainedReplayedOps: Int = 0,
                 retainedPrepaintHits: Int = 0, retainedPrepaintIneligible: Int = 0, retainedRedos: Int = 0,
-                retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0) {
+                retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0,
+                retainedGrafts: Int = 0, retainedGraftIneligible: Int = 0, retainedSkippedRequests: Int = 0,
+                retainedGraftedNodes: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -140,6 +152,10 @@ public struct FrameWork: Sendable, Equatable {
         self.retainedBackoffFrames = retainedBackoffFrames
         self.retainedTranslated = retainedTranslated
         self.retainedTranslationRefused = retainedTranslationRefused
+        self.retainedGrafts = retainedGrafts
+        self.retainedGraftIneligible = retainedGraftIneligible
+        self.retainedSkippedRequests = retainedSkippedRequests
+        self.retainedGraftedNodes = retainedGraftedNodes
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -177,6 +193,10 @@ public struct FrameWork: Sendable, Equatable {
                   retainedRedos: l.retainedRedos + r.retainedRedos,
                   retainedBackoffFrames: l.retainedBackoffFrames + r.retainedBackoffFrames,
                   retainedTranslated: l.retainedTranslated + r.retainedTranslated,
-                  retainedTranslationRefused: l.retainedTranslationRefused + r.retainedTranslationRefused)
+                  retainedTranslationRefused: l.retainedTranslationRefused + r.retainedTranslationRefused,
+                  retainedGrafts: l.retainedGrafts + r.retainedGrafts,
+                  retainedGraftIneligible: l.retainedGraftIneligible + r.retainedGraftIneligible,
+                  retainedSkippedRequests: l.retainedSkippedRequests + r.retainedSkippedRequests,
+                  retainedGraftedNodes: l.retainedGraftedNodes + r.retainedGraftedNodes)
     }
 }

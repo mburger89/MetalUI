@@ -59,6 +59,7 @@ final class GraftRecorder {
     var taint: String?
     var start = 0
     var lower = 0
+    var orderStart = 0
     var requests = 0
     var audit = BuildAudit()
 }
@@ -84,15 +85,13 @@ struct BuildKey: Equatable {
 /// The counts of the channels a build can write that the journal does not replay (`RK-F`): any that moves between
 /// a window's open and close makes the occurrence graft-ineligible, by the channel's name.
 struct BuildAudit: Equatable {
-    var timeVarying = 0, loweringItems = 0, loweringAliases = 0, textLeaves = 0, presentations = 0, hiddenNodes = 0
+    var timeVarying = 0, presentations = 0, hiddenNodes = 0
     var scrollKeys = 0, elementBounds = 0, presentationRecords = 0, toolbarRecords = 0, openURLs = 0
     var navigation = 0, colorScheme = 0, limits = 0, anotherFrame = 0, unlowerable = 0
     var lifecycle = 0, timeline = 0, transitions = 0, surfaces = 0, hasScrollRequests = 0
 
     func movedChannel(to other: BuildAudit) -> String? {
         if timeVarying != other.timeVarying { return "timeVarying" }
-        if loweringItems != other.loweringItems || loweringAliases != other.loweringAliases
-            || textLeaves != other.textLeaves { return "loweredItems" }
         if presentations != other.presentations || presentationRecords != other.presentationRecords { return "presentation" }
         if hiddenNodes != other.hiddenNodes { return "hiddenNodes" }
         if scrollKeys != other.scrollKeys { return "scrollKeys" }
@@ -117,8 +116,8 @@ final class GraftRecord {
     let key: BuildKey
     /// `ContentMemoStore.Entry.serial` of the getter evaluation the build ran under.
     let contentSerial: Int
-    let segment: LayoutSegment
-    let events: [BuildJournal.Event]
+    var segment: LayoutSegment
+    var events: [BuildJournal.Event]
     /// `Frame.elementRequests` the build made: what a graft stands for.
     let requests: Int
     /// Nested occurrences' memo entries, `@State` entries kept live and animation entries touched: they must
@@ -126,6 +125,14 @@ final class GraftRecord {
     let nestedKeys: [ContentMemoStore.Key]
     let liveStates: [GlobalElementID]
     let animationIDs: [GlobalElementID]
+    /// The wall time of the build this record stands for, for the cost probe (`RK-P`); 0 unless `RK_EXPERIMENT=1`.
+    var buildNanoseconds: UInt64 = 0
+    /// Whether that build was an outermost occurrence's (the probe counts those only, `RK-P`).
+    var wasOutermost = false
+    /// The lowered-item records of the top-level nodes, by top index (`RK-F`): a legacy top is consumed by its parent
+    /// container after the occurrence returns, so the graft records it again for the new node. The interior
+    /// records are consumed and never read again.
+    var topItems: [(index: Int, item: LoweredItem, originOffset: Int?)] = []
 
     init(key: BuildKey, contentSerial: Int, segment: LayoutSegment, events: [BuildJournal.Event], requests: Int) {
         self.key = key
@@ -164,9 +171,6 @@ extension Frame {
     func buildAudit() -> BuildAudit {
         var a = BuildAudit()
         a.timeVarying = timeVaryingNotes &+ animationStore.interpolationsSoFar
-        a.loweringItems = lowering.items.count
-        a.loweringAliases = lowering.aliasCount
-        a.textLeaves = lowering.textLeaves.count
         a.presentations = lowering.presentations.count
         a.hiddenNodes = hiddenNodes.count
         a.scrollKeys = scrollKeyCount
@@ -193,7 +197,8 @@ extension Frame {
         let recorder = GraftRecorder()
         recorder.start = journal.events.count
         recorder.lower = tree.nodeCount
-        recorder.requests = elementRequests
+        recorder.orderStart = lowering.order.count
+        recorder.requests = elementRequests &+ stateTable.contentMemos.retained.skippedRequests
         recorder.audit = buildAudit()
         journal.open.append(recorder)
         return recorder
@@ -207,12 +212,30 @@ extension Frame {
         defer { if journal.open.isEmpty { journal.events.removeAll(keepingCapacity: true) } }
         if let reason = recorder.taint { return (nil, reason) }
         if let moved = recorder.audit.movedChannel(to: buildAudit()) { return (nil, moved) }
-        if recordsElementBounds { return (nil, "elementBounds") }
         let (segment, refusal) = tree.captureSegment(from: recorder.lower, tops: tops)
         guard let segment else { return (nil, refusal ?? "segment") }
         let record = GraftRecord(key: key, contentSerial: contentSerial, segment: segment,
                                  events: Array(journal.events[recorder.start...]),
-                                 requests: elementRequests - recorder.requests)
+                                 requests: elementRequests &+ stateTable.contentMemos.retained.skippedRequests - recorder.requests)
+        // Items of the nodes the window registered: a top's is carried, an interior one must be consumed (a record no
+        // container consumed would be reported by name at the end of the frame, `LR-AQ`: not a graft's to hide).
+        let range = recorder.lower..<tree.nodeCount
+        for node in lowering.order[recorder.orderStart...] {
+            guard let item = lowering.items[node] else { continue }
+            let index = tree.nodeIndex(of: node)
+            guard range.contains(index) else { continue }   // a forwarded record keyed at an outer node: not ours
+            if let topIndex = tops.firstIndex(of: node) {
+                var offset: Int?
+                if let origin = item.origin {
+                    let originIndex = tree.nodeIndex(of: origin)
+                    guard range.contains(originIndex) else { return (nil, "itemOriginOutside") }
+                    offset = originIndex - recorder.lower
+                }
+                record.topItems.append((topIndex, item, offset))
+            } else if !item.consumed, item.kind != .presentation, item.reportsFieldsIfUnconsumed {
+                return (nil, "interiorItemUnconsumed")   // diagnostics would report it; a graft must not hide that
+            }
+        }
         return (record, nil)
     }
 
@@ -257,4 +280,75 @@ extension Frame {
 final class RetainedGraft {
     let record: GraftRecord
     init(record: GraftRecord) { self.record = record }
+}
+
+
+// MARK: - The decision and the graft
+
+/// The cost probe of `RK-P` (`RK_EXPERIMENT=1`): wall time of outermost builds against the graft that replaced them.
+enum GraftProbe {
+    static let enabled = ProcessInfo.processInfo.environment["RK_EXPERIMENT"] == "1"
+    nonisolated(unsafe) static var buildNanoseconds: UInt64 = 0
+    nonisolated(unsafe) static var graftNanoseconds: UInt64 = 0
+    nonisolated(unsafe) static var standingForNanoseconds: UInt64 = 0
+    nonisolated(unsafe) static var builds = 0
+    nonisolated(unsafe) static var grafts = 0
+    nonisolated(unsafe) static var nodes = 0
+    static func now() -> UInt64 { clock_gettime_nsec_np(CLOCK_UPTIME_RAW) }
+    nonisolated(unsafe) static var registered = false
+    /// Prints the totals once at process exit.
+    static func register() {
+        guard enabled, !registered else { return }
+        registered = true
+        atexit {
+            print("RK_EXPERIMENT builds=\(GraftProbe.builds) grafts=\(GraftProbe.grafts) graftedNodes=\(GraftProbe.nodes) buildMs=\(Double(GraftProbe.buildNanoseconds) / 1e6) graftMs=\(Double(GraftProbe.graftNanoseconds) / 1e6) buildStoodForMs=\(Double(GraftProbe.standingForNanoseconds) / 1e6)")
+        }
+    }
+}
+
+extension Frame {
+    /// The graft record this occurrence may stand on in this build, or `nil` (`RK-B`, `RK-C`): its paint record, prepaint
+    /// ledger and graft record all describe the content it holds now, nothing it reads moved, and the prepaint
+    /// and paint decisions the occurrence will face cannot be known to fail. The rects and the paint-only
+    /// ambient are **not** known here: a mismatch is the redo (`RK-C`, `RK-D`).
+    func graftRecord(for entry: ContentMemoStore.Entry, id: GlobalElementID, key: BuildKey) -> GraftRecord? {
+        let memos = stateTable.contentMemos
+        guard memos.graftAllowed, let graft = entry.graft, let old = entry.record, let ledger = old.prepaint else {
+            return nil
+        }
+        guard entry.quarantineUntil <= memos.buildSerial, !entry.observedChange, old.coverageComplete,
+              old.contentSerial == entry.serial, graft.contentSerial == entry.serial, graft.key == key else {
+            return nil
+        }
+        guard prepaintRefusal() == nil, environmentTop.customKeyCount == 0, transactionTop.animation == nil else {
+            return nil
+        }
+        guard old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) else { return nil }
+        guard !retainedSubtreeHasPointerPressOrFocus(under: id), !retainedPointerIsInside(ledger) else { return nil }
+        guard graftDependenciesHold(graft) else { return nil }
+        return graft
+    }
+
+    /// Stands `record` in for the build recursion (`RK-B`): its rows are appended under this tree's generation, the
+    /// journal is applied again, the counters say what was skipped. Answers the new top-level nodes.
+    func graftOccurrence(_ record: GraftRecord) -> [LayoutNodeID] {
+        let tops = tree.graft(record.segment)
+        // The top-level nodes' lowered items, for the parent container that consumes them (`RK-F`).
+        if !record.topItems.isEmpty {
+            let first = tree.nodeCount - record.segment.nodeCount
+            for (index, item, offset) in record.topItems {
+                var carried = item
+                if let offset { carried.origin = tree.nodeID(atIndex: first + offset) }
+                lowering.record(carried, for: tops[index])
+            }
+        }
+        reapply(record.events)
+        let retained = stateTable.contentMemos.retained
+        _ = retained
+        stateTable.contentMemos.retained.grafts += 1
+        stateTable.contentMemos.retained.skippedRequests += record.requests
+        stateTable.contentMemos.retained.graftedNodes += record.segment.nodeCount
+        for node in tops { tree.markPlacementRoot(node) }
+        return tops
+    }
 }

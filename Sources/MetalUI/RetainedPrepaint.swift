@@ -142,7 +142,7 @@ extension Frame {
     /// Whether the pointer is inside a hitbox the ledger registered (`RK-C`'s prepaint half of `SB-X`): hover
     /// resolves after prepaint, so the decision reads the pointer position against the record's own hitboxes, a
     /// superset of the paint rule's "the hovered element is under me".
-    private func retainedPointerIsInside(_ ledger: PrepaintLedger) -> Bool {
+    func retainedPointerIsInside(_ ledger: PrepaintLedger) -> Bool {
         guard let point = mousePosition else { return false }
         return ledger.hitboxes.contains { $0.contains(point) }
     }
@@ -185,7 +185,7 @@ extension Frame {
                 memos.retained.translationRefused += 1
             }
         }
-        return .run(openPrepaintWindow())
+        return .run(phase.grafted ? nil : openPrepaintWindow())
     }
 
     /// Why this occurrence's prepaint cannot be keyed now, or `nil`: the paint refusals that are visible at
@@ -302,6 +302,13 @@ struct RetainedVerifySnapshot {
     let contextMenus: Set<GlobalElementID>
     let pressOnly: Set<GlobalElementID>
     let bounds: [GlobalElementID: Bounds<Pixels>]
+    /// Every node the tree holds, line by line (`RK-N`): children, kernel case, leaf key, spacer axis, parent, grid marks and
+    /// the rect and measured width of the layout, so a graft that registered anything differently from a build is a
+    /// difference by node.
+    let tree: [String]
+    /// What the build left in the table's sweep-visible sets, read before the sweep (`RK-N`): the rebuild only adds to what
+    /// the first build left, so a call a graft's journal missed is a difference here.
+    let channels: BuildChannels
 
     /// The first channel that differs from `other`, named, or `nil`.
     func difference(from other: RetainedVerifySnapshot) -> String? {
@@ -333,6 +340,11 @@ struct RetainedVerifySnapshot {
         if contextMenus != other.contextMenus { return "context menus" }
         if pressOnly != other.pressOnly { return "press-only actions" }
         if bounds != other.bounds { return "element bounds" }
+        if tree != other.tree {
+            let first = zip(tree, other.tree).enumerated().first { $0.element.0 != $0.element.1 }
+            return "layout tree (\(tree.count) vs \(other.tree.count) nodes) first difference \(String(describing: first))"
+        }
+        if let d = other.channels.difference(from: channels) { return "build calls on the tables: \(d)" }
         return nil
     }
 }
@@ -355,6 +367,7 @@ extension Frame {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
             },
             axNodes: Set(axNodes.keys), tallies: regionTallies, contextMenus: Set(contextMenuRecords.keys),
-            pressOnly: Set(accessibilityPressOnly.keys), bounds: elementBounds)
+            pressOnly: Set(accessibilityPressOnly.keys), bounds: elementBounds, tree: tree.structureDigest(),
+            channels: stateTable.buildChannels(animation: animationStore))
     }
 }

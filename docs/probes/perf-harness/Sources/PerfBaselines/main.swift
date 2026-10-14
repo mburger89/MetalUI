@@ -22,7 +22,7 @@ func report(_ scenario: String, _ metric: String, _ value: String) { print("\(sc
 func ms(_ v: Double) -> String { String(format: "%.3f", v) }
 
 func workLine(_ w: FrameWork) -> String {
-    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images) elementPaints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) retainedIneligible=\(w.retainedIneligible) elementRequests=\(w.elementRequests) elementPrepaints=\(w.elementPrepaints) skippedPrepaints=\(w.retainedSkippedPrepaints) prepaintHits=\(w.retainedPrepaintHits) prepaintIneligible=\(w.retainedPrepaintIneligible) redos=\(w.retainedRedos) translated=\(w.retainedTranslated)"
+    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images) elementPaints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) retainedIneligible=\(w.retainedIneligible) elementRequests=\(w.elementRequests) elementPrepaints=\(w.elementPrepaints) skippedPrepaints=\(w.retainedSkippedPrepaints) prepaintHits=\(w.retainedPrepaintHits) prepaintIneligible=\(w.retainedPrepaintIneligible) redos=\(w.retainedRedos) translated=\(w.retainedTranslated) grafts=\(w.retainedGrafts) graftIneligible=\(w.retainedGraftIneligible) skippedRequests=\(w.retainedSkippedRequests) graftedNodes=\(w.retainedGraftedNodes) placeGlyphs=\(w.glyphs) rasterizedPixels=\(w.rasterizedPixels) uploadPixels=\(w.atlasUploadPixels) contentEvaluations=\(w.contentEvaluations)"
 }
 
 // MARK: Synthetic branching trees (record 07's shapes: depth 12 branch 2 = 8,191; depth 10 branch 3 = 88,573)
@@ -172,13 +172,13 @@ struct Row: Identifiable { let id: Int }
 /// The same drag with prepaint replay off (`METALUI_RETAINED_PREPAINT=0`, read when each window is made) and on,
 /// alternating inside one process so the two see the same machine (`RK-J`'s gate reading): per-frame median over
 /// every round's frames, and the last frame's work.
-@MainActor func bracketABScenario(arm: BracketArm, name: String, rounds: Int, reps: Int) throws {
+@MainActor func bracketABScenario(arm: BracketArm, name: String, rounds: Int, reps: Int, variable: String = "METALUI_RETAINED_PREPAINT") throws {
     var frames: [String: [Double]] = ["off": [], "on": []]
     var cpu: [String: [Double]] = ["off": [], "on": []]
     var work: [String: FrameWork] = [:]
     for round in 0..<rounds {
         for mode in (round % 2 == 0 ? ["off", "on"] : ["on", "off"]) {
-            setenv("METALUI_RETAINED_PREPAINT", mode == "off" ? "0" : "1", 1)
+            setenv(variable, mode == "off" ? "0" : "1", 1)
             let model = BracketModel(), viewport = BracketViewport()
             let w = try TestWindow(size: bracketWindowSize, colorScheme: .dark, scaleFactor: 2) {
                 bracketRoot(arm: arm, model: model, viewport: viewport)
@@ -226,6 +226,12 @@ MainActor.assumeIsolated {
             let rounds = quick ? 3 : 8
             try bracketABScenario(arm: .value, name: "bracketab_value", rounds: rounds, reps: quick ? 6 : 14)
             try bracketABScenario(arm: .panels, name: "bracketab_panels", rounds: rounds, reps: quick ? 6 : 14)
+        }
+        if which == "bracketgraft" {
+            // C14b-2 lane 2: the node drag with the graft off (prepaint replay on) and on, alternating (`METALUI_RETAINED_GRAFT`).
+            let rounds = quick ? 3 : 8
+            try bracketABScenario(arm: .value, name: "bracketgraft_value", rounds: rounds, reps: quick ? 6 : 14, variable: "METALUI_RETAINED_GRAFT")
+            try bracketABScenario(arm: .panels, name: "bracketgraft_panels", rounds: rounds, reps: quick ? 6 : 14, variable: "METALUI_RETAINED_GRAFT")
         }
         if which == "all" || which == "bracket" {
             try bracketScenario(arm: .value, name: "bracket_value", reps: quick ? 6 : 30)

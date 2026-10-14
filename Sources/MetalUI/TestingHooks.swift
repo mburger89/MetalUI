@@ -154,6 +154,16 @@ extension Window {
         set { stateTable.contentMemos.replaysPrepaint = newValue }
     }
 
+    /// Whether `.equatable()` occurrences skip their build recursion (`RK-B`); off, prepaint and paint replay as at lane 1's tree.
+    package var testingRetainedGraft: Bool {
+        get { stateTable.contentMemos.graftsBuild }
+        set { stateTable.contentMemos.graftsBuild = newValue }
+    }
+
+    /// The `@State` entries with their versions and liveness, sorted: compared across two windows by the graft's
+    /// sweep differential (`RK-F`).
+    package var testingStateEntries: [String] { stateTable.entryDigest }
+
     /// Every field of the last build's hitboxes that is not a closure, in registration order, as one string
     /// each: identity, bounds, layer, opacity, scroll axis, origin, shape, transform, the contextual flag and
     /// which handler members were present (`RK-E`).
@@ -192,6 +202,35 @@ extension Window {
             }
         }
     }
+}
+
+extension Window {
+    /// Damages every stored graft record in one named channel and answers how many it damaged (`RK-N`): the exit tests of
+    /// verify mode need a graft that differs from a build to see it trap. Channels: `marks`, `produced`, `named`,
+    /// `loops`, `memoTouches` (calls dropped from the journal) and `leafKeys` (dropped from the rows).
+    @discardableResult
+    package func testingCorruptGraftRecords(_ channel: String) -> Int {
+        stateTable.contentMemos.mutateGraftRecords { graft in
+            switch channel {
+            case "marks": graft.events.removeAll { if case .mark = $0 { true } else { false } }
+            case "produced": graft.events.removeAll { if case .produced = $0 { true } else { false } }
+            case "named": graft.events.removeAll { if case .named = $0 { true } else { false } }
+            case "loops": graft.events.removeAll { if case .loop = $0 { true } else { false } }
+            case "memoTouches": graft.events.removeAll { if case .memoTouch = $0 { true } else { false } }
+            case "leafKeys": graft.segment = graft.segment.testingDroppingLeafKeys()
+            default: preconditionFailure("unknown graft channel \(channel)")
+            }
+        }
+    }
+
+    /// Calls `body` on every stored graft record and answers how many there were (internal tests only).
+    @discardableResult
+    func testingStoredGraftRecords(_ body: (GraftRecord) -> Void) -> Int {
+        stateTable.contentMemos.mutateGraftRecords(body)
+    }
+
+    /// Why occurrences left no graft record in the last build, one name each (`RK-F`).
+    package var testingGraftRefusals: [String] { stateTable.contentMemos.lastGraftRefusals }
 }
 
 extension Window {

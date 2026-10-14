@@ -48,6 +48,15 @@ package struct RetainedCounters: Sendable, Equatable {
     package var translated = 0
     /// Occurrences whose move by a translation failed the gate and missed (`RK-G`).
     package var translationRefused = 0
+    /// Occurrences whose build recursion did not run: their layout rows were copied and the build journal applied again
+    /// (`RK-B`, `RK-F`).
+    package var grafts = 0
+    /// Occurrences that built and could leave no graft record, by channel in the trace (`RK-F`).
+    package var graftIneligible = 0
+    /// Element requests the grafts stood for: `elementRequests + skippedRequests` is a graft-off frame's count.
+    package var skippedRequests = 0
+    /// Layout nodes the grafts appended instead of registering.
+    package var graftedNodes = 0
     package init() {}
 }
 
@@ -341,6 +350,10 @@ final class RetainedPhase {
     var replayed: PrepaintLedger?
     /// Whether the paint decision replayed the record at a translated position (`RK-G`, `RK-S`).
     var translatedPaint = false
+    /// Whether the occurrence was grafted (`RK-B`): no element layout, so prepaint and paint can only replay.
+    var grafted = false
+    /// Whether its prepaint asked for the frame to be redone: paint then does nothing.
+    var abandoned = false
 
     init(build: RetainedBuild, entry: ContentMemoStore.Entry, prepaintObserved: Bool) {
         self.build = build

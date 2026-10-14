@@ -93,3 +93,36 @@ func thePlainImportCannotTurnPrepaintReplayOffOrDamageALedger() throws {
         #expect(result.messages.contains(name), "rejected, but not for \(name):\n\(result.output)")
     }
 }
+
+/// **1.17d** (C14b-2 lane 2, `RK-B`, `RK-N`) — a plain import cannot turn the graft off, damage a graft record, read why an
+/// occurrence left none or read the state table's entries: `testingRetainedGraft`, `testingCorruptGraftRecords(_:)`,
+/// `testingGraftRefusals` and `testingStateEntries` are `package` (no public switch; the four counters are the public
+/// face), while the counted work reads: the control. Mutation: `testingRetainedGraft` made `public` -> red (record 110 §8).
+@Test(.enabled(if: modulesBuilt, skipReason))
+func thePlainImportCannotTurnTheGraftOffOrDamageARecord() throws {
+    let control = try typecheckFile("""
+        import MetalUITesting
+
+        @MainActor
+        public func read(_ window: TestWindow) -> Int {
+            let work = window.lastFrameWork
+            return work.retainedGrafts + work.retainedGraftIneligible + work.retainedSkippedRequests + work.retainedGraftedNodes
+        }
+        """, importing: "MetalUI")
+    try #require(control.succeeded, "the control (public counters) must compile:\n\(control.output)")
+    for (name, body) in [("testingRetainedGraft", "window.window.testingRetainedGraft = false"),
+                         ("testingCorruptGraftRecords", "_ = window.window.testingCorruptGraftRecords(\"marks\")"),
+                         ("testingGraftRefusals", "_ = window.window.testingGraftRefusals"),
+                         ("testingStateEntries", "_ = window.window.testingStateEntries")] {
+        let result = try typecheckFile("""
+            import MetalUITesting
+
+            @MainActor
+            public func reach(_ window: TestWindow) {
+                \(body)
+            }
+            """, importing: "MetalUI")
+        #expect(!result.succeeded, "\(name) is package API:\n\(result.output)")
+        #expect(result.messages.contains(name), "rejected, but not for \(name):\n\(result.output)")
+    }
+}

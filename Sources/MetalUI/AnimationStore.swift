@@ -34,6 +34,9 @@ let layoutMemoVerifiesFromEnvironment: Bool =
 final class AnimationStore {
     private var entries: [GlobalElementID: Any] = [:]
     private var touched: Set<GlobalElementID> = []
+
+    /// The entries touched this build, for verify mode's comparison of a graft with a fresh build (`RK-N`).
+    var touchedIDs: Set<GlobalElementID> { touched }
     private var interpolationsThisFrame = 0
 
     /// The transition seam (spec §6.5): lane 1 of plan task 13 declares it as a

@@ -770,6 +770,15 @@ public final class LayoutTree {
         return id.index
     }
 
+    /// The storage index of `id` in this tree (a graft's bookkeeping, `RK-B`): checked like every accessor.
+    package func nodeIndex(of id: LayoutNodeID) -> Int { slot(id) }
+
+    /// The id of the node at storage index `index` of this tree (a graft's bookkeeping, `RK-B`).
+    package func nodeID(atIndex index: Int) -> LayoutNodeID {
+        precondition(index >= 0 && index < childLists.count, "node index out of range")
+        return LayoutNodeID(generation: generation, index: index)
+    }
+
     /// Records `parent` as each child's parent, trapping on a child that
     /// already has one (ruling CN-L, `MC-G` hole 4): the same node registered
     /// under two native parents, or listed twice in one. SwiftUI has no
@@ -2368,6 +2377,17 @@ package struct LayoutSegment {
     fileprivate let cellAnchors: [(Int, ProposalAnchor)]
     fileprivate let cellColumnAlignments: [(Int, ProposalAlignment)]
     fileprivate let cellUnsizedAxes: [(Int, ProposalAxes)]
+}
+
+extension LayoutSegment {
+    /// The segment with its leaf keys dropped (`RK-N`'s exit tests damage a graft this way: the grafted tree then differs
+    /// from a fresh build in the digest of every keyed leaf). **`package`**: a test hook, not API.
+    package func testingDroppingLeafKeys() -> LayoutSegment {
+        LayoutSegment(nodeCount: nodeCount, rebaseOrigin: rebaseOrigin, tops: tops, children: children, cases: cases,
+                      leafKeys: [], spacerAxes: spacerAxes, parents: parents, rowTokens: rowTokens,
+                      rowAlignments: rowAlignments, cellColumns: cellColumns, cellAnchors: cellAnchors,
+                      cellColumnAlignments: cellColumnAlignments, cellUnsizedAxes: cellUnsizedAxes)
+    }
 }
 
 extension NativeGridPlan {

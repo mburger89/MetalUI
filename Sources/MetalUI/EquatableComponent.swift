@@ -58,10 +58,31 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         guard let window, let entry else {
             return component.finishComponent(&materialized, id: id, pass: &pass)
         }
+        // A grafted occurrence skips the build recursion (`RK-B`): its rows are copied from the last build's segment
+        // and the journal of that build is applied again. Its prepaint and paint are replays, or the frame is redone.
+        GraftProbe.register()
+        let buildKey = frame.graftBuildKey()
+        if let record = frame.graftRecord(for: entry, id: id, key: buildKey) {
+            let started = GraftProbe.enabled ? GraftProbe.now() : 0
+            let outermost = !store.journal.isRecording
+            let tops = frame.graftOccurrence(record)
+            let layout = ComponentLayout<C>(grafted: RetainedGraft(record: record))
+            layout.storage.retained = window.finish(frame: frame, key: key, nodes: tops, observed: false)
+            if GraftProbe.enabled, outermost, record.wasOutermost {
+                GraftProbe.graftNanoseconds &+= GraftProbe.now() &- started
+                GraftProbe.standingForNanoseconds &+= record.buildNanoseconds
+                GraftProbe.grafts += 1
+                GraftProbe.nodes += record.segment.nodeCount
+            }
+            return (tops, layout)
+        }
         // The build recursion runs in an observation window of its own (`SB-D`): a descendant
         // getter that reads an `@Observable` invalidates this occurrence's record.
         let observed = entry.needsObservation
         let evaluationsBefore = store.evaluationsSoFar
+        let graftWindow = store.recordsGrafts ? frame.openGraftWindow() : nil
+        let outermost = graftWindow != nil && store.journal.open.count == 1
+        let started = GraftProbe.enabled ? GraftProbe.now() : 0
         let result: ([LayoutNodeID], ComponentLayout<C>)
         if observed {
             result = entry.buildSession.run(entry: entry, store: store) {
@@ -70,21 +91,41 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         } else {
             result = component.finishComponent(&materialized, id: id, pass: &pass)
         }
+        let spent = GraftProbe.enabled ? GraftProbe.now() &- started : 0
         // A descendant whose content ran this frame may have changed what the record holds, though this
         // occurrence's own windows never saw its reads (it was skipped when they were open): no replay.
         if store.evaluationsSoFar != evaluationsBefore { entry.observedChange = true }
         // The subtree placement memo (`SB-AD`) restores these roots' rects where they stand.
         for node in result.0 { frame.tree.markPlacementRoot(node) }
         result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed)
+        if let graftWindow {
+            let closed = frame.closeGraftWindow(graftWindow, tops: result.0, contentSerial: entry.serial, key: buildKey)
+            if let record = closed.record {
+                record.wasOutermost = outermost
+                record.buildNanoseconds = spent
+                entry.graft = record
+                if GraftProbe.enabled, outermost {
+                    GraftProbe.buildNanoseconds &+= spent
+                    GraftProbe.builds += 1
+                }
+            } else {
+                entry.graft = nil
+                store.retained.graftIneligible += 1
+                store.graftRefusals.append(closed.refusal ?? "unknown")
+                if retainedTraces { print("retained graft ineligible \(sbPath(id).suffix(60)) because \(closed.refusal ?? "?")") }
+            }
+        }
         return result
     }
 
     public mutating func prepaintGroup(layout: inout ComponentLayout<C>,
                                        pass: inout PrepaintPass) -> ComponentPrepaint<C> {
+        let grafted = layout.storage.graft != nil
         guard let build = layout.storage.retained,
               let phase = pass.frame.retainedPrepaintPhase(build: build) else {
-            return component.prepaintGroup(layout: &layout, pass: &pass)
+            return component.prepaintGroup(layout: &layout, pass: &pass)   // traps by name for a graft (`RK-B`)
         }
+        phase.grafted = grafted
         let frame = pass.frame
         // The ledger of what the prepaint registered replays while the prepaint key is equal (`RK-C`, `RK-E`);
         // the occurrence's element prepaint does not run, so its paint must be a replay too (`RK-B`).
@@ -92,6 +133,14 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         if case .replay(let ledger, let moved) = mode {
             frame.replayPrepaintLedger(ledger, hitboxes: moved)
             phase.replayed = ledger
+            return ComponentPrepaint<C>(replayedBy: phase)
+        }
+        // A grafted occurrence has no element layout to prepaint: the prepaint key (or the pointer, the
+        // keyboard focus, a quarantine) decided against the replay the graft counted on, so the frame is built
+        // again with every graft and replay off (`RK-C`, `RK-D`).
+        if grafted {
+            frame.requestRedo(phase.entry)
+            phase.abandoned = true
             return ComponentPrepaint<C>(replayedBy: phase)
         }
         var recorder: PrepaintRecorder?
@@ -119,15 +168,16 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
             return
         }
         let frame = pass.frame
+        if phase.abandoned { return }   // the frame is being redone (`RK-C`)
         switch frame.retainedPaintDecision(phase) {
         case .hit(let record):
             frame.replayPaint(record, translated: phase.translatedPaint)
         case .plain:
-            if phase.replayed != nil { frame.requestRedo(phase.entry); return }
+            if phase.replayed != nil || phase.grafted { frame.requestRedo(phase.entry); return }
             component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
         case .record(let recorder, let key, let old):
             // A replayed prepaint left no element state to paint from: the frame is redone (`RK-C`).
-            if phase.replayed != nil { frame.requestRedo(phase.entry); return }
+            if phase.replayed != nil || phase.grafted { frame.requestRedo(phase.entry); return }
             frame.openRecorderWindow(recorder)
             phase.entry.paintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
