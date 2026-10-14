@@ -5,7 +5,7 @@ system buttons on SDL (Linux and Windows; macOS through SDL where it works). Use
 (gpui-gap priority list; **not a plan task**), reported as MetalCreator's SDL-port gap 3
 (developer-c0, 2026-10-13; read, never edited).
 Spec: [`specs/2026-10-13-sdl-chrome-design.md`](specs/2026-10-13-sdl-chrome-design.md).
-Record: `../record/112-sdl-chrome.md` (written at the Record phase). Divergence labels 425–434 are this
+Record: `../record/112-sdl-chrome.md`. Divergence labels 425–434 are this
 branch's range.
 
 Evidence:
@@ -450,3 +450,15 @@ every case C returns against the Swift reference, so a swapped case reddens it),
 failure path, the Windows `Int32` conversion (explicit, unrun). Not run: Windows (UTM unreachable, CI), a real drag, edge,
 double-click or snap (group `CW`). **Cost if wrong.** A race the lock counter cannot see (the counter proves the lock is
 taken, not that every field is under it); the table and counter pins are the checks, and the smoke run is not one.
+
+## CW-U — Record-phase close: the left cluster is pinned, the suite re-taken
+
+**Ruling.** The lane 1 verifier's one finding (forcing `onRight = true` in `WindowChrome.windowControlsSpec` reddened
+nothing) is closed by `theMacLikeInsetsDrawTheLeftCluster` (a platform whose insets leave the band on the left, left 70
+and right 0, draws three 12-point circles at x 13, 33, 53, y 10, in AppKit's order close, minimise, zoom); red under that
+mutation (3 issues), green restored. The clean native run read **3759 tests in 3 suites**, 236 guards, the five known
+locked-screen `AppKitPresentationTests` sheet issues and nothing else, `FR-J` true, 0 `error:` (record §112 §10). The lane
+verifiers' full-suite mutation re-takes (one on lane 1, four on lane 2) reddened no pre-existing test, which stands for
+the filtered runs of `CW-R` and `CW-T`. No divergence is taken beyond 425 and 426; 427 stays reserved for check CW6.
+**Cost if wrong.** A collateral reddening of a pre-existing test by one of the other mutations is found by the next
+full-suite run.

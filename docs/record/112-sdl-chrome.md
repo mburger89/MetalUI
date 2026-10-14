@@ -5,7 +5,7 @@ phase, so no merge and no renumbering — §112 stands; §110 and §111 are the 
 User request 2026-10-02 (gpui-gap priority list, item S1; **not a plan task**), reported as MetalCreator's SDL-port
 gap 3 (developer-c0, 2026-10-13; read, never edited). Spec `docs/superpowers/specs/2026-10-13-sdl-chrome-design.md`;
 rulings `CW-A`…`CW-T` in the new decisions doc `docs/superpowers/2026-10-13-sdl-chrome-decisions.md` (next unused
-`CW-V`; `CW-U` is this record's close, below); probe `docs/probes/swiftui-window-chrome.swift`; human checks group `CW`.
+`CW-V`; `CW-U` is the Record phase's close); probe `docs/probes/swiftui-window-chrome.swift`; human checks group `CW`.
 Divergences 175 and 276 amended, 425 and 426 added (range 425–434; 427 reserved for check CW6, unused).
 
 **Status: LANDED — every agent-doable clause is built; the looks, the drag, the edges and the Windows run are owed to a
@@ -143,7 +143,7 @@ platform that answers `false` to the four requirements computes nothing new (`aS
 |---|---|
 | Linux (X11, Wayland) double-click-to-zoom on the band: SDL consumes both presses of the region (`CW-I`) | check CW6 on a real desktop; divergence 427 is taken only if it fails |
 | Windows 11 snap-layout flyout (`HTMAXBUTTON` is not an SDL answer), DWM shadow and rounded corners of a borderless window | platform; check CW9 |
-| a real drag, resize edge, border swallow, double-click, snap, and the looks | human check group CW (CW1–CW11) |
+| a real drag, resize edge, border swallow, double-click, snap, and the looks | human check group CW (CW1–CW10) |
 | Windows UTM and CI runs of `Backends/SDL` (`ssh metalui-win` timed out) | the Windows CI jobs on push |
 | client-side shadow and tiling on Wayland; `windowBackgroundDragBehavior`; a hover wash on the drawn buttons (it would add a hover region) | not scheduled |
 | `performWindowDrag()` answering `true` on SDL (the region takes the press first) | not scheduled (divergence 276) |
@@ -163,4 +163,19 @@ platform that answers `false` to the four requirements computes nothing new (`aS
 
 ## §10 Final counts
 
-(Filled at the end of the Record phase.)
+- Native, after `swift package clean`: build 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
+  **`Test run with 3759 tests in 3 suites failed after 693.643 seconds with 5 issues`** — the five issues are exactly
+  the locked-screen `AppKitPresentationTests` sheet tests (`appKitOpenDialogIsASheetWithTheDeclaredTypes`,
+  `appKitSaveDialogCarriesTheNameTypesAndExportPrompt`, `appKitCancelledDialogArrivesAsQueuedInput`,
+  `appKitDismissPresentationEndsTheSheetAndAnswersNothing`, `appKitSecondDialogWhileASheetIsUpAnswersFalse`; `CI-AF`),
+  nothing else. `FR-J no-argument frame: succeeded=true`.
+- **3759 tests** (3717 + 42), 0 goldens, **236 typecheck guards** (234 + `CW-1`, `CW-2`; the lanes' count, the Record
+  phase added a test, not a guard).
+- The left-cluster pin `theMacLikeInsetsDrawTheLeftCluster`: measured literals x 13, 33, 53 (the 52-point cluster plus
+  its 8-point pad centred in 70), y 10, size 12; red under `windowControlsSpec`'s `onRight = true` (3 issues), green
+  restored, `git status --short` clean.
+- Inventory and undocumented scripts print nothing; census 3526 (3511 + 15).
+- Divergences: 425, 426 added, 175 and 276 amended; live 152 + 2 = 154 (the header's count and next label are the merge's).
+- Not re-taken at this phase: the fourteen images (the lanes' 0 px stand; no `Sources/` change since, only a test), the
+  Linux image and `Backends/SDL` (no change since the lane readings), Windows.
+
