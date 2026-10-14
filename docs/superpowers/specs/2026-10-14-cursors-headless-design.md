@@ -94,6 +94,8 @@ must-not-move areas are untouched (pointer style is outside hit testing, identit
   conversion.
 - SDL surfaces: RGBA32 from `SDLIcon.straightRGBA`; integer scale >= 2 builds a box-downsampled primary and the
   bitmap as alternate; creation failure leaves the cursor and the recorder counts the attempt.
+- Every SDL enum constant used (`SDL_PIXELFORMAT_RGBA32`, cursor/format values) is converted explicitly
+  through a C-exported constant or `Int32(truncatingIfNeeded:)`/`UInt32(...)` (Windows `Int32` rawValue).
 - `Options`: `init(options:)` is the old init body; the stored `hidden`/`offscreenRenderers` come from it.
 
 ## 5 Tests (every one named, with its red-before and the mutation that must redden it)
@@ -128,8 +130,10 @@ unfiltered suite (or the named package's), name the reddened tests, restore from
     needs it). *Mutation:* make it `package`.
 
 **Lane B, SDL (`Backends/SDL/Tests/MetalUISDLTests/SDLImageCursorTests.swift`; `armMainRunLoopExitCheck()`;
-the offscreen driver may not create a cursor, so each gated test says `.enabled(if:)` on a driver that can,
-and the surface-content tests read the recorder, which counts even a refused create)**
+the offscreen driver may not create a cursor. Per `IC-O` the bounded table is a pure `SDLCursorTable<Handle>`
+with injected create/destroy, so tests 13-15 run on every driver, in the Linux image included, over a fake
+handle; only 11, 12 and 17 read the C recorder, which counts even a refused create, and any assertion that
+needs a real created cursor is `.enabled(if:)` on a driver that makes one. Tests 13-15 are ungated.)**
 11. `anSDLImageCursorIsCreatedFromStraightAlphaPixels` - `mui_cursor_last_pixel` of (100, 50, 25, 128)
     premultiplied reads (199, 100, 50, 128) (`AI-F`). *Mutation:* pass premultiplied bytes.
 12. `anSDLImageCursorGetsItsHotSpotInSurfacePixels` - `.center` on 16 pt scale 1: (8, 8); scale 2 (32 px
@@ -150,7 +154,8 @@ and the surface-content tests read the recorder, which counts even a refused cre
     never runs (`WS-D`) and `rendersOffscreen` is true. *Mutation:* `.headless` with `rendersOffscreen` false.
 19. `theEnvironmentConvenienceReadsOnlyTheValueOne` - `"1"` headless; `"0"`, `"true"`, `""`, absent default.
     *Mutation:* accept any non-empty value.
-20. `aHeadlessAppRunsItsTaskAndExits` - launches `HeadlessLaunchCheck` (plain import of `MetalUISDL`, recipe
+20. `aHeadlessAppRunsItsTaskAndExits` - (`IC-P`: the check bounds itself by loop iterations, never time, and the
+    test kills only its own child process at a generous deadline and fails on it) launches `HeadlessLaunchCheck` (plain import of `MetalUISDL`, recipe
     verbatim) in a process; reads `task ran=true` and exit 0 under `SDL_VIDEO_DRIVER=offscreen`; **ungated, in
     the Linux image**. *Mutation:* `.headless` without offscreen renderers: the check ends at its iteration
     bound with `task ran=false` (red). The plain import is itself the guard that `Options` needs no SPI.
@@ -159,8 +164,9 @@ and the surface-content tests read the recorder, which counts even a refused cre
 22. `theUnavailableStubNamesTheOptionsInitialiser` - extends guard 1.6 (trait off): `SDLPlatform(options:)`
     reports the trait message. *Mutation:* delete the stub's init.
 
-Counts: root +10 tests/+2 guards (the lane-B root items 1-10 less the SDL package ones); `Backends/SDL` +11;
-re-measured, never trusted.
+Counts (a plan, re-measured, never trusted): root = items 1-8 as tests (6 + 2 AppKit; some are parameterised,
+count by `@Test` function) + items 9-10 as 2 guards; `Backends/SDL` = items 11-22 (12 tests, counting 13-15 once
+in the pure table and once through the platform where it differs).
 
 ## 6 Demo expectation
 

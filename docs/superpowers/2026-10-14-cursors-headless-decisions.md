@@ -5,7 +5,7 @@ and XP-G9. Spec: [`specs/2026-10-14-cursors-headless-design.md`](specs/2026-10-1
 Record: `../record/116-cursors-headless.md`. Probe: `docs/probes/swiftui-image-cursor.swift` (arms `I0`-`I7`,
 output in its header).
 
-Prefix **`IC-`**, lettered. **Next unused: `IC-O`.** (Moves in the commit that appends a ruling.)
+Prefix **`IC-`**, lettered. **Next unused: `IC-Q`.** (Moves in the commit that appends a ruling.)
 Branch `feat/image-cursors-headless` from `fb9a7e42`. Reserved divergence labels 465-474: 465 used
 (`IC-C`), 466-474 unused.
 
@@ -203,3 +203,21 @@ ungated in the Linux image.
 headless block. The cursor block is Swift and compiled (`GuideMirrors*.swift`, `DG-C`: it builds an `Image`
 from a generated `ImageBitmap` and reads `TestWindow.pointerStyle`); the SDL launch block is a `text` fence
 (`DG-L`).
+
+## IC-O - The cursor table is pure Swift, so its pins run on every driver
+
+**Finding (critic).** Tests 13-15 (reuse, LRU bound, destroy on last close) were gated on a driver that creates
+a cursor; the Linux image sets `SDL_VIDEO_DRIVER=offscreen`, where creation may fail, so the pins would be
+skipped exactly where they must run and a skipped test cannot be red.
+
+**Ruling.** The bounded LRU table (`IC-E` 3) is `SDLCursorTable<Handle>` in `MetalUISDL`: generic, with
+`create`/`destroy` closures, the "currently shown" exemption and `removeAll()` passed in. `SDLPlatform` instantiates
+it with the C bridge; tests 13-15 instantiate it with a counting fake and are **ungated**. The C recorder is
+read only by tests 11, 12, 17. Same shape as `SurfaceTargetTable` (`MV-`).
+
+## IC-P - The headless check is bounded by iterations, the test by a child-process deadline
+
+**Ruling.** `HeadlessLaunchCheck` loops a fixed number of run-loop iterations (never a clock) and prints
+`task ran=<bool>`; the launching test owns the child `Process`, waits on it, and on a generous deadline
+terminates **that child only** and fails. A mutant that never runs the task therefore reddens (`task ran=false`)
+rather than hanging the suite (the 12-minute hang rule).
