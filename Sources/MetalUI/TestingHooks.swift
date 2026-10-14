@@ -158,18 +158,7 @@ extension Window {
     /// each: identity, bounds, layer, opacity, scroll axis, origin, shape, transform, the contextual flag and
     /// which handler members were present (`RK-E`).
     package var testingHitboxFingerprints: [String] {
-        lastHitboxes.map { box in
-            var members: [String] = []
-            for child in Mirror(reflecting: box.handlers).children {
-                guard let label = child.label else { continue }
-                let value = Mirror(reflecting: child.value)
-                if value.displayStyle == .optional, value.children.isEmpty { continue }
-                members.append(label)
-            }
-            return "\(box.id)|\(box.bounds)|\(box.layer)|\(box.opaque)|\(String(describing: box.scroll))|\(box.origin)|"
-                + "\(String(describing: box.shape))|\(String(describing: box.transform))|\(box.contextualEnabled)|"
-                + members.joined(separator: ",")
-        }
+        lastHitboxes.map(\.fingerprint)
     }
 
     /// The last build's region tallies: hover, pointer style, key, focus-on-press, resign (`RK-E`).
@@ -182,5 +171,25 @@ extension Window {
     /// build, sorted by description (`RK-E`).
     package var testingContextMenuAndPressOnlyIDs: [String] {
         lastContextMenus.keys.map { "menu \($0)" }.sorted() + lastAccessibilityPressOnly.keys.map { "press \($0)" }.sorted()
+    }
+}
+
+extension Window {
+    /// Damages every stored prepaint ledger in one named channel and answers how many it damaged (`RK-N`): the
+    /// exit tests of verify mode need a replay that differs from a fresh prepaint to see it trap.
+    @discardableResult
+    package func testingCorruptPrepaintLedgers(_ channel: String) -> Int {
+        stateTable.contentMemos.mutatePrepaintLedgers { ledger in
+            switch channel {
+            case "hitboxes": ledger.hitboxes.reverse(); if ledger.hitboxes.count > 1 { ledger.hitboxes.removeLast() }
+            case "tallies": ledger.tallies.hover += 1
+            case "focus": ledger.focus.removeAll()
+            case "accessibility": ledger.axEmissions.removeAll()
+            case "elementBounds": ledger.elementBounds.removeAll()
+            case "contextMenus": ledger.contextMenus.removeAll()
+            case "pressOnly": ledger.pressOnly.removeAll()
+            default: preconditionFailure("unknown ledger channel \(channel)")
+            }
+        }
     }
 }

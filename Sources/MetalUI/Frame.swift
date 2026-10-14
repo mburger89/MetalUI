@@ -109,6 +109,12 @@ public final class Frame {
     /// (`RK-C`, `RK-D`): non-empty at the end of paint means the frame is abandoned and built again.
     var redoEntries: [ContentMemoStore.Entry] = []
 
+    /// Verify mode (`RK-N`, `METALUI_VERIFY_RETAINED=1`): what this frame held after the root's paint, taken only
+    /// when a prepaint was replayed, and whether the frame was abandoned there so the window builds it again with
+    /// every replay off and compares the two.
+    var verifySnapshot: RetainedVerifySnapshot?
+    var verifyAbandoned = false
+
     /// Where a ``ScrollViewProxy`` built in this frame enqueues its
     /// `scrollTo` requests (ruling `DD-G` item 3). `Window` replaces this with
     /// its own queue before rendering, so a request outlives the frame whose
@@ -3647,9 +3653,17 @@ public final class Frame {
             element.paint(rootID, bounds: rootBounds,
                           layout: &state, prepaint: &prepaintState, pass: &paintPass)
         }
-        if !redoEntries.isEmpty {
+        let memos = stateTable.contentMemos
+        if retainedVerifiesFromEnvironment, redoEntries.isEmpty, memos.retained.prepaintHits > 0, !memos.redoInProgress {
+            verifySnapshot = captureRetainedVerifySnapshot()
+            verifyAbandoned = true
+        } else if retainedVerifiesFromEnvironment, memos.redoInProgress {
+            verifySnapshot = captureRetainedVerifySnapshot()
+        }
+        if !redoEntries.isEmpty || verifyAbandoned {
             // A replayed prepaint met a paint-time ambient that differed (`RK-C`): this frame is abandoned
-            // before anything after the root's paint runs (`RK-M`), and the window builds it again.
+            // before anything after the root's paint runs (`RK-M`), and the window builds it again. Verify mode
+            // abandons a frame that replayed a prepaint the same way, to compare it with the rebuild (`RK-N`).
             glyphAtlas.endFrame()
             textSystem.endFrame()
             isRendering = false

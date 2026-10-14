@@ -258,3 +258,61 @@ extension ContentMemoStore {
         retained.redos = 1
     }
 }
+
+// MARK: - Verify mode (`RK-N`)
+
+/// What a frame holds after the root's paint, as comparable values (`RK-N`): the scene's arrays byte for byte, every
+/// hitbox's fingerprint in order, the Tab order and focus registrations' effect, the accessibility records, the tallies
+/// and the registrations of context menus, press-only actions and element bounds.
+struct RetainedVerifySnapshot {
+    let rects: Data, glyphs: Data, images: Data, backdrops: Data, transforms: Data
+    let counts: [Int]
+    let hitboxes: [String]
+    let tabOrder: [GlobalElementID]
+    let accessibility: [String]
+    let axNodes: [GlobalElementID]
+    let tallies: RegionTallies
+    let contextMenus: [GlobalElementID]
+    let pressOnly: [GlobalElementID]
+    let bounds: [GlobalElementID: Bounds<Pixels>]
+
+    /// The first channel that differs from `other`, named, or `nil`.
+    func difference(from other: RetainedVerifySnapshot) -> String? {
+        if rects != other.rects { return "scene rects" }
+        if glyphs != other.glyphs { return "scene glyphs" }
+        if images != other.images { return "scene images" }
+        if backdrops != other.backdrops { return "scene backdrops" }
+        if transforms != other.transforms { return "scene transforms" }
+        if counts != other.counts { return "scene counts \(counts) vs \(other.counts)" }
+        if hitboxes != other.hitboxes {
+            let first = zip(hitboxes, other.hitboxes).enumerated().first { $0.element.0 != $0.element.1 }
+            return "hitboxes (\(hitboxes.count) vs \(other.hitboxes.count)) first difference \(String(describing: first))"
+        }
+        if tabOrder != other.tabOrder { return "tab order" }
+        if accessibility != other.accessibility { return "accessibility records (\(accessibility.count) vs \(other.accessibility.count))" }
+        if axNodes != other.axNodes { return "accessibility nodes" }
+        if tallies != other.tallies { return "region tallies \(tallies) vs \(other.tallies)" }
+        if contextMenus != other.contextMenus { return "context menus" }
+        if pressOnly != other.pressOnly { return "press-only actions" }
+        if bounds != other.bounds { return "element bounds" }
+        return nil
+    }
+}
+
+extension Frame {
+    func captureRetainedVerifySnapshot() -> RetainedVerifySnapshot {
+        func bytes<T>(_ array: [T]) -> Data { array.withUnsafeBytes { Data($0) } }
+        let s = finalizedScene()
+        return RetainedVerifySnapshot(
+            rects: bytes(s.rects), glyphs: bytes(s.glyphs), images: bytes(s.images), backdrops: bytes(s.backdrops),
+            transforms: bytes(s.transforms),
+            counts: [s.rects.count, s.glyphs.count, s.images.count, s.surfaces.count, s.textures.count, s.drawList.count],
+            hitboxes: hitboxes(from: 0).map(\.fingerprint), tabOrder: focusRegistry.tabOrder,
+            accessibility: axEmissions(from: 0).map {
+                "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
+            },
+            axNodes: axNodes.keys.sorted { "\($0)" < "\($1)" }, tallies: regionTallies,
+            contextMenus: contextMenuRecords.keys.sorted { "\($0)" < "\($1)" },
+            pressOnly: accessibilityPressOnly.keys.sorted { "\($0)" < "\($1)" }, bounds: elementBounds)
+    }
+}

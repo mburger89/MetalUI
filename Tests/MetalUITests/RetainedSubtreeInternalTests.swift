@@ -95,7 +95,8 @@ private let frameChannels: [String: Channel] = [
     "retainLog": .frameLocal,
     // C14b-2 (`RK-E`, `RK-D`): the prepaint journal is open only inside a recorder's window; the redo list is
     // read by `Frame.render` after the root's paint and by the window, never replayed.
-    "prepaintLog": .frameLocal, "redoEntries": .frameLocal,
+    "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "verifySnapshot": .frameLocal,
+    "verifyAbandoned": .frameLocal,
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {

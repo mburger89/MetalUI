@@ -1876,6 +1876,20 @@ public final class Window {
             frame = buildFrame()
             memos.redoInProgress = false
             assert(frame.redoEntries.isEmpty, "a redo asked for a redo (RK-M): every replay is off in it")
+        } else if frame.verifyAbandoned {
+            // Verify mode (`RK-N`): the frame replayed a prepaint; build it again with every replay off, from the
+            // same checkpoint, and compare what both held after the root's paint, naming the channel.
+            let replayed = frame.verifySnapshot
+            memos.resetBuildCounters()
+            scrollRequests.restore(pendingScrollRequests)
+            if let checkpoint { animationStore.rollbackBuild(checkpoint) }
+            surfaceRegistry.rollbackBuild()
+            memos.redoInProgress = true
+            frame = buildFrame()
+            memos.redoInProgress = false
+            if let replayed, let fresh = frame.verifySnapshot, let difference = replayed.difference(from: fresh) {
+                preconditionFailure("METALUI_VERIFY_RETAINED: a replayed prepaint differs from a fresh one: \(difference)")
+            }
         }
         let scene = frame.finalizedScene()
         lastScene = scene

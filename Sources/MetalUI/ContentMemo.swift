@@ -201,6 +201,13 @@ package final class ContentMemoStore {
         return content
     }
 
+    /// Calls `body` on every stored prepaint ledger and answers how many there were (`RK-N`'s exit tests).
+    func mutatePrepaintLedgers(_ body: (PrepaintLedger) -> Void) -> Int {
+        var count = 0
+        for entry in entries.values { if let ledger = entry.record?.prepaint { body(ledger); count += 1 } }
+        return count
+    }
+
     /// Starts this build's counters over (`RK-D`): the abandoned attempt's work was thrown away.
     func resetBuildCounters() {
         retained = RetainedCounters()
