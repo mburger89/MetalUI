@@ -13,16 +13,33 @@ enum ChromeRegions {
     /// The regions for `hitboxes` (the last frame's), a band `bandHeight` tall across `windowWidth` (none
     /// when 0) plus every handle, carved by every blocker, capped at `ChromeHitSnapshot.maximumRegions`.
     static func compute(hitboxes: [Hitbox], bandHeight: Float, windowWidth: Float) -> [Bounds<Pixels>] {
-        var candidates: [Bounds<Pixels>] = []
+        // The one ranking's key, `(layer, registration index)` (`topmostHitbox`); a higher one is above.
+        func rank(_ index: Int) -> (Int, Int) { (hitboxes[index].layer, index) }
+        let blockerIndices = hitboxes.indices.filter { blocks(hitboxes[$0]) }
+        var ranked: [(candidate: Bounds<Pixels>, blockers: [Bounds<Pixels>])] = []
         if bandHeight > 0 {
-            candidates.append(Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
-                                     size: Size(width: Pixels(windowWidth), height: Pixels(bandHeight))))
+            // The band has no element: everything carves it but a backdrop (`CW-V`), content the bar floats over.
+            let band = Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                              size: Size(width: Pixels(windowWidth), height: Pixels(bandHeight)))
+            let carving = blockerIndices.map { blockerRect(hitboxes[$0]) }.filter {
+                !isBackdrop($0, bandHeight: bandHeight, windowWidth: windowWidth)
+            }
+            ranked.append((band, carving))
         }
         // A handle under a render effect has its bounds in local space: not a candidate (conservative).
-        candidates += hitboxes.filter { isHandle($0) && $0.transform == nil }.map(\.bounds)
-        let blockers = hitboxes.filter(blocks).map(blockerRect)
-        return ChromeHitMap.carve(candidates: candidates, blockers: blockers,
-                                  limit: ChromeHitSnapshot.maximumRegions).rects
+        for index in hitboxes.indices where isHandle(hitboxes[index]) && hitboxes[index].transform == nil {
+            // Only a blocker ranked above the handle's own hitbox carves it (`CW-V`).
+            let above = blockerIndices.filter { rank($0) > rank(index) }.map { blockerRect(hitboxes[$0]) }
+            ranked.append((hitboxes[index].bounds, above))
+        }
+        return ChromeHitMap.carve(ranked: ranked, limit: ChromeHitSnapshot.maximumRegions).rects
+    }
+
+    /// Whether `rect` is content behind the bar rather than in it: as wide as the window and reaching below the
+    /// band (`CW-V`). A control in the bar is narrower or ends inside it.
+    private static func isBackdrop(_ rect: Bounds<Pixels>, bandHeight: Float, windowWidth: Float) -> Bool {
+        rect.origin.x.value <= 0 && rect.origin.x.value + rect.size.width.value >= windowWidth
+            && rect.origin.y.value + rect.size.height.value > bandHeight
     }
 
     /// Whether `hitbox` is a window-drag handle: a hitbox whose only pointer asks are `WindowDragGesture`

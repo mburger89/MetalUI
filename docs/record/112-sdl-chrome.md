@@ -179,3 +179,13 @@ platform that answers `false` to the four requirements computes nothing new (`aS
 - Not re-taken at this phase: the fourteen images (the lanes' 0 px stand; no `Sources/` change since, only a test), the
   Linux image and `Backends/SDL` (no change since the lane readings), Windows.
 
+
+## §11 XP-G11: depth-ranked carving (2026-10-14)
+
+MetalCreator's glass top bar over a full-window `DragGesture` viewport read `windowDragRegions == []`: `carve`
+subtracted every opaque hitbox whatever its depth, so a view behind the bar took the band and the handles away
+(no drag, no double-click zoom). Ruling `CW-V`: a handle is carved only by hitboxes ranked above its own
+`(layer, registration index)`; the band, which has no element, is carved by every blocker except a window-wide
+backdrop reaching below the band. Tests 2.12 to 2.15 in `WindowChromeTests.swift` (red first, then green);
+mutations in the commit message of the fix. `mui_chrome_hit` and `ChromeHitSnapshot.hit(at:)` read the
+published rects and needed no change. Counts not re-measured here.
