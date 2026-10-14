@@ -400,6 +400,8 @@ import MetalUICore
 import MetalUIPortableText
 import MetalUISDL
 
+// textSystem: your portable text system (a PortableTextSystem over your fonts),
+// as in HeadlessLaunchCheck (Backends/SDL/Sources/HeadlessLaunchCheck/main.swift).
 let platform = try SDLPlatform(options: .headless)   // or .headlessIfRequested()
 let app = App(platform: platform, textSystem: { textSystem })
 var ran = false

@@ -4,7 +4,7 @@ Items S4 and S8 (MetalCreator's SDL-port gap 8 and XP-G9; user request 2026-10-0
 Rulings: [`../2026-10-14-cursors-headless-decisions.md`](../2026-10-14-cursors-headless-decisions.md) (`IC-A`...`IC-N`).
 Record: `../../record/116-cursors-headless.md`. Probe: `docs/probes/swiftui-image-cursor.swift`.
 
-**Status: lane A (S8) and lane B (S4) built; see the decisions doc (`IC-R` for lane B's spellings).**
+**Status: LANDED (2026-10-14, record §116).** Lane A (S8) and lane B (S4) built, each red first and verified; see the decisions doc (`IC-R` for lane B's spellings). Owed to a human or CI: group IC and the Windows run.
 
 ## 1 Goal
 

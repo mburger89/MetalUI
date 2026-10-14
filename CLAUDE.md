@@ -78,7 +78,8 @@ summary.
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `HP-` (hot paths:
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-V`), `IB-` (public image decoding and orientation:
-  `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), …; the full
+  `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `IC-` (image cursors, headless SDL launch:
+  `2026-10-14-cursors-headless-decisions.md`, next `IC-S`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -91,7 +92,7 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **155 live, next label 206** (425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **156 live, next label 206** (465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD and IV, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -113,7 +114,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-14, `feat/sdl-custom-chrome` from `fb9a7e42`, merged with master `dea698ca` (§111 hot paths, §113 image decoding): 3799 tests, 0 goldens, 238 typecheck guards** (master's 3757 + 42 tests, 236 + 2 guards `CW-1`, `CW-2`; re-measured by the orchestrator on the merged tree, record §112). Before it, the branch alone:
+- **Counts (2026-10-14, `feat/image-cursors-headless` from `fb9a7e42`, merged with master `ceca59f6` (§111 hot paths, §112 SDL chrome, §113 image decoding): 3811 tests, 0 goldens, 241 typecheck guards** (master's 3799 + 12 tests, 238 + 3 guards: 6 `ImageCursorTests`, 2 `AppKitImageCursorTests`, the two guards of `ImageCursorCompileGuards.swift`, `IC-22` and the guide mirror's test; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 157 on macOS, 30 + 154 in `swift:6.4-noble`; census 3587, inventory and undocumented scripts print nothing; divergence 465 added, 156 live; the fourteen images were 0 px against `fb9a7e42` at the lanes, not re-taken on the merge; Windows and a real window not run, human checks group `IC`; record §116 §11). Before it,
+  **Counts (2026-10-14, `feat/sdl-custom-chrome` from `fb9a7e42`, merged with master `dea698ca` (§111 hot paths, §113 image decoding): 3799 tests, 0 goldens, 238 typecheck guards** (master's 3757 + 42 tests, 236 + 2 guards `CW-1`, `CW-2`; re-measured by the orchestrator on the merged tree, record §112). Before it, the branch alone:
   **(2026-10-14, `feat/sdl-custom-chrome` from `fb9a7e42`: 3759 tests, 0 goldens, 236 typecheck guards** (3717 + 42 tests: lane 1's 13 portable snapshot tests and 26 window tests, the left-cluster pin added at the Record phase, 2 guards `CW-1`, `CW-2`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 145 on macOS, 30 + 142 in `swift:6.4-noble` (12 chrome pins skipped by the offscreen driver); inventory and undocumented scripts print nothing, census 3526; the fourteen images 0 px against `fb9a7e42`; divergences 425, 426 added and 175, 276 amended, the header's count and next label the merge's; Windows and a real window not run, human checks group `CW`; record §112). Before it,
   **(2026-10-14, `perf/hot-paths` from `fb9a7e42`, merged with master `8e66689f` (§113 image decoding): 3757 tests, 0 goldens, 236 typecheck guards** (master's 3737 + 20 tests, 235 + guard HP.1; re-measured by the orchestrator on the merged tree, record §111 §4). Before it, the branch alone:
   **(2026-10-14, `perf/hot-paths` from `fb9a7e42`: 3737 tests, 0 goldens, 235 typecheck guards** (3717 + 20 tests, 234 + guard HP.1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; no public declaration, census 3511 unmoved, inventory and undocumented scripts print nothing; no divergence label taken; the fourteen images 0 px against `fb9a7e42`; `Backends/SDL` 30 + 122 and the root portable tests passed in the Linux image; record §111 §4). Before it,
@@ -243,7 +245,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §112.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §112, §116.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -979,8 +981,8 @@ wins, a press holds the pressed chain's style, sent only on a change, forgotten
 on exit) through the defaultless `PlatformWindow.setPointerStyle(_:)`; SDL has
 no hand or zoom cursor (`MOVE`/arrow, `CI-H` item 8), no rotate, no pinch on
 Windows and no wheel phase. Both new regions sit inside the disabled,
-`allowsHitTesting` and `hidden()` gates. `CoordinateSpace.named` is built (`OV-D`, below); an image
-cursor would still add an enum case (`CI-AC`).
+`allowsHitTesting` and `hidden()` gates. `CoordinateSpace.named` is built (`OV-D`, below); the image
+cursor is built (`IC-`, below), and `shape(_:eoFill:size:)` is carried (`IC-G`).
 
 **Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one
@@ -1186,6 +1188,22 @@ apply it**: `applyingOrientation()` or `Image(…orientation:)` (no default, `IB
 the stored pixels, unlike SwiftUI's `NSImage` route (divergence 435, `IB-G`). `Image.Orientation` has SwiftUI's
 raw values. No C, shader or `ImageTexture` change; a new reader of the file bytes stays Foundation-free.
 
+**Image cursors and the headless SDL launch (`IC-`, record §116).** `PointerStyle.image(_:hotSpot:)` is SwiftUI's
+spelling (class A): the cursor is the `Image`'s one bitmap at `pixels / scale` points (probe `swiftui-image-cursor.swift`;
+`resizable()`/`interpolation` ignored), the hot spot a `UnitPoint` of that size from the top-left, **clamped per axis**
+(divergence 465). It reaches the platform as the seam case `PlatformPointerStyle.image(PlatformCursorImage)` (`CI-AC`: an
+outside exhaustive `switch` owes an arm), **compared by texture identity, never bytes**, so a bitmap rebuilt into an `Image`
+every frame is one cursor and `Window` still sends on a change only (`IC-A`, `IC-F`). AppKit wraps the premultiplied pixels
+as stored in an `NSCursor` (LRU 16 per window); SDL un-premultiplies through `SDLIcon.straightRGBA` (`AI-F`) into
+`SDL_CreateColorCursor` (an integer scale >= 2 adds the bitmap as an alternate), through `SDLImageCursorTable` (pure,
+LRU 8, **the platform's**, a shown cursor parked and destroyed at the next sweep, all destroyed on the last close; tests
+read the C recorders `mui_cursor_*`, which count even a refused create). **No hand or zoom art is bundled**: the app
+supplies SDL's (`IC-H`). `.shape` is not built. `SDLPlatform.Options` (`.default`, `.headless` = hidden windows + offscreen
+renderers, `headlessIfRequested()` reading `METALUI_SDL_HEADLESS` exactly `"1"`, never read by `init`) with
+`SDLPlatform(options:)` is the public CI smoke-test launch (`IC-J`…`IC-M`); the `@_spi(Checks)` initialiser forwards. A
+`.task` can run before `platform.run()` starts, so a smoke test stops from the display-link tick (`IC-Q`); the recipe is
+`docs/testing.md`, `HeadlessLaunchCheck` its compiled twin. Cursor looks and the SDL recipe are group IC.
+
 **Observation off the main thread (`RU-`, record §106).** `Window.markDirtyFromObservation` recognises
 the flush's own sentinel `onChange` by **thread** (`Window.flushingThread`, set around the sentinel
 write), never by `Thread.isMainThread`: Swift Testing runs the main actor on a pool thread, so the old
@@ -1349,7 +1367,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (155 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (156 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final
