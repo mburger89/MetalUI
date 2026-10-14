@@ -60,20 +60,11 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         }
         // A grafted occurrence skips the build recursion (`RK-B`): its rows are copied from the last build's segment
         // and the journal of that build is applied again. Its prepaint and paint are replays, or the frame is redone.
-        GraftProbe.register()
         let buildKey = frame.graftBuildKey()
         if let record = frame.graftRecord(for: entry, id: id, key: buildKey) {
-            let started = GraftProbe.enabled ? GraftProbe.now() : 0
-            let outermost = !store.journal.isRecording
             let tops = frame.graftOccurrence(record)
             let layout = ComponentLayout<C>(grafted: RetainedGraft(record: record))
             layout.storage.retained = window.finish(frame: frame, key: key, nodes: tops, observed: false)
-            if GraftProbe.enabled, outermost, record.wasOutermost {
-                GraftProbe.graftNanoseconds &+= GraftProbe.now() &- started
-                GraftProbe.standingForNanoseconds &+= record.buildNanoseconds
-                GraftProbe.grafts += 1
-                GraftProbe.nodes += record.segment.nodeCount
-            }
             return (tops, layout)
         }
         // The build recursion runs in an observation window of its own (`SB-D`): a descendant
@@ -81,8 +72,6 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         let observed = entry.needsObservation
         let evaluationsBefore = store.evaluationsSoFar
         let graftWindow = store.recordsGrafts ? frame.openGraftWindow() : nil
-        let outermost = graftWindow != nil && store.journal.open.count == 1
-        let started = GraftProbe.enabled ? GraftProbe.now() : 0
         let result: ([LayoutNodeID], ComponentLayout<C>)
         if observed {
             result = entry.buildSession.run(entry: entry, store: store) {
@@ -91,7 +80,6 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         } else {
             result = component.finishComponent(&materialized, id: id, pass: &pass)
         }
-        let spent = GraftProbe.enabled ? GraftProbe.now() &- started : 0
         // A descendant whose content ran this frame may have changed what the record holds, though this
         // occurrence's own windows never saw its reads (it was skipped when they were open): no replay.
         if store.evaluationsSoFar != evaluationsBefore { entry.observedChange = true }
@@ -101,13 +89,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         if let graftWindow {
             let closed = frame.closeGraftWindow(graftWindow, tops: result.0, contentSerial: entry.serial, key: buildKey)
             if let record = closed.record {
-                record.wasOutermost = outermost
-                record.buildNanoseconds = spent
                 entry.graft = record
-                if GraftProbe.enabled, outermost {
-                    GraftProbe.buildNanoseconds &+= spent
-                    GraftProbe.builds += 1
-                }
             } else {
                 entry.graft = nil
                 store.retained.graftIneligible += 1

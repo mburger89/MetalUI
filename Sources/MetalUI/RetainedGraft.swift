@@ -125,10 +125,6 @@ final class GraftRecord {
     let nestedKeys: [ContentMemoStore.Key]
     let liveStates: [GlobalElementID]
     let animationIDs: [GlobalElementID]
-    /// The wall time of the build this record stands for, for the cost probe (`RK-P`); 0 unless `RK_EXPERIMENT=1`.
-    var buildNanoseconds: UInt64 = 0
-    /// Whether that build was an outermost occurrence's (the probe counts those only, `RK-P`).
-    var wasOutermost = false
     /// The lowered-item records of the top-level nodes, by top index (`RK-F`): a legacy top is consumed by its parent
     /// container after the occurrence returns, so the graft records it again for the new node. The interior
     /// records are consumed and never read again.
@@ -284,27 +280,6 @@ final class RetainedGraft {
 
 
 // MARK: - The decision and the graft
-
-/// The cost probe of `RK-P` (`RK_EXPERIMENT=1`): wall time of outermost builds against the graft that replaced them.
-enum GraftProbe {
-    static let enabled = ProcessInfo.processInfo.environment["RK_EXPERIMENT"] == "1"
-    nonisolated(unsafe) static var buildNanoseconds: UInt64 = 0
-    nonisolated(unsafe) static var graftNanoseconds: UInt64 = 0
-    nonisolated(unsafe) static var standingForNanoseconds: UInt64 = 0
-    nonisolated(unsafe) static var builds = 0
-    nonisolated(unsafe) static var grafts = 0
-    nonisolated(unsafe) static var nodes = 0
-    static func now() -> UInt64 { clock_gettime_nsec_np(CLOCK_UPTIME_RAW) }
-    nonisolated(unsafe) static var registered = false
-    /// Prints the totals once at process exit.
-    static func register() {
-        guard enabled, !registered else { return }
-        registered = true
-        atexit {
-            print("RK_EXPERIMENT builds=\(GraftProbe.builds) grafts=\(GraftProbe.grafts) graftedNodes=\(GraftProbe.nodes) buildMs=\(Double(GraftProbe.buildNanoseconds) / 1e6) graftMs=\(Double(GraftProbe.graftNanoseconds) / 1e6) buildStoodForMs=\(Double(GraftProbe.standingForNanoseconds) / 1e6)")
-        }
-    }
-}
 
 extension Frame {
     /// The graft record this occurrence may stand on in this build, or `nil` (`RK-B`, `RK-C`): its paint record, prepaint

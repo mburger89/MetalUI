@@ -98,6 +98,11 @@ func runDemo() throws {
         window.testingOnFrameAdopted { work in
             model.counters = (work.retained.hits, work.retained.misses, work.retained.ineligible,
                               work.retained.prepaintHits, work.retained.redos, work.retained.translated)
+            model.grafts = (work.retained.grafts, work.retained.skippedRequests)
+        }
+        model.applySkipBuild = { [weak window] on in
+            window?.testingRetainedGraft = on
+            window?.setNeedsRedraw()
         }
         model.applyPrepaintReplay = { [weak window] on in
             window?.testingRetainedPrepaint = on

@@ -42,6 +42,9 @@ public final class RetainedSubtreeDemoModel {
     public var replay = true
     /// Whether `.equatable()` occurrences replay their prepaint (`RK-E`); off is paint-only replay.
     public var replayPrepaint = true
+    /// Whether an unchanged `.equatable()` occurrence skips its build recursion (`RK-B`); off, prepaint and paint replay as at
+    /// lane 1's tree. Needs ``replayPrepaint`` (a graft's prepaint is a replay).
+    public var skipBuild = true
     /// The canvas pan, points: one `.offset` over every node and wire, so a pan moves each occurrence by a
     /// translation of the render effect around it and they replay translated (`RK-S`).
     public var pan: Float = 0
@@ -51,6 +54,10 @@ public final class RetainedSubtreeDemoModel {
     @ObservationIgnored public var applyReplay: ((Bool) -> Void)?
     /// Installed by `main.swift`: turns prepaint replay on or off in the window.
     @ObservationIgnored public var applyPrepaintReplay: ((Bool) -> Void)?
+    /// Installed by `main.swift`: turns the build skip on or off in the window.
+    @ObservationIgnored public var applySkipBuild: ((Bool) -> Void)?
+    /// The last adopted frame's grafts and the element requests they stood for (`RK-B`).
+    @ObservationIgnored public var grafts = (count: 0, skippedRequests: 0)
     @ObservationIgnored private var dragStartX: Float = 0
     @ObservationIgnored private var dragStartY: Float = 0
     @ObservationIgnored private var dragging: Int?
@@ -182,6 +189,8 @@ struct RetainedDemoStrip: Component {
                                            set: { model.replay = $0; model.applyReplay?($0) }))
             Toggle("Prepaint", isOn: Binding(get: { model.replayPrepaint },
                                              set: { model.replayPrepaint = $0; model.applyPrepaintReplay?($0) }))
+            Toggle("Skip build", isOn: Binding(get: { model.skipBuild },
+                                               set: { model.skipBuild = $0; model.applySkipBuild?($0) }))
             Text("hits \(model.counters.hits)").font(size: 12)
             Text("misses \(model.counters.misses)").font(size: 12)
             Text("ineligible \(model.counters.ineligible)").font(size: 12)
@@ -198,6 +207,7 @@ private func retainedDemoPrepaintReadout(_ model: RetainedSubtreeDemoModel) -> s
         Text("prepaint \(model.counters.prepaintHits)").font(size: 12)
         Text("redos \(model.counters.redos)").font(size: 12)
         Text("translated \(model.counters.translated)").font(size: 12)
+        Text("grafted \(model.grafts.count) (\(model.grafts.skippedRequests) requests)").font(size: 12)
         Slider(value: Binding(get: { Double(model.pan) }, set: { model.pan = Float($0) }), in: 0...120)
             .frame(width: Pixels(120))
     }

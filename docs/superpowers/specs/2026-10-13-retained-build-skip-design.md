@@ -169,3 +169,26 @@ The design held for M1 and was corrected in five places by what the code and the
 10 the two classification guards gain `prepaintLog`, `redoEntries`, `verifySnapshot`, `verifyAbandoned`; 11 `aTranslatedReplayEqualsAFreshFrameAtEveryScale` (10 arms) and
 `aHitboxWhoseClipDependedOnTheTranslationIsNotMoved`; 12 `aPanOfTheWholeGraphReplaysEveryNodeAndEqualsAFreshFrame`; 13 `aStaticLabelOverlayReplaysAndAMovingOneReplaysTranslated`
 (renamed: the moving arm now replays); 14 `aVerifiedPrepaintReplayThatDiffersTraps` (7 arms and a control); the plain-import guard 1.17c.
+
+
+## 10. Lane 2 as built (what moved from §2 M2 and §5 tests 14 to 22; rulings `RK-X`…`RK-AB`)
+
+M2 held. The graft is cheaper than the build it replaces **with the journal included**: 17.7 % per outermost occurrence (`RK-X`, the 50 % stop did not
+fire). It was corrected in six places by what the code and the runs showed; each is a ruling with its evidence.
+
+| design said | built | ruling |
+|---|---|---|
+| `RK-F`: `elementBounds` below the top level and lowering records refuse a graft | `elementBounds` is written in prepaint (the ledger replays it), so it is no refusal; the lowered items of the **top-level** nodes are carried and recorded again for the new ids, interior ones are consumed or report nothing | `RK-Z` |
+| the journal records "every sweep-visible channel" | thirteen events, each recorded by its funnel and applied by it; `withState`/`write` outside an animation baseline taint (`stateWrite`); eighteen audited channels refuse by name | `RK-Z` |
+| the decision at the build "from the `RK-C` list" | the list is `Frame.graftRecord(for:id:key:)`; rects and the paint-only ambient stay unknown at the build, and a prepaint or paint decision against a graft is the redo | `RK-Y` |
+| `ComponentLayout` payload optional with a marker | as designed; `withPayload` and `content` trap by name; `everyReaderOfAComponentPayloadIsNamed` scans `Sources/` for a third reader | `RK-Y` |
+| verify mode: a second full build and a whole-frame compare, "table key sets" among them | the tables are compared **inside the snapshot, before the sweep** (the first spelling compared after the presented rebuild's sweep and read 118 marks missing); plus the layout tree digest | `RK-AA` |
+| lane 1's pins unchanged | the pins that count a build run with the graft off by a parameter (`bracketDragFrames(graft:)`, `RPPair(graft:)`); the graft's counts are `RetainedGraftTests` | `RK-AB` |
+
+**Tests, by the spec's numbers.** 14 `aGraftedSubtreeEqualsAFreshBuild` (3 offsets), `twoGraftsOfOneSegmentHaveDistinctGridRowTokens`, `aWindowThatIsNotACleanSubtreeIsRefusedByName`,
+`aGraftedNodeHasNoRectUntilItIsPlaced` (`MetalUILayoutTests/GraftKernelTests.swift`); 15 `aGraftedFrameKeepsTheStateTableSweepsExact`; 16 `theBuildRecursionIsSkippedForAnUnchangedSubtree` (3 arms);
+17 `everyReaderOfAComponentPayloadIsNamed`, `aGraftedLayoutTrapsByNameWhenAnElementPhaseReadsIt`, `anOrdinaryComponentLayoutHasAPayload`, `aBuiltOccurrenceLeavesAGraftRecordOfItsNodes`
+(`MetalUITests/RetainedGraftInternalTests.swift`); 18 `aGraftIneligibleBuildIsCountedByName` (6 kinds); 19 `aGraftWithAChangedValueBuildsAndAGraftAfterItGrafts`, `aStateWriteBelowAGraftedOccurrenceRebuildsIt`,
+`aNestedOccurrencesObservedChangeRebuildsTheGraftedOuter`; 20 `aRedoAfterAGraftMismatchRestoresEverything` (2 arms), `aGraftedOccurrenceUnderARefusedTranslationRedoesTheFrame`;
+22 `theBracketNodeDragIsCountedAfterTheGraft` (3 arms); verify mode `aVerifiedGraftThatDiffersTraps` (6 arms), `anUndamagedVerifiedGraftDrawsNormally`; the plain-import guard 1.17d.
+Test 21 is not a test: the reading is `RK-X`.
