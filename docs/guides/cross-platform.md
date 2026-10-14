@@ -113,6 +113,24 @@ A test reads the labelled image from the accessibility tree and gets `nil` for a
 `theCrossPlatformGuideAMissingFileIsNil`; the decoder's own pins: `everyFixturePNGDecodesToItsLiteralPixels`,
 `aCorruptPNGIsNil`).
 
+To read pixels, decode once with `DecodedImage` (PNG and JPEG, the same decoder, MetalUI-only): `.grey`
+gives one luma byte per pixel (a grey source exactly, otherwise Rec. 601 with alpha dropped), `.rgba` gives
+straight-alpha bytes, and `orientation` is the file's EXIF tag, **reported and not applied** (a bitmap built
+from the file draws its stored pixels, divergence 435). `applyingOrientation()` turns the pixels upright, and
+`Image(_:scale:orientation:label:)` draws a bitmap turned by a tag you already read.
+
+```swift
+/// Decodes once: grey pixels to analyse, and an upright bitmap to draw.
+func crossDecode(_ data: Data) -> (grey: DecodedImage, upright: ImageBitmap)? {
+    guard let grey = DecodedImage(data: data, format: .grey),
+          let colour = DecodedImage(data: data) else { return nil }
+    return (grey, ImageBitmap(colour.applyingOrientation()))
+}
+```
+
+A one-pixel PNG decodes to one grey byte and a 1x1 bitmap, and bytes that are not an image are `nil`
+(pin: `theCrossPlatformGuideDecodesOnceAndRejectsGarbage`).
+
 Text uses CoreText on macOS and MetalUI's portable system (HarfBuzz shaping, FreeType glyphs,
 libunibreak line breaking) elsewhere, measured against CoreText. Fonts come from the platform's
 installed fonts through `SystemFonts.resolver()`; the one place you will see a difference is joined

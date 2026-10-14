@@ -76,7 +76,8 @@ summary.
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
   `2026-10-13-incremental-invalidation-decisions.md`, next `IV-R`), `SB-` (retained subtrees:
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `HP-` (hot paths:
-  `2026-10-13-hot-paths-decisions.md`, next `HP-K`), …; the full
+  `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `IB-` (public image decoding and orientation:
+  `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -111,7 +112,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-14, `perf/hot-paths` from `fb9a7e42`: 3737 tests, 0 goldens, 235 typecheck guards** (3717 + 20 tests, 234 + guard HP.1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; no public declaration, census 3511 unmoved, inventory and undocumented scripts print nothing; no divergence label taken; the fourteen images 0 px against `fb9a7e42`; `Backends/SDL` 30 + 122 and the root portable tests passed in the Linux image; record §111 §4). Before it,
+- **Counts (2026-10-14, `perf/hot-paths` from `fb9a7e42`, merged with master `8e66689f` (§113 image decoding): 3757 tests, 0 goldens, 236 typecheck guards** (master's 3737 + 20 tests, 235 + guard HP.1; re-measured by the orchestrator on the merged tree, record §111 §4). Before it, the branch alone:
+  **(2026-10-14, `perf/hot-paths` from `fb9a7e42`: 3737 tests, 0 goldens, 235 typecheck guards** (3717 + 20 tests, 234 + guard HP.1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; no public declaration, census 3511 unmoved, inventory and undocumented scripts print nothing; no divergence label taken; the fourteen images 0 px against `fb9a7e42`; `Backends/SDL` 30 + 122 and the root portable tests passed in the Linux image; record §111 §4). Before it,
+  **(2026-10-14, `feat/image-decode-api` from `fb9a7e42`: 3737 tests, 0 goldens, 235 typecheck guards** (3717 + 20 tests (lane 1's 15, lane 2's 5), 234 + `G-IB1`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, native unfiltered run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, `FR-J no-argument frame: succeeded=true`; census 3531; inventory and undocumented scripts print nothing; the fourteen images 0 px against `fb9a7e42`; divergence 435 added; record §113 §2). Before it,
 - **Counts (2026-10-13, `perf/retained-subtrees` from `e85cb07a`: 3717 tests, 0 goldens, 234 typecheck guards** (3675 + 42 tests, 232 + the two of `RetainedSubtreeCompileGuards.swift`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; also 3708 passed with `AppKitPresentationTests` skipped, and under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1`; census 3511; the fourteen images 0 px against `e85cb07a`; no divergence label taken; record §109 §6, §13). Before it,
 - **Counts (2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107), then `aa42fbc8` (§108 `frame(ofID:)`): 3675 tests, 0 goldens, 232 typecheck guards** (master's 3643 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; re-measured by the orchestrator on the merged tree, record §104 §6). Before it, at `d279f34d`'s merge:
   **(2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107): 3654 tests run + 9 skipped (3663 expected unfiltered), 0 goldens, 232 typecheck guards** (master's 3631 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; `swift package clean`, native run on a **locked screen with `AppKitPresentationTests` skipped** because its `NSOpenPanel.init()` hangs there, 0 recorded issues, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; census 3492 re-recorded after the merge; inventory and undocumented scripts print nothing; divergence 346 added, 152 live; the fourteen images 0 px against `f6f865c1` at the lanes, not re-taken after the merge; record §104 §6). Before it,
@@ -1168,6 +1171,16 @@ guide, then copied by hand** (no generator, `DG-D`); SDL snippets are `text` fen
 mirror test settles with `setNeedsRedraw()` and `tick()`, never `runUntilIdle()` after a click
 (`DG-P`). The C23/C24/C27/C28 sections are in (record §107): `frame(ofID:)` does not see a proposal
 element's `.id`, so a guide test reads an accessibility frame (`DG-T`). No public API.
+
+**Image decoding and orientation (`IB-`, record §113).** `DecodedImage` (MetalUI-only) is the public pixel
+read: PNG/JPEG bytes through the one vendored decoder to **straight** RGBA8 or 8-bit grey (grey sources
+native, otherwise stb's Rec. 601 integer luma, alpha dropped, `IB-B`), `bytesPerRow` unpadded; it is a type of its own
+because `ImageTexture` stays premultiplied (`AI-E`, `IB-A`). It **reports** the EXIF orientation (JPEG `APP1`, PNG
+`eXIf`, whole entries only, every read bounds-checked, damaged or absent is `.up`, never a trap) and **does not
+apply it**: `applyingOrientation()` or `Image(…orientation:)` (no default, `IB-K`) does, through
+`ImageBitmap.oriented(_:)`, one cached texture per orientation, `.up` the same bitmap; `ImageBitmap(data:)` keeps
+the stored pixels, unlike SwiftUI's `NSImage` route (divergence 435, `IB-G`). `Image.Orientation` has SwiftUI's
+raw values. No C, shader or `ImageTexture` change; a new reader of the file bytes stays Foundation-free.
 
 **Observation off the main thread (`RU-`, record §106).** `Window.markDirtyFromObservation` recognises
 the flush's own sentinel `onChange` by **thread** (`Window.flushingThread`, set around the sentinel
