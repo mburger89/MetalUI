@@ -453,3 +453,11 @@ tests, 0 failures** (`MetalUITestingTests` first; the kernel pins are in the 217
 
 **Not changed:** pixels (the fourteen offscreen images 0 px against `e85cb07a`, scenes identical, at `d7c7297b`; table in §6's method);
 a tree with nothing marked (retention off, no `.equatable()`) is slice 1 byte for byte except for the two keyed leaves.
+
+## §14 Final re-take (record phase, 2026-10-13, head `f2fe6965` plus docs)
+
+`swift package clean`, `swift build --build-system native --build-tests` (0 `error:`, one `warning:`, SwiftPM's deprecation notice), then
+`swift test --build-system native --no-parallel` unfiltered: **`Test run with 3717 tests in 3 suites passed after 262.154 seconds`**, no
+issue recorded (the screen was unlocked, so `AppKitPresentationTests` ran: 3708 + its 9), `FR-J no-argument frame: succeeded=true`,
+0 `error:`. Guards 234. `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. origin/master had not moved past
+`e85cb07a`, so no merge and no renumbering. Not re-taken here: the Linux image, `Backends/SDL`, the fourteen images (taken at `d7c7297b`).

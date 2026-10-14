@@ -2280,3 +2280,13 @@ fourteen offscreen images are compared against `f6f865c1` in §104 §4–§6, 0 
 demo (no stale frame, no flicker, counters 1 and 121); IV2 typing in a memoized cell keeps caret, selection, focus and
 IME; IV3 a 1x/2x display move and a light/dark switch redraw text crisply (the layout memo's keys); IV4 VoiceOver reads a
 memoized subtree as the unmemoized one.
+
+## 2026-10-13: retained subtrees (record §109) — looks owed
+
+No window was driven (the screen was locked for the whole branch); the fourteen offscreen images are compared against
+`e85cb07a` in §109 §6 and §13, 0 px, scenes identical. **Owed, new here — `docs/verification/human-checks.md` group SB, none
+performed (an agent cannot)**: SB1 a real-window node drag looks identical with replay on and off
+(`METALUI_RETAINED_DEMO=1`); SB2 hover and focus rings on a retained node appear and clear on the frame the pointer or focus
+arrives and leaves; SB3 VoiceOver walks a retained subtree as a fresh one; SB4 a light/dark switch, a resize and a 1x/2x display
+move repaint every retained subtree; SB5 an animation inside a retained region plays and the region replays once it settles;
+SB6 a text field inside a retained region edits as in an unretained copy.
