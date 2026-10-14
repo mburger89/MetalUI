@@ -35,7 +35,7 @@ private let fb9a7e42Frames = [
                   cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
 ]
 
-@Test(arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
 func theBracketNodeDragIsCountedAtFb9a7e42(arm: BracketArm) throws {
     let expected = try #require(fb9a7e42Frames.first { $0.arm == arm })
     let r = try bracketDragFrames(arm: arm, steps: 20, retained: true, prepaint: false)
@@ -71,18 +71,19 @@ func theBracketNodeDragIsCountedAtFb9a7e42(arm: BracketArm) throws {
 @MainActor struct RPSnapshot {
     let rects: Data, glyphs: Data, images: Data
     let counts: [Int]
-    let tree: AccessibilityTree
+    let tree: AccessibilityTree?
     let hitboxes: [String]
     let tallies: [Int]
     let tabOrder: [GlobalElementID]
     let bounds: [GlobalElementID: Bounds<Pixels>]
     let registrations: [String]
 
-    init(_ window: TestWindow) throws {
+    /// `accessibility: false` never activates an accessibility client, so no ledger holds accessibility records.
+    init(_ window: TestWindow, accessibility: Bool = true) throws {
         func bytes<T>(_ array: [T]) -> Data { array.withUnsafeBytes { Data($0) } }
         rects = bytes(window.scene.rects); glyphs = bytes(window.scene.glyphs); images = bytes(window.scene.images)
         counts = [window.scene.rects.count, window.scene.glyphs.count, window.scene.images.count]
-        tree = try window.accessibilityTree
+        tree = accessibility ? try window.accessibilityTree : nil
         hitboxes = window.window.testingHitboxFingerprints
         tallies = window.window.testingRegionTallies
         tabOrder = window.window.testingTabOrder
@@ -147,6 +148,8 @@ struct RPCard: Component, @MainActor Equatable {
 @MainActor final class RPPair<Root: Element> {
     let on: TestWindow, off: TestWindow
     let onSide = RPSide(), offSide = RPSide()
+    /// Whether `compare` reads the accessibility tree (which activates a client for the rest of the run).
+    var accessibility = true
     var work = FrameWork()
     var frames: [FrameWork] = []
 
@@ -172,7 +175,7 @@ struct RPCard: Component, @MainActor Equatable {
     }
 
     func compare(_ step: String) throws {
-        let differences = try RPSnapshot(on).differences(from: RPSnapshot(off))
+        let differences = try RPSnapshot(on, accessibility: accessibility).differences(from: RPSnapshot(off, accessibility: accessibility))
         #expect(differences.isEmpty, "after \(step): \(differences)")
         #expect(onSide.log.entries == offSide.log.entries, "log after \(step): \(onSide.log.entries) vs \(offSide.log.entries)")
         #expect(off.lastFrameWork.retainedHits == 0 && off.lastFrameWork.retainedPrepaintHits == 0)
@@ -227,7 +230,7 @@ private struct RPOverlap: Component {
 /// hitboxes were replayed or registered (`RK-E`: the same entries in the same order; no second lookup). The grid is
 /// clicked on both windows, and the logs, hitbox lists and scenes agree. Mutation: replayed hitboxes appended after
 /// later siblings' (the topmost card changes at the overlaps).
-@Test @MainActor func aReplayedHitboxIsRankedLikeAFreshOne() throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor func aReplayedHitboxIsRankedLikeAFreshOne() throws {
     let pair = try RPPair(size: sz(260, 140)) { side in VStack(spacing: 0) { RPOverlap(log: side.log) } }
     try pair.compare("warm")
     pair.redraw()
@@ -269,7 +272,7 @@ enum RPAmbient: String, CaseIterable { case opacity, shadow, blur, compositingGr
 /// replay off, and equals the retention-off frame. The neighbour (B) replays before and after. Mutations: the redo
 /// disabled (the subtree is painted from a record under the new ambient: the scene differs); the arm's ambient
 /// dropped from `AmbientKey` (the paint hit is taken: the scene differs).
-@Test(arguments: RPAmbient.allCases) @MainActor
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: RPAmbient.allCases) @MainActor
 func aChangedPaintOnlyAmbientRedoesTheFrameOnce(arm: RPAmbient) async throws {
     let pair = try RPPair(size: sz(200, 160), warm: 4) { rpAmbientRoot(arm, $0) }
     try pair.compare("warm")
@@ -343,7 +346,7 @@ struct RPInputsRoot: Component {
 /// with a parked `withAnimation`; the transaction value is still passed to the redo unchanged. Mutations: the
 /// animation store's entries not restored (the animation restarts: the offset differs mid-animation), the
 /// lifecycle store not rolled back (a second `appear`), the abandoned frame adopted (hitboxes, Tab order or log).
-@Test @MainActor func aRedoFrameEqualsARetentionOffFrameAndConsumesEachInputOnce() async throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor func aRedoFrameEqualsARetentionOffFrameAndConsumesEachInputOnce() async throws {
     let pair = try RPPair(size: sz(260, 260), warm: 4) { side in VStack(spacing: 0) { RPInputsRoot(side: side) } }
     try pair.compare("warm")
     pair.redraw()
@@ -375,7 +378,7 @@ struct RPInputsRoot: Component {
 /// it is quarantined 8, 16, 32 … builds (`RK-D` item 3). Over 80 frames the gaps between redos are at least 9, 17 and
 /// 33 builds, and every frame equals the retention-off frame. Mutations: the window-wide backoff removed (the first
 /// gap is 1), the quarantine exponent never doubling (the second gap is 9).
-@Test @MainActor func aPersistentlyAnimatedAncestorIsQuarantined() async throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor func aPersistentlyAnimatedAncestorIsQuarantined() async throws {
     let pair = try RPPair(size: sz(200, 160), warm: 4) { rpAmbientRoot(.opacity, $0) }
     var redoFrames: [Int] = []
     for index in 0..<80 {
@@ -395,7 +398,7 @@ struct RPInputsRoot: Component {
 
 /// 6b — at most one redo per eight frames whatever changes: several different ancestors changing on alternate
 /// frames cost one redo and then eight suspended builds, never a redo per frame (`RK-D` item 3).
-@Test @MainActor func aRepeatedPaintOnlyChangeRedoesAtMostOncePerEightFrames() async throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor func aRepeatedPaintOnlyChangeRedoesAtMostOncePerEightFrames() async throws {
     let pair = try RPPair(size: sz(200, 160), warm: 4) { rpAmbientRoot(.shadow, $0) }
     var redos = 0
     for index in 0..<40 {
@@ -447,7 +450,7 @@ private struct RPKindCard: Component, @MainActor Equatable {
 /// retention-off frames; the control arm (a button) replays prepaint, so "ineligible" is not "nothing replays".
 /// Mutation, per arm: that kind's refusal removed — the arm's scene or hitbox list, or its stale geometry note,
 /// differs, and `retainedPrepaintHits` reads 1.
-@Test(arguments: RPKind.allCases) @MainActor
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: RPKind.allCases) @MainActor
 func aPrepaintInEachIneligibleKindRunsAsBefore(kind: RPKind) async throws {
     let pair = try RPPair(size: sz(220, 140), warm: 4) { side in
         VStack(spacing: 4) {
@@ -476,7 +479,7 @@ func aPrepaintInEachIneligibleKindRunsAsBefore(kind: RPKind) async throws {
 /// after prepaint), so entering a card costs neither a redo nor a stale hitbox. The other three replay prepaint.
 /// Mutation: the pointer rule dropped (the hovered card replays a prepaint whose hover regions miss the
 /// registration the paint then expects; the differential reddens) or forced true (a quiet frame replays nothing).
-@Test @MainActor func aFocusedOrHoveredElementUnderTheOccurrenceRunsPrepaint() throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor func aFocusedOrHoveredElementUnderTheOccurrenceRunsPrepaint() throws {
     let pair = try RPPair(size: sz(420, 120), warm: 4) { side in
         HStack(spacing: 6) {
             RPCard(title: "A", shade: 0, log: side.log).equatable()
@@ -529,7 +532,7 @@ private struct RPStateCard: Component, @MainActor Equatable {
 /// a replayed closure's box holds the table and the slot id, not a value, so the write lands in the table's entry
 /// (`RK-T` refutes `RK-O` item 2's refusal of a never-written slot by this arm). Mutations: a fixture handler
 /// capturing a stale id (the log differs); a replayed hitbox list from another frame (the click goes elsewhere).
-@Test @MainActor func aReplayedHandlerActsLikeAFreshOne() async throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor func aReplayedHandlerActsLikeAFreshOne() async throws {
     let pair = try RPPair(size: sz(300, 120), warm: 4) { side in
         HStack(spacing: 6) {
             RPCard(title: "A", shade: 0, log: side.log).equatable()

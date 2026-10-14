@@ -1880,6 +1880,7 @@ public final class Window {
             // Verify mode (`RK-N`): the frame replayed a prepaint; build it again with every replay off, from the
             // same checkpoint, and compare what both held after the root's paint, naming the channel.
             let replayed = frame.verifySnapshot
+            let replayedCounters = memos.buildCounters
             memos.resetBuildCounters()
             scrollRequests.restore(pendingScrollRequests)
             if let checkpoint { animationStore.rollbackBuild(checkpoint) }
@@ -1887,6 +1888,7 @@ public final class Window {
             memos.redoInProgress = true
             frame = buildFrame()
             memos.redoInProgress = false
+            memos.reportLast(replayedCounters)
             if let replayed, let fresh = frame.verifySnapshot, let difference = replayed.difference(from: fresh) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed prepaint differs from a fresh one: \(difference)")
             }

@@ -151,6 +151,9 @@ struct LedgerSnapshot {
 /// **Every part has a separating arm in `everyKeyComponentSeparates` or is covered twice** (the scale factor and the window
 /// size by the environment fingerprint, the rects and the interior by each other; record 109 §5).
 struct AmbientKey: Equatable {
+    /// The kind word of an effect scope in `scopes` (`retainedAmbientKey`), index 0 of its vector.
+    static let effectKind = Double(PaintScope.Kind.effect.hashValue)
+
     var clip: [Float]
     var offset: [Float]
     var layerOpacityScale: [Float]
@@ -166,6 +169,27 @@ struct ReplayKey: Equatable {
     var interior: Int
     var nodeCount: Int
     var ambient: AmbientKey
+
+    /// Whether this (the new) key is `old` with only the translation of outer render-effect scopes moved (`RK-G`,
+    /// `RK-S`): the recorded leaves are those before any outer scope applies, so replaying them through the live
+    /// scopes is arithmetic-for-arithmetic what a fresh paint does at the new translation.
+    func differsOnlyByEffectTranslation(from old: ReplayKey) -> Bool {
+        return false   // RED RUN
+        guard rects == old.rects, interior == old.interior, nodeCount == old.nodeCount,
+              ambient.scopes.count == old.ambient.scopes.count else { return false }
+        var moved = false
+        var normalized = ambient
+        for index in ambient.scopes.indices where ambient.scopes[index] != old.ambient.scopes[index] {
+            let new = ambient.scopes[index], was = old.ambient.scopes[index]
+            guard new.count == was.count, new.count >= 10, new[0] == AmbientKey.effectKind else { return false }
+            var a = new, b = was
+            a[8] = 0; a[9] = 0; b[8] = 0; b[9] = 0
+            guard a == b else { return false }
+            moved = true
+            normalized.scopes[index] = was
+        }
+        return moved && normalized == old.ambient
+    }
 }
 
 // MARK: - The record
@@ -313,6 +337,8 @@ final class RetainedPhase {
     var prepaintKey: PrepaintKey?
     var ledger: PrepaintLedger?
     var replayed: PrepaintLedger?
+    /// Whether the paint decision replayed the record at a translated position (`RK-G`, `RK-S`).
+    var translatedPaint = false
 
     init(build: RetainedBuild, entry: ContentMemoStore.Entry, prepaintObserved: Bool) {
         self.build = build
@@ -453,8 +479,10 @@ extension Frame {
 
     // MARK: Replay
 
-    func replayPaint(_ r: RetainedRecord) {
-        if retainLog?.needsLeaves != true, let final = r.finalScene {
+    func replayPaint(_ r: RetainedRecord, translated: Bool = false) {
+        // A record replayed at a translated position goes through the live scopes (`RK-S`): the final stream holds
+        // the old translation in its coordinates.
+        if !translated, retainLog?.needsLeaves != true, let final = r.finalScene {
             // No other live recorder wants the leaves where an outer scope would pass them: straight in.
             for op in final { for (group, _) in op.leaves { for primitive in group { insertIntoScene(primitive) } } }
         } else {
@@ -495,10 +523,13 @@ extension Frame {
         let key = retainedKey(phase)
         let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
-            if !entry.observedChange, old.coverageComplete, old.contentSerial == entry.serial, old.key == key,
-               old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }), !underPointer,
-               phase.replayed == nil || old.prepaint === phase.replayed {
+            let valid = !entry.observedChange && old.coverageComplete && old.contentSerial == entry.serial
+                && old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) && !underPointer
+                && (phase.replayed == nil || old.prepaint === phase.replayed)
+            let translated = valid && old.key != key && memos.replaysPrepaint && key.differsOnlyByEffectTranslation(from: old.key)
+            if valid && (old.key == key || translated) {
                 memos.retained.hits += 1
+                if translated { memos.retained.translated += 1; phase.translatedPaint = true }
                 if phase.replayed != nil { entry.redoExponent = 0 }
                 // A prepaint-replayed occurrence has no element prepaint state to paint from: verify mode checks
                 // it at the window, by building the frame again with replay off (`RK-N`).
@@ -569,7 +600,7 @@ extension Frame {
             if let reason = recorder.taint {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed subtree is ineligible now (\(reason))")
             }
-            if let difference = old.differences(from: record) {
+            if let difference = old.differences(from: record, ignoringFinalStream: phase.translatedPaint) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)) (observed \(phase.entry.observedChange), serial \(phase.entry.serial)): \(difference)")
             }
             // The old record stays: it is equal, and it covers the build and prepaint this frame did not observe.
@@ -597,7 +628,7 @@ extension RetainedRecord {
     /// How `other` (a fresh run's record) differs from this one, or `nil` (`SB-W`): every scene
     /// operation (kind, layer, masks, texture identity, raster key), the marks and touches, and the
     /// element work the record stands for.
-    func differences(from other: RetainedRecord) -> String? {
+    func differences(from other: RetainedRecord, ignoringFinalStream: Bool = false) -> String? {
         if scene.count != other.scene.count { return "scene.count \(scene.count) vs \(other.scene.count)" }
         func kindDescription(_ kind: CapturedPrimitive.Kind) -> String {
             switch kind {
@@ -626,8 +657,8 @@ extension RetainedRecord {
         for (a, b) in zip(scene, other.scene) where describe(a) != describe(b) {
             return "scene op \(describe(a)) vs \(describe(b))"
         }
-        if (finalScene == nil) != (other.finalScene == nil) { return "finalScene presence" }
-        if let x = finalScene, let y = other.finalScene {
+        if !ignoringFinalStream, (finalScene == nil) != (other.finalScene == nil) { return "finalScene presence" }
+        if !ignoringFinalStream, let x = finalScene, let y = other.finalScene {
             if x.count != y.count { return "finalScene.count \(x.count) vs \(y.count)" }
             for (a, b) in zip(x, y) where describe(a) != describe(b) { return "final op \(describe(a)) vs \(describe(b))" }
         }

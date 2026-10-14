@@ -3777,6 +3777,8 @@ extension Bounds where Unit == Pixels {
 /// environment the paint key already holds (`RK-E`): the open render effects, the pointer and keyboard gates, the
 /// share stack, the accessibility gates, the portal ordinal and the innermost scroller. Part of `PrepaintKey`.
 struct PrepaintExtras: Equatable {
+    /// One vector per open render effect, innermost last, in a fixed layout: the composed map's six numbers
+    /// (`a b c d tx ty`), 1 or 0 for an inverse, the inverse's six, the outer clip's four, the saved clip base.
     var effects: [[Double]]
     var hitTestingDisabled: Int
     var keyboardHidden: Int
@@ -3787,6 +3789,39 @@ struct PrepaintExtras: Equatable {
     var scrollerID: GlobalElementID?
     var scroller: [Double]
     var hiddenNodes: Int
+}
+
+extension PrepaintExtras {
+    // Indices into an `effects` vector.
+    static let effectA = 0, effectB = 1, effectC = 2, effectD = 3, effectTx = 4, effectTy = 5
+    static let effectHasInverse = 6, inverseTx = 11, inverseTy = 12, effectOuterClip = 13
+
+    /// The translation in points that turns `old`'s effects into these (`RK-G`, `RK-S`), or `nil` when the two differ in
+    /// anything else. Only the innermost effect's composed map reaches a hitbox, so every effect's composed
+    /// translation must have moved by that amount or not at all (an outer effect that did not move, an inner one
+    /// that did, is a node moved inside a still canvas); linear parts, outer clips and clip bases are equal.
+    func translation(from old: PrepaintExtras) -> (dx: Double, dy: Double)? {
+        guard effects.count == old.effects.count, let last = effects.last, let lastOld = old.effects.last else { return nil }
+        var rest = self, oldRest = old
+        rest.effects = []; oldRest.effects = []
+        guard rest == oldRest else { return nil }
+        let dx = last[Self.effectTx] - lastOld[Self.effectTx], dy = last[Self.effectTy] - lastOld[Self.effectTy]
+        guard dx != 0 || dy != 0 else { return nil }
+        for (new, was) in zip(effects, old.effects) {
+            guard new.count == was.count else { return nil }
+            let ex = new[Self.effectTx] - was[Self.effectTx], ey = new[Self.effectTy] - was[Self.effectTy]
+            guard (ex == 0 && ey == 0) || (ex == dx && ey == dy) else { return nil }
+            var a = new, b = was
+            for index in [Self.effectTx, Self.effectTy, Self.inverseTx, Self.inverseTy] { a[index] = 0; b[index] = 0 }
+            guard a == b else { return nil }
+            // The inverse moved by the opposite amount when the composed map did.
+            if new[Self.effectHasInverse] == 1 {
+                guard new[Self.inverseTx] - was[Self.inverseTx] == -ex, new[Self.inverseTy] - was[Self.inverseTy] == -ey
+                else { return nil }
+            }
+        }
+        return (dx, dy)
+    }
 }
 
 /// Counts of the channels a prepaint can write that a record does not replay (`RK-E`): any that moves between a
@@ -3833,8 +3868,9 @@ extension Frame {
         var effects: [[Double]] = []
         effects.reserveCapacity(prepaintEffects.count)
         for effect in prepaintEffects {
+            // Fixed layout (`PrepaintExtras.effectTx`…): composed (6), has-inverse, inverse (6), outer clip (4), base.
             var v = flatAffine(effect.composed)
-            if let inverse = effect.inverse { v += [1] + flatAffine(inverse) } else { v += [0] }
+            if let inverse = effect.inverse { v += [1] + flatAffine(inverse) } else { v += [0, 0, 0, 0, 0, 0, 0] }
             let c = effect.outerClip
             v += [Double(c.origin.x.value), Double(c.origin.y.value), Double(c.size.width.value),
                   Double(c.size.height.value), Double(effect.savedClipBase)]
@@ -3885,8 +3921,8 @@ extension Frame {
     /// functions, accessibility records and nodes, press-only actions, context menus, element bounds and tallies.
     /// Each journal entry is appended to an open prepaint log too, so an enclosing recorder sees what a replay
     /// stands for exactly as it would see a run.
-    func replayPrepaintLedger(_ l: PrepaintLedger) {
-        hitboxes.append(contentsOf: l.hitboxes)
+    func replayPrepaintLedger(_ l: PrepaintLedger, hitboxes moved: [Hitbox]? = nil) {
+        hitboxes.append(contentsOf: moved ?? l.hitboxes)
         axEmissions.append(contentsOf: l.axEmissions)
         for call in l.focus {
             switch call {
@@ -3920,5 +3956,31 @@ extension Frame {
         keyRegionCount += l.tallies.key
         focusOnPressCount += l.tallies.focusOnPress
         resignRegionCount += l.tallies.resign
+    }
+}
+
+extension Frame {
+    /// A ledger's hitboxes moved by the translation of the render effects around them (`RK-G`, `RK-S`): each one's
+    /// local `bounds`, `origin` and `shape` stay (they are in the effect's local space); the inverse of the composed
+    /// map that takes a window point there moves by the opposite amount. `nil` when any hitbox sits outside every
+    /// effect, carries an outer clip other than the ambient one (its clip depended on the translation), or would
+    /// round (the move must be exact in `Double`, checked by round trip).
+    func translatedHitboxes(of ledger: PrepaintLedger, by delta: (dx: Double, dy: Double)) -> [Hitbox]? {
+        guard let ambient = ledger.key.extras.effects.last else { return nil }
+        let outer = Bounds(origin: Point(x: Pixels(Float(ambient[PrepaintExtras.effectOuterClip])),
+                                         y: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 1]))),
+                           size: Size(width: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 2])),
+                                      height: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 3]))))
+        var out = ledger.hitboxes
+        for index in out.indices {
+            guard let transform = out[index].transform, transform.outerClip == outer else { return nil }
+            guard let inverse = transform.inverse else { continue }
+            let tx = inverse.tx - delta.dx, ty = inverse.ty - delta.dy
+            guard tx + delta.dx == inverse.tx, ty + delta.dy == inverse.ty else { return nil }
+            out[index].transform = HitboxTransform(
+                inverse: Affine2D(a: inverse.a, b: inverse.b, c: inverse.c, d: inverse.d, tx: tx, ty: ty),
+                outerClip: transform.outerClip)
+        }
+        return out
     }
 }

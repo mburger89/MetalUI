@@ -3,6 +3,7 @@ import MetalUICore
 import MetalUILayout
 import MetalUIPlatform
 import MetalUIScene
+import MetalUIShaderTypes
 
 // C14b-2 lane 1 (`RK-C`…`RK-E`, `RK-M`, `RK-O`): prepaint replay and the redo. A retained occurrence keeps, beside
 // the paint record `SB-B` made, a **prepaint ledger**: what its prepaint registered on the frame (hitboxes in
@@ -111,10 +112,19 @@ final class PrepaintLedger {
     init(key: PrepaintKey) { self.key = key }
 }
 
+extension PrepaintKey {
+    /// Whether this key is `old` but for the translation of its prepaint effects (`RK-G`).
+    func differsOnlyByEffectTranslation(to other: PrepaintKey) -> Bool {
+        rects == other.rects && interior == other.interior && nodeCount == other.nodeCount
+            && ambient == other.ambient && extras.effects.count == other.extras.effects.count
+    }
+}
+
 /// What the prepaint of an occurrence does (`RK-C`).
 enum RetainedPrepaintMode {
-    /// Replay the ledger; the occurrence's `component.prepaintGroup` does not run.
-    case replay(PrepaintLedger)
+    /// Replay the ledger; the occurrence's `component.prepaintGroup` does not run. With hitboxes: the ledger moved
+    /// by the translation of the render effects around the occurrence (`RK-G`, `RK-S`), hitbox transforms rewritten.
+    case replay(PrepaintLedger, moved: [Hitbox]?)
     /// Run prepaint, recording a ledger when a recorder is given.
     case run(PrepaintRecorder?)
 }
@@ -153,10 +163,24 @@ extension Frame {
         if memos.prepaintReplayAllowed, entry.quarantineUntil <= memos.buildSerial, let old = entry.record,
            let ledger = old.prepaint, !entry.observedChange, old.coverageComplete,
            old.contentSerial == entry.serial, old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }),
-           ledger.key == key, !retainedPointerIsInside(ledger) {
-            memos.retained.prepaintHits += 1
-            memos.retained.skippedPrepaints += ledger.prepaints
-            return .replay(ledger)
+           !retainedPointerIsInside(ledger) {
+            if ledger.key == key {
+                memos.retained.prepaintHits += 1
+                memos.retained.skippedPrepaints += ledger.prepaints
+                return .replay(ledger, moved: nil)
+            }
+            // The same occurrence under render effects that moved by a translation (`RK-G`, `RK-S`): its
+            // registrations are replayed moved, unless an accessibility record (frames are computed boxes)
+            // or a hitbox that cannot be moved exactly is in the ledger.
+            if ledger.key.differsOnlyByEffectTranslation(to: key), let delta = key.extras.translation(from: ledger.key.extras) {
+                if ledger.axEmissions.isEmpty, ledger.axNodes.isEmpty,
+                   let moved = translatedHitboxes(of: ledger, by: delta) {
+                    memos.retained.prepaintHits += 1
+                    memos.retained.skippedPrepaints += ledger.prepaints
+                    return .replay(ledger, moved: moved)
+                }
+                memos.retained.translationRefused += 1
+            }
         }
         return .run(openPrepaintWindow())
     }
@@ -265,24 +289,32 @@ extension ContentMemoStore {
 /// hitbox's fingerprint in order, the Tab order and focus registrations' effect, the accessibility records, the tallies
 /// and the registrations of context menus, press-only actions and element bounds.
 struct RetainedVerifySnapshot {
-    let rects: Data, glyphs: Data, images: Data, backdrops: Data, transforms: Data
+    let rects: [MUIRect], glyphs: [MUIGlyph], images: [MUIImage], backdrops: [MUIBackdrop], transforms: [MUITransform]
     let counts: [Int]
     let hitboxes: [String]
     let tabOrder: [GlobalElementID]
     let accessibility: [String]
-    let axNodes: [GlobalElementID]
+    let axNodes: Set<GlobalElementID>
     let tallies: RegionTallies
-    let contextMenus: [GlobalElementID]
-    let pressOnly: [GlobalElementID]
+    let contextMenus: Set<GlobalElementID>
+    let pressOnly: Set<GlobalElementID>
     let bounds: [GlobalElementID: Bounds<Pixels>]
 
     /// The first channel that differs from `other`, named, or `nil`.
     func difference(from other: RetainedVerifySnapshot) -> String? {
-        if rects != other.rects { return "scene rects" }
-        if glyphs != other.glyphs { return "scene glyphs" }
-        if images != other.images { return "scene images" }
-        if backdrops != other.backdrops { return "scene backdrops" }
-        if transforms != other.transforms { return "scene transforms" }
+        func first<T>(_ a: [T], _ b: [T]) -> String? {
+            guard a.count == b.count else { return "count \(a.count) vs \(b.count)" }
+            for index in a.indices {
+                let same = withUnsafeBytes(of: a[index]) { x in withUnsafeBytes(of: b[index]) { y in x.elementsEqual(y) } }
+                if !same { return "element \(index): \(a[index]) vs \(b[index])" }
+            }
+            return nil
+        }
+        if let d = first(rects, other.rects) { return "scene rects \(d)" }
+        if let d = first(glyphs, other.glyphs) { return "scene glyphs \(d)" }
+        if let d = first(images, other.images) { return "scene images \(d)" }
+        if let d = first(backdrops, other.backdrops) { return "scene backdrops \(d)" }
+        if let d = first(transforms, other.transforms) { return "scene transforms \(d)" }
         if counts != other.counts { return "scene counts \(counts) vs \(other.counts)" }
         if hitboxes != other.hitboxes {
             let first = zip(hitboxes, other.hitboxes).enumerated().first { $0.element.0 != $0.element.1 }
@@ -290,7 +322,10 @@ struct RetainedVerifySnapshot {
         }
         if tabOrder != other.tabOrder { return "tab order" }
         if accessibility != other.accessibility { return "accessibility records (\(accessibility.count) vs \(other.accessibility.count))" }
-        if axNodes != other.axNodes { return "accessibility nodes" }
+        if axNodes != other.axNodes {
+            let a = Set(axNodes.map { sbPath($0) }), b = Set(other.axNodes.map { sbPath($0) })
+            return "accessibility nodes (\(axNodes.count) vs \(other.axNodes.count)) only in the replay \(a.subtracting(b).sorted()), only in the rebuild \(b.subtracting(a).sorted())"
+        }
         if tallies != other.tallies { return "region tallies \(tallies) vs \(other.tallies)" }
         if contextMenus != other.contextMenus { return "context menus" }
         if pressOnly != other.pressOnly { return "press-only actions" }
@@ -301,18 +336,15 @@ struct RetainedVerifySnapshot {
 
 extension Frame {
     func captureRetainedVerifySnapshot() -> RetainedVerifySnapshot {
-        func bytes<T>(_ array: [T]) -> Data { array.withUnsafeBytes { Data($0) } }
         let s = finalizedScene()
         return RetainedVerifySnapshot(
-            rects: bytes(s.rects), glyphs: bytes(s.glyphs), images: bytes(s.images), backdrops: bytes(s.backdrops),
-            transforms: bytes(s.transforms),
+            rects: s.rects, glyphs: s.glyphs, images: s.images, backdrops: s.backdrops, transforms: s.transforms,
             counts: [s.rects.count, s.glyphs.count, s.images.count, s.surfaces.count, s.textures.count, s.drawList.count],
             hitboxes: hitboxes(from: 0).map(\.fingerprint), tabOrder: focusRegistry.tabOrder,
             accessibility: axEmissions(from: 0).map {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
             },
-            axNodes: axNodes.keys.sorted { "\($0)" < "\($1)" }, tallies: regionTallies,
-            contextMenus: contextMenuRecords.keys.sorted { "\($0)" < "\($1)" },
-            pressOnly: accessibilityPressOnly.keys.sorted { "\($0)" < "\($1)" }, bounds: elementBounds)
+            axNodes: Set(axNodes.keys), tallies: regionTallies, contextMenus: Set(contextMenuRecords.keys),
+            pressOnly: Set(accessibilityPressOnly.keys), bounds: elementBounds)
     }
 }

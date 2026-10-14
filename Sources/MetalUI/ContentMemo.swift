@@ -208,6 +208,23 @@ package final class ContentMemoStore {
         return count
     }
 
+    /// The build in progress's counters, and the means to make a later build report them (`RK-N`): verify mode
+    /// builds a frame twice and the build it presents reports the work of the first (the replayed one), so the
+    /// counts the suite pins are the counts of the build under test.
+    struct BuildCounters {
+        let retained: RetainedCounters
+        let evaluations: Int, skips: Int, refusals: Int
+    }
+
+    var buildCounters: BuildCounters {
+        BuildCounters(retained: retained, evaluations: evaluations, skips: skips, refusals: refusals)
+    }
+
+    func reportLast(_ counters: BuildCounters) {
+        lastRetained = counters.retained
+        lastEvaluations = counters.evaluations; lastSkips = counters.skips; lastRefusals = counters.refusals
+    }
+
     /// Starts this build's counters over (`RK-D`): the abandoned attempt's work was thrown away.
     func resetBuildCounters() {
         retained = RetainedCounters()
