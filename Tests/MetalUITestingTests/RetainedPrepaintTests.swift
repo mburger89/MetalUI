@@ -672,9 +672,10 @@ func aRedoWithATransitionInsertedInTheSameFrameEqualsAFreshFrame() async throws 
     }
 }
 
-/// 5c — a redo with a **timeline** in the tree equals a fresh frame (`RK-U`: `TimelineStore.occurrences` is a per-build count;
-/// a second build counting again reads a new key and a new cursor, showing `now` instead of the tick). The clock is 0.4 s off
-/// a tick when the card's ancestor changes. Mutation: `TimelineStore.rollbackBuild` made a no-op (the redo shows the clock).
+/// 5c — a redo with a **periodic timeline** in the tree equals a fresh frame (`RK-U`). A periodic schedule's twin cursor
+/// walks the same entries, so this arm holds with or without `TimelineStore.rollbackBuild` (mutated, it stays green: the
+/// finding is the rollback's, pinned directly by `theTimelineRollbackKeepsATwinBuildOnTheSameCursor` over an
+/// `.animation(minimumInterval:)` schedule, whose first appearance is the clock). The clock is 0.4 s off a tick.
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
 func aRedoWithATimelineInTheTreeEqualsAFreshFrame() async throws {
     let pair = try RPPair(size: sz(260, 160), warm: 4) { side in
