@@ -24,23 +24,22 @@ private let linear1 = Animation.linear(duration: 1)
 /// return `declared` while a width is in flight (`aChangedBorderWidthStillAnimatesAfterTheEarlyOut`).
 @Test @MainActor func aSettledBorderlessTreeBuildsNoBorderWidthKeys() throws {
     let h = WrapperHarness()
-    func tree(_ bordered: Bool) -> some Element {
+    func tree(_ width: Float) -> some Element {
         Column {
             Box().cssWidth(Pixels(40)).cssHeight(Pixels(40)).background(.surface)
-            if bordered { borderBox(2) }
+            borderBox(width)
         }
     }
-    h.frame(0, nil, tree(true))
-    h.frame(0.1, nil, tree(true))
+    h.frame(0, nil, tree(2))
+    h.frame(0.1, nil, tree(2))
     let before = h.store.borderKeyBuilds
-    h.frame(0.2, nil, tree(true))
-    h.frame(0.3, nil, tree(true))
+    h.frame(0.2, nil, tree(2))
+    h.frame(0.3, nil, tree(2))
     #expect(h.store.borderKeyBuilds == before,
-            "a settled tree, bordered or not, builds no border key: \(h.store.borderKeyBuilds - before) built")
+            "a settled tree (one bordered box, one without) builds no border key: \(h.store.borderKeyBuilds - before) built")
     // The control: a change in flight does build keys, so the counter can move.
-    h.frame(0.4, linear1, tree(false))
-    h.frame(0.5, linear1, tree(true))
-    #expect(h.store.borderKeyBuilds > before, "the counter moves when a border appears and disappears")
+    h.frame(0.4, linear1, tree(9))
+    #expect(h.store.borderKeyBuilds > before, "the counter moves when a border width changes under a transaction")
 }
 
 /// **HP.11b.** The values the early return must keep: a width change under a transaction interpolates

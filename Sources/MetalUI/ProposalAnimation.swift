@@ -110,6 +110,21 @@ func animatedNumbers(_ declared: [Double?], at key: GlobalElementID, frame: Fram
         store.set(StoredNumberTracks(baseline: declared, inFlight: [:]), at: key)
         return declared
     }
+    // Settled and equal: nothing in flight and every declared number is its baseline bit for bit (a NaN
+    // takes the slow path, so a state that would not compare equal is still written, `HP-G` 4). The slow
+    // path would copy the dictionary, rebuild the state and compare it for the same answer (`HP-C`).
+    if existing.inFlight.isEmpty && existing.baseline.count == declared.count {
+        var settled = true
+        for i in declared.indices {
+            switch (declared[i], existing.baseline[i]) {
+            case (nil, nil): continue
+            case let (d?, b?) where !d.isNaN && d.bitPattern == b.bitPattern: continue
+            default: settled = false
+            }
+            if !settled { break }
+        }
+        if settled { return declared }
+    }
     store.noteNumberTrackRebuild()
     var inFlight = existing.inFlight
     var out = declared
@@ -154,8 +169,14 @@ extension LayoutModifier {
             animatedNumbers(values, at: layerAnimationKey(id, name), frame: frame,
                             transaction: transaction, range: range)
         }
-        func px(_ value: Double?) -> Pixels? { value.map { Pixels(Float($0)) } }
-        func raw(_ value: Pixels?) -> Double? { value.map { Double($0.value) } }
+        func px(_ value: Double?) -> Pixels? {
+            guard let value else { return nil }
+            return Pixels(Float(value))
+        }
+        func raw(_ value: Pixels?) -> Double? {
+            guard let value else { return nil }
+            return Double(value.value)
+        }
         let size = 0.0...Double.greatestFiniteMagnitude
         let any = -Double.greatestFiniteMagnitude...Double.greatestFiniteMagnitude
         switch self {
@@ -170,8 +191,10 @@ extension LayoutModifier {
             // ideal non-negative, min ≤ ideal ≤ max), which an overshooting
             // spring on two bounds could break; a declared frame already holds it.
             func ordered(_ lo: Double?, _ mid: Double?, _ hi: Double?) -> (Double?, Double?, Double?) {
-                let hi = hi.map { max($0, 0) }
-                var mid = mid.map { max($0, 0) }
+                var hi = hi
+                if let h = hi { hi = max(h, 0) }
+                var mid = mid
+                if let m = mid { mid = max(m, 0) }
                 if let m = mid, let h = hi { mid = min(m, h) }
                 var lo = lo
                 if let l = lo, let bound = mid ?? hi { lo = min(l, bound) }
@@ -244,7 +267,8 @@ extension ComponentModifierOp {
             let v = animatedNumbers([pixels(patch.width), pixels(patch.height)], at: key, frame: pass.frame,
                                     transaction: transaction, range: 0...Double.greatestFiniteMagnitude)
             func dimension(_ value: Double?, _ declared: Dimension) -> Dimension {
-                value.map { .length(.pixels(Pixels(Float($0)))) } ?? declared
+                guard let value else { return declared }
+                return .length(.pixels(Pixels(Float(value))))
             }
             return .amend(Size(width: dimension(v[0], patch.width), height: dimension(v[1], patch.height)))
         case let .wrap(style):
@@ -253,7 +277,8 @@ extension ComponentModifierOp {
                                     at: key, frame: pass.frame, transaction: transaction,
                                     range: -Double.greatestFiniteMagnitude...Double.greatestFiniteMagnitude)
             func length(_ value: Double?, _ declared: Length) -> Length {
-                value.map { .pixels(Pixels(Float($0))) } ?? declared
+                guard let value else { return declared }
+                return .pixels(Pixels(Float(value)))
             }
             var animated = style
             animated.padding = Edges(top: length(v[0], p.top), right: length(v[1], p.right),

@@ -415,13 +415,18 @@ private func animatedStyleAndDecoration(_ style: Style, _ decoration: Decoration
     /// interpolate from, the background's own first-sighting rule — and drops
     /// any of its keys still in flight. The colour is paint's (`resolvedBorder`).
     func borderWidths(_ prefix: String, _ declared: BorderStyle?, _ previous: BorderStyle?) -> BorderStyle? {
-        let edges = ["top", "right", "bottom", "left"]
         guard let declared, let previous else {
-            store.noteBorderKeyBuilds(4)
-            for edge in edges { inFlight["\(prefix).\(edge)"] = nil }
+            // Nothing in flight means there is no key to drop: build none (`HP-C`).
+            if !inFlight.isEmpty {
+                store.noteBorderKeyBuilds(4)
+                for edge in ["top", "right", "bottom", "left"] { inFlight["\(prefix).\(edge)"] = nil }
+            }
             return declared
         }
         let d = declared.widths, p = previous.widths
+        // Settled and unchanged: every edge would return `declared` through `number`'s own equality
+        // test, so return it before any key string exists (`HP-C`).
+        if inFlight.isEmpty && d == p { return declared }
         func edge(_ name: String, _ value: Pixels, _ old: Pixels) -> Pixels {
             store.noteBorderKeyBuilds(1)
             return Pixels(Float(max(0, number("\(prefix).\(name)", Double(value.value), Double(old.value)))))

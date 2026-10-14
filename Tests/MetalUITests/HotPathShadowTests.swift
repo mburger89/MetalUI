@@ -113,9 +113,9 @@ private struct Lcg {
 }
 
 /// **HP.17 (spec test 17).** A shadow hit costs one key probe per cache (coverage, tint), a miss two:
-/// `RasterCache.keyProbes` over a repeated shadow paint grows by 2 per frame (one coverage, one tint) and
+/// `RasterCache.keyProbes` over a repeated shadow paint grows by 2 per shadow (one coverage, one tint) and
 /// 0 coverage is made. Red before: the touched-set insert and the dictionary read were two probes each
-/// (4 per frame). Mutation: touch the entry through a second lookup.
+/// (4 per shadow). Mutation: touch the entry through a second lookup.
 @Test @MainActor func aShadowHitDoesNotRehashItsKey() throws {
     let h = WrapperHarness()
     func tree() -> some Element {
@@ -124,11 +124,15 @@ private struct Lcg {
     h.frame(0, nil, tree())
     h.frame(0.1, nil, tree())
     let cache = h.store.rasters
+    var shadows = 0
+    cache.onRaster = { kind, _ in if case .shadow = kind { shadows += 1 } }
     let before = cache.keyProbes
     h.frame(0.2, nil, tree())
+    cache.onRaster = nil
+    try #require(shadows > 0, "set up: the frame asked for shadow rasters")
     let perFrame = cache.keyProbes - before
     #expect(cache.lastRasterizedPixels == 0 && cache.lastBlurredPixels == 0, "a hit makes no coverage")
-    #expect(perFrame == 2, "one coverage probe and one tint probe per hit, got \(perFrame)")
+    #expect(perFrame == 2 * shadows, "one coverage probe and one tint probe per hit (\(shadows) shadows), got \(perFrame)")
 }
 
 /// **HP.18 (spec test 18).** The scalar `boundingBox` equals the four-corner array form bit for bit over
