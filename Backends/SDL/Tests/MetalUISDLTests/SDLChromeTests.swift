@@ -32,7 +32,7 @@ private func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pi
 
 private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: Pixels(x), y: Pixels(y)) }
 
-private func pushResize(_ window: SDLWindow) {
+@MainActor private func pushResize(_ window: SDLWindow) {
     var event = MUIEvent(); event.kind = UInt32(MUI_EVENT_RESIZE); event.window_id = window.id
     #expect(mui_push_event(&event))
 }

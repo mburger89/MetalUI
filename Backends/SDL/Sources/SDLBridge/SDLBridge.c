@@ -1229,6 +1229,8 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->kind = MUI_EVENT_CLOSE; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_WINDOW_RESIZED: case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
     case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+    case SDL_EVENT_WINDOW_ENTER_FULLSCREEN: case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:   // CW-S: the chrome snapshot refreshes
+    case SDL_EVENT_WINDOW_MAXIMIZED: case SDL_EVENT_WINDOW_RESTORED:
         out->kind = MUI_EVENT_RESIZE; out->window_id = e->window.windowID; return true;
     case SDL_EVENT_WINDOW_EXPOSED:
         out->kind = MUI_EVENT_EXPOSED; out->window_id = e->window.windowID; return true;
@@ -1686,6 +1688,178 @@ void mui_window_size_limits(void *w, int32_t *min_w, int32_t *min_h, int32_t *ma
     *min_w = a; *min_h = b; *max_w = c; *max_h = d;
 }
 
+/* ---- Window chrome (item S1, rulings CW-B, CW-E, CW-G, CW-H, CW-O) -------- */
+
+bool mui_window_set_bordered(void *w, bool bordered) {
+    SDL_Window *window = (SDL_Window *)w;
+    if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) return false;   // CW-S: the platform defers
+    return SDL_SetWindowBordered(window, bordered);
+}
+bool mui_window_is_borderless(void *w) {
+    return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_BORDERLESS) != 0;
+}
+bool mui_window_set_size(void *w, int32_t width, int32_t height) { return SDL_SetWindowSize((SDL_Window *)w, width, height); }
+bool mui_window_minimize(void *w) { return SDL_MinimizeWindow((SDL_Window *)w); }
+bool mui_window_maximize(void *w) { return SDL_MaximizeWindow((SDL_Window *)w); }
+bool mui_window_restore(void *w) { return SDL_RestoreWindow((SDL_Window *)w); }
+bool mui_window_is_maximized(void *w) {
+    return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_MAXIMIZED) != 0;
+}
+bool mui_window_is_fullscreen(void *w) {
+    return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_FULLSCREEN) != 0;
+}
+
+#define MUI_CHROME_BORDER 6.0f
+
+void mui_chrome_snapshot_init(MUIChromeSnapshot *s, float width, float height, bool borderless,
+                              bool zoomed_or_fullscreen, bool resizable_h, bool resizable_v) {
+    memset(s, 0, sizeof(*s));
+    s->width = width; s->height = height;
+    s->borderless = borderless; s->zoomed_or_fullscreen = zoomed_or_fullscreen;
+    s->resizable_h = resizable_h; s->resizable_v = resizable_v;
+}
+
+bool mui_chrome_snapshot_add_rect(MUIChromeSnapshot *s, float x, float y, float w, float h) {
+    if (s->count >= MUI_CHROME_MAX_RECTS) return false;
+    s->rects[s->count++] = (MUIChromeRect){ x, y, w, h };
+    return true;
+}
+
+float mui_chrome_resize_border(void) { return MUI_CHROME_BORDER; }
+int32_t mui_chrome_max_rects(void) { return MUI_CHROME_MAX_RECTS; }
+
+/* The C twin of Swift's ChromeHitSnapshot.hit(at:): the order is corner, edge, drag rect, normal,
+   every comparison half-open on the max side. */
+int32_t mui_chrome_hit(const MUIChromeSnapshot *s, float x, float y) {
+    if (!(x >= 0 && y >= 0 && x < s->width && y < s->height)) return MUI_CHROME_HIT_NORMAL;
+    if (s->borderless && !s->zoomed_or_fullscreen) {
+        float edge = MUI_CHROME_BORDER, corner = 2 * MUI_CHROME_BORDER;
+        bool left = s->resizable_h && x < edge, right = s->resizable_h && x >= s->width - edge;
+        bool top = s->resizable_v && y < edge, bottom = s->resizable_v && y >= s->height - edge;
+        if (s->resizable_h && s->resizable_v) {
+            bool near_left = x < corner, near_right = x >= s->width - corner;
+            bool near_top = y < corner, near_bottom = y >= s->height - corner;
+            if (near_top && near_left) return MUI_CHROME_HIT_TOP_LEFT;
+            if (near_top && near_right) return MUI_CHROME_HIT_TOP_RIGHT;
+            if (near_bottom && near_left) return MUI_CHROME_HIT_BOTTOM_LEFT;
+            if (near_bottom && near_right) return MUI_CHROME_HIT_BOTTOM_RIGHT;
+        }
+        if (top) return MUI_CHROME_HIT_TOP;
+        if (bottom) return MUI_CHROME_HIT_BOTTOM;
+        if (left) return MUI_CHROME_HIT_LEFT;
+        if (right) return MUI_CHROME_HIT_RIGHT;
+    }
+    for (int32_t i = 0; i < s->count; i++) {
+        const MUIChromeRect *r = &s->rects[i];
+        if (x >= r->x && y >= r->y && x < r->x + r->w && y < r->y + r->h) return MUI_CHROME_HIT_DRAGGABLE;
+    }
+    return MUI_CHROME_HIT_NORMAL;
+}
+
+/* One per window, in the window's properties so it is freed with the window. The lock guards
+   `snapshot` and the counters; neither side takes another lock while holding it (CW-H). */
+typedef struct {
+    SDL_Mutex *mutex;
+    MUIChromeSnapshot snapshot;
+    bool installed;
+    uint32_t publishes, copies, lock_pairs;
+} ChromeState;
+
+static const char *chrome_property = "metalui.chrome";
+
+static void chrome_state_free(void *userdata, void *value) {
+    (void)userdata;
+    ChromeState *state = (ChromeState *)value;
+    if (!state) return;
+    SDL_DestroyMutex(state->mutex);
+    free(state);
+}
+
+static ChromeState *chrome_state(SDL_Window *window, bool create) {
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    ChromeState *state = (ChromeState *)SDL_GetPointerProperty(props, chrome_property, NULL);
+    if (state || !create) return state;
+    state = (ChromeState *)calloc(1, sizeof(ChromeState));
+    if (!state) return NULL;
+    state->mutex = SDL_CreateMutex();
+    if (!state->mutex) { free(state); return NULL; }
+    if (!SDL_SetPointerPropertyWithCleanup(props, chrome_property, state, chrome_state_free, NULL)) {
+        return NULL;   // SDL has already run the cleanup on failure
+    }
+    return state;
+}
+
+/* The only lock/unlock pair in the chrome path; the counter moves inside it (CW-O). */
+static void chrome_lock(ChromeState *state) { SDL_LockMutex(state->mutex); state->lock_pairs++; }
+static void chrome_unlock(ChromeState *state) { SDL_UnlockMutex(state->mutex); }
+
+static int32_t chrome_locked_hit(ChromeState *state, float x, float y) {
+    MUIChromeSnapshot copy;
+    chrome_lock(state);
+    memcpy(&copy, &state->snapshot, sizeof(copy));
+    state->copies++;
+    chrome_unlock(state);
+    return mui_chrome_hit(&copy, x, y);
+}
+
+int32_t mui_window_chrome_hit(void *w, float x, float y) {
+    ChromeState *state = chrome_state((SDL_Window *)w, false);
+    return state ? chrome_locked_hit(state, x, y) : MUI_CHROME_HIT_NORMAL;
+}
+
+static SDL_HitTestResult chrome_hit_callback(SDL_Window *window, const SDL_Point *area, void *data) {
+    (void)window;
+    switch (chrome_locked_hit((ChromeState *)data, (float)area->x, (float)area->y)) {
+    case MUI_CHROME_HIT_DRAGGABLE: return SDL_HITTEST_DRAGGABLE;
+    case MUI_CHROME_HIT_TOP_LEFT: return SDL_HITTEST_RESIZE_TOPLEFT;
+    case MUI_CHROME_HIT_TOP: return SDL_HITTEST_RESIZE_TOP;
+    case MUI_CHROME_HIT_TOP_RIGHT: return SDL_HITTEST_RESIZE_TOPRIGHT;
+    case MUI_CHROME_HIT_RIGHT: return SDL_HITTEST_RESIZE_RIGHT;
+    case MUI_CHROME_HIT_BOTTOM_RIGHT: return SDL_HITTEST_RESIZE_BOTTOMRIGHT;
+    case MUI_CHROME_HIT_BOTTOM: return SDL_HITTEST_RESIZE_BOTTOM;
+    case MUI_CHROME_HIT_BOTTOM_LEFT: return SDL_HITTEST_RESIZE_BOTTOMLEFT;
+    case MUI_CHROME_HIT_LEFT: return SDL_HITTEST_RESIZE_LEFT;
+    default: return SDL_HITTEST_NORMAL;
+    }
+}
+
+bool mui_window_set_hit_test(void *w, const MUIChromeSnapshot *snapshot) {
+    SDL_Window *window = (SDL_Window *)w;
+    if (!snapshot) {
+        ChromeState *state = chrome_state(window, false);
+        if (!state || !state->installed) return true;
+        if (!SDL_SetWindowHitTest(window, NULL, NULL)) return false;
+        state->installed = false;
+        chrome_lock(state);   // a cleared window answers normal everywhere
+        memset(&state->snapshot, 0, sizeof(state->snapshot));
+        chrome_unlock(state);
+        return true;
+    }
+    ChromeState *state = chrome_state(window, true);
+    if (!state) return false;
+    chrome_lock(state);
+    memcpy(&state->snapshot, snapshot, sizeof(*snapshot));
+    state->publishes++;
+    chrome_unlock(state);
+    if (!state->installed) {
+        if (!SDL_SetWindowHitTest(window, chrome_hit_callback, state)) return false;
+        state->installed = true;
+    }
+    return true;
+}
+
+bool mui_window_hit_test_installed(void *w) {
+    ChromeState *state = chrome_state((SDL_Window *)w, false);
+    return state && state->installed;
+}
+
+void mui_window_chrome_counters(void *w, uint32_t *publishes, uint32_t *copies, uint32_t *lock_pairs) {
+    ChromeState *state = chrome_state((SDL_Window *)w, false);
+    *publishes = state ? state->publishes : 0;
+    *copies = state ? state->copies : 0;
+    *lock_pairs = state ? state->lock_pairs : 0;
+}
+
 const char *mui_current_video_driver(void) {
     const char *driver = SDL_GetCurrentVideoDriver();
     return driver ? driver : "";
@@ -1700,7 +1874,10 @@ void *mui_window_create(const char *title, int32_t w, int32_t h, bool hidden) {
     if (hidden) flags |= SDL_WINDOW_HIDDEN;
     return SDL_CreateWindow(title, w, h, flags);
 }
-void mui_window_destroy(void *w) { SDL_DestroyWindow((SDL_Window *)w); }
+void mui_window_destroy(void *w) {
+    SDL_SetWindowHitTest((SDL_Window *)w, NULL, NULL);   // before the state it points at is freed (CW-H)
+    SDL_DestroyWindow((SDL_Window *)w);
+}
 uint32_t mui_window_id(void *w) { return SDL_GetWindowID((SDL_Window *)w); }
 void mui_window_size(void *w, int32_t *width, int32_t *height) { SDL_GetWindowSize((SDL_Window *)w, width, height); }
 bool mui_window_set_title(void *w, const char *t) { return SDL_SetWindowTitle((SDL_Window *)w, t); }
