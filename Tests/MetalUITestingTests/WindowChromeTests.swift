@@ -251,6 +251,25 @@ private struct ChromeAlertPage: Component {
     #expect(window.windowDragRegions == wholeBand)
 }
 
+/// **2.12b** (`CW-E`, `CW-Q` 6). A press in progress holds the published list still: with a button in the
+/// body pressed, a change that would republish waits for the release. Mutation: drop the `active == nil`
+/// guard (the first expectation reddens).
+@Test @MainActor func aPressInProgressHoldsTheRegionsStill() throws {
+    let window = try chromeWindow(controls: true) {
+        bandPage { Color.clear.frame(width: Pixels(400), height: Pixels(32)) } body: {
+            Button(action: {}) { Color.clear.frame(width: Pixels(400), height: Pixels(268)) }.buttonStyle(.plain)
+        }
+    }
+    #expect(window.windowDragRegions == [rect(0, 0, 262, 32)])
+    _ = window.send(.mouseDown(MouseEvent(position: pt(200, 150))))
+    window.window.drawsWindowControls = false
+    window.tick()
+    #expect(window.windowDragRegions == [rect(0, 0, 262, 32)], "the press holds the list")
+    _ = window.send(.mouseUp(MouseEvent(position: pt(200, 150))))
+    window.tick()
+    #expect(window.windowDragRegions == wholeBand, "and the release lets the change through")
+}
+
 /// **2.13** (`CW-F`, `CW-J`). A platform answering `false` is asked once and never computed for: AppKit's
 /// answers, the hidden style applied, several frames — one call, no region work.
 /// Mutation: ignore the answer and compute anyway (the carve counter reddens).
