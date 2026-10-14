@@ -440,7 +440,7 @@ about thirty minutes, so the rest ran as one instrumented build (a `CW_MUT` vari
 | 16 | the zoomed flag ignored by the publish | aFullscreenWindowHasNoEdges |
 | 17 | size limits ignored by the publish | aFixedAxisHasNoEdge |
 | 18 | `add_rect` unbounded | theConstantsAreTheSwiftSpecifications |
-| 19 | `.minimize` calls maximise | **survived** the first test; `performWindowActionSendsMinimizeAndZoomRestore` gained `isZoomed == false` after the minimise, and a one-off edit-and-rebuild of the same mutation then reddened it on that line |
+| 19 | `.minimize` calls maximise | **survived** the first test. A first repair (`isZoomed == false` after the minimise) passed alone and failed in a full run (the zoom flag is not stable after a minimise under load), so the pin reads `mui_window_is_minimized` (`SDL_WINDOW_MINIMIZED`, new in the bridge) instead; three full runs green, and a one-off edit-and-rebuild of the mutation reddened `performWindowActionSendsMinimizeAndZoomRestore` on `mui_window_is_minimized(raw)` |
 | 20 | fullscreen insets nonzero | insetsAreBandPlusClusterPerPlatformAndZeroInFullscreen |
 | 21 | the style answer not read back | **survived on macOS** (cocoa honours the flag); in the Linux image (`CW_MUT=21`, offscreen driver) it reddened sdlDocumentEditedRepresentedPathAndTitleBarStyleAreRecordedNoOps and theStyleAnswerIsWhatTheDriverDid |
 | 22 | `mui_window_destroy` keeps the callback installed | **survived**: not observable from a test (SDL's own destroy clears the callback before the state is freed); the line stays as a defensive ordering, named here, unpinned |

@@ -377,8 +377,9 @@ func performWindowActionSendsMinimizeAndZoomRestore() throws {
     for _ in 0..<20 where window.isZoomed { platform.pumpEvents(); Thread.sleep(forTimeInterval: 0.01) }
     #expect(window.isZoomed == false)
     #expect(window.performWindowAction(.minimize) == true)
-    for _ in 0..<5 { platform.pumpEvents(); Thread.sleep(forTimeInterval: 0.01) }
-    #expect(window.isZoomed == false, "minimise is not maximise")
+    let raw = window.rawHandle
+    for _ in 0..<50 where !mui_window_is_minimized(raw) { platform.pumpEvents(); Thread.sleep(forTimeInterval: 0.01) }
+    #expect(mui_window_is_minimized(raw), "minimise minimises")
     #expect(window.windowActions == [.toggleZoom, .toggleZoom, .minimize])
 }
 

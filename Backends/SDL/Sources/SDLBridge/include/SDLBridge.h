@@ -324,6 +324,7 @@ bool mui_window_minimize(void *window);
 bool mui_window_maximize(void *window);
 bool mui_window_restore(void *window);
 bool mui_window_is_maximized(void *window);
+bool mui_window_is_minimized(void *window);
 bool mui_window_is_fullscreen(void *window);
 
 // What the hit-test callback reads: an immutable value copied under a lock. The Swift

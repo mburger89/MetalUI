@@ -1708,6 +1708,9 @@ bool mui_window_restore(void *w) { return SDL_RestoreWindow((SDL_Window *)w); }
 bool mui_window_is_maximized(void *w) {
     return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_MAXIMIZED) != 0;
 }
+bool mui_window_is_minimized(void *w) {
+    return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_MINIMIZED) != 0;
+}
 bool mui_window_is_fullscreen(void *w) {
     return (SDL_GetWindowFlags((SDL_Window *)w) & SDL_WINDOW_FULLSCREEN) != 0;
 }
