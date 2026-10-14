@@ -147,7 +147,8 @@ jobs:
           mkdir -p Experiments/SDLGPU/linux-dump
           # The whole repo: Backends/SDL depends on the root package. No flags:
           # SDL3 and AccessKit are on the image's default paths (PX-I item 5).
-          docker run --rm -v "$PWD":/work -w /work/Backends/SDL metalui-portable bash -ec '
+          # METALUI_REQUIRE_GPU=1: a missing GPU is a failure, not a skip (ruling GA-L).
+          docker run --rm -e METALUI_REQUIRE_GPU=1 -v "$PWD":/work -w /work/Backends/SDL metalui-portable bash -ec '
             vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
             swift build --scratch-path /tmp/build
             swift test --scratch-path /tmp/build
@@ -217,6 +218,8 @@ jobs:
                    @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
           swift build @flags
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          # A missing GPU is a failure, not a skip (ruling GA-L).
+          $env:METALUI_REQUIRE_GPU = "1"
           swift test @flags
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force ..\..\Experiments\SDLGPU\windows-dump | Out-Null

@@ -40,6 +40,10 @@ var products: [Product] = [
         .library(name: "MetalUISDL", targets: ["MetalUISDL"]),
         // The backend's C API, which Backends/SDL's replay tools and tests call.
         .library(name: "SDLBridge", targets: ["SDLBridge"]),
+        // An app's own SDL_GPU work — compute, storage buffers, readback, the
+        // shader library — over the same trait, re-exporting the raw `CSDL`
+        // module (ruling GA-B).
+        .library(name: "MetalUISDLGPU", targets: ["MetalUISDLGPU"]),
 
 ]
 
@@ -259,6 +263,16 @@ var targets: [Target] = [
                 // What AccessKit's Rust static library needs, per platform
                 // (PX-H item 2; what accesskit.pc said before PX-I item 4).
                 linkerSettings: accessKitLinkerSettings),
+        // The app's typed layer over SDL_GPU and the raw module, one import
+        // (ruling GA-B). `CSDL` is a dependency under the `SDL` trait only, so
+        // the module is empty without it; the `SDL3` link is declared here for
+        // `SDLBridge`'s reason (a module map's `link` applies only where Swift
+        // imports `CSDL`).
+        .target(name: "MetalUISDLGPU",
+                dependencies: ["MetalUISDL", "SDLBridge", "MetalUIPlatform", "MetalUICore",
+                               .target(name: "CSDL", condition: .when(traits: ["SDL"]))],
+                path: "Backends/SDL/Sources/MetalUISDLGPU",
+                linkerSettings: [.linkedLibrary("SDL3", .when(traits: ["SDL"]))]),
 
         // The scaffolder (ruling SC-A): Foundation only, `package` access — a
         // tool, not framework API. `MetalUICLI` is the `metalui` executable.
