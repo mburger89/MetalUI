@@ -1,7 +1,7 @@
 # Clipboard beyond text — decisions
 
 Rulings for item S3 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
-MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-Q`.**
+MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-R`.**
 Spec: [`specs/2026-10-14-clipboard-types-design.md`](specs/2026-10-14-clipboard-types-design.md).
 Record: `../record/115-clipboard-types.md` (Record phase). Branch `feat/clipboard-types` from
 `fb9a7e42`. Divergence labels reserved 455–464: **455 taken** (`CB-G`), **456 taken** (`CB-C`).
@@ -258,3 +258,27 @@ Typecheck guards, each rebuilt: a default `setClipboardCommands` extension redde
 `aPlatformWindowWithoutAClipboardRequirementDoesNotCompile` (3.1); a public `Clipboard.init()` reddens
 `theClipboardSpellingsCompileFromAPlainImportAndClipboardHasNoInitialiser` (3.2). Tree clean after each (`git status --short`).
 A predecessor's identical mutation set was found unreverted in the worktree and was reverted, and its results (not recorded) retaken here.
+
+## CB-Q — SDL measured: the bridge, the Linux image and the Windows expectation
+
+**Evidence (lane 2, 2026-10-14, `f0bcd3ca`, `e86bea1c`).** `SDLClipboardTests` (8 tests, `.serialized`, each clearing first,
+`armMainRunLoopExitCheck()`) run **unfiltered and ungated** on macOS (Backends/SDL 30 + 133 pass) and in the
+`metalui-portable` image on the offscreen driver (30 + 130 pass, three macOS-only): the dummy and offscreen drivers keep
+the callback in SDL's generic layer, so no `.enabled(if:)` predicate is needed (`CB-L` stands, no skip to measure). The
+Linux image also caught `SDLBridge.h` lacking `<stddef.h>` for `size_t`, invisible on macOS.
+**Ruling.** (1) The bridge is one `malloc` holding the entries, mime strings and bytes (`mui_clipboard_set`); the data callback
+only looks up by `strcmp` and returns a pointer into the box; the cleanup counts and frees. A **failed** set calls
+`SDL_ClearClipboardData()` and never frees itself, so only SDL's cleanup frees the box, once, whether or not SDL stored it.
+(2) Two representations that map to one mime keep the first (a callback cannot tell them apart). (3) Test counters
+`mui_clipboard_cleanup_count`/`live_count`/`callback_probe` are bridge test hooks, not API. (4) **Windows is by CI**: the
+Windows delayed-render path calls the callback from SDL's pumping thread, which the pure callback tolerates; unmeasured here.
+(5) Pasting across processes is human check `CB2`.
+**Mutations** (Backends/SDL, each committed-first, restored from a copy, `SDLClipboardTests` filtered, tree clean after):
+callback size 0 reddens the round trip, replace, empty, 8 MiB, duplicate, mixed-case and 4.2 tests; cleanup counted twice
+reddens `theCleanupRunsOnceForEveryBoxAndNoBoxLeaks`; a main-queue hop in the callback (off the main thread only) reddens
+`theCallbackNeedsNoMainActor` by timeout (an unconditional hop deadlocks the first main-thread read and kills the run, so the
+off-main form is the instrument); empty filter removed reddens `emptyRepresentationsAreDroppedAndAnAllEmptyWriteKeepsTheClipboard`;
+dedupe removed reddens `twoRepresentationsOfOneMimeKeepTheFirst`. **A skipped `free(userdata)` stayed green**: a leak is not
+observable in-process (the counters are the cleanup's own); it is held by review of the one `free`, and recorded here, not pinned.
+**Cost if wrong.** A leak of one box per replace would pass the tests.
+
