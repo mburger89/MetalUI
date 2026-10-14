@@ -4,7 +4,7 @@ Items S4 and S8 (MetalCreator's SDL-port gap 8 and XP-G9; user request 2026-10-0
 Rulings: [`../2026-10-14-cursors-headless-decisions.md`](../2026-10-14-cursors-headless-decisions.md) (`IC-A`...`IC-N`).
 Record: `../../record/116-cursors-headless.md`. Probe: `docs/probes/swiftui-image-cursor.swift`.
 
-**Status: DESIGNED** (no source change yet).
+**Status: lane A (S8) and lane B (S4) built; see the decisions doc (`IC-R` for lane B's spellings).**
 
 ## 1 Goal
 

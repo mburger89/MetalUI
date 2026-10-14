@@ -80,6 +80,11 @@ public final class SDLPlatform: Platform {
         try self.init(options: Options(hidesWindows: hiddenWindows, rendersOffscreen: offscreenRenderers))
     }
 
+    // The platform's end destroys its image cursors (`IC-E` 3).
+    nonisolated deinit {
+        MainActor.assumeIsolated { destroyImageCursors() }
+    }
+
     public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
         try openSDLWindow(title: title, size: size)
     }
@@ -307,6 +312,39 @@ public final class SDLPlatform: Platform {
         guard windows[window.id] === window else { return }
         windows.removeValue(forKey: window.id)
         if focusedID == window.id { focusedID = nil }
+        if windows.isEmpty { destroyImageCursors() }   // `IC-E` 3
+    }
+
+    // MARK: Image cursors (rulings `IC-E`, `IC-O`)
+
+    /// SDL's cursor is process-global (`CI-S`), so the image cursors are the platform's, not a
+    /// window's: at most eight, least recently used out (`SDLImageCursorTable`).
+    private var imageCursors = SDLImageCursorTable<PlatformCursorImage, UnsafeMutableRawPointer>(
+        capacity: 8, create: { SDLCursorImage.make($0) }, destroy: { mui_cursor_destroy($0) })
+    /// The image cursor SDL shows now, if the last style was an image.
+    private var shownImageCursor: UnsafeMutableRawPointer?
+
+    /// Shows `image`'s cursor, made once per value and set only when it is not the one already
+    /// shown (`IC-E` 4). A cursor SDL cannot create leaves the current one (`IC-C` 3).
+    func showImageCursor(_ image: PlatformCursorImage) {
+        guard let handle = imageCursors.handle(for: image, current: shownImageCursor) else { return }
+        guard handle != shownImageCursor else { return }
+        if mui_cursor_set(handle) {
+            shownImageCursor = handle
+            imageCursors.sweepParked(current: handle)
+        }
+    }
+
+    /// A system cursor replaces whatever image cursor was shown: the parked one can go.
+    func noteSystemCursor() {
+        shownImageCursor = nil
+        imageCursors.sweepParked(current: nil)
+    }
+
+    /// Destroys every image cursor (the last window closed, or the platform ends).
+    private func destroyImageCursors() {
+        shownImageCursor = nil
+        imageCursors.removeAll()
     }
 
     /// Dispatches every pending event without waiting — one run-loop pass
@@ -526,6 +564,11 @@ public final class SDLWindow: PlatformWindow {
     /// create (the offscreen driver) leaves the current one.
     public func setPointerStyle(_ style: PlatformPointerStyle) {
         pointerStyles.append(style)
+        if case .image(let image) = style {
+            platform?.showImageCursor(image)   // `IC-E`; a window with no platform has no table
+            return
+        }
+        platform?.noteSystemCursor()
         _ = mui_set_system_cursor(SDLCursorTable.systemCursor(for: style).bridgeValue)
     }
 

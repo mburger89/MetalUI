@@ -384,6 +384,18 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
 
+**Image cursors** (`IC-`, record §116;
+[`superpowers/2026-10-14-cursors-headless-decisions.md`](superpowers/2026-10-14-cursors-headless-decisions.md);
+probe `probes/swiftui-image-cursor.swift`). `PointerStyle.image(_ image: Image, hotSpot: UnitPoint)`,
+SwiftUI's macOS 15 spelling (A): the cursor is the `Image`'s bitmap at `pixels / scale` points
+(`resizable()` and `interpolation` are ignored), the hot spot a fraction of that size from the top-left,
+clamped to the image (D 465). It is cached per bitmap identity — a bitmap rebuilt into an `Image` every
+frame is one cursor — on AppKit (an `NSCursor`, sixteen per window) and on SDL (`SDL_CreateColorCursor`,
+straight alpha, eight per platform, a 2x bitmap added as an alternate image). SDL has no hand or zoom
+cursor, so an app that wants one supplies the bitmap (`IC-H`; `guides/input.md`). `shape(_:eoFill:size:)`
+is carried (`IC-G`). At the seam (M): `PlatformPointerStyle.image` and `PlatformCursorImage`
+(`texture`, `scale`, `hotSpotX`/`hotSpotY`, `pixelWidth`/`pixelHeight`, `pointWidth`/`pointHeight`).
+
 **Input follow-ups** (`IF-`, record §93;
 [`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
 probe `probes/swiftui-input-followups.swift`). MetalUI-only by ruling, where SwiftUI's

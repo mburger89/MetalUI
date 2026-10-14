@@ -86,7 +86,8 @@ enum SDLCursorTable {
     /// frame edge is its own one-edge resize cursor whatever its directions.
     static func systemCursor(for style: PlatformPointerStyle) -> SDLSystemCursor {
         switch style {
-        case .arrow, .zoomIn, .zoomOut: .default
+        // An image cursor is not a system cursor (`IC-E`); `SDLPlatform` never asks for one here.
+        case .arrow, .zoomIn, .zoomOut, .image: .default
         case .iBeam, .verticalIBeam: .text
         case .crosshair: .crosshair
         case .openHand, .closedHand: .move

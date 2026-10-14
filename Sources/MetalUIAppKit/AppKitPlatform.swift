@@ -983,12 +983,22 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         if appearance != lastReportedAppearance { reportAppearance() }
     }
 
+    /// This window's image cursors (ruling `IC-D`): sixteen, least recently used out.
+    private var imageCursors = AppKitImageCursorCache()
+    /// How many image cursors are cached; read by `appKitCachesAnImageCursorPerImageAndBoundsTheCache`.
+    var imageCursorCacheCount: Int { imageCursors.count }
+
     /// Shows `style` (ruling `CI-H` item 8): the host view keeps the mapped
     /// `NSCursor` for every `cursorUpdate(with:)`, and it is set at once while
     /// the pointer is inside the view. Pinned by
     /// `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`.
     func setPointerStyle(_ style: PlatformPointerStyle) {
-        let cursor = AppKitCursor.cursor(for: style)
+        let cursor: NSCursor
+        if case .image(let image) = style {
+            cursor = imageCursors.cursor(for: image, held: hostView.pointerCursor)   // `IC-D`
+        } else {
+            cursor = AppKitCursor.cursor(for: style)
+        }
         hostView.pointerCursor = cursor
         if hostView.pointerIsInside { cursor.set() }
     }

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import MetalUICore
 import MetalUIPlatform
@@ -45,23 +46,9 @@ private func cursorImage(side: Int, scale: Float = 1, seed: UInt8 = 100,
     PlatformCursorImage(texture: texture(side: side, seed: seed), scale: scale, hotSpot: hotSpot)
 }
 
-/// Whether this video driver creates a colour cursor at all (the offscreen driver may not): one
-/// real creation, counted and destroyed.
-@MainActor
-private func driverCreatesCursors() -> Bool {
-    armed()
-    guard let platform = try? SDLPlatform(hiddenWindows: true) else { return false }
-    _ = platform
-    let surface = [UInt8](repeating: 255, count: 4 * 4 * 4).withUnsafeBufferPointer {
-        mui_icon_surface_create(4, 4, $0.baseAddress)
-    }
-    defer { if let surface { mui_surface_destroy(surface) } }
-    guard let surface, let cursor = mui_cursor_create(surface, 0, 0) else { return false }
-    mui_cursor_destroy(cursor)
-    return true
-}
-
-private let creates: Bool = MainActor.assumeIsolated { driverCreatesCursors() }
+/// Whether this video driver creates a colour cursor (the offscreen driver of CI's Linux image
+/// may not; read from the driver name, as `SDLLifecycleTests`' `windowsPresentFrames` is).
+private let creates = ProcessInfo.processInfo.environment["SDL_VIDEO_DRIVER"] != "offscreen"
 
 @Suite(.serialized) @MainActor
 struct SDLImageCursorTests {

@@ -182,6 +182,8 @@ F	input-followups-cancel	D	-	-	-	236	IF-E IF-F	onCancelled(_:) on DragGesture, M
 F	input-followups-modkeys	M	-	-	-	-	IF-D	onModifierKeysChanged(mask:initial:_:) and ModifierKeysScope: SwiftUI's signature and defaults, MetalUI's own contract (the window owns the modifiers, a transparent scope noted in prepaint, the action in the lifecycle drain); SwiftUI's timing is unprobed (human check IF1)
 F	input-apis-pointer-style	A	swiftui-input-apis.swift	P11	theInnermostPointerStyleWinsAndNilDefers	-	CI-H CI-S CI-AH	PointerStyle (.default/.horizontalText/.verticalText/.rectSelection/.grabIdle/.grabActive/.link/.zoomIn/.zoomOut/.columnResize/.rowResize/frameResize(position:directions:)), FrameResizePosition, FrameResizeDirection(.Set): SwiftUI's spellings and its innermost-wins (P11/P11c), nil defers (P12), an opaque target above covers (P13); a non-opaque style region per element through the one ranking, sent to the platform on a change
 F	input-apis-pointer-style-modifier	D	swiftui-input-apis.swift	P11	theInnermostPointerStyleWinsAndNilDefers	141	CI-H CI-AH	pointerStyle(_:) on both vocabularies: a non-opaque style region per element through the one ranking, innermost wins (P11), nil defers (P12), an opaque target above covers (P13); a view that only paints does not cover it (P14, 141)
+F	image-cursor	A	swiftui-image-cursor.swift	I1	anImageCursorSendsItsPointSizeAndHotSpot	465	IC-A IC-B IC-C IC-F IC-H	PointerStyle.image(_:hotSpot:): SwiftUI's spelling (I1-I4: the cursor is pixels / scale points, the hot spot a unit point of that size, top-left; I5: resizable() inert); a hot spot outside the unit square clamps (465); cached per bitmap identity, so a rebuilt Image is one cursor
+F	image-cursor-seam	M	-	-	-	-	IC-A IC-C IC-E	PlatformPointerStyle.image and PlatformCursorImage (texture, scale, hotSpotX/Y, pixelWidth/Height, pointWidth/Height): the seam's image cursor, equal by texture identity; an outside conformer's exhaustive switch owes the case (docs/migration.md)
 F	input-apis-wheel	M	-	-	-	-	CI-I CI-Q CI-AH	onScrollWheel(perform:) on both vocabularies, ScrollWheelModifier, PointerStyleModifier: a per-element wheel handler (SwiftUI has no per-view wheel hook on macOS) returning whether it claimed, offered innermost first on the one ranking's chain before each scroller (DD-Y), and the two proposal wrappers' types
 F	presentation-scope	D	-	-	-	120	SV-K	PresentationScope: the transparent ElementGroup .fileImporter/.fileExporter/.alert/.confirmationDialog return — no node, no identity level, its record in the window's registry, reconciled after the frame, one presentation in flight per window; a legacy decoration after it does not compile (120)
 F	file-dialogs	D	swiftui-platform-services.swift	D1	anImporterPresentsAfterTheFrameOnceWhileShown	129	SV-C SV-K	fileImporter (both forms)/fileExporter(item:contentTypes:defaultFilename:onCompletion:onCancellation:)/FileExportError: SwiftUI's subset over MetalUI's ContentType and synchronous Transferable; isPresented written false before the callback, a cancelled import calls nothing (D2), a nil item still presents (X5), the exporter writes the conforming representation or the first; off Apple a type filters by extension only (129)
@@ -496,6 +498,8 @@ M	MetalUIPlatform	InputEvent.swift	(-|InputPhase|MagnifyEvent|RotateEvent)	(Inpu
 M	MetalUIPlatform	InputEvent.swift	MouseEvent	buttonNumber	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	(phase|momentumPhase|isPrecise|location)	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	init	.*isPrecise.*	input-apis-seam
+M	MetalUIPlatform	PointerStyle.swift	PlatformCursorImage	.*	.*	image-cursor-seam
+M	MetalUIPlatform	PointerStyle.swift	PlatformPointerStyle	image	.*	image-cursor-seam
 M	MetalUIPlatform	PointerStyle.swift	.*	.*	.*	input-apis-seam
 M	MetalUIPlatform	Platform.swift	PlatformWindow	setPointerStyle	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	Modifiers	primary	.*	primary-modifier
@@ -537,6 +541,7 @@ M	MetalUI	FileDialogs.swift	(-|ElementGroup)	(FileExportError|fileImporter|fileE
 M	MetalUI	FileDialogs.swift	.*	.*	.*	file-dialog-call
 M	MetalUI	Alert.swift	.*	.*	.*	alerts
 M	MetalUI	Hover.swift	.*	.*	.*	hover
+M	MetalUI	PointerStyle.swift	PointerStyle	image	.*	image-cursor
 M	MetalUI	PointerStyle.swift	(StyledElement|ProposalElementGroup)	pointerStyle	.*	input-apis-pointer-style-modifier
 M	MetalUI	PointerStyle.swift	PointerStyleModifier	.*	.*	input-apis-wheel
 M	MetalUI	PointerStyle.swift	-	PointerStyleModifier	.*	input-apis-wheel

@@ -5,7 +5,7 @@ and XP-G9. Spec: [`specs/2026-10-14-cursors-headless-design.md`](specs/2026-10-1
 Record: `../record/116-cursors-headless.md`. Probe: `docs/probes/swiftui-image-cursor.swift` (arms `I0`-`I7`,
 output in its header).
 
-Prefix **`IC-`**, lettered. **Next unused: `IC-R`.** (Moves in the commit that appends a ruling.)
+Prefix **`IC-`**, lettered. **Next unused: `IC-S`.** (Moves in the commit that appends a ruling.)
 Branch `feat/image-cursors-headless` from `fb9a7e42`. Reserved divergence labels 465-474: 465 used
 (`IC-C`), 466-474 unused.
 
@@ -232,3 +232,22 @@ manifest declares no `MainQueueDrainCheck` either, so the spec's "declared in bo
 
 **Ruling.** The recipe and the check set a flag in the task and call `stop()` from `startDisplayLink`'s tick
 (also the iteration bound, `IC-P`): `iterations=1` on macOS. `docs/testing.md` says why.
+
+## IC-R - Lane B's spellings: the table's name, where tests 1-6 live, the recorder's extra counter
+
+**Finding (lane B).** Three places where the spec's spelling met the code.
+1. `SDLCursorTable` is already the system-cursor enum (`CI-H` item 8, `SDLInputMapping.swift`), so `IC-O`'s
+   generic table is **`SDLImageCursorTable<Key, Handle>`** (`SDLCursor.swift`), generic over the key too so its
+   pins use `Int` keys and build no `PlatformCursorImage`. API: `handle(for:current:)`, `sweepParked(current:)`,
+   `removeAll()`, `count`, `parkedCount`; an evicted cursor SDL shows is *parked* and destroyed by the next sweep
+   that no longer shows it (`IC-E` 3's "destroyed at its next replacement"); a refused creation is not stored.
+2. Tests 1-6 live in `Tests/MetalUITestingTests/ImageCursorTests.swift` (plain imports over `TestWindow`), not
+   `Tests/MetalUITests`: the harness reads the window's `PlatformCursorImage` at the seam, and the file runs in
+   the Linux image's root set. Guards 9-10 are `Tests/MetalUITests/ImageCursorCompileGuards.swift`, tests 7-8
+   `AppKitImageCursorTests.swift`.
+3. The C recorder gains `mui_cursor_attempt_count()` (a refused create still counts, so tests 11-12 read the
+   surface the bridge was given on a driver that creates nothing) and `mui_cursor_set_count()` counts
+   `mui_cursor_set` only (system cursors keep `mui_set_system_cursor`). `mui_cursor_last_alternate_count()` is
+   `SDL_GetSurfaceImages`' count **minus the surface itself** (measured: the list includes it). A test needing
+   a created cursor is gated on `SDL_VIDEO_DRIVER != "offscreen"` (the lifecycle tests' gate), read from the
+   environment because a `.enabled(if:)` condition runs off the main actor.

@@ -356,6 +356,30 @@ func inputComposeRoot(_ model: InputComposeModel) -> some Element {
 // end guide
 
 
+// guide: input #8
+/// A bitmap drawn in code: a filled disc of `side` pixels.
+func inputDisc(side: Int) -> ImageBitmap {
+    var rgba: [UInt8] = []
+    let centre = Double(side) / 2
+    for y in 0..<side {
+        for x in 0..<side {
+            let dx = Double(x) + 0.5 - centre, dy = Double(y) + 0.5 - centre
+            let inside = dx * dx + dy * dy <= centre * centre
+            rgba += inside ? [30, 120, 255, 255] : [0, 0, 0, 0]
+        }
+    }
+    return ImageBitmap(width: side, height: side, rgba: rgba)
+}
+
+/// A region whose pointer is the disc, hot spot at its centre, drawn at 2x.
+@MainActor
+func inputCursorRegion(_ disc: ImageBitmap) -> some Element {
+    Rectangle()
+        .frame(width: Pixels(120), height: Pixels(80))
+        .pointerStyle(.image(Image(decorative: disc, scale: 2), hotSpot: .center))
+}
+// end guide
+
 // MARK: - Tests
 
 private func guideX(_ bounds: Bounds<Pixels>) -> Float { bounds.origin.x.value }
@@ -535,6 +559,19 @@ private func stateLabelIsAbsent(_ window: TestWindow, _ label: String) -> Bool {
     window.drag(from: Point(x: Pixels(100), y: Pixels(16)), to: Point(x: Pixels(140), y: Pixels(16)))
     window.tick()
     #expect(window.windowDrags == 1)
+}
+
+/// An image cursor over the region sends the bitmap at its point size: a 48 px disc at scale 2 is 24 pt.
+/// Mutation: delete `.pointerStyle(...)` from `inputCursorRegion`.
+@Test @MainActor func theInputGuideAnImageCursorSendsItsBitmap() throws {
+    let disc = inputDisc(side: 48)
+    let window = try harnessWindow { inputCursorRegion(disc) }
+    window.hover(at: Point(x: Pixels(200), y: Pixels(150)))
+    guard case .image(let cursor)? = window.pointerStyle else {
+        Issue.record("the region sent \(String(describing: window.pointerStyle))")
+        return
+    }
+    #expect(cursor.pointWidth == 24 && cursor.hotSpotX == 12 && cursor.hotSpotY == 12)
 }
 
 /// With nothing focused, Space goes to the key region under the pointer; away from it, nowhere.
