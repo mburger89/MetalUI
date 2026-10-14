@@ -1,6 +1,6 @@
 # Hot paths - decisions
 
-Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-I`.**
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-J`.**
 Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
 `../record/111-hot-paths.md` (Record phase). Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
 reserved 415-424: none taken (none yet).
@@ -99,3 +99,33 @@ whole at 256 entries. (7) Test `aLiteralWithNoMarkupRunsNoParser` (3.16) now use
 `Text("**b**")` is used elsewhere in the process and is a table hit by design. **Evidence.** Mutations
 M1-M7 each reddened the named tests (record 111). **Cost if wrong.** A stale memo draws misplaced glyphs;
 tests 3 and 4 compare with a fresh shape for every origin and scale variant.
+
+## HP-I - Lane 2 as built: where the spec's spelling moved
+
+**Rulings.** (1) `hasPercentEdge` left its nested position for a file-level `edgesHavePercent(_:)`
+(`LegacyLowering.swift`) and `contextualTarget(at:where:)` forwards to a `static
+Window.contextualTarget(in:at:where:)` over an explicit hitbox list, so tests reach both without a
+`LayoutPass` or a `Window`; the bodies are unchanged (the nested `isRegion` closure and the `lastIndex(where:)`
+remain: the profile named the cost as the isolation check of closures passed from `@MainActor` code,
+and the static function is nonisolated, so neither runs one). Shadow.swift's canonical-leaf `map` and
+`ProposalAnimation`'s `Optional.map` sites (`px`, `raw`, `ordered`, the component-op `dimension`/`length`)
+became `guard let` and a reserve-then-append loop. (2) Counters, not time: `AnimationStore.borderKeyBuilds`
+and `numberTrackRebuilds` (cumulative, internal) and `RasterCache.keyProbes` (cumulative). Spec test 12's
+`lastFrameTrackCopies` is that last-named counter's neighbour, re-spelled for the same reason as `HP-H` (1):
+cumulative read-backs a test differences, no per-frame reset to race. (3) `borderWidths` also returns before
+building keys on the `nil` branch when nothing is in flight (the keys it would clear cannot exist). (4)
+`animatedNumbers` returns early only when the stored `inFlight` is empty **and** `baseline.count ==
+declared.count` **and** every position is `nil` on both sides or non-NaN with an equal bit pattern; the
+old slow path wrote nothing in that case either (state `==` existing), so no `set`, no
+`noteActiveAnimation`, no `noteInterpolation` is skipped. (5) `RasterKey` is a manual `Hashable`:
+`words`/`paths`/`objects` are `private(set)` and grow only through `add…`/`addPath`/`addObject`/`addWords`,
+each folding into `storedHash` (xor, odd multiply, xorshift: bijections, so one differing component stores
+a different hash); `==` checks the hash first then all three fields. A path folds its own `hashValue` at
+add time (once, where the synthesized hash re-walked it on every lookup). (6) The cache keeps its touched
+state in the entries (an epoch stamp, `endFrame` filtering only when a count says some entry went
+untouched), so a hit is one `index(forKey:)` and a stamp in place; the tint key holds four `UInt32`s
+instead of a freshly allocated `[UInt32]` per lookup. A miss costs two probes (find, insert), counted.
+(7) `Affine2D.boundingBox` keeps `Array.min()`/`max()`'s comparison order in four scalar corners, bit-equal
+(test 18, 500 random affines). **Evidence.** Mutations in record 111 §3. **Cost if wrong.** A stamp that
+fails to move leaves a stale entry for one extra frame (memory only); a hash fold that omits a component
+only slows a probe, never a wrong raster (`==` compares fields).
