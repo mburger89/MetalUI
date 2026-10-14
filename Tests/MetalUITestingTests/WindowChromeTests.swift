@@ -138,7 +138,9 @@ extension InsetsLog {
             TextField("Name", text: .constant("")).frame(width: Pixels(80), height: Pixels(24))
         }
     }
-    #expect(window.windowDragRegions == [rect(0, 0, 20, 24), rect(100, 0, 300, 24), rect(0, 24, 400, 8)])
+    // The field's own box is 25 tall inside its 24-point frame (its chrome, measured): the carve follows the
+    // hitbox, not the frame.
+    #expect(window.windowDragRegions == [rect(0, 0, 20, 25), rect(100, 0, 300, 25), rect(0, 25, 400, 7)])
 }
 
 /// **2.7** (`CW-E`). A hover region is **not** a blocker (a root-level hover would forbid all drag) — the
@@ -332,16 +334,20 @@ private struct ChromeAlertPage: Component {
 /// expectation reddens).
 @Test @MainActor func theCloseButtonGoesThroughTheCloseVeto() throws {
     let window = try chromeWindow(controls: true) { Color.clear.frame(width: Pixels(400), height: Pixels(300)) }
+    let script = CloseScript()
+    window.window.onCloseRequest = { script.asked += 1; return script.reply }
+    try window.click(try window.element(label: "Close"))
+    #expect(script.asked == 1)
+    #expect(!window.platformWindow.isClosed, "the veto kept the window")
+    script.reply = .now
+    try window.click(try window.element(label: "Close"))
+    #expect(script.asked == 2)
+    #expect(window.platformWindow.isClosed)
+}
+
+@MainActor private final class CloseScript {
     var asked = 0
     var reply = CloseRequestReply.cancel
-    window.window.onCloseRequest = { asked += 1; return reply }
-    try window.click(try window.element(label: "Close"))
-    #expect(asked == 1)
-    #expect(!window.platformWindow.isClosed, "the veto kept the window")
-    reply = .now
-    try window.click(try window.element(label: "Close"))
-    #expect(asked == 2)
-    #expect(window.platformWindow.isClosed)
 }
 
 /// **2.20** (`CW-C`). Minimise and zoom send their actions to the platform, in order, once each.
@@ -404,7 +410,7 @@ private struct ChromeAlertPage: Component {
     var labels: [String?] = []
     for _ in 0..<4 {
         window.typeKey(.tab)
-        labels.append(window.focusedElement?.label)
+        labels.append(try window.focusedElement?.label)
     }
     #expect(labels == ["Content", "Minimise", "Zoom", "Close"])
 }

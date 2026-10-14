@@ -86,10 +86,17 @@ func runDemo() throws {
     // and their wires, each an `.equatable()` component; drag a node and read how many replayed.
     let retainedDemo = ProcessInfo.processInfo.environment["METALUI_RETAINED_DEMO"] == "1"
 
+    // Window chrome's human looks (`docs/verification/human-checks.md` group CW, spec
+    // `2026-10-13-sdl-chrome-design.md` "Demo"): a hidden title bar with a glass bar, a button, a field, a tap
+    // target and a drag handle in it.
+    let chromeDemo = ProcessInfo.processInfo.environment["METALUI_CHROME_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if retainedDemo {
+    if chromeDemo {
+        window = try openChromeDemoWindow(app, title: "MetalUI — Window Chrome")
+    } else if retainedDemo {
         window = try app.openWindow(title: "MetalUI — Retained Subtrees",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: retainedSubtreeDemoContent)

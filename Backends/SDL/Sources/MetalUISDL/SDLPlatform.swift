@@ -982,6 +982,37 @@ public final class SDLWindow: PlatformWindow {
         return false
     }
 
+    // MARK: Window chrome — lane 1 stubs (ruling `CW-L`)
+    //
+    // Lane 1 adds the four defaultless `PlatformWindow` requirements (`CW-F`) here as stubs answering today's
+    // values, so `Backends/SDL` builds; lane 2 replaces them with the borderless window, the hit-test
+    // callback over a snapshot and the minimise/maximise calls.
+
+    /// Every list `Window` published through `setWindowDragRegions(_:)`, last (lane 1: recorded only).
+    public private(set) var windowDragRegions: [Bounds<Pixels>] = []
+
+    /// Records the list and answers `false`: the lane 1 stub installs no hit-test callback.
+    public func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool {
+        windowDragRegions = regions
+        return false
+    }
+
+    /// Every `performWindowAction(_:)` argument, in order.
+    public private(set) var windowActions: [PlatformWindowAction] = []
+
+    /// Records the action and answers `false`: the lane 1 stub minimises and zooms nothing.
+    public func performWindowAction(_ action: PlatformWindowAction) -> Bool {
+        windowActions.append(action)
+        return false
+    }
+
+    /// `false`: SDL has no native window buttons under the hidden style (`CW-C`) — the window draws them
+    /// once the style applies (it does not in the lane 1 stub, so nothing is drawn).
+    public var hasNativeWindowControls: Bool { false }
+
+    /// `false`: the lane 1 stub reads no maximised flag.
+    public var isZoomed: Bool { false }
+
     /// The last pointer position a motion, button or wheel event delivered —
     /// where a pinch, which has none in SDL, is placed (ruling `CI-K` item 2).
     private var lastPointerPosition = Point(x: Pixels(0), y: Pixels(0))

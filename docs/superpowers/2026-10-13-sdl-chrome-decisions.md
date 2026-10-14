@@ -23,7 +23,7 @@ Evidence:
   regions plus drawn controls on Linux/Windows). SwiftUI has no analogue, so SwiftUI is not the authority
   for anything below beyond `WindowDragGesture`'s spelling (`WD-B`) and `.hiddenTitleBar`.
 
-Next unused: `CW-Q`.
+Next unused: `CW-R`.
 
 ## CW-A — Scope: what is built, what is deferred
 
@@ -263,3 +263,43 @@ Linux run; the earlier spec text listing it under lane 1 is superseded); lane 1 
 migration, testing.md, human checks group CW. The demo section is added to the one-megabyte-stack composer
 test's table in the same change (`everyProductionTreeBuildsOnAOneMegabyteThread`), and `Handlers`, `StateTable`
 slots and hit testing stay unmoved (the carve reads the hitbox list only).
+
+## CW-Q — Lane 1 build rulings: where the spec's spelling met the code
+
+**Ruling.** Lane 1 (record §112) built the seam, `Window`, the strip and the headless platform, and settled what the
+spec left open or spelled wrongly. (1) **The rect type is `Bounds<Pixels>`**: `Rect<Pixels>` does not exist in
+`MetalUICore`; `setWindowDragRegions(_:)`, `ChromeHitSnapshot.dragRegions` and the headless read-backs all use
+`Bounds<Pixels>` (origin and size, half-open on the max edges, as `Bounds.contains`). (2) **The portable tests live in
+`Tests/MetalUICrossPlatformTests/ChromeHitSnapshotTests.swift`**, not `MetalUIPlatformTests` (that target depends on
+AppKit and is macOS-only); the Linux and Windows jobs run it. (3) **`ChromeHitMap.carve` is `package` in
+`MetalUIPlatform`** beside `ChromeHitSnapshot` (portable, no `MetalUICore` import beyond geometry): it takes
+`limit:` and answers `(rects, truncated)`; it subtracts each blocker, makes the candidates disjoint by subtracting the
+ones already accepted, sorts in reading order (y, then x, then size), drops empty rects and deduplicates. Order of the
+pieces of one subtraction is above, left, right, below. (4) **The strip is a fourth named root, `$windowcontrols` at
+cursor index 3, not a `Deferred`**: a `Deferred` presentation root is hoisted above every layer and would rank above
+the menu bar's and toolbar's hitboxes and the presentations a popover or alert opens; the `MenuBarStrip` precedent
+(named root, own layout run, noted with `noteNamed`, prepainted after the root, the toolbar strip and the bar) gives
+the order `CW-M` 4 asks for (last Tab stops) and cannot be mistaken for an open presentation (`CW-M` 3). The
+cluster's rect is laid out over the root, taking none of its space. (5) **The cluster's side and style come from the
+platform's insets, not `#if os(macOS)`**: `left > 0 && right <= 0` draws the 70-point left cluster of three 12-point
+circles in AppKit's order; anything else the 138-point right cluster of flat 46-point rectangles, so a headless test
+reaches both and the platform decides. The glyphs are text (`–`, `□`/`◱`, `×`); no hover wash (it would add a hover
+region; not built). (6) **The first build asks the platform once**, `setWindowDragRegions([])`; a platform that
+answered `false` is never computed for again, and a style change is not a re-ask (the list is recomputed every build
+and published on change). A press in progress (`active != nil`) holds the published list still. (7) **A handle is a
+hitbox whose only pointer asks are `WindowDragGesture` leaves**; a handle under a render effect is not a candidate
+(its bounds are local), a blocker under one takes the clip at the effect's entry (a superset of every point it can be
+hit at). A handle wholly under an enclosing element that needs the pointer (a `DragGesture` canvas, as the app shell
+demo's) is carved away to nothing: divergence 426 names it. (8) **The work counter is `Window.testingChromeCarveCount`**
+(`package`), not a `FrameWork` field: the pins count region computations, which no frame work type carries.
+(9) **The headless platform gains `Options.hiddenTitleBarInsets`** (the insets it answers while the hidden style is
+applied, `.sdlChrome`'s 32/138) beside the spec's four options, and a `.toggleZoom` action flips
+`HeadlessPlatformWindow.isZoomed` as a platform that honoured it does. (10) **Fullscreen is "the band has no
+height"**: with the hidden style applied and the platform's `titleBarInsets.top` zero the window draws no strip and
+publishes no regions. (11) **`Window.minimize()` answers nothing and `toggleZoom()` dirties the window**; both ignore
+the platform's answer. (12) The SDL conformer carries lane 1's four stubs (`CW-L`): `setWindowDragRegions` records and
+answers `false`, `performWindowAction` records and answers `false`, `hasNativeWindowControls` `false`, `isZoomed`
+`false`; the SDL demo's `main.swift` wiring of `METALUI_CHROME_DEMO` is lane 2's.
+**Cost if wrong.** (4): if the strip must rank above a presentation's scrim it becomes a `Deferred` (the strip's
+element is unchanged). (7): a handle under a gesture canvas is not draggable on SDL; `CW5`/`CW3` measure it.
+

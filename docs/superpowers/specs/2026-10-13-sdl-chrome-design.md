@@ -1,7 +1,7 @@
 # SDL custom window chrome — design
 
 Item S1 (user request 2026-10-02; MetalCreator SDL-port gap 3). Rulings: `../2026-10-13-sdl-chrome-decisions.md`
-(`CW-A`…`CW-P`). Status: designed, not built. Base `fb9a7e42` (3717 tests, 234 guards).
+(`CW-A`…`CW-P`). Status: lane 1 built (seam, `Window`, strip, headless, rulings `CW-Q`); lane 2 (`Backends/SDL`) not built. Base `fb9a7e42` (3717 tests, 234 guards).
 
 ## Goal
 
