@@ -255,6 +255,17 @@ ImageIO on macOS and are `nil` elsewhere; a corrupt or truncated file is
 process, so every frame gets the same texture identity. SwiftUI's
 `Image(_:bundle:)` (asset catalogs) is not offered.
 
+**Pixel decoding and orientation** (`IB-A`…`IB-L`, record 113): `DecodedImage` (M) decodes PNG and JPEG
+bytes with the same decoder to straight-alpha RGBA8 or 8-bit grey (`init?(data:format:)`,
+`init?(contentsOfFile:format:)`; `width`, `height`, `bytesPerRow`, `pixels`), reports the file's EXIF
+orientation (JPEG `APP1`, PNG `eXIf`; bounds-checked, damaged is `.up`) and does not apply it;
+`applyingOrientation()`, `orientedSize` and `ImageBitmap(_:)` complete the path. `Image.Orientation`
+(A) has SwiftUI's eight cases and raw values (plus MetalUI-only `init?(exifValue:)`, `exifValue`,
+`swapsAxes`); `Image(decorative:scale:orientation:)` and `Image(_:scale:orientation:label:)` (A, no
+default for `orientation`, `IB-K`) draw a bitmap turned by it through `ImageBitmap.oriented(_:)` (M;
+one cached texture per orientation). A bitmap decoded from a tagged file still draws its stored
+pixels (435).
+
 **Paths** (rulings `GX-B`…`GX-E`, `GX-K`): `Path` — SwiftUI's initialisers and
 mutators (`move`, `addLine`, `addLines`, `addQuadCurve`, `addCurve`, both
 `addArc`s, `addRect`, `addRects`, `addRoundedRect`, `addEllipse`, `addPath`,

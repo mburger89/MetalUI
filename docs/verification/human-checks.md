@@ -1564,6 +1564,17 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
   C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
 
+## IB. Image decoding and orientation — what only an eye shows (item S2, user request 2026-10-02, not a plan task; record 113)
+
+*An agent cannot: these need a real window and a person who knows which way up a photograph is.*
+
+- [ ] **IB1.** Draw a JPEG tagged EXIF 6 two ways beside each other, in a real window: decoded through
+  `DecodedImage` + `applyingOrientation()` + `ImageBitmap(_:)`, and `Image(_:scale:orientation: .right, label:)`
+  over the untagged `ImageBitmap(data:)`. Both read upright and identical (`IB-F`). **Observed:**
+- [ ] **IB2.** In a SwiftUI window, `Image(nsImage:)` of the same file reads upright, while MetalUI's plain
+  `ImageBitmap(data:)` of it reads sideways (divergence 435, `IB-G`; the sizes are probed headless, the look is
+  the eye's). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
