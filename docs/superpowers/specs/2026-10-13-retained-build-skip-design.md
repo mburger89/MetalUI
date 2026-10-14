@@ -1,6 +1,6 @@
 # Retained build skip (C14b-2) — design
 
-Status: **DESIGN, reviewed (RK-M..RK-Q: redo checkpoint and replay-off, verify by double build, handler test, derived figures withdrawn)** (2026-10-13, base `fb9a7e42`). Rulings `RK-A`…`RK-L` in
+Status: **DESIGN, reviewed (RK-M..RK-Q: redo checkpoint and replay-off, verify by double build, handler test, derived figures withdrawn)** (2026-10-13, base `fb9a7e42`). Rulings `RK-A`…`RK-L`, lane 1's `RK-R`…`RK-V` (and `RK-W` for its readings) in
 [`../2026-10-13-retained-build-skip-decisions.md`](../2026-10-13-retained-build-skip-decisions.md). Continues
 [`2026-10-13-retained-subtrees-design.md`](2026-10-13-retained-subtrees-design.md) (§9 and §10 are as built by record §109 §13).
 No public API, no SwiftUI-visible behaviour, no divergence (labels 405–414 unused), `Backends/SDL` and every platform seam untouched.
@@ -145,3 +145,27 @@ frame and no stutter beyond one frame; IV-R4 a trackpad pan with the switch on.
 | layout placement of a translated subtree by translation | M3 translates paint and prepaint only | C14b-3 or later reading |
 | `drawText` | `RK-I` criterion | C14 close-out |
 | M2 if `RK-J`'s 50 % stop fires | measured at lane 2 step 1 | recorded then |
+
+
+## 9. Lane 1 as built (what moved from the design above; rulings `RK-R`…`RK-W`)
+
+The design held for M1 and was corrected in five places by what the code and the runs showed; each is a ruling with its evidence.
+
+| design said | built | ruling |
+|---|---|---|
+| the prepaint ledger is `hitboxes`, focus, AX, tallies, context menus | plus `axNodes` with the `$ax` slot write, press-only actions and element bounds (the harness records layout by default); everything else a prepaint can write is **audited by count** and a moved count makes the occurrence ineligible by name | `RK-R` |
+| hover rule decided at prepaint "like paint" | hover resolves after prepaint, so the rule is the pointer inside any hitbox the occurrence's own ledger registered (a superset of paint's exact rule); no redo from a hover | `RK-R` |
+| `RK-O` item 2: refuse a bound `@State` box not in the table | **refuted by the handler differential** (a box holds the table and the slot id); only the version check remains; the panels' top bar and inspector replay | `RK-T` |
+| the redo restores the transaction, the scroll queue, the channels `StateTable` journals | a root transaction that animates refuses every replay (`SB-J`), so it never coincides with a redo; the channels that are **not** idempotent are `LifecycleStore` (a second `onAppear`, observed), `TimelineStore`/`SurfaceRegistry` occurrence counts, `TransitionStore` (`claim`, `afterLayout`) and `AnimationStore.entries`; `StateTable`'s build sets are unions of the same values; `textSystem.endFrame()` is owed on abandon | `RK-U` |
+| translated replay gated on a power-of-two scale and whole device pixels (`RK-G`) | the leaves a record keeps are before every outer scope; replaying them through the live scopes **is** the fresh arithmetic, so no gate on scale or fraction is owed; prepaint moves each hitbox's inverse by the opposite amount (round-trip exact in `Double`); layout- and scroll-offset translations are carried | `RK-S` |
+| verify mode: a scratch-tree build of the occurrence (`RK-H`), then a double build (`RK-N`) | the double build, compared after the root's paint; the presented frame is the second, its counters the first's | `RK-V` |
+
+**Tests, by the spec's numbers.** 1 `theBracketNodeDragIsCountedAtFb9a7e42` (and `…AfterPrepaintReplay`, 1b); 2 `aPrepaintReplayedFrameEqualsAFreshFrameAtEveryDragStep`;
+3 `aReplayedHitboxIsRankedLikeAFreshOne`; 4 `aChangedPaintOnlyAmbientRedoesTheFrameOnce`; 5 `aRedoFrameEqualsARetentionOffFrameAndConsumesEachInputOnce`
+(`aRedoLeavesEveryTableAsAFreshBuildWould` is its lifecycle, animation-entry and focus arms; the scroll-queue restore is carried, `RK-U`); 6
+`aPersistentlyAnimatedAncestorIsQuarantined`, `aRepeatedPaintOnlyChangeRedoesAtMostOncePerEightFrames`; 7 `aPrepaintInEachIneligibleKindRunsAsBefore`
+(scroll region, text field, popover, drag source, geometry note; the surface, presentation and portal kinds are paint-ineligible already and never leave a record);
+8 `aFocusedOrHoveredElementUnderTheOccurrenceRunsPrepaint`; 9 `noRecordedHitboxStoresALayoutNodeID` (`MetalUITests`) and `aReplayedHandlerActsLikeAFreshOne`;
+10 the two classification guards gain `prepaintLog`, `redoEntries`, `verifySnapshot`, `verifyAbandoned`; 11 `aTranslatedReplayEqualsAFreshFrameAtEveryScale` (10 arms) and
+`aHitboxWhoseClipDependedOnTheTranslationIsNotMoved`; 12 `aPanOfTheWholeGraphReplaysEveryNodeAndEqualsAFreshFrame`; 13 `aStaticLabelOverlayReplaysAndAMovingOneReplaysTranslated`
+(renamed: the moving arm now replays); 14 `aVerifiedPrepaintReplayThatDiffersTraps` (7 arms and a control); the plain-import guard 1.17c.
