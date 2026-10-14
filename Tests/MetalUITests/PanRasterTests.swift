@@ -165,8 +165,8 @@ private struct Work {
 /// **T2** (`PN-A`). Rasterized over its extent, a path's coverage equals the
 /// one rasterized over the clip, on every pixel of the clip: a stroked cubic,
 /// a mitred triangle whose tip crosses the edge, and a filled blob, at 1× and
-/// 2×. Mutation: `pathExtent` without the miter pad (`PathPaint.bounds`
-/// without it): the tip is cut inside the clip.
+/// 2×. Mutation: `pathExtent` grown by -3 instead of 1 (a stroke edge then lies
+/// outside the extent but inside the clip: bytes cut).
 @Test @MainActor func anOverscannedRasterEqualsTheCutOneInsideTheClip() throws {
     let blob = Path { p in
         p.move(to: gxPoint(0, 10))
