@@ -325,7 +325,8 @@ exists because their combined win on the node drag is 4 % of a frame.
 | item | reason | owner |
 |---|---|---|
 | prepaint replay (hitboxes, focus, accessibility, tallies) | the decision cannot be taken at prepaint: paint-only ambient (`SB-AA`); the first build's code and the tests that found it are the branch's commit `0683d847` | lane 2 / C14b-2 |
-| the build skip, the graft, the placement memo | gated on the release reading (§10) | C14b-2 |
+| the build skip, the graft, the journal, the counted redo | the gate opened (§10); carried whole (`SB-AE`): none lands alone | C14b-2 |
+| the subtree placement memo | **built** in lane 2 (§13, `SB-AD`), without translation | - |
 | translated replay (a moved subtree without a miss) | float association, `SB-H` | C14b-2 |
 | read-only `withState` so a `TextField`, `ScrollView` and `List` can replay | the table cannot tell a read from a rewrite | C14b-3 |
 | popovers, presentations, `GPUSurface` inside a retained subtree | per-frame requests, `SB-J` | C14b-3 |
@@ -431,6 +432,24 @@ whole-process runs, per-frame total including the harness's input and tick; neve
 Counted: the harness's last frame reads `measureCalls=52 cacheHits=331 cacheMisses=162` (`bracket_*`); the baseline test's mid-drag frame
 reads, retention off, 52 / 366 / 217 with 1258 memo hits and, retention on, 331 cache hits and 362 memo hits with 11 restores
 (`aDragFrameRestoresTheUnmovedOccurrencesPlacement`).
+
+**Debug**, same script (`debug --quick bracket`, three runs, ms per drag frame): `.value` 46.619, 46.842, 46.722 (median 46.722; 54.57 at `e85cb07a`,
+48.82 after lane 1), `.environment` 54.054, 54.410, 53.163 (54.054; 55.09, 54.08), `.panels` 46.617, 45.921, 45.962 (45.962; 54.27, 48.25):
+**-14 % and -15 %** against `e85cb07a` on the two arms that retain.
+
+**Counts** (final head of this lane, after the commit that fixed the Linux modifier, 2026-10-13; the screen is locked, so
+`AppKitPresentationTests` is skipped by `--skip`, as its `NSOpenPanel` sheets time out there): `swift build --build-system native --build-tests`
+0 `error:`, only SwiftPM's deprecation notice; **`swift build --build-tests` (default build system) 0 warnings**; `swift test
+--build-system native --no-parallel --skip AppKitPresentationTests`: **3708 tests in 3 suites passed**, 0 `error:`, `FR-J no-argument
+frame: succeeded=true`; the same under `METALUI_VERIFY_RETAINED=1` 3708 passed, and under `METALUI_VERIFY_LAYOUT_MEMO=1` 3708 passed. New pins:
+8 kernel tests (`SubtreePlacementTests`), 7 window cases (`RetainedPlacementTests`, arguments counted), no typecheck guard (all `package` API
+behind `package` access; guard 1.13's plain-import check is unchanged). Census **3511**; `closeout-inventory-check.sh` and
+`closeout-undocumented.sh` print nothing. The Linux root package in `swift:6.4-noble` (volume `metalui-root-retained-subtrees` mounted at
+`/work/.build`: a volume built under another module-cache path fails with "missing required module 'SwiftShims'"): **226 + 9 + 40 + 25 + 217 + 79 + 22
+tests, 0 failures** (`MetalUITestingTests` first; the kernel pins are in the 217). **One fix to lane 1's test:** `aDescendantStateChangeFromAShortcutInvalidatesTheRecordByVersion` sent
+`.command` for a shortcut whose default is `.primary` (control off Apple) and failed on Linux; it now sends `.primary` (value-identical on macOS).
+`Backends/SDL` untouched. The fourteen offscreen demo images: **0 px against `e85cb07a`, scenes identical, at `d7c7297b`** (controls 11 of 11).
+`MetalUILayout` imports only `MetalUICore`; `theLegacyEngineSymbolsAreAbsentFromTheTestProcess` green.
 
 **Not changed:** pixels (the fourteen offscreen images 0 px against `e85cb07a`, scenes identical, at `d7c7297b`; table in §6's method);
 a tree with nothing marked (retention off, no `.equatable()`) is slice 1 byte for byte except for the two keyed leaves.
