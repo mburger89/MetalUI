@@ -23,7 +23,7 @@ Evidence:
   regions plus drawn controls on Linux/Windows). SwiftUI has no analogue, so SwiftUI is not the authority
   for anything below beyond `WindowDragGesture`'s spelling (`WD-B`) and `.hiddenTitleBar`.
 
-Next unused: `CW-V`.
+Next unused: `CW-W`.
 
 ## CW-A — Scope: what is built, what is deferred
 
@@ -462,3 +462,21 @@ verifiers' full-suite mutation re-takes (one on lane 1, four on lane 2) reddened
 the filtered runs of `CW-R` and `CW-T`. No divergence is taken beyond 425 and 426; 427 stays reserved for check CW6.
 **Cost if wrong.** A collateral reddening of a pre-existing test by one of the other mutations is found by the next
 full-suite run.
+
+## CW-V — Carving is depth-ranked (XP-G11, record §112 §11)
+
+**Ruling.** A hitbox carves a candidate only if the one ranking puts it **above** the candidate. A handle candidate
+sits at its own hitbox's rank, `(layer, registration index)` (the key `topmostHitbox(in:at:where:)` sorts by,
+read from the same list, no second lookup), and only blockers of a strictly higher rank carve it; a blocker below
+it, or under it in an earlier layer, never does (the handle takes the press there, so SDL swallowing it loses
+nothing the ranking would have delivered). The band has no element, so it is carved by every blocker **except a
+backdrop**: a blocker whose rect spans the whole window width and reaches below the band's bottom edge, which is the
+content a bar floats over (a full-window viewport). A control drawn in the bar is narrower or contained in the band,
+so it still carves (divergence 426's case); the exemption is geometry, not depth, because a band has no rank and the
+bar's glass is not a hitbox. `ChromeHitMap.carve(ranked:limit:)` takes each candidate's own blockers; the
+two-argument spelling forwards one list. `mui_chrome_hit` and `ChromeHitSnapshot.hit(at:)` read the published
+rects and are unchanged.
+**Cost if wrong.** A full-width, full-height-reaching blocker that really is a bar's content (a full-window tap
+to dismiss) loses its band clicks to the drag region; a sidebar or any narrower blocker is unaffected.
+**Rejected:** ranking the band as the first hitbox inside it (no hitbox in an empty bar; breaks on a bar of
+non-pointer content); exempting by layer (a viewport and its bar share layer 0).
