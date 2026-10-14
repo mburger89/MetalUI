@@ -1,7 +1,7 @@
 # Public image decoding — decisions
 
 Rulings for item S2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**).
-Prefix `IB-`. **Next unused: `IB-M`.** Spec: [`specs/2026-10-13-image-decode-api-design.md`](specs/2026-10-13-image-decode-api-design.md).
+Prefix `IB-`. **Next unused: `IB-N`.** Spec: [`specs/2026-10-13-image-decode-api-design.md`](specs/2026-10-13-image-decode-api-design.md).
 Record: `../record/113-image-decode-api.md` (Record phase). Branch `feat/image-decode-api` from `fb9a7e42`.
 Divergence labels reserved 435–444: **435 taken** (`IB-G`).
 
@@ -116,3 +116,20 @@ the only caller outside the file was `decodeImageTexture`); `isPNG`/`isJPEG` are
 the EXIF reader after the structure checks passed. (4) The guard G-IB1 is in `Tests/MetalUITests/ImageDecodeCompileGuards.swift`
 (guards need the built `Modules`; the cross-platform target cannot run them). **Evidence.** Mutations M1-M18 (record 113 section
 on lane 1): every one reddened a named test. **Cost if wrong.** None observable: a block cut mid-entry is not a real file.
+
+## IB-M — Lane 2 as built: the variants box is a final class on `ImageBitmap`, no new `ImageTexture` init
+
+**Ruling.** (1) `ImageBitmap` gains one stored `let variants: OrientedVariants` (a lock-guarded
+`[Image.Orientation: ImageTexture]`, `@unchecked Sendable`), created by each of the three designated
+initialisers and shared by every copy; it is a stored-property change on a public type, so `swift package clean`
+preceded the lane's build. `oriented(_:)` returns `self` for `.up` (identity, no work) and otherwise permutes the
+**premultiplied** texels with `permuteSamples` (lane 1's, `IB-L`) into `ImageTexture(width:height:premultipliedRGBA:)`,
+which already exists, so no `ImageTexture` change and `AI-E`/`AI-F` are untouched. (2) The two `Image` inits
+route through `bitmap.oriented(orientation)` into the existing inits, so labelling, `isDecorative`, layout and
+paint see an ordinary bitmap of the oriented size. (3) The guide block (cross-platform #3) is mirrored in a
+new `GuideMirrorsImage.swift` (the checker reads every `GuideMirrors*.swift`), not in lane 1's or lane 2's
+developer-guide mirror files. (4) The census rule for the new `Image` inits is an `M` row on the declaration text
+`orientation`, ahead of the generic `Image.swift` row. **Evidence.** Tests 16-19 red on `extra argument 'orientation'
+in call`, green after; mutations M1-M4 (record 113). **Cost if wrong.** One lock acquisition per `oriented(_:)`
+call; a bitmap that is never oriented pays one empty box allocation.
+
