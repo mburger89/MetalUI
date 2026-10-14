@@ -2290,3 +2290,22 @@ performed (an agent cannot)**: SB1 a real-window node drag looks identical with 
 arrives and leaves; SB3 VoiceOver walks a retained subtree as a fresh one; SB4 a light/dark switch, a resize and a 1x/2x display
 move repaint every retained subtree; SB5 an animation inside a retained region plays and the region replays once it settles;
 SB6 a text field inside a retained region edits as in an unretained copy.
+
+## 2026-10-14: hot paths (record §111) — looks owed
+
+No window was driven; the fourteen offscreen images are compared against `fb9a7e42` in §111 §4, 0 px, scenes identical.
+**Owed, new here — `docs/verification/human-checks.md` group HP, none performed (an agent cannot)**: HP1 text sits on the
+same device pixels at 1x and 2x against a `fb9a7e42` build, no glyph a pixel off while resizing; HP2 a scrolled list and a
+panned shadowed container keep fractional-offset text and shadows sharp and in place; HP3 border, opacity and frame
+animations still animate and settle exactly.
+
+## 2026-10-14: window chrome on SDL (record §112) — looks owed
+
+No window was driven (the screen was locked for the whole branch, and `ssh metalui-win` timed out); the fourteen offscreen
+images are compared against `fb9a7e42` in §112 §6, 0 px, scenes identical. **Owed, new here —
+`docs/verification/human-checks.md` group CW, none performed (an agent cannot)**: CW1 the borderless window's looks and
+the three drawn buttons on Windows 11, X11 and Wayland; CW2 a drag from the empty bar and from a handle; CW3 a button, a
+field and a tap target in the bar still work; CW4 resize from each edge and corner; CW5 which platform swallows hover and
+pointer style inside a drag region (divergence 425); CW6 double-click on the band zooms on Windows and (divergence 427 if
+not) on X11 and Wayland; CW7 the macOS-through-SDL left cluster; CW8 fullscreen enter and leave; CW9 the DWM shadow and
+corners; CW10 Close through the close veto, minimise and zoom/restore.

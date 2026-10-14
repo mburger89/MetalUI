@@ -92,6 +92,13 @@ public final class TestWindow {
     /// `WindowDragGesture` (`HeadlessPlatformWindow.windowDrags`, ruling `WD-E`).
     public var windowDrags: Int { platformWindow.windowDrags }
 
+    /// The last drag-region list the window published to the platform (`CW-E`), in window points; empty
+    /// before one (``HeadlessPlatformWindow/windowDragRegions``).
+    public var windowDragRegions: [Bounds<Pixels>] { platformWindow.windowDragRegions }
+
+    /// Every window action the platform was asked for, in order (`CW-F`).
+    public var windowActions: [PlatformWindowAction] { platformWindow.windowActions }
+
     /// The last presented frame's scene, in device pixels.
     public var scene: Scene { platformWindow.headlessRenderer.lastScene }
 

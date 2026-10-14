@@ -1,5 +1,6 @@
 import CoreText
 import Foundation
+import MetalUITextSystem
 
 /// One glyph of a shaped text, resolved onto the **device pixel grid** and
 /// ready to be looked up in a ``GlyphAtlas``.
@@ -36,6 +37,56 @@ public struct PlacedGlyph {
     /// The glyph's baseline, in whole device pixels, y **down** from the text
     /// box's top edge plus whatever origin the caller supplied.
     public let baselineY: Int
+}
+
+/// What one shape's placement has read, computed and remembered (`HP-A`): a class so the `ShapedText`
+/// struct stays a value and every copy shares it; it lives as long as the shape does (the shaping cache's
+/// two-frame lifetime). The counters are work counters for pins, never time.
+final class PlacementBox {
+    /// One run of a line, read from CoreText once: its font, point size, glyph ids and pen positions.
+    struct Run {
+        let font: ResolvedFont
+        let size: Double
+        let glyphs: [CGGlyph]
+        let positions: [CGPoint]
+    }
+
+    /// The memo's key: origin and scale by bit pattern, and the requested font (it decides the baseline
+    /// arithmetic and which run fonts fall back to it).
+    struct MemoKey: Equatable {
+        let x: UInt64
+        let y: UInt64
+        let scale: UInt32
+        let font: FontKey
+    }
+
+    /// Times a line's runs were read back from CoreText.
+    var runReads = 0
+    /// Times a whole placement pass ran (a memo miss).
+    var placementsComputed = 0
+    /// `GlyphKey`s built.
+    var keysBuilt = 0
+    /// Times a finished `StyledTextLayout` was built from the placed glyphs.
+    var layoutsBuilt = 0
+    /// Every line's runs, read once, for the font in `linesFont`.
+    var lines: [[Run]]?
+    var linesFont: FontKey?
+    /// The finished placement at `memoKey`, one entry (a second origin in one frame replaces it).
+    var memoKey: MemoKey?
+    var memo: [PlacedGlyph] = []
+
+    /// A styled shape's memo (`HP-D`): the placed glyphs and segments at one origin and scale, and the
+    /// finished layout built from them by `owner` (which registers the glyphs' fonts), nil whenever the
+    /// placement was recomputed.
+    struct StyledKey: Equatable {
+        let x: UInt64
+        let y: UInt64
+        let scale: UInt32
+    }
+    var styledKey: StyledKey?
+    var styledPlaced: (glyphs: [(PlacedGlyph, Int)], segments: [TextRunSegment])?
+    var layout: StyledTextLayout?
+    weak var layoutOwner: AnyObject?
 }
 
 extension ShapedText {
@@ -89,58 +140,73 @@ extension ShapedText {
                              font: ResolvedFont,
                              scaleFactor: Float) -> [PlacedGlyph] {
         precondition(scaleFactor > 0, "a scale factor must be positive")
-        let scale = Double(scaleFactor)
-        var placed: [PlacedGlyph] = []
+        let box = placement
+        let key = PlacementBox.MemoKey(x: origin.x.bitPattern, y: origin.y.bitPattern,
+                                       scale: scaleFactor.bitPattern, font: font.key)
+        if box.memoKey == key { return box.memo }
 
-        for (index, shapedLine) in lines.enumerated() {
+        let scale = Double(scaleFactor)
+        let runLines: [[PlacementBox.Run]]
+        if let cached = box.lines, box.linesFont == font.key {
+            runLines = cached
+        } else {
+            box.runReads += 1
+            var all: [[PlacementBox.Run]] = []
+            all.reserveCapacity(lines.count)
+            for shapedLine in lines {
+                var out: [PlacementBox.Run] = []
+                // `CTLineGetGlyphRuns` is documented to return a CFArray of CTRun, so the cast cannot fail
+                // for a `CTLine`; conditional rather than `as!` because a failed force cast would abort
+                // inside paint, and no run at all is the same visible outcome as an empty line.
+                if let runs = CTLineGetGlyphRuns(shapedLine.line) as? [CTRun] {
+                    for run in runs {
+                        let count = CTRunGetGlyphCount(run)
+                        guard count > 0 else { continue }
+                        let runFont = resolvedRunFont(of: run, fallingBackTo: font)
+                        var glyphs = [CGGlyph](repeating: 0, count: count)
+                        var positions = [CGPoint](repeating: .zero, count: count)
+                        // A zero-length CFRange means "the whole run" for both calls.
+                        CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
+                        CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
+                        out.append(PlacementBox.Run(font: runFont, size: Double(CTFontGetSize(runFont.ctFont)),
+                                                    glyphs: glyphs, positions: positions))
+                    }
+                }
+                all.append(out)
+            }
+            box.lines = all
+            box.linesFont = font.key
+            runLines = all
+        }
+
+        box.placementsComputed += 1
+        var placed: [PlacedGlyph] = []
+        placed.reserveCapacity(runLines.reduce(0) { $0 + $1.reduce(0) { $0 + $1.glyphs.count } })
+        for (index, runs) in runLines.enumerated() {
             let baseline = origin.y
                 + Double(index) * font.metrics.lineHeight
                 + font.metrics.ascent
             let baselineY = Int((baseline * scale).rounded())
-
-            // `CTLineGetGlyphRuns` is documented to return a CFArray of CTRun,
-            // so the cast cannot fail for a `CTLine`; it is written as a
-            // conditional cast rather than `as!` because a failed force cast
-            // here would be a process abort inside paint, and no run at all is
-            // the same visible outcome as an empty line.
-            guard let runs = CTLineGetGlyphRuns(shapedLine.line) as? [CTRun] else { continue }
-
+            let lineX = origin.x + lineOffsets[index]
             for run in runs {
-                let count = CTRunGetGlyphCount(run)
-                guard count > 0 else { continue }
-
-                let runFont = resolvedRunFont(of: run, fallingBackTo: font)
-                let size = Double(CTFontGetSize(runFont.ctFont))
-
-                var glyphs = [CGGlyph](repeating: 0, count: count)
-                var positions = [CGPoint](repeating: .zero, count: count)
-                // A zero-length CFRange means "the whole run" for both calls.
-                CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
-                CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
-
-                let lineX = origin.x + lineOffsets[index]
-                for i in 0..<count {
-                    let deviceX = (lineX + Double(positions[i].x)) * scale
-                    let placement = GlyphRaster.subpixelPlacement(forDeviceX: deviceX)
-                    // CoreText's run positions are y-**up** from the baseline
-                    // (a superscript sits at a positive y), and every device
-                    // coordinate in this framework is y-down, so this subtracts.
-                    // It is zero for every run M2 can produce — one font, one
-                    // size, no attributed runs — and is written out rather than
-                    // dropped because a dropped term is invisible until the
-                    // first attributed string, which is M6.
-                    let y = baselineY - Int((Double(positions[i].y) * scale).rounded())
-
+                for i in 0..<run.glyphs.count {
+                    let deviceX = (lineX + Double(run.positions[i].x)) * scale
+                    let subpixel = GlyphRaster.subpixelPlacement(forDeviceX: deviceX)
+                    // CoreText's run positions are y-**up** from the baseline (a superscript sits at a
+                    // positive y), and every device coordinate here is y-down, so this subtracts.
+                    let y = baselineY - Int((Double(run.positions[i].y) * scale).rounded())
+                    box.keysBuilt += 1
                     placed.append(PlacedGlyph(
-                        key: GlyphKey(font: runFont.key, glyph: glyphs[i], size: size,
-                                      subpixelVariant: placement.variant,
-                                      scaleFactor: scaleFactor),
-                        font: runFont,
-                        pixelX: placement.pixelX,
+                        key: GlyphKey(font: run.font.key, glyph: run.glyphs[i], size: run.size,
+                                      subpixelVariant: subpixel.variant, scaleFactor: scaleFactor),
+                        font: run.font,
+                        pixelX: subpixel.pixelX,
                         baselineY: y))
                 }
             }
         }
+        box.memoKey = key
+        box.memo = placed
         return placed
     }
 }

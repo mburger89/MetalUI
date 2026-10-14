@@ -57,6 +57,7 @@ private let frameChannels: [String: Channel] = [
     "toolbarRecords": .buildOnly, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,
     "menuBarTitles": .frameLocal, "menuBarOpenIndex": .frameLocal, "menuBarOpen": .frameLocal,
     "drewMenuBar": .frameLocal, "menuBarTitleFrames": .frameLocal, "openPopovers": .prepaintOnly,
+    "windowControls": .frameLocal, "drewWindowControls": .frameLocal,   // the drawn window buttons (CW-C), the strips' class
     "tooltip": .frameLocal, "menuPresenter": .frameLocal, "presentationAnchors": .prepaintOnly,
     "previousPresentationAnchors": .frameLocal, "presentationSpaces": .prepaintOnly,
     "previousPresentationSpaces": .frameLocal, "wantsAccessibilityRetry": .prepaintOnly,
@@ -139,6 +140,8 @@ private let animationStoreChannels: [String: Channel] = [
     "entries": .recorded, "touched": .recorded, "interpolationsThisFrame": .ledger, "transitions": .ledger,
     "rasters": .recorded, "layoutMemo": .buildOnly, "lifecycle": .buildOnly, "timeline": .buildOnly,
     "keyframeDepth": .buildOnly, "lastFrameInterpolations": .frameLocal, "retainLog": .frameLocal,
+    // Cumulative work counters of `HP-I` (read by differencing); a retained skip does not replay them.
+    "borderKeyBuilds": .frameLocal, "numberTrackRebuilds": .frameLocal,
 ]
 
 @MainActor @Test func everyStateTableAndAnimationStoreChannelIsClassified() {

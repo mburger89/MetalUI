@@ -147,10 +147,10 @@ extension Frame {
         let clip = anchor.canonical(placement.clip)
         var key = RasterKey()
         key.add(6)
-        key.paths.append(canonical.geometry)
+        key.addPath(canonical.geometry)
         keyMode(paint.mode, into: &key)
         anchor.keyed(&key, clip: clip, placement: placement)
-        key.words += paint.stops.keyWords
+        key.addWords(paint.stops.keyWords)
         for w in canonical.axis.words { key.add(w) }
         guard let (rect, texture) = cache.image(for: key, make: {
             let layer = gradientPixels(canonical, full: anchor.map, clip: clip, cache: cache)
@@ -199,7 +199,7 @@ extension Frame {
         var key = RasterKey()
         key.add(5); key.add(vertical ? 1 : 0); key.add(count)
         key.add(origin); key.add(length); key.add(start); key.add(end)
-        key.words += paint.stops.keyWords
+        key.addWords(paint.stops.keyWords)
         let stops = paint.stops
         guard let (_, texture) = cache.image(for: key, make: {
             let table = cache.gradientTable(stops)

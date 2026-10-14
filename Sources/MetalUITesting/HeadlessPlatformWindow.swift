@@ -50,6 +50,26 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         /// AppKit's answer with the setting off); ``HeadlessPlatformWindow/simulateReduceTransparencyChange(to:)``
         /// changes it later.
         public var accessibilityReduceTransparency: Bool
+        /// What `setWindowDragRegions` answers: `true` (SDL) makes `Window` compute and publish drag
+        /// regions; `false` (AppKit) is asked once and never computed for (`CW-F`).
+        public var usesWindowDragRegions: Bool
+        /// ``HeadlessPlatformWindow/hasNativeWindowControls``: `true` (AppKit's traffic lights) draws no
+        /// strip; `false` (SDL) makes the window draw its three buttons (`CW-C`).
+        public var hasNativeWindowControls: Bool
+        /// Whether the window opens zoomed (``HeadlessPlatformWindow/isZoomed``).
+        public var isZoomed: Bool
+        /// The insets ``HeadlessPlatformWindow/titleBarInsets`` takes while the hidden style is applied, or
+        /// `nil` to leave them as the test sets them (`CW-D`): SDL's band and cluster for ``sdlChrome``.
+        public var hiddenTitleBarInsets: Edges<Pixels>?
+
+        /// SDL's answers under `.hiddenTitleBar` (`CW-B`…`CW-F`): the style applies, drag regions are used,
+        /// there are no native window buttons, and the insets are the band, 32, and the three-button
+        /// cluster's 138 on the right.
+        public static var sdlChrome: Options {
+            Options(appliesTitleBarStyle: true, usesWindowDragRegions: true, hasNativeWindowControls: false,
+                    hiddenTitleBarInsets: Edges(top: Pixels(32), right: Pixels(138), bottom: Pixels(0),
+                                                left: Pixels(0)))
+        }
 
         /// Options with every field given, each defaulting to AppKit's answer.
         public init(appearance: Appearance = .light, scaleFactor: Float = 1,
@@ -57,7 +77,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
                     presentsFileDialogs: Bool = true, showsToolbarNatively: Bool = true,
                     appliesTitleBarStyle: Bool = true, externalDragResult: Bool = false,
                     accessibilityClientActive: Bool = true, performsWindowDrag: Bool = true,
-                    accessibilityReduceTransparency: Bool = false) {
+                    accessibilityReduceTransparency: Bool = false,
+                    usesWindowDragRegions: Bool = false, hasNativeWindowControls: Bool = true,
+                    isZoomed: Bool = false, hiddenTitleBarInsets: Edges<Pixels>? = nil) {
             self.appearance = appearance
             self.scaleFactor = scaleFactor
             self.presentsMenusNatively = presentsMenusNatively
@@ -69,6 +91,10 @@ public final class HeadlessPlatformWindow: PlatformWindow {
             self.accessibilityClientActive = accessibilityClientActive
             self.performsWindowDrag = performsWindowDrag
             self.accessibilityReduceTransparency = accessibilityReduceTransparency
+            self.usesWindowDragRegions = usesWindowDragRegions
+            self.hasNativeWindowControls = hasNativeWindowControls
+            self.isZoomed = isZoomed
+            self.hiddenTitleBarInsets = hiddenTitleBarInsets
         }
     }
 
@@ -85,6 +111,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         self.scaleFactor = options.scaleFactor
         self.appearance = options.appearance
         self.accessibilityReduceTransparency = options.accessibilityReduceTransparency
+        self.isZoomed = options.isZoomed
         self.headlessRenderer = HeadlessWindowRenderer(scaleFactor: options.scaleFactor)
         self.title = title
         self.titleWrites = []
@@ -168,6 +195,12 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// How many times `Window` asked the platform to move the window for a
     /// `WindowDragGesture` (`performWindowDrag()`, ruling `WD-E`).
     public private(set) var windowDrags = 0
+    /// The last list `Window` published through `setWindowDragRegions` (`CW-E`); empty before any.
+    public private(set) var windowDragRegions: [Bounds<Pixels>] = []
+    /// How many times `Window` called `setWindowDragRegions`, the opening ask (with `[]`) included.
+    public private(set) var windowDragRegionPublishes = 0
+    /// Every `performWindowAction`, in order (`CW-F`).
+    public private(set) var windowActions: [PlatformWindowAction] = []
     /// Every `beginExternalDrag` call, in order.
     public private(set) var externalDrags: [([DragRepresentation], Point<Pixels>)] = []
     /// Every `presentMenu` call, in order.
@@ -308,6 +341,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// Records the style and answers ``Options/appliesTitleBarStyle``.
     public func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool {
         titleBarStyles.append(style)
+        if options.appliesTitleBarStyle, let hidden = options.hiddenTitleBarInsets {
+            titleBarInsets = style == .hidden ? hidden : Edges(all: Pixels(0))
+        }
         return options.appliesTitleBarStyle
     }
 
@@ -323,6 +359,28 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         windowDrags += 1
         return options.performsWindowDrag
     }
+
+    /// Records the list and answers ``Options/usesWindowDragRegions``.
+    public func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool {
+        windowDragRegions = regions
+        windowDragRegionPublishes += 1
+        return options.usesWindowDragRegions
+    }
+
+    /// Records the action and answers `true`; a zoom toggles ``isZoomed`` as a platform that honoured it
+    /// does (a minimise changes nothing a headless window shows).
+    public func performWindowAction(_ action: PlatformWindowAction) -> Bool {
+        windowActions.append(action)
+        if action == .toggleZoom { isZoomed.toggle() }
+        return true
+    }
+
+    /// ``Options/hasNativeWindowControls``.
+    public var hasNativeWindowControls: Bool { options.hasNativeWindowControls }
+
+    /// Whether the window is zoomed: ``Options/isZoomed`` at open, toggled by a `.toggleZoom` action; a test
+    /// may set it (and report the change with ``simulateResize(to:)``).
+    public var isZoomed: Bool
 
     // MARK: Simulated platform events
 
