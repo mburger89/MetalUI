@@ -78,7 +78,8 @@ summary.
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `HP-` (hot paths:
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
-  `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), …; the full
+  `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `CB-` (clipboard beyond text:
+  `2026-10-14-clipboard-types-decisions.md`, next `CB-R`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -93,7 +94,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **155 live, next label 206** (425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD and IV, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, SB, HP, IB, CW and CB, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -109,10 +110,11 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1, METALUI_RETAINED_DEMO=1, METALUI_CHROME_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1, METALUI_RETAINED_DEMO=1, METALUI_CHROME_DEMO=1, METALUI_CLIPBOARD_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-14, `feat/clipboard-types` from `fb9a7e42`, merged with master `ceca59f6` (§112 SDL chrome, §111, §113), then `a4ebe288`: 3832 tests, 0 goldens, 240 typecheck guards** (master's 3803 + 29 tests, 238 + 2 guards 3.1, 3.2; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, `FR-J no-argument frame: succeeded=true`; the native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else after guard 3.1a's fixture gained window chrome's four requirements; census 3625; inventory and undocumented scripts print nothing; `Backends/SDL` 30 + 133 on macOS, 30 + 130 in the Linux image at the lanes; divergences 455 (provisional), 456; record §115). Before it,
 - **Counts (2026-10-14, `fix/chrome-regions-depth` from `ceca59f6`: 3803 tests, 0 goldens, 238 typecheck guards** (3799 + 4 tests, no guard; `swift package clean`, native unfiltered run on an unlocked screen all passed, 0 `error:`, `FR-J no-argument frame: succeeded=true`, default build 0 warnings; no public declaration; divergence 425 amended; record §112 §11). Before it,
   **(2026-10-14, `feat/sdl-custom-chrome` from `fb9a7e42`, merged with master `dea698ca` (§111 hot paths, §113 image decoding): 3799 tests, 0 goldens, 238 typecheck guards** (master's 3757 + 42 tests, 236 + 2 guards `CW-1`, `CW-2`; re-measured by the orchestrator on the merged tree, record §112). Before it, the branch alone:
   **(2026-10-14, `feat/sdl-custom-chrome` from `fb9a7e42`: 3759 tests, 0 goldens, 236 typecheck guards** (3717 + 42 tests: lane 1's 13 portable snapshot tests and 26 window tests, the left-cluster pin added at the Record phase, 2 guards `CW-1`, `CW-2`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 145 on macOS, 30 + 142 in `swift:6.4-noble` (12 chrome pins skipped by the offscreen driver); inventory and undocumented scripts print nothing, census 3526; the fourteen images 0 px against `fb9a7e42`; divergences 425, 426 added and 175, 276 amended, the header's count and next label the merge's; Windows and a real window not run, human checks group `CW`; record §112). Before it,
@@ -336,7 +338,7 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `accessibilityReduceTransparency`/`onAccessibilityReduceTransparencyChange` (`MT-D`), `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`), and `performWindowDrag() -> Bool` (`WD-E`) — have no
+  `onAccessibilityReduceMotionChange`, `accessibilityReduceTransparency`/`onAccessibilityReduceTransparencyChange` (`MT-D`), `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`), and `performWindowDrag() -> Bool` (`WD-E`), and the clipboard's four — `writeClipboard(_ representations:) -> Bool`, `clipboardTypeIdentifiers()`, `readClipboard(identifier:)`, `setClipboardCommands(_:)` (`CB-E`) — have no
   default so a conformer that forgets one fails to compile. Both conformers,
   the headless `HeadlessPlatform*` of `MetalUITesting` (**a new requirement owes it an honest
   answer in the same change**, `HT-X` 1) and every test fake implement all of them. **`Platform` (not a window) has
@@ -1186,6 +1188,26 @@ apply it**: `applyingOrientation()` or `Image(…orientation:)` (no default, `IB
 `ImageBitmap.oriented(_:)`, one cached texture per orientation, `.up` the same bitmap; `ImageBitmap(data:)` keeps
 the stored pixels, unlike SwiftUI's `NSImage` route (divergence 435, `IB-G`). `Image.Orientation` has SwiftUI's
 raw values. No C, shader or `ImageTexture` change; a new reader of the file bytes stays Foundation-free.
+
+**Clipboard beyond text (`CB-`, record §115).** `.copyable(_:)`, `.cuttable(for:action:)` and
+`.pasteDestination(for:action:validator:)` are SwiftUI's signatures (probe arm S) over MetalUI's own synchronous `Transferable`
+(spell `MetalUI.Transferable` beside CoreTransferable), on every `StyledElement` and once on proposal content (the
+`KeyboardModifier` layer, `ClipboardAttachment` a class box in `KeyboardAttachment`'s fifth field, `Handlers` stays nineteen).
+**One stage, `dispatchClipboardKey`, after `onKey` and before the context-menu key and every shortcut** (`CB-B`): exact
+`EventModifiers.primary` + C/X/V for an element holding focus or an ancestor of it, innermost first; the Keymap, `onKeyPress` and a
+focused text field (whose path is untouched, `CB-M`) still win; the Edit menu needs no code (AppKit's `cut:`/`copy:`/`paste:` and the
+drawn bar already send these keys). A copy writes **the first item**, one representation per exported type, the text fallback being the
+type's own `.utf8PlainText` entry (`CB-C`, divergence 456); a paste walks the **destination's** `importedContentTypes()` against the
+platform's list and **declines** (the next stage runs) unless the action ran (`CB-P`). **Four defaultless `PlatformWindow` requirements**
+(`writeClipboard(_ representations:) -> Bool`, `clipboardTypeIdentifiers()`, `readClipboard(identifier:)`, `setClipboardCommands(_:)`;
+`CB-E`; every conformer, the headless platform and every fake implements them, migration note); the text-only pair stays. AppKit's
+identifier is the pasteboard type; **SDL's mime is a pure table plus `application/x-` + the identifier with every byte outside
+`[a-z0-9.+-]` percent-encoded** (`ClipboardMime`, `CB-D`). **SDL's data callback is pure**: one `malloc`'d box copied at copy time, a
+lookup by mime, a pointer into the box, one cleanup that frees (`CB-H`, `CB-Q`) — no Swift closure, no actor hop, so any thread is safe;
+zero-byte representations are dropped, an all-empty write keeps the clipboard (`CB-I`). Enablement is by presence, not the validator
+(divergence 455, provisional until `CB1`). `Window.clipboard` is the MetalUI-only imperative API, no public initialiser (`CB-J`); an AppKit
+test uses a private `NSPasteboard(name:)`, never `.general` (`CB-K`). Not built: `PasteButton`, `@Environment(\.clipboard)`, lazy export,
+multi-item (`CB-N`). The demo is `METALUI_CLIPBOARD_DEMO=1`.
 
 **Observation off the main thread (`RU-`, record §106).** `Window.markDirtyFromObservation` recognises
 the flush's own sentinel `onChange` by **thread** (`Window.flushingThread`, set around the sentinel

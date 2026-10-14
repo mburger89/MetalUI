@@ -3,7 +3,7 @@
 Item S3 (user request 2026-10-02; not a plan task), MetalCreator's SDL-port gap 7 (developer-c0,
 2026-10-13). Rulings: [`../2026-10-14-clipboard-types-decisions.md`](../2026-10-14-clipboard-types-decisions.md)
 (`CB-A`…`CB-N`). Record: `../../record/115-clipboard-types.md`. Branch `feat/clipboard-types` from
-`fb9a7e42`. **Status: DESIGNED, not built.**
+`fb9a7e42`. **Status: LANDED** (record 115, 2026-10-14; every clause built except those deferred in §9, owner S3b; the looks are human checks group CB).
 
 ## 1 Inventory (what exists)
 

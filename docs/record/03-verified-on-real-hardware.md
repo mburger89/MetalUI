@@ -2309,3 +2309,13 @@ field and a tap target in the bar still work; CW4 resize from each edge and corn
 pointer style inside a drag region (divergence 425); CW6 double-click on the band zooms on Windows and (divergence 427 if
 not) on X11 and Wayland; CW7 the macOS-through-SDL left cluster; CW8 fullscreen enter and leave; CW9 the DWM shadow and
 corners; CW10 Close through the close veto, minimise and zoom/restore.
+
+## 2026-10-14: clipboard beyond text (record §115) — looks owed
+
+No window was driven (the screen was locked for the whole branch, so arm R of `swiftui-clipboard-types.swift` printed
+`SKIP (locked)` and the SwiftUI behaviour behind `CB-B`, `CB-C`, `CB-G` is unprobed); the fourteen offscreen images are
+compared against `fb9a7e42` in §115 §5. **Owed, new here — `docs/verification/human-checks.md` group CB, none performed
+(an agent cannot)**: CB1 SwiftUI's own focus routing, representations written, validator effect and multi-item (settles
+divergences 455 and 456); CB2 paste between the demo and another application, and between two demo processes, on macOS,
+X11, Wayland and Windows; CB3 the Edit menu's enablement with the focus, native and drawn; CB4 a 100 MB payload; CB5
+another application taking the clipboard while the demo owns it.
