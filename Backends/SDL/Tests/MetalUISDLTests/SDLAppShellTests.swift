@@ -187,9 +187,11 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
 
 /// **1.17** (`AS-D` item 5, `AS-E` item 6, `AS-J` item 2). SDL has no edited
 /// marker, represented file or hidden title bar: each call is recorded and
-/// otherwise a no-op — the title is never altered behind the app's back,
-/// `setTitleBarStyle` answers `false`, the insets read zero,
-/// `performTitleBarPress` is recorded and answers `false`.
+/// otherwise a no-op — the title is never altered behind the app's back.
+/// `setTitleBarStyle` is no longer one of them (item S1, `CW-B`: it makes the
+/// window borderless and answers `true`; pinned in `SDLChromeTests`), the
+/// insets then read the band, and a single-click `performTitleBarPress` is
+/// recorded and answers `false` (a double click toggles zoom, `CW-I`).
 ///
 /// Mutation: append `" *"` to the title on edited → red.
 @MainActor
@@ -202,9 +204,10 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
     #expect(window.title == title, "the title is untouched: \(window.title)")
     #expect(window.documentEditedCalls == [true])
     #expect(window.representedPaths == ["/tmp/x.mcgraph", nil])
-    #expect(window.setTitleBarStyle(.hidden) == false, "SDL keeps its system decoration")
+    #expect(window.titleBarInsets == Edges(all: Pixels(0)), "the standard style has no band")
+    #expect(window.setTitleBarStyle(.hidden) == true, "SDL makes the window borderless (CW-B)")
     #expect(window.titleBarStyles == [.hidden])
-    #expect(window.titleBarInsets == Edges(all: Pixels(0)))
+    #expect(window.titleBarInsets.top == Pixels(32), "the hidden style's band (CW-D)")
     #expect(window.performTitleBarPress(clickCount: 1) == false)
     #expect(window.titleBarPresses == [1])
 }
