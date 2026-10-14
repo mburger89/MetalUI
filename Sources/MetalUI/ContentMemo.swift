@@ -67,6 +67,18 @@ package final class ContentMemoStore {
         var serial = 0
         var stale = false
         var touched = true
+        // Retained subtrees (`SB-`): the occurrence's record (its paint, `SB-AA`), the observation
+        // windows over its build recursion, prepaint and paint, and whether any observed property
+        // changed since the record was made.
+        var record: RetainedRecord?
+        var observedChange = false
+        /// Whether this occurrence's build and prepaint must open an observation window this frame
+        /// (`SB-V`): when it has no record, or its record covers only its paint. A valid, completely
+        /// covered record keeps the sessions of the frame it was made in armed, so a steady hit opens none.
+        @MainActor var needsObservation: Bool { record == nil || record?.coverageComplete == false }
+        let buildSession = RetainedSession("build")
+        let prepaintSession = RetainedSession("prepaint")
+        let paintSession = RetainedSession("paint")
         init(previous: Any, pristine: Any, versions: [UInt64]) {
             self.previous = previous
             self.pristine = pristine
@@ -80,8 +92,22 @@ package final class ContentMemoStore {
     /// retaining anything (the lane-0 baseline).
     package var isEnabled = true
 
+    /// Test switch (`SB-B`): off, an `.equatable()` occurrence's paint runs every frame and
+    /// no record is made; the memo-off arm of the retained-subtree tests'
+    /// differentials. Independent of ``isEnabled`` (the getter memo).
+    package var retainsSubtrees = true
+
+    /// The retained-subtree counters of the build in progress, snapshotted by `endFrame()`.
+    var retained = RetainedCounters()
+    package private(set) var lastRetained = RetainedCounters()
+
     // Counters of the build in progress, snapshotted by `endFrame()`.
     private var evaluations = 0
+
+    /// Content evaluations so far this build: a retained subtree reads it around its build recursion
+    /// to learn that a descendant's content ran, which its own observation did not subscribe to when
+    /// that descendant was skipped in the frame the record was made (`SB-AC`).
+    var evaluationsSoFar: Int { evaluations }
     private var skips = 0
     private var refusals = 0
     package private(set) var lastEvaluations = 0
@@ -97,6 +123,9 @@ package final class ContentMemoStore {
     var markDirty: (@MainActor () -> Void)?
 
     func noteRefusal() { refusals += 1 }
+
+    /// The memo entry of an occurrence, or `nil` (retained subtrees, `SB-`).
+    func entry(for key: Key) -> Entry? { entries[key] }
 
     /// The content of `component` for this build: the pristine copy of the last
     /// evaluation when nothing it depends on changed, else the getter's result,
@@ -156,6 +185,7 @@ package final class ContentMemoStore {
     /// every entry no component touched, firing its session so it is spent.
     func endFrame() {
         lastEvaluations = evaluations; lastSkips = skips; lastRefusals = refusals
+        lastRetained = retained; retained = RetainedCounters()
         evaluations = 0; skips = 0; refusals = 0
         guard !entries.isEmpty else { return }
         var gone: [Key] = []

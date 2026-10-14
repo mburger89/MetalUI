@@ -428,6 +428,23 @@ as before. `METALUI_VERIFY_LAYOUT_MEMO=1` recomputes every hit and traps on a di
 adopting `.equatable()` owes an honest `==`: the content must be a function of the value, its own `@State`
 and the `@Observable` properties it reads (`IV-B`).
 
+### Retained subtrees (`SB-`, record §109)
+
+None for the API: additive (the `FrameWork` counters `elementRequests`, `elementPrepaints`, `elementPaints`,
+`retainedHits`, `retainedMisses`, `retainedIneligible`, `retainedSkippedPrepaints`, `retainedSkippedPaints`,
+`retainedLedgerSnapshots`, `retainedReplayedOps`); no `PlatformWindow`, `Platform`, `WindowRenderer` or
+`TextSystem` requirement is added, so no conformer changes. **Behaviour, compiles and answers differently:** an
+`.equatable()` occurrence's **prepaint and paint** are replayed from a record while its value, `@State`, observed
+reads, layout, surrounding paint context and the pointer, press and focus are unchanged, so a custom `Element`
+under one is not called every frame: a test or an element that counted its `prepaint`/`paint` calls, or relied on
+a side effect of one (a global written in `paint`, a clock read, a binding read only there), reads fewer calls or a
+stale picture. The contract on `equatable()` is that the subtree's output is a function of the value, its `@State`,
+the `@Observable` properties its elements read (in a getter, `prepaint` or `paint`) and the built-in environment.
+A subtree that scrolls, edits text, animates, shows a popover or alert, draws a `GPUSurface` or sits under a custom
+environment key keeps running as before. `METALUI_VERIFY_RETAINED=1` runs the fresh prepaint and paint beside every
+replay and traps on a difference (`SB-W`). A test that must see every frame's prepaint turns replay off with the
+package switch `Window.testingRetainedSubtrees = false` (not public API) or leaves `.equatable()` off.
+
 ### Input-method driver (`IM-`, record §102)
 
 None for the API: additive (`TestWindow.setMarkedText`, `commitMarkedText`, `cancelMarkedText`, `markedText`,

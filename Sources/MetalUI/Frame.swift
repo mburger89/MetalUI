@@ -80,7 +80,24 @@ public final class Frame {
     private(set) var wantsAnotherFrame = false
 
     /// Ask for another frame after this one — for an animation in progress.
-    func requestAnotherFrame() { wantsAnotherFrame = true }
+    func requestAnotherFrame() {
+        wantsAnotherFrame = true
+        timeVaryingNotes &+= 1
+        retainLog?.taint("requestAnotherFrame")
+    }
+
+    /// Times this frame's build or paint noted a live animation or another-frame request
+    /// (`SB-S`): a retained subtree whose build moved it is time-varying and never replays.
+    var timeVaryingNotes = 0
+
+    /// The open recorders' shared log (`RetainedSubtree.swift`): `nil` unless a retained
+    /// subtree's paint is being recorded, so every hook below costs one nil check.
+    var retainLog: RetainLog? {
+        didSet {
+            stateTable.retainLog = retainLog
+            animationStore.retainLog = retainLog
+        }
+    }
 
     /// Where a ``ScrollViewProxy`` built in this frame enqueues its
     /// `scrollTo` requests (ruling `DD-G` item 3). `Window` replaces this with
@@ -116,6 +133,16 @@ public final class Frame {
     /// `ForEach` identity work this frame (`FI-B`, a work counter, never time):
     /// elements produced, and how many of them minted an `IdentityKey`.
     var forEachIdentityWork: (elements: Int, keyed: Int) = (0, 0)
+
+    /// Element work of this frame's phases (`SB-`, work counters, never time): group
+    /// members entered in the build (`GlobalElementID.enteringGroupMember`), elements
+    /// prepainted (each `recordElementBounds` site, one per element and per modifier
+    /// layer) and painted (`Element`/`AnyElement` `paintGroup` and each modifier
+    /// layer's paint). A replayed subtree paints none of its elements: the conservation
+    /// law of the retained-subtree tests is `elementPaints + skipped == the unretained figure`.
+    var elementRequests = 0
+    var elementPrepaints = 0
+    var elementPaints = 0
 
     /// How many typed keys this frame noted — a work counter.
     var scrollKeyCount: Int { scrollKeys.count }
@@ -320,7 +347,11 @@ public final class Frame {
     private(set) var hasActiveAnimations = false
 
     /// Report that an `Animation` in this frame is still interpolating.
-    func noteActiveAnimation() { hasActiveAnimations = true }
+    func noteActiveAnimation() {
+        hasActiveAnimations = true
+        timeVaryingNotes &+= 1
+        retainLog?.taint("activeAnimation")
+    }
 
     /// The transaction this build inherited from a `withAnimation` that ran
     /// since the last one — spec §3's "the **next frame build** carries that
@@ -875,6 +906,7 @@ public final class Frame {
     /// itself cannot serve: every portal shares `rootLayer`, so a portal nested
     /// in a portal would look like its parent's content.
     func pushLayer() {
+        retainLog?.taint("portal")
         layerStack.append(Self.rootLayer)
         if collectsAccessibility {
             portalCount += 1
@@ -2512,6 +2544,7 @@ public final class Frame {
     /// item 3), whether or not the frame records bounds: one flag read per
     /// element while no request is pending.
     func recordElementBounds(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
+        elementPrepaints += 1
         if hasUnresolvedScrollRequests { matchScrollRequests(id, bounds) }
         guard recordsElementBounds else { return }
         elementBounds[id] = bounds
@@ -2784,6 +2817,7 @@ public final class Frame {
                                 left: borderWidths.left.scaled(by: scaleFactor)),
             order: 0, shape: shape)
         if paintScopes.isEmpty {
+            retainLog?.noteDirect(CapturedPrimitive(kind: .rect(rect), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(rect, layer: activeLayer)
         } else {
             insertThroughScopes(.rect(rect, layer: activeLayer, innerMask: false))
@@ -2816,6 +2850,7 @@ public final class Frame {
             sigma: Float(MUIBackdropSigmaPoints) * scaleFactor,
             opacity: activeOpacity)
         if paintScopes.isEmpty {
+            retainLog?.noteDirect(CapturedPrimitive(kind: .backdrop(record), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(record, layer: activeLayer)
         } else {
             insertThroughScopes(.backdrop(record, layer: activeLayer, innerMask: false))
@@ -2837,6 +2872,7 @@ public final class Frame {
                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
                              opacity: activeOpacity, filter: filter, order: 0)
         if paintScopes.isEmpty {
+            retainLog?.noteDirect(CapturedPrimitive(kind: .image(image, texture: texture), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(image, texture: texture, layer: activeLayer)
         } else {
             insertThroughScopes(.image(image, texture: texture, layer: activeLayer, innerMask: false))
@@ -2877,6 +2913,7 @@ public final class Frame {
     /// `requestAnotherFrame()` (CLAUDE.md "Animation": never raise both).
     func drawSurface(id: GlobalElementID, bounds: Bounds<Pixels>, policy: RedrawPolicy,
                      value: AnyHashable?, draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
+        retainLog?.taint("surface")
         // Counted before the guards, so a skipped sibling sharing one `.id`
         // keeps its place (`MV-M` item 5).
         let occurrence = surfaceRegistry.occurrence(for: id)
@@ -2988,6 +3025,7 @@ public final class Frame {
                              color: Hsla(h: color.h, s: color.s, l: color.l,
                                          a: color.a * activeOpacity), order: 0)
         if paintScopes.isEmpty {
+            retainLog?.noteDirect(CapturedPrimitive(kind: .glyph(glyph), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(glyph, layer: activeLayer)
         } else {
             insertThroughScopes(.glyph(glyph, layer: activeLayer, innerMask: false))
@@ -3187,12 +3225,26 @@ public final class Frame {
            backdropDegrades {
             for i in leaf.indices { leaf[i].degradeBackdropToFlatTint() }
         }
-        // Each group carries its primitives' emission depths, `nil` for "all
-        // at `depth`" (no array on the ordinary path).
-        var leaves: [([CapturedPrimitive], [Int]?)] = [(leaf, depths)]
-        let depth = clipStack.count
+        processScopes([(leaf, depths)], from: paintScopes.count, depth: clipStack.count)
+    }
+
+    /// `initial` leaves through the paint scopes below index `boundary` (innermost first), then
+    /// into the scene: the loop of ``insertThroughScopes(leaf:depths:)``, split out so a retained
+    /// subtree can note the leaves as they stand where its own scopes end (`SB-T`) and replay
+    /// them from there. `depth` is the clip depth the leaves were emitted at. With no recorder
+    /// open `retainLog` is `nil` and this is the old loop line for line. Each group carries its
+    /// primitives' emission depths, `nil` for "all at `depth`" (no array on the ordinary path).
+    func processScopes(_ initial: [([CapturedPrimitive], [Int]?)], from boundary: Int, depth: Int) {
+        var leaves = initial
         var pastBarrier = false
-        for scope in paintScopes.reversed() {
+        var index = boundary
+        while index > 0 {
+            retainLog?.noteBoundary(index, leaves, depth)
+            index -= 1
+            let scope = paintScopes[index]
+            if retainLog != nil, scope.capturing || scope.kind == .barrier {
+                retainLog?.taint("capturingScope", scopeIndex: index)
+            }
             switch scope.kind {
             case .barrier:
                 pastBarrier = true
@@ -3256,6 +3308,7 @@ public final class Frame {
             }
             leaves = next
         }
+        retainLog?.noteBoundary(0, leaves, depth)
         for (group, _) in leaves {
             for primitive in group { insertIntoScene(primitive) }
         }
@@ -3407,6 +3460,7 @@ public final class Frame {
                               maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)))
         let primitive = CapturedPrimitive(kind: .path(paint), layer: activeLayer, innerMask: false)
         if paintScopes.isEmpty {
+            retainLog?.noteDirect(primitive, depth: clipDepth)
             insertIntoScene(primitive)
         } else {
             insertThroughScopes(primitive)

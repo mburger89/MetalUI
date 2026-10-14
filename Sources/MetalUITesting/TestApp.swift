@@ -164,10 +164,21 @@ final class FrameWorkRecorder {
         pending.layoutMemoHits += work.memoHits
         pending.layoutMemoMisses += work.memoMisses
         pending.layoutMemoRootHits += work.memoRootHits
+        pending.layoutSubtreeHits += work.memoSubtreeHits
         pending.layoutSignatureNodes += work.signatureNodesHashed
         pending.contentEvaluations += work.contentEvaluations
         pending.contentSkips += work.contentSkips
         pending.contentRefusals += work.contentRefusals
+        pending.elementRequests += work.elementRequests
+        pending.elementPrepaints += work.elementPrepaints
+        pending.elementPaints += work.elementPaints
+        pending.retainedHits += work.retained.hits
+        pending.retainedMisses += work.retained.misses
+        pending.retainedIneligible += work.retained.ineligible
+        pending.retainedSkippedPrepaints += work.retained.skippedPrepaints
+        pending.retainedSkippedPaints += work.retained.skippedPaints
+        pending.retainedLedgerSnapshots += work.retained.ledgerSnapshots
+        pending.retainedReplayedOps += work.retained.replayedOps
         pending.rasterizedPixels += work.rasterizedPixels
         pending.blurredPixels += work.blurredPixels
     }

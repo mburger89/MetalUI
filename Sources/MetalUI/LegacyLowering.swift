@@ -107,7 +107,7 @@ extension LayoutPass {
         let children = frame.lowering.droppingPresentations(children)
         guard !children.isEmpty else {
             return lowerLegacyLeaf(style, declared: declared, site: site) {
-                frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
+                frame.requestNativeLeaf(key: EmptyContainerLeafKey()) { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
             }
         }
         // Stage 2 (ruling LR-AQ): every record this container receives is consumed,

@@ -108,10 +108,14 @@ the window's top layer — a portal for modals, popovers and tooltips
   record §104, `IV-B`) — SwiftUI's `View.equatable()`: the component's `content` getter is not run again
   while its value is `==` to the last evaluation's, its own `@State` is unwritten and the `@Observable`
   properties the last getter read are unchanged. No identity level, cursor index or initialiser is added;
-  build recursion, layout, prepaint and paint run as for the bare component, so only the getter's work is
-  saved (`FrameWork.contentEvaluations`/`contentSkips`/`contentRefusals`, M). A component that declares
+  build recursion and layout run as for the bare component; the getter is skipped and, while the occurrence's
+  layout, surrounding paint context and pointer/press/focus state are unchanged, its **prepaint and paint are
+  replayed** from a record of their hitboxes, focus registrations, accessibility records and scene primitives
+  (record §109, `SB-B`; `FrameWork.contentEvaluations`/`contentSkips`/`contentRefusals`, `elementRequests`/
+  `elementPrepaints`/`elementPaints`, `retainedHits`/`retainedMisses`/`retainedIneligible`/
+  `retainedSkippedPrepaints`/`retainedSkippedPaints`/`retainedLedgerSnapshots`/`retainedReplayedOps`, M). A component that declares
   `@Environment` or `@FocusState` is evaluated every frame (divergence 346, `IV-D`). The layout memo behind
-  it is automatic and has no API (`IV-E`). `METALUI_INVALIDATION_DEMO=1` shows it; human checks: group IV, unrun.
+  it is automatic and has no API (`IV-E`). `METALUI_INVALIDATION_DEMO=1` shows the getter memo and `METALUI_RETAINED_DEMO=1` the replay; human checks: groups IV and SB, unrun.
 
 ## Layout, SwiftUI vocabulary — A
 

@@ -82,10 +82,27 @@ func runDemo() throws {
     // `.equatable()` against not, and the getters each bump evaluates.
     let invalidationDemo = ProcessInfo.processInfo.environment["METALUI_INVALIDATION_DEMO"] == "1"
 
+    // Retained subtrees (`SB-B`, spec `2026-10-13-retained-subtrees-design.md` §13): eight nodes
+    // and their wires, each an `.equatable()` component; drag a node and read how many replayed.
+    let retainedDemo = ProcessInfo.processInfo.environment["METALUI_RETAINED_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if invalidationDemo {
+    if retainedDemo {
+        window = try app.openWindow(title: "MetalUI — Retained Subtrees",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: retainedSubtreeDemoContent)
+        // The counters and the switch are package API (the harness's hooks), wired here for the demo.
+        let model = retainedSubtreeDemoModel
+        window.testingOnFrameAdopted { work in
+            model.counters = (work.retained.hits, work.retained.misses, work.retained.ineligible)
+        }
+        model.applyReplay = { [weak window] on in
+            window?.testingRetainedSubtrees = on
+            window?.setNeedsRedraw()
+        }
+    } else if invalidationDemo {
         window = try app.openWindow(title: "MetalUI — Content Memo",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: invalidationDemoContent)

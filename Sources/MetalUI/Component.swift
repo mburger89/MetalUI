@@ -124,6 +124,8 @@ public struct ComponentLayout<C: Component> {
     /// The heap box, mutated in place by `withPayload(_:)`.
     final class Storage {
         var payload: Payload
+        /// An `.equatable()` occurrence's build window (`SB-K`); `nil` for every other component.
+        var retained: RetainedBuild?
         init(_ payload: Payload) { self.payload = payload }
     }
 
@@ -163,6 +165,8 @@ public struct ComponentPrepaint<C: Component> {
     /// The heap box, mutated in place by `withPrepaint(_:)`.
     final class Storage {
         var prepaint: C.Content.GroupPrepaint
+        /// An `.equatable()` occurrence's retained-subtree phase (`SB-`); `nil` for every other component.
+        var retained: RetainedPhase?
         init(_ prepaint: C.Content.GroupPrepaint) { self.prepaint = prepaint }
     }
 

@@ -17,7 +17,7 @@ func report(_ scenario: String, _ metric: String, _ value: String) { print("\(sc
 func ms(_ v: Double) -> String { String(format: "%.3f", v) }
 
 func workLine(_ w: FrameWork) -> String {
-    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images)"
+    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images) elementPaints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) retainedIneligible=\(w.retainedIneligible)"
 }
 
 // MARK: Synthetic branching trees (record 07's shapes: depth 12 branch 2 = 8,191; depth 10 branch 3 = 88,573)
@@ -141,6 +141,29 @@ struct Row: Identifiable { let id: Int }
     report("drag\(n)", "last_frame_work", workLine(w.lastFrameWork))
 }
 
+
+// MARK: The bracket window's node drag (C14b, fixture BracketFixture.swift copied in by perf-baselines.sh)
+
+@MainActor func bracketScenario(arm: BracketArm, name: String, reps: Int) throws {
+    let model = BracketModel(), viewport = BracketViewport()
+    let w = try TestWindow(size: bracketWindowSize, colorScheme: .dark, scaleFactor: 2) {
+        bracketRoot(arm: arm, model: model, viewport: viewport)
+    }
+    for _ in 0..<5 { w.window.setNeedsRedraw(); w.tick() }
+    let steps = 20
+    var perFrame: [Double] = []
+    for rep in 0..<reps {
+        let sign: Float = rep % 2 == 0 ? 1 : -1
+        let startX: Float = rep % 2 == 0 ? 20 : 20 + 2 * Float(steps)
+        let t0 = now()
+        w.drag(from: Point(x: px(startX), y: px(400)), to: Point(x: px(startX + sign * 2 * Float(steps)), y: px(400)), steps: steps)
+        perFrame.append((now() - t0) / Double(steps + 2))
+    }
+    report(name, "drag_frame_ms_median", ms(median(perFrame)))
+    report(name, "drag_frame_ms_min", ms(perFrame.min()!))
+    report(name, "last_frame_work", workLine(w.lastFrameWork))
+}
+
 let args = CommandLine.arguments.dropFirst()
 let which = args.first(where: { !$0.hasPrefix("--") }) ?? "all"
 let quick = args.contains("--quick")
@@ -159,5 +182,10 @@ MainActor.assumeIsolated {
             try listScenario(rows: 100_000, reps: quick ? 5 : 21)
         }
         if which == "all" || which == "drag" { try dragScenario(nodes: 20, reps: quick ? 20 : 100) }
+        if which == "all" || which == "bracket" {
+            try bracketScenario(arm: .value, name: "bracket_value", reps: quick ? 6 : 30)
+            try bracketScenario(arm: .environment, name: "bracket_environment", reps: quick ? 6 : 30)
+            try bracketScenario(arm: .panels, name: "bracket_panels", reps: quick ? 6 : 30)
+        }
     } catch { print("error: \(error)") }
 }

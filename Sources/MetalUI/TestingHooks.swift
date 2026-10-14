@@ -28,6 +28,8 @@ package struct BuildWork: Sendable, Equatable {
     package var memoMisses = 0
     /// Root runs whose whole placement the memo restored.
     package var memoRootHits = 0
+    /// Marked subtrees whose placement the memo restored (`SB-AD`).
+    package var memoSubtreeHits = 0
     /// Nodes the run's signature pass hashed (`IV-M`).
     package var signatureNodesHashed = 0
     /// `content` getters the build's memoized components evaluated (`IV-B`).
@@ -36,6 +38,12 @@ package struct BuildWork: Sendable, Equatable {
     package var contentSkips = 0
     /// Memoized components refused (`@Environment`/`@FocusState`) and evaluated.
     package var contentRefusals = 0
+    /// Group members the build entered, elements prepainted and painted (`SB-`).
+    package var elementRequests = 0
+    package var elementPrepaints = 0
+    package var elementPaints = 0
+    /// The retained-subtree counters of the build (`SB-`).
+    package var retained = RetainedCounters()
 }
 
 extension Window {
@@ -66,10 +74,15 @@ extension Window {
                                blurredPixels: rasters?.lastBlurredPixels ?? 0,
                                memoHits: work.memoHits, memoMisses: work.memoMisses,
                                memoRootHits: work.memoRootHits,
+                               memoSubtreeHits: work.memoSubtreeHits,
                                signatureNodesHashed: work.signatureNodesHashed,
                                contentEvaluations: memos?.lastEvaluations ?? 0,
                                contentSkips: memos?.lastSkips ?? 0,
-                               contentRefusals: memos?.lastRefusals ?? 0))
+                               contentRefusals: memos?.lastRefusals ?? 0,
+                               elementRequests: frame.elementRequests,
+                               elementPrepaints: frame.elementPrepaints,
+                               elementPaints: frame.elementPaints,
+                               retained: memos?.lastRetained ?? RetainedCounters()))
         }
     }
 }
@@ -80,6 +93,13 @@ extension Window {
 
     /// The window's content memos (`IV-B`), for the harness and the memo's tests.
     package var testingContentMemos: ContentMemoStore { stateTable.contentMemos }
+
+    /// Whether `.equatable()` occurrences retain and replay their paint (`SB-B`); off is
+    /// the memo-off arm of the differentials.
+    package var testingRetainedSubtrees: Bool {
+        get { stateTable.contentMemos.retainsSubtrees }
+        set { stateTable.contentMemos.retainsSubtrees = newValue }
+    }
 }
 
 extension Window {

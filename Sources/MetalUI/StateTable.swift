@@ -168,6 +168,14 @@ final class StateTable {
     func entryVersion(_ id: GlobalElementID) -> UInt64 { storage[id]?.version ?? 0 }
 
     private var storage: [GlobalElementID: Entry] = [:]
+
+    /// Every `mark` of the frame in order (`SB-K`): the bind journal. A retained subtree
+    /// reads the range its build covers to learn which `@State` slots were bound under it,
+    /// and the marks a replayed paint repeats go through ``mark(_:)`` too (`SB-`). Emptied by `sweep()`.
+    var markJournal: [GlobalElementID] = []
+
+    /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
+    var retainLog: RetainLog?
     private var marked: Set<GlobalElementID> = []
 
     /// Advanced by `sweep()`, once per frame. An entry's `lastSeenGeneration`
@@ -701,6 +709,7 @@ final class StateTable {
     func withState<S>(_ id: GlobalElementID,
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
+        retainLog?.taint("stateWrite")   // a paint that rewrites an entry cannot be replayed (`SB-U`)
         marked.insert(id)
         // An absent entry takes `initial()` whatever `S` is (plan task 15's
         // lane-1 fix round, `CX-F`'s rule applied here too): the old
@@ -742,6 +751,8 @@ final class StateTable {
     /// error — `mark` is called for slots that may not have been written to
     /// yet.
     func mark(_ id: GlobalElementID) {
+        if contentMemos.retainsSubtrees { markJournal.append(id) }
+        retainLog?.marks.append(id)
         marked.insert(id)
         storage[id]?.isLive = true
     }
@@ -802,6 +813,7 @@ final class StateTable {
     /// was never anchored to the slot's stored type there either — so this
     /// is not a new hazard `write` introduces, only one it inherits.
     func write<S>(_ id: GlobalElementID, _ value: S) {
+        retainLog?.taint("stateWrite")
         if departedOverlay != nil, departedOverlay!.roots.contains(where: { id.isOrDescends(from: $0) }) {
             departedOverlay!.values[id] = value   // `LC-I` item 2: discarded with the overlay
             return
@@ -954,6 +966,7 @@ final class StateTable {
         swap(&loopExtents, &previousLoopExtents)
         loopExtents.removeAll(keepingCapacity: true)
 
+        markJournal.removeAll(keepingCapacity: true)
         generation += 1
         for id in storage.keys {
             let isMarked = marked.contains(id)

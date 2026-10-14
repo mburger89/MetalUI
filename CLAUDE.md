@@ -74,7 +74,8 @@ summary.
   `2026-10-12-guides-decisions.md`, then `2026-10-13-guides-followup-decisions.md`, next `DG-X`), `BL-` (performance baselines:
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
-  `2026-10-13-incremental-invalidation-decisions.md`, next `IV-R`), …; the full
+  `2026-10-13-incremental-invalidation-decisions.md`, next `IV-R`), `SB-` (retained subtrees:
+  `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -105,10 +106,11 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1, METALUI_RETAINED_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-13, `perf/retained-subtrees` from `e85cb07a`: 3717 tests, 0 goldens, 234 typecheck guards** (3675 + 42 tests, 232 + the two of `RetainedSubtreeCompileGuards.swift`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; also 3708 passed with `AppKitPresentationTests` skipped, and under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1`; census 3511; the fourteen images 0 px against `e85cb07a`; no divergence label taken; record §109 §6, §13). Before it,
 - **Counts (2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107), then `aa42fbc8` (§108 `frame(ofID:)`): 3675 tests, 0 goldens, 232 typecheck guards** (master's 3643 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; re-measured by the orchestrator on the merged tree, record §104 §6). Before it, at `d279f34d`'s merge:
   **(2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107): 3654 tests run + 9 skipped (3663 expected unfiltered), 0 goldens, 232 typecheck guards** (master's 3631 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; `swift package clean`, native run on a **locked screen with `AppKitPresentationTests` skipped** because its `NSOpenPanel.init()` hangs there, 0 recorded issues, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; census 3492 re-recorded after the merge; inventory and undocumented scripts print nothing; divergence 346 added, 152 live; the fourteen images 0 px against `f6f865c1` at the lanes, not re-taken after the merge; record §104 §6). Before it,
   **(2026-10-13, `fix/frame-of-id` from `d279f34d`: 3643 tests, 0 goldens, 229 typecheck guards** (3631 + 12 tests, no guard; `swift package clean`, native run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; no public declaration, census unmoved, no divergence label taken; the `MetalUITestingTests` set passed in the `metalui-portable` image; record §108). Before it,
@@ -820,10 +822,26 @@ index) skips the `content` getter while the value is `==`, its own `@State` unwr
 and its observed reads unchanged (one observation session per memo over the getter only, `ContentMemoStore` on
 `StateTable`, swept last); `==` decides; `@Environment`/`@FocusState` components are refused, evaluated every
 frame and counted (divergence 346). Build recursion, prepaint and paint stay whole, so the win is **counted, not
-timed** (`FrameWork` memo and content counters; pins count work). Carried: retained subtrees (C14-b, `IV-H`),
+timed** (`FrameWork` memo and content counters; pins count work). Retained subtrees are built as paint replay and the placement memo (`SB-`, below); carried:
 an environment epoch (C14-c), per-row `List` scopes (C14-d). GT-F stands: `drawText` is deferred (`IV-O`).
 A main-actor test off macOS does not idle after a tracked frame (the observation hop), so a session-count pin
 is Darwin-only (`IV-Q`). The demo is `METALUI_INVALIDATION_DEMO=1`.
+
+**Retained subtrees (`SB-`, record §109).** C14b, two lanes, no public API beyond `FrameWork`'s ten counters, no divergence.
+**Lane 1 replays an `.equatable()` occurrence's paint, not prepaint** (`SB-AA`: the paint-only ambient — opacity stack, shadow, blur and
+composite scopes — is pushed by ancestors' `paint` after every prepaint, so a prepaint decision cannot see it): the decision, the
+`ReplayKey` and the recorder are in `paintGroup`; build, layout and prepaint still run. A record hangs off the `ContentMemoStore` entry
+(swept with it) and hits only while the value, bound `@State` versions, observed reads, layout, the ambient at paint and the whole
+environment are equal and the hovered, pressed or focused element is not under it (`SB-X`); a descendant whose content ran kills its
+ancestors' records (`SB-AC`); a subtree that scrolls, edits text, animates, shows a popover/alert or draws a surface, or sits under a
+custom environment key, is ineligible. **Scene output equals a fresh frame:** `METALUI_VERIFY_RETAINED=1` runs the fresh paint beside
+every replay and traps (`SB-W`); a test that must see every prepaint sets package `Window.testingRetainedSubtrees = false`. **Lane 2 is
+the subtree placement memo alone** (`SB-AD`): `LayoutTree.markPlacementRoot` roots restore their unrounded pre-order rects from
+`LayoutMemo` under `PlacementKey(signature, proposal, bounds)`, origin included, no translation; `Color` and empty containers are keyed
+leaves; `METALUI_VERIFY_LAYOUT_MEMO=1` covers it. Carried together (`SB-AE`): the graft, the `StateTable` journal, the counted redo,
+prepaint replay and the build skip. Measured on the bracket fixture (`BracketFixture.swift`, node drag): element paints 1084 -> 178 per
+frame, release median -18 %, debug -14 %; **pins count work, never time**. A new `Frame` site that pushes paint-only ambient owes a
+field in `AmbientKey`. The demo is `METALUI_RETAINED_DEMO=1`.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);

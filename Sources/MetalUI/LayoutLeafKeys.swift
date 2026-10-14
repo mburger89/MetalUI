@@ -49,6 +49,12 @@ struct RectangleLeafKey: Hashable {
     let respondsToProposal: Bool
 }
 
+/// A `Color` used as a view: the proposal, 10 on a nil axis (`Color.measurement(for:)`).
+struct ColorLeafKey: Hashable {}
+
+/// A legacy container with no child lowered to a leaf: always 0 x 0, whatever the proposal.
+struct EmptyContainerLeafKey: Hashable {}
+
 /// The gradient fill leaf: the proposal, 10 on a nil axis.
 struct GradientLeafKey: Hashable {}
 
