@@ -34,6 +34,9 @@ let package = Package(
         .testTarget(name: "MetalUISDLTests", dependencies: ["SDLReplay", "ReplayFixture",
                                                            .product(name: "MetalUISDL", package: "MetalUI"),
                                                            .product(name: "SDLBridge", package: "MetalUI"),
+                                                           // The app's SDL_GPU layer (ruling GA-B): the tests import
+                                                           // it alone, the way an app does.
+                                                           .product(name: "MetalUISDLGPU", package: "MetalUI"),
                                                            .product(name: "MetalUI", package: "MetalUI"),
                                                            .product(name: "MetalUIScene", package: "MetalUI"),
                                                            .product(name: "MetalUIPortableText", package: "MetalUI")]),

@@ -167,6 +167,98 @@ A headless window builds both roots but draws no GPU surface, because no rendere
 (`testing.md`). Both are checked by building them, not by their pixels; look at the real window
 for those. Text drawn over a surface is an ordinary `Text` overlay in the same `ZStack`.
 
+## How do I draw my own pipeline into a `GPUSurface` on SDL?
+
+On the SDL backend `SDLGPUDrawContext` still hands out raw `SDL_GPU*` pointers; the product
+`MetalUISDLGPU` (the same `import` that brings every raw `SDL_` symbol, see
+[cross-platform](cross-platform.md#how-do-i-run-my-own-gpu-work-on-sdl)) adds a thin typed layer
+named after SDL_GPU, so SDL's own documentation applies to every call. `ctx.view` is the draw's
+`SDLGPUFrameView`: the **frame's own** command buffer (`view.commandBuffer`), the surface's target as an
+`SDLGPUTexture` (`view.target`, `B8G8R8A8_UNORM`, premultiplied, which MetalUI creates and resizes), and the
+window renderer's device borrowed (`view.device`). The view has no submit, wait or acquire: MetalUI submits
+the buffer once, after its own pass. It is MetalUI-only and has no Metal twin, because `MetalView` already
+hands a Metal app its own encoder. These snippets are `text` fences, since this guide's blocks are compiled
+on every platform and the layer exists only under the `SDL` trait.
+
+The shaders are your HLSL, built once with `compile-app-shaders.py` (section 4a of
+[`packaging.md`](../packaging.md)): `NAME.vert.hlsl` and `NAME.frag.hlsl` give one blob per driver
+and a reflection file, and `SDLGPUShaderLibrary` loads the pair for the device's driver. A pipeline
+description names the stages, the vertex layout if any, the colour format, the blend, the sample count
+and an optional depth test; textures take `sampleCount`, `levelCount` and a usage set. Build all of
+them from `view.device` on the first draw and keep them as long as the window.
+
+```text
+import MetalUISDLGPU
+
+final class TriangleScene: @unchecked Sendable {            // your own state, made on the first draw
+    var pipeline: SDLGPUGraphicsPipeline?
+    var multisample: SDLGPUTexture?                          // 4x samples, resolved into the surface target
+    var depth: SDLGPUTexture?
+    var size = (width: 0, height: 0)
+
+    @MainActor func draw(_ ctx: any GPUSurfaceContext, library: SDLGPUShaderLibrary) {
+        guard let sdl = ctx as? SDLGPUDrawContext else { return }
+        let view = sdl.view
+        let device = view.device
+        if pipeline == nil {
+            pipeline = device.makeGraphicsPipeline(SDLGPUGraphicsPipelineDescription(
+                vertex: try! library.vertex("tri", for: device), fragment: try! library.fragment("tri", for: device),
+                colorFormat: .b8g8r8a8Unorm, sampleCount: .four, depth: SDLGPUDepthState()))
+        }
+        if multisample == nil || size != view.pixelSize {           // a new target is a new size
+            size = view.pixelSize
+            multisample = device.makeTexture(SDLGPUTextureDescription(width: size.width, height: size.height,
+                format: .b8g8r8a8Unorm, usage: [.colorTarget], sampleCount: .four))
+            depth = device.makeTexture(SDLGPUTextureDescription(width: size.width, height: size.height,
+                format: .d32Float, usage: [.depthStencilTarget], sampleCount: .four))
+        }
+        guard let pipeline, let multisample, let depth,
+              let pass = view.beginRenderPass(
+                  color: SDLGPUColorAttachment(texture: multisample, clearColor: (0, 0, 0, 0),
+                                               storeOp: .resolve, resolveTexture: view.target),
+                  depth: SDLGPUDepthAttachment(texture: depth)) else { return }
+        pass.bind(pipeline)
+        pass.draw(vertexCount: 3, instanceCount: 3)                 // three instances, nearest wins by depth
+        pass.end()                                                  // every pass is ended before the draw returns
+    }
+}
+```
+
+The render pass is SDL's own: a colour attachment with a load op, a clear colour (premultiplied, because the
+target is composited as premultiplied source-over), a store op and an optional resolve texture, plus an
+optional depth attachment. `pass.bindVertexBuffers`, `bindVertexStorageBuffers`, `bindFragmentSamplers`,
+`pushVertexUniform`, `pushFragmentUniform` and `draw(vertexCount:instanceCount:firstVertex:firstInstance:)` map
+one to one onto SDL's calls. `generateMipmaps(of:)` fills a texture's mip chain from level 0 and needs the
+sampler and colour-target usages together; call it outside a pass. The instanced, depth-tested,
+multisampled draw matches a CPU reference both in a texture and in a real surface target
+(`anInstancedDepthTestedMSAAResolvedTriangleSetMatchesItsReference` and
+`theSameTriangleSetDrawnIntoARealSurfaceTargetMatchesItsReference`, in `Backends/SDL`).
+
+**Picking is a batch, not a frame.** An ID pass draws the same instances into an `R32_UINT` texture with a
+fragment stage that writes the instance index, then `await device.download(texture)` reads the words back on
+the CPU. It needs no frame view, so it runs on an owned device off the frame, and the word under a pixel is the
+nearest instance there.
+
+```text
+let ids = device.makeTexture(SDLGPUTextureDescription(width: w, height: h, format: .r32Uint, usage: [.colorTarget, .sampler]))!
+let fence = try await device.submitBatch { commandBuffer in
+    guard let pass = commandBuffer.beginRenderPass(color: SDLGPUColorAttachment(texture: ids),
+                                                   depth: SDLGPUDepthAttachment(texture: depthTexture)) else { return }
+    pass.bind(idPipeline)
+    pass.draw(vertexCount: 3, instanceCount: instanceCount)
+    pass.end()
+}
+await fence.wait()
+let words = await device.download(ids)!                      // the id under (x, y) is word y * w + x
+```
+
+**The contract is checked in a debug build.** A draw runs inside the frame's one command buffer. Through the
+typed layer, a debug build traps when a draw calls `SDLGPUDevice.waitForIdle`, `SDLGPUDevice.submitBatch` or
+`SDLGPUFence.wait` from inside it, and when a draw returns with a pass still open, each trap naming the
+contract. A raw SDL call on `ctx.commandBuffer` is not checked: SDL3 has no command-buffer state query. A
+release build checks nothing. (The tests are `aWaitInsideADrawTrapsInDebug` and
+`anOpenPassAtTheEndOfADrawTrapsInDebug`, in `Backends/SDL`.)
+
 ## How do I put a label over a GPU surface?
 
 Draw the label as an ordinary `Text` in a `ZStack` above the surface; the closure of a `GPUSurface`

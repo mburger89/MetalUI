@@ -312,7 +312,9 @@ public final class SDLWindowRenderer: WindowRenderer {
                 scaleFactor: request.scaleFactor, time: request.time, frameIndex: finishedFrames,
                 isNewTarget: isNew)
             if isNew { context.clear(red: 0, green: 0, blue: 0, alpha: 0) }
+            SDLGPUWindowGuard.beginDraw()
             request.draw(context)
+            SDLGPUWindowGuard.endDraw()
             surfaceDraws += 1
         }
 
