@@ -193,6 +193,94 @@ extension InsetsLog {
     #expect(window.windowDragRegions == [rect(0, 0, 400, 32), rect(60, 32, 140, 40)])
 }
 
+// MARK: - Depth-ranked carving (CW-V, XP-G11)
+
+/// A full-window view taking the pointer through a `DragGesture`, the content a glass bar floats over.
+@MainActor private func viewport() -> some ProposalElementGroup {
+    Color.clear.frame(width: Pixels(400), height: Pixels(300)).gesture(DragGesture())
+}
+
+/// **2.12** (`CW-V`). The reported shape: a full-window `DragGesture` view behind the bar. The band stays
+/// whole. Mutation: carve by every blocker whatever its depth.
+@Test @MainActor func aFullWindowViewBehindTheBarDoesNotCarveTheBand() throws {
+    let window = try chromeWindow(controls: false) {
+        ZStack(alignment: .topLeading) {
+            viewport()
+            bandPage { Color.clear.frame(width: Pixels(400), height: Pixels(32)) } body: {
+                Color.clear.frame(width: Pixels(400), height: Pixels(268))
+            }
+        }
+    }
+    #expect(window.windowDragRegions == wholeBand)
+}
+
+/// **2.13** (`CW-V`). The same view behind a handle: the handle's rect stays a region. Mutation: as 2.12, or
+/// compare ranks with `>=` the wrong way round.
+@Test @MainActor func aViewBehindAHandleDoesNotCarveIt() throws {
+    let window = try chromeWindow(controls: false) {
+        ZStack(alignment: .topLeading) {
+            viewport()
+            bandPage { Color.clear.frame(width: Pixels(400), height: Pixels(32)) } body: {
+                HStack(spacing: Pixels(0)) {
+                    Color.clear.frame(width: Pixels(50), height: Pixels(100))
+                    Color.clear.frame(width: Pixels(100), height: Pixels(100)).gesture(WindowDragGesture())
+                    Color.clear.frame(width: Pixels(250), height: Pixels(100))
+                }
+                Color.clear.frame(width: Pixels(400), height: Pixels(168))
+            }
+        }
+    }
+    #expect(window.windowDragRegions == [rect(0, 0, 400, 32), rect(50, 32, 100, 100)])
+}
+
+/// **2.14** (`CW-V`). A button, a tap target and a field drawn in the bar above the viewport still carve
+/// the band. Mutation: let a full-window blocker's exemption cover contained blockers too.
+@Test @MainActor func controlsInTheBarAboveAViewportStillCarve() throws {
+    let button = try chromeWindow(controls: false) {
+        ZStack(alignment: .topLeading) { viewport(); blockerBand(height: 24) {
+            Button(action: {}) { Color.clear.frame(width: Pixels(80), height: Pixels(24)) }.buttonStyle(.plain)
+        } }
+    }
+    #expect(button.windowDragRegions == [rect(0, 0, 20, 24), rect(100, 0, 300, 24), rect(0, 24, 400, 8)])
+    let tap = try chromeWindow(controls: false) {
+        ZStack(alignment: .topLeading) { viewport(); blockerBand(height: 32) {
+            Color.clear.frame(width: Pixels(80), height: Pixels(32)).onTapGesture {}
+        } }
+    }
+    #expect(tap.windowDragRegions == [rect(0, 0, 20, 32), rect(100, 0, 300, 32)])
+    let field = try chromeWindow(controls: false) {
+        ZStack(alignment: .topLeading) { viewport(); blockerBand(height: 24) {
+            TextField("Name", text: .constant("")).frame(width: Pixels(80), height: Pixels(24))
+        } }
+    }
+    #expect(field.windowDragRegions == [rect(0, 0, 20, 25), rect(100, 0, 300, 25), rect(0, 25, 400, 7)])
+}
+
+/// **2.15** (`CW-V`). A view above a handle covers it (carves); the same view below does not. Mutation:
+/// invert or drop the rank comparison (`<`, `<=`).
+@Test @MainActor func aViewAboveAHandleCarvesItAndTheSameViewBelowDoesNot() throws {
+    func page(handleFirst: Bool) throws -> [Bounds<Pixels>] {
+        let window = try chromeWindow(controls: false) {
+            bandPage { Color.clear.frame(width: Pixels(400), height: Pixels(32)) } body: {
+                Color.clear.frame(width: Pixels(400), height: Pixels(68))
+                ZStack(alignment: .topLeading) {
+                    if handleFirst {
+                        Color.clear.frame(width: Pixels(100), height: Pixels(100)).gesture(WindowDragGesture())
+                        Color.clear.frame(width: Pixels(40), height: Pixels(100)).onTapGesture {}
+                    } else {
+                        Color.clear.frame(width: Pixels(40), height: Pixels(100)).onTapGesture {}
+                        Color.clear.frame(width: Pixels(100), height: Pixels(100)).gesture(WindowDragGesture())
+                    }
+                }
+                Color.clear.frame(width: Pixels(400), height: Pixels(100))
+            }
+        }
+        return window.windowDragRegions
+    }
+    #expect(try page(handleFirst: true) == [rect(0, 0, 400, 32), rect(40, 100, 60, 100)])
+    #expect(try page(handleFirst: false) == [rect(0, 0, 400, 32), rect(0, 100, 100, 100)])
+}
+
 /// **2.10** (`CW-E`). An open presentation publishes an empty list so a press outside reaches `Window` and
 /// dismisses: a drawn alert here. Mutation: ignore presentations.
 @Test @MainActor func anOpenAlertPublishesNoRegions() throws {

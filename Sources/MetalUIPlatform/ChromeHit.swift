@@ -108,8 +108,16 @@ package enum ChromeHitMap {
     /// area that is simply not draggable. Rects of no area are dropped.
     package static func carve(candidates: [Bounds<Pixels>], blockers: [Bounds<Pixels>],
                               limit: Int) -> (rects: [Bounds<Pixels>], truncated: Int) {
+        carve(ranked: candidates.map { ($0, blockers) }, limit: limit)
+    }
+
+    /// As `carve(candidates:blockers:limit:)`, each candidate with **its own** blockers (`CW-V`: only a
+    /// hitbox ranked above a candidate may carve it). Earlier candidates' accepted pieces still carve later
+    /// ones, so the result stays disjoint.
+    package static func carve(ranked: [(candidate: Bounds<Pixels>, blockers: [Bounds<Pixels>])],
+                              limit: Int) -> (rects: [Bounds<Pixels>], truncated: Int) {
         var accepted: [Bounds<Pixels>] = []
-        for candidate in candidates {
+        for (candidate, blockers) in ranked {
             var pieces = [candidate]
             for blocker in blockers + accepted {
                 pieces = pieces.flatMap { subtract(blocker, from: $0) }
