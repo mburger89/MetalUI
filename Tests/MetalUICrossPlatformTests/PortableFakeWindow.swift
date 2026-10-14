@@ -76,6 +76,10 @@ final class PortableFakeWindow: PlatformWindow {
     var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
     func performTitleBarPress(clickCount: Int) -> Bool { false }
     func performWindowDrag() -> Bool { false }
+    func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }
+    func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }
+    var hasNativeWindowControls: Bool { true }
+    var isZoomed: Bool { false }
 
     /// Delivers `event` as a platform would.
     @discardableResult
