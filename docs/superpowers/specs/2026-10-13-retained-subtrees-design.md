@@ -334,7 +334,7 @@ Each line is a ruling in the decisions document; the pinning test (§8) is named
 4. **Animation** (`AN-`, `AnimationStore`, transactions). `Frame.hasActiveAnimations` raised or any
    `AnimationStore` entry interpolating in the subtree's paint → ineligible; a keyframe animator
    *idle* (the fixture's refusal shake) touches its entry without interpolating → recorded touch,
-   replayed (`aKeyframeIdleSubtreeReplays`); `TimelineView`, transitions' ghosts and a transaction
+   replayed (`aLiveAnimationNeverReplaysAndAnIdleKeyframeSubtreeDoes`); `TimelineView`, transitions' ghosts and a transaction
    in flight (`transactionDepth > 0` at entry with a non-snapping animation) → ineligible.
 5. **Focus and `tabOrder`**. Stops are replayed in order through the registry's `register`; a
    focused owned stop → miss (§4.3), so `focusedElementProducedThisFrame`/`resolveFocus` run on a

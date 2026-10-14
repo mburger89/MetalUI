@@ -368,7 +368,7 @@ redo once, N frames of doubled cost).
 reads `frame.timestamp` in its build (`KeyframeAnimator.currentValue`), every `.animation(_:value:)` track
 reads it in `advanceColor` and `animateField` whether or not anything is in flight. A "timestamp was read"
 ledger would make the fixture's nodes (which hold an idle shake) permanently ineligible, against spec §6 item
-4's own `aKeyframeIdleSubtreeReplays`. What is time-varying is what *says so*: `Frame.noteActiveAnimation()`,
+4's own `aLiveAnimationNeverReplaysAndAnIdleKeyframeSubtreeDoes`. What is time-varying is what *says so*: `Frame.noteActiveAnimation()`,
 `requestAnotherFrame()` and `AnimationStore.noteInterpolation()`, which every running animation, spinner and
 timeline calls. (`.help` is a contextual hitbox attachment and the tooltip is the window's, `Tooltip.swift`;
 with prepaint running every frame, `SB-AA`, it is moot.)
