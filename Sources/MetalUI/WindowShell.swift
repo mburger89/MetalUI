@@ -28,8 +28,9 @@ public struct WindowStyle: Sendable, Equatable {
     /// (divergence 175: SwiftUI keeps a safe area). Read
     /// `EnvironmentValues.titleBarInsets` to keep clear of the buttons; a press
     /// no element claims in the band drags the window (`AS-J`). On SDL the
-    /// window keeps its system decoration and the insets read zero (`AS-E`
-    /// item 6).
+    /// window becomes borderless, the insets read the band and the drawn
+    /// window buttons' cluster, and the band drags through a hit-test region
+    /// (`CW-B`…`CW-E`, divergences 175, 276).
     public static let hiddenTitleBar = WindowStyle(kind: .hiddenTitleBar)
 
     /// What the platform window is asked for.
@@ -70,6 +71,8 @@ struct WindowShellState {
     var sentPath: String?
     /// The last build's `.onOpenURL` handlers, in post-order.
     var openURLHandlers: [OpenURLHandler] = []
+    /// The chrome state (`CW-`): drawn buttons, drag-region publication.
+    var chrome = WindowChromeState()
 }
 
 extension Window {
@@ -170,8 +173,17 @@ extension Window {
 
     /// The insets the root is stamped with (`AS-E` item 4): the platform's
     /// while it shows the hidden style, zero otherwise.
+    /// On a platform without native window buttons (SDL, `CW-D`) the platform answers the band **and** the
+    /// edge of the cluster `Window` would draw; with `drawsWindowControls` off the app owns the cluster, so
+    /// the cluster side reads zero and the band stays.
     var effectiveTitleBarInsets: Edges<Pixels> {
-        shell.titleBarStyleApplied ? platformWindow.titleBarInsets : Edges(all: Pixels(0))
+        guard shell.titleBarStyleApplied else { return Edges(all: Pixels(0)) }
+        var insets = platformWindow.titleBarInsets
+        if !platformWindow.hasNativeWindowControls && !shell.chrome.drawsWindowControls {
+            insets.left = Pixels(0)
+            insets.right = Pixels(0)
+        }
+        return insets
     }
 
     /// The band press (ruling `AS-J`), at the end of `onInput`'s path when

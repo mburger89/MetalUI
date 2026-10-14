@@ -482,6 +482,27 @@ final class FakePlatformWindow: PlatformWindow {
         return performsWindowDrag
     }
 
+    /// Every `setWindowDragRegions` list, in order (`CW-F`).
+    private(set) var windowDragRegionLists: [[Bounds<Pixels>]] = []
+    /// What `setWindowDragRegions` answers; `false`, AppKit's answer, by default.
+    var usesWindowDragRegions = false
+    func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool {
+        windowDragRegionLists.append(regions)
+        return usesWindowDragRegions
+    }
+
+    /// Every `performWindowAction`, in order (`CW-F`).
+    private(set) var windowActions: [PlatformWindowAction] = []
+    func performWindowAction(_ action: PlatformWindowAction) -> Bool {
+        windowActions.append(action)
+        return true
+    }
+
+    /// Whether the platform draws its own window buttons; `true`, AppKit's answer, by default.
+    var hasNativeWindowControls = true
+    /// Scripted by a test.
+    var isZoomed = false
+
     /// Delivers a drag from outside the window (ruling `DN-C`), as the
     /// platform's drop path would, and answers what the window answered.
     @discardableResult

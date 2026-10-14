@@ -60,9 +60,20 @@ same declarations; your code does not branch.
   `aDrawnMenuIsDrivenThroughTheTree`).
 - File dialogs are SDL's own, and a `ContentType` filters by **filename extension only**, so give a
   type its extensions (divergence 129). The block below declares one.
-- A window drag records the request and leaves the system title bar to drag itself (divergence 276);
-  the pointer shapes are SDL's, which has no hand or zoom cursor; `windowStyle: .hiddenTitleBar`
-  reads zero insets because SDL keeps its title bar.
+- `windowStyle: .hiddenTitleBar` makes an SDL window borderless **where the video driver can change a
+  border**: the platform answers `true` and `titleBarInsets` reads a 32-point band plus the edge of the
+  three window buttons the window draws itself (138 on the right on Linux and Windows, 70 on the left
+  through SDL on macOS), all zero in full screen (divergence 175). Where the driver cannot — the
+  `offscreen` driver of the Linux test image, measured — the platform answers `false`, the window keeps
+  its system bar and the insets stay zero. Pins in `Backends/SDL/Tests/MetalUISDLTests/SDLChromeTests.swift`
+  (`theStyleAnswerIsWhatTheDriverDid` on every driver, the rest on drivers with a window manager); a
+  real Windows, X11 or Wayland window is human check group CW, not run.
+- The drag is a set of regions published to `SDL_SetWindowHitTest`: the empty band and each
+  `WindowDragGesture` handle, minus every control that needs the pointer, and the six-point edges and
+  corners of a borderless window resize it. SDL takes the pointer events inside a region, so a hover
+  inside the band is not delivered (divergences 276, 425, 426). `performWindowDrag()` still answers
+  `false`; a handle moves the window through its region, not through the gesture. Double-click zoom
+  on the band is not promised on Linux (human check CW6).
 - A drop onto the window targets the deepest destination whatever its type (divergence 102).
 
 ```swift
@@ -112,6 +123,24 @@ func crossLogo(path: String) -> ImageBitmap? {
 A test reads the labelled image from the accessibility tree and gets `nil` for a missing file (pin:
 `theCrossPlatformGuideAMissingFileIsNil`; the decoder's own pins: `everyFixturePNGDecodesToItsLiteralPixels`,
 `aCorruptPNGIsNil`).
+
+To read pixels, decode once with `DecodedImage` (PNG and JPEG, the same decoder, MetalUI-only): `.grey`
+gives one luma byte per pixel (a grey source exactly, otherwise Rec. 601 with alpha dropped), `.rgba` gives
+straight-alpha bytes, and `orientation` is the file's EXIF tag, **reported and not applied** (a bitmap built
+from the file draws its stored pixels, divergence 435). `applyingOrientation()` turns the pixels upright, and
+`Image(_:scale:orientation:label:)` draws a bitmap turned by a tag you already read.
+
+```swift
+/// Decodes once: grey pixels to analyse, and an upright bitmap to draw.
+func crossDecode(_ data: Data) -> (grey: DecodedImage, upright: ImageBitmap)? {
+    guard let grey = DecodedImage(data: data, format: .grey),
+          let colour = DecodedImage(data: data) else { return nil }
+    return (grey, ImageBitmap(colour.applyingOrientation()))
+}
+```
+
+A one-pixel PNG decodes to one grey byte and a 1x1 bitmap, and bytes that are not an image are `nil`
+(pin: `theCrossPlatformGuideDecodesOnceAndRejectsGarbage`).
 
 Text uses CoreText on macOS and MetalUI's portable system (HarfBuzz shaping, FreeType glyphs,
 libunibreak line breaking) elsewhere, measured against CoreText. Fonts come from the platform's

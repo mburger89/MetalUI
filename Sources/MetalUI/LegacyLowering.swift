@@ -782,11 +782,7 @@ extension LayoutPass {
         let size = declared.size
         if isPercent(size.width) || isPercent(size.height) { fields.append(entry("size.percent")) }
 
-        func hasPercentEdge(_ edges: Edges<Length>) -> Bool {
-            [edges.top, edges.right, edges.bottom, edges.left]
-                .contains { if case .percent = $0 { true } else { false } }
-        }
-        if hasPercentEdge(declared.padding) { fields.append(entry("padding.percent")) }
+        if edgesHavePercent(declared.padding) { fields.append(entry("padding.percent")) }
         // Stage 5 (ruling `LR-CK`): `.absolute` is reported by the CONSUMER, not
         // here — `planLegacyItems` for a child, `reportUnconsumedLoweredItems` for a
         // record nobody consumed — because a `Deferred` consumes it and lowers it
@@ -1350,4 +1346,10 @@ extension LayoutPass {
                                         height: Double(window.height.value),
                                         alignment: proposalAlignment(horizontal: h.factor, vertical: v.factor))
     }
+}
+
+/// Whether any of `edges` is a percentage (`HP-C`'s plain-loop site: no closure, so no isolation check).
+func edgesHavePercent(_ edges: Edges<Length>) -> Bool {
+    [edges.top, edges.right, edges.bottom, edges.left]
+        .contains { if case .percent = $0 { true } else { false } }
 }

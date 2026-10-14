@@ -96,9 +96,14 @@ struct Affine2D: Equatable, Sendable {
 
     private func boundingBox(x: Double, y: Double, w: Double, h: Double)
         -> (x: Double, y: Double, w: Double, h: Double) {
-        let corners = [apply(x, y), apply(x + w, y), apply(x, y + h), apply(x + w, y + h)]
-        let minX = corners.map(\.x).min()!, maxX = corners.map(\.x).max()!
-        let minY = corners.map(\.y).min()!, maxY = corners.map(\.y).max()!
+        // Four scalar corners, no array and no closure (`HP-E`); the comparisons are `Array.min()`'s and
+        // `max()`'s own (`<` and `>` against the running value, first corner first), so the answer is bit-equal.
+        let c0 = apply(x, y), c1 = apply(x + w, y), c2 = apply(x, y + h), c3 = apply(x + w, y + h)
+        var minX = c0.x, maxX = c0.x, minY = c0.y, maxY = c0.y
+        if c1.x < minX { minX = c1.x }; if c2.x < minX { minX = c2.x }; if c3.x < minX { minX = c3.x }
+        if c1.x > maxX { maxX = c1.x }; if c2.x > maxX { maxX = c2.x }; if c3.x > maxX { maxX = c3.x }
+        if c1.y < minY { minY = c1.y }; if c2.y < minY { minY = c2.y }; if c3.y < minY { minY = c3.y }
+        if c1.y > maxY { maxY = c1.y }; if c2.y > maxY { maxY = c2.y }; if c3.y > maxY { maxY = c3.y }
         return (minX, minY, maxX - minX, maxY - minY)
     }
 }

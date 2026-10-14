@@ -1564,6 +1564,60 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
   C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
 
+## HP. Hot paths — text and shadows look the same (item P1, user request 2026-10-02, not a plan task; record §111)
+
+*An agent cannot: the fourteen offscreen images are 0 px against `fb9a7e42`; a real display, a scale change and an eye are a person's.*
+
+- [ ] **HP1.** Text placement is unchanged in a real window at 1x and 2x: `swift run -c release MetalUIDemo`, compare
+  against a `fb9a7e42` build side by side: paragraphs, mixed-script lines and the rich-text section sit on the same
+  device pixels, no glyph a pixel off, no clipped or doubled glyph while the window resizes (the placement memo keys on
+  origin, scale and font, `HP-A`, `HP-H`). **Observed:**
+- [ ] **HP2.** Scrolling a list and panning a shadowed container keep text and shadows sharp and stationary relative to
+  their rows: fractional scroll offsets (trackpad) never leave a stale glyph position (`HP-A` key x/y; the rich-text
+  y component is pinned, record §111 s7). **Observed:**
+- [ ] **HP3.** A border width, an opacity and a frame still animate smoothly and settle exactly (hover a bordered
+  control, toggle a transition): the early-outs return only when nothing is in flight (`HP-C`). **Observed:**
+
+## IB. Image decoding and orientation — what only an eye shows (item S2, user request 2026-10-02, not a plan task; record 113)
+
+*An agent cannot: these need a real window and a person who knows which way up a photograph is.*
+
+- [ ] **IB1.** Draw a JPEG tagged EXIF 6 two ways beside each other, in a real window: decoded through
+  `DecodedImage` + `applyingOrientation()` + `ImageBitmap(_:)`, and `Image(_:scale:orientation: .right, label:)`
+  over the untagged `ImageBitmap(data:)`. Both read upright and identical (`IB-F`). **Observed:**
+- [ ] **IB2.** In a SwiftUI window, `Image(nsImage:)` of the same file reads upright, while MetalUI's plain
+  `ImageBitmap(data:)` of it reads sideways (divergence 435, `IB-G`; the sizes are probed headless, the look is
+  the eye's). **Observed:**
+
+## CW. Window chrome on SDL — borderless looks, drag, resize and the drawn buttons (item S1, user request 2026-10-02, MetalCreator SDL-port gap 3, not a plan task; record §112; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: these need a real Windows 11 and Linux (X11 and Wayland) desktop, a pointer and an eye.* Run
+`METALUI_CHROME_DEMO=1` on `MetalUISDLDemo` (and `MetalUIDemo` on macOS for the AppKit contrast).
+
+- [ ] **CW1.** The demo's looks on Windows 11 and Linux X11 and Wayland: a borderless window, the 32-point bar
+  filling its top, the three drawn buttons at the top right (flat 46 x 32 rectangles), the bar's title, button, field
+  and handle left of them, nothing under the cluster. **Observed:**
+- [ ] **CW2.** Dragging from the empty bar and from the handle at its end moves the window; the cursor, the window's
+  position and the focus behave as a titled window's. **Observed:**
+- [ ] **CW3.** The bar's button, search field and tap target still work (they are carved out of the drag region,
+  `CW-E`): click the button (the count rises), type in the field, tap the target; a click on a control never starts a
+  move. **Observed:**
+- [ ] **CW4.** Resizing from each edge and corner (6-point border, 12-point corner squares, `CW-G`); the border over a
+  scrollbar at the right edge swallows its first 6 points; a fixed-size window (equal min and max) resizes on no
+  such axis. **Observed:**
+- [ ] **CW5.** Divergence 425: inside the empty band the pointer style, hover and tooltips are lost on SDL (the
+  platform takes the events); outside it they work. Record which platforms swallow what. **Observed:**
+- [ ] **CW6.** Double-click on the empty band zooms and restores on Windows (`HTCAPTION`, `CW-I`) and does not on
+  X11 or Wayland (the region consumes both presses; divergence 427 is taken only if this fails). **Observed:**
+- [ ] **CW7.** macOS through SDL: the drawn buttons are three 12-point circles at the **left**, 70 points wide, in
+  AppKit's order; `titleBarInsets.left` is 70. **Observed:**
+- [ ] **CW8.** Entering and leaving fullscreen: the bar and buttons go, the window is bordered or not as before, the
+  last requested style comes back (`CW-B`). **Observed:**
+- [ ] **CW9.** A borderless Windows window's shadow and corners (DWM draws them for a borderless window or does
+  not; platform, `CW-A`). **Observed:**
+- [ ] **CW10.** Close goes through the close veto: with an `onCloseRequest` that answers `.cancel` or `.later` the
+  drawn Close button keeps the window and the app's alert shows; minimise and zoom/restore act, and Zoom reads
+  "Restore" while maximised. **Observed:**
 ## CB. Clipboard beyond text — pasting between applications (item S3, user request 2026-10-02, MetalCreator SDL-port gap 7, not a plan task; record 115)
 
 *An agent cannot: these need a real clipboard shared with another application, an unlocked screen and a person.*

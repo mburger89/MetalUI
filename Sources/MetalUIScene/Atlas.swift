@@ -36,6 +36,23 @@ public struct GlyphKey: Hashable, Sendable {
     /// Device pixels per point the glyph is rasterized for.
     public let scaleFactor: Float
 
+    /// The five components hashed once, at the only initialiser (`HP-B`).
+    ///
+    /// **Why it is stored.** The atlas probes a `GlyphKey` for every glyph of every visible `Text` on
+    /// every built frame; a synthesized `hash(into:)` SipHashed the five components (and the font's
+    /// own stored hash) each time. This is `FontKey`'s pattern: a fast reject for `==`, never a proof of
+    /// equality, and `hash(into:)` feeds this one `Int`.
+    ///
+    /// **The mix is a chain of bijections** (xor, multiply by an odd constant, xorshift), so two keys that
+    /// differ in exactly one component always store different hashes - deterministic, which is what
+    /// `aGlyphKeyHashesFromItsStoredHashAndComparesEqualByFields` reads back. No `Hasher` and no
+    /// Foundation (`PS-A`). `size` and `scaleFactor` enter by bit pattern with `-0.0` normalised to
+    /// `0.0`, because `==` is IEEE on both (a NaN is unequal to itself and hashes however it likes).
+    ///
+    /// `package` so the test can read it back and forge a collision; pinned unreachable from outside the
+    /// package by guard HP.1.
+    package let precomputedHash: Int
+
     /// A glyph key.
     public init(font: FontKey, glyph: UInt16, size: Double,
                 subpixelVariant: Int, scaleFactor: Float) {
@@ -44,6 +61,33 @@ public struct GlyphKey: Hashable, Sendable {
         self.size = size
         self.subpixelVariant = subpixelVariant
         self.scaleFactor = scaleFactor
+        var state = UInt64(bitPattern: Int64(font.precomputedHash))
+        func step(_ value: UInt64) {
+            state = (state ^ value) &* 0x9E37_79B9_7F4A_7C15
+            state ^= state >> 32
+        }
+        step(UInt64(glyph))
+        step((size + 0.0).bitPattern)
+        step(UInt64(bitPattern: Int64(subpixelVariant)))
+        step(UInt64((scaleFactor + 0.0).bitPattern))
+        self.precomputedHash = Int(bitPattern: UInt(state))
+    }
+
+    /// **All five components decide; ``precomputedHash`` only rejects early** (`FontKey.==`'s contract:
+    /// safe alone, unsafe together). `aGlyphKeyHashesFromItsStoredHashAndComparesEqualByFields` forges a
+    /// collision per component and needs `==` to settle it on the fields.
+    public static func == (lhs: GlyphKey, rhs: GlyphKey) -> Bool {
+        lhs.precomputedHash == rhs.precomputedHash
+            && lhs.glyph == rhs.glyph
+            && lhs.subpixelVariant == rhs.subpixelVariant
+            && lhs.size == rhs.size
+            && lhs.scaleFactor == rhs.scaleFactor
+            && lhs.font == rhs.font
+    }
+
+    /// Feeds ``precomputedHash`` alone.
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(precomputedHash)
     }
 }
 

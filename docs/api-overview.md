@@ -255,6 +255,17 @@ ImageIO on macOS and are `nil` elsewhere; a corrupt or truncated file is
 process, so every frame gets the same texture identity. SwiftUI's
 `Image(_:bundle:)` (asset catalogs) is not offered.
 
+**Pixel decoding and orientation** (`IB-A`…`IB-L`, record 113): `DecodedImage` (M) decodes PNG and JPEG
+bytes with the same decoder to straight-alpha RGBA8 or 8-bit grey (`init?(data:format:)`,
+`init?(contentsOfFile:format:)`; `width`, `height`, `bytesPerRow`, `pixels`), reports the file's EXIF
+orientation (JPEG `APP1`, PNG `eXIf`; bounds-checked, damaged is `.up`) and does not apply it;
+`applyingOrientation()`, `orientedSize` and `ImageBitmap(_:)` complete the path. `Image.Orientation`
+(A) has SwiftUI's eight cases and raw values (plus MetalUI-only `init?(exifValue:)`, `exifValue`,
+`swapsAxes`); `Image(decorative:scale:orientation:)` and `Image(_:scale:orientation:label:)` (A, no
+default for `orientation`, `IB-K`) draw a bitmap turned by it through `ImageBitmap.oriented(_:)` (M;
+one cached texture per orientation). A bitmap decoded from a tagged file still draws its stored
+pixels (435).
+
 **Paths** (rulings `GX-B`…`GX-E`, `GX-K`): `Path` — SwiftUI's initialisers and
 mutators (`move`, `addLine`, `addLines`, `addQuadCurve`, `addCurve`, both
 `addArc`s, `addRect`, `addRects`, `addRoundedRect`, `addEllipse`, `addPath`,
@@ -427,6 +438,20 @@ built: `Scene.windowBackgroundDragBehavior`, `.windowDragArea()`, a double-click
 (M): the defaultless `PlatformWindow.performWindowDrag() -> Bool`; `MetalUITesting` gains
 `HeadlessPlatformWindow.windowDrags`, `Options.performsWindowDrag` and `TestWindow.windowDrags`.
 Human checks: group WD, unrun.
+
+**Window chrome on SDL** (`CW-`, item S1, record §112;
+[`superpowers/2026-10-13-sdl-chrome-decisions.md`](superpowers/2026-10-13-sdl-chrome-decisions.md);
+probe `probes/swiftui-window-chrome.swift`). All class M: SwiftUI has no window-control API. On SDL
+`.hiddenTitleBar` makes the window borderless (`CW-B`); `Window.drawsWindowControls` (default `true`) draws a
+close, minimise and zoom cluster where the platform has no native buttons and zeroes the cluster inset when off
+(`CW-C`, `CW-D`); `Window.minimize()`, `Window.toggleZoom()` and `Window.isZoomed` are the verbs an app-drawn
+control calls (close is `performClose()`, through the `AS-B` veto). The band and each `WindowDragGesture` handle
+become platform drag regions carved around everything that needs the pointer (`CW-E`, D 425, D 426), and a
+borderless window resizes from a 6-point edge (`CW-G`). At the seam: four defaultless `PlatformWindow`
+requirements (`setWindowDragRegions(_:) -> Bool`, `performWindowAction(_:) -> Bool`, `hasNativeWindowControls`,
+`isZoomed`), `PlatformWindowAction` and the portable `ChromeHitSnapshot`/`ChromeHit` in `MetalUIPlatform`;
+`MetalUITesting` gains `Options.sdlChrome`, `usesWindowDragRegions`, `hasNativeWindowControls`, `isZoomed`,
+`hiddenTitleBarInsets`, `TestWindow.windowDragRegions` and `.windowActions`. Human checks: group CW, unrun.
 
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
@@ -609,8 +634,10 @@ whose "Final spellings" table is the short form).
   **under** the bar; `@Environment(\.titleBarInsets)` (M, `Edges<Pixels>`:
   `top` the band's height, `left` the window buttons' right edge) says what to
   pad by; a press nothing claims in the band drags the window, a double-click
-  there zooms or minimises as System Settings says. SDL keeps its system
-  title bar and the insets read zero (`AS-E` item 6).
+  there zooms or minimises as System Settings says. On SDL the window is
+  borderless, the insets read the band (32) and the drawn buttons' cluster
+  edge (`right` 138, `left` 70 under macOS), and the window draws close,
+  minimise and zoom buttons over the corner (`CW-`, below).
 - **Open-document events** (A / D, divergence 176; `AS-G`, `AS-M`, `AS-Q`):
   `.onOpenURL { url in }` in the tree; `App.onOpenURL` when no window has one;
   `App.open(_ urls: [URL])` delivers as the platform does — the launch

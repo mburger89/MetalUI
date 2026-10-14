@@ -142,6 +142,11 @@ extension LocalizedStringKey {
             }
             return collapsedTextContent(runs)
         }
+        // A format with a trigger character is parsed once per distinct key (`HP-D`): the table holds
+        // the finished content, a value, so a steady frame's literals cost a lookup. A key holding an
+        // interpolated `Text`/`AttributedString` (runs) is not tabled.
+        let tableKey = MarkdownContentTable.key(for: segments)
+        if let tableKey, let hit = markdownContentTable.content(for: tableKey) { return hit }
         markdownParserCounter.increment()
         var units: [MarkdownUnit] = []
         var values: [Segment] = []
@@ -168,9 +173,52 @@ extension LocalizedStringKey {
                 }
             }
         }
-        return collapsedTextContent(runs)
+        let content = collapsedTextContent(runs)
+        if let tableKey { markdownContentTable.store(content, for: tableKey) }
+        return content
     }
 }
+
+/// The parsed content of Markdown-bearing keys, by the key's pieces (`HP-D`). **Bounded**: at
+/// `capacity` entries it is cleared whole (no LRU bookkeeping on the hot path), so a counter interpolated
+/// into a marked-up literal cannot grow it. Behind a lock, not the main actor, for the counter's reason
+/// above: a `Text` is built wherever its tree is (RT-T item 5).
+private final class MarkdownContentTable: @unchecked Sendable {
+    /// One piece of a key as the table sees it: the format as written or a value's description.
+    enum Part: Hashable {
+        case format(String)
+        case value(String)
+    }
+
+    static let capacity = 256
+    private let lock = NSLock()
+    private var table: [[Part]: TextContent] = [:]
+
+    /// `segments` as a table key, or nil when one carries runs.
+    static func key(for segments: [LocalizedStringKey.Segment]) -> [Part]? {
+        var parts: [Part] = []
+        parts.reserveCapacity(segments.count)
+        for segment in segments {
+            switch segment {
+            case .format(let string): parts.append(.format(string))
+            case .value(let string): parts.append(.value(string))
+            case .runs: return nil
+            }
+        }
+        return parts
+    }
+
+    func content(for key: [Part]) -> TextContent? { lock.withLock { table[key] } }
+
+    func store(_ content: TextContent, for key: [Part]) {
+        lock.withLock {
+            if table.count >= Self.capacity { table.removeAll(keepingCapacity: true) }
+            table[key] = content
+        }
+    }
+}
+
+private let markdownContentTable = MarkdownContentTable()
 
 /// A run of `string` with the attributes Markdown gave it (ruling RT-B item
 /// 5): strong → bold, emphasis → italic, strikethrough, code → monospaced,

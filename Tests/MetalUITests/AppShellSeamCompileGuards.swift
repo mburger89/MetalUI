@@ -19,7 +19,7 @@ private let platformSkipReason: Comment =
 /// The seven `PlatformWindow` requirements (`AS-H` item 1, `AS-J` item 2) and `WD-E`'s `performWindowDrag` (guard 3.1),
 /// each in the migration note's minimal honest spelling, keyed by the name a
 /// refusal must mention.
-private let windowMembers: [(name: String, spelling: String)] = [
+let windowMembers: [(name: String, spelling: String)] = [
     ("onCloseRequest", "var onCloseRequest: (() -> Bool)?"),
     ("close", "func close() { onClose?() }"),
     ("setDocumentEdited", "func setDocumentEdited(_ edited: Bool) {}"),
@@ -28,6 +28,15 @@ private let windowMembers: [(name: String, spelling: String)] = [
     ("titleBarInsets", "var titleBarInsets: Edges<Pixels> { Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: Pixels(0)) }"),
     ("performTitleBarPress", "func performTitleBarPress(clickCount: Int) -> Bool { false }"),
     ("performWindowDrag", "func performWindowDrag() -> Bool { false }"),
+]
+
+/// The four chrome requirements (`CW-F`), in the migration note's minimal honest spelling — present in every
+/// conformer of guard 1.1 so its arms isolate the app-shell seven, and the table of guard `CW-1`.
+let chromeMembers: [(name: String, spelling: String)] = [
+    ("setWindowDragRegions", "func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }"),
+    ("performWindowAction", "func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }"),
+    ("hasNativeWindowControls", "var hasNativeWindowControls: Bool { true }"),
+    ("isZoomed", "var isZoomed: Bool { false }"),
 ]
 
 /// The four `Platform` requirements (`AS-H` item 2), in the migration note's
@@ -41,7 +50,7 @@ private let platformMembers: [(name: String, spelling: String)] = [
 
 /// A `PlatformWindow` conformer with every requirement that existed before
 /// this branch, plus `members`.
-private func windowConformer(_ members: [String]) -> String {
+func windowConformer(_ members: [String]) -> String {
     """
     import MetalUICore
     import MetalUIScene
@@ -117,13 +126,13 @@ private func platformConformer(_ members: [String]) -> String {
 /// `func setRepresentedFilePath(_: String?) {}` (that arm compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUIPlatform"), platformSkipReason))
 func aPlatformWindowWithoutEachAppShellRequirementDoesNotCompile() throws {
-    let all = try typecheckFile(windowConformer(windowMembers.map(\.spelling)), importing: "MetalUIPlatform")
+    let all = try typecheckFile(windowConformer(windowMembers.map(\.spelling) + chromeMembers.map(\.spelling)), importing: "MetalUIPlatform")
     print("AS-H window members required: all succeeded=\(all.succeeded) messages=[\(all.messages)]")
     try #require(all.succeeded, "the control must compile, or this guard cannot fail:\n\(all.output)")
     for (index, member) in windowMembers.enumerated() {
         var rest = windowMembers.map(\.spelling)
         rest.remove(at: index)
-        let without = try typecheckFile(windowConformer(rest), importing: "MetalUIPlatform")
+        let without = try typecheckFile(windowConformer(rest + chromeMembers.map(\.spelling)), importing: "MetalUIPlatform")
         print("AS-H window members required: without \(member.name) succeeded=\(without.succeeded)")
         #expect(!without.succeeded, "a conformer without \(member.name) must not compile:\n\(without.output)")
         #expect(without.messages.contains(member.name),

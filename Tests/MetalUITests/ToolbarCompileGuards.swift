@@ -104,6 +104,10 @@ private func conformer(_ extra: String) -> String {
         var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
         func performTitleBarPress(clickCount: Int) -> Bool { false }
         func performWindowDrag() -> Bool { false }
+        func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }
+        func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }
+        var hasNativeWindowControls: Bool { true }
+        var isZoomed: Bool { false }
         var contentSize: Size<Pixels> { Size(width: Pixels(1), height: Pixels(1)) }
         var scaleFactor: Float { 1 }
         var renderer: any WindowRenderer { fatalError("never drawn") }

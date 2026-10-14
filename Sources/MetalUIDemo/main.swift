@@ -86,6 +86,11 @@ func runDemo() throws {
     // and their wires, each an `.equatable()` component; drag a node and read how many replayed.
     let retainedDemo = ProcessInfo.processInfo.environment["METALUI_RETAINED_DEMO"] == "1"
 
+    // Window chrome's human looks (`docs/verification/human-checks.md` group CW, spec
+    // `2026-10-13-sdl-chrome-design.md` "Demo"): a hidden title bar with a glass bar, a button, a field, a tap
+    // target and a drag handle in it.
+    let chromeDemo = ProcessInfo.processInfo.environment["METALUI_CHROME_DEMO"] == "1"
+
     // The clipboard beyond text (`CB-`, spec `2026-10-14-clipboard-types-design.md` §6): a
     // copyable/cuttable graph source, a paste destination and a text field.
     let clipboardDemo = ProcessInfo.processInfo.environment["METALUI_CLIPBOARD_DEMO"] == "1"
@@ -93,7 +98,9 @@ func runDemo() throws {
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if clipboardDemo {
+    if chromeDemo {
+        window = try openChromeDemoWindow(app, title: "MetalUI — Window Chrome")
+    } else if clipboardDemo {
         window = try app.openWindow(title: "MetalUI — Clipboard",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: clipboardDemoContent)

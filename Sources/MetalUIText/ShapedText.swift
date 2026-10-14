@@ -84,6 +84,10 @@ public struct ShapedText {
     /// exactly as it always did.
     public let lineOffsets: [Double]
 
+    /// What placement has read and computed for this shape (`HP-A`): a class
+    /// box so the struct stays a value and every copy shares it.
+    let placement = PlacementBox()
+
     init(lines: [ShapedLine], widestLine: Double, totalHeight: Double, lineOffsets: [Double]? = nil) {
         self.lines = lines
         self.widestLine = widestLine

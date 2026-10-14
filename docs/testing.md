@@ -95,6 +95,15 @@ test the window's own drawn menu, alert panel and toolbar strip, as on SDL.
 `performWindowDrag()` answers; `TestWindow.windowDrags` counts the requests a
 `WindowDragGesture` made (`WD-E`).
 
+`Options.sdlChrome` is SDL's answers under `.hiddenTitleBar` in one value (`CW-F`): the style applies, the platform
+uses drag regions, there are no native window buttons, and the insets are the band (32) and the drawn buttons'
+cluster (138 on the right). Open the window with `windowStyle: .hiddenTitleBar` through
+`TestApp.openWindow(…, options: .sdlChrome)`: `TestWindow.windowDragRegions` is the last list the window published
+(the unclaimed band and `WindowDragGesture` handles, carved around every control, tap, field and draggable; empty
+while a popover, menu or alert is open), `windowActions` the minimise and zoom requests the drawn buttons sent
+(`Options.isZoomed` and `HeadlessPlatformWindow.isZoomed` are the zoom state), and the drawn Close, Minimise and Zoom
+buttons are found by `element(label:)` and clicked like any button. `Window.drawsWindowControls = false` removes them.
+
 ## Input
 
 Every action delivers its events at the window's clock and **then draws one
