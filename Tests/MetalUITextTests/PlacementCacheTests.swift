@@ -191,3 +191,35 @@ private func glyphKey(font: FontKey, glyph: UInt16 = 42, size: Double = 13, vari
     #expect(system.cache.misses == misses + 1)
     #expect(shape(text("bolder")).placement.placementsComputed == 1)
 }
+
+/// Test 8b (verifier finding, record 111 s7). The rich-text placement memo key holds x, y and scale: placing
+/// one `StyledShapedText` at origins differing in only one of them recomputes, and the glyphs and segments
+/// move (a y component dropped from the key would draw a vertically scrolled rich `Text` stale).
+@MainActor
+@Test func aRichTextPlacementMemoKeyHoldsXAndYAndScale() {
+    let system = CoreTextTextSystem()
+    let regular = system.resolveFont(FontDescriptor(size: 13))
+    let bold = system.resolveFont(FontDescriptor(size: 13, weight: 0.4))
+    let text = StyledText("Plain bold and plain", runs: [
+        StyledTextRun(length: 6, style: TextRunStyle(font: regular)),
+        StyledTextRun(length: 4, style: TextRunStyle(font: bold)),
+        StyledTextRun(length: 10, style: TextRunStyle(font: regular))])
+    let fonts = text.runs.map { system.cache.font(for: $0.style.font)! }
+    let shaped = system.cache.styled(text, fonts: fonts, wrappingAt: 90, options: TextLayoutOptions())
+    func place(_ x: Double, _ y: Double, _ scale: Float) -> (glyphs: [(PlacedGlyph, Int)], segments: [TextRunSegment]) {
+        StyledShaper.placed(shaped, text: text, fonts: fonts, origin: (x: x, y: y), scaleFactor: scale)
+    }
+    let base = place(4, 6, 2)
+    #expect(shaped.placement.placementsComputed == 1)
+    _ = place(4, 6, 2)
+    #expect(shaped.placement.placementsComputed == 1, "an equal origin must hit the memo")
+    let movedY = place(4, 7, 2)
+    #expect(shaped.placement.placementsComputed == 2, "y alone must miss")
+    #expect(zip(base.glyphs, movedY.glyphs).allSatisfy { $0.0.baselineY != $1.0.baselineY },
+            "every glyph moves down with y")
+    let movedX = place(5, 7, 2)
+    #expect(shaped.placement.placementsComputed == 3, "x alone must miss")
+    #expect(zip(movedY.glyphs, movedX.glyphs).contains { $0.0.pixelX != $1.0.pixelX })
+    _ = place(5, 7, 1)
+    #expect(shaped.placement.placementsComputed == 4, "scale alone must miss")
+}
