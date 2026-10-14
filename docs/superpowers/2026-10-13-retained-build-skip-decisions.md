@@ -50,7 +50,7 @@ of `SB-AE` that all four were one indivisible change: *two* of them are (graft a
 other two (prepaint replay, redo) stand alone.
 
 **Cost if wrong.** If a consumer of the payload outside prepaint/paint exists (the lifecycle drain, accessibility, `frame(ofID:)`),
-a grafted occurrence is a trap there; lane 2's first test greps every `withPayload` caller and names each (`aGraftedOccurrenceIsNeverWalkedByAnElementPhase`).
+a grafted occurrence is a trap there; lane 2's first test greps every `withPayload` caller and names each (`aGraftedLayoutTrapsByNameWhenAnElementPhaseReadsIt`).
 
 ## RK-C — The paint-only ambient problem is solved by an optimistic decision and an exact check at paint, with a counted redo (`SB-AA`'s recorded alternative, adopted)
 
@@ -89,7 +89,7 @@ and the focus read-back's decision; everything else in `buildAndAdoptFrame`'s se
 **Ruling.** (1) A paint-time mismatch of a grafted or prepaint-replayed occurrence sets `frame.redoRequest` (the entry keys);
 `Window` runs the build again **before adoption**, with those entries disabled (`retained: .disabled`), the same transaction
 value passed to the second `Frame` and `scrollRequests` snapshotted and restored (a redo that dropped a queued `scrollTo` is a
-lost scroll: `aRedoFrameConsumesEachWindowInputOnce`), and the abandoned frame's scene, hitboxes, AX, focus registrations and
+lost scroll: `aRedoFrameEqualsARetentionOffFrameAndConsumesEachInputOnce`), and the abandoned frame's scene, hitboxes, AX, focus registrations and
 presentation records are simply dropped with the `Frame` — **nothing from it is adopted** (pinned by one differential: a redo
 frame equals a retention-off frame). (2) At most one redo per render; the redo's own mismatch is impossible (its entries are
 disabled, nothing else was replayed against a changed ambient — a second request traps in debug, runs plain in release).
@@ -99,7 +99,7 @@ animated ancestor costs at most one redo per 256 frames. Paint-only replay (lane
 (4) `FrameWork.retainedRedos` counts, `retainedBackoffFrames` counts the frames spent suspended.
 
 **Cost if wrong.** A resize drag pays one frame at twice the cost then eight plain frames (lane 1's cost): the pin
-`aResizeDragRedoesAtMostOncePerEightFrames` bounds it. A lifecycle or animation input consumed by the abandoned frame would be a
+`aRepeatedPaintOnlyChangeRedoesAtMostOncePerEightFrames` bounds it. A lifecycle or animation input consumed by the abandoned frame would be a
 silent loss; the restore list above is exactly the consumed set, and lane 1's `aRedoFrameEqualsARetentionOffFrame` runs a script with
 a pending `withAnimation`, a pending `scrollTo`, a focus write and a lifecycle appear across a redo.
 
