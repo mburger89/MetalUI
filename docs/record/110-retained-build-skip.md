@@ -230,7 +230,7 @@ past the item's -15 % refutation line and inside `RK-A`'s -28 % ceiling. Wall-cl
 
 Not separated, carried (`RK-AC` item 2): the re-recording of a top node's lowered item (`topItemsNotRecorded`) and the interior-item refusal (`interiorItemCheckOff`). Redundant by design (item 3): the version compare against a plain child's state.
 
-**Verify mode over the whole suite** (`METALUI_VERIFY_RETAINED=1`, `METALUI_VERIFY_LAYOUT_MEMO=1`, native, `AppKitPresentationTests` skipped): the run on the final tree (2026-10-14, a quieter Mac) read **3750 tests passed, 0 issues** (3771 less the five `AppKitPresentationTests` sheet tests, the sixteen skipped for `AppKitMenuTests`' set, and the `rsVerifying` pins that switch themselves off; an earlier run at the graft's first tree read 3746 in 830 s); the first spelling of the table
+**Verify mode over the whole suite** (`METALUI_VERIFY_RETAINED=1`, `METALUI_VERIFY_LAYOUT_MEMO=1`, native, `AppKitPresentationTests` skipped): the run on the final tree (2026-10-14, a quieter Mac) read **3750 tests passed, 0 issues** (of 3771: `AppKitPresentationTests` and `AppKitMenuTests` skipped, and the `rsVerifying` pins switch themselves off; an earlier run at the graft's first tree read 3746 in 830 s); the first spelling of the table
 comparison compared after the presented rebuild's sweep and read 118 marks missing (`RK-AA`, fixed). The pins added after that run are disabled under the variable (`rsVerifying`), as lane 1's count-reading tests are.
 
 **Gates.** Unfiltered `swift test --build-system native --no-parallel` on the final tree, after a full rebuild, on a **locked screen**: **3771 tests in 3 suites, 5 issues: exactly the five `AppKitPresentationTests` sheet issues of `CI-AF`** and nothing else
