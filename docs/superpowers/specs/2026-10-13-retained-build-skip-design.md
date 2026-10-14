@@ -1,6 +1,6 @@
 # Retained build skip (C14b-2) — design
 
-Status: **DESIGN** (2026-10-13, base `fb9a7e42`). Rulings `RK-A`…`RK-L` in
+Status: **DESIGN, reviewed (RK-M..RK-Q: redo checkpoint and replay-off, verify by double build, handler test, derived figures withdrawn)** (2026-10-13, base `fb9a7e42`). Rulings `RK-A`…`RK-L` in
 [`../2026-10-13-retained-build-skip-decisions.md`](../2026-10-13-retained-build-skip-decisions.md). Continues
 [`2026-10-13-retained-subtrees-design.md`](2026-10-13-retained-subtrees-design.md) (§9 and §10 are as built by record §109 §13).
 No public API, no SwiftUI-visible behaviour, no divergence (labels 405–414 unused), `Backends/SDL` and every platform seam untouched.
@@ -94,11 +94,11 @@ reddened tests named in the record (`docs/practices/verifying-tests-can-fail.md`
 2. `aPrepaintReplayedFrameEqualsAFreshFrameAtEveryDragStep` (value, panels arms: scene, hitbox list, tab order, AX emissions, tallies compared whole) — red before: `retainedPrepaintHits == 0`; mutations: replay hitboxes in reverse (ranking differs), drop one tally, skip focus stops, skip AX.
 3. `aReplayedHitboxIsRankedLikeAFreshOne` (overlapping siblings, `topmostHitbox` at a grid of points) — red before: passes on the stub (instrument); mutation: append replayed hitboxes after later siblings'.
 4. `aChangedPaintOnlyAmbientRedoesTheFrameOnce` (arms: `.opacity`, `.shadow`, `.blur`, `.compositingGroup()` outside the occurrence) — red before: `retainedRedos` absent/0 and a stale picture on the stub; mutations: redo disabled (stale scene), the arm's ambient dropped from `AmbientKey`.
-5. `aRedoFrameEqualsARetentionOffFrame` (script with a pending `withAnimation`, `scrollTo`, a `@FocusState` write, a lifecycle appear) and `aRedoFrameConsumesEachWindowInputOnce` — red before: counter absent; mutations: no `scrollRequests` restore (lost scroll), new transaction taken in the redo (animation lost), abandoned frame adopted.
+5. `aRedoLeavesEveryTableAsAFreshBuildWould` (RK-M, one checkpoint-channel mutation each; redo disables ALL graft/prepaint replay) and `aRedoFrameEqualsARetentionOffFrame` (script with a pending `withAnimation`, `scrollTo`, a `@FocusState` write, a lifecycle appear) and `aRedoFrameConsumesEachWindowInputOnce` — red before: counter absent; mutations: no `scrollRequests` restore (lost scroll), new transaction taken in the redo (animation lost), abandoned frame adopted.
 6. `aResizeDragRedoesAtMostOncePerEightFrames` and `aPersistentlyAnimatedAncestorIsQuarantined` — red before: unbounded redo count; mutations: backoff removed, quarantine exponent never doubling.
 7. `aPrepaintInEachIneligibleKindRunsAsBefore` (scroll region, popover, tooltip, drag source, presentation, surface, geometry note, portal — one arm each) — red before: counter absent; mutation: each kind's refusal removed, one at a time.
 8. `aFocusedOrHoveredOrPressedElementUnderTheOccurrenceRunsPrepaint` (`SB-X` extended to prepaint) — mutation: drop the rule.
-9. `noHandlerHoldsALayoutNodeID` (Mirror scan of recorded hitboxes in the bracket and demo trees) — mutation: a test handler capturing a node id in a fixture must redden it; **typecheck guard** only if a new `package` surface needs one (mutate it red once).
+9. `noRecordedHitboxStoresALayoutNodeID` and `aReplayedHandlerActsLikeAFreshOne` (RK-O; a `Mirror` cannot see closure captures) — mutations: a stored id field; a fixture handler capturing a stale id or re-seeded `@State` box; **typecheck guard** only if a new `package` surface needs one (mutate it red once).
 10. `everyFrameChannelIsClassified` gains the new rows — red before: the new properties absent from the table; mutation: delete a row.
 11. `aTranslatedReplayEqualsAFreshFrameAtEveryScale` (scales 1, 2, 4 taken; 1.5, 3 refused with count asserted; scenes bit-equal) — red before: `retainedTranslated == 0`; mutations: gate on power-of-two removed (reddens scale 3), integral-device gate removed (reddens fractional step), clip containment removed (cut run), translation applied to hitboxes only.
 12. `aPanOfTheWholeGraphByWholePointsReplaysEveryNode` and `aFractionalPanIsRefusedAndStillEqualsAFreshFrame` — red before: hits 0 on a pan; mutations as 11.

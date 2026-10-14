@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-M`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-Q`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -234,3 +234,70 @@ their values are equal: **this item will not by itself bring them under 16.67 ms
 and leaves the verdict to a MetalCreator reading.
 
 **Cost if wrong.** A reader expects the item to fix the frame budget; this ruling says it may not.
+
+## RK-M — The redo runs before `sweep()`, rolls back its checkpointed channels, and disables **all** graft and prepaint replay (corrects `RK-D` item 2)
+
+**Question.** Critic review of `RK-D`: is "the redo's own mismatch is impossible" true, and is a second `Frame` over the same tables safe?
+
+**Evidence.** (a) `RK-D` disables only the entries that requested the redo. An outer occurrence that is replayed hides its nested
+occurrences from the paint check; once the outer is disabled the nested ones are decided afresh and can themselves be grafted and
+mismatch, so a second request is reachable, not impossible. (b) `Frame.render` ends in `sweep()` and the build also advances
+window-owned stores (`AnimationStore` frame clock and ghosts, `LifecycleStore` presence, `ContentMemoStore` touched marks and its
+`endFrame` sweep, `departedNames`, `RasterCache` generation). The settle build the spec cites as precedent runs *after adoption* of a
+complete frame, not after an abandoned one, so "an established path" does not cover a frame whose sweep already ran.
+
+**Ruling.** (1) A redo is decided **before** `sweep()` (paint is the last phase that can request it) and the redo rebuilds with
+**every** graft and prepaint replay off window-wide for that render (paint-only replay stays: it has no redo); a second request
+traps in debug and is ignored in release, now truly impossible. (2) Before the first build the window takes a **checkpoint** of the
+channels a build mutates before adoption (`StateTable`'s build-window sets via `markJournal`'s range, `ContentMemoStore.touched`, the
+`AnimationStore` and `LifecycleStore` per-build state, `RasterCache` generation) and the redo restores it; which channels is
+listed by `everyFrameChannelIsClassified` (one more column: *checkpointed*). (3) New pin `aRedoLeavesEveryTableAsAFreshBuildWould`
+(key sets, slot versions, animation records, lifecycle presence, memo entries compared with a retention-off frame after the redo);
+mutation: one channel left out of the checkpoint, one run per channel. Spec §5 test 5 gains it; test 6's quarantine is unchanged.
+
+**Cost if wrong.** A redo that leaked a channel is a state reset or a lost animation on the one frame after a paint-only ancestor changes.
+
+## RK-N — Verify mode for the graft is a **second full build and a whole-frame compare**, not a scratch-tree build (replaces `RK-H`'s mechanism)
+
+**Evidence.** `RK-H` built the occurrence "into a scratch `LayoutTree`" and compared `StateTable` sets "the build would have produced",
+but a build's registrars, `noteNamed`, memo touches and lifecycle records write the shared tables, so a scratch tree alone cannot be
+isolated and the comparison is undefined without a snapshot — the same checkpoint `RK-M` defines.
+
+**Ruling.** With `METALUI_VERIFY_RETAINED=1`, a frame that grafted or replayed prepaint is **built again with replay off** through the
+`RK-M` redo path (checkpoint, restore) and the two frames' node rows, signatures, leaf keys, hitbox lists, tab order, AX emissions,
+tallies, scene and table key sets are compared; a difference traps naming the channel. The exit tests of `RK-H` stand (one per
+channel). Verify mode costs two builds a frame and is off by default.
+
+## RK-O — Replayed handlers: a `Mirror` cannot see a closure's captures, so `noHandlerHoldsALayoutNodeID` is replaced; a captured `@State` box must be the table's
+
+**Evidence.** Spec §5 test 9 (`noHandlerHoldsALayoutNodeID`, "a Mirror scan of recorded hitboxes") cannot be red for the case that
+matters: `Mirror` reads stored properties, not a closure's captured values, so a handler that closed over a dead-generation
+`LayoutNodeID` is invisible to it (a `Hitbox` field of that type is visible, the capture is not). Separately, `@State` is "a box seeded
+by reflection per element per frame": a never-written default is re-seeded each build, so a handler recorded in frame N may hold a box
+the table no longer owns, and a write through the replayed closure would go nowhere.
+
+**Ruling.** (1) Test 9 becomes two: `noRecordedHitboxStoresALayoutNodeID` (Mirror over the stored fields of the recorded structs only;
+mutation: add such a field to a fixture type) and **`aReplayedHandlerActsLikeAFreshOne`** (after a replay, invoke every recorded hitbox's
+click, key, drag and hover handler and compare the resulting state, focus and scene with the retention-off frame's; mutation: a
+fixture handler capturing a stale id or a re-seeded box must redden it). Capture is otherwise settled by verify mode (`RK-N`).
+(2) An occurrence with a bound `@State` slot whose box is **not the table's entry** (never written, re-seeded) is **ineligible for
+prepaint replay and graft** (counted `retainedPrepaintIneligible`, named); `RK-E`'s "no bound `@State` moved" becomes "every bound slot
+is a table entry and none moved".
+
+## RK-P — `RK-A`'s per-frame figures are derived inconsistently; they are re-taken directly, and the 13 % ratio stands only as a ratio
+
+**Evidence.** The probe README derives "about 29 occurrences hit per drag frame" and then 1.4 ms of build; 29 x 72.5 us is 2.1 ms, and
+1.4 ms implies 19. The probe's frame counter read 1 (a stated defect), so occurrences per frame were never measured, and outermost
+versus nested counts are not separated.
+
+**Ruling.** The **13 % ratio** (72.5 against 9.7 us per outermost occurrence) is the evidence for building M2; the **1.4 ms and 0.19 ms per
+frame, the 1.7 ms ceiling and the -28 % are unverified** and `RK-A`'s budget is withdrawn as a number. Lane 2 step 1 measures
+graft-plus-journal against build **per frame on the drag frames** (occurrences counted, outermost only), and `RK-J`'s 50 % stop and
+`RK-L`'s -15 % refutation are judged on that reading. No SwiftUI claim is involved, so no SwiftUI probe is owed (confirming the header).
+
+## RK-Q-note — Rejected after review (no change)
+
+Rejected as defects: "no SwiftUI probe" (no SwiftUI-facing claim; gpui recall is labelled as memory); "lane 2 waits on lane 1" (serial agents,
+files named); "test 3 passes on the stub" (declared an instrument, mutation named); the demo switch reaching a `package` hook
+(`MetalUIDemoContent` is in the package). Translated replay's mutation arms (test 11) owe a `try #require` that the scale-3 arm
+actually differs under the mutated gate (`SB-H`: 31 of 2999), added to the spec.
