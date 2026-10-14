@@ -269,6 +269,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | an exhaustive `switch` over `InputEvent` (toolbar) | add a `.toolbarAction(_:)` arm (or `default:`) | `MD-J` item 6 |
 | an exhaustive `switch` over `InputEvent` (input APIs) | add `.rightMouseDragged`, `.otherMouseDown`, `.otherMouseDragged`, `.otherMouseUp`, `.magnify` and `.rotate` arms (or `default:`) | `CI-E` item 5, `CI-J` item 1 |
 | a `PlatformWindow` conformer outside the package (input APIs) | implement `func setPointerStyle(_ style: PlatformPointerStyle) {}` — an empty body is honest where the platform cannot change the pointer; no default | `CI-J` item 2 |
+| an exhaustive `switch` over `PlatformPointerStyle` (image cursors) | add a `case .image(let image):` arm (or `default:`): `image` is a `PlatformCursorImage` (premultiplied `texture`, `scale`, hot spot in points from the top-left, `pointWidth`/`pointHeight`); a platform that cannot draw it leaves the current cursor. `PlatformWindow` gains no requirement. This is the case `CI-AC` foretold | `IC-A`, `IC-C` item 3 |
 | a `PlatformWindow` conformer outside the package (app shell) | implement the seven new requirements — `var onCloseRequest: (() -> Bool)?` (ask it before a user's close; `nil` or `true` closes), `func close()` (close without asking, then fire `onClose` exactly once), `func setDocumentEdited(_: Bool) {}`, `func setRepresentedFilePath(_: String?) {}`, `func setTitleBarStyle(_: PlatformTitleBarStyle) -> Bool { false }`, `var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }` and `func performTitleBarPress(clickCount: Int) -> Bool { false }` — the empty bodies and `false` answers are honest where the platform has no edited marker, represented file, hidden title bar or title-bar drag; no defaults | `AS-H`, `AS-J` |
 | a `Platform` conformer outside the package (app shell) | implement the four new requirements — `var onTerminateRequest: (() -> CloseRequestReply)?` (ask it before ending the application on the platform's own quit; `nil` answers `.now`), `func replyToTerminateRequest(_: Bool)` (end on `true` if a `.later` is pending, else nothing), `func terminate()` (end, asking nobody) and `var onOpenURLs: (([String]) -> Void)?` (call it with the absolute URL strings the system asks to open, parking them until it is set) — no defaults | `AS-H` |
 | a `PlatformWindow` conformer outside the package (window drag) | implement `func performWindowDrag() -> Bool { false }` — honest where the platform cannot move the window from a press (SDL: its system title bar drags itself); AppKit answers `true` only while dispatching the mouse-dragged of a held press; no default | `WD-E` |
@@ -477,6 +478,19 @@ by the same import). No `PlatformWindow`, `Platform`, `WindowRenderer` or `TextS
 conformer changes; `SDLGPUDrawContext` is unchanged. An app that bound SDL3 itself keeps working and may drop its
 binding. An app's own shaders are built with `Backends/SDL/scripts/compile-app-shaders.py` and shipped as
 `MetalUIAppShaders` (`docs/packaging.md` section 4a).
+
+### Clipboard beyond text (`CB-`, record 115)
+
+**Four defaultless `PlatformWindow` requirements** (`CB-E`): a conformer outside this repository adds
+`func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool`, `func clipboardTypeIdentifiers() -> [String]`,
+`func readClipboard(identifier: String) -> [UInt8]?` and `func setClipboardCommands(_ commands: ClipboardCommands)`.
+A platform with no typed clipboard answers `{ false }`, `{ [] }`, `{ _ in nil }` and `{ _ in }`; the text-only
+`readClipboard()` and `writeClipboard(_ text:)` stay and text fields keep using them. `HeadlessPlatformWindow.clipboard`
+is now a view of its `public.utf8-plain-text` representation (`clipboardRepresentations` holds all of them).
+New API (additive): `copyable(_:)`, `cuttable(for:action:)`, `pasteDestination(for:action:validator:)` in both
+vocabularies, `Window.clipboard`/`Clipboard`; a file importing CoreTransferable spells `MetalUI.Transferable`.
+Behaviour: a key the Edit menu or the keyboard sends as primary C/X/V now reaches a clipboard handler on the focus
+chain before a `Button`'s shortcut or an app command bound to the same key (`CB-B`); with no handler nothing moves.
 
 ## See also
 

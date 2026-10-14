@@ -1,4 +1,5 @@
 import MetalUICore
+import MetalUIScene
 
 /// A pointer (cursor) shape at the platform seam (ruling `CI-H` item 8): the
 /// kinds MetalUI's `PointerStyle` lowers to, with no SwiftUI type crossing the
@@ -8,11 +9,11 @@ import MetalUICore
 /// both hands as its move cursor and both zooms as its default (SDL has no
 /// hand or zoom cursor — a documented platform constraint).
 ///
-/// **An image cursor adds a case here** (`CI-AC`): `PointerStyle.image(_:hotSpot:)`
-/// and `.shape(…)` are not offered (`CI-A`), and offering them adds a case to
-/// this enum, so an outside `PlatformWindow` conformer's exhaustive `switch` in
-/// `setPointerStyle(_:)` then owes a case or `default:` — a migration note in
-/// the change that adds it.
+/// **The image cursor is the `.image` case** (`IC-A`, which `CI-AC` foretold):
+/// `PointerStyle.image(_:hotSpot:)` lowers to it, so an outside `PlatformWindow`
+/// conformer's exhaustive `switch` in `setPointerStyle(_:)` owes `.image` or
+/// `default:` — a migration note (`docs/migration.md`). `.shape(…)` is still
+/// not offered (`CI-A`, `IC-G`).
 public enum PlatformPointerStyle: Sendable, Hashable {
     /// The arrow: SwiftUI's `.default`.
     case arrow
@@ -39,6 +40,64 @@ public enum PlatformPointerStyle: Sendable, Hashable {
     /// A window-frame resize at `edge`, the arrows showing the directions the
     /// edge can move: `inward`, `outward`, or both (both when neither is set).
     case frameResize(edge: PlatformResizeEdge, inward: Bool, outward: Bool)
+    /// A cursor drawn from an app's bitmap: `PointerStyle.image(_:hotSpot:)`
+    /// (`IC-A`). A platform that cannot make it leaves the current cursor
+    /// (`IC-C` 3).
+    case image(PlatformCursorImage)
+}
+
+/// An image cursor at the platform seam (ruling `IC-A`): the bitmap's
+/// premultiplied texture, the scale that gives its point size, and the hot
+/// spot in points from the top-left, **already resolved and clamped** by
+/// `Window`'s side (`IC-C`).
+///
+/// **Equality and hash are the texture's identity**, the scale and the hot
+/// spot, never the bytes: two bitmaps with equal pixels are two cursors, and
+/// one bitmap rebuilt into an `Image` every frame is one (`IC-F`), so a
+/// platform can cache its native cursor per value.
+public struct PlatformCursorImage: Sendable, Hashable {
+    /// The cursor's pixels, premultiplied RGBA8 sRGB (`TE-AF`, `AI-E`).
+    public let texture: ImageTexture
+    /// Pixels per point: the cursor is `pixelWidth / scale` points wide.
+    public let scale: Float
+    /// The hot spot's x in points from the left edge.
+    public let hotSpotX: Float
+    /// The hot spot's y in points from the top edge.
+    public let hotSpotY: Float
+
+    /// A cursor image. `hotSpot` is in points from the top-left; it is not
+    /// clamped here (`PointerStyle.image(_:hotSpot:)` clamps it). Public
+    /// because the `Backends/SDL` package and an outside conformer's tests
+    /// build one.
+    public init(texture: ImageTexture, scale: Float, hotSpot: (x: Float, y: Float)) {
+        self.texture = texture
+        self.scale = scale
+        self.hotSpotX = hotSpot.x
+        self.hotSpotY = hotSpot.y
+    }
+
+    /// The bitmap's width in pixels.
+    public var pixelWidth: Int { texture.width }
+    /// The bitmap's height in pixels.
+    public var pixelHeight: Int { texture.height }
+    /// The cursor's width in points: `pixelWidth / scale`.
+    public var pointWidth: Float { Float(texture.width) / scale }
+    /// The cursor's height in points: `pixelHeight / scale`.
+    public var pointHeight: Float { Float(texture.height) / scale }
+
+    /// Texture identity, scale and hot spot (`IC-A` 2).
+    public static func == (lhs: PlatformCursorImage, rhs: PlatformCursorImage) -> Bool {
+        lhs.texture === rhs.texture && lhs.scale == rhs.scale
+            && lhs.hotSpotX == rhs.hotSpotX && lhs.hotSpotY == rhs.hotSpotY
+    }
+
+    /// Hashes what `==` compares.
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(texture))
+        hasher.combine(scale)
+        hasher.combine(hotSpotX)
+        hasher.combine(hotSpotY)
+    }
 }
 
 /// An edge or corner of a resizable frame (ruling `CI-H` item 8), in the

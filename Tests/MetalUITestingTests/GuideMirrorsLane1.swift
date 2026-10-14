@@ -1,3 +1,4 @@
+import Foundation
 import MetalUI
 import MetalUITesting
 import Observation
@@ -355,6 +356,90 @@ func inputComposeRoot(_ model: InputComposeModel) -> some Element {
 }
 // end guide
 
+// guide: input #9
+/// A graph fragment: it copies as its own type and, after it, as plain text.
+struct InputGraph: Transferable, Equatable {
+    static let contentType = ContentType("com.example.graph", conformingTo: [.data])
+    var nodes: Int
+
+    func exportedContentTypes() -> [ContentType] { [InputGraph.contentType, .utf8PlainText] }
+    static func importedContentTypes() -> [ContentType] { [InputGraph.contentType, .utf8PlainText] }
+
+    func exported(as contentType: ContentType) -> Data? {
+        if contentType == InputGraph.contentType { return Data("nodes:\(nodes)".utf8) }
+        if contentType == .utf8PlainText { return Data("graph with \(nodes) nodes".utf8) }
+        return nil
+    }
+
+    init(nodes: Int) { self.nodes = nodes }
+
+    init?(importing data: Data, contentType: ContentType) {
+        let text = String(decoding: data, as: UTF8.self)
+        if contentType == InputGraph.contentType {
+            guard text.hasPrefix("nodes:"), let count = Int(text.dropFirst(6)) else { return nil }
+            nodes = count
+        } else if contentType == .utf8PlainText {
+            nodes = text.count
+        } else {
+            return nil
+        }
+    }
+}
+
+/// What the destination received, in order.
+@MainActor
+final class InputClipboardModel {
+    var graph = InputGraph(nodes: 3)
+    var pasted: [InputGraph] = []
+}
+
+/// A focusable source that copies and a focusable destination that pastes.
+@MainActor
+func inputClipboardRoot(_ model: InputClipboardModel) -> some Element {
+    VStack(alignment: .leading) {
+        Box().frame(width: Pixels(120), height: Pixels(40)).background(.surface)
+            .accessibilityIdentifier("source")
+            .focusable()
+            .copyable([model.graph])
+        Box().frame(width: Pixels(120), height: Pixels(40)).background(.surface)
+            .accessibilityIdentifier("destination")
+            .focusable()
+            .pasteDestination(for: InputGraph.self) { model.pasted += $0 }
+    }
+}
+
+/// Code outside a view writes and reads through the window's clipboard.
+@MainActor
+func inputCopyFromCode(_ window: Window, _ graph: InputGraph) -> InputGraph? {
+    window.clipboard.write(graph)
+    return window.clipboard.read(InputGraph.self)
+}
+// end guide
+
+
+// guide: input #8
+/// A bitmap drawn in code: a filled disc of `side` pixels.
+func inputDisc(side: Int) -> ImageBitmap {
+    var rgba: [UInt8] = []
+    let centre = Double(side) / 2
+    for y in 0..<side {
+        for x in 0..<side {
+            let dx = Double(x) + 0.5 - centre, dy = Double(y) + 0.5 - centre
+            let inside = dx * dx + dy * dy <= centre * centre
+            rgba += inside ? [30, 120, 255, 255] : [0, 0, 0, 0]
+        }
+    }
+    return ImageBitmap(width: side, height: side, rgba: rgba)
+}
+
+/// A region whose pointer is the disc, hot spot at its centre, drawn at 2x.
+@MainActor
+func inputCursorRegion(_ disc: ImageBitmap) -> some Element {
+    Rectangle()
+        .frame(width: Pixels(120), height: Pixels(80))
+        .pointerStyle(.image(Image(decorative: disc, scale: 2), hotSpot: .center))
+}
+// end guide
 
 // MARK: - Tests
 
@@ -537,6 +622,19 @@ private func stateLabelIsAbsent(_ window: TestWindow, _ label: String) -> Bool {
     #expect(window.windowDrags == 1)
 }
 
+/// An image cursor over the region sends the bitmap at its point size: a 48 px disc at scale 2 is 24 pt.
+/// Mutation: delete `.pointerStyle(...)` from `inputCursorRegion`.
+@Test @MainActor func theInputGuideAnImageCursorSendsItsBitmap() throws {
+    let disc = inputDisc(side: 48)
+    let window = try harnessWindow { inputCursorRegion(disc) }
+    window.hover(at: Point(x: Pixels(200), y: Pixels(150)))
+    guard case .image(let cursor)? = window.pointerStyle else {
+        Issue.record("the region sent \(String(describing: window.pointerStyle))")
+        return
+    }
+    #expect(cursor.pointWidth == 24 && cursor.hotSpotX == 12 && cursor.hotSpotY == 12)
+}
+
 /// With nothing focused, Space goes to the key region under the pointer; away from it, nowhere.
 /// Mutation: delete `.hoverKeyRegion()`.
 @Test @MainActor func theInputGuideAKeyGoesToTheKeyRegionUnderThePointer() throws {
@@ -592,4 +690,46 @@ private func stateLabelIsAbsent(_ window: TestWindow, _ label: String) -> Bool {
     window.setMarkedText("hao")
     #expect(window.cancelMarkedText())
     #expect(model.writes.count == 1)
+}
+
+#if os(macOS)
+private let inputPrimary: EventModifiers = .command
+#else
+private let inputPrimary: EventModifiers = .control
+#endif
+
+/// The copy guide (CB-A, CB-B, CB-C): Tab to the source, the primary-C writes the custom type and
+/// its text fallback. Mutation: delete `.copyable([model.graph])` from `inputClipboardRoot`.
+@Test @MainActor func theInputGuideACopyableGraphWritesItsTypeAndItsTextFallback() throws {
+    let model = InputClipboardModel()
+    let window = try harnessWindow { inputClipboardRoot(model) }
+    window.typeKey("c", modifierFlags: inputPrimary)
+    #expect(window.clipboardRepresentations.isEmpty, "nothing is focused: nothing is copied")
+    window.typeKey(.tab)
+    window.typeKey("c", modifierFlags: inputPrimary)
+    #expect(window.clipboardRepresentations.map(\.type.identifier) == ["com.example.graph", "public.utf8-plain-text"])
+    #expect(window.platformWindow.clipboard == "graph with 3 nodes")
+}
+
+/// The paste guide (CB-F): the destination takes the custom type; with only text on the clipboard it
+/// takes the text import. Mutation: delete `.pasteDestination` from `inputClipboardRoot`.
+@Test @MainActor func theInputGuidePasteTakesTheCustomTypeThenTheTextFallback() throws {
+    let model = InputClipboardModel()
+    let window = try harnessWindow { inputClipboardRoot(model) }
+    window.typeKey(.tab)
+    window.typeKey("c", modifierFlags: inputPrimary)
+    window.typeKey(.tab)
+    window.typeKey("v", modifierFlags: inputPrimary)
+    #expect(model.pasted == [InputGraph(nodes: 3)])
+    window.setClipboard(text: "four")
+    window.typeKey("v", modifierFlags: inputPrimary)
+    #expect(model.pasted == [InputGraph(nodes: 3), InputGraph(nodes: 4)], "text imported as its length")
+}
+
+/// The imperative guide (CB-J): write and read from code. Mutation: `inputCopyFromCode` drops the write.
+@Test @MainActor func theInputGuideTheWindowClipboardRoundTripsFromCode() throws {
+    let model = InputClipboardModel()
+    let window = try harnessWindow { inputClipboardRoot(model) }
+    #expect(inputCopyFromCode(window.window, InputGraph(nodes: 9)) == InputGraph(nodes: 9))
+    #expect(window.clipboardRepresentations.count == 2)
 }

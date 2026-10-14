@@ -132,6 +132,31 @@ public protocol PlatformWindow: AnyObject {
     /// Replaces the system clipboard's contents with `text`.
     func writeClipboard(_ text: String)
 
+    /// Replaces everything the system clipboard holds with `representations`
+    /// (ruling `CB-E`), most preferred first; `true` when the platform accepted
+    /// at least one. Zero-byte representations are dropped by the caller
+    /// (`CB-I`).
+    ///
+    /// **No default implementation, for any of the four clipboard
+    /// requirements** (`CB-E`): a conformer that forgets one fails to compile.
+    /// **Migration**: a conformer outside this repository adds
+    /// `writeClipboard(_: [ClipboardRepresentation]) -> Bool`,
+    /// `clipboardTypeIdentifiers() -> [String]`, `readClipboard(identifier:) -> [UInt8]?`
+    /// and `setClipboardCommands(_:)`; `{ false }`, `{ [] }`, `{ _ in nil }` and `{ _ in }`
+    /// are the honest answers of a platform with no typed clipboard.
+    func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool
+
+    /// The identifiers of the types the system clipboard holds, most preferred
+    /// first as the platform lists them (ruling `CB-E`).
+    func clipboardTypeIdentifiers() -> [String]
+
+    /// The clipboard's bytes as the type `identifier`; `nil` when absent.
+    func readClipboard(identifier: String) -> [UInt8]?
+
+    /// What the focus chain can do with the clipboard now (ruling `CB-G`), sent
+    /// after a frame and only on change, for the platform's Edit menu.
+    func setClipboardCommands(_ commands: ClipboardCommands)
+
     func startDisplayLink(_ tick: @escaping (Double) -> Void)
 
     /// Hands an in-window drag to the operating system when the pointer leaves

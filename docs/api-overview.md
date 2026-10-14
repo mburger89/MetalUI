@@ -22,7 +22,9 @@ design: no SwiftUI counterpart. **X** — deprecated, with its replacement.
 Platforms: macOS (AppKit + Metal, the default), Linux and Windows (the
 `MetalUISDL` product of the root package, behind its `SDL` and `AccessKit`
 package traits, `PX-H`; [`getting-started.md`](getting-started.md) says what
-to install). iOS and the other Apple platforms are out of
+to install). `SDLPlatform(options:)` takes `SDLPlatform.Options`; `.headless` opens hidden
+windows that render offscreen, for a CI smoke test with no display
+([`testing.md`](testing.md#a-ci-smoke-test-of-the-real-window), `IC-J`). iOS and the other Apple platforms are out of
 scope (`PB-A`).
 
 ## App and window — M
@@ -377,6 +379,19 @@ no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
 `@FocusState`/`.focused` (A, 94). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 
+**The clipboard beyond text** (`CB-`, record 115;
+[`superpowers/2026-10-14-clipboard-types-decisions.md`](superpowers/2026-10-14-clipboard-types-decisions.md)).
+`.copyable(_:)`, `.cuttable(for:action:)` and `.pasteDestination(for:action:validator:)` on every `StyledElement`
+and, once, on proposal content (A: SwiftUI's signatures, probe `swiftui-clipboard-types.swift` arm S) over MetalUI's
+`Transferable`: the primary-modifier C, X and V and the Edit menu reach the handler of the focused element or its
+nearest ancestor, after the keymap, `onKeyPress` and a focused field's own keys (D, 455, 456: one item, enablement by
+presence). A copy writes one representation per exported type, most preferred first, so a type lists
+`.utf8PlainText` after its own for a text fallback; a paste walks the destination's imported types in order.
+`Window.clipboard` (M) is the same from code: `write(_:)`, `read(_:)`, `contentTypes`, `hasContent(of:)`.
+`ClipboardRepresentation` and `ClipboardCommands` are the platform seam's (M). On SDL a custom identifier is the mime
+type `application/x-<identifier>` with each byte outside `[a-z0-9.+-]` percent-encoded (`ClipboardMime`, `CB-D`).
+`PasteButton` is not built (`CB-N`).
+
 **Input for viewports and canvases** (`CI-`, record §81;
 [`superpowers/2026-10-08-input-apis-decisions.md`](superpowers/2026-10-08-input-apis-decisions.md)).
 SwiftUI's spellings, probe-backed (`probes/swiftui-input-apis.swift`):
@@ -402,6 +417,18 @@ seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `InputPhase`, `ScrollEvent.phase`/`.momentumPhase`/`.isPrecise`/`.location`,
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
+
+**Image cursors** (`IC-`, record §116;
+[`superpowers/2026-10-14-cursors-headless-decisions.md`](superpowers/2026-10-14-cursors-headless-decisions.md);
+probe `probes/swiftui-image-cursor.swift`). `PointerStyle.image(_ image: Image, hotSpot: UnitPoint)`,
+SwiftUI's macOS 15 spelling (A): the cursor is the `Image`'s bitmap at `pixels / scale` points
+(`resizable()` and `interpolation` are ignored), the hot spot a fraction of that size from the top-left,
+clamped to the image (D 465). It is cached per bitmap identity — a bitmap rebuilt into an `Image` every
+frame is one cursor — on AppKit (an `NSCursor`, sixteen per window) and on SDL (`SDL_CreateColorCursor`,
+straight alpha, eight per platform, a 2x bitmap added as an alternate image). SDL has no hand or zoom
+cursor, so an app that wants one supplies the bitmap (`IC-H`; `guides/input.md`). `shape(_:eoFill:size:)`
+is carried (`IC-G`). At the seam (M): `PlatformPointerStyle.image` and `PlatformCursorImage`
+(`texture`, `scale`, `hotSpotX`/`hotSpotY`, `pixelWidth`/`pixelHeight`, `pointWidth`/`pointHeight`).
 
 **Input follow-ups** (`IF-`, record §93;
 [`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
@@ -919,7 +946,7 @@ input by point and by element in XCUITest's names (`click`, `typeText`,
 (`frame(ofID:)`), presentations answered at the seam (`respondToAlert`,
 `chooseMenuItem`, `performToolbarItem`, the menu bar's `performMenuBarItem`,
 `MenuEvaluation`; `HeadlessPlatform` options such as `presentsMenusNatively` and `showsMenuBarNatively` choose whether the platform or the window draws) and per-frame work counters (`FrameWork`) for benchmarks
-that count work, and an input-method driver beside `typeText` (M; `IM-A`, record §102: `setMarkedText(_:selectedRange:)`, `commitMarkedText()`, `commitMarkedText(_:)`, `cancelMarkedText()`, `markedText`, `markedSelection`, sending the platforms' own composition events through `onInput`). SwiftUI tests UI out of process, so this is MetalUI-only.
+that count work, and an input-method driver beside `typeText` (M; `IM-A`, record §102: `setMarkedText(_:selectedRange:)`, `commitMarkedText()`, `commitMarkedText(_:)`, `cancelMarkedText()`, `markedText`, `markedSelection`, sending the platforms' own composition events through `onInput`) and the clipboard read-backs (M; `CB-K`: `clipboardRepresentations`, `setClipboard(_:)`, `setClipboard(text:)`). SwiftUI tests UI out of process, so this is MetalUI-only.
 How an app uses it: [`testing.md`](testing.md).
 
 ## Backends and infrastructure — M

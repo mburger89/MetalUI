@@ -21,7 +21,9 @@ let package = Package(
         .executable(name: "DemoCapture", targets: ["DemoCapture"]),
         .executable(name: "MetalUISDLDemo", targets: ["MetalUISDLDemo"]),
         // The main-queue drain, checked from top-level code (ruling SV-H).
-        .executable(name: "MainQueueDrainCheck", targets: ["MainQueueDrainCheck"])
+        .executable(name: "MainQueueDrainCheck", targets: ["MainQueueDrainCheck"]),
+        // The documented headless smoke test, a plain import (rulings IC-M, IC-P).
+        .executable(name: "HeadlessLaunchCheck", targets: ["HeadlessLaunchCheck"])
     ],
     dependencies: [.package(name: "MetalUI", path: "../..", traits: ["SDL", "AccessKit"])],
     targets: [
@@ -61,6 +63,14 @@ let package = Package(
         .executableTarget(name: "MainQueueDrainCheck", dependencies: [
             .product(name: "MetalUISDL", package: "MetalUI"),
             .product(name: "SDLBridge", package: "MetalUI"),
+            .product(name: "MetalUIPlatform", package: "MetalUI"),
+            .product(name: "MetalUICore", package: "MetalUI"),
+            .product(name: "MetalUI", package: "MetalUI"),
+            .product(name: "MetalUIPortableText", package: "MetalUI")]),
+        // The CI smoke test of the real window, verbatim (ruling IC-M):
+        // `SDLHeadlessLaunchTests` launches it.
+        .executableTarget(name: "HeadlessLaunchCheck", dependencies: [
+            .product(name: "MetalUISDL", package: "MetalUI"),
             .product(name: "MetalUIPlatform", package: "MetalUI"),
             .product(name: "MetalUICore", package: "MetalUI"),
             .product(name: "MetalUI", package: "MetalUI"),

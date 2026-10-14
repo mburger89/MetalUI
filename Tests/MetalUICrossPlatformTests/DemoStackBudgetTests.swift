@@ -44,6 +44,7 @@ private func buildEveryProductionTree() {
     buildTheInvalidationDemo()   // content memo (IV-B, spec §9)
     buildTheRetainedSubtreeDemo()   // retained subtrees (SB-, spec §13)
     buildTheChromeDemo()   // window chrome (CW-P, spec "Demo")
+    buildTheClipboardDemo()   // clipboard beyond text (CB-, spec §6)
 }
 
 /// The window chrome demo's tree and its bar and body (components built at layout), in its own frame.
@@ -52,6 +53,12 @@ private func buildTheChromeDemo() {
     _ = chromeDemoContent()
     _ = ChromeDemoBar().content
     _ = ChromeDemoBody().content
+}
+
+/// The clipboard demo's tree, in its own frame.
+@MainActor @inline(never)
+private func buildTheClipboardDemo() {
+    _ = clipboardDemoContent()
 }
 
 /// The retained-subtree demo's tree and its canvas and strip (components built at layout), in its own frame.

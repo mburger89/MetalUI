@@ -1,6 +1,7 @@
 // Compiled only under the `SDL` trait (ruling PX-H item 2); without it this
 // file declares only the unavailable `SDLPlatform` at its end.
 #if SDL
+import Foundation
 import MetalUICore
 import MetalUIPlatform
 import MetalUIScene
@@ -26,10 +27,12 @@ public struct SDLPlatformError: Error, CustomStringConvertible {
 @MainActor
 public final class SDLPlatform: Platform {
     private var windows: [UInt32: SDLWindow] = [:]
-    private let hidden: Bool
+    /// How this platform opens its windows (rulings `IC-J`, `WS-B`, `TF-C`).
+    let options: Options
+    private var hidden: Bool { options.hidesWindows }
     /// Each window renders into an offscreen target instead of claiming its
-    /// swapchain (ruling `TF-C`, `TF-E`; for checks only).
-    private let offscreenRenderers: Bool
+    /// swapchain (ruling `TF-C`, `TF-E`).
+    private var offscreenRenderers: Bool { options.rendersOffscreen }
     private var running = false
     /// The window of this platform with keyboard focus, if any (ruling EV-AB,
     /// amended by EV-AF). Tracked from SDL's focus events rather than read
@@ -47,31 +50,40 @@ public final class SDLPlatform: Platform {
     /// (ruling `CI-Z` item 3).
     var mouseFocusWindowID: () -> UInt32 = { mui_mouse_focus_window_id() }
 
+    /// - Parameter options: how windows open; ``Options/headless`` is the
+    ///   launch for a CI smoke test with no display (ruling `IC-J`).
+    ///
+    /// Every window is created hidden and shown after its AccessKit adapter
+    /// exists (ruling `WS-B`); with ``Options/hidesWindows`` it is never shown.
+    public init(options: Options) throws {
+        guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
+        self.options = options
+        pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
+        #if canImport(AppKit)
+        Self.installAppKitEventSignal()
+        #endif
+    }
+
     /// - Parameter hiddenWindows: open windows hidden — for tests, which need
     ///   a real window and its events but nothing on screen.
     ///
-    /// Every window is created hidden and shown after its AccessKit adapter
-    /// exists (ruling `WS-B`); with `hiddenWindows` it is never shown.
+    /// `SDLPlatform(options: Options(hidesWindows: hiddenWindows))`.
     public convenience init(hiddenWindows: Bool = false) throws {
-        try self.init(hiddenWindows: hiddenWindows, offscreenRenderers: false)
+        try self.init(options: Options(hidesWindows: hiddenWindows))
     }
 
     /// ``init(hiddenWindows:)``, and with `offscreenRenderers` each window's
     /// renderer draws into an offscreen target its pixel size instead of
-    /// claiming the window (ruling `TF-C`) — so under SDL's offscreen video
-    /// driver, where a swapchain never yields a drawable, `Window` still
-    /// builds frames and runs its lifecycle drain. Everything else is the
-    /// production path. A check's option, not API: SPI `Checks` (ruling
-    /// `TF-E` — `package` cannot reach `Backends/SDL`'s executables, which
-    /// are another package).
-    @_spi(Checks) public init(hiddenWindows: Bool = false, offscreenRenderers: Bool) throws {
-        guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
-        hidden = hiddenWindows
-        pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
-        self.offscreenRenderers = offscreenRenderers
-        #if canImport(AppKit)
-        Self.installAppKitEventSignal()
-        #endif
+    /// claiming the window (ruling `TF-C`). Forwards to ``init(options:)``
+    /// (ruling `IC-L`); kept as SPI `Checks` so existing checks build — new
+    /// code uses ``Options/headless``.
+    @_spi(Checks) public convenience init(hiddenWindows: Bool = false, offscreenRenderers: Bool) throws {
+        try self.init(options: Options(hidesWindows: hiddenWindows, rendersOffscreen: offscreenRenderers))
+    }
+
+    // The platform's end destroys its image cursors (`IC-E` 3).
+    nonisolated deinit {
+        MainActor.assumeIsolated { destroyImageCursors() }
     }
 
     public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
@@ -301,6 +313,39 @@ public final class SDLPlatform: Platform {
         guard windows[window.id] === window else { return }
         windows.removeValue(forKey: window.id)
         if focusedID == window.id { focusedID = nil }
+        if windows.isEmpty { destroyImageCursors() }   // `IC-E` 3
+    }
+
+    // MARK: Image cursors (rulings `IC-E`, `IC-O`)
+
+    /// SDL's cursor is process-global (`CI-S`), so the image cursors are the platform's, not a
+    /// window's: at most eight, least recently used out (`SDLImageCursorTable`).
+    private var imageCursors = SDLImageCursorTable<PlatformCursorImage, UnsafeMutableRawPointer>(
+        capacity: 8, create: { SDLCursorImage.make($0) }, destroy: { mui_cursor_destroy($0) })
+    /// The image cursor SDL shows now, if the last style was an image.
+    private var shownImageCursor: UnsafeMutableRawPointer?
+
+    /// Shows `image`'s cursor, made once per value and set only when it is not the one already
+    /// shown (`IC-E` 4). A cursor SDL cannot create leaves the current one (`IC-C` 3).
+    func showImageCursor(_ image: PlatformCursorImage) {
+        guard let handle = imageCursors.handle(for: image, current: shownImageCursor) else { return }
+        guard handle != shownImageCursor else { return }
+        if mui_cursor_set(handle) {
+            shownImageCursor = handle
+            imageCursors.sweepParked(current: handle)
+        }
+    }
+
+    /// A system cursor replaces whatever image cursor was shown: the parked one can go.
+    func noteSystemCursor() {
+        shownImageCursor = nil
+        imageCursors.sweepParked(current: nil)
+    }
+
+    /// Destroys every image cursor (the last window closed, or the platform ends).
+    private func destroyImageCursors() {
+        shownImageCursor = nil
+        imageCursors.removeAll()
     }
 
     /// Dispatches every pending event without waiting — one run-loop pass
@@ -520,6 +565,11 @@ public final class SDLWindow: PlatformWindow {
     /// create (the offscreen driver) leaves the current one.
     public func setPointerStyle(_ style: PlatformPointerStyle) {
         pointerStyles.append(style)
+        if case .image(let image) = style {
+            platform?.showImageCursor(image)   // `IC-E`; a window with no platform has no table
+            return
+        }
+        platform?.noteSystemCursor()
         _ = mui_set_system_cursor(SDLCursorTable.systemCursor(for: style).bridgeValue)
     }
 
@@ -663,6 +713,74 @@ public final class SDLWindow: PlatformWindow {
     }
 
     public func writeClipboard(_ text: String) { _ = mui_set_clipboard_text(text) }
+
+    // MARK: Typed clipboard (rulings CB-D, CB-E, CB-H, CB-I)
+
+    /// Replaces the clipboard with `representations`, each keyed by its
+    /// `ClipboardMime` mime type (the first of two that map alike wins). The bridge
+    /// copies every payload into one box (`CB-H`), so nothing here must outlive
+    /// the call. `false` when nothing was written.
+    public func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool {
+        var seen = Set<String>()
+        var mimes: [String] = []
+        var payloads: [[UInt8]] = []
+        for representation in representations where !representation.bytes.isEmpty {
+            let mime = ClipboardMime.mime(forIdentifier: representation.type.identifier)
+            guard seen.insert(mime).inserted else { continue }
+            mimes.append(mime)
+            payloads.append(representation.bytes)
+        }
+        guard !mimes.isEmpty else { return false }
+        let names: [UnsafeMutablePointer<CChar>?] = mimes.map { strdup($0) }
+        defer { names.forEach { free($0) } }
+        var sizes = payloads.map(\.count)
+        var pointers = [UnsafePointer<UInt8>?](repeating: nil, count: payloads.count)
+        func bind(_ index: Int) -> Bool {
+            if index == payloads.count {
+                let constNames = names.map { UnsafePointer<CChar>($0) }
+                return constNames.withUnsafeBufferPointer { nameBuffer in
+                    pointers.withUnsafeBufferPointer { byteBuffer in
+                        sizes.withUnsafeMutableBufferPointer { sizeBuffer in
+                            mui_clipboard_set(nameBuffer.baseAddress, byteBuffer.baseAddress,
+                                              sizeBuffer.baseAddress, payloads.count)
+                        }
+                    }
+                }
+            }
+            return payloads[index].withUnsafeBufferPointer { buffer in
+                pointers[index] = buffer.baseAddress
+                return bind(index + 1)
+            }
+        }
+        return bind(0)
+    }
+
+    /// The identifiers of the clipboard's mime types, as SDL lists them (`CB-D`).
+    public func clipboardTypeIdentifiers() -> [String] {
+        var count = 0
+        guard let list = mui_clipboard_mime_types(&count) else { return [] }
+        defer { mui_free(UnsafeMutableRawPointer(list)) }
+        return (0..<count).compactMap { index in
+            list[index].map { ClipboardMime.identifier(forMime: String(cString: $0)) }
+        }
+    }
+
+    /// The clipboard's bytes as `identifier`'s mime type; `nil` when absent
+    /// (`SDL_HasClipboardData` gates the read, `CB-H`).
+    public func readClipboard(identifier: String) -> [UInt8]? {
+        var size = 0
+        let mime = ClipboardMime.mime(forIdentifier: identifier)
+        guard let data = mui_clipboard_get(mime, &size) else { return nil }
+        defer { mui_free(data) }
+        return Array(UnsafeRawBufferPointer(start: data, count: size))
+    }
+
+    /// What the focus chain can do with the clipboard; SDL has no native Edit menu
+    /// to enable, and the drawn bar reads the window's own state (`CB-E`), so this
+    /// only records.
+    private(set) var clipboardCommands: ClipboardCommands = []
+
+    public func setClipboardCommands(_ commands: ClipboardCommands) { clipboardCommands = commands }
 
     /// Whether a key-down is one SDL will also send as `SDL_EVENT_TEXT_INPUT`
     /// — a printable keycode with no control or command — and so, while text
@@ -1331,5 +1449,21 @@ public final class SDLPlatform {
     /// unavailability — an implicit internal `init()` would report only
     /// "inaccessible due to 'internal' protection level" (guard 1.6).
     public init(hiddenWindows: Bool = false) throws {}
+
+    /// The real `Options`' spelling (ruling `IC-J`), so `SDLPlatform(options:)`
+    /// reports the trait's remedy too (guard 1.6).
+    public struct Options: Sendable, Hashable {
+        public var hidesWindows: Bool
+        public var rendersOffscreen: Bool
+        public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false) {
+            self.hidesWindows = hidesWindows
+            self.rendersOffscreen = rendersOffscreen
+        }
+        public static let `default` = Options()
+        public static let headless = Options(hidesWindows: true, rendersOffscreen: true)
+        public static func headlessIfRequested(environment: [String: String] = [:]) -> Options { .default }
+    }
+
+    public init(options: Options) throws {}
 }
 #endif

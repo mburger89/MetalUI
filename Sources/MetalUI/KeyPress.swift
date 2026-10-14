@@ -122,48 +122,66 @@ final class KeyboardAttachment {
     /// `RF-C` item 1): a primary press inside it clears focus, and no key is
     /// routed by hover.
     let resignsOnPress: Bool
+    /// The clipboard handlers `copyable`, `cuttable` and `pasteDestination`
+    /// attached (ruling `CB-M`): a fifth field, so `Handlers` keeps its
+    /// nineteen members. Every factory below carries it (spec test 1.10).
+    let clipboard: ClipboardAttachment?
 
     init(keyPresses: [KeyPressHandler] = [], focusInteractions: FocusInteractions? = nil,
-         isKeyRegion: Bool = false, resignsOnPress: Bool = false) {
+         isKeyRegion: Bool = false, resignsOnPress: Bool = false, clipboard: ClipboardAttachment? = nil) {
         self.keyPresses = keyPresses
         self.focusInteractions = focusInteractions
         self.isKeyRegion = isKeyRegion
         self.resignsOnPress = resignsOnPress
+        self.clipboard = clipboard
     }
 
     /// The box with these fields, or `nil` when every one is the default —
     /// so an element no keyboard modifier configures keeps `keyboard == nil`.
     static func make(keyPresses: [KeyPressHandler], focusInteractions: FocusInteractions?,
-                     isKeyRegion: Bool, resignsOnPress: Bool) -> KeyboardAttachment? {
-        if keyPresses.isEmpty && focusInteractions == nil && !isKeyRegion && !resignsOnPress { return nil }
+                     isKeyRegion: Bool, resignsOnPress: Bool,
+                     clipboard: ClipboardAttachment?) -> KeyboardAttachment? {
+        if keyPresses.isEmpty && focusInteractions == nil && !isKeyRegion && !resignsOnPress
+            && clipboard == nil { return nil }
         return KeyboardAttachment(keyPresses: keyPresses, focusInteractions: focusInteractions,
-                                  isKeyRegion: isKeyRegion, resignsOnPress: resignsOnPress)
+                                  isKeyRegion: isKeyRegion, resignsOnPress: resignsOnPress,
+                                  clipboard: clipboard)
     }
 
     /// `existing` with `handler` appended.
     static func adding(_ handler: KeyPressHandler, to existing: KeyboardAttachment?) -> KeyboardAttachment? {
         make(keyPresses: (existing?.keyPresses ?? []) + [handler],
              focusInteractions: existing?.focusInteractions, isKeyRegion: existing?.isKeyRegion ?? false,
-             resignsOnPress: existing?.resignsOnPress ?? false)
+             resignsOnPress: existing?.resignsOnPress ?? false, clipboard: existing?.clipboard)
     }
 
     /// `existing` with its focus interactions replaced.
     static func interactions(_ interactions: FocusInteractions?,
                              over existing: KeyboardAttachment?) -> KeyboardAttachment? {
         make(keyPresses: existing?.keyPresses ?? [], focusInteractions: interactions,
-             isKeyRegion: existing?.isKeyRegion ?? false, resignsOnPress: existing?.resignsOnPress ?? false)
+             isKeyRegion: existing?.isKeyRegion ?? false, resignsOnPress: existing?.resignsOnPress ?? false,
+             clipboard: existing?.clipboard)
     }
 
     /// `existing` with its key-region flag replaced.
     static func keyRegion(_ isKeyRegion: Bool, over existing: KeyboardAttachment?) -> KeyboardAttachment? {
         make(keyPresses: existing?.keyPresses ?? [], focusInteractions: existing?.focusInteractions,
-             isKeyRegion: isKeyRegion, resignsOnPress: existing?.resignsOnPress ?? false)
+             isKeyRegion: isKeyRegion, resignsOnPress: existing?.resignsOnPress ?? false,
+             clipboard: existing?.clipboard)
     }
 
     /// `existing` with its resign-on-press flag replaced (`RF-C` item 1).
     static func resigning(_ resignsOnPress: Bool, over existing: KeyboardAttachment?) -> KeyboardAttachment? {
         make(keyPresses: existing?.keyPresses ?? [], focusInteractions: existing?.focusInteractions,
-             isKeyRegion: existing?.isKeyRegion ?? false, resignsOnPress: resignsOnPress)
+             isKeyRegion: existing?.isKeyRegion ?? false, resignsOnPress: resignsOnPress,
+             clipboard: existing?.clipboard)
+    }
+
+    /// `existing` with its clipboard handlers replaced (`CB-M`).
+    static func clipboard(_ clipboard: ClipboardAttachment?, over existing: KeyboardAttachment?) -> KeyboardAttachment? {
+        make(keyPresses: existing?.keyPresses ?? [], focusInteractions: existing?.focusInteractions,
+             isKeyRegion: existing?.isKeyRegion ?? false, resignsOnPress: existing?.resignsOnPress ?? false,
+             clipboard: clipboard)
     }
 }
 
