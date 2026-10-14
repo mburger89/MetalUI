@@ -180,6 +180,7 @@ struct RPCard: Component, @MainActor Equatable {
                 Box().pointerStyle(.link).frame(width: Pixels(10), height: Pixels(8))
                 Box().hoverKeyRegion().frame(width: Pixels(10), height: Pixels(8))
                 Box().resignsFocusOnPress().frame(width: Pixels(10), height: Pixels(8))
+                Box().focusable(interactions: .edit).frame(width: Pixels(10), height: Pixels(8))
             }
         }
         .padding(Edges(all: Pixels(4)))
@@ -606,4 +607,113 @@ private struct RPStateCard: Component, @MainActor Equatable {
     for w in [pair.on, pair.off] { try w.rightClick(w.element(label: "go A")) }
     try pair.compare("a replayed context menu")
     #expect(pair.onSide.log.entries.contains("tap 4"), "the @State handler wrote through its replayed closure: \(pair.onSide.log.entries)")
+}
+
+// MARK: Redo coverage added by the mutation batch (record 110 section 5)
+
+/// 6c — a redo suspends prepaint replay for **every** occurrence, not only the one that caused it (`RK-D` item 3): two cards
+/// under two different ancestors; the first ancestor's opacity changes (one redo), and in the next frame, inside the eight
+/// builds of backoff, the second's changes too: the second card's prepaint is not replayed, so its changed ambient meets a
+/// freshly prepainted card and costs no redo. Mutation: the window-wide suspension removed from `noteRedo` (the second
+/// card replays, meets its changed ambient and redoes the next frame too: `retainedRedos == 1` at step 2).
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
+func aRedoSuspendsPrepaintReplayForEveryOccurrence() async throws {
+    let pair = try RPPair(size: sz(220, 200), warm: 4) { side in
+        let first = side.model.n % 2 == 1, second = side.model.tint % 2 == 1
+        return VStack(spacing: 4) {
+            ZStack { RPCard(title: "A", shade: 1, log: side.log).equatable() }.opacity(first ? 0.5 : 1)
+            ZStack { RPCard(title: "B", shade: 2, log: side.log).equatable() }.opacity(second ? 0.5 : 1)
+        }
+    }
+    pair.redraw()
+    try #require(pair.frames.last?.retainedPrepaintHits == 2)
+    pair.onSide.model.n += 1; pair.offSide.model.n += 1
+    await rsSettle()
+    pair.redraw()
+    #expect(pair.frames.last?.retainedRedos == 1, "the first ancestor's change redoes once")
+    try pair.compare("first change")
+    pair.onSide.model.tint += 1; pair.offSide.model.tint += 1
+    await rsSettle()
+    pair.redraw()
+    let f = try #require(pair.frames.last)
+    #expect(f.retainedRedos == 0 && f.retainedPrepaintHits == 0, "inside the backoff the second change costs no redo: \(f.retainedRedos)/\(f.retainedPrepaintHits)")
+    try pair.compare("second change inside the backoff")
+}
+
+/// 5b — a redo with a **transition** inserted in the same frame equals a fresh frame (`RK-U`: `TransitionStore.claim` answers
+/// `false` for a key it already recorded, and `afterLayout` consumes an insertion, so the abandoned attempt's notes, records,
+/// insertions and ghosts are rolled back). The element appears under `.animation(_:value:)` (a root transaction would refuse
+/// every replay), in the frame its card's ancestor changes opacity, and the fade is followed frame by frame.
+/// Mutation: `TransitionStore.rollbackBuild` made a no-op (the redo does not claim the group: the element appears whole).
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
+func aRedoWithATransitionInsertedInTheSameFrameEqualsAFreshFrame() async throws {
+    let pair = try RPPair(size: sz(220, 200), warm: 4) { side in
+        let inputs = side.inputs, model = side.model
+        return VStack(spacing: 4) {
+            ZStack { RPCard(title: "A", shade: 1, log: side.log).equatable() }.opacity(model.n % 2 == 1 ? 0.5 : 1)
+            VStack(spacing: 0) {
+                if inputs.showExtra { Text("inserted").transition(.opacity) }
+            }
+            .frame(width: Pixels(80), height: Pixels(20))
+            .animation(.linear(duration: 0.4), value: inputs.showExtra)
+        }
+    }
+    pair.redraw()
+    try #require(pair.frames.last?.retainedPrepaintHits == 1)
+    pair.onSide.inputs.showExtra = true; pair.offSide.inputs.showExtra = true
+    pair.onSide.model.n += 1; pair.offSide.model.n += 1
+    await rsSettle()
+    pair.redraw()
+    #expect(pair.frames.last?.retainedRedos == 1, "the insertion's frame is redone once")
+    try pair.compare("the insertion's frame")
+    for index in 0..<6 {
+        for w in [pair.on, pair.off] { w.advance(by: 0.07) }
+        try pair.compare("fade frame \(index)")
+    }
+}
+
+/// 5c — a redo with a **timeline** in the tree equals a fresh frame (`RK-U`: `TimelineStore.occurrences` is a per-build count;
+/// a second build counting again reads a new key and a new cursor, showing `now` instead of the tick). The clock is 0.4 s off
+/// a tick when the card's ancestor changes. Mutation: `TimelineStore.rollbackBuild` made a no-op (the redo shows the clock).
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
+func aRedoWithATimelineInTheTreeEqualsAFreshFrame() async throws {
+    let pair = try RPPair(size: sz(260, 160), warm: 4) { side in
+        let model = side.model
+        return VStack(spacing: 4) {
+            ZStack { RPCard(title: "A", shade: 1, log: side.log).equatable() }.opacity(model.n % 2 == 1 ? 0.5 : 1)
+            TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 1)) { context in
+                Text("tick \(context.date.timeIntervalSinceReferenceDate)").frame(width: Pixels(160), height: Pixels(14))
+            }
+        }
+    }
+    for w in [pair.on, pair.off] { w.advance(by: 2.4) }
+    pair.redraw(); pair.redraw()
+    try #require(pair.frames.last?.retainedPrepaintHits == 1, "the card replays before the change: \(String(describing: pair.frames.last))")
+    pair.onSide.model.n += 1; pair.offSide.model.n += 1
+    await rsSettle()
+    pair.redraw()
+    #expect(pair.frames.last?.retainedRedos == 1, "the change redoes the frame once")
+    try pair.compare("the redone frame")
+    for w in [pair.on, pair.off] { w.advance(by: 0.9) }
+    try pair.compare("a tick later")
+}
+
+/// 5d — an implicit animation **started** in the frame that is redone equals a fresh frame (`RK-U`: `AnimationStore.entries` is
+/// restored, so the redo starts it as the abandoned attempt did, from the same frame). Mutation: the entries restore removed.
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
+func aRedoStartsAnImplicitAnimationLikeAFreshFrame() async throws {
+    let pair = try RPPair(size: sz(260, 230), warm: 4) { side in VStack(spacing: 0) { RPInputsRoot(side: side) } }
+    pair.redraw()
+    try #require(pair.frames.last?.retainedPrepaintHits == 1)
+    // One input starts the slide and changes the opacity above the card.
+    for (w, side) in [(pair.on, pair.onSide), (pair.off, pair.offSide)] {
+        side.inputs.offset = 30; side.model.n += 1
+        w.window.setNeedsRedraw(); w.tick()
+    }
+    #expect(pair.on.lastFrameWork.retainedRedos == 1)
+    try pair.compare("the starting frame")
+    for index in 0..<6 {
+        for w in [pair.on, pair.off] { w.advance(by: 0.07) }
+        try pair.compare("animation frame \(index)")
+    }
 }

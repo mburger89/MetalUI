@@ -52,14 +52,8 @@ private struct HoldsALayoutNodeID { var ids: [LayoutNodeID] = [] }
     var ledgers = 0
     let found = window.window.testingStoredPrepaintLedgers { ledger in
         ledgers += 1
+        #expect(!mentionsLayoutNodeID(ledger), "the ledger, every stored field of it and of what it holds")
         #expect(!mentionsLayoutNodeID(ledger.hitboxes), "hitboxes")
-        #expect(!mentionsLayoutNodeID(ledger.axEmissions), "accessibility records")
-        #expect(!mentionsLayoutNodeID(ledger.focus), "focus calls")
-        #expect(!mentionsLayoutNodeID(ledger.axNodes), "accessibility nodes")
-        #expect(!mentionsLayoutNodeID(ledger.contextMenus), "context menus")
-        #expect(!mentionsLayoutNodeID(ledger.elementBounds), "element bounds")
-        #expect(!mentionsLayoutNodeID(ledger.key), "the key")
-        #expect(!mentionsLayoutNodeID(ledger.pressOnly.map(\.0)), "press-only ids")
     }
     try #require(found >= 2 && ledgers == found, "both cards left a ledger: \(found)")
     var withHitboxes = 0
