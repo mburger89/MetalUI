@@ -144,3 +144,43 @@ extension Window {
     /// The last build's Tab order (`IV-J`).
     package var testingTabOrder: [GlobalElementID] { lastFocusRegistry.tabOrder }
 }
+
+// C14b-2 (`RK-`): read-backs for the prepaint-replay differentials.
+extension Window {
+    /// Whether `.equatable()` occurrences replay their prepaint (`RK-E`); off is the paint-only replay of
+    /// `fb9a7e42`. Independent of ``testingRetainedSubtrees``.
+    package var testingRetainedPrepaint: Bool {
+        get { stateTable.contentMemos.replaysPrepaint }
+        set { stateTable.contentMemos.replaysPrepaint = newValue }
+    }
+
+    /// Every field of the last build's hitboxes that is not a closure, in registration order, as one string
+    /// each: identity, bounds, layer, opacity, scroll axis, origin, shape, transform, the contextual flag and
+    /// which handler members were present (`RK-E`).
+    package var testingHitboxFingerprints: [String] {
+        lastHitboxes.map { box in
+            var members: [String] = []
+            for child in Mirror(reflecting: box.handlers).children {
+                guard let label = child.label else { continue }
+                let value = Mirror(reflecting: child.value)
+                if value.displayStyle == .optional, value.children.isEmpty { continue }
+                members.append(label)
+            }
+            return "\(box.id)|\(box.bounds)|\(box.layer)|\(box.opaque)|\(String(describing: box.scroll))|\(box.origin)|"
+                + "\(String(describing: box.shape))|\(String(describing: box.transform))|\(box.contextualEnabled)|"
+                + members.joined(separator: ",")
+        }
+    }
+
+    /// The last build's region tallies: hover, pointer style, key, focus-on-press, resign (`RK-E`).
+    package var testingRegionTallies: [Int] {
+        [lastHoverRegionCount, lastPointerStyleRegionCount, lastKeyRegionCount, lastFocusOnPressCount,
+         lastResignRegionCount]
+    }
+
+    /// The identities that registered a context menu, and the press-only accessibility actions, in the last
+    /// build, sorted by description (`RK-E`).
+    package var testingContextMenuAndPressOnlyIDs: [String] {
+        lastContextMenus.keys.map { "menu \($0)" }.sorted() + lastAccessibilityPressOnly.keys.map { "press \($0)" }.sorted()
+    }
+}

@@ -93,6 +93,9 @@ private let frameChannels: [String: Channel] = [
     // Retained subtrees' own.
     "elementRequests": .frameLocal, "elementPrepaints": .frameLocal, "elementPaints": .frameLocal,
     "retainLog": .frameLocal,
+    // C14b-2 (`RK-E`, `RK-D`): the prepaint journal is open only inside a recorder's window; the redo list is
+    // read by `Frame.render` after the root's paint and by the window, never replayed.
+    "prepaintLog": .frameLocal, "redoEntries": .frameLocal,
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {
@@ -130,7 +133,7 @@ private let stateTableChannels: [String: Channel] = [
     "departedNameResets": .buildOnly, "resetScanWork": .buildOnly, "lastResetScanWork": .buildOnly,
     "loopExtents": .buildOnly, "previousLoopExtents": .buildOnly, "retainsDepartedValues": .buildOnly,
     "departedValues": .buildOnly, "departedRootsKept": .buildOnly, "lastDepartedValueCount": .buildOnly,
-    "departedOverlay": .buildOnly, "focusStates": .buildOnly, "departedRoots": .buildOnly,
+    "departedOverlay": .buildOnly, "focusStates": .buildOnly, "departedRoots": .buildOnly, "prepaintLog": .frameLocal,
     "doomedKeys": .buildOnly, "resetFocusSlots": .buildOnly, "isDirty": .ledger, "onWrite": .frameLocal,
     "writeCount": .ledger,
 ]

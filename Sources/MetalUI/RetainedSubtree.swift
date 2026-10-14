@@ -32,6 +32,19 @@ package struct RetainedCounters: Sendable, Equatable {
     package var ledgerSnapshots = 0
     /// Recorded scene operations replayed.
     package var replayedOps = 0
+    /// Occurrences whose prepaint was replayed from a record (`RK-E`).
+    package var prepaintHits = 0
+    /// Occurrences whose prepaint ran and left no prepaint record: a channel a record cannot replay
+    /// moved, or a context the prepaint key cannot hold was open (`RK-E`, by name in the trace).
+    package var prepaintIneligible = 0
+    /// Frames redone because a replayed prepaint met a paint-only ambient that differed (`RK-D`, `RK-M`).
+    package var redos = 0
+    /// Builds that ran with prepaint replay suspended after a redo (`RK-D` item 3).
+    package var backoffFrames = 0
+    /// Occurrences replayed at a translated position (`RK-G`).
+    package var translated = 0
+    /// Occurrences whose move by a translation failed the gate and missed (`RK-G`).
+    package var translationRefused = 0
     package init() {}
 }
 
@@ -180,6 +193,12 @@ final class RetainedRecord {
     /// valid record missed on) covers only its paint, so it is not replayed: the next frame observes
     /// all three and records again.
     var coverageComplete = true
+    /// What the occurrence's prepaint registered (`RK-E`), or `nil` when it could not be recorded.
+    var prepaint: PrepaintLedger?
+    /// Whether every `@State` slot bound under the component was an entry of the table when the record was made
+    /// (version non-zero): a slot never written has a box the table does not own, so a replayed prepaint's
+    /// handlers are refused for it (`RK-O`).
+    var stateEntriesExist = true
 
     init(key: ReplayKey) { self.key = key }
 }
@@ -289,6 +308,15 @@ final class RetainedPhase {
     let entry: ContentMemoStore.Entry
     /// Whether prepaint ran inside an observation window, as the build did.
     let prepaintObserved: Bool
+    /// The occurrence's rects and layout signature, read once at prepaint and shared by both keys.
+    var rects: [Float] = []
+    var interior = 0
+    var nodeCount = 0
+    /// The prepaint key this frame computed, and the ledger this frame's prepaint made (`nil` when it was
+    /// refused or tainted) or replayed (`RK-E`).
+    var prepaintKey: PrepaintKey?
+    var ledger: PrepaintLedger?
+    var replayed: PrepaintLedger?
 
     init(build: RetainedBuild, entry: ContentMemoStore.Entry, prepaintObserved: Bool) {
         self.build = build
@@ -381,12 +409,17 @@ extension Frame {
             disablesAnimations: transactionTop.disablesAnimations)
     }
 
-    func retainedKey(build: RetainedBuild) -> ReplayKey {
+    func retainedKey(_ phase: RetainedPhase) -> ReplayKey {
+        ReplayKey(rects: phase.rects, interior: phase.interior, nodeCount: phase.nodeCount, ambient: retainedAmbientKey())
+    }
+
+    /// Reads the occurrence's rects and layout signature into `phase` (once per occurrence per frame).
+    func readRetainedGeometry(into phase: RetainedPhase) {
         var rects: [Float] = []
-        rects.reserveCapacity(build.topNodes.count * 4)
-        for node in build.topNodes { rects += flat(bounds(of: node)) }
-        let (hash, count) = tree.subtreeSignature(of: build.topNodes)
-        return ReplayKey(rects: rects, interior: hash, nodeCount: count, ambient: retainedAmbientKey())
+        rects.reserveCapacity(phase.build.topNodes.count * 4)
+        for node in phase.build.topNodes { rects += flat(bounds(of: node)) }
+        let (hash, count) = tree.subtreeSignature(of: phase.build.topNodes)
+        phase.rects = rects; phase.interior = hash; phase.nodeCount = count
     }
 
     /// Whether the hovered element, the pressed one or the focused one is the component or under it (`SB-F`
@@ -448,7 +481,9 @@ extension Frame {
             entry.record = nil
             return nil
         }
-        return RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation)
+        let phase = RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation)
+        readRetainedGeometry(into: phase)
+        return phase
     }
 
     /// The decision of `EquatableComponent.paintGroup` (spec §3.1, `SB-AA`): replay, record, or run plain.
@@ -461,13 +496,17 @@ extension Frame {
             memos.retained.ineligible += 1
             return .plain
         }
-        let key = retainedKey(build: build)
+        let key = retainedKey(phase)
         let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
             if !entry.observedChange, old.coverageComplete, old.contentSerial == entry.serial, old.key == key,
-               old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }), !underPointer {
+               old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }), !underPointer,
+               phase.replayed == nil || old.prepaint === phase.replayed {
                 memos.retained.hits += 1
-                if retainedVerifiesFromEnvironment { return .record(SubtreeRecorder(), key, old: old) }
+                if phase.replayed != nil { entry.redoExponent = 0 }
+                // A prepaint-replayed occurrence has no element prepaint state to paint from: verify mode checks
+                // it at the window, by building the frame again with replay off (`RK-N`).
+                if retainedVerifiesFromEnvironment, phase.replayed == nil { return .record(SubtreeRecorder(), key, old: old) }
                 return .hit(old)
             }
             if retainedTraces { traceMiss(old, key: key, build: build, entry: entry, underPointer: underPointer) }
@@ -514,6 +553,8 @@ extension Frame {
             record.versions.append((id, stateTable.entryVersion(id)))
         }
         record.coverageComplete = phase.build.observed && phase.prepaintObserved
+        record.prepaint = phase.ledger
+        record.stateEntriesExist = record.versions.allSatisfy { $0.1 != 0 }
         record.contentSerial = phase.entry.serial
         let ops = log.scene[from.scene..<to.scene]
         record.scene = ops.filter { $0.boundary == recorder.entryHeight }

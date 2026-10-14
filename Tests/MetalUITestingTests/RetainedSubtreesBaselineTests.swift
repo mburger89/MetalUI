@@ -21,11 +21,12 @@ import Testing
 /// starts 288 pt below the window's top: 36 top bar + 32 header + 220 library).
 let bracketFilletPress = Point(x: Pixels(20), y: Pixels(400))
 
-@MainActor func bracketDragFrames(arm: BracketArm, steps: Int, retained: Bool = true) throws
+@MainActor func bracketDragFrames(arm: BracketArm, steps: Int, retained: Bool = true, prepaint: Bool = true) throws
     -> (frames: [FrameWork], counting: CountingTextSystem, window: TestWindow, model: BracketModel) {
     let counting = CountingTextSystem(harnessTextSystem())
     let (window, model) = try bracketWindow(arm: arm, textSystem: { counting })
     window.window.testingRetainedSubtrees = retained
+    window.window.testingRetainedPrepaint = prepaint
     for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }   // warm
     window.resetFrameWork(); counting.reset(); BracketStats.reset()
     window.drag(from: bracketFilletPress,

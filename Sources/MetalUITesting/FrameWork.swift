@@ -64,6 +64,20 @@ public struct FrameWork: Sendable, Equatable {
     public var retainedLedgerSnapshots: Int
     /// Recorded scene operations replayed.
     public var retainedReplayedOps: Int
+    /// `.equatable()` occurrences whose prepaint (hitboxes, focus stops, accessibility records) was
+    /// replayed from a record (`RK-E`); each stands for the element prepaints counted in
+    /// ``retainedSkippedPrepaints``.
+    public var retainedPrepaintHits: Int
+    /// Occurrences that prepainted and could not leave a prepaint record (`RK-E`).
+    public var retainedPrepaintIneligible: Int
+    /// Frames redone because a replayed prepaint met a paint-time ambient that differed (`RK-D`).
+    public var retainedRedos: Int
+    /// Builds that ran with prepaint replay suspended after a redo (`RK-D`).
+    public var retainedBackoffFrames: Int
+    /// Occurrences replayed at a translated position (`RK-G`).
+    public var retainedTranslated: Int
+    /// Occurrences that moved by a translation the gate refused, and missed (`RK-G`).
+    public var retainedTranslationRefused: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -87,7 +101,9 @@ public struct FrameWork: Sendable, Equatable {
                 elementRequests: Int = 0, elementPrepaints: Int = 0, elementPaints: Int = 0,
                 retainedHits: Int = 0, retainedMisses: Int = 0, retainedIneligible: Int = 0,
                 retainedSkippedPrepaints: Int = 0, retainedSkippedPaints: Int = 0,
-                retainedLedgerSnapshots: Int = 0, retainedReplayedOps: Int = 0) {
+                retainedLedgerSnapshots: Int = 0, retainedReplayedOps: Int = 0,
+                retainedPrepaintHits: Int = 0, retainedPrepaintIneligible: Int = 0, retainedRedos: Int = 0,
+                retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -118,6 +134,12 @@ public struct FrameWork: Sendable, Equatable {
         self.retainedSkippedPaints = retainedSkippedPaints
         self.retainedLedgerSnapshots = retainedLedgerSnapshots
         self.retainedReplayedOps = retainedReplayedOps
+        self.retainedPrepaintHits = retainedPrepaintHits
+        self.retainedPrepaintIneligible = retainedPrepaintIneligible
+        self.retainedRedos = retainedRedos
+        self.retainedBackoffFrames = retainedBackoffFrames
+        self.retainedTranslated = retainedTranslated
+        self.retainedTranslationRefused = retainedTranslationRefused
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -149,6 +171,12 @@ public struct FrameWork: Sendable, Equatable {
                   retainedSkippedPrepaints: l.retainedSkippedPrepaints + r.retainedSkippedPrepaints,
                   retainedSkippedPaints: l.retainedSkippedPaints + r.retainedSkippedPaints,
                   retainedLedgerSnapshots: l.retainedLedgerSnapshots + r.retainedLedgerSnapshots,
-                  retainedReplayedOps: l.retainedReplayedOps + r.retainedReplayedOps)
+                  retainedReplayedOps: l.retainedReplayedOps + r.retainedReplayedOps,
+                  retainedPrepaintHits: l.retainedPrepaintHits + r.retainedPrepaintHits,
+                  retainedPrepaintIneligible: l.retainedPrepaintIneligible + r.retainedPrepaintIneligible,
+                  retainedRedos: l.retainedRedos + r.retainedRedos,
+                  retainedBackoffFrames: l.retainedBackoffFrames + r.retainedBackoffFrames,
+                  retainedTranslated: l.retainedTranslated + r.retainedTranslated,
+                  retainedTranslationRefused: l.retainedTranslationRefused + r.retainedTranslationRefused)
     }
 }

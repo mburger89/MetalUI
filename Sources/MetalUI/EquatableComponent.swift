@@ -78,16 +78,28 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
               let phase = pass.frame.retainedPrepaintPhase(build: build) else {
             return component.prepaintGroup(layout: &layout, pass: &pass)
         }
-        // Prepaint always runs (`SB-AA`) — its states feed paint — in an observation window of its own
-        // (`SB-V`): an `@Observable` read there that a prepaint state carries into paint kills the record.
+        let frame = pass.frame
+        // The ledger of what the prepaint registered replays while the prepaint key is equal (`RK-C`, `RK-E`);
+        // the occurrence's element prepaint does not run, so its paint must be a replay too (`RK-B`).
+        let mode = frame.retainedPrepaintDecision(phase)
+        if case .replay(let ledger) = mode {
+            frame.replayPrepaintLedger(ledger)
+            phase.replayed = ledger
+            return ComponentPrepaint<C>(replayedBy: phase)
+        }
+        var recorder: PrepaintRecorder?
+        if case .run(let r) = mode { recorder = r }
+        // Prepaint runs in an observation window of its own (`SB-V`): an `@Observable` read there that a
+        // prepaint state carries into paint kills the record.
         let result: ComponentPrepaint<C>
         if phase.prepaintObserved {
-            result = phase.entry.prepaintSession.run(entry: phase.entry, store: pass.frame.stateTable.contentMemos) {
+            result = phase.entry.prepaintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.prepaintGroup(layout: &layout, pass: &pass)
             }
         } else {
             result = component.prepaintGroup(layout: &layout, pass: &pass)
         }
+        if let recorder { phase.ledger = frame.closePrepaintWindow(recorder, phase: phase) }
         result.storage.retained = phase
         return result
     }
@@ -104,8 +116,11 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         case .hit(let record):
             frame.replayPaint(record)
         case .plain:
+            if phase.replayed != nil { frame.requestRedo(phase.entry); return }
             component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
         case .record(let recorder, let key, let old):
+            // A replayed prepaint left no element state to paint from: the frame is redone (`RK-C`).
+            if phase.replayed != nil { frame.requestRedo(phase.entry); return }
             frame.openRecorderWindow(recorder)
             phase.entry.paintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)

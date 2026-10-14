@@ -164,10 +164,12 @@ public struct ComponentLayout<C: Component> {
 public struct ComponentPrepaint<C: Component> {
     /// The heap box, mutated in place by `withPrepaint(_:)`.
     final class Storage {
-        var prepaint: C.Content.GroupPrepaint
+        /// `nil` only for an `.equatable()` occurrence whose prepaint was replayed from a ledger (`RK-B`,
+        /// `RK-E`): its elements prepainted nothing, so no element phase may walk it.
+        var prepaint: C.Content.GroupPrepaint?
         /// An `.equatable()` occurrence's retained-subtree phase (`SB-`); `nil` for every other component.
         var retained: RetainedPhase?
-        init(_ prepaint: C.Content.GroupPrepaint) { self.prepaint = prepaint }
+        init(_ prepaint: C.Content.GroupPrepaint?) { self.prepaint = prepaint }
     }
 
     let storage: Storage
@@ -176,9 +178,19 @@ public struct ComponentPrepaint<C: Component> {
         storage = Storage(prepaint)
     }
 
-    /// Runs `body` on the boxed record in place — `paintGroup` writes into it.
+    /// The record of an occurrence whose prepaint was replayed (`RK-E`): it holds no element prepaint state.
+    init(replayedBy phase: RetainedPhase) {
+        storage = Storage(nil)
+        storage.retained = phase
+    }
+
+    /// Runs `body` on the boxed record in place — `paintGroup` writes into it. **A record with no element
+    /// prepaint state traps by name** (`RK-B`): the occurrence's paint must have been a replay.
     func withPrepaint<R>(_ body: (inout C.Content.GroupPrepaint) -> R) -> R {
-        body(&storage.prepaint)
+        guard storage.prepaint != nil else {
+            preconditionFailure("an element phase reached a Component whose prepaint was replayed (RK-B): a replayed prepaint paints only from a record")
+        }
+        return body(&storage.prepaint!)
     }
 }
 

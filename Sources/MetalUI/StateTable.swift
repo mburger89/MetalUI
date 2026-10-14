@@ -176,6 +176,10 @@ final class StateTable {
 
     /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
     var retainLog: RetainLog?
+
+    /// The open prepaint recorders' journal (`RK-E`): a `withState` or `write` made while one is open and not
+    /// allowed (the accessibility node's own retention slot) makes the occurrence ineligible for prepaint replay.
+    var prepaintLog: PrepaintLog?
     private var marked: Set<GlobalElementID> = []
 
     /// Advanced by `sweep()`, once per frame. An entry's `lastSeenGeneration`
@@ -710,6 +714,7 @@ final class StateTable {
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
         retainLog?.taint("stateWrite")   // a paint that rewrites an entry cannot be replayed (`SB-U`)
+        if let log = prepaintLog, log.allowedStateWrites == 0 { log.taint("stateWrite") }
         marked.insert(id)
         // An absent entry takes `initial()` whatever `S` is (plan task 15's
         // lane-1 fix round, `CX-F`'s rule applied here too): the old
@@ -814,6 +819,7 @@ final class StateTable {
     /// is not a new hazard `write` introduces, only one it inherits.
     func write<S>(_ id: GlobalElementID, _ value: S) {
         retainLog?.taint("stateWrite")
+        prepaintLog?.taint("stateWrite")
         if departedOverlay != nil, departedOverlay!.roots.contains(where: { id.isOrDescends(from: $0) }) {
             departedOverlay!.values[id] = value   // `LC-I` item 2: discarded with the overlay
             return

@@ -72,6 +72,10 @@ package final class ContentMemoStore {
         // changed since the record was made.
         var record: RetainedRecord?
         var observedChange = false
+        /// Builds (by `ContentMemoStore.buildSerial`) before which this occurrence's prepaint is not replayed, and
+        /// the exponent of the next quarantine: a redo this occurrence caused doubles it (`RK-D` item 3).
+        var quarantineUntil = 0
+        var redoExponent = 0
         /// Whether this occurrence's build and prepaint must open an observation window this frame
         /// (`SB-V`): when it has no record, or its record covers only its paint. A valid, completely
         /// covered record keeps the sessions of the frame it was made in armed, so a steady hit opens none.
@@ -96,6 +100,19 @@ package final class ContentMemoStore {
     /// no record is made; the memo-off arm of the retained-subtree tests'
     /// differentials. Independent of ``isEnabled`` (the getter memo).
     package var retainsSubtrees = true
+
+    /// Test switch (`RK-E`): off, an occurrence's prepaint runs every frame and records nothing for
+    /// replay; paint replay is `SB-B`'s, unchanged. The `fb9a7e42` arm of the prepaint differentials.
+    package var replaysPrepaint = false   // RED RUN: prepaint replay off until the implementation commit
+
+    /// Builds completed (`endFrame`), the window-wide backoff's clock (`RK-D` item 3), the first build at which
+    /// prepaint replay may run again, and whether the build in progress is a redo.
+    var buildSerial = 0
+    var prepaintSuspendedUntil = 0
+    var redoInProgress = false
+    /// Whether a window drives this store's frames and so builds an abandoned frame again (`RK-D`): a bare
+    /// `Frame.render` has no one to redo it, so it never replays a prepaint.
+    var windowRedoes = false
 
     /// The retained-subtree counters of the build in progress, snapshotted by `endFrame()`.
     var retained = RetainedCounters()
@@ -183,7 +200,14 @@ package final class ContentMemoStore {
 
     /// The end of a build (`StateTable.sweep()`): snapshot the counters, and drop
     /// every entry no component touched, firing its session so it is spent.
+    func resetBuildCounters() {
+        retained = RetainedCounters()
+        evaluations = 0; skips = 0; refusals = 0
+    }
+
     func endFrame() {
+        if replaysPrepaint, retainsSubtrees, buildSerial < prepaintSuspendedUntil { retained.backoffFrames = 1 }
+        buildSerial &+= 1
         lastEvaluations = evaluations; lastSkips = skips; lastRefusals = refusals
         lastRetained = retained; retained = RetainedCounters()
         evaluations = 0; skips = 0; refusals = 0

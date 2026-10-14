@@ -902,6 +902,7 @@ public final class Window {
         // `IV-C`: a memo session reports through the observation entry point
         // (the `isFlushing` guard and `observationDirtyings` included).
         stateTable.contentMemos.markDirty = { [weak self] in self?.markDirtyFromObservation() }
+        stateTable.contentMemos.windowRedoes = true   // `RK-D`: this window builds an abandoned frame again
         scrollRequests.onEnqueue = { [weak self] in self?.setNeedsRedraw() }
 
         // Also the backing-scale path (ruling EV-AA): both platforms report a
@@ -1785,73 +1786,91 @@ public final class Window {
         // contains anything that can use it.
         lastDrawBuildCount += 1
         let transaction = Animation.takeParkedRootTransaction()
-        let frame = Frame(contentSize: platformWindow.contentSize,
-                          scaleFactor: drawScaleFactor,
-                          stateTable: stateTable,
-                          shapingCache: shapingCache,
-                          textSystem: textSystem,
-                          glyphAtlas: glyphAtlas,
-                          theme: theme,
-                          lightTheme: lightTheme,
-                          darkTheme: darkTheme,
-                          timestamp: lastTick,
-                          mousePosition: lastMousePosition,
-                          activeElement: active,
-                          focusedElement: focusHandedIn,
-                          transaction: transaction.animation,
-                          disablesAnimations: transaction.disablesAnimations,
-                          snapsEveryChange: snapsEveryChange,
-                          animationStore: animationStore,
-                          surfaceRegistry: surfaceRegistry,
-                          collectsAccessibility: accessibility.isActive,
-                          recordsElementBounds: recordsElementBounds)
-        // The window's key state is stamped OVER `environment` (ruling EV-AB):
-        // `environment.controlActiveState` is not the root's source, as its
-        // `theme` and `displayScale` are not (the frame re-stamps those two).
-        var rootEnvironment = environment
-        rootEnvironment.controlActiveState = controlActiveState
-        rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
-        rootEnvironment.accessibilityReduceTransparency = accessibilityReduceTransparency  // MT-D, the same stamp
-        rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
-        rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
-        rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
-        rootEnvironment.windowSize = frame.contentSize  // OV-G, OV-O: the size the frame is built with
-        frame.rootEnvironment = rootEnvironment
-        frame.scrollRequestQueue = scrollRequests
-        frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
-        frame.contentSizeLimitsMode = windowResizability   // what the root is measured for (SV-L item 2)
-        frame.previousPresentationAnchors = lastPresentationAnchors   // popovers' anchors (MN-M item 2)
-        frame.previousPresentationSpaces = lastPresentationSpaces   // overlays' spaces (OV-K, OV-N)
-        frame.tooltip = tooltipTracker.visible   // the tooltip (MN-P item 2)
-        if let session = dragSession {   // the drag preview (DN-J)
-            frame.dragSourceID = session.sourceID
-            frame.dragPreviewTranslation = session.translation
-            frame.dragPreviewOrigin = session.previewOrigin
-            frame.previousDragSnapshot = session.snapshot
+        let memos = stateTable.contentMemos
+        let pendingScrollRequests = scrollRequests.pending
+        // One attempt at the frame. A replayed prepaint that meets a paint-time ambient that differs abandons the
+        // attempt after paint (`RK-C`); the window then builds it again with every prepaint replay off (`RK-D`).
+        func buildFrame() -> Frame {
+            let frame = Frame(contentSize: platformWindow.contentSize,
+                              scaleFactor: drawScaleFactor,
+                              stateTable: stateTable,
+                              shapingCache: shapingCache,
+                              textSystem: textSystem,
+                              glyphAtlas: glyphAtlas,
+                              theme: theme,
+                              lightTheme: lightTheme,
+                              darkTheme: darkTheme,
+                              timestamp: lastTick,
+                              mousePosition: lastMousePosition,
+                              activeElement: active,
+                              focusedElement: focusHandedIn,
+                              transaction: transaction.animation,
+                              disablesAnimations: transaction.disablesAnimations,
+                              snapsEveryChange: snapsEveryChange,
+                              animationStore: animationStore,
+                              surfaceRegistry: surfaceRegistry,
+                              collectsAccessibility: accessibility.isActive,
+                              recordsElementBounds: recordsElementBounds)
+            // The window's key state is stamped OVER `environment` (ruling EV-AB):
+            // `environment.controlActiveState` is not the root's source, as its
+            // `theme` and `displayScale` are not (the frame re-stamps those two).
+            var rootEnvironment = environment
+            rootEnvironment.controlActiveState = controlActiveState
+            rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
+            rootEnvironment.accessibilityReduceTransparency = accessibilityReduceTransparency  // MT-D, the same stamp
+            rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
+            rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
+            rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
+            rootEnvironment.windowSize = frame.contentSize  // OV-G, OV-O: the size the frame is built with
+            frame.rootEnvironment = rootEnvironment
+            frame.scrollRequestQueue = scrollRequests
+            frame.menuPresenter = menuPresenter   // a pull-down's handle (spec §3.4)
+            frame.contentSizeLimitsMode = windowResizability   // what the root is measured for (SV-L item 2)
+            frame.previousPresentationAnchors = lastPresentationAnchors   // popovers' anchors (MN-M item 2)
+            frame.previousPresentationSpaces = lastPresentationSpaces   // overlays' spaces (OV-K, OV-N)
+            frame.tooltip = tooltipTracker.visible   // the tooltip (MN-P item 2)
+            if let session = dragSession {   // the drag preview (DN-J)
+                frame.dragSourceID = session.sourceID
+                frame.dragPreviewTranslation = session.translation
+                frame.dragPreviewOrigin = session.previewOrigin
+                frame.previousDragSnapshot = session.snapshot
+            }
+            if let session = menuSession, !session.isNative {   // the in-window menu (MN-F item 2)
+                frame.menuPanelLevels = session.levels
+            }
+            frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
+            frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
+            frame.drawsToolbarStrip = toolbarIsDrawn   // the drawn toolbar strip (MD-K)
+            if let session = menuSession, !session.isNative {   // the open bar menu's title (SG-A item 5)
+                frame.menuBarOpenIndex = session.barIndex
+            }
+            frame.menuBarOpen = { [weak self] index in self?.openMenuBarMenu(index: index, highlightFirst: false) }
+            withObservationTracking {
+                // Reading the sentinel arms the next frame's flush; see ordering
+                // note 3 above. Everything the element tree reads during all three
+                // phases is tracked too, which is what makes an `@Observable`
+                // model a dependency with no opt-in.
+                _ = redrawSentinel.tick
+                // The drawn menu bar's titles, evaluated for every build (`SG-A`
+                // item 9) and inside the tracking, so a command's `@Observable`
+                // read redraws the window as the tree's does. Writes nothing.
+                frame.menuBarTitles = drawnMenuBarSource?.titles()
+                renderRoot(frame)
+            } onChange: { [weak self] in
+                self?.markDirtyFromObservation()
+            }
+            return frame
         }
-        if let session = menuSession, !session.isNative {   // the in-window menu (MN-F item 2)
-            frame.menuPanelLevels = session.levels
-        }
-        frame.alertPanel = drawnAlertPanel   // the drawn alert (SV-J item 2)
-        frame.pickerTitleWidths = pickerTitleWidths   // menu pickers' widths (SV-AA)
-        frame.drawsToolbarStrip = toolbarIsDrawn   // the drawn toolbar strip (MD-K)
-        if let session = menuSession, !session.isNative {   // the open bar menu's title (SG-A item 5)
-            frame.menuBarOpenIndex = session.barIndex
-        }
-        frame.menuBarOpen = { [weak self] index in self?.openMenuBarMenu(index: index, highlightFirst: false) }
-        withObservationTracking {
-            // Reading the sentinel arms the next frame's flush; see ordering
-            // note 3 above. Everything the element tree reads during all three
-            // phases is tracked too, which is what makes an `@Observable`
-            // model a dependency with no opt-in.
-            _ = redrawSentinel.tick
-            // The drawn menu bar's titles, evaluated for every build (`SG-A`
-            // item 9) and inside the tracking, so a command's `@Observable`
-            // read redraws the window as the tree's does. Writes nothing.
-            frame.menuBarTitles = drawnMenuBarSource?.titles()
-            renderRoot(frame)
-        } onChange: { [weak self] in
-            self?.markDirtyFromObservation()
+        var frame = buildFrame()
+        if !frame.redoEntries.isEmpty {
+            // What the abandoned attempt consumed and the redo must see again (`RK-D`, `RK-M`): the parked
+            // transaction (the same value is passed), the window's `scrollTo` queue, the build counters.
+            memos.noteRedo(frame.redoEntries)
+            scrollRequests.restore(pendingScrollRequests)
+            memos.redoInProgress = true
+            frame = buildFrame()
+            memos.redoInProgress = false
+            assert(frame.redoEntries.isEmpty, "a redo asked for a redo (RK-M): every replay is off in it")
         }
         let scene = frame.finalizedScene()
         lastScene = scene
