@@ -4,8 +4,12 @@ import MetalUISDLGPU
 @testable import MetalUISDLGPU
 
 // Compute on an app's own device (rulings GA-D, GA-E, GA-G; spec §6 C1-C4, C8,
-// C10). A device is made per test, so a suite is serialized: the destroyed-device
-// counter (C10) and the fence hooks (C3, C4) are process-wide.
+// C10). A device is made per test, so the suite is serialized, and it runs on
+// the main actor like every other SDL test: Vulkan's device creation raced when
+// two tests made one at once in the Linux image (`make()` answered nil), and the
+// main actor is the serialization the other SDL tests already have. C9
+// (`SDLGPUWindowDeviceTests.swift`) is an extension of this suite for the same
+// reason.
 //
 // The append kernel (`AppShaders/append.comp.hlsl`): 1024 threads, thread `i`
 // with `v = i * 7 % 13 < 5` claims a slot by InterlockedAdd on word 0 of a
@@ -41,10 +45,10 @@ private func dispatchAppend(on device: SDLGPUDevice, groups: Int = 16,
 }
 
 private func ownedDevice() throws -> SDLGPUDevice {
-    try #require(SDLGPUDevice.make())
+    try GPUTestSupport.requireDevice()
 }
 
-@Suite(.serialized) struct SDLGPUComputeTests {
+@MainActor @Suite(.serialized) struct SDLGPUComputeTests {
     /// `METALUI_REQUIRE_GPU=1` (the Linux and Windows jobs) makes a missing GPU
     /// a failure, so a skip cannot hide a regression (spec §4).
     @Test func aRequiredGPUIsPresent() {
@@ -60,7 +64,7 @@ private func ownedDevice() throws -> SDLGPUDevice {
     /// `download` skipping its fence wait (zeros read); the dispatch halved.
     @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
     func anAtomicAppendKernelEmitsExactlyTheThreadsThatPass() async throws {
-        let device = try #require(SDLGPUDevice.make())
+        let device = try GPUTestSupport.requireDevice()
         let (buffer, fence) = try await dispatchAppend(on: device)
         await fence.wait()
         for round in 0..<10 {
@@ -77,7 +81,7 @@ private func ownedDevice() throws -> SDLGPUDevice {
     /// range. Mutation: the download copies from offset 0 whatever the range.
     @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
     func aStorageBufferRoundTripsUploadedBytes() async throws {
-        let device = try #require(SDLGPUDevice.make())
+        let device = try GPUTestSupport.requireDevice()
         let buffer = try #require(device.makeBuffer(size: 4096, usage: [.computeStorageRead]))
         let pattern = (0..<4096).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ ($0 >> 8)) }
         try #require(await device.upload(pattern, to: buffer))
@@ -97,10 +101,9 @@ private func ownedDevice() throws -> SDLGPUDevice {
     ///
     /// Mutation: `wait()` calls the blocking wait inline on the caller → the
     /// main-thread count is 1.
-    @MainActor
     @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
     func theFenceIsAwaitedOffTheMainActor() async throws {
-        let device = try #require(SDLGPUDevice.make())
+        let device = try GPUTestSupport.requireDevice()
         let gate = DispatchSemaphore(value: 0)
         SDLGPUFence.foreignThreadWaitCount = 0
         let (_, fence) = try await dispatchAppend(on: device, holding: gate)
@@ -124,7 +127,7 @@ private func ownedDevice() throws -> SDLGPUDevice {
     /// Mutation: release in `wait()`'s cancellation handler → the count is 1.
     @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
     func aFenceIsNeverReleasedBeforeItSignals() async throws {
-        let device = try #require(SDLGPUDevice.make())
+        let device = try GPUTestSupport.requireDevice()
         let gate = DispatchSemaphore(value: 0)
         SDLGPUFence.unsignalledReleaseCount = 0
         let (_, fence) = try await dispatchAppend(on: device, holding: gate)

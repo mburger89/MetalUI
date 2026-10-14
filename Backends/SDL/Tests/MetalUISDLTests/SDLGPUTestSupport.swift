@@ -26,6 +26,14 @@ enum GPUTestSupport {
         Comment(rawValue: "no GPU device here: \(SDLGPUDevice.lastFailure)")
     }
 
+    /// A device, or a failure naming `SDLGPUDevice.lastFailure`.
+    static func requireDevice() throws -> SDLGPUDevice {
+        guard let device = SDLGPUDevice.make() else {
+            throw GPUUnavailable(reason: SDLGPUDevice.lastFailure)
+        }
+        return device
+    }
+
     /// `count` 32-bit words as bytes.
     static func bytes(of words: [UInt32]) -> [UInt8] {
         words.withUnsafeBytes { Array($0) }
@@ -35,4 +43,10 @@ enum GPUTestSupport {
             bytes[offset..<offset + 4].enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << UInt32(8 * $1.offset) }
         }
     }
+}
+
+/// `SDLGPUDevice.make()` answered `nil`: the reason is SDL's own.
+struct GPUUnavailable: Error, CustomStringConvertible {
+    let reason: String
+    var description: String { "no GPU device: \(reason)" }
 }

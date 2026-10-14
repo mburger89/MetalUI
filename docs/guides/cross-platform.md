@@ -120,6 +120,63 @@ Arabic with tracking or kerning, where the portable system places the extra spac
 letters (divergence 157). A `.task` body starts synchronously inside the first frame on macOS 27,
 and one frame late on macOS 14 to 25 (divergence 137).
 
+## How do I run my own GPU work on SDL?
+
+On macOS you reach Metal through `MetalView` and `MetalDrawContext`. On Linux and Windows the SDL
+backend draws with SDL3's GPU API, and the product `MetalUISDLGPU` gives an app the same API: one
+`import MetalUISDLGPU` brings a thin typed layer named after SDL_GPU (`SDLGPUDevice`, `SDLGPUBuffer`,
+`SDLGPUComputePipeline`, `SDLGPUFence`) **and** every raw `SDL_` symbol, so what the layer omits is
+still one call away on each object's `raw` pointer. It is MetalUI-only (SwiftUI has no GPU API) and
+needs the `SDL` trait; a portable GPU API over Metal and SDL is not offered. These snippets are `text`
+fences for the reason above.
+
+```text
+// Package.swift: the product comes with the SDL trait
+.package(url: "https://github.com/mburger89/MetalUI.git", revision: "<commit>", traits: ["SDL"]),
+.product(name: "MetalUISDLGPU", package: "MetalUI"),
+```
+
+**Compute needs no window.** `SDLGPUDevice.make()` creates and owns a device and answers `nil`, with
+`SDLGPUDevice.lastFailure` naming why, when no GPU or driver answers. A kernel is HLSL you build once
+with `Backends/SDL/scripts/compile-app-shaders.py` (the recipe is section 4a of
+[`packaging.md`](../packaging.md)) and the library loads the blob for the device's driver together with
+its reflection, so you never count bindings by hand. SDL_GPU has no append buffer: a read-write storage
+buffer holds a counter in its first word and the payload after it, and each thread claims a slot with
+`InterlockedAdd`.
+
+```text
+import MetalUISDLGPU
+
+let device = SDLGPUDevice.make()!                      // owned; a missing GPU is nil, not a trap
+let library = try SDLGPUShaderLibrary.locate(sourceTree: kernelsDirectory)
+let pipeline = device.makeComputePipeline(try library.compute("append", for: device))!
+let buffer = device.makeBuffer(size: 4 * (1 + n), usage: [.computeStorageRead, .computeStorageWrite])!
+_ = await device.upload([UInt8](repeating: 0, count: 4 * (1 + n)), to: buffer)   // zero the counter
+
+let fence = try await device.submitBatch { commandBuffer in     // recorded and submitted on a worker thread
+    guard let pass = commandBuffer.beginComputePass(readWrite: [buffer]) else { return }
+    pass.bind(pipeline)
+    pass.push(uniform: threadCountBytes, at: 0)
+    pass.dispatch(x: (n + 63) / 64, y: 1, z: 1)
+    pass.end()                                          // every pass is ended inside the batch
+}
+await fence.wait()                                      // suspends; the main actor is never blocked
+let bytes = await device.download(buffer, range: 0..<(4 * (1 + n)))!
+```
+
+The fence is waited for on a thread of its own, so `await fence.wait()` from the main actor lets the
+window keep drawing. A command buffer is recorded and submitted only on the
+worker thread inside `submitBatch`, and a batch that leaves a pass open is an error, not an undefined
+submit. A batch is its own submission: it is not part of a window's frame.
+
+**On the window's own device.** `SDLGPUDevice(borrowing: ctx)` wraps the device a `GPUSurface` draw
+receives, not owned and never destroyed, so a buffer a batch filled is one the surface can draw.
+SDL orders only the start of one submission before the next, so await the batch's fence before the
+frame that reads its output. Keep the borrowed wrapper no longer than the window.
+
+Apps with their own SDL3 binding can ignore the layer: `SDLGPUDrawContext` still hands out `device`,
+`commandBuffer` and `target` as raw pointers.
+
 ## Where do packaging and CI live?
 
 Icons, bundles and document types are build-side, not API: [`packaging.md`](../packaging.md) has the

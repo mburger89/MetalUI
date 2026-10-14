@@ -2,7 +2,7 @@
 
 Rulings for items S5 and S6 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
 MetalCreator's SDL-port gaps 1 and 2 (developer-c0, 2026-10-13/14), RAISED: they block its xp-c track (GPU
-meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-N`.**
+meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-O`.**
 Spec: [`specs/2026-10-14-sdl-gpu-compute-design.md`](specs/2026-10-14-sdl-gpu-compute-design.md).
 Record: `../record/114-sdl-gpu-compute.md` (Record phase). Branch `feat/sdl-gpu-compute` from `fb9a7e42`.
 Divergence labels reserved 445–454: **none taken** (`GA-J`).
@@ -254,3 +254,40 @@ the Linux and Windows jobs only; macOS GPU tests are a hand run recorded in the 
 additionally into the real surface target where `windowsPresentFrames`; D1/D2 exit tests need no frame. The
 guard flag is set by `SDLWindowRenderer` only around a real draw, so D1/D2 drive the guard through a `package`
 test entry that sets the same flag; the renderer's two lines are pinned by D4 on macOS only.
+
+
+## GA-N — Lane 1 as built: what the measurement changed (macOS Metal, Linux image, Windows see the record)
+
+**Ruling.** (1) **`GA-B` holds.** A consumer package in another directory (root dependency by path, trait `SDL`,
+one `import MetalUISDLGPU`) built and ran `SDL_GetError()` and `SDLGPUDevice.make()`; with `@_exported`
+removed from `Exports.swift` (every sibling file importing `CSDL` itself) it failed with `cannot find
+'SDL_GetError' in scope`. The `Backends/SDL` test target cannot prove it alone (another test file importing
+`CSDL` leaks it to every file of the target), so `SDLGPUReExportTests` says so and the consumer build is the
+instrument. Only the **root** manifest declares the target and product; `Backends/SDL/Package.swift` depends on
+the product (the spec's "both manifests" is struck). (2) **The kernel blobs live in `Backends/SDL/Tests/AppShaders/`**
+(`*.hlsl` and `compiled/`), not under the test target: files in a test target's directory that are not sources
+draw SwiftPM's "unhandled resource" warning, and the rule is 0 warnings. (3) **`submitBatch` throws**
+(`SDLGPUError`: no command buffer, no fence, or a pass left open at the closure's end, which cancels the buffer);
+`upload` takes `[UInt8]` (an `UnsafeRawBufferPointer` cannot cross an `await` in a caller's `withUnsafeBytes`);
+`copy` labels are `sourceOffset:` and `destinationOffset:`; there is no `bind(readWrite:)` on a pass because
+SDL binds read-write buffers when the pass begins (`beginComputePass(readWrite:)`). (4) **Fence**: every fence's
+wait is queued on the waiter thread **at submission**, so each is released after its signal whether or not
+anyone awaits it (`wait()` only suspends). The test hooks are internal, reached with `@testable import`:
+`SDLGPUDevice.waiterGate` (per device, so a test on one device never holds another's fences: a global gate made
+the parallel C9 swallow C3's signal), `SDLGPUFence.unsignalledReleaseCount` and `foreignThreadWaitCount` (a
+blocking wait made off the device's waiter thread; the spec's `lastWaitThreadWasMain` is wrong where Swift Testing
+runs the main actor on a pool thread). C10 counts destroys **per device handle** (`destroyCount(of:)`): a
+process-wide count raced with an earlier test's fence still releasing its device. (5) **macOS video init**: SDL's
+Cocoa backend initialises video only on the main thread (`No available video device` elsewhere) and
+`SDL_CreateGPUDevice` needs the subsystem, so `make` hops to the main queue for `SDL_InitSubSystem` and queues
+`SDL_QuitSubSystem` there; Linux and Windows call it directly. (6) **C9 runs everywhere**: the offscreen
+`SDLWindowRenderer` runs a real surface draw with no presented frame, so the `windowsPresentFrames` gate of
+`GA-E` item 4 is dropped. C9 stays an unproven instrument (removing the creation lock reddens nothing deterministically).
+(8) **Device creation is serialized**: `make` takes one process-wide lock, and the GPU suite is `@MainActor`
+(C9 an extension of it) like every other SDL test: in the Linux image two tests making a Vulkan device at once
+made `make()` answer `nil`. The macOS and Linux (lavapipe) runs are all green; Windows is carried (its VM did not
+answer; CI runs the suite with `METALUI_REQUIRE_GPU=1`). (7) A mutation that makes the kernel's bindings wrong (C5: read-only and read-write counts swapped)
+**hangs** a later GPU test on Metal (the run was killed after 6 minutes); it counts as reddened because the
+unmutated suite finishes normally and `reflectionFillsEveryPipelineCount` itself reads red.
+**Cost if wrong.** A reviewer who runs the suite on a machine with a different Metal driver may see C9 behave
+differently; the degrade path of `GA-E` stands.

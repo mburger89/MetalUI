@@ -452,6 +452,15 @@ None for the API: additive (`TestWindow.setMarkedText`, `commitMarkedText`, `can
 conformer changes. One behaviour change (`IM-I`, a row in the table above): a text field that loses focus while
 an input method is composing drops that composition, so a field refocused later no longer shows stale marked text.
 
+### SDL GPU for apps (`GA-`, record §114)
+
+None for existing code: a new library product `MetalUISDLGPU` behind the `SDL` trait (typed `SDLGPUDevice`,
+buffers, compute pipelines, passes, fences and a shader library over SDL_GPU, plus the raw `CSDL` module re-exported
+by the same import). No `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added, so no
+conformer changes; `SDLGPUDrawContext` is unchanged. An app that bound SDL3 itself keeps working and may drop its
+binding. An app's own shaders are built with `Backends/SDL/scripts/compile-app-shaders.py` and shipped as
+`MetalUIAppShaders` (`docs/packaging.md` section 4a).
+
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.

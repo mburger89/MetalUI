@@ -46,7 +46,7 @@ private final class DeviceBox: @unchecked Sendable {
 /// deterministically (record the unproven instrument, practices). It runs on
 /// Linux and Windows too, since the offscreen renderer draws without a presented
 /// frame.
-@MainActor
+extension SDLGPUComputeTests {
 @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
 func aBatchOnTheWorkerRacesTheWindowFrameWithoutFault() async throws {
     #if os(macOS)
@@ -93,4 +93,5 @@ func aBatchOnTheWorkerRacesTheWindowFrameWithoutFault() async throws {
     }
     let counters = await batches.value
     #expect(counters == Array(repeating: expectedCount, count: 50), "\(counters)")
+}
 }

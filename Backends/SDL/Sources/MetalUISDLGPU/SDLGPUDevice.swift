@@ -39,6 +39,7 @@ public final class SDLGPUDevice: @unchecked Sendable {
     private var _waiterWorker: SDLGPUWorker?
 
     private static let stateLock = NSLock()
+    private static let makeLock = NSLock()
     nonisolated(unsafe) private static var failure = ""
     /// Test hook: how many times each owned `SDL_GPUDevice *` (by address) was destroyed.
     nonisolated(unsafe) static var destroyedByHandle: [UInt: Int] = [:]
@@ -83,6 +84,9 @@ public final class SDLGPUDevice: @unchecked Sendable {
     /// and `debug` turns on the driver's validation. Answers `nil` with
     /// ``lastFailure`` when no GPU or driver answers; it never traps.
     public static func make(debug: Bool = false, preferring driver: String? = nil) -> SDLGPUDevice? {
+        // Two threads creating a device at once raced inside Vulkan's loader in
+        // the Linux image; one lock makes `make` safe against itself.
+        makeLock.lock(); defer { makeLock.unlock() }
         // Vulkan loads its library through the video subsystem; Metal and D3D12
         // need nothing. Initialising the subsystem (reference counted, never
         // SDL_Quit: ruling RS-D) is harmless where it is not needed.

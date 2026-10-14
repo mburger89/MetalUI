@@ -243,6 +243,38 @@ cp -R .build/checkouts/MetalUI/Backends/SDL/Shaders/compiled dist/MetalUISDLShad
 (`Backends/SDL`, macOS and the Linux CI image). **Unverified**: a moved
 application opening its window (human check X1).
 
+### 4a. An app's own SDL_GPU shaders — build script and lookup verified on macOS, Linux image
+
+An app that runs its own compute or graphics work through `MetalUISDLGPU` ships HLSL it compiled
+itself, found the way section 4's are (ruling `GA-F`, after `PX-P`). **Build** with
+`Backends/SDL/scripts/compile-app-shaders.py` (the checkout's, e.g.
+`.build/checkouts/MetalUI/Backends/SDL/scripts/`) over a directory of `NAME.vert.hlsl`,
+`NAME.frag.hlsl` and `NAME.comp.hlsl` (the stage is the suffix, the entry point `main`; read-only
+storage is `register(t…, space0)`, read-write storage `register(u…, space1)`, uniforms
+`register(b…, space2)` for a compute stage):
+
+```sh
+python3 compile-app-shaders.py --shadercross /path/to/shadercross --source shaders --out shaders/compiled
+```
+
+It writes `NAME.<stage>.spv`, `.msl`, `.dxil` and a reflection `.json` per source, and `SOURCE.sha256`
+(one `<sha256>  <file>` line per source). Its one dependency is SDL_shadercross: a release binary or
+a source build (`libsdl-org/SDL_shadercross`); its shared libraries sit in a `lib` directory beside
+`bin`, which the script puts on the loader path. **Check in the compiled directory**: a test can
+recompute each source's SHA-256 against `SOURCE.sha256` with no shadercross, so a source edited
+without a rebuild fails anywhere (the repository's own kernel does this, `aCheckedInAppShaderBlobMatchesItsSource`).
+**Ship** the directory as `MetalUIAppShaders` beside the executable:
+
+```sh
+cp -R shaders/compiled dist/MetalUIAppShaders
+```
+
+`SDLGPUShaderLibrary.locate(directoryName:sourceTree:)` looks in `MetalUIAppShaders` beside the
+executable first, then in the `sourceTree` URL the app passes (a source build; the library reads no
+`#filePath` for the app) and fails naming both directories when neither holds `SOURCE.sha256`.
+**Verified**: the order and the error, `theShaderLibraryLooksBesideTheExecutableThenTheSourceTree`
+(`Backends/SDL`). **Unverified**: a moved shipped app finding its directory (human check GA3).
+
 ## Windows: an `.ico` embedded as a resource
 
 Explorer, the Start menu and a shortcut show the icon embedded in the `.exe`
