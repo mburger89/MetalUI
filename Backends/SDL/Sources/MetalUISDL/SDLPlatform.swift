@@ -1,6 +1,7 @@
 // Compiled only under the `SDL` trait (ruling PX-H item 2); without it this
 // file declares only the unavailable `SDLPlatform` at its end.
 #if SDL
+import Foundation
 import MetalUICore
 import MetalUIPlatform
 import MetalUIScene
@@ -712,6 +713,74 @@ public final class SDLWindow: PlatformWindow {
     }
 
     public func writeClipboard(_ text: String) { _ = mui_set_clipboard_text(text) }
+
+    // MARK: Typed clipboard (rulings CB-D, CB-E, CB-H, CB-I)
+
+    /// Replaces the clipboard with `representations`, each keyed by its
+    /// `ClipboardMime` mime type (the first of two that map alike wins). The bridge
+    /// copies every payload into one box (`CB-H`), so nothing here must outlive
+    /// the call. `false` when nothing was written.
+    public func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool {
+        var seen = Set<String>()
+        var mimes: [String] = []
+        var payloads: [[UInt8]] = []
+        for representation in representations where !representation.bytes.isEmpty {
+            let mime = ClipboardMime.mime(forIdentifier: representation.type.identifier)
+            guard seen.insert(mime).inserted else { continue }
+            mimes.append(mime)
+            payloads.append(representation.bytes)
+        }
+        guard !mimes.isEmpty else { return false }
+        let names: [UnsafeMutablePointer<CChar>?] = mimes.map { strdup($0) }
+        defer { names.forEach { free($0) } }
+        var sizes = payloads.map(\.count)
+        var pointers = [UnsafePointer<UInt8>?](repeating: nil, count: payloads.count)
+        func bind(_ index: Int) -> Bool {
+            if index == payloads.count {
+                let constNames = names.map { UnsafePointer<CChar>($0) }
+                return constNames.withUnsafeBufferPointer { nameBuffer in
+                    pointers.withUnsafeBufferPointer { byteBuffer in
+                        sizes.withUnsafeMutableBufferPointer { sizeBuffer in
+                            mui_clipboard_set(nameBuffer.baseAddress, byteBuffer.baseAddress,
+                                              sizeBuffer.baseAddress, payloads.count)
+                        }
+                    }
+                }
+            }
+            return payloads[index].withUnsafeBufferPointer { buffer in
+                pointers[index] = buffer.baseAddress
+                return bind(index + 1)
+            }
+        }
+        return bind(0)
+    }
+
+    /// The identifiers of the clipboard's mime types, as SDL lists them (`CB-D`).
+    public func clipboardTypeIdentifiers() -> [String] {
+        var count = 0
+        guard let list = mui_clipboard_mime_types(&count) else { return [] }
+        defer { mui_free(UnsafeMutableRawPointer(list)) }
+        return (0..<count).compactMap { index in
+            list[index].map { ClipboardMime.identifier(forMime: String(cString: $0)) }
+        }
+    }
+
+    /// The clipboard's bytes as `identifier`'s mime type; `nil` when absent
+    /// (`SDL_HasClipboardData` gates the read, `CB-H`).
+    public func readClipboard(identifier: String) -> [UInt8]? {
+        var size = 0
+        let mime = ClipboardMime.mime(forIdentifier: identifier)
+        guard let data = mui_clipboard_get(mime, &size) else { return nil }
+        defer { mui_free(data) }
+        return Array(UnsafeRawBufferPointer(start: data, count: size))
+    }
+
+    /// What the focus chain can do with the clipboard; SDL has no native Edit menu
+    /// to enable, and the drawn bar reads the window's own state (`CB-E`), so this
+    /// only records.
+    private(set) var clipboardCommands: ClipboardCommands = []
+
+    public func setClipboardCommands(_ commands: ClipboardCommands) { clipboardCommands = commands }
 
     /// Whether a key-down is one SDL will also send as `SDL_EVENT_TEXT_INPUT`
     /// — a printable keycode with no control or command — and so, while text
