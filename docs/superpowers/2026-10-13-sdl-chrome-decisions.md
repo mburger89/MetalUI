@@ -1,0 +1,225 @@
+# SDL custom window chrome — decisions
+
+Rulings for item S1: `windowStyle: .hiddenTitleBar`, title-bar insets, window drag, resize edges and
+system buttons on SDL (Linux and Windows; macOS through SDL where it works). User request 2026-10-02
+(gpui-gap priority list; **not a plan task**), reported as MetalCreator's SDL-port gap 3
+(developer-c0, 2026-10-13; read, never edited).
+Spec: [`specs/2026-10-13-sdl-chrome-design.md`](specs/2026-10-13-sdl-chrome-design.md).
+Record: `../record/112-sdl-chrome.md` (written at the Record phase). Divergence labels 425–434 are this
+branch's range.
+
+Evidence:
+
+- [`../probes/swiftui-window-chrome.swift`](../probes/swiftui-window-chrome.swift): SwiftUI has no
+  minimise/zoom action, no drawn control set and no title-bar double-click hook (arm P compiles, N1–N4
+  fail), recorded 2026-10-13.
+- [`../probes/appkit-titlebar-hit-test.swift`](../probes/appkit-titlebar-hit-test.swift) and
+  `swiftui-app-shell.swift` (`H0`/`H1`): the AppKit band, 32 pt, the buttons' right edge 69 pt (`AS-E`).
+- SDL 3.4.18 `SDL_video.h` (read this session, not run): `SDL_SetWindowHitTest` "may fire at any time",
+  "mouse input may not be delivered … within a special area", main-thread set only; `SDL_SetWindowBordered`
+  cannot change a fullscreen window; no `SDL_StartWindowMove` exists.
+- gpui (`WindowDecorations::Client`, `window_control_area`, `start_window_move`/`start_window_resize`):
+  **from memory of `crates/gpui`, not re-read this session**; used only to choose the shape (hit-test
+  regions plus drawn controls on Linux/Windows). SwiftUI has no analogue, so SwiftUI is not the authority
+  for anything below beyond `WindowDragGesture`'s spelling (`WD-B`) and `.hiddenTitleBar`.
+
+Next unused: `CW-M`.
+
+## CW-A — Scope: what is built, what is deferred
+
+**Ruling.** Built: (1) SDL applies `.hiddenTitleBar` (borderless window, `setTitleBarStyle` answers `true`);
+(2) `titleBarInsets` on SDL; (3) drag through `SDL_SetWindowHitTest` from a snapshot of regions (the unclaimed
+band, `AS-J`, and `WindowDragGesture` handles, `WD-`); (4) resize edges for a borderless window;
+(5) drawn system buttons, drawn by the window where the platform has none; (6) `minimize()`/`toggleZoom()`
+on `Window`; (7) double-click zoom where a press reaches `Window`, and natively on Windows.
+Deferred, named: **Linux (X11/Wayland) double-click-to-zoom on the band** — SDL consumes a press inside a
+draggable region, so `Window` never sees the second click (CW-I; owner: a measuring session on real X11 and
+Wayland, human check CW6); Windows 11 snap-layout flyout (`HTMAXBUTTON` is not an SDL answer); rounded
+corners and the DWM shadow of a borderless Windows window (platform, not ours); client-side shadows and
+tiling on Wayland; `windowBackgroundDragBehavior`.
+**Cost if wrong.** An item deferred here is a documented constraint in `docs/guides/cross-platform.md`.
+
+## CW-B — `setTitleBarStyle(.hidden)` on SDL: `SDL_SetWindowBordered(false)`, answer `true`
+
+**Ruling.** The bridge gains `mui_window_set_bordered(window, bool) -> bool`. `setTitleBarStyle(.hidden)` calls
+it with `false`, `.standard` with `true`; the answer is SDL's result (`true`), so `Window.titleBarStyleApplied`
+becomes true and everything `AS-E`/`AS-J` built switches on without a change there. Applied before the first
+show (the window is created hidden, `WS-B`), so no frame is seen bordered. A fullscreen window cannot change
+border state (SDL): the call answers `false` and `Window` keeps the standard insets; leaving fullscreen
+re-sends nothing, so the platform re-applies the *last requested* style on `SDL_EVENT_WINDOW_LEAVE_FULLSCREEN`.
+The client area keeps its size (the title bar's pixels are lost, not the content's): `contentSize` does **not**
+grow by the band as on AppKit (`AS-E` item 3) — the band is inside the root, as `titleBarInsets.top` says.
+The window stays `SDL_WINDOW_RESIZABLE`.
+**Why not a `SDL_WINDOW_BORDERLESS` creation flag.** The style is settable after creation (`Window.windowStyle`),
+and the creation path has no style yet.
+**Cost if wrong.** A platform where `SetWindowBordered` fails answers `false` and keeps its system bar:
+today's behaviour, no regression.
+
+## CW-C — System buttons: drawn by the window, no public view; two verbs
+
+**Ruling.** SwiftUI has none of this (probe arms N1–N4), so all of it is class M. (1) Where the platform has no
+native window buttons under the hidden style (**SDL**: `PlatformWindow.hasNativeWindowControls == false`),
+`Window` draws three buttons in a `Deferred` presentation-root strip over the content (the `MenuBarStrip`/
+`ToolbarStrip` precedent, named root `$windowcontrols`, a name not a slot, `noteNamed`): minimise, zoom
+(maximise/restore glyph by `isZoomed`), close. They are ordinary `Button`s: their hitboxes are opaque, so they
+are blockers (CW-E) and work through the existing paths — close goes through `performClose()` (the `AS-B`
+veto: `onCloseRequest`, `.later`), minimise and zoom through `PlatformWindow.performWindowAction`. Labels
+"Close", "Minimise", "Zoom"/"Restore" reach accessibility. (2) **`Window.drawsWindowControls: Bool`**
+(default `true`; MetalUI-only; no effect where the platform has native buttons or the style is standard)
+lets an app that draws its own turn them off. (3) **`Window.minimize()` and `Window.toggleZoom()`** are the
+verbs an app-supplied control calls (`performClose()` and `close()` exist, `AS-B`), also class M.
+(4) **No public `WindowControls` view**: a view cannot know the platform's cluster edge, and a second
+spelling of the same three buttons is API surface for no capability the property and verbs lack.
+Layout: right-aligned trailing cluster of three 46×32 pt flat rectangles (Windows/Linux); **macOS through
+SDL** (`#if os(macOS)` in the strip's builder, driver "cocoa") draws three 12 pt circles at the left edge
+(AppKit's order), 70 pt wide cluster. Colours from the theme (`.surface`/`.separator`, destructive red hover
+on close); no animation beyond hover wash.
+**Cost if wrong.** If the three-button default proves unwanted, `drawsWindowControls = false` is the escape and
+the only cost is an app that forgot it reads an extra control cluster.
+**Rejected:** an app-supplied-only model (an app that sets `.hiddenTitleBar` and draws nothing would have a
+window no mouse can close, which breaks `AS-E` item 2's "the window buttons stay" on the platform that
+gained the style); a public `WindowControls` view (above).
+
+## CW-D — `titleBarInsets` on SDL, per platform
+
+**Ruling.** While the hidden style is applied and the window is not fullscreen, SDL answers
+`top` = **32** (AppKit's band, so one app layout serves every platform), `bottom` 0; the controls cluster edge:
+Linux/Windows `right` = **138** (3 × 46) and `left` 0; macOS-through-SDL `left` = **70** and `right` 0 — **each
+only while `drawsWindowControls` is true**, else both 0 (the app owns the cluster). Who computes it: on a
+platform whose `hasNativeWindowControls` is false the platform answers the band and the cluster **edge** it
+would use (`top` 32 plus the 138 or 70 on `right`/`left`), and `Window.effectiveTitleBarInsets` gains one
+clause that zeroes the cluster side when `drawsWindowControls` is false — so the platform never learns the
+property and no further requirement exists. The value is read by `Window` at every build as today; a change
+without a size change dirties the window through the existing insets path (`AS-E` item 5). Fullscreen answers
+all zero and `Window` draws no strip and publishes no regions (the band is gone, as on AppKit).
+**Cost if wrong.** A different Windows caption height (30–32 at 100%) shifts a glass bar by at most 2 pt.
+
+## CW-E — Drag is hit-test regions from a snapshot; blockers are carved out
+
+**Ruling.** SDL's callback runs in the OS event path and a `SDL_HITTEST_DRAGGABLE` area **removes the pointer
+events inside it from the app** (SDL header; `WD-F` item 1). So a region may only cover pixels where the app
+wants no pointer events, and `Window` computes them: after each presented/rendered frame, only when the platform
+returned `true` from `setWindowDragRegions` earlier (cost on AppKit: zero), `Window` builds the
+**candidate rects** — the band `(0, 0, width, titleBarInsets.top)` while the hidden style is applied (`AS-J`),
+plus each `WindowDragGesture` element's rect (`WD-C`) — and **carves out every blocker**: each hitbox of the
+frame that is opaque (`onClick`, `textInput`, `valueTrack`), a gesture-arena or draggable member (non-opaque,
+`DN-U`), a drop destination, or a `contextual`/secondary-press target (all of which need pointer events). A
+blocker's rect is its transformed bounding box clipped by its outer clip (conservative: one pixel too many
+blocked, never one too few). Hover regions, scroll regions, tooltips and `.pointerStyle` regions are **not**
+blockers (a root-level hover would otherwise forbid all drag) and so **lose their pointer events inside a
+drag region on SDL — divergence 425** (SDL's swallow is unmeasured per platform, human check CW5). The
+result is a list of disjoint rects (rect subtraction, x-then-y, `ChromeHitMap.carve`), **capped at 64**
+(remaining area is simply not draggable; a counter `ChromeHitMap.truncated` is read in tests), ordered
+top-to-bottom, left-to-right, deduplicated by value; `Window` publishes it **only when it changed**
+(`==` of the arrays). **Any open presentation** (popover, menu, tooltip? no — popover, `anchoredOverlay`,
+drawn menu, alert, sheet) **publishes an empty list**: a press outside must dismiss, and the press must reach
+`Window`. A drag in progress (`mouseDown` armed arena) never changes the published list mid-gesture.
+`performWindowDrag()` on SDL **stays `false`** (it records): SDL has no way to start a move from a callback
+that already ran; the move happens in the OS before `Window` sees the press, and a `WindowDragGesture`
+handle works because its rect is a region, not because the gesture ran. So the gesture's own semantics
+(ends and cuts the others at a slop, `WD-C`) are inert on SDL for that handle, as it never receives the press
+— **divergence 276 is amended** (SDL now moves the window from a handle; `performWindowDrag` still answers
+`false`) and **divergence 426** names the rule that a handle containing a button or a tap is draggable only
+around them.
+**Cost if wrong.** A blocker missed makes a button in the band unclickable on SDL (the worst failure; the
+carving test and human check CW3 pin it). A blocker over-collected makes a sliver undraggable.
+**Rejected:** a region list from `Window.onInput`'s answer (the same trap `AS-J` found); a pure hit-box
+copy without carving (kills buttons); letting hover block (kills the band under any root hover).
+
+## CW-F — The seam: three defaultless requirements, every conformer answers
+
+**Ruling.** `PlatformWindow` gains, **without defaults** (`HT-X` 1; migration note in `docs/migration.md`):
+1. `func setWindowDragRegions(_ regions: [Rect<Pixels>]) -> Bool` — `true` when the platform uses them
+   (AppKit `false`, SDL `true`, headless by `Options.usesWindowDragRegions`, default `false` = AppKit's answer).
+   `Window` stops computing once it reads `false` for the platform it holds (it asks once with `[]` when the
+   window opens and again on a style change).
+2. `func performWindowAction(_ action: PlatformWindowAction) -> Bool` — `public enum PlatformWindowAction:
+   Sendable, Equatable { case minimize, toggleZoom }`; AppKit `miniaturize(nil)`/`zoom(nil)` (`true`), SDL
+   `SDL_MinimizeWindow` / `SDL_MaximizeWindow` or `SDL_RestoreWindow` by `SDL_WINDOW_MAXIMIZED` (`true` when SDL
+   accepted), headless records and answers `true`.
+3. `var hasNativeWindowControls: Bool { get }` — AppKit `true` (the traffic lights stay under the hidden style),
+   SDL `false`, headless by `Options.hasNativeWindowControls` (default `true`, AppKit's). Plus a read-back
+   `var isZoomed: Bool { get }` — AppKit `isZoomed`, SDL the maximized flag, headless a settable value; it is
+   **a fourth defaultless member**; the migration note lists all four.
+The headless platform's `Options` gains a one-call preset `Options.sdlChrome` (drag regions on, native
+controls off, `appliesTitleBarStyle` true, SDL-like insets 32/138) so a test drives SDL's chrome path with no
+SDL. **Every test fake** of `PlatformWindow` in `Tests/` and `Backends/SDL/Tests/` adds the four.
+**Cost if wrong.** Four requirements are source-breaking for a third-party conformer (documented); a default
+would let a conformer silently draw no controls, the failure the rule exists to prevent.
+
+## CW-G — Resize edges: computed in the bridge's snapshot, only for a borderless window
+
+**Ruling.** The hit-test snapshot carries the window's size (points), a **6-point** resize border and the
+enabled axes. The callback answers, **in this order**: (1) a corner square (6×6 → 12×12 inside a corner:
+`SDL_HITTEST_RESIZE_*` corner); (2) an edge; (3) a drag rect; (4) `SDL_HITTEST_NORMAL`. Edges apply **only while the
+window is borderless** (the bridge knows; a bordered window's system frame resizes itself) and the window is not
+maximized or fullscreen, and **never on an axis whose min and max size limits are equal** (`setContentSizeLimits`,
+`SV-B`). The controls cluster is never reached by an edge on the top: the top edge is cut over the cluster
+(a drag region never includes it, edges do — so the top-right 6-pt row over the controls resizes; accepted).
+The callback never allocates and reads no MetalUI object other than the snapshot (CW-H).
+**Cost if wrong.** A 6-pt border overlapping content (a scrollbar at the right edge) swallows its first 6 points
+of pointer events; human check CW4 measures it; the width is a constant in one place.
+
+## CW-H — Thread safety: an immutable snapshot box behind a lock
+
+**Ruling.** SDL says the callback "may fire at any time" and on Windows it runs inside the window procedure.
+The callback therefore reads
+**one immutable value** and nothing else: `ChromeHitSnapshot` (portable, in `MetalUIPlatform`: size, border,
+axes, `[Rect<Pixels>]`, `borderless`, `zoomedOrFullscreen`; `Sendable`, `func hit(at:) -> ChromeHit`, pure)
+is the specification. The bridge holds a C copy of it (fixed array of at most 64 rects plus a header, no heap)
+behind an **`SDL_Mutex`** created with the window and destroyed with it (`pthread_mutex_t` is not on Windows,
+`os_unfair_lock` is Darwin-only; SDL's mutex is the one lock the C bridge already has everywhere). The
+publisher (main thread, after a frame) swaps a new copy in under the lock; the callback locks, copies the
+struct, unlocks and evaluates the copy with `mui_chrome_hit(const mui_chrome_snapshot *, float x, float y)`,
+written in C. **A Swift test calls `mui_chrome_hit` and `ChromeHitSnapshot.hit` over one table of points and
+requires equal answers**, so the Swift type specifies and the C function is checked against it (the `BoxBlur`
+precedent, `PF-F`). The C enum result is converted explicitly (`Int32` on Windows).
+**Why not an atomic pointer.** Retiring the old snapshot safely needs hazard handling; a lock held for a
+memcpy is unmeasurably short and obviously correct. **Why not call Swift from the callback.** Reentrancy into
+the main-actor world from the window procedure.
+**Cost if wrong.** A callback blocked on the lock stalls the OS drag for one memcpy at worst; a deadlock is
+impossible because neither side takes another lock while holding it.
+
+## CW-I — Double-click on the band
+
+**Ruling.** `SDLPlatformWindow.performTitleBarPress(clickCount:)` answers `true` and toggles zoom for
+`clickCount >= 2` (via the CW-F action), `false` for 1 (the hit test already dragged). This runs only when SDL
+delivered the press — i.e. over a region the snapshot made normal (a presentation open, or the band's blocker
+gaps). **On Windows `SDL_HITTEST_DRAGGABLE` becomes `HTCAPTION`**, and `DefWindowProc` maximises/restores on a
+caption double-click itself, so the user-visible behaviour is native there. **On X11/Wayland a draggable
+region consumes both presses, so double-click zoom does not work** — deferred (CW-A), human check CW6,
+**divergence 427** reserved for it: not taken until a real-display run confirms the failure.
+**Cost if wrong.** If the Windows caption path does not maximise (SDL's `HTCAPTION` handling differs by
+version), `performTitleBarPress` is unreachable and double-click zoom is missing there too; CW6 measures it.
+
+## CW-J — What stays put
+
+**Ruling.** Standard-style windows are untouched: no `SDL_SetWindowBordered` call, no strip, regions computed
+only when `Window` holds a `true` from the platform **and** (the hidden style is applied or a
+`WindowDragGesture` exists in the last frame) — a plain SDL window never installs a hit-test callback
+(`SDL_SetWindowHitTest` is called on the first non-empty publish and cleared when the list and edges both become
+empty). The 14 offscreen images (standard style) are 0 px; no `Handlers` member, no `StateTable` slot
+(`$windowcontrols` is a named root, `noteNamed`), no `Frame` hitbox change (`AS-J`'s two-value read is kept;
+the carve reads the existing hitbox list, `topmostHitbox` is not duplicated: the carve is a *region* function
+over the list, not a point lookup, and says so in its header).
+**Cost if wrong.** The first window with a drag region changes the hit-test state of the SDL window for its
+life; clearing is tested.
+
+## CW-K — Public API and class
+
+**Ruling.** New public declarations: `Window.drawsWindowControls`, `Window.minimize()`, `Window.toggleZoom()`,
+`Window.isZoomed` (read), `PlatformWindowAction`, the four `PlatformWindow` requirements,
+`HeadlessPlatform.Options` additions (`usesWindowDragRegions`, `hasNativeWindowControls`, `sdlChrome`,
+`isZoomed`) and the headless read-backs `TestWindow.windowDragRegions`, `.windowActions`. All class `M`
+(inventory rows; SwiftUI has no analogue, probe N1–N4); `ChromeHitSnapshot` and `ChromeHit` are `public` in
+`MetalUIPlatform` because the SDL module and its tests use them (M, "platform seam"). Each owes a doc comment;
+`closeout-inventory-check.sh`, `closeout-undocumented.sh` print nothing; census re-recorded.
+
+## CW-L — Lanes, order and what the first lane must not break
+
+**Ruling.** Two lanes, disjoint files, **sequential** (lane 1's types are lane 2's inputs): lane 1 (root: seam,
+`Window`, strip, headless, AppKit, root tests, demo section, docs) lands first with a green root suite; lane 2
+(`Backends/SDL`: bridge, `SDLPlatform`, SDL tests, Linux image, docs it owns) follows. Lane 1's `SDLPlatform`
+conformer additions are the one cross-lane edit and are made by lane 1 as `fatalError`-free stubs answering
+today's values so `Backends/SDL` builds (`swift build` in `Backends/SDL`), which lane 2 replaces.
+**Cost if wrong.** A lane 2 that finds the seam wrong sends the fix back to lane 1's files.
