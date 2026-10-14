@@ -174,6 +174,13 @@ struct RPCard: Component, @MainActor Equatable {
             Box().frame(width: Pixels(Float(20 + shade * 4)), height: Pixels(8)).background(.accent)
             // A click target no pointer reaches but an accessibility client can press: the press-only registration.
             Button("silent") {}.frame(width: Pixels(30), height: Pixels(10)).allowsHitTesting(false)
+            // One region of each tally the replay restores (`RK-E`): hover, pointer style, key region, resign on press.
+            HStack(spacing: 2) {
+                Text("h").onHover { _ in }.frame(width: Pixels(10), height: Pixels(8))
+                Box().pointerStyle(.link).frame(width: Pixels(10), height: Pixels(8))
+                Box().hoverKeyRegion().frame(width: Pixels(10), height: Pixels(8))
+                Box().resignsFocusOnPress().frame(width: Pixels(10), height: Pixels(8))
+            }
         }
         .padding(Edges(all: Pixels(4)))
         .background(Color.accent.opacity(0.2), in: RoundedRectangle(cornerRadius: Pixels(6)))
