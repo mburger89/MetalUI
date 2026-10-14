@@ -40,11 +40,13 @@ func decodeImageTexture(_ bytes: UnsafeRawBufferPointer) -> ImageTexture? {
 ///    each sample rounds `(v × 255 + 32767) / 65535` (stb's own 8-bit path
 ///    truncates, `v >> 8`, and differs from ImageIO by up to 2; `PX-C` item 2).
 /// 3. ``jpegScanIsTerminated(_:)``; then the 8-bit path.
-/// 4. ``decodedSizeIsAccepted(width:height:)``; `stbi_image_free` on every path.
+/// 4. ``decodedSizeIsAccepted(width:height:)``, then, when `expected` is given (``ImageInfo``'s header
+///    size, `IH-I`), the decoded size must equal it;  `stbi_image_free` on every path.
 ///
 /// Colour profiles are ignored: every sample is taken as sRGB (`PX-C` item 4,
 /// divergence 138).
-func decodeImage(_ bytes: UnsafeRawBufferPointer, channels wanted: Int = 4)
+func decodeImage(_ bytes: UnsafeRawBufferPointer, channels wanted: Int = 4,
+                 expecting expected: (width: Int, height: Int)? = nil)
     -> (width: Int, height: Int, samples: [UInt8])? {
     precondition(wanted == 1 || wanted == 4, "decodeImage: channels must be 1 or 4")
     guard bytes.count <= Int(Int32.max), let base = bytes.baseAddress else { return nil }
@@ -65,6 +67,7 @@ func decodeImage(_ bytes: UnsafeRawBufferPointer, channels wanted: Int = 4)
         else { return nil }
         defer { stbi_image_free(samples) }
         guard decodedSizeIsAccepted(width: Int(width), height: Int(height)) else { return nil }
+        guard expected == nil || (Int(width), Int(height)) == (expected!.width, expected!.height) else { return nil }
         let count = Int(width) * Int(height) * wanted
         let rgba = [UInt8](unsafeUninitializedCapacity: count) { buffer, initialized in
             for i in 0..<count {
@@ -78,6 +81,7 @@ func decodeImage(_ bytes: UnsafeRawBufferPointer, channels wanted: Int = 4)
     else { return nil }
     defer { stbi_image_free(samples) }
     guard decodedSizeIsAccepted(width: Int(width), height: Int(height)) else { return nil }
+    guard expected == nil || (Int(width), Int(height)) == (expected!.width, expected!.height) else { return nil }
     let count = Int(width) * Int(height) * wanted
     return (Int(width), Int(height), Array(UnsafeBufferPointer(start: samples, count: count)))
 }
@@ -114,7 +118,7 @@ private let crcTable: [UInt32] = (0..<256).map { n -> UInt32 in
     return c
 }
 
-private func crc32(_ bytes: UnsafeRawBufferPointer, from start: Int, count: Int) -> UInt32 {
+func crc32(_ bytes: UnsafeRawBufferPointer, from start: Int, count: Int) -> UInt32 {
     var c: UInt32 = 0xFFFF_FFFF
     for i in start..<(start + count) {
         c = crcTable[Int((c ^ UInt32(bytes[i])) & 0xFF)] ^ (c >> 8)

@@ -60,7 +60,7 @@ func theHeaderSurfaceIsReachableAndTheWalkIsNot() throws {
     try #require(with.succeeded, "the control must compile, or this guard cannot fail:\n\(with.output)")
     #expect(!source.succeeded && source.messages.contains("HeaderSource"),
             "HeaderSource must be refused FOR its name:\n\(source.output)")
-    #expect(!memberwise.succeeded && memberwise.messages.contains("argument"),
+    #expect(!memberwise.succeeded && memberwise.messages.contains("no exact matches in call to initializer"),
             "the memberwise initialiser must be refused:\n\(memberwise.output)")
     #expect(!walk.succeeded && walk.messages.contains("readImageInfo"),
             "the walk must be refused FOR its name:\n\(walk.output)")
