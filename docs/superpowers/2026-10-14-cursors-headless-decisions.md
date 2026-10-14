@@ -5,7 +5,7 @@ and XP-G9. Spec: [`specs/2026-10-14-cursors-headless-design.md`](specs/2026-10-1
 Record: `../record/116-cursors-headless.md`. Probe: `docs/probes/swiftui-image-cursor.swift` (arms `I0`-`I7`,
 output in its header).
 
-Prefix **`IC-`**, lettered. **Next unused: `IC-Q`.** (Moves in the commit that appends a ruling.)
+Prefix **`IC-`**, lettered. **Next unused: `IC-R`.** (Moves in the commit that appends a ruling.)
 Branch `feat/image-cursors-headless` from `fb9a7e42`. Reserved divergence labels 465-474: 465 used
 (`IC-C`), 466-474 unused.
 
@@ -221,3 +221,14 @@ read only by tests 11, 12, 17. Same shape as `SurfaceTargetTable` (`MV-`).
 `task ran=<bool>`; the launching test owns the child `Process`, waits on it, and on a generous deadline
 terminates **that child only** and fails. A mutant that never runs the task therefore reddens (`task ran=false`)
 rather than hanging the suite (the 12-minute hang rule).
+
+## IC-Q - The recipe stops from the display-link tick; the check is declared in `Backends/SDL` only
+
+**Finding (lane A).** A `.task` can run in the first frame, which on macOS is before `platform.run()` starts;
+`platform.stop()` from the task then sets `running = false` and `run()` sets it true again, so the first build
+of `HeadlessLaunchCheck` ran to its 200000-iteration bound (`task ran=true iterations=200000`). The root
+manifest declares no `MainQueueDrainCheck` either, so the spec's "declared in both manifests" is only
+`Backends/SDL/Package.swift`: its executables are another package's, which is why `Options` had to be public.
+
+**Ruling.** The recipe and the check set a flag in the task and call `stop()` from `startDisplayLink`'s tick
+(also the iteration bound, `IC-P`): `iterations=1` on macOS. `docs/testing.md` says why.

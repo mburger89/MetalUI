@@ -22,7 +22,9 @@ design: no SwiftUI counterpart. **X** — deprecated, with its replacement.
 Platforms: macOS (AppKit + Metal, the default), Linux and Windows (the
 `MetalUISDL` product of the root package, behind its `SDL` and `AccessKit`
 package traits, `PX-H`; [`getting-started.md`](getting-started.md) says what
-to install). iOS and the other Apple platforms are out of
+to install). `SDLPlatform(options:)` takes `SDLPlatform.Options`; `.headless` opens hidden
+windows that render offscreen, for a CI smoke test with no display
+([`testing.md`](testing.md#a-ci-smoke-test-of-the-real-window), `IC-J`). iOS and the other Apple platforms are out of
 scope (`PB-A`).
 
 ## App and window — M
