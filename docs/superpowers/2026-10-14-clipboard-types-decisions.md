@@ -233,3 +233,28 @@ action's effect happened); a paste claims only when the action ran, so an empty 
 an empty validator result all decline and an App command's Paste runs.
 **Cost if wrong.** A cut that must not claim on an empty result is an `if` away; low.
 
+
+## Mutation record, lane 1 (not a ruling)
+
+Taken on `def3fdd8` plus the `T.self` warning fix: all 25 behavioural mutants were compiled into one
+`--build-system native` build behind `CB_MUT=<id>` (gated reads, removed before commit) and run with
+`--skip-build`, **filtered** to the clipboard-bearing set (`MetalUITestingTests`, `MetalUIPlatformTests`,
+`MetalUICrossPlatformTests`, and the `MetalUITests` functions of `ClipboardDemoTests`, `MenuBarStripTests`,
+`CommandsTests`, `TextFieldTests`, `TextEditingTests`, `ClipboardCompileGuards`, `AppKitDragAndDropTests`:
+452 tests, unmutated 452 passed); the unmutated unfiltered suite is the 3746-test run. Every mutant reddened:
+M1 copy writes one representation (the two Window round-trip tests); M1b the key path writes one (14 issues, six
+tests); M2 the stage walks `keyChain` (`aCopyOnAnUnfocusedAncestorlessElementWritesNothing`); M3a cut action twice,
+M3b cut writes nothing (`cutWritesTheItemsThenRunsTheActionOnce`, `theInnermostHandlerOnTheChainWins`); M4 import order
+reversed; M5 text import skipped; M6 paste reports `true` when nothing imported (`aPasteWithNoImportableTypeDeclinesAndTheNextStageRuns`);
+M7 validator ignored; M8/M9 stage ordered before the text keys or the keymap (`aFocusedTextFieldKeepsItsOwnCopyCutPasteUnderACopyableAncestor`,
+`onKeyPressAndTheKeymapStillBeatAClipboardHandler`); M10 chain reversed (`theInnermostHandlerOnTheChainWins`); M11 a keyboard factory drops the
+attachment (`eachKeyboardModifierFactoryKeepsTheClipboardAttachment`); M12/M12b drawn-bar enablement; M13 commands sent every frame
+(`setClipboardCommandsIsSentOnChangeOnly`); M14 empty representation kept; M15 headless store truncates a large payload
+(`aLargePayloadRoundTripsByteForByte`); M16 headless `clipboard` read-back; M17a/b/c the mime table, percent-hex digits and the
+foreign-mime path (`clipboardMimeRoundTripsEveryBuiltInACustomAMixedCaseAndAHostileIdentifier`, `aForeignMimeIsListedAndReadableByItsMimeIdentifier`);
+M18a missing `clearContents`, M18b copy never enabled, M18c a write to the general pasteboard
+(`aWriteListsReadsAndReplacesOnAPrivatePasteboard`, `validateMenuItemFollowsSetClipboardCommands`, `theGeneralPasteboardIsNeverTouched`); M20 the demo copies nothing.
+Typecheck guards, each rebuilt: a default `setClipboardCommands` extension reddens
+`aPlatformWindowWithoutAClipboardRequirementDoesNotCompile` (3.1); a public `Clipboard.init()` reddens
+`theClipboardSpellingsCompileFromAPlainImportAndClipboardHasNoInitialiser` (3.2). Tree clean after each (`git status --short`).
+A predecessor's identical mutation set was found unreverted in the worktree and was reverted, and its results (not recorded) retaken here.
