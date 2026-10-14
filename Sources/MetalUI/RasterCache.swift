@@ -185,6 +185,7 @@ final class RasterCache {
     private var rasterizedThisFrame = 0
     private var blurredThisFrame = 0
     private var texturesMadeThisFrame = 0
+    private var tintedThisFrame = 0
 
     /// Device pixels the last completed frame rasterized (coverage misses) — a
     /// work counter, never time.
@@ -196,6 +197,9 @@ final class RasterCache {
     /// "textures uploaded", since the renderers upload once per new identity
     /// (`TE-AF`). A work counter, never time.
     private(set) var lastTexturesMade = 0
+    /// Pixels the last frame's tints ran the multiply over (`PN-D`): a work
+    /// counter beside `lastTexturesMade`, never time.
+    private(set) var lastTintedPixels = 0
 
     /// A test probe (`PF-C`, test L1.5): every raster `Frame` asks for, as the
     /// scope carried it, before any key is made. `nil` (the default) costs
@@ -209,6 +213,7 @@ final class RasterCache {
         rasterizedThisFrame = 0
         blurredThisFrame = 0
         texturesMadeThisFrame = 0
+        tintedThisFrame = 0
     }
 
     func endFrame() {
@@ -225,6 +230,7 @@ final class RasterCache {
         lastRasterizedPixels = rasterizedThisFrame
         lastBlurredPixels = blurredThisFrame
         lastTexturesMade = texturesMadeThisFrame
+        lastTintedPixels = tintedThisFrame
     }
 
     func noteRasterized(_ pixels: Int) { rasterizedThisFrame += pixels }
@@ -288,7 +294,7 @@ final class RasterCache {
             }
             return tinted.values[slot].texture
         }
-        let texture = RasterCache.tint(mask, color: color)
+        let texture = RasterCache.tint(mask, color: color, counting: &tintedThisFrame)
         texturesMadeThisFrame += 1
         keyProbes += 1
         tinted[tint] = Tinted(texture: texture, epoch: epoch)
@@ -300,10 +306,17 @@ final class RasterCache {
     /// one unchecked pass (`PF-F` item 2), byte for byte 2155f1e's loop
     /// (`RasterMathReferenceTests`).
     static func tint(_ mask: AlphaMask, color: Hsla) -> ImageTexture {
+        var counted = 0
+        return tint(mask, color: color, counting: &counted)
+    }
+
+    /// ``tint(_:color:)`` adding the pixels it multiplied to `tinted`.
+    static func tint(_ mask: AlphaMask, color: Hsla, counting tinted: inout Int) -> ImageTexture {
         let rgb = color.toRgba()
         func byte(_ v: Float) -> Int { Int((min(max(v, 0), 1) * 255).rounded()) }
         let r = byte(rgb.r), g = byte(rgb.g), b = byte(rgb.b), a = byte(color.a)
         let count = mask.alpha.count
+        tinted += count
         let pixels = [UInt8](unsafeUninitializedCapacity: count * 4) { out, initialized in
             mask.alpha.withUnsafeBufferPointer { source in
                 for i in 0..<count {
