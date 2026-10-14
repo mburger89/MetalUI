@@ -66,7 +66,7 @@ point size`, top-left origin** (`I1` (0,0), `I2` (8,8), `I3` (16,16)); `.resizab
 2. **A hot spot outside `[0, 1]` clamps per axis** to the image (an SDL cursor whose hot spot lies outside its
    surface is refused by `SDL_CreateColorCursor`; AppKit accepts it). SwiftUI's own answer for `(2, -1)` read
    `(32, 16)` (`I6`): x unclamped, y not understood; MetalUI does not copy a reading it cannot explain.
-   **Divergence 465** (class: platform-safety clamp; pinned by `anImageCursorHotSpotOutsideTheUnitSquareClamps`).
+   **Divergence 465** (class: platform-safety clamp; pinned by `aHotSpotOutsideTheUnitSquareClampsToTheImage`).
 3. A bitmap larger than 256 px on a side is passed to the platform unchanged; **a platform that cannot make
    it leaves the current cursor** (SDL: `SDL_CreateColorCursor` fails on the offscreen driver and on
    backends with a size limit, like `mui_set_system_cursor`'s failure today). `Window` never refuses.
