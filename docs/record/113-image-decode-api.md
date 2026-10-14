@@ -46,7 +46,7 @@ Census and closeout scripts: both print nothing after the re-record.
 §2.2 Pixels: `docs/probes/demo-pixels/compare.sh <scratch> fb9a7e42 HEAD` (HEAD `a9725270`): the controls read their recorded
 values and all fourteen images are **0 differing pixels, scene identical**. `git diff fb9a7e42 --stat -- Tests/MetalUITests/DemoFrameDeterminismTests*
 Tests/**/Expected.swift` is empty. Not run: the Linux image and the Windows VM (lane 2 touches no `Backends/SDL` file;
-the portable targets are for CI to confirm), `swift build --build-tests` on the default build system (see the hand-off).
+the portable targets are for CI to confirm). `swift build --build-tests` on the default build system: Build complete, 0 `warning:`, 0 `error:`.
 
 ## §3 Deferred
 
