@@ -78,7 +78,8 @@ summary.
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `HP-` (hot paths:
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-V`), `IB-` (public image decoding and orientation:
-  `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), …; the full
+  `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
+  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-Q`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -93,7 +94,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **155 live, next label 206** (425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD and IV, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV and GA, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -243,7 +244,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §112.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §112, §114.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -864,6 +865,20 @@ isolation check per call: a hot loop uses a plain loop or a nonisolated function
 `Frame.swift` hot sites and `RetainedSubtree` (C14b-2), layout pre-sizing, `measureNative` hashing, `ForEach` (P2), path-raster
 clip key and R8 coverage (P3: pixels and shaders).
 **Window chrome on SDL (`CW-`, record §112).** `.hiddenTitleBar` on SDL is a borderless window (`SDL_SetWindowBordered`, the answer read back from `SDL_WINDOW_BORDERLESS`, so an `offscreen` driver answers `false` and the window stays standard; a style asked for in fullscreen applies on the leave): `titleBarInsets` reads the 32-point band and the drawn buttons' cluster (right 138; left 70 under macOS), `Window` draws that cluster (the `$windowcontrols` named root at cursor index 3, never a `Deferred`; Close through the close veto) where `PlatformWindow.hasNativeWindowControls` is `false`, unless `drawsWindowControls = false`. **Drag and resize are hit-test regions**: `Window` publishes the unclaimed band and the `WindowDragGesture` handles minus what needs the pointer (`ChromeHitMap.carve`) through the four defaultless requirements `setWindowDragRegions(_:)`, `performWindowAction(_:)`, `hasNativeWindowControls`, `isZoomed`, on change only and held still during a press; SDL copies them into an immutable snapshot behind a per-window `SDL_Mutex` that its thread reads (`mui_chrome_hit` is the C twin of `ChromeHitSnapshot.hit(at:)`), and the platform moves the window before `Window` sees the press, so `performWindowDrag()` stays `false` and pointer events inside a region are lost (divergences 425, 426, 276). API is class M (SwiftUI has none, probe `swiftui-window-chrome.swift`): `Window.drawsWindowControls`/`minimize()`/`toggleZoom()`/`isZoomed`. A new `PlatformWindow` requirement owes the headless platform an honest answer (`Options.sdlChrome`). Pins call the callback's own body; the Linux image cannot change a border (its pins are gated). Linux double-click zoom is unmeasured (`CW-I`, check CW6); the looks, drag and edges are group `CW`. The demo is `METALUI_CHROME_DEMO=1`.
+
+**SDL GPU for apps (`GA-`, record §114).** `MetalUISDLGPU` (`Backends/SDL`, a product behind the `SDL` trait, class `M`, no
+divergence, no census row: `Backends/SDL` is outside it, `GA-L`) is a thin typed layer over SDL_GPU named after it
+(`SDLGPUDevice`, buffers, transfer buffers, textures, samplers, compute and graphics pipelines, passes, `SDLGPUFence`),
+every wrapper with `.raw` and `@_exported import CSDL` so one import also gives every `SDL_` call (`GA-A`, `GA-B`); a
+portable cross-backend GPU API is refused. **A batch** (`device.submitBatch`) is recorded and submitted on a dedicated
+worker thread and its fence awaited on a waiter thread, never the main actor; every fence is released after its signal
+whether or not anyone awaits it (`GA-E`); `make` is serialized, and `SDLGPUDevice(borrowing:)` never destroys the
+window's device. An atomic append is a storage-buffer counter (`GA-G`). App shaders are HLSL built by
+`compile-app-shaders.py` into checked-in `.spv/.msl/.dxil/.json` blobs with `SOURCE.sha256` and found in
+`MetalUIAppShaders` beside the executable (`GA-F`, `docs/packaging.md` 4a). **`ctx.view` records into the frame's own
+buffer and has no submit, cancel, wait or acquire verb** (`GA-H`); the debug guard traps only a typed `waitForIdle` in a
+draw and a pass left open, a raw SDL call and the async verbs are unpinned (`GA-I`, `GA-P`). A new SDL GPU test needs
+`armMainRunLoopExitCheck()` on macOS, runs the Linux image on lavapipe and takes `METALUI_REQUIRE_GPU=1` in CI.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);

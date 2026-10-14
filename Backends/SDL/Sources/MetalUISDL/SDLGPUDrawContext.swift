@@ -38,9 +38,11 @@ import SDLBridge
 /// undefined behaviour and is not detected through the raw pointers** (SDL3
 /// has no command-buffer state query, unlike Metal's `status`, which
 /// `MetalWindowRenderer` traps on). Through the typed layer of `MetalUISDLGPU`
-/// (`view`) a debug build does detect the two violations it can see: a typed
-/// submit, wait or idle called inside the draw, and a draw that returns with a
-/// typed pass still open (ruling `GA-I`).
+/// (`view`) a debug build does detect the violations it can see: a typed
+/// `waitForIdle` called inside the draw (pinned), and a draw that returns with a
+/// typed pass still open (pinned). The async `submitBatch` and `fence.wait` carry
+/// the same check, but a synchronous draw cannot reach them on its own thread, so
+/// it is unpinned (rulings `GA-I`, `GA-O`).
 public struct SDLGPUDrawContext: GPUSurfaceContext {
     /// The renderer's `SDL_GPUDevice *` — the one the target was made on.
     public let device: OpaquePointer

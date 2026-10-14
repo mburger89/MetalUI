@@ -2,9 +2,9 @@
 
 Rulings for items S5 and S6 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
 MetalCreator's SDL-port gaps 1 and 2 (developer-c0, 2026-10-13/14), RAISED: they block its xp-c track (GPU
-meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-P`.**
+meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-Q`.**
 Spec: [`specs/2026-10-14-sdl-gpu-compute-design.md`](specs/2026-10-14-sdl-gpu-compute-design.md).
-Record: `../record/114-sdl-gpu-compute.md` (Record phase). Branch `feat/sdl-gpu-compute` from `fb9a7e42`.
+Record: `../record/114-sdl-gpu-compute.md`. Branch `feat/sdl-gpu-compute` from `fb9a7e42`.
 Divergence labels reserved 445–454: **none taken** (`GA-J`).
 
 Sources of truth. SwiftUI has no GPU API: nothing here is a SwiftUI-facing claim and no probe is owed
@@ -311,8 +311,8 @@ xp-c integration). (3) **The guard** is `SDLGPUWindowGuard`, a `package` enum in
 there; `MetalUISDLGPU` imports it), `#if DEBUG` bodies only. It records the **drawing thread** and traps only a
 typed call made **on that thread** inside the draw: a worker thread's `submitBatch` racing a window frame (C9) is
 legal and must not trap (a process-wide flag would). The renderer's change is three lines (`beginDraw()`, the draw,
-`endDraw()`), not two. `endDraw` traps on a typed pass left open; `waitForIdle`, `submitBatch` and `SDLGPUFence.wait`
-trap inside a draw. (4) **D4 is reworded.** The renderer's `submissionCount` counts only `mui_renderer`'s own
+`endDraw()`), not two. `endDraw` traps on a typed pass left open; `waitForIdle` traps inside a draw (pinned); `submitBatch` and
+`SDLGPUFence.wait` carry the same check, **unpinned** (`GA-P`). (4) **D4 is reworded.** The renderer's `submissionCount` counts only `mui_renderer`'s own
 submits and cannot see a raw `SDL_SubmitGPUCommandBuffer` the view might add, so D4 pins the **identity** of the
 buffer (`view.commandBuffer.raw == renderer.frameCommandBuffer`), the unchanged submission delta against a draw that
 only clears, and 0 unsignalled fence releases; the spec's "begin pass submits" mutation is the view recording into a
@@ -355,3 +355,25 @@ are D1's observed reds. Linux: the new tests ran on lavapipe (Vulkan), none skip
 older presented-frame tests. Windows is carried: the UTM VM did not answer (`ssh metalui-win` timed out, no
 `utmctl` here); CI's Windows job runs the suite with `METALUI_REQUIRE_GPU=1` on WARP, which is where the new
 graphics tests first meet D3D12 (an R32_UINT colour target and 4x MSAA on R8G8B8A8 are the two unmeasured formats).
+
+## GA-P — The checks in `submitBatch` and `fence.wait` are unpinned, and the docs say so
+
+**Question.** The lane 2 verifier removed `assertNotInsideDraw("SDLGPUFence.wait")` and, separately,
+`assertNotInsideDraw("SDLGPUDevice.submitBatch")`: nothing reddened. Pin them or narrow the claim?
+
+**Evidence (measured 2026-10-14, Record phase, for `submitBatch`; the fence variant has the same shape and was
+not run separately).** Both verbs are `async`; a draw closure is synchronous, so the
+only way to reach one on the drawing thread is `Task.immediate`, which is macOS 26 only (`@available`). Exit tests
+for both were written (the draw starts `Task.immediate { @MainActor in … }`; the fence made before the frame):
+the child process died `SIGTRAP`, but **with the guard line removed it died the same way** (`SWIFT_BACKTRACE`:
+`dispatch_assert_queue` from `SDLWindowRenderer.deinit` on the exit test's pool thread, after the draw returned
+without trapping), so the test could not tell the guard from the unrelated crash: under Swift Testing the main
+actor runs on a pool thread, the immediate task does not start on the drawing thread, and `isInsideDraw` (a
+thread comparison, `GA-O` item 3) is false. A call that cannot be made on the drawing thread cannot be a
+contract violation the guard sees; a `Task { }` or `Task.detached` call runs later, outside the draw.
+**Ruling.** The two tests are not kept (a test that cannot go red is not a pin, `verifying-tests-can-fail.md`).
+The two checks stay, as belt and braces for a caller that does reach them on the drawing thread, and the doc
+comments of `SDLGPUDrawContext` and `SDLGPUWindowGuard` are narrowed to what is pinned: `waitForIdle` (D2) and an
+open pass (D1). Carried: a hook that sets the flag from a test on the calling thread, which would make both
+reachable without `Task.immediate`; owner the xp-c integration if an app calls an async verb from a draw.
+**Cost if wrong.** An app that does it gets today's behaviour (an async hop that runs after the draw).

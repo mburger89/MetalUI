@@ -1,6 +1,6 @@
 # SDL GPU for apps — design (S5 + S6)
 
-Status: design, `feat/sdl-gpu-compute` from `fb9a7e42`. Rulings: [`GA-A`…`GA-J`](../2026-10-14-sdl-gpu-compute-decisions.md).
+Status: **BUILT, both lanes verified `ok` (record §114); Windows and real-hardware runs carried (human checks GA)**. `feat/sdl-gpu-compute` from `fb9a7e42`. Rulings: [`GA-A`…`GA-P`](../2026-10-14-sdl-gpu-compute-decisions.md).
 Origin: MetalCreator SDL-port gaps 1 and 2 (RAISED; blocks its xp-c track). Never edit MetalCreator.
 
 ## 1. Today (inventory)

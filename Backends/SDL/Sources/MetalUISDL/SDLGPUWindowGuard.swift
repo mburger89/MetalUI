@@ -5,9 +5,11 @@ import Foundation
 /// The debug check of a surface draw's contract (ruling `GA-I`, `MV-F` items 3
 /// and 5). `SDLWindowRenderer` brackets each draw with ``beginDraw()`` and
 /// ``endDraw()``; the typed layer in `MetalUISDLGPU` reports into it. In a
-/// **debug** build a typed call that would submit, wait on or idle the device
-/// from inside the draw, and a draw that returns with a typed pass still open,
-/// trap naming the contract. In a release build every method is empty.
+/// **debug** build a typed `waitForIdle` from inside the draw, and a draw that
+/// returns with a typed pass still open, trap naming the contract (both pinned);
+/// the async `submitBatch` and `fence.wait` call ``assertNotInsideDraw(_:)`` too,
+/// unpinned (a synchronous draw cannot reach an async verb on its own thread,
+/// `GA-O`). In a release build every method is empty.
 ///
 /// It sees only what goes through the typed layer: a raw SDL call on
 /// ``SDLGPUDrawContext/commandBuffer`` is undetectable (SDL3 has no
