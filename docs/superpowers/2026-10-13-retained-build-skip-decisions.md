@@ -412,9 +412,11 @@ element by element in bytes, every hitbox's fingerprint, the Tab order, the acce
 element-bounds registrations), is abandoned there like a redo, and is built again from the same checkpoint with every replay off; a difference traps naming the
 channel and the first differing element (`aVerifiedPrepaintReplayThatDiffersTraps`, one exit test per ledger channel, damaged through
 `Window.testingCorruptPrepaintLedgers`, and a control that draws normally). The presented frame is the second; the counters it reports are the first's
-(`ContentMemoStore.reportLast`), so the suite's count pins read the build under test. **Found by running it**: a tree that displays its own build counters
-(the invalidation demo's readout) differs between two builds by design, so that one pin is switched off under the variable; the layout-memo verify run changes
-`aDragFrameRestoresTheUnmovedOccurrencesPlacement`'s memo counts as it did before this item.
+(`ContentMemoStore.reportLast`, and the element counters, `Frame.adoptElementWork`), so the suite's count pins read the build under test. **Found by running it**: (1) the
+snapshot's first comparison of the accessibility nodes sorted their ids by description and called two orderings of the same set a difference (it compares sets now); (2) a tree that
+displays its own build counters (the invalidation demo's readout) differs between two builds by design, so that one pin is switched off under the variable; (3) the layout counts of the
+presented frame are the rebuild's (its placement memo already holds the first build's entries), so `aDragFrameRestoresTheUnmovedOccurrencesPlacement` is switched off under the variable —
+with `METALUI_VERIFY_LAYOUT_MEMO=1` alone, and with prepaint replay off, it passes. The final run over the whole suite reads in record 110 §6.
 
 
 ## RK-W — The lane 1 readings and what they settle (`RK-J` gate, `RK-L` expectation, `RK-I` criterion)
