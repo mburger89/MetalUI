@@ -188,9 +188,28 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public var keepsAccessibilityHistory = false
     /// Every `setDisplayLinkPaused` argument, in order.
     public private(set) var displayLinkPauses: [Bool] = []
-    /// The window's clipboard, private to it: `readClipboard` reads it and
-    /// `writeClipboard` replaces it.
-    public var clipboard: String?
+    /// The window's clipboard, private to it, as typed representations (ruling
+    /// `CB-K`): `writeClipboard(_:)` replaces all of it, text included. Most
+    /// preferred first.
+    public private(set) var clipboardRepresentations: [ClipboardRepresentation] = []
+    /// The clipboard's plain text, a view of its `public.utf8-plain-text`
+    /// representation (`CB-K`): reading decodes its bytes as UTF-8; setting
+    /// replaces the whole store with that one representation, `nil` clears it.
+    public var clipboard: String? {
+        get {
+            clipboardRepresentations.first { $0.type.identifier == "public.utf8-plain-text" }
+                .map { String(decoding: $0.bytes, as: UTF8.self) }
+        }
+        set {
+            clipboardRepresentations = newValue.map {
+                [ClipboardRepresentation(type: PasteboardType(identifier: "public.utf8-plain-text",
+                                                              conformsTo: ["public.plain-text", "public.text", "public.data", "public.item"]),
+                                         bytes: Array($0.utf8))]
+            } ?? []
+        }
+    }
+    /// Every `setClipboardCommands` argument, in call order (`CB-E`).
+    public private(set) var clipboardCommandRequests: [ClipboardCommands] = []
     /// Whether the window has closed.
     public private(set) var isClosed = false
     /// How far a title bar overlaps the content; zero by default. A test that
@@ -237,6 +256,27 @@ public final class HeadlessPlatformWindow: PlatformWindow {
 
     /// Replaces ``clipboard``.
     public func writeClipboard(_ text: String) { clipboard = text }
+
+    /// Replaces ``clipboardRepresentations`` with `representations`; `false`
+    /// (the store unchanged) when there are none.
+    public func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool {
+        guard !representations.isEmpty else { return false }
+        clipboardRepresentations = representations
+        return true
+    }
+
+    /// The stored representations' identifiers, in order.
+    public func clipboardTypeIdentifiers() -> [String] { clipboardRepresentations.map(\.type.identifier) }
+
+    /// The bytes stored as `identifier`.
+    public func readClipboard(identifier: String) -> [UInt8]? {
+        clipboardRepresentations.first { $0.type.identifier == identifier }?.bytes
+    }
+
+    /// Records the argument in ``clipboardCommandRequests``.
+    public func setClipboardCommands(_ commands: ClipboardCommands) {
+        clipboardCommandRequests.append(commands)
+    }
 
     /// Keeps `tick` for ``simulateTick(timestamp:)``; nothing fires on its own.
     public func startDisplayLink(_ tick: @escaping (Double) -> Void) { self.tick = tick }

@@ -58,6 +58,18 @@ final class PortableFakeWindow: PlatformWindow {
     func setTextInputArea(_ caret: Bounds<Pixels>?) {}
     func readClipboard() -> String? { clipboard }
     func writeClipboard(_ text: String) { clipboard = text }
+    private(set) var clipboardRepresentations: [ClipboardRepresentation] = []
+    private(set) var clipboardCommandRequests: [ClipboardCommands] = []
+    func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool {
+        guard !representations.isEmpty else { return false }
+        clipboardRepresentations = representations
+        return true
+    }
+    func clipboardTypeIdentifiers() -> [String] { clipboardRepresentations.map(\.type.identifier) }
+    func readClipboard(identifier: String) -> [UInt8]? {
+        clipboardRepresentations.first { $0.type.identifier == identifier }?.bytes
+    }
+    func setClipboardCommands(_ commands: ClipboardCommands) { clipboardCommandRequests.append(commands) }
     func startDisplayLink(_ tick: @escaping (Double) -> Void) { self.tick = tick }
     func setDisplayLinkPaused(_ paused: Bool) {}
     func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool { false }
