@@ -87,6 +87,16 @@ struct RasterKey: Hashable {
     var paths: [PathGeometry] = []
     var objects: [ObjectIdentifier] = []
 
+    /// The hash `hash(into:)` feeds (`HP-E`); a stub until the stored fold lands.
+    var storedHash: Int { 0 }
+    init() {}
+    /// Test-only: a key with `words` and a forced stored hash, to prove `==` is not hash-only.
+    init(forcedHash: Int, words: [UInt64]) { self.words = words }
+
+    mutating func addPath(_ geometry: PathGeometry) { paths.append(geometry) }
+    mutating func addObject(_ id: ObjectIdentifier) { objects.append(id) }
+    mutating func addWords(_ more: [UInt64]) { words += more }
+
     mutating func add(_ value: Float) { words.append(UInt64(value.bitPattern)) }
     mutating func add(_ value: Double) { words.append(value.bitPattern) }
     mutating func add(_ value: Int) { words.append(UInt64(bitPattern: Int64(value))) }
@@ -131,6 +141,9 @@ final class RasterCache {
     private var touchedTint: Set<TintKey> = []
     private var touchedImages: Set<RasterKey> = []
     private var touchedTables: Set<[UInt64]> = []
+    /// Dictionary/set probes by key made so far - a cumulative work counter (`HP-E`): a coverage or
+    /// tint hit costs one probe, a miss two.
+    private(set) var keyProbes = 0
     private var rasterizedThisFrame = 0
     private var blurredThisFrame = 0
     private var texturesMadeThisFrame = 0
@@ -179,6 +192,7 @@ final class RasterCache {
 
     /// The coverage for `key`, made by `make` on a miss.
     func coverage(for key: RasterKey, retaining: [AnyObject] = [], _ make: () -> AlphaMask) -> AlphaMask {
+        keyProbes += 2
         touchedCoverage.insert(key)
         if let hit = coverage[key] { return hit.mask }
         let mask = make()
@@ -214,6 +228,7 @@ final class RasterCache {
     func texture(for key: RasterKey, color: Hsla, mask: AlphaMask) -> ImageTexture {
         let tint = TintKey(key: key, color: [color.h.bitPattern, color.s.bitPattern, color.l.bitPattern,
                                              color.a.bitPattern])
+        keyProbes += 2
         touchedTint.insert(tint)
         if let hit = tinted[tint] { return hit }
         let texture = RasterCache.tint(mask, color: color)

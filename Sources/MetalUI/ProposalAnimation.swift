@@ -110,6 +110,7 @@ func animatedNumbers(_ declared: [Double?], at key: GlobalElementID, frame: Fram
         store.set(StoredNumberTracks(baseline: declared, inFlight: [:]), at: key)
         return declared
     }
+    store.noteNumberTrackRebuild()
     var inFlight = existing.inFlight
     var out = declared
     for i in declared.indices {

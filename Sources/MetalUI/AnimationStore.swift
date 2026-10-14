@@ -80,6 +80,17 @@ final class AnimationStore {
 
     init() {}
 
+    /// Border-width track keys (`"border.top"` …) built so far, a cumulative work counter (`HP-C`):
+    /// a tree with nothing in flight and no changed border builds none.
+    private(set) var borderKeyBuilds = 0
+    func noteBorderKeyBuilds(_ n: Int) { borderKeyBuilds += n }
+
+    /// Numeric-layer tracks (`animatedNumbers`) that took the slow path - a copy of the stored
+    /// track, a rebuilt state and a comparison - so far, cumulative (`HP-C`). A settled layer whose
+    /// declared numbers equal its baseline bit for bit takes the early return and counts nothing.
+    private(set) var numberTrackRebuilds = 0
+    func noteNumberTrackRebuild() { numberTrackRebuilds += 1 }
+
     /// How many entries survive — test observability (1.12).
     var count: Int { entries.count }
 

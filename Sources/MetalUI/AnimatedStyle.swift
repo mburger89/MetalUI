@@ -378,6 +378,7 @@ private func animatedStyleAndDecoration(_ style: Style, _ decoration: Decoration
 
     var inFlight = existing.inFlight
     var newStyle = style
+    let store = pass.frame.animationStore
 
     // Fields not currently in flight and unchanged from the baseline never
     // reach `animateField` at all — a native `Length`/`Dimension`/`Float`
@@ -416,12 +417,14 @@ private func animatedStyleAndDecoration(_ style: Style, _ decoration: Decoration
     func borderWidths(_ prefix: String, _ declared: BorderStyle?, _ previous: BorderStyle?) -> BorderStyle? {
         let edges = ["top", "right", "bottom", "left"]
         guard let declared, let previous else {
+            store.noteBorderKeyBuilds(4)
             for edge in edges { inFlight["\(prefix).\(edge)"] = nil }
             return declared
         }
         let d = declared.widths, p = previous.widths
         func edge(_ name: String, _ value: Pixels, _ old: Pixels) -> Pixels {
-            Pixels(Float(max(0, number("\(prefix).\(name)", Double(value.value), Double(old.value)))))
+            store.noteBorderKeyBuilds(1)
+            return Pixels(Float(max(0, number("\(prefix).\(name)", Double(value.value), Double(old.value)))))
         }
         let widths = Edges(top: edge("top", d.top, p.top), right: edge("right", d.right, p.right),
                            bottom: edge("bottom", d.bottom, p.bottom), left: edge("left", d.left, p.left))
