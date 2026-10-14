@@ -172,6 +172,8 @@ struct RPCard: Component, @MainActor Equatable {
             Button("go \(title)") { log.add("go \(title)") }.frame(width: Pixels(50), height: Pixels(18))
                 .contextMenu { Button("menu \(title)") { log.add("menu \(title)") } }
             Box().frame(width: Pixels(Float(20 + shade * 4)), height: Pixels(8)).background(.accent)
+            // A click target no pointer reaches but an accessibility client can press: the press-only registration.
+            Button("silent") {}.frame(width: Pixels(30), height: Pixels(10)).allowsHitTesting(false)
         }
         .padding(Edges(all: Pixels(4)))
         .background(Color.accent.opacity(0.2), in: RoundedRectangle(cornerRadius: Pixels(6)))

@@ -101,3 +101,53 @@ func aPanOfTheWholeGraphReplaysEveryNodeAndEqualsAFreshFrame(step: Float) throws
     }
     #expect(translated >= 8 * 8, "every visible node replays translated at every step: \(translated)")
 }
+
+/// A card whose hit regions sit under an effect opened **after** a clip was pushed: that effect's outer clip is the ambient
+/// effect's map of the clip, so it moves with the pan and a ledger cannot move its hitboxes by the inverse alone.
+struct RPClippedEffectCard: Component, @MainActor Equatable {
+    let log: HarnessLog
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text("clipped").frame(width: Pixels(80), height: Pixels(14))
+            Button("go clipped") { log.add("go clipped") }.frame(width: Pixels(60), height: Pixels(18))
+        }
+        .offset(x: Pixels(2), y: Pixels(1))
+        .clipShape(RoundedRectangle(cornerRadius: Pixels(6)))
+    }
+    static func == (l: RPClippedEffectCard, r: RPClippedEffectCard) -> Bool { l.log === r.log }
+}
+
+/// 11b — a hitbox registered under an effect whose outer clip depended on the translation is not moved by the inverse alone: the
+/// prepaint translation is refused by name (`retainedTranslationRefused`), the card prepaints fresh, and the frame, the
+/// hitbox list included, equals a fresh frame (`RK-S` item 2). The paint still translates. Mutation: the outer-clip comparison
+/// removed from `translatedHitboxes` (the replay keeps the stale outer clip: the hitbox fingerprints differ at the first pan).
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
+func aHitboxWhoseClipDependedOnTheTranslationIsNotMoved() async throws {
+    let pair = try RPPair(size: sz(320, 150), warm: 4, accessibility: false) { side in
+        let pan = side.inputs.offset, log = side.log
+        return VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) { RPClippedEffectCard(log: log).equatable() }
+                    .offset(x: Pixels(10 + pan), y: Pixels(10 + pan / 2))
+            }
+            .frame(width: Pixels(300), height: Pixels(130), alignment: .topLeading)
+            .clipped()
+        }
+    }
+    try pair.compare("warm")
+    var refused = 0, translated = 0
+    for (index, pan) in [Float(0), 5, 9.5, 20, 3].enumerated() {
+        pair.onSide.inputs.offset = pan; pair.offSide.inputs.offset = pan
+        await rsSettle()
+        pair.redraw()
+        refused += pair.frames.last?.retainedTranslationRefused ?? 0
+        translated += pair.frames.last?.retainedTranslated ?? 0
+        try pair.compare("pan \(pan) (step \(index))")
+        let at = pt(10 + pan + 20, 10 + pan / 2 + 28)
+        for w in [pair.on, pair.off] { w.hover(at: at) }
+        try pair.compare("hover at pan \(pan)")
+        for w in [pair.on, pair.off] { w.hover(at: pt(318, 148)) }
+    }
+    #expect(refused >= 3, "the moving steps refuse the prepaint translation by name: \(refused)")
+    #expect(translated >= 3, "the paint still translates: \(translated)")
+}
