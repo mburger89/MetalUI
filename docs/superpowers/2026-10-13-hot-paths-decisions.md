@@ -1,0 +1,60 @@
+# Hot paths - decisions
+
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-G`.**
+Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
+`../record/111-hot-paths.md` (Record phase). Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
+reserved 415-424: none taken (none yet).
+
+Sources of truth. SwiftUI: none claimed (no public API, no visible behaviour). gpui (recalled, not read
+on this machine): caches shaped text and reuses frames by value - precedent only. Evidence is the
+release profile `/private/tmp/claude-501/profiling/REPORT.md` at `fb9a7e42` (shared Mac, load 5-40);
+the scratch patch's A/B (fixed list -19 %, variable -25 %, demo -11 %) is an upper hint, to be re-taken.
+
+## HP-A - Cache CoreText placement in a class box on `ShapedText`, plus a one-entry finished memo
+
+**Question.** Where does the cache live and what keys it? **Ruling.** In a `final class` box stored
+`let` in `ShapedText` (the shaping cache's two-frame lifetime frees it): runs once; the finished
+`[PlacedGlyph]` by `(origin x/y bits, scale bits)`. `GlyphRaster.subpixelPlacement` stays the one rule
+(PT-C) and runs on a memo miss. **Evidence.** Placement 6.7-8.7 % inclusive in lists, `paintGlyphs` +
+`placeGlyphs` 21-29 % in profile. **Why not a global (text, x, scale) dictionary:** an extra hash per
+paint, the cost being removed. **Cost if wrong.** A stale key draws misplaced glyphs; tests 3-4 compare
+with the uncached walk. Portable system untouched (GT-E).
+
+## HP-B - `GlyphKey` stores its hash; `==` early-rejects on it
+
+**Ruling.** Follow `FontKey`: compute once in `init`, feed one `Int` to `hash(into:)`. Interning through
+the atlas was rejected: `MetalUIScene` cannot see the text system's per-placement lifetime and an
+intern table is a second lifetime to sweep. **Evidence.** `packed(for:)` 4 % fixed list, 9 % variable,
+5.5 % rich. **Cost if wrong.** A mix omitting a field collides and still compares by fields (`==` is
+total), so the worst case is a slower probe, never a wrong glyph; test 6 pins both halves.
+
+## HP-C - Animation early-outs return when settled and equal, never when in doubt
+
+**Ruling.** Return before allocating only if nothing is in flight **and** the declared value equals the
+stored baseline bit for bit; otherwise the old path runs unchanged. In-flight clamped, declared never;
+counters and `note...` calls identical (AN-M). **Evidence.** `borderWidths` 2-5 % and about 355
+allocs/frame; `animate` + `value(at:)` 1.8-3.5 %, about 750 allocs/frame. **Cost if wrong.** A skipped
+baseline update would freeze an animation start; test 13.
+
+## HP-D - Rich text: memoise by value; parse a literal once
+
+**Ruling.** Styled layout/measure memoised in the shaping cache entry; `LocalizedStringKey.textContent`
+in a bounded value-keyed table. **Evidence.** `layOut` 15 %, `measure` 7.7 %, `ShapingCache.styled`
+hashing 7.6 %, markdown 3.4 % (about 144 allocs). **Cost if wrong.** A table that grows without bound
+leaks: bounded at 256 entries, cleared whole when full (no LRU bookkeeping on the hot path).
+
+## HP-E - Shadow hits: stored `RasterKey` hash, one lookup, scalar bounding box
+
+**Ruling.** Fold the hash in `add(_:)`; `touched...insert` and the dictionary read share one hash; the
+`boundingBox` corners are scalars. Keys stay complete (PF-): every field is folded, test 16 mutates it.
+**Evidence.** 22 % of the shadows frame is hashing. **Cost if wrong.** A field missing from the fold only
+hurts speed (`==` still compares fields); a field missing from `add` is the existing stale-raster hazard
+and is untouched.
+
+## HP-F - Scope: what is deferred and why
+
+**Ruling.** `Frame.swift` :2373 and :3224 and `RetainedSubtree.swift` sites wait for C14b-2's merge (a
+live workflow edits them); layout allocation pre-sizing, `measureNative` hashing and `ForEach` are P2;
+the pan path-raster clip-key and an R8 coverage format are P3 because they change pixels or shaders
+(pan: paint 43 %, `CoverageRasterizer.rasterize` 7.6 %, about 2,400 allocs/frame, `tint` 5.8 %;
+20,431 allocs/frame). **Cost if wrong.** Lost wins only; none is a correctness risk.
