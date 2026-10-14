@@ -45,7 +45,7 @@ let rpScaleArms = [1, 1.5, 2, 3, 4].flatMap { [RPScaleArm(scale: $0, accessibili
 /// (the tree's frames differ), the effect-translation relaxation removed from the paint key (`translated == 0`).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: rpScaleArms) @MainActor
 func aTranslatedReplayEqualsAFreshFrameAtEveryScale(arm: RPScaleArm) async throws {
-    let pair = try RPPair(size: sz(320, 150), scale: arm.scale, warm: 4, accessibility: arm.accessibility) { side in
+    let pair = try RPPair(size: sz(320, 150), scale: arm.scale, warm: 4, accessibility: arm.accessibility, graft: false) { side in
         VStack(spacing: 0) { RPPanRoot(side: side) }
     }
     try pair.compare("warm")
@@ -123,7 +123,7 @@ struct RPClippedEffectCard: Component, @MainActor Equatable {
 /// removed from `translatedHitboxes` (the replay keeps the stale outer clip: the hitbox fingerprints differ at the first pan).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
 func aHitboxWhoseClipDependedOnTheTranslationIsNotMoved() async throws {
-    let pair = try RPPair(size: sz(320, 150), warm: 4, accessibility: false) { side in
+    let pair = try RPPair(size: sz(320, 150), warm: 4, accessibility: false, graft: false) { side in
         let pan = side.inputs.offset, log = side.log
         return VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {

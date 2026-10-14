@@ -143,6 +143,7 @@ private let animationStoreChannels: [String: Channel] = [
     "entries": .recorded, "touched": .recorded, "interpolationsThisFrame": .ledger, "transitions": .ledger,
     "rasters": .recorded, "layoutMemo": .buildOnly, "lifecycle": .buildOnly, "timeline": .buildOnly,
     "keyframeDepth": .buildOnly, "lastFrameInterpolations": .frameLocal, "retainLog": .frameLocal,
+    "buildJournal": .buildOnly,
 ]
 
 @MainActor @Test func everyStateTableAndAnimationStoreChannelIsClassified() {

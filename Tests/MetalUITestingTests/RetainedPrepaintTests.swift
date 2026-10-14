@@ -202,7 +202,7 @@ struct RPCard: Component, @MainActor Equatable {
     /// `accessibility: false` opens both windows with no accessibility client, as an app nobody is inspecting runs
     /// (the harness default is a client active from the first handler): no frame collects accessibility records.
     init(size: Size<Pixels> = sz(420, 200), scale: Float = 1, colorScheme: ColorScheme = .light, warm: Int = 3,
-         accessibility: Bool = true, _ root: @escaping @MainActor (RPSide) -> Root) throws {
+         accessibility: Bool = true, graft: Bool = true, _ root: @escaping @MainActor (RPSide) -> Root) throws {
         let onSide = self.onSide, offSide = self.offSide
         let options = HeadlessPlatformWindow.Options(appearance: colorScheme, scaleFactor: scale,
                                                      accessibilityClientActive: accessibility)
@@ -212,6 +212,7 @@ struct RPCard: Component, @MainActor Equatable {
                              textSystem: harnessTextSystem) { root(offSide) }
         self.accessibility = accessibility
         off.window.testingRetainedSubtrees = false
+        on.window.testingRetainedGraft = graft   // lane 1's pins count a build that runs; lane 2's tests grafts (`RK-B`)
         for _ in 0..<warm { redraw() }
         frames = []
         work = FrameWork()

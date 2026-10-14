@@ -227,6 +227,47 @@ func aStateWriteBelowAGraftedOccurrenceRebuildsIt() async throws {
     try pair.compare("grafting again")
 }
 
+/// A nested occurrence whose getter reads an `@Observable` the outer never reads: its memo entry goes stale when the model
+/// changes, and an outer graft must not stand over it.
+private struct RGObsInner: Component, @MainActor Equatable {
+    let model: RSModel
+    var content: some ElementGroup { Text("observed \(model.n)").frame(width: Pixels(90), height: Pixels(12)) }
+    static func == (l: RGObsInner, r: RGObsInner) -> Bool { l.model === r.model }
+}
+
+private struct RGObsOuter: Component, @MainActor Equatable {
+    let model: RSModel
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text("outer").frame(width: Pixels(60), height: Pixels(12))
+            RGObsInner(model: model).equatable()
+        }
+    }
+    static func == (l: RGObsOuter, r: RGObsOuter) -> Bool { l.model === r.model }
+}
+
+/// 19c — an `@Observable` read by a **nested** occurrence's getter that changes rebuilds the grafted outer: the outer's value is equal and
+/// its own reads did not change, but the nested memo entry is stale, so `graftDependenciesHold` refuses and the outer builds (one
+/// content evaluation: the nested getter). **Red before:** the grafts read 0 throughout. **Mutation:** `graftDependenciesHold`
+/// answering true (the outer grafts over the stale entry and draws the old text: the scene differs from the retention-off window's).
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func aNestedOccurrencesObservedChangeRebuildsTheGraftedOuter() async throws {
+    let pair = try RPPair(size: sz(160, 80), warm: 5) { side in VStack(spacing: 0) { RGObsOuter(model: side.model).equatable() } }
+    pair.redraw(); pair.redraw()
+    try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "grafting before the change: \(String(describing: pair.frames.last))")
+    pair.onSide.model.n += 1; pair.offSide.model.n += 1
+    await rsSettle()
+    pair.redraw()
+    let f = try #require(pair.frames.last)
+    #expect(f.retainedGrafts == 0, "the outer builds over a stale nested entry: \(f.retainedGrafts)")
+    #expect(f.contentEvaluations == 1, "the nested getter ran once: \(f.contentEvaluations)")
+    try pair.compare("the observed change")
+    _ = try pair.on.element(label: "observed 1")
+    for _ in 0..<2 { pair.redraw() }
+    #expect((pair.frames.last?.retainedGrafts ?? 0) >= 1, "it grafts again once rebuilt")
+    try pair.compare("grafting again")
+}
+
 // MARK: 18 — what a graft refuses, by name
 
 enum RGKind: String, CaseIterable {
@@ -327,6 +368,31 @@ func aRedoAfterAGraftMismatchRestoresEverything(arm: String) async throws {
     #expect((pair.frames.last?.retainedGrafts ?? 0) >= 1, "\(arm): the grafts resume after the backoff: \(String(describing: pair.frames.last))")
     try pair.compare("\(arm), after the backoff")
     #expect(pair.onSide.log.entries == pair.offSide.log.entries)
+}
+
+// MARK: 20b — a graft the prepaint cannot replay
+
+/// 20b — a pan of three equal occurrences under a live accessibility client: the prepaint translation is refused for a ledger that holds
+/// accessibility records (`RK-S`), so a grafted occurrence has no element layout to fall back on and the frame is redone (lane 1's
+/// tree, which builds every frame, counts a refusal and prepaints fresh). Every step equals the retention-off frame, in scene,
+/// tree, hitboxes and state table, and the redos are counted. **Red before:** `retainedRedos` reads 0 (the graft off).
+/// **Mutation:** the grafted occurrence's `.run` arm returning the old prepaint state (a trap by name: no payload).
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func aGraftedOccurrenceUnderARefusedTranslationRedoesTheFrame() async throws {
+    let pair = try RPPair(size: sz(320, 150), scale: 2, warm: 4, accessibility: true) { side in
+        VStack(spacing: 0) { RPPanRoot(side: side) }
+    }
+    try pair.compare("warm")
+    var redos = 0
+    for (index, pan) in rpPanScript.enumerated() {
+        pair.onSide.inputs.offset = pan; pair.offSide.inputs.offset = pan
+        await rsSettle()
+        pair.redraw()
+        redos += pair.frames.last?.retainedRedos ?? 0
+        try pair.compare("pan step \(index) (\(pan))")
+        stateAgrees(pair, "pan step \(index)")
+    }
+    #expect(redos >= 1, "the refused translation redid a grafted frame: \(redos)")
 }
 
 // MARK: Verify mode over the graft (`RK-N`)
