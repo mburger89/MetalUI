@@ -621,3 +621,29 @@ a graft would reuse its keys.
 **Cost if wrong.** A key that does not cover its closure restores a stale rect: the verify mode over the whole suite
 (record 109 §11) and the differential `aRestoredDragEqualsAFreshOneAtEveryStep` are the instruments. A tree with
 nothing marked (retention off, or no `.equatable()`) is byte-for-byte slice 1.
+
+## SB-AE — What lane 2 carries, with the evidence, and what the restore costs
+
+**Question.** `SB-AD` lands one of lane 2's four parts. What is the state of the other three, and what does the one
+that landed cost?
+
+**Ruling.**
+1. **Measure entries under a restored subtree are not refreshed** (a restore asks the memo about nothing below its
+   root, so the two-frame lifetime of `LayoutMemo` lets them lapse). A node that stood restored for three frames and
+   then misses re-measures its subtree once: the drag's first frame measures 135 leaves against 52 without marks
+   (`theBracketNodeDragReplaysEveryUnchangedSubtree`, frame 0). Touching the keys on a restore would cost a lookup
+   per key — the work the restore removes — so it is not done; the burst is one frame, once per change after a rest.
+2. **The graft, the `StateTable` journal, the counted redo and prepaint replay are carried to C14b-2**, together,
+   because none can land alone: a graft with the build skipped leaves no element to prepaint, prepaint replay needs
+   the replay decision at a point where the paint-only ambient is unknown (`SB-AA`), and the answer to that is the
+   redo, which needs the journal to be exact. What this lane measured toward them: after lane 1 and `SB-AD` the
+   fixture's release drag frame reads 6.04-6.06 ms (`.value`, `.panels`; 7.42 and 7.45 at `e85cb07a`, 6.53 and 6.52 after
+   lane 1), so build, prepaint and the unreplayed part of paint remain the cost; no graft was prototyped, so **the claim
+   "a graft is cheaper than the build it replaces" is untested** and `SB-N`'s stop condition is not exercised.
+3. **Translation of a moved subtree stays carried** (`SB-H`, `SB-AD` item 3).
+4. **GT-F stands**: `drawText` is deferred (`SB-P`); a moving label's rects are not restored by this lane (a moved
+   marked root misses by definition).
+
+**Cost if wrong.** If the carried four are simply the next slice's work, nothing; if grafting turns out slower than
+the build, the fixture's remaining build share (about a third of a release frame) stays and the next lever is the
+placement memo's cousin for prepaint, not a graft.

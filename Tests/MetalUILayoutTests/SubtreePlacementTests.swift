@@ -42,14 +42,16 @@ private struct Tower {
 }
 
 @MainActor private func tower(generation: UInt64, bWidth: Double, bHeight: Double = 10, mark: Bool = true,
-                              bFirst: Bool = false, memo: LayoutMemo?) -> Tower {
+                              bFirst: Bool = false, alignment: ProposalAlignment = .topLeading,
+                              markOther: Bool = false, memo: LayoutMemo?) -> Tower {
     let tree = LayoutTree(generation: generation)
     tree.memo = memo
     let a1 = keyed(tree, "a1", width: 30, height: 12), a2 = keyed(tree, "a2", width: 40, height: 8)
     let a = tree.newNativeLinearStack(children: [a1, a2], axis: .horizontal)
     if mark { tree.markPlacementRoot(a) }
     let b = keyed(tree, "b\(bWidth)/\(bHeight)", width: bWidth, height: bHeight)
-    let root = tree.newNativeLinearStack(children: bFirst ? [b, a] : [a, b], axis: .vertical, alignment: .topLeading)
+    if markOther { tree.markPlacementRoot(b) }
+    let root = tree.newNativeLinearStack(children: bFirst ? [b, a] : [a, b], axis: .vertical, alignment: alignment)
     return Tower(tree: tree, root: root, a: a, aNodes: [a, a1, a2])
 }
 
@@ -77,40 +79,46 @@ private func rects(_ t: Tower) -> [LayoutRect] {
     #expect(rects(second) == rects(fresh), "a restored placement is a fresh placement, bit for bit")
 }
 
-/// 2.2 — a restore places nothing under the node: the second run asks for fewer measurements than
-/// a memo-free run of the same tree, because A's children are not asked about while A is placed. **Red before:** the two runs ask equally often. **Mutation:** as 2.1.
+/// 2.2 — a restore places nothing under the node: the second run asks for fewer measurements than the
+/// same two frames with the node **unmarked** (a memo of its own, so the control also has a warm memo and
+/// answers the measures from it, but places A's subtree and asks about its children while it does).
+/// **Red before:** the two runs ask equally often. **Mutation:** the restore falling through to the
+/// placement below (`case .restored: break`) reddens it (record 109 §13 M15).
 @Test @MainActor func aRestoredSubtreeIsNotDescended() throws {
     func requests(_ work: NativeLayoutWork) -> Int { work.cacheHits + work.cacheMisses + work.memoHits + work.memoMisses }
-    let memo = LayoutMemo()
-    let first = tower(generation: 1, bWidth: 30, memo: memo)
-    first.tree.computeNativeLayout(root: first.root, proposal: big, in: bounds)
-    memo.endFrame()
-    let second = tower(generation: 2, bWidth: 45, memo: memo)
-    second.tree.computeNativeLayout(root: second.root, proposal: big, in: bounds)
-    let fresh = tower(generation: 3, bWidth: 45, mark: false, memo: nil)
-    fresh.tree.computeNativeLayout(root: fresh.root, proposal: big, in: bounds)
-    #expect(second.tree.lastNativeLayoutWork.memoSubtreeHits == 1)
-    #expect(requests(second.tree.lastNativeLayoutWork) < requests(fresh.tree.lastNativeLayoutWork),
-            "A's leaves are not asked about when A is restored")
+    func secondFrame(mark: Bool) -> NativeLayoutWork {
+        let memo = LayoutMemo()
+        let first = tower(generation: 1, bWidth: 30, mark: mark, markOther: !mark, memo: memo)
+        first.tree.computeNativeLayout(root: first.root, proposal: big, in: bounds)
+        memo.endFrame()
+        let second = tower(generation: 2, bWidth: 45, mark: mark, markOther: !mark, memo: memo)
+        second.tree.computeNativeLayout(root: second.root, proposal: big, in: bounds)
+        return second.tree.lastNativeLayoutWork
+    }
+    let marked = secondFrame(mark: true), control = secondFrame(mark: false)
+    #expect(marked.memoSubtreeHits == 1 && control.memoSubtreeHits == 0)
+    #expect(requests(marked) < requests(control), "A's leaves are not asked about when A is restored")
 }
 
-/// 2.3 — **no translation**: a marked subtree whose bounds moved is placed fresh. B before A
-/// grows, so A's `y` moves; the restore would put A's leaves at the old `y`. **Red before:** the
-/// hit count reads 0 for the wrong reason (nothing restores); the rect equality passes, so this
-/// test's red is its *counter* arm in 2.1. **Mutation** (the one it exists for): the placement key
-/// built with `bounds.x`/`y` zeroed reddens the rect comparison here.
+/// 2.3 — **no translation**: a marked subtree whose bounds moved is placed fresh. The stack is
+/// trailing-aligned, so B growing from 30 to 100 moves A's `x` from 0 to 30 while A's size and the
+/// proposal it is placed at stay equal: only the origin separates the two keys. **Red before:** hits
+/// are 0 for the wrong reason (nothing restores), so the red of this test is 2.1's counter arm.
+/// **Mutation** (the one it exists for): the placement key built with `bounds.x`/`y` zeroed restores
+/// A at `x = 0` and reddens the rect comparison.
 @Test @MainActor func aMovedSubtreeIsPlacedFreshNotRestored() throws {
     let memo = LayoutMemo()
-    let first = tower(generation: 1, bWidth: 30, bHeight: 10, bFirst: true, memo: memo)
-    first.tree.computeNativeLayout(root: first.root, proposal: big, in: bounds)
+    let first = tower(generation: 1, bWidth: 30, alignment: .trailing, memo: memo)
+    first.tree.computeNativeLayout(root: first.root, proposal: big, centredIn: bounds)
     memo.endFrame()
-    let second = tower(generation: 2, bWidth: 30, bHeight: 14, bFirst: true, memo: memo)
-    second.tree.computeNativeLayout(root: second.root, proposal: big, in: bounds)
+    let second = tower(generation: 2, bWidth: 100, alignment: .trailing, memo: memo)
+    second.tree.computeNativeLayout(root: second.root, proposal: big, centredIn: bounds)
     #expect(second.tree.lastNativeLayoutWork.memoSubtreeHits == 0)
-    let fresh = tower(generation: 3, bWidth: 30, bHeight: 14, mark: false, bFirst: true, memo: nil)
-    fresh.tree.computeNativeLayout(root: fresh.root, proposal: big, in: bounds)
+    let fresh = tower(generation: 3, bWidth: 100, mark: false, alignment: .trailing, memo: nil)
+    fresh.tree.computeNativeLayout(root: fresh.root, proposal: big, centredIn: bounds)
     #expect(rects(second) == rects(fresh))
-    #expect(second.tree.layout(second.aNodes[1]).y == 14, "A's first leaf sits under B at its new height")
+    #expect(first.tree.layout(first.a).x == 65 && second.tree.layout(second.a).x == 80,
+            "centred roots 70 and 100 wide in 200: A's origin moved from 65 to 80 at the same size")
 }
 
 /// 2.4 — the proposal is in the key: same signature, same bounds, a different proposal places the
@@ -139,7 +147,8 @@ private func rects(_ t: Tower) -> [LayoutRect] {
     #expect(two.0.layout(two.2).x == 30, "the child is placed at the new proposal's tenth")
 }
 
-/// 2.5 — an unmarked subtree is not restored (the mark is the opt-in), and a marked one holding an
+/// 2.5 — an unmarked subtree is not restored (the mark is the opt-in; another node is marked, so the set is
+/// not empty and only membership separates), and a marked one holding an
 /// unkeyed leaf (no signature) is neither stored nor restored. **Red before:** both read 0 already;
 /// the pair separates 2.1 (marked and keyed restores). **Mutation:** treating every node as marked
 /// reddens the first; hashing a missing signature as a constant reddens the second.
@@ -147,7 +156,7 @@ private func rects(_ t: Tower) -> [LayoutRect] {
     for arm in ["unmarked", "unkeyed"] {
         let memo = LayoutMemo()
         func build(_ generation: UInt64, bWidth: Double) -> Tower {
-            guard arm == "unkeyed" else { return tower(generation: generation, bWidth: bWidth, mark: false, memo: memo) }
+            guard arm == "unkeyed" else { return tower(generation: generation, bWidth: bWidth, mark: false, markOther: true, memo: memo) }
             let tree = LayoutTree(generation: generation)
             tree.memo = memo
             let a1 = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 5, height: 5)) }

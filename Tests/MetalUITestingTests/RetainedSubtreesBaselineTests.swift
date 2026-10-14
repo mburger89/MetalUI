@@ -90,7 +90,8 @@ func theBracketNodeDragRebuildsTheWholeWindow(arm: BracketArm) throws {
     // Over the 21 frames: the user-level body counts and the text system's calls.
     #expect(BracketStats.nodeBodies == expected.nodeBodies)
     #expect(BracketStats.wireBodies == 40)
-    #expect(r.counting.measures == 2898)
+    // A verified memo hit measures again at the seam, which is the point of that run (`layoutMemoVerifying`).
+    if !layoutMemoVerifying { #expect(r.counting.measures == 2898) }
     #expect(r.counting.places == 2814)
     #expect(r.model.nodes[BracketModel.filletIndex].x == 720)
     #expect(r.model.visibleNodes.count == 11)

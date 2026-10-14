@@ -453,6 +453,12 @@ Predictions for 1.1 are fixed before the run and recorded in the record with the
 
 ## 9. Lane 2 (gated): the build skip
 
+> **As built (`SB-AD`, `SB-AE`, record 109 §13).** The gate opened (57 %) and lane 2 landed **one** of its parts: the
+> subtree placement memo of §10, without translation. The graft, the journal, the counted redo and prepaint replay
+> below are the design for C14b-2, unchanged and unbuilt; item 4 reads "restores the recorded placement when the
+> proposal and the bounds, origin included, are bit-equal". Two leaves were keyed for it (`Color`, an empty legacy
+> container).
+
 **Gate.** Lane 2 starts only if, after lane 1 is verified, the fixture's `.panels` arm in the
 **release** readings has *build + layout kernel* at or above 35 % of `render` (the share the
 retained subtrees would then still pay in full). **The baseline already reads 52 % (§1.1) and lane 1
@@ -493,6 +499,11 @@ and the readings recorded; the placement memo (§10) is judged on the same readi
    memo-off control, each with its mutation recorded.
 
 ## 10. The subtree placement memo
+
+> **Built** as `LayoutTree.markPlacementRoot` / `placeNative`'s `subtreePlacement` (`SB-AD`): the roots of retained
+> occurrences are marked, the memo's `PlacementKey` is the root placement's, a hit writes the recorded unrounded
+> rects and descends nowhere. Pins: `Tests/MetalUILayoutTests/SubtreePlacementTests.swift` and
+> `Tests/MetalUITestingTests/RetainedPlacementTests.swift`.
 
 Ruled into lane 2 (`SB-O`): on the fixture the *root* placement memo never hits (the wires' sizes
 change every frame), so a memo of the unchanged remainder is what layout needs, and a segment's

@@ -101,3 +101,31 @@ func aRestoredDragEqualsAFreshOneAtEveryStep(arm: BracketArm) throws {
     let empty = try steadyFrames { VStack { Column {}; Text("a") } }
     #expect(empty.layoutMemoRootHits == 3)
 }
+
+/// A resized window places like a fresh one at every size: the canvas, the panels and every node move or
+/// stretch with the window, so a restore keyed without the proposal or the origin (`SB-AD` 2) would put
+/// a subtree at its old place. The fixture's drag never moves a node's *layout* (`.offset` is a render
+/// effect), so this is the arm that does. Window and scene equal after each resize, with and without
+/// marks; the restores counted over the sequence are only read, not required.
+/// **Red before:** none (equal on the stub too); it is a mutation instrument. **Mutation:** the placement key
+/// with the origin zeroed (record 109 §13 M3) or the proposal ignored (M4) reddens it.
+@Test(arguments: [BracketArm.value, BracketArm.panels]) @MainActor
+func aResizedWindowPlacesLikeAFreshOneAtEverySize(arm: BracketArm) throws {
+    func make() throws -> TestWindow {
+        let (window, _) = try bracketWindow(arm: arm, textSystem: harnessTextSystem)
+        window.window.testingRecordsElementBounds = true
+        for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+        return window
+    }
+    let on = try make(), off = try make()
+    off.window.testingRetainedSubtrees = false
+    let sizes = [sz(1300, 860), sz(1440, 900), sz(1100, 700), sz(1300, 860), sz(1440, 900), sz(1440, 900)]
+    for (index, size) in sizes.enumerated() {
+        on.resize(to: size); off.resize(to: size)
+        for _ in 0..<2 {
+            on.window.setNeedsRedraw(); off.window.setNeedsRedraw()
+            on.tick(); off.tick()
+        }
+        #expect(try PlacementSnapshot(on).matches(PlacementSnapshot(off)), "resize \(index) to \(size)")
+    }
+}
