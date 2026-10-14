@@ -257,6 +257,12 @@ extension Window {
     /// presentation's hitbox never reaches its declarer's menu); an unrelated
     /// cover blocks (C14). Shared with lane 3's tooltips (`MN-V` item 3).
     func contextualTarget(at point: Point<Pixels>, where wanted: (ContextualAttachment) -> Bool) -> Int? {
+        Self.contextualTarget(in: lastHitboxes, at: point, where: wanted)
+    }
+
+    /// `contextualTarget(at:where:)` over an explicit list - the testable form (`HP-C`).
+    static func contextualTarget(in lastHitboxes: [Hitbox], at point: Point<Pixels>,
+                                 where wanted: (ContextualAttachment) -> Bool) -> Int? {
         func isRegion(_ box: Hitbox) -> Bool {
             guard !box.opaque, let attachment = box.handlers.contextual else { return false }
             return wanted(attachment)

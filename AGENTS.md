@@ -75,8 +75,10 @@ summary.
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
   `2026-10-13-incremental-invalidation-decisions.md`, next `IV-R`), `SB-` (retained subtrees:
-  `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `CW-` (window chrome on SDL:
-  `2026-10-13-sdl-chrome-decisions.md`, next `CW-V`), …; the full
+  `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `HP-` (hot paths:
+  `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
+  `2026-10-13-sdl-chrome-decisions.md`, next `CW-V`), `IB-` (public image decoding and orientation:
+  `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -89,7 +91,7 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **152 live, next label 206** (345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **155 live, next label 206** (425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD and IV, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -111,7 +113,11 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-14, `feat/sdl-custom-chrome` from `fb9a7e42`: 3759 tests, 0 goldens, 236 typecheck guards** (3717 + 42 tests: lane 1's 13 portable snapshot tests and 26 window tests, the left-cluster pin added at the Record phase, 2 guards `CW-1`, `CW-2`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 145 on macOS, 30 + 142 in `swift:6.4-noble` (12 chrome pins skipped by the offscreen driver); inventory and undocumented scripts print nothing, census 3526; the fourteen images 0 px against `fb9a7e42`; divergences 425, 426 added and 175, 276 amended, the header's count and next label the merge's; Windows and a real window not run, human checks group `CW`; record §112). Before it,
+- **Counts (2026-10-14, `feat/sdl-custom-chrome` from `fb9a7e42`, merged with master `dea698ca` (§111 hot paths, §113 image decoding): 3799 tests, 0 goldens, 238 typecheck guards** (master's 3757 + 42 tests, 236 + 2 guards `CW-1`, `CW-2`; re-measured by the orchestrator on the merged tree, record §112). Before it, the branch alone:
+  **(2026-10-14, `feat/sdl-custom-chrome` from `fb9a7e42`: 3759 tests, 0 goldens, 236 typecheck guards** (3717 + 42 tests: lane 1's 13 portable snapshot tests and 26 window tests, the left-cluster pin added at the Record phase, 2 guards `CW-1`, `CW-2`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 145 on macOS, 30 + 142 in `swift:6.4-noble` (12 chrome pins skipped by the offscreen driver); inventory and undocumented scripts print nothing, census 3526; the fourteen images 0 px against `fb9a7e42`; divergences 425, 426 added and 175, 276 amended, the header's count and next label the merge's; Windows and a real window not run, human checks group `CW`; record §112). Before it,
+  **(2026-10-14, `perf/hot-paths` from `fb9a7e42`, merged with master `8e66689f` (§113 image decoding): 3757 tests, 0 goldens, 236 typecheck guards** (master's 3737 + 20 tests, 235 + guard HP.1; re-measured by the orchestrator on the merged tree, record §111 §4). Before it, the branch alone:
+  **(2026-10-14, `perf/hot-paths` from `fb9a7e42`: 3737 tests, 0 goldens, 235 typecheck guards** (3717 + 20 tests, 234 + guard HP.1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; no public declaration, census 3511 unmoved, inventory and undocumented scripts print nothing; no divergence label taken; the fourteen images 0 px against `fb9a7e42`; `Backends/SDL` 30 + 122 and the root portable tests passed in the Linux image; record §111 §4). Before it,
+  **(2026-10-14, `feat/image-decode-api` from `fb9a7e42`: 3737 tests, 0 goldens, 235 typecheck guards** (3717 + 20 tests (lane 1's 15, lane 2's 5), 234 + `G-IB1`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, native unfiltered run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, `FR-J no-argument frame: succeeded=true`; census 3531; inventory and undocumented scripts print nothing; the fourteen images 0 px against `fb9a7e42`; divergence 435 added; record §113 §2). Before it,
 - **Counts (2026-10-13, `perf/retained-subtrees` from `e85cb07a`: 3717 tests, 0 goldens, 234 typecheck guards** (3675 + 42 tests, 232 + the two of `RetainedSubtreeCompileGuards.swift`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; also 3708 passed with `AppKitPresentationTests` skipped, and under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1`; census 3511; the fourteen images 0 px against `e85cb07a`; no divergence label taken; record §109 §6, §13). Before it,
 - **Counts (2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107), then `aa42fbc8` (§108 `frame(ofID:)`): 3675 tests, 0 goldens, 232 typecheck guards** (master's 3643 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; re-measured by the orchestrator on the merged tree, record §104 §6). Before it, at `d279f34d`'s merge:
   **(2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107): 3654 tests run + 9 skipped (3663 expected unfiltered), 0 goldens, 232 typecheck guards** (master's 3631 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; `swift package clean`, native run on a **locked screen with `AppKitPresentationTests` skipped** because its `NSOpenPanel.init()` hangs there, 0 recorded issues, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; census 3492 re-recorded after the merge; inventory and undocumented scripts print nothing; divergence 346 added, 152 live; the fourteen images 0 px against `f6f865c1` at the lanes, not re-taken after the merge; record §104 §6). Before it,
@@ -845,6 +851,18 @@ prepaint replay and the build skip. Measured on the bracket fixture (`BracketFix
 frame, release median -18 %, debug -14 %; **pins count work, never time**. A new `Frame` site that pushes paint-only ambient owes a
 field in `AmbientKey`. The demo is `METALUI_RETAINED_DEMO=1`.
 
+**Hot paths (`HP-`, record §111).** P1, value-identical, no public API, no divergence: every change leaves the fourteen images
+0 px and every work counter equal. CoreText placement is cached **per `ShapedText`** in a `PlacementBox` (runs read once; the
+finished `[PlacedGlyph]` and the rich layout memoised by origin x/y, scale and requested font as bit patterns — a key missing a
+component draws stale glyphs, pinned per component for plain and rich); `GlyphRaster.subpixelPlacement` stays the one rule (PT-C),
+run on a miss. `GlyphKey` and `RasterKey` store a hash folded by their initialisers/`add…` (bijections, `==` still compares fields;
+`MetalUIScene` stays Foundation-free); a raster hit is one probe; a `LocalizedStringKey` literal parses once per process
+(`MarkdownContentTable`, lock-guarded). Settled animation paths return before allocating (`inFlight` empty and every value
+bit-equal; NaN and -0.0 take the old path). **A closure passed from `@MainActor` code to a stdlib generic costs a dynamic
+isolation check per call: a hot loop uses a plain loop or a nonisolated function** (`HP-C`, `HP-I`). Counters are read-backs
+(`PlacementBox`, `AnimationStore.borderKeyBuilds`/`numberTrackRebuilds`, `RasterCache.keyProbes`), pins count work. Carried:
+`Frame.swift` hot sites and `RetainedSubtree` (C14b-2), layout pre-sizing, `measureNative` hashing, `ForEach` (P2), path-raster
+clip key and R8 coverage (P3: pixels and shaders).
 **Window chrome on SDL (`CW-`, record §112).** `.hiddenTitleBar` on SDL is a borderless window (`SDL_SetWindowBordered`, the answer read back from `SDL_WINDOW_BORDERLESS`, so an `offscreen` driver answers `false` and the window stays standard; a style asked for in fullscreen applies on the leave): `titleBarInsets` reads the 32-point band and the drawn buttons' cluster (right 138; left 70 under macOS), `Window` draws that cluster (the `$windowcontrols` named root at cursor index 3, never a `Deferred`; Close through the close veto) where `PlatformWindow.hasNativeWindowControls` is `false`, unless `drawsWindowControls = false`. **Drag and resize are hit-test regions**: `Window` publishes the unclaimed band and the `WindowDragGesture` handles minus what needs the pointer (`ChromeHitMap.carve`) through the four defaultless requirements `setWindowDragRegions(_:)`, `performWindowAction(_:)`, `hasNativeWindowControls`, `isZoomed`, on change only and held still during a press; SDL copies them into an immutable snapshot behind a per-window `SDL_Mutex` that its thread reads (`mui_chrome_hit` is the C twin of `ChromeHitSnapshot.hit(at:)`), and the platform moves the window before `Window` sees the press, so `performWindowDrag()` stays `false` and pointer events inside a region are lost (divergences 425, 426, 276). API is class M (SwiftUI has none, probe `swiftui-window-chrome.swift`): `Window.drawsWindowControls`/`minimize()`/`toggleZoom()`/`isZoomed`. A new `PlatformWindow` requirement owes the headless platform an honest answer (`Options.sdlChrome`). Pins call the callback's own body; the Linux image cannot change a border (its pins are gated). Linux double-click zoom is unmeasured (`CW-I`, check CW6); the looks, drag and edges are group `CW`. The demo is `METALUI_CHROME_DEMO=1`.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
@@ -1158,6 +1176,16 @@ mirror test settles with `setNeedsRedraw()` and `tick()`, never `runUntilIdle()`
 (`DG-P`). The C23/C24/C27/C28 sections are in (record §107): `frame(ofID:)` does not see a proposal
 element's `.id`, so a guide test reads an accessibility frame (`DG-T`). No public API.
 
+**Image decoding and orientation (`IB-`, record §113).** `DecodedImage` (MetalUI-only) is the public pixel
+read: PNG/JPEG bytes through the one vendored decoder to **straight** RGBA8 or 8-bit grey (grey sources
+native, otherwise stb's Rec. 601 integer luma, alpha dropped, `IB-B`), `bytesPerRow` unpadded; it is a type of its own
+because `ImageTexture` stays premultiplied (`AI-E`, `IB-A`). It **reports** the EXIF orientation (JPEG `APP1`, PNG
+`eXIf`, whole entries only, every read bounds-checked, damaged or absent is `.up`, never a trap) and **does not
+apply it**: `applyingOrientation()` or `Image(…orientation:)` (no default, `IB-K`) does, through
+`ImageBitmap.oriented(_:)`, one cached texture per orientation, `.up` the same bitmap; `ImageBitmap(data:)` keeps
+the stored pixels, unlike SwiftUI's `NSImage` route (divergence 435, `IB-G`). `Image.Orientation` has SwiftUI's
+raw values. No C, shader or `ImageTexture` change; a new reader of the file bytes stays Foundation-free.
+
 **Observation off the main thread (`RU-`, record §106).** `Window.markDirtyFromObservation` recognises
 the flush's own sentinel `onChange` by **thread** (`Window.flushingThread`, set around the sentinel
 write), never by `Thread.isMainThread`: Swift Testing runs the main actor on a pool thread, so the old
@@ -1321,7 +1349,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (152 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (155 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

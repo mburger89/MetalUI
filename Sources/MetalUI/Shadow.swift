@@ -115,7 +115,10 @@ extension Frame {
         let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
         var canonical = paint
         canonical.local = .identity
-        if anchor.isCanonical { canonical.leaf = paint.leaf.map { $0.movedCanonically(-rx, -ry) } }
+        if anchor.isCanonical { var moved: [CapturedPrimitive] = []
+            moved.reserveCapacity(paint.leaf.count)
+            for primitive in paint.leaf { moved.append(primitive.movedCanonically(-rx, -ry)) }
+            canonical.leaf = moved }
         let clip = anchor.canonical(placement.clip)
         var key = RasterKey()
         key.add(2)
@@ -173,13 +176,13 @@ extension Frame {
             case let .image(i, texture):
                 key.add(12); key.add(i.bounds); mask(i.contentMask, i.maskCornerRadii)
                 key.add(i.opacity); key.add(i.filterKind)
-                key.objects.append(ObjectIdentifier(texture)); retained.append(texture)
+                key.addObject(ObjectIdentifier(texture)); retained.append(texture)
             case .backdrop:
                 preconditionFailure("flatteningBackdrop turned a backdrop into its flat tint rect (BB-H)")
             case let .surface(q, _):
                 key.add(13); key.add(q.bounds); mask(q.contentMask, q.maskCornerRadii); key.add(q.opacity)
             case let .path(p):
-                key.add(14); key.paths.append(p.geometry); key.add(p.local); key.add(p.color.a)
+                key.add(14); key.addPath(p.geometry); key.add(p.local); key.add(p.color.a)
                 if colours { key.add(p.color) }
                 mask(p.contentMask, p.maskCornerRadii)
                 switch p.mode {
@@ -196,9 +199,9 @@ extension Frame {
                 if colours { key.add(inner.color) }
                 keyShadow(inner, into: &key, retained: &retained)
             case let .gradient(g):
-                key.add(16); key.paths.append(g.geometry); keyMode(g.mode, into: &key); key.add(g.local)
+                key.add(16); key.addPath(g.geometry); keyMode(g.mode, into: &key); key.add(g.local)
                 key.add(g.opacity); mask(g.contentMask, g.maskCornerRadii)
-                key.words += g.stops.keyWords
+                key.addWords(g.stops.keyWords)
                 for w in g.axis.words { key.add(w) }
             case let .blur(inner):
                 key.add(17); key.add(inner.radius); key.add(inner.local); key.add(inner.alpha)

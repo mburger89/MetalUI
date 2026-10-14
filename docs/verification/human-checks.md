@@ -1564,6 +1564,31 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
   C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
 
+## HP. Hot paths — text and shadows look the same (item P1, user request 2026-10-02, not a plan task; record §111)
+
+*An agent cannot: the fourteen offscreen images are 0 px against `fb9a7e42`; a real display, a scale change and an eye are a person's.*
+
+- [ ] **HP1.** Text placement is unchanged in a real window at 1x and 2x: `swift run -c release MetalUIDemo`, compare
+  against a `fb9a7e42` build side by side: paragraphs, mixed-script lines and the rich-text section sit on the same
+  device pixels, no glyph a pixel off, no clipped or doubled glyph while the window resizes (the placement memo keys on
+  origin, scale and font, `HP-A`, `HP-H`). **Observed:**
+- [ ] **HP2.** Scrolling a list and panning a shadowed container keep text and shadows sharp and stationary relative to
+  their rows: fractional scroll offsets (trackpad) never leave a stale glyph position (`HP-A` key x/y; the rich-text
+  y component is pinned, record §111 s7). **Observed:**
+- [ ] **HP3.** A border width, an opacity and a frame still animate smoothly and settle exactly (hover a bordered
+  control, toggle a transition): the early-outs return only when nothing is in flight (`HP-C`). **Observed:**
+
+## IB. Image decoding and orientation — what only an eye shows (item S2, user request 2026-10-02, not a plan task; record 113)
+
+*An agent cannot: these need a real window and a person who knows which way up a photograph is.*
+
+- [ ] **IB1.** Draw a JPEG tagged EXIF 6 two ways beside each other, in a real window: decoded through
+  `DecodedImage` + `applyingOrientation()` + `ImageBitmap(_:)`, and `Image(_:scale:orientation: .right, label:)`
+  over the untagged `ImageBitmap(data:)`. Both read upright and identical (`IB-F`). **Observed:**
+- [ ] **IB2.** In a SwiftUI window, `Image(nsImage:)` of the same file reads upright, while MetalUI's plain
+  `ImageBitmap(data:)` of it reads sideways (divergence 435, `IB-G`; the sizes are probed headless, the look is
+  the eye's). **Observed:**
+
 ## CW. Window chrome on SDL — borderless looks, drag, resize and the drawn buttons (item S1, user request 2026-10-02, MetalCreator SDL-port gap 3, not a plan task; record §112; provisional letter, in the manner of `RT`, `KF` and `IF`)
 
 *An agent cannot: these need a real Windows 11 and Linux (X11 and Wayland) desktop, a pointer and an eye.* Run

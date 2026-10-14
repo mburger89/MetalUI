@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **152 live divergences**, each measured (a probe
+place it knowingly does not: **155 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -182,6 +182,7 @@ scheduled).
 | 346 | a `.equatable()` component that reads `@Environment` | SwiftUI re-runs an equatable view that reads `@Environment` only when the environment changes; an equal `==` skips it otherwise (probe `swiftui-incremental-invalidation.swift` `E-env`, `E-env2`, separating arm `EnvQuiet`) | a component declaring `@Environment` (or `@FocusState`, a MetalUI ruling with no SwiftUI claim) is evaluated on **every** frame and counted in `FrameWork.contentRefusals`; `EnvironmentValues` cannot compare an old and a new value, so there is no environment epoch to skip on (carried as C14-c) | `IV-D` | `aComponentWithAnEnvironmentOrFocusStateIsRefusedAndStillEvaluates` | C14-c |
 | 425 | pointer events inside a window-drag region (SDL) | not applicable: SwiftUI moves the window from `WindowDragGesture` on macOS and has no region the platform takes events from | on SDL the window's drag regions (the unclaimed band, `AS-J`, and `WindowDragGesture` handles) are hit-test regions: a press inside one moves the window and **the app receives no pointer events there** — hover, pointer style, tooltips and the wheel over a region are lost; only an element that needs the press (a button, a tap, a field, a slider, a draggable, a drop destination, a context menu) is carved out. SDL's swallow is unmeasured per platform (human check CW5) | `CW-E` | `aHoverRegionInTheBandIsNotABlocker` (the region is published over a hover element) | none |
 | 426 | a drag handle that contains a control (SDL) | SwiftUI runs the window gesture alongside its neighbours; a button inside a `WindowDragGesture` region still clicks and the region still drags from the rest of it | on SDL the handle's rect is draggable **only around** what needs the pointer inside or over it (a button, a tap, a field, an enclosing element with a gesture): a handle wholly under such an element is not draggable at all (the app shell demo's handle inside its canvas, `CW-E`) | `CW-E` | `aHandleWithAButtonInsideIsRegionsAroundIt` | none |
+| 435 | an image decoded from a file tagged with an EXIF orientation | SwiftUI's `Image(nsImage:)` of a tagged JPEG draws upright (the `NSImage` route applies the tag: 4x2 stored, tag 6, drawn 2x4; probe `swiftui-image-orientation.swift` O10, positive control the `CGImage` route, which ignores it) | `ImageBitmap(data:)`/`(contentsOfFile:)` keep the stored pixels (4x2) as SwiftUI's `CGImageSource` route does; the tag is read by `DecodedImage.orientation` and applied only on request (`applyingOrientation()` or `Image(…orientation:)`) | `IB-G` | `decodeReportsOrientationAndDoesNotApplyIt` | S2-b |
 
 ## Retired
 
