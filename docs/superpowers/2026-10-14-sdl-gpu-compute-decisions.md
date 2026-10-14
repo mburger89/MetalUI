@@ -332,3 +332,26 @@ the `func` lines of the command-buffer, compute, graphics and texture files; a t
 layer (the root package builds without the `SDL` trait). (8) The guides' new block is `text` fences (`DG-L`) with
 no pin the checker could resolve (the tests live in `Backends/SDL`, outside `Tests/`), so the prose avoids the
 behaviour words instead. **Cost if wrong.** A multi-target or indexed pass is `.raw` until a slice adds it.
+
+**Measured (2026-10-14, macOS Metal 27.0, `Backends/SDL` unfiltered, 152 tests in 4 suites at HEAD of lane 2, the
+Linux image 149 in 4 suites on lavapipe, root native 3708 run with `AppKitPresentationTests` skipped).** Red first:
+the tests did not compile (`cannot find 'SDLGPUColorAttachment' in scope`, `value of type 'SDLGPUDrawContext' has no
+member 'view'`, `cannot find 'SDLGPUWindowGuard' in scope`). Each mutation was applied to a committed tree,
+restored from git, and the whole suite run; the tests named are the ones that reddened, nothing else did.
+G1-a `samples` 4 to 1 (test): G1, G1s. G1-b compare `LESS` to `ALWAYS` (library): G1, G1s, G2. G1-c `instanceCount` 3 to
+2 (test): G1, G1s. G1-d `.resolve` mapped to `DONT_CARE` (library): G1, G1s. G2 `id.frag.hlsl` `+ 2` (source, blobs
+rebuilt, `SOURCE.sha256` consistent): G2. G3 `SDL_GenerateMipmapsForGPUTexture` skipped (library): G3, G5 (the second
+run, after G5 refused an all-zero mip; the first run reddened G3 only). G4 storage buffer at slot 1 (test): G4. G5
+pushed level 2 to 1 (test): G5. G6-a blend never enabled (library): G6. G6-b colour offset 8 to 0 (test): G6. D2 the
+`waitForIdle` guard line removed: D2. D3 `public func submit()` added to the view: D3. D5 `endDraw` leaves
+`drawingThread` set: D5. D4 the view recording into an acquired buffer of its own: D4, G1s and D3 (the word
+`acquire` is in the view's code). **Hangs, which count as reddened because the unmutated suite finishes in 7 s:**
+the renderer's `beginDraw` moved after the draw (D1b) and `endDraw`'s open-pass check dropped (D1c) both leave D1's
+render pass open in the frame's buffer, and Metal never finishes the frame (run killed after 12 minutes, source
+restored); an unguarded open pass is a hang, not a wrong pixel, which is the case for the trap. **A crash that
+counts:** D1-a (`passBegan` not counted) makes `passEnded` take the count to -1 and the guard traps in G1s, killing
+the run (`a surface draw returned with -1 pass(es) still open`), so D1 itself was not observed there; D1b and D1c
+are D1's observed reds. Linux: the new tests ran on lavapipe (Vulkan), none skipped; the three skips are the
+older presented-frame tests. Windows is carried: the UTM VM did not answer (`ssh metalui-win` timed out, no
+`utmctl` here); CI's Windows job runs the suite with `METALUI_REQUIRE_GPU=1` on WARP, which is where the new
+graphics tests first meet D3D12 (an R32_UINT colour target and 4x MSAA on R8G8B8A8 are the two unmeasured formats).
