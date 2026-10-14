@@ -22,7 +22,7 @@ Names follow SDL_GPU; every wrapper has `raw: OpaquePointer`. Signatures are the
 
 ```swift
 public final class SDLGPUDevice: @unchecked Sendable {
-    public static func make(debug: Bool = false) -> SDLGPUDevice?        // standalone, owns SDL_GPUDevice (GA-D)
+    public static func make(debug: Bool = false, preferring driver: String? = nil) -> SDLGPUDevice?  // standalone, owns SDL_GPUDevice (GA-D)
     public static var lastFailure: String { get }                         // why make returned nil (names the driver tried)
     public init(borrowing context: SDLGPUDrawContext)                     // not owned (GA-D)
     public let raw: OpaquePointer
@@ -88,20 +88,21 @@ Lane 2 (after lane 1's core types are committed):
   `…/AppShaders/{tri.vert.hlsl,tri.frag.hlsl,id.frag.hlsl,compiled/*}` (lane 2 extends `SOURCE.sha256`).
 - `docs/guides/drawing-and-gpu.md` (SDL graphics section; `text` fences), `docs/verification/human-checks.md` (§7).
 
-Shared, one lane each by phase: closeout inventory map and census go to lane 2 (last), which re-records them
-for both lanes. Record (`114-sdl-gpu-compute.md`), CLAUDE.md rule, README rows: Record phase, not a lane.
+Shared: `Backends/SDL` is outside the public-API census (`closeout-public-api.sh` reads `Sources/` only), so no
+map row or census move is owed (`GA-L`); doc comments on every public declaration are still the rule. Record (`114-sdl-gpu-compute.md`), CLAUDE.md rule, README rows: Record phase, not a lane.
 Divergences: none. `MetalUIScene`, `MetalUILayout`, `shaders.metal`, `replay.hlsl`, `SurfaceTargetTable`
 untouched.
 
 ## 4. How tests drive it headless
 
-No window is needed for compute or for offscreen graphics: `SDLGPUDevice.make()` creates a device. macOS (Metal)
+No window is needed for compute or for offscreen graphics: `SDLGPUDevice.make()` creates a device. macOS (Metal, run by hand)
 and the Linux image (lavapipe, which supports compute and 32-bit buffer atomics) run it; Windows CI runs it
 on WARP/D3D12. **Skip rule:** a test body begins `guard let device = SDLGPUDevice.make() else { skip }` via a
 shared helper `requireGPUDevice()` whose `.enabled(if:)` condition is `SDLGPUDevice.make() != nil`; the skip
 reason printed is `SDLGPUDevice.lastFailure` (named, e.g. "no Vulkan ICD"). The skip is itself measured: a
-test asserts that on the macOS CI runner and in the Linux image (`METALUI_REQUIRE_GPU=1`, set by both
-workflows) `make()` is non-nil, so a skip cannot hide a regression. The surface graphics test draws through
+test asserts that in the Linux image job and the Windows job (`METALUI_REQUIRE_GPU=1`, set by those two workflows;
+the macOS CI job runs no `Backends/SDL` tests, so macOS is run by hand, `GA-L`) `make()` is non-nil, so a skip
+cannot hide a regression. The surface graphics test draws through
 `SDLPlatform(offscreenRenderers:)` (`TF-C`) if that path reaches `finishFrame`; lane 2 measures it and, if
 not, gates on `windowsPresentFrames` like `SDLLifecycleTests` and also runs the same draw on an offscreen
 texture, so the pipeline is covered either way. Every helper creating an `SDLPlatform` arms
@@ -173,7 +174,7 @@ Lane 2:
 - **D4 `theSurfaceDrawStillAddsNoSubmission`**: `mui_renderer_submission_count` unchanged by a frame whose draw
   uses the typed view (the `MV-L` item 4 pin, repeated). Mutation: the view's `beginRenderPass` submits.
 
-Plus: the inventory/undocumented scripts print nothing; `swift test --build-system native` unfiltered shows the
+Plus: the inventory/undocumented scripts print nothing (unchanged, `GA-L`); `swift test --build-system native` unfiltered shows the
 printed count (3717 plus root tests added: none expected, the new tests live in `Backends/SDL`); the Linux
 image runs `Backends/SDL` (`docker run … swift test --skip-build`); the Windows VM/CI runs C1–C8 (blob DXIL).
 

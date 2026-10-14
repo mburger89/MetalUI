@@ -2,7 +2,7 @@
 
 Rulings for items S5 and S6 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
 MetalCreator's SDL-port gaps 1 and 2 (developer-c0, 2026-10-13/14), RAISED: they block its xp-c track (GPU
-meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-K`.**
+meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-N`.**
 Spec: [`specs/2026-10-14-sdl-gpu-compute-design.md`](specs/2026-10-14-sdl-gpu-compute-design.md).
 Record: `../record/114-sdl-gpu-compute.md` (Record phase). Branch `feat/sdl-gpu-compute` from `fb9a7e42`.
 Divergence labels reserved 445–454: **none taken** (`GA-J`).
@@ -120,12 +120,11 @@ a blocking wait cannot starve it) that acquires, records, submits with `SDL_Subm
 and returns the fence. (2) `await fence.wait()` hops to a second dedicated waiter thread that calls
 `SDL_WaitForGPUFences`, then resumes the continuation; the main actor is never blocked. (3) Resource creation
 (`make…`) and release take one `device.lock` (an `NSLock`-equivalent portable `Mutex`) because the headers do
-not promise them thread-safe: the cost is nanoseconds against GPU object creation, and it removes the question.
+not promise them thread-safe: the cost is nanoseconds against GPU object creation, and it removes the question for the app's calls. It does **not** cover the window renderer's own main-thread creations on a borrowed device: that is the unproven half, which is why C9 is a stress pin and the degrade path stands.
 The one thing the lock cannot cover is the header's rule that a buffer is not used while another thread
 releases it: handles are classes whose `deinit` releases, and a batch retains every handle it touches until its
 fence is released. (4) The window's own frame (main actor) and a batch on the worker run concurrently on the
-borrowed device; **verified on the Linux image and macOS by the stress test C9; the Windows run is the CI/VM
-measurement. If the borrowed device races, the ruling degrades to "borrowed devices submit on the main actor"
+borrowed device; **verified on macOS only by the stress test C9 (the Linux image's offscreen driver presents no frame, so C9 is gated off there; Linux and Windows are human check GA2). If the borrowed device races, the ruling degrades to "borrowed devices submit on the main actor"
 (`GA-D` cost) rather than blocking compute.** Cancelling a waiting `Task` does not release the fence: the waiter
 thread keeps it and releases it after it signals (the fence rule: never release an unsignalled fence, §61 §10).
 **Cost if wrong.** An undocumented thread-safety assumption is exactly what the lock and the stress test are for;
@@ -232,3 +231,26 @@ of 445–454 is taken. No `PlatformWindow`, `Platform` or `WindowRenderer` requi
 conformer to implement and no migration note beyond a `docs/migration.md` line naming the new product. The
 fourteen demo images are 0 px against `fb9a7e42` by construction (no `Sources/` change); the lanes confirm with
 `compare.sh`. **Cost if wrong.** None beyond the map rows.
+
+## GA-K — Rejected from review: lavapipe skips, `preferring:` on `make`, and a missing shadercross are named, not assumed
+
+**Ruling.** (1) The spec's `make(debug:)` is `make(debug:preferring:)` as `GA-D` says (`preferring` sets
+`SDL_HINT_GPU_DRIVER` only for that call). (2) If shadercross cannot be obtained on this Mac, lane 1 builds it in
+the Linux image (volume `metalui-sdl-build-sdl-gpu-compute`) to produce `.spv`, `.msl` and `.dxil`; a DXIL blob
+that cannot be produced is recorded and the Windows run of C1 is carried, never faked. (3) A kernel's MSL is
+untested until it runs on this Mac's Metal (GA-G stands).
+
+## GA-L — `Backends/SDL` is outside the census; macOS CI runs no SDL tests
+
+**Evidence.** `closeout-public-api.sh` globs `Sources/*.swift` only; `sdl-gpu-linux.yml`'s macOS job records
+fixtures, it runs no `Backends/SDL` test (CLAUDE.md says so).
+**Ruling.** The spec's inventory-map and census duty is struck: new public declarations in `MetalUISDLGPU` get
+doc comments (the rule) and no map row; the two scripts are expected unchanged. `METALUI_REQUIRE_GPU=1` is set by
+the Linux and Windows jobs only; macOS GPU tests are a hand run recorded in the record.
+
+## GA-M — The Linux image presents no frame, so surface-draw tests there use an offscreen texture
+
+**Ruling.** G1–G4 run their pipelines into an app-made texture on every platform (the pipeline is covered), and
+additionally into the real surface target where `windowsPresentFrames`; D1/D2 exit tests need no frame. The
+guard flag is set by `SDLWindowRenderer` only around a real draw, so D1/D2 drive the guard through a `package`
+test entry that sets the same flag; the renderer's two lines are pinned by D4 on macOS only.
