@@ -354,6 +354,21 @@ bool mui_window_stop_text_input(void *window);
 char *mui_clipboard_text(void);
 bool mui_set_clipboard_text(const char *text);
 void mui_free(void *memory);
+// The typed clipboard (rulings CB-H, CB-I). `mui_clipboard_set` copies every
+// representation into one box SDL's pure data callback reads and its cleanup
+// frees once; false when count is 0 or SDL refuses (the box is then freed here).
+bool mui_clipboard_set(const char *const *mimes, const uint8_t *const *bytes,
+                       const size_t *sizes, size_t count);
+// The mime types the clipboard holds (free with mui_free), NULL when none.
+char **mui_clipboard_mime_types(size_t *count);
+// The clipboard's bytes as `mime` (free with mui_free); NULL, size 0 when absent.
+void *mui_clipboard_get(const char *mime, size_t *size);
+bool mui_clipboard_has(const char *mime);
+void mui_clipboard_clear(void);
+// Counters for tests: cleanups run, boxes alive.
+int32_t mui_clipboard_cleanup_count(void);
+int32_t mui_clipboard_live_count(void);
+size_t mui_clipboard_callback_probe(const char *mime);
 // The window's position on screen in points (SDL_GetWindowPosition).
 void mui_window_position(void *window, int32_t *x, int32_t *y);
 
