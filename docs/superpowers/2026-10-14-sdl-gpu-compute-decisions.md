@@ -2,7 +2,7 @@
 
 Rulings for items S5 and S6 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
 MetalCreator's SDL-port gaps 1 and 2 (developer-c0, 2026-10-13/14), RAISED: they block its xp-c track (GPU
-meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-Q`.**
+meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-R`.**
 Spec: [`specs/2026-10-14-sdl-gpu-compute-design.md`](specs/2026-10-14-sdl-gpu-compute-design.md).
 Record: `../record/114-sdl-gpu-compute.md`. Branch `feat/sdl-gpu-compute` from `fb9a7e42`.
 Divergence labels reserved 445–454: **none taken** (`GA-J`).
@@ -377,3 +377,24 @@ comments of `SDLGPUDrawContext` and `SDLGPUWindowGuard` are narrowed to what is 
 open pass (D1). Carried: a hook that sets the flag from a test on the calling thread, which would make both
 reachable without `Task.immediate`; owner the xp-c integration if an app calls an async verb from a draw.
 **Cost if wrong.** An app that does it gets today's behaviour (an async hop that runs after the draw).
+
+## GA-Q — A fragment stage's inputs must be the vertex stage's outputs, in order; checked-in shader files are byte-stable
+
+**Windows CI (run 38616601574).** Three tests failed only on D3D12/Windows. (1) `aCheckedInAppShaderBlobMatchesItsSource`
+and (3) `theFrameViewDeclaresNoSubmittingVerb` split a file on `Character("\n")`; in Swift `"\r\n"` is one
+`Character`, so a CRLF checkout (`core.autocrlf`) never split. Both now split on `isNewline`, and a root
+`.gitattributes` makes `*.hlsl`, `SOURCE.sha256`, `*.msl` and `*.json` `eol=lf` and `*.dxil`/`*.spv` binary, so a
+source's SHA-256 is the same on every machine (checked: a CRLF listing passes, a flipped hash byte is red).
+(2) `anIDPassReadsBackTheInstanceUnderAPixel`: `CreateGraphicsPipelineState` answered `E_INVALIDARG`
+(0x80070057) for `tri.vert` + `id.frag` into `R32_UINT`. The wrapper's blend and depth state are the ones the
+float pipelines use (blend off on an integer target is legal), so the difference is the stage interface:
+`id.frag` read only `TEXCOORD1`, the cross-compiled stage numbers only the inputs it reads, so its `TEXCOORD1`
+sat at register 0 while the vertex stage's sat at register 1, and D3D12 links by register.
+**Ruling.** `id.frag.hlsl` reads `color` through a test no flat colour can pass (`color.r > 2.0`), so its inputs
+are `TEXCOORD0`, `TEXCOORD1` as the vertex outputs are (reflection JSON now lists both); the four blobs and
+`SOURCE.sha256` were rebuilt with SDL_shadercross 3.0.0 (the committed blobs rebuilt byte-identical first, so the
+toolchain is the same). A fragment stage of an app must keep every vertex output in its interface, in order, or
+a D3D12 pipeline fails. Not changed: the wrapper (no blend or depth fix was needed).
+**Evidence.** The register mismatch is inferred from the error and the interface; the VM was unreachable, so CI is
+the measurement (see record 114, Windows CI fixes). **Cost if wrong.** A further Windows failure of the same
+test, then a wrapper-side cause (the format) is next.

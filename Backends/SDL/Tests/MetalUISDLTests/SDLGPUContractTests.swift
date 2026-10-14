@@ -86,7 +86,7 @@ private func leaveAPassOpen(_ ctx: any GPUSurfaceContext) {
             .deletingLastPathComponent().appendingPathComponent("Sources/MetalUISDLGPU")
         func code(_ name: String) throws -> [String] {
             try String(contentsOf: sources.appendingPathComponent(name), encoding: .utf8)
-                .split(separator: "\n", omittingEmptySubsequences: false)
+                .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
                 .map { String($0) }.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
         }
         let forbidden = ["submit", "cancel", "wait", "acquire"]

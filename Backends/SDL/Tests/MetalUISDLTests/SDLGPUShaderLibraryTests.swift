@@ -88,7 +88,7 @@ private func markAsShaderDirectory(_ directory: URL) throws {
     @Test func aCheckedInAppShaderBlobMatchesItsSource() throws {
         let listing = try String(contentsOf: GPUTestSupport.compiledShaders.appendingPathComponent("SOURCE.sha256"),
                                  encoding: .utf8)
-        let lines = listing.split(separator: "\n").map(String.init)
+        let lines = listing.split(whereSeparator: \.isNewline).map(String.init)
         try #require(!lines.isEmpty)
         for line in lines {
             let parts = line.components(separatedBy: "  ")

@@ -145,3 +145,14 @@ images **0 px, scene identical** (by construction: no `Sources/` change by this 
 - `MetalDrawContext.drawText` and its SDL twin stay deferred (`GT-F`).
 - Windows D3D12 and real-hardware runs: CI and human check GA2; the looks GA1, GA3, GA4: a person.
 - A macOS run is a hand run: macOS CI executes no `Backends/SDL` test (`GA-L`).
+
+### Windows CI fixes, 2026-10-14
+
+Run 38616601574 (Windows x64, D3D12) failed three tests; macOS and Linux were green (ruling `GA-Q`).
+- `aCheckedInAppShaderBlobMatchesItsSource` and `theFrameViewDeclaresNoSubmittingVerb`: `split(separator: "\n")` does not
+  split a `"\r\n"` (one `Character`) in a CRLF checkout. Both split on `isNewline`; a root `.gitattributes` fixes
+  `*.hlsl`, `SOURCE.sha256`, `*.msl`, `*.json` to LF and `*.dxil`, `*.spv` to binary. Mutation on macOS: a flipped hash byte is red;
+  a CRLF `SOURCE.sha256` is green.
+- `anIDPassReadsBackTheInstanceUnderAPixel`: `E_INVALIDARG` from the PSO. `id.frag` read only `TEXCOORD1`, so its input
+  register differed from the vertex stage's; it now also reads `color` (never true), the blobs were rebuilt with
+  SDL_shadercross 3.0.0 (old blobs rebuilt byte-identical first). The D3D12 cause is inferred; CI is the evidence.
