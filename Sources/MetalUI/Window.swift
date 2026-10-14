@@ -1848,6 +1848,7 @@ public final class Window {
                 frame.menuBarOpenIndex = session.barIndex
             }
             frame.menuBarOpen = { [weak self] index in self?.openMenuBarMenu(index: index, highlightFirst: false) }
+            frame.windowControls = windowControlsSpec()   // the drawn window buttons (CW-C)
             withObservationTracking {
                 // Reading the sentinel arms the next frame's flush; see ordering
                 // note 3 above. Everything the element tree reads during all three
@@ -2001,6 +2002,7 @@ public final class Window {
         // Also when only the drawn chrome changed (SG-F item 3); a pair equal
         // to the last one sent sends nothing.
         reconcileContentSizeLimits()
+        publishChromeRegions()   // the platform's drag regions, after the build (CW-E)
         onFrameAdopted?(frame)
         return (frame, scene)
     }

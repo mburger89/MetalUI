@@ -95,6 +95,15 @@ test the window's own drawn menu, alert panel and toolbar strip, as on SDL.
 `performWindowDrag()` answers; `TestWindow.windowDrags` counts the requests a
 `WindowDragGesture` made (`WD-E`).
 
+`Options.sdlChrome` is SDL's answers under `.hiddenTitleBar` in one value (`CW-F`): the style applies, the platform
+uses drag regions, there are no native window buttons, and the insets are the band (32) and the drawn buttons'
+cluster (138 on the right). Open the window with `windowStyle: .hiddenTitleBar` through
+`TestApp.openWindow(…, options: .sdlChrome)`: `TestWindow.windowDragRegions` is the last list the window published
+(the unclaimed band and `WindowDragGesture` handles, carved around every control, tap, field and draggable; empty
+while a popover, menu or alert is open), `windowActions` the minimise and zoom requests the drawn buttons sent
+(`Options.isZoomed` and `HeadlessPlatformWindow.isZoomed` are the zoom state), and the drawn Close, Minimise and Zoom
+buttons are found by `element(label:)` and clicked like any button. `Window.drawsWindowControls = false` removes them.
+
 ## Input
 
 Every action delivers its events at the window's clock and **then draws one
@@ -372,6 +381,57 @@ let laid = try window.frame(ofID: "t")
 
 Measuring adds no layout measure call and no build to a frame (test 1.4 counts
 it), so it is safe in a per-frame body.
+
+## A CI smoke test of the real window
+
+`MetalUITesting` runs the real `Window` over a fake platform. To prove that a
+Linux or Windows build starts at all, open the **real SDL window** with no
+display. The launch is public API, `SDLPlatform(options: .headless)`
+(`IC-J`): `Options.headless` hides every window (it is never shown) and renders
+each into an offscreen target instead of a swapchain, so frames build and the
+lifecycle drain runs on a runner with no presented frame. The video driver stays
+the environment's: on Linux `SDL_VIDEO_DRIVER=offscreen` (Xvfb also works), on
+Windows Mesa llvmpipe or WARP.
+
+```text
+import Foundation
+import MetalUI
+import MetalUICore
+import MetalUIPortableText
+import MetalUISDL
+
+// textSystem: your portable text system (a PortableTextSystem over your fonts),
+// as in HeadlessLaunchCheck (Backends/SDL/Sources/HeadlessLaunchCheck/main.swift).
+let platform = try SDLPlatform(options: .headless)   // or .headlessIfRequested()
+let app = App(platform: platform, textSystem: { textSystem })
+var ran = false
+try app.openWindow(title: "Smoke", size: Size(width: Pixels(64), height: Pixels(64))) {
+    Box().task { ran = true }
+}
+let window = try platform.openSDLWindow(title: "Bound", size: Size(width: Pixels(16), height: Pixels(16)))
+var ticks = 0
+window.startDisplayLink { _ in
+    ticks += 1
+    if ran || ticks > 200_000 { platform.stop() }   // a bound by iterations, never a clock
+}
+app.run()
+exit(ran ? 0 : 1)
+```
+
+Notes:
+
+- Stop the loop from the display-link tick, not from the `.task`: a `.task`
+  can run in the first frame, before `run()` starts, and a `stop()` made then is
+  lost.
+- `SDLPlatform.Options.headlessIfRequested()` returns `.headless` when
+  `METALUI_SDL_HEADLESS` is exactly `1` and `.default` otherwise, so one binary
+  serves a developer and CI (`IC-K`). `SDLPlatform` never reads the variable
+  itself.
+- Call `app.run()` from synchronous top-level code (`main.swift`).
+- `Backends/SDL`'s `HeadlessLaunchCheck` is this recipe built and run by a test
+  in the Linux image (`IC-M`). The older `@_spi(Checks)`
+  `SDLPlatform(hiddenWindows:offscreenRenderers:)` still works and forwards to
+  `init(options:)` (`IC-L`).
 
 ## What it cannot do
 

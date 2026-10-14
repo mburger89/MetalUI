@@ -1,0 +1,10 @@
+# Byte-stable checked-in shader sources and blobs (GA-Q): a Windows checkout
+# with core.autocrlf must not change a source's SHA-256 or a blob's bytes, so
+# SOURCE.sha256 means the same on every machine.
+*.hlsl text eol=lf
+SOURCE.sha256 text eol=lf
+Backends/SDL/Shaders/compiled/*.json text eol=lf
+Backends/SDL/Tests/AppShaders/compiled/*.json text eol=lf
+*.dxil binary
+*.spv binary
+*.msl text eol=lf

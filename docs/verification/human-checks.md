@@ -1564,6 +1564,98 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
   C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
 
+## GA. SDL GPU for apps — compute and graphics on a real GPU (items S5 and S6, MetalCreator's SDL-port gaps 1 and 2, not a plan task; record §114)
+
+*An agent cannot: the suites run on this Mac's Metal, on lavapipe in the Linux image and, in CI, on WARP; these need
+a physical GPU, a desktop session and a console.*
+
+- [ ] **GA1.** On a Linux or Windows desktop, a window with an instanced, depth-tested, 4x multisampled
+  `GPUSurface` draw (`ctx.view`, `SDLGPUGraphicsPipelineDescription`) shows the three triangles with smooth
+  edges, and resizing the window rebuilds the multisample and depth textures with no stale or stretched frame
+  (the target is MetalUI's and changes size; the draw's own textures are the app's, `GA-H`). **Observed:**
+- [ ] **GA2.** The append kernel (`SDLGPUComputeTests`) and the graphics tests (`SDLGPUGraphicsTests`) pass
+  on **real GPU hardware** on Windows (D3D12) and on Linux (Vulkan), not only on WARP and lavapipe; run
+  `swift test $(python3 scripts/fetch-accesskit.py --print-flags)` in `Backends/SDL` with `METALUI_REQUIRE_GPU=1`
+  and read the one summary line (`GA-K`, `GA-N`). **Observed:**
+- [ ] **GA3.** A built app that ships its compiled shaders in `MetalUIAppShaders` beside the executable finds
+  them after the folder is moved, and a missing folder names every directory tried
+  (`SDLGPUShaderLibrary.locate`, `docs/packaging.md` section 4a, like `X1`). **Observed:**
+- [ ] **GA4.** In a debug build run in a real console, a draw that calls `SDLGPUDevice.waitForIdle()` and a draw
+  that returns with a pass open each stop with a message that names the contract and reads clearly
+  (`aWaitInsideADrawTrapsInDebug`, `anOpenPassAtTheEndOfADrawTrapsInDebug`; `GA-I`). **Observed:**
+
+## IC. Image cursors and the headless SDL launch — what only a real pointer shows (items S4 and S8, user request 2026-10-02, MetalCreator SDL-port gap 8 and XP-G9, not a plan task; record §116)
+
+*An agent cannot: a cursor is drawn by the window server and a test cannot see the pointer. The recorders (`mui_cursor_*`) pin what the bridge was asked for; these rows pin what the eye sees. The lock probe read LOCKED at design time.*
+
+- [ ] **IC1.** SDL on Linux and on Windows: the hand and zoom recipe (`IC-H`, `docs/guides/input.md`) shows the supplied
+  images, not SDL's move cursor, with the hot spot on the clicked point. `METALUI_CANVAS_DEMO=1`, the "ring" cell, on
+  SDL's backend. Note the largest cursor size each platform draws (a bitmap above its limit leaves the current cursor,
+  `IC-C` 3). **Observed:**
+- [ ] **IC2.** macOS on a 2x display and on a 1x display: the ring cursor is crisp and the same point size on both (a 48 px
+  bitmap at scale 2 is 24 pt, `IC-C`, `IC-D`). **Observed:**
+- [ ] **IC3.** Every platform: the hot spot lands on the clicked pixel at the four corners of the image (hot spots
+  `.zero`, top-trailing, bottom-leading, `.bottomTrailing`; a hot spot outside the unit square clamps, divergence 465).
+  **Observed:**
+- [ ] **IC4.** Windows (the UTM VM or CI) and Linux: an app shaped like `HeadlessLaunchCheck`
+  (`SDLPlatform(options: .headless)`, a `.task`, a stop) exits 0 in CI with no display (`IC-J`, `IC-M`, `IC-Q`).
+  **Observed:**
+
+## HP. Hot paths — text and shadows look the same (item P1, user request 2026-10-02, not a plan task; record §111)
+
+*An agent cannot: the fourteen offscreen images are 0 px against `fb9a7e42`; a real display, a scale change and an eye are a person's.*
+
+- [ ] **HP1.** Text placement is unchanged in a real window at 1x and 2x: `swift run -c release MetalUIDemo`, compare
+  against a `fb9a7e42` build side by side: paragraphs, mixed-script lines and the rich-text section sit on the same
+  device pixels, no glyph a pixel off, no clipped or doubled glyph while the window resizes (the placement memo keys on
+  origin, scale and font, `HP-A`, `HP-H`). **Observed:**
+- [ ] **HP2.** Scrolling a list and panning a shadowed container keep text and shadows sharp and stationary relative to
+  their rows: fractional scroll offsets (trackpad) never leave a stale glyph position (`HP-A` key x/y; the rich-text
+  y component is pinned, record §111 s7). **Observed:**
+- [ ] **HP3.** A border width, an opacity and a frame still animate smoothly and settle exactly (hover a bordered
+  control, toggle a transition): the early-outs return only when nothing is in flight (`HP-C`). **Observed:**
+
+## IB. Image decoding and orientation — what only an eye shows (item S2, user request 2026-10-02, not a plan task; record 113)
+
+*An agent cannot: these need a real window and a person who knows which way up a photograph is.*
+
+- [ ] **IB1.** Draw a JPEG tagged EXIF 6 two ways beside each other, in a real window: decoded through
+  `DecodedImage` + `applyingOrientation()` + `ImageBitmap(_:)`, and `Image(_:scale:orientation: .right, label:)`
+  over the untagged `ImageBitmap(data:)`. Both read upright and identical (`IB-F`). **Observed:**
+- [ ] **IB2.** In a SwiftUI window, `Image(nsImage:)` of the same file reads upright, while MetalUI's plain
+  `ImageBitmap(data:)` of it reads sideways (divergence 435, `IB-G`; the sizes are probed headless, the look is
+  the eye's). **Observed:**
+
+## CW. Window chrome on SDL — borderless looks, drag, resize and the drawn buttons (item S1, user request 2026-10-02, MetalCreator SDL-port gap 3, not a plan task; record §112; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: these need a real Windows 11 and Linux (X11 and Wayland) desktop, a pointer and an eye.* Run
+`METALUI_CHROME_DEMO=1` on `MetalUISDLDemo` (and `MetalUIDemo` on macOS for the AppKit contrast).
+
+- [ ] **CW1.** The demo's looks on Windows 11 and Linux X11 and Wayland: a borderless window, the 32-point bar
+  filling its top, the three drawn buttons at the top right (flat 46 x 32 rectangles), the bar's title, button, field
+  and handle left of them, nothing under the cluster. **Observed:**
+- [ ] **CW2.** Dragging from the empty bar and from the handle at its end moves the window; the cursor, the window's
+  position and the focus behave as a titled window's. **Observed:**
+- [ ] **CW3.** The bar's button, search field and tap target still work (they are carved out of the drag region,
+  `CW-E`): click the button (the count rises), type in the field, tap the target; a click on a control never starts a
+  move. **Observed:**
+- [ ] **CW4.** Resizing from each edge and corner (6-point border, 12-point corner squares, `CW-G`); the border over a
+  scrollbar at the right edge swallows its first 6 points; a fixed-size window (equal min and max) resizes on no
+  such axis. **Observed:**
+- [ ] **CW5.** Divergence 425: inside the empty band the pointer style, hover and tooltips are lost on SDL (the
+  platform takes the events); outside it they work. Record which platforms swallow what. **Observed:**
+- [ ] **CW6.** Double-click on the empty band zooms and restores on Windows (`HTCAPTION`, `CW-I`) and does not on
+  X11 or Wayland (the region consumes both presses; divergence 427 is taken only if this fails). **Observed:**
+- [ ] **CW7.** macOS through SDL: the drawn buttons are three 12-point circles at the **left**, 70 points wide, in
+  AppKit's order; `titleBarInsets.left` is 70. **Observed:**
+- [ ] **CW8.** Entering and leaving fullscreen: the bar and buttons go, the window is bordered or not as before, the
+  last requested style comes back (`CW-B`). **Observed:**
+- [ ] **CW9.** A borderless Windows window's shadow and corners (DWM draws them for a borderless window or does
+  not; platform, `CW-A`). **Observed:**
+- [ ] **CW10.** Close goes through the close veto: with an `onCloseRequest` that answers `.cancel` or `.later` the
+  drawn Close button keeps the window and the app's alert shows; minimise and zoom/restore act, and Zoom reads
+  "Restore" while maximised. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

@@ -243,6 +243,46 @@ committed text, not the marked text (divergence 325; pin:
 composing is held back until the commit, whose publish supersedes it (divergence 326; pin:
 `aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit`).
 
+## How do I give a region my own cursor, and a hand on SDL?
+
+`.pointerStyle(.image(_:hotSpot:))` shows a bitmap as the pointer, SwiftUI's macOS 15 spelling. The
+cursor is the `Image`'s bitmap at `pixels / scale` points, so a 48-pixel bitmap at `scale: 2` is a
+24-point cursor on every display (pin: `anImageCursorSendsItsPointSizeAndHotSpot`). `hotSpot` is a
+fraction of that size from the top-left, and one outside the unit square is clamped onto the image
+(divergence 465; pin: `aHotSpotOutsideTheUnitSquareClampsToTheImage`). The cursor is identified by the
+bitmap, so building the `Image` again each frame still sends the platform one cursor (pin:
+`aBitmapRebuiltEveryFrameSendsOneCursor`). The test reads what the window sent through
+`TestWindow.pointerStyle` (pin: `theInputGuideAnImageCursorSendsItsBitmap`).
+
+SDL has no hand or zoom cursor: `.grabIdle` shows its move cursor and `.zoomIn` its arrow, and no art is
+bundled. Where that is wrong for your app, draw a hand yourself and put it on the region with
+`.image`, keeping a 2x bitmap for 2x displays (`scale: 2`). The platform picks by display scale on SDL;
+AppKit scales from the bitmap.
+
+```swift
+/// A bitmap drawn in code: a filled disc of `side` pixels.
+func inputDisc(side: Int) -> ImageBitmap {
+    var rgba: [UInt8] = []
+    let centre = Double(side) / 2
+    for y in 0..<side {
+        for x in 0..<side {
+            let dx = Double(x) + 0.5 - centre, dy = Double(y) + 0.5 - centre
+            let inside = dx * dx + dy * dy <= centre * centre
+            rgba += inside ? [30, 120, 255, 255] : [0, 0, 0, 0]
+        }
+    }
+    return ImageBitmap(width: side, height: side, rgba: rgba)
+}
+
+/// A region whose pointer is the disc, hot spot at its centre, drawn at 2x.
+@MainActor
+func inputCursorRegion(_ disc: ImageBitmap) -> some Element {
+    Rectangle()
+        .frame(width: Pixels(120), height: Pixels(80))
+        .pointerStyle(.image(Image(decorative: disc, scale: 2), hotSpot: .center))
+}
+```
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
@@ -258,6 +298,7 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 275: a window drag cuts its neighbours in the press.
 - divergence 276: a window drag moves the window on AppKit only.
 - divergence 277: an `.opacity(0)` window-drag handle still captures.
+- divergence 465: an image cursor's hot spot clamps onto the image.
 - divergence 325: a composing field's accessibility value is the committed text.
 - divergence 326: a selection written while composing waits for the commit.
 

@@ -16,6 +16,8 @@ import MetalUIScene
 /// cache is keyed on the texture's identity).
 public struct ImageBitmap: Sendable {
     let texture: ImageTexture
+    /// Cached oriented textures, shared by every copy of this bitmap (`IB-F`).
+    let variants: OrientedVariants
 
     /// The bitmap's width in pixels.
     public var width: Int { texture.width }
@@ -30,10 +32,22 @@ public struct ImageBitmap: Sendable {
         precondition(rgba.count == width * height * 4,
                      "ImageBitmap: \(rgba.count) bytes for \(width)×\(height) (needs \(width * height * 4))")
         texture = ImageTexture(width: width, height: height, straightRGBA: rgba)
+        variants = OrientedVariants()
     }
 
     init(texture: ImageTexture) {
         self.texture = texture
+        variants = OrientedVariants()
+    }
+
+    /// This bitmap turned by `orientation`, MetalUI-only (`IB-F`): the stored premultiplied
+    /// texels are permuted (no alpha arithmetic), once per orientation, and the result is cached
+    /// on the bitmap, so every call and every frame hands the renderer the **same texture
+    /// identity** (`TE-AF`). `.up` returns the bitmap itself. A rotated orientation swaps
+    /// width and height.
+    public func oriented(_ orientation: Image.Orientation) -> ImageBitmap {
+        if orientation == .up { return self }
+        return ImageBitmap(texture: variants.texture(for: orientation, of: texture))
     }
 
     /// Decodes the image file at `path`, on every platform (ruling `PX-E`).
@@ -65,6 +79,7 @@ public struct ImageBitmap: Sendable {
     public init?(data: Data) {
         guard let texture = data.withUnsafeBytes({ decodeImageTexture($0) }) else { return nil }
         self.texture = texture
+        variants = OrientedVariants()
     }
 
     /// Decodes the resource `name`.`ext` in `bundle` (in `subdirectory` when
@@ -88,6 +103,25 @@ public struct ImageBitmap: Sendable {
               let bitmap = ImageResourceCache.shared.bitmap(at: url.standardizedFileURL.path)
         else { return nil }
         self = bitmap
+    }
+}
+
+/// The oriented textures of one bitmap, built on first use and kept for the bitmap's life
+/// (`IB-F`). Lock-guarded: a bitmap is `Sendable`.
+final class OrientedVariants: @unchecked Sendable {
+    private let lock = NSLock()
+    private var textures: [Image.Orientation: ImageTexture] = [:]
+
+    func texture(for orientation: Image.Orientation, of source: ImageTexture) -> ImageTexture {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = textures[orientation] { return cached }
+        let permuted = permuteSamples(source.pixels, width: source.width, height: source.height,
+                                      bytesPerPixel: 4, orientation: orientation)
+        let made = ImageTexture(width: permuted.width, height: permuted.height,
+                                premultipliedRGBA: permuted.samples)
+        textures[orientation] = made
+        return made
     }
 }
 

@@ -60,9 +60,20 @@ same declarations; your code does not branch.
   `aDrawnMenuIsDrivenThroughTheTree`).
 - File dialogs are SDL's own, and a `ContentType` filters by **filename extension only**, so give a
   type its extensions (divergence 129). The block below declares one.
-- A window drag records the request and leaves the system title bar to drag itself (divergence 276);
-  the pointer shapes are SDL's, which has no hand or zoom cursor; `windowStyle: .hiddenTitleBar`
-  reads zero insets because SDL keeps its title bar.
+- `windowStyle: .hiddenTitleBar` makes an SDL window borderless **where the video driver can change a
+  border**: the platform answers `true` and `titleBarInsets` reads a 32-point band plus the edge of the
+  three window buttons the window draws itself (138 on the right on Linux and Windows, 70 on the left
+  through SDL on macOS), all zero in full screen (divergence 175). Where the driver cannot — the
+  `offscreen` driver of the Linux test image, measured — the platform answers `false`, the window keeps
+  its system bar and the insets stay zero. Pins in `Backends/SDL/Tests/MetalUISDLTests/SDLChromeTests.swift`
+  (`theStyleAnswerIsWhatTheDriverDid` on every driver, the rest on drivers with a window manager); a
+  real Windows, X11 or Wayland window is human check group CW, not run.
+- The drag is a set of regions published to `SDL_SetWindowHitTest`: the empty band and each
+  `WindowDragGesture` handle, minus every control that needs the pointer, and the six-point edges and
+  corners of a borderless window resize it. SDL takes the pointer events inside a region, so a hover
+  inside the band is not delivered (divergences 276, 425, 426). `performWindowDrag()` still answers
+  `false`; a handle moves the window through its region, not through the gesture. Double-click zoom
+  on the band is not promised on Linux (human check CW6).
 - A drop onto the window targets the deepest destination whatever its type (divergence 102).
 
 ```swift
@@ -113,12 +124,87 @@ A test reads the labelled image from the accessibility tree and gets `nil` for a
 `theCrossPlatformGuideAMissingFileIsNil`; the decoder's own pins: `everyFixturePNGDecodesToItsLiteralPixels`,
 `aCorruptPNGIsNil`).
 
+To read pixels, decode once with `DecodedImage` (PNG and JPEG, the same decoder, MetalUI-only): `.grey`
+gives one luma byte per pixel (a grey source exactly, otherwise Rec. 601 with alpha dropped), `.rgba` gives
+straight-alpha bytes, and `orientation` is the file's EXIF tag, **reported and not applied** (a bitmap built
+from the file draws its stored pixels, divergence 435). `applyingOrientation()` turns the pixels upright, and
+`Image(_:scale:orientation:label:)` draws a bitmap turned by a tag you already read.
+
+```swift
+/// Decodes once: grey pixels to analyse, and an upright bitmap to draw.
+func crossDecode(_ data: Data) -> (grey: DecodedImage, upright: ImageBitmap)? {
+    guard let grey = DecodedImage(data: data, format: .grey),
+          let colour = DecodedImage(data: data) else { return nil }
+    return (grey, ImageBitmap(colour.applyingOrientation()))
+}
+```
+
+A one-pixel PNG decodes to one grey byte and a 1x1 bitmap, and bytes that are not an image are `nil`
+(pin: `theCrossPlatformGuideDecodesOnceAndRejectsGarbage`).
+
 Text uses CoreText on macOS and MetalUI's portable system (HarfBuzz shaping, FreeType glyphs,
 libunibreak line breaking) elsewhere, measured against CoreText. Fonts come from the platform's
 installed fonts through `SystemFonts.resolver()`; the one place you will see a difference is joined
 Arabic with tracking or kerning, where the portable system places the extra space as a gap between
 letters (divergence 157). A `.task` body starts synchronously inside the first frame on macOS 27,
 and one frame late on macOS 14 to 25 (divergence 137).
+
+## How do I run my own GPU work on SDL?
+
+On macOS you reach Metal through `MetalView` and `MetalDrawContext`. On Linux and Windows the SDL
+backend draws with SDL3's GPU API, and the product `MetalUISDLGPU` gives an app the same API: one
+`import MetalUISDLGPU` brings a thin typed layer named after SDL_GPU (`SDLGPUDevice`, `SDLGPUBuffer`,
+`SDLGPUComputePipeline`, `SDLGPUFence`) **and** every raw `SDL_` symbol, so what the layer omits is
+still one call away on each object's `raw` pointer. It is MetalUI-only (SwiftUI has no GPU API) and
+needs the `SDL` trait; a portable GPU API over Metal and SDL is not offered. These snippets are `text`
+fences for the reason above.
+
+```text
+// Package.swift: the product comes with the SDL trait
+.package(url: "https://github.com/mburger89/MetalUI.git", revision: "<commit>", traits: ["SDL"]),
+.product(name: "MetalUISDLGPU", package: "MetalUI"),
+```
+
+**Compute needs no window.** `SDLGPUDevice.make()` creates and owns a device and answers `nil`, with
+`SDLGPUDevice.lastFailure` naming why, when no GPU or driver answers. A kernel is HLSL you build once
+with `Backends/SDL/scripts/compile-app-shaders.py` (the recipe is section 4a of
+[`packaging.md`](../packaging.md)) and the library loads the blob for the device's driver together with
+its reflection, so you never count bindings by hand. SDL_GPU has no append buffer: a read-write storage
+buffer holds a counter in its first word and the payload after it, and each thread claims a slot with
+`InterlockedAdd`.
+
+```text
+import MetalUISDLGPU
+
+let device = SDLGPUDevice.make()!                      // owned; a missing GPU is nil, not a trap
+let library = try SDLGPUShaderLibrary.locate(sourceTree: kernelsDirectory)
+let pipeline = device.makeComputePipeline(try library.compute("append", for: device))!
+let buffer = device.makeBuffer(size: 4 * (1 + n), usage: [.computeStorageRead, .computeStorageWrite])!
+_ = await device.upload([UInt8](repeating: 0, count: 4 * (1 + n)), to: buffer)   // zero the counter
+
+let fence = try await device.submitBatch { commandBuffer in     // recorded and submitted on a worker thread
+    guard let pass = commandBuffer.beginComputePass(readWrite: [buffer]) else { return }
+    pass.bind(pipeline)
+    pass.push(uniform: threadCountBytes, at: 0)
+    pass.dispatch(x: (n + 63) / 64, y: 1, z: 1)
+    pass.end()                                          // every pass is ended inside the batch
+}
+await fence.wait()                                      // suspends; the main actor is never blocked
+let bytes = await device.download(buffer, range: 0..<(4 * (1 + n)))!
+```
+
+The fence is waited for on a thread of its own, so `await fence.wait()` from the main actor lets the
+window keep drawing. A command buffer is recorded and submitted only on the
+worker thread inside `submitBatch`, and a batch that leaves a pass open is an error, not an undefined
+submit. A batch is its own submission: it is not part of a window's frame.
+
+**On the window's own device.** `SDLGPUDevice(borrowing: ctx)` wraps the device a `GPUSurface` draw
+receives, not owned and never destroyed, so a buffer a batch filled is one the surface can draw.
+SDL orders only the start of one submission before the next, so await the batch's fence before the
+frame that reads its output. Keep the borrowed wrapper no longer than the window.
+
+Apps with their own SDL3 binding can ignore the layer: `SDLGPUDrawContext` still hands out `device`,
+`commandBuffer` and `target` as raw pointers.
 
 ## Where do packaging and CI live?
 
@@ -129,6 +215,15 @@ delivers it (divergence 176; the launch-argument recipe is in the same file). To
 behaviour without a screen, use the headless harness: its options answer as AppKit does by default
 and as SDL does with `presentsAlertsNatively`, `presentsMenusNatively` and `showsToolbarNatively`
 off ([`testing.md`](../testing.md)).
+
+To prove the build starts on a runner with no display, open the real SDL window headless. A `text`
+fence, because the SDL products do not build in the guide target (`DG-L`):
+
+```text
+let platform = try SDLPlatform(options: .headlessIfRequested())   // METALUI_SDL_HEADLESS=1 selects .headless
+```
+
+The full recipe, with its bounded loop, is in [`testing.md`](../testing.md#a-ci-smoke-test-of-the-real-window).
 
 ## Divergences you will hit
 

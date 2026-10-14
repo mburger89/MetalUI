@@ -687,6 +687,28 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         return true
     }
 
+    // MARK: Window chrome (rulings `CW-F`, `CW-C`)
+
+    /// Records nothing and answers `false` (ruling `CW-F`): AppKit moves the window from
+    /// `performDrag(with:)` (`AS-J`, `WD-E`) and keeps the system frame, so it needs no region list —
+    /// `Window` asks once and never computes regions for it.
+    func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }
+
+    /// `miniaturize(_:)` or `zoom(_:)`; always `true` (the window is a real `NSWindow`).
+    func performWindowAction(_ action: PlatformWindowAction) -> Bool {
+        switch action {
+        case .minimize: window.miniaturize(nil)
+        case .toggleZoom: window.zoom(nil)
+        }
+        return true
+    }
+
+    /// The traffic lights stay under the hidden style (`AS-E`): AppKit has native window buttons.
+    var hasNativeWindowControls: Bool { true }
+
+    /// `NSWindow.isZoomed`.
+    var isZoomed: Bool { window.isZoomed }
+
     // MARK: Control active state (ruling EV-AB, amended by EV-AF)
 
     /// `isKeyWindow` → `.key`; else the application active → `.active`; else
@@ -983,12 +1005,22 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         if appearance != lastReportedAppearance { reportAppearance() }
     }
 
+    /// This window's image cursors (ruling `IC-D`): sixteen, least recently used out.
+    private var imageCursors = AppKitImageCursorCache()
+    /// How many image cursors are cached; read by `appKitCachesAnImageCursorPerImageAndBoundsTheCache`.
+    var imageCursorCacheCount: Int { imageCursors.count }
+
     /// Shows `style` (ruling `CI-H` item 8): the host view keeps the mapped
     /// `NSCursor` for every `cursorUpdate(with:)`, and it is set at once while
     /// the pointer is inside the view. Pinned by
     /// `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`.
     func setPointerStyle(_ style: PlatformPointerStyle) {
-        let cursor = AppKitCursor.cursor(for: style)
+        let cursor: NSCursor
+        if case .image(let image) = style {
+            cursor = imageCursors.cursor(for: image, held: hostView.pointerCursor)   // `IC-D`
+        } else {
+            cursor = AppKitCursor.cursor(for: style)
+        }
         hostView.pointerCursor = cursor
         if hostView.pointerIsInside { cursor.set() }
     }

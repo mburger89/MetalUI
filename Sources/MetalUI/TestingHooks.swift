@@ -47,6 +47,10 @@ package struct BuildWork: Sendable, Equatable {
 }
 
 extension Window {
+    /// How many times the window computed its drag regions (`CW-J`: a platform that declines them, and a
+    /// standard-style window with no handle, cost none).
+    package var testingChromeCarveCount: Int { chromeCarveCount }
+
     /// Whether every frame records its element bounds (`recordsElementBounds`).
     package var testingRecordsElementBounds: Bool {
         get { recordsElementBounds }

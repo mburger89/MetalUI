@@ -236,6 +236,7 @@ private func canvasRoot(header: some Element, canvas: some Element, strip: some 
         canvas
         strip
         status
+        canvasRingCell()      // `IC-H`: an image cursor
         inputFollowupsPad()   // `IF-K` 2: the input follow-ups' pad
     }
     .alignItems(.flexStart)
@@ -400,6 +401,39 @@ private func canvasStyleRow(_ range: Range<Int>) -> some Element {
             .pointerStyle(canvasDemoStyles[index].1)
         }
     }
+}
+
+/// A 48-pixel ring, drawn once so every build hands the platform the same bitmap (`IC-F`): an
+/// image cursor has the bitmap's identity.
+@MainActor
+private let canvasRingBitmap: ImageBitmap = {
+    let side = 48
+    var rgba: [UInt8] = []
+    let centre = Double(side) / 2
+    for y in 0..<side {
+        for x in 0..<side {
+            let dx = Double(x) + 0.5 - centre, dy = Double(y) + 0.5 - centre
+            let radius = (dx * dx + dy * dy).squareRoot()
+            let onRing = radius <= centre - 1 && radius >= centre - 5
+            rgba += onRing ? [255, 64, 32, 255] : [0, 0, 0, 0]
+        }
+    }
+    return ImageBitmap(width: side, height: side, rgba: rgba)
+}()
+
+/// A cell whose pointer is a generated ring (`PointerStyle.image`, rulings `IC-A`...`IC-H`): 48 px at
+/// scale 2, 24 pt, hot spot at the ring's centre (human checks IC1-IC3). Its own function, so it adds
+/// nothing to a composer's stack (the Windows rule above).
+@MainActor
+private func canvasRingCell() -> some Element {
+    Box {
+        Text("ring cursor (image)").font(size: 11)
+    }
+    .alignItems(.center)
+    .justifyContent(.center)
+    .frame(width: Pixels(180), height: Pixels(26))
+    .background(.surfaceSecondary)
+    .pointerStyle(.image(Image(decorative: canvasRingBitmap, scale: 2), hotSpot: .center))
 }
 
 @MainActor

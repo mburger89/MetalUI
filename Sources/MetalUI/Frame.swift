@@ -483,6 +483,12 @@ public final class Frame {
     /// Whether this build laid the bar out, read back by `Window`
     /// (`drawnChromeHeight`).
     private(set) var drewMenuBar = false
+    /// The drawn window buttons for this build (`CW-C`), or `nil` — today's path — when the window draws
+    /// none. Set by `Window` before the build.
+    var windowControls: WindowControlsSpec?
+    /// Whether this build laid the window buttons out, read back by `Window`.
+    private(set) var drewWindowControls = false
+
     /// Each title's rect in window points, as this build laid the bar out —
     /// the window's anchor and hover-switching table (`SG-A` item 8).
     var menuBarTitleFrames: [Bounds<Pixels>] = []
@@ -2738,7 +2744,7 @@ public final class Frame {
     /// real run, so `lastNativeLayoutWork` still reads the root's own. Under
     /// `.automatic` nothing is measured.
     func computeRootLayout(root: LayoutNodeID, toolbarStrip strip: LayoutNodeID? = nil,
-                           menuBar bar: LayoutNodeID? = nil) {
+                           menuBar bar: LayoutNodeID? = nil, windowControls controls: LayoutNodeID? = nil) {
         let width = Double(contentSize.width.value), height = Double(contentSize.height.value)
         // A drawn toolbar strip takes the window's top (`MD-K` item 2), and a
         // drawn menu bar the top above it (`SG-A` item 5): the root is offered,
@@ -2773,6 +2779,14 @@ public final class Frame {
                                          proposal: ProposedSize(width: width, height: stripHeight),
                                          centredIn: LayoutRect(x: 0, y: barHeight, width: width,
                                                                height: stripHeight))
+        }
+        // The window buttons' own run (`CW-C`): over the root's rect, taking none of it (the root is laid
+        // out at its full size), also before the root's run.
+        if let controls, let spec = windowControls {
+            let rect = WindowControlsStrip.rect(for: spec, windowWidth: contentSize.width.value)
+            _ = tree.computeNativeLayout(root: controls,
+                                         proposal: ProposedSize(width: rect.width, height: rect.height),
+                                         centredIn: rect)
         }
         _ = tree.computeNativeLayout(root: root,
                                      proposal: ProposedSize(width: width, height: rootHeight),
@@ -3581,8 +3595,13 @@ public final class Frame {
         var bar = requestMenuBarStrip(pass: &layoutPass)
         if let bar { reportUnconsumedLoweredItems(root: bar.node) }
         drewMenuBar = bar != nil
+        // The drawn window buttons (`CW-C`): last, so they prepaint after the root, the strip and the bar
+        // (the last Tab stops, `CW-M` 4); `nil` — no node — without them.
+        var controls = requestWindowControls(pass: &layoutPass)
+        if let controls { reportUnconsumedLoweredItems(root: controls.node) }
+        drewWindowControls = controls != nil
 
-        computeRootLayout(root: root, toolbarStrip: strip?.node, menuBar: bar?.node)
+        computeRootLayout(root: root, toolbarStrip: strip?.node, menuBar: bar?.node, windowControls: controls?.node)
         animationStore.transitions.afterLayout(self)  // plan task 13's transition seam (AN-AE)
         let rootBounds = bounds(of: root)
         recordElementBounds(rootID, rootBounds)
@@ -3590,6 +3609,8 @@ public final class Frame {
         if let stripBounds { recordElementBounds(ToolbarStrip.rootID, stripBounds) }
         let barBounds = bar.map { bounds(of: $0.node) }
         if let barBounds { recordElementBounds(MenuBarStrip.rootID, barBounds) }
+        let controlsBounds = controls.map { bounds(of: $0.node) }
+        if let controlsBounds { recordElementBounds(WindowControlsStrip.rootID, controlsBounds) }
 
         var prepaintPass = PrepaintPass(frame: self)
         // The root's `prepaint` is called here, not through `prepaintGroup`, so
@@ -3619,6 +3640,11 @@ public final class Frame {
         // hitboxes rank above both, below the hoisted presentation roots.
         if let barBounds {
             bar?.element.prepaint(MenuBarStrip.rootID, bounds: barBounds, pass: &prepaintPass)
+        }
+        // The window buttons after the bar (`CW-M` 4): their hitboxes rank above the root's, their focus
+        // stops follow every other, below the hoisted presentation roots.
+        if let controlsBounds {
+            controls?.element.prepaint(WindowControlsStrip.rootID, bounds: controlsBounds, pass: &prepaintPass)
         }
 
         // Hover resolves HERE — after `prepaint` has returned, so every
@@ -3675,6 +3701,9 @@ public final class Frame {
         }
         if let barBounds {   // above the strip, below presentations, the preview, the menu and the tooltip
             bar?.element.paint(MenuBarStrip.rootID, bounds: barBounds, pass: &paintPass)
+        }
+        if let controlsBounds {   // above the bar, below presentations, the preview, the menu and the tooltip
+            controls?.element.paint(WindowControlsStrip.rootID, bounds: controlsBounds, pass: &paintPass)
         }
         paintDragPreview()  // drag and drop's preview, above everything (DN-J)
         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)

@@ -83,14 +83,52 @@ struct ShadowPaint {
 /// identity (held by the entry, so an identifier cannot be reused while the
 /// key lives).
 struct RasterKey: Hashable {
-    var words: [UInt64] = []
-    var paths: [PathGeometry] = []
-    var objects: [ObjectIdentifier] = []
+    /// Read through the `add…` methods only: every mutation folds into `storedHash` (`HP-E`).
+    private(set) var words: [UInt64] = []
+    private(set) var paths: [PathGeometry] = []
+    private(set) var objects: [ObjectIdentifier] = []
 
-    mutating func add(_ value: Float) { words.append(UInt64(value.bitPattern)) }
-    mutating func add(_ value: Double) { words.append(value.bitPattern) }
-    mutating func add(_ value: Int) { words.append(UInt64(bitPattern: Int64(value))) }
-    mutating func add(_ value: UInt32) { words.append(UInt64(value)) }
+    /// The hash `hash(into:)` feeds, built incrementally by every `add…` so a lookup hashes one `Int`
+    /// instead of every word (`HP-E`). **A new field added to the key must be folded in here**: a field
+    /// left out only slows a probe (`==` still compares fields), but it is the hazard the `FontKey`
+    /// pattern exists to keep visible. The mix is a chain of bijections, so keys differing in one
+    /// component store different hashes (test `aRasterKeyHashesFromItsStoredHash`).
+    private(set) var storedHash: Int = 0x2545_F491
+
+    init() {}
+
+    /// Test-only: a key with `words` and a forced stored hash, to prove `==` is not hash-only.
+    init(forcedHash: Int, words: [UInt64]) { self.words = words; storedHash = forcedHash }
+
+    private mutating func fold(_ x: UInt64) {
+        var h = UInt64(bitPattern: Int64(storedHash)) ^ x
+        h = h &* 0x9E37_79B9_7F4A_7C15
+        h ^= h >> 29
+        storedHash = Int(bitPattern: UInt(h))
+    }
+
+    static func == (lhs: RasterKey, rhs: RasterKey) -> Bool {
+        lhs.storedHash == rhs.storedHash && lhs.words == rhs.words && lhs.paths == rhs.paths
+            && lhs.objects == rhs.objects
+    }
+
+    func hash(into hasher: inout Hasher) { hasher.combine(storedHash) }
+
+    mutating func addPath(_ geometry: PathGeometry) {
+        paths.append(geometry); fold(0xA11CE); fold(UInt64(bitPattern: Int64(geometry.hashValue)))
+    }
+    mutating func addObject(_ id: ObjectIdentifier) {
+        objects.append(id); fold(0xB0B); fold(UInt64(bitPattern: Int64(id.hashValue)))
+    }
+    mutating func addWords(_ more: [UInt64]) {
+        for w in more { addWord(w) }
+    }
+    private mutating func addWord(_ w: UInt64) { words.append(w); fold(w) }
+
+    mutating func add(_ value: Float) { addWord(UInt64(value.bitPattern)) }
+    mutating func add(_ value: Double) { addWord(value.bitPattern) }
+    mutating func add(_ value: Int) { addWord(UInt64(bitPattern: Int64(value))) }
+    mutating func add(_ value: UInt32) { addWord(UInt64(value)) }
     mutating func add(_ b: MUIBounds) { add(b.origin.x); add(b.origin.y); add(b.size.width); add(b.size.height) }
     mutating func add(_ c: MUICorners) { add(c.topLeft); add(c.topRight); add(c.bottomRight); add(c.bottomLeft) }
     mutating func add(_ e: MUIEdges) { add(e.top); add(e.right); add(e.bottom); add(e.left) }
@@ -111,11 +149,18 @@ final class RasterCache {
     private struct Coverage {
         let mask: AlphaMask
         let retained: [AnyObject]
+        /// The frame epoch that last touched it (`HP-E`): one probe both finds and marks.
+        var epoch: Int
     }
 
     private struct TintKey: Hashable {
         let key: RasterKey
-        let color: [UInt32]
+        let h: UInt32, s: UInt32, l: UInt32, a: UInt32
+    }
+
+    private struct Tinted {
+        let texture: ImageTexture
+        var epoch: Int
     }
 
     private struct Image {
@@ -124,13 +169,19 @@ final class RasterCache {
     }
 
     private var coverage: [RasterKey: Coverage] = [:]
-    private var tinted: [TintKey: ImageTexture] = [:]
+    private var tinted: [TintKey: Tinted] = [:]
     private var images: [RasterKey: Image] = [:]
     private var tables: [[UInt64]: [UInt32]] = [:]
-    private var touchedCoverage: Set<RasterKey> = []
-    private var touchedTint: Set<TintKey> = []
+    /// Frame epoch and how many coverage / tint entries it has touched (`HP-E`): `endFrame` filters only
+    /// when some entry went untouched, as the touched sets' count check did.
+    private var epoch = 0
+    private var touchedCoverageCount = 0
+    private var touchedTintCount = 0
     private var touchedImages: Set<RasterKey> = []
     private var touchedTables: Set<[UInt64]> = []
+    /// Dictionary/set probes by key made so far - a cumulative work counter (`HP-E`): a coverage or
+    /// tint hit costs one probe, a miss two.
+    private(set) var keyProbes = 0
     private var rasterizedThisFrame = 0
     private var blurredThisFrame = 0
     private var texturesMadeThisFrame = 0
@@ -161,12 +212,14 @@ final class RasterCache {
     }
 
     func endFrame() {
-        if touchedCoverage.count != coverage.count { coverage = coverage.filter { touchedCoverage.contains($0.key) } }
-        if touchedTint.count != tinted.count { tinted = tinted.filter { touchedTint.contains($0.key) } }
+        let current = epoch
+        if touchedCoverageCount != coverage.count { coverage = coverage.filter { $0.value.epoch == current } }
+        if touchedTintCount != tinted.count { tinted = tinted.filter { $0.value.epoch == current } }
         if touchedImages.count != images.count { images = images.filter { touchedImages.contains($0.key) } }
         if touchedTables.count != tables.count { tables = tables.filter { touchedTables.contains($0.key) } }
-        touchedCoverage.removeAll(keepingCapacity: true)
-        touchedTint.removeAll(keepingCapacity: true)
+        epoch += 1
+        touchedCoverageCount = 0
+        touchedTintCount = 0
         touchedImages.removeAll(keepingCapacity: true)
         touchedTables.removeAll(keepingCapacity: true)
         lastRasterizedPixels = rasterizedThisFrame
@@ -179,10 +232,23 @@ final class RasterCache {
 
     /// The coverage for `key`, made by `make` on a miss.
     func coverage(for key: RasterKey, retaining: [AnyObject] = [], _ make: () -> AlphaMask) -> AlphaMask {
-        touchedCoverage.insert(key)
-        if let hit = coverage[key] { return hit.mask }
+        keyProbes += 1
+        if let slot = coverage.index(forKey: key) {
+            if coverage.values[slot].epoch != epoch {
+                coverage.values[slot].epoch = epoch
+                touchedCoverageCount += 1
+            }
+            return coverage.values[slot].mask
+        }
         let mask = make()
-        coverage[key] = Coverage(mask: mask, retained: retaining)
+        keyProbes += 1
+        // `make` may itself have inserted this key (a nested request); count it once.
+        if let old = coverage.updateValue(Coverage(mask: mask, retained: retaining, epoch: epoch), forKey: key),
+           old.epoch == epoch {
+            // already counted as touched this frame
+        } else {
+            touchedCoverageCount += 1
+        }
         return mask
     }
 
@@ -212,13 +278,21 @@ final class RasterCache {
 
     /// `mask` tinted by `color` (premultiplied, gamma space), for `key`.
     func texture(for key: RasterKey, color: Hsla, mask: AlphaMask) -> ImageTexture {
-        let tint = TintKey(key: key, color: [color.h.bitPattern, color.s.bitPattern, color.l.bitPattern,
-                                             color.a.bitPattern])
-        touchedTint.insert(tint)
-        if let hit = tinted[tint] { return hit }
+        let tint = TintKey(key: key, h: color.h.bitPattern, s: color.s.bitPattern, l: color.l.bitPattern,
+                           a: color.a.bitPattern)
+        keyProbes += 1
+        if let slot = tinted.index(forKey: tint) {
+            if tinted.values[slot].epoch != epoch {
+                tinted.values[slot].epoch = epoch
+                touchedTintCount += 1
+            }
+            return tinted.values[slot].texture
+        }
         let texture = RasterCache.tint(mask, color: color)
         texturesMadeThisFrame += 1
-        tinted[tint] = texture
+        keyProbes += 1
+        tinted[tint] = Tinted(texture: texture, epoch: epoch)
+        touchedTintCount += 1
         return texture
     }
 
@@ -421,7 +495,7 @@ extension Frame {
         let geometry = anchor.isCanonical ? paint.geometry.translated(dx: -rx, dy: -ry) : paint.geometry
         let clip = anchor.canonical(placement.clip)
         var key = RasterKey()
-        key.paths.append(geometry)
+        key.addPath(geometry)
         switch paint.mode {
         case let .fill(rule, antialiased):
             key.add(0); key.add(rule == .evenOdd ? 1 : 0); key.add(antialiased ? 1 : 0)

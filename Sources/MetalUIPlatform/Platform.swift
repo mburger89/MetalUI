@@ -306,15 +306,20 @@ public protocol PlatformWindow: AnyObject {
     /// `.windowStyle(.hiddenTitleBar)` (probe `H0`): `.fullSizeContentView`, a
     /// transparent title bar and a hidden title; the window keeps its frame,
     /// so the content grows under the bar and reports it through
-    /// ``onResize``. `.standard` restores all three. SDL records the request
-    /// and answers `false` — it keeps its system decoration (`AS-E` item 6).
+    /// ``onResize``. `.standard` restores all three. SDL makes the window
+    /// borderless (`SDL_SetWindowBordered`) and answers `true` (`CW-B`); where
+    /// it cannot (a fullscreen window) it answers `false` and keeps its system
+    /// decoration.
     func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool
 
     /// How far the title bar overlaps the content, in window points (ruling
     /// `AS-E` item 4): under the hidden style on AppKit `top` is the band's
     /// height (`frame − contentLayoutRect`) and `left` the zoom button's right
     /// edge; `right` and `bottom` are zero. All zero under the standard style,
-    /// whenever the band has no height (full screen), and on SDL. A change of
+    /// whenever the band has no height (full screen). SDL answers the hidden
+    /// style's band, 32 points, plus the edge of the cluster of window buttons
+    /// `Window` draws — 138 on the right, 70 on the left under macOS (`CW-D`);
+    /// `Window` zeroes the cluster side while `drawsWindowControls` is off. A change of
     /// the band with no change of size (a toolbar arriving) is reported
     /// through ``onResize``. `Window` reads it at each build.
     var titleBarInsets: Edges<Pixels> { get }
@@ -343,6 +348,46 @@ public protocol PlatformWindow: AnyObject {
     /// bar drags itself, `WD-F`); the headless window records it and answers
     /// its option.
     func performWindowDrag() -> Bool
+
+    // **Migration** (`CW-F`, `docs/migration.md`): a conformer outside this repository adds
+    // `func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }`,
+    // `func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }`,
+    // `var hasNativeWindowControls: Bool { true }` and `var isZoomed: Bool { false }` — AppKit's
+    // answers. **No default for any of the four** (`HT-X` 1's rule): a conformer that forgets one
+    // fails to compile rather than silently drawing no window buttons.
+
+    /// Tells the platform where a press moves the window (ruling `CW-E`, `CW-F`) and answers whether it
+    /// uses them. `regions` are disjoint rects in window points (the unit of every `PlatformWindow`
+    /// position, `CW-M` 1), at most ``ChromeHitSnapshot/maximumRegions``, in reading order: the unclaimed
+    /// title-bar band and `WindowDragGesture` handles, minus everything that needs the pointer. A platform
+    /// that answers `true` makes a press inside them move the window **before** `Window` sees it
+    /// (divergence 425); one that answers `false` — AppKit, which drags from `performDrag(with:)` — is
+    /// asked once, with `[]`, and never computed for again. SDL installs `SDL_SetWindowHitTest` over a
+    /// snapshot (`CW-H`).
+    func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool
+
+    /// Minimises the window or toggles its zoom (maximise or restore) and answers whether the platform did
+    /// (ruling `CW-F`). AppKit's `miniaturize(_:)` and `zoom(_:)`; SDL's minimise and maximise/restore.
+    /// `Window.minimize()`, `Window.toggleZoom()` and the drawn buttons call it.
+    func performWindowAction(_ action: PlatformWindowAction) -> Bool
+
+    /// Whether the platform shows its own close, minimise and zoom buttons under the hidden title-bar style
+    /// (ruling `CW-C`, `CW-F`): `true` on AppKit (the traffic lights stay), `false` on SDL, where `Window`
+    /// draws a three-button strip unless the app turns it off (`Window.drawsWindowControls`).
+    var hasNativeWindowControls: Bool { get }
+
+    /// Whether the window is zoomed (maximised) now (ruling `CW-F`): AppKit's `isZoomed`, SDL's maximised
+    /// flag. `Window.isZoomed` reads it; the drawn zoom button shows "Restore" while it is `true`.
+    var isZoomed: Bool { get }
+}
+
+/// A window action a platform can perform on request (ruling `CW-F`): the two system-button verbs that are
+/// not a close (which goes through `Window.performClose()` and its veto, `AS-B`).
+public enum PlatformWindowAction: Sendable, Equatable {
+    /// Minimise (AppKit: miniaturise; SDL: `SDL_MinimizeWindow`).
+    case minimize
+    /// Maximise a normal window, restore a zoomed one.
+    case toggleZoom
 }
 
 /// A windowing platform: opens windows and runs the event loop. Conformers:

@@ -459,7 +459,7 @@ and Wayland drivers); `DragGesture(…, button: .middle / .secondary)` drags wit
 (a right-drag declared on a node defers its context menu to the release), and
 `DragGesture.Value.modifiers` reports the keys held (divergence 140); `.onScrollWheel` hands a
 `ScrollEvent` with phase, momentum, precision and a local location, and claims or passes it on
-around `ScrollView`; `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors).
+around `ScrollView`; `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors, and `PointerStyle.image(_:hotSpot:)` from a bitmap on both, record §116).
 `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` is a pannable, zoomable node canvas. Human checks:
 group Y, unrun.
 **Input follow-ups** (user request 2026-10-02, item C16, not a plan task; record §93):
@@ -488,8 +488,8 @@ included) and tint it, on Metal and SDL (item C21, record §94; divergences 166,
 for a quit, and without it ⌘Q asks every window in turn; `Window.title`/`.navigationTitle`,
 `isDocumentEdited` and `.navigationDocument` set the title, the edited dot and the proxy icon;
 `windowStyle: .hiddenTitleBar` lays content under the title bar with
-`@Environment(\.titleBarInsets)` (AppKit only; SDL keeps its system decoration, divergence
-175); `.onOpenURL` receives open-document events (divergence 176). SwiftUI has no close veto or
+`@Environment(\.titleBarInsets)` (AppKit; on SDL a borderless window with drawn window buttons and
+hit-test drag and resize regions, `METALUI_CHROME_DEMO=1`, divergences 175, 425, 426, group CW); `.onOpenURL` receives open-document events (divergence 176). SwiftUI has no close veto or
 edited marker, so those are MetalUI-only by ruling. `METALUI_APP_SHELL_DEMO=1 swift run
 MetalUIDemo` shows them. Human checks: group AS, unrun.
 **Key and focus scoping** (user request 2026-10-02, item C9, not a plan task; record §88):

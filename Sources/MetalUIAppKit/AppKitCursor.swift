@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import MetalUIPlatform
+import MetalUIScene
 
 /// The seam's pointer styles as AppKit cursors (ruling `CI-H` item 8), as the
 /// probe `swiftui-input-apis.swift` read SwiftUI's `pointerStyle(_:)` setting
@@ -35,6 +36,7 @@ enum AppKitCursor {
         case .zoomOut:
             if #available(macOS 15, *) { return .zoomOut }
             return .arrow
+        case .image(let image): return imageCursor(for: image)
         case .frameResize(let edge, let inward, let outward):
             if #available(macOS 15, *) {
                 let mapped = frameResize(for: edge, inward: inward, outward: outward)
@@ -42,6 +44,23 @@ enum AppKitCursor {
             }
             return legacyFrameResize(edge: edge, inward: inward, outward: outward)
         }
+    }
+
+    /// An `NSCursor` from an image cursor (ruling `IC-D`): an `NSImage` of the
+    /// **point size** holding one `NSBitmapImageRep` of the texture's bytes as
+    /// stored — premultiplied, never re-premultiplied (`AI-E`, `AppKitIcon`) —
+    /// and the hot spot in AppKit's top-left image coordinates. AppKit scales
+    /// for a 2x display from the representation's pixel size. Not cached:
+    /// `AppKitWindow`'s `AppKitImageCursorCache` does that. A texture
+    /// CoreGraphics refuses gives the arrow.
+    static func imageCursor(for image: PlatformCursorImage) -> NSCursor {
+        guard let cgImage = AppKitIcon.cgImage(from: image.texture) else { return .arrow }
+        let size = NSSize(width: CGFloat(image.pointWidth), height: CGFloat(image.pointHeight))
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        rep.size = size
+        let nsImage = NSImage(size: size)
+        nsImage.addRepresentation(rep)
+        return NSCursor(image: nsImage, hotSpot: NSPoint(x: CGFloat(image.hotSpotX), y: CGFloat(image.hotSpotY)))
     }
 
     /// The frame-resize table **as values** (ruling `CI-P` item 3): each edge
@@ -78,6 +97,38 @@ enum AppKitCursor {
         case .bottom: return both ? .resizeUpDown : (inward ? .resizeUp : .resizeDown)
         case .topLeading, .topTrailing, .bottomLeading, .bottomTrailing: return .arrow
         }
+    }
+}
+
+/// A window's image cursors, at most `capacity` of them, least recently used out
+/// (ruling `IC-D`): an `NSCursor` needs no destroy, the bound keeps an app that
+/// makes a cursor per frame from growing, and the cursor the host view holds is
+/// never the one evicted.
+struct AppKitImageCursorCache {
+    let capacity: Int
+    /// Least recently used first.
+    private var entries: [(key: PlatformCursorImage, cursor: NSCursor)] = []
+
+    init(capacity: Int = 16) { self.capacity = capacity }
+
+    /// How many cursors are held.
+    var count: Int { entries.count }
+
+    /// The cursor for `image`, made once per value; `held` (what the host view
+    /// shows) is never evicted.
+    mutating func cursor(for image: PlatformCursorImage, held: NSCursor?) -> NSCursor {
+        if let index = entries.firstIndex(where: { $0.key == image }) {
+            let entry = entries.remove(at: index)
+            entries.append(entry)
+            return entry.cursor
+        }
+        let cursor = AppKitCursor.imageCursor(for: image)
+        entries.append((image, cursor))
+        while entries.count > capacity,
+              let victim = entries.firstIndex(where: { $0.cursor !== held && $0.cursor !== cursor }) {
+            entries.remove(at: victim)
+        }
+        return cursor
     }
 }
 #endif
