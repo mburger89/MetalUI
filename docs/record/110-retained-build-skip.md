@@ -2,7 +2,7 @@
 
 Branch `perf/retained-build-skip` from `fb9a7e42`. Not a plan task: item C14b-2 of the gpui-gap priority list (user request
 2026-10-02), the carried half of record §109. Spec `docs/superpowers/specs/2026-10-13-retained-build-skip-design.md` (§9 is lane 1 as
-built, §10 is lane 2); rulings `RK-A`…`RK-AB` in `docs/superpowers/2026-10-13-retained-build-skip-decisions.md` (next unused `RK-AC`); probe
+built, §10 is lane 2); rulings `RK-A`…`RK-AC` in `docs/superpowers/2026-10-13-retained-build-skip-decisions.md` (next unused `RK-AD`); probe
 `docs/probes/retained-build-skip/`. Divergence labels reserved 405–414: **none taken** (no SwiftUI-visible behaviour; the only public
 additions are `FrameWork`'s six counters (lane 1) and four more (lane 2: `retainedGrafts`, `retainedGraftIneligible`, `retainedSkippedRequests`, `retainedGraftedNodes`)).
 
@@ -167,10 +167,76 @@ count-reading tests of this lane are switched off under it too (`rsVerifying`). 
 
 | item | reason | owner |
 |---|---|---|
-| M2: the graft, the `StateTable` journal, nested memo touches | not built in this lane; the redo it needs is built and pinned; `RK-J`'s graft-plus-journal measurement is lane 2's first step | lane 2 |
+| M2: the graft, the `StateTable` journal, nested memo touches | built in lane 2 (§10) | done |
 | translation by layout (rects) or by the scroll offset (`activeOffset`) | re-bins glyphs and moves element bounds; `RK-G`'s gates would be owed | C14b-3 or a later reading |
 | the scroll-queue restore under a real redo | nothing makes a frame both carry a `scrollTo` (`VL-H`) and replay; unit-pinned | with the variable-height `List` |
-| the transition store's insertion/ghost restore | no separating test | lane 2 |
+| the transition store's insertion/ghost restore | no separating test (lane 2 did not add one; the graft refuses a transition group by name, `RK-Z`) | C14b-3 |
 | `drawText` | `RK-I`'s criterion held: a moving label under an `.offset` reads 0 `placeGlyphs` and 0 seam measures at scales 1 and 2 | C14 close-out |
 | human checks IV-R1…R4: a node drag looks the same with the switches off and on; hover, click, Tab and VoiceOver on a replayed panel; a resize and an opacity animation around the panels show no stale frame; a trackpad pan with the Prepaint switch on | an agent cannot | the Record phase adds them to `docs/verification/human-checks.md` |
 | the CLAUDE.md rule | **Retained prepaint (`RK-`, record §110).** An `.equatable()` occurrence's prepaint registers into a `PrepaintLedger` (hitboxes, focus, accessibility records and nodes, press-only actions, context menus, element bounds, tallies) replayed while the prepaint key is equal; a paint-time ambient that differs for a replayed prepaint abandons the frame after paint and the window builds it again with every replay off (`Window.buildAndAdoptFrame`; checkpoint in `AnimationStore.rollbackBuild`; 8 builds of window backoff and a per-entry doubling quarantine). A render-effect translation replays through the live scopes. A store a build mutates non-idempotently owes a `rollbackBuild`. | the Record phase |
+
+## §10 Lane 2 as built: the graft (M2)
+
+Rulings `RK-X`…`RK-AC`; spec §10. **M2 landed: an unchanged `.equatable()` occurrence skips its build recursion**, its layout rows are appended from a recorded
+`LayoutSegment` (`LayoutTree.graft`), the `StateTable` events its build made are applied again through the table's own funnels (`BuildJournal`, `Frame.reapply`), a
+grafted `ComponentLayout` has no payload (`RetainedGraft` marker) and its prepaint and paint replay, and a wrong decision is the lane 1 redo.
+
+**Step 1 (`RK-J`'s stop, `RK-X`).** Graft plus journal per outermost occurrence in release on the bracket node drag: **60.5 µs of build against 10.7 µs of graft, 17.7 %**
+(13.4 nodes on average; 31047 grafts, 3933 builds; `graft-journal-cost.patch`, a shared Mac at load 119 to 148, so the ratio and not the milliseconds). The 50 % stop did not fire.
+
+**Red-first.** The graft tests were committed red with the graft off before the implementation was wired (`e078587d`): 15 tests, 53 issues, among them
+`aGraftedSubtreeEqualsAFreshBuild` (all three prefixes), `aGraftedFrameKeepsTheStateTableSweepsExact`, `aGraftWithAChangedValueBuildsAndAGraftAfterItGrafts`, `aStateWriteBelowAGraftedOccurrenceRebuildsIt`,
+`aRedoAfterAGraftMismatchRestoresEverything` (both arms), `aGraftIneligibleBuildIsCountedByName` (six kinds), `aVerifiedGraftThatDiffersTraps` (six channels) and `theBracketNodeDragIsCountedAfterTheGraft` (three arms). Green after the graft: the 19 tests
+of that file. The pins added at the end of the lane (`3727d702`, the commit after) were not red-first: they were found by the mutation battery (`RK-AC`) and pass on the tree that has the graft.
+
+**Work counted on the bracket node drag** (one drag frame, `RetainedGraftTests`' literals; `fb9a7e42`'s behaviour is the `off` row, lane 1's tree the `prepaint` row):
+
+| arm | tree | elementRequests | elementPrepaints | elementPaints | retainedHits / misses / ineligible | grafts / ineligible | skipped requests | grafted nodes | measures / places |
+|---|---|---|---|---|---|---|---|---|---|
+| value | fb9a7e42 | 798 | 886 | 1084 | 0 / 0 / 0 | 0 | 0 | 0 | 2898 / 2814 |
+| value | + prepaint replay (lane 1) | 798 | 219 | 252 | 29 / 3 / 0 | 0 | 0 | 0 | 1174 / 1001 |
+| value | + graft | **208** | 219 | 252 | 29 / 3 / 0 | 29 / 0 | 590 | 590 | 1174 / 1001 |
+| panels | fb9a7e42 | 798 | 886 | 1084 | 0 / 0 / 0 | 0 | 0 | 0 | 2898 / 2814 |
+| panels | + prepaint replay (lane 1) | 798 | 176 | 184 | 31 / 3 / 1 | 0 | 0 | 0 | 712 / 539 |
+| panels | + graft | **167** | 176 | 184 | 31 / 3 / 1 | 30 / 1 | 631 | 641 | 712 / 539 |
+| environment | + graft | 760 | 829 | 1008 | 19 / 2 / 0 | 19 / 0 | 38 | 38 | 2898 / 2814 |
+
+Content evaluations (3 / 3 / 2), layout measure calls (52), layout memo counts, rasterized pixels (78312), new textures (2), atlas upload (0), glyphs (550) and rects (182) are the same in every row: the graft changes the build's element requests and nothing the frame draws. The environment arm
+(a custom environment key at the root) keeps most of the frame building (760 requests): `RK-Y` item 2 refuses a graft under a custom key, and its 19 grafts are the occurrences the key does not reach. `placeGlyphs`, raster and upload did not move (they were already 0 on a replayed frame, lane 1).
+
+**Time, dated, a shared Mac (never pinned).** MacBookPro18,2 (M1 Max), release, 2026-10-14, load average 100 to 150 for every run; `zsh docs/probes/perf-baselines.sh release bracketgraft` alternates graft off and on in one process
+(thread-CPU time is the reading, wall time swung by a factor of three on the contended runs). **The graft alone** (prepaint replay on in both arms): value 8.01 to 6.57 ms (-1.45), panels 7.65 to 6.18 ms (-1.48), the other runs -1.26 to -1.61.
+**The whole item** (`bracketab`, three runs, off arm = `fb9a7e42`'s behaviour): value -1.74, -1.85, -1.99 ms; panels -2.02, -1.84, -1.93 ms of thread-CPU per drag frame, **-23 % to -26 %** of 7.5 to 8.5 ms,
+past the item's -15 % refutation line and inside `RK-A`'s -28 % ceiling. Wall-clock medians per drag frame in the quietest run: value 9.65 to 8.25 ms, panels 15.7 to 13.5 ms. Debug medians were not re-taken (the pins count work).
+**MetalCreator's frames are not measured here** (17.05, 18.64 and 20.56 ms on `e85cb07a`): a saving of 1.7 to 2.0 ms per bracket-fixture frame is the item's, and whether that crosses 16.67 ms is a MetalCreator run.
+
+**Mutations** (`RK-AC`; one `RK_MUTANT` switch over the committed code, a filtered run per spelling, thirty-nine spellings). Killed, with the first reddened tests:
+
+| mutation | reddened |
+|---|---|
+| the graft off | the fifteen tests above |
+| no journal replay / `mark` / `named` / `memoTouch` skipped | `aGraftedFrameKeepsTheStateTableSweepsExact` |
+| `produced` event skipped | `aConditionalInsideAGraftedOccurrenceStillResetsItsState`, and the verify exit tests |
+| `loop` event skipped | `aLoopInsideAGraftedOccurrenceStillResetsTheRowsItLoses` (its positional loop; the `ForEach` rows are reset by the named path, `skipNamed`) |
+| version compare skipped | `aStateWriteFromOutsideRebuildsAGraftedOccurrence` |
+| dependency check always true | `aNestedOccurrencesObservedChangeRebuildsTheGraftedOuter` |
+| pointer / hover rule off | `aFocusedOrHoveredElementUnderTheOccurrenceRunsPrepaint`, `aReplayedHandlerActsLikeAFreshOne` |
+| the skipped-request count dropped | `theBracketNodeDragIsCountedAfterTheGraft`, `theBuildRecursionIsSkippedForAnUnchangedSubtree` |
+| the marker not set / the redo kept the graft / a graft with a failed prepaint not asking for a redo | the redo arms, the trap pins, the verify exit tests |
+| audit off / `stateWrite` taint off | `aGraftIneligibleBuildIsCountedByName` |
+| each `LayoutTree.graft` table skipped (leaf keys, spacer axes, parents, row tokens, cell columns, cell anchors), the index shift off by one, the generation not restamped | `aGraftedSubtreeEqualsAFreshBuild` (cell columns only after the grid gained a spanning cell), `twoGraftsOfOneSegmentHaveDistinctGridRowTokens`; the unshifted grid plan and the stale generation **trap** |
+| a `captureSegment` check removed | `aWindowThatIsNotACleanSubtreeIsRefusedByName` |
+| a verify comparison removed, per channel | `aVerifiedGraftThatDiffersTraps`, that channel's arm |
+
+Not separated, carried (`RK-AC` item 2): the re-recording of a top node's lowered item (`topItemsNotRecorded`) and the interior-item refusal (`interiorItemCheckOff`). Redundant by design (item 3): the version compare against a plain child's state.
+
+**Verify mode over the whole suite** (`METALUI_VERIFY_RETAINED=1`, `METALUI_VERIFY_LAYOUT_MEMO=1`, native, `AppKitPresentationTests` skipped): the run at the lane's graft tree read **3746 tests passed** (`rk-verify-full`, 830 s); the first spelling of the table
+comparison compared after the presented rebuild's sweep and read 118 marks missing (`RK-AA`, fixed). The pins added after that run are disabled under the variable (`rsVerifying`), as lane 1's count-reading tests are.
+
+**Gates.** Unfiltered `swift test --build-system native --no-parallel` on the final tree, after a full rebuild, on a **locked screen**: **3771 tests in 3 suites, 5 issues: exactly the five `AppKitPresentationTests` sheet issues of `CI-AF`** and nothing else
+(`fb9a7e42`: 3717; lane 1: 3746; +25 in lane 2); `FR-J no-argument frame: succeeded=true`; the build 0 `error:`, the only `warning:` SwiftPM's deprecation notice. `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing (four new `FrameWork` counters, each documented and mapped). The fourteen
+offscreen images: all `differing=0`, scenes identical against `fb9a7e42` (`compare.sh`, controls as in §7). `Backends/SDL`, `Package.swift`, `MetalUICore` and `MetalUIScene` are untouched; `MetalUILayout` gains `LayoutSegment`, `graft`, `captureSegment`, `structureDigest` (all `package`) and imports `MetalUICore` only.
+No divergence label taken. **Linux** (`swift:6.4-noble`, a `git archive` of `HEAD` mounted, volume `metalui-root-retained-build-skip` recreated, `swift build --build-tests` 68 s then `swift test --skip-build`): `MetalUITestingTests` 262, then 9, 40, 25, 221, 79 and 22 tests, all passed (a first attempt mounting the worktree itself failed on a stale module cache path, not on code). `swift build --build-tests` on the default build system: 0 `warning:`, complete.
+
+**Carried** (owners): the two unseparated lines above and the interior-item arm (C14b-3); a graft under a custom environment key and under an animating transaction (refused by name, an environment epoch is C14-c); popovers and surfaces inside a grafted subtree (C14b-3); a finer scope than the occurrence (C14-d);
+`drawText` stays deferred (`RK-I`, GT-F): the moving-label pins still read 0 `placeGlyphs` and 0 seam measures after translated replay; human checks IV-R1 to IV-R4 now also cover the graft (Skip build switch in the demo).

@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AC`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AD`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -482,3 +482,15 @@ Per grafted outermost occurrence: **60.5 µs of build stood for, 10.7 µs of gra
 ## RK-AB — The pins that read a built frame keep reading one
 
 **Ruling.** A graft changes what `elementRequests`, `contentSkips` and the translation refusal count, so the lane 1 pins that count a build **run with the graft off by a parameter, not by an edit of the literal**: `bracketDragFrames(graft: false)` and `RPPair(graft: false)` (translated arms), `anEqualComponentSkipsItsContent` (`testingRetainedGraft = false`, the memo's own pin). Every other `RPPair` differential runs grafting by default and every one stayed green: they are the graft's differentials as much as lane 1's. The graft's own counts are `RetainedGraftTests`.
+
+## RK-AC — The lane 2 mutation battery: what each guard's pin is, what was found to be redundant, what is carried
+
+**Question.** Which pin kills which line of the graft, and which lines no test can see?
+
+**Evidence.** The graft's mutations were applied through one `RK_MUTANT` environment switch on the committed code (thirty-nine spellings in two batches, one build each, a filtered run per spelling; the switch was never committed), at two moments: against the first test set (it left four mutants alive: `versionsIgnored`, `depsAlwaysHold`, `topItemsNotRecorded`, `interiorItemCheckOff`, and two that only verify mode's exit tests caught, `skipProduced`, `skipLoop`), and again after the pins this ruling names were added. **A filter that misses the new test names reads green**: the second battery's first run used a filter that did not name them (56 tests, nothing new), and the six "survivors" it printed were not survivors (re-run with the new names, same build).
+
+**Ruling.** (1) **Killed, by name**: `versionsIgnored` by `aStateWriteFromOutsideRebuildsAGraftedOccurrence` (19d); `depsAlwaysHold` by `aNestedOccurrencesObservedChangeRebuildsTheGraftedOuter` (the outer's own value changes first, so the nested getter's read is not in its observation window and only the nested entry's staleness can stop the graft); `skipProduced` by `aConditionalInsideAGraftedOccurrenceStillResetsItsState` (15b); `skipNamed` and `skipLoop` by `aLoopInsideAGraftedOccurrenceStillResetsTheRowsItLoses` (15c: **a `ForEach(id:)` row is a named position, so the named path resets a dropped tail without the loop event; the card holds a positional `for` loop beside it so `skipLoop` has an arm of its own**); `skipCellColumns` by `aGraftedSubtreeEqualsAFreshBuild` (its grid gained a cell that spans two columns: a column count of 1 hid a skipped table); `gridPlanNotShifted` by a **trap** (the unshifted plan's cell ids carry the recording tree's generation: the run prints no summary line, which is a reddening, `C-3`).
+(2) **Not separated, carried**: `topItemsNotRecorded` (the re-recording of a top-level node's lowered item for the new id) — a legacy `Row` over a grafted `Box` with a `margin` or a `flexGrow` lays out identically with and without the record in every spelling tried (the `flexGrow` one never grew even in the retention-off window, a measured property of a component's top node inside a legacy row); `theLoweredItemOfAGraftedTopNodeIsRecordedAgain` stays as a differential control and says so. And `interiorItemCheckOff` (a graft refusing an interior item that a diagnostics report would name): it needs a diagnostics-mode window over an occurrence with an unconsumed interior field, which `aGraftIneligibleBuildIsCountedByName` does not build. Neither can draw a wrong frame in a mode that ships; both are owed an arm (C14b-3's brief).
+(3) **Redundant by design, recorded**: `versionsIgnored` does not redden `aStateWriteToAPlainChildRebuildsAGraftedOccurrence` (19e): a plain child's `@State` is already seen by the card's own content memo, so the paint record's version list and the content memo agree and either one stops the graft. 19d (a nested occurrence's own state, whose entry is stale while the card's memo is not) is the arm that separates the version compare.
+
+**Cost if wrong.** (2) leaves two lines of the graft pinned only by a differential that cannot see them; a refactor that drops the top-item record would not turn the suite red.

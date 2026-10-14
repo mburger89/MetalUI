@@ -192,3 +192,7 @@ fire). It was corrected in six places by what the code and the runs showed; each
 `aNestedOccurrencesObservedChangeRebuildsTheGraftedOuter`; 20 `aRedoAfterAGraftMismatchRestoresEverything` (2 arms), `aGraftedOccurrenceUnderARefusedTranslationRedoesTheFrame`;
 22 `theBracketNodeDragIsCountedAfterTheGraft` (3 arms); verify mode `aVerifiedGraftThatDiffersTraps` (6 arms), `anUndamagedVerifiedGraftDrawsNormally`; the plain-import guard 1.17d.
 Test 21 is not a test: the reading is `RK-X`.
+
+**Pins added by the mutation battery** (`RK-AC`, after the numbered tests): `aStateWriteFromOutsideRebuildsAGraftedOccurrence` (19d), `aStateWriteToAPlainChildRebuildsAGraftedOccurrence` (19e, a control),
+`aConditionalInsideAGraftedOccurrenceStillResetsItsState` (15b), `aLoopInsideAGraftedOccurrenceStillResetsTheRowsItLoses` (15c), `theLoweredItemOfAGraftedTopNodeIsRecordedAgain` (15d, a differential control: the re-recording
+of a top item is not separated by any test, `RK-AC` item 2), and a spanning cell in the kernel test's grid. The suite reads 3771 tests at the end of lane 2.
