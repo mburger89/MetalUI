@@ -23,7 +23,7 @@ Evidence:
   regions plus drawn controls on Linux/Windows). SwiftUI has no analogue, so SwiftUI is not the authority
   for anything below beyond `WindowDragGesture`'s spelling (`WD-B`) and `.hiddenTitleBar`.
 
-Next unused: `CW-S`.
+Next unused: `CW-V`.
 
 ## CW-A — Scope: what is built, what is deferred
 
@@ -373,3 +373,80 @@ Not mutated, with the reason: the C bridge's `mui_chrome_hit` (lane 2); divergen
 the root suite compile them). Not run: Windows UTM / CI; a real window, drag or resize (group `CW`).
 **Cost if wrong.** A collateral reddening the filtered runs could not see is found by the merge's full suite.
 
+
+## CW-S — Lane 2 build rulings: where the spec met SDL
+
+**Ruling.** Lane 2 (`Backends/SDL`, record §112) built the bridge and the platform, and settled what the spec
+left open or spelled wrongly. (1) **A style asked for in fullscreen is recorded, answered `true` and applied on
+leaving it** (supersedes `CW-B`'s "answers `false` and re-sends nothing"): SDL cannot change a fullscreen
+window's border, the insets are zero there anyway, and an answer of `false` would have left `Window` believing
+the style standard while the platform later made the window borderless. The deferral is a flag (`styleDeferred`)
+cleared by the next resize, maximise or fullscreen event that finds the window out of fullscreen
+(`SDL_EVENT_WINDOW_ENTER_FULLSCREEN`/`LEAVE_FULLSCREEN`/`MAXIMIZED`/`RESTORED` now translate to
+`MUI_EVENT_RESIZE`, harmless extra `onResize` calls); the last request wins. (2) **The style answer is what the
+driver did**: `mui_window_set_bordered` reads `SDL_WINDOW_BORDERLESS` back, because SDL answers `true` from
+`SDL_SetWindowBordered` where the driver has no implementation. **Measured in the Linux image**: under
+`SDL_VIDEO_DRIVER=offscreen` the flag never moves and `SDL_SetWindowHitTest` fails, so the platform answers
+`false` to `setTitleBarStyle(.hidden)` (the window keeps its bar, the insets stay zero) and `false` to
+`setWindowDragRegions` with a non-empty list (`Window` stops computing); on macOS (cocoa) both succeed on a
+hidden window. A window with no edges and no regions installs nothing and still answers `true`. The pins that
+need a working border or hit test are gated `.enabled(if:)` on that driver, as `SDLLifecycleTests` gates frames;
+`theStyleAnswerIsWhatTheDriverDid` runs on every driver. (3) **The bridge**: one `ChromeState` per window
+(`SDL_Mutex`, a `MUIChromeSnapshot` copy of at most 64 rects, counters) held in the window's SDL properties and
+freed with it; `mui_window_destroy` clears the callback first. Swift fills the snapshot through
+`mui_chrome_snapshot_init`/`_add_rect` (no 64-element tuple) and every result is an `Int32` constant
+(`MUI_CHROME_HIT_*`), converted by `SDLChrome.hit(fromBridge:)`. `mui_window_chrome_hit` is the callback's own
+body (lock, copy, unlock, evaluate), which the tests call, so the pins read the real locked path. A cleared
+callback zeroes the snapshot, so the read-back answers normal. (4) **`titleBarInsets`** is chosen by
+`#if os(macOS)` (left 70) else right 138, as lane 1's strip does from the insets; `performTitleBarPress(clickCount ≥ 2)`
+is `performWindowAction(.toggleZoom)` and answers SDL's answer. (5) **`aConcurrentPublishNeverTearsAnAnswer`
+judges single answers**: two separate calls may straddle a publish, which the first version took for a tear
+(it failed in the Linux image); it is a smoke run, not a killer (`CW-O`). (6) **Not run**: Windows (`ssh
+metalui-win` timed out, the CI jobs cover it) and any real drag, edge, double-click or snap; group `CW`.
+**Cost if wrong.** (1): a window asked for `.hidden` while fullscreen shows a bar until it leaves fullscreen.
+(2): a driver that implements the flag but reports it late answers `false` once and `Window` stays standard.
+
+## CW-T — Lane 2 verification
+
+**Ruling.** `Backends/SDL` on macOS 30 + 145 tests passed (lane 1 left 30 + 125; +20: 19 chrome tests and the
+re-pinned app-shell answer), in `swift:6.4-noble` (`metalui-sdl-build-sdl-chrome`) 30 + 142 passed with 12 chrome pins
+skipped by the offscreen driver. **Red first** (commit `75767811`): `SDLChromeTests.swift:146: cannot find type
+'MUIChromeSnapshot' in scope`; the first green run in the image then failed 18 expectations in 9 tests, which
+are the measured offscreen facts of `CW-S` (2) (and one flawed smoke test, `CW-S` (5)), each fixed by a gate or
+a corrected pin, not by weakening an arm. **Mutation method**: the first seven were applied one at a time by
+edit and rebuild (M1–M7); the load on the machine (other workflows, load average 36–80) made a rebuild take
+about thirty minutes, so the rest ran as one instrumented build (a `CW_MUT` variable read by `cw_mut()` in C and
+`cwMut` in Swift, each site `cwMut == k ? mutated : original`), the instrumentation reverted with
+`git checkout -- Backends/SDL/Sources` and `git status --short` read clean. Results are in the table below.
+
+| # | mutation (C `SDLBridge.c` 1–8, 18, 21, 22; Swift `SDLPlatform.swift` 9–17, 19, 20) | reddened (macOS, cocoa) |
+|---|---|---|
+| 0 | the instrumented tree, `CW_MUT` unset | nothing: 30 + 145 passed |
+| 1 | drag rect max `<` to `<=` (C) | theBridgeCallbackAgreesWithTheSwiftReferenceOverATable |
+| 2 | `SDL_SetWindowBordered` always `true` | hiddenStyleMakesTheWindowBorderlessAndAnswersTrue, standardStyleRestoresTheBorder (its first line), insetsAreBandPlusClusterPerPlatformAndZeroInFullscreen, leavingFullscreenAppliesTheLastRequestedStyle, theInstalledCallbackAnswersFromThePublishedRegions, aResizeRefreshesTheSnapshotSize, clearingTheRegionsAndEdgesRemovesTheCallback, aFullscreenWindowHasNoEdges, aFixedAxisHasNoEdge |
+| 3 | publish without the lock | thePublishAndTheCallbackEachHoldTheLockOnce |
+| 4 | callback copy without the lock | thePublishAndTheCallbackEachHoldTheLockOnce |
+| 5 | C border 6 to 7 | theBridgeCallbackAgreesWithTheSwiftReferenceOverATable, theConstantsAreTheSwiftSpecifications |
+| 6 | `MUI_CHROME_MAX_RECTS` 64 to 65 (header, by edit and rebuild) | theConstantsAreTheSwiftSpecifications |
+| 7 | C hit ignores `borderless` | clearingTheRegionsAndEdgesRemovesTheCallback, theBridgeCallbackAgreesWithTheSwiftReferenceOverATable, theInstalledCallbackAnswersFromThePublishedRegions |
+| 8 | clearing leaves the old snapshot | clearingTheRegionsAndEdgesRemovesTheCallback |
+| 9 | band 32 to 30 | insetsAreBandPlusClusterPerPlatformAndZeroInFullscreen, sdlDocumentEditedRepresentedPathAndTitleBarStyleAreRecordedNoOps, theStyleAnswerIsWhatTheDriverDid |
+| 10 | a single click zooms | aDoubleClickPressTogglesZoom, sdlDocumentEditedRepresentedPathAndTitleBarStyleAreRecordedNoOps |
+| 11 | `.toggleZoom` always maximises | performWindowActionSendsMinimizeAndZoomRestore |
+| 12 | no snapshot refresh on a resize event | aFullscreenWindowHasNoEdges, aResizeRefreshesTheSnapshotSize, leavingFullscreenAppliesTheLastRequestedStyle |
+| 13 | never clear the callback | clearingTheRegionsAndEdgesRemovesTheCallback |
+| 14 | the leave does not re-apply the style | leavingFullscreenAppliesTheLastRequestedStyle |
+| 15 | `performWindowDrag()` answers `true` | performWindowDragStillRecordsAndAnswersFalse, sdlPerformWindowDragRecordsAndAnswersFalse |
+| 16 | the zoomed flag ignored by the publish | aFullscreenWindowHasNoEdges |
+| 17 | size limits ignored by the publish | aFixedAxisHasNoEdge |
+| 18 | `add_rect` unbounded | theConstantsAreTheSwiftSpecifications |
+| 19 | `.minimize` calls maximise | **survived** the first test; `performWindowActionSendsMinimizeAndZoomRestore` gained `isZoomed == false` after the minimise, and a one-off edit-and-rebuild of the same mutation then reddened it on that line |
+| 20 | fullscreen insets nonzero | insetsAreBandPlusClusterPerPlatformAndZeroInFullscreen |
+| 21 | the style answer not read back | **survived on macOS** (cocoa honours the flag); in the Linux image (`CW_MUT=21`, offscreen driver) it reddened sdlDocumentEditedRepresentedPathAndTitleBarStyleAreRecordedNoOps and theStyleAnswerIsWhatTheDriverDid |
+| 22 | `mui_window_destroy` keeps the callback installed | **survived**: not observable from a test (SDL's own destroy clears the callback before the state is freed); the line stays as a defensive ordering, named here, unpinned |
+
+Not mutated, with the reason: `SDLChrome.hit(fromBridge:)`'s per-case mapping beyond `.draggable` (the table test compares
+every case C returns against the Swift reference, so a swapped case reddens it), the `SDL_SetPointerPropertyWithCleanup`
+failure path, the Windows `Int32` conversion (explicit, unrun). Not run: Windows (UTM unreachable, CI), a real drag, edge,
+double-click or snap (group `CW`). **Cost if wrong.** A race the lock counter cannot see (the counter proves the lock is
+taken, not that every field is under it); the table and counter pins are the checks, and the smoke run is not one.
