@@ -1,4 +1,3 @@
-import Foundation
 import Testing
 import MetalUICore
 import MetalUIPlatform
@@ -10,8 +9,8 @@ import SDLBridge
 // `docs/superpowers/specs/2026-10-14-cursors-headless-design.md` §5). A test cannot see the pointer, so
 // the bridge's C recorders (`mui_cursor_*`, written in the production path) are read. They are
 // process-global, so every test that reads one lives in one serialized suite and compares deltas.
-// The bounded table is pure Swift (`IC-O`): tests 13-15's table arms use a counting fake and run on every
-// driver; a test needing a real created cursor is `.enabled(if:)` on a driver that creates one.
+// The bounded table is pure Swift (`IC-O`): tests 13-15's table arms use a counting fake. **No test is gated on
+// the video driver**: the offscreen driver of CI's Linux image creates colour cursors (measured, `IC-R`).
 // Every test that creates an `SDLPlatform` arms `armMainRunLoopExitCheck()` on macOS (record §61 §9).
 
 @MainActor
@@ -45,10 +44,6 @@ private func cursorImage(side: Int, scale: Float = 1, seed: UInt8 = 100,
                          hotSpot: (x: Float, y: Float) = (0, 0)) -> PlatformCursorImage {
     PlatformCursorImage(texture: texture(side: side, seed: seed), scale: scale, hotSpot: hotSpot)
 }
-
-/// Whether this video driver creates a colour cursor (the offscreen driver of CI's Linux image
-/// may not; read from the driver name, as `SDLLifecycleTests`' `windowsPresentFrames` is).
-private let creates = ProcessInfo.processInfo.environment["SDL_VIDEO_DRIVER"] != "offscreen"
 
 @Suite(.serialized) @MainActor
 struct SDLImageCursorTests {
@@ -103,9 +98,8 @@ struct SDLImageCursorTests {
     }
 
     /// **17** (`IC-E` 4). The platform does not `SDL_SetCursor` the cursor it already shows: the same
-    /// image twice sets once. Needs a driver that creates a cursor.
-    /// Mutation: drop the skip.
-    @Test(.enabled(if: creates, "the video driver creates no colour cursor")) func anImageCursorIsNotSetTwiceForTheSameStyle() throws {
+    /// image twice sets once.     /// Mutation: drop the skip.
+    @Test func anImageCursorIsNotSetTwiceForTheSameStyle() throws {
         let platform = try cursorPlatform()
         let window = try openWindow(platform, "IC17")
         defer { window.close() }
@@ -117,9 +111,8 @@ struct SDLImageCursorTests {
     }
 
     /// **15, platform arm** (`IC-E` 3). Closing the last window destroys every image cursor; a second
-    /// open window keeps them until it closes too. Needs a driver that creates a cursor.
-    /// Mutation: destroy on any window close; never destroy.
-    @Test(.enabled(if: creates, "the video driver creates no colour cursor")) func closingTheLastWindowDestroysEveryImageCursor() throws {
+    /// open window keeps them until it closes too.     /// Mutation: destroy on any window close; never destroy.
+    @Test func closingTheLastWindowDestroysEveryImageCursor() throws {
         let platform = try cursorPlatform()
         let first = try openWindow(platform, "IC15a")
         let second = try openWindow(platform, "IC15b")

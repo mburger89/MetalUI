@@ -206,7 +206,7 @@ from a generated `ImageBitmap` and reads `TestWindow.pointerStyle`); the SDL lau
 
 ## IC-O - The cursor table is pure Swift, so its pins run on every driver
 
-**Finding (critic).** Tests 13-15 (reuse, LRU bound, destroy on last close) were gated on a driver that creates
+**Finding (critic).** Tests 13-15 (reuse, LRU bound, destroy on last close) were to be gated on a driver that creates
 a cursor; the Linux image sets `SDL_VIDEO_DRIVER=offscreen`, where creation may fail, so the pins would be
 skipped exactly where they must run and a skipped test cannot be red.
 
@@ -249,5 +249,6 @@ manifest declares no `MainQueueDrainCheck` either, so the spec's "declared in bo
    surface the bridge was given on a driver that creates nothing) and `mui_cursor_set_count()` counts
    `mui_cursor_set` only (system cursors keep `mui_set_system_cursor`). `mui_cursor_last_alternate_count()` is
    `SDL_GetSurfaceImages`' count **minus the surface itself** (measured: the list includes it). A test needing
-   a created cursor is gated on `SDL_VIDEO_DRIVER != "offscreen"` (the lifecycle tests' gate), read from the
-   environment because a `.enabled(if:)` condition runs off the main actor.
+   a created cursor is **not** gated on the driver: measured in the Linux image (`SDL_VIDEO_DRIVER=offscreen`), the
+   offscreen driver creates colour cursors, so all eight tests of the suite run there and a driver that cannot
+   create one fails them loudly instead of skipping.
