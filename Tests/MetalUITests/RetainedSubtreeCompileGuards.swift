@@ -60,3 +60,36 @@ func thePlainImportCannotTurnReplayOff() throws {
     #expect(!result.succeeded, "the replay switch is package API:\n\(result.output)")
     #expect(result.messages.contains("testingRetainedSubtrees"), "rejected, but not for the switch:\n\(result.output)")
 }
+
+/// **1.17c** (C14b-2, `RK-E`, `RK-N`) — a plain import cannot turn prepaint replay off, damage a ledger or read a hitbox's
+/// fingerprint: `testingRetainedPrepaint`, `testingCorruptPrepaintLedgers(_:)` and `testingHitboxFingerprints` are `package`
+/// (no public switch; the counters are the public face), while the new counted work reads: the control. Mutation:
+/// `testingRetainedPrepaint` made `public` -> red (recorded in record 110 §5).
+@Test(.enabled(if: modulesBuilt, skipReason))
+func thePlainImportCannotTurnPrepaintReplayOffOrDamageALedger() throws {
+    let control = try typecheckFile("""
+        import MetalUITesting
+
+        @MainActor
+        public func read(_ window: TestWindow) -> Int {
+            let work = window.lastFrameWork
+            return work.retainedPrepaintHits + work.retainedPrepaintIneligible + work.retainedRedos
+                + work.retainedBackoffFrames + work.retainedTranslated + work.retainedTranslationRefused
+        }
+        """, importing: "MetalUI")
+    try #require(control.succeeded, "the control (public counters) must compile:\n\(control.output)")
+    for (name, body) in [("testingRetainedPrepaint", "window.window.testingRetainedPrepaint = false"),
+                         ("testingCorruptPrepaintLedgers", "_ = window.window.testingCorruptPrepaintLedgers(\"hitboxes\")"),
+                         ("testingHitboxFingerprints", "_ = window.window.testingHitboxFingerprints")] {
+        let result = try typecheckFile("""
+            import MetalUITesting
+
+            @MainActor
+            public func reach(_ window: TestWindow) {
+                \(body)
+            }
+            """, importing: "MetalUI")
+        #expect(!result.succeeded, "\(name) is package API:\n\(result.output)")
+        #expect(result.messages.contains(name), "rejected, but not for \(name):\n\(result.output)")
+    }
+}

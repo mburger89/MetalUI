@@ -193,3 +193,11 @@ extension Window {
         }
     }
 }
+
+extension Window {
+    /// Calls `body` on every stored prepaint ledger and answers how many there were (`RK-O` item 1's scan, internal tests only).
+    @discardableResult
+    func testingStoredPrepaintLedgers(_ body: (PrepaintLedger) -> Void) -> Int {
+        stateTable.contentMemos.mutatePrepaintLedgers(body)
+    }
+}

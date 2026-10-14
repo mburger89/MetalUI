@@ -63,6 +63,42 @@ func theBracketNodeDragIsCountedAtFb9a7e42(arm: BracketArm) throws {
     #expect(f.retainedPrepaintHits == 0 && f.retainedPrepaintIneligible == 0 && f.retainedRedos == 0)
 }
 
+/// The same arm and frame after M1 (prepaint replay on): taken by this test's first run on the lane-1 tree (record 110 §2) and
+/// pinned as literals, **red on arrival** against `fb9a7e42` (where `elementPrepaints` reads 886 in every arm and nothing is
+/// skipped). The conservation law holds: what ran plus what the replays stood for is `fb9a7e42`'s count.
+private struct AfterPrepaintFrame {
+    let arm: BracketArm
+    let prepaints: Int, skippedPrepaints: Int, prepaintHits: Int, prepaintIneligible: Int
+}
+private let afterPrepaintFrames = [
+    AfterPrepaintFrame(arm: .value, prepaints: 219, skippedPrepaints: 667, prepaintHits: 29, prepaintIneligible: 0),
+    AfterPrepaintFrame(arm: .environment, prepaints: 829, skippedPrepaints: 57, prepaintHits: 19, prepaintIneligible: 0),
+    AfterPrepaintFrame(arm: .panels, prepaints: 176, skippedPrepaints: 710, prepaintHits: 30, prepaintIneligible: 1),
+]
+
+/// 1b — the node drag's tenth frame with prepaint replay: the build and layout work is `fb9a7e42`'s to the unit (798 requests, the
+/// same layout counts, the same scene), and element prepaints fall by what the hits stand for (886 to 219 in the value arm, 176 in
+/// panels; the environment arm's refused nodes still prepaint). Mutation: any switch that turns replay off reads 886.
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
+func theBracketNodeDragIsCountedAfterPrepaintReplay(arm: BracketArm) throws {
+    let before = try #require(fb9a7e42Frames.first { $0.arm == arm })
+    let after = try #require(afterPrepaintFrames.first { $0.arm == arm })
+    let f = try bracketDragFrames(arm: arm, steps: 20, retained: true, prepaint: true).frames[10]
+    #expect(f.elementPrepaints == after.prepaints)
+    #expect(f.retainedSkippedPrepaints == after.skippedPrepaints)
+    #expect(f.elementPrepaints + f.retainedSkippedPrepaints == before.prepaints, "conservation against fb9a7e42")
+    #expect(f.retainedPrepaintHits == after.prepaintHits)
+    #expect(f.retainedPrepaintIneligible == after.prepaintIneligible)
+    #expect(f.retainedRedos == 0 && f.retainedBackoffFrames == 0 && f.retainedTranslated == 0 && f.retainedTranslationRefused == 0)
+    // What replay must not move: the build, layout and the scene (the fourteen-image rule's counted twin).
+    #expect(f.elementRequests == before.requests)
+    #expect(f.elementPaints == before.paints && f.retainedSkippedPaints == before.skippedPaints)
+    #expect(f.retainedHits == before.hits && f.retainedMisses == before.misses && f.retainedIneligible == before.ineligible)
+    #expect(f.layoutMeasureCalls == before.measures && f.layoutCacheHits == before.cacheHits)
+    #expect(f.layoutCacheMisses == before.cacheMisses && f.layoutMemoHits == before.memoHits && f.layoutMemoMisses == before.memoMisses)
+    #expect(f.rects == 182 && f.glyphs == 550 && f.images == 6 && f.rasterizedPixels == 78312 && f.newTextures == 2)
+}
+
 // MARK: The snapshot and the pair
 
 /// What a frame hands the platform and the input side, compared whole (`RK-E`): the scene's arrays byte for byte,
