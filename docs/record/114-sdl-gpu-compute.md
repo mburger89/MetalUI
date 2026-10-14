@@ -113,7 +113,7 @@ carried as `GA-O` says, D1b/D1c are its observed reds.
 ## §6 Counts and verification
 
 Root, after merging master and `swift package clean`, `swift build --build-system native --build-tests`, then
-`swift test --build-system native --no-parallel` unfiltered: {SUITE}. `FR-J no-argument frame: succeeded=true`: {FRJ}.
+`swift test --build-system native --no-parallel` unfiltered: **3799 tests in 3 suites passed** after 799 s (3717 at `fb9a7e42` plus master's 82 from §112, §113 and §111; this branch adds no root test), 0 `error:`, the only `warning:` SwiftPM's deprecation notice; 238 typecheck guards (master's, unchanged: `git diff ceca59f6 HEAD -- Tests Sources` is empty). `FR-J no-argument frame: succeeded=true`: read in the log.
 Default build system `swift build --build-tests`: 0 `warning:`.
 `Backends/SDL` on macOS (lane 2 at its head, before the merge): **152 tests in 4 suites passed**, 0 warnings; the Linux
 image (lavapipe, `SDL_VIDEO_DRIVER=offscreen`): **149 tests in 4 suites passed**, the three skips the older
