@@ -303,6 +303,47 @@ func aStateWriteFromOutsideRebuildsAGraftedOccurrence() async throws {
     _ = try pair.on.element(label: "inner 1 taps 1")
 }
 
+/// A plain (not `.equatable()`) stateful child: its `@State` is **not** a state of the card's own content memo, so only the paint record's
+/// versions see a write to it.
+struct RGPlain: Component {
+    let log: HarnessLog
+    @State var count = 0
+    var content: some ElementGroup {
+        let binding = $count
+        let _: Void = RGInner.writers[ObjectIdentifier(log), default: [:]][99] = { binding.wrappedValue += 1 }
+        Text("plain \(count)").frame(width: Pixels(80), height: Pixels(12))
+    }
+}
+
+struct RGPlainCard: Component, @MainActor Equatable {
+    let log: HarnessLog
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text("plain card").frame(width: Pixels(80), height: Pixels(12))
+            RGPlain(log: log)
+        }
+    }
+    static func == (l: RGPlainCard, r: RGPlainCard) -> Bool { l.log === r.log }
+}
+
+/// 19e — a write from outside the tree to the `@State` of a **plain** child of a grafted card (not a nested occurrence, not the card's own
+/// state: only the paint record's version list holds it) rebuilds the card and shows the new count. **Red before:** the grafts read 0.
+/// **Mutation:** the version compare skipped in `graftRecord(for:)` (`versionsIgnored`) does **not** redden this test (recorded, `RK-AC`):
+/// the card's own content memo already sees a plain child's `@State`, so this is a control for the rule, and 19d is the arm that kills
+/// that mutation.
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func aStateWriteToAPlainChildRebuildsAGraftedOccurrence() async throws {
+    let pair = try RPPair(size: sz(200, 120), warm: 5) { side in VStack(spacing: 0) { RGPlainCard(log: side.log).equatable() } }
+    for _ in 0..<12 { pair.redraw() }
+    try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "grafting before the write: \(String(describing: pair.frames.last))")
+    try write(pair, 99)
+    pair.redraw()
+    try pair.compare("after the write")
+    stateAgrees(pair, "after the write")
+    _ = try pair.on.element(label: "plain 1")
+    _ = try pair.off.element(label: "plain 1")
+}
+
 // MARK: 15b — what the journal's other events keep exact
 
 /// A card holding a stateful nested occurrence in a conditional and three in a loop: a graft that did not note the conditional's produced slot or
@@ -316,6 +357,8 @@ struct RGStateful: Component, @MainActor Equatable {
             Text("stateful").frame(width: Pixels(60), height: Pixels(12))
             if showExtra { RGInner(n: 30, log: log).equatable() }
             ForEach(Array(0..<count), id: \.self) { i in RGInner(n: 40 + i, log: log).equatable() }
+            // A positional loop beside the named one: only the loop-extent event (not the named-position path) resets the dropped tail.
+            for i in 0..<count { RGInner(n: 50 + i, log: log).equatable() }
         }
     }
     static func == (l: RGStateful, r: RGStateful) -> Bool { l.showExtra == r.showExtra && l.count == r.count && l.log === r.log }
@@ -370,9 +413,11 @@ func aLoopInsideAGraftedOccurrenceStillResetsTheRowsItLoses() async throws {
     for side in [pair.onSide, pair.offSide] { side.inputs.showExtra = true }
     pair.redraw()
     try write(pair, 42)
+    try write(pair, 52)
     for _ in 0..<12 { pair.redraw() }
     try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "the card grafts while the loop is whole: \(String(describing: pair.frames.last))")
     _ = try pair.on.element(label: "inner 42 taps 1")
+    _ = try pair.on.element(label: "inner 52 taps 1")
     for side in [pair.onSide, pair.offSide] { side.model.tint = 1 }
     await rsSettle()
     pair.redraw()
@@ -383,21 +428,24 @@ func aLoopInsideAGraftedOccurrenceStillResetsTheRowsItLoses() async throws {
     pair.redraw()
     try pair.compare("the loop grew back")
     stateAgrees(pair, "the loop grew back")
-    _ = try pair.on.element(label: "inner 42 taps 0")
-    _ = try pair.off.element(label: "inner 42 taps 0")
+    for label in ["inner 42 taps 0", "inner 52 taps 0"] {
+        _ = try pair.on.element(label: label)
+        _ = try pair.off.element(label: label)
+    }
 }
 
-/// An occurrence whose top-level node is a legacy `Box` with a `flexGrow` item: its legacy parent `Row` consumes the record after the occurrence returns.
+/// An occurrence whose top-level node is a legacy `Box` with a `margin` item: its legacy parent `Row` consumes the record after the occurrence returns.
 struct RGGrow: Component, @MainActor Equatable {
     let tint: Int
-    var content: some ElementGroup { Box().flexGrow(1).background(Color.accent.opacity(0.3 + Double(tint) * 0.1)).frame(height: Pixels(12)) }
+    var content: some ElementGroup { Box().margin(Pixels(10)).background(Color.accent.opacity(0.3 + Double(tint) * 0.1)).frame(width: Pixels(20), height: Pixels(12)) }
     static func == (l: RGGrow, r: RGGrow) -> Bool { l.tint == r.tint }
 }
 
-/// 15d — the lowered item of a grafted occurrence's top-level node is recorded again for the new node (`RK-Z` item 3): a legacy `Row` lowers
-/// the `flexGrow` of its grown child from the child's record, so a graft that left it out would not grow the child. The window equals the
-/// retention-off window and the grown box fills the free width. **Red before:** the grafts read 0. **Mutation:** the top items not recorded
-/// (`topItemsNotRecorded`: the child keeps its own width and the scene differs).
+/// 15d — a grafted occurrence whose top-level node carries a lowered item (`margin`, taken by its legacy parent `Row`) lays out like the
+/// retention-off window: the third box sits 60 right of the first (10 each side of an empty middle box). **Red before:** the grafts read 0.
+/// **Mutation `topItemsNotRecorded` (the top items not recorded again for the new node) does NOT redden this test or any other** (`RK-AC`):
+/// the margin and a `flexGrow` read the same with and without the record in every spelling tried, so the re-recording is carried as
+/// unseparated (a control for the differential, not a pin of that line).
 @Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
 func theLoweredItemOfAGraftedTopNodeIsRecordedAgain() async throws {
     let pair = try RPPair(size: sz(260, 40), warm: 5) { _ in
@@ -410,6 +458,12 @@ func theLoweredItemOfAGraftedTopNodeIsRecordedAgain() async throws {
     try pair.compare("warm")
     pair.redraw(); pair.redraw()
     #expect((pair.frames.last?.retainedGrafts ?? 0) >= 1, "the grown child grafts: \(String(describing: pair.frames.last))")
+    // The margin (10 each side, the empty middle box has no width of its own) puts the third box 60 right of the first: a graft that lost the item draws it 40 right.
+    for window in [pair.on, pair.off] {
+        let first = try #require(window.scene.rects.first { $0.bounds.size.width == 40 && $0.bounds.size.height == 12 })
+        let third = try #require(window.scene.rects.first { $0.bounds.size.width == 30 && $0.bounds.size.height == 12 })
+        #expect(third.bounds.origin.x - first.bounds.origin.x == 60, "the margin of the grafted box is in the row: \(third.bounds.origin.x - first.bounds.origin.x)")
+    }
     try pair.compare("grafting")
 }
 
