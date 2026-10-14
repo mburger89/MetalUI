@@ -1922,6 +1922,70 @@ void *mui_window_native_handle(void *w) {
 int32_t mui_system_theme(void) { return SDL_GetSystemTheme() == SDL_SYSTEM_THEME_DARK ? 1 : 0; }
 double mui_now(void) { return (double)SDL_GetTicksNS() / 1e9; }
 
+// ---- Image cursors (rulings IC-E, IC-O) ------------------------------------
+//
+// The recorders are written in the production path, so a test that cannot see
+// the pointer reads what the bridge was asked for. A refused creation (the
+// offscreen driver may refuse) still records its attempt.
+
+static uint32_t cursor_attempts = 0, cursor_created = 0, cursor_destroyed = 0, cursor_sets = 0;
+static int32_t cursor_last_w = 0, cursor_last_h = 0, cursor_last_hot_x = 0, cursor_last_hot_y = 0;
+static int32_t cursor_last_alternates = 0;
+static uint8_t *cursor_last_pixels = NULL;
+static size_t cursor_last_pixel_bytes = 0;
+
+void *mui_cursor_create(void *surface, int32_t hot_x, int32_t hot_y) {
+    SDL_Surface *s = (SDL_Surface *)surface;
+    if (!s) { SDL_SetError("cursor: NULL surface"); return NULL; }
+    cursor_attempts++;
+    cursor_last_w = s->w; cursor_last_h = s->h;
+    cursor_last_hot_x = hot_x; cursor_last_hot_y = hot_y;
+    int count = 0;
+    SDL_Surface **images = SDL_GetSurfaceImages(s, &count);
+    cursor_last_alternates = images && count > 0 ? count - 1 : 0;   // the list includes the surface itself
+    if (images) SDL_free(images);
+    size_t bytes = (size_t)s->w * (size_t)s->h * 4;
+    uint8_t *copy = (uint8_t *)SDL_realloc(cursor_last_pixels, bytes);
+    if (copy) {
+        cursor_last_pixels = copy; cursor_last_pixel_bytes = bytes;
+        for (int32_t y = 0; y < s->h; y++)
+            memcpy(copy + (size_t)y * (size_t)s->w * 4,
+                   (const uint8_t *)s->pixels + (size_t)y * (size_t)s->pitch, (size_t)s->w * 4);
+    }
+    SDL_Cursor *cursor = SDL_CreateColorCursor(s, hot_x, hot_y);
+    if (cursor) cursor_created++;
+    return cursor;
+}
+
+void mui_cursor_destroy(void *cursor) {
+    if (!cursor) return;
+    SDL_DestroyCursor((SDL_Cursor *)cursor);
+    cursor_destroyed++;
+}
+
+bool mui_cursor_set(void *cursor) {
+    if (!cursor) return false;
+    cursor_sets++;
+    return SDL_SetCursor((SDL_Cursor *)cursor);
+}
+
+uint32_t mui_cursor_attempt_count(void) { return cursor_attempts; }
+uint32_t mui_cursor_created_count(void) { return cursor_created; }
+uint32_t mui_cursor_destroyed_count(void) { return cursor_destroyed; }
+uint32_t mui_cursor_live_count(void) { return cursor_created - cursor_destroyed; }
+uint32_t mui_cursor_set_count(void) { return cursor_sets; }
+int32_t mui_cursor_last_width(void) { return cursor_last_w; }
+int32_t mui_cursor_last_height(void) { return cursor_last_h; }
+int32_t mui_cursor_last_hot_x(void) { return cursor_last_hot_x; }
+int32_t mui_cursor_last_hot_y(void) { return cursor_last_hot_y; }
+int32_t mui_cursor_last_alternate_count(void) { return cursor_last_alternates; }
+
+uint32_t mui_cursor_last_pixel(int32_t index) {
+    if (index < 0 || (size_t)index * 4 + 4 > cursor_last_pixel_bytes) return 0;
+    const uint8_t *p = cursor_last_pixels + (size_t)index * 4;
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
 // ---- The application icon (ruling AI-F) ------------------------------------
 
 const uint32_t MUI_PIXELFORMAT_RGBA32 = SDL_PIXELFORMAT_RGBA32;

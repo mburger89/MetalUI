@@ -2319,3 +2319,12 @@ desktop (smooth edges, a resize rebuilds the multisample and depth textures); GA
 on real Windows (D3D12) and Linux (Vulkan) hardware with `METALUI_REQUIRE_GPU=1`; GA3 a built app finds its
 `MetalUIAppShaders` after the folder moves, and a missing folder names every directory tried; GA4 the two debug
 traps read clearly in a real console.
+
+## 2026-10-14: image cursors and the headless SDL launch (record §116) — looks owed
+
+No window was driven in the lanes (the screen was locked at design time; the Record phase drove none); the cursor is drawn by
+the window server, so the recorders and `NSCursor` read-backs pin what was asked for and nothing sees the pointer. **Owed, new
+here — `docs/verification/human-checks.md` group IC, none performed (an agent cannot)**: IC1 SDL on Linux and Windows shows the
+supplied hand and zoom images, hot spot on the clicked point, and the largest cursor each platform draws; IC2 macOS at 1x and
+2x draws the ring crisp and the same point size; IC3 the hot spot lands on the clicked pixel at the four corners of the image;
+IC4 a `HeadlessLaunchCheck`-shaped app exits 0 in CI with no display on Windows and Linux.

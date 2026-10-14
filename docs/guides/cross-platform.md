@@ -216,6 +216,15 @@ behaviour without a screen, use the headless harness: its options answer as AppK
 and as SDL does with `presentsAlertsNatively`, `presentsMenusNatively` and `showsToolbarNatively`
 off ([`testing.md`](../testing.md)).
 
+To prove the build starts on a runner with no display, open the real SDL window headless. A `text`
+fence, because the SDL products do not build in the guide target (`DG-L`):
+
+```text
+let platform = try SDLPlatform(options: .headlessIfRequested())   // METALUI_SDL_HEADLESS=1 selects .headless
+```
+
+The full recipe, with its bounded loop, is in [`testing.md`](../testing.md#a-ci-smoke-test-of-the-real-window).
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.

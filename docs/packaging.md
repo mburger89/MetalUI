@@ -518,3 +518,9 @@ Register a ProgID whose `shell\open\command` is `"C:\Program
 Files\MyApp\MyApp.exe" "%1"` and point the extension at it (an installer's
 job: WiX, Inno Setup or MSIX). The path arrives as an argument and the recipe
 above delivers it. No command here was run on Windows (human check AS10).
+
+## A smoke test of the built app in CI
+
+A Linux or Windows job with no display can open the real SDL window and run a
+`.task` in its first frame with `SDLPlatform(options: .headless)`; the recipe is
+in [`testing.md`](testing.md#a-ci-smoke-test-of-the-real-window).
