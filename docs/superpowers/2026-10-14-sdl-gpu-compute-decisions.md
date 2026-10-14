@@ -2,7 +2,7 @@
 
 Rulings for items S5 and S6 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
 MetalCreator's SDL-port gaps 1 and 2 (developer-c0, 2026-10-13/14), RAISED: they block its xp-c track (GPU
-meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-O`.**
+meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-P`.**
 Spec: [`specs/2026-10-14-sdl-gpu-compute-design.md`](specs/2026-10-14-sdl-gpu-compute-design.md).
 Record: `../record/114-sdl-gpu-compute.md` (Record phase). Branch `feat/sdl-gpu-compute` from `fb9a7e42`.
 Divergence labels reserved 445–454: **none taken** (`GA-J`).
@@ -291,3 +291,44 @@ answer; CI runs the suite with `METALUI_REQUIRE_GPU=1`). (7) A mutation that mak
 unmutated suite finishes normally and `reflectionFillsEveryPipelineCount` itself reads red.
 **Cost if wrong.** A reviewer who runs the suite on a machine with a different Metal driver may see C9 behave
 differently; the degrade path of `GA-E` stands.
+
+
+## GA-O — Lane 2 as built: what the measurement changed (graphics, the guard, the frame view)
+
+**Ruling.** (1) **The offscreen renderer runs surface draws on every platform**, so `GA-M`'s `windowsPresentFrames`
+gate and its "package test entry" are not needed: G1s draws into the real surface target of
+`SDLWindowRenderer(offscreenWidth:height:)` and reads the composite with `readPixels` (macOS Metal, the Linux image
+and Windows alike), and D1/D2 trap through the renderer's own bracket, so D4's renderer lines are pinned on every
+platform, not on macOS only. Only the AppKit-only `armMainRunLoopExitCheck()` stays `#if os(macOS)`.
+(2) **`SDLGPUFrameView` is a class over a typed `SDLGPUCommandBuffer`** (`view.commandBuffer`, flagged `isFrame`),
+not a second recorder: render passes, copies, mipmaps and compute passes are one set of methods on the buffer type
+a batch also uses, so the frame and a batch cannot drift. `view.device` is a borrowed `SDLGPUDevice` (`GA-D`),
+`view.target` a **non-owning** `SDLGPUTexture` (it never releases what MetalUI owns). `ctx.view` makes a new view
+over the same buffer and target at each call. `beginRenderPass(color:depth:)` takes **one** colour attachment, with
+an optional resolve texture and an optional `D32_FLOAT` depth attachment (multiple render targets, stencil, 3D and
+array textures, indexed and indirect draws, viewport and scissor are deferred: `.raw` and SDL cover them, owner the
+xp-c integration). (3) **The guard** is `SDLGPUWindowGuard`, a `package` enum in `MetalUISDL` (the renderer is
+there; `MetalUISDLGPU` imports it), `#if DEBUG` bodies only. It records the **drawing thread** and traps only a
+typed call made **on that thread** inside the draw: a worker thread's `submitBatch` racing a window frame (C9) is
+legal and must not trap (a process-wide flag would). The renderer's change is three lines (`beginDraw()`, the draw,
+`endDraw()`), not two. `endDraw` traps on a typed pass left open; `waitForIdle`, `submitBatch` and `SDLGPUFence.wait`
+trap inside a draw. (4) **D4 is reworded.** The renderer's `submissionCount` counts only `mui_renderer`'s own
+submits and cannot see a raw `SDL_SubmitGPUCommandBuffer` the view might add, so D4 pins the **identity** of the
+buffer (`view.commandBuffer.raw == renderer.frameCommandBuffer`), the unchanged submission delta against a draw that
+only clears, and 0 unsignalled fence releases; the spec's "begin pass submits" mutation is the view recording into a
+buffer of its own. (5) **The triangle set was moved** after the first run: the spec's overlap left the third
+instance a 3-pixel strip, so no pixel was exact for it; the instances are now one legs-1.0 triangle shifted by
+(0, 0), (0.25, 0.25), (0.5, 0.5) at depths 0.5, 0.3, 0.7, each with at least 38 exact pixels, and **28 pixels where
+`ALWAYS` differs from `LESS`**. The reference compares every pixel whose **3 × 3 neighbourhood of centres** has one
+label: an edge cannot cross the hull of nine centres, which holds every sample position of the pixel, so the
+comparison is exact, not statistical (the first draft's 5 × 5 was stricter than it needed). (6) **G6 is new**
+(interleaved vertex buffer, `float2` and `float4` attributes, premultiplied blend) and G5 pins the sampler and the
+fragment uniform: the spec's G1-G4 left `bindVertexBuffers`, `bindFragmentSamplers`, `pushFragmentUniform`,
+`SDLGPUBlend` and the vertex formats unpinned, and an untested public declaration is the hazard the practices
+name. `SDLGPUVertexFormat` has `float`..`float4` only; only `float2` and `float4` are pinned. The ID pass writes
+**instance + 1**, so the cleared background 0 is no instance. G3's tolerance is 2 levels (the downsample rounds at each
+level; the Metal run is inside it). (7) **D3 scans** the view's code lines for `submit|cancel|wait|acquire` and
+the `func` lines of the command-buffer, compute, graphics and texture files; a typecheck guard cannot reach the
+layer (the root package builds without the `SDL` trait). (8) The guides' new block is `text` fences (`DG-L`) with
+no pin the checker could resolve (the tests live in `Backends/SDL`, outside `Tests/`), so the prose avoids the
+behaviour words instead. **Cost if wrong.** A multi-target or indexed pass is `.raw` until a slice adds it.

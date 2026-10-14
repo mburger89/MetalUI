@@ -331,6 +331,7 @@ private func verifyTriangleSet(_ pixels: [UInt8], bgra: Bool, instances: Int) th
         let mips = try await device.submitBatch { $0.generateMipmaps(of: texture) }
         await mips.wait()
         let expected = try #require(await device.download(texture, mipLevel: 2))
+        try #require(Set(expected).count > 8, "mip 2 holds a varied pattern to reproduce, not zeros")
         let target = try #require(device.makeTexture(SDLGPUTextureDescription(
             width: 4, height: 4, format: .r8g8b8a8Unorm, usage: [.colorTarget, .sampler])))
         let sampler = try #require(device.makeSampler(SDLGPUSamplerDescription(filter: .nearest, mipmapFilter: .nearest)))
