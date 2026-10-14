@@ -35,7 +35,7 @@ extension Image {
         public var exifValue: Int { get }   // 1…8 (M)
         public var swapsAxes: Bool { get }  // leftMirrored, right, rightMirrored, left (M)
     }
-    public init(decorative bitmap: ImageBitmap, scale: Float, orientation: Orientation)
+    public init(decorative bitmap: ImageBitmap, scale: Float, orientation: Orientation)  // overloads: orientation has NO default (IB-K)
     public init(_ bitmap: ImageBitmap, scale: Float, orientation: Orientation, label: Text)
 }
 
@@ -52,7 +52,7 @@ public struct DecodedImage: Sendable, Equatable {
     public func applyingOrientation() -> DecodedImage      // pixels permuted, orientation .up
 }
 extension ImageBitmap {
-    public init(_ decoded: DecodedImage)        // grey expands to R=G=B=v, A=255; ignores orientation
+    public init(_ decoded: DecodedImage)        // lane 1, in DecodedImage.swift, over the existing init(width:height:rgba:); grey expands to R=G=B=v, A=255; ignores orientation
     public func oriented(_ orientation: Image.Orientation) -> ImageBitmap   // MetalUI-only, cached variants
 }
 ```
@@ -74,7 +74,7 @@ same refusals (`nil` per `PX-D`), no second copy of stb.
   `(v × 255 + 32767) / 65535` as the RGBA path does (`IB-B`).
 - `Sources/MetalUI/ImageEXIF.swift` (new, Foundation-free): `exifOrientation(inJPEG:)`,
   `exifOrientation(inPNG:)`, both over `UnsafeRawBufferPointer`, both calling
-  `tiffOrientation(_:)` (`IB-D`). Every read is `offset + n <= count` checked with `addingReportingOverflow`;
+  `tiffOrientation(_:)` (`IB-D`, `IB-K`: JPEG fill bytes and standalone markers skipped, a segment length < 2 is nil; PNG `eXIf` before the first or after the last `IDAT`, never between). Every read is `offset + n <= count` checked with `addingReportingOverflow`;
   a failure returns nil, which `DecodedImage` reports as `.up`.
 - `Sources/MetalUI/ImageOrientation.swift` (new): `Image.Orientation` and the sample permutation tables.
 - `ImageBitmap` gains one stored `let variants: OrientedVariants` (final class, lock-guarded
@@ -92,7 +92,7 @@ same refusals (`nil` per `PX-D`), no second copy of stb.
 - **Lane 1 (decode, EXIF, orientation type):** `ImageOrientation.swift`, `ImageEXIF.swift`,
   `DecodedImage.swift`, the `decodeImage` edit, `Tests/MetalUICrossPlatformTests/DecodedImageTests.swift`,
   `ImageEXIFTests.swift`, `ImageOrientationTests.swift`. Commits `Image.Orientation` first.
-- **Lane 2 (drawing, docs, guide), after lane 1's first commit:** `ImageBitmap.swift` variants,
+- **Lane 2 (drawing, docs, guide), after lane 1's first commit:** `ImageBitmap.swift` variants (the stored box and a premultiplied-bytes `ImageTexture` init, if none exists, are lane 2's),
   `Image.swift` inits, `Tests/MetalUITests/ImageOrientationDrawTests.swift`, the guide block and its
   `GuideMirrors` copy (`docs/guides/cross-platform.md`, `Tests/MetalUITestingTests/GuideMirrors*.swift`),
   `docs/api-overview.md`, `docs/migration.md` (note: `Image.Orientation` and `DecodedImage` are new names; a
@@ -112,7 +112,7 @@ Lane 1 (`MetalUICrossPlatformTests`, runs on Linux):
 2. `greyFromAGreySourceIsTheSourceSample` — 8-bit grey PNG and a 16-bit grey PNG (rounding). Mutation: use
    `v >> 8` for 16-bit reddens the 16-bit arm; use RGBA-then-luma reddens neither (equal by construction), so a
    third arm: grey+alpha PNG with alpha 0 keeps its grey (alpha dropped) — mutation compositing over black reddens.
-3. `greyFromRGBIsStbLuma` — pixels (255,0,0), (0,255,0), (0,0,255), (10,20,30) give 76, 149, 28, 19.
+3. `greyFromRGBIsStbLuma` — pixels (255,0,0), (0,255,0), (0,0,255), (10,20,30) give 76, 149, 28, 18 ((770+3000+870)>>8; stb's `stbi__compute_y`, derived by hand, the test asserts it).
    Mutation: Rec. 709 weights reddens (separating arm: all four values differ).
 4. `strideIsTheRowWidthWithNoPadding` — `bytesPerRow` 12 rgba / 3 grey for width 3; mutation: round to 4 reddens grey.
 5. `aCorruptOrOversizeFileIsNilInEveryFormat` — truncated PNG, bad CRC, JPEG with no EOI, 16385-wide header:
@@ -121,7 +121,7 @@ Lane 1 (`MetalUICrossPlatformTests`, runs on Linux):
    stay unedited and pass (0 edits is the pin; checked by diff, `git diff fb9a7e42 -- Tests/…/ImageDecodingTests.swift` empty).
 7. `exifOrientationOfAllEightValuesInBothByteOrders` — a JPEG header with APP1 `Exif\0\0`, `II*\0` and `MM\0*`,
    values 1…8 → `Image.Orientation`. Mutation: read the value as the low byte of a big-endian SHORT in `MM` reddens
-   (a value of 6 reads 0 → `.up`... separating because 6≠1).
+   (6 reads as 0x0600, out of 1…8, so nil; separating because 6≠1).
 8. `anExifBlockThatIsTruncatedAtEveryLengthIsUpAndNeverTraps` — the full APP1 of test 7 cut at every byte
    offset 0…count: always `.up` or the true value, no trap, ASan-free (swift test with `-sanitize=address`
    run once by hand, recorded). Mutation: drop one `offset + n <= count` check reddens (out-of-bounds trap in debug).
@@ -129,10 +129,10 @@ Lane 1 (`MetalUICrossPlatformTests`, runs on Linux):
    left, an IFD pointing at itself, type LONG with count 1, count 2, value 0, 9, 0xFFFF: nil/`.up` each.
    Mutation: accept type != SHORT reddens; drop the entry-count clamp reddens.
 10. `theFirstExifSegmentWinsAndOnlyBeforeSOS` — two APP1s (first 6, second 3) → right; an APP1 after SOS ignored;
-    a non-Exif APP1 (XMP) skipped; an APP1 inside a thumbnail's `FF D8` ignored (walk by lengths, as
+    a non-Exif APP1 (XMP) skipped; `FF FF` fill bytes and an `RSTn`/`TEM` marker before the APP1 skipped, a length-0/1 segment nil; an APP1 inside a thumbnail's `FF D8` ignored (walk by lengths, as
     `jpegScanIsTerminated`). Mutation: raw byte search for `Exif` reddens (thumbnail arm).
-11. `aPngExifChunkIsRead` — `eXIf` before `IDAT` value 6 → `.right`; after `IDAT` ignored; bad CRC makes the file nil
-    anyway. Mutation: read `eXIf` after IDAT reddens.
+11. `aPngExifChunkIsRead` — `eXIf` before `IDAT` value 6 → `.right`; after the last `IDAT` read too (PNG 1.5 allows it); between two `IDAT`s ignored; bad CRC makes the file nil
+    anyway. Mutation: read an `eXIf` between IDATs reddens; stop at the first IDAT reddens the after-arm.
 12. `decodeReportsOrientationAndDoesNotApplyIt` — a JPEG-like PNG with eXIf 6: `width`/`height` stored, `pixels`
     unpermuted, `orientedSize` swapped; `ImageBitmap(data:)` width/height stored (the default draw is unchanged,
     `IB-G`). Mutation: permute in `init` reddens.
@@ -149,8 +149,8 @@ Lane 1 (`MetalUICrossPlatformTests`, runs on Linux):
 Lane 2 (`MetalUITests`, macOS; the draw tests also in `MetalUITestingTests`):
 16. `anOrientedImageLaysOutAtTheOrientedSize` — `Image(decorative: 4x2, scale: 1, orientation: .right)` in a
     `TestWindow`: `frame` 2x4; `.up` 4x2. Mutation: ignore the argument reddens.
-17. `anOrientedBitmapKeepsOneTextureIdentityAcrossBuilds` — `bitmap.oriented(.right)` twice, `===` on the texture; a
-    frame drawn twice uploads once (work counter). Mutation: build the variant per call reddens.
+17. `anOrientedBitmapKeepsOneTextureIdentityAcrossBuilds` — `bitmap.oriented(.right)` twice, `===` on the texture, and the
+    scene's image run of two frames names one texture (identity is the pin; no upload counter is assumed to exist). Mutation: build the variant per call reddens.
 18. `orientedPixelsEqualSwiftUIsForAllEight` — the probe table through the headless scene's image run pixels. Mutation as 13.
 19. `upOrientedIsTheSameBitmapAndZeroWork` — `.up` returns the identical texture. Mutation: always copy reddens.
 20. Pixels: `docs/probes/demo-pixels/compare.sh <scratch> fb9a7e42 HEAD`: 0 px, fourteen images (no demo section uses

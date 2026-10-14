@@ -1,7 +1,7 @@
 # Public image decoding — decisions
 
 Rulings for item S2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**).
-Prefix `IB-`. **Next unused: `IB-K`.** Spec: [`specs/2026-10-13-image-decode-api-design.md`](specs/2026-10-13-image-decode-api-design.md).
+Prefix `IB-`. **Next unused: `IB-L`.** Spec: [`specs/2026-10-13-image-decode-api-design.md`](specs/2026-10-13-image-decode-api-design.md).
 Record: `../record/113-image-decode-api.md` (Record phase). Branch `feat/image-decode-api` from `fb9a7e42`.
 Divergence labels reserved 435–444: **435 taken** (`IB-G`).
 
@@ -38,7 +38,7 @@ wanting to know "was there a tag" cannot; add `hasOrientation` later.
 
 **Ruling.** JPEG: walk segments by length from `SOI` to the first `SOS` (never a byte search — a thumbnail holds
 its own markers, as `jpegScanIsTerminated`), take the first `APP1` starting `Exif\0\0`; PNG: the first `eXIf`
-chunk before `IDAT`. TIFF: `II*\0`/`MM\0*`, IFD0 offset, entry count clamped to the bytes left, tag `0x0112`,
+chunk before the first or after the last `IDAT` (see `IB-K`). TIFF: `II*\0`/`MM\0*`, IFD0 offset, entry count clamped to the bytes left, tag `0x0112`,
 type SHORT (3), count 1, value `1…8`; anything else nil. All arithmetic `addingReportingOverflow`; no
 recursion (a self-pointing IFD is never followed: only IFD0 is read). No C, no Foundation. **Evidence.** The
 parser is ~80 lines; stb has no EXIF; a C parser would put unreviewed bounds logic in an internal C target.
@@ -88,3 +88,16 @@ rescues a refused file. **Cost if wrong.** None: it is the stricter side.
 `DecodedImage(data:)` is `nil` for GIF/TIFF/HEIC even on macOS, so a file decodes to the same bytes on every
 platform (`PX-C`'s point). **Cost if wrong.** A macOS-only app needing HEIC pixels uses ImageIO itself;
 owner S2-b.
+
+## IB-K — Critic's rulings: `orientation:` has no default; `eXIf` after `IDAT` is read; JPEG fill bytes
+
+**Ruling.** (1) SwiftUI's `Image(_:scale:orientation:label:)` defaults `orientation` to `.up`; here the two
+inits are **overloads with a required `orientation`**, beside the unchanged `scale:`-only inits, because a
+defaulted parameter would make `Image(decorative:scale:)` ambiguous with the existing init (every old call
+compiles, every SwiftUI call with an explicit orientation compiles; a call that relies on the default resolves
+to the existing init, same result). Not a divergence in behaviour. (2) `IB-D`'s "`eXIf` before `IDAT`" was
+narrower than PNG 1.5 (anywhere before `IEND` except between `IDAT`s): accept before the first and after the
+last `IDAT`. (3) The JPEG walk skips `0xFF` fill bytes and length-less markers (`RSTn`, `TEM`) and refuses a
+segment length below 2. (4) The spec's luma example (10,20,30) was 19; it is 18 by hand. (5) `init(_ decoded:)`
+moved to lane 1 (test 1 needs it; it was a hidden lane 1 -> lane 2 dependency). **Rejected:** a SwiftUI
+claim without a probe: none remains; the probe was re-run, both arms (2x2 table, O10) byte for byte.
