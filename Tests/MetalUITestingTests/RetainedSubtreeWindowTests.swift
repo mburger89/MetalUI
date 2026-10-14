@@ -51,10 +51,12 @@ func theBracketNodeDragReplaysEveryUnchangedSubtree(arm: BracketArm) throws {
             #expect(f.retainedMisses == predicted.misses)
         }
         #expect(f.retainedIneligible == predicted.ineligible)
-        // Paint is the work a hit stands for, element by element; prepaint and the build run in full.
+        // Paint and prepaint are the work a hit stands for, element by element (`RK-E`: prepaint replays too);
+        // the build runs in full.
         #expect(f.elementPaints + f.retainedSkippedPaints == base.elementPaints)
         #expect(f.elementPaints < base.elementPaints)
-        #expect(f.elementPrepaints == base.elementPrepaints && f.retainedSkippedPrepaints == 0)
+        #expect(f.elementPrepaints + f.retainedSkippedPrepaints == base.elementPrepaints)
+        if predicted.retainsNodes && index > 0 { #expect(f.retainedSkippedPrepaints > 0, "frame \(index) replayed no prepaint") }
         #expect(f.elementRequests == base.elementRequests)
         // Layout is the placement memo's (`SB-AD`): restored subtrees are not measured again, never more.
         if index == 0 {

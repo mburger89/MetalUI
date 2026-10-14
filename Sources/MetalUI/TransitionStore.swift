@@ -310,6 +310,29 @@ final class TransitionStore {
         }
     }
 
+    /// What a redo restores of this store (`RK-M`): the insertions and ghosts in flight, which `afterLayout`
+    /// advances, and the capture counter.
+    struct Checkpoint {
+        let insertions: [GlobalElementID: Insertion]
+        let ghosts: [(key: GlobalElementID, ghost: Ghost)]
+        let captured: Int
+    }
+
+    func checkpoint() -> Checkpoint { Checkpoint(insertions: insertions, ghosts: ghosts, captured: capturedThisFrame) }
+
+    /// Forgets the build in progress (`RK-M`): this frame's notes and claimed groups are empty at the start of a
+    /// build (`endFrame` swaps and clears) — a claim answers `false` for a key already recorded — and the
+    /// insertions and ghosts return to what they were before `afterLayout` advanced them.
+    func rollbackBuild(_ saved: Checkpoint) {
+        evaluated.removeAll(keepingCapacity: true)
+        produced.removeAll(keepingCapacity: true)
+        arrayExtents.removeAll(keepingCapacity: true)
+        records.removeAll(keepingCapacity: true)
+        insertions = saved.insertions
+        ghosts = saved.ghosts
+        capturedThisFrame = saved.captured
+    }
+
     /// Called once per frame at its end, before the `AnimationStore` drops
     /// untouched entries: this frame's notes and records become the last
     /// completed frame's.

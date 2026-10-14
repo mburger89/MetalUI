@@ -146,6 +146,11 @@ final class TimelineStore {
         return body()
     }
 
+    /// Forgets the build in progress (`RK-M`): the occurrence counts a redo would count twice.
+    func rollbackBuild() {
+        occurrences.removeAll(keepingCapacity: true)
+    }
+
     /// Closes a build (`AnimationStore.endFrame()`): drops every position it
     /// did not touch, then schedules, keeps or cancels the one wake.
     func endFrame() {

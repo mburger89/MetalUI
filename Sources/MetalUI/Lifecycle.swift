@@ -553,6 +553,24 @@ final class LifecycleStore {
         workThisFrame = 0
     }
 
+    /// Forgets the build in progress (`RK-M`): a frame abandoned for a redo registered scopes, geometry and
+    /// modifier notes that the redo registers again, and an occurrence index counted twice would read as a new
+    /// key (a second `onAppear`). All of it is empty at the start of a build (`endFrame` swaps and clears), so
+    /// the rollback is a clear. Pins: `aRedoLeavesEveryTableAsAFreshBuildWould`.
+    func rollbackBuild() {
+        current.removeAll(keepingCapacity: true)
+        occurrences.removeAll(keepingCapacity: true)
+        nextOrder = 0
+        currentHasDisappearActions = false
+        workThisFrame = 0
+        geometryCurrent.removeAll(keepingCapacity: true)
+        geometryOccurrences.removeAll(keepingCapacity: true)
+        nextGeometryOrder = 0
+        modifierCurrent.removeAll(keepingCapacity: true)
+        modifierOccurrences.removeAll(keepingCapacity: true)
+        nextModifierOrder = 0
+    }
+
     /// The event that starts `spec` into `box` (`PX-F` item 3).
     private static func startEvent(_ spec: TaskSpec, _ box: RunningTask, owner: GlobalElementID) -> LifecycleEvent {
         LifecycleEvent(owner: owner, action: { box.handle = TaskStart.start(spec) }, departed: nil)

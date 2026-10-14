@@ -297,7 +297,7 @@ func aChangedPaintOnlyAmbientRedoesTheFrameOnce(arm: RPAmbient) async throws {
 
 // MARK: 5 — the redo consumes each window input once
 
-private struct RPInputsRoot: Component {
+struct RPInputsRoot: Component {
     let side: RPSide
     @FocusState var focused: Bool
     var content: some ElementGroup {
@@ -312,46 +312,60 @@ private struct RPInputsRoot: Component {
                         }
                     }
                 }.frame(width: Pixels(120), height: Pixels(60))
-                ZStack { RPCard(title: "A", shade: 1, log: log).equatable() }.opacity(model.n % 2 == 1 ? 0.5 : 1)
-                Text("slide").frame(width: Pixels(40), height: Pixels(14)).offset(x: Pixels(inputs.offset))
+                // The card replays while an implicit animation below is in flight, and its ancestor's opacity
+                // changes in the input that also writes a focus request and shows an element with `onAppear`.
+                ZStack { RPCard(title: "A", shade: 1, log: log).equatable() }
+                    .opacity(model.n % 2 == 1 ? 0.5 : 1)
+                Text("glide").frame(width: Pixels(40), height: Pixels(14)).offset(x: Pixels(inputs.offset))
+                    .animation(.linear(duration: 0.4), value: inputs.offset)
+                Button("slide") { inputs.offset = 30 }.frame(width: Pixels(40), height: Pixels(16))
                 Button("jump") {
-                    proxy.scrollTo("row 22")
                     focused = true
                     model.n += 1
                     inputs.showExtra = true
-                    withAnimation(.linear(duration: 0.4)) { inputs.offset = 30 }
                 }.frame(width: Pixels(40), height: Pixels(16))
+                Button("scroll") { proxy.scrollTo("row 22") }.frame(width: Pixels(40), height: Pixels(16))
                 TextField("field", text: textBinding).focused($focused)
                     .frame(width: Pixels(100), height: Pixels(22))
-                if inputs.showExtra {
-                    Text("extra").onAppear { log.add("appear") }.frame(width: Pixels(40), height: Pixels(14))
-                }
+                ZStack {
+                    if inputs.showExtra { Text("extra").onAppear { log.add("appear") } }
+                }.frame(width: Pixels(40), height: Pixels(14))
             }
         }
     }
 }
 
 /// 5 — a redone frame equals a retention-off frame and consumes each window input exactly once (`RK-D`, `RK-M`): one
-/// click holds a `withAnimation` write (the parked transaction), a `scrollTo` request, a focus request and a
-/// lifecycle appear while the opacity above a replayed subtree changes. The two windows agree after the input,
-/// through the animation's frames and in the log of lifecycle events; the scroll moved (once); the animation ran
-/// from the frame of the input. Mutations: the scroll queue not restored for the redo (the scroll is lost: the rows
-/// differ), a fresh transaction taken by the redo (the animation snaps: the offset differs mid-animation), the
-/// abandoned frame adopted (hitboxes, Tab order or the lifecycle log differ).
+/// click holds a focus request and a lifecycle appear while the opacity above a replayed subtree changes and an
+/// implicit animation (the animation store's entries) is in flight below. The two windows agree after the input,
+/// through the rest of the animation and in the log of lifecycle events; a `scrollTo` clicked after it moves the
+/// rows once. A frame whose root transaction is animating refuses every replay (`SB-J`), so a redo never coincides
+/// with a parked `withAnimation`; the transaction value is still passed to the redo unchanged. Mutations: the
+/// animation store's entries not restored (the animation restarts: the offset differs mid-animation), the
+/// lifecycle store not rolled back (a second `appear`), the abandoned frame adopted (hitboxes, Tab order or log).
 @Test @MainActor func aRedoFrameEqualsARetentionOffFrameAndConsumesEachInputOnce() async throws {
-    let pair = try RPPair(size: sz(260, 230), warm: 4) { side in VStack(spacing: 0) { RPInputsRoot(side: side) } }
+    let pair = try RPPair(size: sz(260, 260), warm: 4) { side in VStack(spacing: 0) { RPInputsRoot(side: side) } }
     try pair.compare("warm")
     pair.redraw()
     try #require(pair.frames.last?.retainedPrepaintHits == 1, "the card replays before the input: \(String(describing: pair.frames.last))")
+    for w in [pair.on, pair.off] { try w.click(w.element(label: "slide")) }
+    for index in 0..<2 {
+        for w in [pair.on, pair.off] { w.advance(by: 0.06) }
+        try pair.compare("animation frame \(index) before the input")
+    }
+    for w in [pair.on, pair.off] { w.hover(at: pt(250, 250)) }
     for w in [pair.on, pair.off] { try w.click(w.element(label: "jump")) }
     #expect(pair.on.lastFrameWork.retainedRedos == 1, "the input's frame was redone once: \(pair.on.lastFrameWork.retainedRedos)")
     try pair.compare("the input's frame")
     for index in 0..<8 {
         for w in [pair.on, pair.off] { w.advance(by: 0.06) }
-        try pair.compare("animation frame \(index)")
+        try pair.compare("animation frame \(index) after the input")
     }
     #expect(pair.onSide.log.entries.filter { $0 == "appear" }.count == 1, "the appear ran once: \(pair.onSide.log.entries)")
-    #expect(pair.on.lastFrameWork.retainedRedos == 0)
+    for w in [pair.on, pair.off] { w.advance(by: 1) }
+    for w in [pair.on, pair.off] { try w.click(w.element(label: "scroll")) }
+    try pair.compare("the scroll")
+    for _ in 0..<3 { pair.redraw(); try pair.compare("after the scroll") }
 }
 
 // MARK: 6 — backoff and quarantine
@@ -532,6 +546,7 @@ private struct RPStateCard: Component, @MainActor Equatable {
     try pair.compare("a replayed button")
     for w in [pair.on, pair.off] { try w.click(w.element(label: "tap")) }
     try pair.compare("the first write")
+    for w in [pair.on, pair.off] { w.hover(at: pt(296, 116)) }   // the pointer leaves the card it clicked
     pair.redraw(); pair.redraw(); pair.redraw()
     f = try #require(pair.frames.last)
     #expect(f.retainedPrepaintHits == 2, "after a write both replay: \(f.retainedPrepaintHits)")

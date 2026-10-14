@@ -103,7 +103,7 @@ package final class ContentMemoStore {
 
     /// Test switch (`RK-E`): off, an occurrence's prepaint runs every frame and records nothing for
     /// replay; paint replay is `SB-B`'s, unchanged. The `fb9a7e42` arm of the prepaint differentials.
-    package var replaysPrepaint = false   // RED RUN: prepaint replay off until the implementation commit
+    package var replaysPrepaint = true
 
     /// Builds completed (`endFrame`), the window-wide backoff's clock (`RK-D` item 3), the first build at which
     /// prepaint replay may run again, and whether the build in progress is a redo.
@@ -113,6 +113,9 @@ package final class ContentMemoStore {
     /// Whether a window drives this store's frames and so builds an abandoned frame again (`RK-D`): a bare
     /// `Frame.render` has no one to redo it, so it never replays a prepaint.
     var windowRedoes = false
+    /// How many entries held a prepaint ledger at the last `endFrame`: with none, a build cannot replay a prepaint
+    /// and so cannot be redone, and the window takes no checkpoint (`RK-M`).
+    private(set) var ledgerEntries = 0
 
     /// The retained-subtree counters of the build in progress, snapshotted by `endFrame()`.
     var retained = RetainedCounters()
@@ -198,28 +201,32 @@ package final class ContentMemoStore {
         return content
     }
 
-    /// The end of a build (`StateTable.sweep()`): snapshot the counters, and drop
-    /// every entry no component touched, firing its session so it is spent.
+    /// Starts this build's counters over (`RK-D`): the abandoned attempt's work was thrown away.
     func resetBuildCounters() {
         retained = RetainedCounters()
         evaluations = 0; skips = 0; refusals = 0
     }
 
+    /// The end of a build (`StateTable.sweep()`): snapshot the counters, and drop
+    /// every entry no component touched, firing its session so it is spent.
     func endFrame() {
         if replaysPrepaint, retainsSubtrees, buildSerial < prepaintSuspendedUntil { retained.backoffFrames = 1 }
         buildSerial &+= 1
         lastEvaluations = evaluations; lastSkips = skips; lastRefusals = refusals
         lastRetained = retained; retained = RetainedCounters()
         evaluations = 0; skips = 0; refusals = 0
-        guard !entries.isEmpty else { return }
+        guard !entries.isEmpty else { ledgerEntries = 0; return }
         var gone: [Key] = []
+        var withLedger = 0
         for (key, entry) in entries {
+            if entry.record?.prepaint != nil { withLedger += 1 }
             if entry.touched {
                 entry.touched = false
             } else {
                 gone.append(key)
             }
         }
+        ledgerEntries = withLedger
         for key in gone {
             guard let entry = entries.removeValue(forKey: key) else { continue }
             entry.serial &+= 1

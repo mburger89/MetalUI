@@ -3651,6 +3651,7 @@ public final class Frame {
             // A replayed prepaint met a paint-time ambient that differed (`RK-C`): this frame is abandoned
             // before anything after the root's paint runs (`RK-M`), and the window builds it again.
             glyphAtlas.endFrame()
+            textSystem.endFrame()
             isRendering = false
             return
         }

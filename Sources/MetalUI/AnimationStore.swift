@@ -129,6 +129,26 @@ final class AnimationStore {
         }
     }
 
+    /// What a redo restores (`RK-M`): the entries, and the transition store's in-flight state. The lifecycle,
+    /// timeline and surface stores hold only this build's accumulators, which are empty at its start.
+    struct Checkpoint {
+        let entries: [GlobalElementID: Any]
+        let transitions: TransitionStore.Checkpoint
+    }
+
+    func checkpoint() -> Checkpoint { Checkpoint(entries: entries, transitions: transitions.checkpoint()) }
+
+    /// Puts every channel a build mutates before adoption back to `saved` (`RK-M`): called by the window when a
+    /// frame is abandoned for a redo, before the rebuild, so the rebuild is a build of the frame that never ran.
+    func rollbackBuild(_ saved: Checkpoint) {
+        entries = saved.entries
+        touched.removeAll(keepingCapacity: true)
+        interpolationsThisFrame = 0
+        lifecycle.rollbackBuild()
+        timeline.rollbackBuild()
+        transitions.rollbackBuild(saved.transitions)
+    }
+
     /// Called by `Frame.render` before layout.
     func beginFrame() { interpolationsThisFrame = 0 }
 

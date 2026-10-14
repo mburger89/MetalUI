@@ -1788,6 +1788,9 @@ public final class Window {
         let transaction = Animation.takeParkedRootTransaction()
         let memos = stateTable.contentMemos
         let pendingScrollRequests = scrollRequests.pending
+        // A build can be redone only if it can replay a prepaint (`RK-M`): then the channels it mutates before
+        // adoption are checkpointed, which costs a few reference copies and nothing otherwise.
+        let checkpoint = memos.prepaintReplayAllowed && memos.ledgerEntries > 0 ? animationStore.checkpoint() : nil
         // One attempt at the frame. A replayed prepaint that meets a paint-time ambient that differs abandons the
         // attempt after paint (`RK-C`); the window then builds it again with every prepaint replay off (`RK-D`).
         func buildFrame() -> Frame {
@@ -1867,6 +1870,8 @@ public final class Window {
             // transaction (the same value is passed), the window's `scrollTo` queue, the build counters.
             memos.noteRedo(frame.redoEntries)
             scrollRequests.restore(pendingScrollRequests)
+            if let checkpoint { animationStore.rollbackBuild(checkpoint) }
+            surfaceRegistry.rollbackBuild()
             memos.redoInProgress = true
             frame = buildFrame()
             memos.redoInProgress = false
