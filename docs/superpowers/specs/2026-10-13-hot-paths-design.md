@@ -142,7 +142,7 @@ Lane 2 (`Tests/MetalUITests/HotPathAnimationTests.swift`, `HotPathShadowTests.sw
     interpolation count equals the pre-change literals. Mutation: clamp declared.
 14. `contextualTargetPicksTheSameHitboxAsTheClosureForm`: nested ids, layers, region/non-region
     permutations versus a reference closure implementation. Mutation: forward instead of reverse loop.
-15. `hasPercentEdgeAgreesWithItsClosureForm` (four edges x percent/point). Mutation: omit `.left`.
+15. `edgesHavePercentAgreesWithItsClosureFormForEverySubset` (the built name; every subset of four edges x percent/point). Mutation: omit `.left`.
 16. `aRasterKeyHashesFromItsStoredHash`: keys differing in only `words`, only `paths`, only `objects`
     are unequal and (probabilistically) hash apart; adding a word after construction updates it.
     Mutation: skip `objects` in the fold (red), skip updating in `add(Int)`.
