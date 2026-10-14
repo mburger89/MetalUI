@@ -113,6 +113,8 @@ F	image-decoding	M	-	-	-	138	PX-B PX-C PX-D PX-E	ImageBitmap(contentsOfFile:)/(d
 F	image-decode	M	-	-	-	-	IB-A IB-B IB-C IB-D IB-I IB-J IB-K	DecodedImage (+ ImageBitmap(_:)): PNG/JPEG decoded to straight RGBA8 or 8-bit grey by the one vendored decoder on every platform, width, height, bytesPerRow, the EXIF orientation reported and not applied, applyingOrientation(); SwiftUI has no pixel-level decode API, so MetalUI-only
 F	image-orientation-exif	M	-	-	-	-	IB-E	Image.Orientation.init(exifValue:)/exifValue/swapsAxes: the bridge between SwiftUI's own raw values and the EXIF tag 1...8; SwiftUI has no EXIF accessors
 F	image-orientation	A	swiftui-image-orientation.swift	O1	orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip	-	IB-E	Image.Orientation: SwiftUI's eight cases with SwiftUI's raw values (up 0, left 1, upMirrored 2, leftMirrored 3, downMirrored 4, rightMirrored 5, down 6, right 7), CaseIterable, Hashable, Sendable
+F	image-oriented-draw	A	swiftui-image-orientation.swift	O9	orientedPixelsEqualSwiftUIsForAllEight	435	IB-F IB-G IB-K	Image(decorative:scale:orientation:) and Image(_:scale:orientation:label:): a bitmap drawn turned by an Image.Orientation, laid out at the oriented size; orientation has no default (IB-K) so the unoriented inits stay unambiguous
+F	image-bitmap-oriented	M	-	-	-	-	IB-F	ImageBitmap.oriented(_:): the bitmap turned by an orientation, one cached texture per orientation; SwiftUI has no CGImage-level orientation transform
 F	gestures	A	swiftui-interaction.swift	H2	anOuterHighPriorityGestureBeatsTheInnerOneAndAButton	-	IX-B IX-C IX-D IX-Q	Gesture/TapGesture/LongPressGesture/DragGesture/composition and .gesture/.simultaneousGesture/.highPriorityGesture/.onTapGesture/.onLongPressGesture: one arena per press
 F	keyboard-shortcut	A	swiftui-interaction.swift	B4e	aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch	-	IX-F	KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order
 F	key-press	A	swiftui-key-focus.swift	K2v	onKeyPressRunsOutermostFirstAlongTheFocusChain	-	KF-B KF-C KF-Q KF-X	KeyPress/onKeyPress: SwiftUI's family (keys, characters, phases; .handled/.ignored) along the focus chain outermost first, after the Keymap and before a focused field's editing keys; a typed character on a focused field is offered first (KF-Q); a keystroke an app command binds runs the command (KF-X)
@@ -345,10 +347,12 @@ M	MetalUI	Gesture.swift	.*	.*	.*	gestures
 M	MetalUI	GestureModifiers.swift	.*	.*	.*	gestures
 M	MetalUI	Grid.swift	LayoutPass	.*	.*	kernel-registrars
 M	MetalUI	Grid.swift	.*	.*	.*	grid
+M	MetalUI	Image.swift	Image	init	orientation	image-oriented-draw
 M	MetalUI	Image.swift	.*	.*	.*	image
 M	MetalUI	DecodedImage.swift	.*	.*	.*	image-decode
 M	MetalUI	ImageOrientation.swift	Image\.Orientation	(init\?|exifValue|swapsAxes)	.*	image-orientation-exif
 M	MetalUI	ImageOrientation.swift	.*	.*	.*	image-orientation
+M	MetalUI	ImageBitmap.swift	ImageBitmap	.*	oriented	image-bitmap-oriented
 M	MetalUI	ImageBitmap.swift	ImageBitmap	init\??	(contentsOfFile|data|resource)	image-decoding
 M	MetalUI	ImageBitmap.swift	.*	.*	.*	image-bitmap
 M	MetalUI	KeyPress.swift	StyledElement	focusable	.*	focus-interactions

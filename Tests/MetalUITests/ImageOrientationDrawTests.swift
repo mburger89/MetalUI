@@ -71,7 +71,7 @@ private func wide(_ width: Int, _ height: Int) -> ImageBitmap {
     #expect(copy.oriented(.right).texture === first.texture)
 }
 
-/// **18 — the eight orientations give SwiftUI's 2x2 table** through the scene's textures
+/// **18 — the eight orientations give SwiftUI's 2x2 table (probe O9)** through the scene's textures
 /// (premultiplied bytes permuted, none changed). Mutation: swap `left` and `right`.
 @Test @MainActor func orientedPixelsEqualSwiftUIsForAllEight() throws {
     let expected: [(Image.Orientation, String)] = [
