@@ -7,12 +7,15 @@ import Observation
 
 // C14b (`SB-A`…`SB-AA`): retained subtrees. One record per `.equatable()` occurrence, hung off its
 // content-memo entry: the scene operations its **paint** produced and the cache touches that paint made,
-// replayed instead of run while its replay key is equal. Lane 1 (this file) leaves the build recursion and
-// the **prepaint** running, so a miss is always safe: every element's layout record and prepaint state exist
-// and paint runs as it always did. (The design replayed prepaint too; `SB-AA` records why it cannot be decided
-// there: a paint-only ambient — an opacity, a shadow or blur scope — is not on the frame yet.)
-// Spec `docs/superpowers/specs/2026-10-13-retained-subtrees-design.md`, rulings
-// `docs/superpowers/2026-10-13-retained-subtrees-decisions.md`.
+// replayed instead of run while its replay key is equal. The build recursion still runs, so a miss is always
+// safe: every element's layout record exists. C14b-2 adds the **prepaint** half beside it
+// (`RetainedPrepaint.swift`, `RK-C`…`RK-E`): a ledger of what the occurrence's prepaint registered, replayed
+// while the prepaint key is equal, with a redo of the frame when a replayed prepaint meets a paint-only
+// ambient (an opacity, a shadow or blur scope — pushed by an ancestor's paint, after every prepaint) that
+// differs from the record's (`SB-AA` is why the decision cannot be taken at prepaint alone).
+// Spec `docs/superpowers/specs/2026-10-13-retained-subtrees-design.md` and
+// `2026-10-13-retained-build-skip-design.md`, rulings `docs/superpowers/2026-10-13-retained-subtrees-decisions.md`
+// and `2026-10-13-retained-build-skip-decisions.md`.
 
 /// The work counters of retained subtrees for one build (`SB-`): work, never time.
 package struct RetainedCounters: Sendable, Equatable {
@@ -24,7 +27,7 @@ package struct RetainedCounters: Sendable, Equatable {
     /// Occurrences that ran paint and left no record: a channel a record cannot replay moved
     /// (`SB-J`), or a context the key cannot hold was open.
     package var ineligible = 0
-    /// Element prepaints a hit stood for: always 0 in lane 1, which runs every prepaint (`SB-AA`).
+    /// Element prepaints a prepaint replay stood for (`RK-E`): the work of the ledgers replayed.
     package var skippedPrepaints = 0
     /// Element paints a hit stood for (the conservation law of test 1.1).
     package var skippedPaints = 0

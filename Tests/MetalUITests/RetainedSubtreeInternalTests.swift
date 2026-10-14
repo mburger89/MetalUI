@@ -23,7 +23,7 @@ private enum Channel: String {
     case keyed
     /// A change in a paint makes the occurrence ineligible.
     case ledger
-    /// Written by prepaint only, which runs every frame in lane 1 (`SB-AA`).
+    /// Written by prepaint only: replayed from a prepaint ledger, or audited by count and refused (`RK-E`).
     case prepaintOnly
     /// Not touched by prepaint or paint, or constant for the frame.
     case frameLocal

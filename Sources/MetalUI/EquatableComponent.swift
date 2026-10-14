@@ -1,18 +1,25 @@
 /// A `Component` whose `content` is not evaluated again while its value is
-/// unchanged (SwiftUI's `View.equatable()`, `IV-B`), and whose **paint** is
-/// replayed while nothing it reads has changed (retained subtrees, `SB-B`); made
-/// by ``Component/equatable()``.
+/// unchanged (SwiftUI's `View.equatable()`, `IV-B`), and whose **prepaint and
+/// paint** are replayed while nothing they read has changed (retained subtrees,
+/// `SB-B`, `RK-E`); made by ``Component/equatable()``.
 ///
 /// The component keeps its identity level, `@State` slots and cursor index: the
-/// wrapper adds none of its own. The build recursion (`requestGroupLayout`),
-/// layout and prepaint run exactly as for the bare component. Paint runs, once,
-/// when the occurrence is first drawn or anything it depends on changes, and is
-/// then replayed from a record of the scene primitives it made, in the order a
-/// fresh run makes them. What it depends on is the **replay key**: the
-/// occurrence's rectangles and the layout under it, the clip, offset, layer,
-/// opacity and open paint scopes at paint, the built-in environment and theme,
-/// the window's scale and size, and whether the pointer, a press or focus is
-/// inside it.
+/// wrapper adds none of its own. The build recursion (`requestGroupLayout`) and
+/// layout run exactly as for the bare component. **Prepaint** registers the
+/// subtree's hitboxes, focus stops, accessibility records, context menus and
+/// region tallies; they are recorded once and replayed in the same order while
+/// the occurrence's rectangles and the layout under it, the clip, offset, layer,
+/// render effects, built-in environment and pointer gates around it are equal
+/// (a translation of the render effects around it replays too, `RK-S`).
+/// **Paint** runs, once, when the occurrence is first drawn or anything it
+/// depends on changes, and is then replayed from a record of the scene
+/// primitives it made, in the order a fresh run makes them. What it depends on
+/// is the **replay key**: the occurrence's rectangles and the layout under it,
+/// the clip, offset, layer, opacity and open paint scopes at paint, the built-in
+/// environment and theme, the window's scale and size, and whether the pointer, a
+/// press or focus is inside it. If a replayed prepaint meets a paint-time
+/// ambient that differs (an ancestor's opacity or shadow changed), the window
+/// builds the frame again with every replay off (`RK-D`).
 ///
 /// There is no initialiser: make one with `equatable()`.
 public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
@@ -151,11 +158,13 @@ extension Component where Self: Equatable {
     /// properties its elements read in a getter, `prepaint` or `paint`, and the
     /// built-in environment; an element under it that draws from anything else (a
     /// global, a `Binding` read in `paint`, the clock) must not be under an
-    /// `.equatable()` that cannot see the change. The build recursion, layout and
-    /// prepaint still run every frame, so hit testing, focus and accessibility are
-    /// always current. A subtree that scrolls, edits text, animates, shows a
-    /// popover, draws a `GPUSurface` or sits under a custom environment key paints as
-    /// it always did (counted in `FrameWork.retainedIneligible`).
+    /// `.equatable()` that cannot see the change. The build recursion and layout
+    /// still run every frame; hit testing, focus and accessibility are replayed from
+    /// the registrations of the frame the subtree last ran, in the same order. A
+    /// subtree that scrolls, edits text, animates, shows a popover, draws a
+    /// `GPUSurface` or sits under a custom environment key paints and prepaints as it
+    /// always did (counted in `FrameWork.retainedIneligible` and
+    /// `retainedPrepaintIneligible`).
     public func equatable() -> EquatableComponent<Self> {
         EquatableComponent(component: self)
     }
