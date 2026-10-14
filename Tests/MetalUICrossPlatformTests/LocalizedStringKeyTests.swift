@@ -226,7 +226,9 @@ private func portableFrame<E: Element>(_ element: E) throws -> Frame {
     _ = try renderDemoFrame(scale: 1)
     #expect(markdownParserRuns == before, "the demo ran the parser \(markdownParserRuns - before) times")
     let start = markdownParserRuns
-    _ = Text("**b**")
+    // A key unique to this test: since `HP-D` a literal already parsed in this process is a table hit,
+    // so `Text("**b**")` (used elsewhere) would move the counter by zero or one depending on order.
+    _ = Text("**b-3.16-unique**")
     #expect(markdownParserRuns == start + 1, "one parse for one marked-up literal: \(markdownParserRuns - start)")
 }
 
