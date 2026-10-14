@@ -452,6 +452,19 @@ None for the API: additive (`TestWindow.setMarkedText`, `commitMarkedText`, `can
 conformer changes. One behaviour change (`IM-I`, a row in the table above): a text field that loses focus while
 an input method is composing drops that composition, so a field refocused later no longer shows stale marked text.
 
+### Clipboard beyond text (`CB-`, record 115)
+
+**Four defaultless `PlatformWindow` requirements** (`CB-E`): a conformer outside this repository adds
+`func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool`, `func clipboardTypeIdentifiers() -> [String]`,
+`func readClipboard(identifier: String) -> [UInt8]?` and `func setClipboardCommands(_ commands: ClipboardCommands)`.
+A platform with no typed clipboard answers `{ false }`, `{ [] }`, `{ _ in nil }` and `{ _ in }`; the text-only
+`readClipboard()` and `writeClipboard(_ text:)` stay and text fields keep using them. `HeadlessPlatformWindow.clipboard`
+is now a view of its `public.utf8-plain-text` representation (`clipboardRepresentations` holds all of them).
+New API (additive): `copyable(_:)`, `cuttable(for:action:)`, `pasteDestination(for:action:validator:)` in both
+vocabularies, `Window.clipboard`/`Clipboard`; a file importing CoreTransferable spells `MetalUI.Transferable`.
+Behaviour: a key the Edit menu or the keyboard sends as primary C/X/V now reaches a clipboard handler on the focus
+chain before a `Button`'s shortcut or an app command bound to the same key (`CB-B`); with no handler nothing moves.
+
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.

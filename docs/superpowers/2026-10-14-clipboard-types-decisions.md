@@ -1,7 +1,7 @@
 # Clipboard beyond text — decisions
 
 Rulings for item S3 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
-MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-P`.**
+MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-Q`.**
 Spec: [`specs/2026-10-14-clipboard-types-design.md`](specs/2026-10-14-clipboard-types-design.md).
 Record: `../record/115-clipboard-types.md` (Record phase). Branch `feat/clipboard-types` from
 `fb9a7e42`. Divergence labels reserved 455–464: **455 taken** (`CB-G`), **456 taken** (`CB-C`).
@@ -216,3 +216,20 @@ over `Window.clipboard`); `@Environment(\.clipboard)` (additive); lazy/promised 
 count (SDL has none, AppKit's `changeCount` is not worth a requirement alone); the X11 primary
 selection; image and file-URL constants (`public.png` as a `ContentType`) and `Image` as
 `Transferable`; Shift-Insert / Ctrl-Insert / Shift-Delete; a hover-routed copy.
+
+## CB-P — Paste walks the destination's types; what claims the key
+
+**Question.** `CB-F` says the clipboard runs through `DropDestinationTarget.match`; that function walks the
+*offered* types first. Which order decides on a clipboard, and which outcomes claim the key?
+**Ruling.** The order is the **destination's**: `importClipboardItem` walks `T.importedContentTypes()` in
+declared order and, for each, takes the first offered type that is it or conforms to it, reads those bytes and
+asks `T(importing:contentType:)` (told the destination's type); an absent type or a `nil` initialiser moves on to
+the next imported type. Reason: the order of `NSPasteboard.types` and of SDL's mime list is the platform's, not the
+writer's, and a destination that lists `[custom, text]` must get the custom type whenever it is there (test 1.4);
+the drop path keeps `match` unchanged. **Claims** (the innermost handler of a kind decides; a decline does not try
+its ancestors): a copy claims the key once it has a non-empty result to write (an empty result declines, nothing is
+written, a later stage runs); a cut claims once its action has run, even when it returned nothing to write (the
+action's effect happened); a paste claims only when the action ran, so an empty clipboard, nothing importable and
+an empty validator result all decline and an App command's Paste runs.
+**Cost if wrong.** A cut that must not claim on an empty result is an `if` away; low.
+

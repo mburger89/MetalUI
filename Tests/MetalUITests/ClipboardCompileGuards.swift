@@ -100,7 +100,8 @@ func aPlatformWindowWithoutAClipboardRequirementDoesNotCompile() throws {
     }
 }
 
-/// **G3.1b** (`CB-A`, `CB-J`). An external module writes the three modifiers on a `StyledElement`
+/// **G3.1b** (`CB-A`, `CB-J`; probe `swiftui-clipboard-types.swift` arm S, with its separating arm S-neg:
+/// the spellings compile, a non-`Transferable` does not). An external module writes the three modifiers on a `StyledElement`
 /// and on proposal content, with SwiftUI's trailing-closure shapes and defaulted `validator:`, and
 /// reads `Window.clipboard`. `Clipboard()` does **not** compile (no public initialiser), and neither
 /// does `PasteButton` (`CB-N`: not built).

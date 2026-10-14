@@ -100,6 +100,7 @@ struct FocusRegistry {
         if let target = handlers.textInput { textTargets[id] = target }
         if let shortcut = handlers.keyboardShortcut { shortcuts.append((id, shortcut)) }
         if let presses = handlers.keyboard?.keyPresses, !presses.isEmpty { keyPressHandlers[id] = presses }
+        if let clipboard = handlers.keyboard?.clipboard { clipboardHandlers[id] = clipboard }
     }
 
     /// A hidden element's keyboard shortcut, and nothing else of its keyboard
@@ -175,6 +176,17 @@ struct FocusRegistry {
     /// How many ids registered `onKeyPress` handlers this frame: with none, a
     /// key event walks no chain for them.
     var keyPressCount: Int { keyPressHandlers.count }
+
+    /// Every id that registered clipboard handlers this frame (`CB-M`), behind
+    /// the one disabled gate like everything here.
+    private var clipboardHandlers: [GlobalElementID: ClipboardAttachment] = [:]
+
+    /// `id`'s clipboard handlers this frame, or `nil`.
+    func clipboardHandler(for id: GlobalElementID) -> ClipboardAttachment? { clipboardHandlers[id] }
+
+    /// How many ids registered clipboard handlers, counted apart from
+    /// `keyPressCount` (`CB-M`): with none, a key event walks no chain for them.
+    var clipboardRegionCount: Int { clipboardHandlers.count }
 }
 
 /// The focused element's id and every ancestor of it, **innermost first** —

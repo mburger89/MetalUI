@@ -243,6 +243,82 @@ committed text, not the marked text (divergence 325; pin:
 composing is held back until the commit, whose publish supersedes it (divergence 326; pin:
 `aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit`).
 
+## How do I copy and paste my own type?
+
+`copyable(_:)`, `cuttable(for:action:)` and `pasteDestination(for:action:validator:)` are SwiftUI's
+spellings over MetalUI's `Transferable`. The primary-modifier C, X and V (and the Edit menu's items)
+reach the handler of the element that holds focus or is an ancestor of the focused element, innermost
+first, so a handler needs `.focusable()` (pin: `theInputGuideACopyableGraphWritesItsTypeAndItsTextFallback`). A
+copy writes one representation per type the value exports, most preferred first; the plain-text
+fallback is the value's own second type, not a parameter. A paste walks the destination's
+`importedContentTypes()` in order, so the same destination takes the custom type and, when only text is
+on the clipboard, the text import (pin: `theInputGuidePasteTakesTheCustomTypeThenTheTextFallback`). A
+focused text field keeps its own copy and paste (pin: `aFocusedTextFieldKeepsItsOwnCopyCutPasteUnderACopyableAncestor`).
+Code outside a view uses `window.clipboard`, which writes and reads the same representations (pin:
+`theInputGuideTheWindowClipboardRoundTripsFromCode`). Copying more than one item writes the first
+(divergence 456), and the Edit menu's Paste is enabled by the presence of a destination, not by what its
+validator would accept (divergence 455). Pasting between applications is a human check.
+
+```swift
+/// A graph fragment: it copies as its own type and, after it, as plain text.
+struct InputGraph: Transferable, Equatable {
+    static let contentType = ContentType("com.example.graph", conformingTo: [.data])
+    var nodes: Int
+
+    func exportedContentTypes() -> [ContentType] { [InputGraph.contentType, .utf8PlainText] }
+    static func importedContentTypes() -> [ContentType] { [InputGraph.contentType, .utf8PlainText] }
+
+    func exported(as contentType: ContentType) -> Data? {
+        if contentType == InputGraph.contentType { return Data("nodes:\(nodes)".utf8) }
+        if contentType == .utf8PlainText { return Data("graph with \(nodes) nodes".utf8) }
+        return nil
+    }
+
+    init(nodes: Int) { self.nodes = nodes }
+
+    init?(importing data: Data, contentType: ContentType) {
+        let text = String(decoding: data, as: UTF8.self)
+        if contentType == InputGraph.contentType {
+            guard text.hasPrefix("nodes:"), let count = Int(text.dropFirst(6)) else { return nil }
+            nodes = count
+        } else if contentType == .utf8PlainText {
+            nodes = text.count
+        } else {
+            return nil
+        }
+    }
+}
+
+/// What the destination received, in order.
+@MainActor
+final class InputClipboardModel {
+    var graph = InputGraph(nodes: 3)
+    var pasted: [InputGraph] = []
+}
+
+/// A focusable source that copies and a focusable destination that pastes.
+@MainActor
+func inputClipboardRoot(_ model: InputClipboardModel) -> some Element {
+    VStack(alignment: .leading) {
+        Box().frame(width: Pixels(120), height: Pixels(40)).background(.surface)
+            .accessibilityIdentifier("source")
+            .focusable()
+            .copyable([model.graph])
+        Box().frame(width: Pixels(120), height: Pixels(40)).background(.surface)
+            .accessibilityIdentifier("destination")
+            .focusable()
+            .pasteDestination(for: InputGraph.self) { model.pasted += $0 }
+    }
+}
+
+/// Code outside a view writes and reads through the window's clipboard.
+@MainActor
+func inputCopyFromCode(_ window: Window, _ graph: InputGraph) -> InputGraph? {
+    window.clipboard.write(graph)
+    return window.clipboard.read(InputGraph.self)
+}
+```
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
@@ -262,3 +338,5 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 326: a selection written while composing waits for the commit.
 
 Back to [layout](layout.md) and [state and identity](state-and-identity.md).
+- divergence 455: the Edit menu's Paste is enabled by the destination, not by its validator.
+- divergence 456: a copy writes, and a paste receives, one item.

@@ -305,6 +305,16 @@ not performed. **A menu's content alone**: `MenuEvaluation { … }` evaluates a
 `@MenuContentBuilder` closure without a window — `items`, `item(_:)`,
 `perform(_:)`.
 
+## The clipboard
+
+A test sends the real keystroke (`window.typeKey("c", modifierFlags: .primary)`; `.primary` is ⌘ on Apple and
+Control elsewhere) and reads what the window put on its private clipboard: `window.clipboardRepresentations`
+(type identifier and bytes, most preferred first). `window.setClipboard(Graph(…))` and
+`window.setClipboard(text:)` put there what another application copied, replacing everything the clipboard held.
+`window.platformWindow.clipboard` is the text view of the `public.utf8-plain-text` representation, and
+`platformWindow.clipboardCommandRequests` lists the `ClipboardCommands` the window sent. The headless clipboard is
+per window and never touches the machine's; an AppKit test of its own passes a private named `NSPasteboard`.
+
 ## The clock and `runUntilIdle`
 
 Nothing reads a wall clock and no test sleeps. The window's clock (`now`)

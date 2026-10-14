@@ -80,7 +80,7 @@ private let primary: EventModifiers = .control
     return window
 }
 
-private func ids(_ window: TestWindow) -> [String] { window.clipboardRepresentations.map(\.type.identifier) }
+@MainActor private func ids(_ window: TestWindow) -> [String] { window.clipboardRepresentations.map(\.type.identifier) }
 
 /// 1.1 — a focused `copyable` writes its own type first and its text fallback second.
 /// Mutation: write only the first representation, or drop the fallback type from the order.
@@ -341,4 +341,27 @@ private func ids(_ window: TestWindow) -> [String] { window.clipboardRepresentat
     #expect(window.window.clipboard.read(String.self) == "abc")
     window.platformWindow.clipboard = nil
     #expect(window.clipboardRepresentations.isEmpty)
+}
+
+/// 1.11b (divergence 455, `CB-G`) — Paste is enabled by the presence of a destination, not by its
+/// validator: a validator rejecting everything leaves the item enabled and the paste does nothing.
+/// Mutation: `chainClipboardCommands` omits `.paste`.
+@Test @MainActor func thePasteItemIsEnabledByThePresenceOfADestinationNotItsValidator() throws {
+    let m = ClipboardModel()
+    let app = try TestApp(textSystem: harnessTextSystem)
+    app.platform.showsMenuBarNatively = false
+    app.platform.nextWindowOptions = .init(presentsMenusNatively: false)
+    app.app.commands { CommandMenu("Extra") { Button("Noop") {} } }
+    let window = try app.openWindow(size: sz(400, 300)) {
+        VStack(spacing: 0) {
+            square("a").focusable()
+                .pasteDestination(for: Graph.self, action: { m.pasted.append($0) }, validator: { _ in [] })
+        }
+    }
+    window.typeKey(.tab)
+    window.setClipboard(Graph(label: "x"))
+    try window.click(window.element(label: "Edit"))
+    #expect(try window.element(label: "Paste").isEnabled, "enabled by presence")
+    try window.click(window.element(label: "Paste"))
+    #expect(m.pasted.isEmpty, "and the validator declined the paste")
 }

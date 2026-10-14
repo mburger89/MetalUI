@@ -152,7 +152,17 @@ extension Window {
         guard let source = drawnMenuBarSource, lastMenuBarTitleFrames.indices.contains(index) else { return }
         let (menus, toggles) = source.menus()
         guard menus.indices.contains(index) else { return }
-        let editEnabled = focusedElement.flatMap { lastFocusRegistry.textTarget(for: $0) } != nil
+        let hasField = focusedElement.flatMap { lastFocusRegistry.textTarget(for: $0) } != nil
+        let clipboardCommands = chainClipboardCommands   // CB-G: a handler enables its own item
+        func editEnabled(_ action: StandardMenuAction) -> Bool {
+            if hasField { return true }
+            switch action {
+            case .cut: return clipboardCommands.contains(.cut)
+            case .copy: return clipboardCommands.contains(.copy)
+            case .paste: return clipboardCommands.contains(.paste)
+            default: return false
+            }
+        }
         var actions: [Int: MenuItemAction] = [:]
         func adapt(_ items: [PlatformMenuItem]) -> [PlatformMenuItem] {
             items.map { item in
@@ -169,9 +179,10 @@ extension Window {
                     return item
                 }
                 if let action = item.standardAction {
-                    item.isEnabled = editEnabled
+                    let enabled = editEnabled(action)
+                    item.isEnabled = enabled
                     actions[id] = MenuItemAction(run: { [weak self] in self?.deliverStandardEditKey(action) },
-                                                 declaringID: MenuBarStrip.rootID, isEnabled: editEnabled)
+                                                 declaringID: MenuBarStrip.rootID, isEnabled: enabled)
                     return item
                 }
                 switch item.kind {
