@@ -111,6 +111,7 @@ F	image	A	swiftui-shapes-and-rendering.swift	I1	anImageAnswersItsPointSizeAtEver
 F	image-bitmap	M	-	-	-	-	TE-AL	ImageBitmap: the portable stand-in for CGImage (premultiplied RGBA8)
 F	image-decoding	M	-	-	-	138	PX-B PX-C PX-D PX-E	ImageBitmap(contentsOfFile:)/(data:)/(resource:withExtension:subdirectory:bundle:): PNG and JPEG decoded by MetalUI's own decoder (CStbImage) on every platform, identical premultiplied sRGB bytes, colour profiles ignored (138), corrupt input nil; MetalUI-only: SwiftUI's images come from CGImage/NSImage/asset catalogs, and its Image(_:bundle:) reads asset catalogs, not loose files (probe swiftui-bundle-image B0-B9); the resource form decodes once per path
 F	image-decode	M	-	-	-	-	IB-A IB-B IB-C IB-D IB-I IB-J IB-K	DecodedImage (+ ImageBitmap(_:)): PNG/JPEG decoded to straight RGBA8 or 8-bit grey by the one vendored decoder on every platform, width, height, bytesPerRow, the EXIF orientation reported and not applied, applyingOrientation(); SwiftUI has no pixel-level decode API, so MetalUI-only
+F	image-info	M	-	-	-	-	IH-A IH-B IH-C IH-D IH-E IH-F IH-G IH-I IH-J	ImageInfo and DecodedImage.Limits: PNG IHDR / JPEG SOF header read (format, stored size, EXIF orientation, bit depth, channels) with no pixel work, nil for other formats, no size limit of its own; the limited DecodedImage initialisers refuse from the header before the decoder allocates; SwiftUI has no header-only image API, so MetalUI-only
 F	image-orientation-exif	M	-	-	-	-	IB-E	Image.Orientation.init(exifValue:)/exifValue/swapsAxes: the bridge between SwiftUI's own raw values and the EXIF tag 1...8; SwiftUI has no EXIF accessors
 F	image-orientation	A	swiftui-image-orientation.swift	O1	orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip	-	IB-E	Image.Orientation: SwiftUI's eight cases with SwiftUI's raw values (up 0, left 1, upMirrored 2, leftMirrored 3, downMirrored 4, rightMirrored 5, down 6, right 7), CaseIterable, Hashable, Sendable
 F	image-oriented-draw	A	swiftui-image-orientation.swift	O9	orientedPixelsEqualSwiftUIsForAllEight	435	IB-F IB-G IB-K	Image(decorative:scale:orientation:) and Image(_:scale:orientation:label:): a bitmap drawn turned by an Image.Orientation, laid out at the oriented size; orientation has no default (IB-K) so the unoriented inits stay unambiguous
@@ -362,6 +363,7 @@ M	MetalUI	Grid.swift	.*	.*	.*	grid
 M	MetalUI	Image.swift	Image	init	orientation	image-oriented-draw
 M	MetalUI	Image.swift	.*	.*	.*	image
 M	MetalUI	DecodedImage.swift	.*	.*	.*	image-decode
+M	MetalUI	ImageInfo.swift	.*	.*	.*	image-info
 M	MetalUI	ImageOrientation.swift	Image\.Orientation	(init\?|exifValue|swapsAxes)	.*	image-orientation-exif
 M	MetalUI	ImageOrientation.swift	.*	.*	.*	image-orientation
 M	MetalUI	ImageBitmap.swift	ImageBitmap	.*	oriented	image-bitmap-oriented
