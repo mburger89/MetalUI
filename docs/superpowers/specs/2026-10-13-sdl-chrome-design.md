@@ -1,7 +1,7 @@
 # SDL custom window chrome — design
 
 Item S1 (user request 2026-10-02; MetalCreator SDL-port gap 3). Rulings: `../2026-10-13-sdl-chrome-decisions.md`
-(`CW-A`…`CW-L`). Status: designed, not built. Base `fb9a7e42` (3717 tests, 234 guards).
+(`CW-A`…`CW-P`). Status: designed, not built. Base `fb9a7e42` (3717 tests, 234 guards).
 
 ## Goal
 
@@ -67,9 +67,8 @@ Lane 1 (root; no `Backends/SDL` file except the stub conformer lines): `Sources/
 (four members); `Sources/MetalUITesting/HeadlessPlatformWindow.swift`, `TestWindow*.swift`; every root test fake;
 `Sources/MetalUIDemoContent` (new `ChromeDemo.swift`, `METALUI_CHROME_DEMO=1`, own function for the 1 MB stack);
 inventory map and census; docs: `docs/divergences.md`, `docs/api-overview.md`, `docs/migration.md`,
-`docs/guides/cross-platform.md` (replace the two fallback bullets; the guide's mirrored block, if any, is
-re-mirrored by hand, `DG-D`), `docs/verification/human-checks.md` group **CW**, `docs/testing.md` (preset).
-Lane 2 (`Backends/SDL`): `SDLBridge.c`, `SDLBridge.h`, `SDLPlatform.swift` (window members at 950–985),
+`docs/verification/human-checks.md` group **CW**, `docs/testing.md` (preset).
+Lane 2 (`Backends/SDL`; also `docs/guides/cross-platform.md`, CW-P): `SDLBridge.c`, `SDLBridge.h`, `SDLPlatform.swift` (window members at 950–985),
 `Backends/SDL/Tests/MetalUISDLTests/SDLChromeTests.swift`, SDL test fakes, Linux image run.
 
 ## Tests (name — red before — mutation that must redden it)

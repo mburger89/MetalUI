@@ -23,7 +23,7 @@ Evidence:
   regions plus drawn controls on Linux/Windows). SwiftUI has no analogue, so SwiftUI is not the authority
   for anything below beyond `WindowDragGesture`'s spelling (`WD-B`) and `.hiddenTitleBar`.
 
-Next unused: `CW-M`.
+Next unused: `CW-Q`.
 
 ## CW-A — Scope: what is built, what is deferred
 
@@ -126,7 +126,7 @@ carving test and human check CW3 pin it). A blocker over-collected makes a slive
 **Rejected:** a region list from `Window.onInput`'s answer (the same trap `AS-J` found); a pure hit-box
 copy without carving (kills buttons); letting hover block (kills the band under any root hover).
 
-## CW-F — The seam: three defaultless requirements, every conformer answers
+## CW-F — The seam: four defaultless requirements, every conformer answers
 
 **Ruling.** `PlatformWindow` gains, **without defaults** (`HT-X` 1; migration note in `docs/migration.md`):
 1. `func setWindowDragRegions(_ regions: [Rect<Pixels>]) -> Bool` — `true` when the platform uses them
@@ -223,3 +223,43 @@ life; clearing is tested.
 conformer additions are the one cross-lane edit and are made by lane 1 as `fatalError`-free stubs answering
 today's values so `Backends/SDL` builds (`swift build` in `Backends/SDL`), which lane 2 replaces.
 **Cost if wrong.** A lane 2 that finds the seam wrong sends the fix back to lane 1's files.
+
+## CW-M — Critic: units, stale size, and the strip is not a presentation
+
+**Ruling.** (1) `Rect<Pixels>` in `setWindowDragRegions` and `ChromeHitSnapshot` is the **window-coordinate unit
+every other `PlatformWindow` position uses** (`presentMenu(_:at:)`, `Point<Pixels>`), which is SDL's hit-test
+unit (window points, not device pixels); the SDL bridge converts nothing, and a test on a 2x headless window
+pins that a region equals the hitbox rect in that unit. (2) The snapshot's window size is **not** trusted
+between frames: the bridge refreshes the size under the same lock on `SDL_EVENT_WINDOW_RESIZED` (main thread,
+before `Window` rebuilds), so a resize drag never evaluates edges against the old size; test: the C table over a
+resized snapshot. (3) The `$windowcontrols` strip is a `Deferred` root but is **not an open presentation** for
+CW-E's empty-list rule (the rule keys on the popover/menu/alert/sheet registries, never on any `Deferred`);
+its buttons are blockers like any. Pinned by `theStripDoesNotEmptyTheRegions` (mutation: count the strip as a
+presentation). (4) The strip's buttons are focusable and sit **last in `tabOrder`**, so Tab reaches content
+first and the order of existing windows is unmoved (the strip exists only on a hidden-style SDL window).
+**Cost if wrong.** (3) wrong makes the band undraggable whenever controls draw, i.e. always.
+
+## CW-N — Critic: platform claims that are reads, not runs
+
+**Ruling.** CW-I's Windows claim (`HTCAPTION` double-click maximise on a borderless SDL window) and CW-B's
+"title bar pixels lost, client keeps size" are **SDL source reads, unmeasured**; a borderless Windows window may
+lack the maximise box, so `performWindowAction(.toggleZoom)` is the only path that is promised, and the
+double-click is promised nowhere until CW6 runs. `docs/guides/cross-platform.md` states only what the Linux
+image and the headless pins measured. Windows `HTCAPTION` also yields the system menu on a right press inside a
+region (divergence 425's family; CW5).
+
+## CW-O — Critic: a deterministic thread pin
+
+**Ruling.** `aConcurrentPublishNeverTearsAnAnswer` alone cannot be relied on to be red (a race). The pins that
+must redden are deterministic: a bridge counter of `lock`/`unlock` pairs around publish and around the
+callback's copy (mutation: remove the lock calls, the counter test reddens), plus the C-versus-Swift table. The
+two-thread test stays as a smoke run and is not counted as a mutation killer.
+
+## CW-P — Critic: lanes and file ownership
+
+**Ruling.** Lane 1 is large but its files are one seam; it is not split (a split would share `Window`). The
+cross-platform guide, `docs/guides/cross-platform.md`, is **lane 2's** (it states SDL behaviour only after the
+Linux run; the earlier spec text listing it under lane 1 is superseded); lane 1 owns divergences, api-overview,
+migration, testing.md, human checks group CW. The demo section is added to the one-megabyte-stack composer
+test's table in the same change (`everyProductionTreeBuildsOnAOneMegabyteThread`), and `Handlers`, `StateTable`
+slots and hit testing stay unmoved (the carve reads the hitbox list only).
