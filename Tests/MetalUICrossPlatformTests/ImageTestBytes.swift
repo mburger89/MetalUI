@@ -65,11 +65,18 @@ func makePNG(width: Int, height: Int, bitDepth: UInt8, colorType: UInt8, rows: [
 /// A TIFF block with one IFD0. Entries are `(tag, type, count, four value bytes in file order)`.
 func tiffBlock(bigEndian: Bool, entries: [(tag: UInt16, type: UInt16, count: UInt32, value: [UInt8])],
                ifdOffset: UInt32 = 8, entryCount: UInt16? = nil, nextIFD: UInt32 = 0) -> [UInt8] {
-    let u16: (UInt16) -> [UInt8] = bigEndian ? be16 : le16
-    let u32: (UInt32) -> [UInt8] = bigEndian ? be32 : le32
-    var out: [UInt8] = (bigEndian ? [0x4D, 0x4D, 0, 0x2A] : [0x49, 0x49, 0x2A, 0]) + u32(ifdOffset)
+    let u16: (UInt16) -> [UInt8] = { bigEndian ? be16($0) : le16($0) }
+    let u32: (UInt32) -> [UInt8] = { bigEndian ? be32($0) : le32($0) }
+    let order: [UInt8] = bigEndian ? [0x4D, 0x4D, 0, 0x2A] : [0x49, 0x49, 0x2A, 0]
+    var out: [UInt8] = order
+    out += u32(ifdOffset)
     out += u16(entryCount ?? UInt16(entries.count))
-    for e in entries { out += u16(e.tag) + u16(e.type) + u32(e.count) + e.value }
+    for e in entries {
+        out += u16(e.tag)
+        out += u16(e.type)
+        out += u32(e.count)
+        out += e.value
+    }
     return out + u32(nextIFD)
 }
 
