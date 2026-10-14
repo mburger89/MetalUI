@@ -22,3 +22,13 @@ baseline): `.value` 6.377, `.environment` 7.532, `.panels` 6.623 ms per drag fra
 
 What the probe does **not** measure: the `StateTable` journal's re-application, the element payload problem (`RK-B`), id remapping
 of the `hiddenNodes`/`lowering` records, or the signature rows. Lane 2's step 1 re-takes it with the journal included (`RK-J`).
+
+
+## Prepaint replay A/B (lane 1, `RK-J` gate, `RK-W`)
+
+`zsh docs/probes/perf-baselines.sh release bracketab` (and `debug --quick bracketab`) runs the bracket node drag (`.value` and `.panels`) with
+prepaint replay **off** (`METALUI_RETAINED_PREPAINT=0`, read when each window is made) and **on**, alternating inside one process for eight
+rounds of fourteen drags, so the two arms see the same machine; it prints each arm's median and minimum drag frame in wall and thread-CPU
+milliseconds and the last frame's work line (now with `elementRequests`, `elementPrepaints`, `skippedPrepaints`, `prepaintHits`,
+`prepaintIneligible`, `redos`, `translated`). A cross-process comparison against `fb9a7e42` is `git archive fb9a7e42 | tar -x -C <dir>` and
+the same script from there; on this shared Mac it moved by 2 ms between runs, which is why the in-process alternation is the reading.

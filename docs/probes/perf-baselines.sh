@@ -1,7 +1,8 @@
 #!/bin/zsh
 # Re-takes record 105's timed figures (BL-A). Usage:
 #   zsh docs/probes/perf-baselines.sh [release|debug] [--quick] [scenario]
-# scenario: all (default), tree, demo, list, drag, bracket (C14b's node drag, three arms; the layout-only shapes run with every call).
+# scenario: all (default), tree, demo, list, drag, bracket (C14b's node drag, three arms; the layout-only shapes run with every call),
+#   bracketab (C14b-2: the node drag with prepaint replay off and on alternating in one process, METALUI_RETAINED_PREPAINT=0/1).
 # Builds the public-API harness docs/probes/perf-harness against this checkout
 # (through a symlink named MetalUI so the package identity resolves) in a scratch
 # directory (kept between runs for the build cache; METALUI_PERF_SCRATCH overrides), runs it, and prints the machine line plus TSV measurements. Wall
