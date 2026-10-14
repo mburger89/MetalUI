@@ -1,8 +1,8 @@
 # Hot paths - decisions
 
-Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-J`.**
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-K`.**
 Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
-`../record/111-hot-paths.md` (Record phase). Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
+`../record/111-hot-paths.md`. Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
 reserved 415-424: none taken (none yet).
 
 Sources of truth. SwiftUI: none claimed (no public API, no visible behaviour). gpui (recalled, not read
@@ -129,3 +129,12 @@ instead of a freshly allocated `[UInt32]` per lookup. A miss costs two probes (f
 (test 18, 500 random affines). **Evidence.** Mutations in record 111 §3. **Cost if wrong.** A stamp that
 fails to move leaves a stale entry for one extra frame (memory only); a hash fold that omits a component
 only slows a probe, never a wrong raster (`==` compares fields).
+
+## HP-J - Record phase: every component of every memo key is pinned, plain and rich
+
+**Question.** The verifier zeroed `StyledKey.y` and nothing reddened: is "the shipped key is correct" enough? **Ruling.** No: a
+cache key is pinned per component where it is built. `aRichTextPlacementMemoKeyHoldsXAndYAndScale` places one
+`StyledShapedText` at origins differing in only `y`, only `x`, only scale and asserts a recompute and moved glyphs each time. The
+plain key's components were pinned already (`aChangedFractionalOriginOrScaleRecomputesPlacement`); the requested `FontKey` in the
+plain key is covered by the oracle comparison only (named, not mutation-pinned). **Cost if wrong.** A rich `Text` scrolled
+vertically draws at its previous position. Record 111 s7.

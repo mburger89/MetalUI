@@ -75,7 +75,8 @@ summary.
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
   `2026-10-13-incremental-invalidation-decisions.md`, next `IV-R`), `SB-` (retained subtrees:
-  `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), …; the full
+  `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `HP-` (hot paths:
+  `2026-10-13-hot-paths-decisions.md`, next `HP-K`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -110,6 +111,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-14, `perf/hot-paths` from `fb9a7e42`: 3737 tests, 0 goldens, 235 typecheck guards** (3717 + 20 tests, 234 + guard HP.1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; no public declaration, census 3511 unmoved, inventory and undocumented scripts print nothing; no divergence label taken; the fourteen images 0 px against `fb9a7e42`; `Backends/SDL` 30 + 122 and the root portable tests passed in the Linux image; record §111 §4). Before it,
 - **Counts (2026-10-13, `perf/retained-subtrees` from `e85cb07a`: 3717 tests, 0 goldens, 234 typecheck guards** (3675 + 42 tests, 232 + the two of `RetainedSubtreeCompileGuards.swift`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; also 3708 passed with `AppKitPresentationTests` skipped, and under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1`; census 3511; the fourteen images 0 px against `e85cb07a`; no divergence label taken; record §109 §6, §13). Before it,
 - **Counts (2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107), then `aa42fbc8` (§108 `frame(ofID:)`): 3675 tests, 0 goldens, 232 typecheck guards** (master's 3643 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; re-measured by the orchestrator on the merged tree, record §104 §6). Before it, at `d279f34d`'s merge:
   **(2026-10-13, `perf/incremental-invalidation` from `f6f865c1`, merged with master `d279f34d` (§101, §103, §105-§107): 3654 tests run + 9 skipped (3663 expected unfiltered), 0 goldens, 232 typecheck guards** (master's 3631 + the branch's 32 tests (baseline +1, lane 1 +16, lane 2 +15), 229 + 3 guards 1.13, 2.11a, 2.11b; `swift package clean`, native run on a **locked screen with `AppKitPresentationTests` skipped** because its `NSOpenPanel.init()` hangs there, 0 recorded issues, 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; census 3492 re-recorded after the merge; inventory and undocumented scripts print nothing; divergence 346 added, 152 live; the fourteen images 0 px against `f6f865c1` at the lanes, not re-taken after the merge; record §104 §6). Before it,
@@ -842,6 +844,19 @@ leaves; `METALUI_VERIFY_LAYOUT_MEMO=1` covers it. Carried together (`SB-AE`): th
 prepaint replay and the build skip. Measured on the bracket fixture (`BracketFixture.swift`, node drag): element paints 1084 -> 178 per
 frame, release median -18 %, debug -14 %; **pins count work, never time**. A new `Frame` site that pushes paint-only ambient owes a
 field in `AmbientKey`. The demo is `METALUI_RETAINED_DEMO=1`.
+
+**Hot paths (`HP-`, record §111).** P1, value-identical, no public API, no divergence: every change leaves the fourteen images
+0 px and every work counter equal. CoreText placement is cached **per `ShapedText`** in a `PlacementBox` (runs read once; the
+finished `[PlacedGlyph]` and the rich layout memoised by origin x/y, scale and requested font as bit patterns — a key missing a
+component draws stale glyphs, pinned per component for plain and rich); `GlyphRaster.subpixelPlacement` stays the one rule (PT-C),
+run on a miss. `GlyphKey` and `RasterKey` store a hash folded by their initialisers/`add…` (bijections, `==` still compares fields;
+`MetalUIScene` stays Foundation-free); a raster hit is one probe; a `LocalizedStringKey` literal parses once per process
+(`MarkdownContentTable`, lock-guarded). Settled animation paths return before allocating (`inFlight` empty and every value
+bit-equal; NaN and -0.0 take the old path). **A closure passed from `@MainActor` code to a stdlib generic costs a dynamic
+isolation check per call: a hot loop uses a plain loop or a nonisolated function** (`HP-C`, `HP-I`). Counters are read-backs
+(`PlacementBox`, `AnimationStore.borderKeyBuilds`/`numberTrackRebuilds`, `RasterCache.keyProbes`), pins count work. Carried:
+`Frame.swift` hot sites and `RetainedSubtree` (C14b-2), layout pre-sizing, `measureNative` hashing, `ForEach` (P2), path-raster
+clip key and R8 coverage (P3: pixels and shaders).
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);

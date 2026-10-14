@@ -1564,6 +1564,20 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
   C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
 
+## HP. Hot paths — text and shadows look the same (item P1, user request 2026-10-02, not a plan task; record §111)
+
+*An agent cannot: the fourteen offscreen images are 0 px against `fb9a7e42`; a real display, a scale change and an eye are a person's.*
+
+- [ ] **HP1.** Text placement is unchanged in a real window at 1x and 2x: `swift run -c release MetalUIDemo`, compare
+  against a `fb9a7e42` build side by side: paragraphs, mixed-script lines and the rich-text section sit on the same
+  device pixels, no glyph a pixel off, no clipped or doubled glyph while the window resizes (the placement memo keys on
+  origin, scale and font, `HP-A`, `HP-H`). **Observed:**
+- [ ] **HP2.** Scrolling a list and panning a shadowed container keep text and shadows sharp and stationary relative to
+  their rows: fractional scroll offsets (trackpad) never leave a stale glyph position (`HP-A` key x/y; the rich-text
+  y component is pinned, record §111 s7). **Observed:**
+- [ ] **HP3.** A border width, an opacity and a frame still animate smoothly and settle exactly (hover a bordered
+  control, toggle a transition): the early-outs return only when nothing is in flight (`HP-C`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

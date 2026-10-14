@@ -3,9 +3,11 @@
 Item P1 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**). Prefix `HP-`.
 Rulings: [`../2026-10-13-hot-paths-decisions.md`](../2026-10-13-hot-paths-decisions.md). Branch
 `perf/hot-paths` from `fb9a7e42`. Divergence labels reserved 415-424: **none taken** (no public API,
-nothing SwiftUI-visible). Record `docs/record/111-hot-paths.md` (Record phase). Profile:
+nothing SwiftUI-visible). Record `docs/record/111-hot-paths.md` . Profile:
 `/private/tmp/claude-501/profiling/REPORT.md`; scratch patch `docs/probes/hot-paths/experiments-E1-E2-E3.patch`
 (a starting point; it passed scene checksums only).
+
+**Status: BUILT (record 111), two lanes verified ok; section 7 is the carried list.**
 
 ## 0. Contract
 
