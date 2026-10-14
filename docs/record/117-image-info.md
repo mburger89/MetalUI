@@ -31,6 +31,11 @@ Green: the 18 `ImageInfoTests` tests, guard `theHeaderSurfaceIsReachableAndTheWa
 5 issues, exactly the five `AppKitPresentationTests` sheet issues of a locked screen, 0 `error:`, the only `warning:`
 SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`.
 
+After merging master `34491ff4` (§114; no record numbered 117 there, no renumbering): `swift package clean`, native build and
+unfiltered run re-taken, **3823 tests in 3 suites** (3803 + 20), the same five locked-screen sheet issues, 0 `error:`, guards
+238 + 1 = 239, census 3592 unmoved, inventory and undocumented scripts print nothing. The fourteen offscreen images were 0 px
+against `ceca59f6` (verifier, before the merge; the merge touches only `Backends/SDL`).
+
 ## 4 Mutations (each applied to the spelling named, one at a time, tree restored, `git status` clean after each)
 
 Run on the **filtered family** (`ImageInfoTests|DecodedImageTests|ImageEXIFTests|ImageDecodingTests|theHeaderSurface|
@@ -73,4 +78,4 @@ nothing.
 ## 6 Carried
 
 Cancellation of an in-range decode (`IH-K`); `ImageBitmap(data:limits:)` (`IH-L`); ImageIO-backed info for other
-formats (`IH-B`); `hasAlpha` (`IH-C`). CLAUDE.md/README/record index are the Record phase's.
+formats (`IH-B`); `hasAlpha` (`IH-C`). 

@@ -79,7 +79,8 @@ summary.
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
-  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-R`), …; the full
+  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-R`), `IH-` (header-only image read and bounded decode:
+  `2026-10-14-image-info-decisions.md`, next `IH-Q`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -114,6 +115,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
+- **Counts (2026-10-14, `feat/image-info` from `ceca59f6`, merged with master `34491ff4` (§114 SDL GPU for apps): 3823 tests, 0 goldens, 239 typecheck guards** (master's 3803 + 20 tests, 238 + guard G-IH1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, `FR-J no-argument frame: succeeded=true`; census 3592 unmoved by the merge; inventory and undocumented scripts print nothing; the fourteen images 0 px against `ceca59f6`; no divergence label taken; `Backends/SDL` untouched; record §117 §3). Before it,
 - **Counts (2026-10-14, `feat/sdl-gpu-compute` from `fb9a7e42`, merged with master `a4ebe288` (§112 §11 depth-ranked carving): 3803 tests, 0 goldens, 238 typecheck guards** (master's, unchanged: the branch adds `Backends/SDL` tests only; re-measured by the orchestrator on the merged tree, record §114). Before it,
   **(2026-10-14, `feat/sdl-gpu-compute` from `fb9a7e42`, merged with master `ceca59f6` (§111 hot paths, §112 SDL chrome, §113 image decoding): 3799 tests, 0 goldens, 238 typecheck guards** (master's, unchanged: the branch adds 27 `Backends/SDL` tests and no root test or guard; `swift package clean`, native build 0 `error:`, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 152 tests in 4 suites on macOS at lane 2's head, 149 in `swift:6.4-noble` on lavapipe; inventory and undocumented scripts print nothing, census unmoved; the fourteen images 0 px against `fb9a7e42`; no divergence label taken; Windows and real hardware not run, human checks group `GA`; record §114). Before it,
   **(2026-10-14, `fix/chrome-regions-depth` from `ceca59f6`: 3803 tests, 0 goldens, 238 typecheck guards** (3799 + 4 tests, no guard; `swift package clean`, native unfiltered run on an unlocked screen all passed, 0 `error:`, `FR-J no-argument frame: succeeded=true`, default build 0 warnings; no public declaration; divergence 425 amended; record §112 §11). Before it,
@@ -1203,6 +1205,18 @@ apply it**: `applyingOrientation()` or `Image(…orientation:)` (no default, `IB
 `ImageBitmap.oriented(_:)`, one cached texture per orientation, `.up` the same bitmap; `ImageBitmap(data:)` keeps
 the stored pixels, unlike SwiftUI's `NSImage` route (divergence 435, `IB-G`). `Image.Orientation` has SwiftUI's
 raw values. No C, shader or `ImageTexture` change; a new reader of the file bytes stays Foundation-free.
+
+**Header-only image read and bounded decode (`IH-`, record §117).** `ImageInfo(data:)`/`(contentsOfFile:)` (MetalUI-only,
+class `M`, no divergence) reads a PNG's IHDR (length 13, CRC, legal colour/depth pairs) or a JPEG's first SOF (all thirteen
+dimension-bearing markers, never DHT/DAC) plus the EXIF orientation: `format`, stored size, `orientation`, `bitDepth`,
+`channelCount`, `orientedSize`; PNG and JPEG only, anything else or a damaged header is `nil`, no pixel work, no stb, no limit
+of its own (`IH-A`…`IH-C`). **One header walk** (`ImageHeader.swift`) serves `ImageInfo`, `DecodedImage` and `ImageEXIF`'s two
+wrappers (`IH-H`); the file form seeks over the pixels through one 64 KiB window and refuses non-regular files (`IH-M`, `IH-O`).
+`DecodedImage.Limits(maxInputBytes:maxSide:maxPixels:)` (all optional, inclusive) with the two `limits:` initialisers refuses
+from the header **before stb allocates** (an overflowing product is a refusal, `IH-N`); **`decodeImage` refuses a stb size that
+disagrees with the header** (`IH-I`), so the unlimited init is `nil` on a header it cannot read. A JPEG damaged after its first
+SOF still answers `ImageInfo` (`IH-P`). Cancellation is not built (`IH-K`); `ImageBitmap` is untouched (`IH-L`). A new reader of
+image bytes goes through the one walk; `HeaderSource` stays unreachable (guard G-IH1).
 
 **Observation off the main thread (`RU-`, record §106).** `Window.markDirtyFromObservation` recognises
 the flush's own sentinel `onChange` by **thread** (`Window.flushingThread`, set around the sentinel

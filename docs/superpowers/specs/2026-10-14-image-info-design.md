@@ -5,7 +5,7 @@ Item S9 of the gpui-gap priority list (user request 2026-10-02; not a plan task)
 (`IH-`). Record: `../../record/117-image-info.md` (Record phase). Branch `feat/image-info` from `ceca59f6`.
 Divergence labels reserved 475–484: **none taken** (everything is class `M`; SwiftUI has no such API).
 
-**Status: DESIGNED. One lane.**
+**Status: BUILT, verified `ok`, merged-ready (record 117). One lane.**
 
 ## 1 What exists and what is missing
 
