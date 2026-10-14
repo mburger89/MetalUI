@@ -183,6 +183,7 @@ private func glyphKey(font: FontKey, glyph: UInt16 = 42, size: Double = 13, vari
         _ = system.measure(t, wrappingAt: 90, options: options)
     }
     #expect(box.placementsComputed == 1, "\(box.placementsComputed) placements for one steady origin")
+    #expect(box.layoutsBuilt == 1, "\(box.layoutsBuilt) layouts built for one steady origin")
     #expect(system.cache.misses == misses, "a steady frame shaped again")
     _ = system.layOut(t, wrappingAt: 90, options: options, origin: (x: 4.5, y: 6), scaleFactor: 2)
     #expect(box.placementsComputed == 2)

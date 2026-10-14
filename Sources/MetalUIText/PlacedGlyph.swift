@@ -66,6 +66,8 @@ final class PlacementBox {
     var placementsComputed = 0
     /// `GlyphKey`s built.
     var keysBuilt = 0
+    /// Times a finished `StyledTextLayout` was built from the placed glyphs.
+    var layoutsBuilt = 0
     /// Every line's runs, read once, for the font in `linesFont`.
     var lines: [[Run]]?
     var linesFont: FontKey?

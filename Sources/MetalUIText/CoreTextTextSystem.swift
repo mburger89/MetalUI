@@ -96,6 +96,7 @@ public final class CoreTextTextSystem: TextSystem {
         // `layout` is nil whenever `placed` was just recomputed; `layoutOwner` is the system whose
         // `placedFonts` the glyphs' fonts were registered in.
         if let layout = box.layout, box.layoutOwner === self { return layout }
+        box.layoutsBuilt += 1
         var glyphs: [StyledGlyph] = []
         glyphs.reserveCapacity(placed.glyphs.count)
         for (glyph, run) in placed.glyphs {
