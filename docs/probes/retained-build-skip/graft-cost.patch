@@ -1,0 +1,80 @@
+diff --git a/Sources/MetalUI/EquatableComponent.swift b/Sources/MetalUI/EquatableComponent.swift
+index 52f3c4fc..ace26cf7 100644
+--- a/Sources/MetalUI/EquatableComponent.swift
++++ b/Sources/MetalUI/EquatableComponent.swift
+@@ -55,6 +55,9 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
+         // getter that reads an `@Observable` invalidates this occurrence's record.
+         let observed = entry.needsObservation
+         let evaluationsBefore = store.evaluationsSoFar
++        let expLow = frame.tree.nodeCount
++        RKExperiment.depth += 1
++        let expT0 = DispatchTime.now().uptimeNanoseconds
+         let result: ([LayoutNodeID], ComponentLayout<C>)
+         if observed {
+             result = entry.buildSession.run(entry: entry, store: store) {
+@@ -65,7 +68,19 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
+         }
+         // A descendant whose content ran this frame may have changed what the record holds, though this
+         // occurrence's own windows never saw its reads (it was skipped when they were open): no replay.
++        let expT1 = DispatchTime.now().uptimeNanoseconds
++        RKExperiment.depth -= 1
+         if store.evaluationsSoFar != evaluationsBefore { entry.observedChange = true }
++        if RKExperiment.on {
++            let scratch = RKExperiment.scratch
++            let g0 = DispatchTime.now().uptimeNanoseconds
++            frame.tree.experimentGraftCost(range: expLow..<frame.tree.nodeCount, into: scratch)
++            let g1 = DispatchTime.now().uptimeNanoseconds
++            if RKExperiment.depth == 0 {
++                if RKExperiment.lastFrame != ObjectIdentifier(frame) { RKExperiment.lastFrame = ObjectIdentifier(frame); RKExperiment.frames += 1 }
++                RKExperiment.note(nodes: frame.tree.nodeCount - expLow, build: expT1 - expT0, graft: g1 - g0)
++            }
++        }
+         // The subtree placement memo (`SB-AD`) restores these roots' rects where they stand.
+         for node in result.0 { frame.tree.markPlacementRoot(node) }
+         result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed)
+@@ -145,3 +160,20 @@ extension Component where Self: Equatable {
+         EquatableComponent(component: self)
+     }
+ }
++
++
++import Foundation
++@MainActor enum RKExperiment {
++    static var scratch = LayoutTree(generation: 1)
++    static var calls = 0, nodes = 0, build: UInt64 = 0, graft: UInt64 = 0
++    static var registered = false
++    static var depth = 0
++    static var frames = 0
++    static var lastFrame: ObjectIdentifier?
++    static let on = ProcessInfo.processInfo.environment["RK_EXPERIMENT"] != nil
++    static func note(nodes n: Int, build b: UInt64, graft g: UInt64) {
++        if !registered { registered = true; atexit { print("RK_EXPERIMENT frames=\(RKExperiment.frames) calls=\(RKExperiment.calls) nodes=\(RKExperiment.nodes) buildMs=\(Double(RKExperiment.build)/1e6) graftMs=\(Double(RKExperiment.graft)/1e6)") } }
++        calls += 1; nodes += n; build += b; graft += g
++        if scratch.nodeCount > 20000 { scratch = LayoutTree(generation: 1) }
++    }
++}
+diff --git a/Sources/MetalUILayout/LayoutTree.swift b/Sources/MetalUILayout/LayoutTree.swift
+index 4d8b91a1..2a03d059 100644
+--- a/Sources/MetalUILayout/LayoutTree.swift
++++ b/Sources/MetalUILayout/LayoutTree.swift
+@@ -70,6 +70,20 @@ public final class LayoutTree {
+     /// retained `.equatable()` occurrences. Indices of this tree; a fresh tree starts empty.
+     private var placementRoots: Set<Int> = []
+ 
++    /// EXPERIMENT (RK-A): the cost of grafting rows [lo, hi) into a scratch tree: every per-node table a build fills.
++    package func experimentGraftCost(range: Range<Int>, into dest: LayoutTree) {
++        let shift = dest.childLists.count - range.lowerBound
++        for i in range {
++            dest.childLists.append(childLists[i].map { LayoutNodeID(generation: dest.generation, index: $0.index + shift) })
++            dest.layouts.append(layouts[i])
++            dest.measuredWidths.append(measuredWidths[i])
++            if let n = nativeNodes[i] { dest.nativeNodes[i + shift] = n }
++            if let k = leafKeys[i] { dest.leafKeys[i + shift] = k }
++            if let a = spacerAxes[i] { dest.spacerAxes[i + shift] = a }
++            if let p = nativeParents[i] { dest.nativeParents[i + shift] = p + shift }
++        }
++    }
++
+     /// Marks `id` as a subtree-placement root (`SB-AD`). Harmless without a memo.
+     package func markPlacementRoot(_ id: LayoutNodeID) {
+         placementRoots.insert(slot(id))
