@@ -395,6 +395,9 @@ extension EnvironmentValues {
     /// non-zero count makes a retained subtree ineligible (`SB-G`).
     var customKeyCount: Int { custom.count }
 
+    /// STUB.
+    var uncomparableCustomCount: Int { 0 }
+
     /// The fingerprint of the built-in fields.
     var retainedFingerprint: EnvironmentFingerprint {
         EnvironmentFingerprint(

@@ -310,3 +310,26 @@ func theEnvironmentsPublicWritersCompileFromOutsideTheModule() throws {
     #expect(result.succeeded,
             "every public environment writer must compile outside the module:\n\(result.output)")
 }
+
+
+/// **G1 (C14-c, `EE-C`) — an environment probe cannot be read outside the module.** `Environment`'s probe and
+/// `EnvironmentReading` are internal: no new public declaration. Mutation: `probe` made `public` reddens the
+/// first half (the member resolves); `EnvironmentReading` made `public` reddens the second.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func anEnvironmentProbeCannotBeReadOutsideTheModule() throws {
+    let member = try typecheckFile("""
+        @MainActor
+        func read(_ e: Environment<ColorScheme>) {
+            _ = e.probe(EnvironmentValues())
+        }
+        """, importing: "MetalUI")
+    #expect(!member.succeeded, "`Environment.probe` must not be spellable outside the module:\n\(member.output)")
+    #expect(member.messages.contains("has no member 'probe'"), "rejected, but not for the member:\n\(member.output)")
+
+    let type = try typecheckFile("""
+        func read(_ r: EnvironmentReading) {}
+        """, importing: "MetalUI")
+    #expect(!type.succeeded, "`EnvironmentReading` must not be visible outside the module:\n\(type.output)")
+    #expect(type.messages.contains("cannot find type 'EnvironmentReading'"),
+            "rejected, but not for the type:\n\(type.output)")
+}
