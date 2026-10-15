@@ -6,7 +6,7 @@ Rulings: [`../2026-10-14-layout-allocations-decisions.md`](../2026-10-14-layout-
 Record: `../../record/119-layout-allocations.md` (Record phase). Branch `perf/layout-allocations` from `6273e3a4`.
 Divergence labels reserved 495–504: **none taken**. No public declaration, no inventory row, no human check.
 
-**Status: DESIGNED, not built. Two lanes.**
+**Status: LANDED (two lanes verified `ok`; record §119, merged with master `298c23d4`). Spec text below is as designed; the rulings `PA-N`…`PA-R` record where the build differed (PA-K kept, floor-corrected pins, `mark` bounded at one debug event).**
 
 ## 1 Re-measure at 6273e3a4 (2026-10-14, release, headless, load average 10–25 on the shared Mac)
 
