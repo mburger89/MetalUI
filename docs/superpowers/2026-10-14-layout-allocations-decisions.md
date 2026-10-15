@@ -6,7 +6,7 @@ Record: `../record/119-layout-allocations.md`. Branch `perf/layout-allocations` 
 reserved 495–504: none taken. No SwiftUI-facing claim is made (no probe owed, `PA-B`); gpui not consulted (its allocator
 is Rust's, not comparable).
 
-**Next unused id: `PA-N`.**
+**Next unused id: `PA-Q`.**
 
 ## PA-A — Order by the re-measured share, and claim allocations, not time
 
@@ -131,6 +131,43 @@ declared under `#if os(macOS)`, so Linux/Windows CI still build `MetalUILayoutTe
 was corrected: `LayoutLeafKeys.swift` is in `Sources/MetalUI` (lane 2), not `MetalUILayout`. Test-5 mutation claims that
 named a second test unmeasured are softened to "named at lane time".
 **Cost if wrong.** None beyond the measured claims.
+
+## PA-N — `PA-K` is kept: the folded hash measured at least 1 % on every scenario, counters equal
+
+**Ruling.** `NativeMeasurementKey` and `LayoutMemo.MeasureKey` hash one folded word (`ProposedSize.foldedHashWord`:
+`-0.0` is `0.0`, a `nil` axis its own word; the id's index; the signature's two mixed words); `==` stays the
+synthesized, complete one. A/B alternated five times each, release, headless, no `PROF_ALLOC`, medians with spread,
+lane head (L1-L4) against lane head + `PA-K`, 2026-10-14, load average 43-44 / 28-34 / 24-28 (`uptime`, in
+`docs/probes/layout-allocations/ab-pak-keep-2026-10-14.txt`): demo 1.053 [1.020-1.063] -> 0.994 [0.943-1.010] ms
+(-5.6 %), list-fixed 0.675 [0.658-0.692] -> 0.650 [0.647-0.651] (-3.7 %), bracket-orbit 2.497 [2.377-2.524] -> 2.393
+[2.274-2.429] (-4.2 %); demo and list-fixed ranges do not overlap. `run.cache` is not reserved from the previous run
+(unmeasured, no gain claimed).
+**Cost if wrong.** A collision falls back to `==`; verify mode reads every memo hit. Pinned by
+`equalMeasureKeysHashEqualAndNilIsNotZero` (equal keys hash equal over 81 proposals, 64 distinct hashes).
+
+## PA-O — Debug builds allocate per `for-in` turn: an allocation pin subtracts the bare loop
+
+**Question.** `roundingStoredRectsAllocatesNothingPerNode` over a 50- and a 500-leaf stack read 100 and 1000 after the
+fix (2 events a node).
+**Ruling.** A debug build of this toolchain allocates twice per iteration of a `for-in` over an array (a bare
+`for id in ids { _ = tree.layout(id) }` over 100 ids reads 200; `roundedRect` alone in a loop reads 200 for 100 turns);
+the rounding pass has exactly one such loop (the root's children). The pin therefore counts the pass **and a floor** (the
+same loop doing the same per-child calls, no rounding) at both sizes and requires the **floor-corrected difference** to be
+0: before the fix 304 vs 3004 (the array per node added 4 events a node), after it the floor accounts for all of it.
+The counter's positive control is a floor (`>= 15` for 16 mallocs against 1), because a debug build logs more than one
+event per `malloc`; its separating arm (1000 allocations on another thread) reads under 100.
+**Cost if wrong.** A toolchain that stops allocating in loops moves the floor and the pass together: the difference is
+unaffected.
+
+## PA-P — The stack solve stays equal by differential, against a test-local copy of the 6273e3a4 algorithm
+
+**Ruling.** `aStackWithEqualPrioritiesSolvesLikeTheReference` models leaves, `layoutPriority` wrappers, the run cache and
+the four counters in a test-local copy of the old `solveLinearStack` over 360 cases (2 axes, spacing nil/0/4.5/0.1, main
+nil/0/100/37.3/inf, 1/2/7 children, two- and three-level priorities, one level of wrapped children); it passed against the
+old algorithm before the rewrite (so it is a differential for the fast path, not a red-first pin) and compares size, the
+order of leaf measurements, `measureCalls`, `cacheHits`, `cacheMisses` and `memoHits`.
+**Cost if wrong.** A case the corpus lacks (a spacer, nested stacks): the existing `NativeLayoutWorkTests`, `NativeStackDistributionTests`
+and the demo determinism pin cover those and read unchanged.
 
 ## Carried
 
