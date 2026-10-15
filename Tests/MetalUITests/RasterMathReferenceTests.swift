@@ -123,3 +123,33 @@ private let rects = [RasterRect(x: 0, y: 0, width: 1, height: 1), RasterRect(x: 
     #expect(multiplies == 0 && scales == 0 && crops == 0,
             "differing: multiply \(multiplies), scale \(scales), crop \(crops)")
 }
+
+/// **T6** (`PN-D`). `RasterCache.tint` skips the 8-byte words of zero coverage
+/// and is byte for byte the reference loop on sparse masks: zero runs, tails
+/// of 1–7 bytes, a lone alpha of 1 and of 255 at every offset of a word, and
+/// all-zero masks. Mutations: an off-by-one in the tail; treating alpha 1 as
+/// zero.
+@Test func tintSkippingZeroWordsIsByteForByteTheReferenceLoop() {
+    let colours = [Hsla(h: 0.6, s: 0.8, l: 0.5, a: 1), Hsla(h: 0.1, s: 0.5, l: 0.3, a: 0.33)]
+    var cases: [AlphaMask] = []
+    for width in [1, 7, 8, 9, 15, 16, 17, 23, 64, 67] {
+        let rect = RasterRect(x: 0, y: 0, width: width, height: 1)
+        cases.append(AlphaMask(rect: rect, alpha: [UInt8](repeating: 0, count: width)))
+        for position in 0..<width {
+            for value: UInt8 in [1, 255] {
+                var alpha = [UInt8](repeating: 0, count: width)
+                alpha[position] = value
+                cases.append(AlphaMask(rect: rect, alpha: alpha))
+            }
+        }
+    }
+    cases.append(AlphaMask(rect: RasterRect(x: 3, y: 4, width: 13, height: 5),
+                           alpha: (0..<65).map { $0 % 11 == 0 ? UInt8($0) : 0 }))
+    var differing = 0
+    for mask in cases {
+        for colour in colours where RasterCache.tint(mask, color: colour).pixels != Reference.tint(mask, color: colour) {
+            differing += 1
+        }
+    }
+    #expect(differing == 0, "\(differing) of \(cases.count * colours.count) sparse tints differ from the reference")
+}

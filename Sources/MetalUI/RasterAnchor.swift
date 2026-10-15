@@ -61,6 +61,32 @@ struct RasterAnchor {
                   map: Affine2D(a: full.a, b: full.b, c: full.c, d: full.d, tx: d.x - fx, ty: d.y - fy))
     }
 
+    /// The largest extent, in device pixels, a path is rasterized over instead
+    /// of being cut by its clip (`PN-B`).
+    static let overscanLimit = 1 << 20
+
+    /// A path's conservative device extent under `outer`: its bounds (the
+    /// miter pad included) grown by one pixel.
+    static func pathExtent(_ paint: PathPaint, outer: Affine2D) -> RasterRect {
+        var box = ExtentBox()
+        box.add(outer.boundingBox(of: paint.bounds))
+        return box.rect(grownBy: 1)
+    }
+
+    /// This anchor made `.uncut` for a raster over `extent` instead of `clip`
+    /// (`PN-A`, `PN-B`), or `nil` when the clip does not cut, the anchor is a
+    /// local mask's, `extent` misses `clip` (the cut raster is empty and draws
+    /// nothing), exceeds ``overscanLimit`` or leaves `target` by more than
+    /// half its size on any side.
+    func overscanned(extent: RasterRect, clip: RasterRect, target: RasterRect) -> RasterAnchor? {
+        guard mode == .cut, !extent.isEmpty, !extent.intersection(clip).isEmpty,
+              extent.width <= RasterAnchor.overscanLimit / max(extent.height, 1),
+              extent.x >= target.x - target.width / 2, extent.maxX <= target.maxX + target.width / 2,
+              extent.y >= target.y - target.height / 2, extent.maxY <= target.maxY + target.height / 2
+        else { return nil }
+        return RasterAnchor(mode: .uncut, rx: rx, ry: ry, sx: sx, sy: sy, map: map)
+    }
+
     /// 2155f1e's absolute raster (`.localMask`).
     init(absolute full: Affine2D) {
         self.init(mode: .localMask, rx: 0, ry: 0, sx: 0, sy: 0, map: full)
