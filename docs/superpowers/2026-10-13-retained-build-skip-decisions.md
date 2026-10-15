@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AD`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AE`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -494,3 +494,7 @@ Per grafted outermost occurrence: **60.5 µs of build stood for, 10.7 µs of gra
 (3) **Redundant by design, recorded**: `versionsIgnored` does not redden `aStateWriteToAPlainChildRebuildsAGraftedOccurrence` (19e): a plain child's `@State` is already seen by the card's own content memo, so the paint record's version list and the content memo agree and either one stops the graft. 19d (a nested occurrence's own state, whose entry is stale while the card's memo is not) is the arm that separates the version compare.
 
 **Cost if wrong.** (2) leaves two lines of the graft pinned only by a differential that cannot see them; a refactor that drops the top-item record would not turn the suite red.
+
+## RK-AD — Two compared windows pin one timeline clock (the `aRedoWithATimelineInTheTreeEqualsAFreshFrame` flake)
+
+`TimelineStore.date(at:)` anchors `clockOffset` to `Date()` at a window's **first non-zero draw** (`KF-Y`), so two `TestWindow`s compared by `RPPair` anchored a few milliseconds apart; when a wall-clock second boundary fell between the two anchors the periodic timeline showed two different ticks (`after the redone frame: ["glyphs"]`). Not a product bug: a real window has one clock. `RPPair` now sets `Window.testingTimelineClockOffset` (a `package` hook in `TestingHooks.swift`, not public) to 0 on both windows before any frame. Pin: the existing test, with a 20 ms-past-the-second sleep between the two windows' first draws, reddened before the fix and is green after.
