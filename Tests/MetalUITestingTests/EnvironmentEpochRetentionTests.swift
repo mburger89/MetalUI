@@ -43,6 +43,8 @@ enum EEScenario: String, CaseIterable {
     case schemeFlip
     /// R3: a reader of the scheme under a custom key it does not read, the key changes.
     case unreadKey
+    /// R1b: a reader of a custom key (not the scheme) that paints a token colour, the scheme flips.
+    case unreadScheme
 }
 
 /// The root of a scenario's pair.
@@ -56,6 +58,7 @@ private func eeUnit(_ scenario: EEScenario, _ log: EELog, _ n: Int) -> some Elem
     switch scenario {
     case .schemeFlip: EESchemeReader(log: log).equatable()
     case .unreadKey: EESchemeReader(log: log).equatable().environment(\.eeInt, n)
+    case .unreadScheme: EEIntReader(log: log).equatable()
     }
 }
 
@@ -66,7 +69,7 @@ private func eeUnit(_ scenario: EEScenario, _ log: EELog, _ n: Int) -> some Elem
     let pair = try RPPair(size: sz(200, 80), warm: 4) { eeRoot(scenario, sides, $0) }
     for _ in 0..<2 { pair.redraw() }
     switch scenario {
-    case .schemeFlip:
+    case .schemeFlip, .unreadScheme:
         pair.on.setAppearance(.dark); pair.off.setAppearance(.dark)
     case .unreadKey:
         pair.onSide.model.n = 3; pair.offSide.model.n = 3
@@ -107,6 +110,25 @@ func aReplayMissesWhenAnEnvironmentValueItReadChanges() throws {
     f = try #require(pair.frames.last)
     #expect(f.retainedHits == 1 && f.retainedMisses == 0, "the new record replays: \(eeCounters(f))")
     try pair.compare("the new record")
+}
+
+/// R1b — a retained reader of another key (its background is the `.accent` token, resolved through the scheme's theme at
+/// paint): the scheme flips, its getter is **skipped** (it did not read the scheme), and the replay **misses**, because
+/// the fingerprint holds the scheme; the scene is the retention-off window's. This is the pin the fingerprint's
+/// `colorScheme` field needs (R1 alone survives its removal: an evaluated reader re-records anyway). Mutation:
+/// `colorScheme` dropped from `retainedFingerprint` (a stale record replays: hits 1, scene differs).
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func aReplayMissesWhenTheSchemeFlipsUnderAReaderOfAnotherKey() throws {
+    let sides = EESides()
+    let pair = try RPPair(size: sz(200, 80), warm: 4) { eeRoot(.unreadScheme, sides, $0) }
+    try pair.compare("warm")
+    pair.redraw()
+    try #require(pair.frames.last?.retainedHits == 1, "replays while the scheme holds")
+    pair.on.setAppearance(.dark); pair.off.setAppearance(.dark)
+    let f = pair.on.lastFrameWork
+    #expect(f.contentSkips == 1 && f.contentEvaluations == 0, "the getter is skipped: \(eeCounters(f))")
+    #expect(f.retainedHits == 0 && f.retainedMisses == 1, "the replay misses: \(eeCounters(f))")
+    try pair.compare("the flip")
 }
 
 // MARK: R2 — a replay hits when a scope not on its path changes
