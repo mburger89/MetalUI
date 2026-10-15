@@ -4,7 +4,7 @@ Branch `perf/incremental-invalidation` from `f6f865c1`. Not a plan task: item C1
 of the gpui-gap priority list (user request 2026-10-02), requested by MetalCreator
 (gap PERF-b). Spec `docs/superpowers/specs/2026-10-13-incremental-invalidation-design.md`;
 rulings `IV-A`…`IV-Q` (`IV-L`, `IV-M` are the critic's; `IV-N`, `IV-O` are lane 1's; `IV-P`, `IV-Q` lane 2's) in `docs/superpowers/2026-10-13-incremental-invalidation-decisions.md`
-(next unused `IV-R`); probes `docs/probes/swiftui-incremental-invalidation.swift`,
+(next unused `IV-S`); probes `docs/probes/swiftui-incremental-invalidation.swift`,
 `docs/probes/swift-observation-nested-scopes.swift`, `docs/probes/incremental-invalidation/`.
 Divergence labels reserved: 345–354 (346 planned; 345 refuted and unused, `IV-L`).
 
@@ -285,6 +285,20 @@ signature reddened `everyRegistrarParameterIsInItsSignature` and, in verify mode
 3653, 1 issue). Finding fixed: this record carried section 6 twice (a stale first copy, 3591 tests); the duplicate is removed.
 
 **Orchestrator's re-take on the merged tree** (`c6d6f48d`, master `aa42fbc8` (§108) merged in): `swift package clean`, native build 0 `error:`, the **unfiltered** `--no-parallel` run read `Test run with 3675 tests in 3 suites` with exactly the five `AppKitPresentationTests` sheet issues of a locked screen and nothing else (no `NSOpenPanel` hang this time), `FR-J no-argument frame: succeeded=true`; the default build system 0 `warning:`; `cmp CLAUDE.md AGENTS.md` clean; both inventory scripts print nothing. 3675 = master's 3643 + the branch's 32. The MetalCreator-shaped drag fixture (developer-c0, 2026-10-13) is carried to C14-b.
+
+## PERF-c: content memo retain cycle, 2026-10-14
+
+MetalCreator's gap PERF-c: after each benchmark app and `TestWindow` were released, `heap` still
+listed tens of thousands of `ContentMemoStore`, `RetainedHandle`, `RetainedRecord`, `PrepaintLedger`
+and `ObservationRegistrar` objects (about 102 MB an app). The suspected cycle was right, and it had
+two copies (ruling `IV-R`): `ContentMemoHandle` (content memo) and `RetainedHandle` (the build,
+prepaint and paint sessions) each held the memo `Entry` and the store strongly from an `onChange`
+that lives in the observed model's registrar; `Entry.pristine` holds the content, which holds the
+model. Fix: weak holds in both. Red first (`MemoryReleaseTests`: store and model not freed after
+`close()` in both `.equatable()` tests; the plain control and a live-write test green on master);
+each handle's revert alone reddens both. Measured 2026-10-14 on the bracket fixture (1440 x 900 at
+scale 2, six frames, `close()`, `phys_footprint` over 40 windows after one warm-up): **2228 KB a
+window before, 122 KB after at 40 windows, -35 KB at 160 windows (flat)**. Dated, not pinned.
 
 ## §7 Carried, with owners
 

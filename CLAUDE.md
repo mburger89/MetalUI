@@ -74,7 +74,7 @@ summary.
   `2026-10-12-guides-decisions.md`, then `2026-10-13-guides-followup-decisions.md`, next `DG-X`), `BL-` (performance baselines:
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
-  `2026-10-13-incremental-invalidation-decisions.md`, next `IV-R`), `SB-` (retained subtrees:
+  `2026-10-13-incremental-invalidation-decisions.md`, next `IV-S`), `SB-` (retained subtrees:
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `RK-` (retained build skip, prepaint replay, the graft:
   `2026-10-13-retained-build-skip-decisions.md`, next `RK-AD`), `HP-` (hot paths:
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
@@ -864,7 +864,7 @@ frame and counted (divergence 346). Build recursion, prepaint and paint stay who
 timed** (`FrameWork` memo and content counters; pins count work). Retained subtrees are built as paint replay and the placement memo (`SB-`, below); carried:
 an environment epoch (C14-c), per-row `List` scopes (C14-d). GT-F stands: `drawText` is deferred (`IV-O`).
 A main-actor test off macOS does not idle after a tracked frame (the observation hop), so a session-count pin
-is Darwin-only (`IV-Q`). The demo is `METALUI_INVALIDATION_DEMO=1`.
+is Darwin-only (`IV-Q`). **A memo or retained observation handle holds its entry and store weakly** (`IV-R`): its `onChange` lives in the observed model's registrar and the entry's pristine content holds the model, so a strong hold is a cycle that outlives the window (`MemoryReleaseTests`). The demo is `METALUI_INVALIDATION_DEMO=1`.
 
 **Retained subtrees (`SB-`, record §109).** C14b, two lanes, no public API beyond `FrameWork`'s ten counters, no divergence.
 **Lane 1 replays an `.equatable()` occurrence's paint, not prepaint** (`SB-AA`: the paint-only ambient — opacity stack, shadow, blur and
