@@ -43,15 +43,27 @@ private func stackOfLeaves(_ count: Int) -> (LayoutTree, LayoutNodeID) {
     return (tree, root)
 }
 
+/// A debug build allocates per iteration of a `for-in` over an array (measured: 2 events a turn), and the rounding
+/// pass has one such loop over the root's children. The floor is that loop alone, over the same children, so the
+/// pin reads the rounding's own allocations: the floor-corrected difference between 50 and 500 nodes is 0.
+///
 /// Mutation: restore `roundLayout([layout(node)])[0]` in `roundNativeStoredRects`.
 @Test @MainActor func roundingStoredRectsAllocatesNothingPerNode() throws {
     let (small, smallRoot) = stackOfLeaves(50)
     let (large, largeRoot) = stackOfLeaves(500)
-    // Warm each once (lazy runtime caches), then count.
-    small.roundStoredRectsForTesting(smallRoot); large.roundStoredRectsForTesting(largeRoot)
-    let a = try #require(countAllocations { small.roundStoredRectsForTesting(smallRoot) })
-    let b = try #require(countAllocations { large.roundStoredRectsForTesting(largeRoot) })
-    #expect(b - a == 0, "rounding 450 more nodes must allocate nothing more; 50 nodes: \(a), 500 nodes: \(b)")
+    func rounding(_ tree: LayoutTree, _ root: LayoutNodeID) throws -> (rounding: Int, floor: Int) {
+        tree.roundStoredRectsForTesting(root)   // warm lazy runtime caches
+        let rounded = try #require(countAllocations { tree.roundStoredRectsForTesting(root) })
+        let floor = try #require(countAllocations {
+            tree.setMeasuredWidth(root, tree.layout(root).width)
+            tree.setLayout(root, tree.layout(root))
+            for child in tree.children(root) { tree.setMeasuredWidth(child, 1); tree.setLayout(child, tree.layout(child)) }
+        })
+        return (rounded, floor)
+    }
+    let a = try rounding(small, smallRoot), b = try rounding(large, largeRoot)
+    #expect((b.rounding - b.floor) - (a.rounding - a.floor) == 0,
+            "rounding 450 more nodes must allocate nothing beyond the bare loop; 50 nodes: \(a), 500 nodes: \(b)")
 }
 
 /// Mutation: restore the exact `reserveCapacity(base + n)` in `graft`.

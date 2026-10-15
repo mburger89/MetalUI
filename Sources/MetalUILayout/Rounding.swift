@@ -62,14 +62,16 @@ public struct LayoutRect: Sendable, Equatable {
 /// Re-measure these claims rather than trusting them; an earlier version of
 /// this comment was wrong about the corpus it described.
 public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
-    rects.map { r in
-        let x0 = r.x.rounded()
-        let x1 = (r.x + r.width).rounded()
-        let y0 = r.y.rounded()
-        let y1 = (r.y + r.height).rounded()
-        return LayoutRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
-    }
+    rects.map(roundedRect)
 }
 
-/// One rect rounded from its edges (`roundLayout`'s element).
-func roundedRect(_ r: LayoutRect) -> LayoutRect { roundLayout([r])[0] }
+/// One rect rounded from its edges: `roundLayout`'s element, as a scalar so a caller with one rect makes no array
+/// (`PA-B`: the same four `rounded()` calls, bit for bit).
+@inline(__always)
+func roundedRect(_ r: LayoutRect) -> LayoutRect {
+    let x0 = r.x.rounded()
+    let x1 = (r.x + r.width).rounded()
+    let y0 = r.y.rounded()
+    let y1 = (r.y + r.height).rounded()
+    return LayoutRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+}

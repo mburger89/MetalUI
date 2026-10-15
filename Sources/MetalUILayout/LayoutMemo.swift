@@ -162,13 +162,33 @@ struct SignatureBuilder {
     var signature: LayoutSignature { LayoutSignature(a: a, b: b) }
 }
 
-/// A leaf key's signature words (`PA-D`).
+/// A leaf key's signature words, computed once where the key is registered (`PA-D`): the key (kept for
+/// `structureDigest`), the type's identity and the two hasher words `SignatureBuilder.mixHashable` derives, so
+/// mixing them in `mix(into:)` yields **exactly** the signature the direct route (`mix(1)`, the type, `mixHashable`)
+/// yields, and a run or a graft opens no `AnyHashable` box.
 struct LeafKey {
     let key: AnyHashable
-    init(_ key: AnyHashable) { self.key = key }
+    let typeID: UInt64
+    let h1: UInt64
+    let h2: UInt64
+
+    init(_ key: AnyHashable) {
+        self.key = key
+        typeID = UInt64(UInt(bitPattern: ObjectIdentifier(type(of: key.base))))
+        var first = Hasher()
+        first.combine(key)
+        var second = Hasher()
+        second.combine(0x5EED_0002 as UInt64)
+        second.combine(key)
+        h1 = UInt64(bitPattern: Int64(first.finalize()))
+        h2 = UInt64(bitPattern: Int64(second.finalize()))
+    }
+
+    @inline(__always)
     func mix(into h: inout SignatureBuilder) {
         h.mix(1)
-        h.mix(UInt64(UInt(bitPattern: ObjectIdentifier(type(of: key.base)))))
-        h.mixHashable(key)
+        h.mix(typeID)
+        h.mix(h1)
+        h.mix(h2)
     }
 }
