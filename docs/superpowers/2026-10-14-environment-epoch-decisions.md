@@ -11,7 +11,7 @@ K2-new, K2-same, K2-fn, K2-fn-again, O2, O2-unread, O1, B1; output in its header
 `swiftui-incremental-invalidation.swift` `E-env`, `E-env2`, `EnvQuiet`. gpui has no environment (state is entities;
 `cx.notify()` re-renders a view, there is no ambient value to version): nothing to borrow.
 
-**Next unused id: `EE-N`.**
+**Next unused id: `EE-P`.**
 
 ## EE-A — No epoch counter: compare what each declared `@Environment` read, per key
 
@@ -207,3 +207,51 @@ arm's old literals (`RetainedSubtreesBaselineTests`, `theBracketNodeDragIsCounte
 `…AfterTheGraft`, `theBracketNodeDragReplaysEveryUnchangedSubtree`, `…RebuildsTheWholeWindow`) move with the feature and are
 lane 2's re-count (B1–B3), not an edit of lane 1.
 **Cost if wrong.** None: the first is a table row, the second restores the arm's meaning.
+
+## EE-N — Lane 2 findings: red on arrival by the refusal mutation, an evaluated occurrence, the fingerprint's scheme, and the measurement
+
+**Red on arrival.** Lane 1 had merged before lane 2 began, so the tests could not be run against `6273e3a4` itself (a path checkout
+of the old `Sources` was refused by the permission layer). The arrival reading is the 6273e3a4 behaviour reproduced in the working
+tree: `StateBinder.memoShape` returning `hasEnvironment || hasFocusState` (the old refusal), everything else of lane 1 kept. Under it
+(commit `ceba027d`) these were red: W1, W2, W3, W4, W6, W7; R1, R2, R3, R4, R5, R6; B1 (three configurations, 9 issues) and B3 (three
+configurations, 11 issues). W5, W8, W9 and the verify-mode scenarios stayed green: they pin what stays refused or is a control.
+
+**The counters, as measured.** (1) An occurrence whose getter was **evaluated** in a frame counts `retainedIneligible` that frame, never a
+miss or a hit; the frame after (getter skipped, record stale) is the miss that re-records, then the hits resume. R1, R2 are written to
+that (the design's "one miss" text was a prediction). (2) The graft guard's `uncomparableCustomCount` test declines silently, with no
+counter and no `testingGraftRefusals` line, and is dominated by the paint and prepaint refusals: R4b pins those two; the graft site is
+pinned only in the restore direction by R4 (an Int key must graft). Mutating the graft site to `>= 0` (never refuse) reddened nothing:
+**unseparated, carried**. (3) `retainedFingerprint`'s `colorScheme` field is **redundant with its `theme` field** (the window selects
+`lightTheme`/`darkTheme` by scheme): dropping `colorScheme` alone reddens nothing (R1 and the new R1b both survive), dropping both reddens
+R1b and the verify scenario. R1b is the pin (a skipped-getter reader under a scheme flip must miss; the `.accent` token resolves
+through the theme). The design's R1 mutation line (`colorScheme` dropped) is amended to "`colorScheme` and `theme` dropped, red:
+R1b, `theEnvironmentScenariosDrawNormallyUnderVerifyMode`".
+
+**The re-counts the five bracket families owed (EE-M).** With `.environment` memoized it counts what `.value` counts in every table:
+`RetainedSubtreesBaselineTests` 3 / 29 / 0, 20 node bodies (retention off); `theBracketNodeDragIsCountedAtFb9a7e42` paints 252,
+hits 29, misses 3, skipped paints 832, memo hits 362, subtree hits 11; `…AfterPrepaintReplay` prepaints 219, skipped 667, hits 29;
+`…AfterTheGraft` requests 208, skipped 590, grafts 29, grafted nodes 590; `theBracketNodeDragReplaysEveryUnchangedSubtree` 29 / 3 /
+0 with nodes retained. The old combined test 2.5 is split into W5 and W8 (its two private readers removed).
+
+**Fixture.** The `.environmentObject` arm provides `BracketThemeStore` per node through `.environment(model.theme)`; with retention
+off and in both replay configurations it evaluates, skips and replays as `.value` does (B3 pins evaluations, skips, hits, misses,
+ineligible and 20 node bodies; its element counters were equal to `.value`'s in B1's three configurations too and are not pinned).
+
+**Mutations** (spelling, each run on the filtered set of every new test and lane 1's, restored from a copy, `git status` clean after):
+`entry.readings == readings` to `true` (W2, W3, W4, W6, W7, R1, R2, R6); `.object` compared always equal (W6, W7, R6, U2); `.value`
+compared always equal (W2, W3, W4, R1, R2, R3, R5, U1, U5); `isUncomparable` skipped in `EquatableComponent` (W5); `refused = false`
+for `@FocusState` (W8); the object probe through the trapping read (W9); `custom` dropped from the fingerprint (R3, R5, U7);
+`objects` back to type ids (R6, U6); the three `uncomparableCustomCount` sites restored to counting every key (R4 for each; the
+record site also R3, R5, R2); the record and prepaint sites loosened to `> 99` (R4b each); a window-wide write counter in the
+fingerprint (R2, R3, R4, R5). Not reddened: the graft site loosened (above), `colorScheme` alone (above).
+
+**Measurement (2026-10-15 UTC, release, `zsh docs/probes/perf-baselines.sh release bracketenv`, arms alternating in one process, 8
+rounds of 14 drags of 20 steps, 5 warm frames; the Mac shared with other workflows, so the ratio to `.value` is the reading).**
+Before (`git archive` of `6273e3a4` with the new fixture and harness copied in, load average 167.8 / 151.3 / 154.0): thread-CPU
+ms per drag frame, median / minimum: `.value` 5.545 / 4.713, `.environment` 8.691 / 7.476, `.environmentObject` 8.597 / 7.464 (wall
+medians 10.2 / 15.8 / 19.1, load-dominated). After (`7d87822c`, load 123.7 / 135.0 / 146.4): `.value` 5.377 / 4.713,
+`.environment` 5.413 / 4.787, `.environmentObject` 5.538 / 4.811 (wall medians 12.4 / 14.5 / 14.7). The environment arms' last-frame
+work equals `.value`'s (156 requests, 160 prepaints, 178 paints, 32 hits, 32 grafts). Not pinned (`BL-`).
+
+**Elsewhere.** The fourteen offscreen images read 0 px against `6273e3a4` (`compare.sh`, controls as recorded); the Linux image ran
+340 tests of `MetalUITestingTests` and `EnvironmentReadingTests`, all passed; the inventory and undocumented scripts print nothing.
