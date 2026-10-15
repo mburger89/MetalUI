@@ -161,3 +161,14 @@ struct SignatureBuilder {
 
     var signature: LayoutSignature { LayoutSignature(a: a, b: b) }
 }
+
+/// A leaf key's signature words (`PA-D`).
+struct LeafKey {
+    let key: AnyHashable
+    init(_ key: AnyHashable) { self.key = key }
+    func mix(into h: inout SignatureBuilder) {
+        h.mix(1)
+        h.mix(UInt64(UInt(bitPattern: ObjectIdentifier(type(of: key.base)))))
+        h.mixHashable(key)
+    }
+}

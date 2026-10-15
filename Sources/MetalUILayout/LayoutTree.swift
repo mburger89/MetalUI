@@ -2537,3 +2537,11 @@ extension LayoutTree {
         return lines
     }
 }
+
+extension LayoutTree {
+    /// Test hook (`PA-J`): the rounding pass over `root`'s subtree, alone, so an allocation count can see it.
+    func roundStoredRectsForTesting(_ root: LayoutNodeID) { roundNativeStoredRects(root) }
+
+    /// Test hook (`PA-C`): the node table's current capacity, to count how often a graft reallocates it.
+    var childListsCapacityForTesting: Int { childLists.capacity }
+}

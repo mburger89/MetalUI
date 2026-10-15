@@ -70,3 +70,6 @@ public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
         return LayoutRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
 }
+
+/// One rect rounded from its edges (`roundLayout`'s element).
+func roundedRect(_ r: LayoutRect) -> LayoutRect { roundLayout([r])[0] }

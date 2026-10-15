@@ -94,7 +94,7 @@ var targets: [Target] = [
         .target(name: "MetalUILayout", dependencies: ["MetalUICore"]),
         .testTarget(
             name: "MetalUILayoutTests",
-            dependencies: ["MetalUILayout"]
+            dependencies: ["MetalUILayout", "MetalUITestSupport"]
         ),
 
         // Font resolution, shaping, metrics and (from Task 5) glyph
