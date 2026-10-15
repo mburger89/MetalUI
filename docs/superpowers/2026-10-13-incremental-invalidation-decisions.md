@@ -18,7 +18,7 @@ baseline `Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift`
 to borrow: it re-requests layout for a whole view each time the entity is
 notified; where this document says "SwiftUI" a probe arm backs it.
 
-**Next unused id: `IV-R`.**
+**Next unused id: `IV-S`.**
 
 ## IV-A — Measure first: the build recursion is half a frame, the layout kernel a fifth, and nothing is a hot spot
 
@@ -522,3 +522,29 @@ timing is guarded by 2.10, not 2.9; a change to the serial check by 2.7b.
 
 **Cost if wrong.** None in the product; the table would have promised a pin that was green
 under its mutation.
+
+## IV-R — Observation handles hold the entry and store weakly (PERF-c, 2026-10-14)
+
+**Finding.** After a window and its model were released, the `@Observable` model, the
+`ContentMemoStore` and everything the store held (records, ledgers, graft journal) stayed
+alive; about 2.2 MB a window on the bracket fixture (MetalCreator's gap PERF-c: ~102 MB an
+app). A cycle, not a leak `leaks` flags: `onChange` of `withObservationTracking` is stored in
+the observed model's registrar until it fires; `ContentMemoHandle` and `RetainedHandle` held
+the `Entry` and the store strongly; `Entry.pristine` holds the content, the content holds the
+model. Nothing fires while the model stays unchanged, so nothing broke it. The `Window`
+itself was freed (its store was not).
+
+**Ruling.** Both handles hold `entry`, `store` (and `RetainedHandle`'s `session`) **weakly**;
+a fire that finds any of them gone does nothing. No teardown was added: with the cycle gone the
+window's deallocation frees the store, and a live window keeps entry and store alive through
+the table, so a model write still marks it dirty (test 4). Hits, misses, replays, grafts and
+every `FrameWork` counter are unmoved. A new observation session whose `onChange` closure is
+reachable from an observed object owes weak captures of whatever holds that object's content.
+
+**Pins.** `MemoryReleaseTests` (weak refs to the model, window, `TestWindow`, store after a
+close): plain control, `.equatable()` without and with retention, a live-write dirties test.
+**Mutations:** reverting `ContentMemoHandle`'s weak holds alone reddens the two `.equatable()`
+tests; reverting `RetainedHandle`'s alone reddens the same two (each handle is a path of its own).
+
+**Cost if wrong.** A weak hold that lost an entry early would drop a stale mark; the entry is
+held by the store for as long as the serial it compares could matter.
