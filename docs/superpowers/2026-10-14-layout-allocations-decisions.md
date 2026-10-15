@@ -6,7 +6,7 @@ Record: `../record/119-layout-allocations.md`. Branch `perf/layout-allocations` 
 reserved 495–504: none taken. No SwiftUI-facing claim is made (no probe owed, `PA-B`); gpui not consulted (its allocator
 is Rust's, not comparable).
 
-**Next unused id: `PA-L`.**
+**Next unused id: `PA-N`.**
 
 ## PA-A — Order by the re-measured share, and claim allocations, not time
 
@@ -114,6 +114,23 @@ demo or list-fixed with every work counter equal. Hashing in `measureNative` is 
 cache find 2 %, two `setValue`s 3 %), but SipHash's finalisation is a fixed cost, so the achievable share is unknown.
 **Cost if wrong.** A weaker hash colliding: the dictionary falls back to `==`, correctness unaffected; verify mode reads
 every hit.
+
+## PA-L — The counter lives in `MetalUITestSupport`; the layout tests take the dependency
+
+**Question.** `MetalUILayoutTests` depends only on `MetalUILayout`; spec §3 puts `AllocationCounter.swift` in
+`Tests/MetalUITestSupport`.
+**Ruling.** Lane 1 adds `MetalUITestSupport` to `MetalUILayoutTests`' dependencies (test-only, no production edge;
+`MetalUILayout` still imports only `MetalUICore`). Lane 1 first checks which manifest list declares `MetalUITestSupport`
+(`PC-A`): if it is macOS-only, the allocation tests move to a file gated `#if canImport(Darwin)` and the dependency is
+declared under `#if os(macOS)`, so Linux/Windows CI still build `MetalUILayoutTests`. The counter itself stays `#if canImport(Darwin)`.
+**Cost if wrong.** A Linux build break: caught by the Linux image run owed in spec §6.
+
+## PA-M — Rejected: a source-scan guard for isolation sites, and a Package-wide `AmbientKey` edit now
+
+**Ruling.** Spec §4 test 5 stands as written (no grep guard; dated `isolation-sites.py` reading). The spec's file ownership
+was corrected: `LayoutLeafKeys.swift` is in `Sources/MetalUI` (lane 2), not `MetalUILayout`. Test-5 mutation claims that
+named a second test unmeasured are softened to "named at lane time".
+**Cost if wrong.** None beyond the measured claims.
 
 ## Carried
 

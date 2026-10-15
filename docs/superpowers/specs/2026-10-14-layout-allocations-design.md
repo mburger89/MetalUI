@@ -52,7 +52,7 @@ census is unmoved.
 
 ## 3 Lane 1 — kernel: `Sources/MetalUILayout/*`, `Tests/MetalUILayoutTests/*`, `Tests/MetalUITestSupport/AllocationCounter.swift`
 
-Files: `Rounding.swift`, `LayoutTree.swift`, `LayoutMemo.swift`, `LayoutLeafKeys.swift` (if the key type moves).
+Files: `Rounding.swift`, `LayoutTree.swift`, `LayoutMemo.swift`; `Package.swift` (only `MetalUILayoutTests` gains a `MetalUITestSupport` dependency, `PA-L`). `Sources/MetalUI/LayoutLeafKeys.swift` is a **lane 2** file (it builds keys; it is not in `MetalUILayout`) and changes only if `LeafKey` needs a different `registerLeaf` argument (then lane 1 adds the overload and lane 2 follows; sequential).
 
 - **L1 `roundedRect(_:)`** (internal scalar; `roundLayout` becomes `rects.map(roundedRect)`); `roundNativeStoredRects`
   calls it. Removes one array per node.
@@ -92,7 +92,7 @@ Tests (lane 1; each names what is red before and what must redden):
    Mutation: hash `key` again in `nodeSignature`.
 5. `aCachedLeafKeySignatureEqualsTheDirectOne` (`LayoutMemoTests`): `LeafKey` mixed into a `SignatureBuilder` equals
    `mix(1); mix(typeID of type(of: key.base)); mixHashable(key)` for Int, String, a struct and a tuple key. Mutation:
-   swap `h1` and `h2` in `nodeSignature` reddens it and `everyRegistrarParameterIsInItsSignature`.
+   swap `h1` and `h2` in `nodeSignature` reddens it; whether `everyRegistrarParameterIsInItsSignature` also reddens is measured at lane time and named, not assumed.
 6. `aStackWithEqualPrioritiesSolvesLikeTheReference` (`StackSolveTests`): a corpus (equal priorities; two levels; three
    with one reserved; infinite and finite proposals; spacing nil and given; 1, 2, 7 children) against a test-local copy of the
    **old** algorithm, rects and the four counters equal. Red before: passes (differential; the pin is for the rewrite).
