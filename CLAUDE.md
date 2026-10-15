@@ -82,7 +82,8 @@ summary.
   `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-R`), `CB-` (clipboard beyond text:
   `2026-10-14-clipboard-types-decisions.md`, next `CB-R`), `IC-` (image cursors, headless SDL launch:
   `2026-10-14-cursors-headless-decisions.md`, next `IC-S`), `IH-` (header-only image read and bounded decode:
-  `2026-10-14-image-info-decisions.md`, next `IH-Q`), …; the full
+  `2026-10-14-image-info-decisions.md`, next `IH-Q`), `PN-` (pan path rasters:
+  `2026-10-14-pan-rasters-decisions.md`, next `PN-K`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -117,7 +118,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-14, `feat/image-info` from `ceca59f6`, merged with master `31e82bf5` (§115 clipboard, §116 image cursors and headless launch): 3864 tests, 0 goldens, 244 typecheck guards** (master's 3844 + 20 tests, 243 + guard G-IH1; re-measured by the orchestrator on the merged tree, record §117). Before it,
+- **Counts (2026-10-14, `perf/pan-rasters` from `34491ff4`, merged with master `d3ebfa18` (§115, §116, §117): 3871 tests expected unlocked (3862 run with `AppKitPresentationTests` skipped on a locked screen), 0 goldens, 244 typecheck guards** (master's 3864 + 7 tests, no guard; `swift package clean`, native build and run 0 `error:`, 0 `warning:`, `FR-J no-argument frame: succeeded=true`; no public declaration, census unmoved; the fourteen images 0 px against `34491ff4`; no divergence label taken; unlocked re-take owed at merge** (record §118). Before it,
+  **(2026-10-14, `feat/image-info` from `ceca59f6`, merged with master `31e82bf5` (§115 clipboard, §116 image cursors and headless launch): 3864 tests, 0 goldens, 244 typecheck guards** (master's 3844 + 20 tests, 243 + guard G-IH1; re-measured by the orchestrator on the merged tree, record §117). Before it,
   **(2026-10-14, `feat/image-info` from `ceca59f6`, merged with master `34491ff4` (§114 SDL GPU for apps): 3823 tests, 0 goldens, 239 typecheck guards** (master's 3803 + 20 tests, 238 + guard G-IH1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, `FR-J no-argument frame: succeeded=true`; census 3592 unmoved by the merge; inventory and undocumented scripts print nothing; the fourteen images 0 px against `ceca59f6`; no divergence label taken; `Backends/SDL` untouched; record §117 §3). Before it,
   **(2026-10-14, `feat/sdl-gpu-compute` from `fb9a7e42`, merged with master `a4ebe288` (§112 §11 depth-ranked carving): 3803 tests, 0 goldens, 238 typecheck guards** (master's, unchanged: the branch adds `Backends/SDL` tests only; re-measured by the orchestrator on the merged tree, record §114). Before it,
   **(2026-10-14, `feat/clipboard-types` from `fb9a7e42`, merged with master `565abe67` (§114 SDL GPU, §116 image cursors and headless launch): 3844 tests, 0 goldens, 243 typecheck guards** (master's 3815 + 29 tests, 241 + 2 guards 3.1, 3.2; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; the native unfiltered run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else; census 3638 re-recorded after the merge, inventory and undocumented scripts print nothing; divergences 455, 456 added beside master's 465, 158 live; the guide's `input` mirrors renumbered #8 cursor, #9 clipboard; record §115). Before it,
@@ -749,6 +751,17 @@ collecting leaves with their clip depths (`captureDepths`) and re-emitting them 
 by a `Deferred` barrier; alone it changes nothing, and it does **not** composite an opacity
 (divergence 205). `BoxBlur` in `MetalUIPath` runs over unchecked `Int32` buffers, byte-identical to
 its reference copy, still importing nothing (`PF-F`).
+
+**Pan rasters (`PN-`, record §118).** Value-identical, no public API, no divergence (labels 485–494 untouched). A path with
+**no local mask** whose conservative extent `E` (`RasterAnchor.pathExtent`: bounds with the stroke pad, grown 1) meets the clip, has
+area ≤ `RasterAnchor.overscanLimit` (2^20) and lies within half the target's size of it on every side is rasterized over `E`
+and keyed `.uncut`, **not by its clip**: the image's content mask cuts at draw time, so a whole-device-pixel pan across a
+`.clipped()` edge hands back the same `ImageTexture` and rasterizes 0 pixels (`PN-A`, `PN-B`; amends `PF-J` item 2 for paths only,
+bytes measured equal, T2). A placed mask wholly outside the clip draws no image (`PN-G`). Mode 3, shadows, blurs and gradients
+keep today's keys (`PN-C`; overscan for them is P3b). `RasterCache.tint` zero-fills and multiplies only the 8-byte words holding
+coverage, byte for byte the reference loop (`RasterCache.lastTintedPixels` counts the pixels multiplied, `PN-D`); R8 coverage with a
+shader tint is not built (P3c, `TE-AD`). A cubic whose endpoint moves and a sub-pixel pan miss by design (`PN-E`). Pins count work
+(`PanRasterTests`).
 
 **Input follow-ups (`IF-`, record §93).** `SpatialTapGesture.Value.modifiers` (the last
 press's) and `DragGesture.Value.clickCount` (the press's, never the move's) are MetalUI-only

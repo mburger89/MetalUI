@@ -2,7 +2,7 @@
 
 Rulings for P3 (the pan path-raster miss, user request 2026-10-02). Spec:
 [`specs/2026-10-14-pan-rasters-design.md`](specs/2026-10-14-pan-rasters-design.md). Record: `../record/118-pan-rasters.md`
-(Record phase). Branch `perf/pan-rasters` from `34491ff4`; divergence labels reserved 485–494 (none taken).
+(landed). Branch `perf/pan-rasters` from `34491ff4`; divergence labels reserved 485–494 (none taken).
 
 **Next unused id: `PN-K`.** (Moves in the commit that appends a ruling; read the last `## PN-` heading if they disagree.)
 

@@ -5,7 +5,7 @@ Branch `perf/pan-rasters` from `34491ff4`. Not a plan task: item P3 of the gpui-
 `PN-A`…`PN-J` in `docs/superpowers/2026-10-14-pan-rasters-decisions.md` (next unused `PN-K`). Divergence labels reserved 485–494:
 none taken. No public declaration (inventory and undocumented scripts print nothing).
 
-**Status: lane 1 (implementation and pins) LANDED; lane 2's ms/frame and allocation tables are lane 2's section (not in this lane).**
+**Status: LANDED (both lanes verified `ok`; Record phase merged master `d3ebfa18`, no record number collided: master's last was 117).**
 
 ## §1 What changed
 
@@ -61,4 +61,34 @@ cubic whose endpoint moves is a new function of its key; whole-pixel translation
 ## §6 Carried
 
 Overscan for shadows, blurs and gradients (P3b); R8 coverage with a shader tint (P3c, `TE-AD`); a pooled rasterizer scratch (P3d);
-ms/frame and allocations per frame: lane 2.
+ms/frame and allocations: §7 (dated measurements, not pins).
+
+## §7 Measurements (lane 2, dated 2026-10-14, never pins)
+
+Probes `docs/probes/pan-rasters/` (`ab.sh`, `counters.sh`, `README.md`, raw `measurements-2026-10-14.txt`): release Prof harness, A/B
+alternated per round, five rounds, 34491ff4 against 29830625. The Mac was shared: 1-minute load 4.4 to 28.8, rounds 1 and 2 noisy,
+so read ratios. Median over rounds of each run's median ms/frame (bracket-value: mean ms per loop iteration):
+
+| scenario | 34491ff4 | HEAD | delta |
+|---|---|---|---|
+| bracket-pan | 7.56 | 6.53 | -14 % |
+| bracket-pan-panels | 7.42 | 6.60 | -11 % |
+| bracket-value (drag) | 5.16 | 4.58 | -11 % |
+| shadows | 1.238 | 1.242 | noise (shadow keys unchanged, `PN-C`) |
+
+HEAD was faster in every paired round for the three bracket scenarios. Allocations, bracket-pan, 400 frames after warm-up: 18,981
+allocs and 7.97 MB per frame before, 16,342 and 5.84 MB after (-2,639, -14 %; the profile's estimate for the rasterizer was about
+2,400). Work, 88 steps (debug): pan 11,791,732 rasterized pixels before, 134,688 after (the cold frames; 0 in steady state), 7,904 tinted,
+2 textures made; drag 82,353 rasterized per drawn frame before, 87,450 after (+6 %: the extent over the clip-cut bounds, plus
+overscan), tinted 5,361 per drawn frame (6 % of rasterized). Reading for P3c: what remains in the drag is `CoverageRasterizer`
+itself, which R8 does not reduce; R8 would quarter the texture bytes and drop 450 K tinted pixels per 84 frames. Not justified.
+
+## §8 Record phase
+
+Merged master `d3ebfa18` (clean, no conflict). The suite and counts were re-taken on the merged tree after `swift package clean`
+(screen locked: `--skip AppKitPresentationTests`, `PN-J`):
+**3862 tests in 3 suites passed** (`--skip AppKitPresentationTests`, 9 tests, locked screen; unlocked expected 3871 = master's 3864 + 7 new `PanRasterTests`/pin tests), `FR-J no-argument frame: succeeded=true`, 0 `error:`, 0 `warning:` lines in the log, 244 typecheck guards (master's, no new guard).
+
+Docs: no divergence, no public declaration, no human check owed (the draw-time cut is pixel-identical, §4, and the fourteen images
+read 0 px; nothing here is a look), no migration note (no requirement added). Open at merge: an unlocked run (expect 3810 + master's
+growth) and `swift build --build-tests` 0 `warning:` on the default build system.

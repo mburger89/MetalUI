@@ -4,7 +4,9 @@ Item P3 of the gpui-gap list (user request 2026-10-02; not a plan task). Source:
 (`/private/tmp/claude-501/profiling/REPORT.md`) and record §111 §8 "carried". A bracket-canvas pan frame is 9.4 ms against 6.6–6.9
 for a drag; paint is 43 % of it: `CoverageRasterizer.rasterize` 7.6 % (about 2,400 allocations a frame), `RasterCache.tint` 5.8 %,
 `pathImage` 15 % inclusive. Branch `perf/pan-rasters` from `34491ff4`; divergence labels reserved 485–494 (none taken); decisions
-`docs/superpowers/2026-10-14-pan-rasters-decisions.md` (`PN-`). Record `docs/record/118-pan-rasters.md` (Record phase).
+`docs/superpowers/2026-10-14-pan-rasters-decisions.md` (`PN-`). Record `docs/record/118-pan-rasters.md` (landed, 2026-10-14).
+
+**Status: landed** (record 118; rulings `PN-A`…`PN-J`).
 
 ## 1. Cause (read from the source at 34491ff4)
 
