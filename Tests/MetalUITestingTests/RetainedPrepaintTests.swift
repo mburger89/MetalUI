@@ -213,6 +213,9 @@ struct RPCard: Component, @MainActor Equatable {
         off = try TestWindow(size: size, colorScheme: colorScheme, scaleFactor: scale, options: options,
                              textSystem: harnessTextSystem) { root(offSide) }
         self.accessibility = accessibility
+        // Both windows share one clock: left alone each anchors its `TimelineView` clock to the wall clock at its first
+        // non-zero tick, a few ms apart, and a second boundary between the two anchors draws two different dates (`RK-AD`).
+        on.window.testingTimelineClockOffset = 0; off.window.testingTimelineClockOffset = 0
         off.window.testingRetainedSubtrees = false
         on.window.testingRetainedGraft = graft   // lane 1's pins count a build that runs; lane 2's tests grafts (`RK-B`)
         for _ in 0..<warm { redraw() }
