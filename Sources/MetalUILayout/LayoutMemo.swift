@@ -38,6 +38,12 @@ package final class LayoutMemo {
     struct MeasureKey: Hashable {
         let signature: LayoutSignature
         let proposal: ProposedSize
+
+        /// The signature's words are already mixed (`SignatureBuilder`): fold them with the proposal into one
+        /// word (`PA-K`); `==` stays the synthesized, complete one.
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(signature.a ^ (signature.b << 21 | signature.b >> 43) ^ proposal.foldedHashWord)
+        }
     }
 
     struct PlacementKey: Hashable {
