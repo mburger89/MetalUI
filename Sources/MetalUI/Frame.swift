@@ -565,6 +565,10 @@ public final class Frame {
     /// by `theme`; handed out as a copy only by `environmentSnapshot()`.
     private(set) var environmentTop: EnvironmentValues
 
+    /// The readings of the `@Environment` properties a component binds, collected by `StateBinder.bind`
+    /// while a memoized component is entering (`EE-A`); `nil` outside that window.
+    var environmentReadings: [EnvironmentReading]?
+
     private var storedRootEnvironment: EnvironmentValues
 
     /// True from `render`'s first line to its last, and nowhere else (ruling

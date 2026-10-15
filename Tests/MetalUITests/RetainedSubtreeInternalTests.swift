@@ -54,7 +54,7 @@ private let frameChannels: [String: Channel] = [
     "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,
     // Presentations, toolbar, menu bar, popovers.
     "presentationDepth": .buildOnly, "presentationRecords": .buildOnly, "presentationOccurrences": .buildOnly,
-    "toolbarRecords": .buildOnly, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,
+    "environmentReadings": .buildOnly, "toolbarRecords": .buildOnly, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,
     "menuBarTitles": .frameLocal, "menuBarOpenIndex": .frameLocal, "menuBarOpen": .frameLocal,
     "drewMenuBar": .frameLocal, "menuBarTitleFrames": .frameLocal, "openPopovers": .prepaintOnly,
     "windowControls": .frameLocal, "drewWindowControls": .frameLocal,   // the drawn window buttons (CW-C), the strips' class
@@ -168,7 +168,7 @@ private let environmentFields: [String: String] = [
     "truncationMode": "fingerprint", "multilineTextAlignment": "fingerprint", "foregroundStyle": "fingerprint",
     "fontWeight": "fingerprint", "italic": "fingerprint", "textLineLimit": "fingerprint",
     "fieldStyles": "fingerprint (both styles)", "theme": "fingerprint", "textSystemBox": "fingerprint (presence)",
-    "objects": "fingerprint (identities)", "custom": "customKeyCount, a refusal",
+    "objects": "fingerprint (identities)", "custom": "fingerprint (readings), an uncomparable one a refusal",
     "fileDialogs": "irrelevant: a window-owned handle, constant for the window",
 ]
 

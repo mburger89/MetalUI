@@ -87,12 +87,13 @@ enum StateBinder {
     }
 
     /// What the content memo needs of a type's cached shape (`IV-D`): the
-    /// ordinals of its `@State` slots, and whether it declares an
-    /// `@Environment` or `@FocusState` (refused). `nil` before the type has been
+    /// ordinals of its `@State` slots, and whether it declares a
+    /// `@FocusState` (refused: `EE-E`; an `@Environment` is covered by its
+    /// readings, `EE-A`). `nil` before the type has been
     /// bound once — callers bind first.
     static func memoShape(of type: Any.Type) -> (stateOrdinals: [Int], refused: Bool)? {
         guard let shape = shapes[ObjectIdentifier(type)] else { return nil }
-        return (shape.stateOrdinals, shape.hasEnvironment || shape.hasFocusState)
+        return (shape.stateOrdinals, shape.hasFocusState)
     }
 
     private static var shapes: [ObjectIdentifier: Shape] = [:]
@@ -125,7 +126,7 @@ enum StateBinder {
             guard !shape.ordinals.isEmpty else { return }
             let snapshot = shape.hasEnvironment ? frame.environmentSnapshot() : nil
             bindOrdinals(shape.ordinals, in: element, table: frame.stateTable,
-                         environment: snapshot, id: id)
+                         environment: snapshot, id: id, frame: frame)
             return
         }
 
@@ -148,6 +149,7 @@ enum StateBinder {
                 shape.hasEnvironment = true
                 if snapshot == nil { snapshot = frame.environmentSnapshot() }
                 bindable.bind(snapshot!, id: id, generation: frame.stateTable.generation)
+                if frame.environmentReadings != nil { frame.environmentReadings!.append(bindable.reading(in: snapshot!)) }
             }
         }
         shapes[key] = shape
@@ -190,7 +192,7 @@ enum StateBinder {
     private static func bindOrdinals<E>(_ ordinals: [Int], in element: E,
                                         table: StateTable,
                                         environment: EnvironmentValues?,
-                                        id: GlobalElementID) {
+                                        id: GlobalElementID, frame: Frame) {
         var next = ordinals.startIndex
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
             guard index == ordinals[next] else { continue }
@@ -201,6 +203,8 @@ enum StateBinder {
                 // The element id and generation let an aliased box keep one
                 // snapshot per occurrence (ruling ID-F).
                 bindable.bind(environment, id: id, generation: table.generation)
+                // The readings a memoized component compares, collected in this one pass (`EE-A`).
+                if frame.environmentReadings != nil { frame.environmentReadings!.append(bindable.reading(in: environment)) }
             }
             next += 1
             if next == ordinals.endIndex { break }

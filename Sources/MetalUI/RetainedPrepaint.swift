@@ -192,7 +192,7 @@ extension Frame {
     /// prepaint (`SB-J`'s `retainedEntryRefusal` without the paint-only `leafGroup`).
     private func retainedPrepaintEntryRefusal(build: RetainedBuild) -> String? {
         if build.timeVarying { return "timeVarying" }
-        if environmentTop.customKeyCount > 0 { return "customEnvironmentKey" }
+        if environmentTop.uncomparableCustomCount > 0 { return "uncomparableEnvironmentKey" }
         if transactionTop.animation != nil { return "transaction" }
         return nil
     }

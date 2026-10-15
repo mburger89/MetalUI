@@ -324,7 +324,7 @@ func anEnvironmentProbeCannotBeReadOutsideTheModule() throws {
         }
         """, importing: "MetalUI")
     #expect(!member.succeeded, "`Environment.probe` must not be spellable outside the module:\n\(member.output)")
-    #expect(member.messages.contains("has no member 'probe'"), "rejected, but not for the member:\n\(member.output)")
+    #expect(member.messages.contains("'probe' is inaccessible due to 'internal' protection level"), "rejected, but not for the member:\n\(member.output)")
 
     let type = try typecheckFile("""
         func read(_ r: EnvironmentReading) {}

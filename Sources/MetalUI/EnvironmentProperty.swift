@@ -75,12 +75,16 @@ public struct Environment<Value> {
     /// What this property reads from the bound values: a key path's value, or
     /// an object (`MD-H` item 2).
     let read: (EnvironmentValues) -> Value
+    /// What this property reads, as a comparable reading, for a memoized component's decision (`EE-A`). **Never
+    /// the trapping `read`** (`EE-D`): a declared object the getter never reads must not trap here. Internal.
+    let probe: (EnvironmentValues) -> EnvironmentReading
     let box = Box()
 
     /// Reads the environment value at `keyPath`, as SwiftUI's
     /// `@Environment(\.keyPath)` does (`EV-`).
     public init(_ keyPath: KeyPath<EnvironmentValues, Value>) {
         self.read = { $0[keyPath: keyPath] }
+        self.probe = { .of($0[keyPath: keyPath]) }
     }
 
     /// The value in effect where the element sits, bound by the frame before
@@ -100,6 +104,7 @@ extension Environment {
             guard let object = values.object(Value.self) else { missingEnvironmentObject(Value.self) }
             return object
         }
+        self.probe = { .object($0.object(Value.self).map { ObjectIdentifier($0) }) }
     }
 
     /// Reads the `@Observable` object provided as `objectType`, or `nil` when
@@ -107,6 +112,7 @@ extension Environment {
     /// var model: Model?` (ruling `MD-H`; probe `O1`, `O2`).
     public init<T: AnyObject & Observable>(_ objectType: T.Type) where Value == T? {
         self.read = { $0.object(T.self) }
+        self.probe = { .object($0.object(T.self).map { ObjectIdentifier($0) }) }
     }
 }
 
@@ -122,9 +128,13 @@ func missingEnvironmentObject<T>(_ type: T.Type) -> Never {
 @MainActor
 protocol BindableEnvironment {
     func bind(_ values: EnvironmentValues, id: GlobalElementID, generation: UInt64)
+    /// The reading of this property in `values` (`EE-A`).
+    func reading(in values: EnvironmentValues) -> EnvironmentReading
 }
 
 extension Environment: BindableEnvironment {
+    func reading(in values: EnvironmentValues) -> EnvironmentReading { probe(values) }
+
     /// Seeds the box with the snapshot at element `id`'s position. A second,
     /// different `id` in one `generation` records every occurrence's snapshot
     /// (ruling ID-F); a later generation starts over.
