@@ -86,7 +86,7 @@ private struct ReleaseWeak {
         released(refs, equatable: true)
     }
 
-    @Test func aModelWriteStillDirtiesALiveEquatableWindow() throws {
+    @Test func aModelWriteStillDirtiesALiveEquatableWindow() async throws {
         let model = ReleaseModel()
         let testWindow = try TestWindow(size: sz(400, 300), textSystem: harnessTextSystem) {
             VStack { ReleaseCard(id: 0, model: model).equatable() }
@@ -94,6 +94,7 @@ private struct ReleaseWeak {
         testWindow.tick(); testWindow.tick()
         let before = testWindow.window.framesDrawn
         model.count += 1
+        await rsSettle()   // off macOS the observation hop is asynchronous (HT-, IV-Q): let it land before the tick
         testWindow.tick()
         #expect(testWindow.window.framesDrawn > before)
     }
