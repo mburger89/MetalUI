@@ -2319,3 +2319,22 @@ desktop (smooth edges, a resize rebuilds the multisample and depth textures); GA
 on real Windows (D3D12) and Linux (Vulkan) hardware with `METALUI_REQUIRE_GPU=1`; GA3 a built app finds its
 `MetalUIAppShaders` after the folder moves, and a missing folder names every directory tried; GA4 the two debug
 traps read clearly in a real console.
+
+## 2026-10-14: clipboard beyond text (record §115) — looks owed
+
+No window was driven (the screen was locked for the whole branch, so arm R of `swiftui-clipboard-types.swift` printed
+`SKIP (locked)` and the SwiftUI behaviour behind `CB-B`, `CB-C`, `CB-G` is unprobed); the fourteen offscreen images are
+compared against `fb9a7e42` in §115 §5. **Owed, new here — `docs/verification/human-checks.md` group CB, none performed
+(an agent cannot)**: CB1 SwiftUI's own focus routing, representations written, validator effect and multi-item (settles
+divergences 455 and 456); CB2 paste between the demo and another application, and between two demo processes, on macOS,
+X11, Wayland and Windows; CB3 the Edit menu's enablement with the focus, native and drawn; CB4 a 100 MB payload; CB5
+another application taking the clipboard while the demo owns it.
+
+## 2026-10-14: image cursors and the headless SDL launch (record §116) — looks owed
+
+No window was driven in the lanes (the screen was locked at design time; the Record phase drove none); the cursor is drawn by
+the window server, so the recorders and `NSCursor` read-backs pin what was asked for and nothing sees the pointer. **Owed, new
+here — `docs/verification/human-checks.md` group IC, none performed (an agent cannot)**: IC1 SDL on Linux and Windows shows the
+supplied hand and zoom images, hot spot on the clicked point, and the largest cursor each platform draws; IC2 macOS at 1x and
+2x draws the ring crisp and the same point size; IC3 the hot spot lands on the clicked pixel at the four corners of the image;
+IC4 a `HeadlessLaunchCheck`-shaped app exits 0 in CI with no display on Windows and Linux.

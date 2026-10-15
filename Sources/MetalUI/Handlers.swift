@@ -384,6 +384,7 @@ public struct Handlers {
     var isKeyTarget: Bool {
         onKey != nil || isFocusable || !actions.isEmpty || keyContext != nil || textInput != nil
             || keyboardShortcut != nil || keyboard?.keyPresses.isEmpty == false
+            || keyboard?.clipboard != nil
     }
 
     /// Whether a primary press focuses this element (ruling `KF-F` item 2):

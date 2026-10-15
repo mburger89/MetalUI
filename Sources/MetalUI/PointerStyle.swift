@@ -15,13 +15,17 @@ import MetalUIPlatform
 ///
 /// SDL has no hand or zoom cursor: there both grab styles show its move cursor
 /// and both zooms its default arrow (a documented platform constraint, `CI-H`
-/// item 8). `image`, `shape`, `columnResize(directions:)` and
-/// `rowResize(directions:)` are not offered (`CI-A`).
+/// item 8). **To show a hand or a magnifier on SDL, supply the art**
+/// (`IC-H`): `.pointerStyle(.image(handImage, hotSpot: …))` for the platform
+/// that needs it, a 1x bitmap and, for 2x displays, a 2x bitmap with
+/// `Image(scale: 2)`; no art is bundled. `shape`, `columnResize(directions:)`
+/// and `rowResize(directions:)` are not offered (`CI-A`, `IC-G`).
 public struct PointerStyle: Sendable, Hashable {
     enum Kind: Sendable, Hashable {
         case arrow, horizontalText, verticalText, rectSelection, grabIdle, grabActive, link
         case zoomIn, zoomOut, columnResize, rowResize
         case frameResize(FrameResizePosition, FrameResizeDirection.Set)
+        case image(PlatformCursorImage)
     }
 
     let kind: Kind
@@ -52,6 +56,31 @@ public struct PointerStyle: Sendable, Hashable {
     /// An up-down resize, for a row divider.
     public static let rowResize = PointerStyle(.rowResize)
 
+    /// A pointer drawn from `image`'s bitmap — SwiftUI's
+    /// `PointerStyle.image(_:hotSpot:)` (ruling `IC-B`).
+    ///
+    /// MetalUI's `Image` wraps one `ImageBitmap`, so every `Image` is accepted;
+    /// `resizable()`, `interpolation(_:)` and an accessibility label are ignored
+    /// — the cursor is the bitmap at its own size (probe `swiftui-image-cursor.swift`
+    /// `I5`). **The cursor is `pixels / scale` points** (`Image`'s `scale`: a
+    /// 32 px bitmap at scale 2 is 16 pt; the 2x-display recipe, `IC-C`) and
+    /// `hotSpot` is a fraction of that size from the top-left (`.center` is the
+    /// middle). **A hot spot outside the unit square clamps per axis**
+    /// (divergence 465; SDL refuses a hot spot off its surface). The cursor's
+    /// identity is the bitmap's, so rebuilding the `Image` every frame sends
+    /// one cursor (`IC-F`); two bitmaps with equal pixels are two. A platform
+    /// that cannot make the cursor (a size limit, a driver without colour
+    /// cursors) leaves the current one.
+    public static func image(_ image: Image, hotSpot: UnitPoint) -> PointerStyle {
+        let texture = image.bitmap.texture
+        let scale = image.scale
+        func unit(_ value: Double) -> Float { value.isNaN ? 0 : Float(min(max(value, 0), 1)) }
+        let width = Float(texture.width) / scale, height = Float(texture.height) / scale
+        return PointerStyle(.image(PlatformCursorImage(
+            texture: texture, scale: scale,
+            hotSpot: (x: unit(hotSpot.x) * width, y: unit(hotSpot.y) * height))))
+    }
+
     /// The resize pointer for the edge or corner of a frame at `position`,
     /// its arrows showing the `directions` that edge can move — SwiftUI's
     /// `frameResize(position:directions:)`.
@@ -77,6 +106,7 @@ public struct PointerStyle: Sendable, Hashable {
         case .frameResize(let position, let directions):
             .frameResize(edge: position.platformEdge,
                          inward: directions.contains(.inward), outward: directions.contains(.outward))
+        case .image(let cursor): .image(cursor)
         }
     }
 }

@@ -111,6 +111,7 @@ F	image	A	swiftui-shapes-and-rendering.swift	I1	anImageAnswersItsPointSizeAtEver
 F	image-bitmap	M	-	-	-	-	TE-AL	ImageBitmap: the portable stand-in for CGImage (premultiplied RGBA8)
 F	image-decoding	M	-	-	-	138	PX-B PX-C PX-D PX-E	ImageBitmap(contentsOfFile:)/(data:)/(resource:withExtension:subdirectory:bundle:): PNG and JPEG decoded by MetalUI's own decoder (CStbImage) on every platform, identical premultiplied sRGB bytes, colour profiles ignored (138), corrupt input nil; MetalUI-only: SwiftUI's images come from CGImage/NSImage/asset catalogs, and its Image(_:bundle:) reads asset catalogs, not loose files (probe swiftui-bundle-image B0-B9); the resource form decodes once per path
 F	image-decode	M	-	-	-	-	IB-A IB-B IB-C IB-D IB-I IB-J IB-K	DecodedImage (+ ImageBitmap(_:)): PNG/JPEG decoded to straight RGBA8 or 8-bit grey by the one vendored decoder on every platform, width, height, bytesPerRow, the EXIF orientation reported and not applied, applyingOrientation(); SwiftUI has no pixel-level decode API, so MetalUI-only
+F	image-info	M	-	-	-	-	IH-A IH-B IH-C IH-D IH-E IH-F IH-G IH-I IH-J	ImageInfo and DecodedImage.Limits: PNG IHDR / JPEG SOF header read (format, stored size, EXIF orientation, bit depth, channels) with no pixel work, nil for other formats, no size limit of its own; the limited DecodedImage initialisers refuse from the header before the decoder allocates; SwiftUI has no header-only image API, so MetalUI-only
 F	image-orientation-exif	M	-	-	-	-	IB-E	Image.Orientation.init(exifValue:)/exifValue/swapsAxes: the bridge between SwiftUI's own raw values and the EXIF tag 1...8; SwiftUI has no EXIF accessors
 F	image-orientation	A	swiftui-image-orientation.swift	O1	orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip	-	IB-E	Image.Orientation: SwiftUI's eight cases with SwiftUI's raw values (up 0, left 1, upMirrored 2, leftMirrored 3, downMirrored 4, rightMirrored 5, down 6, right 7), CaseIterable, Hashable, Sendable
 F	image-oriented-draw	A	swiftui-image-orientation.swift	O9	orientedPixelsEqualSwiftUIsForAllEight	435	IB-F IB-G IB-K	Image(decorative:scale:orientation:) and Image(_:scale:orientation:label:): a bitmap drawn turned by an Image.Orientation, laid out at the oriented size; orientation has no default (IB-K) so the unoriented inits stay unambiguous
@@ -188,6 +189,8 @@ F	input-followups-cancel	D	-	-	-	236	IF-E IF-F	onCancelled(_:) on DragGesture, M
 F	input-followups-modkeys	M	-	-	-	-	IF-D	onModifierKeysChanged(mask:initial:_:) and ModifierKeysScope: SwiftUI's signature and defaults, MetalUI's own contract (the window owns the modifiers, a transparent scope noted in prepaint, the action in the lifecycle drain); SwiftUI's timing is unprobed (human check IF1)
 F	input-apis-pointer-style	A	swiftui-input-apis.swift	P11	theInnermostPointerStyleWinsAndNilDefers	-	CI-H CI-S CI-AH	PointerStyle (.default/.horizontalText/.verticalText/.rectSelection/.grabIdle/.grabActive/.link/.zoomIn/.zoomOut/.columnResize/.rowResize/frameResize(position:directions:)), FrameResizePosition, FrameResizeDirection(.Set): SwiftUI's spellings and its innermost-wins (P11/P11c), nil defers (P12), an opaque target above covers (P13); a non-opaque style region per element through the one ranking, sent to the platform on a change
 F	input-apis-pointer-style-modifier	D	swiftui-input-apis.swift	P11	theInnermostPointerStyleWinsAndNilDefers	141	CI-H CI-AH	pointerStyle(_:) on both vocabularies: a non-opaque style region per element through the one ranking, innermost wins (P11), nil defers (P12), an opaque target above covers (P13); a view that only paints does not cover it (P14, 141)
+F	image-cursor	A	swiftui-image-cursor.swift	I1	anImageCursorSendsItsPointSizeAndHotSpot	465	IC-A IC-B IC-C IC-F IC-H	PointerStyle.image(_:hotSpot:): SwiftUI's spelling (I1-I4: the cursor is pixels / scale points, the hot spot a unit point of that size, top-left; I5: resizable() inert); a hot spot outside the unit square clamps (465); cached per bitmap identity, so a rebuilt Image is one cursor
+F	image-cursor-seam	M	-	-	-	-	IC-A IC-C IC-E	PlatformPointerStyle.image and PlatformCursorImage (texture, scale, hotSpotX/Y, pixelWidth/Height, pointWidth/Height): the seam's image cursor, equal by texture identity; an outside conformer's exhaustive switch owes the case (docs/migration.md)
 F	input-apis-wheel	M	-	-	-	-	CI-I CI-Q CI-AH	onScrollWheel(perform:) on both vocabularies, ScrollWheelModifier, PointerStyleModifier: a per-element wheel handler (SwiftUI has no per-view wheel hook on macOS) returning whether it claimed, offered innermost first on the one ranking's chain before each scroller (DD-Y), and the two proposal wrappers' types
 F	presentation-scope	D	-	-	-	120	SV-K	PresentationScope: the transparent ElementGroup .fileImporter/.fileExporter/.alert/.confirmationDialog return — no node, no identity level, its record in the window's registry, reconciled after the frame, one presentation in flight per window; a legacy decoration after it does not compile (120)
 F	file-dialogs	D	swiftui-platform-services.swift	D1	anImporterPresentsAfterTheFrameOnceWhileShown	129	SV-C SV-K	fileImporter (both forms)/fileExporter(item:contentTypes:defaultFilename:onCompletion:onCancellation:)/FileExportError: SwiftUI's subset over MetalUI's ContentType and synchronous Transferable; isPresented written false before the callback, a cancelled import calls nothing (D2), a nil item still presents (X5), the exporter writes the conforming representation or the first; off Apple a type filters by extension only (129)
@@ -213,6 +216,9 @@ F	anchored-overlay	M	swiftui-overlays-coords.swift	A1	anOverlayPutsItsTopLeading
 
 F	test-harness-host	M	-	-	-	-	HT-A HT-B HT-C HT-D HT-E HT-F HT-G HT-I HT-J HT-K HT-S	MetalUITesting (lane 1, the host): HeadlessPlatform/HeadlessPlatformWindow/HeadlessWindowRenderer implementing every platform requirement (recorded requests, simulated events, AppKit-default options), TestApp/TestWindow over the real App.openWindow, input by point with AppKit key routing, a simulated clock and runUntilIdle, resize/scale/appearance/close, frame(ofID:) laid-out rects, FrameWork per presented frame; MetalUI-only: SwiftUI has no in-process harness (probe swiftui-xcuitest-test-surface.sh, S1)
 F	test-harness-inspection	M	-	-	-	-	HT-B HT-G HT-H HT-R HT-T	MetalUITesting (lane 2, inspection): TestElement snapshots of the published accessibility tree, queries by identifier/label/role/predicate in tree pre-order, focusedElement, accessibility actions and focus, input aimed at an element's visible-frame centre (.notHittable at zero area), the latest unanswered native alert/file dialog/menu and the native toolbar answered as queued InputEvents, the menu bar read from PlatformMenuBar.content() at each read and performed, MenuEvaluation over MenuSession.number; MetalUI-only: SwiftUI has no in-process harness (probe swiftui-xcuitest-test-surface.sh, S1)
+F	clipboard-modifiers	A	swiftui-clipboard-types.swift	S	theClipboardSpellingsCompileFromAPlainImportAndClipboardHasNoInitialiser	455 456	CB-A CB-B CB-C CB-F CB-G CB-M	copyable(_:)/cuttable(for:action:)/pasteDestination(for:action:validator:) on every StyledElement and once on proposal content (the KeyboardModifier layer): SwiftUI's signatures over MetalUI's Transferable; the primary-modifier C/X/V and the Edit menu reach the innermost handler on the focus chain after the keymap, onKeyPress, a focused field's keys and onKey; one representation per exported type, the first item only (456); a paste walks the destination's imported types in order; Edit items enabled by presence (455)
+F	clipboard	M	-	-	-	-	CB-J CB-F CB-I	Clipboard/Window.clipboard: the imperative clipboard for code outside a view (write, read, contentTypes, hasContent(of:)), no public initialiser; MetalUI-only (SwiftUI has none, apps use NSPasteboard); PasteButton and @Environment(\.clipboard) are not built (CB-N)
+F	clipboard-seam	M	-	-	-	-	CB-D CB-E CB-H CB-I	ClipboardRepresentation/ClipboardCommands and PlatformWindow's four defaultless clipboard requirements (writeClipboard, clipboardTypeIdentifiers, readClipboard(identifier:), setClipboardCommands); AppKit's pasteboard types are the identifiers, SDL's mime types come from ClipboardMime
 F	text-measurer	M	-	-	-	295 296	GT-B GT-C GT-D GT-I	TextMeasurer/TextMeasurer.ResolvedText/EnvironmentValues.textMeasurer: SwiftUI's GraphicsContext.resolve(_:) + ResolvedText.measure(in:) with the environment as carrier (probe swiftui-surface-text.swift A0-G); the unrounded size layout gives a Text/ProposalText under a proposal through resolveTextStyle and the frame's text system, no layout, no state; an empty Text is one line tall (295); get-only, no public initialiser, traps with no stamped system
 
 # ---------------------------------------------------------------- MetalUI
@@ -357,6 +363,7 @@ M	MetalUI	Grid.swift	.*	.*	.*	grid
 M	MetalUI	Image.swift	Image	init	orientation	image-oriented-draw
 M	MetalUI	Image.swift	.*	.*	.*	image
 M	MetalUI	DecodedImage.swift	.*	.*	.*	image-decode
+M	MetalUI	ImageInfo.swift	.*	.*	.*	image-info
 M	MetalUI	ImageOrientation.swift	Image\.Orientation	(init\?|exifValue|swapsAxes)	.*	image-orientation-exif
 M	MetalUI	ImageOrientation.swift	.*	.*	.*	image-orientation
 M	MetalUI	ImageBitmap.swift	ImageBitmap	.*	oriented	image-bitmap-oriented
@@ -497,6 +504,13 @@ M	MetalUILayout	LayoutTree.swift	-	Native.*	.*	native-aliases
 M	MetalUILayout	ProposalLayout.swift	.*	.*	.*	proposal-layout
 M	MetalUILayout	ProposedSize.swift	(-|ProposedSize)	(ProposedSize|width|height|init|unspecified|zero|infinity|replacingUnspecifiedDimensions)	.*	proposal-layout
 M	MetalUILayout	.*	.*	.*	.*	layout-kernel
+M	MetalUIPlatform	Clipboard.swift	.*	.*	.*	clipboard-seam
+M	MetalUIPlatform	Platform.swift	PlatformWindow	writeClipboard	.*ClipboardRepresentation.*	clipboard-seam
+M	MetalUIPlatform	Platform.swift	PlatformWindow	readClipboard	.*identifier.*	clipboard-seam
+M	MetalUIPlatform	Platform.swift	PlatformWindow	(clipboardTypeIdentifiers|setClipboardCommands)	.*	clipboard-seam
+M	MetalUI	Clipboard.swift	.*	.*	.*	clipboard
+M	MetalUI	ClipboardModifiers.swift	.*	.*	.*	clipboard-modifiers
+M	MetalUITesting	TestWindowClipboard.swift	.*	.*	.*	test-harness-inspection
 M	MetalUIPlatform	Platform.swift	Platform	setMenuBar	.*	menu-bar
 M	MetalUIPlatform	Menus.swift	(-|PlatformMenuBar)	(PlatformMenuBar|content|perform|init)	.*	menu-bar
 M	MetalUIPlatform	Platform.swift	Platform	setApplicationIcon	.*	app-icon
@@ -513,6 +527,8 @@ M	MetalUIPlatform	InputEvent.swift	(-|InputPhase|MagnifyEvent|RotateEvent)	(Inpu
 M	MetalUIPlatform	InputEvent.swift	MouseEvent	buttonNumber	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	(phase|momentumPhase|isPrecise|location)	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	init	.*isPrecise.*	input-apis-seam
+M	MetalUIPlatform	PointerStyle.swift	PlatformCursorImage	.*	.*	image-cursor-seam
+M	MetalUIPlatform	PointerStyle.swift	PlatformPointerStyle	image	.*	image-cursor-seam
 M	MetalUIPlatform	PointerStyle.swift	.*	.*	.*	input-apis-seam
 M	MetalUIPlatform	Platform.swift	PlatformWindow	setPointerStyle	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	Modifiers	primary	.*	primary-modifier
@@ -554,6 +570,7 @@ M	MetalUI	FileDialogs.swift	(-|ElementGroup)	(FileExportError|fileImporter|fileE
 M	MetalUI	FileDialogs.swift	.*	.*	.*	file-dialog-call
 M	MetalUI	Alert.swift	.*	.*	.*	alerts
 M	MetalUI	Hover.swift	.*	.*	.*	hover
+M	MetalUI	PointerStyle.swift	PointerStyle	image	.*	image-cursor
 M	MetalUI	PointerStyle.swift	(StyledElement|ProposalElementGroup)	pointerStyle	.*	input-apis-pointer-style-modifier
 M	MetalUI	PointerStyle.swift	PointerStyleModifier	.*	.*	input-apis-wheel
 M	MetalUI	PointerStyle.swift	-	PointerStyleModifier	.*	input-apis-wheel

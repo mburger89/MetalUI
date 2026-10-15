@@ -1584,6 +1584,23 @@ a physical GPU, a desktop session and a console.*
   that returns with a pass open each stop with a message that names the contract and reads clearly
   (`aWaitInsideADrawTrapsInDebug`, `anOpenPassAtTheEndOfADrawTrapsInDebug`; `GA-I`). **Observed:**
 
+## IC. Image cursors and the headless SDL launch — what only a real pointer shows (items S4 and S8, user request 2026-10-02, MetalCreator SDL-port gap 8 and XP-G9, not a plan task; record §116)
+
+*An agent cannot: a cursor is drawn by the window server and a test cannot see the pointer. The recorders (`mui_cursor_*`) pin what the bridge was asked for; these rows pin what the eye sees. The lock probe read LOCKED at design time.*
+
+- [ ] **IC1.** SDL on Linux and on Windows: the hand and zoom recipe (`IC-H`, `docs/guides/input.md`) shows the supplied
+  images, not SDL's move cursor, with the hot spot on the clicked point. `METALUI_CANVAS_DEMO=1`, the "ring" cell, on
+  SDL's backend. Note the largest cursor size each platform draws (a bitmap above its limit leaves the current cursor,
+  `IC-C` 3). **Observed:**
+- [ ] **IC2.** macOS on a 2x display and on a 1x display: the ring cursor is crisp and the same point size on both (a 48 px
+  bitmap at scale 2 is 24 pt, `IC-C`, `IC-D`). **Observed:**
+- [ ] **IC3.** Every platform: the hot spot lands on the clicked pixel at the four corners of the image (hot spots
+  `.zero`, top-trailing, bottom-leading, `.bottomTrailing`; a hot spot outside the unit square clamps, divergence 465).
+  **Observed:**
+- [ ] **IC4.** Windows (the UTM VM or CI) and Linux: an app shaped like `HeadlessLaunchCheck`
+  (`SDLPlatform(options: .headless)`, a `.task`, a stop) exits 0 in CI with no display (`IC-J`, `IC-M`, `IC-Q`).
+  **Observed:**
+
 ## HP. Hot paths — text and shadows look the same (item P1, user request 2026-10-02, not a plan task; record §111)
 
 *An agent cannot: the fourteen offscreen images are 0 px against `fb9a7e42`; a real display, a scale change and an eye are a person's.*
@@ -1638,6 +1655,27 @@ a physical GPU, a desktop session and a console.*
 - [ ] **CW10.** Close goes through the close veto: with an `onCloseRequest` that answers `.cancel` or `.later` the
   drawn Close button keeps the window and the app's alert shows; minimise and zoom/restore act, and Zoom reads
   "Restore" while maximised. **Observed:**
+## CB. Clipboard beyond text — pasting between applications (item S3, user request 2026-10-02, MetalCreator SDL-port gap 7, not a plan task; record 115)
+
+*An agent cannot: these need a real clipboard shared with another application, an unlocked screen and a person.*
+
+- [ ] **CB1.** SwiftUI's own behaviour, the arm the locked screen skipped (`R` of
+  `docs/probes/swiftui-clipboard-types.swift`, unlocked screen: no `CGSSessionScreenIsLocked` line): does `copy:` reach a
+  `copyable` without focus? does a `Transferable` with a proxy representation also write a string? does a
+  `pasteDestination` whose `validator` rejects everything disable Edit ▸ Paste? does `copyable([a, b])` write two
+  pasteboard items? **Observed:** (rewrites `CB-B`, `CB-C`, `CB-G` and divergences 455, 456 if SwiftUI disagrees).
+- [ ] **CB2.** `METALUI_CLIPBOARD_DEMO=1 swift run MetalUIDemo` (then `MetalUISDLDemo` on Linux X11, Wayland and
+  Windows): Tab to the source, copy, paste into TextEdit (the text fallback `graph with 3 nodes` arrives); copy text in
+  another application, Tab to the destination and paste (the text import reads its length); copy in the demo and paste
+  in a second demo process (the custom type arrives as `3 nodes`). **Observed:**
+- [ ] **CB3.** The Edit menu's Cut, Copy and Paste enable and disable with the focus: native menu on macOS, the drawn
+  bar on SDL (`METALUI_CLIPBOARD_DEMO=1`, Tab between source, destination and the text field; Cut/Copy on the source,
+  Paste on the destination, all three on the field). **Observed:**
+- [ ] **CB4.** A 100 MB payload (a `Data` filled in the demo's console) copies and pastes on each platform with no hang
+  and the memory returning afterwards (`CB-I`: no cap; X11's incremental transfer is SDL's). **Observed:**
+- [ ] **CB5.** Another application taking the clipboard while the demo owns it: the demo's next paste reads the other
+  application's data, never stale bytes of its own (`CB-H`; SDL calls the cleanup when it loses the clipboard).
+  **Observed:**
 
 ## Sign-off
 

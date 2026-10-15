@@ -91,11 +91,19 @@ func runDemo() throws {
     // target and a drag handle in it.
     let chromeDemo = ProcessInfo.processInfo.environment["METALUI_CHROME_DEMO"] == "1"
 
+    // The clipboard beyond text (`CB-`, spec `2026-10-14-clipboard-types-design.md` §6): a
+    // copyable/cuttable graph source, a paste destination and a text field.
+    let clipboardDemo = ProcessInfo.processInfo.environment["METALUI_CLIPBOARD_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
     if chromeDemo {
         window = try openChromeDemoWindow(app, title: "MetalUI — Window Chrome")
+    } else if clipboardDemo {
+        window = try app.openWindow(title: "MetalUI — Clipboard",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: clipboardDemoContent)
     } else if retainedDemo {
         window = try app.openWindow(title: "MetalUI — Retained Subtrees",
                                     size: Size(width: Pixels(920), height: Pixels(560)),

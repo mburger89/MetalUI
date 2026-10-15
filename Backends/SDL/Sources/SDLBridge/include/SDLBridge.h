@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -263,6 +264,31 @@ enum {
 // created once per kind and kept for the process. False when the kind is out
 // of range or SDL cannot create it (the offscreen driver may not).
 bool mui_set_system_cursor(int32_t cursor);
+// ---- Image cursors (rulings IC-E, IC-O) ------------------------------------
+// SDL_CreateColorCursor over a straight-alpha RGBA32 `surface` (built with
+// mui_icon_surface_create, alternates added with mui_icon_surface_add_alternate;
+// the caller still destroys the surface), the hot spot in surface pixels. NULL
+// when SDL refuses (the offscreen driver may); the attempt is recorded either way.
+void *mui_cursor_create(void *surface, int32_t hot_x, int32_t hot_y);
+// SDL_DestroyCursor; counted.
+void mui_cursor_destroy(void *cursor);
+// SDL_SetCursor with a cursor mui_cursor_create made; counted. False for NULL.
+bool mui_cursor_set(void *cursor);
+// Recorders for tests (the production path writes them): attempts, successful
+// creations, destroys, live (created - destroyed), SDL_SetCursor calls through
+// mui_cursor_set, and the last attempt's surface size, hot spot, alternate
+// image count and texel `index` packed R<<24 | G<<16 | B<<8 | A (0 out of range).
+uint32_t mui_cursor_attempt_count(void);
+uint32_t mui_cursor_created_count(void);
+uint32_t mui_cursor_destroyed_count(void);
+uint32_t mui_cursor_live_count(void);
+uint32_t mui_cursor_set_count(void);
+int32_t mui_cursor_last_width(void);
+int32_t mui_cursor_last_height(void);
+int32_t mui_cursor_last_hot_x(void);
+int32_t mui_cursor_last_hot_y(void);
+int32_t mui_cursor_last_alternate_count(void);
+uint32_t mui_cursor_last_pixel(int32_t index);
 // SDL's SDL_EVENT_WINDOW_MOUSE_LEAVE, for tests (ruling SV-N item 7; pushed
 // with mui_push_raw_window_event). Exported from C so Swift never spells an
 // SDL enum's `rawValue` (Int32 on Windows).
@@ -405,6 +431,21 @@ bool mui_window_stop_text_input(void *window);
 char *mui_clipboard_text(void);
 bool mui_set_clipboard_text(const char *text);
 void mui_free(void *memory);
+// The typed clipboard (rulings CB-H, CB-I). `mui_clipboard_set` copies every
+// representation into one box SDL's pure data callback reads and its cleanup
+// frees once; false when count is 0 or SDL refuses (the box is then freed here).
+bool mui_clipboard_set(const char *const *mimes, const uint8_t *const *bytes,
+                       const size_t *sizes, size_t count);
+// The mime types the clipboard holds (free with mui_free), NULL when none.
+char **mui_clipboard_mime_types(size_t *count);
+// The clipboard's bytes as `mime` (free with mui_free); NULL, size 0 when absent.
+void *mui_clipboard_get(const char *mime, size_t *size);
+bool mui_clipboard_has(const char *mime);
+void mui_clipboard_clear(void);
+// Counters for tests: cleanups run, boxes alive.
+int32_t mui_clipboard_cleanup_count(void);
+int32_t mui_clipboard_live_count(void);
+size_t mui_clipboard_callback_probe(const char *mime);
 // The window's position on screen in points (SDL_GetWindowPosition).
 void mui_window_position(void *window, int32_t *x, int32_t *y);
 

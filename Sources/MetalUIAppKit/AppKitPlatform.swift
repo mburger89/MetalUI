@@ -389,6 +389,10 @@ final class MetalHostView: NSView {
 
     // MARK: Text input (ruling TI-A)
 
+    /// What the focus chain can do with the clipboard (`CB-E`, `CB-G`): the Edit
+    /// menu's Cut, Copy and Paste enable on these as well as on a caret.
+    var clipboardCommands: ClipboardCommands = []
+
     /// The caret `setTextInputArea` last gave, in view points; nil while no
     /// text field is focused, and then every key is a plain `keyDown`.
     var textInputCaret: Bounds<Pixels>? {
@@ -882,12 +886,40 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         if changed, caret != nil { hostView.inputContext?.invalidateCharacterCoordinates() }
     }
 
-    func readClipboard() -> String? { NSPasteboard.general.string(forType: .string) }
+    /// The pasteboard the clipboard requirements use (ruling `CB-K`): the general
+    /// one in production; a test sets a private named one, so no test touches
+    /// the user's clipboard.
+    var pasteboard: NSPasteboard = .general
+
+    func readClipboard() -> String? { pasteboard.string(forType: .string) }
 
     func writeClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
+
+    /// One `NSPasteboardItem` carrying every representation, replacing
+    /// everything the pasteboard held (`CB-D`: the identifier is the type;
+    /// `public.utf8-plain-text` is `.string`).
+    func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool {
+        guard !representations.isEmpty else { return false }
+        let item = NSPasteboardItem()
+        var wrote = false
+        for representation in representations {
+            wrote = item.setData(Data(representation.bytes), forType: NSPasteboard.PasteboardType(representation.type.identifier)) || wrote
+        }
+        guard wrote else { return false }
+        pasteboard.clearContents()
+        return pasteboard.writeObjects([item])
+    }
+
+    func clipboardTypeIdentifiers() -> [String] { (pasteboard.types ?? []).map(\.rawValue) }
+
+    func readClipboard(identifier: String) -> [UInt8]? {
+        pasteboard.data(forType: NSPasteboard.PasteboardType(identifier)).map { Array($0) }
+    }
+
+    func setClipboardCommands(_ commands: ClipboardCommands) { hostView.clipboardCommands = commands }
 
     /// Owned here and by the host view; it holds the host view weakly (AB-D).
     let accessibilityBridge: AppKitAccessibilityBridge
@@ -1005,12 +1037,22 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         if appearance != lastReportedAppearance { reportAppearance() }
     }
 
+    /// This window's image cursors (ruling `IC-D`): sixteen, least recently used out.
+    private var imageCursors = AppKitImageCursorCache()
+    /// How many image cursors are cached; read by `appKitCachesAnImageCursorPerImageAndBoundsTheCache`.
+    var imageCursorCacheCount: Int { imageCursors.count }
+
     /// Shows `style` (ruling `CI-H` item 8): the host view keeps the mapped
     /// `NSCursor` for every `cursorUpdate(with:)`, and it is set at once while
     /// the pointer is inside the view. Pinned by
     /// `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`.
     func setPointerStyle(_ style: PlatformPointerStyle) {
-        let cursor = AppKitCursor.cursor(for: style)
+        let cursor: NSCursor
+        if case .image(let image) = style {
+            cursor = imageCursors.cursor(for: image, held: hostView.pointerCursor)   // `IC-D`
+        } else {
+            cursor = AppKitCursor.cursor(for: style)
+        }
         hostView.pointerCursor = cursor
         if hostView.pointerIsInside { cursor.set() }
     }
