@@ -92,3 +92,7 @@ Merged master `d3ebfa18` (clean, no conflict). The suite and counts were re-take
 Docs: no divergence, no public declaration, no human check owed (the draw-time cut is pixel-identical, §4, and the fourteen images
 read 0 px; nothing here is a look), no migration note (no requirement added). Open at merge: an unlocked run (expect 3810 + master's
 growth) and `swift build --build-tests` 0 `warning:` on the default build system.
+
+## §9 Closed gap: no pin compared a panned wire's pixels (`PN-K`)
+
+`aPannedWireDrawsTheColdRendersPixels` compares a warm panned wire's drawn pixels with a cold render's and asserts none lie outside the clip; mutation A (`rasterClip = placement.clip`, keyed uncut but cut) reddens it alone, and dropping the draw-time cut reddens it through the outside-the-clip arm (the cold render shares the mutant); 7 + 1 = 8 `PanRasterTests`, source restored after each (`git status` clean).

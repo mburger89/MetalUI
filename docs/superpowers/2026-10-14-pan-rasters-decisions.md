@@ -4,7 +4,7 @@ Rulings for P3 (the pan path-raster miss, user request 2026-10-02). Spec:
 [`specs/2026-10-14-pan-rasters-design.md`](specs/2026-10-14-pan-rasters-design.md). Record: `../record/118-pan-rasters.md`
 (landed). Branch `perf/pan-rasters` from `34491ff4`; divergence labels reserved 485–494 (none taken).
 
-**Next unused id: `PN-K`.** (Moves in the commit that appends a ruling; read the last `## PN-` heading if they disagree.)
+**Next unused id: `PN-L`.** (Moves in the commit that appends a ruling; read the last `## PN-` heading if they disagree.)
 
 Evidence: the code at `34491ff4` (`RasterCache.swift` `pathImage`, `tint`; `RasterAnchor.swift`; `Rasterizer.swift`), record §90
 (`PF-A`, `PF-B`, `PF-J`, `PF-N`), §73, §111 §8. No SwiftUI-facing claim is made: the item is internal, pixels equal, so no probe is
@@ -87,3 +87,13 @@ issues, 1× and 2×). The generous pad also means the extent `PN-B` limits can b
 The screen was locked (`CGSSessionScreenIsLocked = 1`) and the suite's `NSOpenPanel.init()` hangs there (CLAUDE.md counts note). The
 unlocked unfiltered figure, 34491ff4's 3803 plus the seven new tests, is **3810**; the nine skipped are the suite's. **Cost if wrong.**
 The skipped suite touches no raster code; CI (macOS, unlocked) confirms.
+
+## PN-K — A panned wire is compared pixel for pixel with a cold render, and the clip is the independent reference
+
+**Ruling.** `aPannedWireDrawsTheColdRendersPixels` (T8) renders a wire in a `.clipped()` canvas, pans it by whole device pixels
+(1…55 points, 1× and 2×, warm hits counted) and compares the pixels the scene's image draws (texels inside the quad's bounds and
+content mask) with a fresh window's, and asserts nothing draws outside the clip. **Why.** The count pins (T1) cannot see a stale raster:
+the branch checker's mutation A (the cut raster keyed as uncut, `rasterClip = placement.clip`) reddened only the demo-scale image
+count. Measured: mutation A reddens T8 alone (18 issues); dropping the draw-time cut (the quad's `contentMask` made its bounds) passes a
+cold-versus-warm comparison, since both renders share the mutant, and is caught only by the outside-the-clip arm (18 issues).
+**Cost if wrong.** None; a test.

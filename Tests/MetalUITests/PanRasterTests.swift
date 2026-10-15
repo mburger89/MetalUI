@@ -224,3 +224,59 @@ private struct Work {
         #expect(compared >= 3, "\(scale)×: compared \(compared) paths")
     }
 }
+
+/// The device pixels a scene's images draw: each image's texels inside its
+/// bounds and its content mask (the draw-time cut), keyed by device x/y, zero
+/// texels left out. Two renders that draw alike give equal maps.
+private func drawnTexels(_ images: [(image: MUIImage, texture: ImageTexture)]) -> [Int: [UInt8]] {
+    var out: [Int: [UInt8]] = [:]
+    for (image, texture) in images {
+        let b = image.bounds, m = image.contentMask
+        let ox = Int(b.origin.x), oy = Int(b.origin.y)
+        for ty in 0..<texture.height {
+            for tx in 0..<texture.width {
+                let x = ox + tx, y = oy + ty
+                guard Float(x) >= m.origin.x, Float(x) < m.origin.x + m.size.width,
+                      Float(y) >= m.origin.y, Float(y) < m.origin.y + m.size.height else { continue }
+                let i = (ty * texture.width + tx) * 4
+                let texel = Array(texture.pixels[i..<(i + 4)])
+                if texel.contains(where: { $0 != 0 }) { out[y * 100_000 + x] = texel }
+            }
+        }
+    }
+    return out
+}
+
+/// **T8** (`PN-K`). A panned wire draws the pixels a cold render of the same
+/// position draws: a warm frame (an uncut raster from the first, placed at a
+/// whole-pixel offset and cut at draw time) against a fresh window and cache,
+/// at 1× and 2×, across the clip's edge. The count pins of T1 cannot see a
+/// stale raster (a cut raster keyed as uncut hits and draws wrong pixels at the
+/// edge). Mutations: keep the cut raster but key it uncut (`rasterClip =
+/// placement.clip`); drop the draw-time cut (the quad's `contentMask` made its bounds).
+@Test @MainActor func aPannedWireDrawsTheColdRendersPixels() throws {
+    for scale: Float in [1, 2] {
+        let warm = TransitionHarness()
+        _ = render(warm, canvas(wire(), pan: 0), scale: scale)
+        var warmHits = 0
+        for pan: Float in [1, 2, 3, 5, 8, 13, 21, 34, 55] {
+            let w = render(warm, canvas(wire(), pan: pan), scale: scale)
+            let cold = render(TransitionHarness(), canvas(wire(), pan: pan), scale: scale)
+            let drawn = drawnTexels(cold.images)
+            try #require(!drawn.isEmpty, "\(scale)× pan \(pan): the cold render draws pixels")
+            let got = drawnTexels(w.images)
+            // The cold render shares the draw-time cut, so the clip itself is the
+            // independent reference: nothing draws outside the canvas (20…120).
+            let lo = Int(20 * scale), hi = Int(120 * scale)
+            let outside = got.keys.filter { k in
+                let x = k % 100_000, y = k / 100_000
+                return x < lo || x >= hi || y < lo || y >= hi
+            }.count
+            #expect(outside == 0, "\(scale)× pan \(pan): \(outside) pixels drawn outside the clip")
+            if w.rasterized == 0 { warmHits += 1 }
+            let differing = Set(drawn.keys).union(got.keys).filter { drawn[$0] != got[$0] }.count
+            #expect(differing == 0, "\(scale)× pan \(pan): \(differing) drawn pixels differ from the cold render")
+        }
+        #expect(warmHits >= 5, "\(scale)×: \(warmHits) warm frames hit the cache")
+    }
+}
