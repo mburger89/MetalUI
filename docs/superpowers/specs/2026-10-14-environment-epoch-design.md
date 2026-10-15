@@ -112,9 +112,9 @@ Lane 1, `EnvironmentReadingTests` (MetalUITests):
   never `.uncomparable`. Mutation: `.object` compares always true.
 - **U3 `aFunctionOrAFunctionHoldingStructReadsUncomparable`** — `.uncomparable != .uncomparable`; a struct with a closure
   and `\.self`'s `EnvironmentValues`. Mutation: `.uncomparable` made equal to itself.
-- **U4 `aCustomKeyWriteStoresItsReadingAndCountsTheUncomparable`** — `uncomparableCustomCount` 0 for an Int key, 1 for a
-  closure key, back to 0 when the closure key is overwritten with an Int-valued key's… (a second closure key counts 2). Mutation:
-  the setter never counts.
+- **U4 `aCustomKeyWriteStoresItsReadingAndCountsTheUncomparable`** — `uncomparableCustomCount` is 0 after writing an Int key, 1 after also
+  writing a closure key, 2 after a second closure-valued key, and stays 1 when the same closure key is overwritten (a count of keys,
+  not writes). Mutation: the setter never counts.
 - **U5 `anIsolatedConformanceValueReadsAsMeasured`** — pins the step-0 answer (comparable or uncomparable), never a crash.
   Mutation: flip the cast to `as? any Equatable & Sendable`.
 - **U6 `theFingerprintDistinguishesTwoInstancesProvidedAsOneType`** (`EE-K`) — red before: equal fingerprints. Mutation: the

@@ -11,7 +11,7 @@ K2-new, K2-same, K2-fn, K2-fn-again, O2, O2-unread, O1, B1; output in its header
 `swiftui-incremental-invalidation.swift` `E-env`, `E-env2`, `EnvQuiet`. gpui has no environment (state is entities;
 `cx.notify()` re-renders a view, there is no ambient value to version): nothing to borrow.
 
-**Next unused id: `EE-L`.**
+**Next unused id: `EE-M`.**
 
 ## EE-A — No epoch counter: compare what each declared `@Environment` read, per key
 
@@ -178,3 +178,11 @@ item's feature, but a precondition of it: allowing `@Environment(Type.self)` com
 swap reachable.
 
 **Cost if wrong.** A swapped object under a retained occurrence paints stale.
+
+## EE-L — Critic pass: probe re-run, one test text repaired, no design change
+
+**Evidence.** The probe was recompiled and re-run on 2026-10-14 (macOS 27): P0, K1-equal, K1-changed, K2-new, K2-same, K2-fn,
+K2-fn-again, O2, O2-unread, O1 and B1 read byte for byte as the header records (EqFn's extra re-runs included).
+**Ruling.** The design stands. U4's text was garbled (an Int cannot overwrite a closure key) and is rewritten as a key count that
+survives overwriting. Lanes stay two and sequential; lane 2's red-on-arrival tests read only counters that exist at 6273e3a4.
+**Cost if wrong.** None beyond the test text.
