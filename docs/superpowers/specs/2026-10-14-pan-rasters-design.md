@@ -78,7 +78,7 @@ All in `PanRasterTests.swift` unless named; work counters only, no sleep; fixtur
 | T3 | `aRasterOverTheLimitKeepsTheCutKey` : a path with `E` over the limit misses on a pan | green only after (a) exists with a limit; the arm that proves the limit binds | remove the area test |
 | T4 | `aPathUnderALocalMaskKeepsItsAbsoluteKey` : rotation + inner clip: pixels rasterized equal the 34491ff4 literal | green on arrival (separating arm of T1) | route mode 3 through overscan |
 | T5 | `aDiagonalCubicsTintWorkIsItsCoveredWords` : `lastTintedPixels < ⅓` of the mask area and `≥` the nonzero count | tinted = whole area | tint the whole row |
-| T6 | `tintIsByteForByteTheReferenceLoopOnSparseMasks` (extends `RasterMathReferenceTests`): masks with zero runs, tails of 1–7 bytes, alpha 1 and 255 | n/a (equivalence) | off-by-one in the tail; treat alpha 1 as zero |
+| T6 | `tintSkippingZeroWordsIsByteForByteTheReferenceLoop` (extends `RasterMathReferenceTests`): masks with zero runs, tails of 1–7 bytes, alpha 1 and 255 | n/a (equivalence) | off-by-one in the tail; treat alpha 1 as zero |
 | T7 | `aDragRastersOnlyTheMovingWires` : static wires 0 px, moving wire > 0 each frame, sub-pixel pan misses | green on arrival (the instrument for T1) | n/a, a characterization |
 
 The existing pins that name a cut (`aShadowCutByItsClipIsRasterizedOnEveryMove`, `aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove`,
