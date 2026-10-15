@@ -1,0 +1,99 @@
+diff --git b/Sources/MetalUI/EquatableComponent.swift a/Sources/MetalUI/EquatableComponent.swift
+index 18cc0d79..c774b776 100644
+--- b/Sources/MetalUI/EquatableComponent.swift
++++ a/Sources/MetalUI/EquatableComponent.swift
+@@ -60,11 +60,20 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
+         }
+         // A grafted occurrence skips the build recursion (`RK-B`): its rows are copied from the last build's segment
+         // and the journal of that build is applied again. Its prepaint and paint are replays, or the frame is redone.
++        GraftProbe.register()
+         let buildKey = frame.graftBuildKey()
+         if let record = frame.graftRecord(for: entry, id: id, key: buildKey) {
++            let started = GraftProbe.enabled ? GraftProbe.now() : 0
++            let outermost = !store.journal.isRecording
+             let tops = frame.graftOccurrence(record)
+             let layout = ComponentLayout<C>(grafted: RetainedGraft(record: record))
+             layout.storage.retained = window.finish(frame: frame, key: key, nodes: tops, observed: false)
++            if GraftProbe.enabled, outermost, record.wasOutermost {
++                GraftProbe.graftNanoseconds &+= GraftProbe.now() &- started
++                GraftProbe.standingForNanoseconds &+= record.buildNanoseconds
++                GraftProbe.grafts += 1
++                GraftProbe.nodes += record.segment.nodeCount
++            }
+             return (tops, layout)
+         }
+         // The build recursion runs in an observation window of its own (`SB-D`): a descendant
+@@ -72,6 +81,8 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
+         let observed = entry.needsObservation
+         let evaluationsBefore = store.evaluationsSoFar
+         let graftWindow = store.recordsGrafts ? frame.openGraftWindow() : nil
++        let outermost = graftWindow != nil && store.journal.open.count == 1
++        let started = GraftProbe.enabled ? GraftProbe.now() : 0
+         let result: ([LayoutNodeID], ComponentLayout<C>)
+         if observed {
+             result = entry.buildSession.run(entry: entry, store: store) {
+@@ -80,6 +91,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
+         } else {
+             result = component.finishComponent(&materialized, id: id, pass: &pass)
+         }
++        let spent = GraftProbe.enabled ? GraftProbe.now() &- started : 0
+         // A descendant whose content ran this frame may have changed what the record holds, though this
+         // occurrence's own windows never saw its reads (it was skipped when they were open): no replay.
+         if store.evaluationsSoFar != evaluationsBefore { entry.observedChange = true }
+@@ -89,7 +101,13 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
+         if let graftWindow {
+             let closed = frame.closeGraftWindow(graftWindow, tops: result.0, contentSerial: entry.serial, key: buildKey)
+             if let record = closed.record {
++                record.wasOutermost = outermost
++                record.buildNanoseconds = spent
+                 entry.graft = record
++                if GraftProbe.enabled, outermost {
++                    GraftProbe.buildNanoseconds &+= spent
++                    GraftProbe.builds += 1
++                }
+             } else {
+                 entry.graft = nil
+                 store.retained.graftIneligible += 1
+diff --git b/Sources/MetalUI/RetainedGraft.swift a/Sources/MetalUI/RetainedGraft.swift
+index e703ad97..8cf2eccd 100644
+--- b/Sources/MetalUI/RetainedGraft.swift
++++ a/Sources/MetalUI/RetainedGraft.swift
+@@ -125,6 +125,10 @@ final class GraftRecord {
+     let nestedKeys: [ContentMemoStore.Key]
+     let liveStates: [GlobalElementID]
+     let animationIDs: [GlobalElementID]
++    /// The wall time of the build this record stands for, for the cost probe (`RK-P`); 0 unless `RK_EXPERIMENT=1`.
++    var buildNanoseconds: UInt64 = 0
++    /// Whether that build was an outermost occurrence's (the probe counts those only, `RK-P`).
++    var wasOutermost = false
+     /// The lowered-item records of the top-level nodes, by top index (`RK-F`): a legacy top is consumed by its parent
+     /// container after the occurrence returns, so the graft records it again for the new node. The interior
+     /// records are consumed and never read again.
+@@ -281,6 +285,27 @@ final class RetainedGraft {
+ 
+ // MARK: - The decision and the graft
+ 
++/// The cost probe of `RK-P` (`RK_EXPERIMENT=1`): wall time of outermost builds against the graft that replaced them.
++enum GraftProbe {
++    static let enabled = ProcessInfo.processInfo.environment["RK_EXPERIMENT"] == "1"
++    nonisolated(unsafe) static var buildNanoseconds: UInt64 = 0
++    nonisolated(unsafe) static var graftNanoseconds: UInt64 = 0
++    nonisolated(unsafe) static var standingForNanoseconds: UInt64 = 0
++    nonisolated(unsafe) static var builds = 0
++    nonisolated(unsafe) static var grafts = 0
++    nonisolated(unsafe) static var nodes = 0
++    static func now() -> UInt64 { clock_gettime_nsec_np(CLOCK_UPTIME_RAW) }
++    nonisolated(unsafe) static var registered = false
++    /// Prints the totals once at process exit.
++    static func register() {
++        guard enabled, !registered else { return }
++        registered = true
++        atexit {
++            print("RK_EXPERIMENT builds=\(GraftProbe.builds) grafts=\(GraftProbe.grafts) graftedNodes=\(GraftProbe.nodes) buildMs=\(Double(GraftProbe.buildNanoseconds) / 1e6) graftMs=\(Double(GraftProbe.graftNanoseconds) / 1e6) buildStoodForMs=\(Double(GraftProbe.standingForNanoseconds) / 1e6)")
++        }
++    }
++}
++
+ extension Frame {
+     /// The graft record this occurrence may stand on in this build, or `nil` (`RK-B`, `RK-C`): its paint record, prepaint
+     /// ledger and graft record all describe the content it holds now, nothing it reads moved, and the prepaint

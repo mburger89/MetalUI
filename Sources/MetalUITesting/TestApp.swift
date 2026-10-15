@@ -179,6 +179,16 @@ final class FrameWorkRecorder {
         pending.retainedSkippedPaints += work.retained.skippedPaints
         pending.retainedLedgerSnapshots += work.retained.ledgerSnapshots
         pending.retainedReplayedOps += work.retained.replayedOps
+        pending.retainedPrepaintHits += work.retained.prepaintHits
+        pending.retainedPrepaintIneligible += work.retained.prepaintIneligible
+        pending.retainedRedos += work.retained.redos
+        pending.retainedBackoffFrames += work.retained.backoffFrames
+        pending.retainedTranslated += work.retained.translated
+        pending.retainedTranslationRefused += work.retained.translationRefused
+        pending.retainedGrafts += work.retained.grafts
+        pending.retainedGraftIneligible += work.retained.graftIneligible
+        pending.retainedSkippedRequests += work.retained.skippedRequests
+        pending.retainedGraftedNodes += work.retained.graftedNodes
         pending.rasterizedPixels += work.rasterizedPixels
         pending.blurredPixels += work.blurredPixels
     }

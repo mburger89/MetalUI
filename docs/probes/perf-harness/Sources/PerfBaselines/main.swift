@@ -12,12 +12,17 @@ func now() -> Double {
     var t = timespec(); clock_gettime(CLOCK_MONOTONIC, &t)
     return Double(t.tv_sec) * 1000 + Double(t.tv_nsec) / 1e6
 }
+/// Thread CPU time in milliseconds: what the frame cost the main thread, unaffected by other processes taking the core.
+func cpuNow() -> Double {
+    var t = timespec(); clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t)
+    return Double(t.tv_sec) * 1000 + Double(t.tv_nsec) / 1e6
+}
 func median(_ xs: [Double]) -> Double { let s = xs.sorted(); return s[s.count / 2] }
 func report(_ scenario: String, _ metric: String, _ value: String) { print("\(scenario)\t\(metric)\t\(value)") }
 func ms(_ v: Double) -> String { String(format: "%.3f", v) }
 
 func workLine(_ w: FrameWork) -> String {
-    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images) elementPaints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) retainedIneligible=\(w.retainedIneligible)"
+    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images) elementPaints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) retainedIneligible=\(w.retainedIneligible) elementRequests=\(w.elementRequests) elementPrepaints=\(w.elementPrepaints) skippedPrepaints=\(w.retainedSkippedPrepaints) prepaintHits=\(w.retainedPrepaintHits) prepaintIneligible=\(w.retainedPrepaintIneligible) redos=\(w.retainedRedos) translated=\(w.retainedTranslated) grafts=\(w.retainedGrafts) graftIneligible=\(w.retainedGraftIneligible) skippedRequests=\(w.retainedSkippedRequests) graftedNodes=\(w.retainedGraftedNodes) placeGlyphs=\(w.glyphs) rasterizedPixels=\(w.rasterizedPixels) uploadPixels=\(w.atlasUploadPixels) contentEvaluations=\(w.contentEvaluations)"
 }
 
 // MARK: Synthetic branching trees (record 07's shapes: depth 12 branch 2 = 8,191; depth 10 branch 3 = 88,573)
@@ -164,6 +169,41 @@ struct Row: Identifiable { let id: Int }
     report(name, "last_frame_work", workLine(w.lastFrameWork))
 }
 
+/// The same drag with prepaint replay off (`METALUI_RETAINED_PREPAINT=0`, read when each window is made) and on,
+/// alternating inside one process so the two see the same machine (`RK-J`'s gate reading): per-frame median over
+/// every round's frames, and the last frame's work.
+@MainActor func bracketABScenario(arm: BracketArm, name: String, rounds: Int, reps: Int, variable: String = "METALUI_RETAINED_PREPAINT") throws {
+    var frames: [String: [Double]] = ["off": [], "on": []]
+    var cpu: [String: [Double]] = ["off": [], "on": []]
+    var work: [String: FrameWork] = [:]
+    for round in 0..<rounds {
+        for mode in (round % 2 == 0 ? ["off", "on"] : ["on", "off"]) {
+            setenv(variable, mode == "off" ? "0" : "1", 1)
+            let model = BracketModel(), viewport = BracketViewport()
+            let w = try TestWindow(size: bracketWindowSize, colorScheme: .dark, scaleFactor: 2) {
+                bracketRoot(arm: arm, model: model, viewport: viewport)
+            }
+            for _ in 0..<5 { w.window.setNeedsRedraw(); w.tick() }
+            let steps = 20
+            for rep in 0..<reps {
+                let sign: Float = rep % 2 == 0 ? 1 : -1
+                let startX: Float = rep % 2 == 0 ? 20 : 20 + 2 * Float(steps)
+                let t0 = now(), c0 = cpuNow()
+                w.drag(from: Point(x: px(startX), y: px(400)), to: Point(x: px(startX + sign * 2 * Float(steps)), y: px(400)), steps: steps)
+                frames[mode, default: []].append((now() - t0) / Double(steps + 2))
+                cpu[mode, default: []].append((cpuNow() - c0) / Double(steps + 2))
+            }
+            work[mode] = w.lastFrameWork
+        }
+    }
+    for mode in ["off", "on"] {
+        report(name + "_" + mode, "drag_frame_ms_median", ms(median(frames[mode]!)))
+        report(name + "_" + mode, "drag_frame_ms_min", ms(frames[mode]!.min()!))
+        report(name + "_" + mode, "drag_frame_cpu_ms_median", ms(median(cpu[mode]!)))
+        report(name + "_" + mode, "last_frame_work", workLine(work[mode]!))
+    }
+}
+
 let args = CommandLine.arguments.dropFirst()
 let which = args.first(where: { !$0.hasPrefix("--") }) ?? "all"
 let quick = args.contains("--quick")
@@ -182,6 +222,17 @@ MainActor.assumeIsolated {
             try listScenario(rows: 100_000, reps: quick ? 5 : 21)
         }
         if which == "all" || which == "drag" { try dragScenario(nodes: 20, reps: quick ? 20 : 100) }
+        if which == "bracketab" {
+            let rounds = quick ? 3 : 8
+            try bracketABScenario(arm: .value, name: "bracketab_value", rounds: rounds, reps: quick ? 6 : 14)
+            try bracketABScenario(arm: .panels, name: "bracketab_panels", rounds: rounds, reps: quick ? 6 : 14)
+        }
+        if which == "bracketgraft" {
+            // C14b-2 lane 2: the node drag with the graft off (prepaint replay on) and on, alternating (`METALUI_RETAINED_GRAFT`).
+            let rounds = quick ? 3 : 8
+            try bracketABScenario(arm: .value, name: "bracketgraft_value", rounds: rounds, reps: quick ? 6 : 14, variable: "METALUI_RETAINED_GRAFT")
+            try bracketABScenario(arm: .panels, name: "bracketgraft_panels", rounds: rounds, reps: quick ? 6 : 14, variable: "METALUI_RETAINED_GRAFT")
+        }
         if which == "all" || which == "bracket" {
             try bracketScenario(arm: .value, name: "bracket_value", reps: quick ? 6 : 30)
             try bracketScenario(arm: .environment, name: "bracket_environment", reps: quick ? 6 : 30)

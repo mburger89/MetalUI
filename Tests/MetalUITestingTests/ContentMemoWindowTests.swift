@@ -152,6 +152,9 @@ private struct EqBranch<Child: Component & Equatable>: Component, @MainActor Equ
         let counting = CountingTextSystem(harnessTextSystem())
         let (window, cells, components) = try eqWindow(levels: levels, counting: counting, memo: memoOn)
         let leaves = cells.count
+        // The memo's own pin: a graft (`RK-B`) skips an unchanged occurrence's whole build recursion, nested components
+        // included, so their content skips are not even visited; the graft's counts are `RetainedGraftTests`'.
+        window.window.testingRetainedGraft = false
         for _ in 0..<2 { cells[0].value += 1; await settle(); redraw(window) }   // warm
         counting.reset(); MemoStats.reset(); window.resetFrameWork()
         let frames = 4

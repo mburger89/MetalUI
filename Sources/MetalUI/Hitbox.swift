@@ -249,3 +249,20 @@ func topmostHitbox(in hitboxes: [Hitbox], at point: Point<Pixels>, where eligibl
         .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
         .map(\.offset)
 }
+
+extension Hitbox {
+    /// Every field of the hitbox that is not a closure, and which handler members were present, as one string
+    /// (`RK-N`, `RK-E`): what verify mode and the differentials compare two frames' hitbox lists by.
+    var fingerprint: String {
+        var members: [String] = []
+        for child in Mirror(reflecting: handlers).children {
+            guard let label = child.label else { continue }
+            let value = Mirror(reflecting: child.value)
+            if value.displayStyle == .optional, value.children.isEmpty { continue }
+            members.append(label)
+        }
+        return "\(id)|\(bounds)|\(layer)|\(opaque)|\(String(describing: scroll))|\(origin)|"
+            + "\(String(describing: shape))|\(String(describing: transform))|\(contextualEnabled)|"
+            + members.joined(separator: ",")
+    }
+}

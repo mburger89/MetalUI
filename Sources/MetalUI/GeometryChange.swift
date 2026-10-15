@@ -101,6 +101,7 @@ extension Frame {
     /// so an `.offset` written after the modifier is included (G4a).
     func noteGeometry(_ watch: GeometryWatch, key: GlobalElementID, owner: GlobalElementID,
                       nodes: [LayoutNodeID]) {
+        prepaintLog?.taint("geometryChange")   // a note the lifecycle drain reads: never replayed (`RK-E`)
         let contentUnion = union(of: nodes)
         let moved = scrolled(contentUnion)
         let composed = prepaintEffects.last?.composed

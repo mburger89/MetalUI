@@ -7,12 +7,15 @@ import Observation
 
 // C14b (`SB-A`…`SB-AA`): retained subtrees. One record per `.equatable()` occurrence, hung off its
 // content-memo entry: the scene operations its **paint** produced and the cache touches that paint made,
-// replayed instead of run while its replay key is equal. Lane 1 (this file) leaves the build recursion and
-// the **prepaint** running, so a miss is always safe: every element's layout record and prepaint state exist
-// and paint runs as it always did. (The design replayed prepaint too; `SB-AA` records why it cannot be decided
-// there: a paint-only ambient — an opacity, a shadow or blur scope — is not on the frame yet.)
-// Spec `docs/superpowers/specs/2026-10-13-retained-subtrees-design.md`, rulings
-// `docs/superpowers/2026-10-13-retained-subtrees-decisions.md`.
+// replayed instead of run while its replay key is equal. The build recursion still runs, so a miss is always
+// safe: every element's layout record exists. C14b-2 adds the **prepaint** half beside it
+// (`RetainedPrepaint.swift`, `RK-C`…`RK-E`): a ledger of what the occurrence's prepaint registered, replayed
+// while the prepaint key is equal, with a redo of the frame when a replayed prepaint meets a paint-only
+// ambient (an opacity, a shadow or blur scope — pushed by an ancestor's paint, after every prepaint) that
+// differs from the record's (`SB-AA` is why the decision cannot be taken at prepaint alone).
+// Spec `docs/superpowers/specs/2026-10-13-retained-subtrees-design.md` and
+// `2026-10-13-retained-build-skip-design.md`, rulings `docs/superpowers/2026-10-13-retained-subtrees-decisions.md`
+// and `2026-10-13-retained-build-skip-decisions.md`.
 
 /// The work counters of retained subtrees for one build (`SB-`): work, never time.
 package struct RetainedCounters: Sendable, Equatable {
@@ -24,7 +27,7 @@ package struct RetainedCounters: Sendable, Equatable {
     /// Occurrences that ran paint and left no record: a channel a record cannot replay moved
     /// (`SB-J`), or a context the key cannot hold was open.
     package var ineligible = 0
-    /// Element prepaints a hit stood for: always 0 in lane 1, which runs every prepaint (`SB-AA`).
+    /// Element prepaints a prepaint replay stood for (`RK-E`): the work of the ledgers replayed.
     package var skippedPrepaints = 0
     /// Element paints a hit stood for (the conservation law of test 1.1).
     package var skippedPaints = 0
@@ -32,6 +35,28 @@ package struct RetainedCounters: Sendable, Equatable {
     package var ledgerSnapshots = 0
     /// Recorded scene operations replayed.
     package var replayedOps = 0
+    /// Occurrences whose prepaint was replayed from a record (`RK-E`).
+    package var prepaintHits = 0
+    /// Occurrences whose prepaint ran and left no prepaint record: a channel a record cannot replay
+    /// moved, or a context the prepaint key cannot hold was open (`RK-E`, by name in the trace).
+    package var prepaintIneligible = 0
+    /// Frames redone because a replayed prepaint met a paint-only ambient that differed (`RK-D`, `RK-M`).
+    package var redos = 0
+    /// Builds that ran with prepaint replay suspended after a redo (`RK-D` item 3).
+    package var backoffFrames = 0
+    /// Occurrences replayed at a translated position (`RK-G`).
+    package var translated = 0
+    /// Occurrences whose move by a translation failed the gate and missed (`RK-G`).
+    package var translationRefused = 0
+    /// Occurrences whose build recursion did not run: their layout rows were copied and the build journal applied again
+    /// (`RK-B`, `RK-F`).
+    package var grafts = 0
+    /// Occurrences that built and could leave no graft record, by channel in the trace (`RK-F`).
+    package var graftIneligible = 0
+    /// Element requests the grafts stood for: `elementRequests + skippedRequests` is a graft-off frame's count.
+    package var skippedRequests = 0
+    /// Layout nodes the grafts appended instead of registering.
+    package var graftedNodes = 0
     package init() {}
 }
 
@@ -138,6 +163,9 @@ struct LedgerSnapshot {
 /// **Every part has a separating arm in `everyKeyComponentSeparates` or is covered twice** (the scale factor and the window
 /// size by the environment fingerprint, the rects and the interior by each other; record 109 §5).
 struct AmbientKey: Equatable {
+    /// The kind word of an effect scope in `scopes` (`retainedAmbientKey`), index 0 of its vector.
+    static let effectKind = Double(PaintScope.Kind.effect.hashValue)
+
     var clip: [Float]
     var offset: [Float]
     var layerOpacityScale: [Float]
@@ -153,6 +181,26 @@ struct ReplayKey: Equatable {
     var interior: Int
     var nodeCount: Int
     var ambient: AmbientKey
+
+    /// Whether this (the new) key is `old` with only the translation of outer render-effect scopes moved (`RK-G`,
+    /// `RK-S`): the recorded leaves are those before any outer scope applies, so replaying them through the live
+    /// scopes is arithmetic-for-arithmetic what a fresh paint does at the new translation.
+    func differsOnlyByEffectTranslation(from old: ReplayKey) -> Bool {
+        guard rects == old.rects, interior == old.interior, nodeCount == old.nodeCount,
+              ambient.scopes.count == old.ambient.scopes.count else { return false }
+        var moved = false
+        var normalized = ambient
+        for index in ambient.scopes.indices where ambient.scopes[index] != old.ambient.scopes[index] {
+            let new = ambient.scopes[index], was = old.ambient.scopes[index]
+            guard new.count == was.count, new.count >= 10, new[0] == AmbientKey.effectKind else { return false }
+            var a = new, b = was
+            a[8] = 0; a[9] = 0; b[8] = 0; b[9] = 0
+            guard a == b else { return false }
+            moved = true
+            normalized.scopes[index] = was
+        }
+        return moved && normalized == old.ambient
+    }
 }
 
 // MARK: - The record
@@ -180,6 +228,8 @@ final class RetainedRecord {
     /// valid record missed on) covers only its paint, so it is not replayed: the next frame observes
     /// all three and records again.
     var coverageComplete = true
+    /// What the occurrence's prepaint registered (`RK-E`), or `nil` when it could not be recorded.
+    var prepaint: PrepaintLedger?
 
     init(key: ReplayKey) { self.key = key }
 }
@@ -289,6 +339,21 @@ final class RetainedPhase {
     let entry: ContentMemoStore.Entry
     /// Whether prepaint ran inside an observation window, as the build did.
     let prepaintObserved: Bool
+    /// The occurrence's rects and layout signature, read once at prepaint and shared by both keys.
+    var rects: [Float] = []
+    var interior = 0
+    var nodeCount = 0
+    /// The prepaint key this frame computed, and the ledger this frame's prepaint made (`nil` when it was
+    /// refused or tainted) or replayed (`RK-E`).
+    var prepaintKey: PrepaintKey?
+    var ledger: PrepaintLedger?
+    var replayed: PrepaintLedger?
+    /// Whether the paint decision replayed the record at a translated position (`RK-G`, `RK-S`).
+    var translatedPaint = false
+    /// Whether the occurrence was grafted (`RK-B`): no element layout, so prepaint and paint can only replay.
+    var grafted = false
+    /// Whether its prepaint asked for the frame to be redone: paint then does nothing.
+    var abandoned = false
 
     init(build: RetainedBuild, entry: ContentMemoStore.Entry, prepaintObserved: Bool) {
         self.build = build
@@ -381,12 +446,17 @@ extension Frame {
             disablesAnimations: transactionTop.disablesAnimations)
     }
 
-    func retainedKey(build: RetainedBuild) -> ReplayKey {
+    func retainedKey(_ phase: RetainedPhase) -> ReplayKey {
+        ReplayKey(rects: phase.rects, interior: phase.interior, nodeCount: phase.nodeCount, ambient: retainedAmbientKey())
+    }
+
+    /// Reads the occurrence's rects and layout signature into `phase` (once per occurrence per frame).
+    func readRetainedGeometry(into phase: RetainedPhase) {
         var rects: [Float] = []
-        rects.reserveCapacity(build.topNodes.count * 4)
-        for node in build.topNodes { rects += flat(bounds(of: node)) }
-        let (hash, count) = tree.subtreeSignature(of: build.topNodes)
-        return ReplayKey(rects: rects, interior: hash, nodeCount: count, ambient: retainedAmbientKey())
+        rects.reserveCapacity(phase.build.topNodes.count * 4)
+        for node in phase.build.topNodes { rects += flat(bounds(of: node)) }
+        let (hash, count) = tree.subtreeSignature(of: phase.build.topNodes)
+        phase.rects = rects; phase.interior = hash; phase.nodeCount = count
     }
 
     /// Whether the hovered element, the pressed one or the focused one is the component or under it (`SB-F`
@@ -424,8 +494,10 @@ extension Frame {
 
     // MARK: Replay
 
-    func replayPaint(_ r: RetainedRecord) {
-        if retainLog?.needsLeaves != true, let final = r.finalScene {
+    func replayPaint(_ r: RetainedRecord, translated: Bool = false) {
+        // A record replayed at a translated position goes through the live scopes (`RK-S`): the final stream holds
+        // the old translation in its coordinates.
+        if !translated, retainLog?.needsLeaves != true, let final = r.finalScene {
             // No other live recorder wants the leaves where an outer scope would pass them: straight in.
             for op in final { for (group, _) in op.leaves { for primitive in group { insertIntoScene(primitive) } } }
         } else {
@@ -448,7 +520,9 @@ extension Frame {
             entry.record = nil
             return nil
         }
-        return RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation)
+        let phase = RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation)
+        readRetainedGeometry(into: phase)
+        return phase
     }
 
     /// The decision of `EquatableComponent.paintGroup` (spec §3.1, `SB-AA`): replay, record, or run plain.
@@ -461,13 +535,20 @@ extension Frame {
             memos.retained.ineligible += 1
             return .plain
         }
-        let key = retainedKey(build: build)
+        let key = retainedKey(phase)
         let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
-            if !entry.observedChange, old.coverageComplete, old.contentSerial == entry.serial, old.key == key,
-               old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }), !underPointer {
+            let valid = !entry.observedChange && old.coverageComplete && old.contentSerial == entry.serial
+                && old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) && !underPointer
+                && (phase.replayed == nil || old.prepaint === phase.replayed)
+            let translated = valid && old.key != key && memos.replaysPrepaint && key.differsOnlyByEffectTranslation(from: old.key)
+            if valid && (old.key == key || translated) {
                 memos.retained.hits += 1
-                if retainedVerifiesFromEnvironment { return .record(SubtreeRecorder(), key, old: old) }
+                if translated { memos.retained.translated += 1; phase.translatedPaint = true }
+                if phase.replayed != nil { entry.redoExponent = 0 }
+                // A prepaint-replayed occurrence has no element prepaint state to paint from: verify mode checks
+                // it at the window, by building the frame again with replay off (`RK-N`).
+                if retainedVerifiesFromEnvironment, phase.replayed == nil { return .record(SubtreeRecorder(), key, old: old) }
                 return .hit(old)
             }
             if retainedTraces { traceMiss(old, key: key, build: build, entry: entry, underPointer: underPointer) }
@@ -514,6 +595,7 @@ extension Frame {
             record.versions.append((id, stateTable.entryVersion(id)))
         }
         record.coverageComplete = phase.build.observed && phase.prepaintObserved
+        record.prepaint = phase.ledger
         record.contentSerial = phase.entry.serial
         let ops = log.scene[from.scene..<to.scene]
         record.scene = ops.filter { $0.boundary == recorder.entryHeight }
@@ -533,7 +615,7 @@ extension Frame {
             if let reason = recorder.taint {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed subtree is ineligible now (\(reason))")
             }
-            if let difference = old.differences(from: record) {
+            if let difference = old.differences(from: record, ignoringFinalStream: phase.translatedPaint) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)) (observed \(phase.entry.observedChange), serial \(phase.entry.serial)): \(difference)")
             }
             // The old record stays: it is equal, and it covers the build and prepaint this frame did not observe.
@@ -561,7 +643,7 @@ extension RetainedRecord {
     /// How `other` (a fresh run's record) differs from this one, or `nil` (`SB-W`): every scene
     /// operation (kind, layer, masks, texture identity, raster key), the marks and touches, and the
     /// element work the record stands for.
-    func differences(from other: RetainedRecord) -> String? {
+    func differences(from other: RetainedRecord, ignoringFinalStream: Bool = false) -> String? {
         if scene.count != other.scene.count { return "scene.count \(scene.count) vs \(other.scene.count)" }
         func kindDescription(_ kind: CapturedPrimitive.Kind) -> String {
             switch kind {
@@ -590,8 +672,8 @@ extension RetainedRecord {
         for (a, b) in zip(scene, other.scene) where describe(a) != describe(b) {
             return "scene op \(describe(a)) vs \(describe(b))"
         }
-        if (finalScene == nil) != (other.finalScene == nil) { return "finalScene presence" }
-        if let x = finalScene, let y = other.finalScene {
+        if !ignoringFinalStream, (finalScene == nil) != (other.finalScene == nil) { return "finalScene presence" }
+        if !ignoringFinalStream, let x = finalScene, let y = other.finalScene {
             if x.count != y.count { return "finalScene.count \(x.count) vs \(y.count)" }
             for (a, b) in zip(x, y) where describe(a) != describe(b) { return "final op \(describe(a)) vs \(describe(b))" }
         }

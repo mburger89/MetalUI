@@ -99,6 +99,22 @@ public final class Frame {
         }
     }
 
+    /// The open prepaint recorders' shared journal (`RK-E`, `RetainedPrepaint.swift`): `nil` unless an
+    /// `.equatable()` occurrence's prepaint is being recorded, so every hook below is one nil check.
+    var prepaintLog: PrepaintLog? {
+        didSet { stateTable.prepaintLog = prepaintLog }
+    }
+
+    /// The occurrences whose replayed prepaint met a paint-time ambient that differed and so could not paint
+    /// (`RK-C`, `RK-D`): non-empty at the end of paint means the frame is abandoned and built again.
+    var redoEntries: [ContentMemoStore.Entry] = []
+
+    /// Verify mode (`RK-N`, `METALUI_VERIFY_RETAINED=1`): what this frame held after the root's paint, taken only
+    /// when a prepaint was replayed, and whether the frame was abandoned there so the window builds it again with
+    /// every replay off and compares the two.
+    var verifySnapshot: RetainedVerifySnapshot?
+    var verifyAbandoned = false
+
     /// Where a ``ScrollViewProxy`` built in this frame enqueues its
     /// `scrollTo` requests (ruling `DD-G` item 3). `Window` replaces this with
     /// its own queue before rendering, so a request outlives the frame whose
@@ -1495,6 +1511,7 @@ public final class Frame {
         // by the focusability it would need (`Window.applyPendingFocusStateWrites`).
         if let binding = handlers.focusBinding {
             focusRegistry.registerFocusBinding(binding, id: id)
+            prepaintLog?.focus.append(.binding(binding, id))
         }
         // The keyboard side first: focus registration is not gated on the
         // pointer gate below, and an element can ask for one without the
@@ -1505,8 +1522,10 @@ public final class Frame {
         if enabled {
             if keyboardVisible {
                 focusRegistry.register(handlers, id: id)
+                if handlers.isKeyTarget { prepaintLog?.focus.append(.register(handlers, id)) }
             } else {
                 focusRegistry.registerShortcut(handlers, id: id)
+                if handlers.keyboardShortcut != nil { prepaintLog?.focus.append(.shortcut(handlers, id)) }
             }
         }
         // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
@@ -1617,6 +1636,7 @@ public final class Frame {
         if collectsAccessibility, enabled, hitTestingDisabledDepth > 0, let onClick = handlers.onClick,
            !isAccessibilitySuppressed(for: id) {
             accessibilityPressOnly[id] = onClick
+            prepaintLog?.pressOnly.append((id, onClick))
         }
         // The pointer target's and the draggable region's handlers carry no
         // hover attachment: the hover region below is the one hitbox that
@@ -1678,11 +1698,13 @@ public final class Frame {
             // hitbox query, so outside the `allowsHitTesting` gate (`MN-U`), but
             // not inside a hidden subtree.
             if contextual.menu != nil, keyboardHiddenDepth == 0 {
-                contextMenuRecords[id] = ContextMenuRecord(
+                let record = ContextMenuRecord(
                     attachment: contextual, isEnabled: enabled,
                     bounds: Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                                                  y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
                                    size: bounds.size))
+                contextMenuRecords[id] = record
+                prepaintLog?.contextMenus.append((id, record))
             }
         }
         // Hover (ruling `SV-N` item 2): a NON-opaque region carrying only the
@@ -2133,7 +2155,12 @@ public final class Frame {
         resolved.children = children
         resolved.isValid = true
         axNodes[id] = resolved
+        if let log = prepaintLog {
+            log.axNodes.append((id, resolved))
+            log.allowedStateWrites += 1
+        }
         stateTable.withState(Self.axRetentionSlot(for: id), initial: resolved) { $0 = resolved }
+        prepaintLog?.allowedStateWrites -= 1
         return resolved
     }
 
@@ -2554,6 +2581,7 @@ public final class Frame {
         if hasUnresolvedScrollRequests { matchScrollRequests(id, bounds) }
         guard recordsElementBounds else { return }
         elementBounds[id] = bounds
+        prepaintLog?.elementBounds.append((id, bounds))
     }
 
     /// Records an `IdentifiedGroup`'s row: the union of the rects of the nodes its content
@@ -2561,7 +2589,9 @@ public final class Frame {
     /// matches a `scrollTo` request (`TW-C`, `DD-G`): the content's own rows still do.
     func recordIdentifiedBounds(_ id: GlobalElementID, nodes: [LayoutNodeID]) {
         guard recordsElementBounds, !nodes.isEmpty else { return }
-        elementBounds[id] = union(of: nodes)
+        let union = union(of: nodes)
+        elementBounds[id] = union
+        prepaintLog?.elementBounds.append((id, union))
     }
 
     /// A legacy site met a field (or is a site) with no proposal lowering.
@@ -3135,6 +3165,7 @@ public final class Frame {
             let candidate = shareCandidates[k]
             guard candidate.rect == rect else { break }
             for entry in candidate.hitboxes {
+                prepaintLog?.notePatch(hitbox: entry.index)
                 var hitbox = hitboxes[entry.index]
                 let outerClip = hitbox.transform?.outerClip ?? entry.clip
                 hitbox.bounds = entry.raw
@@ -3142,6 +3173,7 @@ public final class Frame {
                 hitboxes[entry.index] = hitbox
             }
             for index in candidate.accessibility where index < axEmissions.count {
+                prepaintLog?.notePatch(accessibility: index)
                 var geometry = axEmissions[index].geometry
                 // As `accessibilityGeometry` computes it inside an effect: the
                 // bounding box of the pre-effect visible rect (the rect cut by
@@ -3647,6 +3679,22 @@ public final class Frame {
             element.paint(rootID, bounds: rootBounds,
                           layout: &state, prepaint: &prepaintState, pass: &paintPass)
         }
+        let memos = stateTable.contentMemos
+        if retainedVerifiesFromEnvironment, redoEntries.isEmpty, memos.retained.prepaintHits > 0, !memos.redoInProgress {
+            verifySnapshot = captureRetainedVerifySnapshot()
+            verifyAbandoned = true
+        } else if retainedVerifiesFromEnvironment, memos.redoInProgress {
+            verifySnapshot = captureRetainedVerifySnapshot()
+        }
+        if !redoEntries.isEmpty || verifyAbandoned {
+            // A replayed prepaint met a paint-time ambient that differed (`RK-C`): this frame is abandoned
+            // before anything after the root's paint runs (`RK-M`), and the window builds it again. Verify mode
+            // abandons a frame that replayed a prepaint the same way, to compare it with the rebuild (`RK-N`).
+            glyphAtlas.endFrame()
+            textSystem.endFrame()
+            isRendering = false
+            return
+        }
         animationStore.transitions.paintGhosts(&paintPass)
         if let stripBounds {   // above the root's content and its ghosts, below presentations (`MD-K` item 4)
             strip?.element.paint(ToolbarStrip.rootID, bounds: stripBounds, pass: &paintPass)
@@ -3749,5 +3797,219 @@ extension Bounds where Unit == Pixels {
         Bounds<ScaledPixels>(
             origin: Point(x: origin.x.scaled(by: factor), y: origin.y.scaled(by: factor)),
             size: size.scaled(by: factor))
+    }
+}
+
+// MARK: - Prepaint replay support (C14b-2, `RK-C`, `RK-E`)
+
+/// The prepaint-visible context an occurrence's registrations depend on beyond the clip, offset, layer, scale and
+/// environment the paint key already holds (`RK-E`): the open render effects, the pointer and keyboard gates, the
+/// share stack, the accessibility gates, the portal ordinal and the innermost scroller. Part of `PrepaintKey`.
+struct PrepaintExtras: Equatable {
+    /// One vector per open render effect, innermost last, in a fixed layout: the composed map's six numbers
+    /// (`a b c d tx ty`), 1 or 0 for an inverse, the inverse's six, the outer clip's four, the saved clip base.
+    var effects: [[Double]]
+    var hitTestingDisabled: Int
+    var keyboardHidden: Int
+    var share: [Int]
+    var collectsAccessibility: Bool
+    var suppression: [GlobalElementID?]
+    var portal: Int
+    var scrollerID: GlobalElementID?
+    var scroller: [Double]
+    var hiddenNodes: Int
+}
+
+extension PrepaintExtras {
+    // Indices into an `effects` vector.
+    static let effectA = 0, effectB = 1, effectC = 2, effectD = 3, effectTx = 4, effectTy = 5
+    static let effectHasInverse = 6, inverseTx = 11, inverseTy = 12, effectOuterClip = 13
+
+    /// The translation in points that turns `old`'s effects into these (`RK-G`, `RK-S`), or `nil` when the two differ in
+    /// anything else. Only the innermost effect's composed map reaches a hitbox, so every effect's composed
+    /// translation must have moved by that amount or not at all (an outer effect that did not move, an inner one
+    /// that did, is a node moved inside a still canvas); linear parts, outer clips and clip bases are equal.
+    func translation(from old: PrepaintExtras) -> (dx: Double, dy: Double)? {
+        guard effects.count == old.effects.count, let last = effects.last, let lastOld = old.effects.last else { return nil }
+        var rest = self, oldRest = old
+        rest.effects = []; oldRest.effects = []
+        guard rest == oldRest else { return nil }
+        let dx = last[Self.effectTx] - lastOld[Self.effectTx], dy = last[Self.effectTy] - lastOld[Self.effectTy]
+        guard dx != 0 || dy != 0 else { return nil }
+        for (new, was) in zip(effects, old.effects) {
+            guard new.count == was.count else { return nil }
+            let ex = new[Self.effectTx] - was[Self.effectTx], ey = new[Self.effectTy] - was[Self.effectTy]
+            guard (ex == 0 && ey == 0) || (ex == dx && ey == dy) else { return nil }
+            var a = new, b = was
+            for index in [Self.effectTx, Self.effectTy, Self.inverseTx, Self.inverseTy] { a[index] = 0; b[index] = 0 }
+            guard a == b else { return nil }
+            // The inverse moved by the opposite amount when the composed map did.
+            if new[Self.effectHasInverse] == 1 {
+                guard new[Self.inverseTx] - was[Self.inverseTx] == -ex, new[Self.inverseTy] - was[Self.inverseTy] == -ey
+                else { return nil }
+            }
+        }
+        return (dx, dy)
+    }
+}
+
+/// Counts of the channels a prepaint can write that a record does not replay (`RK-E`): any that moves between a
+/// recorder's open and close makes its occurrence ineligible for prepaint replay, by the channel's name.
+struct PrepaintAudit: Equatable {
+    var timeVarying = 0, popovers = 0, anchors = 0, spaces = 0, scrollResolutions = 0, scrollAdjustments = 0
+    var unresolvedRequests = 0, accessibilityRetry = 0, portals = 0, namedSnapshots = 0, surfaces = 0
+    var hitboxNamedSpaces = 0
+
+    /// The first channel that moved from `self` to `other`, or `nil`.
+    func movedChannel(to other: PrepaintAudit) -> String? {
+        if timeVarying != other.timeVarying { return "timeVarying" }
+        if popovers != other.popovers { return "popover" }
+        if anchors != other.anchors { return "presentationAnchor" }
+        if spaces != other.spaces { return "presentationSpace" }
+        if scrollResolutions != other.scrollResolutions || scrollAdjustments != other.scrollAdjustments
+            || unresolvedRequests != other.unresolvedRequests { return "scrollRequest" }
+        if accessibilityRetry != other.accessibilityRetry { return "accessibilityRetry" }
+        if portals != other.portals { return "portal" }
+        if namedSnapshots != other.namedSnapshots || hitboxNamedSpaces != other.hitboxNamedSpaces { return "namedSpace" }
+        if surfaces != other.surfaces { return "surface" }
+        return nil
+    }
+}
+
+/// The five region tallies of `registerHandlers` (`RK-E`).
+struct RegionTallies: Equatable {
+    var hover = 0, pointerStyle = 0, key = 0, focusOnPress = 0, resign = 0
+}
+
+extension Frame {
+    /// Why a prepaint window cannot be keyed or recorded here, or `nil` (`RK-E`): contexts the key does not hold.
+    func prepaintRefusal() -> String? {
+        if hasUnresolvedScrollRequests { return "scrollRequests" }
+        if !shareCollecting.isEmpty { return "shareCollecting" }
+        if !namedSpaces.isEmpty { return "namedSpaces" }
+        return nil
+    }
+
+    private func flatAffine(_ a: Affine2D) -> [Double] { [a.a, a.b, a.c, a.d, a.tx, a.ty] }
+
+    /// The prepaint-visible context at this point of prepaint.
+    func prepaintExtras() -> PrepaintExtras {
+        var effects: [[Double]] = []
+        effects.reserveCapacity(prepaintEffects.count)
+        for effect in prepaintEffects {
+            // Fixed layout (`PrepaintExtras.effectTx`…): composed (6), has-inverse, inverse (6), outer clip (4), base.
+            var v = flatAffine(effect.composed)
+            if let inverse = effect.inverse { v += [1] + flatAffine(inverse) } else { v += [0, 0, 0, 0, 0, 0, 0] }
+            let c = effect.outerClip
+            v += [Double(c.origin.x.value), Double(c.origin.y.value), Double(c.size.width.value),
+                  Double(c.size.height.value), Double(effect.savedClipBase)]
+            effects.append(v)
+        }
+        let scroller = activeScrollerFrame
+        var values: [Double] = []
+        if let s = scroller {
+            values = [s.axis == .vertical ? 1 : 0, Double(s.contentOrigin.x.value), Double(s.contentOrigin.y.value),
+                      Double(s.viewport.origin.x.value), Double(s.viewport.origin.y.value),
+                      Double(s.viewport.size.width.value), Double(s.viewport.size.height.value), s.offset,
+                      s.contentExtent]
+        }
+        return PrepaintExtras(effects: effects, hitTestingDisabled: hitTestingDisabledDepth,
+                              keyboardHidden: keyboardHiddenDepth,
+                              share: [shareCandidates.count, shareFloor, shareFloorAtEntry],
+                              collectsAccessibility: collectsAccessibility,
+                              suppression: accessibilitySuppressionExceptions, portal: portalStack.last ?? 0,
+                              scrollerID: scroller?.scrollerID, scroller: values, hiddenNodes: hiddenNodes.count)
+    }
+
+    func prepaintAudit() -> PrepaintAudit {
+        PrepaintAudit(timeVarying: timeVaryingNotes, popovers: openPopovers.count, anchors: presentationAnchors.count,
+                      spaces: presentationSpaces.count, scrollResolutions: scrollResolutions.count,
+                      scrollAdjustments: scrollAnchorAdjustments.count,
+                      unresolvedRequests: unresolvedScrollRequestCount,
+                      accessibilityRetry: wantsAccessibilityRetry ? 1 : 0, portals: portalCount,
+                      namedSnapshots: namedSpaceSnapshots, surfaces: surfaceRequests.count,
+                      hitboxNamedSpaces: hitboxNamedSpaces.count)
+    }
+
+    var regionTallies: RegionTallies {
+        RegionTallies(hover: hoverRegionCount, pointerStyle: pointerStyleRegionCount, key: keyRegionCount,
+                      focusOnPress: focusOnPressCount, resign: resignRegionCount)
+    }
+
+    /// The hitboxes registered since `index`, as they stand now (`RK-E`).
+    func hitboxes(from index: Int) -> [Hitbox] { Array(hitboxes[index...]) }
+
+    /// The accessibility records emitted since `index`, as they stand now.
+    func axEmissions(from index: Int) -> [AXEmission] { Array(axEmissions[index...]) }
+
+    var hitboxCount: Int { hitboxes.count }
+    var axEmissionCount: Int { axEmissions.count }
+
+    /// Replays a prepaint ledger (`RK-E`): the occurrence's hitboxes appended in recorded order (the one ranking
+    /// reads the same entries at the same relative positions), its focus registrations through the registry's own
+    /// functions, accessibility records and nodes, press-only actions, context menus, element bounds and tallies.
+    /// Each journal entry is appended to an open prepaint log too, so an enclosing recorder sees what a replay
+    /// stands for exactly as it would see a run.
+    func replayPrepaintLedger(_ l: PrepaintLedger, hitboxes moved: [Hitbox]? = nil) {
+        hitboxes.append(contentsOf: moved ?? l.hitboxes)
+        axEmissions.append(contentsOf: l.axEmissions)
+        for call in l.focus {
+            switch call {
+            case .register(let handlers, let id): focusRegistry.register(handlers, id: id)
+            case .shortcut(let handlers, let id): focusRegistry.registerShortcut(handlers, id: id)
+            case .binding(let binding, let id): focusRegistry.registerFocusBinding(binding, id: id)
+            }
+            prepaintLog?.focus.append(call)
+        }
+        for (id, node) in l.axNodes {
+            axNodes[id] = node
+            prepaintLog?.axNodes.append((id, node))
+            prepaintLog?.allowedStateWrites += 1
+            stateTable.withState(Self.axRetentionSlot(for: id), initial: node) { $0 = node }
+            prepaintLog?.allowedStateWrites -= 1
+        }
+        for (id, action) in l.pressOnly {
+            accessibilityPressOnly[id] = action
+            prepaintLog?.pressOnly.append((id, action))
+        }
+        for (id, record) in l.contextMenus {
+            contextMenuRecords[id] = record
+            prepaintLog?.contextMenus.append((id, record))
+        }
+        for (id, bounds) in l.elementBounds {
+            elementBounds[id] = bounds
+            prepaintLog?.elementBounds.append((id, bounds))
+        }
+        hoverRegionCount += l.tallies.hover
+        pointerStyleRegionCount += l.tallies.pointerStyle
+        keyRegionCount += l.tallies.key
+        focusOnPressCount += l.tallies.focusOnPress
+        resignRegionCount += l.tallies.resign
+    }
+}
+
+extension Frame {
+    /// A ledger's hitboxes moved by the translation of the render effects around them (`RK-G`, `RK-S`): each one's
+    /// local `bounds`, `origin` and `shape` stay (they are in the effect's local space); the inverse of the composed
+    /// map that takes a window point there moves by the opposite amount. `nil` when any hitbox sits outside every
+    /// effect, carries an outer clip other than the ambient one (its clip depended on the translation), or would
+    /// round (the move must be exact in `Double`, checked by round trip).
+    func translatedHitboxes(of ledger: PrepaintLedger, by delta: (dx: Double, dy: Double)) -> [Hitbox]? {
+        guard let ambient = ledger.key.extras.effects.last else { return nil }
+        let outer = Bounds(origin: Point(x: Pixels(Float(ambient[PrepaintExtras.effectOuterClip])),
+                                         y: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 1]))),
+                           size: Size(width: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 2])),
+                                      height: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 3]))))
+        var out = ledger.hitboxes
+        for index in out.indices {
+            guard let transform = out[index].transform, transform.outerClip == outer else { return nil }
+            guard let inverse = transform.inverse else { continue }
+            let tx = inverse.tx - delta.dx, ty = inverse.ty - delta.dy
+            guard tx + delta.dx == inverse.tx, ty + delta.dy == inverse.ty else { return nil }
+            out[index].transform = HitboxTransform(
+                inverse: Affine2D(a: inverse.a, b: inverse.b, c: inverse.c, d: inverse.d, tx: tx, ty: ty),
+                outerClip: transform.outerClip)
+        }
+        return out
     }
 }
