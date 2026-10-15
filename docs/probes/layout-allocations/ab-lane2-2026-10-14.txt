@@ -1,0 +1,73 @@
+start Wed Oct 14 21:26:31 PDT 2026 21:26  up 1 day, 21:07, 3 users, load averages: 41.85 45.65 61.67
+bracket-value base 1 median_ms=0.000 load=41.85 45.65 61.67
+bracket-value lane2 1 median_ms=0.000 load=43.87 46.00 61.70
+bracket-value base 2 median_ms=0.000 load=41.23 45.42 61.40
+bracket-value lane2 2 median_ms=0.000 load=38.41 44.77 61.08
+bracket-value base 3 median_ms=0.000 load=33.44 43.49 60.43
+bracket-value lane2 3 median_ms=0.000 load=31.08 42.83 60.10
+bracket-value base 4 median_ms=0.000 load=28.99 42.21 59.78
+bracket-value lane2 4 median_ms=0.000 load=26.99 41.57 59.45
+bracket-value base 5 median_ms=0.000 load=25.23 40.96 59.13
+bracket-value lane2 5 median_ms=0.000 load=22.57 39.88 58.53
+bracket-orbit base 1 median_ms=2.446 load=21.16 39.30 58.22
+bracket-orbit lane2 1 median_ms=2.130 load=20.03 38.76 57.92
+bracket-orbit base 2 median_ms=2.419 load=18.82 38.20 57.61
+bracket-orbit lane2 2 median_ms=2.111 load=21.80 38.50 57.60
+bracket-orbit base 3 median_ms=2.405 load=27.61 39.19 57.62
+bracket-orbit lane2 3 median_ms=2.091 load=26.04 38.67 57.33
+bracket-orbit base 4 median_ms=2.380 load=25.80 38.41 57.13
+bracket-orbit lane2 4 median_ms=2.199 load=26.21 38.29 56.97
+bracket-orbit base 5 median_ms=2.385 load=25.08 37.64 56.52
+bracket-orbit lane2 5 median_ms=2.094 load=26.12 37.64 56.42
+bracket-pan base 1 median_ms=7.086 load=25.47 37.32 56.19
+bracket-pan lane2 1 median_ms=6.886 load=23.75 36.76 55.88
+bracket-pan base 2 median_ms=7.171 load=22.17 36.22 55.58
+bracket-pan lane2 2 median_ms=6.929 load=27.90 36.99 55.63
+bracket-pan base 3 median_ms=7.089 load=29.99 37.27 55.62
+bracket-pan lane2 3 median_ms=6.909 load=28.31 36.80 55.34
+bracket-pan base 4 median_ms=7.229 load=29.73 36.95 55.29
+bracket-pan lane2 4 median_ms=6.829 load=28.40 36.43 54.89
+bracket-pan base 5 median_ms=7.050 load=26.60 35.92 54.60
+bracket-pan lane2 5 median_ms=6.774 load=24.71 35.37 54.30
+demo base 1 median_ms=1.046 load=22.97 34.84 54.00
+demo lane2 1 median_ms=0.936 load=21.45 34.32 53.70
+demo base 2 median_ms=1.046 load=19.16 33.41 53.15
+demo lane2 2 median_ms=0.929 load=21.79 33.72 53.14
+demo base 3 median_ms=1.040 load=26.37 34.47 53.30
+demo lane2 3 median_ms=0.944 load=30.11 35.11 53.41
+demo base 4 median_ms=1.048 load=35.11 36.05 53.53
+demo lane2 4 median_ms=0.933 load=34.94 36.00 53.41
+demo base 5 median_ms=1.046 load=36.07 36.21 53.39
+demo lane2 5 median_ms=0.949 load=34.38 35.86 53.16
+list-fixed base 1 median_ms=0.665 load=32.59 35.46 52.92
+list-fixed lane2 1 median_ms=0.606 load=28.35 34.46 52.36
+list-fixed base 2 median_ms=0.673 load=27.20 34.12 52.14
+list-fixed lane2 2 median_ms=0.599 load=25.82 33.72 51.89
+list-fixed base 3 median_ms=0.671 load=23.93 33.05 51.44
+list-fixed lane2 3 median_ms=0.591 load=23.69 32.85 51.26
+list-fixed base 4 median_ms=0.666 load=22.04 32.36 50.98
+list-fixed lane2 4 median_ms=0.608 load=20.91 31.95 50.73
+list-fixed base 5 median_ms=0.670 load=19.59 31.30 50.27
+list-fixed lane2 5 median_ms=0.600 load=21.86 31.57 50.26
+end 21:31  up 1 day, 21:12, 3 users, load averages: 27.24 32.53 50.49
+bracket-value mean_ms 23.11 30.71 47.88
+1 base mean_ms=4.058 load=21.58 30.27 47.62
+1 lane2 mean_ms=3.658 load=20.25 29.85 47.37
+2 base mean_ms=5.503 load=22.11 29.91 47.19
+2 lane2 mean_ms=10.260 load=27.55 30.90 47.44
+3 base mean_ms=18.602 load=35.35 32.47 47.89
+3 lane2 mean_ms=11.213 load=41.33 33.75 48.26
+4 base mean_ms=5.732 load=42.87 34.38 48.31
+4 lane2 mean_ms=5.071 load=42.64 34.47 48.26
+5 base mean_ms=15.327 load=48.04 35.72 48.62
+5 lane2 mean_ms=7.608 load=50.67 36.47 48.81
+bracket-value base ALLOC iterations=947 allocs=7313327 frees=7311735 bytes=4012598171 sampledStacks=400000 
+bracket-orbit base ALLOC iterations=1487 allocs=8823885 frees=8823992 bytes=4175066352 sampledStacks=400000 
+bracket-pan base ALLOC iterations=414 allocs=8045439 frees=8031154 bytes=3383269222 sampledStacks=400000 
+demo base ALLOC iterations=5020 allocs=10793031 frees=10793112 bytes=6971166928 sampledStacks=400000 
+list-fixed base ALLOC iterations=8197 allocs=10233287 frees=10232019 bytes=14352208514 sampledStacks=400000 
+bracket-value lane2 ALLOC iterations=1453 allocs=8632683 frees=8630929 bytes=5866613971 sampledStacks=400000 
+bracket-orbit lane2 ALLOC iterations=2513 allocs=10358614 frees=10358611 bytes=6519989200 sampledStacks=400000 
+bracket-pan lane2 ALLOC iterations=734 allocs=12905500 frees=12881565 bytes=5945370234 sampledStacks=400000 
+demo lane2 ALLOC iterations=5708 allocs=8704732 frees=8704785 bytes=7386195056 sampledStacks=400000 
+list-fixed lane2 ALLOC iterations=7340 allocs=7169908 frees=7168655 bytes=12391216324 sampledStacks=400000 
