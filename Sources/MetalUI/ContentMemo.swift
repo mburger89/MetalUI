@@ -13,11 +13,12 @@ final class ContentMemoToken {
 }
 
 /// The `onChange` side of one memo session, `Sendable` so the observation
-/// machinery can call it on any thread. Holds the entry and the store strongly
-/// until it fires (the session is one-shot; a spent one is released).
+/// machinery can call it on any thread. Holds the entry and the store **weakly**
+/// (`IV-S`): the closure lives in the observed model's registrar and the entry's
+/// pristine content holds the model, so a strong hold is a cycle nothing breaks.
 private final class ContentMemoHandle: @unchecked Sendable {
-    let entry: ContentMemoStore.Entry
-    let store: ContentMemoStore
+    weak var entry: ContentMemoStore.Entry?
+    weak var store: ContentMemoStore?
     let serial: Int
 
     init(entry: ContentMemoStore.Entry, store: ContentMemoStore, serial: Int) {
@@ -38,10 +39,11 @@ private final class ContentMemoHandle: @unchecked Sendable {
     }
 
     @MainActor private func fireOnMain() {
+        guard let store else { return }
         store.armed -= 1
         // A serial the entry has moved past is a flush (the token write before a
         // re-evaluation, or an entry that left the tree): nothing changed.
-        guard entry.serial == serial else { return }
+        guard let entry, entry.serial == serial else { return }
         entry.stale = true
         store.markDirty?()
     }
