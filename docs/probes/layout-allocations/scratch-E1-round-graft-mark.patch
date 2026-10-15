@@ -1,0 +1,65 @@
+diff --git a/Sources/MetalUI/StateTable.swift b/Sources/MetalUI/StateTable.swift
+index 03b2d827..7b234cd5 100644
+--- a/Sources/MetalUI/StateTable.swift
++++ b/Sources/MetalUI/StateTable.swift
+@@ -775,7 +775,7 @@ final class StateTable {
+         contentMemos.journal.record(.mark(id))   // `RK-F`
+         retainLog?.marks.append(id)
+         marked.insert(id)
+-        storage[id]?.isLive = true
++        if let index = storage.index(forKey: id) { storage.values[index].isLive = true }
+     }
+ 
+     /// Write `value` at `id`, setting the entry live immediately, and —
+diff --git a/Sources/MetalUILayout/LayoutTree.swift b/Sources/MetalUILayout/LayoutTree.swift
+index aeec80a1..0a019f38 100644
+--- a/Sources/MetalUILayout/LayoutTree.swift
++++ b/Sources/MetalUILayout/LayoutTree.swift
+@@ -1697,7 +1697,7 @@ public final class LayoutTree {
+     /// phases are rounded from cumulative edges.
+     private func roundNativeStoredRects(_ node: LayoutNodeID) {
+         setMeasuredWidth(node, layout(node).width)
+-        setLayout(node, roundLayout([layout(node)])[0])
++        setLayout(node, roundedRect(layout(node)))
+         for child in children(node) {
+             roundNativeStoredRects(child)
+         }
+@@ -2468,9 +2468,10 @@ extension LayoutTree {
+         let base = childLists.count
+         let generation = self.generation
+         func moved(_ relative: Int) -> LayoutNodeID { LayoutNodeID(generation: generation, index: base + relative) }
+-        childLists.reserveCapacity(base + segment.nodeCount)
+-        layouts.reserveCapacity(base + segment.nodeCount)
+-        measuredWidths.reserveCapacity(base + segment.nodeCount)
++        let need = base + segment.nodeCount
++        if childLists.capacity < need { childLists.reserveCapacity(Swift.max(need, childLists.capacity * 2)) }
++        if layouts.capacity < need { layouts.reserveCapacity(Swift.max(need, layouts.capacity * 2)) }
++        if measuredWidths.capacity < need { measuredWidths.reserveCapacity(Swift.max(need, measuredWidths.capacity * 2)) }
+         let zero = LayoutRect(x: 0, y: 0, width: 0, height: 0)
+         for relative in 0..<segment.nodeCount {
+             childLists.append(segment.children[relative].map { moved($0) })
+diff --git a/Sources/MetalUILayout/Rounding.swift b/Sources/MetalUILayout/Rounding.swift
+index 5af93ba6..2e050759 100644
+--- a/Sources/MetalUILayout/Rounding.swift
++++ b/Sources/MetalUILayout/Rounding.swift
+@@ -62,11 +62,13 @@ public struct LayoutRect: Sendable, Equatable {
+ /// Re-measure these claims rather than trusting them; an earlier version of
+ /// this comment was wrong about the corpus it described.
+ public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
+-    rects.map { r in
+-        let x0 = r.x.rounded()
+-        let x1 = (r.x + r.width).rounded()
+-        let y0 = r.y.rounded()
+-        let y1 = (r.y + r.height).rounded()
+-        return LayoutRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+-    }
++    rects.map(roundedRect)
++}
++
++func roundedRect(_ r: LayoutRect) -> LayoutRect {
++    let x0 = r.x.rounded()
++    let x1 = (r.x + r.width).rounded()
++    let y0 = r.y.rounded()
++    let y1 = (r.y + r.height).rounded()
++    return LayoutRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+ }
