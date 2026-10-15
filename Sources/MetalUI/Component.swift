@@ -123,10 +123,15 @@ public struct ComponentLayout<C: Component> {
 
     /// The heap box, mutated in place by `withPayload(_:)`.
     final class Storage {
-        var payload: Payload
+        /// `nil` only for a grafted `.equatable()` occurrence (`RK-B`): its build recursion did not run, so there is no
+        /// element layout (the ids of the build it stands for belong to a dead generation) and `graft` says so.
+        var payload: Payload?
         /// An `.equatable()` occurrence's build window (`SB-K`); `nil` for every other component.
         var retained: RetainedBuild?
+        /// The marker of a grafted occurrence (`RK-B`): present exactly when `payload` is `nil`.
+        var graft: RetainedGraft?
         init(_ payload: Payload) { self.payload = payload }
+        init(grafted graft: RetainedGraft) { self.graft = graft }
     }
 
     let storage: Storage
@@ -135,13 +140,27 @@ public struct ComponentLayout<C: Component> {
         storage = Storage(Payload(content: content, contentLayout: contentLayout))
     }
 
-    /// The materialized content, read-only.
-    var content: C.Content { storage.payload.content }
+    /// The layout of a grafted occurrence (`RK-B`): no element payload, only the marker.
+    init(grafted graft: RetainedGraft) {
+        storage = Storage(grafted: graft)
+    }
+
+    /// The materialized content, read-only. **A grafted occurrence has none and traps by name** (`RK-B`).
+    var content: C.Content {
+        guard let payload = storage.payload else { Self.trapGrafted() }
+        return payload.content
+    }
 
     /// Runs `body` on the boxed payload in place — `prepaintGroup` and
-    /// `paintGroup` write into the content and its layout through it.
+    /// `paintGroup` write into the content and its layout through it. **A grafted occurrence has none and
+    /// traps by name** (`RK-B`): its prepaint and paint can only be replays.
     func withPayload<R>(_ body: (inout Payload) -> R) -> R {
-        body(&storage.payload)
+        guard storage.payload != nil else { Self.trapGrafted() }
+        return body(&storage.payload!)
+    }
+
+    private static func trapGrafted() -> Never {
+        preconditionFailure("an element phase reached a Component whose build was grafted (RK-B): a grafted occurrence has no element layout, only replays")
     }
 }
 
@@ -164,10 +183,12 @@ public struct ComponentLayout<C: Component> {
 public struct ComponentPrepaint<C: Component> {
     /// The heap box, mutated in place by `withPrepaint(_:)`.
     final class Storage {
-        var prepaint: C.Content.GroupPrepaint
+        /// `nil` only for an `.equatable()` occurrence whose prepaint was replayed from a ledger (`RK-B`,
+        /// `RK-E`): its elements prepainted nothing, so no element phase may walk it.
+        var prepaint: C.Content.GroupPrepaint?
         /// An `.equatable()` occurrence's retained-subtree phase (`SB-`); `nil` for every other component.
         var retained: RetainedPhase?
-        init(_ prepaint: C.Content.GroupPrepaint) { self.prepaint = prepaint }
+        init(_ prepaint: C.Content.GroupPrepaint?) { self.prepaint = prepaint }
     }
 
     let storage: Storage
@@ -176,9 +197,19 @@ public struct ComponentPrepaint<C: Component> {
         storage = Storage(prepaint)
     }
 
-    /// Runs `body` on the boxed record in place — `paintGroup` writes into it.
+    /// The record of an occurrence whose prepaint was replayed (`RK-E`): it holds no element prepaint state.
+    init(replayedBy phase: RetainedPhase) {
+        storage = Storage(nil)
+        storage.retained = phase
+    }
+
+    /// Runs `body` on the boxed record in place — `paintGroup` writes into it. **A record with no element
+    /// prepaint state traps by name** (`RK-B`): the occurrence's paint must have been a replay.
     func withPrepaint<R>(_ body: (inout C.Content.GroupPrepaint) -> R) -> R {
-        body(&storage.prepaint)
+        guard storage.prepaint != nil else {
+            preconditionFailure("an element phase reached a Component whose prepaint was replayed (RK-B): a replayed prepaint paints only from a record")
+        }
+        return body(&storage.prepaint!)
     }
 }
 

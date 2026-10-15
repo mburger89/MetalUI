@@ -279,3 +279,17 @@ extension LoweredItem {
         }
     }
 }
+
+extension LoweredItem {
+    /// Whether an unconsumed record of this item would be reported by `reportUnconsumedLoweredItems` (`LR-AQ`): any item
+    /// field off its default. A default record (a `Text` leaf under a proposal container) reports nothing, so a graft may
+    /// leave it out.
+    var reportsFieldsIfUnconsumed: Bool {
+        let d = declared
+        // A `.frame` layer's own fields are its frame's and never reported but for an absolute position (`LR-FA`).
+        if kind == .frameLayer { return d.position == .absolute }
+        let auto = Size<Dimension>(width: .auto, height: .auto)
+        return d.flexGrow != 0 || d.flexShrink != 1 || d.flexBasis != .auto || d.alignSelf != nil
+            || d.minSize != auto || d.maxSize != auto || LoweredItem.hasMargin(d) || d.position == .absolute
+    }
+}

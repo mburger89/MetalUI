@@ -115,7 +115,7 @@ the window's top layer — a portal for modals, popovers and tooltips
   replayed** from a record of their hitboxes, focus registrations, accessibility records and scene primitives
   (record §109, `SB-B`; `FrameWork.contentEvaluations`/`contentSkips`/`contentRefusals`, `elementRequests`/
   `elementPrepaints`/`elementPaints`, `retainedHits`/`retainedMisses`/`retainedIneligible`/
-  `retainedSkippedPrepaints`/`retainedSkippedPaints`/`retainedLedgerSnapshots`/`retainedReplayedOps`, M). A component that declares
+  `retainedSkippedPrepaints`/`retainedSkippedPaints`/`retainedLedgerSnapshots`/`retainedReplayedOps`, M). Their prepaint is replayed too, with a counted redo when a paint-time ambient differs, and an unchanged occurrence skips its build recursion (the graft; record §110, `RK-`; `FrameWork.retainedPrepaintHits`/`retainedPrepaintIneligible`/`retainedRedos`/`retainedBackoffFrames`/`retainedTranslated`/`retainedTranslationRefused`/`retainedGrafts`/`retainedGraftIneligible`/`retainedSkippedRequests`/`retainedGraftedNodes`, M). A component that declares
   `@Environment` or `@FocusState` is evaluated every frame (divergence 346, `IV-D`). The layout memo behind
   it is automatic and has no API (`IV-E`). `METALUI_INVALIDATION_DEMO=1` shows the getter memo and `METALUI_RETAINED_DEMO=1` the replay; human checks: groups IV and SB, unrun.
 

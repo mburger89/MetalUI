@@ -152,6 +152,10 @@ final class ScrollRequestQueue {
         pending.append(request)
     }
 
+    /// Puts back the requests a frame took (`RK-D`): a frame abandoned for a redo consumed them, and the redo
+    /// must resolve them again, once.
+    func restore(_ requests: [ScrollRequest]) { pending = requests }
+
     /// Hands every pending request to the frame that resolves them.
     func take() -> [ScrollRequest] {
         defer { pending = [] }

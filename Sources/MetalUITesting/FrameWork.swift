@@ -64,6 +64,30 @@ public struct FrameWork: Sendable, Equatable {
     public var retainedLedgerSnapshots: Int
     /// Recorded scene operations replayed.
     public var retainedReplayedOps: Int
+    /// `.equatable()` occurrences whose prepaint (hitboxes, focus stops, accessibility records) was
+    /// replayed from a record (`RK-E`); each stands for the element prepaints counted in
+    /// ``retainedSkippedPrepaints``.
+    public var retainedPrepaintHits: Int
+    /// Occurrences that prepainted and could not leave a prepaint record (`RK-E`).
+    public var retainedPrepaintIneligible: Int
+    /// Frames redone because a replayed prepaint met a paint-time ambient that differed (`RK-D`).
+    public var retainedRedos: Int
+    /// Builds that ran with prepaint replay suspended after a redo (`RK-D`).
+    public var retainedBackoffFrames: Int
+    /// Occurrences replayed at a translated position (`RK-G`).
+    public var retainedTranslated: Int
+    /// Occurrences that moved by a translation the gate refused, and missed (`RK-G`).
+    public var retainedTranslationRefused: Int
+    /// `.equatable()` occurrences whose build recursion did not run: their layout rows were copied and the build's calls
+    /// on the state table applied again (`RK-B`, `RK-F`).
+    public var retainedGrafts: Int
+    /// Occurrences that built and could leave no graft record (`RK-F`).
+    public var retainedGraftIneligible: Int
+    /// The element requests the grafts stood for: ``elementRequests`` plus this is what a frame with no grafts counts
+    /// (`RK-K`).
+    public var retainedSkippedRequests: Int
+    /// The layout nodes the grafts appended instead of registering.
+    public var retainedGraftedNodes: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -87,7 +111,11 @@ public struct FrameWork: Sendable, Equatable {
                 elementRequests: Int = 0, elementPrepaints: Int = 0, elementPaints: Int = 0,
                 retainedHits: Int = 0, retainedMisses: Int = 0, retainedIneligible: Int = 0,
                 retainedSkippedPrepaints: Int = 0, retainedSkippedPaints: Int = 0,
-                retainedLedgerSnapshots: Int = 0, retainedReplayedOps: Int = 0) {
+                retainedLedgerSnapshots: Int = 0, retainedReplayedOps: Int = 0,
+                retainedPrepaintHits: Int = 0, retainedPrepaintIneligible: Int = 0, retainedRedos: Int = 0,
+                retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0,
+                retainedGrafts: Int = 0, retainedGraftIneligible: Int = 0, retainedSkippedRequests: Int = 0,
+                retainedGraftedNodes: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -118,6 +146,16 @@ public struct FrameWork: Sendable, Equatable {
         self.retainedSkippedPaints = retainedSkippedPaints
         self.retainedLedgerSnapshots = retainedLedgerSnapshots
         self.retainedReplayedOps = retainedReplayedOps
+        self.retainedPrepaintHits = retainedPrepaintHits
+        self.retainedPrepaintIneligible = retainedPrepaintIneligible
+        self.retainedRedos = retainedRedos
+        self.retainedBackoffFrames = retainedBackoffFrames
+        self.retainedTranslated = retainedTranslated
+        self.retainedTranslationRefused = retainedTranslationRefused
+        self.retainedGrafts = retainedGrafts
+        self.retainedGraftIneligible = retainedGraftIneligible
+        self.retainedSkippedRequests = retainedSkippedRequests
+        self.retainedGraftedNodes = retainedGraftedNodes
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -149,6 +187,16 @@ public struct FrameWork: Sendable, Equatable {
                   retainedSkippedPrepaints: l.retainedSkippedPrepaints + r.retainedSkippedPrepaints,
                   retainedSkippedPaints: l.retainedSkippedPaints + r.retainedSkippedPaints,
                   retainedLedgerSnapshots: l.retainedLedgerSnapshots + r.retainedLedgerSnapshots,
-                  retainedReplayedOps: l.retainedReplayedOps + r.retainedReplayedOps)
+                  retainedReplayedOps: l.retainedReplayedOps + r.retainedReplayedOps,
+                  retainedPrepaintHits: l.retainedPrepaintHits + r.retainedPrepaintHits,
+                  retainedPrepaintIneligible: l.retainedPrepaintIneligible + r.retainedPrepaintIneligible,
+                  retainedRedos: l.retainedRedos + r.retainedRedos,
+                  retainedBackoffFrames: l.retainedBackoffFrames + r.retainedBackoffFrames,
+                  retainedTranslated: l.retainedTranslated + r.retainedTranslated,
+                  retainedTranslationRefused: l.retainedTranslationRefused + r.retainedTranslationRefused,
+                  retainedGrafts: l.retainedGrafts + r.retainedGrafts,
+                  retainedGraftIneligible: l.retainedGraftIneligible + r.retainedGraftIneligible,
+                  retainedSkippedRequests: l.retainedSkippedRequests + r.retainedSkippedRequests,
+                  retainedGraftedNodes: l.retainedGraftedNodes + r.retainedGraftedNodes)
     }
 }

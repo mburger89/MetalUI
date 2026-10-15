@@ -176,6 +176,10 @@ final class StateTable {
 
     /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
     var retainLog: RetainLog?
+
+    /// The open prepaint recorders' journal (`RK-E`): a `withState` or `write` made while one is open and not
+    /// allowed (the accessibility node's own retention slot) makes the occurrence ineligible for prepaint replay.
+    var prepaintLog: PrepaintLog?
     private var marked: Set<GlobalElementID> = []
 
     /// Advanced by `sweep()`, once per frame. An entry's `lastSeenGeneration`
@@ -220,6 +224,7 @@ final class StateTable {
     /// starts fresh exactly as the immediate reset left it before `ID-R` item 8
     /// moved the resets into `sweep()`.
     func noteProduced(_ slot: GlobalElementID) {
+        contentMemos.journal.record(.produced(slot))   // `RK-F`
         producedSlots.insert(slot)
         if absentSlots.remove(slot) != nil {
             resetScanWork += storage.count
@@ -242,6 +247,7 @@ final class StateTable {
     /// the window) keeps `TB-AH`'s retention, and `sweep()` never resets a
     /// conditional slot (it resets only a departed NAME, `noteNamed`).
     func noteAbsent(_ slot: GlobalElementID) {
+        contentMemos.journal.record(.absent(slot))   // `RK-F`
         // `remove`, not `contains`: a second note in the same frame (a slot
         // evaluated twice before a sweep) finds nothing and scans nothing.
         guard previouslyProducedSlots.remove(slot) != nil else { return }
@@ -305,6 +311,7 @@ final class StateTable {
     /// `List`'s rows are exempt (`noteWindowedParent`).
     func noteNamed(_ id: GlobalElementID, at index: Int) {
         guard case .named = id.component else { return }
+        contentMemos.journal.record(.named(id, index))   // `RK-F`
         if let parent = id.parent, windowedParents.contains(parent) { return }
         producedNames.insert(id)
         let position = NamedPosition(parent: id.parent, index: index)
@@ -318,6 +325,7 @@ final class StateTable {
     /// `List`'s rows): `noteNamed` ignores them, so a row scrolled out keeps
     /// `TB-AH`'s bounded retention.
     func noteWindowedParent(_ parent: GlobalElementID) {
+        contentMemos.journal.record(.windowedParent(parent))   // `RK-F`
         windowedParents.insert(parent)
     }
 
@@ -349,6 +357,7 @@ final class StateTable {
     /// `aLoopInsideAWindowedListRowKeepsItsStateWhileTheRowIsOut`: a loop inside
     /// an out-of-window `List` row keeps `TB-AH`'s retention; mutation V11).
     func noteLoop(_ slot: GlobalElementID, extent: Int) {
+        contentMemos.journal.record(.loop(slot, extent))   // `RK-F`
         loopExtents[slot] = extent
     }
 
@@ -409,6 +418,7 @@ final class StateTable {
     private(set) var focusStates: [GlobalElementID: any FocusStateReconciling] = [:]
 
     func noteFocusState(_ state: any FocusStateReconciling, at slot: GlobalElementID) {
+        contentMemos.journal.record(.focusState(state, slot))   // `RK-F`
         focusStates[slot] = state
     }
 
@@ -710,6 +720,16 @@ final class StateTable {
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
         retainLog?.taint("stateWrite")   // a paint that rewrites an entry cannot be replayed (`SB-U`)
+        if let log = prepaintLog, log.allowedStateWrites == 0 { log.taint("stateWrite") }
+        // A build that writes an entry cannot be grafted, except an animation baseline, whose value is a function
+        // of what the graft's key holds: it stays live (`RK-F`).
+        if contentMemos.journal.isRecording {
+            if case .named(let name) = id.component, name.name.hasPrefix("$anim") {
+                contentMemos.journal.record(.liveState(id))
+            } else {
+                contentMemos.journal.taint("stateWrite")
+            }
+        }
         marked.insert(id)
         // An absent entry takes `initial()` whatever `S` is (plan task 15's
         // lane-1 fix round, `CX-F`'s rule applied here too): the old
@@ -752,6 +772,7 @@ final class StateTable {
     /// yet.
     func mark(_ id: GlobalElementID) {
         if contentMemos.retainsSubtrees { markJournal.append(id) }
+        contentMemos.journal.record(.mark(id))   // `RK-F`
         retainLog?.marks.append(id)
         marked.insert(id)
         storage[id]?.isLive = true
@@ -814,6 +835,8 @@ final class StateTable {
     /// is not a new hazard `write` introduces, only one it inherits.
     func write<S>(_ id: GlobalElementID, _ value: S) {
         retainLog?.taint("stateWrite")
+        prepaintLog?.taint("stateWrite")
+        contentMemos.journal.taint("stateWrite")   // `RK-F`
         if departedOverlay != nil, departedOverlay!.roots.contains(where: { id.isOrDescends(from: $0) }) {
             departedOverlay!.values[id] = value   // `LC-I` item 2: discarded with the overlay
             return
@@ -834,6 +857,17 @@ final class StateTable {
     /// `drawFrameIfNeeded` sees it — the same shape `frame.wantsAnotherFrame`
     /// already uses for exactly this reason.
     func clearDirty() { isDirty = false }
+
+    /// Whether an entry exists at `id` (`RK-F`: a graft's live baselines must still be there).
+    func hasEntry(_ id: GlobalElementID) -> Bool { storage[id] != nil }
+
+    /// Keeps the entry at `id` live for this frame's sweep without writing it: what a graft stands for when the
+    /// build it replaces rewrote an animation baseline (`RK-F`). Journalled again so an enclosing window sees it.
+    func markLive(_ id: GlobalElementID) {
+        contentMemos.journal.record(.liveState(id))
+        marked.insert(id)
+        storage[id]?.isLive = true
+    }
 
     /// Read the state at `id` without marking it. Test observability: a reader
     /// that marked would make liveness assertions pass by the act of checking
@@ -998,4 +1032,47 @@ final class StateTable {
 struct DepartedState {
     var values: [GlobalElementID: Any]
     let roots: Set<GlobalElementID>
+}
+
+
+// MARK: - The build channels (`RK-N`, verify mode and the graft's journal tests)
+
+/// What a build writes into the table's sweep-visible sets, as comparable values (`RK-N`): the marks, the produced
+/// conditional slots, the named positions and names, the loop extents, the windowed parents, the memo entries kept for
+/// the sweep and the animation entries touched. A grafted build and a fresh one must leave the same sets.
+struct BuildChannels: Equatable {
+    var marked: Set<GlobalElementID> = []
+    var produced: Set<GlobalElementID> = []
+    var names: Set<GlobalElementID> = []
+    var positions: [StateTable.NamedPosition: GlobalElementID] = [:]
+    var loops: [GlobalElementID: Int] = [:]
+    var windowed: Set<GlobalElementID> = []
+    var memoKept: Set<ContentMemoStore.Key> = []
+    var animationTouched: Set<GlobalElementID> = []
+
+    /// The first channel that differs, named, or `nil`.
+    func difference(from other: BuildChannels) -> String? {
+        if marked != other.marked { return "marks: only here \(marked.subtracting(other.marked).count), only there \(other.marked.subtracting(marked).count)" }
+        if produced != other.produced { return "produced slots" }
+        if names != other.names { return "produced names" }
+        if positions != other.positions { return "named positions" }
+        if loops != other.loops { return "loop extents" }
+        if windowed != other.windowed { return "windowed parents" }
+        if memoKept != other.memoKept { return "memo entries kept" }
+        if animationTouched != other.animationTouched { return "animation entries touched" }
+        return nil
+    }
+}
+
+extension StateTable {
+    func buildChannels(animation: AnimationStore) -> BuildChannels {
+        BuildChannels(marked: marked, produced: producedSlots, names: producedNames, positions: namedPositions,
+                      loops: loopExtents, windowed: windowedParents, memoKept: contentMemos.keptKeys,
+                      animationTouched: animation.touchedIDs)
+    }
+
+    /// The `@State` entries and their versions and liveness, sorted: what a test compares across two windows.
+    var entryDigest: [String] {
+        storage.map { "\(sbPath($0.key))|live:\($0.value.isLive)" }.sorted()
+    }
 }

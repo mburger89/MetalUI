@@ -1,18 +1,25 @@
 /// A `Component` whose `content` is not evaluated again while its value is
-/// unchanged (SwiftUI's `View.equatable()`, `IV-B`), and whose **paint** is
-/// replayed while nothing it reads has changed (retained subtrees, `SB-B`); made
-/// by ``Component/equatable()``.
+/// unchanged (SwiftUI's `View.equatable()`, `IV-B`), and whose **prepaint and
+/// paint** are replayed while nothing they read has changed (retained subtrees,
+/// `SB-B`, `RK-E`); made by ``Component/equatable()``.
 ///
 /// The component keeps its identity level, `@State` slots and cursor index: the
-/// wrapper adds none of its own. The build recursion (`requestGroupLayout`),
-/// layout and prepaint run exactly as for the bare component. Paint runs, once,
-/// when the occurrence is first drawn or anything it depends on changes, and is
-/// then replayed from a record of the scene primitives it made, in the order a
-/// fresh run makes them. What it depends on is the **replay key**: the
-/// occurrence's rectangles and the layout under it, the clip, offset, layer,
-/// opacity and open paint scopes at paint, the built-in environment and theme,
-/// the window's scale and size, and whether the pointer, a press or focus is
-/// inside it.
+/// wrapper adds none of its own. The build recursion (`requestGroupLayout`) and
+/// layout run exactly as for the bare component. **Prepaint** registers the
+/// subtree's hitboxes, focus stops, accessibility records, context menus and
+/// region tallies; they are recorded once and replayed in the same order while
+/// the occurrence's rectangles and the layout under it, the clip, offset, layer,
+/// render effects, built-in environment and pointer gates around it are equal
+/// (a translation of the render effects around it replays too, `RK-S`).
+/// **Paint** runs, once, when the occurrence is first drawn or anything it
+/// depends on changes, and is then replayed from a record of the scene
+/// primitives it made, in the order a fresh run makes them. What it depends on
+/// is the **replay key**: the occurrence's rectangles and the layout under it,
+/// the clip, offset, layer, opacity and open paint scopes at paint, the built-in
+/// environment and theme, the window's scale and size, and whether the pointer, a
+/// press or focus is inside it. If a replayed prepaint meets a paint-time
+/// ambient that differs (an ancestor's opacity or shadow changed), the window
+/// builds the frame again with every replay off (`RK-D`).
 ///
 /// There is no initialiser: make one with `equatable()`.
 public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
@@ -51,10 +58,20 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         guard let window, let entry else {
             return component.finishComponent(&materialized, id: id, pass: &pass)
         }
+        // A grafted occurrence skips the build recursion (`RK-B`): its rows are copied from the last build's segment
+        // and the journal of that build is applied again. Its prepaint and paint are replays, or the frame is redone.
+        let buildKey = frame.graftBuildKey()
+        if let record = frame.graftRecord(for: entry, id: id, key: buildKey) {
+            let tops = frame.graftOccurrence(record)
+            let layout = ComponentLayout<C>(grafted: RetainedGraft(record: record))
+            layout.storage.retained = window.finish(frame: frame, key: key, nodes: tops, observed: false)
+            return (tops, layout)
+        }
         // The build recursion runs in an observation window of its own (`SB-D`): a descendant
         // getter that reads an `@Observable` invalidates this occurrence's record.
         let observed = entry.needsObservation
         let evaluationsBefore = store.evaluationsSoFar
+        let graftWindow = store.recordsGrafts ? frame.openGraftWindow() : nil
         let result: ([LayoutNodeID], ComponentLayout<C>)
         if observed {
             result = entry.buildSession.run(entry: entry, store: store) {
@@ -69,25 +86,58 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         // The subtree placement memo (`SB-AD`) restores these roots' rects where they stand.
         for node in result.0 { frame.tree.markPlacementRoot(node) }
         result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed)
+        if let graftWindow {
+            let closed = frame.closeGraftWindow(graftWindow, tops: result.0, contentSerial: entry.serial, key: buildKey)
+            if let record = closed.record {
+                entry.graft = record
+            } else {
+                entry.graft = nil
+                store.retained.graftIneligible += 1
+                store.graftRefusals.append(closed.refusal ?? "unknown")
+                if retainedTraces { print("retained graft ineligible \(sbPath(id).suffix(60)) because \(closed.refusal ?? "?")") }
+            }
+        }
         return result
     }
 
     public mutating func prepaintGroup(layout: inout ComponentLayout<C>,
                                        pass: inout PrepaintPass) -> ComponentPrepaint<C> {
+        let grafted = layout.storage.graft != nil
         guard let build = layout.storage.retained,
               let phase = pass.frame.retainedPrepaintPhase(build: build) else {
-            return component.prepaintGroup(layout: &layout, pass: &pass)
+            return component.prepaintGroup(layout: &layout, pass: &pass)   // traps by name for a graft (`RK-B`)
         }
-        // Prepaint always runs (`SB-AA`) — its states feed paint — in an observation window of its own
-        // (`SB-V`): an `@Observable` read there that a prepaint state carries into paint kills the record.
+        phase.grafted = grafted
+        let frame = pass.frame
+        // The ledger of what the prepaint registered replays while the prepaint key is equal (`RK-C`, `RK-E`);
+        // the occurrence's element prepaint does not run, so its paint must be a replay too (`RK-B`).
+        let mode = frame.retainedPrepaintDecision(phase)
+        if case .replay(let ledger, let moved) = mode {
+            frame.replayPrepaintLedger(ledger, hitboxes: moved)
+            phase.replayed = ledger
+            return ComponentPrepaint<C>(replayedBy: phase)
+        }
+        // A grafted occurrence has no element layout to prepaint: the prepaint key (or the pointer, the
+        // keyboard focus, a quarantine) decided against the replay the graft counted on, so the frame is built
+        // again with every graft and replay off (`RK-C`, `RK-D`).
+        if grafted {
+            frame.requestRedo(phase.entry)
+            phase.abandoned = true
+            return ComponentPrepaint<C>(replayedBy: phase)
+        }
+        var recorder: PrepaintRecorder?
+        if case .run(let r) = mode { recorder = r }
+        // Prepaint runs in an observation window of its own (`SB-V`): an `@Observable` read there that a
+        // prepaint state carries into paint kills the record.
         let result: ComponentPrepaint<C>
         if phase.prepaintObserved {
-            result = phase.entry.prepaintSession.run(entry: phase.entry, store: pass.frame.stateTable.contentMemos) {
+            result = phase.entry.prepaintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.prepaintGroup(layout: &layout, pass: &pass)
             }
         } else {
             result = component.prepaintGroup(layout: &layout, pass: &pass)
         }
+        if let recorder { phase.ledger = frame.closePrepaintWindow(recorder, phase: phase) }
         result.storage.retained = phase
         return result
     }
@@ -100,12 +150,16 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
             return
         }
         let frame = pass.frame
+        if phase.abandoned { return }   // the frame is being redone (`RK-C`)
         switch frame.retainedPaintDecision(phase) {
         case .hit(let record):
-            frame.replayPaint(record)
+            frame.replayPaint(record, translated: phase.translatedPaint)
         case .plain:
+            if phase.replayed != nil || phase.grafted { frame.requestRedo(phase.entry); return }
             component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
         case .record(let recorder, let key, let old):
+            // A replayed prepaint left no element state to paint from: the frame is redone (`RK-C`).
+            if phase.replayed != nil || phase.grafted { frame.requestRedo(phase.entry); return }
             frame.openRecorderWindow(recorder)
             phase.entry.paintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
@@ -136,11 +190,13 @@ extension Component where Self: Equatable {
     /// properties its elements read in a getter, `prepaint` or `paint`, and the
     /// built-in environment; an element under it that draws from anything else (a
     /// global, a `Binding` read in `paint`, the clock) must not be under an
-    /// `.equatable()` that cannot see the change. The build recursion, layout and
-    /// prepaint still run every frame, so hit testing, focus and accessibility are
-    /// always current. A subtree that scrolls, edits text, animates, shows a
-    /// popover, draws a `GPUSurface` or sits under a custom environment key paints as
-    /// it always did (counted in `FrameWork.retainedIneligible`).
+    /// `.equatable()` that cannot see the change. The build recursion and layout
+    /// still run every frame; hit testing, focus and accessibility are replayed from
+    /// the registrations of the frame the subtree last ran, in the same order. A
+    /// subtree that scrolls, edits text, animates, shows a popover, draws a
+    /// `GPUSurface` or sits under a custom environment key paints and prepaints as it
+    /// always did (counted in `FrameWork.retainedIneligible` and
+    /// `retainedPrepaintIneligible`).
     public func equatable() -> EquatableComponent<Self> {
         EquatableComponent(component: self)
     }

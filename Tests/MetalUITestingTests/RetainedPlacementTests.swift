@@ -18,7 +18,7 @@ import Testing
 /// (`WindowedRowsLayout`, not `Hashable`), the inspector (`Slider`, an unkeyed leaf) and the top bar
 /// have no signature. The count is now a literal, with the layout lookups it removes (1258 memo
 /// hits -> 362 and 366 cache hits -> 331 against `theBracketNodeDragRebuildsTheWholeWindow`).
-@Test(arguments: [BracketArm.value, BracketArm.panels]) @MainActor
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 presents the rebuild of a prepaint-replayed frame, whose layout work is the second build's (the memo already holds the first's): the layout counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.panels]) @MainActor
 func aDragFrameRestoresTheUnmovedOccurrencesPlacement(arm: BracketArm) throws {
     let on = try bracketDragFrames(arm: arm, steps: 20, retained: true).frames
     let off = try bracketDragFrames(arm: arm, steps: 20, retained: false).frames

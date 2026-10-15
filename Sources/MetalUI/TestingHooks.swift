@@ -148,3 +148,99 @@ extension Window {
     /// The last build's Tab order (`IV-J`).
     package var testingTabOrder: [GlobalElementID] { lastFocusRegistry.tabOrder }
 }
+
+// C14b-2 (`RK-`): read-backs for the prepaint-replay differentials.
+extension Window {
+    /// Whether `.equatable()` occurrences replay their prepaint (`RK-E`); off is the paint-only replay of
+    /// `fb9a7e42`. Independent of ``testingRetainedSubtrees``.
+    package var testingRetainedPrepaint: Bool {
+        get { stateTable.contentMemos.replaysPrepaint }
+        set { stateTable.contentMemos.replaysPrepaint = newValue }
+    }
+
+    /// Whether `.equatable()` occurrences skip their build recursion (`RK-B`); off, prepaint and paint replay as at lane 1's tree.
+    package var testingRetainedGraft: Bool {
+        get { stateTable.contentMemos.graftsBuild }
+        set { stateTable.contentMemos.graftsBuild = newValue }
+    }
+
+    /// The `@State` entries with their versions and liveness, sorted: compared across two windows by the graft's
+    /// sweep differential (`RK-F`).
+    package var testingStateEntries: [String] { stateTable.entryDigest }
+
+    /// Every field of the last build's hitboxes that is not a closure, in registration order, as one string
+    /// each: identity, bounds, layer, opacity, scroll axis, origin, shape, transform, the contextual flag and
+    /// which handler members were present (`RK-E`).
+    package var testingHitboxFingerprints: [String] {
+        lastHitboxes.map(\.fingerprint)
+    }
+
+    /// The last build's region tallies: hover, pointer style, key, focus-on-press, resign (`RK-E`).
+    package var testingRegionTallies: [Int] {
+        [lastHoverRegionCount, lastPointerStyleRegionCount, lastKeyRegionCount, lastFocusOnPressCount,
+         lastResignRegionCount]
+    }
+
+    /// The identities that registered a context menu, and the press-only accessibility actions, in the last
+    /// build, sorted by description (`RK-E`).
+    package var testingContextMenuAndPressOnlyIDs: [String] {
+        lastContextMenus.keys.map { "menu \($0)" }.sorted() + lastAccessibilityPressOnly.keys.map { "press \($0)" }.sorted()
+    }
+}
+
+extension Window {
+    /// Damages every stored prepaint ledger in one named channel and answers how many it damaged (`RK-N`): the
+    /// exit tests of verify mode need a replay that differs from a fresh prepaint to see it trap.
+    @discardableResult
+    package func testingCorruptPrepaintLedgers(_ channel: String) -> Int {
+        stateTable.contentMemos.mutatePrepaintLedgers { ledger in
+            switch channel {
+            case "hitboxes": ledger.hitboxes.reverse(); if ledger.hitboxes.count > 1 { ledger.hitboxes.removeLast() }
+            case "tallies": ledger.tallies.hover += 1
+            case "focus": ledger.focus.removeAll()
+            case "accessibility": ledger.axEmissions.removeAll()
+            case "elementBounds": ledger.elementBounds.removeAll()
+            case "contextMenus": ledger.contextMenus.removeAll()
+            case "pressOnly": ledger.pressOnly.removeAll()
+            default: preconditionFailure("unknown ledger channel \(channel)")
+            }
+        }
+    }
+}
+
+extension Window {
+    /// Damages every stored graft record in one named channel and answers how many it damaged (`RK-N`): the exit tests of
+    /// verify mode need a graft that differs from a build to see it trap. Channels: `marks`, `produced`, `named`,
+    /// `loops`, `memoTouches` (calls dropped from the journal) and `leafKeys` (dropped from the rows).
+    @discardableResult
+    package func testingCorruptGraftRecords(_ channel: String) -> Int {
+        stateTable.contentMemos.mutateGraftRecords { graft in
+            switch channel {
+            case "marks": graft.events.removeAll { if case .mark = $0 { true } else { false } }
+            case "produced": graft.events.removeAll { if case .produced = $0 { true } else { false } }
+            case "named": graft.events.removeAll { if case .named = $0 { true } else { false } }
+            case "loops": graft.events.removeAll { if case .loop = $0 { true } else { false } }
+            case "memoTouches": graft.events.removeAll { if case .memoTouch = $0 { true } else { false } }
+            case "leafKeys": graft.segment = graft.segment.testingDroppingLeafKeys()
+            default: preconditionFailure("unknown graft channel \(channel)")
+            }
+        }
+    }
+
+    /// Calls `body` on every stored graft record and answers how many there were (internal tests only).
+    @discardableResult
+    func testingStoredGraftRecords(_ body: (GraftRecord) -> Void) -> Int {
+        stateTable.contentMemos.mutateGraftRecords(body)
+    }
+
+    /// Why occurrences left no graft record in the last build, one name each (`RK-F`).
+    package var testingGraftRefusals: [String] { stateTable.contentMemos.lastGraftRefusals }
+}
+
+extension Window {
+    /// Calls `body` on every stored prepaint ledger and answers how many there were (`RK-O` item 1's scan, internal tests only).
+    @discardableResult
+    func testingStoredPrepaintLedgers(_ body: (PrepaintLedger) -> Void) -> Int {
+        stateTable.contentMemos.mutatePrepaintLedgers(body)
+    }
+}

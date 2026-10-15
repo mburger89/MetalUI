@@ -72,6 +72,13 @@ package final class ContentMemoStore {
         // changed since the record was made.
         var record: RetainedRecord?
         var observedChange = false
+        /// Builds (by `ContentMemoStore.buildSerial`) before which this occurrence's prepaint is not replayed, and
+        /// the exponent of the next quarantine: a redo this occurrence caused doubles it (`RK-D` item 3).
+        var quarantineUntil = 0
+        var redoExponent = 0
+        /// What the last build of this occurrence left for a graft (`RK-B`, `RK-F`), or `nil` (ineligible, by name in
+        /// `retainedGraftIneligible`).
+        var graft: GraftRecord?
         /// Whether this occurrence's build and prepaint must open an observation window this frame
         /// (`SB-V`): when it has no record, or its record covers only its paint. A valid, completely
         /// covered record keeps the sessions of the frame it was made in armed, so a steady hit opens none.
@@ -88,6 +95,17 @@ package final class ContentMemoStore {
 
     private var entries: [Key: Entry] = [:]
 
+    /// The build journal of this window (`RK-F`): every funnel a graft window must replay appends to it while a
+    /// window is open.
+    let journal = BuildJournal()
+
+    /// Keeps the memo entry at `key` for this build without evaluating anything (a graft standing for a nested
+    /// occurrence's build). Journalled so an enclosing window sees it.
+    func touch(_ key: Key) {
+        journal.record(.memoTouch(key))
+        entries[key]?.touched = true
+    }
+
     /// Test switch: off, every memoized component takes the miss path without
     /// retaining anything (the lane-0 baseline).
     package var isEnabled = true
@@ -96,6 +114,34 @@ package final class ContentMemoStore {
     /// no record is made; the memo-off arm of the retained-subtree tests'
     /// differentials. Independent of ``isEnabled`` (the getter memo).
     package var retainsSubtrees = true
+
+    /// Test switch (`RK-E`): off, an occurrence's prepaint runs every frame and records nothing for
+    /// replay; paint replay is `SB-B`'s, unchanged. The `fb9a7e42` arm of the prepaint differentials.
+    package var replaysPrepaint = ProcessInfo.processInfo.environment["METALUI_RETAINED_PREPAINT"] != "0"
+
+    /// Test switch (`RK-B`): off, no occurrence skips its build recursion (the `fb9a7e42` arm after lane 1: prepaint replay
+    /// stays, the graft goes). `METALUI_RETAINED_GRAFT=0` reads it when each window is made.
+    package var graftsBuild = ProcessInfo.processInfo.environment["METALUI_RETAINED_GRAFT"] != "0"
+
+    /// Whether an occurrence may skip its build recursion in the build in progress (`RK-B`, `RK-M`): grafting is on,
+    /// prepaint replay is in force (a graft's prepaint and paint are replays) and the build is not a redo.
+    var graftAllowed: Bool { graftsBuild && retainsSubtrees && prepaintReplayAllowed }
+
+    /// Whether builds record what a graft needs: on whenever grafting is switched on, so a redo or a backed-off
+    /// build still leaves records for the next one.
+    var recordsGrafts: Bool { graftsBuild && replaysPrepaint && retainsSubtrees && windowRedoes }
+
+    /// Builds completed (`endFrame`), the window-wide backoff's clock (`RK-D` item 3), the first build at which
+    /// prepaint replay may run again, and whether the build in progress is a redo.
+    var buildSerial = 0
+    var prepaintSuspendedUntil = 0
+    var redoInProgress = false
+    /// Whether a window drives this store's frames and so builds an abandoned frame again (`RK-D`): a bare
+    /// `Frame.render` has no one to redo it, so it never replays a prepaint.
+    var windowRedoes = false
+    /// How many entries held a prepaint ledger at the last `endFrame`: with none, a build cannot replay a prepaint
+    /// and so cannot be redone, and the window takes no checkpoint (`RK-M`).
+    private(set) var ledgerEntries = 0
 
     /// The retained-subtree counters of the build in progress, snapshotted by `endFrame()`.
     var retained = RetainedCounters()
@@ -138,6 +184,7 @@ package final class ContentMemoStore {
             return getter()
         }
         let key = Key(id: id, type: ObjectIdentifier(C.self))
+        journal.record(.memoTouch(key))   // `RK-F`: a nested occurrence's entry must survive a grafting parent
         var versions: [UInt64] = []
         versions.reserveCapacity(stateIDs.count)
         for stateID in stateIDs { versions.append(table.entryVersion(stateID)) }
@@ -181,21 +228,72 @@ package final class ContentMemoStore {
         return content
     }
 
+    /// The keys of the entries a component touched this build (`RK-N`): what the sweep at `endFrame` keeps.
+    var keptKeys: Set<Key> { Set(entries.filter { $0.value.touched }.map(\.key)) }
+
+    /// Calls `body` on every stored graft record and answers how many there were (`RK-N`'s exit tests).
+    func mutateGraftRecords(_ body: (GraftRecord) -> Void) -> Int {
+        var count = 0
+        for entry in entries.values { if let graft = entry.graft { body(graft); count += 1 } }
+        return count
+    }
+
+    /// Why occurrences could leave no graft record in the build in progress and in the last one, one name each (`RK-F`).
+    var graftRefusals: [String] = []
+    package private(set) var lastGraftRefusals: [String] = []
+
+    /// Calls `body` on every stored prepaint ledger and answers how many there were (`RK-N`'s exit tests).
+    func mutatePrepaintLedgers(_ body: (PrepaintLedger) -> Void) -> Int {
+        var count = 0
+        for entry in entries.values { if let ledger = entry.record?.prepaint { body(ledger); count += 1 } }
+        return count
+    }
+
+    /// The build in progress's counters, and the means to make a later build report them (`RK-N`): verify mode
+    /// builds a frame twice and the build it presents reports the work of the first (the replayed one), so the
+    /// counts the suite pins are the counts of the build under test.
+    struct BuildCounters {
+        let retained: RetainedCounters
+        let evaluations: Int, skips: Int, refusals: Int
+    }
+
+    var buildCounters: BuildCounters {
+        BuildCounters(retained: retained, evaluations: evaluations, skips: skips, refusals: refusals)
+    }
+
+    func reportLast(_ counters: BuildCounters) {
+        lastRetained = counters.retained
+        lastEvaluations = counters.evaluations; lastSkips = counters.skips; lastRefusals = counters.refusals
+    }
+
+    /// Starts this build's counters over (`RK-D`): the abandoned attempt's work was thrown away.
+    func resetBuildCounters() {
+        retained = RetainedCounters()
+        graftRefusals = []
+        evaluations = 0; skips = 0; refusals = 0
+    }
+
     /// The end of a build (`StateTable.sweep()`): snapshot the counters, and drop
     /// every entry no component touched, firing its session so it is spent.
     func endFrame() {
+        if replaysPrepaint, retainsSubtrees, buildSerial < prepaintSuspendedUntil { retained.backoffFrames = 1 }
+        buildSerial &+= 1
         lastEvaluations = evaluations; lastSkips = skips; lastRefusals = refusals
         lastRetained = retained; retained = RetainedCounters()
+        lastGraftRefusals = graftRefusals; graftRefusals = []
         evaluations = 0; skips = 0; refusals = 0
-        guard !entries.isEmpty else { return }
+        guard !entries.isEmpty else { ledgerEntries = 0; return }
         var gone: [Key] = []
+        var withLedger = 0
         for (key, entry) in entries {
+            if entry.record?.prepaint != nil { withLedger += 1 }
             if entry.touched {
                 entry.touched = false
             } else {
                 gone.append(key)
             }
         }
+        ledgerEntries = withLedger
         for key in gone {
             guard let entry = entries.removeValue(forKey: key) else { continue }
             entry.serial &+= 1

@@ -449,6 +449,20 @@ environment key keeps running as before. `METALUI_VERIFY_RETAINED=1` runs the fr
 replay and traps on a difference (`SB-W`). A test that must see every frame's prepaint turns replay off with the
 package switch `Window.testingRetainedSubtrees = false` (not public API) or leaves `.equatable()` off.
 
+### Retained build skip (`RK-`, record §110)
+
+None for the API: additive (ten `FrameWork` counters: `retainedPrepaintHits`, `retainedPrepaintIneligible`, `retainedRedos`,
+`retainedBackoffFrames`, `retainedTranslated`, `retainedTranslationRefused`, `retainedGrafts`, `retainedGraftIneligible`,
+`retainedSkippedRequests`, `retainedGraftedNodes`); no platform requirement. **Behaviour, compiles and answers differently:** under an
+`.equatable()` occurrence whose value, `@State`, observed reads, layout and pointer, press and focus are unchanged, **the content is no
+longer built** and a custom `Element`'s `requestLayout` and `prepaint` are not called either (§109 replayed paint only): a test or an
+element that counted those calls, or relied on a side effect of one (a global written in a builder or `prepaint`), reads fewer calls or a
+stale value. The contract on `equatable()` is stronger by one clause: the subtree's `StateTable` writes made while building (a conditional,
+a loop, a named `.id`) must be a function of the same inputs. A frame whose paint-time ambient (opacity, shadow, blur or composite scope
+above the occurrence) changed is built a second time, once, with every replay off (`FrameWork.retainedRedos`); an element that counted
+builds sees that frame twice. A store written during a build that is not idempotent owes a `rollbackBuild`
+(`AnimationStore.checkpoint`). `METALUI_VERIFY_RETAINED=1` builds every replayed or grafted frame twice and traps on a difference.
+
 ### Window chrome on SDL (`CW-`, item S1, record §112)
 
 Additive API, class M (SwiftUI has no window-control API, probe `swiftui-window-chrome.swift`):

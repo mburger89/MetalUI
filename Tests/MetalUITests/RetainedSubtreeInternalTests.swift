@@ -23,7 +23,7 @@ private enum Channel: String {
     case keyed
     /// A change in a paint makes the occurrence ineligible.
     case ledger
-    /// Written by prepaint only, which runs every frame in lane 1 (`SB-AA`).
+    /// Written by prepaint only: replayed from a prepaint ledger, or audited by count and refused (`RK-E`).
     case prepaintOnly
     /// Not touched by prepaint or paint, or constant for the frame.
     case frameLocal
@@ -94,6 +94,10 @@ private let frameChannels: [String: Channel] = [
     // Retained subtrees' own.
     "elementRequests": .frameLocal, "elementPrepaints": .frameLocal, "elementPaints": .frameLocal,
     "retainLog": .frameLocal,
+    // C14b-2 (`RK-E`, `RK-D`): the prepaint journal is open only inside a recorder's window; the redo list is
+    // read by `Frame.render` after the root's paint and by the window, never replayed.
+    "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "verifySnapshot": .frameLocal,
+    "verifyAbandoned": .frameLocal,
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {
@@ -131,7 +135,7 @@ private let stateTableChannels: [String: Channel] = [
     "departedNameResets": .buildOnly, "resetScanWork": .buildOnly, "lastResetScanWork": .buildOnly,
     "loopExtents": .buildOnly, "previousLoopExtents": .buildOnly, "retainsDepartedValues": .buildOnly,
     "departedValues": .buildOnly, "departedRootsKept": .buildOnly, "lastDepartedValueCount": .buildOnly,
-    "departedOverlay": .buildOnly, "focusStates": .buildOnly, "departedRoots": .buildOnly,
+    "departedOverlay": .buildOnly, "focusStates": .buildOnly, "departedRoots": .buildOnly, "prepaintLog": .frameLocal,
     "doomedKeys": .buildOnly, "resetFocusSlots": .buildOnly, "isDirty": .ledger, "onWrite": .frameLocal,
     "writeCount": .ledger,
 ]
@@ -140,6 +144,7 @@ private let animationStoreChannels: [String: Channel] = [
     "entries": .recorded, "touched": .recorded, "interpolationsThisFrame": .ledger, "transitions": .ledger,
     "rasters": .recorded, "layoutMemo": .buildOnly, "lifecycle": .buildOnly, "timeline": .buildOnly,
     "keyframeDepth": .buildOnly, "lastFrameInterpolations": .frameLocal, "retainLog": .frameLocal,
+    "buildJournal": .buildOnly,
     // Cumulative work counters of `HP-I` (read by differencing); a retained skip does not replay them.
     "borderKeyBuilds": .frameLocal, "numberTrackRebuilds": .frameLocal,
 ]

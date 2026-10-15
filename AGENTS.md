@@ -75,7 +75,8 @@ summary.
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
   `2026-10-13-incremental-invalidation-decisions.md`, next `IV-R`), `SB-` (retained subtrees:
-  `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `HP-` (hot paths:
+  `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `RK-` (retained build skip, prepaint replay, the graft:
+  `2026-10-13-retained-build-skip-decisions.md`, next `RK-AD`), `HP-` (hot paths:
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
@@ -97,7 +98,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **158 live, next label 206** (455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB and IC, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC and RK, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -117,11 +118,13 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-14, `feat/image-info` from `ceca59f6`, merged with master `31e82bf5` (§115 clipboard, §116 image cursors and headless launch): 3864 tests, 0 goldens, 244 typecheck guards** (master's 3844 + 20 tests, 243 + guard G-IH1; re-measured by the orchestrator on the merged tree, record §117). Before it,
+- **Counts (2026-10-14, `perf/retained-build-skip` from `fb9a7e42`, merged with master `d3ebfa18` (§115 clipboard, §117 image info): 3918 tests, 0 goldens, 246 typecheck guards** (master's 3864 + 54 tests, 244 + 2 guards; re-measured by the orchestrator on the merged tree, record §110 §11). Before it,
+  **(2026-10-14, `perf/retained-build-skip` from `fb9a7e42`, merged with master `565abe67` (§111, §112, §113, §114, §116): 3869 tests, 0 goldens, 243 typecheck guards** (master's 3815 + 54 tests (lane 1's 29, lane 2's 25), 241 + 2 guards, one a plain-import guard per lane; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; census 3603 (3587 + 16: `FrameWork`'s ten counters, six demo-model members); inventory and undocumented scripts print nothing; the fourteen images 0 px against `fb9a7e42` at the lanes, not re-taken after the merge; no divergence label taken; Linux image and `Backends/SDL` not re-taken after the merge (untouched; lane 2's image run on its own tree); record §110 §11). Before it,
+  **(2026-10-14, `feat/image-cursors-headless` from `fb9a7e42`, merged with master `34491ff4` (§114 SDL GPU for apps): 3815 tests, 0 goldens, 241 typecheck guards** (master's 3803 + 12 tests, 238 + 3 guards; S5+S6 added no root test; re-measured by the orchestrator on the merged tree, record §116). Before it,
+  **(2026-10-14, `feat/image-info` from `ceca59f6`, merged with master `31e82bf5` (§115 clipboard, §116 image cursors and headless launch): 3864 tests, 0 goldens, 244 typecheck guards** (master's 3844 + 20 tests, 243 + guard G-IH1; re-measured by the orchestrator on the merged tree, record §117). Before it,
   **(2026-10-14, `feat/image-info` from `ceca59f6`, merged with master `34491ff4` (§114 SDL GPU for apps): 3823 tests, 0 goldens, 239 typecheck guards** (master's 3803 + 20 tests, 238 + guard G-IH1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else, `FR-J no-argument frame: succeeded=true`; census 3592 unmoved by the merge; inventory and undocumented scripts print nothing; the fourteen images 0 px against `ceca59f6`; no divergence label taken; `Backends/SDL` untouched; record §117 §3). Before it,
   **(2026-10-14, `feat/sdl-gpu-compute` from `fb9a7e42`, merged with master `a4ebe288` (§112 §11 depth-ranked carving): 3803 tests, 0 goldens, 238 typecheck guards** (master's, unchanged: the branch adds `Backends/SDL` tests only; re-measured by the orchestrator on the merged tree, record §114). Before it,
   **(2026-10-14, `feat/clipboard-types` from `fb9a7e42`, merged with master `565abe67` (§114 SDL GPU, §116 image cursors and headless launch): 3844 tests, 0 goldens, 243 typecheck guards** (master's 3815 + 29 tests, 241 + 2 guards 3.1, 3.2; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; the native unfiltered run on a locked screen read exactly the five `AppKitPresentationTests` sheet issues and nothing else; census 3638 re-recorded after the merge, inventory and undocumented scripts print nothing; divergences 455, 456 added beside master's 465, 158 live; the guide's `input` mirrors renumbered #8 cursor, #9 clipboard; record §115). Before it,
-  **(2026-10-14, `feat/image-cursors-headless` from `fb9a7e42`, merged with master `34491ff4` (§114 SDL GPU for apps): 3815 tests, 0 goldens, 241 typecheck guards** (master's 3803 + 12 tests, 238 + 3 guards; S5+S6 added no root test; re-measured by the orchestrator on the merged tree, record §116). Before it,
   **(2026-10-14, `feat/image-cursors-headless` from `fb9a7e42`, merged with master `a4ebe288` (§112 §11 depth-ranked carving): 3815 tests, 0 goldens, 241 typecheck guards** (master's 3803 + 12 tests, 238 + 3 guards; re-measured by the orchestrator on the merged tree, record §116). Before it,
   **(2026-10-14, `feat/image-cursors-headless` from `fb9a7e42`, merged with master `ceca59f6` (§111 hot paths, §112 SDL chrome, §113 image decoding): 3811 tests, 0 goldens, 241 typecheck guards** (master's 3799 + 12 tests, 238 + 3 guards: 6 `ImageCursorTests`, 2 `AppKitImageCursorTests`, the two guards of `ImageCursorCompileGuards.swift`, `IC-22` and the guide mirror's test; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift build --build-tests` 0 warnings, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 157 on macOS, 30 + 154 in `swift:6.4-noble`; census 3587, inventory and undocumented scripts print nothing; divergence 465 added, 156 live; the fourteen images were 0 px against `fb9a7e42` at the lanes, not re-taken on the merge; Windows and a real window not run, human checks group `IC`; record §116 §11). Before it,
   **(2026-10-14, `feat/sdl-gpu-compute` from `fb9a7e42`, merged with master `ceca59f6` (§111 hot paths, §112 SDL chrome, §113 image decoding): 3799 tests, 0 goldens, 238 typecheck guards** (master's, unchanged: the branch adds 27 `Backends/SDL` tests and no root test or guard; `swift package clean`, native build 0 `error:`, native unfiltered run all passed, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 152 tests in 4 suites on macOS at lane 2's head, 149 in `swift:6.4-noble` on lavapipe; inventory and undocumented scripts print nothing, census unmoved; the fourteen images 0 px against `fb9a7e42`; no divergence label taken; Windows and real hardware not run, human checks group `GA`; record §114). Before it,
@@ -257,7 +260,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §112, §114, §115, §116.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -864,6 +867,23 @@ leaves; `METALUI_VERIFY_LAYOUT_MEMO=1` covers it. Carried together (`SB-AE`): th
 prepaint replay and the build skip. Measured on the bracket fixture (`BracketFixture.swift`, node drag): element paints 1084 -> 178 per
 frame, release median -18 %, debug -14 %; **pins count work, never time**. A new `Frame` site that pushes paint-only ambient owes a
 field in `AmbientKey`. The demo is `METALUI_RETAINED_DEMO=1`.
+
+**Retained build skip (`RK-`, record §110).** C14b-2, no public API beyond ten more `FrameWork` counters, no divergence (405–414 unused),
+`Backends/SDL` untouched. **Prepaint replay:** an `.equatable()` occurrence's prepaint registers into a `PrepaintLedger` (hitboxes in
+the one ranking's order, focus, accessibility records and nodes, press-only actions, context menus, element bounds, tallies) replayed
+while its key is equal; **a paint-time ambient (SB-AA) that differs for a replayed prepaint abandons the frame after paint and
+`Window.buildAndAdoptFrame` builds it again once with every replay off** (the redo; `AnimationStore.checkpoint`/`rollbackBuild`, 8
+builds of window backoff, a per-entry doubling quarantine): **a store a build mutates non-idempotently owes a `rollbackBuild`**. A
+render-effect translation replays through the live scopes (translated replay; a hitbox clip that depended on it refuses, `RK-G`, `RK-S`).
+**The graft:** an unchanged occurrence skips its build recursion (`RetainedGraft`): its layout rows come from a recorded
+`LayoutSegment` (`LayoutTree.graft`, every table restamped), the `StateTable` events its build made are applied again through the
+table's own funnels (`BuildJournal`, `Frame.reapply`: ID-C/ID-R sweeps, `noteNamed`, `entryVersion`), a grafted `ComponentLayout` has
+no payload, a pointer, press, focus or hover under it grafts nothing, and a wrong decision is the same redo; a refusal is counted by
+name. **A new `StateTable` write site owes a journal event**. `METALUI_VERIFY_RETAINED=1` builds every replayed or grafted frame twice
+and traps naming the channel (`RK-N`, `RK-V`, `RK-AA`). Measured on the bracket node drag: element requests 798 -> 208 (`.value`) and 167 (`.panels`),
+prepaints 886 -> 219 and 176, release thread-CPU -23 % to -26 % (dated, a shared Mac); **pins count work, never time**. `drawText`
+stays deferred (`RK-I`). Carried: layout or scroll translation, popovers and surfaces inside a subtree (C14b-3), an environment epoch
+(C14-c), finer scopes (C14-d). The demo's switches are in `METALUI_RETAINED_DEMO=1`.
 
 **Hot paths (`HP-`, record §111).** P1, value-identical, no public API, no divergence: every change leaves the fourteen images
 0 px and every work counter equal. CoreText placement is cached **per `ShapedText`** in a `PlacementBox` (runs read once; the

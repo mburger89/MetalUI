@@ -34,6 +34,9 @@ let layoutMemoVerifiesFromEnvironment: Bool =
 final class AnimationStore {
     private var entries: [GlobalElementID: Any] = [:]
     private var touched: Set<GlobalElementID> = []
+
+    /// The entries touched this build, for verify mode's comparison of a graft with a fresh build (`RK-N`).
+    var touchedIDs: Set<GlobalElementID> { touched }
     private var interpolationsThisFrame = 0
 
     /// The transition seam (spec §6.5): lane 1 of plan task 13 declares it as a
@@ -96,6 +99,7 @@ final class AnimationStore {
 
     /// The value stored at `id`, marking it touched this frame.
     func value(at id: GlobalElementID) -> Any? {
+        buildJournal?.record(.animationTouch(id))
         retainLog?.touches.append(.touch(id))
         touched.insert(id)
         return entries[id]
@@ -108,6 +112,7 @@ final class AnimationStore {
 
     /// Stores `value` at `id`, marking it touched this frame.
     func set(_ value: Any, at id: GlobalElementID) {
+        buildJournal?.record(.animationTouch(id))
         retainLog?.touches.append(.set(id, value))
         entries[id] = value
         touched.insert(id)
@@ -126,6 +131,24 @@ final class AnimationStore {
     /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
     var retainLog: RetainLog?
 
+    /// The window's build journal (`RK-F`): the memo store's, attached when a graft window first opens, and shared
+    /// with the transition store.
+    var buildJournal: BuildJournal?
+
+    func attach(_ journal: BuildJournal) {
+        buildJournal = journal
+        transitions.buildJournal = journal
+    }
+
+    /// Keeps the entry at `id` for this frame without reading it (a graft standing for a build that read or set it).
+    func touch(_ id: GlobalElementID) {
+        buildJournal?.record(.animationTouch(id))
+        touched.insert(id)
+    }
+
+    /// Whether an entry is stored at `id`.
+    func hasEntry(_ id: GlobalElementID) -> Bool { entries[id] != nil }
+
     /// Replays a recorded touch: the entry stays alive; a recorded first sighting is stored
     /// again only if the entry was dropped meanwhile.
     func replay(_ touch: RetainLog.Touch) {
@@ -138,6 +161,26 @@ final class AnimationStore {
             if entries[id] == nil { entries[id] = value }
             touched.insert(id)
         }
+    }
+
+    /// What a redo restores (`RK-M`): the entries, and the transition store's in-flight state. The lifecycle,
+    /// timeline and surface stores hold only this build's accumulators, which are empty at its start.
+    struct Checkpoint {
+        let entries: [GlobalElementID: Any]
+        let transitions: TransitionStore.Checkpoint
+    }
+
+    func checkpoint() -> Checkpoint { Checkpoint(entries: entries, transitions: transitions.checkpoint()) }
+
+    /// Puts every channel a build mutates before adoption back to `saved` (`RK-M`): called by the window when a
+    /// frame is abandoned for a redo, before the rebuild, so the rebuild is a build of the frame that never ran.
+    func rollbackBuild(_ saved: Checkpoint) {
+        entries = saved.entries
+        touched.removeAll(keepingCapacity: true)
+        interpolationsThisFrame = 0
+        lifecycle.rollbackBuild()
+        timeline.rollbackBuild()
+        transitions.rollbackBuild(saved.transitions)
     }
 
     /// Called by `Frame.render` before layout.
