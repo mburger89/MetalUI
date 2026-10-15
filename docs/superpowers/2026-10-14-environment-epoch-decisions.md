@@ -11,7 +11,7 @@ K2-new, K2-same, K2-fn, K2-fn-again, O2, O2-unread, O1, B1; output in its header
 `swiftui-incremental-invalidation.swift` `E-env`, `E-env2`, `EnvQuiet`. gpui has no environment (state is entities;
 `cx.notify()` re-renders a view, there is no ambient value to version): nothing to borrow.
 
-**Next unused id: `EE-M`.**
+**Next unused id: `EE-N`.**
 
 ## EE-A — No epoch counter: compare what each declared `@Environment` read, per key
 
@@ -186,3 +186,24 @@ K2-fn-again, O2, O2-unread, O1 and B1 read byte for byte as the header records (
 **Ruling.** The design stands. U4's text was garbled (an Int cannot overwrite a closure key) and is rewritten as a key count that
 survives overwriting. Lanes stay two and sequential; lane 2's red-on-arrival tests read only counters that exist at 6273e3a4.
 **Cost if wrong.** None beyond the test text.
+
+## EE-M — Lane 1 measurements: the cast, the isolated conformance, and two test edits the design did not name
+
+**Evidence (step 0, 2026-10-14, Swift 6.4, macOS 27, `-O`, a scratch executable).** `value as? any Equatable` succeeds for
+`Int`, `Locale`, a plain enum, `Optional<Int>` (some and none), a user struct and a `@MainActor`-isolated-conformance struct
+(`struct S: @MainActor Equatable`) **on the main thread**, and fails for a class, a closure-holding struct. A cast of the
+isolated-conformance struct from a nonisolated function **off the main thread fails** (`false`); the same call on the main
+thread, nonisolated function included, succeeds, and an opened `==` of two such values is true. A success costs about
+56–60 ns, a failure (a class) about 125–140 ns, with the optimiser prevented from folding the loop (`@_optimize(none)`):
+one cast per custom-key write is negligible next to a frame.
+**Ruling.** EE-C stands as written: an isolated-conformance value is **comparable on the main actor** (every write and bind
+happens there) and reads `.uncomparable` anywhere else, never a crash (test U5 pins both). `any Equatable & Sendable` cannot be
+the cast's spelling (a marker protocol is refused in a conditional cast), so U5's mutation is the cast to `any Hashable`.
+**Two edits the design's "three" did not count.** (1) `everyFrameChannelIsClassified` gains the row `environmentReadings`
+(`.buildOnly`): `Frame` gained a stored property. (2) `everyLedgerChannelMakesTheSubtreeIneligible`'s `.customEnvironmentKey`
+arm wrote an **Int** key, which is now comparable and so no longer makes an occurrence ineligible (the point of EE-F); the arm's
+key now holds a function (`RSChannelValue`), the case that still does. The five bracket families that pin the `.environment`
+arm's old literals (`RetainedSubtreesBaselineTests`, `theBracketNodeDragIsCountedAtFb9a7e42`, `…AfterPrepaintReplay`,
+`…AfterTheGraft`, `theBracketNodeDragReplaysEveryUnchangedSubtree`, `…RebuildsTheWholeWindow`) move with the feature and are
+lane 2's re-count (B1–B3), not an edit of lane 1.
+**Cost if wrong.** None: the first is a table row, the second restores the arm's meaning.
