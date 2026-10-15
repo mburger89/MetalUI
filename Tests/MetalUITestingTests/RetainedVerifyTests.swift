@@ -38,9 +38,9 @@ struct RKVerifyCard: Component, @MainActor Equatable {
 @Test(.serialized, arguments: rkVerifyChannels) @MainActor
 func aVerifiedPrepaintReplayThatDiffersTraps(arm: (channel: String, word: String)) async {
     // An exit test's body captures nothing: the channel travels through the environment the child inherits.
-    setenv("RK_VERIFY_CHANNEL", arm.channel, 1)
+    setTestEnvironment("RK_VERIFY_CHANNEL", arm.channel)
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        setenv("METALUI_VERIFY_RETAINED", "1", 1)
+        setTestEnvironment("METALUI_VERIFY_RETAINED", "1")
         await MainActor.run {
             guard let window = try? TestWindow(size: sz(200, 120), textSystem: harnessTextSystem, content: {
                 VStack(spacing: 0) { RKVerifyCard().equatable() }
@@ -61,7 +61,7 @@ func aVerifiedPrepaintReplayThatDiffersTraps(arm: (channel: String, word: String
 /// any crash). The child exits cleanly after the same frames.
 @Test @MainActor func anUndamagedVerifiedReplayDrawsNormally() async {
     await #expect(processExitsWith: .success) {
-        setenv("METALUI_VERIFY_RETAINED", "1", 1)
+        setTestEnvironment("METALUI_VERIFY_RETAINED", "1")
         await MainActor.run {
             guard let window = try? TestWindow(size: sz(200, 120), textSystem: harnessTextSystem, content: {
                 VStack(spacing: 0) { RKVerifyCard().equatable() }

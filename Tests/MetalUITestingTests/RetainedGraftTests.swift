@@ -615,9 +615,9 @@ let rkGraftVerifyChannels: [(channel: String, word: String)] = [
 /// child exits normally and the exit test reddens for that arm.
 @Test(.serialized, arguments: rkGraftVerifyChannels) @MainActor
 func aVerifiedGraftThatDiffersTraps(arm: (channel: String, word: String)) async {
-    setenv("RK_VERIFY_GRAFT_CHANNEL", arm.channel, 1)
+    setTestEnvironment("RK_VERIFY_GRAFT_CHANNEL", arm.channel)
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        setenv("METALUI_VERIFY_RETAINED", "1", 1)
+        setTestEnvironment("METALUI_VERIFY_RETAINED", "1")
         await MainActor.run {
             let log = HarnessLog()
             guard let window = try? TestWindow(size: sz(200, 260), textSystem: harnessTextSystem, content: {
@@ -638,7 +638,7 @@ func aVerifiedGraftThatDiffersTraps(arm: (channel: String, word: String)) async 
 /// 23b — the control: an undamaged graft under verify mode draws normally.
 @Test @MainActor func anUndamagedVerifiedGraftDrawsNormally() async {
     await #expect(processExitsWith: .success) {
-        setenv("METALUI_VERIFY_RETAINED", "1", 1)
+        setTestEnvironment("METALUI_VERIFY_RETAINED", "1")
         await MainActor.run {
             let log = HarnessLog()
             guard let window = try? TestWindow(size: sz(200, 260), textSystem: harnessTextSystem, content: {
