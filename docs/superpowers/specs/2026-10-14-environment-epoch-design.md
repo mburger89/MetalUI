@@ -5,7 +5,7 @@ Item C14-c of the gpui-gap priority list (user request 2026-10-02; not a plan ta
 (`EE-`). Record: `../../record/120-environment-epoch.md` (Record phase). Branch `perf/environment-epoch` from `6273e3a4`.
 Divergence labels reserved 505–514: **none taken**; 346 is amended.
 
-**Status: DESIGNED. Two lanes. No public API.**
+**Status: LANDED (both lanes verified `ok`; record `../../record/120-environment-epoch.md`). Two lanes. No public API.**
 
 ## 1 What exists and what is missing
 

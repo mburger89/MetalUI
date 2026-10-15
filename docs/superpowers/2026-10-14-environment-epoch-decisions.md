@@ -11,7 +11,7 @@ K2-new, K2-same, K2-fn, K2-fn-again, O2, O2-unread, O1, B1; output in its header
 `swiftui-incremental-invalidation.swift` `E-env`, `E-env2`, `EnvQuiet`. gpui has no environment (state is entities;
 `cx.notify()` re-renders a view, there is no ambient value to version): nothing to borrow.
 
-**Next unused id: `EE-P`.**
+**Next unused id: `EE-P`.** (Status after the Record phase: all rulings `EE-A`…`EE-O` landed; record `../record/120-environment-epoch.md`.)
 
 ## EE-A — No epoch counter: compare what each declared `@Environment` read, per key
 
@@ -255,3 +255,20 @@ work equals `.value`'s (156 requests, 160 prepaints, 178 paints, 32 hits, 32 gra
 
 **Elsewhere.** The fourteen offscreen images read 0 px against `6273e3a4` (`compare.sh`, controls as recorded); the Linux image ran
 340 tests of `MetalUITestingTests` and `EnvironmentReadingTests`, all passed; the inventory and undocumented scripts print nothing.
+
+## EE-O — Record phase: what the verifiers read, and what is carried
+
+**Evidence.** Both lanes verified `ok`. Verifier 1 re-ran three of lane 1's mutations on the full suite (readings comparison dropped, the
+uncomparable count made 0, the cached `bindOrdinals` readings collection removed) and found the cached path and the whole-getter skip
+pinned only by the old refusal test; lane 2's W2, W3, W4, W6, W7 and R1 now pin both (verifier 2: `entry.readings == readings` to `true`
+reddens eight of them). Verifier 2 re-ran three more on the full suite (both `return a == b` sites forced, `custom` dropped from the
+fingerprint, readings ignored), each reddening the pins `EE-N` names. The merge of master `298c23d4` (§118 pan rasters) was clean; no
+record numbered 120 existed, so the number stands.
+**Ruling.** (1) The graft guard's `uncomparableCustomCount == 0` site (`RetainedGraft.swift`) stays **unseparated**: its two sibling sites
+(record, prepaint) refuse first, so a loosened graft site reddens nothing (`EE-N`); carried as **C14-c4**, owner: the next
+retained-subtree item, which owes a case where only the graft site can refuse. (2) The "fourth edit is a finding" clause of the spec was
+tripped by five bracket families and old test 2.5; `EE-M`/`EE-N` named them in advance and their literals equal the `.value` arm's, so the
+merge commit message names them. (3) The "red on arrival" reading is the refusal reproduced in the working tree (`EE-N`), not a run
+against `6273e3a4`. (4) The suite was re-taken after `swift package clean` on the merged tree; the screen read locked, so
+`--skip AppKitPresentationTests`, an unlocked re-take owed.
+**Cost if wrong.** (1) a refactor of the graft guard goes unseen until a separating case exists; (2)-(4) none.
