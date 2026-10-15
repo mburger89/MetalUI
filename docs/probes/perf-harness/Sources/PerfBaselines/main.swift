@@ -204,6 +204,42 @@ struct Row: Identifiable { let id: Int }
     }
 }
 
+/// C14-c (`EE-J`): the node drag of the `.value`, `.environment` and `.environmentObject` arms alternating inside one
+/// process (so the three see the same machine; the ratio to `.value` is the reading): wall and thread-CPU medians and
+/// minima over every round's frames, and the last frame's work. Retention on (the default).
+@MainActor func bracketEnvScenario(rounds: Int, reps: Int) throws {
+    let arms: [(String, BracketArm)] = [("value", .value), ("environment", .environment), ("environmentObject", .environmentObject)]
+    var wall: [String: [Double]] = [:], cpu: [String: [Double]] = [:], work: [String: FrameWork] = [:]
+    for round in 0..<rounds {
+        for (name, arm) in (round % 2 == 0 ? arms : arms.reversed()) {
+            let model = BracketModel(), viewport = BracketViewport()
+            let w = try TestWindow(size: bracketWindowSize, colorScheme: .dark, scaleFactor: 2) {
+                bracketRoot(arm: arm, model: model, viewport: viewport)
+            }
+            for _ in 0..<5 { w.window.setNeedsRedraw(); w.tick() }
+            let steps = 20
+            for rep in 0..<reps {
+                let sign: Float = rep % 2 == 0 ? 1 : -1
+                let startX: Float = rep % 2 == 0 ? 20 : 20 + 2 * Float(steps)
+                let t0 = now(), c0 = cpuNow()
+                w.drag(from: Point(x: px(startX), y: px(400)), to: Point(x: px(startX + sign * 2 * Float(steps)), y: px(400)), steps: steps)
+                wall[name, default: []].append((now() - t0) / Double(steps + 2))
+                cpu[name, default: []].append((cpuNow() - c0) / Double(steps + 2))
+            }
+            work[name] = w.lastFrameWork
+        }
+    }
+    var load = [Double](repeating: 0, count: 3); getloadavg(&load, 3)
+    report("bracketenv", "load_average", String(format: "%.1f %.1f %.1f", load[0], load[1], load[2]))
+    for (name, _) in arms {
+        report("bracketenv_" + name, "drag_frame_ms_median", ms(median(wall[name]!)))
+        report("bracketenv_" + name, "drag_frame_ms_min", ms(wall[name]!.min()!))
+        report("bracketenv_" + name, "drag_frame_cpu_ms_median", ms(median(cpu[name]!)))
+        report("bracketenv_" + name, "drag_frame_cpu_ms_min", ms(cpu[name]!.min()!))
+        report("bracketenv_" + name, "last_frame_work", workLine(work[name]!))
+    }
+}
+
 let args = CommandLine.arguments.dropFirst()
 let which = args.first(where: { !$0.hasPrefix("--") }) ?? "all"
 let quick = args.contains("--quick")
@@ -227,6 +263,7 @@ MainActor.assumeIsolated {
             try bracketABScenario(arm: .value, name: "bracketab_value", rounds: rounds, reps: quick ? 6 : 14)
             try bracketABScenario(arm: .panels, name: "bracketab_panels", rounds: rounds, reps: quick ? 6 : 14)
         }
+        if which == "bracketenv" { try bracketEnvScenario(rounds: quick ? 3 : 8, reps: quick ? 6 : 14) }
         if which == "bracketgraft" {
             // C14b-2 lane 2: the node drag with the graft off (prepaint replay on) and on, alternating (`METALUI_RETAINED_GRAFT`).
             let rounds = quick ? 3 : 8
