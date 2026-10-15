@@ -364,8 +364,11 @@ struct GXEvenOddRing: Shape {
     #expect(!colour.same && colour.rasterized == 0, "colour re-tints: same \(colour.same), \(colour.rasterized) px")
     let transform = try change(Variant(scale: 1.5))
     #expect(!transform.same && transform.rasterized > 0, "transform: same \(transform.same), \(transform.rasterized) px")
+    // `PN-A`: a path the clip cuts is rasterized over its extent and keyed uncut, the image's
+    // content mask doing the cut, so a narrower clip hands back the same texture (bytes equal
+    // inside the clip, test T2); a clip that does not cut was never in the key.
     let clip = try change(Variant(clip: 20))
-    #expect(!clip.same && clip.rasterized > 0, "clip: same \(clip.same), \(clip.rasterized) px")
+    #expect(clip.same && clip.rasterized == 0, "clip: same \(clip.same), \(clip.rasterized) px")
     let path = try change(Variant(side: 30))
     #expect(!path.same && path.rasterized > 0, "path: same \(path.same), \(path.rasterized) px")
 }

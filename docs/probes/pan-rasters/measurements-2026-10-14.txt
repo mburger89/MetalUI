@@ -1,0 +1,45 @@
+# date 2026-10-14 base=34491ff4 head=29830625 rounds=5 secs=8
+round=1 side=base load=[7.50 10.24 14.29] bracket-pan iterations=1055 median_ms=7.562 mean_ms=7.590
+round=1 side=head load=[7.14 10.12 14.23] bracket-pan iterations=1254 median_ms=6.389 mean_ms=6.381
+round=1 side=base load=[6.66 9.92 14.11] bracket-pan-panels iterations=1022 median_ms=7.790 mean_ms=7.829
+round=1 side=head load=[6.36 9.80 14.04] bracket-pan-panels iterations=1050 median_ms=6.679 mean_ms=7.619
+round=1 side=base load=[8.81 10.21 14.13] bracket-value iterations=1013 median_ms=0.000 mean_ms=7.898
+round=1 side=head load=[15.95 11.70 14.62] bracket-value iterations=1167 median_ms=0.000 mean_ms=6.961
+round=1 side=base load=[15.95 11.77 14.62] shadows iterations=4830 median_ms=1.339 mean_ms=1.656
+round=1 side=head load=[21.25 13.07 15.05] shadows iterations=4884 median_ms=1.322 mean_ms=1.638
+round=2 side=base load=[21.30 13.33 15.12] bracket-pan iterations=791 median_ms=8.168 mean_ms=10.131
+round=2 side=head load=[22.80 13.78 15.27] bracket-pan iterations=903 median_ms=7.096 mean_ms=8.876
+round=2 side=base load=[24.09 14.33 15.45] bracket-pan-panels iterations=748 median_ms=8.677 mean_ms=10.701
+round=2 side=head load=[23.67 14.55 15.51] bracket-pan-panels iterations=865 median_ms=7.416 mean_ms=9.253
+round=2 side=base load=[27.14 15.42 15.81] bracket-value iterations=1123 median_ms=0.000 mean_ms=7.196
+round=2 side=head load=[26.24 15.62 15.88] bracket-value iterations=1255 median_ms=0.000 mean_ms=6.441
+round=2 side=base load=[28.78 16.32 16.13] shadows iterations=5596 median_ms=1.321 mean_ms=1.429
+round=2 side=head load=[27.21 16.41 16.16] shadows iterations=5624 median_ms=1.329 mean_ms=1.422
+round=3 side=base load=[24.33 16.15 16.07] bracket-pan iterations=994 median_ms=8.048 mean_ms=8.054
+round=3 side=head load=[23.51 16.11 16.06] bracket-pan iterations=1220 median_ms=6.570 mean_ms=6.558
+round=3 side=base load=[20.57 15.73 15.92] bracket-pan-panels iterations=1080 median_ms=7.391 mean_ms=7.409
+round=3 side=head load=[17.72 15.28 15.76] bracket-pan-panels iterations=1268 median_ms=6.326 mean_ms=6.313
+round=3 side=base load=[16.46 15.06 15.68] bracket-value iterations=1629 median_ms=0.000 mean_ms=4.961
+round=3 side=head load=[14.23 14.62 15.52] bracket-value iterations=1761 median_ms=0.000 mean_ms=4.575
+round=3 side=base load=[13.25 14.42 15.44] shadows iterations=6446 median_ms=1.234 mean_ms=1.241
+round=3 side=head load=[11.52 14.01 15.28] shadows iterations=6405 median_ms=1.242 mean_ms=1.249
+round=4 side=base load=[10.14 13.63 15.13] bracket-pan iterations=1065 median_ms=7.493 mean_ms=7.515
+round=4 side=head load=[9.49 13.43 15.05] bracket-pan iterations=1232 median_ms=6.526 mean_ms=6.494
+round=4 side=base load=[8.49 13.09 14.91] bracket-pan-panels iterations=1071 median_ms=7.422 mean_ms=7.470
+round=4 side=head load=[7.97 12.90 14.83] bracket-pan-panels iterations=1210 median_ms=6.603 mean_ms=6.614
+round=4 side=base load=[10.82 13.33 14.96] bracket-value iterations=1563 median_ms=0.000 mean_ms=5.164
+round=4 side=head load=[9.54 12.97 14.81] bracket-value iterations=1761 median_ms=0.000 mean_ms=4.552
+round=4 side=base load=[8.94 12.79 14.74] shadows iterations=6456 median_ms=1.230 mean_ms=1.239
+round=4 side=head load=[8.03 12.46 14.60] shadows iterations=6400 median_ms=1.239 mean_ms=1.250
+round=5 side=base load=[7.33 12.17 14.47] bracket-pan iterations=1086 median_ms=7.336 mean_ms=7.371
+round=5 side=head load=[6.90 12.00 14.40] bracket-pan iterations=1264 median_ms=6.296 mean_ms=6.332
+round=5 side=base load=[6.38 11.72 14.27] bracket-pan-panels iterations=1073 median_ms=7.417 mean_ms=7.460
+round=5 side=head load=[6.03 11.56 14.20] bracket-pan-panels iterations=1269 median_ms=6.327 mean_ms=6.304
+round=5 side=base load=[5.41 11.24 14.05] bracket-value iterations=1673 median_ms=0.000 mean_ms=4.812
+round=5 side=head load=[5.11 10.99 13.93] bracket-value iterations=1783 median_ms=0.000 mean_ms=4.535
+round=5 side=base load=[4.86 10.84 13.86] shadows iterations=6437 median_ms=1.238 mean_ms=1.243
+round=5 side=head load=[4.42 10.55 13.72] shadows iterations=6439 median_ms=1.238 mean_ms=1.242
+alloc side=base bracket-pan ALLOC iterations=400 allocs=7592477 frees=7584726 bytes=3187333194 sampledStacks=400000
+alloc side=base bracket-value 
+alloc side=head bracket-pan ALLOC iterations=400 allocs=6536608 frees=6528865 bytes=2336683014 sampledStacks=400000
+alloc side=head bracket-value 

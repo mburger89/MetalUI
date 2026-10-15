@@ -244,3 +244,13 @@ extension Window {
         stateTable.contentMemos.mutatePrepaintLedgers(body)
     }
 }
+
+extension Window {
+    /// The seconds the window's `TimelineView` clock adds to a frame timestamp (`KF-K` item 4), `nil`
+    /// until the window's first non-zero tick anchors it to the real wall clock (`KF-Y`). A test that
+    /// compares two windows' timelines pins both (`RK-AD`): the anchor is read from `Date()` per window.
+    package var testingTimelineClockOffset: Double? {
+        get { animationStore.timeline.clockOffset }
+        set { animationStore.timeline.clockOffset = newValue }
+    }
+}
