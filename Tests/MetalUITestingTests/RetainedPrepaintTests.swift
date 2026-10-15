@@ -27,9 +27,11 @@ private let fb9a7e42Frames = [
     Fb9a7e42Frame(arm: .value, requests: 798, prepaints: 886, paints: 252, hits: 29, misses: 3, ineligible: 0,
                   skippedPaints: 832, evaluations: 3, skips: 29, refusals: 0, measures: 52, cacheHits: 331,
                   cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
-    Fb9a7e42Frame(arm: .environment, requests: 798, prepaints: 886, paints: 1008, hits: 19, misses: 2, ineligible: 0,
-                  skippedPaints: 76, evaluations: 2, skips: 19, refusals: 11, measures: 52, cacheHits: 366,
-                  cacheMisses: 217, memoHits: 1258, memoMisses: 55, subtreeHits: 0),
+    // C14-c (`EE-J`): the `.environment` arm was refused (paints 1008, hits 19, misses 2, refusals 11, memo hits 1258);
+    // memoized by its reading it counts what the `.value` arm counts, re-counted by lane 2.
+    Fb9a7e42Frame(arm: .environment, requests: 798, prepaints: 886, paints: 252, hits: 29, misses: 3, ineligible: 0,
+                  skippedPaints: 832, evaluations: 3, skips: 29, refusals: 0, measures: 52, cacheHits: 331,
+                  cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
     Fb9a7e42Frame(arm: .panels, requests: 798, prepaints: 886, paints: 184, hits: 31, misses: 3, ineligible: 1,
                   skippedPaints: 900, evaluations: 3, skips: 32, refusals: 0, measures: 52, cacheHits: 331,
                   cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
@@ -72,7 +74,7 @@ private struct AfterPrepaintFrame {
 }
 private let afterPrepaintFrames = [
     AfterPrepaintFrame(arm: .value, prepaints: 219, skippedPrepaints: 667, prepaintHits: 29, prepaintIneligible: 0),
-    AfterPrepaintFrame(arm: .environment, prepaints: 829, skippedPrepaints: 57, prepaintHits: 19, prepaintIneligible: 0),
+    AfterPrepaintFrame(arm: .environment, prepaints: 219, skippedPrepaints: 667, prepaintHits: 29, prepaintIneligible: 0),
     AfterPrepaintFrame(arm: .panels, prepaints: 176, skippedPrepaints: 710, prepaintHits: 30, prepaintIneligible: 1),
 ]
 
