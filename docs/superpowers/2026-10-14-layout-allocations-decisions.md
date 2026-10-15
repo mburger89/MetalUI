@@ -6,7 +6,7 @@ Record: `../record/119-layout-allocations.md`. Branch `perf/layout-allocations` 
 reserved 495–504: none taken. No SwiftUI-facing claim is made (no probe owed, `PA-B`); gpui not consulted (its allocator
 is Rust's, not comparable).
 
-**Next unused id: `PA-Q`.**
+**Next unused id: `PA-S`.**
 
 ## PA-A — Order by the re-measured share, and claim allocations, not time
 
@@ -168,6 +168,28 @@ old algorithm before the rewrite (so it is a differential for the fast path, not
 order of leaf measurements, `measureCalls`, `cacheHits`, `cacheMisses` and `memoHits`.
 **Cost if wrong.** A case the corpus lacks (a spacer, nested stacks): the existing `NativeLayoutWorkTests`, `NativeStackDistributionTests`
 and the demo determinism pin cover those and read unchanged.
+
+## PA-Q — `mark` is pinned at one debug event a call, not zero
+
+**Ruling.** `storage[id]?.isLive = true` read 7 allocation events a call in a debug build (700 at 100 calls, 7001 at 1000,
+floor-corrected, the PA-O floor loop subtracted); `index(forKey:)` + `storage.values[index].isLive = true` reads 1 a call
+(100, 1001). The one left is `Dictionary.Values`' `modify` coroutine in debug (removing the write reads 0 at 100, 1 at
+1000). `markAllocatesNothingOnASteadyFrame` therefore requires <= 1.1 a call at 1000 and <= 1.1 at 100; the `?.` spelling
+fails it (mutation M5). Kept (PA-E's gate): the release count fell, demo 2,150 -> 1,525 with the other lane changes.
+**Cost if wrong.** A toolchain that logs 2 events for the coroutine reddens the pin: re-take, do not widen blindly.
+
+## PA-R — Lane 2 result and the sites left alone
+
+**Ruling.** Lane 2 changes `StateTable.mark`, `ForEach.produceElements` (reserves only: names and keys byte for byte),
+`planLegacyItems`/`registerLegacyItems`/the two `children.map { consume }` sites (loops and reserves),
+`retainedVersionsUnchanged` (replacing two `allSatisfy` closures), `finishRetainedPaint`'s `filter`/`allSatisfy`
+(loops) and `retainedAmbientKey`'s per-scope reserve (PA-I). `replayPaint` already iterates with `for`; `markLive` keeps
+`?.` (not in the profile). No `isolation-sites.py` re-run was taken after the loops (the sample harness needs an
+unlocked quiet machine); the 1.2 % figure is therefore unre-measured and no claim is made on it.
+**Evidence.** Base 6273e3a4 -> lane 2 head, release, `PROF_ALLOC=16`, allocations per frame: bracket-value 7,722 -> 5,941,
+bracket-orbit 5,934 -> 4,122, bracket-pan 19,434 -> 17,582, demo 2,150 -> 1,525, list-fixed 1,248 -> 977
+(`docs/probes/layout-allocations/ab-lane2-2026-10-14.txt`).
+**Cost if wrong.** None in behaviour: fourteen images 0 px, every counter equal.
 
 ## Carried
 
