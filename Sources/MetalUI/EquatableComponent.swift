@@ -39,15 +39,20 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         let store = table.contentMemos
         // The build window opens before the component binds its own `@State` (`SB-K`).
         let window = store.retainsSubtrees ? RetainedBuildWindow(frame: frame) : nil
+        // `StateBinder.bind` collects the readings of the declared `@Environment`s in its one pass (`EE-A`).
+        frame.environmentReadings = []
         let id = component.enterComponent(under: parent, at: &cursor, pass: &pass)
+        let readings = frame.environmentReadings ?? []
+        frame.environmentReadings = nil
         var materialized: C.Content
         var entry: ContentMemoStore.Entry?
         let key = ContentMemoStore.Key(id: id, type: ObjectIdentifier(C.self))
-        if let shape = StateBinder.memoShape(of: C.self), !shape.refused {
+        if let shape = StateBinder.memoShape(of: C.self), !shape.refused,
+           !readings.contains(where: \.isUncomparable) {   // an uncomparable reading is refused (`EE-B`)
             let stateIDs = shape.stateOrdinals.map {
                 GlobalElementID.child(of: id, at: $0, name: ElementID("$state\($0)"))
             }
-            materialized = store.materialize(component, id: id, stateIDs: stateIDs, table: table) {
+            materialized = store.materialize(component, id: id, stateIDs: stateIDs, table: table, readings: readings) {
                 component.content
             }
             entry = store.entry(for: key)
@@ -179,9 +184,15 @@ extension Component where Self: Equatable {
     /// property, closures and class references included. An `@Observable` read
     /// of the last evaluation that changes, or a write to the component's own
     /// `@State`, re-evaluates it whatever `==` says. A `Binding` input is a value:
-    /// if `content` reads `binding.wrappedValue`, include it in `==`. A component
-    /// that declares `@Environment` or `@FocusState` is never skipped (it is
-    /// evaluated every frame and counted as a refusal).
+    /// if `content` reads `binding.wrappedValue`, include it in `==`. **A component that
+    /// declares `@Environment` is skipped while the values it declares are unchanged**: the
+    /// window compares what each declared property reads at the component's position — an
+    /// `Equatable` value by `==`, a class by identity, an `@Observable` object by instance
+    /// (its read properties by the observation session) — and a synthesized `==` cannot see
+    /// an `Environment` property, so write `==` over the stored inputs. A declared property
+    /// the getter never reads still counts. **A component is evaluated every frame and
+    /// counted as a refusal** when it declares `@FocusState` or reads an environment value
+    /// that cannot be compared (a closure, a struct holding one, `\.self`, `\.textMeasurer`).
     ///
     /// **What is saved.** The getter, and — when the occurrence is laid out where it
     /// was and its surroundings at paint are unchanged — the paint of everything
@@ -194,8 +205,8 @@ extension Component where Self: Equatable {
     /// still run every frame; hit testing, focus and accessibility are replayed from
     /// the registrations of the frame the subtree last ran, in the same order. A
     /// subtree that scrolls, edits text, animates, shows a popover, draws a
-    /// `GPUSurface` or sits under a custom environment key paints and prepaints as it
-    /// always did (counted in `FrameWork.retainedIneligible` and
+    /// `GPUSurface` or sits under a custom environment key whose value cannot be compared
+    /// paints and prepaints as it always did (counted in `FrameWork.retainedIneligible` and
     /// `retainedPrepaintIneligible`).
     public func equatable() -> EquatableComponent<Self> {
         EquatableComponent(component: self)

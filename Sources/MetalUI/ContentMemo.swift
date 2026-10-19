@@ -65,6 +65,8 @@ package final class ContentMemoStore {
         var previous: Any
         var pristine: Any
         var versions: [UInt64]
+        /// The readings of the declared `@Environment` properties the last evaluation was made under (`EE-A`).
+        var readings: [EnvironmentReading]
         let token = ContentMemoToken()
         var serial = 0
         var stale = false
@@ -88,10 +90,11 @@ package final class ContentMemoStore {
         let buildSession = RetainedSession("build")
         let prepaintSession = RetainedSession("prepaint")
         let paintSession = RetainedSession("paint")
-        init(previous: Any, pristine: Any, versions: [UInt64]) {
+        init(previous: Any, pristine: Any, versions: [UInt64], readings: [EnvironmentReading]) {
             self.previous = previous
             self.pristine = pristine
             self.versions = versions
+            self.readings = readings
         }
     }
 
@@ -180,6 +183,7 @@ package final class ContentMemoStore {
     /// evaluated inside this entry's own observation session.
     func materialize<C: Component & Equatable>(_ component: C, id: GlobalElementID,
                                                stateIDs: [GlobalElementID], table: StateTable,
+                                               readings: [EnvironmentReading],
                                                getter: () -> C.Content) -> C.Content {
         guard isEnabled else {
             evaluations += 1
@@ -193,7 +197,7 @@ package final class ContentMemoStore {
 
         if let entry = entries[key] {
             entry.touched = true
-            if !entry.stale, entry.versions == versions,
+            if !entry.stale, entry.versions == versions, entry.readings == readings,
                let previous = entry.previous as? C, previous == component,
                let pristine = entry.pristine as? C.Content {
                 skips += 1
@@ -206,7 +210,7 @@ package final class ContentMemoStore {
         if let existing = entries[key] {
             entry = existing
         } else {
-            entry = Entry(previous: component, pristine: (), versions: versions)
+            entry = Entry(previous: component, pristine: (), versions: versions, readings: readings)
             entries[key] = entry
         }
         // Retire the previous session first (`IV-L` item 5): the serial moves on,
@@ -226,6 +230,7 @@ package final class ContentMemoStore {
         entry.previous = component
         entry.pristine = content
         entry.versions = versions
+        entry.readings = readings
         entry.stale = false
         return content
     }

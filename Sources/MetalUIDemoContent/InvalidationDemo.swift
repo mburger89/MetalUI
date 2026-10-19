@@ -13,6 +13,10 @@ import Foundation
 /// build's counts (the counters are `@ObservationIgnored`: a getter that counted into an
 /// observed property would fire the sessions of the getters that ran before it).
 ///
+/// The **Environment** section (C14-c, `EE-`, human check EE1): one `.equatable()` component reading a custom Int key
+/// and `\.colorScheme` is skipped while the values it read hold. "Write the key" moves its body count by 1 and the
+/// shown value; "Write an unrelated key" by 0; flipping Light/Dark by 1, with the colours right at once.
+///
 /// Nothing here is in the default demo, so the fourteen offscreen images and
 /// `Expected.swift` do not move. Each part is its own function passed to a generic
 /// composer (the Windows 1 MB stack rule); built on a 1 MB thread by
@@ -20,7 +24,8 @@ import Foundation
 @MainActor
 public func invalidationDemoContent() -> some Element {
     invalidationRoot(header: invalidationHeader(), left: invalidationTree(memo: true),
-                     right: invalidationTree(memo: false), readout: InvalidationReadout())
+                     right: invalidationTree(memo: false), environment: invalidationEnvironmentSection(),
+                     readout: InvalidationReadout())
 }
 
 /// One observed cell; a leaf reads only its own.
@@ -45,6 +50,14 @@ public final class InvalidationDemoModel {
     @ObservationIgnored var counts = [0, 0]
     /// The last snapshot, as drawn.
     @ObservationIgnored var shown = [0, 0]
+
+    /// The Environment section's keys, written only from input (`EE1`).
+    public var environmentKey = 0
+    /// The unrelated key the section's component does not read.
+    public var unrelatedKey = 0
+    /// Getters of the section's component evaluated so far (not observed: a getter counting into an observed
+    /// property would fire the sessions of the getters before it).
+    @ObservationIgnored var environmentBodies = 0
 
     /// A fresh model.
     public init() {}
@@ -132,6 +145,55 @@ struct InvalidationReadout: Component {
     }
 }
 
+// MARK: The Environment section (C14-c)
+
+private enum InvalidationEnvironmentKey: EnvironmentKey { static let defaultValue = 0 }
+private enum InvalidationUnrelatedKey: EnvironmentKey { static let defaultValue = 0 }
+extension EnvironmentValues {
+    fileprivate var invalidationDemoKey: Int {
+        get { self[InvalidationEnvironmentKey.self] }
+        set { self[InvalidationEnvironmentKey.self] = newValue }
+    }
+    fileprivate var invalidationUnrelated: Int {
+        get { self[InvalidationUnrelatedKey.self] }
+        set { self[InvalidationUnrelatedKey.self] = newValue }
+    }
+}
+
+/// Reads a custom key and the scheme; never the unrelated key. `==` is true: only what it reads decides.
+private struct InvalidationEnvironmentReader: Component, @MainActor Equatable {
+    @Environment(\.invalidationDemoKey) var value
+    @Environment(\.colorScheme) var scheme
+    var content: some ElementGroup {
+        let _ = invalidationDemoModel.environmentBodies += 1
+        Text("key \(value), \(scheme == .dark ? "dark" : "light")").font(size: 12)
+            .foregroundColor(scheme == .dark ? Color.accent : Color.red)
+    }
+    static func == (l: InvalidationEnvironmentReader, r: InvalidationEnvironmentReader) -> Bool { true }
+}
+
+private struct InvalidationEnvironmentReadout: Component {
+    var content: some ElementGroup {
+        Text("Environment reader's getter ran \(invalidationDemoModel.environmentBodies) times").font(size: 12)
+    }
+}
+
+@MainActor
+private func invalidationEnvironmentSection() -> some ElementGroup {
+    Column(gap: Pixels(8)) {
+        Text("Environment — the reader below declares a custom key and the colour scheme: the first button moves its count by 1, the second by 0, a Light/Dark switch by 1")
+            .font(size: 12)
+        Row(gap: Pixels(12)) {
+            Button("Write the key") { invalidationDemoModel.environmentKey += 1 }
+            Button("Write an unrelated key") { invalidationDemoModel.unrelatedKey += 1 }
+        }
+        InvalidationEnvironmentReader().equatable()
+            .environment(\.invalidationDemoKey, invalidationDemoModel.environmentKey)
+            .environment(\.invalidationUnrelated, invalidationDemoModel.unrelatedKey)
+        InvalidationEnvironmentReadout()
+    }
+}
+
 @MainActor
 private func invalidationHeader() -> some Element {
     Text("Content memo — bump a cell: the left tree evaluates 1 getter, the right 121 (the same components, == always false)")
@@ -140,7 +202,7 @@ private func invalidationHeader() -> some Element {
 
 @MainActor
 private func invalidationRoot(header: some Element, left: some ElementGroup, right: some ElementGroup,
-                              readout: some ElementGroup) -> some Element {
+                              environment: some ElementGroup, readout: some ElementGroup) -> some Element {
     Column(gap: Pixels(16)) {
         header
         Button("Bump a cell") { invalidationDemoModel.bump() }
@@ -148,6 +210,7 @@ private func invalidationRoot(header: some Element, left: some ElementGroup, rig
             left
             right
         }
+        environment
         readout
     }
     .alignItems(.flexStart)

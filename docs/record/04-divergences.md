@@ -2681,6 +2681,13 @@ only in 248's cases and where a renderer cannot blur. **Retired:** none. Labels 
   cannot compare an old value with a new one (`IV-D`). Pin
   `aComponentWithAnEnvironmentOrFocusStateIsRefusedAndStillEvaluates`; owner C14-c, an environment epoch.
 
-**Amended:** none. **Retired:** none. Label 345 refuted and unused (`IV-L`: probe arms S2/S3 show SwiftUI
+**Amended 2026-10-14 (environment epoch, record §120):** 346 is narrowed in place, no new label (505–514 unused). A component that
+reads `@Environment` is now memoized by the **readings** of its declared properties (an `Equatable` value by `==`, a class or an
+`@Observable` instance by identity, its read properties by the observation session); still refused and counted: `@FocusState`
+(C14-c2) and a reader of an uncomparable value (a closure, a struct holding one, `\.self`, `\.textMeasurer`). Probe
+`swiftui-environment-epoch.swift` (`K1-*`, `K2-*`, `O1`, `O2`, `B1`); pins `aReaderOfAFunctionKeyIsRefusedAndStillEvaluates`,
+`aFocusStateComponentStaysRefused`; rulings `EE-A`, `EE-B`, `EE-E`, `EE-G`, `EE-H`.
+
+**Amended (earlier):** none. **Retired:** none. Label 345 refuted and unused (`IV-L`: probe arms S2/S3 show SwiftUI
 honours a custom `==` for closure and class inputs too); labels 347–354 of this branch's range unused.
 

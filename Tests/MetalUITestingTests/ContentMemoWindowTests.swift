@@ -296,45 +296,12 @@ private struct ParamHolder: Component {
     _ = try window.element(label: "k3")
 }
 
-// MARK: 2.5 — @Environment and @FocusState are refused and still evaluate
+// MARK: 2.5 — what stays refused (C14-c: an `@Environment` of a comparable value no longer is)
 
-private struct SchemeReader: Component, @MainActor Equatable {
-    @Environment(\.colorScheme) var scheme
-    var content: some ElementGroup {
-        Text(scheme == .dark ? "dark" : "light").frame(width: Pixels(60), height: Pixels(14))
-    }
-    static func == (l: SchemeReader, r: SchemeReader) -> Bool { true }
-}
-
-private struct FocusReader: Component, @MainActor Equatable {
-    @FocusState var focused: Bool
-    var content: some ElementGroup {
-        Text(focused ? "focused" : "plain").frame(width: Pixels(60), height: Pixels(14))
-    }
-    static func == (l: FocusReader, r: FocusReader) -> Bool { true }
-}
-
-/// 2.5 — a component with `@Environment` or `@FocusState` is evaluated every frame,
-/// counted in `contentRefusals` (divergence 346), and its content is correct after
-/// an environment write. Mutation: the shape check dropped (refusals ignored) — the
-/// scheme read goes stale and `contentRefusals == 0`.
-@Test @MainActor func aComponentWithAnEnvironmentOrFocusStateIsRefusedAndStillEvaluates() async throws {
-    await MemoGate.enter(); defer { MemoGate.leave() }
-    let window = try harnessWindow {
-        VStack(spacing: 0) { SchemeReader().equatable(); FocusReader().equatable() }
-    }
-    _ = try window.element(label: "light")
-    _ = try window.element(label: "plain")
-    window.resetFrameWork()
-    let frames = 4
-    for _ in 0..<frames { redraw(window) }
-    let sum = window.frameWork.dropFirst().reduce(window.frameWork[0], +)
-    #expect(sum.contentRefusals == 2 * frames)
-    #expect(sum.contentEvaluations == 0 && sum.contentSkips == 0)
-    window.setAppearance(.dark)
-    redraw(window)
-    _ = try window.element(label: "dark")
-}
+// C14-c (`EE-H`) split the old test 2.5, which pinned `@Environment` and `@FocusState` as refused together: a reader of a
+// comparable `@Environment` value is memoized by its reading now (`EnvironmentEpochWindowTests` W1–W4, W6, W7); what
+// remains refused is pinned there too — `aReaderOfAFunctionKeyIsRefusedAndStillEvaluates` (W5, an uncomparable
+// reading) and `aFocusStateComponentStaysRefused` (W8, `@FocusState`), divergence 346's remainder.
 
 // MARK: 2.6 — a skipped subtree keeps its state and its identity
 

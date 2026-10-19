@@ -313,16 +313,23 @@ public struct EnvironmentValues {
         objects[ObjectIdentifier(type)] = object
     }
 
-    private var custom: [ObjectIdentifier: Any] = [:]
+    /// A custom key's stored value with the reading made of it once, at the write (`EE-C`): a fingerprint or a
+    /// probe never casts.
+    struct CustomValue {
+        var value: Any
+        var reading: EnvironmentReading
+    }
+
+    private var custom: [ObjectIdentifier: CustomValue] = [:]
 
     /// A custom key's value, or its `defaultValue` when no writer set it.
     public subscript<K: EnvironmentKey>(key: K.Type) -> K.Value {
         get {
             guard let stored = custom[ObjectIdentifier(key)] else { return K.defaultValue }
             // Only this setter writes the slot, typed by the same key.
-            return stored as! K.Value
+            return stored.value as! K.Value
         }
-        set { custom[ObjectIdentifier(key)] = newValue }
+        set { custom[ObjectIdentifier(key)] = CustomValue(value: newValue, reading: .of(newValue)) }
     }
 }
 
@@ -357,7 +364,7 @@ public enum ControlSize: Sendable, Hashable, CaseIterable {
 
 /// Every built-in field of ``EnvironmentValues`` that prepaint or paint can read, as one
 /// `Equatable` value, for a retained subtree's replay key (`SB-G`). The objects provided by
-/// `.environment(_:)` compare by identity. **A stored property added to `EnvironmentValues` owes a field here or a row in
+/// `.environment(_:)` compare by instance identity (`EE-K`). **A stored property added to `EnvironmentValues` owes a field here or a row in
 /// `everyEnvironmentFieldIsInTheFingerprintOrDeclaredIrrelevant`** (a `Mirror` guard).
 struct EnvironmentFingerprint: Equatable {
     var isEnabled: Bool
@@ -386,14 +393,16 @@ struct EnvironmentFingerprint: Equatable {
     /// Whether a text system is stamped: the box is new each frame and the system behind it is
     /// the window's, constant for its life.
     var hasTextSystem: Bool
-    var objects: [ObjectIdentifier]
-    var customKeyCount: Int
+    /// The provided objects: type to **instance** (`EE-K`), so a swapped instance is a change.
+    var objects: [ObjectIdentifier: ObjectIdentifier]
+    /// The custom keys' readings (`EE-F`): an equal value is an equal fingerprint, an uncomparable one equals nothing.
+    var custom: [ObjectIdentifier: EnvironmentReading]
 }
 
 extension EnvironmentValues {
-    /// How many custom (app-defined) keys carry a value: no equality for them, so a
-    /// non-zero count makes a retained subtree ineligible (`SB-G`).
-    var customKeyCount: Int { custom.count }
+    /// How many custom (app-defined) keys carry a value that cannot be compared (a function, a struct holding
+    /// one): a non-zero count makes a retained subtree ineligible (`SB-G`, `EE-F`). Keys, not writes.
+    var uncomparableCustomCount: Int { custom.values.reduce(0) { $0 + ($1.reading.isUncomparable ? 1 : 0) } }
 
     /// The fingerprint of the built-in fields.
     var retainedFingerprint: EnvironmentFingerprint {
@@ -409,7 +418,7 @@ extension EnvironmentValues {
             fontWeight: fontWeight, italic: italic, textLineLimit: textLineLimit,
             fieldStyle: fieldStyles.field, editorStyle: fieldStyles.editor, theme: theme,
             hasTextSystem: textSystemBox != nil,
-            objects: objects.keys.sorted { $0.hashValue < $1.hashValue },
-            customKeyCount: custom.count)
+            objects: objects.mapValues { ObjectIdentifier($0) },
+            custom: custom.mapValues(\.reading))
     }
 }

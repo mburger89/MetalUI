@@ -2346,3 +2346,10 @@ No real window was driven (the screen was locked for most of the branch; the dem
 `docs/verification/human-checks.md` group RK, none performed (an agent cannot)**: RK1 a node drag looks identical with Prepaint and Skip
 build on and off; RK2 hover, click and Tab on a replayed or grafted panel; RK3 VoiceOver on one; RK4 a resize, an opacity animation and a
 light/dark switch show no stale frame; RK5 a trackpad pan keeps text and shadows sharp at 1x and 2x.
+
+## 2026-10-14: environment epoch (record §120) — looks owed
+
+No real window was driven (the screen read locked). **Owed, new here — `docs/verification/human-checks.md` group EE, none performed (an
+agent cannot)**: EE1 the demo's Environment block (`METALUI_INVALIDATION_DEMO=1`): writing the key moves the reader's getter count by 1
+and the shown value, an unrelated key by 0, a Light/Dark switch by 1 with the colour right at once; then a window drag across two displays
+of different scale and a Light/Dark switch with the reader skipped and retained show no stale colour or size and no flicker.

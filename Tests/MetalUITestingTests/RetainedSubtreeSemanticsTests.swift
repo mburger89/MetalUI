@@ -510,9 +510,12 @@ private struct RSMemoParent: Component, @MainActor Equatable {
 
 // MARK: 1.5 — a channel outside the replayable set makes the subtree ineligible
 
-private enum RSChannelKey: EnvironmentKey { static let defaultValue = 0 }
+/// A function-holding value: **uncomparable**, so a key of it keeps an occurrence ineligible (`EE-B`, `EE-F`; an Int
+/// key no longer does: its value compares).
+struct RSChannelValue { var channel: () -> Int }
+private enum RSChannelKey: EnvironmentKey { static var defaultValue: RSChannelValue { RSChannelValue(channel: { 0 }) } }
 extension EnvironmentValues {
-    fileprivate var rsChannel: Int {
+    fileprivate var rsChannel: RSChannelValue {
         get { self[RSChannelKey.self] }
         set { self[RSChannelKey.self] = newValue }
     }
@@ -566,7 +569,7 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
         VStack(spacing: 4) {
             RSCard(title: "plain", shade: 1).equatable()
             if channel == .customEnvironmentKey {
-                RSChannelProbe(channel: channel, flag: flag).equatable().environment(\.rsChannel, 3)
+                RSChannelProbe(channel: channel, flag: flag).equatable().environment(\.rsChannel, RSChannelValue(channel: { 3 }))
             } else {
                 RSChannelProbe(channel: channel, flag: flag).equatable()
             }

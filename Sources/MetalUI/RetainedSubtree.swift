@@ -391,7 +391,7 @@ extension Frame {
     func retainedEntryRefusal(build: RetainedBuild) -> String? {
         if build.timeVarying { return "timeVarying" }
         if leafGroup != nil { return "leafGroup" }
-        if environmentTop.customKeyCount > 0 { return "customEnvironmentKey" }
+        if environmentTop.uncomparableCustomCount > 0 { return "uncomparableEnvironmentKey" }
         if transactionTop.animation != nil { return "transaction" }
         return nil
     }

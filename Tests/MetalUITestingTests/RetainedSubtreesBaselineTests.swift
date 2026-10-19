@@ -46,7 +46,8 @@ private struct BaselineArm {
 }
 private let baselineArms = [
     BaselineArm(arm: .value, evaluations: 3, skips: 29, refusals: 0, nodeBodies: 20),
-    BaselineArm(arm: .environment, evaluations: 2, skips: 19, refusals: 11, nodeBodies: 231),
+    // C14-c (`EE-J`) re-count: refused at 6273e3a4 (2 / 19 / 11, 231 node bodies), memoized by its reading now.
+    BaselineArm(arm: .environment, evaluations: 3, skips: 29, refusals: 0, nodeBodies: 20),
     BaselineArm(arm: .panels, evaluations: 3, skips: 32, refusals: 0, nodeBodies: 20),
 ]
 

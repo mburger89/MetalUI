@@ -463,6 +463,20 @@ above the occurrence) changed is built a second time, once, with every replay of
 builds sees that frame twice. A store written during a build that is not idempotent owes a `rollbackBuild`
 (`AnimationStore.checkpoint`). `METALUI_VERIFY_RETAINED=1` builds every replayed or grafted frame twice and traps on a difference.
 
+### Environment readers under `.equatable()` (`EE-`, record §120)
+
+No API change, no conformer change. **Behaviour, compiles and answers differently:** a component that declares `@Environment` and is
+adopted with `.equatable()` was evaluated every frame (divergence 346); it is now skipped while what each declared property reads at
+its position is unchanged (an `Equatable` value by `==`, a class or an `@Observable` instance by identity, an `@Observable` object's
+read properties by the observation session), and a declared property its getter never reads still counts. A component that relied on
+the refusal to stay fresh owes an honest `==` over its stored inputs (a synthesized `==` cannot see an `Environment` property): it is
+re-run when an environment value it declares changes, not when its own `==` says so alone. Still refused and counted in
+`FrameWork.contentRefusals`: `@FocusState` and a reader of an uncomparable value (a closure, a struct holding one, `\.self`,
+`\.textMeasurer`). A custom `EnvironmentKey` value that is `Equatable` no longer makes a retained occurrence ineligible; one that holds
+a function still does (`uncomparableEnvironmentKey`). A test that counted the `.environment` bracket arm's refusals or node bodies
+reads the `.value` arm's counts. The fingerprint now holds provided object **instances**, so a swapped `@Observable` object under a
+retained occurrence misses instead of replaying the old paint (`EE-K`).
+
 ### Window chrome on SDL (`CW-`, item S1, record §112)
 
 Additive API, class M (SwiftUI has no window-control API, probe `swiftui-window-chrome.swift`):

@@ -71,3 +71,21 @@ func aVerifiedPrepaintReplayThatDiffersTraps(arm: (channel: String, word: String
         }
     }
 }
+
+/// 14c — C14-c (`EE-F`): the two environment scenarios run in a verify-mode child, so every replayed prepaint the scheme
+/// readers make is compared with a fresh one (a trap names the channel) and every frame equals the retention-off
+/// window's: R1 (the scheme flips under a reader of it) and R3 (a custom key the reader does not read changes).
+/// Mutation: a scenario's fingerprint field dropped (R1: `colorScheme`; R3: `custom`) — the replay uses a stale record
+/// and the child's comparison or the verify trap fails the exit test.
+@Test(.serialized, arguments: EEScenario.allCases) @MainActor
+func theEnvironmentScenariosDrawNormallyUnderVerifyMode(scenario: EEScenario) async {
+    setTestEnvironment("EE_VERIFY_SCENARIO", scenario.rawValue)
+    await #expect(processExitsWith: .success) {
+        setTestEnvironment("METALUI_VERIFY_RETAINED", "1")
+        await MainActor.run {
+            let name = ProcessInfo.processInfo.environment["EE_VERIFY_SCENARIO"] ?? "schemeFlip"
+            guard let scenario = EEScenario(rawValue: name) else { exit(3) }
+            do { try eeDrawScenario(scenario) } catch { exit(2) }
+        }
+    }
+}
