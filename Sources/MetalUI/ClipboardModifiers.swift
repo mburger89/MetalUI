@@ -146,7 +146,6 @@ extension Window {
             default:
                 guard let paste = attachment.paste else { continue }
                 let item = clipboard.item
-                guard !item.types.isEmpty else { return false }
                 return StateDispatch.dispatching(to: id) { paste(item) }
             }
         }
