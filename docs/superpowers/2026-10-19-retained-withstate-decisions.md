@@ -3,9 +3,9 @@
 Rulings for item C14b-3 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), carried by record
 §109 §11 and §110 §9. Prefix `RW-`. Spec: [`specs/2026-10-19-retained-withstate-design.md`](specs/2026-10-19-retained-withstate-design.md).
 Record: `../record/121-retained-withstate.md` (Record phase). Branch `perf/retained-withstate` from `f557d339`. Divergence labels
-reserved 515–524: **none taken**. No public declaration. No SwiftUI-facing claim, so no probe is owed (`RW-N`).
+reserved 515–524: **none taken**. One public declaration (`FrameWork.retainedIneligibleReasons`, `MetalUITesting`, class `M`, `RW-M`/`RW-N`), nothing else. No SwiftUI-facing claim, so no probe is owed (`RW-N`).
 
-**Next unused id: `RW-P`.**
+**Next unused id: `RW-R`.**
 
 ## RW-A — The slice: read-only state, scroll, list, unfocused field, closed-popover anchors; surfaces and open presentations carried
 
@@ -187,3 +187,25 @@ compares the scene and every channel. It gains one comparison: the fresh run's `
 the record's read set, else it traps `unrecordedRead <id>`; and a compared write that wrote in a fresh frame while the replay
 skipped it traps `writeMissed`. Both new retained eligibilities (scroll, list, field, anchors) run under it over the whole suite.
 **Cost if wrong.** A trap in a verifying run is the finding, not a regression.
+
+## RW-P — Critic review: lanes rebalanced; the `RW-L` carry restated honestly
+
+**Question.** Does the design hide scope, overlap lanes or contain a claim nothing pins?
+**Ruling.** (1) The spec's lane B held the whole mechanism, every call-site conversion, anchors, the demo and tests 2–15: too large for
+one agent. Lanes are re-cut by **disjoint files** (spec §6): lane A owns the instruments *and the core mechanism* (`StateTable`, `Passes`, the
+three records' read sets and liveness, tests 1 before-arm, 2, 3, 9, 13, 15); lane B owns the **conversions** (scroll, list, field/editor
+sites, `Frame` anchors with the ledger's anchor field, `RW-O` verify extension, tests 4–8, 10, 11, 14, the demo, the after pins). (2) `RW-L`
+overstated its cost: replaying a surface request with an unchanged `value:` needs **no renderer change** (the renderer already draws on a
+changed value only); what is owed is `SurfaceRegistry`'s occurrence journal event, the draw closure's weak hold and a target-table touch. It
+stays carried because it moves no orbit-with-panel number, not because of a renderer rewrite; the `surface` reason stays counted (test 9).
+(3) The "caret does not blink" claim of `RW-J` is the field's own doc comment (`TextField.swift:19`), re-read; the lane re-checks it with a
+counted pin (a focused field's frame requests no further frame). (4) The `unchanged:` closure sites (`RW-C`) each owe a mutation that
+makes the closure always-true and a test that reddens it (test 11 is the instrument); a site without one is not converted.
+**Evidence.** Header contradiction (one public field vs "no public declaration") fixed above; file census re-run (`withState(` counts per
+file match spec §2's 34 plus wrappers and definitions).
+**Cost if wrong.** A lane that overruns: the orchestrator sees it at lane A's commit and can carry B's tail (anchors, demo) by a ruling.
+
+## RW-Q — Rejected: an `Equatable` protocol on `ScrollState`/`ListOrigin` instead of `unchanged:`
+
+**Ruling.** Rejected, as `RW-C` already says; recorded as a ruling because the critic re-examined it: `ScrollState` is public
+(`ScrollView.swift:33`), so a conformance is public API with a divergence-inventory row; a closure keeps the surface `internal`.

@@ -153,18 +153,16 @@ Tests live in `Tests/MetalUITestingTests/RetainedWithState*.swift` (a new orbit 
     `RetainedPrepaintTests` (`prepaintIneligible` 1), `RetainedGraftTests` `afterGraftFrames` (`graftIneligible` 1, requests 167),
     `RetainedSubtreesBaselineTests` (retention-off arm: unmoved), the demo's counters. The fourteen images stay 0 px.
 
-## 6 Lanes (sequential: they share regions of three files, so lane B starts from lane A's commit)
+## 6 Lanes (sequential; re-cut by `RW-P` on disjoint files; lane B starts from lane A's commit)
 
-* **Lane A, instruments and the red-first baseline** — `Sources/MetalUITesting/FrameWork.swift`, `TestApp.swift`,
-  `Sources/MetalUI/ContentMemo.swift` (`RetainedCounters` only), the three increment sites
-  (`RetainedSubtree.swift`, `RetainedPrepaint.swift`, `EquatableComponent.swift`: one line each, via `noteIneligible`),
-  `Tests/MetalUITestingTests/BracketFixture.swift` neighbour (`bracketOrbitFrames`), test 1's before arm and test 9, the inventory
-  map row for the field, the Prof orbit-with-panel scenario (`docs/probes/retained-withstate/`, copied harness). Commit with the
-  before pins green and the after pins red.
-* **Lane B, the mechanism** — `StateTable.swift`, `Passes.swift`, `ScrollChrome.swift`, `ScrollView.swift`,
-  `ProposalScrollView.swift`, `List.swift`, `TextField.swift`, `TextEditor.swift`, `Frame.swift` (`recordPresentationAnchor`,
-  `PrepaintAudit`), `RetainedSubtree.swift`/`RetainedPrepaint.swift`/`RetainedGraft.swift` (versions, ledger fields, journal
-  event), tests 2–8, 10–15, the demo section. Verify-mode extension (`RW-O`).
+* **Lane A, instruments and core mechanism** — `Sources/MetalUITesting/FrameWork.swift`, `TestApp.swift`, `ContentMemo.swift`
+  (`RetainedCounters`), the three increment sites via `noteIneligible`, `StateTable.swift`, `Passes.swift`, the read-set/liveness
+  fields of `RetainedSubtree.swift`/`RetainedPrepaint.swift`/`RetainedGraft.swift` (no call site converted yet), `bracketOrbitFrames`
+  in `BracketFixture.swift`'s neighbour, tests 1 (before arm), 2, 3, 9, 13, 15, the inventory row, the Prof scenario
+  (`docs/probes/retained-withstate/`). Commit with before pins green, after pins red.
+* **Lane B, conversions and anchors** — `ScrollChrome`, `ScrollView`, `ProposalScrollView`, `List`, `TextField`, `TextEditor`,
+  `Frame.swift` (`recordPresentationAnchor`, `PrepaintAudit`), the ledger's anchor field, `RW-O` verify extension, tests 4–8, 10, 11, 14,
+  the demo strip, after pins, record.
 
 Not a lane: Backends/SDL is untouched (no platform requirement, no shader); the Linux image runs the root portable tests once at
 the end. `swift package clean` after lane A (a stored property on a public type) and lane B (`ListOrigin`/`TextEditState` unchanged,
