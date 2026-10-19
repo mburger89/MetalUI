@@ -904,6 +904,21 @@ extension LayoutPass {
                              _ body: (inout S) -> Void) {
         frame.stateTable.withState(id, initial: initial(), body)
     }
+
+    /// The entry read without a write-back (`RW-C`): no version, no taint; live and in the read set.
+    @MainActor
+    package func readState<S>(_ id: GlobalElementID, initial: @autoclosure () -> S) -> S {
+        frame.stateTable.readState(id, initial: initial())
+    }
+
+    /// A write that is a read when `unchanged(old, new)` (`RW-C`).
+    @MainActor
+    package func withState<S>(_ id: GlobalElementID,
+                              initial: @autoclosure () -> S,
+                              unchanged: (S, S) -> Bool,
+                              _ body: (inout S) -> Void) {
+        frame.stateTable.withState(id, initial: initial(), unchanged: unchanged, body)
+    }
 }
 
 extension PrepaintPass {
@@ -914,6 +929,21 @@ extension PrepaintPass {
                              _ body: (inout S) -> Void) {
         frame.stateTable.withState(id, initial: initial(), body)
     }
+
+    /// The entry read without a write-back (`RW-C`): no version, no taint; live and in the read set.
+    @MainActor
+    package func readState<S>(_ id: GlobalElementID, initial: @autoclosure () -> S) -> S {
+        frame.stateTable.readState(id, initial: initial())
+    }
+
+    /// A write that is a read when `unchanged(old, new)` (`RW-C`).
+    @MainActor
+    package func withState<S>(_ id: GlobalElementID,
+                              initial: @autoclosure () -> S,
+                              unchanged: (S, S) -> Bool,
+                              _ body: (inout S) -> Void) {
+        frame.stateTable.withState(id, initial: initial(), unchanged: unchanged, body)
+    }
 }
 
 extension PaintPass {
@@ -923,6 +953,21 @@ extension PaintPass {
                              initial: @autoclosure () -> S,
                              _ body: (inout S) -> Void) {
         frame.stateTable.withState(id, initial: initial(), body)
+    }
+
+    /// The entry read without a write-back (`RW-C`): no version, no taint; live and in the read set.
+    @MainActor
+    package func readState<S>(_ id: GlobalElementID, initial: @autoclosure () -> S) -> S {
+        frame.stateTable.readState(id, initial: initial())
+    }
+
+    /// A write that is a read when `unchanged(old, new)` (`RW-C`).
+    @MainActor
+    package func withState<S>(_ id: GlobalElementID,
+                              initial: @autoclosure () -> S,
+                              unchanged: (S, S) -> Bool,
+                              _ body: (inout S) -> Void) {
+        frame.stateTable.withState(id, initial: initial(), unchanged: unchanged, body)
     }
 }
 

@@ -3984,6 +3984,8 @@ extension Frame {
             elementBounds[id] = bounds
             prepaintLog?.elementBounds.append((id, bounds))
         }
+        for id in l.liveStates { stateTable.touchLive(id); prepaintLog?.lives.append(id); retainLog?.lives.append(id) }
+        for id in l.reads { stateTable.noteRead(id) }
         hoverRegionCount += l.tallies.hover
         pointerStyleRegionCount += l.tallies.pointerStyle
         keyRegionCount += l.tallies.key

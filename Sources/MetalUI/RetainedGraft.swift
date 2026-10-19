@@ -29,6 +29,8 @@ final class BuildJournal {
         case focusState(any FocusStateReconciling, GlobalElementID)
         /// A `withState` on an animation baseline: the entry stays live, its value is what the build wrote.
         case liveState(GlobalElementID)
+        /// A read-only or peeked entry and the version it had (`RW-D`): replayed as a read, checked by the graft.
+        case stateRead(GlobalElementID, UInt64)
         case memoTouch(ContentMemoStore.Key)
         case animationTouch(GlobalElementID)
         case transitionEvaluated(GlobalElementID, Animation?)
@@ -125,6 +127,8 @@ final class GraftRecord {
     let nestedKeys: [ContentMemoStore.Key]
     let liveStates: [GlobalElementID]
     let animationIDs: [GlobalElementID]
+    /// The entries the build read and their versions (`RW-D`), from the journal's `.stateRead` events.
+    let stateReads: [(GlobalElementID, UInt64)]
     /// The lowered-item records of the top-level nodes, by top index (`RK-F`): a legacy top is consumed by its parent
     /// container after the occurrence returns, so the graft records it again for the new node. The interior
     /// records are consumed and never read again.
@@ -139,10 +143,12 @@ final class GraftRecord {
         var nested: [ContentMemoStore.Key] = []
         var live: [GlobalElementID] = []
         var animation: [GlobalElementID] = []
+        var reads: [(GlobalElementID, UInt64)] = []
         for event in events {
             switch event {
             case .memoTouch(let key): nested.append(key)
             case .liveState(let id): live.append(id)
+            case .stateRead(let id, let version): reads.append((id, version))
             case .animationTouch(let id): animation.append(id)
             default: break
             }
@@ -150,6 +156,7 @@ final class GraftRecord {
         nestedKeys = nested
         liveStates = live
         animationIDs = animation
+        stateReads = reads
     }
 }
 
@@ -248,6 +255,7 @@ extension Frame {
             case .windowedParent(let parent): stateTable.noteWindowedParent(parent)
             case .focusState(let state, let slot): stateTable.noteFocusState(state, at: slot)
             case .liveState(let id): stateTable.markLive(id)
+            case .stateRead(let id, _): stateTable.noteRead(id)
             case .memoTouch(let key): memos.touch(key)
             case .animationTouch(let id): animationStore.touch(id)
             case .transitionEvaluated(let slot, let animation): animationStore.transitions.replayEvaluated(slot, animation)
@@ -265,6 +273,7 @@ extension Frame {
         }
         for id in record.liveStates where !stateTable.hasEntry(id) { return false }
         for id in record.animationIDs where !animationStore.hasEntry(id) { return false }
+        for (id, version) in record.stateReads where stateTable.entryVersion(id) != version { return false }
         return true
     }
 }

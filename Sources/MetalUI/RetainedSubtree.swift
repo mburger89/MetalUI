@@ -57,6 +57,21 @@ package struct RetainedCounters: Sendable, Equatable {
     package var skippedRequests = 0
     /// Layout nodes the grafts appended instead of registering.
     package var graftedNodes = 0
+    /// The three ineligible counters summed by the name of the channel that refused (`RW-M`): a paint taint or entry
+    /// refusal, a prepaint refusal or taint, a graft refusal. Filled only on the ineligible path.
+    package var ineligibleReasons: [String: Int] = [:]
+
+    package enum IneligibleKind: Sendable { case paint, prepaint, graft }
+
+    /// The one funnel the three ineligible counters go through (`RW-M`).
+    package mutating func noteIneligible(_ kind: IneligibleKind, reason: String) {
+        switch kind {
+        case .paint: ineligible += 1
+        case .prepaint: prepaintIneligible += 1
+        case .graft: graftIneligible += 1
+        }
+        ineligibleReasons[reason, default: 0] += 1
+    }
     package init() {}
 }
 
@@ -91,16 +106,18 @@ final class RetainLog {
     }
 
     struct Marks: Equatable {
-        var scene = 0, marks = 0, touches = 0
+        var scene = 0, marks = 0, touches = 0, lives = 0
     }
 
     var recorders: [SubtreeRecorder] = []
     var scene: [SceneOp] = []
     var marks: [GlobalElementID] = []
     var touches: [Touch] = []
+    /// Entries a read-only access kept live (`RW-E`): replayed through `StateTable.touchLive`.
+    var lives: [GlobalElementID] = []
 
     var current: Marks {
-        Marks(scene: scene.count, marks: marks.count, touches: touches.count)
+        Marks(scene: scene.count, marks: marks.count, touches: touches.count, lives: lives.count)
     }
 
     /// Whether any open recorder can still leave a record: one that is already tainted wants nothing
@@ -134,6 +151,8 @@ final class RetainLog {
 @MainActor
 final class SubtreeRecorder {
     var taint: String?
+    /// `StateTable.readJournal.count` where the paint window opened (`RW-D`).
+    var readLow = 0
     /// The paint scopes open where the paint window opened: the height the scene is recorded at.
     var entryHeight = 0
     var from = RetainLog.Marks()
@@ -222,6 +241,8 @@ final class RetainedRecord {
     var finalScene: [RetainLog.SceneOp]?
     var marks: [GlobalElementID] = []
     var touches: [RetainLog.Touch] = []
+    /// The entries read-only accesses kept live under the paint (`RW-E`).
+    var lives: [GlobalElementID] = []
     var paintWork = 0
     /// Whether the build, prepaint and paint windows were all observed when the record was made
     /// (`SB-V`). A record made on a frame that skipped the build and prepaint sessions (the frame a
@@ -300,14 +321,17 @@ final class RetainedBuild {
     /// The range of `StateTable.markJournal` the build covered: the slots bound under the component,
     /// read only when a record is made.
     let journal: Range<Int>
+    /// The range of `StateTable.readJournal` the build covered (`RW-D`).
+    let reads: Range<Int>
     let timeVarying: Bool
     /// Whether the build ran inside an observation window (`SB-V`).
     let observed: Bool
 
-    init(key: ContentMemoStore.Key, topNodes: [LayoutNodeID], journal: Range<Int>, timeVarying: Bool, observed: Bool) {
+    init(key: ContentMemoStore.Key, topNodes: [LayoutNodeID], journal: Range<Int>, reads: Range<Int> = 0..<0, timeVarying: Bool, observed: Bool) {
         self.key = key
         self.topNodes = topNodes
         self.journal = journal
+        self.reads = reads
         self.timeVarying = timeVarying
         self.observed = observed
     }
@@ -317,16 +341,19 @@ final class RetainedBuild {
 @MainActor
 struct RetainedBuildWindow {
     let journalLow: Int
+    let readLow: Int
     let notes: Int
 
     init(frame: Frame) {
         journalLow = frame.stateTable.markJournal.count
+        readLow = frame.stateTable.readJournal.count
         notes = frame.timeVaryingNotes &+ frame.animationStore.interpolationsSoFar
     }
 
     func finish(frame: Frame, key: ContentMemoStore.Key, nodes: [LayoutNodeID], observed: Bool) -> RetainedBuild {
         let now = frame.timeVaryingNotes &+ frame.animationStore.interpolationsSoFar
         return RetainedBuild(key: key, topNodes: nodes, journal: journalLow..<frame.stateTable.markJournal.count,
+                             reads: readLow..<frame.stateTable.readJournal.count,
                              timeVarying: now != notes, observed: observed)
     }
 }
@@ -349,6 +376,8 @@ final class RetainedPhase {
     var prepaintKey: PrepaintKey?
     var ledger: PrepaintLedger?
     var replayed: PrepaintLedger?
+    /// The range of `StateTable.readJournal` this frame's own prepaint covered (`RW-D`); empty when replayed.
+    var prepaintReads: Range<Int> = 0..<0
     /// Whether the paint decision replayed the record at a translated position (`RK-G`, `RK-S`).
     var translatedPaint = false
     /// Whether the occurrence was grafted (`RK-B`): no element layout, so prepaint and paint can only replay.
@@ -479,6 +508,7 @@ extension Frame {
         if retainLog == nil { retainLog = RetainLog() }
         let log = retainLog!
         recorder.entryHeight = paintScopes.count
+        recorder.readLow = stateTable.readJournal.count
         recorder.from = log.current
         recorder.before = ledgerSnapshot()
         stateTable.contentMemos.retained.ledgerSnapshots += 1
@@ -513,6 +543,8 @@ extension Frame {
             for op in r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
         }
         for id in r.marks { stateTable.mark(id) }
+        for id in r.lives { stateTable.touchLive(id); retainLog?.lives.append(id); prepaintLog?.lives.append(id) }
+        for (id, _) in r.versions { stateTable.noteRead(id) }
         for touch in r.touches { animationStore.replay(touch) }
         stateTable.contentMemos.retained.skippedPaints += r.paintWork
         stateTable.contentMemos.retained.replayedOps += r.scene.count
@@ -541,7 +573,7 @@ extension Frame {
         if let reason = retainedEntryRefusal(build: build) {
             if retainedTraces { print("retained refused \(sbPath(build.key.id).suffix(60)) because \(reason)") }
             entry.record = nil
-            memos.retained.ineligible += 1
+            memos.retained.noteIneligible(.paint, reason: reason)
             return .plain
         }
         let key = retainedKey(phase)
@@ -603,6 +635,20 @@ extension Frame {
         for id in stateTable.markJournal[phase.build.journal] where seen.insert(id).inserted {
             record.versions.append((id, stateTable.entryVersion(id)))
         }
+        // The entries read-only accesses and peeks touched in the three windows (`RW-D`): build, prepaint (this frame's
+        // own, or the replayed ledger's), paint.
+        func addReads(_ range: Range<Int>) {
+            for index in range {
+                let id = stateTable.readJournal[index]
+                if seen.insert(id).inserted { record.versions.append((id, stateTable.entryVersion(id))) }
+            }
+        }
+        addReads(phase.build.reads)
+        addReads(phase.prepaintReads)
+        addReads(recorder.readLow..<stateTable.readJournal.count)
+        if let ledger = phase.replayed {
+            for id in ledger.reads where seen.insert(id).inserted { record.versions.append((id, stateTable.entryVersion(id))) }
+        }
         record.coverageComplete = phase.build.observed && phase.prepaintObserved
         record.prepaint = phase.ledger
         record.contentSerial = phase.entry.serial
@@ -622,6 +668,7 @@ extension Frame {
             record.finalScene = final
         }
         record.marks = Array(log.marks[from.marks..<to.marks])
+        record.lives = Array(log.lives[from.lives..<to.lives])
         record.touches = Array(log.touches[from.touches..<to.touches])
         record.paintWork = after.work - before.work
         if log.recorders.isEmpty { retainLog = nil }
@@ -640,7 +687,7 @@ extension Frame {
         if let reason = recorder.taint {
             if retainedTraces { print("retained ineligible \(sbPath(phase.build.key.id).suffix(60)) because \(reason)") }
             phase.entry.record = nil
-            memos.retained.ineligible += 1
+            memos.retained.noteIneligible(.paint, reason: reason)
             return
         }
         memos.retained.misses += 1
