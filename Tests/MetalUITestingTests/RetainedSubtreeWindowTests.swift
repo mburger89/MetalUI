@@ -22,7 +22,9 @@ private struct Prediction {
 }
 private let predictions = [
     Prediction(arm: .value, hits: 29, misses: 3, ineligible: 0, retainsNodes: true),
-    Prediction(arm: .environment, hits: 19, misses: 2, ineligible: 0, retainsNodes: false),
+    // C14-c (`EE-J`): the `.environment` arm's nodes are memoized by their reading now, so it retains what `.value` does.
+    Prediction(arm: .environment, hits: 29, misses: 3, ineligible: 0, retainsNodes: true),
+    // `.environmentObject` is not predicted here (its per-node scope is one more element); `EnvironmentEpochBracketTests` B3.
     // `.value` plus the panels: the inspector and the top bar replay; the graph panel (a `List`, a `ScrollView`
     // and a `TextField` paint through `withState`, `SB-J`) is ineligible. Predicted 30 / 3 / 2 (the top bar
     // ineligible for its menu `Picker`): a Picker's paint writes nothing a record cannot replay.
@@ -73,7 +75,7 @@ func theBracketNodeDragReplaysEveryUnchangedSubtree(arm: BracketArm) throws {
         #expect(f.rasterizedPixels == base.rasterizedPixels)
         #expect(f.newTextures == base.newTextures)
     }
-    // Text: a replayed label shapes and places nothing; a refused node (`.environment`) still does.
+    // Text: a replayed label shapes and places nothing; a node that is not retained would still do (none is, since C14-c).
     if predicted.retainsNodes {
         #expect(on.counting.places < off.counting.places)
     } else {

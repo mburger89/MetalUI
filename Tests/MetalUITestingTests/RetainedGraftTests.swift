@@ -48,7 +48,7 @@ private struct AfterGraftFrame {
 }
 private let afterGraftFrames: [AfterGraftFrame] = [
     AfterGraftFrame(arm: .value, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
-    AfterGraftFrame(arm: .environment, requests: 760, skippedRequests: 38, grafts: 19, graftIneligible: 0, graftedNodes: 38, prepaints: 829, prepaintHits: 19),
+    AfterGraftFrame(arm: .environment, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
     AfterGraftFrame(arm: .panels, requests: 167, skippedRequests: 631, grafts: 30, graftIneligible: 1, graftedNodes: 641, prepaints: 176, prepaintHits: 30),
 ]
 

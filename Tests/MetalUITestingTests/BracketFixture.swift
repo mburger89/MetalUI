@@ -9,7 +9,9 @@ import Observation
 // import: the perf harness (`docs/probes/perf-harness`) compiles this file too.
 //
 // The node views are `.equatable()` on their node value plus the palette (a VALUE); the
-// `.environment` arm keeps one reader of `@Environment`, which divergence 346 refuses.
+// `.environment` arm keeps one reader of `@Environment(\.colorScheme)` and the `.environmentObject`
+// arm one of `@Environment(BracketThemeStore.self)` (MetalCreator's shape): both were refused before
+// C14-c (`EE-`, divergence 346) and are memoized by their readings now.
 
 struct BracketPalette: Equatable, Sendable {
     var surface = Color(red: 0.16, green: 0.17, blue: 0.2)
@@ -48,6 +50,8 @@ struct BracketNodeData: Equatable, Identifiable, Sendable {
     /// 21 links `(from node, to node)`: the chain plus two skips.
     let links: [(Int, Int)]
     var selected = BracketModel.filletIndex
+    /// The `@Observable` palette store the `.environmentObject` arm provides to each node (`EE-J`).
+    @ObservationIgnored let theme = BracketThemeStore()
     /// The canvas pan: at zoom 1 with this pan 11 of 20 nodes (9...19) pass the cull.
     var panX: Float = -680
     var panY: Float = 40
@@ -161,8 +165,8 @@ struct BracketNodeView: Component, @MainActor Equatable {
     }
 }
 
-/// The environment arm (MetalCreator today): the palette comes from `@Environment`, which
-/// `.equatable()` refuses (divergence 346), so the getter runs every frame.
+/// The environment arm: the scheme comes from `@Environment`. Before C14-c `.equatable()` refused it
+/// (divergence 346), so the getter ran every frame; now it is memoized by its reading (`EE-A`).
 struct BracketEnvNodeView: Component, @MainActor Equatable {
     let node: BracketNodeData
     let selected: Bool
@@ -171,6 +175,25 @@ struct BracketEnvNodeView: Component, @MainActor Equatable {
     var content: some ElementGroup {
         let _ = BracketStats.nodeBodies += 1
         bracketNodeBody(node, scheme == .dark ? BracketPalette() : BracketPalette(), selected: selected)
+    }
+}
+
+/// An `@Observable` palette store (MetalCreator's `ThemeStore`): the `.environmentObject` arm reads
+/// `palette` through `@Environment(BracketThemeStore.self)`; `other` is a property no node reads.
+@Observable @MainActor final class BracketThemeStore {
+    var palette = BracketPalette()
+    var other = 0
+}
+
+/// The environment-object arm: the palette comes from an `@Observable` object in the environment.
+struct BracketObjNodeView: Component, @MainActor Equatable {
+    let node: BracketNodeData
+    let selected: Bool
+    @Environment(BracketThemeStore.self) var store
+    static func == (l: BracketObjNodeView, r: BracketObjNodeView) -> Bool { l.node == r.node && l.selected == r.selected }
+    var content: some ElementGroup {
+        let _ = BracketStats.nodeBodies += 1
+        bracketNodeBody(node, store.palette, selected: selected)
     }
 }
 
@@ -215,8 +238,10 @@ struct BracketWireView: Component, @MainActor Equatable {
 // MARK: The canvas
 
 /// `.value`: nodes and wires `.equatable()`, the palette a value. `.environment`: nodes read
-/// `@Environment` (refused, divergence 346). `.panels`: `.value` plus every panel `.equatable()`.
-enum BracketArm { case value, environment, panels }
+/// `@Environment(\.colorScheme)`; `.environmentObject`: nodes read an `@Observable` store through
+/// `@Environment(Type.self)` (both memoized by their readings since C14-c, `EE-J`).
+/// `.panels`: `.value` plus every panel `.equatable()`.
+enum BracketArm { case value, environment, panels, environmentObject }
 
 struct BracketCanvas: Component {
     let model: BracketModel
@@ -236,6 +261,9 @@ struct BracketCanvas: Component {
                         BracketNodeView(node: n, palette: palette, selected: model.selected == n.id).equatable()
                     case .environment:
                         BracketEnvNodeView(node: n, selected: model.selected == n.id).equatable()
+                    case .environmentObject:
+                        BracketObjNodeView(node: n, selected: model.selected == n.id).equatable()
+                            .environment(model.theme)
                     }
                 }
                 .offset(x: Pixels(n.x + model.panX), y: Pixels(n.y + model.panY))

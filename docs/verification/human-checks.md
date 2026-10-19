@@ -1579,6 +1579,16 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
 - [ ] **RK5.** A trackpad pan with the Prepaint switch on keeps text and shadows sharp and in place at 1x and 2x (translated replay refuses
   a fractional device translation, `RK-G`). **Observed:**
 
+## EE. Environment epoch — an `@Environment` reader that is skipped (item C14-c, user request 2026-10-02, not a plan task; record 120; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: these need a real window, a display and an eye. The demo section is `METALUI_INVALIDATION_DEMO=1 swift run MetalUIDemo` (the "Environment" block under the two trees).*
+
+- [ ] **EE1.** In the Environment block, "Write the key" moves the reader's getter count by 1 and its shown value; "Write an unrelated
+  key" by 0; a Light/Dark switch in System Settings by 1 and the reader's text colour is right at once. Then, with the reader
+  skipped and retained, drag the window across two displays of different scale and switch Light/Dark while the window is on each:
+  no stale colour or size, no flicker (`EE-A`, `EE-B`, `EE-F`; the `displayScale` and `controlActiveState` readings are the
+  unrehearsed ones). **Observed:**
+
 ## GA. SDL GPU for apps — compute and graphics on a real GPU (items S5 and S6, MetalCreator's SDL-port gaps 1 and 2, not a plan task; record §114)
 
 *An agent cannot: the suites run on this Mac's Metal, on lavapipe in the Linux image and, in CI, on WARP; these need

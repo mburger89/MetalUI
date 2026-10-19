@@ -260,9 +260,10 @@ final class RetainedSession {
 }
 
 private final class RetainedHandle: @unchecked Sendable {
-    let entry: ContentMemoStore.Entry
-    let store: ContentMemoStore
-    let session: RetainedSession
+    // Weak (`IV-S`): the closure lives in the observed model's registrar; see `ContentMemoHandle`.
+    weak var entry: ContentMemoStore.Entry?
+    weak var store: ContentMemoStore?
+    weak var session: RetainedSession?
     let serial: Int
 
     init(entry: ContentMemoStore.Entry, store: ContentMemoStore, session: RetainedSession, serial: Int) {
@@ -281,7 +282,7 @@ private final class RetainedHandle: @unchecked Sendable {
     }
 
     @MainActor private func fireOnMain() {
-        guard session.serial == serial else { return }
+        guard let session, let entry, let store, session.serial == serial else { return }
         if retainedTraces { print("retained session fired: \(session.label)") }
         entry.observedChange = true
         store.markDirty?()
@@ -390,7 +391,7 @@ extension Frame {
     func retainedEntryRefusal(build: RetainedBuild) -> String? {
         if build.timeVarying { return "timeVarying" }
         if leafGroup != nil { return "leafGroup" }
-        if environmentTop.customKeyCount > 0 { return "customEnvironmentKey" }
+        if environmentTop.uncomparableCustomCount > 0 { return "uncomparableEnvironmentKey" }
         if transactionTop.animation != nil { return "transaction" }
         return nil
     }

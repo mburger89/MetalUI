@@ -13,11 +13,12 @@ final class ContentMemoToken {
 }
 
 /// The `onChange` side of one memo session, `Sendable` so the observation
-/// machinery can call it on any thread. Holds the entry and the store strongly
-/// until it fires (the session is one-shot; a spent one is released).
+/// machinery can call it on any thread. Holds the entry and the store **weakly**
+/// (`IV-S`): the closure lives in the observed model's registrar and the entry's
+/// pristine content holds the model, so a strong hold is a cycle nothing breaks.
 private final class ContentMemoHandle: @unchecked Sendable {
-    let entry: ContentMemoStore.Entry
-    let store: ContentMemoStore
+    weak var entry: ContentMemoStore.Entry?
+    weak var store: ContentMemoStore?
     let serial: Int
 
     init(entry: ContentMemoStore.Entry, store: ContentMemoStore, serial: Int) {
@@ -38,10 +39,11 @@ private final class ContentMemoHandle: @unchecked Sendable {
     }
 
     @MainActor private func fireOnMain() {
+        guard let store else { return }
         store.armed -= 1
         // A serial the entry has moved past is a flush (the token write before a
         // re-evaluation, or an entry that left the tree): nothing changed.
-        guard entry.serial == serial else { return }
+        guard let entry, entry.serial == serial else { return }
         entry.stale = true
         store.markDirty?()
     }
@@ -63,6 +65,8 @@ package final class ContentMemoStore {
         var previous: Any
         var pristine: Any
         var versions: [UInt64]
+        /// The readings of the declared `@Environment` properties the last evaluation was made under (`EE-A`).
+        var readings: [EnvironmentReading]
         let token = ContentMemoToken()
         var serial = 0
         var stale = false
@@ -86,10 +90,11 @@ package final class ContentMemoStore {
         let buildSession = RetainedSession("build")
         let prepaintSession = RetainedSession("prepaint")
         let paintSession = RetainedSession("paint")
-        init(previous: Any, pristine: Any, versions: [UInt64]) {
+        init(previous: Any, pristine: Any, versions: [UInt64], readings: [EnvironmentReading]) {
             self.previous = previous
             self.pristine = pristine
             self.versions = versions
+            self.readings = readings
         }
     }
 
@@ -178,6 +183,7 @@ package final class ContentMemoStore {
     /// evaluated inside this entry's own observation session.
     func materialize<C: Component & Equatable>(_ component: C, id: GlobalElementID,
                                                stateIDs: [GlobalElementID], table: StateTable,
+                                               readings: [EnvironmentReading],
                                                getter: () -> C.Content) -> C.Content {
         guard isEnabled else {
             evaluations += 1
@@ -191,7 +197,7 @@ package final class ContentMemoStore {
 
         if let entry = entries[key] {
             entry.touched = true
-            if !entry.stale, entry.versions == versions,
+            if !entry.stale, entry.versions == versions, entry.readings == readings,
                let previous = entry.previous as? C, previous == component,
                let pristine = entry.pristine as? C.Content {
                 skips += 1
@@ -204,7 +210,7 @@ package final class ContentMemoStore {
         if let existing = entries[key] {
             entry = existing
         } else {
-            entry = Entry(previous: component, pristine: (), versions: versions)
+            entry = Entry(previous: component, pristine: (), versions: versions, readings: readings)
             entries[key] = entry
         }
         // Retire the previous session first (`IV-L` item 5): the serial moves on,
@@ -224,6 +230,7 @@ package final class ContentMemoStore {
         entry.previous = component
         entry.pristine = content
         entry.versions = versions
+        entry.readings = readings
         entry.stale = false
         return content
     }

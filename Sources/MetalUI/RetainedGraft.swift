@@ -295,7 +295,7 @@ extension Frame {
               old.contentSerial == entry.serial, graft.contentSerial == entry.serial, graft.key == key else {
             return nil
         }
-        guard prepaintRefusal() == nil, environmentTop.customKeyCount == 0, transactionTop.animation == nil else {
+        guard prepaintRefusal() == nil, environmentTop.uncomparableCustomCount == 0, transactionTop.animation == nil else {
             return nil
         }
         guard old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) else { return nil }
