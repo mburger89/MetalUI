@@ -38,6 +38,12 @@ package final class LayoutMemo {
     struct MeasureKey: Hashable {
         let signature: LayoutSignature
         let proposal: ProposedSize
+
+        /// The signature's words are already mixed (`SignatureBuilder`): fold them with the proposal into one
+        /// word (`PA-K`); `==` stays the synthesized, complete one.
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(signature.a ^ (signature.b << 21 | signature.b >> 43) ^ proposal.foldedHashWord)
+        }
     }
 
     struct PlacementKey: Hashable {
@@ -160,4 +166,35 @@ struct SignatureBuilder {
     mutating func mix(_ signature: LayoutSignature) { mix(signature.a); mix(signature.b) }
 
     var signature: LayoutSignature { LayoutSignature(a: a, b: b) }
+}
+
+/// A leaf key's signature words, computed once where the key is registered (`PA-D`): the key (kept for
+/// `structureDigest`), the type's identity and the two hasher words `SignatureBuilder.mixHashable` derives, so
+/// mixing them in `mix(into:)` yields **exactly** the signature the direct route (`mix(1)`, the type, `mixHashable`)
+/// yields, and a run or a graft opens no `AnyHashable` box.
+struct LeafKey {
+    let key: AnyHashable
+    let typeID: UInt64
+    let h1: UInt64
+    let h2: UInt64
+
+    init(_ key: AnyHashable) {
+        self.key = key
+        typeID = UInt64(UInt(bitPattern: ObjectIdentifier(type(of: key.base))))
+        var first = Hasher()
+        first.combine(key)
+        var second = Hasher()
+        second.combine(0x5EED_0002 as UInt64)
+        second.combine(key)
+        h1 = UInt64(bitPattern: Int64(first.finalize()))
+        h2 = UInt64(bitPattern: Int64(second.finalize()))
+    }
+
+    @inline(__always)
+    func mix(into h: inout SignatureBuilder) {
+        h.mix(1)
+        h.mix(typeID)
+        h.mix(h1)
+        h.mix(h2)
+    }
 }

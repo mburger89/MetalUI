@@ -59,7 +59,7 @@ public final class LayoutTree {
     /// closure reads besides the proposal. An unkeyed leaf has no entry. Cleared by
     /// `reset(generation:)`. A stored property on a public class read across a
     /// module boundary: `swift package clean` after changing it (CN-R).
-    private var leafKeys: [Int: AnyHashable] = [:]
+    private var leafKeys: [Int: LeafKey] = [:]
 
     /// The window's layout memo, attached by `Frame` only (a tree built by a
     /// `LayoutTree`-level test has none and lays out exactly as before, `IV-F`).
@@ -214,7 +214,7 @@ public final class LayoutTree {
     /// `newNativeLeaf(measure:)` and makes its ancestors unmatchable instead.
     package func newNativeLeaf(key: AnyHashable?, measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
         let id = newNativeLeaf(measure: measure)
-        if let key { leafKeys[id.index] = key }
+        if let key { leafKeys[id.index] = LeafKey(key) }
         return id
     }
 
@@ -1360,33 +1360,58 @@ public final class LayoutTree {
         func mainLength(_ measurement: LayoutMeasurement) -> Double {
             axis == .horizontal ? measurement.size.width : measurement.size.height
         }
-        let gaps = stackGaps(id, axis: axis, spacing: spacing).reduce(0, +)
+        // PA-F: a given spacing sums `n - 1` copies from 0 in order, as the array's `reduce` did (bit-equal floats),
+        // without the array.
+        let gaps: Double
+        if let spacing {
+            var sum = 0.0
+            if nodes.count > 1 { for _ in 1..<nodes.count { sum += spacing } }
+            gaps = sum
+        } else {
+            gaps = stackGaps(id, axis: axis, spacing: spacing).reduce(0, +)
+        }
         var proposals = Array(repeating: offer(main), count: nodes.count)
         var answers: [LayoutMeasurement]
 
         if let main, main.isFinite, !nodes.isEmpty {
             answers = Array(repeating: LayoutMeasurement(size: .zero), count: nodes.count)
-            let priorities = nodes.map(nativeLayoutPriority)
+            var priorities: [Double] = []
+            priorities.reserveCapacity(nodes.count)
+            for node in nodes { priorities.append(nativeLayoutPriority(node)) }
             var remaining = main - gaps
-            for priority in Set(priorities).sorted(by: >) {
-                let members = nodes.indices.filter { priorities[$0] == priority }
-                let reserved = nodes.indices.filter { priorities[$0] < priority }.reduce(0.0) { total, index in
-                    total + mainLength(measureNative(nodes[index], proposal: offer(0), run: run))
+            // A single level (the common stack): every child is a member, nothing is reserved (no measurement),
+            // and the levels need no Set or sort.
+            let first = priorities[0]
+            var singleLevel = true
+            for priority in priorities where priority != first { singleLevel = false; break }
+            let levels: [Double] = singleLevel ? [first] : Set(priorities).sorted(by: >)
+            for priority in levels {
+                var members: [Int] = []
+                members.reserveCapacity(nodes.count)
+                var lower: [Int] = []
+                for index in nodes.indices {
+                    if priorities[index] == priority { members.append(index) }
+                    else if priorities[index] < priority { lower.append(index) }
                 }
-                var order = members
+                var reservedTotal = 0.0
+                for index in lower {
+                    reservedTotal += mainLength(measureNative(nodes[index], proposal: offer(0), run: run))
+                }
+                let reserved = reservedTotal
                 if members.count > 1 {
-                    let flexibility = Dictionary(uniqueKeysWithValues: members.map { index in
-                        (index, mainLength(measureNative(nodes[index], proposal: offer(.infinity), run: run))
-                            - mainLength(measureNative(nodes[index], proposal: offer(0), run: run)))
-                    })
-                    order.sort { lhs, rhs in
-                        let (l, r) = (flexibility[lhs]!, flexibility[rhs]!)
+                    var flexibility = Array(repeating: 0.0, count: nodes.count)
+                    for index in members {
+                        flexibility[index] = mainLength(measureNative(nodes[index], proposal: offer(.infinity), run: run))
+                            - mainLength(measureNative(nodes[index], proposal: offer(0), run: run))
+                    }
+                    members.sort { lhs, rhs in
+                        let (l, r) = (flexibility[lhs], flexibility[rhs])
                         return l != r ? l < r : lhs < rhs
                     }
                 }
                 var groupRemaining = remaining - reserved
-                for (served, index) in order.enumerated() {
-                    proposals[index] = offer(Swift.max(0, groupRemaining / Double(order.count - served)))
+                for (served, index) in members.enumerated() {
+                    proposals[index] = offer(Swift.max(0, groupRemaining / Double(members.count - served)))
                     answers[index] = measureNative(nodes[index], proposal: proposals[index], run: run)
                     groupRemaining -= mainLength(answers[index])
                     remaining -= mainLength(answers[index])
@@ -1697,7 +1722,7 @@ public final class LayoutTree {
     /// phases are rounded from cumulative edges.
     private func roundNativeStoredRects(_ node: LayoutNodeID) {
         setMeasuredWidth(node, layout(node).width)
-        setLayout(node, roundLayout([layout(node)])[0])
+        setLayout(node, roundedRect(layout(node)))
         for child in children(node) {
             roundNativeStoredRects(child)
         }
@@ -2089,6 +2114,7 @@ extension LayoutTree {
     /// guard's own trap rather than overflowing here.
     fileprivate func preorder(_ root: LayoutNodeID) -> [Int] {
         var order: [Int] = []
+        order.reserveCapacity(childLists.count)
         var stack = [slot(root)]
         while let index = stack.popLast() {
             order.append(index)
@@ -2147,10 +2173,8 @@ extension LayoutTree {
         guard let node = nativeNodes[index] else { return nil }
         switch node {
         case .leaf:
-            guard let key = leafKeys[index] else { return nil }
-            h.mix(1)
-            h.mix(UInt64(UInt(bitPattern: ObjectIdentifier(type(of: key.base)))))
-            h.mixHashable(key)
+            guard let leafKey = leafKeys[index] else { return nil }
+            leafKey.mix(into: &h)
         case .overlay(let alignment):
             h.mix(2); h.mix(alignment.signatureTag)
             guard mixChildren(&h, children, signatures) else { return nil }
@@ -2368,7 +2392,7 @@ package struct LayoutSegment {
     fileprivate let tops: [Int]
     fileprivate let children: [[Int]]
     fileprivate let cases: [NativeNode]
-    fileprivate let leafKeys: [(Int, AnyHashable)]
+    fileprivate let leafKeys: [(Int, LeafKey)]
     fileprivate let spacerAxes: [(Int, ProposalStackAxis)]
     fileprivate let parents: [(Int, Int)]
     fileprivate let rowTokens: [(Int, Int)]
@@ -2468,9 +2492,14 @@ extension LayoutTree {
         let base = childLists.count
         let generation = self.generation
         func moved(_ relative: Int) -> LayoutNodeID { LayoutNodeID(generation: generation, index: base + relative) }
-        childLists.reserveCapacity(base + segment.nodeCount)
-        layouts.reserveCapacity(base + segment.nodeCount)
-        measuredWidths.reserveCapacity(base + segment.nodeCount)
+        // PA-C: `reserveCapacity` grows to exactly what is asked, so a reserve per graft reallocates per graft;
+        // reserve only when short, and then geometrically.
+        let need = base + segment.nodeCount
+        if childLists.capacity < need { childLists.reserveCapacity(Swift.max(need, 2 * childLists.capacity)) }
+        if layouts.capacity < need { layouts.reserveCapacity(Swift.max(need, 2 * layouts.capacity)) }
+        if measuredWidths.capacity < need { measuredWidths.reserveCapacity(Swift.max(need, 2 * measuredWidths.capacity)) }
+        let nodesNeeded = nativeNodes.count + segment.nodeCount
+        if nativeNodes.capacity < nodesNeeded { nativeNodes.reserveCapacity(Swift.max(nodesNeeded, 2 * nativeNodes.capacity)) }
         let zero = LayoutRect(x: 0, y: 0, width: 0, height: 0)
         for relative in 0..<segment.nodeCount {
             childLists.append(segment.children[relative].map { moved($0) })
@@ -2521,7 +2550,7 @@ extension LayoutTree {
                     + "|\(plan.columnCount)x\(plan.rowCount)|\(plan.hgap)|\(plan.vgap))"
             case .some(let other): line += "\(other)"
             }
-            line += "|key:\(String(describing: leafKeys[index]))|spacer:\(String(describing: spacerAxes[index]))"
+            line += "|key:\(String(describing: leafKeys[index]?.key))|spacer:\(String(describing: spacerAxes[index]))"
             line += "|parent:\(String(describing: nativeParents[index]))"
             if let token = gridRowTokens[index] {
                 let rank = tokenRanks[token] ?? tokenRanks.count
@@ -2536,4 +2565,12 @@ extension LayoutTree {
         }
         return lines
     }
+}
+
+extension LayoutTree {
+    /// Test hook (`PA-J`): the rounding pass over `root`'s subtree, alone, so an allocation count can see it.
+    func roundStoredRectsForTesting(_ root: LayoutNodeID) { roundNativeStoredRects(root) }
+
+    /// Test hook (`PA-C`): the node table's current capacity, to count how often a graft reallocates it.
+    var childListsCapacityForTesting: Int { childLists.capacity }
 }

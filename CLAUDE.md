@@ -84,7 +84,8 @@ summary.
   `2026-10-14-clipboard-types-decisions.md`, next `CB-R`), `IC-` (image cursors, headless SDL launch:
   `2026-10-14-cursors-headless-decisions.md`, next `IC-S`), `IH-` (header-only image read and bounded decode:
   `2026-10-14-image-info-decisions.md`, next `IH-Q`), `PN-` (pan path rasters:
-  `2026-10-14-pan-rasters-decisions.md`, next `PN-L`), `EE-` (environment epoch:
+  `2026-10-14-pan-rasters-decisions.md`, next `PN-L`), `PA-` (layout and build allocations:
+  `2026-10-14-layout-allocations-decisions.md`, next `PA-S`), `EE-` (environment epoch:
   `2026-10-14-environment-epoch-decisions.md`, next `EE-P`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
@@ -120,7 +121,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-19, `perf/environment-epoch` from `6273e3a4`, merged with master `01631221` (§104 `IV-R` memo leak fix): 3957 tests, 0 goldens, 247 typecheck guards** (master's 3930 + 27 tests, 246 + guard G1; `swift package clean`, native build 0 `error:`, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`, default build 0 `warning:`; also 3948 passed with `AppKitPresentationTests` skipped under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; re-measured by the orchestrator, record §120). Before it,
+- **Counts (2026-10-19, `perf/layout-allocations` from `6273e3a4`, merged with master `41a2180f` (§120 environment epoch): 3968 tests, 0 goldens, 247 typecheck guards** (master's 3957 + 11 tests, no guard; re-measured by the orchestrator on the merged tree, record §119). Before it,
+  **(2026-10-14, `perf/layout-allocations` from `6273e3a4`, merged with master `298c23d4` (§118 pan rasters): 3937 tests, 0 goldens, 246 typecheck guards** (master's 3926 + 11 tests (lane 1's 8, lane 2's 3), no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; no public declaration, no divergence label taken; the fourteen images 0 px against `6273e3a4` at the lanes, not re-taken after the merge; record §119). Before it,
+  **(2026-10-19, `perf/environment-epoch` from `6273e3a4`, merged with master `01631221` (§104 `IV-R` memo leak fix): 3957 tests, 0 goldens, 247 typecheck guards** (master's 3930 + 27 tests, 246 + guard G1; `swift package clean`, native build 0 `error:`, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`, default build 0 `warning:`; also 3948 passed with `AppKitPresentationTests` skipped under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; re-measured by the orchestrator, record §120). Before it,
   **(2026-10-14, `perf/environment-epoch` from `6273e3a4`, merged with master `298c23d4` (§118 pan rasters): 3953 tests expected unlocked (3944 run with `AppKitPresentationTests` skipped on a locked screen), 0 goldens, 247 typecheck guards** (master's 3926 + 27 tests, 246 + guard G1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native run `--skip AppKitPresentationTests` 0 issues, `FR-J no-argument frame: succeeded=true`; no public declaration, census unmoved; the fourteen images 0 px against `6273e3a4` at the lanes; divergence 346 narrowed, no label taken; unlocked re-take and default-build-system warnings re-take owed; record §120). Before it,
   **(2026-10-14, `perf/pan-rasters` from `34491ff4`, merged with master `6273e3a4` (§110 retained build skip): 3926 tests expected unlocked (3917 run with `AppKitPresentationTests` skipped on a locked screen), 0 goldens, 246 typecheck guards** (master's 3918 + 8 `PanRasterTests` (the seven and T8, `PN-K`), no guard; `swift package clean`, native build 0 `error:`, `swift build --build-tests` 0 `warning:`, native run `--skip AppKitPresentationTests` 0 issues, `FR-J no-argument frame: succeeded=true`; also run once with `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`, 3917 passed, no trap; inventory and undocumented scripts print nothing; no public declaration, no divergence label taken; the merge touched docs only; unlocked re-take owed; record §118. Before it,
   **(2026-10-14, `perf/retained-build-skip` from `fb9a7e42`, merged with master `d3ebfa18` (§115 clipboard, §117 image info): 3918 tests, 0 goldens, 246 typecheck guards** (master's 3864 + 54 tests, 244 + 2 guards; re-measured by the orchestrator on the merged tree, record §110 §11). Before it,
@@ -780,6 +783,16 @@ keep today's keys (`PN-C`; overscan for them is P3b). `RasterCache.tint` zero-fi
 coverage, byte for byte the reference loop (`RasterCache.lastTintedPixels` counts the pixels multiplied, `PN-D`); R8 coverage with a
 shader tint is not built (P3c, `TE-AD`). A cubic whose endpoint moves and a sub-pixel pan miss by design (`PN-E`). Pins count work
 (`PanRasterTests`).
+
+**Layout and build allocations (`PA-`, record §119).** Value-identical, no public API, no divergence (labels 495–504 untouched). Hot
+loops of the kernel and build do not allocate per node: `roundedRect(_:)` is the scalar `roundLayout` forwards to, `graft` reserves
+**geometrically** (`reserveCapacity` is exact in Swift: never `base + n` per call, `PA-C`), a leaf key's signature words are a
+`LeafKey` computed at registration and mixed in the old order so every signature is unchanged (`PA-D`), `NativeMeasurementKey`/
+`MeasureKey` hash one folded word with `==` complete (`PA-K`, `PA-N`), `StateTable.mark` writes through `index(forKey:)`. The
+`measureNative` order and arguments, the four layout counters and `ForEach`'s `FI-B`/`FI-K` names are untouched. **An allocation pin
+is thread-filtered (`countAllocations`, Darwin only), differential and floor-corrected**: a debug build logs several events per
+`malloc` and allocates per `for-in` turn (`PA-J`, `PA-O`, `PA-Q`); release allocation figures are dated measurements, not pins.
+Deferred: `AmbientKey` reshape (C14-c), array-indexed measure cache (P3); the isolation-site share is unre-measured after the loops.
 
 **Input follow-ups (`IF-`, record §93).** `SpatialTapGesture.Value.modifiers` (the last
 press's) and `DragGesture.Value.clickCount` (the press's, never the move's) are MetalUI-only

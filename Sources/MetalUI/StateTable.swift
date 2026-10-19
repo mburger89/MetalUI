@@ -775,7 +775,8 @@ final class StateTable {
         contentMemos.journal.record(.mark(id))   // `RK-F`
         retainLog?.marks.append(id)
         marked.insert(id)
-        storage[id]?.isLive = true
+        // `PA-E`: through the index; `storage[id]?.isLive = true` runs a `modify` coroutine that allocates.
+        if let index = storage.index(forKey: id) { storage.values[index].isLive = true }
     }
 
     /// Write `value` at `id`, setting the entry live immediately, and —

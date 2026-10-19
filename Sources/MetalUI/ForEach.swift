@@ -95,14 +95,17 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
         cursor += 1
         var seenIDs = Set<ID>()
+        seenIDs.reserveCapacity(data.count)  // `PA-G`: sized, never a different name or key
         // `FI-B`: an id type whose description is not injective carries its
         // value in the component; `FI-K`: a floating-point id keeps the name
         // dedupe, since a NaN is unequal to itself. One metatype test each, per build.
         let needsKey = !(ID.self is DescriptionInjectiveID.Type)
         let dedupesNames = ID.self is any BinaryFloatingPoint.Type
         var seenNames = Set<String>()
+        if dedupesNames { seenNames.reserveCapacity(data.count) }
         var offset = 0
         var nodes: [Node] = []
+        nodes.reserveCapacity(data.count)  // `PA-G`: a child usually yields at least one node; a bound, not a promise
         var members: [Member] = []
         members.reserveCapacity(data.count)
         // `DD-K`: typed keys only while a `scrollTo` is pending — one flag read

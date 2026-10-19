@@ -417,7 +417,9 @@ extension Frame {
         var scopeVectors: [[Double]] = []
         scopeVectors.reserveCapacity(paintScopes.count)
         for scope in paintScopes {
-            var v: [Double] = [Double(scope.kind.hashValue), Double(scope.effect.alpha), Double(scope.entryClipDepth),
+            var v: [Double] = []
+            v.reserveCapacity(64)  // `PA-I`: one buffer for the `+=` chain below
+            v += [Double(scope.kind.hashValue), Double(scope.effect.alpha), Double(scope.entryClipDepth),
                                scope.flattens ? 1 : 0]
             v += flat(scope.effect.affine)
             if let outer = scope.outer {
@@ -495,6 +497,12 @@ extension Frame {
 
     // MARK: Replay
 
+    /// Whether every state entry a record read still has the version it read (`PA-H`: a loop, not `allSatisfy`).
+    func retainedVersionsUnchanged(_ versions: [(GlobalElementID, UInt64)]) -> Bool {
+        for (id, version) in versions where stateTable.entryVersion(id) != version { return false }
+        return true
+    }
+
     func replayPaint(_ r: RetainedRecord, translated: Bool = false) {
         // A record replayed at a translated position goes through the live scopes (`RK-S`): the final stream holds
         // the old translation in its coordinates.
@@ -540,7 +548,7 @@ extension Frame {
         let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
             let valid = !entry.observedChange && old.coverageComplete && old.contentSerial == entry.serial
-                && old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) && !underPointer
+                && retainedVersionsUnchanged(old.versions) && !underPointer
                 && (phase.replayed == nil || old.prepaint === phase.replayed)
             let translated = valid && old.key != key && memos.replaysPrepaint && key.differsOnlyByEffectTranslation(from: old.key)
             if valid && (old.key == key || translated) {
@@ -579,7 +587,7 @@ extension Frame {
                 why.append("transaction")
             }
         }
-        if !old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) { why.append("versions") }
+        if !retainedVersionsUnchanged(old.versions) { why.append("versions") }
         if underPointer { why.append("pointer/press/focus") }
         print("retained miss \(sbPath(build.key.id).suffix(60)) \(why)")
     }
@@ -599,12 +607,19 @@ extension Frame {
         record.prepaint = phase.ledger
         record.contentSerial = phase.entry.serial
         let ops = log.scene[from.scene..<to.scene]
-        record.scene = ops.filter { $0.boundary == recorder.entryHeight }
+        // `PA-H`: loops, not closures through stdlib generics (a dynamic isolation check each), into reserved arrays.
+        record.scene.reserveCapacity(ops.count)
+        for op in ops where op.boundary == recorder.entryHeight { record.scene.append(op) }
         // The final stream is valid only when every outer scope is a plain effect: a pure map of the leaf
         // by parameters the key holds. A shadow, blur, composite, capture or barrier outside needs the
         // leaves handed to it.
-        if paintScopes.allSatisfy({ $0.kind == .effect }) {
-            record.finalScene = ops.filter { $0.boundary == 0 }
+        var allEffects = true
+        for scope in paintScopes where scope.kind != .effect { allEffects = false; break }
+        if allEffects {
+            var final: [RetainLog.SceneOp] = []
+            final.reserveCapacity(ops.count)
+            for op in ops where op.boundary == 0 { final.append(op) }
+            record.finalScene = final
         }
         record.marks = Array(log.marks[from.marks..<to.marks])
         record.touches = Array(log.touches[from.touches..<to.touches])

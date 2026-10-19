@@ -113,7 +113,9 @@ extension LayoutPass {
         // Stage 2 (ruling LR-AQ): every record this container receives is consumed,
         // whether or not a field of it lowers — and whether or not this container
         // itself reports.
-        let received = children.map { frame.lowering.consume($0) }
+        var received: [LoweredItem?] = []
+        received.reserveCapacity(children.count)  // `PA-H`: a loop, not a closure through a stdlib generic
+        for child in children { received.append(frame.lowering.consume(child)) }
         var fields = legacyContainerDiagnostics(declared, childCount: children.count, site: site)
         // (`display: none` was reported alone here and recorded no item, ruling LR-J,
         // until stage 6b: `lowerLegacyNode` now lowers a hidden node as if shown,
@@ -320,7 +322,9 @@ extension LayoutPass {
         // declared, and a two-member one (2 → 1) into the reverse.
         let undroppedCount = children.count
         let children = frame.lowering.droppingPresentations(children)
-        let received = children.map { frame.lowering.consume($0) }
+        var received: [LoweredItem?] = []
+        received.reserveCapacity(children.count)  // `PA-H`: a loop, not a closure through a stdlib generic
+        for child in children { received.append(frame.lowering.consume(child)) }
         var fields = legacyFrameLayerDiagnostics(layer, declared: declared, childCount: undroppedCount)
         // A frame is a stack (`CN-N`): it stretches nothing (its `FrameSpec.style()`
         // alignment is never `stretch`) and ignores its children's flex fields. A
@@ -948,15 +952,17 @@ extension LayoutPass {
         // The weights check (LR-AE): every growing sibling's declared factor.
         var weightsReported = false
         if case .flex = parentKind {
-            let factors = Set(received.compactMap { $0 }
-                .filter { $0.kind != .frameLayer && $0.declared.flexGrow > 0 }
-                .map(\.declared.flexGrow))
+            var factors = Set<Float>()  // `PA-H`: one loop in place of compactMap/filter/map
+            for case let item? in received where item.kind != .frameLayer && item.declared.flexGrow > 0 {
+                factors.insert(item.declared.flexGrow)
+            }
             if factors.count > 1 {
                 fields.append(UnlowerableField(site: parentSite, field: "flexGrow.weights"))
                 weightsReported = true
             }
         }
         var plans: [LegacyItemPlan] = []
+        plans.reserveCapacity(received.count)  // `PA-H`
         for item in received {
             var plan = LegacyItemPlan()
             guard let item else {
@@ -1147,6 +1153,7 @@ extension LayoutPass {
     /// place.
     func registerLegacyItems(_ children: [LayoutNodeID], _ plans: [LegacyItemPlan]) -> [LayoutNodeID] {
         var nodes: [LayoutNodeID] = []
+        nodes.reserveCapacity(children.count)  // `PA-H`
         for (child, plan) in zip(children, plans) {
             var node = child
             if let horizontal = plan.fixedSizeHorizontal {

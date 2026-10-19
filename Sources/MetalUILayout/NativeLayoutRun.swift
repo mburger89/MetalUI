@@ -158,6 +158,25 @@ final class NativeLayoutRun {
 struct NativeMeasurementKey: Hashable {
     let id: LayoutNodeID
     let proposal: ProposedSize
+
+    /// One folded word instead of the synthesized five (`PA-K`): equal keys fold equal (`-0.0` is `0.0`, a `nil`
+    /// axis its own word), unequal keys may collide and `==` decides.
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(UInt64(truncatingIfNeeded: id.index) &* 0x9E37_79B9_7F4A_7C15 ^ proposal.foldedHashWord)
+    }
+}
+
+extension ProposedSize {
+    /// The two axes folded into one word for a cheap `hash(into:)` (`PA-K`); consistent with `==`.
+    @inline(__always)
+    var foldedHashWord: UInt64 {
+        @inline(__always) func word(_ axis: Double?) -> UInt64 {
+            guard let axis else { return 0x7FF8_0000_DEAD_BEEF }
+            return axis == 0 ? 0 : axis.bitPattern
+        }
+        let h = word(height) &* 0xC2B2_AE3D_27D4_EB4F
+        return word(width) &* 0x1656_67B1_9E37_79F9 ^ (h << 32 | h >> 32)
+    }
 }
 
 /// The work one native layout call did (ruling SA-M): a test observable,

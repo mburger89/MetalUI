@@ -286,3 +286,26 @@ struct CountingElement: Element {
     #expect(table.isLive(bID))
     #expect(table.count == 2, "both the live entry and the tombstone are retained")
 }
+
+/// `PA-E`: `mark` writes through `index(forKey:)`. A present entry becomes live (after a sweep that left it a
+/// tombstone), and an absent id creates no entry and joins `marked` as before.
+///
+/// Mutations that must redden it: drop the `isLive = true` write (the first `#expect`); replace the guarded write
+/// by `storage[id] = Entry(...)` (the absent arm's `count`).
+@MainActor
+@Test func aMarkedEntryIsLiveAndAnAbsentOneIsUntouched() {
+    let table = StateTable()
+    table.withState(id("present"), initial: 1) { $0 = 2 }
+    table.sweep()                       // nothing marked since: the entry is a tombstone
+    table.sweep()
+    #expect(!table.isLive(id("present")))
+    table.mark(id("present"))
+    #expect(table.isLive(id("present")), "mark makes a present entry live")
+    #expect(table.peek(id("present"), as: Int.self) == 2, "the value is untouched")
+
+    let before = table.count
+    table.mark(id("absent"))
+    #expect(table.count == before, "an absent id creates no entry")
+    #expect(!table.isLive(id("absent")))
+    #expect(table.peek(id("absent"), as: Int.self) == nil)
+}
