@@ -800,6 +800,9 @@ final class StateTable {
         let seed = initial()
         var result = seed
         withState(id, initial: seed) { result = $0 }
+        // The creating frame's windows read (and keep live) what they created: a record made there that hits later must
+        // validate against this version, and replay this entry's liveness (`RW-E`, `RW-F`).
+        noteLiveRead(id)
         return result
     }
 
@@ -811,6 +814,7 @@ final class StateTable {
                       _ body: (inout S) -> Void) {
         guard let entry = storage[id], let old = entry.value as? S else {
             withState(id, initial: initial(), body)
+            noteLiveRead(id)   // as `readState`'s creation: the window that created the entry names it
             return
         }
         var value = old
@@ -822,6 +826,7 @@ final class StateTable {
         // The body already ran: the plain write stores its result without running it again.
         let result = value
         withState(id, initial: result) { $0 = result }
+        noteLiveRead(id)   // the write taints every open window; a prepaint-only taint still leaves a paint record, which owes the entry its liveness
     }
 
 

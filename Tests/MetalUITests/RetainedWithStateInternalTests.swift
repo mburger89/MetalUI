@@ -91,11 +91,14 @@ private func rwID(_ names: String...) -> GlobalElementID {
     table.withState(read, initial: 0, unchanged: { $0 == $1 }) { _ in }
     #expect(table.readJournal.count == 3, "an unchanged compared write is a read too")
     table.withState(read, initial: 0, unchanged: { $0 == $1 }) { $0 = 5 }
-    #expect(table.readJournal.count == 3, "a changed one is a write, not a read")
+    #expect(table.readJournal.count == 4, "a changed one is a write, then names the entry at its new version")
+    let created = rwID("created")
+    _ = table.readState(created, initial: 3)
+    #expect(table.readJournal.last == created, "a creating read names the entry it created (a record made then must validate against it)")
 
-    // Only the read entry was marked: after a sweep it is live, the peeked one is not.
+    // Only the read entries were marked: after a sweep they are live, the peeked one is not.
     table.sweep()
-    #expect(table.isLive(read), "a read keeps its entry live")
+    #expect(table.isLive(read) && table.isLive(created), "a read keeps its entry live, a creating read too")
     #expect(!table.isLive(idle), "a peek does not mark")
     #expect(table.readJournal.isEmpty, "the journal is per frame")
 

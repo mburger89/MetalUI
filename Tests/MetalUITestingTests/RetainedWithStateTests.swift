@@ -83,49 +83,53 @@ private enum RWMode: String, CaseIterable, CustomTestStringConvertible {
     var testDescription: String { rawValue }
 }
 
-/// A leaf whose width is ten times its state, drawn as a rectangle of alpha a tenth of it: the state is read in layout,
-/// prepaint and paint through the mode's spelling, so a stale replay of any phase shows.
+/// The phase(s) a probe reads its state in: only there, so a read set that leaves one window out shows as a stale replay.
+private enum RWPhase: String, CaseIterable, CustomTestStringConvertible {
+    case layout, prepaint, paint, all
+    var testDescription: String { rawValue }
+    func reads(_ other: RWPhase) -> Bool { self == .all || self == other }
+}
+
+/// A leaf whose width is ten times its state and whose rectangle's alpha is a tenth of it, the state read through the mode's spelling
+/// in the phase(s) `phase` names (layout feeds the width, paint the alpha, prepaint nothing visible: a miss is its only trace).
 private struct RWLeaf: Element {
     let mode: RWMode
     let ids: RWIDs
+    var phase: RWPhase = .all
     var elementID: ElementID? { nil }
+
+    private func value(_ id: GlobalElementID, layout: LayoutPass?, prepaint: PrepaintPass?, paint: PaintPass?) -> Int {
+        var out = 0
+        switch mode {
+        case .readOnly:
+            if let layout { out = layout.readState(id, initial: 1) }
+            if let prepaint { out = prepaint.readState(id, initial: 1) }
+            if let paint { out = paint.readState(id, initial: 1) }
+        case .compared:
+            if let layout { layout.withState(id, initial: 1, unchanged: { $0 == $1 }) { out = $0 } }
+            if let prepaint { prepaint.withState(id, initial: 1, unchanged: { $0 == $1 }) { out = $0 } }
+            if let paint { paint.withState(id, initial: 1, unchanged: { $0 == $1 }) { out = $0 } }
+        case .plainWrite:
+            if let layout { layout.withState(id, initial: 1) { out = $0 } }
+            if let prepaint { prepaint.withState(id, initial: 1) { out = $0 } }
+            if let paint { paint.withState(id, initial: 1) { out = $0 } }
+        }
+        return out
+    }
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         ids.id = id; ids.layouts += 1
-        let v = Double(read(id, layout: pass))
+        let v = phase.reads(.layout) ? Double(value(id, layout: pass, prepaint: nil, paint: nil)) : 1
         return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10 * v, height: 20)) }.layoutNodeID, ())
     }
 
-    private func read(_ id: GlobalElementID, layout pass: LayoutPass) -> Int {
-        switch mode {
-        case .readOnly: return pass.readState(id, initial: 1)
-        case .compared:
-            var out = 0
-            pass.withState(id, initial: 1, unchanged: { $0 == $1 }) { out = $0 }
-            return out
-        case .plainWrite:
-            var out = 0
-            pass.withState(id, initial: 1) { out = $0 }
-            return out
-        }
-    }
-
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
-        switch mode {
-        case .readOnly: _ = pass.readState(id, initial: 1)
-        case .compared: pass.withState(id, initial: 1, unchanged: { $0 == $1 }) { _ in }
-        case .plainWrite: pass.withState(id, initial: 1) { _ in }
-        }
+        if phase.reads(.prepaint) { _ = value(id, layout: nil, prepaint: pass, paint: nil) }
     }
 
     func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
         ids.paints += 1
-        var v = 0
-        switch mode {
-        case .readOnly: v = pass.readState(id, initial: 1)
-        case .compared: pass.withState(id, initial: 1, unchanged: { $0 == $1 }) { v = $0 }
-        case .plainWrite: pass.withState(id, initial: 1) { v = $0 }
-        }
+        let v = phase.reads(.paint) ? value(id, layout: nil, prepaint: nil, paint: pass) : 1
         pass.fill(bounds, color: Hsla(h: 0.5, s: 0.5, l: 0.5, a: Float(v) / 10))
     }
 }
@@ -133,14 +137,15 @@ private struct RWLeaf: Element {
 private struct RWCard: Component, @MainActor Equatable {
     let mode: RWMode
     let ids: RWIDs
-    var content: some ElementGroup { RWLeaf(mode: mode, ids: ids) }
-    static func == (l: RWCard, r: RWCard) -> Bool { l.mode == r.mode && l.ids === r.ids }
+    var phase: RWPhase = .all
+    var content: some ElementGroup { RWLeaf(mode: mode, ids: ids, phase: phase) }
+    static func == (l: RWCard, r: RWCard) -> Bool { l.mode == r.mode && l.ids === r.ids && l.phase == r.phase }
 }
 
-@MainActor private func rwWindow(_ mode: RWMode, retained: Bool = true) throws -> (TestWindow, RWIDs) {
+@MainActor private func rwWindow(_ mode: RWMode, phase: RWPhase = .all, retained: Bool = true) throws -> (TestWindow, RWIDs) {
     let ids = RWIDs()
     let window = try TestWindow(size: sz(300, 100), textSystem: harnessTextSystem) {
-        VStack(spacing: 4) { RWCard(mode: mode, ids: ids).equatable() }
+        VStack(spacing: 4) { RWCard(mode: mode, ids: ids, phase: phase).equatable() }
     }
     window.window.testingRetainedSubtrees = retained
     return (window, ids)
@@ -157,17 +162,28 @@ private struct RWCard: Component, @MainActor Equatable {
     return (r.background.a, r.bounds.size.width)
 }
 
+private let rwCases: [(RWMode, RWPhase)] = [(.readOnly, .layout), (.readOnly, .prepaint), (.readOnly, .paint), (.readOnly, .all), (.compared, .all)]
+
 /// **The mechanism, end to end** (`RW-B`, `RW-C`, `RW-D`; no call site converted): an element that only reads its state in
 /// layout, prepaint and paint replays every frame once its entry exists, and **an input write to the entry misses on the
 /// version** and draws the new value in all three phases, as a retention-off twin does. A compared write with an equal value is a
 /// read (same hits); the plain `withState` stays ineligible by name. **Red before:** `readState` does not exist.
-/// **Mutations:** the build window's reads left out of `record.versions` (stale width); the paint window's (stale alpha);
-/// `readState` bumping (never a hit); `noteRead` not journaling in `peek`... (see test 2).
-@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [RWMode.readOnly, RWMode.compared]) @MainActor
-private func aReadOnlyOccurrenceReplaysAndAnInputWriteToItsStateMisses(mode: RWMode) throws {
-    let (window, ids) = try rwWindow(mode)
-    let (twin, twinIDs) = try rwWindow(mode, retained: false)
+/// Arms: the state read in layout only, prepaint only, paint only, all three, and the compared spelling. **Mutations:** the build
+/// window's reads (`phase.build.reads`) left out of `record.versions` reddens the layout arm (a stale width), the prepaint
+/// window's (`phase.prepaintReads`) the prepaint arm (a replay where the twin misses), the paint window's the paint arm (a stale
+/// alpha); `readState` bumping the version reddens every arm (never a hit); the graft's `stateReads` check is covered by
+/// the layout arm with `old.versions` mutated away too.
+@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: rwCases.map { "\($0.0.rawValue)/\($0.1.rawValue)" }) @MainActor
+private func aReadOnlyOccurrenceReplaysAndAnInputWriteToItsStateMisses(label: String) throws {
+    let (mode, phase) = try #require(rwCases.first { "\($0.0.rawValue)/\($0.1.rawValue)" == label })
+    let (window, ids) = try rwWindow(mode, phase: phase)
+    let (twin, twinIDs) = try rwWindow(mode, phase: phase, retained: false)
     var f = FrameWork()
+    for _ in 0..<2 { _ = rwDraw(window); _ = rwDraw(twin) }
+    // The entry was created in the first frame (a write, `RW-F`), so a record made then may lack a prepaint ledger (a record that
+    // hits keeps what it was made with): an input write of the same value makes the next two frames record whole.
+    window.window.testingWriteState(try #require(ids.id), 1)
+    twin.window.testingWriteState(try #require(twinIDs.id), 1)
     for _ in 0..<4 { f = rwDraw(window); _ = rwDraw(twin) }
     #expect(f.retainedHits == 1 && f.retainedMisses == 0 && f.retainedIneligible == 0 && f.retainedIneligibleReasons.isEmpty,
             "steady: hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible) \(f.retainedIneligibleReasons)")
@@ -180,20 +196,49 @@ private func aReadOnlyOccurrenceReplaysAndAnInputWriteToItsStateMisses(mode: RWM
     #expect(window.window.testingStateVersion(id) == version, "a replayed frame writes nothing")
     #expect(window.window.testingStateIsLive(id), "the entry stays live across replays")
 
-    // An input write: the next frame misses on the version and draws 4, in layout and paint alike.
+    // An input write: the next frame misses on the version and draws 4 where the phase read it.
     window.window.testingWriteState(id, 4)
     twin.window.testingWriteState(try #require(twinIDs.id), 4)
     f = rwDraw(window); _ = rwDraw(twin)
     let rect = try #require(rwRect(window)), want = try #require(rwRect(twin))
-    #expect(rect.alpha == 0.4 && rect.width == 40, "the new state is drawn: \(rect)")
     #expect(rect.alpha == want.alpha && rect.width == want.width, "equals the retention-off twin: \(rect) vs \(want)")
+    if phase.reads(.layout) { #expect(rect.width == 40, "layout read the new state: \(rect)") }
+    if phase.reads(.paint) { #expect(rect.alpha == 0.4, "paint read the new state: \(rect)") }
     #expect(f.retainedHits == 0 && f.retainedMisses == 1, "a miss on the version: hits \(f.retainedHits) misses \(f.retainedMisses)")
     // A record made on a miss covers only its paint (`SB-V`), so the next frame records again and the one after replays.
     f = rwDraw(window); _ = rwDraw(twin)
     #expect(f.retainedHits == 0 && f.retainedMisses == 1, "the frame after a miss records once more: \(f.retainedHits)/\(f.retainedMisses)")
     f = rwDraw(window); _ = rwDraw(twin)
     #expect(f.retainedHits == 1, "replays again: \(f.retainedHits)")
-    #expect(rwRect(window)?.alpha == 0.4 && rwRect(window)?.width == 40)
+    let again = try #require(rwRect(window)), twinAgain = try #require(rwRect(twin))
+    #expect(again.alpha == twinAgain.alpha && again.width == twinAgain.width)
+}
+
+/// **Liveness across replays** (`RW-E`; spec test 6's channel arms, here at the mechanism): an entry that only a replayed window read
+/// stays live and is not reaped, once the table is past its reaping threshold (256 entries, `TB-AH`) and the occurrence has
+/// replayed for a long run of frames. One arm per channel: layout-only reads live through the graft's `.liveState` event,
+/// prepaint-only through the ledger's `liveStates`, paint-only through the record's `lives`. **Mutations (three):** that channel's
+/// replay removed (`reapply`'s `.liveState` arm, `replayPrepaintLedger`'s `touchLive` loop, `replayPaint`'s `touchLive` loop)
+/// reddens its own arm (`isLive` false at once, the entry gone once reaped).
+@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [RWPhase.layout, RWPhase.prepaint, RWPhase.paint]) @MainActor
+private func aReadOnlyEntryStaysLiveAcrossManyReplays(phase: RWPhase) throws {
+    let (window, ids) = try rwWindow(.readOnly, phase: phase)
+    var f = FrameWork()
+    for _ in 0..<2 { _ = rwDraw(window) }
+    let id = try #require(ids.id)
+    window.window.testingWriteState(id, 3)   // an input write: the next frames record whole (ledger and graft included)
+    for index in 0..<300 {   // fillers: the table is past 256 entries, so unmarked stale entries are reaped
+        window.window.testingWriteState(GlobalElementID.child(of: nil, at: index, name: ElementID("rw-filler-\(index)")), index)
+    }
+    for _ in 0..<5 { f = rwDraw(window) }
+    #expect(f.retainedHits == 1 && f.retainedGrafts == 1 && f.retainedPrepaintHits == 1,
+            "steady and fully replayed: hits \(f.retainedHits) grafts \(f.retainedGrafts) prepaint hits \(f.retainedPrepaintHits)")
+    let version = window.window.testingStateVersion(id)
+    #expect(version != 0)
+    for _ in 0..<40 { f = rwDraw(window) }
+    #expect(f.retainedHits == 1, "still replaying: \(f.retainedHits)")
+    #expect(window.window.testingStateVersion(id) == version, "the entry was not reaped and not rewritten")
+    #expect(window.window.testingStateIsLive(id), "the entry is live in the last frame")
 }
 
 /// The plain `withState` is ineligible, by name, at all three counters, whatever the frame count (`RW-C`: a site is
