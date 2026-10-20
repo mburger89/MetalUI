@@ -70,3 +70,41 @@ func anSDLPlatformWithoutTheSDLTraitNamesTheTraitForItsOptionsInitialiser() thro
     #expect(platform.messages.contains("enable the trait 'SDL'"),
             "rejected, but not with the trait's remedy:\n\(platform.output)")
 }
+
+/// **1.6b (`SN-A` item 2, `SN-O`) - the trait-off stub spells `SingleInstance` and
+/// `Options.singleInstance`.** A consumer that forgot the `SDL` trait and calls
+/// the single-instance API reads the trait's remedy, not a missing member.
+/// **Control**: a file that only imports `MetalUISDL` compiles.
+///
+/// Mutation: drop `singleInstance` from the stub `Options` -> "value of type
+/// 'Options' has no member 'singleInstance'" without the remedy -> red.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func theTraitOffStubSpellsSingleInstance() throws {
+    try #require(canTypecheck(module: "MetalUISDL"),
+                 "MetalUISDL is not among the root build's modules (PX-H item 1)")
+    let claim = try typecheckFile("""
+        public func bad() { _ = SingleInstance.claim(id: "com.example.App", forwarding: []) }
+        """, importing: "MetalUISDL")
+    let option = try typecheckFile("""
+        @MainActor public func bad() throws {
+            var options = SDLPlatform.Options.default
+            options.singleInstance = nil
+            _ = try SDLPlatform(options: options)
+        }
+        """, importing: "MetalUISDL")
+    let launch = try typecheckFile("""
+        @MainActor public func bad() throws { _ = try SDLPlatform.launchingSingleInstance(id: "x", forwarding: []) }
+        """, importing: "MetalUISDL")
+
+    print("""
+        1.6b single-instance without the trait: claim succeeded=\(claim.succeeded) messages=[\(claim.messages)]; \
+        option succeeded=\(option.succeeded) messages=[\(option.messages)]; \
+        launch succeeded=\(launch.succeeded) messages=[\(launch.messages)]
+        """)
+
+    for (name, result) in [("claim", claim), ("option", option), ("launch", launch)] {
+        #expect(!result.succeeded, "\(name) must not compile without the SDL trait:\n\(result.output)")
+        #expect(result.messages.contains("enable the trait 'SDL'"),
+                "\(name) rejected, but not with the trait's remedy:\n\(result.output)")
+    }
+}
