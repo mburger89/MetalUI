@@ -80,7 +80,7 @@ summary.
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
-  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-R`), `CB-` (clipboard beyond text:
+  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-S`), `CB-` (clipboard beyond text:
   `2026-10-14-clipboard-types-decisions.md`, next `CB-R`), `IC-` (image cursors, headless SDL launch:
   `2026-10-14-cursors-headless-decisions.md`, next `IC-S`), `IH-` (header-only image read and bounded decode:
   `2026-10-14-image-info-decisions.md`, next `IH-Q`), `PN-` (pan path rasters:
@@ -964,8 +964,8 @@ whether or not anyone awaits it (`GA-E`); `make` is serialized, and `SDLGPUDevic
 window's device. An atomic append is a storage-buffer counter (`GA-G`). App shaders are HLSL built by
 `compile-app-shaders.py` into checked-in `.spv/.msl/.dxil/.json` blobs with `SOURCE.sha256` and found in
 `MetalUIAppShaders` beside the executable (`GA-F`, `docs/packaging.md` 4a). **`ctx.view` records into the frame's own
-buffer and has no submit, cancel, wait or acquire verb** (`GA-H`); the debug guard traps only a typed `waitForIdle` in a
-draw and a pass left open, a raw SDL call and the async verbs are unpinned (`GA-I`, `GA-P`). A new SDL GPU test needs
+buffer and has no submit, cancel, wait or acquire verb** (`GA-H`); the debug guard traps a typed `waitForIdle`, `submitBatch` and
+`fence.wait` in a draw and a pass left open (the async two through a `package` test hook, `GA-R`); a raw SDL call is undetected (`GA-I`). A new SDL GPU test needs
 `armMainRunLoopExitCheck()` on macOS, runs the Linux image on lavapipe and takes `METALUI_REQUIRE_GPU=1` in CI.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
