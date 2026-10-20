@@ -77,11 +77,14 @@ private let diagonal = LinearGradient(colors: [lkRed, lkBlue], startPoint: .topL
         .frame(width: px(40), height: px(50)).clipped())
     let cut = gxImages(clipped.finalizedScene())
     try #require(cut.count == 1, "one image")
-    #expect(cut[0].texture.width == 40 && cut[0].texture.height == 50
-                && gxDescribe(cut[0].image.bounds) == "(80.0, 75.0, 40.0×50.0)",
-            "the visible 40 × 50: \(cut[0].texture.width) × \(cut[0].texture.height) \(gxDescribe(cut[0].image.bounds))")
-    #expect(clipped.animationStore.rasters.lastRasterizedPixels == 2000,
-            "2000 pixels: \(clipped.animationStore.rasters.lastRasterizedPixels)")
+    // OS-A: a gradient cut by its clip is rasterized over its whole 40 × 100 extent (4000 pixels,
+    // keyed uncut); the quad's content mask is the visible 40 × 50 (it was the raster, 2000 pixels).
+    #expect(cut[0].texture.width == 40 && cut[0].texture.height == 100
+                && gxDescribe(cut[0].image.bounds) == "(80.0, 50.0, 40.0×100.0)"
+                && gxDescribe(cut[0].image.contentMask) == "(80.0, 75.0, 40.0×50.0)",
+            "the 40 × 100 raster, visible 40 × 50: \(cut[0].texture.width) × \(cut[0].texture.height) \(gxDescribe(cut[0].image.bounds)) \(gxDescribe(cut[0].image.contentMask))")
+    #expect(clipped.animationStore.rasters.lastRasterizedPixels == 4000,
+            "4000 pixels: \(clipped.animationStore.rasters.lastRasterizedPixels)")
 }
 
 // MARK: - 3.13, 3.14 (GX-K)

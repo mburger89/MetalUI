@@ -89,7 +89,8 @@ summary.
   `2026-10-14-environment-epoch-decisions.md`, next `EE-P`), `SN-` (single-instance launch on SDL:
   `2026-10-19-single-instance-decisions.md`, next `SN-Q`), `RW-` (retained read-only state:
   `2026-10-19-retained-withstate-decisions.md`, next `RW-U`), `MO-` (memo and retained observation off the main thread:
-  `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), …; the full
+  `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), `OS-` (raster overscan, pooled rasterizer scratch:
+  `2026-10-20-raster-overscan-decisions.md`, next `OS-Q`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -104,7 +105,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **158 live, next label 206** (455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK and SI, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK, SI and RO, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -124,7 +125,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-20, `perf/retained-withstate` from `f557d339`, merged with master `fa6464ba` (§123 memo observation off the main thread): 4000 tests, 0 goldens, 249 typecheck guards** (master's 3978 + 22 tests, 248 + guard `RW.1`; re-measured by the orchestrator on the merged tree, record §121). Before it,
+- **Counts (2026-10-20, `perf/raster-overscan` from `4d91f27f`, merged with master `711ab9c4` (§121, §123, §125): 4015 tests expected unlocked (4006 run with `AppKitPresentationTests` skipped on a locked screen), 0 goldens, 249 typecheck guards** (master's 4000 + 15 tests (lane 1's 10, lane 2's 5), no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native run `--skip AppKitPresentationTests` 0 issues, `FR-J no-argument frame: succeeded=true`; also 3977 before the merge under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; inventory and undocumented scripts print nothing; no public declaration, census unmoved; the fourteen images 0 px against `4d91f27f` at the lanes, not re-taken after the merge; Linux image `MetalUIPathTests` and the portable tests passed at lane 2; unlocked re-take, the verify-switch re-take and the default-build-system warning re-take owed after the merge** (record §124). Before it,
+  **(2026-10-20, `perf/retained-withstate` from `f557d339`, merged with master `fa6464ba` (§123 memo observation off the main thread): 4000 tests, 0 goldens, 249 typecheck guards** (master's 3978 + 22 tests, 248 + guard `RW.1`; re-measured by the orchestrator on the merged tree, record §121). Before it,
   **(2026-10-19, `perf/retained-withstate` from `f557d339`, merged with master `4d91f27f` (§122 single instance): 3993 tests, 0 goldens, 249 typecheck guards** (master's 3971 + 22 tests, 248 + guard `RW.1`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, 0 issues, in **4 suites**, `FR-J no-argument frame: succeeded=true`; also 3993 passed with `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; `swift build --build-tests` on the default build system 0 `warning:`; inventory and undocumented scripts print nothing, census +2 (`FrameWork.retainedIneligibleReasons`, the demo model's `reasons`); the fourteen images 0 px against `f557d339`; Linux image `MetalUITestingTests` 363 and the Layout/Core/CrossPlatform tests passed, `Backends/SDL` untouched; no divergence label taken; record §121). Before it,
   **(2026-10-19, `fix/memo-observation-thread` from `4d91f27f`: 3978 tests, 0 goldens, 248 typecheck guards** (3971 + 7, no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; no public declaration, no divergence label taken; verify switches, default-build warnings, the fourteen images and the Linux image re-take owed after the final commit, two pins unproven, record §123 §6). Before it,
   **(2026-10-19, `feat/single-instance` from `ffbabb5c`: 3971 tests, 0 goldens, 248 typecheck guards** (3970 + 1, 247 + guard 1.6b; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 215 on macOS, 30 + 212 in the Linux image; the fourteen images 0 px against `ffbabb5c`; no root declaration, census unmoved; no divergence label taken; Windows transport compiled by CI only; record §122). Before it,
@@ -276,7 +278,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -803,8 +805,8 @@ public `MetalUITesting` field, no divergence (labels 515–524 untouched), no Sw
 area ≤ `RasterAnchor.overscanLimit` (2^20) and lies within half the target's size of it on every side is rasterized over `E`
 and keyed `.uncut`, **not by its clip**: the image's content mask cuts at draw time, so a whole-device-pixel pan across a
 `.clipped()` edge hands back the same `ImageTexture` and rasterizes 0 pixels (`PN-A`, `PN-B`; amends `PF-J` item 2 for paths only,
-bytes measured equal, T2). A placed mask wholly outside the clip draws no image (`PN-G`). Mode 3, shadows, blurs and gradients
-keep today's keys (`PN-C`; overscan for them is P3b). `RasterCache.tint` zero-fills and multiplies only the 8-byte words holding
+bytes measured equal, T2). A placed mask wholly outside the clip draws no image (`PN-G`). Mode 3 keeps today's keys (`PN-C`); shadows, blurs and full
+gradients took the same overscan in `OS-` (below). `RasterCache.tint` zero-fills and multiplies only the 8-byte words holding
 coverage, byte for byte the reference loop (`RasterCache.lastTintedPixels` counts the pixels multiplied, `PN-D`); R8 coverage with a
 shader tint is not built (P3c, `TE-AD`). A cubic whose endpoint moves and a sub-pixel pan miss by design (`PN-E`). Pins count work
 (`PanRasterTests`).
@@ -818,6 +820,18 @@ loops of the kernel and build do not allocate per node: `roundedRect(_:)` is the
 is thread-filtered (`countAllocations`, Darwin only), differential and floor-corrected**: a debug build logs several events per
 `malloc` and allocates per `for-in` turn (`PA-J`, `PA-O`, `PA-Q`); release allocation figures are dated measurements, not pins.
 Deferred: `AmbientKey` reshape (C14-c), array-indexed measure cache (P3); the isolation-site share is unre-measured after the loops.
+
+**Raster overscan and the pooled scratch (`OS-`, record §124).** Value-identical, no public API, no divergence (labels 545–554 untouched).
+`shadowImage`, `blurImage` and the full `gradientImage` call `RasterAnchor.overscanned` as `pathImage` does (`PN-A`; `OS-A`): rastered over
+the kind's conservative extent `E` (`RasterAnchor.shadowExtent`/`blurExtent`/`gradientExtent`, the expressions the keys already held, nested
+reach and `BoxBlur.padding` included), keyed `.uncut`, the image's content mask cutting at draw time, so a whole-device-pixel pan across a
+`.clipped()` edge hands back the same `ImageTexture` and rasterizes 0 pixels. Same predicate and `overscanLimit` as paths (`OS-D`); **mode 3
+(a local mask) and the gradient strip keep today's keys** (`OS-E`, `OS-G`; S7 characterizes the miss). **A pin that reads a raster's bounds
+reads the extent `E`, not the clip.** `RGBALayer.init(mask:color:)` returns `.empty` for an empty mask (`OS-N`, a latent
+`0×12 has a zero side` trap). **`RasterScratch`** (`MetalUIPath`, `package`, imports nothing) is one reusable cell buffer and three `Int32`
+buffers owned by `RasterCache` and borrowed `inout` per call, zero-filled on take, an over-`2^22` buffer dropped on return, empty while out so
+a nested raster cannot alias (`OS-L`); a call site never holds `&cache.scratch` across a `make` closure. Its win is memory traffic
+(allocated bytes -20.6 % on `shadow-drag`), **not time** (`OS-P`). Pins count work, never time (`RasterOverscanTests`, `RasterScratchTests`).
 
 **Memo observation off the main thread (`MO-`, record §123).** An `.equatable()` occurrence's decision flags (`stale`, `observedChange`, the
 serials a handler compares, a monotonic `changes`) live in one **locked** `MemoFlags` per entry (and per `RetainedSession` for its serial) and

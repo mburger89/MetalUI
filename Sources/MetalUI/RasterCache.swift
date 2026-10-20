@@ -168,6 +168,11 @@ final class RasterCache {
         let retained: [AnyObject]
     }
 
+    /// The rasterizer's working buffers (`OS-H`): borrowed `inout` for exactly one `rasterize`/`blur` call, never
+    /// across a `make` closure or a nested leaf (`OS-L`); zero-filled on every take, capped at
+    /// `RasterScratch.capacityLimit`. One per window with its cache, on the main actor.
+    var scratch = RasterScratch()
+
     private var coverage: [RasterKey: Coverage] = [:]
     private var tinted: [TintKey: Tinted] = [:]
     private var images: [RasterKey: Image] = [:]
@@ -435,7 +440,7 @@ enum RasterMath {
                              cache: RasterCache) -> AlphaMask {
         var rasterizer = CoverageRasterizer()
         let mask = PathRaster.fill(roundedRect(b, radii), rule: .nonZero, transform: map.pathAffine, clip: clip,
-                                   rasterizer: &rasterizer)
+                                   rasterizer: &rasterizer, scratch: &cache.scratch)
         cache.noteRasterized(rasterizer.lastRasterizedPixels)
         return mask
     }
@@ -550,10 +555,10 @@ extension Frame {
             switch paint.mode {
             case let .fill(rule, antialiased):
                 coverage = PathRaster.fill(geometry, rule: rule, transform: map, clip: clip,
-                                           antialiased: antialiased, rasterizer: &rasterizer)
+                                           antialiased: antialiased, rasterizer: &rasterizer, scratch: &cache.scratch)
             case let .stroke(style):
                 coverage = PathRaster.stroke(geometry, style: style, transform: map, clip: clip,
-                                             rasterizer: &rasterizer)
+                                             rasterizer: &rasterizer, scratch: &cache.scratch)
             }
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             return placement.applyingLocalMask(coverage, cache: cache)

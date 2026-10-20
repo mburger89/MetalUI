@@ -22,6 +22,14 @@ package struct CoverageRasterizer: Sendable {
     /// Every polyline filled as a closed polygon (an open one closes, PA6).
     package mutating func rasterize(_ polygons: [Polyline], rule: FillRule, clip: RasterRect,
                                     antialiased: Bool = true) -> AlphaMask {
+        var scratch = RasterScratch()
+        return rasterize(polygons, rule: rule, clip: clip, antialiased: antialiased, scratch: &scratch)
+    }
+
+    /// As above, with the winding cells taken from `scratch` (zero-filled) and handed back afterwards.
+    /// `scratch` is borrowed for this call only (`OS-L`).
+    package mutating func rasterize(_ polygons: [Polyline], rule: FillRule, clip: RasterRect,
+                                    antialiased: Bool = true, scratch: inout RasterScratch) -> AlphaMask {
         lastRasterizedPixels = 0
         var minX = Double.infinity, minY = Double.infinity, maxX = -Double.infinity, maxY = -Double.infinity
         for polygon in polygons where polygon.points.count > 2 {
@@ -34,7 +42,7 @@ package struct CoverageRasterizer: Sendable {
         lastRasterizedPixels = rect.area
         let w = rect.width, h = rect.height
         let stride = w + 2
-        var cells = [Double](repeating: 0, count: stride * h)
+        var cells = scratch.takeCells(count: stride * h)
         let ox = Double(rect.x), oy = Double(rect.y), wd = Double(w)
         for polygon in polygons where polygon.points.count > 2 {
             let points = polygon.points
@@ -65,6 +73,7 @@ package struct CoverageRasterizer: Sendable {
                 }
             }
         }
+        scratch.returnCells(cells)
         return AlphaMask(rect: rect, alpha: alpha)
     }
 
@@ -171,8 +180,18 @@ package enum PathRaster {
                              clip: RasterRect, antialiased: Bool = true,
                              tolerance: Double = Flattener.defaultTolerance,
                              rasterizer: inout CoverageRasterizer) -> AlphaMask {
+        var scratch = RasterScratch()
+        return fill(geometry, rule: rule, transform: transform, clip: clip, antialiased: antialiased,
+                    tolerance: tolerance, rasterizer: &rasterizer, scratch: &scratch)
+    }
+
+    /// As above, the winding cells borrowed from `scratch` for the one call (`OS-L`).
+    package static func fill(_ geometry: PathGeometry, rule: FillRule, transform: PathAffine = .identity,
+                             clip: RasterRect, antialiased: Bool = true,
+                             tolerance: Double = Flattener.defaultTolerance,
+                             rasterizer: inout CoverageRasterizer, scratch: inout RasterScratch) -> AlphaMask {
         let lines = Flattener.flatten(geometry.applying(transform), tolerance: tolerance)
-        return rasterizer.rasterize(lines, rule: rule, clip: clip, antialiased: antialiased)
+        return rasterizer.rasterize(lines, rule: rule, clip: clip, antialiased: antialiased, scratch: &scratch)
     }
 
     /// `geometry` stroked with `style` in its own space, then mapped by
@@ -182,12 +201,21 @@ package enum PathRaster {
     package static func stroke(_ geometry: PathGeometry, style: StrokeParameters, transform: PathAffine = .identity,
                                clip: RasterRect, tolerance: Double = Flattener.defaultTolerance,
                                rasterizer: inout CoverageRasterizer) -> AlphaMask {
+        var scratch = RasterScratch()
+        return stroke(geometry, style: style, transform: transform, clip: clip, tolerance: tolerance,
+                      rasterizer: &rasterizer, scratch: &scratch)
+    }
+
+    /// As above, the winding cells borrowed from `scratch` for the one call (`OS-L`).
+    package static func stroke(_ geometry: PathGeometry, style: StrokeParameters, transform: PathAffine = .identity,
+                               clip: RasterRect, tolerance: Double = Flattener.defaultTolerance,
+                               rasterizer: inout CoverageRasterizer, scratch: inout RasterScratch) -> AlphaMask {
         let scale = transform.linearScale
         let localTolerance = scale > 1e-9 ? tolerance / scale : tolerance
         let lines = Flattener.flatten(geometry, tolerance: localTolerance)
         let outlines = Stroker.stroke(lines, style, tolerance: localTolerance).map { outline in
             Polyline(points: outline.points.map { transform.apply($0) }, closed: true)
         }
-        return rasterizer.rasterize(outlines, rule: .nonZero, clip: clip)
+        return rasterizer.rasterize(outlines, rule: .nonZero, clip: clip, scratch: &scratch)
     }
 }

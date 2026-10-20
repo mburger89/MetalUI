@@ -452,13 +452,14 @@ private func kindName(_ kind: CapturedPrimitive.Kind) -> String {
 
 // MARK: - L1.6 (PF-B, PF-J): a cut raster misses
 
-/// **L1.6** (`PF-B` item 2, `PF-J`). A shadow cut by a `.clipped()` box keeps
-/// today's clipped key: dragged by whole pixels it re-rasterizes every frame,
-/// and its image stays cut at the clip's edge (x 100). Two fixtures: a crisp
-/// shadow whose offset crosses the edge, and a blurred one where only the
-/// blur's padding crosses it. Mutations **M1d** (always uncut), **M1e** (`E`
-/// without the blur's padding: the second fixture hits and draws past 100).
-@Test @MainActor func aShadowCutByItsClipIsRasterizedOnEveryMove() throws {
+/// **L1.6** (`PF-B` item 2, `PF-J`, amended by `OS-A`, record 124). A shadow cut by a
+/// `.clipped()` box was keyed on its clip and re-rasterized on every move; it is now rasterized
+/// once over its extent, keyed uncut and cut at draw time, so a whole-pixel drag hits (0 pixels
+/// after frame 1) and what draws stays inside the clip's edge (x 100: the image's content mask).
+/// Two fixtures: a crisp shadow whose offset crosses the edge, and a blurred one where only the
+/// blur's padding crosses it. The `E`-too-small mutations are S4's (a cut raster over a short
+/// `E` differs inside the clip); the cold-pixel equality is S5's.
+@Test @MainActor func aShadowCutByItsClipIsRasterizedOnceAndCutAtDrawTime() throws {
     func tree(_ x: Float, radius: Float, offset: Float) -> some Element {
         Color(.accent).frame(width: px(40), height: px(40))
             .shadow(color: .textPrimary, radius: px(radius), x: px(offset), y: px(offset))
@@ -471,18 +472,20 @@ private func kindName(_ kind: CapturedPrimitive.Kind) -> String {
         for i in 0..<4 {
             let w = render(h, tree(start + Float(i), radius: radius, offset: offset))
             try #require(w.images.count == 1, "radius \(radius) frame \(i + 1): one shadow")
-            let b = w.images[0].image.bounds
+            let b = visibleBounds(w.images[0].image)
             #expect(b.origin.x + b.size.width == 100, "radius \(radius) frame \(i + 1): cut at 100: \(gxDescribe(b))")
-            #expect(w.rasterized > 0, "radius \(radius) frame \(i + 1): re-rasterized: \(w.rasterized)")
+            #expect(i == 0 ? w.rasterized + w.blurred > 0 : w.rasterized + w.blurred == 0,
+                    "radius \(radius) frame \(i + 1): \(w.rasterized) rasterized, \(w.blurred) blurred")
         }
     }
-    // 3.20's literal, unchanged.
+    // 3.20's literal, now the visible part.
     let first = render(TransitionHarness(), tree(70, radius: 0, offset: 10))
-    #expect(gxDescribe(first.images[0].image.bounds) == "(80.0, 40.0, 20.0×40.0)",
-            "cut bounds: \(gxDescribe(first.images[0].image.bounds))")
+    #expect(gxDescribe(visibleBounds(first.images[0].image)) == "(80.0, 40.0, 20.0×40.0)",
+            "cut bounds: \(gxDescribe(visibleBounds(first.images[0].image)))")
 }
 
-/// **L1.6b** (`PF-J` item 1; lane 1 verifier's issues 1 and 2). Two more cut
+/// **L1.6b** (`PF-J` item 1; lane 1 verifier's issues 1 and 2; amended by `OS-A`, record 124:
+/// they now hit after frame 1 and draw inside 100 through the content mask). Two more cut
 /// fixtures whose extent crosses the clip only through a padding `E` must
 /// hold: a `.blur(radius: 4)` square whose blur padding alone reaches the edge
 /// (mutation **X1**, `blurImage`'s `E` without `BoxBlur.padding`, lets it hit
@@ -491,7 +494,7 @@ private func kindName(_ kind: CapturedPrimitive.Kind) -> String {
 /// `RasterExtent.of`'s nested arms grown by 1, lets the outer raster of the
 /// inner shadow hit and draw past 100). Every frame of a whole-pixel drag
 /// re-rasterizes, and no image passes the clip's edge.
-@Test @MainActor func aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnEveryMove() throws {
+@Test @MainActor func aBlurOrNestedShadowCutOnlyByItsPaddingIsRasterizedOnceAndCutAtDrawTime() throws {
     func clipped(_ e: some Element & ProposalElementGroup, _ x: Float) -> some Element {
         e.padding(Edges(top: px(30), right: px(0), bottom: px(0), left: px(x)))
             .frame(width: px(100), height: px(100), alignment: .topLeading).clipped()
@@ -509,17 +512,18 @@ private func kindName(_ kind: CapturedPrimitive.Kind) -> String {
     for i in 0..<4 {
         let w = render(hb, blurred(48 + Float(i)))
         try #require(w.images.count == 1, "blur frame \(i + 1): one image: \(w.images.count)")
-        let b = w.images[0].image.bounds
+        let b = visibleBounds(w.images[0].image)
         #expect(b.origin.x + b.size.width == 100, "blur frame \(i + 1): cut at 100: \(gxDescribe(b))")
-        #expect(w.rasterized + w.blurred > 0, "blur frame \(i + 1): re-rasterized: \(w.rasterized) \(w.blurred)")
+        #expect(i == 0 ? w.rasterized + w.blurred > 0 : w.rasterized + w.blurred == 0,
+                "blur frame \(i + 1): \(w.rasterized) rasterized, \(w.blurred) blurred")
     }
     let hn = TransitionHarness()
     for i in 0..<4 {
         let w = render(hn, nested(48 + Float(i)))
         try #require(w.images.count == 3, "nested frame \(i + 1): three images: \(w.images.count)")
-        let past = w.images.map(\.image.bounds).filter { $0.origin.x + $0.size.width > 100 }
+        let past = w.images.map { visibleBounds($0.image) }.filter { $0.origin.x + $0.size.width > 100 }
         #expect(past.isEmpty, "nested frame \(i + 1): nothing past 100: \(past.map(gxDescribe))")
-        #expect(w.rasterized > 0, "nested frame \(i + 1): re-rasterized: \(w.rasterized)")
+        #expect(i == 0 ? w.rasterized > 0 : w.rasterized == 0, "nested frame \(i + 1): \(w.rasterized) rasterized")
     }
 }
 

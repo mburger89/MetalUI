@@ -73,6 +73,30 @@ struct RasterAnchor {
         return box.rect(grownBy: 1)
     }
 
+    /// A shadow's conservative device extent (`PF-J` item 1, `OS-B`): the leaf
+    /// under the offset map, grown by the blur's reach and a pixel.
+    static func shadowExtent(_ paint: ShadowPaint, full: Affine2D) -> RasterRect {
+        let ox = full.a * paint.dx + full.c * paint.dy, oy = full.b * paint.dx + full.d * paint.dy
+        let pad = BoxBlur.padding(sigma: paint.radius * full.linearScale) + 1
+        return RasterExtent.of(paint.leaf, map: Affine2D.translation(x: ox, y: oy).concatenating(full))
+            .rect(grownBy: pad)
+    }
+
+    /// A blurred leaf's conservative device extent (`OS-B`): the leaf under
+    /// `full` grown by the blur's reach and a pixel.
+    static func blurExtent(_ paint: BlurPaint, full: Affine2D) -> RasterRect {
+        let pad = BoxBlur.padding(sigma: paint.radius * full.linearScale) + 1
+        return RasterExtent.of(paint.leaf, map: full).rect(grownBy: pad)
+    }
+
+    /// A full gradient raster's conservative device extent (`OS-B`): its bounds
+    /// under `outer`, grown by a pixel.
+    static func gradientExtent(_ paint: GradientPaint, outer: Affine2D) -> RasterRect {
+        var box = ExtentBox()
+        box.add(outer.boundingBox(of: paint.bounds))
+        return box.rect(grownBy: 1)
+    }
+
     /// This anchor made `.uncut` for a raster over `extent` instead of `clip`
     /// (`PN-A`, `PN-B`), or `nil` when the clip does not cut, the anchor is a
     /// local mask's, `extent` misses `clip` (the cut raster is empty and draws

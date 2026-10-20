@@ -107,8 +107,10 @@ private let linear1 = Animation.linear(duration: 1)
     let scene = lkScene(square(lkBlack).blur(radius: px(4)).clipped(), side: 100)
     let images = gxImages(scene)
     try #require(images.count == 1, "one image")
-    #expect(gxDescribe(images[0].image.bounds) == "(30.0, 30.0, 40.0×40.0)",
-            "cut to the box: \(gxDescribe(images[0].image.bounds))")
+    // OS-A: the raster is the whole blurred extent; the quad's content mask is the cut (it was
+    // the raster's own bounds, (30, 30, 40×40), before the overscan).
+    #expect(gxDescribe(images[0].image.contentMask) == "(30.0, 30.0, 40.0×40.0)",
+            "cut to the box at draw time: \(gxDescribe(images[0].image.contentMask))")
     for (x, want) in [(26, 255), (28, 255), (30, 115), (32, 67), (34, 32)] {
         let got = lkComposite(scene, Double(x) + 0.5, 50.5)[0]
         #expect(abs(got - want) <= 8, "x \(x): \(got) vs B5 \(want)")

@@ -108,18 +108,21 @@ extension Frame {
         let full = (transform?.affine ?? .identity).concatenating(paint.local)
         // The conservative extent (`PF-J`): the leaf under the offset map,
         // grown by the blur's reach and a pixel.
-        let ox = full.a * paint.dx + full.c * paint.dy, oy = full.b * paint.dx + full.d * paint.dy
-        let pad = BoxBlur.padding(sigma: paint.radius * full.linearScale) + 1
-        let extent = RasterExtent.of(paint.leaf, map: Affine2D.translation(x: ox, y: oy).concatenating(full))
-            .rect(grownBy: pad)
-        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
+        let extent = RasterAnchor.shadowExtent(paint, full: full)
+        var anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
+        // `OS-A`: over the whole extent, keyed uncut; the image's content mask cuts at draw time.
+        var rasterClip = placement.clip
+        if let overscan = anchor.overscanned(extent: extent, clip: placement.clip, target: rasterTarget) {
+            anchor = overscan
+            rasterClip = extent
+        }
         var canonical = paint
         canonical.local = .identity
         if anchor.isCanonical { var moved: [CapturedPrimitive] = []
             moved.reserveCapacity(paint.leaf.count)
             for primitive in paint.leaf { moved.append(primitive.movedCanonically(-rx, -ry)) }
             canonical.leaf = moved }
-        let clip = anchor.canonical(placement.clip)
+        let clip = anchor.canonical(rasterClip)
         var key = RasterKey()
         key.add(2)
         anchor.keyed(&key, clip: clip, placement: placement)
@@ -131,7 +134,9 @@ extension Frame {
             return placement.applyingLocalMask(RasterMath.crop(blurred, to: clip), cache: cache)
         }
         guard !mask.rect.isEmpty else { return nil }
-        return (placement.quad(over: anchor.placed(mask.rect)), cache.texture(for: key, color: paint.color, mask: mask))
+        let placed = anchor.placed(mask.rect)
+        if rasterClip != placement.clip, placed.intersection(placement.clip).isEmpty { return nil }
+        return (placement.quad(over: placed), cache.texture(for: key, color: paint.color, mask: mask))
     }
 
     /// Every number of `paint`'s leaf, for its cache key.
@@ -227,7 +232,7 @@ extension Frame {
             union = AlphaCompositor.union(union, silhouette(q, map: moved, clip: reach, cache: cache))
         }
         guard sigma > 0, !union.rect.isEmpty else { return union }
-        let blurred = BoxBlur.blur(union, sigma: sigma)
+        let blurred = BoxBlur.blur(union, sigma: sigma, scratch: &cache.scratch)
         cache.noteBlurred(blurred.rect.area)
         return blurred
     }
@@ -242,7 +247,7 @@ extension Frame {
         var rasterizer = CoverageRasterizer()
         func fill(_ geometry: PathGeometry, _ rule: FillRule = .nonZero, _ transform: Affine2D) -> AlphaMask {
             let mask = PathRaster.fill(geometry, rule: rule, transform: transform.pathAffine, clip: clip,
-                                       rasterizer: &rasterizer)
+                                       rasterizer: &rasterizer, scratch: &cache.scratch)
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             return mask
         }
@@ -317,10 +322,10 @@ extension Frame {
             switch p.mode {
             case let .fill(rule, antialiased):
                 mask = PathRaster.fill(p.geometry, rule: rule, transform: transform, clip: clip,
-                                       antialiased: antialiased, rasterizer: &rasterizer)
+                                       antialiased: antialiased, rasterizer: &rasterizer, scratch: &cache.scratch)
             case let .stroke(style):
                 mask = PathRaster.stroke(p.geometry, style: style, transform: transform, clip: clip,
-                                         rasterizer: &rasterizer)
+                                         rasterizer: &rasterizer, scratch: &cache.scratch)
             }
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             mask = RasterMath.scale(mask, by: p.color.a)
