@@ -5,7 +5,7 @@ Rulings for item C14b-3 of the gpui-gap priority list (user request 2026-10-02; 
 Record: `../record/121-retained-withstate.md` (Record phase). Branch `perf/retained-withstate` from `f557d339`. Divergence labels
 reserved 515–524: **none taken**. One public declaration (`FrameWork.retainedIneligibleReasons`, `MetalUITesting`, class `M`, `RW-M`/`RW-N`), nothing else. No SwiftUI-facing claim, so no probe is owed (`RW-N`).
 
-**Next unused id: `RW-T`.**
+**Next unused id: `RW-U`.**
 
 ## RW-A — The slice: read-only state, scroll, list, unfocused field, closed-popover anchors; surfaces and open presentations carried
 
@@ -264,3 +264,18 @@ counted `requestAnotherFrame`-ineligible, not a miss (`RW-H`); a selectable list
 **Cost if wrong.** (1) a record upgraded on every frame would be a miss per frame: pinned by the kind test (both occurrences read 2
 prepaint hits) and the 300-frame field test; (2) a verify mode that never compares would pass a stale replay: the injected-difference
 arms and the undamaged control both run it.
+
+## RW-T — The Record phase ran lane B's mutations; two pins prove less than their comments said
+
+**Question.** Lane B's verifier ran the clean build and the unfiltered suite but no mutation. Which pins hold?
+**Ruling.** The Record phase mutated each new conversion site and each new pin it could (record 121 §5: `sameScrollState` constant `true` and `false`, `ScrollView`'s
+and `TextField`'s `readState` reverted to a plain write, `ListOrigin.sameEntry` constant `true` and `false`, the ledger's anchors loop dropped, the `RW-S`
+ledger-less upgrade removed, `noteRead` returning early, a plain site added, the bound-selection reconcile constant, the reasons funnel recording `"?"`, two guard
+arms made `public`), on filtered runs of 260 tests, each restored with `git status` clean. **Two findings, recorded not fixed:** (1) `ListOrigin.sameEntry` always
+`true` reddens no RW pin (only the existing `aListWhoseOriginChangesIsReWindowedOnTheNextFrame`): `aListWindowIsAFunctionOfTheStateItReads` is carried by the scroll
+input's own bump (`RW-G`); (2) `noteRead` returning early is seen only by the three unit tests (the record names the entry through another channel in every window
+test). Both are carried with the owner "the next touch of `List` or `RetainedSubtree`" (§9). **Two doc comments corrected:** the orbit pins claimed the funnel mutation
+reddens them; it does not (nothing is refused on those arms), `aPlainWithStateWriteStaysIneligibleByName` and `everyIneligibleOccurrenceIsCountedByItsReason` are the
+instruments. The release orbit frame is **-27.5 %** (3.125 to 2.267 ms, three alternating runs, dated, never pinned); the fourteen images read 0 px; verify mode over the
+whole suite ran with no trap.
+**Cost if wrong.** A `ListOrigin` compared write that lies, or a read the journal drops, survives the RW pins: the existing list tests and verify mode's `unrecordedRead` are the net.

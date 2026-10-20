@@ -3,6 +3,7 @@
 Item C14b-3 of the gpui-gap priority list (user request 2026-10-02; not a plan task), carried by record §109 §11 and §110 §9.
 Rulings: [`../2026-10-19-retained-withstate-decisions.md`](../2026-10-19-retained-withstate-decisions.md) (`RW-`).
 Record: `../../record/121-retained-withstate.md` (Record phase). Branch `perf/retained-withstate` from `f557d339`.
+**Status: LANDED** (two lanes, both verified; record 121, rulings `RW-A`…`RW-T`). Slice as ruled in `RW-A`: items 1, 2, 3 and the anchor half of 4; `GPUSurface` and open presentations carried (`RW-L`, `RW-K`). Built differently from §3 where `RW-R`/`RW-S` say so (frame-long read journal, ledger-less records upgraded, `retainedReadChecks`/`retainedReadMisses` not built). Orbit with panels: requests 115 to 6, release -27.5 %.
 Divergence labels 515–524 reserved: **none taken**. No public declaration but one `MetalUITesting` field (`RW-M`, `RW-N`).
 
 ## 1 Measurement (design phase, `f557d339`, 2026-10-19, headless, counts)
