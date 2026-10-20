@@ -242,10 +242,10 @@ extension Frame {
         switch paint.mode {
         case let .fill(rule, antialiased):
             coverage = PathRaster.fill(paint.geometry, rule: rule, transform: full.pathAffine, clip: clip,
-                                       antialiased: antialiased, rasterizer: &rasterizer)
+                                       antialiased: antialiased, rasterizer: &rasterizer, scratch: &cache.scratch)
         case let .stroke(style):
             coverage = PathRaster.stroke(paint.geometry, style: style, transform: full.pathAffine, clip: clip,
-                                         rasterizer: &rasterizer)
+                                         rasterizer: &rasterizer, scratch: &cache.scratch)
         }
         cache.noteRasterized(rasterizer.lastRasterizedPixels)
         guard let inverse = full.inverted, !coverage.rect.isEmpty else { return .empty }

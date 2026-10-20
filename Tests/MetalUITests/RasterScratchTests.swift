@@ -65,14 +65,14 @@ private let radialFill = RadialGradient(colors: [.red, .blue], center: .center, 
             canonical.local = .identity
             let layer = frame.blurLayer(canonical, full: full, clip: RasterAnchor.blurExtent(paint, full: full), cache: cache)
             for y in layer.rect.y..<layer.rect.maxY {
-                for x in layer.rect.x..<layer.rect.maxX { out += layer.texel(atX: x, y: y).map { $0 } }
+                for x in layer.rect.x..<layer.rect.maxX { let t = layer.texel(atX: x, y: y); out += [UInt8(truncatingIfNeeded: t.0), UInt8(truncatingIfNeeded: t.1), UInt8(truncatingIfNeeded: t.2), UInt8(truncatingIfNeeded: t.3)] }
             }
         case let .gradient(paint):
             let outer = transform?.affine ?? .identity
             let full = outer.concatenating(paint.local)
             let layer = frame.gradientPixels(paint, full: full, clip: RasterAnchor.gradientExtent(paint, outer: outer), cache: cache)
             for y in layer.rect.y..<layer.rect.maxY {
-                for x in layer.rect.x..<layer.rect.maxX { out += layer.texel(atX: x, y: y).map { $0 } }
+                for x in layer.rect.x..<layer.rect.maxX { let t = layer.texel(atX: x, y: y); out += [UInt8(truncatingIfNeeded: t.0), UInt8(truncatingIfNeeded: t.1), UInt8(truncatingIfNeeded: t.2), UInt8(truncatingIfNeeded: t.3)] }
             }
         default: break
         }
@@ -105,7 +105,7 @@ private let radialFill = RadialGradient(colors: [.red, .blue], center: .center, 
 /// instrument is thread-filtered and differential (`PA-J`); the fixed allocations cancel. Mutation: no call
 /// site passes `&cache.scratch` (each uses a fresh scratch).
 @Test @MainActor func aWarmRasterAllocatesNoScratch() throws {
-    for (name, scene, least) in [("shadow", scenes()[1].1, 4), ("gradient", scenes()[4].1, 1)] {
+    for (name, scene, least) in [("shadow", scenes()[0].1, 4), ("gradient", scenes()[4].1, 1)] {
         let h = TransitionHarness()
         var seen: [(CapturedPrimitive.Kind, PrimitiveTransform?)] = []
         h.store.rasters.onRaster = { kind, transform in seen.append((kind, transform)) }

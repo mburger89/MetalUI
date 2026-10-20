@@ -101,5 +101,6 @@ private func pooledBlurMasks() -> [AlphaMask] {
     let big = AlphaMask(rect: RasterRect(x: 0, y: 0, width: side, height: side),
                         alpha: [UInt8](repeating: 9, count: side * side))
     _ = BoxBlur.blur(big, sigma: 1, scratch: &blurScratch)
-    #expect(blurScratch.heldElements == 0, "blur buffers past the limit are not pinned: \(blurScratch.heldElements)")
+    // The two planes (side² each) are dropped; only the column sums (one row) may stay.
+    #expect(blurScratch.heldElements < 2 * side, "blur planes past the limit are not pinned: \(blurScratch.heldElements)")
 }

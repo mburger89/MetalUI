@@ -162,7 +162,7 @@ extension Frame {
         var layer = RGBALayer.empty
         for q in paint.leaf { layer = layer.under(colourRaster(q, map: full, clip: reach, cache: cache)) }
         guard sigma > 0, !layer.rect.isEmpty else { return layer }
-        let blurred = RGBALayer(channels: (0..<4).map { BoxBlur.blur(layer.channel($0), sigma: sigma) })
+        let blurred = RGBALayer(channels: (0..<4).map { BoxBlur.blur(layer.channel($0), sigma: sigma, scratch: &cache.scratch) })
         cache.noteBlurred(blurred.rect.area)
         return blurred
     }
@@ -176,7 +176,7 @@ extension Frame {
         let m = map.concatenating(q.transform?.affine ?? .identity)
         var rasterizer = CoverageRasterizer()
         func fill(_ geometry: PathGeometry, _ rule: FillRule = .nonZero) -> AlphaMask {
-            let mask = PathRaster.fill(geometry, rule: rule, transform: m.pathAffine, clip: clip, rasterizer: &rasterizer)
+            let mask = PathRaster.fill(geometry, rule: rule, transform: m.pathAffine, clip: clip, rasterizer: &rasterizer, scratch: &cache.scratch)
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             return mask
         }
@@ -250,10 +250,10 @@ extension Frame {
             switch p.mode {
             case let .fill(rule, antialiased):
                 coverage = PathRaster.fill(p.geometry, rule: rule, transform: transform, clip: clip,
-                                           antialiased: antialiased, rasterizer: &rasterizer)
+                                           antialiased: antialiased, rasterizer: &rasterizer, scratch: &cache.scratch)
             case let .stroke(style):
                 coverage = PathRaster.stroke(p.geometry, style: style, transform: transform, clip: clip,
-                                             rasterizer: &rasterizer)
+                                             rasterizer: &rasterizer, scratch: &cache.scratch)
             }
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             layer = RGBALayer(mask: coverage, color: p.color)

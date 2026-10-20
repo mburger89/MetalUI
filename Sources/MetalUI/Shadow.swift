@@ -232,7 +232,7 @@ extension Frame {
             union = AlphaCompositor.union(union, silhouette(q, map: moved, clip: reach, cache: cache))
         }
         guard sigma > 0, !union.rect.isEmpty else { return union }
-        let blurred = BoxBlur.blur(union, sigma: sigma)
+        let blurred = BoxBlur.blur(union, sigma: sigma, scratch: &cache.scratch)
         cache.noteBlurred(blurred.rect.area)
         return blurred
     }
@@ -247,7 +247,7 @@ extension Frame {
         var rasterizer = CoverageRasterizer()
         func fill(_ geometry: PathGeometry, _ rule: FillRule = .nonZero, _ transform: Affine2D) -> AlphaMask {
             let mask = PathRaster.fill(geometry, rule: rule, transform: transform.pathAffine, clip: clip,
-                                       rasterizer: &rasterizer)
+                                       rasterizer: &rasterizer, scratch: &cache.scratch)
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             return mask
         }
@@ -322,10 +322,10 @@ extension Frame {
             switch p.mode {
             case let .fill(rule, antialiased):
                 mask = PathRaster.fill(p.geometry, rule: rule, transform: transform, clip: clip,
-                                       antialiased: antialiased, rasterizer: &rasterizer)
+                                       antialiased: antialiased, rasterizer: &rasterizer, scratch: &cache.scratch)
             case let .stroke(style):
                 mask = PathRaster.stroke(p.geometry, style: style, transform: transform, clip: clip,
-                                         rasterizer: &rasterizer)
+                                         rasterizer: &rasterizer, scratch: &cache.scratch)
             }
             cache.noteRasterized(rasterizer.lastRasterizedPixels)
             mask = RasterMath.scale(mask, by: p.color.a)
