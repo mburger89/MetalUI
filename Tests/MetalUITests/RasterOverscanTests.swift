@@ -254,6 +254,7 @@ private func drawnTexels(_ images: [(image: MUIImage, texture: ImageTexture)]) -
          ("path", AnyKindBox(ZStack { blob.fill(.black).frame(width: px(40), height: px(40)).shadow(radius: px(6), x: px(3), y: px(1)) })),
          ("text", AnyKindBox(ZStack { Text("Hi, you").font(size: 16).shadow(radius: px(4)) })),
          ("scaled", AnyKindBox(ZStack { card(.shadow).scaleEffect(1.5) })),
+         ("nested", AnyKindBox(ZStack { Color.black.frame(width: px(40), height: px(40)).shadow(radius: px(4)).shadow(radius: px(3)) })),
          ("blur rect", AnyKindBox(card(.blur))),
          ("blur text", AnyKindBox(ZStack { Text("Hi, you").font(size: 16).blur(radius: px(3)) })),
          ("blur scaled", AnyKindBox(ZStack { card(.blur).scaleEffect(1.5) })),
@@ -337,7 +338,7 @@ private func drawnTexels(_ images: [(image: MUIImage, texture: ImageTexture)]) -
             }
         }
     }
-    for name in ["shadow rect", "shadow rounded", "shadow path", "shadow text", "shadow scaled", "blur blur rect",
+    for name in ["shadow rect", "shadow rounded", "shadow path", "shadow text", "shadow scaled", "shadow nested", "blur blur rect",
                  "blur blur text", "blur blur scaled", "gradient diagonal", "gradient radial",
                  "gradient stroke gradient"] {
         #expect(compared.contains(name), "compared \(name): \(compared.sorted())")
