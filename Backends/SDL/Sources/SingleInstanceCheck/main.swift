@@ -25,7 +25,7 @@ case "primary":
         exit(1)
     }
     say("primary")
-    while true { sleep(1); withExtendedLifetime(instance) {} }
+    while true { Thread.sleep(forTimeInterval: 1); withExtendedLifetime(instance) {} }
 case "forward":
     switch SingleInstance.claim(id: id, forwarding: Array(arguments.dropFirst(4)), configuration: configuration) {
     case .forwarded: say("forwarded"); exit(0)
