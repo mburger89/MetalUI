@@ -19,6 +19,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <sddl.h>
+#pragma comment(lib, "advapi32.lib")   /* token, SID and security-descriptor calls */
 #else
 #include <errno.h>
 #include <fcntl.h>
