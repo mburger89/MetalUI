@@ -142,12 +142,13 @@ private struct RWCard: Component, @MainActor Equatable {
     static func == (l: RWCard, r: RWCard) -> Bool { l.mode == r.mode && l.ids === r.ids && l.phase == r.phase }
 }
 
-@MainActor private func rwWindow(_ mode: RWMode, phase: RWPhase = .all, retained: Bool = true) throws -> (TestWindow, RWIDs) {
+@MainActor private func rwWindow(_ mode: RWMode, phase: RWPhase = .all, retained: Bool = true, graft: Bool = true) throws -> (TestWindow, RWIDs) {
     let ids = RWIDs()
     let window = try TestWindow(size: sz(300, 100), textSystem: harnessTextSystem) {
         VStack(spacing: 4) { RWCard(mode: mode, ids: ids, phase: phase).equatable() }
     }
     window.window.testingRetainedSubtrees = retained
+    window.window.testingRetainedGraft = graft
     return (window, ids)
 }
 
@@ -162,21 +163,30 @@ private struct RWCard: Component, @MainActor Equatable {
     return (r.background.a, r.bounds.size.width)
 }
 
-private let rwCases: [(RWMode, RWPhase)] = [(.readOnly, .layout), (.readOnly, .prepaint), (.readOnly, .paint), (.readOnly, .all), (.compared, .all)]
+private let rwCases: [(RWMode, RWPhase, Bool)] = [
+    (.readOnly, .layout, true), (.readOnly, .prepaint, true), (.readOnly, .paint, true), (.readOnly, .all, true),
+    (.compared, .all, true),
+    // The graft off: the paint record's own versions are the only guard of a build-window read (`RW-R` item 4).
+    (.readOnly, .layout, false),
+]
+private func rwLabel(_ c: (RWMode, RWPhase, Bool)) -> String { "\(c.0.rawValue)/\(c.1.rawValue)/graft \(c.2)" }
 
 /// **The mechanism, end to end** (`RW-B`, `RW-C`, `RW-D`; no call site converted): an element that only reads its state in
 /// layout, prepaint and paint replays every frame once its entry exists, and **an input write to the entry misses on the
 /// version** and draws the new value in all three phases, as a retention-off twin does. A compared write with an equal value is a
 /// read (same hits); the plain `withState` stays ineligible by name. **Red before:** `readState` does not exist.
-/// Arms: the state read in layout only, prepaint only, paint only, all three, and the compared spelling. **Mutations:** the build
-/// window's reads (`phase.build.reads`) left out of `record.versions` reddens the layout arm (a stale width), the prepaint
+/// Arms: the state read in layout only, prepaint only, paint only, all three, the compared spelling, and layout-only with the graft
+/// off. **Mutations:** the build
+/// window's reads (`phase.build.reads`) left out of `record.versions` reddens the graft-off layout arm (a stale width; with the graft on,
+/// the graft record's own `stateReads` check catches it, so that mutation and the graft check are each redundant alone: both removed
+/// reddens the graft-on layout arm), the prepaint
 /// window's (`phase.prepaintReads`) the prepaint arm (a replay where the twin misses), the paint window's the paint arm (a stale
 /// alpha); `readState` bumping the version reddens every arm (never a hit); the graft's `stateReads` check is covered by
 /// the layout arm with `old.versions` mutated away too.
-@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: rwCases.map { "\($0.0.rawValue)/\($0.1.rawValue)" }) @MainActor
+@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: rwCases.map(rwLabel)) @MainActor
 private func aReadOnlyOccurrenceReplaysAndAnInputWriteToItsStateMisses(label: String) throws {
-    let (mode, phase) = try #require(rwCases.first { "\($0.0.rawValue)/\($0.1.rawValue)" == label })
-    let (window, ids) = try rwWindow(mode, phase: phase)
+    let (mode, phase, graft) = try #require(rwCases.first { rwLabel($0) == label })
+    let (window, ids) = try rwWindow(mode, phase: phase, graft: graft)
     let (twin, twinIDs) = try rwWindow(mode, phase: phase, retained: false)
     var f = FrameWork()
     for _ in 0..<2 { _ = rwDraw(window); _ = rwDraw(twin) }
@@ -187,7 +197,7 @@ private func aReadOnlyOccurrenceReplaysAndAnInputWriteToItsStateMisses(label: St
     for _ in 0..<4 { f = rwDraw(window); _ = rwDraw(twin) }
     #expect(f.retainedHits == 1 && f.retainedMisses == 0 && f.retainedIneligible == 0 && f.retainedIneligibleReasons.isEmpty,
             "steady: hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible) \(f.retainedIneligibleReasons)")
-    #expect(f.retainedGrafts == 1 && f.retainedPrepaintHits == 1, "the build and prepaint are skipped too: \(f.retainedGrafts)/\(f.retainedPrepaintHits)")
+    #expect(f.retainedGrafts == (graft ? 1 : 0) && f.retainedPrepaintHits == 1, "the build (graft \(graft)) and prepaint are skipped too: \(f.retainedGrafts)/\(f.retainedPrepaintHits)")
     let id = try #require(ids.id)
     let version = window.window.testingStateVersion(id)
     let paints = ids.paints
@@ -239,6 +249,59 @@ private func aReadOnlyEntryStaysLiveAcrossManyReplays(phase: RWPhase) throws {
     #expect(f.retainedHits == 1, "still replaying: \(f.retainedHits)")
     #expect(window.window.testingStateVersion(id) == version, "the entry was not reaped and not rewritten")
     #expect(window.window.testingStateIsLive(id), "the entry is live in the last frame")
+}
+
+// MARK: A nested replay keeps its reads in the enclosing record
+
+@MainActor final class RWTick { var n = 0 }
+
+private struct RWOuter: Component, @MainActor Equatable {
+    let n: Int
+    let ids: RWIDs
+    let phase: RWPhase
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text("outer \(n)").frame(width: Pixels(80), height: Pixels(14))
+            RWCard(mode: .readOnly, ids: ids, phase: phase).equatable()
+        }
+    }
+    static func == (l: RWOuter, r: RWOuter) -> Bool { l.n == r.n && l.ids === r.ids && l.phase == r.phase }
+}
+
+@MainActor private func rwNestedWindow(phase: RWPhase, retained: Bool) throws -> (TestWindow, RWIDs, RWTick) {
+    let ids = RWIDs(), tick = RWTick()
+    let window = try TestWindow(size: sz(300, 140), textSystem: harnessTextSystem) {
+        VStack(spacing: 4) { RWOuter(n: tick.n, ids: ids, phase: phase).equatable() }
+    }
+    window.window.testingRetainedSubtrees = retained
+    return (window, ids, tick)
+}
+
+/// **A replayed inner occurrence names its reads to the outer record** (`RW-R` item 5): the outer's own value changes, so it
+/// re-evaluates and records anew while the inner one (unchanged) is grafted, replays its prepaint and its paint; the outer record
+/// made then must still miss on a later write to the **inner** state, as a retention-off twin shows. One arm per channel.
+/// **Mutations:** `reapply`'s `.stateRead` arm dropped (layout arm), `replayPrepaintLedger`'s `reads` loop dropped (prepaint arm),
+/// `replayPaint`'s `versions` loop dropped (paint arm): the outer hits and shows the old value.
+@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [RWPhase.layout, RWPhase.prepaint, RWPhase.paint]) @MainActor
+private func aNestedReplayKeepsItsReadsInTheEnclosingRecord(phase: RWPhase) throws {
+    let (window, ids, tick) = try rwNestedWindow(phase: phase, retained: true)
+    let (twin, twinIDs, twinTick) = try rwNestedWindow(phase: phase, retained: false)
+    for _ in 0..<2 { _ = rwDraw(window); _ = rwDraw(twin) }
+    window.window.testingWriteState(try #require(ids.id), 1)   // inner records whole (ledger and graft)
+    twin.window.testingWriteState(try #require(twinIDs.id), 1)
+    for _ in 0..<4 { _ = rwDraw(window); _ = rwDraw(twin) }
+    // The outer's value changes; the inner is unchanged and replays inside the outer's fresh record.
+    tick.n += 1; twinTick.n += 1
+    var f = rwDraw(window); _ = rwDraw(twin)
+    #expect(f.retainedHits >= 1, "the inner occurrence replays inside the outer's frame: hits \(f.retainedHits)")
+    for _ in 0..<3 { f = rwDraw(window); _ = rwDraw(twin) }
+    #expect(f.retainedHits == 1 && f.retainedMisses == 0, "the outer replays: hits \(f.retainedHits) misses \(f.retainedMisses)")
+    window.window.testingWriteState(try #require(ids.id), 4)
+    twin.window.testingWriteState(try #require(twinIDs.id), 4)
+    f = rwDraw(window); _ = rwDraw(twin)
+    let rect = try #require(rwRect(window)), want = try #require(rwRect(twin))
+    #expect(rect.alpha == want.alpha && rect.width == want.width, "equals the retention-off twin: \(rect) vs \(want)")
+    #expect(f.retainedMisses >= 1, "the write is a miss for the enclosing record: hits \(f.retainedHits) misses \(f.retainedMisses)")
 }
 
 /// The plain `withState` is ineligible, by name, at all three counters, whatever the frame count (`RW-C`: a site is

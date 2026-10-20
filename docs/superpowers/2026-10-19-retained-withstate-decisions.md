@@ -5,7 +5,7 @@ Rulings for item C14b-3 of the gpui-gap priority list (user request 2026-10-02; 
 Record: `../record/121-retained-withstate.md` (Record phase). Branch `perf/retained-withstate` from `f557d339`. Divergence labels
 reserved 515–524: **none taken**. One public declaration (`FrameWork.retainedIneligibleReasons`, `MetalUITesting`, class `M`, `RW-M`/`RW-N`), nothing else. No SwiftUI-facing claim, so no probe is owed (`RW-N`).
 
-**Next unused id: `RW-R`.**
+**Next unused id: `RW-S`.**
 
 ## RW-A — The slice: read-only state, scroll, list, unfocused field, closed-popover anchors; surfaces and open presentations carried
 
@@ -209,3 +209,29 @@ file match spec §2's 34 plus wrappers and definitions).
 
 **Ruling.** Rejected, as `RW-C` already says; recorded as a ruling because the critic re-examined it: `ScrollState` is public
 (`ScrollView.swift:33`), so a conformance is public API with a divergence-inventory row; a closure keeps the surface `internal`.
+
+## RW-R — Lane A's realisation: a frame-long read journal, creating reads, one versions list
+
+**Question.** Lane A built the mechanism of `RW-C`..`RW-E` with no call site converted. What did building it change?
+**Ruling.** (1) **The read journal is frame-long** (`StateTable.readJournal`, emptied by `sweep()`), appended whenever
+`contentMemos.retainsSubtrees` rather than only while a window is open (`RW-D`'s wording): a build, a prepaint and a paint window
+each take the journal's count at their start and keep the id range they covered (`RetainedBuild.reads`, `RetainedPhase.prepaintReads`,
+`SubtreeRecorder.readLow`), so the three windows' reads reach one record without a log per phase; the cost is one append per read
+while retaining, deduplicated at record time. (2) **A slot with a channel of its own is not a read** (`$ax…`, `$focus…`, `$anim…`:
+their versions move every frame by design, `RK-F`, `SB-U`); a named slot of any other kind (`$state<n>`, the scroller's and the
+list's) is. (3) **A creating read or a changed compared write also ends with `noteLiveRead`** (the entry named at its post-write
+version, kept live in the three liveness channels): measured on a probe that first reads in prepaint only, a paint record made in
+the creating frame (the write taints the ledger and the graft, not the paint record) hit afterwards with no version for the entry
+and no liveness to replay, so a later input write did not miss. (4) **One list serves the three decisions**: `record.versions` is
+`markJournal` (the `@State` slots) united with the build, prepaint and paint read ranges and a replayed ledger's `reads`; the paint,
+prepaint and graft decisions already compare `old.versions`, and the graft record keeps its own `stateReads` (from the journal's
+`.stateRead(id, version)` events) checked again in `graftDependenciesHold`. (5) **A replay re-notes what it stands for**:
+`replayPaint` notes each of the record's versions, `replayPrepaintLedger` its `reads` and `liveStates`, `reapply` a `.stateRead`,
+so an enclosing window's read set is the same on a hit as on a run. (6) The two counters of the spec's §3 (`retainedReadChecks`,
+`retainedReadMisses`) are **not built**: no pin reads them (a version miss is a counted miss, and traced as `versions`); lane B adds
+them if a conversion needs one. (7) Three `package` hooks on `Window` for tests: `testingWriteState`, `testingStateVersion`,
+`testingStateIsLive`. (8) The reasons dictionary sums the three counters by name, so an occurrence refused at paint, prepaint and
+graft under one name counts three times (`stateWrite: 3` for the graph panel; a surface is refused at paint only).
+**Not changed, noted.** A record that hits keeps the ledger and graft it was made with (`RK-E`): a record made in a creating frame has
+neither until a miss (`RW-F`); the probe tests write the entry's own value once before asserting steady state.
+**Cost if wrong.** (1) a larger journal under heavy `peek` use: counted by the Prof scenario, not pinned; (3) an extra live note.

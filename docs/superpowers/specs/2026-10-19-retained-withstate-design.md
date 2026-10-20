@@ -103,6 +103,8 @@ the replay skipped (`writeMissed`).
 `retainedReadChecks` (version comparisons made at hits) and `retainedReadMisses` (hits refused by a read version). `RetainedCounters`
 gets the dictionary and `noteIneligible(kind, reason:)`.
 
+**Lane A's realisation** (frame-long read journal, creating reads, one versions list, replays re-noting reads): `RW-R`.
+
 ## 4 What stays ineligible (by name, countable)
 
 A focused field/list/editor (`SB-X`); a scroll, drag or wheel in flight (`versions` miss, then fade: `requestAnotherFrame`); a
