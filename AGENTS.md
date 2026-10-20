@@ -280,7 +280,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.

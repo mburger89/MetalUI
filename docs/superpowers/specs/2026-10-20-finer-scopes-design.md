@@ -3,7 +3,7 @@
 Item C14-d of the gpui-gap priority list (user request 2026-10-02; not a plan task), carried by record 104 section 7, 109 section 11
 (`SB-AE`), 110, 120 (`EE-O`, C14-c4) and 121. Rulings: [`../2026-10-20-finer-scopes-decisions.md`](../2026-10-20-finer-scopes-decisions.md)
 (`FS-`). Record: `../../record/126-finer-scopes.md` (Record phase). Branch `perf/finer-scopes` from `711ab9c4`.
-Divergence labels 555-564 reserved: **none taken**. **Public API: none** in `MetalUI`; one `MetalUITesting` field (`FS-J`).
+**Status: LANDED 2026-10-20** (record 126; the looks are owed, human checks group FS). Divergence labels 555-564 reserved: **none taken**. **Public API: none** in `MetalUI`; one `MetalUITesting` field (`FS-J`).
 
 ## 0 What the item turned out to be
 

@@ -2,7 +2,7 @@
 
 Rulings for item C14-d (per-row `List`, per-element `ForEach` and modifier-level retention scopes) and C14-c4 (the graft site's custom-key
 test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-scopes-design.md). Record: `../record/126-finer-scopes.md`
-(Record phase, not yet written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
+(written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
 Prefix **`FS-`**, lettered. **Next unused: `FS-U`.** (Moves in the commit that appends a ruling.)
