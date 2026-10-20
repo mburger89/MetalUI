@@ -177,3 +177,146 @@ func aSuppressedFirstFrameLedgerReplaysTheSameTreeAsAFreshWindow(branch: FSBranc
     #expect(quiet.retainedHits > 0 && quiet.retainedPrepaintHits == quiet.retainedHits && quiet.retainedGrafts == quiet.retainedHits,
             "\(quiet.retainedPrepaintHits) prepaint hits and \(quiet.retainedGrafts) grafts of \(quiet.retainedHits) rows")
 }
+
+// MARK: the reads-subset guard of `refreshLedger`
+
+/// A card whose prepaint reads state (an unfocused `TextField`, `RW-`): its fresh ledger names entries a record must version.
+private struct FSFieldCard: Component, @MainActor Equatable {
+    let id: Int
+    let value: Int
+    static func == (l: FSFieldCard, r: FSFieldCard) -> Bool { l.id == r.id && l.value == r.value }
+    var content: some ElementGroup {
+        HStack(spacing: 4) {
+            Text("Card \(id) = \(value)")
+            TextField("name", text: .constant("x"))
+        }
+        .frame(height: Pixels(24))
+    }
+}
+
+private struct FSFieldListRoot: Component {
+    let model: FSModel
+    let branch: FSBranch
+    var content: some ElementGroup {
+        ScrollView(.vertical) {
+            switch branch {
+            case .uniform:
+                List(model.ids.map { FSRow(id: $0) }, rowHeight: Pixels(26)) { r in
+                    Column { FSFieldCard(id: r.id, value: r.id == 3 ? model.values[3] : 0).equatable() }
+                }
+            case .variable:
+                List(model.ids.map { FSRow(id: $0) }) { r in
+                    Column { FSFieldCard(id: r.id, value: r.id == 3 ? model.values[3] : 0).equatable() }
+                }
+            }
+        }.frame(width: Pixels(300), height: Pixels(150))
+    }
+}
+
+@Test(.enabled(if: !rsVerifying, fsVerifyingNote), arguments: FSBranch.allCases) @MainActor
+func aFieldRowListReplaysAndEqualsAFreshWindow(branch: FSBranch) throws {
+    let onModel = FSModel(), offModel = FSModel()
+    let options = HeadlessPlatformWindow.Options(scaleFactor: 2, accessibilityClientActive: true)
+    func make(_ model: FSModel) throws -> TestWindow {
+        try TestWindow(size: Size(width: Pixels(320), height: Pixels(400)), scaleFactor: 2, options: options,
+                       textSystem: { harnessTextSystem() }) { VStack(spacing: 0) { FSFieldListRoot(model: model, branch: branch) } }
+    }
+    let on = try make(onModel), off = try make(offModel)
+    on.window.testingTimelineClockOffset = 0; off.window.testingTimelineClockOffset = 0
+    off.window.testingRetainedSubtrees = false
+    on.window.testingRetainedGraft = true
+    for _ in 0..<16 { for w in [on, off] { w.window.setNeedsRedraw(); w.tick() } }
+    var quiet = FrameWork()
+    for step in 0..<4 {
+        if step == 2 { onModel.values[3] += 1; offModel.values[3] += 1 }
+        for w in [on, off] { w.window.setNeedsRedraw(); w.tick() }
+        quiet = on.lastFrameWork
+        let differences = try RPSnapshot(on).differences(from: RPSnapshot(off))
+        #expect(differences.isEmpty, "frame \(step): \(differences)")
+    }
+    #expect(quiet.retainedHits > 0 && quiet.retainedPrepaintHits == quiet.retainedHits && quiet.retainedGrafts == quiet.retainedHits,
+            "\(quiet.retainedPrepaintHits) prepaint hits and \(quiet.retainedGrafts) grafts of \(quiet.retainedHits) rows")
+}
+
+/// Whether `FSContextReader` reads its second entry; the test turns it on after the window's first frame.
+@MainActor private enum FSReaderGate {
+    static var readsSecond = false
+    /// An entry a sibling outside every card creates in every frame: it exists before the cards ever read it.
+    static var shared: GlobalElementID?
+}
+
+private struct FSSharedOwner: Element {
+    var elementID: ElementID? { nil }
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        _ = pass.readState(id, initial: 0)
+        FSReaderGate.shared = id
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 1, height: 1)) }.layoutNodeID, ())
+    }
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {}
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// An element whose prepaint reads one state entry once the gate is on (a sibling outside the list made it): a ledger made under the `List`'s unbounded first
+/// frame (suppressed, `AB-X`) reads {A}, a later bounded frame's reads {A, B}, and B is an entry the standing record does not
+/// version.
+private struct FSContextReader: Element {
+    var elementID: ElementID? { nil }
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 40, height: 20)) }.layoutNodeID, ())
+    }
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
+        if FSReaderGate.readsSecond {
+            if let shared = FSReaderGate.shared { _ = pass.readState(shared, initial: 0) }
+        }
+    }
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
+        pass.fill(bounds, color: Hsla(h: 0.6, s: 0.5, l: 0.5, a: 1))
+    }
+}
+
+private struct FSReaderCard: Component, @MainActor Equatable {
+    let id: Int
+    static func == (l: FSReaderCard, r: FSReaderCard) -> Bool { l.id == r.id }
+    var content: some ElementGroup {
+        HStack(spacing: 4) { Text("Card \(id)"); FSContextReader() }.frame(height: Pixels(24))
+    }
+}
+
+private struct FSReaderListRoot: Component {
+    let model: FSModel
+    var content: some ElementGroup {
+        ScrollView(.vertical) {
+            List(model.ids.map { FSRow(id: $0) }, rowHeight: Pixels(28)) { r in
+                Column { FSReaderCard(id: r.id).equatable() }
+            }
+        }.frame(width: Pixels(300), height: Pixels(150))
+    }
+}
+
+/// `refreshLedger`'s reads-subset guard (`FS-N`): a fresh ledger that read an entry the standing record does not version
+/// must not replace the record's ledger, or a change of that entry would replay a stale prepaint. The rows keep their paint
+/// record and replay no prepaint; the frame equals the retention-off window's.
+/// Mutation: delete the `for id in fresh.reads where !old.versions.contains(…) { return }` line of `refreshLedger`.
+@Test(.enabled(if: !rsVerifying, fsVerifyingNote)) @MainActor
+func aFreshLedgerThatReadAnUnversionedEntryIsNotSwappedIn() throws {
+    let onModel = FSModel(), offModel = FSModel()
+    let options = HeadlessPlatformWindow.Options(scaleFactor: 2, accessibilityClientActive: true)
+    func make(_ model: FSModel) throws -> TestWindow {
+        try TestWindow(size: Size(width: Pixels(320), height: Pixels(400)), scaleFactor: 2, options: options,
+                       textSystem: { harnessTextSystem() }) { VStack(spacing: 0) { FSSharedOwner(); FSReaderListRoot(model: model) } }
+    }
+    FSReaderGate.readsSecond = false
+    let on = try make(onModel), off = try make(offModel)
+    defer { FSReaderGate.readsSecond = false }
+    on.window.testingTimelineClockOffset = 0; off.window.testingTimelineClockOffset = 0
+    off.window.testingRetainedSubtrees = false
+    on.window.testingRetainedGraft = true
+    FSReaderGate.readsSecond = true   // after the window's first frames: the rows' ledgers were made reading nothing
+    for _ in 0..<16 { for w in [on, off] { w.window.setNeedsRedraw(); w.tick() } }
+    for _ in 0..<3 { for w in [on, off] { w.window.setNeedsRedraw(); w.tick() } }
+    let quiet = on.lastFrameWork
+    let differences = try RPSnapshot(on).differences(from: RPSnapshot(off))
+    #expect(differences.isEmpty, "\(differences)")
+    #expect(quiet.retainedHits > 0, "the rows still replay their paint")
+    #expect(quiet.retainedPrepaintHits == 0, "no row replays a ledger the record cannot version: \(quiet.retainedPrepaintHits)")
+}
