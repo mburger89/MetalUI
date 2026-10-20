@@ -314,28 +314,42 @@ func aFractionalShiftIsRefusedNotApproximated(step: Float) async throws {
 private struct FSFlexCard: Component, @MainActor Equatable {
     let index: Int
     var content: some ElementGroup {
-        Text("flex \(index)").frame(maxWidth: Pixels(200), alignment: .leading).background(.accent).frame(height: Pixels(20))
+        Text("flex \(index)").frame(maxWidth: .infinity, alignment: .leading).background(.accent).frame(height: Pixels(20))
     }
 }
 
-/// 2.8 — the separating arm for the shape comparison: cards whose **size** changed (the window narrowed below their 200 point
-/// maximum, so they also move: the stack is centred) hold equal values and their record is valid, yet they are not a translation:
-/// no refusal is counted, nothing translates, they paint again (`FS-D`). The shape is checked twice (the top rects' sizes and
+/// A row: a swatch whose width the test moves, then a card that fills what is left (so its size and its origin both move).
+private struct FSFlexRow: Component {
+    let side: RPSide
+    let index: Int
+    var content: some ElementGroup {
+        HStack(spacing: 0) {
+            Color.gray.frame(width: Pixels(10 + side.inputs.offset), height: Pixels(20))
+            FSFlexCard(index: index).equatable()
+        }
+        .frame(width: Pixels(300))
+    }
+}
+
+/// 2.8 — the separating arm for the shape comparison: a card whose **size** and origin both changed (the swatch beside it grew, so
+/// it moved right and shrank) holds an equal value and an equal ambient, so its record is valid, yet it is not a translation: no
+/// refusal is counted, nothing translates, it paints again (`FS-D`). The shape is checked twice (the top rects' sizes and
 /// the relative subtree signature, which hashes every node's size): each mutation alone (sizes left out, the signature left out)
 /// is an equivalent mutant, both together replay the old width's pixels and redden this test and its differential.
 @Test(.enabled(if: !rsVerifying, fsTranslationVerifyingNote)) @MainActor
 func aShiftThatAlsoResizesTheOccurrenceMisses() async throws {
-    let pair = try RPPair(size: sz(320, 400), scale: 2, warm: 4, accessibility: false, graft: false) { _ in
-        VStack(spacing: 2) { ForEach(Array(0..<6), id: \.self) { FSFlexCard(index: $0).equatable() } }
+    let pair = try RPPair(size: sz(320, 400), scale: 2, warm: 4, accessibility: false, graft: false) { side in
+        VStack(spacing: 2) { ForEach(Array(0..<6), id: \.self) { FSFlexRow(side: side, index: $0) } }
     }
     try pair.compare("warm")
     pair.on.resetFrameWork()
-    for w in [pair.on, pair.off] { w.resize(to: sz(150, 400)) }
+    for side in [pair.onSide, pair.offSide] { side.inputs.offset += 20 }
     await rsSettle()
     pair.redraw()
     let f = pair.stepWork
     #expect(f.retainedTranslated == 0 && f.retainedTranslationRefused == 0, "not a translation: \(f.retainedTranslated), \(f.retainedTranslationRefused)")
-    try pair.compare("narrowed")
+    #expect(f.retainedMisses == 6, "the six cards paint again: \(f.retainedMisses)")
+    try pair.compare("grown")
 }
 
 // MARK: every refusal has a name (2.7)
