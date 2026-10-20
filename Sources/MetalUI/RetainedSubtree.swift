@@ -605,6 +605,7 @@ extension Frame {
                 && !(old.prepaint == nil && phase.ledger != nil)   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
             let translated = valid && old.key != key && memos.replaysPrepaint && key.differsOnlyByEffectTranslation(from: old.key)
             if valid && (old.key == key || translated) {
+                refreshLedger(of: old, from: phase)
                 memos.retained.hits += 1
                 if translated { memos.retained.translated += 1; phase.translatedPaint = true }
                 if phase.replayed != nil { entry.redoExponent = 0 }
@@ -619,6 +620,19 @@ extension Frame {
         }
         entry.record = nil
         return .record(SubtreeRecorder(), key, old: nil)
+    }
+
+    /// `FS-N`: a record that still stands keeps the prepaint ledger it was made with, so a ledger made under a prepaint
+    /// context that has since changed (a `List` frame whose window was not yet bounded, with a client collecting, records
+    /// the rows under the list's suppression exception, `AB-X`) would never be replaced while the paint record keeps
+    /// hitting: its key then differs from every later frame's, in one part only, and no prepaint replays and no
+    /// graft stands (F4). The prepaint that ran this frame made an exact ledger for the same, still valid, occurrence:
+    /// it takes the old one's place when its key differs and every entry it read is one the record already versions.
+    private func refreshLedger(of old: RetainedRecord, from phase: RetainedPhase) {
+        guard phase.replayed == nil, let fresh = phase.ledger, let current = old.prepaint, current !== fresh,
+              current.key != fresh.key else { return }
+        for id in fresh.reads where !old.versions.contains(where: { $0.0 == id }) { return }
+        old.prepaint = fresh
     }
 
     private func traceMiss(_ old: RetainedRecord, key: ReplayKey, build: RetainedBuild, entry: ContentMemoStore.Entry,

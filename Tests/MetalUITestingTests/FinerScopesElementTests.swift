@@ -31,7 +31,12 @@ func aStaticListOfEquatableRowsReplaysPrepaintAndGrafts(branch: FSBranch) throws
         #expect(f.retainedHits > 0 && f.retainedMisses == 0)
         #expect(f.retainedPrepaintHits == f.retainedHits, "every row that hits at paint hits at prepaint: \(f.retainedPrepaintHits) of \(f.retainedHits)")
         #expect(f.retainedGrafts == f.retainedHits, "every row that hits grafts: \(f.retainedGrafts) of \(f.retainedHits)")
-        #expect(f.elementRequests < 84, "requests fall below the 711ab9c4 reading of 84: \(f.elementRequests)")
+        // Literals taken on the fixed tree (red on arrival at 711ab9c4: 84 requests, 85 prepaints, 22 paints, 0 / 0 for uniform).
+        let expected = branch == .uniform ? (rows: 9, requests: 21, skipped: 63, prepaints: 22, paints: 22)
+                                          : (rows: 10, requests: 23, skipped: 70, prepaints: 24, paints: 24)
+        #expect(f.retainedHits == expected.rows)
+        #expect(f.elementRequests == expected.requests && f.retainedSkippedRequests == expected.skipped)
+        #expect(f.elementPrepaints == expected.prepaints && f.elementPaints == expected.paints)
         #expect(f.retainedRedos == 0)
     }
 }
@@ -44,7 +49,10 @@ func aChangedListRowMissesAloneAndTheOthersGraft(branch: FSBranch) throws {
         #expect(f.retainedMisses == 1)
         #expect(f.retainedPrepaintHits == f.retainedHits, "\(f.retainedPrepaintHits) of \(f.retainedHits)")
         #expect(f.retainedGrafts == f.retainedHits, "\(f.retainedGrafts) of \(f.retainedHits)")
-        #expect(f.retainedHits > 0)
+        let expected = branch == .uniform ? (rows: 8, requests: 28, prepaints: 29, paints: 32)
+                                          : (rows: 9, requests: 30, prepaints: 31, paints: 34)
+        #expect(f.retainedHits == expected.rows)
+        #expect(f.elementRequests == expected.requests && f.elementPrepaints == expected.prepaints && f.elementPaints == expected.paints)
     }
 }
 
