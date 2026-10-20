@@ -4,7 +4,7 @@ Rulings for item C14-e (MetalCreator's counter bisect, 2026-10-20). Spec: [`spec
 Record: `../record/127-warm-settle.md` (at the Record phase). Branch `perf/warm-settle` from `679f5d7d`; divergence labels reserved
 565–574 (none taken; 346 is amended, not relabelled).
 
-**Next unused id: `CF-J`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)
+**Next unused id: `CF-K`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)
 
 Evidence: the code at `679f5d7d` (`EnvironmentReading.swift`, `EnvironmentProperty.swift`, `TextMeasurer.swift`, `Frame.swift:2514`,
 `ContentMemo.swift`, `RetainedPrepaint.swift` `noteRedo`, `Window.swift` `buildAndAdoptFrame`, `LayoutMemo.swift`, `TestingHooks.swift`
@@ -119,3 +119,33 @@ records, the redo repaints: 45 against 3 paints), so the "carry everything" muta
 (2) T3b (a field the measurer never resolves, `colorScheme`/`isEnabled`, leaves the reading equal) is added. The fixture of the redo
 pins has three `.equatable()` occurrences (`retainedPrepaintHits == 3`). `Environment.init` is untouched (the arm sits in `.of`, one metatype
 compare per probe). **Cost if wrong.** None.
+
+## CF-J — (e) reproduced and fixed: a restored placement keeps its memo footprint alive
+
+**Ruling.** The spike is `CF-E`'s suspect (1), measured. **Reproduction.** (i) MetalCreator's `AppWindow` (a scratch copy of the repository in the scratchpad
+directory, read-only source, its `Package.swift` pointed at this worktree through a symlink named `MetalUI`) with a probe printing every `FrameWork` field
+of seven `redraw()`s after `resetFrameWork()`: frame 0 `layoutMeasureCalls` 2, `retainedMisses` 3, `retainedHits` 7, `layoutSubtreeHits` 5; **frame 1: 80, 220 memo
+misses, `layoutSubtreeHits` 1, `retainedHits` 2**; frames 2-6: 2, 0 misses, identical. (ii) MetalUITesting only: the bracket fixture's `.panels` arm
+(`BracketFixture.swift`: `.equatable()` panels over a `List`, a canvas, text), persistent `TestWindow(recordsLayout: false)`, `setNeedsRedraw()`+`tick()`: with
+no frame before the reset, `layoutMeasureCalls` 52, **135**, 52, 52...; with one frame before it, **135**, 52, 52...; with two or more, 52 throughout. The
+`.value` arm (no `.equatable()` panels) never spikes. **Cause.** The frame that makes a retained occurrence's records also had its layout restored by the
+subtree placement memo (`SB-AD`: 11 `layoutSubtreeHits`), which places nothing and so looks nothing up; the measurement entries below it (keyed
+`(signature, proposal)`) were therefore in neither generation of `LayoutMemo` one frame later. The next frame is the first that grafts the occurrence (`RK-B`): its
+nodes carry no placement mark, so it is placed for itself, finds 249 entries missing and measures 83 leaves more. Not RW-S (the ledger's one counted miss is
+`retainedMisses`, which is 0 on the spike frame), not the settle build (`builds` is 1), not the unkeyed leaves (their 2 calls are in every frame).
+
+**Fix.** `LayoutMemo.Placed` carries a `Footprint` beside the rects: the `MeasureKey`s the recording looked up or stored below the root (every
+`measureNative` that reaches the memo while a recording is open, a run-cache hit included, so a measurement made in the measure pass is named too) and the
+`PlacementKey`s of the marked roots inside it (a restored inner root also contributes its own footprint). A restore calls `LayoutMemo.touch(_:)`: each key still in the
+previous generation moves into this frame's, as a lookup of it would; a key in neither generation is left alone, and nothing is counted (a touch is not a hit; `layoutMemoHits` is
+unchanged by it). Recordings nest by a depth on `NativeLayoutRun` (`footprintDepth`, `footprintLog`, closed by `takeFootprint(since:)`, deduplicated once at the
+record, which only a miss frame pays). Warm cost: one dictionary probe per footprint key on a restore, the lookups the placement would have made. `MetalUILayout`
+only, `package` API, value-identical: placements and measurements are bit for bit those of 679f5d7d, only their age differs. **Not covered, by name:** the
+root placement (`IV-E` (P), `placeFromMemo`) has the same shape (a root restore looks nothing up) but its footprint is the whole run, which would put a log
+append in every lookup of every frame to save a miss frame no one has measured; `layoutMemoRootHits` is 0 in MetalCreator's counters. Carried as a named residue.
+
+**What is pinned and from which frame.** `warm[n] == warm[n+1]` over the whole `FrameWork`, and zero raster, atlas and texture work, holds from the frame after
+the retained records exist: with the records made before `resetFrameWork()` from frame 0 (W1); otherwise from frame 1, frame 0 being the one that makes them and
+legitimately counting its misses and ledger snapshots (W2). MetalCreator's `unchangedFramesAfterSettlingDoExactlyTheSameWork` can compare from index 1 (its frame 0
+is the record frame). Kernel pins F1-F3 (`PlacementFootprintTests`). **Cost if wrong.** A footprint key the recording missed leaves one entry to age out (the
+old behaviour for that entry); a footprint that is too large keeps an entry one generation longer (memory, bounded by the placement's own subtree).
