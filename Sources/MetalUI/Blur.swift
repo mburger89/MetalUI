@@ -114,13 +114,18 @@ extension Frame {
         guard !placement.clip.isEmpty, paint.alpha > 0, !paint.leaf.isEmpty,
               let (rx, ry) = RasterAnchor.leafAnchor(paint.leaf) else { return nil }
         let full = (transform?.affine ?? .identity).concatenating(paint.local)
-        let pad = BoxBlur.padding(sigma: paint.radius * full.linearScale) + 1
-        let extent = RasterExtent.of(paint.leaf, map: full).rect(grownBy: pad)
-        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
+        let extent = RasterAnchor.blurExtent(paint, full: full)
+        var anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
+        // `OS-A`: over the whole extent, keyed uncut; the image's content mask cuts at draw time.
+        var rasterClip = placement.clip
+        if let overscan = anchor.overscanned(extent: extent, clip: placement.clip, target: rasterTarget) {
+            anchor = overscan
+            rasterClip = extent
+        }
         var canonical = paint
         canonical.local = .identity
         if anchor.isCanonical { canonical.leaf = paint.leaf.map { $0.movedCanonically(-rx, -ry) } }
-        let clip = anchor.canonical(placement.clip)
+        let clip = anchor.canonical(rasterClip)
         var key = RasterKey()
         key.add(7)
         anchor.keyed(&key, clip: clip, placement: placement)
@@ -138,7 +143,9 @@ extension Frame {
             guard !layer.rect.isEmpty else { return nil }
             return (layer.rect, layer.texture)
         }) else { return nil }
-        var quad = placement.quad(over: anchor.placed(rect))
+        let placed = anchor.placed(rect)
+        if rasterClip != placement.clip, placed.intersection(placement.clip).isEmpty { return nil }
+        var quad = placement.quad(over: placed)
         quad.opacity = paint.alpha
         return (quad, texture)
     }
