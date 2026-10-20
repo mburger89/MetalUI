@@ -5,7 +5,7 @@ Spec: [`specs/2026-10-19-memo-observation-thread-design.md`](specs/2026-10-19-me
 `../record/123-memo-observation-thread.md` (to be written). Branch `fix/memo-observation-thread` from `4d91f27f`. Reserved divergence
 labels 535-544: none taken (no SwiftUI-visible difference; SwiftUI invalidates synchronously, which this restores).
 
-Prefix **`MO-`**, lettered. **Next unused: `MO-H`.** (Moves in the commit that appends a ruling.)
+Prefix **`MO-`**, lettered. **Next unused: `MO-I`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-C` item 2 (both branches of the observation handler), `IV-L` item 5 (retire the old session by serial then token
 write), `IV-R`/`IV-S` (weak holds), `RU-A` (recognise the flush by thread, not `isMainThread`), `SB-W`/`RK-N` (verify env switches),
@@ -75,3 +75,14 @@ main-actor bookkeeping. Test 4's store is a separate `@unchecked Sendable` `@Obs
 from a `Thread` without a hop, which is what the test must avoid), read by a component whose getter runs on the main actor.
 **Rejected:** table row 7 as a new test (it is the existing `MemoryReleaseTests`, run unchanged, not counted among the new pins).
 **Cost if wrong.** A strong hold on a non-leaf object reintroduces the `IV-R` cycle (`MemoryReleaseTests` reddens).
+
+## MO-H - What the implementation measured: MO-D is unpinned, `armed` is not asserted
+
+**Ruling.** (1) The Linux image reddens tests 1-4 and 6 before the fix and passes all six after it (record 123). (2) **Test 5 (a write
+inside the getter after its read) was dropped**: `withObservationTracking` installs its registrations after the body returns, so a write
+inside the getter is not seen by that session on any platform (the first Linux run read `contentEvaluations == 0` both before and after
+the fix); `MO-D`'s clear-before-getter stays as code (the same locked step as the serial bump) but has **no deterministic pin**, only
+the window between registration and the old clear, which only another thread can hit. The mutation "move the clear after the getter" is
+therefore recorded as unpinned, not as reddened. (3) **Test 6 no longer asserts `armedSessions`**: `armed` is the `MO-C` bookkeeping,
+decremented behind the old branch, so on a pool-thread main actor it lags until the next yield; the stale-skip assertion (the part that
+decides) stays. **Cost if wrong.** A reader trusting `armedSessions` off Darwin sees a high count until the hop runs.
