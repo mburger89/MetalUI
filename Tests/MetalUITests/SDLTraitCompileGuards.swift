@@ -106,5 +106,10 @@ func theTraitOffStubSpellsSingleInstance() throws {
         #expect(!result.succeeded, "\(name) must not compile without the SDL trait:\n\(result.output)")
         #expect(result.messages.contains("enable the trait 'SDL'"),
                 "\(name) rejected, but not with the trait's remedy:\n\(result.output)")
+        // `SDLPlatform` itself is unavailable, so the remedy appears whatever else is
+        // missing: the spellings must also all exist, or the stub drifted from the real API.
+        #expect(!result.output.contains("has no member") && !result.output.contains("extra argument")
+                    && !result.output.contains("cannot find"),
+                "\(name): the stub lacks a spelling the real API has:\n\(result.output)")
     }
 }

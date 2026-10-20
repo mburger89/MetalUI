@@ -8,10 +8,11 @@
 import Foundation
 import MetalUISDL
 
-setvbuf(stdout, nil, _IOLBF, 0)
+/// Unbuffered, so a reader sees a line the moment it is said.
+func say(_ text: String) { FileHandle.standardOutput.write(Data((text + "\n").utf8)) }
 let arguments = CommandLine.arguments
 guard arguments.count >= 4 else {
-    print("usage: SingleInstanceCheck primary|forward <directory> <id> [arguments…]")
+    say("usage: SingleInstanceCheck primary|forward <directory> <id> [arguments…]")
     exit(64)
 }
 let mode = arguments[1], directory = arguments[2], id = arguments[3]
@@ -20,18 +21,18 @@ let configuration = SingleInstance.Configuration(directory: directory)
 switch mode {
 case "primary":
     guard case .primary(let instance) = SingleInstance.claim(id: id, forwarding: [], configuration: configuration) else {
-        print("not primary")
+        say("not primary")
         exit(1)
     }
-    print("primary")
+    say("primary")
     while true { sleep(1); withExtendedLifetime(instance) {} }
 case "forward":
     switch SingleInstance.claim(id: id, forwarding: Array(arguments.dropFirst(4)), configuration: configuration) {
-    case .forwarded: print("forwarded"); exit(0)
-    case .primary: print("primary"); exit(3)
-    case .unavailable(let failure): print("unavailable \(failure)"); exit(2)
+    case .forwarded: say("forwarded"); exit(0)
+    case .primary: say("primary"); exit(3)
+    case .unavailable(let failure): say("unavailable \(failure)"); exit(2)
     }
 default:
-    print("unknown mode \(mode)")
+    say("unknown mode \(mode)")
     exit(64)
 }
