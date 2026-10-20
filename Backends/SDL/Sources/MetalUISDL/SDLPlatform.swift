@@ -59,6 +59,7 @@ public final class SDLPlatform: Platform {
         guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
         self.options = options
         pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
+        options.singleInstance?.attach()   // `SN-G`: the wake event, after SDL_Init
         #if canImport(AppKit)
         Self.installAppKitEventSignal()
         #endif
@@ -168,7 +169,7 @@ public final class SDLPlatform: Platform {
             } else {
                 var event = MUIEvent()
                 if mui_wait_event(&event, 250) { dispatch(event) }
-                pumpEvents()
+                pumpEvents()   // also drains the single-instance queue (`SN-G`)
                 drainMainQueue()   // SV-H
             }
         }
@@ -291,6 +292,38 @@ public final class SDLPlatform: Platform {
         }
     }
 
+    /// Raises the window a delivered forward brings forward (ruling `SN-H`): the id of
+    /// the one window to raise. `nil` (the default) is `mui_window_raise`: `SDL_RaiseWindow`, restoring
+    /// a minimised window and flashing it until focused when it does not take focus;
+    /// replaceable so a test sees the choice without a window manager.
+    var raiseWindow: (@MainActor (UInt32) -> Void)?
+
+    /// Delivers the batches a later launch forwarded (ruling `SN-G`), each as one
+    /// `onOpenURLs` call or parked, then raises one window (`SN-H`) when any
+    /// message arrived. Forwarded strings are absolute paths or URLs
+    /// (``SingleInstance/claim(id:forwarding:configuration:)`` made them so); a
+    /// batch is never mixed with a window-0 drop's (`applicationDrop`).
+    private func drainSingleInstance() {
+        guard let instance = options.singleInstance else { return }
+        var any = false
+        while let batch = instance.takeNext() {
+            any = true
+            handleApplicationOpen(batch)
+        }
+        guard any, instance.raisesWindow, !hidden else { return }
+        guard let id = focusedID.flatMap({ windows[$0] != nil ? $0 : nil }) ?? windows.keys.min() else { return }
+        if let raise = raiseWindow { raise(id) } else if let window = windows[id] { _ = mui_window_raise(window.rawHandle) }
+    }
+
+    /// One open event's strings (a forwarded batch): a string with a URL scheme is
+    /// passed as is, anything else is a path (``SDLWindow/fileURLString(fromPath:)``),
+    /// then `onOpenURLs` or parked, like a window-0 drop's batch.
+    private func handleApplicationOpen(_ strings: [String]) {
+        let urls = strings.map { Self.hasURLScheme($0) ? $0 : SDLWindow.fileURLString(fromPath: $0) }
+        guard !urls.isEmpty else { return }
+        if let onOpenURLs { onOpenURLs(urls) } else { parkedURLs.append(urls) }
+    }
+
     /// Whether `string` starts with a URL scheme and `//`:
     /// `[A-Za-z][A-Za-z0-9+.-]*://`. A Windows drive path `C:\…` or `C:/…`
     /// has no `//` after its colon and stays a path.
@@ -353,6 +386,7 @@ public final class SDLPlatform: Platform {
     public func pumpEvents() {
         var event = MUIEvent()
         while mui_poll_event(&event) { dispatch(event) }
+        drainSingleInstance()   // `SN-G`: once per pass, beside the main queue's drain
         publishControlActiveStates()
     }
 
@@ -362,6 +396,7 @@ public final class SDLPlatform: Platform {
     func waitForEvent(timeoutMilliseconds: Int32) {
         var event = MUIEvent()
         if mui_wait_event(&event, timeoutMilliseconds) { dispatch(event) }
+        drainSingleInstance()
         publishControlActiveStates()
     }
 
@@ -404,6 +439,8 @@ public final class SDLPlatform: Platform {
             windows[event.window_id]?.handle(event)
         case Int(MUI_EVENT_FOCUS_LOST):
             if focusedID == event.window_id { focusedID = nil }
+        case Int(MUI_EVENT_INSTANCE):
+            drainSingleInstance()   // the listener queued a forwarded message (`SN-G`)
         case Int(MUI_EVENT_ACCESSIBILITY):
             windows[event.window_id]?.deliverAccessibilityRequests()
         case Int(MUI_EVENT_PINCH):
@@ -1455,9 +1492,13 @@ public final class SDLPlatform {
     public struct Options: Sendable, Hashable {
         public var hidesWindows: Bool
         public var rendersOffscreen: Bool
-        public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false) {
+        /// The single-instance role's spelling (item S7, guard 1.6b).
+        public var singleInstance: SingleInstance?
+        public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false,
+                    singleInstance: SingleInstance? = nil) {
             self.hidesWindows = hidesWindows
             self.rendersOffscreen = rendersOffscreen
+            self.singleInstance = singleInstance
         }
         public static let `default` = Options()
         public static let headless = Options(hidesWindows: true, rendersOffscreen: true)
@@ -1465,5 +1506,27 @@ public final class SDLPlatform {
     }
 
     public init(options: Options) throws {}
+
+    /// The real launcher's spelling (item S7, guard 1.6b).
+    public static func launchingSingleInstance(id: String, forwarding: [String],
+                                               options: Options = .default) throws -> SDLPlatform? { nil }
+}
+
+/// Not built: the `SDL` trait is off (ruling PX-H item 4); the real type is
+/// `SingleInstance` (item S7). The same remedy as `SDLPlatform`'s.
+@available(*, unavailable, message: "enable the trait 'SDL' on the MetalUI dependency: .package(url: …, traits: [\"SDL\", \"AccessKit\"]) — docs/getting-started.md")
+public final class SingleInstance: Sendable, Hashable {
+    public enum Outcome: Sendable { case primary(SingleInstance), forwarded, unavailable(Failure) }
+    public enum Failure: Error, Equatable, Sendable {
+        case emptyID, noListener, refused, insecureDirectory, pathTooLong, insecure, io(Int32)
+    }
+    public struct Configuration: Sendable {
+        public init() {}
+        public static let `default` = Configuration()
+    }
+    public static func claim(id: String, forwarding arguments: [String],
+                             configuration: Configuration = .default) -> Outcome { .forwarded }
+    public static func == (lhs: SingleInstance, rhs: SingleInstance) -> Bool { true }
+    public func hash(into hasher: inout Hasher) {}
 }
 #endif

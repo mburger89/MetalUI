@@ -6,7 +6,7 @@ Rulings for item S7 (found answering MetalCreator's SDL-port gap 5; divergence 1
 (MetalUI-only, class `M`; SwiftUI has no cross-process API, and macOS LaunchServices already does this for a bundled app,
 probe `docs/probes/appkit-launch-arguments-open.swift` arm `A6`).
 
-Prefix **`SN-`**, lettered. **Next unused: `SN-P`.** (Moves in the commit that appends a ruling.)
+Prefix **`SN-`**, lettered. **Next unused: `SN-Q`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `AS-G` (routing: key window's handler, else first window with one, else `App.onOpenURL`; never a new window), `AS-M`
 (launch arguments are the app's recipe), `AS-Q` (URLs before `App.init` are dropped), `SV-H` (the SDL loop drains the main queue),
@@ -190,3 +190,32 @@ drive the real socket and pipe, and `.refused` has one consequence (SN-F). Cost 
 
 A root `App` spelling, an `Environment` value or a `Platform` hook was re-examined and rejected again (SN-A item 4): the claim precedes `App.init`
 and the seam would burden every conformer. A trait-off stub is the only root-visible effect, guarded by 1.6b.
+
+## SN-P - Implementation rulings (the lane's findings)
+
+**Ruling.**
+1. **Windows elects with a named semaphore, not a mutex** (amends SN-D's "named mutex"). A mutex is owned by a thread and is recursive:
+   a second `claim` on the thread that already holds it (every test that forwards from the primary's own thread; an app that
+   claims twice) would be granted it and answer `.primary`. `CreateSemaphoreA(NULL, 1, 1, "Local\\MetalUI-<h>-<s>")` +
+   `WaitForSingleObject(h, 0)` has no owner, is not recursive, and is destroyed by the kernel with its last handle, so a crashed
+   primary needs no `WAIT_ABANDONED` takeover. The name, the session-scoped `s` and the pipe are unchanged.
+2. **The transport is its own C file, `Backends/SDL/Sources/SDLBridge/SDLInstance.c`** (amends the spec's file table: it
+   named `SDLBridge.c`): the same target and trait guard, so no manifest change. `SDLBridge.c`'s `translate` calls
+   `mui_instance_is_wake_event(type)`, which counts the consumed wake event (the SN-M read-back, `mui_instance_wakes_consumed`), and maps it to
+   the appended `MUI_EVENT_INSTANCE`.
+3. **The drain is in `pumpEvents()` and `waitForEvent`** (so `run`, which calls `pumpEvents()` in both branches, drains every iteration,
+   and a test drives it with `pumpEvents()`), and again when the wake event itself is dispatched. One raise per drain that took any
+   message. The raise is `mui_window_raise` (`SDL_RestoreWindow` if minimised, `SDL_RaiseWindow`, `SDL_FlashWindow(UNTIL_FOCUSED)` when the
+   window did not take focus, decided at once: X11's raise is asynchronous, so the flash may fire for a window that then takes focus,
+   which clears it) unless `SDLPlatform.raiseWindow` (internal, `(UInt32) -> Void`, takes the window id) is set.
+4. **Answers.** A connection that closes without an ack is `.refused`; an ack or write that times out is `.io(ETIMEDOUT)`; the sender
+   also checks the listener's peer uid (Unix) or process SID (Windows) before writing and answers `.insecure` on a mismatch. The
+   sender drops empty arguments (they name nothing) and refuses by size before connecting (count, string, payload) as `.refused`.
+5. **Extra pins** beyond the spec's list: 2b (a drive path is absolute only on Windows), 8b (the limits' own values are accepted: the lower
+   bound of each limit), 8c (a declared length over the limit allocates nothing: `mui_instance_payload_high_water`), 14b (the name is
+   SHA-256's first 16 hex digits, against Python's `hashlib`). The test platform helper settles SDL's Cocoa report of the test process's
+   own command line (an open event on the first pump, `AS-G`) before it forwards.
+6. `Options.singleInstance` is a stored property of `Options` (not an extension over a hidden one); `SingleInstance` is
+   `@unchecked Sendable` (an immutable C handle behind a mutex-guarded queue).
+
+**Cost if wrong.** None to the public API; item 1 is Windows-only and compiled, not run, here.

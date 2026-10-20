@@ -3,7 +3,7 @@
 Item S7 of the gpui-gap list (user request 2026-10-02; found answering MetalCreator's SDL-port gap 5; not a plan task). Branch
 `feat/single-instance` from `ffbabb5c`; divergence labels 525-534 reserved, none taken; decisions
 `docs/superpowers/2026-10-19-single-instance-decisions.md` (`SN-`). Record `docs/record/122-single-instance.md` (Record phase).
-**Status: designed.** Lanes: **one** (the files below are one coherent unit and share the C bridge).
+**Status: implemented (SN-P records the lane's amendments: the C file is `SDLInstance.c`, Windows elects with a semaphore).** Lanes: **one** (the files below are one coherent unit and share the C bridge).
 
 ## 1. Problem
 
@@ -48,7 +48,7 @@ let app = try App(platform: platform, textSystem: …)   // then openWindow, app
 
 | File | Change |
 |---|---|
-| `Backends/SDL/Sources/SDLBridge/SDLBridge.c`, `include/SDLBridge.h` | `mui_instance_*`: claim (flock / Win mutex), listener thread, wire decode/encode, queue, peer check, wake event, forward client |
+| `Backends/SDL/Sources/SDLBridge/SDLInstance.c` (new, SN-P), `SDLBridge.c` (wake mapping), `include/SDLBridge.h` | `mui_instance_*`: claim (flock / Win mutex), listener thread, wire decode/encode, queue, peer check, wake event, forward client |
 | `Backends/SDL/Sources/MetalUISDL/SingleInstance.swift` (new) | the public type, path resolution of relative arguments, `Failure` mapping |
 | `Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`, `SDLPlatformOptions.swift` | `Options.singleInstance` (+ stub mirror), per-iteration drain, `handleApplicationOpen`, raise (`raiseWindow` closure), `launchingSingleInstance` |
 | `Backends/SDL/Sources/SingleInstanceCheck/main.swift` (new), `Backends/SDL/Package.swift` | the subprocess executable (modes `primary`, `forward`) |

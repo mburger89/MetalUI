@@ -28,7 +28,7 @@ private func privateDirectory() throws -> String {
     var template = Array("/tmp/msi-XXXXXX".utf8CString)
     let made = template.withUnsafeMutableBufferPointer { mkdtemp($0.baseAddress!) != nil }
     try #require(made, "mkdtemp failed")
-    return String(cString: template)
+    return String(decoding: template.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     #endif
 }
 
@@ -79,7 +79,14 @@ private func makePlatform(for instance: SingleInstance, hidesWindows: Bool = tru
     #if os(macOS)
     armMainRunLoopExitCheck()
     #endif
-    return try SDLPlatform(options: SDLPlatform.Options(hidesWindows: hidesWindows, singleInstance: instance))
+    let platform = try SDLPlatform(options: SDLPlatform.Options(hidesWindows: hidesWindows, singleInstance: instance))
+    // SDL's Cocoa backend reports the test process's own command line as an open
+    // event on the first pump (`AS-G`): settle it into a discarded handler, so a
+    // test reads only what it forwarded.
+    platform.pumpEvents()
+    platform.onOpenURLs = { _ in }
+    platform.onOpenURLs = nil
+    return platform
 }
 
 private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
@@ -336,7 +343,8 @@ struct SDLSingleInstanceTests {
     @Test func aKilledPrimaryReleasesTheRole() throws {
         let directory = try privateDirectory(); defer { remove(directory) }
         let process = Process()
-        process.executableURL = try #require(checkExecutable(), "SingleInstanceCheck not found — run `swift build`")
+        let executable = try #require(checkExecutable(), "SingleInstanceCheck not found — run `swift build`")
+        process.executableURL = executable
         process.arguments = ["primary", directory, "com.test.kill"]
         let output = Pipe()
         process.standardOutput = output
@@ -362,7 +370,8 @@ struct SDLSingleInstanceTests {
         let directory = try privateDirectory(); defer { remove(directory) }
         let primary = try #require(becomePrimary("com.test.process", directory))
         let process = Process()
-        process.executableURL = try #require(checkExecutable(), "SingleInstanceCheck not found — run `swift build`")
+        let executable = try #require(checkExecutable(), "SingleInstanceCheck not found — run `swift build`")
+        process.executableURL = executable
         process.arguments = ["forward", directory, "com.test.process", "/tmp/from-process", "metalui://doc/7"]
         let output = Pipe()
         process.standardOutput = output
@@ -564,6 +573,20 @@ struct SDLSingleInstanceTests {
         #expect(failure(forward("", directory, [])) == .emptyID)
     }
 
+    /// 14b (SN-C item 1). The names are `msui-<h>.lock`/`.sock`, `h` the first 16 hex
+    /// digits of SHA-256 over the id's UTF-8 (the value is Python's `hashlib`'s).
+    ///
+    /// Mutation: change one round constant of the bridge's SHA-256.
+    @Test func theNamesAreTheFirstSixteenHexDigitsOfTheIDsSHA256() throws {
+        #if os(Windows)
+        return
+        #else
+        let paths = try #require(SingleInstance.paths(id: "com.test.paths", directory: "/tmp/x"))
+        #expect(paths.lock == "/tmp/x/msui-2041e8b5b209fc4a.lock", "\(paths.lock)")
+        #expect(paths.socket == "/tmp/x/msui-2041e8b5b209fc4a.sock", "\(paths.socket)")
+        #endif
+    }
+
     /// 15 (SN-H). A delivered message raises the key window, else the lowest-id
     /// one; an empty forward raises too; `raisesWindow: false` and
     /// `hidesWindows` do not.
@@ -674,7 +697,8 @@ struct SDLSingleInstanceTests {
     @Test func theClaimIsReleasedWhenThePlatformGoesAway() throws {
         let directory = try privateDirectory(); defer { remove(directory) }
         let paths = try #require(SingleInstance.paths(id: "com.test.release", directory: directory))
-        var primary: SingleInstance? = try #require(becomePrimary("com.test.release", directory))
+        var primary: SingleInstance? = becomePrimary("com.test.release", directory)
+        try #require(primary != nil)
         #expect(FileManager.default.fileExists(atPath: paths.socket))
         primary = nil
         #expect(!FileManager.default.fileExists(atPath: paths.socket), "the socket file goes with the claim")

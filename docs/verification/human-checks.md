@@ -1702,6 +1702,25 @@ a physical GPU, a desktop session and a console.*
   application's data, never stale bytes of its own (`CB-H`; SDL calls the cleanup when it loses the clipboard).
   **Observed:**
 
+## SI. Single-instance launch on SDL — a second launch from a file manager (item S7, user request 2026-10-02, found answering MetalCreator SDL-port gap 5, not a plan task; record 122)
+
+*An agent cannot: these need a real file manager, a second process started by it, and a person. Windows is compiled by CI and reviewed, never run by this item.*
+
+- [ ] **SI1.** Linux, X11 and Wayland: install a `.desktop` file with `Exec=/path/MetalUISDLDemo %F` (a build whose
+  `main.swift` calls `launchingSingleInstance`), open one document from the file manager, then a second: the first window
+  shows the second document (`METALUI_APP_SHELL_DEMO=1`'s `.onOpenURL` section), no second window appears, and the window
+  raises or its taskbar entry flashes. **Observed:**
+- [ ] **SI2.** `kill -9` the primary, relaunch: a fresh primary starts (no "stale" refusal); launch again: it forwards.
+  **Observed:**
+- [ ] **SI3.** Windows 11 (x64 and ARM64), Explorer and a file association: the same as SI1; End Task on the primary, relaunch:
+  a fresh primary (the semaphore is gone with its last handle, `SN-P`); also two sessions of one user (fast user switching):
+  each has its own primary (`SN-D`). **Observed:**
+- [ ] **SI4.** Wayland activation: does `SDL_RaiseWindow` bring the primary forward without a token, or only flash it? Record
+  the compositor (`SN-H`, `SN-L`). **Observed:**
+- [ ] **SI5.** Two users on one machine (`su` or fast user switching): neither sees the other's primary; a launch by the second
+  user while the first runs is its own primary. **Observed:**
+- [ ] **SI6.** A primary left running eight hours (screen lock, suspend, resume), then a forward: it arrives. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
