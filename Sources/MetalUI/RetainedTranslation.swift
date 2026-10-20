@@ -34,6 +34,9 @@ struct PaintTranslation {
     /// The device pixels the leaves moved by.
     var dx: Float, dy: Float
     var scene: [RetainLog.SceneOp]
+    /// The record's final stream moved too, when no paint scope is open around the occurrence (its leaves are then the
+    /// final primitives); `nil` otherwise.
+    var finalScene: [RetainLog.SceneOp]?
 }
 
 /// A prepaint ledger moved to the position the occurrence stands at now.
@@ -150,17 +153,31 @@ extension Frame {
         let entry = MUIBounds(origin: MUIPoint(x: clip[0] * s, y: clip[1] * s),
                               size: MUISize(width: clip[2] * s, height: clip[3] * s))
         let entryDepth = key.ambient.depths[0]
+        switch Self.movedOps(old.scene, dx: dx, dy: dy, entryDepth: entryDepth, entry: entry) {
+        case .refused(let reason): return .refused(reason)
+        case .moved(let ops):
+            var final: [RetainLog.SceneOp]?
+            if let stream = old.finalScene, key.ambient.scopes.isEmpty,
+               case .moved(let movedStream) = Self.movedOps(stream, dx: dx, dy: dy, entryDepth: entryDepth, entry: entry) {
+                final = movedStream
+            }
+            return .moved(PaintTranslation(dx: dx, dy: dy, scene: ops, finalScene: final))
+        }
+    }
+
+    private static func movedOps(_ source: [RetainLog.SceneOp], dx: Float, dy: Float, entryDepth: Int,
+                                 entry: MUIBounds) -> TranslationOutcome<[RetainLog.SceneOp]> {
         var ops: [RetainLog.SceneOp] = []
-        ops.reserveCapacity(old.scene.count)
-        for op in old.scene {
+        ops.reserveCapacity(source.count)
+        for op in source {
             var leaves: [([CapturedPrimitive], [Int]?)] = []
             leaves.reserveCapacity(op.leaves.count)
             for (group, depths) in op.leaves {
                 var moved: [CapturedPrimitive] = []
                 moved.reserveCapacity(group.count)
                 for index in group.indices {
-                    switch Self.movedLeaf(group[index], dx: dx, dy: dy, emittedAt: depths?[index] ?? op.depth,
-                                          entryDepth: entryDepth, entry: entry) {
+                    switch movedLeaf(group[index], dx: dx, dy: dy, emittedAt: depths?[index] ?? op.depth,
+                                     entryDepth: entryDepth, entry: entry) {
                     case .moved(let primitive): moved.append(primitive)
                     case .refused(let reason): return .refused(reason)
                     }
@@ -169,7 +186,7 @@ extension Frame {
             }
             ops.append(RetainLog.SceneOp(boundary: op.boundary, leaves: leaves, depth: op.depth))
         }
-        return .moved(PaintTranslation(dx: dx, dy: dy, scene: ops))
+        return .moved(ops)
     }
 
     private static func strictlyInside(_ m: MUIBounds, _ e: MUIBounds) -> Bool {
@@ -248,6 +265,27 @@ extension Frame {
 }
 
 // MARK: - Moving a prepaint ledger
+
+extension PrepaintLedger {
+    /// This ledger made over at the position `key` stands at, with the moved registrations (`FS-D`): the next frame at that
+    /// position replays it as an exact hit instead of moving it again.
+    func rebased(to key: PrepaintKey, _ moved: LedgerTranslation) -> PrepaintLedger {
+        let copy = PrepaintLedger(key: key)
+        copy.hitboxes = moved.hitboxes
+        copy.axEmissions = axEmissions
+        copy.focus = focus
+        copy.axNodes = axNodes
+        copy.pressOnly = pressOnly
+        copy.contextMenus = contextMenus
+        copy.elementBounds = moved.elementBounds
+        copy.anchors = anchors
+        copy.tallies = tallies
+        copy.prepaints = prepaints
+        copy.liveStates = liveStates
+        copy.reads = reads
+        return copy
+    }
+}
 
 extension Hitbox {
     /// This hitbox with its clipped rect and its element origin moved by (`dx`, `dy`) window points.

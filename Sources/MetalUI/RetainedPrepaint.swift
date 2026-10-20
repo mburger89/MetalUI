@@ -198,6 +198,11 @@ extension Frame {
                 case .moved(let translation):
                     memos.retained.prepaintHits += 1
                     memos.retained.skippedPrepaints += ledger.prepaints
+                    if !retainedVerifiesFromEnvironment {
+                        let rebased = ledger.rebased(to: key, translation)
+                        old.prepaint = rebased
+                        return .replay(rebased, moved: nil)
+                    }
                     return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds)
                 case .refused(let reason):
                     if retainedTraces { print("retained prepaint translation refused \(sbPath(build.key.id).suffix(60)): \(reason)") }

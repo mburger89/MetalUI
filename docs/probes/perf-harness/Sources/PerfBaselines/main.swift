@@ -270,6 +270,73 @@ struct Row: Identifiable { let id: Int }
     report("bracketorbit_panels", "last_frame_work", workLine(work))
 }
 
+// MARK: C14-d (`FS-`, record 126): a layout shift and a scroll
+
+/// A card of the shift-and-scroll scenario: a value-equal `.equatable()` row (two swatches and a label).
+struct SSCard: Component, @MainActor Equatable {
+    let id: Int
+    var content: some ElementGroup {
+        HStack(spacing: 4) {
+            Color(red: 0.2, green: 0.4, blue: 0.8).frame(width: px(10), height: px(10))
+            Text("Card \(id)")
+            Color(red: 0.8, green: 0.4, blue: 0.2).frame(width: px(10), height: px(10))
+        }
+        .frame(height: px(20))
+    }
+}
+
+@MainActor final class SSModel { var header: Float = 10 }
+
+struct SSRoot: Component {
+    let model: SSModel
+    var content: some ElementGroup {
+        VStack(spacing: 0) {
+            ScrollView(.vertical) {
+                VStack(spacing: 2) {
+                    Color(red: 0.5, green: 0.5, blue: 0.5).frame(height: px(model.header))
+                    ForEach(Array(0..<60), id: \.self) { SSCard(id: $0).equatable() }
+                }
+            }
+            .frame(width: px(300), height: px(400))
+        }
+    }
+}
+
+/// The 60 retained cards of a scroller under a header that grows and shrinks by 4 points (K1: every card's layout origin moves)
+/// and under a wheel of 30 points (K2: the scroll offset moves), alternating, retention, prepaint replay and the graft on (the
+/// defaults). Wall and thread-CPU medians per movement and the last frame's work. Run it from the base commit and from the head
+/// (`git archive`) alternately, three times each: a dated measurement, never a pin (`FS-I`).
+@MainActor func shiftScrollScenario(rounds: Int, frames: Int) throws {
+    var wall: [String: [Double]] = ["header": [], "scroll": []], cpu: [String: [Double]] = ["header": [], "scroll": []]
+    var work: [String: FrameWork] = [:]
+    for _ in 0..<rounds {
+        let model = SSModel()
+        let w = try TestWindow(size: Size(width: px(320), height: px(420)), scaleFactor: 2) { SSRoot(model: model) }
+        for _ in 0..<12 { w.window.setNeedsRedraw(); w.tick() }
+        for frame in 0..<frames {
+            let kind = frame % 2 == 0 ? "header" : "scroll"
+            let t0 = now(), c0 = cpuNow()
+            if kind == "header" {
+                model.header += (frame / 2) % 2 == 0 ? 4 : -4
+                w.window.setNeedsRedraw(); w.tick()
+            } else {
+                w.scroll(at: Point(x: px(160), y: px(200)), byDeltaX: 0, deltaY: (frame / 2) % 2 == 0 ? -30 : 30)
+            }
+            wall[kind]!.append(now() - t0); cpu[kind]!.append(cpuNow() - c0)
+            work[kind] = w.lastFrameWork
+        }
+    }
+    var load = [Double](repeating: 0, count: 3); getloadavg(&load, 3)
+    report("shiftscroll", "load_average", String(format: "%.1f %.1f %.1f", load[0], load[1], load[2]))
+    for kind in ["header", "scroll"] {
+        report("shiftscroll_" + kind, "frame_ms_median", ms(median(wall[kind]!)))
+        report("shiftscroll_" + kind, "frame_ms_min", ms(wall[kind]!.min()!))
+        report("shiftscroll_" + kind, "frame_cpu_ms_median", ms(median(cpu[kind]!)))
+        report("shiftscroll_" + kind, "frame_cpu_ms_min", ms(cpu[kind]!.min()!))
+        report("shiftscroll_" + kind, "last_frame_work", workLine(work[kind]!))
+    }
+}
+
 let args = CommandLine.arguments.dropFirst()
 let which = args.first(where: { !$0.hasPrefix("--") }) ?? "all"
 let quick = args.contains("--quick")
@@ -293,6 +360,7 @@ MainActor.assumeIsolated {
             try bracketABScenario(arm: .value, name: "bracketab_value", rounds: rounds, reps: quick ? 6 : 14)
             try bracketABScenario(arm: .panels, name: "bracketab_panels", rounds: rounds, reps: quick ? 6 : 14)
         }
+        if which == "shiftscroll" { try shiftScrollScenario(rounds: quick ? 3 : 8, frames: quick ? 20 : 40) }
         if which == "bracketorbit" { try bracketOrbitScenario(rounds: quick ? 3 : 8, frames: quick ? 20 : 40) }
         if which == "bracketenv" { try bracketEnvScenario(rounds: quick ? 3 : 8, reps: quick ? 6 : 14) }
         if which == "bracketgraft" {

@@ -647,6 +647,11 @@ extension Frame {
                 if phase.replayed != nil { entry.redoExponent = 0 }
                 if let moved {
                     phase.translatedScene = moved.scene
+                    // The record is made over at the new position, so the frames that follow replay it as an exact hit
+                    // (verify mode keeps the record it compares against).
+                    if !retainedVerifiesFromEnvironment {
+                        old.key = key; old.scene = moved.scene; old.finalScene = moved.finalScene
+                    }
                     // Verify mode compares the fresh run with the record as moved (`SB-W`).
                     if retainedVerifiesFromEnvironment, phase.replayed == nil {
                         return .record(SubtreeRecorder(), key, old: old.moved(to: moved.scene))
