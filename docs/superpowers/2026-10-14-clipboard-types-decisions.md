@@ -1,7 +1,7 @@
 # Clipboard beyond text — decisions
 
 Rulings for item S3 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
-MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-R`.**
+MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-S`.**
 Spec: [`specs/2026-10-14-clipboard-types-design.md`](specs/2026-10-14-clipboard-types-design.md).
 Record: `../record/115-clipboard-types.md` (Record phase). Branch `feat/clipboard-types` from
 `fb9a7e42`. Divergence labels reserved 455–464: **455 taken** (`CB-G`), **456 taken** (`CB-C`).
@@ -282,3 +282,19 @@ dedupe removed reddens `twoRepresentationsOfOneMimeKeepTheFirst`. **A skipped `f
 observable in-process (the counters are the cleanup's own); it is held by review of the one `free`, and recorded here, not pinned.
 **Cost if wrong.** A leak of one box per replace would pass the tests.
 
+## CB-R — Two pins after review: the exact modifier, and the dead empty-clipboard guard
+
+**Question.** `CB-B` claims only `EventModifiers.primary` + C/X/V and `CB-P` says an empty clipboard declines; the
+mutation record showed neither pinned (`key.modifiers == .primary` -> `.contains(.primary)` reddened nothing; the
+`item.types.isEmpty` early return in `dispatchClipboardKey`'s paste arm had no test that could see it).
+**Ruling.** (1) The exact-modifier rule stands and is pinned by `onlyThePrimaryModifierAloneClaimsCopyCutPaste`: with a
+focused `copyable`/`cuttable`/`pasteDestination`, primary+Shift+C, primary+Option+V and primary+other+X write nothing,
+run no action and reach a `Button` shortcut; the exact chords then claim. Re-run: the `.contains(.primary)` mutant reddens
+that test (five issues); restored. (2) The `item.types.isEmpty` guard is **deleted as dead code**: with no offered type,
+`importClipboardItem`'s `first(where:)` finds nothing for every imported type and answers `nil`, so the paste closure
+returns `false` before the validator or the action — the same decline, the same next stage. Pinned by
+`anEmptyClipboardDeclinesWithoutRunningTheValidatorOrTheAction` (validator spy 0, action none, Button runs). A guard
+that cannot change an observable is not kept as documentation. `StateDispatch.dispatching(to:)` around an immediately
+declining closure has no effect of its own.
+**Cost if wrong.** A paste closure that later runs the validator before importing would call it on an empty clipboard;
+the new test reddens first.

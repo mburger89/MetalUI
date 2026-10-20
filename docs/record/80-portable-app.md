@@ -491,3 +491,14 @@ consumer test. Human checks X1–X5, unrun.
 - **Open (unchanged, `PX-V`):** the ghost-return id case, test 1.7's warning
   filter, no CI job running `.task` itself. Windows builds (`CStbImage`, the
   `SDLBridge` stub) are confirmed only by CI on push.
+
+## Addendum 2026-10-19 — F2: `removalCancelsAtItsPlaceInTheDisappearanceOrder` flaked (test harness, no product change)
+
+The test's last line asserted `resumed.entries == ["A true", "B true"]`. The two entries are written by the
+continuations of two separate tasks, each resumed as its own main-actor job; the runtime does not promise which job
+runs first. Reproduced with 48 busy loops running while `METALUI_VERIFY_RETAINED=1 swift test --skip-build --filter
+TaskModifierTests` was looped: 2 of 60 (and 1 of 30) failed with `["B true", "A true"]` and `done == true`, so it was
+neither a missing yield nor a verify-mode double build racing a task (cancel order is asserted separately through
+`log`, which never failed). The assertion now compares `resumed.entries.sorted()`: after the fix 120 of 120 under the same load and
+30 of 30 isolated runs passed with `METALUI_VERIFY_RETAINED=1`. No ruling: a resumption order is not a product contract (`PX-F` item 4
+promises the cancel's place, not the resume's).

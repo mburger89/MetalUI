@@ -489,7 +489,7 @@ for a quit, and without it ⌘Q asks every window in turn; `Window.title`/`.navi
 `isDocumentEdited` and `.navigationDocument` set the title, the edited dot and the proxy icon;
 `windowStyle: .hiddenTitleBar` lays content under the title bar with
 `@Environment(\.titleBarInsets)` (AppKit; on SDL a borderless window with drawn window buttons and
-hit-test drag and resize regions, `METALUI_CHROME_DEMO=1`, divergences 175, 425, 426, group CW); `.onOpenURL` receives open-document events (divergence 176). SwiftUI has no close veto or
+hit-test drag and resize regions, `METALUI_CHROME_DEMO=1`, divergences 175, 425, 426, group CW); `.onOpenURL` receives open-document events (divergence 176; on SDL an opt-in `SingleInstance` forwards a second launch's files to the running app, group SI). SwiftUI has no close veto or
 edited marker, so those are MetalUI-only by ruling. `METALUI_APP_SHELL_DEMO=1 swift run
 MetalUIDemo` shows them. Human checks: group AS, unrun.
 **Key and focus scoping** (user request 2026-10-02, item C9, not a plan task; record §88):
