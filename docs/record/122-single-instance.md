@@ -104,7 +104,7 @@ and nothing else; `FR-J no-argument frame: succeeded=true`. 3970 + 1 (guard 1.6b
 
 - **Windows is compiled by nothing and run nowhere in this item**: the `_WIN32` branch of `SDLInstance.c` (semaphore, overlapped
   named pipe, SID scoping) was read, not built; the UTM VM was not tried. The Windows CI job on push and human check SI3 are the only
-  cover; **watch that job before merge**. `advapi32` is linked in the root `Package.swift`.
+  cover; **watch that job before merge**. `advapi32` is linked by a `#pragma comment(lib, "advapi32.lib")` in `SDLInstance.c` (no manifest change; whether it resolves on the CI toolchain is itself unmeasured).
 - A macOS test that creates an `SDLPlatform` arms `armMainRunLoopExitCheck()`; the test platform helper settles SDL's Cocoa report of the
   test process's own command line (an open event on the first pump) before it forwards.
 - Known flake, unrelated: `theShaderLibraryLooksBesideTheExecutableThenTheSourceTree` failed once with a temp-directory permission error
