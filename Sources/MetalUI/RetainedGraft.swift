@@ -304,7 +304,10 @@ extension Frame {
               old.contentSerial == entry.serial, graft.contentSerial == entry.serial, graft.key == key else {
             return nil
         }
-        guard prepaintRefusal() == nil, environmentTop.uncomparableCustomCount == 0, transactionTop.animation == nil else {
+        // No `uncomparableCustomCount` conjunct (C14-c4, `FS-H`): an uncomparable custom reading equals nothing, itself
+        // included, so `BuildKey.environment` never equals the key a record under it was made with (`graft.key == key`
+        // above), and the paint and prepaint refusals leave such an occurrence no record to stand on.
+        guard prepaintRefusal() == nil, transactionTop.animation == nil else {
             return nil
         }
         guard old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) else { return nil }

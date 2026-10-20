@@ -119,3 +119,25 @@ func aListRowReplayEqualsAFreshWindowWithAccessibilityOnAndOff(branch: FSBranch,
         try pair.compare("edit after \(step)")
     }
 }
+
+// MARK: C14-c4
+
+/// C14-c4 (`FS-H`, green on arrival by construction): an occurrence under a function-holding custom key never grafts and is counted
+/// ineligible, the frame equals the retention-off window's. The refusal is the key's (`BuildKey.environment` never equals itself);
+/// `aBuildKeyUnderAnUncomparableReadingEqualsNothing` pins that half where a mutation of the key reaches it.
+@Test(.enabled(if: !rsVerifying, fsVerifyingNote)) @MainActor
+func aGraftIsRefusedUnderAnUncomparableKey() throws {
+    let sides = EESides()
+    let pair = try RPPair(size: sz(200, 80), warm: 16) { side in
+        VStack(spacing: 4) {
+            EESchemeReader(log: sides.of(side).log).equatable().environment(\.eeFn, EEFn(run: { 3 }))
+        }
+    }
+    for _ in 0..<3 {
+        pair.redraw()
+        let f = try #require(pair.frames.last)
+        #expect(f.retainedGrafts == 0 && f.retainedHits == 0, "\(f.retainedGrafts) grafts, \(f.retainedHits) hits")
+        #expect(f.retainedIneligible == 1, "counted ineligible: \(f.retainedIneligible)")
+        try pair.compare("a function key")
+    }
+}
