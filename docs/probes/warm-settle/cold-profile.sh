@@ -17,6 +17,13 @@ fi
 rm -rf "$scratch/cold-harness"; mkdir -p "$scratch"
 cp -R "$root/docs/probes/warm-settle/cold-harness" "$scratch/cold-harness"
 git -C "$root" show "$commit:Tests/MetalUITestingTests/BracketFixture.swift" > "$scratch/cold-harness/Sources/ColdFrames/BracketFixture.swift"
+if git -C "$root" show "$commit:Sources/MetalUITesting/FrameWork.swift" | grep -q retainedGrafts; then
+  cp "$scratch/cold-harness/CountersFull.swift.txt" "$scratch/cold-harness/Sources/ColdFrames/Counters.swift"
+elif git -C "$root" show "$commit:Sources/MetalUITesting/FrameWork.swift" | grep -q retainedHits; then
+  cp "$scratch/cold-harness/CountersBase.swift.txt" "$scratch/cold-harness/Sources/ColdFrames/Counters.swift"
+else
+  cp "$scratch/cold-harness/CountersMin.swift.txt" "$scratch/cold-harness/Sources/ColdFrames/Counters.swift"
+fi
 echo "date\t$(date -u +%FT%TZ)"
 echo "commit\t$tag"
 echo "machine\t$(sysctl -n hw.model) / $(sysctl -n machdep.cpu.brand_string) / macOS $(sw_vers -productVersion) / $(swift --version 2>&1 | head -1)"

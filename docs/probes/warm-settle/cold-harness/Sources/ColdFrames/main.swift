@@ -21,10 +21,6 @@ func median(_ xs: [Double]) -> Double { let s = xs.sorted(); return s[s.count / 
 func report(_ scenario: String, _ metric: String, _ value: String) { print("\(scenario)\t\(metric)\t\(value)") }
 func ms(_ v: Double) -> String { String(format: "%.3f", v) }
 
-func counters(_ w: FrameWork) -> String {
-    "measures=\(w.layoutMeasureCalls) memoHits=\(w.layoutMemoHits) memoMisses=\(w.layoutMemoMisses) subtreeHits=\(w.layoutSubtreeHits) requests=\(w.elementRequests) prepaints=\(w.elementPrepaints) paints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) ledgerSnapshots=\(w.retainedLedgerSnapshots) grafts=\(w.retainedGrafts) rasterizedPixels=\(w.rasterizedPixels) blurredPixels=\(w.blurredPixels) uploadPixels=\(w.atlasUploadPixels) glyphs=\(w.glyphs) rects=\(w.rects)"
-}
-
 @MainActor func coldScenario(arm: BracketArm, name: String, rounds: Int) throws {
     var wall = [[Double]](repeating: [], count: 6), cpu = [[Double]](repeating: [], count: 6)
     var work = [FrameWork](repeating: FrameWork(), count: 6)
