@@ -836,6 +836,15 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
         // `RK-S`: the translation of an outer effect is the one key component that no longer separates; the probe
         // replays at its new place (translated) and the scene equals the fresh one (the differential below).
         if !rsVerifying { #expect(reaction == 0 && f.retainedTranslated == 1, "offsetEffect: hits \(f.retainedHits) translated \(f.retainedTranslated)") }
+    } else if arm == .topRect || arm == .flexRect {
+        // `FS-D` (C14-d): an occurrence that only **moved** (neither its size nor its subtree changed) replays translated, so the
+        // neighbour of a padding or of a resized sibling no longer misses; these two arms used to read that miss as the
+        // reaction. The probe of `flexRect` is a zero-size node that stays at the middle of its frame, so it hits unmoved.
+        // Size is still a key component: the separating arm is `aShiftThatAlsoResizesTheOccurrenceMisses`.
+        if !rsVerifying {
+            let moved = arm == .topRect ? 2 : 1
+            #expect(reaction == 0 && f.retainedTranslated == moved, "\(arm.rawValue): hits \(f.retainedHits) translated \(f.retainedTranslated) misses \(f.retainedMisses)")
+        }
     } else {
         #expect(reaction >= (arm.isGlobal ? 2 : 1), "\(arm.rawValue): hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible)")
         if !arm.isGlobal { #expect(f.retainedHits >= 1, "the control card still replays") }

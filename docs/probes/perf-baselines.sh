@@ -5,6 +5,7 @@
 #   bracketgraft (C14b-2 lane 2: the same with the graft off and on, METALUI_RETAINED_GRAFT=0/1),
 #   bracketenv (C14-c: the node drag of the .value, .environment and .environmentObject arms alternating in one process, wall and CPU, with the load average),
 #   bracketorbit (C14b-3: the .panels arm's orbit frame, viewport token bumped per frame, nothing in the panels changing; run from the base and the head alternately),
+#   shiftscroll (C14-d: 60 retained cards in a scroller, a header that grows 4 pt and a wheel of 30 pt alternating; run from the base and the head alternately),
 #   bracketab (C14b-2: the node drag with prepaint replay off and on alternating in one process, METALUI_RETAINED_PREPAINT=0/1).
 # Builds the public-API harness docs/probes/perf-harness against this checkout
 # (through a symlink named MetalUI so the package identity resolves) in a scratch

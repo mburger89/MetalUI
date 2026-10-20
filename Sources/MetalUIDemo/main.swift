@@ -106,7 +106,7 @@ func runDemo() throws {
                                     content: clipboardDemoContent)
     } else if retainedDemo {
         window = try app.openWindow(title: "MetalUI — Retained Subtrees",
-                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    size: Size(width: Pixels(920), height: Pixels(700)),
                                     content: retainedSubtreeDemoContent)
         // The counters and the switch are package API (the harness's hooks), wired here for the demo.
         let model = retainedSubtreeDemoModel
@@ -115,6 +115,8 @@ func runDemo() throws {
                               work.retained.prepaintHits, work.retained.redos, work.retained.translated)
             model.grafts = (work.retained.grafts, work.retained.skippedRequests)
             model.reasons = work.retained.ineligibleReasons.sorted { $0.key < $1.key }
+                .map { "\($0.key) \($0.value)" }.joined(separator: ", ")
+            model.translationRefusals = work.retained.translationRefusedReasons.sorted { $0.key < $1.key }
                 .map { "\($0.key) \($0.value)" }.joined(separator: ", ")
         }
         model.applySkipBuild = { [weak window] on in

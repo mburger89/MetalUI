@@ -48,6 +48,8 @@ package struct RetainedCounters: Sendable, Equatable {
     package var translated = 0
     /// Occurrences whose move by a translation failed the gate and missed (`RK-G`).
     package var translationRefused = 0
+    /// ``translationRefused`` by the name of the gate that refused (`FS-F`).
+    package var translationRefusedReasons: [String: Int] = [:]
     /// Occurrences whose build recursion did not run: their layout rows were copied and the build journal applied again
     /// (`RK-B`, `RK-F`).
     package var grafts = 0
@@ -60,6 +62,12 @@ package struct RetainedCounters: Sendable, Equatable {
     /// The three ineligible counters summed by the name of the channel that refused (`RW-M`): a paint taint or entry
     /// refusal, a prepaint refusal or taint, a graft refusal. Filled only on the ineligible path.
     package var ineligibleReasons: [String: Int] = [:]
+
+    /// The one funnel a refused translation goes through (`FS-F`).
+    package mutating func noteTranslationRefused(reason: String) {
+        translationRefused += 1
+        translationRefusedReasons[reason, default: 0] += 1
+    }
 
     package enum IneligibleKind: Sendable { case paint, prepaint, graft }
 
@@ -136,6 +144,9 @@ final class RetainLog {
     /// Notes the leaves at `boundary` when an open recorder's own scopes end there, and at boundary 0
     /// (the scene itself) for the final-primitive stream a plain-effect replay uses (`SB-AB`).
     func noteBoundary(_ boundary: Int, _ leaves: [([CapturedPrimitive], [Int]?)], _ depth: Int) {
+        // Leaves that stand above a recorder's own scope height have passed a scope opened inside its occurrence: its
+        // record cannot be moved by an add (`FS-D`).
+        for recorder in recorders where recorder.entryHeight < boundary { recorder.passedInnerScope = true }
         for recorder in recorders where recorder.entryHeight == boundary || boundary == 0 {
             scene.append(SceneOp(boundary: boundary, leaves: leaves, depth: depth))
             return
@@ -155,6 +166,8 @@ final class SubtreeRecorder {
     var readLow = 0
     /// The paint scopes open where the paint window opened: the height the scene is recorded at.
     var entryHeight = 0
+    /// Whether any leaf of this occurrence passed a paint scope opened inside it (`FS-D`).
+    var passedInnerScope = false
     var from = RetainLog.Marks()
     var before = LedgerSnapshot()
 }
@@ -198,6 +211,8 @@ struct AmbientKey: Equatable {
 struct ReplayKey: Equatable {
     var rects: [Float]
     var interior: Int
+    /// The subtree's signature relative to the first top node's origin (`FS-D`): `interior` without the position.
+    var shapeInterior: Int
     var nodeCount: Int
     var ambient: AmbientKey
 
@@ -244,6 +259,8 @@ final class RetainedRecord {
     /// The entries read-only accesses kept live under the paint (`RW-E`).
     var lives: [GlobalElementID] = []
     var paintWork = 0
+    /// Whether a leaf of the occurrence passed a paint scope opened inside it: such a record is not moved by an add (`FS-D`).
+    var innerScopes = false
     /// Whether the build, prepaint and paint windows were all observed when the record was made
     /// (`SB-V`). A record made on a frame that skipped the build and prepaint sessions (the frame a
     /// valid record missed on) covers only its paint, so it is not replayed: the next frame observes
@@ -389,6 +406,7 @@ final class RetainedPhase {
     /// The occurrence's rects and layout signature, read once at prepaint and shared by both keys.
     var rects: [Float] = []
     var interior = 0
+    var shapeInterior = 0
     var nodeCount = 0
     /// The prepaint key this frame computed, and the ledger this frame's prepaint made (`nil` when it was
     /// refused or tainted) or replayed (`RK-E`).
@@ -399,6 +417,10 @@ final class RetainedPhase {
     var prepaintReads: Range<Int> = 0..<0
     /// Whether the paint decision replayed the record at a translated position (`RK-G`, `RK-S`).
     var translatedPaint = false
+    /// The paint record moved to this frame's position, when the decision replays it translated (`FS-D`).
+    var translatedScene: [RetainLog.SceneOp]?
+    /// The attempt to move the record, kept between prepaint and paint (`FS-D`).
+    var paintTranslationMemo: PaintTranslationMemo?
     /// Whether the occurrence was grafted (`RK-B`): no element layout, so prepaint and paint can only replay.
     var grafted = false
     /// Whether its prepaint asked for the frame to be redone: paint then does nothing.
@@ -499,7 +521,8 @@ extension Frame {
     }
 
     func retainedKey(_ phase: RetainedPhase) -> ReplayKey {
-        ReplayKey(rects: phase.rects, interior: phase.interior, nodeCount: phase.nodeCount, ambient: retainedAmbientKey())
+        ReplayKey(rects: phase.rects, interior: phase.interior, shapeInterior: phase.shapeInterior,
+                  nodeCount: phase.nodeCount, ambient: retainedAmbientKey())
     }
 
     /// Reads the occurrence's rects and layout signature into `phase` (once per occurrence per frame).
@@ -507,8 +530,11 @@ extension Frame {
         var rects: [Float] = []
         rects.reserveCapacity(phase.build.topNodes.count * 4)
         for node in phase.build.topNodes { rects += flat(bounds(of: node)) }
-        let (hash, count) = tree.subtreeSignature(of: phase.build.topNodes)
-        phase.rects = rects; phase.interior = hash; phase.nodeCount = count
+        var origin = (x: 0.0, y: 0.0)
+        if let first = phase.build.topNodes.first { let r = tree.layout(lowering.alias(first)); origin = (r.x, r.y) }
+        let signatures = tree.subtreeSignatures(of: phase.build.topNodes, relativeTo: origin)
+        phase.rects = rects; phase.interior = signatures.absolute; phase.shapeInterior = signatures.relative
+        phase.nodeCount = signatures.count
     }
 
     /// Whether the hovered element, the pressed one or the focused one is the component or under it (`SB-F`
@@ -553,14 +579,14 @@ extension Frame {
         return true
     }
 
-    func replayPaint(_ r: RetainedRecord, translated: Bool = false) {
+    func replayPaint(_ r: RetainedRecord, translated: Bool = false, scene movedScene: [RetainLog.SceneOp]? = nil) {
         // A record replayed at a translated position goes through the live scopes (`RK-S`): the final stream holds
         // the old translation in its coordinates.
         if !translated, retainLog?.needsLeaves != true, let final = r.finalScene {
             // No other live recorder wants the leaves where an outer scope would pass them: straight in.
             for op in final { for (group, _) in op.leaves { for primitive in group { insertIntoScene(primitive) } } }
         } else {
-            for op in r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
+            for op in movedScene ?? r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
         }
         for id in r.marks { stateTable.mark(id) }
         for id in r.lives { stateTable.touchLive(id); retainLog?.lives.append(id); prepaintLog?.lives.append(id) }
@@ -603,11 +629,35 @@ extension Frame {
                 && retainedVersionsUnchanged(old.versions) && !underPointer
                 && (phase.replayed == nil || old.prepaint === phase.replayed)
                 && !(old.prepaint == nil && phase.ledger != nil)   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
-            let translated = valid && old.key != key && memos.replaysPrepaint && key.differsOnlyByEffectTranslation(from: old.key)
+            let effectTranslated = valid && old.key != key && memos.replaysPrepaint && key.differsOnlyByEffectTranslation(from: old.key)
+            // The occurrence's origin or scroll offset moved and nothing else did (`FS-D`): replay at the new position when the
+            // add is exact, else refused by name and a miss.
+            var moved: PaintTranslation?
+            if valid, !effectTranslated, old.key != key, memos.replaysPrepaint, memos.translatesLayout, let shift = key.shift(from: old.key) {
+                switch paintTranslation(of: old, shift: shift, key: key, phase: phase) {
+                case .moved(let translation): moved = translation
+                case .refused: break
+                }
+            }
+            let translated = effectTranslated || moved != nil
             if valid && (old.key == key || translated) {
+                refreshLedger(of: old, from: phase)
                 memos.retained.hits += 1
                 if translated { memos.retained.translated += 1; phase.translatedPaint = true }
                 if phase.replayed != nil { entry.redoExponent = 0 }
+                if let moved {
+                    phase.translatedScene = moved.scene
+                    // The record is made over at the new position, so the frames that follow replay it as an exact hit
+                    // (verify mode keeps the record it compares against).
+                    if !retainedVerifiesFromEnvironment {
+                        old.key = key; old.scene = moved.scene; old.finalScene = moved.finalScene
+                    }
+                    // Verify mode compares the fresh run with the record as moved (`SB-W`).
+                    if retainedVerifiesFromEnvironment, phase.replayed == nil {
+                        return .record(SubtreeRecorder(), key, old: old.moved(to: moved.scene))
+                    }
+                    return .hit(old)
+                }
                 // A prepaint-replayed occurrence has no element prepaint state to paint from: verify mode checks
                 // it at the window, by building the frame again with replay off (`RK-N`).
                 if retainedVerifiesFromEnvironment, phase.replayed == nil { return .record(SubtreeRecorder(), key, old: old) }
@@ -619,6 +669,19 @@ extension Frame {
         }
         entry.record = nil
         return .record(SubtreeRecorder(), key, old: nil)
+    }
+
+    /// `FS-N`: a record that still stands keeps the prepaint ledger it was made with, so a ledger made under a prepaint
+    /// context that has since changed (a `List` frame whose window was not yet bounded, with a client collecting, records
+    /// the rows under the list's suppression exception, `AB-X`) would never be replaced while the paint record keeps
+    /// hitting: its key then differs from every later frame's, in one part only, and no prepaint replays and no
+    /// graft stands (F4). The prepaint that ran this frame made an exact ledger for the same, still valid, occurrence:
+    /// it takes the old one's place when its key differs and every entry it read is one the record already versions.
+    private func refreshLedger(of old: RetainedRecord, from phase: RetainedPhase) {
+        guard phase.replayed == nil, let fresh = phase.ledger, let current = old.prepaint, current !== fresh,
+              current.key != fresh.key else { return }
+        for id in fresh.reads where !old.versions.contains(where: { $0.0 == id }) { return }
+        old.prepaint = fresh
     }
 
     private func traceMiss(_ old: RetainedRecord, key: ReplayKey, build: RetainedBuild, entry: ContentMemoStore.Entry,
@@ -692,6 +755,7 @@ extension Frame {
         record.lives = Array(log.lives[from.lives..<to.lives])
         record.touches = Array(log.touches[from.touches..<to.touches])
         record.paintWork = after.work - before.work
+        record.innerScopes = recorder.passedInnerScope
         if log.recorders.isEmpty { retainLog = nil }
         let memos = stateTable.contentMemos
         if let old {
@@ -725,6 +789,18 @@ extension Frame {
 // MARK: - Verify mode
 
 extension RetainedRecord {
+    /// A copy whose leaves are `scene`, for verify mode to compare a moved replay with a fresh run (`FS-D`): the final stream is
+    /// left out, as for any translated replay.
+    func moved(to scene: [RetainLog.SceneOp]) -> RetainedRecord {
+        let copy = RetainedRecord(key: key)
+        copy.contentSerial = contentSerial; copy.versions = versions
+        copy.scene = scene; copy.finalScene = nil
+        copy.marks = marks; copy.touches = touches; copy.lives = lives
+        copy.paintWork = paintWork; copy.coverageComplete = coverageComplete; copy.prepaint = prepaint
+        copy.innerScopes = innerScopes
+        return copy
+    }
+
     /// How `other` (a fresh run's record) differs from this one, or `nil` (`SB-W`): every scene
     /// operation (kind, layer, masks, texture identity, raster key), the marks and touches, and the
     /// element work the record stands for.
