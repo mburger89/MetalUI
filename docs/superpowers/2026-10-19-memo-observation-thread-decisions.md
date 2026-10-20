@@ -51,7 +51,7 @@ re-dirties through the sentinel); work-count pins of steady frames are unchanged
 **Ruling.** Tests 1-3 of the spec reproduce the report with `MetalUI` and `MetalUITesting` types only and are measured red in the
 `metalui-portable` image before the fix (macOS passing is expected and recorded, not a defect of the pin). Test 4 uses a real second
 thread joined without a main-actor yield, so it is red on macOS too and is the pin that does not depend on the test runner's executor.
-Every pin is mutated (restore the `isMainThread`-only flag set; move the clear after the getter; drop the serial compare).
+Mutations run (record 123 §5, §10): the `isMainThread`-only flag set is proven; dropping the serial compare does **not** redden test 6 (it reddens 13 other memo and retained tests); the clear-after-getter and plain-clear mutations are unpinned (`MO-H`).
 **Cost if wrong.** If the Linux image already passes tests 1-3 (the report's repro was reached through a different ordering), the
 design stands on test 4 and the hypothesis is re-opened in the record, not silently kept.
 

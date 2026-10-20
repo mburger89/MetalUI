@@ -161,7 +161,8 @@ private struct MOOuter: Component, @MainActor Equatable {
     }
 
     /// Test 6. A retired session never marks the entry: after several evaluations a steady frame skips. (The
-    /// `armed` counter is bookkeeping that lags behind a hop off Darwin, `MO-C`, so it is not asserted here.) Mutation: drop the serial compare in `ContentMemoHandle.fire`.
+    /// `armed` counter is bookkeeping that lags behind a hop off Darwin, `MO-C`, so it is not asserted here.) Dropping the serial compare in
+    /// `MemoFlags.fireMemo` does NOT redden this test (checker, record 123 §10); `isMainThread`-only flag setting does, in the Linux image.
     @Test func aRetiredSessionsFireChangesNothing() throws {
         let model = MOStore()
         let window = try harnessWindow {

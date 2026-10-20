@@ -135,3 +135,25 @@ undocumented scripts were not run, nothing moved), the fourteen images (§6 item
 - Dirtying the window synchronously for a write on a pool-thread main actor (latency only; `RU-A`). Owner: F3 follow-up.
 - `@FocusState` and uncomparable readings stay refused (divergence 346, C14-c2).
 - Moving `armed` off the hop: no value.
+
+## §10 Branch checker (adversarial, 4d91f27f..HEAD)
+
+- Clean build (`swift package clean`, native): 0 `error:`, only SwiftPM's deprecation warning. Native unfiltered at `02056538`:
+  `Test run with 3977 tests in 5 suites passed after 339.318 seconds.` (unlocked screen), `FR-J no-argument frame: succeeded=true`.
+  `cmp CLAUDE.md AGENTS.md` equal. Inventory and undocumented scripts print nothing.
+- Fourteen images, `compare.sh <scratch> 4d91f27f HEAD`: 14 of 14 `differing=0`, scene identical, controls as recorded.
+- Mutation 1, `ContentMemoHandle.fire` sets `stale` only when `Thread.isMainThread` (full native suite, `3977 tests ... 8 issues`, 5 of them
+  the locked-screen sheet issues): reddened `aWriteFromAnotherThreadIsSeenBeforeTheWriterReturns` and
+  `ContentMemoWindowTests.aBackgroundThreadWriteDirtiesAMemoWithinOneFrame`. Same mutation plus `RetainedHandle.fire` main-thread-only,
+  re-measured in the Linux image (`MemoObservationThreadTests`, 6 tests): tests 1, 2, 3, 4 and `aRetiredSessionsFireChangesNothing` red,
+  `aChangeDuringARecordsFrameIsNotErasedByItsClear` green. The implementer's Linux red-first claim is confirmed. Unmutated Linux: 6 of 6 pass.
+- Mutation 2, `MemoFlags.fireMemo` drops its serial compare (full suite, 30 issues): reddened 13 tests (`anOwnStateWriteBeatsAnEqualValue`,
+  `sessionsNeverExceedLiveEntries`, `aComponentThatReEvaluatesEveryFrameLetsTheWindowIdle`, `lifecycleAnimationAndListInsideAMemoizedComponent`,
+  the two `...ArmCostsWhatTheValueArmCosts`, `aReplayMissesWhenAnEnvironmentValueItReadChanges`, `aReaderIsEvaluatedAgainWhenTheValueItReadChanges`,
+  `aReaderOfAnotherKeyIsSkippedWhenAnUnreadKeyChanges`, `aCustomEquatableKeyRewrittenEqualIsSkipped`,
+  `aNestedOccurrencesObservedChangeRebuildsTheGraftedOuter`, `aReplayedHandlerActsLikeAFreshOne`, `theBracketNodeDragRebuildsTheWholeWindow`)
+  but **not** `aRetiredSessionsFireChangesNothing`, whose docstring named it. Docstring and `MO-E` corrected; the pin guards the property only
+  through older tests.
+- Defect fixed: the spec's test table named tests 5 and 6 as planned; it now says test 5 was not written and test 6 was renamed.
+- `Backends/SDL` on macOS: 215 tests, 1 failure `sdlAFileDroppedOnTheAppIsAnOpenURL`, **identical on `4d91f27f`'s `Sources/`**: pre-existing, not this branch.
+- Not re-taken: default-build-system warning count, `METALUI_VERIFY_RETAINED=1`/`METALUI_VERIFY_LAYOUT_MEMO=1`, Windows. Pin gaps §6 items 1 and 2 stand.
