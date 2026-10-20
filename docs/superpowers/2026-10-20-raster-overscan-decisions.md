@@ -4,7 +4,7 @@ Rulings for P4 (user request 2026-10-02). Spec: [`specs/2026-10-20-raster-oversc
 Record: `../record/124-raster-overscan.md` (at the Record phase). Branch `perf/raster-overscan` from `4d91f27f`; divergence labels
 reserved 545–554 (none taken).
 
-**Next unused id: `OS-P`.** (Moves in the commit that appends a ruling; read the last `## OS-` heading if they disagree.)
+**Next unused id: `OS-Q`.** (Moves in the commit that appends a ruling; read the last `## OS-` heading if they disagree.)
 
 Evidence: the code at `4d91f27f` (`RasterAnchor.swift`, `RasterCache.swift` `pathImage`, `Shadow.swift`, `Blur.swift`,
 `GradientRaster.swift`, `MetalUIPath/Rasterizer.swift`, `BoxBlur.swift`), record §118 (`PN-A`…`PN-K`), §90, §111, §119. No
@@ -125,3 +125,21 @@ never found wholly outside the clip while `E` (grown one more pixel) meets it. *
 costs one rect test, and its absence would draw a masked-out image rather than change a pixel; it is not claimed as pinned. **Cost if wrong.**
 At worst one fully masked image per such card per frame (counted, not seen). `OS-A`'s three sites each still own their call; the gradient
 site is the pinned one.
+
+## OS-P — The gate passes on allocated bytes; `RasterScratch` is built (cells, the blur's two planes and column sums)
+
+**Ruling.** Lane 2 measured a throwaway prototype (static buffers, never committed) against `6ab9babd` with `ab.sh`, five alternated
+release rounds, load 27-81 on a shared Mac (dated 2026-10-20). `shadow-drag`: main-thread allocated bytes of 400 frames
+**244 813 208 to 194 453 304 (-20.6 %)**, allocations 670 564 to 670 175 (-389: the win is size, not count); the figure is
+deterministic (the same code twice read the same bytes: `shadow-pan` 100 928 936 on both sides, where every raster hits the cache). Median
+ms/frame of `shadow-drag`, base then head, rounds 1-5: 0.675/0.681, 0.659/0.669, 0.672/0.667, 0.656/0.655, 0.656/0.649 (head lower in 3 of
+5 rounds, by at most 1.1 %: **below the 3 % bar**). `bracket-value` median 0.000 on both sides (the fixture holds no shadow, blur or
+gradient, so the pool is idle there). The gate is "bytes down at least 10 % **or** median down at least 3 %": the bytes arm passes in
+every round (a deterministic figure), the time arm does not. **Why build it anyway.** The gate as written is met; the saving is the
+first-touch `cells` and blur planes of every miss (8 and 8 + 4 B per raster pixel), not a time win, and the record says so.
+**Cost if wrong.** A `package` type and one `inout` per rasterization call site; the pins hold it equal byte for byte.
+**Design as built.** A value `RasterScratch` (`MetalUIPath`, imports nothing) with four slots (`cells`, `Int32` planes `a`, `b`, column
+`sums`); a buffer is **taken out** (slot left empty) zero-filled and **returned** after the call, longer than `capacityLimit` (2^22 elements)
+dropped, so a re-entrant caller finds an empty slot and allocates its own (`OS-L` by construction, no static). `CoverageRasterizer.rasterize`,
+`PathRaster.fill/stroke` and `BoxBlur.blur` gain `scratch:` overloads; the old spellings forward a fresh scratch. `RasterCache.scratch` is
+passed `&cache.scratch` at the nine call sites, each for one call. Pins: `RasterScratchTests` P1-P4 (MetalUIPathTests and MetalUITests).
