@@ -64,6 +64,10 @@ public final class RetainedSubtreeDemoModel {
     @ObservationIgnored public var translationRefusals = ""
     /// The shift-and-scroll section's header height, points (`FS-D`): every card below it moves with it.
     public var shiftHeader: Float = 10
+    /// The geometry card's deliveries (`RG-A`): how many times its `onGeometryChange` action ran, and the last size it read.
+    /// Observed, written only from the action (which runs after a build, on a change).
+    var geometryReports = 0
+    var geometryLast = ""
     @ObservationIgnored private var dragStartX: Float = 0
     @ObservationIgnored private var dragStartY: Float = 0
     @ObservationIgnored private var dragging: Int?
@@ -89,6 +93,8 @@ public final class RetainedSubtreeDemoModel {
         nodes = RetainedSubtreeDemoModel().nodes
         pan = 0
         shiftHeader = 10
+        geometryReports = 0
+        geometryLast = ""
         dragging = nil
     }
 
@@ -235,6 +241,7 @@ private func retainedDemoRoot(strip: some ElementGroup, canvas: some ElementGrou
         canvas
         RetainedDemoPanel().equatable()
         RetainedDemoShift()
+        RetainedDemoGeometry()
     }
     .padding(Edges(all: Pixels(24)))
     .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity), alignment: .topLeading)
@@ -320,5 +327,39 @@ private func retainedDemoShiftBody(_ model: RetainedSubtreeDemoModel) -> some El
             }
         }
         .frame(width: Pixels(260), height: Pixels(100))
+    }
+}
+
+/// The geometry card (`RG-A`, C14-f): an `.equatable()` card under an `.onGeometryChange` reader. **Drag a node**: the strip's
+/// prepaint count includes this card, which replays its prepaint and re-notes its size into the lifecycle store, so the
+/// reader reports nothing until the window is resized (`reports` stays put; `ineligible` stays 0). Before C14-f the reader tainted
+/// the card's ledger and it counted ineligible every frame.
+struct RetainedDemoGeometry: Component {
+    var content: some ElementGroup {
+        retainedDemoGeometryBody(retainedSubtreeDemoModel)
+    }
+}
+
+/// The reader's card: value-equal for ever, so its prepaint replays.
+private struct RetainedDemoGeometryCard: Component, @MainActor Equatable {
+    let model: RetainedSubtreeDemoModel
+    static func == (l: RetainedDemoGeometryCard, r: RetainedDemoGeometryCard) -> Bool { l.model === r.model }
+    var content: some ElementGroup {
+        Color.accent.frame(width: Pixels(120), height: Pixels(16))
+            .onGeometryChange(for: Size<Pixels>.self, of: { $0.size }) { size in
+                model.geometryReports += 1
+                model.geometryLast = "\(Int(size.width.value))x\(Int(size.height.value))"
+            }
+    }
+}
+
+/// The section's body, its own function (the Windows 1 MB stack rule).
+@MainActor @ElementBuilder
+private func retainedDemoGeometryBody(_ model: RetainedSubtreeDemoModel) -> some ElementGroup {
+    HStack(spacing: 12) {
+        Text("Geometry reader (retained)").font(size: 12)
+        RetainedDemoGeometryCard(model: model).equatable()
+        Text("reports \(model.geometryReports)").font(size: 12)
+        Text("size \(model.geometryLast.isEmpty ? "-" : model.geometryLast)").font(size: 12)
     }
 }

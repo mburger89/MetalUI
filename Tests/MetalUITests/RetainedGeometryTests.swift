@@ -177,7 +177,7 @@ func aGeometryNoteUnderAChangedRenderEffectMissesAndDelivers() throws {
 /// values delivered equal a fresh window's. Red at 99b21a1c (no ledger exists to refuse). Mutation: let the translated ledger through.
 @Test(.enabled(if: !rgVerifying, rgVerifyNote)) @MainActor
 func aTranslatedReplayOfAGeometryNoteIsRefusedByName() throws {
-    func run(retained: Bool) throws -> (log: [String], refused: Int) {
+    func run(retained: Bool) throws -> (log: [String], refused: Int, redos: Int) {
         let (w, model, log) = try rgWindow(.plain, retained: retained)
         rgRedraw(w, 6)
         log.entries.removeAll()
@@ -185,13 +185,15 @@ func aTranslatedReplayOfAGeometryNoteIsRefusedByName() throws {
         model.pad += 4
         rgRedraw(w, 1)
         let refused = w.frameWork.reduce(0) { $0 + $1.retainedTranslationRefusedReasons["geometryTranslated", default: 0] }
+        let redos = w.frameWork.reduce(0) { $0 + $1.retainedRedos }
         rgRedraw(w, 2)
-        return (log.entries, refused)
+        return (log.entries, refused, redos)
     }
     let on = try run(retained: true), off = try run(retained: false)
     #expect(on.log == off.log, "\(on.log) vs \(off.log)")
     #expect(on.log.count == 2, "both cards moved: \(on.log)")
     #expect(on.refused == 2, "refused by name: \(on.refused)")
+    #expect(on.redos == 0, "a refusal is no redo (`RG-J`: a ledger with a note is never grafted): \(on.redos)")
 }
 
 /// 6 (`RG-A`). Two scopes stacked at one position keep their occurrence ordinals through a replay: their values differ in kind (a

@@ -4,7 +4,7 @@ Rulings for item C14-f. Spec: [`specs/2026-10-20-retained-geometry-design.md`](s
 `../record/128-retained-geometry.md` (Record phase). Branch `perf/retained-geometry` from `99b21a1c`. Reserved divergence labels 575-584:
 none taken.
 
-Prefix **`RG-`**, lettered. **Next unused: `RG-J`.** (Moves in the commit that appends a ruling.)
+Prefix **`RG-`**, lettered. **Next unused: `RG-K`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E` (geometry note taints, now replaced), `KF-J` (delivery semantics, unchanged), `FS-G`, `FS-P`, `FS-T` (record 126),
 `SB-AD`, `RK-S`, `RW-` (record 121), C14-e parts (c) and (f).
@@ -76,3 +76,16 @@ texture still uploads whole.
 every replayed handler (a skipped getter keeps its closures), not a new hazard, and test 3 compares deliveries to a fresh window.
 (3) Test 5 uses a pure shift, not a scroll: a scroll changes the ambient offset and misses before translation is considered.
 **Rejected:** a SwiftUI probe (no observable behaviour moves, `RG-B`); making `dirtyRects` `package` (read by `Backends/SDL`, a separate package).
+
+## RG-J - A ledger holding a geometry note is never grafted
+
+**Ruling.** `Frame.graftRecord(for:id:key:)` returns `nil` (naming `geometryGraft` in `graftRefusals`) when the occurrence's prepaint ledger
+holds a geometry note. **Evidence.** Measured in lane 1's test 5: a graft decides before layout, so a shifted grafted occurrence meets
+`RG-C`'s `geometryTranslated` refusal after the layout it skipped, the prepaint cannot run on a graft, and the window **redoes the frame**
+(`retainedRedos == 1`, the refusal's counter lost with the abandoned build) and backs replay off for eight builds. Before this item the
+occurrence was prepaint-ineligible, hence never grafted, so a shift cost one ordinary build; a graft would make it cost two plus a
+backoff. **Reasoning.** The win this item names is prepaint (and paint) replay of an observer; the build recursion of an observed
+occurrence keeps running, as the 199 requests of an unobserved retained frame do not claim otherwise. **Alternatives rejected.** Letting
+the graft stand and eating the redo (a scrolling list of observers builds every frame twice); teaching the graft to foresee a translation
+(layout is not known at the graft decision, `RK-C`). **Cost if wrong.** Element requests of an observed occurrence stay whole; carried with
+`RG-C` (re-evaluating the transform under translation would lift both).

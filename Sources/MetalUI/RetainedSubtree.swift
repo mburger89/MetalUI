@@ -63,6 +63,9 @@ package struct RetainedCounters: Sendable, Equatable {
     /// refusal, a prepaint refusal or taint, a graft refusal. Filled only on the ineligible path.
     package var ineligibleReasons: [String: Int] = [:]
 
+    /// Geometry notes a prepaint replay made again (`RG-A`): work a build's own note would have been.
+    package var replayedGeometryNotes = 0
+
     /// The one funnel a refused translation goes through (`FS-F`).
     package mutating func noteTranslationRefused(reason: String) {
         translationRefused += 1
