@@ -3,7 +3,7 @@
 Branch `perf/raster-overscan` from `4d91f27f`. Not a plan task: item P4 of the gpui-gap list (user request 2026-10-02), the carried half
 of record §118 (`PN-C`: "overscan for them is P3b"). Spec `docs/superpowers/specs/2026-10-20-raster-overscan-design.md`; rulings
 `OS-A`…`OS-P` in `docs/superpowers/2026-10-20-raster-overscan-decisions.md` (next unused `OS-Q`). Divergence labels 545–554 reserved:
-none taken. No public declaration. §1–§7 are lane 1 (P3b); §8 is lane 2 (P3d, the pooled scratch), which passed `OS-H`'s gate on allocated bytes.
+none taken. Merged with master `711ab9c4` (§121, §123, §125; no conflict; 124 was free on master). No public declaration. §1–§7 are lane 1 (P3b); §8 is lane 2 (P3d, the pooled scratch), which passed `OS-H`'s gate on allocated bytes.
 
 ## §1 What changed
 
@@ -117,3 +117,20 @@ unreachable: only the nested arm's equality stands for it.
 Linux image (`metalui-portable`, volume `metalui-root-build-raster-overscan`): `MetalUIPathTests` (with P1, P2, P4), `MetalUILayoutTests`, `MetalUICoreTests`,
 `MetalUICrossPlatformTests` all passed. The fourteen images against `4d91f27f` (`compare.sh`, HEAD `c40092ee` (the OS-P commit; sources identical to the final)): 0 differing pixels, scene identical.
 Inventory and undocumented scripts print nothing. `Backends/SDL` untouched.
+
+## §9 Record phase: merged tree, hazards, owed
+
+**Merged tree** (master `711ab9c4` into `1201601d`; `swift package clean`, native build, screen locked so `--skip AppKitPresentationTests`, `PN-J`):
+**4006 tests in 5 suites passed** (master's 4000 + lane 1's 10 + lane 2's 5 = 4015 unlocked, less the nine skipped), 0 issues, 0 `error:`, the only
+`warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`. **249 typecheck guards** (no guard added by either lane).
+Inventory and undocumented scripts print nothing; no public declaration, so the census and map are unmoved. Lane 1's verifier also read 3981
+unfiltered on an unlocked screen at `6ab9babd` (3971 + 10). **Not re-taken after the merge (owed):** the unlocked run, `METALUI_VERIFY_RETAINED=1` /
+`METALUI_VERIFY_LAYOUT_MEMO=1`, the default build system's `warning:` count, the fourteen images, the Linux image. The mutation rounds were
+filtered sets (§4, §8) with survivors M2c, M4a, M4b named and re-run unfiltered by the verifier (nothing reddened, as recorded).
+
+**Hazards.** A pin that reads a raster's bounds reads `E`, not the clip (five were amended, `OS-A`). A call site that holds `&cache.scratch`
+across a `make` closure would trap on exclusivity (`OS-L`). The outside-the-clip drop in `shadowImage`/`blurImage` is defensive and unpinned
+(`OS-O`); it may be deleted. Do not claim lane 2 as a time win.
+
+**Deferred.** Mode 3 overscan (`OS-E`); the larger first raster of a half-visible card (`OS-F`); R8 coverage with a shader tint (P3c, `PN-`);
+human check group `RO` (`RO1`–`RO3`, not run: an agent cannot).

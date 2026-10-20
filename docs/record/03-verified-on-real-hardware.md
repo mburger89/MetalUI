@@ -2371,3 +2371,7 @@ window resize; RW4 a retained field idle for minutes keeps caret, selection and 
 ## 2026-10-19: memo and retained observation off the main thread (record §123) — no looks owed
 
 A work-count fix: nothing a person sees differs on macOS and no human-checks group is added. Owed, and not a look: the Linux image re-take after the final commit, the fourteen-image comparison against `4d91f27f` and the `METALUI_VERIFY_RETAINED=1` / `METALUI_VERIFY_LAYOUT_MEMO=1` runs (record §123 §6 item 3); Windows by CI.
+
+## 2026-10-20: raster overscan for shadows, blurs and gradients, and the pooled scratch (record §124) — looks owed, group RO
+
+The fourteen offscreen images read 0 differing pixels against `4d91f27f` and per-kind clip bytes are equal, but no real window was driven (screen locked). **Owed (an agent cannot)**: RO1 a shadowed, blurred and gradient list scrolled across a `.clipped()` edge on AppKit and SDL at 1x and 2x, no seam or clipped glow; RO2 a half-visible card re-entering and a card over the `2^20` limit; RO3 a shadow under a rotation or scale (mode 3 unchanged). Windows and the Linux image's window path by CI.

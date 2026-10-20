@@ -6,6 +6,8 @@ halves of record §118 §6 (`PN-C`: "overscan for them is P3b"; P3d). Rulings `O
 none expected. **No public declaration, no SwiftUI-facing claim** (internal, pixels equal): no SwiftUI probe is owed (`OS-J`); gpui
 draws raster coverage with the clip as a GPU content mask, never a CPU cut, which is the precedent `PN-A` already used.
 
+**Status: built and verified (both lanes), record [§124](../../record/124-raster-overscan.md); rulings `OS-A`…`OS-P`.**
+
 ## 1. Inventory (the code at `4d91f27f`)
 
 - `RasterAnchor` (`RasterAnchor.swift`): modes `.uncut`/`.cut`/`.localMask`; `.cut` keys `clip - S`, so a pan relative to the clip
