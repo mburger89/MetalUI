@@ -27,8 +27,7 @@ by design (equivalence, limit, mode 3, characterization).
 ## §3 Suite
 
 Screen locked, so `--skip AppKitPresentationTests` (`PN-J`: `NSOpenPanel.init()` hangs; a first unfiltered run hung there and was killed by
-pid). **3971 tests in 4 suites passed** with that suite skipped (4d91f27f's 3971 unfiltered plus the 9 new tests of
-`RasterOverscanTests` less the skipped suite's 9; ten after S11, below), `FR-J no-argument frame: succeeded=true`, 0 `error:`.
+pid). **3972 tests in 4 suites passed** with that suite skipped (4d91f27f's 3971 unfiltered plus the new tests of `RasterOverscanTests`, S1–S8, S10 and S11, less the skipped suite), also 3972 passed under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` with no trap; `swift build --build-tests` (default build system) 0 `warning:`; inventory and undocumented scripts print nothing; the Linux image (`MetalUIPath` untouched) was not re-taken; `FR-J no-argument frame: succeeded=true`, 0 `error:`.
 
 ## §4 Mutations
 
