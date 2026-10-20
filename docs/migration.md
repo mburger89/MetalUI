@@ -477,6 +477,17 @@ a function still does (`uncomparableEnvironmentKey`). A test that counted the `.
 reads the `.value` arm's counts. The fingerprint now holds provided object **instances**, so a swapped `@Observable` object under a
 retained occurrence misses instead of replaying the old paint (`EE-K`).
 
+### Finer retention scopes (`FS-`, record §126)
+
+None for the API beyond one additive `MetalUITesting` field, `FrameWork.retainedTranslationRefusedReasons: [String: Int]` (class M; a stored
+property on a public struct with a defaulted initialiser parameter, so `swift package clean` after pulling); no `PlatformWindow`, `Platform`,
+`WindowRenderer` or `TextSystem` requirement is added. **Behaviour, compiles and answers differently:** an `.equatable()` occurrence whose layout
+origin or scroll offset moved (a row inserted above, a header above that resizes, a scroll) was a miss and is now replayed translated when the
+shift is a whole number of device pixels, its content is rect, glyph or image only and no accessibility record, text input or press-only action
+sits under it; a `List` row of `.equatable()` content now replays its prepaint and grafts like the same row in a `VStack`. A custom element under
+one is called less often; a test that counted such an occurrence's element requests or `retainedPrepaintHits` reads fewer and more.
+`METALUI_RETAINED_TRANSLATION=0` restores the miss. A hitbox gains two internal fields (`unclipped`, `clipDepth`).
+
 ### Retained read-only state (`RW-`, record §121)
 
 None for the API beyond one additive `MetalUITesting` field, `FrameWork.retainedIneligibleReasons: [String: Int]` (class M; a stored
