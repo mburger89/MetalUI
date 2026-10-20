@@ -4,7 +4,7 @@ Rulings for P4 (user request 2026-10-02). Spec: [`specs/2026-10-20-raster-oversc
 Record: `../record/124-raster-overscan.md` (at the Record phase). Branch `perf/raster-overscan` from `4d91f27f`; divergence labels
 reserved 545–554 (none taken).
 
-**Next unused id: `OS-N`.** (Moves in the commit that appends a ruling; read the last `## OS-` heading if they disagree.)
+**Next unused id: `OS-O`.** (Moves in the commit that appends a ruling; read the last `## OS-` heading if they disagree.)
 
 Evidence: the code at `4d91f27f` (`RasterAnchor.swift`, `RasterCache.swift` `pathImage`, `Shadow.swift`, `Blur.swift`,
 `GradientRaster.swift`, `MetalUIPath/Rasterizer.swift`, `BoxBlur.swift`), record §118 (`PN-A`…`PN-K`), §90, §111, §119. No
@@ -104,3 +104,12 @@ stale cells (changed bytes): the nested arm and the zero-fill mutations catch it
 compile or be red with no scratch API, so that is rejected. If OS-H's gate fails, lane 2 lands no `RasterScratch`, no P1/P2/P4, only
 the dated numbers in the record and (optionally) P3 rewritten as a plain allocation-floor characterization of today's raster
 (green on arrival, listed as such). **Why.** A test that cannot be red is not an instrument. **Cost if wrong.** None.
+
+## OS-N — An empty colour mask makes an empty layer (a latent trap found by S4)
+
+**Ruling.** `RGBALayer.init(mask:color:)` returns `.empty` for a mask whose rect is empty. **Why.** `blurLayer`'s `colourRaster` resamples a
+glyph or image into `resampleRect(bounds)`, the bounds' enclosure cut by the raster clip; a glyph wholly outside the clip's reach
+(a long blurred line against a narrow clip) gives a zero-width mask (`0×12`), and `RasterCache.tint` then built an `ImageTexture`
+that traps on a zero side (`ImageTexture: 0×12 has a zero side`). The trap predates this branch (4d91f27f; S4 reached it by calling
+`blurLayer` over the production cut clip) and is independent of overscan. **Pin.** S10 (`aBlurredLineOfTextWithGlyphsOutsideTheClipDoesNotTrap`),
+mutation: drop the guard. **Cost if wrong.** None: an empty layer composes as nothing, as every other empty `RGBALayer` does.
