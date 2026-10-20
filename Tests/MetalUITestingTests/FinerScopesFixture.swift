@@ -75,7 +75,7 @@ struct FSStackRoot: Component {
         }
     }
     w.window.testingRetainedGraft = graft
-    for _ in 0..<4 { w.window.setNeedsRedraw(); w.tick() }
+    for _ in 0..<16 { w.window.setNeedsRedraw(); w.tick() }
     w.resetFrameWork()
     for _ in 0..<3 { mutate(model); w.window.setNeedsRedraw(); w.tick() }
     return w.frameWork
