@@ -7,9 +7,11 @@
 /// - `.value`: an `Equatable` value, compared by `==` after an opened-existential type match (a type mismatch is
 ///   unequal). An `Optional` compares as its wrapped value. The `Equatable` cast is dynamic (`EE-C`): measured at
 ///   lane 1 step 0, a `@MainActor`-isolated conformance casts on the main actor and fails off it.
+/// - `\.textMeasurer` is a `.value` of `TextMeasurerReading` (`CF-A`): the text system's instance and the resolved
+///   default text styles, not the per-frame box.
 /// - `.object`: a reference-type value that is not `Equatable` (compared by identity), or the instance an
 ///   `@Observable` object read provided; `nil` is "none provided".
-/// - `.uncomparable`: a function, a struct holding one, an `EnvironmentValues`, `\.textMeasurer`: it equals
+/// - `.uncomparable`: a function, a struct holding one, an `EnvironmentValues`: it equals
 ///   nothing, **itself included**, so a component holding one is refused (divergence 346's remainder).
 enum EnvironmentReading: Equatable {
     case value(any Equatable)
@@ -31,6 +33,7 @@ enum EnvironmentReading: Equatable {
 
     /// The reading of `value`: `Equatable` by `==`, a class (or an optional class) by identity, else uncomparable.
     static func of<T>(_ value: T) -> EnvironmentReading {
+        if T.self == TextMeasurer.self, let measurer = value as? TextMeasurer { return .value(measurer.reading) }   // `CF-A`
         if let equatable = value as? any Equatable { return .value(equatable) }
         if T.self is AnyObject.Type { return .object(ObjectIdentifier(value as AnyObject)) }
         if let optional = value as? any OptionalReadingClass { return .object(optional.readingIdentity) }

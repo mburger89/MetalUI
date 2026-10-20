@@ -212,7 +212,10 @@ package final class ContentMemoStore {
     package private(set) var lastRetained = RetainedCounters()
 
     // Counters of the build in progress, snapshotted by `endFrame()`.
-    private var evaluations = 0
+    private(set) var evaluations = 0
+    /// Content getters the abandoned attempt of a redone frame evaluated (`CF-C`): the redo skips them (the entry holds
+    /// the result), so the frame's only evaluation of them is added back at its `endFrame`, then cleared.
+    var carriedEvaluations = 0
 
     /// Content evaluations so far this build: a retained subtree reads it around its build recursion
     /// to learn that a descendant's content ran, which its own observation did not subscribe to when
@@ -344,7 +347,8 @@ package final class ContentMemoStore {
     func endFrame() {
         if replaysPrepaint, retainsSubtrees, buildSerial < prepaintSuspendedUntil { retained.backoffFrames = 1 }
         buildSerial &+= 1
-        lastEvaluations = evaluations; lastSkips = skips; lastRefusals = refusals
+        lastEvaluations = evaluations + carriedEvaluations; lastSkips = skips; lastRefusals = refusals
+        carriedEvaluations = 0
         lastRetained = retained; retained = RetainedCounters()
         lastGraftRefusals = graftRefusals; graftRefusals = []
         evaluations = 0; skips = 0; refusals = 0

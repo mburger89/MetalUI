@@ -303,7 +303,9 @@ extension ContentMemoStore {
             entry.quarantineUntil = serial + 1 + (8 << entry.redoExponent)
             entry.redoExponent = min(entry.redoExponent + 1, 5)
         }
+        let evaluated = evaluations   // `CF-C`: the one loss with no repeat
         resetBuildCounters()
+        carriedEvaluations = evaluated
         retained.redos = 1
     }
 }
