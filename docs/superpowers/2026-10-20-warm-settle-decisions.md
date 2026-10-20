@@ -4,7 +4,7 @@ Rulings for item C14-e (MetalCreator's counter bisect, 2026-10-20). Spec: [`spec
 Record: `../record/127-warm-settle.md` (at the Record phase). Branch `perf/warm-settle` from `679f5d7d`; divergence labels reserved
 565–574 (none taken; 346 is amended, not relabelled).
 
-**Next unused id: `CF-I`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)
+**Next unused id: `CF-J`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)
 
 Evidence: the code at `679f5d7d` (`EnvironmentReading.swift`, `EnvironmentProperty.swift`, `TextMeasurer.swift`, `Frame.swift:2514`,
 `ContentMemo.swift`, `RetainedPrepaint.swift` `noteRedo`, `Window.swift` `buildAndAdoptFrame`, `LayoutMemo.swift`, `TestingHooks.swift`
@@ -108,3 +108,14 @@ difference would show in the Linux image run and be gated with the stated reason
 system identity from box identity. Checked and kept at `679f5d7d`: the per-frame `TextSystemBox` (`Frame.swift:2514`), `TextSystem: AnyObject`,
 `noteRedo` calling `resetBuildCounters()` (`RetainedPrepaint.swift:298`). No SwiftUI claim, public API, renderer primitive, platform requirement or
 C enum is touched, so no probe or fake is owed; lanes are file-disjoint and (b)'s C14-d-file fix stays deferred (`CF-F`). **Cost if wrong.** None.
+
+## CF-I — Lane 1 as built: R3 compares to the next build minus paints, T3b added
+
+**Ruling.** `CF-A` and `CF-C` are built as ruled (`TextMeasurerReading` in `TextMeasurer.swift`, the arm first in `EnvironmentReading.of`
+guarded by `T.self == TextMeasurer.self`; `ContentMemoStore.carriedEvaluations`, set by `noteRedo`, added in `endFrame`, cleared there).
+Two test adjustments, measured: (1) R3 pins a redo frame's element requests, prepaints and layout measures equal to the next (backoff)
+build of the unchanged tree and its prepaint hits 0; **paints and retained hits are not compared** (the backoff build still replays paint
+records, the redo repaints: 45 against 3 paints), so the "carry everything" mutant is caught by R1/R2/R3 together, not by a paints pin.
+(2) T3b (a field the measurer never resolves, `colorScheme`/`isEnabled`, leaves the reading equal) is added. The fixture of the redo
+pins has three `.equatable()` occurrences (`retainedPrepaintHits == 3`). `Environment.init` is untouched (the arm sits in `.of`, one metatype
+compare per probe). **Cost if wrong.** None.
