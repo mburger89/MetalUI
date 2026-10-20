@@ -4,7 +4,7 @@ Rulings for P4 (user request 2026-10-02). Spec: [`specs/2026-10-20-raster-oversc
 Record: `../record/124-raster-overscan.md` (at the Record phase). Branch `perf/raster-overscan` from `4d91f27f`; divergence labels
 reserved 545–554 (none taken).
 
-**Next unused id: `OS-L`.** (Moves in the commit that appends a ruling; read the last `## OS-` heading if they disagree.)
+**Next unused id: `OS-N`.** (Moves in the commit that appends a ruling; read the last `## OS-` heading if they disagree.)
 
 Evidence: the code at `4d91f27f` (`RasterAnchor.swift`, `RasterCache.swift` `pathImage`, `Shadow.swift`, `Blur.swift`,
 `GradientRaster.swift`, `MetalUIPath/Rasterizer.swift`, `BoxBlur.swift`), record §118 (`PN-A`…`PN-K`), §90, §111, §119. No
@@ -87,3 +87,20 @@ images, not a SwiftUI answer.
 **Ruling.** The probe directory gains Prof scenarios `shadow-pan` and `shadow-drag`; ms/frame, allocations and counters are dated
 measurements beside `docs/probes/pan-rasters/`'s, never pins (pins count work). **Why.** `shadows` is static and the bracket fixture
 holds no shadow, blur or gradient, so neither lane has a measured win to show on the existing scenarios. **Cost if wrong.** None.
+
+## OS-L — The scratch is borrowed for one call, never across a callback; no static, no returned alias
+
+**Ruling.** `RasterScratch` is passed `inout` into a single `rasterize`/`blur` call and is not held while any closure, `cache.coverage(for:make:)`
+or nested `silhouette`/`blurLayer`/`gradientPixels` runs (a nested shadow or blur leaf rasterizes while the outer one is mid-silhouette:
+the outer must have released its borrow, or the nested call takes a fresh scratch). It is never a global or static (thread-safety by
+construction, `GX-B`), and a returned `alpha`/`out` never aliases it (the cached result is its own buffer). P1/P2 add an arm with a
+nested leaf (shadow of a blurred leaf) against a fresh-scratch run, byte for byte. **Why.** The design's "separate stored property"
+argument covers exclusivity only for the flat case; a nested leaf re-enters through `make`. **Cost if wrong.** An exclusivity trap or
+stale cells (changed bytes): the nested arm and the zero-fill mutations catch it.
+
+## OS-M — If the gate rules the pool out, only P3 and the allocation floor land
+
+**Ruling.** The spec's lane 2 text said the P1, P2 and P4 tests would land "as characterizations" without `RasterScratch`; they cannot
+compile or be red with no scratch API, so that is rejected. If OS-H's gate fails, lane 2 lands no `RasterScratch`, no P1/P2/P4, only
+the dated numbers in the record and (optionally) P3 rewritten as a plain allocation-floor characterization of today's raster
+(green on arrival, listed as such). **Why.** A test that cannot be red is not an instrument. **Cost if wrong.** None.

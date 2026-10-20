@@ -59,14 +59,13 @@ lines do not.
 rasterization passes `&cache.scratch` as an optional `scratch:` argument whose default is a fresh one (so every other caller and
 test is unmoved). `rasterize` takes `cells` from the scratch: `removeAll(keepingCapacity: true)` then `append(repeating: 0, count:)`
 (**zero-fill stays**: stale cells would change bytes); `BoxBlur.blur` takes `a`, `b`, `columnSums` likewise. The returned
-`alpha`/`out` still allocate (they are the cached result). Exclusivity: a `make` closure reads `cache.scratch` while
+`alpha`/`out` still allocate (they are the cached result). Borrow rule (`OS-L`): the scratch is borrowed for one call only, never across a `make` or nested leaf. Exclusivity: a `make` closure reads `cache.scratch` while
 `cache.coverage(for:make:)` runs; `coverage` must not hold `scratch` inout (it does not: separate stored property). Capacity is
 capped (release above 4 Mi elements) so one huge raster does not pin memory.
 
 **Gate (OS-H): lane 2 lands code only if** on release, paired A/B (alternated, 5 rounds, `ab.sh`), the scenario `bracket-value` or
 the new `shadow-drag` shows allocated bytes per drawn frame down at least 10 % **or** median ms/frame down at least 3 % in at least
-4 of 5 paired rounds. Otherwise lane 2 records the numbers, rules the pool not justified (as §118 did P3c), and lands only its
-instrument (the pins as characterizations, `RasterScratch` not built). Expected honestly: steady pan after lane 1 rasterizes
+4 of 5 paired rounds. Otherwise lane 2 records the numbers, rules the pool not justified (as §118 did P3c), and lands no code (`OS-M`: P1, P2, P4 need the API; at most P3 as a green characterization). Expected honestly: steady pan after lane 1 rasterizes
 nothing, so the pool can only help the drag's and first frames' misses (`cells` is 8 of ~13 B per rasterized px).
 
 ## 3. Tests (every one named; red-before on `4d91f27f`; the mutation that must redden it)
@@ -89,7 +88,7 @@ Lane 1, `RasterOverscanTests` (all `@Test @MainActor`, harness `TransitionHarnes
 Also green-on-arrival characterizations are listed as such in the record; the fourteen images (`compare.sh <scratch> 4d91f27f HEAD`)
 read 0 px; `DemoFrameDeterminismTests` `Expected.swift` is not edited.
 
-Lane 2 (`RasterScratchTests`, portable ones in `Tests/MetalUIPathTests`, written even if the gate rules the pool out):
+Lane 2 (`RasterScratchTests`, portable ones in `Tests/MetalUIPathTests`, P3 only if the gate rules the pool out (`OS-M`)):
 
 | id | name | red before | must be reddened by |
 |---|---|---|---|
