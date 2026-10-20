@@ -52,7 +52,7 @@ Tests (each red at `679f5d7d`):
 | T3 | `aMeasurerReadingChangesWithEachTextStyleField` (arguments: font, fontWeight, italic, controlSize, lineLimit, truncationMode, multilineTextAlignment, foregroundStyle, controlSize with `font(nil)` text): `@testable` unit over two `EnvironmentValues` differing in one field | `.uncomparable` equals nothing, so "equal when same" arm red | per argument: remove that field from the environment writer used to build the reading's styles — the named argument's arm only reddens |
 | T4 | `theReadingIsTheSystemInstanceNotTheBox` (unit): two boxes over one system equal, over two systems unequal, a nil box equal to itself and unequal to a boxed one | arms 1,3 red (uncomparable) | key on `ObjectIdentifier(box)`: arm 1 red |
 | T5 | `aMeasurerReaderReplaysItsPaint`: the same component, retained: `retainedHits` 1 and the scene equals retention-off (`testingRetainedSubtrees = false`), then a font change repaints | `retainedIneligible`/refusal (`uncomparable` custom reading) | skip-arm of the fingerprint removed |
-| T6 | `aMeasurerReaderInAWindowOfAnotherSystemIsNotSkipped`: two windows, the same component value, different `TextSystem` instances; each evaluates its first frame (state is per window; pin that the *reading* differs) | n/a (unit T4 is the separating arm) | — |
+| T6 | dropped (`CF-H`): it had no mutation that reddens it; T4 is the separating arm | | |
 
 Run under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` too (T5 must hold; the existing
 `aReaderOfAFunctionKeyIsRefusedAndStillEvaluates` stays red-for-the-right-reason: the refused arm is the function key).

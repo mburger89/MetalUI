@@ -4,7 +4,7 @@ Rulings for item C14-e (MetalCreator's counter bisect, 2026-10-20). Spec: [`spec
 Record: `../record/127-warm-settle.md` (at the Record phase). Branch `perf/warm-settle` from `679f5d7d`; divergence labels reserved
 565–574 (none taken; 346 is amended, not relabelled).
 
-**Next unused id: `CF-H`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)
+**Next unused id: `CF-I`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)
 
 Evidence: the code at `679f5d7d` (`EnvironmentReading.swift`, `EnvironmentProperty.swift`, `TextMeasurer.swift`, `Frame.swift:2514`,
 `ContentMemo.swift`, `RetainedPrepaint.swift` `noteRedo`, `Window.swift` `buildAndAdoptFrame`, `LayoutMemo.swift`, `TestingHooks.swift`
@@ -101,3 +101,10 @@ The item's 25 % stays unaddressed this branch; the attribution says where it goe
 rasterizedPixels == 0 && newTextures == 0`. It uses `setNeedsRedraw()` + `tick()` (the `eeRedraw` form, no `@Observable` write), so it
 holds off Darwin; a session-count assertion would be Darwin-only (`IV-Q`) and is not in it. **Cost if wrong.** A Linux-only
 difference would show in the Linux image run and be gated with the stated reason.
+
+## CF-H — Critic pass: T6 dropped, the rest of the design stands
+
+**Ruling.** Spec test T6 (two windows, two text systems) is dropped: it asserted nothing a mutation could redden, and T4 already separates
+system identity from box identity. Checked and kept at `679f5d7d`: the per-frame `TextSystemBox` (`Frame.swift:2514`), `TextSystem: AnyObject`,
+`noteRedo` calling `resetBuildCounters()` (`RetainedPrepaint.swift:298`). No SwiftUI claim, public API, renderer primitive, platform requirement or
+C enum is touched, so no probe or fake is owed; lanes are file-disjoint and (b)'s C14-d-file fix stays deferred (`CF-F`). **Cost if wrong.** None.
