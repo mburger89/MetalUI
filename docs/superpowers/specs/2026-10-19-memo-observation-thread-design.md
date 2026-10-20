@@ -67,10 +67,11 @@ A frame is `setNeedsRedraw()` + `tick()` (no `runUntilIdle()`, `DG-P`); reads ar
 | 1 | `anObservedWriteOnTheMainActorIsSeenByTheNextFrameThroughAnEnvironmentStore` | frame 2 steady: 0 evaluations, 1 skip; write on the same instance; next frame 1 evaluation and the new colour | Linux image: red (pool-thread main actor); macOS: passes, recorded | restore `Thread.isMainThread` branching in `ContentMemoHandle.fire` without the locked flag set |
 | 2 | `…ThroughAPlainObservedModel` | same, model captured | Linux red; macOS passes | same |
 | 3 | `…ForTheRetainedReplayAndTheGraft` | `.equatable()` over a leaf whose content is retained; after the write the record is not replayed (`FrameWork` replay/graft counters 0, element paints > 0) and the paint is the new colour | Linux red | restore the branch in `RetainedHandle.fire` |
-| 4 | `aWriteFromAnotherThreadIsSeenBeforeTheWriterReturns` | a `Thread` writes `store.colour` (via `MainActor.assumeIsolated` is NOT used: the store is `@unchecked Sendable` test class here), the test joins without yielding, then renders: re-evaluates | red on **macOS and Linux** (the hop has not run) | same as 1 |
+| 4 | `aWriteFromAnotherThreadIsSeenBeforeTheWriterReturns` | a `Thread` writes `store.colour` (the store is a non-main-actor `@unchecked Sendable` `@Observable` test class, `MO-G`), the test joins without yielding, then renders: re-evaluates | red on **macOS and Linux** (the hop has not run) | same as 1 |
 | 5 | `aWriteDuringTheGetterSurvivesTheEvaluation` | a write inside the getter (after its read) leaves `stale == true` after `materialize`; the next frame evaluates once more | red on both (clear-after-getter) | move the `stale = false` back after the getter |
 | 6 | `aRetiredSessionsLateFireChangesNothing` | re-evaluate twice, then fire the first handle (retained via the flush): `stale` stays false, `armed` unmoved on the next hop | passes before (guards `IV-L` item 5); the pin that the lock keeps ordering | drop the serial compare in `fire()` |
-| 7 | `memoryIsReleasedWithTheWindowStill` | existing `MemoryReleaseTests` unchanged and green (`IV-R`): the `MemoFlags` hold creates no cycle | passes before | make a handle hold `entry` strongly |
+| 7 | (existing `MemoryReleaseTests`, not a new pin) | unchanged and green (`IV-R`): the `MemoFlags` hold creates no cycle | passes before | make a handle hold `entry` strongly |
+| 8 | `aChangeDuringARecordsFrameIsNotErasedByItsClear` | a write between arming and the record's clear leaves the record unreplayed next frame (`MO-F`) | red on both if the plain clear is kept | restore the plain `observedChange = false` |
 
 Exit/trap: none. Counters are `FrameWork`'s existing ones; no new public surface. Run with `METALUI_VERIFY_RETAINED=1` and
 `METALUI_VERIFY_LAYOUT_MEMO=1` once (green, no trap). Mutation rules per CLAUDE.md: commit first, full unfiltered native suite,
@@ -82,6 +83,8 @@ Exit/trap: none. Counters are `FrameWork`'s existing ones; no new public surface
 No demo change (a work-count fix; `METALUI_INVALIDATION_DEMO=1` unchanged, 14 images 0 px against `4d91f27f` via
 `docs/probes/demo-pixels/compare.sh`). Human checks: none (nothing a person sees differs on macOS). Windows is CI-only; note in the
 record that the Windows red was not measured locally.
+
+Rulings `MO-F` (lost update at the two clear sites) and `MO-G` (handle holds) amend sections 2 and 4; `MemoFlags` also carries `changes`.
 
 ## 6. Deferred (named)
 

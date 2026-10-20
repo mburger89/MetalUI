@@ -5,7 +5,7 @@ Spec: [`specs/2026-10-19-memo-observation-thread-design.md`](specs/2026-10-19-me
 `../record/123-memo-observation-thread.md` (to be written). Branch `fix/memo-observation-thread` from `4d91f27f`. Reserved divergence
 labels 535-544: none taken (no SwiftUI-visible difference; SwiftUI invalidates synchronously, which this restores).
 
-Prefix **`MO-`**, lettered. **Next unused: `MO-F`.** (Moves in the commit that appends a ruling.)
+Prefix **`MO-`**, lettered. **Next unused: `MO-H`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-C` item 2 (both branches of the observation handler), `IV-L` item 5 (retire the old session by serial then token
 write), `IV-R`/`IV-S` (weak holds), `RU-A` (recognise the flush by thread, not `isMainThread`), `SB-W`/`RK-N` (verify env switches),
@@ -54,3 +54,24 @@ thread joined without a main-actor yield, so it is red on macOS too and is the p
 Every pin is mutated (restore the `isMainThread`-only flag set; move the clear after the getter; drop the serial compare).
 **Cost if wrong.** If the Linux image already passes tests 1-3 (the report's repro was reached through a different ordering), the
 design stands on test 4 and the hypothesis is re-opened in the record, not silently kept.
+
+## MO-F - A change during a record's own frame is not erased by the record's clear
+
+**Ruling.** `RetainedSubtree.swift` ~651 (`entry.observedChange = false` after a record is made) and `ContentMemo.swift` ~234 run after
+the occurrence's sessions are armed, so a fire that lands between the arming and the clear (another thread, or a write in paint) is
+erased by a plain Bool clear: the same lost-update shape as `MO-D`. `MemoFlags` therefore keeps a monotonic `changes: Int` beside
+the Bool; the session handler increments it under the lock, and a record stores the value read **before** its sessions were armed
+(`RetainedBuildWindow.init`); the clear at ~651 becomes `clearObservedChange(ifChangesEqual:)` (a no-op when the count moved).
+**Evidence.** Code reading of the two clear sites at `4d91f27f`; the `EquatableComponent.swift:90` write (`observedChange = true`
+after an evaluation) stays a plain locked set. **Cost if wrong.** A steady frame gets one extra miss after a mid-frame write, which
+is correct but moves a work counter: if any existing pin moves, the clear is reverted to today's Bool and the finding recorded as
+deferred, not silently kept (the Linux red does not depend on it). Test 8 pins it; its mutation is the plain clear.
+
+## MO-G - The handle holds each `MemoFlags` it writes, and test 4's store is not main-actor
+
+**Ruling.** `RetainedHandle` writes two objects (the entry's flags for `observedChange`/`changes`, the session's for its serial) and holds
+both `MemoFlags` strongly, the entry, store and session weakly; a fire never dereferences a weak reference to decide, only to do the
+main-actor bookkeeping. Test 4's store is a separate `@unchecked Sendable` `@Observable` class (a `@MainActor` store cannot be written
+from a `Thread` without a hop, which is what the test must avoid), read by a component whose getter runs on the main actor.
+**Rejected:** table row 7 as a new test (it is the existing `MemoryReleaseTests`, run unchanged, not counted among the new pins).
+**Cost if wrong.** A strong hold on a non-leaf object reintroduces the `IV-R` cycle (`MemoryReleaseTests` reddens).
