@@ -183,6 +183,14 @@ package final class ContentMemoStore {
     /// replay; paint replay is `SB-B`'s, unchanged. The `fb9a7e42` arm of the prepaint differentials.
     package var replaysPrepaint = ProcessInfo.processInfo.environment["METALUI_RETAINED_PREPAINT"] != "0"
 
+    /// Prepaint ledgers moved to a new position since the window was made (`FS-F`): a work count, cumulative, read by the
+    /// rebase pin (a frame at a position the ledger was made over at moves nothing).
+    package var ledgerMoves = 0
+
+    /// Test switch (`FS-D`): off, an occurrence whose layout origin or scroll offset moved misses as it did before C14-d
+    /// (`RK-G`'s render-effect translation stays). `METALUI_RETAINED_TRANSLATION=0` reads it when each window is made.
+    package var translatesLayout = ProcessInfo.processInfo.environment["METALUI_RETAINED_TRANSLATION"] != "0"
+
     /// Test switch (`RK-B`): off, no occurrence skips its build recursion (the `fb9a7e42` arm after lane 1: prepaint replay
     /// stays, the graft goes). `METALUI_RETAINED_GRAFT=0` reads it when each window is made.
     package var graftsBuild = ProcessInfo.processInfo.environment["METALUI_RETAINED_GRAFT"] != "0"

@@ -1750,6 +1750,18 @@ a physical GPU, a desktop session and a console.*
   `2^20`-pixel limit still draws (the old keys, `OS-D`). **Observed:**
 - [ ] **RO3.** Rotate or scale a shadowed card under a local mask (mode 3): the shadow looks as before (`OS-E`). **Observed:**
 
+## FS. Finer retention scopes — a List row that replays, a shifted or scrolled row that replays translated (item C14-d, user request 2026-10-02, not a plan task; record 126; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: these need a real window and a person (and, for FS1, the owner's MetalCreator). Scene, hitbox and accessibility equality with a fresh window is pinned by the suite and by `METALUI_VERIFY_RETAINED=1`; what is owed is how it looks and feels. `METALUI_RETAINED_TRANSLATION=0` turns the translation off for a comparison.*
+
+- [ ] **FS1.** The owner runs MetalCreator's orbit and pan with the graph panel open: the window CPU per frame against the 25.8 ms reading, and no panel stale after a node drag, a
+  library scroll or a number entry (no agent touches MetalCreator; `FS-K` 7). **Observed:**
+- [ ] **FS2.** A long `List` of `.equatable()` rows (both `rowHeight:` and the variable-height spelling) scrolled with a wheel and a trackpad, then a row edited while the list
+  scrolls: the same pixels as with retention off, no stale or duplicated row, hover and click reach the row under the pointer; VoiceOver reads the rows in order (`FS-N`). **Observed:**
+- [ ] **FS3.** `METALUI_RETAINED_DEMO=1`, the shift-and-scroll strip, at scale 1, 2 and a non-dyadic scale: grow and shrink the header, scroll fast with a wheel, change a card's data
+  mid-scroll: no tearing, no stale row, no cut-off card at the scroller's edge; the counters read `translated` on 1 and 2 and the refusal name on the non-dyadic one (`FS-M`, `FS-P`). **Observed:**
+- [ ] **FS4.** VoiceOver on the shifted strip reads the same rows as with the translation off (accessibility refuses, so this is the unretained path, `FS-F`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

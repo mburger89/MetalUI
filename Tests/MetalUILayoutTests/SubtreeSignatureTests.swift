@@ -31,3 +31,27 @@ private func column(_ tree: LayoutTree, innerWidth: Double) -> LayoutNodeID {
     #expect(narrow.hash != wide.hash, "a descendant's rect is in the hash")
     #expect(narrow.hash == again.hash, "and the hash is a function of the layout")
 }
+
+/// 2.11 (`FS-D`, lane 2) — the signature taken relative to the first top node's origin is a function of the subtree's
+/// **shape**: the same subtree laid out at two origins hashes equal relative and different absolute, a descendant that
+/// differs still differs, and an origin that is not the top node's moves it. Mutation: the origin subtracted from x only
+/// (the vertical shift's relative hashes differ).
+@Test @MainActor func aRelativeSubtreeSignatureIsTranslationInvariant() {
+    func run(innerWidth: Double, x: Double, y: Double) -> (absolute: Int, relative: Int, count: Int) {
+        let tree = LayoutTree(generation: 1)
+        let root = column(tree, innerWidth: innerWidth)
+        tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 200, height: 200),
+                                 in: LayoutRect(x: x, y: y, width: 200, height: 200))
+        let top = tree.layout(root)
+        let relative = tree.subtreeSignature(of: [root], relativeTo: (x: top.x, y: top.y))
+        return (tree.subtreeSignature(of: [root]).hash, relative.hash, relative.count)
+    }
+    let here = run(innerWidth: 30, x: 0, y: 0), shifted = run(innerWidth: 30, x: 24, y: 0)
+    let lower = run(innerWidth: 30, x: 0, y: 17), both = run(innerWidth: 30, x: 24, y: 17)
+    let wide = run(innerWidth: 60, x: 24, y: 17)
+    #expect(here.absolute != shifted.absolute && here.absolute != lower.absolute, "the absolute hash sees the move")
+    #expect(here.relative == shifted.relative, "a horizontal move leaves the relative hash")
+    #expect(here.relative == lower.relative, "a vertical move leaves the relative hash")
+    #expect(here.relative == both.relative && here.count == 4, "so does a move on both axes")
+    #expect(both.relative != wide.relative, "a descendant that differs still differs")
+}

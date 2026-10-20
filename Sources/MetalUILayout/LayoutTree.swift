@@ -668,6 +668,36 @@ public final class LayoutTree {
         }
         return (hasher.finalize(), count)
     }
+    /// ``subtreeSignature(of:)`` with every node's origin taken relative to `origin` (the first top node's, `FS-D`): the
+    /// hash of the subtree's **shape**, equal for the same subtree laid out anywhere, so a retained occurrence that only
+    /// moved can be told from one that changed. Widths, heights and the unrounded measured widths are as before.
+    /// **`package`**: not API.
+    package func subtreeSignature(of roots: [LayoutNodeID], relativeTo origin: (x: Double, y: Double)) -> (hash: Int, count: Int) {
+        let both = subtreeSignatures(of: roots, relativeTo: origin)
+        return (both.relative, both.count)
+    }
+
+    /// Both signatures in one walk: the absolute one ``subtreeSignature(of:)`` returns and the relative one
+    /// ``subtreeSignature(of:relativeTo:)`` returns (the retained key reads both every frame). **`package`**.
+    package func subtreeSignatures(of roots: [LayoutNodeID], relativeTo origin: (x: Double, y: Double))
+        -> (absolute: Int, relative: Int, count: Int) {
+        var absolute = Hasher(), relative = Hasher()
+        var stack = roots.map { slot($0) }
+        var count = 0
+        while let index = stack.popLast() {
+            let rect = layouts[index]
+            absolute.combine(rect.x); absolute.combine(rect.y)
+            absolute.combine(rect.width); absolute.combine(rect.height)
+            absolute.combine(measuredWidths[index])
+            relative.combine(rect.x - origin.x); relative.combine(rect.y - origin.y)
+            relative.combine(rect.width); relative.combine(rect.height)
+            relative.combine(measuredWidths[index])
+            count += 1
+            for child in childLists[index] { stack.append(child.index) }
+        }
+        return (absolute.finalize(), relative.finalize(), count)
+    }
+
     /// Stores a node's root-absolute rect.
     ///
     /// Traps while a native measurement body is running (ruling SA-H clause 4):

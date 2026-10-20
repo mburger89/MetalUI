@@ -60,6 +60,10 @@ public final class RetainedSubtreeDemoModel {
     @ObservationIgnored public var grafts = (count: 0, skippedRequests: 0)
     /// The last adopted frame's ineligible occurrences by reason, as text (`RW-M`); empty when none.
     @ObservationIgnored public var reasons = ""
+    /// The last adopted frame's refused translations by reason, as text (`FS-F`); empty when none.
+    @ObservationIgnored public var translationRefusals = ""
+    /// The shift-and-scroll section's header height, points (`FS-D`): every card below it moves with it.
+    public var shiftHeader: Float = 10
     @ObservationIgnored private var dragStartX: Float = 0
     @ObservationIgnored private var dragStartY: Float = 0
     @ObservationIgnored private var dragging: Int?
@@ -84,6 +88,7 @@ public final class RetainedSubtreeDemoModel {
     public func reset() {
         nodes = RetainedSubtreeDemoModel().nodes
         pan = 0
+        shiftHeader = 10
         dragging = nil
     }
 
@@ -229,6 +234,7 @@ private func retainedDemoRoot(strip: some ElementGroup, canvas: some ElementGrou
         strip
         canvas
         RetainedDemoPanel().equatable()
+        RetainedDemoShift()
     }
     .padding(Edges(all: Pixels(24)))
     .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity), alignment: .topLeading)
@@ -270,4 +276,49 @@ private func retainedDemoPanelBody(query: Binding<String>, mode: Binding<Int>) -
     var rows: [RetainedDemoPanelRow] = []
     for i in 0..<30 { rows.append(RetainedDemoPanelRow(id: i)) }
     return rows
+}
+
+/// The shift-and-scroll section (`FS-D`, C14-d): a scroller of `.equatable()` cards under a header that the buttons grow and
+/// shrink by 4 points. **Press +**: every card below moves down by the same layout delta and the strip reads `translated 24`
+/// (or the visible count) with the element requests of a still frame; **wheel the list**: the scroll offset moves and it reads
+/// the same. On a display whose scale makes the move a fraction of a device pixel the strip reads the refusal by name
+/// (`fractionalTranslation`, `inexactTranslation`) and the requests of an ordinary frame. With an accessibility client active
+/// the prepaint is not replayed moved (`accessibilityRecords`), the paint is.
+struct RetainedDemoShift: Component {
+    var content: some ElementGroup {
+        retainedDemoShiftBody(retainedSubtreeDemoModel)
+    }
+}
+
+/// One card of the section: a swatch and a label, value-equal for ever.
+private struct RetainedDemoShiftCard: Component, @MainActor Equatable {
+    let id: Int
+    var content: some ElementGroup {
+        HStack(spacing: 6) {
+            Color.accent.frame(width: Pixels(10), height: Pixels(10))
+            Text("Card \(id)").font(size: 12)
+        }
+        .frame(width: Pixels(200), height: Pixels(20), alignment: .leading)
+    }
+}
+
+/// The section's body, its own function (the Windows 1 MB stack rule).
+@MainActor @ElementBuilder
+private func retainedDemoShiftBody(_ model: RetainedSubtreeDemoModel) -> some ElementGroup {
+    VStack(spacing: 4) {
+        HStack(spacing: 12) {
+            Text("Shift and scroll — header").font(size: 12)
+            Button("+4") { model.shiftHeader = min(model.shiftHeader + 4, 60) }
+            Button("−4") { model.shiftHeader = max(model.shiftHeader - 4, 0) }
+            Text("translated \(model.counters.translated)").font(size: 12)
+            Text("refused \(model.translationRefusals.isEmpty ? "none" : model.translationRefusals)").font(size: 12)
+        }
+        ScrollView(.vertical) {
+            VStack(spacing: 2) {
+                Color.clear.frame(height: Pixels(model.shiftHeader))
+                ForEach(Array(0..<24), id: \.self) { RetainedDemoShiftCard(id: $0).equatable() }
+            }
+        }
+        .frame(width: Pixels(260), height: Pixels(100))
+    }
 }

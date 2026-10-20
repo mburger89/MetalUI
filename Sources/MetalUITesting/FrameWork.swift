@@ -93,6 +93,10 @@ public struct FrameWork: Sendable, Equatable {
     /// `presentationAnchor`, ...): one entry per refusal, so an occurrence refused at paint, prepaint and graft counts
     /// three times. Empty when nothing was refused (`RW-M`).
     public var retainedIneligibleReasons: [String: Int]
+    /// ``retainedTranslationRefused`` summed by the name of the gate that refused (`FS-F`): `accessibilityRecords`,
+    /// `hitboxes`, `inexactTranslation`, `fractionalTranslation`, `maskStraddlesEntryClip`, `unlistedKind:<kind>`, ...
+    /// One entry per refusal; empty when nothing was refused (`FS-J`).
+    public var retainedTranslationRefusedReasons: [String: Int]
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -120,7 +124,8 @@ public struct FrameWork: Sendable, Equatable {
                 retainedPrepaintHits: Int = 0, retainedPrepaintIneligible: Int = 0, retainedRedos: Int = 0,
                 retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0,
                 retainedGrafts: Int = 0, retainedGraftIneligible: Int = 0, retainedSkippedRequests: Int = 0,
-                retainedGraftedNodes: Int = 0, retainedIneligibleReasons: [String: Int] = [:]) {
+                retainedGraftedNodes: Int = 0, retainedIneligibleReasons: [String: Int] = [:],
+                retainedTranslationRefusedReasons: [String: Int] = [:]) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -162,6 +167,7 @@ public struct FrameWork: Sendable, Equatable {
         self.retainedSkippedRequests = retainedSkippedRequests
         self.retainedGraftedNodes = retainedGraftedNodes
         self.retainedIneligibleReasons = retainedIneligibleReasons
+        self.retainedTranslationRefusedReasons = retainedTranslationRefusedReasons
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -204,6 +210,7 @@ public struct FrameWork: Sendable, Equatable {
                   retainedGraftIneligible: l.retainedGraftIneligible + r.retainedGraftIneligible,
                   retainedSkippedRequests: l.retainedSkippedRequests + r.retainedSkippedRequests,
                   retainedGraftedNodes: l.retainedGraftedNodes + r.retainedGraftedNodes,
-                  retainedIneligibleReasons: l.retainedIneligibleReasons.merging(r.retainedIneligibleReasons, uniquingKeysWith: +))
+                  retainedIneligibleReasons: l.retainedIneligibleReasons.merging(r.retainedIneligibleReasons, uniquingKeysWith: +),
+                  retainedTranslationRefusedReasons: l.retainedTranslationRefusedReasons.merging(r.retainedTranslationRefusedReasons, uniquingKeysWith: +))
     }
 }
