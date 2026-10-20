@@ -366,3 +366,30 @@ private func drawnTexels(_ images: [(image: MUIImage, texture: ImageTexture)]) -
     let w = render(h, canvas(line, pan: 0))
     #expect(w.images.count >= 1, "the visible glyphs draw: \(w.images.count) images")
 }
+
+/// **S11** (`OS-A`). A raster whose extent meets the clip only by its blur padding is
+/// tighter than the extent: its placed rect can lie wholly outside the clip, and then no
+/// image is drawn (a full gradient; a shadow's and a blur's drop was measured unreachable,
+/// the mutation survives there, `OS-O`). A gradient swept across both horizontal clip edges one device pixel at a
+/// time, at 1× and 2×, never draws an image whose bounds miss the clip. Mutation: drop the
+/// `rasterClip != placement.clip` outside-the-clip return in `gradientImage`.
+@Test @MainActor func anOverscannedRasterWhollyOutsideTheClipDrawsNoImage() throws {
+    var checked = 0
+    for kind in [Kind.diagonal, .radialGradient] {
+        for scale: Float in [1, 2] {
+            let lo = 20 * scale, hi = 120 * scale
+            for step in stride(from: -90, through: 150, by: 2) {
+                let pan = Float(step) * 0.5   // whole device pixels at 2×, half-points at 1× (rounds)
+                let w = render(TransitionHarness(), canvas(card(kind), pan: pan.rounded()), scale: scale)
+                for (image, _) in w.images {
+                    let b = image.bounds
+                    let misses = b.origin.x >= hi || b.origin.x + b.size.width <= lo
+                        || b.origin.y >= hi || b.origin.y + b.size.height <= lo
+                    #expect(!misses, "\(kind) \(scale)× pan \(pan): an image at \(b) misses the clip \(lo)…\(hi)")
+                    checked += 1
+                }
+            }
+        }
+    }
+    try #require(checked > 100, "the sweep drew images: \(checked)")
+}

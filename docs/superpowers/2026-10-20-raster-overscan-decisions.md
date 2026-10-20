@@ -4,7 +4,7 @@ Rulings for P4 (user request 2026-10-02). Spec: [`specs/2026-10-20-raster-oversc
 Record: `../record/124-raster-overscan.md` (at the Record phase). Branch `perf/raster-overscan` from `4d91f27f`; divergence labels
 reserved 545–554 (none taken).
 
-**Next unused id: `OS-O`.** (Moves in the commit that appends a ruling; read the last `## OS-` heading if they disagree.)
+**Next unused id: `OS-P`.** (Moves in the commit that appends a ruling; read the last `## OS-` heading if they disagree.)
 
 Evidence: the code at `4d91f27f` (`RasterAnchor.swift`, `RasterCache.swift` `pathImage`, `Shadow.swift`, `Blur.swift`,
 `GradientRaster.swift`, `MetalUIPath/Rasterizer.swift`, `BoxBlur.swift`), record §118 (`PN-A`…`PN-K`), §90, §111, §119. No
@@ -113,3 +113,15 @@ glyph or image into `resampleRect(bounds)`, the bounds' enclosure cut by the ras
 that traps on a zero side (`ImageTexture: 0×12 has a zero side`). The trap predates this branch (4d91f27f; S4 reached it by calling
 `blurLayer` over the production cut clip) and is independent of overscan. **Pin.** S10 (`aBlurredLineOfTextWithGlyphsOutsideTheClipDoesNotTrap`),
 mutation: drop the guard. **Cost if wrong.** None: an empty layer composes as nothing, as every other empty `RGBALayer` does.
+
+## OS-O — The outside-the-clip drop of a shadow or blur is defensive and unobserved; a gradient's is pinned (S11)
+
+**Ruling.** The `rasterClip != placement.clip, placed.intersection(placement.clip).isEmpty` return stays in `shadowImage`, `blurImage` and
+`gradientImage`, but only the gradient's is pinned: S11 (`anOverscannedRasterWhollyOutsideTheClipDrawsNoImage`, a diagonal and a radial
+gradient swept 2 device pixels at a time across both clip edges at 1x and 2x) reddens when it is removed from `gradientImage`. Removing it
+from `shadowImage` or `blurImage` reddened **nothing**, in S5, in S11 over all four kinds swept every pixel (about 1900 cold renders per
+site), or in the suites named in the record: for a shadow and a blur the raster's tight rect (silhouette bounds grown by the padding) was
+never found wholly outside the clip while `E` (grown one more pixel) meets it. **Why keep it.** It is the same line `PN-G` pins for paths,
+costs one rect test, and its absence would draw a masked-out image rather than change a pixel; it is not claimed as pinned. **Cost if wrong.**
+At worst one fully masked image per such card per frame (counted, not seen). `OS-A`'s three sites each still own their call; the gradient
+site is the pinned one.
