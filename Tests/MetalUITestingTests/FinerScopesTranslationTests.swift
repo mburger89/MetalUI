@@ -314,7 +314,7 @@ func aFractionalShiftIsRefusedNotApproximated(step: Float) async throws {
 private struct FSFlexCard: Component, @MainActor Equatable {
     let index: Int
     var content: some ElementGroup {
-        Text("flex \(index)").frame(maxWidth: Pixels(200), alignment: .leading).frame(height: Pixels(20))
+        Text("flex \(index)").frame(maxWidth: Pixels(200), alignment: .leading).background(.accent).frame(height: Pixels(20))
     }
 }
 
