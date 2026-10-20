@@ -196,7 +196,7 @@ extension Frame {
                 if retainedTraces {
                     print("retained translation refused \(sbPath(build.key.id).suffix(60)): ax \(ledger.axEmissions.count)/\(ledger.axNodes.count), hitboxes \(ledger.hitboxes.count), moved \(translatedHitboxes(of: ledger, by: delta) != nil)")
                 }
-                memos.retained.translationRefused += 1
+                memos.retained.noteTranslationRefused(reason: ledger.axEmissions.isEmpty && ledger.axNodes.isEmpty ? "hitboxes" : "accessibilityRecords")
             }
         }
         return .run(phase.grafted ? nil : openPrepaintWindow())

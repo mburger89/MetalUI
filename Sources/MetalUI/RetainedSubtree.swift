@@ -48,6 +48,8 @@ package struct RetainedCounters: Sendable, Equatable {
     package var translated = 0
     /// Occurrences whose move by a translation failed the gate and missed (`RK-G`).
     package var translationRefused = 0
+    /// ``translationRefused`` by the name of the gate that refused (`FS-F`).
+    package var translationRefusedReasons: [String: Int] = [:]
     /// Occurrences whose build recursion did not run: their layout rows were copied and the build journal applied again
     /// (`RK-B`, `RK-F`).
     package var grafts = 0
@@ -60,6 +62,12 @@ package struct RetainedCounters: Sendable, Equatable {
     /// The three ineligible counters summed by the name of the channel that refused (`RW-M`): a paint taint or entry
     /// refusal, a prepaint refusal or taint, a graft refusal. Filled only on the ineligible path.
     package var ineligibleReasons: [String: Int] = [:]
+
+    /// The one funnel a refused translation goes through (`FS-F`).
+    package mutating func noteTranslationRefused(reason: String) {
+        translationRefused += 1
+        translationRefusedReasons[reason, default: 0] += 1
+    }
 
     package enum IneligibleKind: Sendable { case paint, prepaint, graft }
 
