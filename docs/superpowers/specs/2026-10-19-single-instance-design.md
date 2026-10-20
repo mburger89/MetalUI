@@ -71,14 +71,14 @@ directory (SN-K). Mutations are applied one at a time, full unfiltered suite, co
 3. `batchesWaitForAHandlerAndAreDeliveredOnceInOrder` - forward, then set `onOpenURLs`. M: drop when nil.
 4. `aStaleSocketFileIsReplacedByANewPrimary` - plant a `.sock` file (and a bound-then-abandoned socket) with no lock. M: refuse when the
    file exists.
+4b. `eightConcurrentClaimsElectExactlyOnePrimary` (SN-M). M: claim without `flock`.
 5. `aKilledPrimaryReleasesTheRole` (subprocess, `primary` mode, `SIGKILL`, then `claim` returns `.primary`). M: lock fd without
-   `flock` (bind-only election).
+   `flock` (bind-only election; the race test 4b is the separating one).
 6. `aSecondProcessForwardsAndExitsZero` (subprocess `forward`, assert status 0 and delivery). M: the check exits 1 on `.forwarded`.
 7. `aLockHeldWithNoListenerFallsBackToUnavailableWithinTheTimeout` - hold the lock with a raw `flock`; `connectTimeout` 0.3 s;
    expect `.unavailable(.noListener)` and elapsed < 2 s. M: retry forever (a bounded wait via the test's hang watchdog).
 8. `aMalformedMessageIsRefusedAndTheListenerKeepsServing` (`@Test(arguments:)` over bad magic, truncated count, truncated string,
-   length beyond the frame, 1 MiB + 1 total, count 1025, string 32769, ill-formed UTF-8, embedded NUL, empty string, trailing
-   garbage): raw client; expect NAK or close, nothing delivered, then a valid message is delivered. M per limit: raise each limit by one;
+   length beyond the payload, `payloadLength` 1 MiB + 1, count 1025, string 32769, ill-formed UTF-8, embedded NUL, empty string, bytes left inside the payload): raw client; expect NAK or close, nothing delivered, then a valid message is delivered. M per limit: raise each limit by one;
    M: replace the UTF-8 / NUL check; M: allocate before checking.
 9. `aStalledClientIsCutOffByTheReadTimeoutAndDoesNotBlockTheNextOne` - half a header, hold, `readTimeout` 0.3 s, then a good client.
    M: no deadline (watchdog).
@@ -89,11 +89,10 @@ directory (SN-K). Mutations are applied one at a time, full unfiltered suite, co
 13. `theSixtyFifthPendingMessageIsRefused` (no platform draining) and `aDrainedQueueAcceptsAgain`. M: unbounded queue.
 14. `twoIdsAreTwoIndependentPrimaries` and `anEmptyIDIsRefused`. M: id ignored in the hash.
 15. `aDeliveredMessageRaisesTheKeyWindowElseTheFirstAndNeverAHiddenOne` (the `raiseWindow` stub; an empty forward also raises;
-    `raisesWindow: false` and `hidesWindows` do not). M: raise before delivery ordering swapped is unobservable, so M: always raise;
+    `raisesWindow: false` and `hidesWindows` do not). M: always raise;
     M: never raise.
-16. `theWakeEventEndsABlockedWaitPromptly` - `run(maxIterations:)` with a forward from another thread; the delivery happens within
-    one iteration (count, not time). M: no `SDL_PushEvent` (the iteration count rises to the 250 ms wait; asserted by the
-    iteration budget).
+16. `theWakeEventEndsABlockedWaitPromptly` - `run(maxIterations:)` with a forward from another thread; the delivery happens in
+    `run(maxIterations: 1)` with the wake counted by a package read-back (SN-M; count, not time). M: no `SDL_PushEvent` (count 0).
 17. `dropDeliveryAndForwardDeliveryDoNotInterleaveABatch` - a window-0 `DROP_FILE` pair, a forward between, then `DROP_COMPLETE`.
     M: share one accumulator.
 18. `theClaimIsReleasedWhenThePlatformGoesAway` - after release a fresh claim is primary and the socket is gone. M: no `deinit` unlink
@@ -114,7 +113,7 @@ No demo change: the feature has no pixels. `MetalUISDLDemo` gains `--single-inst
 
 SI1 Linux (X11 and Wayland): `.desktop` with `Exec=… %F`, double-click a second document in a file manager: the first window shows it, no
 second window, the window raises or its taskbar entry flashes. SI2 `kill -9` the primary, relaunch: a fresh primary starts; launch
-again: forwards. SI3 Windows 11 (x64 and ARM64): the same with Explorer and a file association; `Local\` mutex abandoned after End Task.
+again: forwards. SI3 Windows 11 (x64 and ARM64; also two sessions of one user, SN-D): the same with Explorer and a file association; `Local\` mutex abandoned after End Task.
 SI4 Wayland activation: record whether the raise needs the token (SN-H, SN-L). SI5 two users on one machine (fast user switching or `su`):
 neither sees the other's primary. SI6 a primary left running 8 hours then forwarded to.
 
