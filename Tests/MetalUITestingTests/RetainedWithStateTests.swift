@@ -38,7 +38,9 @@ private let orbitBefore: [OrbitFrame] = [
 
 /// **Test 1, before arm** (green at `f557d339`, `RW-A`): the counts the item improves, taken with retention, prepaint replay and the
 /// graft on. `requests + skipped` is the retention-off 798 (the conservation law) on the `.panels` arm.
-/// **Mutations:** the `noteIneligible` funnel recording `"?"` reddens the reasons; `graftsBuild` forced off reddens requests.
+/// **Mutation:** `graftsBuild` forced off reddens requests. (The `noteIneligible` funnel recording `"?"` does **not** redden this arm:
+/// the `.value` row refuses nothing, so its reasons are empty either way; `aPlainWithStateWriteStaysIneligibleByName` and
+/// `everyIneligibleOccurrenceIsCountedByItsReason` are what see the funnel, record 121 §5.)
 @Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [BracketArm.value]) @MainActor
 func theOrbitWithPanelIsCountedBeforeReadOnlyState(arm: BracketArm) throws {
     let expected = try #require(orbitBefore.first { $0.arm == arm })
@@ -67,7 +69,8 @@ func theOrbitWithPanelIsCountedBeforeReadOnlyState(arm: BracketArm) throws {
 /// inspector each replay (3 outermost hits: a hit of a panel stands for the occurrences nested in it), so the frame builds only the
 /// window component, the surface and the stacks above the panels: **6 element requests** (115 at `f557d339`), 7 prepaints (117),
 /// 7 paints (110), 792 requests skipped (683), conserving 798. **Red before:** ineligible 1, 2, 1. **Mutations:** a `readState` made
-/// to bump the version reddens the hits; the reasons funnel recording `"?"` reddens the empty reasons.
+/// to bump the version reddens the hits (lane A's mutation); the empty reasons assert that nothing is refused, they do not
+/// exercise the funnel (a funnel recording `"?"` leaves this arm green, record 121 §5).
 @Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
 func theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState() throws {
     let f = try bracketOrbitFrames(arm: .panels, frames: 6).frames[3]

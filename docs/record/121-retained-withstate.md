@@ -96,3 +96,48 @@ to 31, graft-ineligible 1 to 0, grafted nodes 641 to 677, skipped requests 631 t
 arms and every scene, paint and layout count are unmoved. **The orbit frame** (the item's own scenario): requests 115 to **6**, skipped 683 to 792, prepaints
 117 to **7**, paints 110 to **7**, hits 34 to 3 (the three panels each replay and stand for their nested occurrences), ineligible 1/2/1 to 0/0/0, reasons
 `{stateWrite: 3, presentationAnchor: 1}` to empty, redos 0. The spec's prediction (counters read 0, requests fall to the few unretained leaves) holds.
+
+## §4 Red first
+
+Lane A wrote its pins before the mechanism: the unit tests (`readState`, the compared write, the journal, the liveness channels) were red by
+absence (a stub `readState` forwarding to the plain `withState`), the before row was green at `f557d339` on the `.value` arm, and
+`theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState` was **left red on arrival by design at lane A's head** (`c7655fda`: 11 issues = the five
+`AppKitPresentationTests` sheet issues of `CI-AF` plus the pin's six: ineligible 1/2/1, hits 34, requests 115, prepaints 117, paints 110,
+reasons `{stateWrite: 3, presentationAnchor: 1}`); it went green at lane B (`71194132`). At lane B's first unfiltered run the suite read 80 issues
+(`RW-S`): two defects (the ledger-less record, the swept journals), the rest expectations the conversions moved on purpose (§3).
+
+## §5 Mutation tables
+
+**Lane A** (the verifier's, on the full unfiltered suite, `git status` clean after each):
+
+| Mutation | Reddened |
+|---|---|
+| `StateTable.readState`'s hit path also performs a plain `withState` write | `aNestedReplayKeepsItsReadsInTheEnclosingRecord(phase:)`, `aReadFillsEveryLivenessChannelAndTheGraftJournal`, `aReadOnlyEntryStaysLiveAcrossManyReplays(phase:)`, `aReadOnlyOccurrenceReplaysAndAnInputWriteToItsStateMisses(label:)`, `aRetainedReadSetHoldsNoStrongReference`, `everyIneligibleOccurrenceIsCountedByItsReason(channel:)`, `readStateAndAnUnchangedWriteDoNotBumpTheVersion` |
+| compared `withState` treats every write as unchanged (`if true \|\| unchanged(...)`) | `aChangedCompareWriteTaintsEveryOpenWindow`, `readStateAndAnUnchangedWriteDoNotBumpTheVersion` |
+| `touchLive` a no-op | `aReadJoinsTheJournalAndKeepsItsEntryLive`, `aReadOnlyEntryStaysLiveAcrossManyReplays(phase:)`, `aReadOnlyOccurrenceReplaysAndAnInputWriteToItsStateMisses(label:)` |
+
+**Lane B** (its verifier ran the clean build and the unfiltered suite only, **no mutations**; the Record phase ran the table below, 2026-10-19).
+Each mutation applied to the one site named, **restored with `git checkout` after the run, `git status --short` empty after each**, on a
+**filtered** run of the retained, orbit, bracket, panel, graft, prepaint and verify suites (260 tests; a filter, not the whole suite: the brief's
+"unfiltered where practical" was not practical at 5 minutes each on a Mac at load 80–150; the unfiltered suite ran green before and after).
+
+| # | Mutation (site) | Reddened (new RW tests in **bold**) |
+|---|---|---|
+| M1 | `sameScrollState` returns `true` (`ScrollChrome.swift`, the clamp's `unchanged:`) | 30 tests, 111 issues, among them **`aWheelInsideARetainedPanelMissesOnTheScrollStateVersionAndMatchesAFreshWindow`, `aListWindowIsAFunctionOfTheStateItReads`, `anUnfocusedFieldKeepsItsStateAcrossThreeHundredReplays`, `aFocusedFieldInsideARetainedPanelMissesAndTypingWorks`, `aPickerOpensFromAReplayedAnchorWhereAFreshWindowOpensIt`, `aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame`, `aSelectionChangeInsideARetainedListMisses`, `theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState`, `theOrbitWithPanelIsCountedBeforeReadOnlyState`**, and the existing list-window, scroll-clamp and bracket tests (an offset the clamp never writes back is a broken scroller everywhere) |
+| M2 | `sameScrollState` returns `false` (every clamp a write) | **`aFocusedFieldInside…`, `aPickerOpensFromAReplayedAnchor…`, `aScriptedSession…`, `aSelectionChangeInsideARetainedListMisses`, `aWheelInside…`, `anUnfocusedFieldKeepsItsState…`, `theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState`**, `aGraftIneligibleBuildIsCountedByName`, `aPrepaintInEachIneligibleKindRunsAsBefore`, `everyLedgerChannelMakesTheSubtreeIneligible`, `theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires` |
+| M3 | `ScrollView`'s raw-offset `readState` replaced by a plain `withState` | the M2 set plus **`everyStateWriteSiteIsClassified`** and `theBracketNodeDragIsCountedAfterTheGraft` (12 tests) |
+| M4 | `ListOrigin.sameEntry` returns `true` | `aListWhoseOriginChangesIsReWindowedOnTheNextFrame` only. **None of the new RW tests reddens**: a list whose origin is written equal never moves its window in a way the new pins read (§6) |
+| M5 | `ListOrigin.sameEntry` returns `false` | **`aFocusedField…`, `aPickerOpensFromAReplayedAnchor…`, `aScriptedSession…`, `aSelectionChangeInside…`, `aWheelInside…`, `anUnfocusedFieldKeepsItsState…`, `theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState`**, `theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires` |
+| M6 | `TextField`'s paint-time `readState` replaced by a plain `withState` | **`aFocusedField…`, `aScriptedSession…`, `aWheelInside…`, `anUnfocusedFieldKeepsItsState…`, `everyStateWriteSiteIsClassified`, `theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState`**, `aPrepaintInEachIneligibleKindRunsAsBefore`, three bracket node-drag families, the demo test |
+| M7 | the ledger's anchors loop dropped (`replayPrepaintLedger`) | **`aPickerOpensFromAReplayedAnchorWhereAFreshWindowOpensIt`** only (the instrument the spec named) |
+| M8 | `retainedPaintDecision`'s ledger-less-record upgrade removed (`RW-S` 1) | `aGraftIneligibleBuildIsCountedByName`, `aPrepaintInEachIneligibleKindRunsAsBefore` (the very tests that found it) |
+| M9 | `noteRead` returns before appending (the read journal) | **`aReadJoinsTheJournalAndKeepsItsEntryLive`, `aReadFillsEveryLivenessChannelAndTheGraftJournal`, `aReplayedReadAndLivenessMoveNoVersionAndTaintNothing`** (three unit tests; no window test sees it, §6) |
+| M10 | a plain `withState` added to `ScrollView.swift` | **`everyStateWriteSiteIsClassified`** plus the M3 set (12 tests) |
+| M11 | `TextField`'s bound-selection `reconcile` compared as always equal | `aSelectionWriteDoesNotCorruptUndoAndEndsTheTypingGroup`, `aSelectionWrittenWhileComposingIsHeldBackAndSupersededByTheCommit` |
+| M12 | `noteIneligible` records the reason `"?"` | **`aPlainWithStateWriteStaysIneligibleByName`, `everyIneligibleOccurrenceIsCountedByItsReason`** (the orbit pins stay green: nothing is refused there; their doc comments said otherwise and are corrected) |
+| G1 | `PaintPass.readState` made `public` (guard `RW.1`, first arm) | `theReadOnlyStateSurfaceIsUnreachableFromAPlainImport` (2 issues: "is package API", "rejected, but not for the member") |
+| G2 | `PaintPass.withState(...unchanged:...)` made `public` | the same guard (`the compared withState is package API`) |
+| G3 | `StateTable.touchLive` spelled `public` | **green by construction**: `StateTable` is internal, so a member's spelling cannot reach a plain import; only the type's visibility could, and it is not mutated |
+
+Lane A's 3 and the three rows M7, M9, M12 are the spec's named mutations that hold; the spec's mutation for test 4 ("`ListOrigin` read not recorded") is M4
+in a stronger spelling and is not separated by an RW test (§6).
