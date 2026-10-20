@@ -139,3 +139,25 @@ translated replay across a surface, popover or presentation; lazy grids; MetalCr
    (exact per op) is cheap, and the decision records it. 3. The `suppression` cause may be a harness effect; lane 1 step 2's AX on/off
    arms decide, and a harness-only cause makes lane 1 a pin-only lane. 4. Touching both keys changes every retained decision's
    comparison: test 2.10 and the whole verify run are the guard.
+
+## 6 Lane 2 as built (amends section 2; rulings `FS-O`..`FS-S`)
+
+* **Key.** `ReplayKey` and `PrepaintKey` keep their absolute `rects` and `interior` (so `==` and every old decision are unchanged) and gain
+  `shapeInterior`; the relation is `RetainedShape.shift` (`Sources/MetalUI/RetainedTranslation.swift`), not a method named
+  `differsOnlyByTranslation`. `LayoutTree.subtreeSignatures(of:relativeTo:)` returns both hashes in one walk.
+* **Gate.** Whole device pixels (`FS-M`) then multiples of 1/16 below 2^19. Scales 1.5 and 3 are **not** refused wholesale (layout is in
+  whole points there); test 2.5 reads "bit-identical at every scale, translated at all five". The `inexactTranslation` reachable case is
+  scale 1.2 (test 2.9b); `fractionalTranslation` is 1 point at 1.5 (test 2.9).
+* **Paint.** Leaves are moved at the record's own scope height through `processScopes` (the translated path of `RK-S`), allow-list rect,
+  glyph, image; a record that passed an inner paint scope refuses (`innerScope`); masks by depth (entry: left, inner: moved only strictly inside
+  the entry clip, else `maskStraddlesEntryClip`). After a successful translated hit the record and the ledger are **rebased** at the new
+  position (not in verify mode).
+* **Prepaint.** The ledger's hitboxes and element bounds move; the paint record must be movable first or the prepaint runs (no redo).
+* **Switch.** `METALUI_RETAINED_TRANSLATION=0` / `Window.testingRetainedTranslation` is the A/B of the figures.
+* **Tests.** 2.1 to 2.3 `aShiftedOrScrolledRowReplaysTranslated`; 2.1b `aShiftedCardStackEqualsAFreshWindow`; 2.4
+  `aScrolledListReplaysTheRowsStillInTheWindow`; 2.5 `aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale`; 2.6
+  `aClickAfterAShiftReachesTheMovedButton`; 2.7 `everyUntranslatableKindRefusesByName`; 2.8 `aShiftThatAlsoResizesTheOccurrenceMisses`;
+  2.9 `aFractionalShiftIsRefusedNotApproximated`; 2.9b `anInexactCoordinateIsRefusedNotApproximated`; 2.11 (layout)
+  `aRelativeSubtreeSignatureIsTranslationInvariant`; 2.10 is the existing bracket and orbit pins, unedited.
+* **Demo.** `METALUI_RETAINED_DEMO=1` gains the section `RetainedDemoShift` (its own function; the window is 700 points tall); the perf arm is
+  `zsh docs/probes/perf-baselines.sh release shiftscroll`.

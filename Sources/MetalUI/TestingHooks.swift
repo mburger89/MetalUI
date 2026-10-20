@@ -158,6 +158,13 @@ extension Window {
         set { stateTable.contentMemos.replaysPrepaint = newValue }
     }
 
+    /// Whether an occurrence whose layout origin or scroll offset moved replays translated (`FS-D`); off, it misses as it did before
+    /// C14-d. Independent of the render-effect translation of `RK-G`, which stays.
+    package var testingRetainedTranslation: Bool {
+        get { stateTable.contentMemos.translatesLayout }
+        set { stateTable.contentMemos.translatesLayout = newValue }
+    }
+
     /// Whether `.equatable()` occurrences skip their build recursion (`RK-B`); off, prepaint and paint replay as at lane 1's tree.
     package var testingRetainedGraft: Bool {
         get { stateTable.contentMemos.graftsBuild }

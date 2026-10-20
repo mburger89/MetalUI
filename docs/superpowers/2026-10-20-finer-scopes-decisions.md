@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (Record phase, not yet written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-O`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-T`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -234,3 +234,76 @@ a `Dictionary` sharing storage answers `==` by identity) and `aGraftIsRefusedUnd
 0 grafts, 1 ineligible, scene equal to a retention-off window; the paint refusal dominates, so no window mutation reaches it).
 **Not done here.** No row-naming change (`FI-I`, divergence 255 untouched): the 100k re-take is not owed. Every existing `VL-`/`DD-`
 test and literal is unedited. The lane-2 translation work (`FS-D`..`FS-G`) is not part of this commit series.
+
+## FS-O - Lane 2 as built: translated replay for a layout shift (K1) and a scroll offset (K2), behind one switch
+
+**Ruling.** The spike of `FS-E` succeeded and the translation lands. `ReplayKey` and `PrepaintKey` gain `shapeInterior`, the subtree's
+signature taken relative to the first top node's origin (`LayoutTree.subtreeSignatures(of:relativeTo:)`, `package`, one walk for both
+hashes; `subtreeSignature(of:relativeTo:)` is the single-hash spelling `FS-D` names). Their `==` is unchanged (all parts), so every
+existing decision compares as before. `RetainedShape.shift` is the one relation: same node count, same relative signature, same top
+rect **sizes**, same top origins relative to the first (all `Float` subtractions, equal or no translation), and the shift of the first
+origin (K1) and of where it lands with the ambient offset (K2) not both zero. `ReplayKey.shift(from:)` adds "ambient equal but for
+`offset`"; `PrepaintKey.shift(to:)` adds "extras equal but for the scroller's offset (index 7)". An occurrence under a **moved render
+effect** is not combined with these (the effect branch of `RK-G` runs first and needs equal rects): the sum of the two is deferred.
+**The move** (`Frame.movedPaintRecord`): the first top node's device origin is computed with `fill`'s own arithmetic
+(`(x + offset) * scale`, `Float`), the delta is the difference of the new and the old, and the record's leaves at its own scope height
+(`RetainedRecord.scene`, and its `finalScene` when no paint scope is open around the occurrence) are moved by one add of that delta
+through `processScopes` (the translated path of `RK-S`: the live outer scopes still apply). Allow-list: **rect, glyph, image**. Each
+other kind refuses by its name (`unlistedKind:path|gradient|surface|shadow|blur|backdrop`); a `CapturedPrimitive.transform`
+refuses (`transformedPrimitive`); a record whose leaves passed a paint scope opened **inside** the occurrence (a flattening
+`.offset`, a shadow, a composite, a transition) refuses (`innerScope`: `RetainLog.noteBoundary` marks the recorder when a leaf stands above
+its own scope height), because the scope's map is not an add. **Masks:** a primitive whose mask was read at the entry clip depth (its
+emission depth equals `ambient.depths[0]`) keeps it, equal by the key; one read deeper holds a clip derived inside the occurrence and moves
+with it only when it lies **strictly inside** the entry clip before and after (a mask that touches an edge of the entry may have been cut
+by it, and the cut of a moved mask is not the moved cut: `maskStraddlesEntryClip`).
+**Gate (`FS-M`, as ruled, with one measured amendment).** The delta must be a whole number of device pixels on both axes
+(`fractionalTranslation`), and the origins, the delta and every moved number a multiple of 1/16 below 2^19 and the add exact
+(`inexactTranslation`). **Measured: scales 1.5 and 3 are not refused wholesale.** Layout rounds coordinates to whole points (and
+halves), so `x * 1.5` and `x * 3` are multiples of 1/16 and a 4 point shift (6 or 12 pixels) translates at both; what refuses there is a
+fraction (1 point at 1.5 is 1.5 pixels; a third of a point at 3 gives coordinates that are not multiples of 1/16). The scale differential
+(test 2.5) is bit-identical to a retention-off window at 1, 1.5, 2, 3 and 4, with and without a client.
+**Switch and rebase.** `ContentMemoStore.translatesLayout` (`METALUI_RETAINED_TRANSLATION=0`, `Window.testingRetainedTranslation`)
+turns the lane off: the window then behaves as the lane-1 head (the A/B of the figures below, one binary). A successful translated hit
+**rebases** the record (`key`, `scene`, `finalScene`) and the prepaint ledger (a new `PrepaintLedger` at the new key, hitboxes and element
+bounds moved) at the new position, so the next frame at that position is an exact hit on the `finalScene` fast path instead of a second
+move; verify mode (`METALUI_VERIFY_RETAINED=1`) keeps the old record and compares the fresh run with `RetainedRecord.moved(to:)`.
+**Evidence.** `FinerScopesTranslationTests.swift`; the lane's red lines are in the commit `c4adb920` message.
+
+## FS-P - What a translated prepaint moves, and the order of the two decisions
+
+**Ruling.** `Frame.movedPrepaintLedger` moves the ledger's hitboxes (bounds and element origin by the window-point shift, K1 plus K2) and
+its element bounds (the layout shift alone: they are layout rects), and replays focus, tallies, live states and reads unchanged.
+**Refused by name:** `accessibilityRecords` (any emission or node: their frames are computed boxes), `pressOnly`, `contextMenus`,
+`presentationAnchor`, and per hitbox `hitboxUnderEffect`, `hitboxShape`, `hitboxScrolls`, `hitboxHandlers` (a text input, a value
+track, a drop destination or a contextual attachment, whose closures hold positions), `hitboxClipped` (bounds not strictly inside the
+ambient clip before and after: the clip may have cut them, and the cut of a moved rect is not the moved cut), `inexactTranslation`.
+**The paint record must be able to follow before a prepaint is replayed.** A replayed prepaint leaves no element state, so a paint that
+then misses is the redo (`RK-D`). The prepaint decision therefore asks, from the geometric part of the paint key, whether the record
+stands elsewhere and can be moved (`Frame.paintTranslation`, memoised in the phase and counted once), and **runs the prepaint** when it
+cannot. Both refusals go through `RetainedCounters.noteTranslationRefused(reason:)` into `FrameWork.retainedTranslationRefusedReasons`.
+**Known cost, unchanged in kind.** An occurrence that is grafted (`RK-B`) and whose translated prepaint is refused is the counted redo, as
+a refused effect translation was; with a client active every translated frame meets `accessibilityRecords`, so the graft and a shift
+cost one redo per backoff window (the paint still translates: 171 requests and 4 paints, against 244). `hitboxClipped` makes the rows at a
+scroller's edge refuse their prepaint when they hold a hitbox; carried (see `FS-S`).
+
+## FS-Q - Figures (work counts, scale 2, 24 `FSCard` rows, a frame of three, 16 warm frames)
+
+See the table in the record (Record phase); the A/B is `testingRetainedTranslation` off and on in one binary
+(`FinerScopesTranslationTests.swift`'s measurement note). Release ms per frame: `zsh docs/probes/perf-baselines.sh release shiftscroll`,
+a dated measurement.
+
+## FS-R - Existing pins this item moves
+
+`everyKeyComponentSeparates` arms `topRect` and `flexRect` (`RetainedSubtreeSemanticsTests.swift`): the neighbour of a padding or of a resized
+sibling moved without changing, and read as the arm's "reaction" (a miss); it now replays translated, so the two arms read
+`translated` (2 and 1) and no miss. The key components they separated (a changed **size**, a changed interior) keep their separating arm in
+`aShiftThatAlsoResizesTheOccurrenceMisses` and the rest of the table. No other existing test or literal moved.
+
+## FS-S - Carried from lane 2
+
+(1) A translated prepaint of a row at a scroller's edge that holds a hitbox (`hitboxClipped`): the hitbox would have to remember its
+unclipped rect and the clip depth it was cut at (two fields on `Hitbox`); owner C14-e with the placement memo. (2) Combining a layout shift with a
+moved render effect (`RK-S` plus `FS-D`). (3) Path, gradient and shadow rasters as translated leaves (their keys are anchored,
+`PF-A`, so a whole-pixel move should hand back the same raster; the spike did not need them). (4) Placement-memo translation (`FS-G`): after the
+move the layout counters of the shifted frames read `layoutMemoMisses` 23 to 175 (the signature includes origin), the dominant remaining cost
+of a shifted frame once requests are 8 and paints 11. (5) Avoiding the one redo of a graft with a client active. (6) Human checks `FS3`, `FS4`.

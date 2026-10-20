@@ -78,12 +78,14 @@ struct FSShiftSideRoot: Component {
 }
 
 /// Three frames after sixteen warm ones, each preceded by one step of `kind`'s movement.
-@MainActor func fsShiftFrames(_ kind: FSShift, graft: Bool, accessibility: Bool, scale: Float = 2) throws -> [FrameWork] {
+@MainActor func fsShiftFrames(_ kind: FSShift, graft: Bool, accessibility: Bool, scale: Float = 2,
+                              translation: Bool = true) throws -> [FrameWork] {
     let model = FSShiftModel()
     let options = HeadlessPlatformWindow.Options(scaleFactor: scale, accessibilityClientActive: accessibility)
     let w = try TestWindow(size: Size(width: Pixels(320), height: Pixels(400)), scaleFactor: scale, options: options,
                            textSystem: { harnessTextSystem() }) { VStack(spacing: 0) { FSShiftRoot(model: model, kind: kind) } }
     w.window.testingRetainedGraft = graft
+    w.window.testingRetainedTranslation = translation
     for _ in 0..<16 { w.window.setNeedsRedraw(); w.tick() }
     w.resetFrameWork()
     for step in 0..<3 {
@@ -110,7 +112,8 @@ func aShiftedOrScrolledRowReplaysTranslated(kind: FSShift, accessibility: Bool) 
         #expect(f.retainedRedos == 0)
         if f.retainedTranslated > 0 { moving += 1; #expect(f.retainedTranslated >= 23, "rows replayed translated: \(f.retainedTranslated)") }
     }
-    #expect(moving >= 3, "each of the three movements translated: \(moving)")
+    // The frame after a move (a wheel's settle frame) is an exact hit: the record was made over at the new position.
+    #expect(moving == 3, "exactly the three moving frames translated: \(moving)")
 }
 
 extension RPPair {
@@ -414,7 +417,7 @@ func everyUntranslatableKindRefusesByName(kind: FSRefusal) async throws {
         VStack(spacing: 0) { FSRefusalRoot(side: side, kind: kind) }
     }
     try pair.compare("warm")
-    var refusals: [String: Int] = [:], translated = 0
+    var refusals: [String: Int] = [:], translated = 0, redos = 0
     for index in 0..<3 {
         pair.on.resetFrameWork()
         if kind == .maskStraddle {
@@ -426,9 +429,83 @@ func everyUntranslatableKindRefusesByName(kind: FSRefusal) async throws {
         pair.redraw()
         let f = pair.stepWork
         refusals.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +)
-        translated += f.retainedTranslated
+        translated += f.retainedTranslated; redos += f.retainedRedos
         try pair.compare("step \(index)")
     }
+    // The prepaint is not replayed when the paint record cannot follow, so no frame is redone for it.
+    #expect(redos == 0, "no redo: \(redos)")
     #expect(refusals[kind.reason, default: 0] > 0, "\(kind) refuses as \(kind.reason): \(refusals)")
     if kind != .maskStraddle && kind != .accessibility { #expect(translated == 0, "nothing of a \(kind) occurrence translates: \(translated)") }
+}
+
+// MARK: a scrolled List (2.4)
+
+/// A `List` of `FSCard` rows in a scroller, driven by an `RPSide` (the two windows of a pair share nothing).
+private struct FSListSideRoot: Component {
+    let side: RPSide
+    let branch: FSBranch
+    var content: some ElementGroup {
+        ScrollView(.vertical) {
+            switch branch {
+            case .uniform:
+                List((0..<24).map { FSRow(id: $0) }, rowHeight: Pixels(22)) { r in
+                    Column { FSCard(id: r.id, value: 0).equatable() }
+                }
+            case .variable:
+                List((0..<24).map { FSRow(id: $0) }) { r in
+                    Column { FSCard(id: r.id, value: 0).equatable() }
+                }
+            }
+        }
+        .frame(width: Pixels(300), height: Pixels(150))
+    }
+}
+
+/// 2.4 — a wheel over a `List` of retained rows (both branches): the rows that stay in the window replay translated, the one
+/// that enters is recorded, and the window equals a retention-off window after every step (`FS-D` K2 with lane 1's list
+/// fix). At the lane-1 head every row missed on every scroll (the list rows hit only when nothing moved). Mutation: the K2
+/// branch of `RetainedShape.shift` ignoring an offset-only movement (`translated == 0`).
+@Test(arguments: FSBranch.allCases, [false, true]) @MainActor
+func aScrolledListReplaysTheRowsStillInTheWindow(branch: FSBranch, accessibility: Bool) async throws {
+    let pair = try RPPair(size: sz(320, 400), scale: 2, warm: 16, accessibility: accessibility, graft: true) { side in
+        VStack(spacing: 0) { FSListSideRoot(side: side, branch: branch) }
+    }
+    try pair.compare("warm")
+    var translated = 0, hits = 0
+    for step in 0..<4 {
+        pair.on.resetFrameWork()
+        for w in [pair.on, pair.off] { w.scroll(at: pt(160, 200), byDeltaX: 0, deltaY: step.isMultiple(of: 3) ? 30 : -30) }
+        await rsSettle()
+        pair.redraw()
+        let f = pair.stepWork
+        translated += f.retainedTranslated; hits += f.retainedHits
+        try pair.compare("step \(step)")
+    }
+    if !rsVerifying {
+        #expect(translated >= 4 * 6, "the rows still in the window translated: \(translated)")
+        #expect(hits >= translated)
+    }
+}
+
+// MARK: inexact coordinates (2.9b)
+
+/// 2.9b — at scale 1.2 a 10 point shift is 12 pixels, a whole number, yet the coordinates it would move (`x * 1.2` in `Float`)
+/// are not multiples of 1/16: the add is refused as `inexactTranslation` and the frame equals a fresh one (`FS-D`: the 1/16 and 2^19
+/// test beside the whole-pixel test of `FS-M`). Mutation: the exactness test replaced by `true` (the refusal vanishes and the
+/// differential or the verify run differs).
+@Test @MainActor
+func anInexactCoordinateIsRefusedNotApproximated() async throws {
+    let pair = try RPPair(size: sz(320, 400), scale: 1.2, warm: 4, accessibility: false, graft: false) { side in
+        VStack(spacing: 0) { FSShiftSideRoot(side: side, kind: .header) }
+    }
+    var refusals: [String: Int] = [:]
+    for index in 0..<3 {
+        pair.on.resetFrameWork()
+        for side in [pair.onSide, pair.offSide] { side.inputs.offset += 10 }
+        await rsSettle()
+        pair.redraw()
+        refusals.merge(pair.stepWork.retainedTranslationRefusedReasons, uniquingKeysWith: +)
+        try pair.compare("step \(index)")
+    }
+    if !rsVerifying { #expect(refusals["inexactTranslation", default: 0] >= 24, "refused as inexact: \(refusals)") }
 }

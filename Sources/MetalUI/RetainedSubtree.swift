@@ -633,7 +633,7 @@ extension Frame {
             // The occurrence's origin or scroll offset moved and nothing else did (`FS-D`): replay at the new position when the
             // add is exact, else refused by name and a miss.
             var moved: PaintTranslation?
-            if valid, !effectTranslated, old.key != key, memos.replaysPrepaint, let shift = key.shift(from: old.key) {
+            if valid, !effectTranslated, old.key != key, memos.replaysPrepaint, memos.translatesLayout, let shift = key.shift(from: old.key) {
                 switch paintTranslation(of: old, shift: shift, key: key, phase: phase) {
                 case .moved(let translation): moved = translation
                 case .refused: break

@@ -182,7 +182,7 @@ extension Frame {
            !retainedPointerIsInside(ledger) {
             // The paint record may stand where the occurrence was before it moved: a replayed prepaint leaves nothing to
             // paint from, so the record must be movable here too, or the frame would be redone (`FS-D`).
-            let recordMoves = recordShiftAtPrepaint(old, phase: phase, key: key)
+            let recordMoves = memos.translatesLayout ? recordShiftAtPrepaint(old, phase: phase, key: key) : nil
             if let recordMoves, case .refused = paintTranslation(of: old, shift: recordMoves, key: retainedReplayKeyForTranslation(phase, key), phase: phase) {
                 return .run(phase.grafted ? nil : openPrepaintWindow())
             }
@@ -193,7 +193,7 @@ extension Frame {
             }
             // The occurrence moved by layout or by a scroll since the ledger was made (`FS-D`, K1 and K2): its registrations
             // are replayed moved by the add, unless one cannot be moved exactly (refused by name).
-            if let shift = ledger.key.shift(to: key) {
+            if memos.translatesLayout, let shift = ledger.key.shift(to: key) {
                 switch movedPrepaintLedger(ledger, shift: shift, clip: key.ambient.clip) {
                 case .moved(let translation):
                     memos.retained.prepaintHits += 1
