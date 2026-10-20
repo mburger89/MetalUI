@@ -3962,7 +3962,8 @@ extension Frame {
     /// functions, accessibility records and nodes, press-only actions, context menus, element bounds and tallies.
     /// Each journal entry is appended to an open prepaint log too, so an enclosing recorder sees what a replay
     /// stands for exactly as it would see a run.
-    func replayPrepaintLedger(_ l: PrepaintLedger, hitboxes moved: [Hitbox]? = nil) {
+    func replayPrepaintLedger(_ l: PrepaintLedger, hitboxes moved: [Hitbox]? = nil,
+                              elementBounds movedBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil) {
         hitboxes.append(contentsOf: moved ?? l.hitboxes)
         axEmissions.append(contentsOf: l.axEmissions)
         for call in l.focus {
@@ -3988,7 +3989,7 @@ extension Frame {
             contextMenuRecords[id] = record
             prepaintLog?.contextMenus.append((id, record))
         }
-        for (id, bounds) in l.elementBounds {
+        for (id, bounds) in movedBounds ?? l.elementBounds {
             elementBounds[id] = bounds
             prepaintLog?.elementBounds.append((id, bounds))
         }

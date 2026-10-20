@@ -96,6 +96,8 @@ final class PrepaintRecorder {
 struct PrepaintKey: Equatable {
     var rects: [Float]
     var interior: Int
+    /// The subtree's signature relative to the first top node's origin (`FS-D`).
+    var shapeInterior: Int
     var nodeCount: Int
     var ambient: AmbientKey
     var extras: PrepaintExtras
@@ -138,7 +140,7 @@ extension PrepaintKey {
 enum RetainedPrepaintMode {
     /// Replay the ledger; the occurrence's `component.prepaintGroup` does not run. With hitboxes: the ledger moved
     /// by the translation of the render effects around the occurrence (`RK-G`, `RK-S`), hitbox transforms rewritten.
-    case replay(PrepaintLedger, moved: [Hitbox]?)
+    case replay(PrepaintLedger, moved: [Hitbox]?, elementBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil)
     /// Run prepaint, recording a ledger when a recorder is given.
     case run(PrepaintRecorder?)
 }
@@ -149,7 +151,7 @@ extension Frame {
     /// The prepaint key of `build` at this point of prepaint, or `nil` when the context cannot be keyed
     /// (`prepaintRefusal`).
     func retainedPrepaintKey(_ phase: RetainedPhase) -> PrepaintKey {
-        PrepaintKey(rects: phase.rects, interior: phase.interior, nodeCount: phase.nodeCount,
+        PrepaintKey(rects: phase.rects, interior: phase.interior, shapeInterior: phase.shapeInterior, nodeCount: phase.nodeCount,
                     ambient: retainedAmbientKey(), extras: prepaintExtras())
     }
 
@@ -178,10 +180,30 @@ extension Frame {
            let ledger = old.prepaint, !entry.observedChange, old.coverageComplete,
            old.contentSerial == entry.serial, old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }),
            !retainedPointerIsInside(ledger) {
+            // The paint record may stand where the occurrence was before it moved: a replayed prepaint leaves nothing to
+            // paint from, so the record must be movable here too, or the frame would be redone (`FS-D`).
+            let recordMoves = recordShiftAtPrepaint(old, phase: phase, key: key)
+            if let recordMoves, case .refused = paintTranslation(of: old, shift: recordMoves, key: retainedReplayKeyForTranslation(phase, key), phase: phase) {
+                return .run(phase.grafted ? nil : openPrepaintWindow())
+            }
             if ledger.key == key {
                 memos.retained.prepaintHits += 1
                 memos.retained.skippedPrepaints += ledger.prepaints
                 return .replay(ledger, moved: nil)
+            }
+            // The occurrence moved by layout or by a scroll since the ledger was made (`FS-D`, K1 and K2): its registrations
+            // are replayed moved by the add, unless one cannot be moved exactly (refused by name).
+            if let shift = ledger.key.shift(to: key) {
+                switch movedPrepaintLedger(ledger, shift: shift, clip: key.ambient.clip) {
+                case .moved(let translation):
+                    memos.retained.prepaintHits += 1
+                    memos.retained.skippedPrepaints += ledger.prepaints
+                    return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds)
+                case .refused(let reason):
+                    if retainedTraces { print("retained prepaint translation refused \(sbPath(build.key.id).suffix(60)): \(reason)") }
+                    memos.retained.noteTranslationRefused(reason: reason)
+                    return .run(phase.grafted ? nil : openPrepaintWindow())
+                }
             }
             // The same occurrence under render effects that moved by a translation (`RK-G`, `RK-S`): its
             // registrations are replayed moved, unless an accessibility record (frames are computed boxes)
@@ -191,7 +213,7 @@ extension Frame {
                    let moved = translatedHitboxes(of: ledger, by: delta) {
                     memos.retained.prepaintHits += 1
                     memos.retained.skippedPrepaints += ledger.prepaints
-                    return .replay(ledger, moved: moved)
+                    return .replay(ledger, moved: moved, elementBounds: nil)
                 }
                 if retainedTraces {
                     print("retained translation refused \(sbPath(build.key.id).suffix(60)): ax \(ledger.axEmissions.count)/\(ledger.axNodes.count), hitboxes \(ledger.hitboxes.count), moved \(translatedHitboxes(of: ledger, by: delta) != nil)")
@@ -200,6 +222,21 @@ extension Frame {
             }
         }
         return .run(phase.grafted ? nil : openPrepaintWindow())
+    }
+
+    /// How far the paint record stands from where the occurrence is now, when only its origin or scroll offset differ (`FS-D`):
+    /// the geometric part of the paint key's relation, which is all a prepaint can read (the paint-only ambient is open later).
+    func recordShiftAtPrepaint(_ old: RetainedRecord, phase: RetainedPhase, key: PrepaintKey) -> LayoutShift? {
+        guard old.key.ambient.clip == key.ambient.clip else { return nil }
+        return RetainedShape.shift(newRects: phase.rects, newNodeCount: phase.nodeCount, newShape: phase.shapeInterior,
+                                   newOffset: key.ambient.offset, oldRects: old.key.rects, oldNodeCount: old.key.nodeCount,
+                                   oldShape: old.key.shapeInterior, oldOffset: old.key.ambient.offset)
+    }
+
+    /// The position part of a replay key for a record that is only being asked whether it can move (`FS-D`).
+    func retainedReplayKeyForTranslation(_ phase: RetainedPhase, _ key: PrepaintKey) -> ReplayKey {
+        ReplayKey(rects: phase.rects, interior: phase.interior, shapeInterior: phase.shapeInterior,
+                  nodeCount: phase.nodeCount, ambient: key.ambient)
     }
 
     /// Why this occurrence's prepaint cannot be keyed now, or `nil`: the paint refusals that are visible at
