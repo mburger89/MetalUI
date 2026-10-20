@@ -88,7 +88,8 @@ summary.
   `2026-10-14-layout-allocations-decisions.md`, next `PA-S`), `EE-` (environment epoch:
   `2026-10-14-environment-epoch-decisions.md`, next `EE-P`), `SN-` (single-instance launch on SDL:
   `2026-10-19-single-instance-decisions.md`, next `SN-Q`), `RW-` (retained read-only state:
-  `2026-10-19-retained-withstate-decisions.md`, next `RW-U`), …; the full
+  `2026-10-19-retained-withstate-decisions.md`, next `RW-U`), `MO-` (memo and retained observation off the main thread:
+  `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -123,7 +124,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-19, `perf/retained-withstate` from `f557d339`, merged with master `4d91f27f` (§122 single instance): 3993 tests, 0 goldens, 249 typecheck guards** (master's 3971 + 22 tests, 248 + guard `RW.1`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, 0 issues, in **4 suites**, `FR-J no-argument frame: succeeded=true`; also 3993 passed with `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; `swift build --build-tests` on the default build system 0 `warning:`; inventory and undocumented scripts print nothing, census +2 (`FrameWork.retainedIneligibleReasons`, the demo model's `reasons`); the fourteen images 0 px against `f557d339`; Linux image `MetalUITestingTests` 363 and the Layout/Core/CrossPlatform tests passed, `Backends/SDL` untouched; no divergence label taken; record §121). Before it,
+- **Counts (2026-10-20, `perf/retained-withstate` from `f557d339`, merged with master `fa6464ba` (§123 memo observation off the main thread): 4000 tests, 0 goldens, 249 typecheck guards** (master's 3978 + 22 tests, 248 + guard `RW.1`; re-measured by the orchestrator on the merged tree, record §121). Before it,
+  **(2026-10-19, `perf/retained-withstate` from `f557d339`, merged with master `4d91f27f` (§122 single instance): 3993 tests, 0 goldens, 249 typecheck guards** (master's 3971 + 22 tests, 248 + guard `RW.1`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, 0 issues, in **4 suites**, `FR-J no-argument frame: succeeded=true`; also 3993 passed with `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; `swift build --build-tests` on the default build system 0 `warning:`; inventory and undocumented scripts print nothing, census +2 (`FrameWork.retainedIneligibleReasons`, the demo model's `reasons`); the fourteen images 0 px against `f557d339`; Linux image `MetalUITestingTests` 363 and the Layout/Core/CrossPlatform tests passed, `Backends/SDL` untouched; no divergence label taken; record §121). Before it,
+  **(2026-10-19, `fix/memo-observation-thread` from `4d91f27f`: 3978 tests, 0 goldens, 248 typecheck guards** (3971 + 7, no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; no public declaration, no divergence label taken; verify switches, default-build warnings, the fourteen images and the Linux image re-take owed after the final commit, two pins unproven, record §123 §6). Before it,
   **(2026-10-19, `feat/single-instance` from `ffbabb5c`: 3971 tests, 0 goldens, 248 typecheck guards** (3970 + 1, 247 + guard 1.6b; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 215 on macOS, 30 + 212 in the Linux image; the fourteen images 0 px against `ffbabb5c`; no root declaration, census unmoved; no divergence label taken; Windows transport compiled by CI only; record §122). Before it,
   **(2026-10-19, `perf/layout-allocations` from `6273e3a4`, merged with master `41a2180f` (§120 environment epoch): 3968 tests, 0 goldens, 247 typecheck guards** (master's 3957 + 11 tests, no guard; re-measured by the orchestrator on the merged tree, record §119). Before it,
   **(2026-10-14, `perf/layout-allocations` from `6273e3a4`, merged with master `298c23d4` (§118 pan rasters): 3937 tests, 0 goldens, 246 typecheck guards** (master's 3926 + 11 tests (lane 1's 8, lane 2's 3), no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; no public declaration, no divergence label taken; the fourteen images 0 px against `6273e3a4` at the lanes, not re-taken after the merge; record §119). Before it,
@@ -273,7 +276,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -815,6 +818,16 @@ loops of the kernel and build do not allocate per node: `roundedRect(_:)` is the
 is thread-filtered (`countAllocations`, Darwin only), differential and floor-corrected**: a debug build logs several events per
 `malloc` and allocates per `for-in` turn (`PA-J`, `PA-O`, `PA-Q`); release allocation figures are dated measurements, not pins.
 Deferred: `AmbientKey` reshape (C14-c), array-indexed measure cache (P3); the isolation-site share is unre-measured after the loops.
+
+**Memo observation off the main thread (`MO-`, record §123).** An `.equatable()` occurrence's decision flags (`stale`, `observedChange`, the
+serials a handler compares, a monotonic `changes`) live in one **locked** `MemoFlags` per entry (and per `RetainedSession` for its serial) and
+are set **synchronously by whichever thread the observation `onChange` fires on**, never behind a `Thread.isMainThread` hop: off Darwin Swift
+Testing's main actor is a pool thread, so the old flag arrived after the next frame's skip, replay or graft decision (`MO-A`; the same fact as
+`RU-A`). `Entry.stale`/`observedChange`/`serial` are forwarding properties — a stored `var` of those names reopens the bug. The handle holds the
+`MemoFlags` strongly and the entry, store and session weakly (`MO-B`, `IV-R`); `armed` and `markDirty` stay behind the old branch and decide
+nothing (`MO-C`; `armedSessions` lags off Darwin). `materialize` clears `stale` in the locked step that bumps the serial, before the getter
+(`MO-D`); a record's clear is a no-op when a fire landed since its phase opened (`MO-F`). No public API, no divergence. **Pins:** both red on macOS: a real `Thread`
+writing a retained-only model (`MO-G`) and `MO-F` through the `package` seam `RetainedTestingHooks.beforeRecordClear` (record §123 §6).
 
 **Single-instance launch on SDL (`SN-`, record §122).** `SingleInstance.claim(id:forwarding:configuration:)` (`MetalUISDL`, trait `SDL`,
 MetalUI-only class `M`, in `Backends/SDL` so outside the census, no seam change, no divergence label) elects a **per-user** primary and

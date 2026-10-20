@@ -260,7 +260,12 @@ final class RetainedRecord {
 /// One observation window of an occurrence (`SB-V`): the build recursion, prepaint or paint.
 final class RetainedSession {
     let token = ContentMemoToken()
-    var serial = 0
+    /// Locked (`MO-A`): the handler compares it on any thread.
+    let serialFlags = MemoFlags()
+    var serial: Int {
+        get { serialFlags.serial }
+        set { serialFlags.serial = newValue }
+    }
     let label: String
     init(_ label: String) { self.label = label }
 
@@ -285,27 +290,33 @@ private final class RetainedHandle: @unchecked Sendable {
     weak var entry: ContentMemoStore.Entry?
     weak var store: ContentMemoStore?
     weak var session: RetainedSession?
+    let entryFlags: MemoFlags
+    let sessionFlags: MemoFlags
     let serial: Int
 
     init(entry: ContentMemoStore.Entry, store: ContentMemoStore, session: RetainedSession, serial: Int) {
         self.entry = entry
         self.store = store
         self.session = session
+        self.entryFlags = entry.flags
+        self.sessionFlags = session.serialFlags
         self.serial = serial
     }
 
     func fire() {
+        // Flag first, any thread, under the locks (`MO-A`, `MO-G`); a retired session's fire changes nothing.
+        let live = sessionFlags.serial == serial
+        if live { entryFlags.fireRetained() }
         if Thread.isMainThread {
-            MainActor.assumeIsolated { self.fireOnMain() }
+            MainActor.assumeIsolated { self.bookkeep(live) }
         } else {
-            Task { @MainActor in self.fireOnMain() }
+            Task { @MainActor in self.bookkeep(live) }
         }
     }
 
-    @MainActor private func fireOnMain() {
-        guard let session, let entry, let store, session.serial == serial else { return }
+    @MainActor private func bookkeep(_ live: Bool) {
+        guard live, let session, let store else { return }
         if retainedTraces { print("retained session fired: \(session.label)") }
-        entry.observedChange = true
         store.markDirty?()
     }
 }
@@ -358,6 +369,12 @@ struct RetainedBuildWindow {
     }
 }
 
+/// A test seam (`MO-F`): runs on the main actor between a record being stored and its `observedChange` clear, the
+/// one point where a fire can land after the sessions were armed. `nil` outside tests; `package`, so an app cannot spell it.
+package enum RetainedTestingHooks {
+    nonisolated(unsafe) package static var beforeRecordClear: (@MainActor () -> Void)?
+}
+
 // MARK: - The phase object
 
 /// What prepaint hands to paint (`SB-`): carried in `ComponentPrepaint`'s box.
@@ -367,6 +384,8 @@ final class RetainedPhase {
     let entry: ContentMemoStore.Entry
     /// Whether prepaint ran inside an observation window, as the build did.
     let prepaintObserved: Bool
+    /// `MemoFlags.changes` when the phase opened, before the paint session is armed (`MO-F`).
+    let changesAtStart: Int
     /// The occurrence's rects and layout signature, read once at prepaint and shared by both keys.
     var rects: [Float] = []
     var interior = 0
@@ -389,6 +408,7 @@ final class RetainedPhase {
         self.build = build
         self.entry = entry
         self.prepaintObserved = prepaintObserved
+        self.changesAtStart = entry.flags.changes
     }
 }
 
@@ -696,7 +716,8 @@ extension Frame {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
-            phase.entry.observedChange = false
+            RetainedTestingHooks.beforeRecordClear?()
+            phase.entry.flags.clearObservedChange(ifChangesEqual: phase.changesAtStart)   // `MO-F`
         }
     }
 }
