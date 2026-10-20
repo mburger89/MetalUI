@@ -307,6 +307,12 @@ Taken in one binary with `testingRetainedTranslation` off (the lane-1 head) and 
 | wheel -30 over a `List`, variable | 111 / 112 / 128-148 | not measured | 34-43 / 35-44 / 38-50 |
 | AX on, header, graft off | 171 / 172 / 244 | 171 / 172 / 4, refused `accessibilityRecords` 24 | one redo, then as left |
 
+**Release, dated 2026-10-20** (`zsh docs/probes/perf-baselines.sh release shiftscroll`, MacBookPro18,2 / M1 Max / macOS 27.0.1, a shared Mac, load average 5 to 7, commit
+`6543453c`; 60 cards in a scroller, scale 2, retention, prepaint replay and the graft on; main-thread CPU median of 160 frames per movement, the switch
+`METALUI_RETAINED_TRANSLATION=0` against the default alternating in one binary, three pairs): **header +/-4 pt** 3.44, 3.46, 3.55 ms off against 2.84, 3.00, 2.85 ms on
+(-15 to -18 percent); **wheel 30 pt** 3.68, 3.70, 3.77 ms off against 2.27, 2.41, 2.29 ms on (-35 to -39 percent). What is left of a shifted frame is layout
+(`layoutMemoMisses`: the placement memo keys the origin, `FS-G`, carried as C14-e). A dated measurement, never a pin.
+
 Unmoved (existing pins, unedited): the bracket node drag 144 / 153 and 208 / 219, the orbit 6 / 7 / 7, the fourteen images (0 px against
 `711ab9c4`). Release ms per frame is `zsh docs/probes/perf-baselines.sh release shiftscroll`, a dated measurement, in the record.
 

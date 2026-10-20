@@ -311,7 +311,7 @@ struct SSRoot: Component {
     var work: [String: FrameWork] = [:]
     for _ in 0..<rounds {
         let model = SSModel()
-        let w = try TestWindow(size: Size(width: px(320), height: px(420)), scaleFactor: 2) { SSRoot(model: model) }
+        let w = try TestWindow(size: Size(width: px(320), height: px(420)), scaleFactor: 2) { VStack(spacing: 0) { SSRoot(model: model) } }
         for _ in 0..<12 { w.window.setNeedsRedraw(); w.tick() }
         for frame in 0..<frames {
             let kind = frame % 2 == 0 ? "header" : "scroll"
