@@ -25,10 +25,10 @@ private let predictions = [
     // C14-c (`EE-J`): the `.environment` arm's nodes are memoized by their reading now, so it retains what `.value` does.
     Prediction(arm: .environment, hits: 29, misses: 3, ineligible: 0, retainsNodes: true),
     // `.environmentObject` is not predicted here (its per-node scope is one more element); `EnvironmentEpochBracketTests` B3.
-    // `.value` plus the panels: the inspector and the top bar replay; the graph panel (a `List`, a `ScrollView`
-    // and a `TextField` paint through `withState`, `SB-J`) is ineligible. Predicted 30 / 3 / 2 (the top bar
-    // ineligible for its menu `Picker`): a Picker's paint writes nothing a record cannot replay.
-    Prediction(arm: .panels, hits: 31, misses: 3, ineligible: 1, retainsNodes: true),
+    // `.value` plus the panels: the inspector and the top bar replay. The graph panel (a `List`, a `ScrollView` and a
+    // `TextField`) was ineligible (`stateWrite`, `SB-J`); read-only `withState` makes it eligible (`RW-H`...`RW-J`), and the drag
+    // is inside it, so the pointer-press rule (`SB-X`) makes it a counted **miss** each frame: 31 / 4 / 0 (`RW-S`).
+    Prediction(arm: .panels, hits: 31, misses: 4, ineligible: 0, retainsNodes: true),
 ]
 
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the paint-skipped counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor

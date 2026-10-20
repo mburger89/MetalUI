@@ -189,6 +189,7 @@ final class FrameWorkRecorder {
         pending.retainedGraftIneligible += work.retained.graftIneligible
         pending.retainedSkippedRequests += work.retained.skippedRequests
         pending.retainedGraftedNodes += work.retained.graftedNodes
+        pending.retainedIneligibleReasons.merge(work.retained.ineligibleReasons, uniquingKeysWith: +)
         pending.rasterizedPixels += work.rasterizedPixels
         pending.blurredPixels += work.blurredPixels
     }

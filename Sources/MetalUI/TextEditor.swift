@@ -300,14 +300,13 @@ public struct TextEditor: Element, StyledElement {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) {
         let system = pass.frame.textSystem
-        var state = TextEditState()
-        pass.withState(id, initial: TextEditState()) { state = $0 }
+        var state = pass.readState(id, initial: TextEditState())   // a read, not a write (`RW-J`)
         // A bound selection (`SL-B`, `SL-D`): a value the field did not publish is
         // applied before the geometry reads the state; the baseline lets the first
         // input publish only a real change. Same phase-time write as the scroll's.
         if selectionWriter != nil {
             let selection = self.selection, text = self.text
-            pass.withState(id, initial: TextEditState()) { stored in
+            pass.withState(id, initial: TextEditState(), unchanged: ==) { stored in   // compared (`RW-J`)
                 TextEditing.reconcile(binding: selection, text: text, state: &stored)
                 if stored.reported == nil { stored.reported = stored.clamped(to: text.count).selection }
                 state = stored
@@ -368,8 +367,7 @@ public struct TextEditor: Element, StyledElement {
     private func paintContent(_ id: GlobalElementID, bounds: Bounds<Pixels>, pass: inout PaintPass) {
         let system = pass.textSystem
         let font = resolvedFont(in: pass.environment, system: system)
-        var state = TextEditState()
-        pass.withState(id, initial: TextEditState()) { state = $0 }
+        let state = pass.readState(id, initial: TextEditState())   // a read, not a write (`RW-J`)
         let g = geometry(bounds: bounds, state: state, system: system, font: font)
         let focused = pass.isFocused(id)
         let textColor = pass.resolve(foregroundColor ?? .textPrimary)

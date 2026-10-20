@@ -67,6 +67,7 @@ private func buildTheRetainedSubtreeDemo() {
     _ = retainedSubtreeDemoContent()
     _ = RetainedDemoCanvas().content
     _ = RetainedDemoStrip().content
+    _ = RetainedDemoPanel().content   // the panel strip (RW-, C14b-3)
 }
 
 /// The content-memo demo's tree and its readout, in its own frame.

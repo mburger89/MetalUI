@@ -5,8 +5,8 @@ import MetalUITesting
 @testable import MetalUIDemoContent
 
 // The retained-subtree demo (`METALUI_RETAINED_DEMO=1`, spec §13) under the harness: dragging one node
-// of eight leaves 15 occurrences (8 nodes, 7 wires) of which the dragged node and its two wires
-// re-run and the other twelve replay; with replay off none do and the drawn scene is the same.
+// of eight leaves 16 occurrences (8 nodes, 7 wires, and the panel strip of `RW-`: a field, a list and a picker whose state it
+// only reads) of which the dragged node and its two wires re-run and the other thirteen replay; with replay off none do and the drawn scene is the same.
 // Mutation: `hit = false` in `retainedPrepaintDecision` reads 0 hits.
 
 @MainActor private func dragFillet(replay: Bool) throws -> (FrameWork, [MUIRectSnapshot]) {
@@ -32,9 +32,10 @@ struct MUIRectSnapshot: Equatable {
 @Test @MainActor func theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires() throws {
     let (on, sceneOn) = try dragFillet(replay: true)
     let (off, sceneOff) = try dragFillet(replay: false)
-    #expect(on.retainedHits + on.retainedMisses + on.retainedIneligible == 15)
+    #expect(on.retainedHits + on.retainedMisses + on.retainedIneligible == 16)
     #expect(on.retainedMisses == 3, "the dragged node and its two wires: \(on.retainedMisses)")
-    #expect(on.retainedHits == 12)
+    #expect(on.retainedHits == 13, "the panel strip replays with the nodes: \(on.retainedHits)")
+    #expect(on.retainedIneligible == 0)
     #expect(off.retainedHits == 0)
     #expect(on.elementPaints + on.retainedSkippedPaints == off.elementPaints)
     #expect(sceneOn == sceneOff, "replay changes who runs, not what is drawn")

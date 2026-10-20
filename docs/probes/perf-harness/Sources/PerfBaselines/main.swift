@@ -22,7 +22,7 @@ func report(_ scenario: String, _ metric: String, _ value: String) { print("\(sc
 func ms(_ v: Double) -> String { String(format: "%.3f", v) }
 
 func workLine(_ w: FrameWork) -> String {
-    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images) elementPaints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) retainedIneligible=\(w.retainedIneligible) elementRequests=\(w.elementRequests) elementPrepaints=\(w.elementPrepaints) skippedPrepaints=\(w.retainedSkippedPrepaints) prepaintHits=\(w.retainedPrepaintHits) prepaintIneligible=\(w.retainedPrepaintIneligible) redos=\(w.retainedRedos) translated=\(w.retainedTranslated) grafts=\(w.retainedGrafts) graftIneligible=\(w.retainedGraftIneligible) skippedRequests=\(w.retainedSkippedRequests) graftedNodes=\(w.retainedGraftedNodes) placeGlyphs=\(w.glyphs) rasterizedPixels=\(w.rasterizedPixels) uploadPixels=\(w.atlasUploadPixels) contentEvaluations=\(w.contentEvaluations)"
+    "builds=\(w.builds) measureCalls=\(w.layoutMeasureCalls) cacheHits=\(w.layoutCacheHits) cacheMisses=\(w.layoutCacheMisses) rects=\(w.rects) glyphs=\(w.glyphs) images=\(w.images) elementPaints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) retainedIneligible=\(w.retainedIneligible) elementRequests=\(w.elementRequests) elementPrepaints=\(w.elementPrepaints) skippedPrepaints=\(w.retainedSkippedPrepaints) prepaintHits=\(w.retainedPrepaintHits) prepaintIneligible=\(w.retainedPrepaintIneligible) redos=\(w.retainedRedos) translated=\(w.retainedTranslated) grafts=\(w.retainedGrafts) graftIneligible=\(w.retainedGraftIneligible) skippedRequests=\(w.retainedSkippedRequests) graftedNodes=\(w.retainedGraftedNodes) placeGlyphs=\(w.glyphs) rasterizedPixels=\(w.rasterizedPixels) uploadPixels=\(w.atlasUploadPixels) contentEvaluations=\(w.contentEvaluations) reasons=\(w.retainedIneligibleReasons.sorted { $0.key < $1.key })"
 }
 
 // MARK: Synthetic branching trees (record 07's shapes: depth 12 branch 2 = 8,191; depth 10 branch 3 = 88,573)
@@ -240,6 +240,36 @@ struct Row: Identifiable { let id: Int }
     }
 }
 
+/// C14b-3 (`RW-`): the orbit with panels. The `.panels` arm with nothing in the panels changing: each frame bumps the viewport
+/// token (what a 3D viewport orbit does) and draws. Retention, prepaint replay and the graft on (the defaults). Wall and thread-CPU
+/// medians and minima over every round's frames, the last frame's work, the load average. Run it from the base commit and from the
+/// head (`git archive`) alternately, three times each: a dated measurement, never a pin.
+@MainActor func bracketOrbitScenario(rounds: Int, frames: Int) throws {
+    var wall: [Double] = [], cpu: [Double] = []
+    var work = FrameWork()
+    for _ in 0..<rounds {
+        let model = BracketModel(), viewport = BracketViewport()
+        let w = try TestWindow(size: bracketWindowSize, colorScheme: .dark, scaleFactor: 2) {
+            bracketRoot(arm: .panels, model: model, viewport: viewport)
+        }
+        for _ in 0..<5 { viewport.token += 1; w.window.setNeedsRedraw(); w.tick() }
+        for _ in 0..<frames {
+            let t0 = now(), c0 = cpuNow()
+            viewport.token += 1
+            w.window.setNeedsRedraw(); w.tick()
+            wall.append(now() - t0); cpu.append(cpuNow() - c0)
+        }
+        work = w.lastFrameWork
+    }
+    var load = [Double](repeating: 0, count: 3); getloadavg(&load, 3)
+    report("bracketorbit", "load_average", String(format: "%.1f %.1f %.1f", load[0], load[1], load[2]))
+    report("bracketorbit_panels", "orbit_frame_ms_median", ms(median(wall)))
+    report("bracketorbit_panels", "orbit_frame_ms_min", ms(wall.min()!))
+    report("bracketorbit_panels", "orbit_frame_cpu_ms_median", ms(median(cpu)))
+    report("bracketorbit_panels", "orbit_frame_cpu_ms_min", ms(cpu.min()!))
+    report("bracketorbit_panels", "last_frame_work", workLine(work))
+}
+
 let args = CommandLine.arguments.dropFirst()
 let which = args.first(where: { !$0.hasPrefix("--") }) ?? "all"
 let quick = args.contains("--quick")
@@ -263,6 +293,7 @@ MainActor.assumeIsolated {
             try bracketABScenario(arm: .value, name: "bracketab_value", rounds: rounds, reps: quick ? 6 : 14)
             try bracketABScenario(arm: .panels, name: "bracketab_panels", rounds: rounds, reps: quick ? 6 : 14)
         }
+        if which == "bracketorbit" { try bracketOrbitScenario(rounds: quick ? 3 : 8, frames: quick ? 20 : 40) }
         if which == "bracketenv" { try bracketEnvScenario(rounds: quick ? 3 : 8, reps: quick ? 6 : 14) }
         if which == "bracketgraft" {
             // C14b-2 lane 2: the node drag with the graft off (prepaint replay on) and on, alternating (`METALUI_RETAINED_GRAFT`).

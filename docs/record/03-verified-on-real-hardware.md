@@ -2361,6 +2361,13 @@ agent cannot)**: SI1 Linux X11 and Wayland, a `.desktop` `Exec=… %F`: the seco
 flashes; SI2 `kill -9` the primary then relaunch; SI3 Windows 11 x64 and ARM64 with Explorer, End Task and two sessions of one user; SI4 whether Wayland
 raises without an activation token; SI5 two users on one machine; SI6 a primary left eight hours.
 
+## 2026-10-19: retained read-only state (record §121) — looks owed
+
+No real window was driven and MetalCreator was not touched. **Owed, new here — `docs/verification/human-checks.md` group RW, none performed (an
+agent cannot)**: RW1 scrolling the demo's retained `List` (momentum, indicator fade) with retention on and off; RW2 typing, selecting and IME
+composition in a retained field after the strip has replayed, and its return to a hit on blur; RW3 a `Picker` opened from a retained strip after a
+window resize; RW4 a retained field idle for minutes keeps caret, selection and scroll; RW5 the owner's MetalCreator orbit with panels.
+
 ## 2026-10-19: memo and retained observation off the main thread (record §123) — no looks owed
 
 A work-count fix: nothing a person sees differs on macOS and no human-checks group is added. Owed, and not a look: the Linux image re-take after the final commit, the fourteen-image comparison against `4d91f27f` and the `METALUI_VERIFY_RETAINED=1` / `METALUI_VERIFY_LAYOUT_MEMO=1` runs (record §123 §6 item 3); Windows by CI.

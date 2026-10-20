@@ -1562,7 +1562,7 @@ pinned headless by `ReduceTransparencyTests`, `AppKitReduceTransparencyTests` an
   occurrence is time-varying while it runs and never replays, and replays again once it settles (`SB-J`).
   **Observed:**
 - [ ] **SB6.** A text field inside a retained region edits (lane 1 declares it ineligible, so it behaves as today;
-  C14b-3 will lift this): caret, selection and IME composition as in an unretained copy. **Observed:**
+  C14b-3 lifted this for an unfocused field, group RW): caret, selection and IME composition as in an unretained copy. **Observed:**
 
 ## RK. Retained build skip — what only a real window shows (item C14b-2, user request 2026-10-02, not a plan task; record §110)
 
@@ -1720,6 +1720,24 @@ a physical GPU, a desktop session and a console.*
 - [ ] **SI5.** Two users on one machine (`su` or fast user switching): neither sees the other's primary; a launch by the second
   user while the first runs is its own primary. **Observed:**
 - [ ] **SI6.** A primary left running eight hours (screen lock, suspend, resume), then a forward: it arrives. **Observed:**
+
+## RW. Retained read-only state — panels that replay (item C14b-3, user request 2026-10-02, not a plan task; record 121)
+
+*An agent cannot: these need a real window and a person. Scene equality with a fresh window is pinned by the suite and by `METALUI_VERIFY_RETAINED=1`; what is owed is how it looks and feels. Switch the demo's retained subtrees off with `METALUI_RETAINED_DEMO=1`'s switch to compare.*
+
+- [ ] **RW1.** `METALUI_RETAINED_DEMO=1`, the panel strip: scroll its `List` with a trackpad (momentum, then the indicator's fade) and
+  with a wheel, retention on and off: the same pixels, no stale offset, no frozen indicator; the strip's counts read a miss while it moves
+  and a hit again once it has settled (`RW-H`, `RW-I`). **Observed:**
+- [ ] **RW2.** Orbit or drag a node so the panel strip replays for many frames, then click its `TextField`, type, select with the mouse and
+  compose with an input method (Japanese or the emoji picker): caret, selection and marked text as in an unretained copy; click away and the
+  strip returns to a hit (`RW-J`). **Observed:**
+- [ ] **RW3.** Resize the window while the strip replays, then open its `Picker`: the popup opens at the declarer, not at its old
+  position (`RW-K`, the anchor replay). **Observed:**
+- [ ] **RW4.** Leave a retained field focused-then-blurred and the window idle for several minutes (display sleep included): its caret,
+  selection and scroll offset are intact (`RW-E`, the liveness channels). **Observed:**
+- [ ] **RW5.** The owner runs MetalCreator's orbit with the graph panel and inspector open: the orbit frame's window CPU against the
+  `e85cb07a` reading (20.56 ms), and no panel shows stale content after a node-library scroll, a number entry or a slider drag
+  (no agent touches MetalCreator). **Observed:**
 
 ## Sign-off
 

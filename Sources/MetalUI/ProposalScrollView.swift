@@ -59,10 +59,10 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         // `withScrollContext` scope).
         var rawOffset: Double = 0
         var lastViewportExtent: Double = 0
-        pass.withState(id, initial: ScrollState()) {
-            rawOffset = $0.offset
-            lastViewportExtent = $0.viewportExtent
-        }
+        // A read, not a write (`RW-H`): the version moves only when an input or the prepaint clamp changes the entry.
+        let scrollState = pass.readState(id, initial: ScrollState())
+        rawOffset = scrollState.offset
+        lastViewportExtent = scrollState.viewportExtent
         var cursor = 0
         let (children, contentLayout) = pass.withScrollContext(
             ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)

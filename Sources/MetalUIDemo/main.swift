@@ -114,6 +114,8 @@ func runDemo() throws {
             model.counters = (work.retained.hits, work.retained.misses, work.retained.ineligible,
                               work.retained.prepaintHits, work.retained.redos, work.retained.translated)
             model.grafts = (work.retained.grafts, work.retained.skippedRequests)
+            model.reasons = work.retained.ineligibleReasons.sorted { $0.key < $1.key }
+                .map { "\($0.key) \($0.value)" }.joined(separator: ", ")
         }
         model.applySkipBuild = { [weak window] on in
             window?.testingRetainedGraft = on
