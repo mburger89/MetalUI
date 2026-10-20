@@ -2,8 +2,8 @@
 
 Branch `perf/raster-overscan` from `4d91f27f`. Not a plan task: item P4 of the gpui-gap list (user request 2026-10-02), the carried half
 of record §118 (`PN-C`: "overscan for them is P3b"). Spec `docs/superpowers/specs/2026-10-20-raster-overscan-design.md`; rulings
-`OS-A`…`OS-O` in `docs/superpowers/2026-10-20-raster-overscan-decisions.md` (next unused `OS-P`). Divergence labels 545–554 reserved:
-none taken. No public declaration. **This record covers lane 1 only; lane 2 (P3d, pooled scratch) is gated by `OS-H` and is recorded by its own lane.**
+`OS-A`…`OS-P` in `docs/superpowers/2026-10-20-raster-overscan-decisions.md` (next unused `OS-Q`). Divergence labels 545–554 reserved:
+none taken. No public declaration. §1–§7 are lane 1 (P3b); §8 is lane 2 (P3d, the pooled scratch), which passed `OS-H`'s gate on allocated bytes.
 
 ## §1 What changed
 
@@ -80,3 +80,40 @@ The bracket fixture holds no shadow, blur or gradient, so lane 1 has no win to c
 Mode 3 overscan (`OS-E`); the half-visible card's one larger first raster (`OS-F`, bounded by 2^20); lane 2 (`OS-H`).
 Human check `RO1` (record phase): scroll a shadowed, blurred and gradient list across a panel edge on AppKit and SDL, no seam,
 flicker or clipped glow.
+
+## §8 Lane 2 — the pooled rasterizer scratch (P3d, `OS-H`, `OS-L`, `OS-P`)
+
+**Gate (dated 2026-10-20, shared Mac, load 27–81, release, `ab.sh <6ab9babd> <prototype>`, 5 alternated rounds).** A throwaway prototype
+(static buffers, not committed) against lane 1's head: `shadow-drag` main-thread allocated bytes of 400 frames 244 813 208 → 194 453 304
+(**−20.6 %**, deterministic: `shadow-pan` read 100 928 936 on both sides), allocations 670 564 → 670 175 (−389). Median ms/frame of `shadow-drag`
+(base / head) 0.675/0.681, 0.659/0.669, 0.672/0.667, 0.656/0.655, 0.656/0.649: flat, under the 3 % bar. `bracket-value` median 0.000 both sides.
+The gate's "bytes down 10 % or median down 3 %" is met by the bytes arm; **the saving is memory traffic on misses, not a time win**, and the
+landed code is not claimed to be one. Re-taken on the landed code (`ab.sh`, 5 rounds): bytes 244 813 208 → 194 453 304 again, `shadow-drag`
+median 0.670/0.670, 0.655/0.653, 0.667/0.671, 0.679/0.676, 0.649/0.658 (flat).
+
+**Built.** `package struct RasterScratch` (`MetalUIPath/RasterScratch.swift`, imports nothing): a `cells` slot (`Double`) and three `Int32`
+slots (`a`, `b`, `sums`); a buffer is taken out zero-filled and returned, one longer than `capacityLimit` (2^22 elements) dropped; the slot is
+empty while a buffer is out, so a re-entrant borrow allocates its own and cannot alias (`OS-L`). `CoverageRasterizer.rasterize`,
+`PathRaster.fill/stroke` and `BoxBlur.blur` gain `scratch:` overloads (the old spellings forward a fresh scratch, so every other caller and
+test is unmoved); `RasterCache.scratch` is passed `&cache.scratch` at the nine call sites (`Shadow`, `Blur`, `GradientRaster`, `RasterCache`
+x2), each for one call and never across a `make` closure. No public declaration, no divergence label, `MetalUIPath` still imports nothing.
+
+**Red first (commit `7d02bb02`, against `6ab9babd`).** All five tests are compile-red: `error: cannot find type 'RasterScratch' in scope`
+(`Tests/MetalUIPathTests/RasterScratchTests.swift:10`), and `value of type 'RasterCache' has no member 'scratch'`
+(`Tests/MetalUITests/RasterScratchTests.swift:33`). P3 cannot be red at 6ab9babd any other way (the instrument is the new `cache.scratch`).
+
+**Pins** (`aPooledRasterizerEqualsAFreshOneAcrossShrinkingAndGrowingSizes` P1, `aPooledBoxBlurEqualsTheReferenceByteForByte` P2,
+`thePoolDoesNotPinAHugeBuffer` P4 in `MetalUIPathTests`; `aDirtyPooledCacheRastersEqualACleanOnesIncludingNestedLeaves` P1 nested arm and
+`aWarmRasterAllocatesNoScratch` P3 in `MetalUITests`, P3 Darwin only, thread-filtered, differential: a warm shadow makes >= 4 fewer
+allocations than the same call on a fresh scratch, a gradient >= 1). Mutations (source restored and rebuilt after each; the first unfiltered
+run preceded them): M1 `takeCells` keeps the stale prefix: reddens P1 (24 issues) and the nested arm; M2 `takeInts` likewise: P2 (36) and the
+nested arm (4); M3a cap removed in `returnCells`: P4 (`scratch.heldElements == 0`); M3b cap removed in `returnInts`: P4 (blur planes);
+M4 `cache.scratch` always fresh (no call site keeps it): P3 (shadow and gradient arms). Run as filtered sets of the five tests, not the whole
+suite. Not mutated: a call site holding `&cache.scratch` across a nested leaf (an exclusivity trap), because the take-out structure makes it
+unreachable: only the nested arm's equality stands for it.
+
+**Suite.** Screen locked (probe: `CGSSessionScreenIsLocked = 1`, display asleep), `--skip AppKitPresentationTests` (`PN-J`). **3977 tests in
+4 suites passed** (3972 + 5), `FR-J no-argument frame: succeeded=true`; also 3977 with `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`.
+Linux image (`metalui-portable`, volume `metalui-root-build-raster-overscan`): `MetalUIPathTests` (with P1, P2, P4), `MetalUILayoutTests`, `MetalUICoreTests`,
+`MetalUICrossPlatformTests` all passed. The fourteen images against `4d91f27f` (`compare.sh`, HEAD `c40092ee` (the OS-P commit; sources identical to the final)): 0 differing pixels, scene identical.
+Inventory and undocumented scripts print nothing. `Backends/SDL` untouched.
