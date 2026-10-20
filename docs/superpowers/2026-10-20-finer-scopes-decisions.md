@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (Record phase, not yet written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-M`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-O`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -193,3 +193,40 @@ whole pixels for every kind. Refusal name `fractionalTranslation` (new reason be
 `inexactTranslation`); mutation for 2.9: the whole-pixel test replaced by `true` must redden the glyph-run differential.
 **Rejected.** Relying on the verify switch alone to catch it: it is a development switch, not a gate. **Cost if wrong.** Fewer accepts
 (fractional layout shifts miss as today).
+
+## FS-N - Lane 1 diagnosis: a stale prepaint ledger on a standing record, fixed by refreshing it (settles FS-C, FS-H)
+
+**Cause (measured, 711ab9c4).** `PrepaintExtras.suppression` was never the defect; it is where a *stale* ledger showed. With an accessibility
+client collecting, `List.prepaint` opens `withAccessibilitySuppressed(except: listID)` around its rows while its window is unbounded (the
+first frame, `AB-X` rule 1), so an `.equatable()` row's first ledger is keyed `suppression == [listID]` (and holds no accessibility
+records). Every later frame is bounded, its key reads `suppression == []`, and every other part of the key is equal (printed per part, both
+branches). The prepaint then **runs** (a miss), makes a correct ledger for the new key, and `retainedPaintDecision` finds the paint record
+still valid and hits: `finishRetainedPaint` is not reached, so the record keeps `old.prepaint` for ever. Prepaint never replays, and no graft
+stands (`graftRecord` needs a replayable prepaint; a graft built on the old ledger whose key fails is the redo, which then suspends replay
+window-wide for 9 builds and quarantines the entry for 9, `RK-D`: that is why the F4 probe's three measured frames, taken 4 frames after
+the first, sat inside the backoff). With **no client** the exception never exists (`withAccessibilitySuppressed` is a no-op while not
+collecting), the key never changes and the same list already replays and grafts (pin `aStaticListWithNoAccessibilityClientAlreadyReplays`,
+green on arrival). Uniform and variable branches share the code, both red. Not a harness effect.
+**Ruling.** `RetainedSubtree.refreshLedger(of:from:)`: on a paint **hit** whose prepaint ran this frame (`phase.ledger != nil`, nothing
+replayed), the fresh ledger replaces the record's when its key differs and every entry it read is one the record already versions
+(`ledger.reads` a subset of `record.versions`; otherwise the old one stays). The ledger is exact for the same, still valid occurrence, so
+the replacement is sound; it needs no key widening and no counter. `suppression` stays a real key part (`FS-C`): the mutation that
+removes it from the key reddens `aSuppressedFirstFrameLedgerReplaysTheSameTreeAsAFreshWindow` on the accessibility tree (a ledger made
+while the rows were suppressed would replay with no rows).
+**Figures** (per frame, 24 cards at scale 2, 16 warm frames, graft on, window 320 x 400 / scroller 300 x 150): uniform static
+84 requests, 85 prepaints, 22 paints, prepaint hits 0, grafts 0 -> **21 requests (63 skipped), 22, 22, 9, 9**; variable static
+-> 23 requests (70 skipped), 24, 24, 10 hits, 10 grafts; uniform with one row's value changing: 28 requests, 29 prepaints, 32 paints,
+8 hits / 1 miss, 8 grafts (variable 30 / 31 / 34, 9 / 1, 9). Four warm frames, as the design probe used, sit inside the redo backoff
+(9 builds) and read the old figures on the unfixed tree; the pins warm 16.
+**Mutations.** Refresh body skipped (`return` first): `aStaticListOfEquatableRowsReplaysPrepaintAndGrafts` (both branches),
+`aChangedListRowMissesAloneAndTheOthersGraft` (both) and `aSuppressedFirstFrameLedgerReplaysTheSameTreeAsAFreshWindow` (both) redden;
+`suppression` dropped from `retainedPrepaintKey`: the last one reddens (accessibility tree). **Unproven:** the `ledger.reads` subset guard
+(no fixture's prepaint reads state; it can only decline a refresh).
+**C14-c4 (`FS-H`), measured.** The graft site's `uncomparableCustomCount == 0` conjunct replaced by `true`: the whole native unfiltered
+run (3996 passed, `AppKitPresentationTests` skipped on a locked screen) and the same under `METALUI_VERIFY_RETAINED=1
+METALUI_VERIFY_LAYOUT_MEMO=1` (3996 passed) reddened nothing. Removed, with a comment naming `BuildKey`. Pins: `aBuildKeyUnderAnUncomparableReadingEqualsNothing`
+(`MetalUITests`, red when `custom` leaves `retainedFingerprint`: a rebuilt `BuildKey` unequal to itself; a key is not compared with itself,
+a `Dictionary` sharing storage answers `==` by identity) and `aGraftIsRefusedUnderAnUncomparableKey` (window level, green by construction:
+0 grafts, 1 ineligible, scene equal to a retention-off window; the paint refusal dominates, so no window mutation reaches it).
+**Not done here.** No row-naming change (`FI-I`, divergence 255 untouched): the 100k re-take is not owed. Every existing `VL-`/`DD-`
+test and literal is unedited. The lane-2 translation work (`FS-D`..`FS-G`) is not part of this commit series.
