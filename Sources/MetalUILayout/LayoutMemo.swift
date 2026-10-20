@@ -61,8 +61,24 @@ package final class LayoutMemo {
 
     private var measurements: [MeasureKey: LayoutMeasurement] = [:]
     private var previousMeasurements: [MeasureKey: LayoutMeasurement] = [:]
-    private var placements: [PlacementKey: [LayoutRect]] = [:]
-    private var previousPlacements: [PlacementKey: [LayoutRect]] = [:]
+    private var placements: [PlacementKey: Placed] = [:]
+    private var previousPlacements: [PlacementKey: Placed] = [:]
+
+    /// The memo keys a placement's recording looked up, stored or restored below its root (`CF-E`): what a later
+    /// restore of that placement stands for. A restore places nothing and so looks nothing up; without this the
+    /// entries below it age out of both generations while it keeps hitting, and the first frame that must measure
+    /// or place the subtree for itself (a graft, a changed bound) pays for all of them at once.
+    struct Footprint {
+        var measures: [MeasureKey] = []
+        var placements: [PlacementKey] = []
+        var isEmpty: Bool { measures.isEmpty && placements.isEmpty }
+    }
+
+    /// One stored placement: the unrounded rects and the footprint of the recording that made them.
+    struct Placed {
+        var rects: [LayoutRect]
+        var footprint: Footprint
+    }
 
     /// The signature of each node of the current run, by node index. Scratch:
     /// only the indices the run's pre-order visited are meaningful, and a run
@@ -88,7 +104,7 @@ package final class LayoutMemo {
         measurements[MeasureKey(signature: signature, proposal: proposal)] = measurement
     }
 
-    func lookupPlacement(_ key: PlacementKey) -> [LayoutRect]? {
+    func lookupPlacement(_ key: PlacementKey) -> Placed? {
         if let hit = placements[key] { return hit }
         if let hit = previousPlacements[key] {
             placements[key] = hit
@@ -97,8 +113,20 @@ package final class LayoutMemo {
         return nil
     }
 
-    func storePlacement(_ key: PlacementKey, _ rects: [LayoutRect]) {
-        placements[key] = rects
+    func storePlacement(_ key: PlacementKey, _ rects: [LayoutRect], footprint: Footprint = Footprint()) {
+        placements[key] = Placed(rects: rects, footprint: footprint)
+    }
+
+    /// Keeps alive what a restored placement stands for (`CF-E`): every entry of `footprint` still in the previous
+    /// generation moves into this frame's, exactly as a lookup of it would have. A key in neither generation is left
+    /// alone, and nothing is counted: the work counters read lookups, and a touch is not one.
+    func touch(_ footprint: Footprint) {
+        for key in footprint.measures where measurements[key] == nil {
+            if let hit = previousMeasurements[key] { measurements[key] = hit }
+        }
+        for key in footprint.placements where placements[key] == nil {
+            if let hit = previousPlacements[key] { placements[key] = hit }
+        }
     }
 
     /// Closes a frame: what was not used or stored this frame and was not used

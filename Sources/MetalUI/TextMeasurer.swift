@@ -36,6 +36,15 @@ public struct TextMeasurer {
         self.environment = environment
     }
 
+    /// What a memoized component that reads this measurer depends on (`CF-A`): the text system instance (the frame's
+    /// box is new every frame) and the styles a default request resolves to here.
+    var reading: TextMeasurerReading {
+        TextMeasurerReading(
+            system: box.map { ObjectIdentifier($0.system) },
+            inherited: resolveTextStyle(TextStyleRequest(), in: environment),
+            defaulted: resolveTextStyle(TextStyleRequest(font: .defaultFont), in: environment))
+    }
+
     private var system: any TextSystem {
         guard let box else {
             preconditionFailure("EnvironmentValues.textMeasurer read where no frame stamped a text system: a measurer needs one (ruling GT-D)")
@@ -108,4 +117,11 @@ extension EnvironmentValues {
     public var textMeasurer: TextMeasurer {
         TextMeasurer(box: textSystemBox, environment: self)
     }
+}
+
+/// The comparable reading of a ``TextMeasurer`` (`CF-A`, `EnvironmentReading`).
+struct TextMeasurerReading: Equatable {
+    let system: ObjectIdentifier?
+    let inherited: ResolvedTextStyle
+    let defaulted: ResolvedTextStyle
 }

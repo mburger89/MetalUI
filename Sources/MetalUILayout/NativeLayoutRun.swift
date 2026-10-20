@@ -131,10 +131,25 @@ final class NativeLayoutRun {
     /// stores are off, so the recomputation is fresh.
     var memoSuspended = 0
 
+    /// The memo keys this run touched while a subtree placement is being recorded (`CF-E`); appended to only when
+    /// `footprintDepth` is above zero, which is one recording per nesting level of marked placement roots.
+    var footprintLog = LayoutMemo.Footprint()
+    var footprintDepth = 0
+
     /// The nodes reachable from the run's root, in pre-order, when `memo` is set.
     var order: [Int] = []
 
     init(tree: LayoutTree) { self.tree = tree }
+
+    /// Closes one recording: the keys logged since `mark`, each once, and the log emptied when no recording is open.
+    func takeFootprint(since mark: (measures: Int, placements: Int)) -> LayoutMemo.Footprint {
+        var seenMeasures = Set<LayoutMemo.MeasureKey>(), seenPlacements = Set<LayoutMemo.PlacementKey>()
+        var footprint = LayoutMemo.Footprint()
+        for key in footprintLog.measures[mark.measures...] where seenMeasures.insert(key).inserted { footprint.measures.append(key) }
+        for key in footprintLog.placements[mark.placements...] where seenPlacements.insert(key).inserted { footprint.placements.append(key) }
+        if footprintDepth == 0 { footprintLog = LayoutMemo.Footprint() }
+        return footprint
+    }
 
     /// Enters one native recursion level for `node`; `leave()` on return.
     func enter(_ node: LayoutNodeID) {
