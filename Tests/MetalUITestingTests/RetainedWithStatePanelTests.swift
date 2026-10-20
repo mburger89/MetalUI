@@ -410,7 +410,8 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
     try #require(names.contains("StateTable.swift"), "the scan found the sources at \(dir.path)")
     var found: [String: (plain: Int, compared: Int, reads: Int)] = [:]
     for name in names where name != "Passes.swift" && name != "StateTable.swift" {
-        let lines = try String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8).components(separatedBy: "\n")
+        let lines = try String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8)
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
         var row = (plain: 0, compared: 0, reads: 0)
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
