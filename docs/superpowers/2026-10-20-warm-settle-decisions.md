@@ -1,7 +1,7 @@
 # Warm settle (C14-e) — decisions
 
 Rulings for item C14-e (MetalCreator's counter bisect, 2026-10-20). Spec: [`specs/2026-10-20-warm-settle-design.md`](specs/2026-10-20-warm-settle-design.md).
-Record: `../record/127-warm-settle.md` (at the Record phase). Branch `perf/warm-settle` from `679f5d7d`; divergence labels reserved
+Record: `../record/127-warm-settle.md`. Branch `perf/warm-settle` from `679f5d7d`; divergence labels reserved
 565–574 (none taken; 346 is amended, not relabelled).
 
 **Next unused id: `CF-L`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)

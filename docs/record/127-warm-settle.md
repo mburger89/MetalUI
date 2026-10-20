@@ -84,7 +84,9 @@ attribution: layout 26.5 %, build 24.5 %, paint 30.9 %, prepaint 9.5 %, memo-mis
 and invisible to the profiler; the named candidate is withdrawn (that record is what hits next frame and the snapshot taints it). **No cold-frame fix lands** (`CF-F` (i) unmet);
 MetalCreator's +25 % is not reproduced here and needs a measurement on its own tree.
 
-## §8 Deferred, with owner
+## §8 Looks, deferred, with owner
+
+- **Looks owed: none.** Nothing here changes a pixel (fourteen images 0 px); no human-checks group, no record §03 entry.
 
 - `onGeometryChange` replay in a retained subtree (`RK-E`): after C14-d, owner C14-f.
 - A footprint for the root placement (`IV-E` (P)): same hazard, unmeasured; owner whoever sees `layoutMemoRootHits > 0` followed by a spike.

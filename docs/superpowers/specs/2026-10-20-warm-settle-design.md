@@ -4,6 +4,8 @@ Item C14-e (user request 2026-10-02's list; MetalCreator's counter bisect, 2026-
 Rulings: [`../2026-10-20-warm-settle-decisions.md`](../2026-10-20-warm-settle-decisions.md) (`CF-A`…`CF-G`). Part (c) of the original item
 (`onGeometryChange` replay inside a retained subtree, `RK-E`) is **excluded** and runs after C14-d.
 
+**Status: built and verified (both lanes), record [§127](../../record/127-warm-settle.md); rulings `CF-A`…`CF-K`.**
+
 ## 1. What changes, in one paragraph each
 
 **(a)** `@Environment(\.textMeasurer)` becomes a comparable `EnvironmentReading` (`CF-A`): text-system instance identity plus the two
