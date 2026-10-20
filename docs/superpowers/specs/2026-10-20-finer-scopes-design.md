@@ -153,11 +153,14 @@ translated replay across a surface, popover or presentation; lazy grids; MetalCr
   the entry clip, else `maskStraddlesEntryClip`). After a successful translated hit the record and the ledger are **rebased** at the new
   position (not in verify mode).
 * **Prepaint.** The ledger's hitboxes and element bounds move; the paint record must be movable first or the prepaint runs (no redo).
+* **Hitboxes** keep their uncut rect and clip depth (`Hitbox.unclipped`, `Hitbox.clipDepth`): a hitbox cut by the ambient clip moves as
+  `clip ∩ (rect + delta)`; the pointer is read against the moved hitboxes (`FS-P`).
 * **Switch.** `METALUI_RETAINED_TRANSLATION=0` / `Window.testingRetainedTranslation` is the A/B of the figures.
 * **Tests.** 2.1 to 2.3 `aShiftedOrScrolledRowReplaysTranslated`; 2.1b `aShiftedCardStackEqualsAFreshWindow`; 2.4
   `aScrolledListReplaysTheRowsStillInTheWindow`; 2.5 `aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale`; 2.6
   `aClickAfterAShiftReachesTheMovedButton`; 2.7 `everyUntranslatableKindRefusesByName`; 2.8 `aShiftThatAlsoResizesTheOccurrenceMisses`;
-  2.9 `aFractionalShiftIsRefusedNotApproximated`; 2.9b `anInexactCoordinateIsRefusedNotApproximated`; 2.11 (layout)
+  2.9 `aFractionalShiftIsRefusedNotApproximated`; 2.13 `theSwitchOffMissesEveryShiftedRowAndOnTranslatesThem` (the A/B figures as literals); 2.14
+  `aFrameAfterAShiftReplaysAnExactLedgerNotAMovedOne`; 2.15 `aHitboxTheScrollersClipCutIsRecomputedAtItsNewPlace`; 2.9b `anInexactCoordinateIsRefusedNotApproximated`; 2.11 (layout)
   `aRelativeSubtreeSignatureIsTranslationInvariant`; 2.10 is the existing bracket and orbit pins, unedited.
 * **Demo.** `METALUI_RETAINED_DEMO=1` gains the section `RetainedDemoShift` (its own function; the window is 700 points tall); the perf arm is
   `zsh docs/probes/perf-baselines.sh release shiftscroll`.

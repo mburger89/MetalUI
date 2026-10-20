@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (Record phase, not yet written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-T`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-U`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -271,26 +271,44 @@ move; verify mode (`METALUI_VERIFY_RETAINED=1`) keeps the old record and compare
 
 ## FS-P - What a translated prepaint moves, and the order of the two decisions
 
-**Ruling.** `Frame.movedPrepaintLedger` moves the ledger's hitboxes (bounds and element origin by the window-point shift, K1 plus K2) and
-its element bounds (the layout shift alone: they are layout rects), and replays focus, tallies, live states and reads unchanged.
-**Refused by name:** `accessibilityRecords` (any emission or node: their frames are computed boxes), `pressOnly`, `contextMenus`,
-`presentationAnchor`, and per hitbox `hitboxUnderEffect`, `hitboxShape`, `hitboxScrolls`, `hitboxHandlers` (a text input, a value
-track, a drop destination or a contextual attachment, whose closures hold positions), `hitboxClipped` (bounds not strictly inside the
-ambient clip before and after: the clip may have cut them, and the cut of a moved rect is not the moved cut), `inexactTranslation`.
+**Ruling.** `Frame.movedPrepaintLedger` moves the ledger's hitboxes (the element origin by the window-point shift, K1 plus K2) and its
+element bounds (the layout shift alone: they are layout rects), and replays focus, tallies, live states and reads unchanged.
+**A hitbox keeps its uncut rect** (`Hitbox.unclipped`, the rect translated by the active offset before the clip cut it, and
+`Hitbox.clipDepth`, the clip depth the cut was read at; additive, read by nothing else): registered at the ambient depth, its moved `bounds` are
+**recomputed** as `clip ∩ (rect + delta)`, the arithmetic of `insertHitbox`, so a row the scroller's edge cuts, or one wholly outside
+the viewport (an empty cut), moves exactly; registered deeper (a clip pushed inside the occurrence by legacy `clipped(to:offsetBy:)`), it moves only when its bounds lie
+strictly inside the ambient clip before and after, else `hitboxClipped`. (Measured: the proposal `.clipped()`/`.clipShape` register
+their hitboxes at the ambient depth, so `hitboxClipped` has no construction in this suite: the guard is conservative and **unpinned**, its
+mutation survives, `FS-T`.) **Refused by name:** `accessibilityRecords` (any emission or node: their frames are computed boxes), `pressOnly`,
+`contextMenus`, `presentationAnchor`, and per hitbox `hitboxUnderEffect`, `hitboxShape`, `hitboxScrolls`, `hitboxHandlers` (a text input, a
+value track, a drop destination or a contextual attachment, whose closures hold positions), `hitboxClipped`, `inexactTranslation`.
+**The pointer is read against the moved hitboxes.** Hover resolves after prepaint, so the decision tests the pointer against the hitboxes
+where they will stand (`mousePosition` inside one: run the prepaint); testing the old rects let a card scroll under a resting pointer, replay its
+prepaint, and meet the paint's pointer rule: a redo (found by `aHitboxTheScrollersClipCutIsRecomputedAtItsNewPlace`, red under the mutation).
 **The paint record must be able to follow before a prepaint is replayed.** A replayed prepaint leaves no element state, so a paint that
 then misses is the redo (`RK-D`). The prepaint decision therefore asks, from the geometric part of the paint key, whether the record
 stands elsewhere and can be moved (`Frame.paintTranslation`, memoised in the phase and counted once), and **runs the prepaint** when it
-cannot. Both refusals go through `RetainedCounters.noteTranslationRefused(reason:)` into `FrameWork.retainedTranslationRefusedReasons`.
+cannot; a refusal at either decision goes through `RetainedCounters.noteTranslationRefused(reason:)` into
+`FrameWork.retainedTranslationRefusedReasons`.
 **Known cost, unchanged in kind.** An occurrence that is grafted (`RK-B`) and whose translated prepaint is refused is the counted redo, as
-a refused effect translation was; with a client active every translated frame meets `accessibilityRecords`, so the graft and a shift
-cost one redo per backoff window (the paint still translates: 171 requests and 4 paints, against 244). `hitboxClipped` makes the rows at a
-scroller's edge refuse their prepaint when they hold a hitbox; carried (see `FS-S`).
+a refused effect translation was; with a client active every translated prepaint meets `accessibilityRecords`, so the graft and a shift
+cost one redo per backoff window (the paint still translates: 171 requests and 4 paints, against 244).
 
-## FS-Q - Figures (work counts, scale 2, 24 `FSCard` rows, a frame of three, 16 warm frames)
+## FS-Q - Figures (work counts per frame: element requests / prepaints / paints; scale 2, 24 `FSCard` rows, three frames after 16 warm ones)
 
-See the table in the record (Record phase); the A/B is `testingRetainedTranslation` off and on in one binary
-(`FinerScopesTranslationTests.swift`'s measurement note). Release ms per frame: `zsh docs/probes/perf-baselines.sh release shiftscroll`,
-a dated measurement.
+Taken in one binary with `testingRetainedTranslation` off (the lane-1 head) and on; AX off unless named; `skip` is `retainedSkippedRequests`.
+
+| scenario | off (lane-1 head) | on, graft off | on, graft on |
+|---|---|---|---|
+| header +4 (K1) | 171 / 172 / 244, hits 0 | 171 / 4 / 4, hits 24, translated 24 | 3 (168 skip) / 4 / 4, 24 grafts |
+| id inserted first (K1 + 1 new row) | 176, 183, 190 / 177, 184, 191 / 251, 261, 271, hits 0 | same requests / 9 / 11, hits 24-26 | 8 (168-182 skip) / 9 / 11, 24-26 grafts |
+| wheel -30 over a `ScrollView` (K2) | 171 / 172 / 244, hits 0 | 171 / 4 / 4, translated 24 on the moving frame, 0 on the settle frame (exact hit) | 3 / 4 / 4 |
+| wheel -30 over a `List`, uniform (9 to 11 rows) | 102-111 / 103-112 / 116-148, hits 0-2 | not measured | 32-41 (63-77 skip) / 33-42 / 36-50, 9-11 translated and grafted |
+| wheel -30 over a `List`, variable | 111 / 112 / 128-148 | not measured | 34-43 / 35-44 / 38-50 |
+| AX on, header, graft off | 171 / 172 / 244 | 171 / 172 / 4, refused `accessibilityRecords` 24 | one redo, then as left |
+
+Unmoved (existing pins, unedited): the bracket node drag 144 / 153 and 208 / 219, the orbit 6 / 7 / 7, the fourteen images (0 px against
+`711ab9c4`). Release ms per frame is `zsh docs/probes/perf-baselines.sh release shiftscroll`, a dated measurement, in the record.
 
 ## FS-R - Existing pins this item moves
 
@@ -307,3 +325,37 @@ moved render effect (`RK-S` plus `FS-D`). (3) Path, gradient and shadow rasters 
 `PF-A`, so a whole-pixel move should hand back the same raster; the spike did not need them). (4) Placement-memo translation (`FS-G`): after the
 move the layout counters of the shifted frames read `layoutMemoMisses` 23 to 175 (the signature includes origin), the dominant remaining cost
 of a shifted frame once requests are 8 and paints 11. (5) Avoiding the one redo of a graft with a client active. (6) Human checks `FS3`, `FS4`.
+
+## FS-T - Lane 2 mutations, and the three that survive
+
+Applied one at a time to the committed tree (restored from git, `git status --short` clean after each), the retained-related set
+(`MetalUITestingTests` plus every test whose name holds Retained, Graft, Prepaint, Translat or Ledger: 447 tests; `AppKitPresentationTests` skipped,
+the screen was locked) run after each build. Reddened, by test name (counts are issues):
+
+* **K1 off** (an offset-only movement is the only translation): `aShiftedOrScrolledRowReplaysTranslated` 28, `aShiftedCardStackEqualsAFreshWindow` 12,
+  `everyUntranslatableKindRefusesByName` 5, `aClickAfterAShiftReachesTheMovedButton` 4, `everyKeyComponentSeparates` 2, `aFractionalShiftIsRefusedNotApproximated` 2,
+  `anInexactCoordinateIsRefusedNotApproximated` 1. **K2 off**: `aShiftedOrScrolledRowReplaysTranslated` 26, `aShiftedCardStackEqualsAFreshWindow` 6,
+  `aScrolledListReplaysTheRowsStillInTheWindow` 4, `everyUntranslatableKindRefusesByName` 1.
+* **The add applied to y twice**: `aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale` 120, `aShiftedCardStackEqualsAFreshWindow` 66, the graft sweep
+  pins (`aGraftedFrameKeepsTheStateTableSweepsExact` 18, `aRedoAfterAGraftMismatchRestoresEverything` 10, `aLoopInsideAGraftedOccurrenceStillResetsTheRowsItLoses`,
+  `aConditionalInsideAGraftedOccurrenceStillResetsItsState`, `lifecycleAnimationAndListInsideAMemoizedComponent`), `aScrolledList...` 12, `aClickAfterAShift...` 12.
+* **Exactness test replaced by `true`**: `anInexactCoordinateIsRefusedNotApproximated` (the refusal name; the pixels still equal, since Float add of the
+  whole delta happened to be exact there). **Whole-pixel test removed**: `aFractionalShiftIsRefusedNotApproximated` 5.
+* **Inner masks left unmoved**: `aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale` 160, `aListRowReplayEqualsAFreshWindowWithAccessibilityOnAndOff` 44,
+  `everyUntranslatableKindRefusesByName` 4, `everyKeyComponentSeparates` 4. **Strict-inside test removed**: the same, 160 / 36 / 4 / 2.
+* **Hitboxes replayed unmoved**: `aClickAfterAShiftReachesTheMovedButton` 12, `aHitboxTheScrollersClipCutIsRecomputedAtItsNewPlace` 5. **Element bounds
+  unmoved**: `aShiftedCardStackEqualsAFreshWindow` 24, `aClickAfterAShift...` 16, `aFractionalShift...` 3. **Element bounds moved by the scroll offset too**:
+  `aShiftedCardStackEqualsAFreshWindow` 9, `aScrolledList...` 6. **The cut recomputed by a shift of the cut rect**: `aHitboxTheScrollersClipCutIsRecomputedAtItsNewPlace` 5.
+  **The pointer read against the old hitboxes**: the same test, 2 (redos).
+* **Allow-list widened (path, gradient, shadow)**: `everyUntranslatableKindRefusesByName` 10. **Inner-scope refusal removed**: the same, 2. **Accessibility refusal
+  removed**: `aShiftedCardStackEqualsAFreshWindow` 33, `aScrolledList...` 6, `aTranslatedLayout...` 5, `everyUntranslatable...` 4, `everyKeyComponentSeparates` 2, two graft pins.
+* **Paint rebase removed**: `aShiftedOrScrolledRowReplaysTranslated` 2 (the settle frame translates again). **Ledger rebase removed**: `aFrameAfterAShiftReplaysAnExactLedgerNotAMovedOne` 1.
+  **The record-follows precheck removed**: `everyUntranslatableKindRefusesByName` 4 (the redo), `anInexactCoordinate...` 1, `aFractionalShift...` 1.
+  **The switch left out of the paint decision**: `theSwitchOffMissesEveryShiftedRowAndOnTranslatesThem` 12.
+
+**Survivors.** (1) Each of the two explicit shape guards alone (the top rects' sizes, the relative subtree signature) is an **equivalent mutant**: the
+signature hashes every node's size, tops included, so the explicit size test is an early-out and the signature a complete test; removed **together** the old width's
+pixels replay and `aShiftThatAlsoResizesTheOccurrenceMisses` reddens (3 issues). (2) `hitboxClipped` (FS-P): no tree in this suite registers a
+hitbox below the ambient clip depth, so the guard has no pin; it stays as the conservative answer for a legacy `clipped(to:offsetBy:)` inside an occurrence.
+
+The 100k list test (`METALUI_RUN_100K_LIST_TEST=1`) is not owed: row naming is untouched.
