@@ -13,7 +13,7 @@ original item (`onGeometryChange` replay inside a retained subtree, `RK-E`) is e
 `ResolvedTextStyle`s `resolveTextStyle` gives a default request and a `.defaultFont` request in the measurer's environment (a font, weight, italic, `controlSize` or
 foreground change above the reader must re-evaluate it). An `.equatable()` component reading it is skipped while both are equal; before, it was refused every frame
 (divergence 346, narrowed again: `\.textMeasurer` leaves the uncomparable list). Pins `TextMeasurerReadingTests` (unit, T3 per field, T3b a field the measurer never
-resolves, T4 system against box) and `TextMeasurerEpochTests` (window, T1 skip, T2 font change, T5 retained replay); red at `679f5d7d`, recorded in lane 1's commit `8586ba14`.
+resolves, T4 system against box) (the same file: window tests T1 skip, T2 font change, T5 retained replay); red at `679f5d7d`, recorded in lane 1's commit `8586ba14`.
 
 ## §2 (d) A redo frame reports the abandoned attempt's content evaluations (`CF-C`, `CF-D`)
 

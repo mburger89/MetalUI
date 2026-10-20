@@ -29,7 +29,7 @@ C14-d may also edit it for per-row scopes — merge by hand, the hunk is disjoin
 
 | Lane | Owns | Files (disjoint) |
 |---|---|---|
-| 1 | (a) and (d) | `Sources/MetalUI/EnvironmentReading.swift`, `TextMeasurer.swift` (an internal `reading` property), `ContentMemo.swift`, `RetainedPrepaint.swift`; tests `Tests/MetalUITests/TextMeasurerReadingTests.swift`, `Tests/MetalUITestingTests/TextMeasurerEpochTests.swift`, `RedoCounterTests.swift` |
+| 1 | (a) and (d) | `Sources/MetalUI/EnvironmentReading.swift`, `TextMeasurer.swift` (an internal `reading` property), `ContentMemo.swift`, `RetainedPrepaint.swift`; tests `Tests/MetalUITests/TextMeasurerReadingTests.swift`, `Tests/MetalUITestingTests/TextMeasurerEpochTests.swift` (as built, in `TextMeasurerReadingTests.swift`), `RedoCounterTests.swift` |
 | 2 | (e) and (b) | `Sources/MetalUILayout/LayoutMemo.swift` / `LayoutTree.swift` only if (e)'s cause is there; tests `Tests/MetalUITestingTests/WarmSettleTests.swift`; probes/notes under `docs/probes/warm-settle/`; (b) is measurement only |
 
 Lane 2 never edits `ContentMemo.swift`, `RetainedPrepaint.swift` or `Window.swift`: a cause found there is handed to the orchestrator and applied
