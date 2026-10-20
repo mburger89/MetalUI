@@ -4,7 +4,7 @@ Rulings for item C14-e (MetalCreator's counter bisect, 2026-10-20). Spec: [`spec
 Record: `../record/127-warm-settle.md` (at the Record phase). Branch `perf/warm-settle` from `679f5d7d`; divergence labels reserved
 565–574 (none taken; 346 is amended, not relabelled).
 
-**Next unused id: `CF-K`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)
+**Next unused id: `CF-L`.** (Moves in the commit that appends a ruling; read the last `## CF-` heading if they disagree.)
 
 Evidence: the code at `679f5d7d` (`EnvironmentReading.swift`, `EnvironmentProperty.swift`, `TextMeasurer.swift`, `Frame.swift:2514`,
 `ContentMemo.swift`, `RetainedPrepaint.swift` `noteRedo`, `Window.swift` `buildAndAdoptFrame`, `LayoutMemo.swift`, `TestingHooks.swift`
@@ -149,3 +149,16 @@ the retained records exist: with the records made before `resetFrameWork()` from
 legitimately counting its misses and ledger snapshots (W2). MetalCreator's `unchangedFramesAfterSettlingDoExactlyTheSameWork` can compare from index 1 (its frame 0
 is the record frame). Kernel pins F1-F3 (`PlacementFootprintTests`). **Cost if wrong.** A footprint key the recording missed leaves one entry to age out (the
 old behaviour for that entry); a footprint that is too large keeps an entry one generation longer (memory, bounded by the placement's own subtree).
+
+## CF-K — (b) measured: no cold-frame fix lands; the ledger snapshot is not the cost
+
+**Ruling.** The cold-frame profile (`docs/probes/warm-settle/cold-profile.md`, instrument `cold-profile.sh`) found **no value-identical cold-frame win**, so
+`CF-F` (i) is not met and nothing lands. **Measured** (release, thread-CPU, three runs per commit, load average 4.5 to 34): on the bracket fixture's first frame the
+cold frame rose about 10 % from `a595b0d7` (no retention, 12.7 to 13.0 ms) to `fb9a7e42` (C14b: 14.3 to 15.6 ms) and is flat since (`6273e3a4` 14.3 to 15.1, `679f5d7d` 13.6 to 14.4, head with
+`CF-J` 14.0 to 15.4, inside the 5 % spread), while its counted work did not move after `fb9a7e42` (memo misses 864, 70 ledger snapshots, 32 retained misses). Attribution by inclusive
+Time Profiler samples: memo-miss handling 2.5 %, retained bookkeeping 1.7 %, the content memo's `materialize` 2.4 %, layout 26.5 % (cheaper than before retention), build 24.5 %,
+paint 30.9 %, prepaint 9.5 %, rasters 7 %. **The ledger snapshot is five loads** (`ledgerSnapshot()`), invisible to the profiler; skipping it on a first sighting would save nothing and
+change behaviour (that record is what hits next frame, and the snapshot is what taints it), so the `CF-F` candidate is **withdrawn**, not deferred. **P4's overscan** doubles the cold raster on
+this fixture (124 852 to 255 208 px) for less than the spread. MetalCreator's +25 % is not reproduced; its tree's extra cost, if it is raster work, is not in this fixture.
+**Hand-off.** Re-measure on MetalCreator's own tree with `rasterizedPixels`, `retainedLedgerSnapshots` and `layoutMemoMisses` beside the times before spending a change.
+**Cost if wrong.** A real cold regression in a shape this fixture lacks stays open; the measurement is dated and the harness takes any commit.

@@ -51,10 +51,21 @@ func ms(_ v: Double) -> String { String(format: "%.3f", v) }
     }
 }
 
+/// `--cold-only N`: N fresh windows, first frame only, nothing else, so a Time Profiler trace of the run is the cold frame's.
+@MainActor func coldOnly(rounds: Int) throws {
+    for _ in 0..<rounds {
+        let model = BracketModel(), viewport = BracketViewport()
+        _ = try TestWindow(size: bracketWindowSize, colorScheme: .dark, scaleFactor: 2) {
+            bracketRoot(arm: .panels, model: model, viewport: viewport)
+        }
+    }
+}
+
 let args = CommandLine.arguments.dropFirst()
 let rounds = Int(args.first(where: { Int($0) != nil }) ?? "") ?? 12
 MainActor.assumeIsolated {
     do {
+        if args.contains("--cold-only") { try coldOnly(rounds: rounds); return }
         try coldScenario(arm: .panels, name: "cold_panels", rounds: rounds)
         try coldScenario(arm: .value, name: "cold_value", rounds: rounds)
     } catch { print("error: \(error)") }

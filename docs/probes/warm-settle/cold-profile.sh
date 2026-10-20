@@ -32,7 +32,7 @@ swift build -c release >&2
 bin="$(swift build -c release --show-bin-path)/ColdFrames"
 if [[ "$trace" == "--trace" ]]; then
   rm -rf "$scratch/cold.trace"
-  xctrace record --template 'Time Profiler' --output "$scratch/cold.trace" --launch -- "$bin" "$rounds" >&2
+  xctrace record --template 'Time Profiler' --output "$scratch/cold.trace" --launch -- "$bin" "$rounds" --cold-only >&2
   echo "trace\t$scratch/cold.trace"
 else
   "$bin" "$rounds"
