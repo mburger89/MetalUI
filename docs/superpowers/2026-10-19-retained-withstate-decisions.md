@@ -115,7 +115,7 @@ makes, so rows out of window age exactly as in a fresh frame (`RK-F`). A selecti
 or `@State` change: `versions`/observed read misses) and the key handlers run from the replayed ledger's closures, which hold the
 record's `data` (equal by `==`). A selectable list keeps focus on click: a focused list is `SB-X`. The variable-height anchor
 adjustment `Frame.noteScrollAnchorAdjustment` stays a plain write and taints (`VL-G`). `List` row `@State` stays TB-AH's.
-**Evidence.** `listWindowIsAFunctionOfTheStateItReads` (spec §5 test 5) compares the retained window's built row range with a
+**Evidence.** `aListWindowIsAFunctionOfTheStateItReads` (spec §5 test 5) compares the retained window's built row range with a
 fresh window's after a scroll, a data change and a resize.
 **Cost if wrong.** A window that does not move after a scroll: the version check on `ScrollState` is the single guard and the
 test mutates it.
