@@ -4,6 +4,7 @@ Item C14-d of the gpui-gap priority list (user request 2026-10-02; not a plan ta
 (`SB-AE`), 110, 120 (`EE-O`, C14-c4) and 121. Rulings: [`../2026-10-20-finer-scopes-decisions.md`](../2026-10-20-finer-scopes-decisions.md)
 (`FS-`). Record: `../../record/126-finer-scopes.md` (Record phase). Branch `perf/finer-scopes` from `711ab9c4`.
 **Status: LANDED 2026-10-20** (record 126; the looks are owed, human checks group FS). Divergence labels 555-564 reserved: **none taken**. **Public API: none** in `MetalUI`; one `MetalUITesting` field (`FS-J`).
+Sections 1-5 are the design as written before the build: the names `differsOnlyByTranslation` and the section 2 pin names were not all kept; section 6 and `FS-O`..`FS-T` give the as-built names (`RetainedShape.shift`, `ReplayKey.shift(from:)`, `PrepaintKey.shift(to:)`, `Frame.movedPaintRecord`; pins in `FinerScopesTranslationTests.swift`).
 
 ## 0 What the item turned out to be
 

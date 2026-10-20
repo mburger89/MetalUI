@@ -81,7 +81,7 @@ justified rather than widening the key.
 
 **Ruling.** `ReplayKey` and `PrepaintKey` split into a **shape** (the occurrence's top rects and its interior hash taken relative to its
 first top node's origin, plus the node count) and an **origin** (that origin, device pixels). Today's `rects`/`interior` are absolute, so
-any shift of the occurrence misses (F2). A new key relation `differsOnlyByTranslation` accepts two kinds, each independently:
+any shift of the occurrence misses (F2). A new key relation (as built `RetainedShape.shift`, `FS-O`; `differsOnlyByTranslation` is the design's name) accepts two kinds, each independently:
 **K1 layout origin**, shape equal and ambient equal, origin moved; **K2 scroll offset**, shape and origin equal, `AmbientKey.offset`
 moved, the clip unmoved. It sits **beside** `differsOnlyByEffectTranslation` (render effects, `RK-G`) and composes with it (an occurrence
 shifted by layout under a moved effect translates by the sum), reusing the one replay path (`replayPaint(_:translated:)`,
