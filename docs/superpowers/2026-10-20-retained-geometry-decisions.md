@@ -4,7 +4,7 @@ Rulings for item C14-f. Spec: [`specs/2026-10-20-retained-geometry-design.md`](s
 `../record/128-retained-geometry.md` (Record phase). Branch `perf/retained-geometry` from `99b21a1c`. Reserved divergence labels 575-584:
 none taken.
 
-Prefix **`RG-`**, lettered. **Next unused: `RG-K`.** (Moves in the commit that appends a ruling.)
+Prefix **`RG-`**, lettered. **Next unused: `RG-L`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E` (geometry note taints, now replaced), `KF-J` (delivery semantics, unchanged), `FS-G`, `FS-P`, `FS-T` (record 126),
 `SB-AD`, `RK-S`, `RW-` (record 121), C14-e parts (c) and (f).
@@ -89,3 +89,13 @@ occurrence keeps running, as the 199 requests of an unobserved retained frame do
 the graft stand and eating the redo (a scrolling list of observers builds every frame twice); teaching the graft to foresee a translation
 (layout is not known at the graft decision, `RK-C`). **Cost if wrong.** Element requests of an observed occurrence stay whole; carried with
 `RG-C` (re-evaluating the transform under translation would lift both).
+
+## RG-K - The replay order of a ledger's geometry notes is unobservable; the pin is the held key
+
+**Ruling.** Lane 1's test 6 pins that **both** scopes of a stacked pair stay in the store through a replay (a card made again with an
+equal geometry reports neither), not that they replay in order. **Evidence.** Two scopes at one position get distinct store keys
+(`$geometry<depth>`, depth is the number of enclosing geometry scopes), so occurrence ordinals never interleave them; an event comes only
+from a changed note, which is a fresh note (the ledger missed), and a replayed note consumes one `order` number whatever its place in its
+own group. Reversing the replay was run as a mutation and **survived** the first test 6 (`LR-X`: equivalent); dropping the second note
+(`prefix(1)`) is observable only after a re-made card, which the new test 6 and test 2's tag step make. The spec's wording "keep their
+ordinals" is superseded. **Cost if wrong.** none new.

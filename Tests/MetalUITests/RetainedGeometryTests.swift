@@ -18,6 +18,7 @@ import MetalUITesting
 @MainActor final class RGModel {
     var pad: Float = 10
     var scale: Double = 1
+    var tag = 0
 }
 
 private func rgDescribe(_ p: GeometryProxy) -> String {
@@ -30,7 +31,9 @@ private struct RGCard: Component, @MainActor Equatable {
     let id: Int
     let stacked: Bool
     let log: RGLog
-    static func == (l: RGCard, r: RGCard) -> Bool { l.id == r.id && l.stacked == r.stacked }
+    /// Changes the card's value so its content and ledger are made again while its geometry is the same.
+    let tag: Int
+    static func == (l: RGCard, r: RGCard) -> Bool { l.id == r.id && l.stacked == r.stacked && l.tag == r.tag }
     var content: some ElementGroup {
         if stacked {
             Box().frame(width: Pixels(40), height: Pixels(20)).background(.accent)
@@ -55,22 +58,22 @@ private struct RGRoot: Component {
         case .plain:
             VStack(spacing: 2) {
                 Color(red: 0.5, green: 0.5, blue: 0.5).frame(height: Pixels(model.pad))
-                RGCard(id: 0, stacked: stacked, log: log).equatable()
-                RGCard(id: 1, stacked: stacked, log: log).equatable()
+                RGCard(id: 0, stacked: stacked, log: log, tag: model.tag).equatable()
+                RGCard(id: 1, stacked: stacked, log: log, tag: model.tag).equatable()
             }
         case .scrolled:
             ScrollView(.vertical) {
                 VStack(spacing: 2) {
                     Color(red: 0.5, green: 0.5, blue: 0.5).frame(height: Pixels(model.pad))
-                    RGCard(id: 0, stacked: stacked, log: log).equatable()
-                    RGCard(id: 1, stacked: stacked, log: log).equatable()
+                    RGCard(id: 0, stacked: stacked, log: log, tag: model.tag).equatable()
+                    RGCard(id: 1, stacked: stacked, log: log, tag: model.tag).equatable()
                     Color(red: 0.5, green: 0.5, blue: 0.5).frame(height: Pixels(400))
                 }
             }.frame(width: Pixels(150), height: Pixels(120))
         case .effect:
             VStack(spacing: 2) {
-                RGCard(id: 0, stacked: stacked, log: log).equatable()
-                RGCard(id: 1, stacked: stacked, log: log).equatable()
+                RGCard(id: 0, stacked: stacked, log: log, tag: model.tag).equatable()
+                RGCard(id: 1, stacked: stacked, log: log, tag: model.tag).equatable()
             }.scaleEffect(model.scale)
         }
     }
@@ -115,10 +118,15 @@ func aGeometryScopeInAnEquatableOccurrenceDoesNotTaintItsLedger() throws {
 /// Mutation: drop the re-note in `replayPrepaintLedger` (the next build reports `initial` again, G7).
 @Test @MainActor
 func aReplayedGeometryNoteDeliversNothingUntilTheValueChanges() throws {
-    let (w, _, log) = try rgWindow(.plain)
+    let (w, model, log) = try rgWindow(.plain)
     rgRedraw(w, 12)
     #expect(log.entries.count == 2, "\(log.entries)")
     if !rgVerifying { #expect(w.lastFrameWork.retainedPrepaintHits == 2) }
+    // A card made again (its value changed, its geometry did not) notes fresh: the store must still hold the replayed key, or
+    // it reports the same value as an `initial` (G7).
+    model.tag += 1
+    rgRedraw(w, 3)
+    #expect(log.entries.count == 2, "a re-made card with an equal value delivers nothing: \(log.entries)")
 }
 
 /// The delivered values over a script (resize, scroll, shift), for a window with retention `retained`.
@@ -196,16 +204,20 @@ func aTranslatedReplayOfAGeometryNoteIsRefusedByName() throws {
     #expect(on.redos == 0, "a refusal is no redo (`RG-J`: a ledger with a note is never grafted): \(on.redos)")
 }
 
-/// 6 (`RG-A`). Two scopes stacked at one position keep their occurrence ordinals through a replay: their values differ in kind (a
-/// frame string, a width), so a replay in the wrong order would swap them and deliver spuriously on a steady frame.
-/// Mutation: replay the recorded notes reversed.
+/// 6 (`RG-A`). Two scopes stacked at one position are two store keys (`$geometry<depth>`), and the ledger holds both: steady replayed
+/// frames deliver nothing, and a card made again with an equal geometry reports nothing for either scope (a scope the replay
+/// left out would report its value as `initial`, G7). The order the notes replay in is unobservable (the keys differ and only a
+/// changed note makes an event, `RG-K`), so reversing it is an equivalent mutation. Mutation: replay only the first recorded note.
 @Test @MainActor
-func twoGeometryScopesStackedAtOnePositionKeepTheirOrdinals() throws {
-    let (w, _, log) = try rgWindow(.plain, stacked: true)
+func twoGeometryScopesStackedAtOnePositionAreBothHeldThroughAReplay() throws {
+    let (w, model, log) = try rgWindow(.plain, stacked: true)
     rgRedraw(w, 6)
     #expect(log.entries.count == 4, "A and B for both cards, once: \(log.entries)")
     log.entries.removeAll()
     rgRedraw(w, 6)
     #expect(log.entries.isEmpty, "steady replayed frames deliver nothing: \(log.entries)")
     if !rgVerifying { #expect(w.lastFrameWork.retainedPrepaintHits == 2) }
+    model.tag += 1
+    rgRedraw(w, 3)
+    #expect(log.entries.isEmpty, "a re-made card with equal geometry reports neither scope: \(log.entries)")
 }
