@@ -51,7 +51,7 @@ with the records made inside the measured window frame 0 alone differing (it cou
 ## §4 Red first and the pins
 
 Commit `ad269e91`, against `679f5d7d` plus lane 1: `aRestoredSubtreeKeepsItsMeasurementsAlive` (F1) misses 10 against the control's 4 (9 measure calls against 3); `aRestoredSubtreeKeepsAnInnerPlacementAlive` (F2)
-`memoSubtreeHits` 0, misses 16, measures 12; `aSecondUnchangedFrameDoesExactlyTheWorkOfTheFirst` (W1) frames 0–6 all differ from frame 0 (one with `warm: 1` reads 135 measures
+`memoSubtreeHits` 0, misses 16, measures 12; `aSecondUnchangedFrameDoesExactlyTheWorkOfTheFirst` (W1) frames 1–6 differ from frame 0 (with `warm: 1` frame 0 reads 135 measures
 against 52); `theFrameAfterTheRecordsAreMadeIsAlreadySettled` (W2) frame 1 differs; `aTouchAddsNoEntryAndCountsNoLookup` (F3) is a green control by design. All five green after
 `9db8e7be`. One existing pin moved by design (`CF-J`): `theBracketNodeDragReplaysEveryUnchangedSubtree` frame 0 reads 52 in every arm, not 135 for the arms that retain nodes
 (re-baselined, comment names the cause).
