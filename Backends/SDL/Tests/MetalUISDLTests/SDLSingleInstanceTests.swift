@@ -541,13 +541,16 @@ struct SDLSingleInstanceTests {
     }
     #endif
 
-    /// 12 (SN-C item 3). A directory too long for `sun_path` is named, not truncated.
+    #if !os(Windows)
+    /// 12 (SN-C item 3). A directory too long for `sun_path` is named, not truncated. Unix only: Windows' named pipe
+    /// takes no directory.
     ///
     /// Mutation: truncate the path.
     @Test func anOverlongDirectoryIsNamedNotTruncated() {
         let directory = "/tmp/" + String(repeating: "d", count: 200)
         #expect(failure(forward("com.test.long", directory, [])) == .pathTooLong)
     }
+    #endif
 
     /// 13 (SN-E). The 65th pending message is refused; a drained queue accepts again.
     ///

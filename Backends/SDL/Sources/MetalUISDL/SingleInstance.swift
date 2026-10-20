@@ -224,7 +224,11 @@ public final class SingleInstance: @unchecked Sendable, Hashable {
         var owned: [UnsafeMutablePointer<CChar>] = []
         defer { owned.forEach { free($0) } }
         for string in strings {
+            #if os(Windows)
+            let copy = _strdup(string)!
+            #else
             let copy = strdup(string)!
+            #endif
             owned.append(copy)
             pointers.append(UnsafePointer(copy))
         }
