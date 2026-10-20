@@ -3,7 +3,7 @@
 Item S7 of the gpui-gap list (user request 2026-10-02; found answering MetalCreator's SDL-port gap 5; not a plan task). Branch
 `feat/single-instance` from `ffbabb5c`; divergence labels 525-534 reserved, none taken; decisions
 `docs/superpowers/2026-10-19-single-instance-decisions.md` (`SN-`). Record `docs/record/122-single-instance.md` (Record phase).
-**Status: implemented (SN-P records the lane's amendments: the C file is `SDLInstance.c`, Windows elects with a semaphore).** Lanes: **one** (the files below are one coherent unit and share the C bridge).
+**Status: LANDED, record 122 (SN-P records the lane's amendments: the C file is `SDLInstance.c`, Windows elects with a semaphore).** Lanes: **one** (the files below are one coherent unit and share the C bridge).
 
 ## 1. Problem
 

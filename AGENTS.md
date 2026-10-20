@@ -86,7 +86,8 @@ summary.
   `2026-10-14-image-info-decisions.md`, next `IH-Q`), `PN-` (pan path rasters:
   `2026-10-14-pan-rasters-decisions.md`, next `PN-L`), `PA-` (layout and build allocations:
   `2026-10-14-layout-allocations-decisions.md`, next `PA-S`), `EE-` (environment epoch:
-  `2026-10-14-environment-epoch-decisions.md`, next `EE-P`), …; the full
+  `2026-10-14-environment-epoch-decisions.md`, next `EE-P`), `SN-` (single-instance launch on SDL:
+  `2026-10-19-single-instance-decisions.md`, next `SN-Q`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -101,7 +102,7 @@ summary.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
   live SwiftUI difference — **158 live, next label 206** (455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC and RK, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK and SI, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -121,7 +122,8 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-19, `perf/layout-allocations` from `6273e3a4`, merged with master `41a2180f` (§120 environment epoch): 3968 tests, 0 goldens, 247 typecheck guards** (master's 3957 + 11 tests, no guard; re-measured by the orchestrator on the merged tree, record §119). Before it,
+- **Counts (2026-10-19, `feat/single-instance` from `ffbabb5c`: 3971 tests, 0 goldens, 248 typecheck guards** (3970 + 1, 247 + guard 1.6b; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 215 on macOS, 30 + 212 in the Linux image; the fourteen images 0 px against `ffbabb5c`; no root declaration, census unmoved; no divergence label taken; Windows transport compiled by CI only; record §122). Before it,
+  **(2026-10-19, `perf/layout-allocations` from `6273e3a4`, merged with master `41a2180f` (§120 environment epoch): 3968 tests, 0 goldens, 247 typecheck guards** (master's 3957 + 11 tests, no guard; re-measured by the orchestrator on the merged tree, record §119). Before it,
   **(2026-10-14, `perf/layout-allocations` from `6273e3a4`, merged with master `298c23d4` (§118 pan rasters): 3937 tests, 0 goldens, 246 typecheck guards** (master's 3926 + 11 tests (lane 1's 8, lane 2's 3), no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; no public declaration, no divergence label taken; the fourteen images 0 px against `6273e3a4` at the lanes, not re-taken after the merge; record §119). Before it,
   **(2026-10-19, `perf/environment-epoch` from `6273e3a4`, merged with master `01631221` (§104 `IV-R` memo leak fix): 3957 tests, 0 goldens, 247 typecheck guards** (master's 3930 + 27 tests, 246 + guard G1; `swift package clean`, native build 0 `error:`, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`, default build 0 `warning:`; also 3948 passed with `AppKitPresentationTests` skipped under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; re-measured by the orchestrator, record §120). Before it,
   **(2026-10-14, `perf/environment-epoch` from `6273e3a4`, merged with master `298c23d4` (§118 pan rasters): 3953 tests expected unlocked (3944 run with `AppKitPresentationTests` skipped on a locked screen), 0 goldens, 247 typecheck guards** (master's 3926 + 27 tests, 246 + guard G1; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native run `--skip AppKitPresentationTests` 0 issues, `FR-J no-argument frame: succeeded=true`; no public declaration, census unmoved; the fourteen images 0 px against `6273e3a4` at the lanes; divergence 346 narrowed, no label taken; unlocked re-take and default-build-system warnings re-take owed; record §120). Before it,
@@ -269,7 +271,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §122.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -793,6 +795,18 @@ loops of the kernel and build do not allocate per node: `roundedRect(_:)` is the
 is thread-filtered (`countAllocations`, Darwin only), differential and floor-corrected**: a debug build logs several events per
 `malloc` and allocates per `for-in` turn (`PA-J`, `PA-O`, `PA-Q`); release allocation figures are dated measurements, not pins.
 Deferred: `AmbientKey` reshape (C14-c), array-indexed measure cache (P3); the isolation-site share is unre-measured after the loops.
+
+**Single-instance launch on SDL (`SN-`, record §122).** `SingleInstance.claim(id:forwarding:configuration:)` (`MetalUISDL`, trait `SDL`,
+MetalUI-only class `M`, in `Backends/SDL` so outside the census, no seam change, no divergence label) elects a **per-user** primary and
+returns `.primary(role)`, `.forwarded` or `.unavailable(Failure)`; the role goes in `SDLPlatform.Options.singleInstance` (`launchingSingleInstance`
+does both and returns `nil` for the second launch to exit 0). The transport is the pure C file `SDLInstance.c` (`CB-H`: no Swift closure, no
+actor hop): Linux and macOS elect by `flock` and carry on a 0600 Unix socket in a user-owned 0700 directory, Windows elects with a **named
+semaphore** (a mutex is recursive on its thread, `SN-P`) and carries on a session-scoped pipe; peer uid or SID is checked and never executed.
+A message is magic, count and length-prefixed UTF-8 strings (1024 strings, 32768 bytes each, 1 MiB, no NUL, a declared length over the limit
+allocates nothing); a malformed one is refused and the listener serves on. The listener queues (64 pending) and pushes an SDL wake; `pumpEvents()`
+drains on the main actor into `handleApplicationOpen` (`AS-G` routing, parked until a handler, one `onOpenURLs` batch per launch) and raises the
+key window, else the first, never a hidden one. A failed forward runs the launch independently (`SN-F`). **A new `SDLPlatform` test arms
+`armMainRunLoopExitCheck()`; Windows is compiled by CI only (check SI3).** Deferred (`SN-L`): D-Bus activation, activation tokens, a reply channel.
 
 **Input follow-ups (`IF-`, record §93).** `SpatialTapGesture.Value.modifiers` (the last
 press's) and `DragGesture.Value.clickCount` (the press's, never the move's) are MetalUI-only

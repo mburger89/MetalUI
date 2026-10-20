@@ -2,7 +2,7 @@
 
 Rulings for item S7 (found answering MetalCreator's SDL-port gap 5; divergence 176 carries the open-document half). Spec:
 [`specs/2026-10-19-single-instance-design.md`](specs/2026-10-19-single-instance-design.md). Record: `../record/122-single-instance.md`
-(written at the Record phase). Branch `feat/single-instance` from `ffbabb5c`. Reserved divergence labels 525-534: **none taken**
+(written; landed). Branch `feat/single-instance` from `ffbabb5c`. Reserved divergence labels 525-534: **none taken**
 (MetalUI-only, class `M`; SwiftUI has no cross-process API, and macOS LaunchServices already does this for a bundled app,
 probe `docs/probes/appkit-launch-arguments-open.swift` arm `A6`).
 
