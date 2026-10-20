@@ -13,3 +13,20 @@ line, the load average, the wall and thread-CPU median and minimum of an orbit f
 **Reading.** A figure is a dated measurement on a shared Mac, never a pin; counts are the pins
 (`Tests/MetalUITestingTests/RetainedWithStateTests.swift`). For base versus head run the script from a `git archive f557d339` tree and
 from the head, alternating, three runs each, and note the load average. Results are recorded in record 121.
+
+## Recorded readings
+
+**Lane A, 2026-10-19** (release, `--quick`: 3 rounds x 20 orbit frames per run; MacBookPro, a shared Mac under load 8 to 36 while other
+workflows built, so the minima and the alternation are the reading, not any one figure). Orbit frame, wall median ms, three alternating
+runs, base `f557d339` against lane A's head `c7655fda` (the read journal, the liveness channels and the reasons dictionary, **no call
+site converted**, so no work moved: `retainedIneligible 1`, `elementRequests 115` at both):
+
+| run | base | head |
+|---|---|---|
+| 1 | 3.003 | 3.392 |
+| 2 | 3.051 | 3.100 |
+| 3 | 3.320 | 3.269 |
+
+Mean 3.13 against 3.25 ms: about +4 %, inside the noise of the three pairs (the head's run 1 had load 28 to 36). The overhead of
+journaling every `peek` and read is therefore small on this fixture; lane B's conversions are what move the number. The harness named
+in the lane brief (`Prof`) does not exist on this machine; `bracketorbit` of `perf-harness` is its replacement.
