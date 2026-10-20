@@ -87,7 +87,8 @@ summary.
   `2026-10-14-pan-rasters-decisions.md`, next `PN-L`), `PA-` (layout and build allocations:
   `2026-10-14-layout-allocations-decisions.md`, next `PA-S`), `EE-` (environment epoch:
   `2026-10-14-environment-epoch-decisions.md`, next `EE-P`), `SN-` (single-instance launch on SDL:
-  `2026-10-19-single-instance-decisions.md`, next `SN-Q`), …; the full
+  `2026-10-19-single-instance-decisions.md`, next `SN-Q`), `RW-` (retained read-only state:
+  `2026-10-19-retained-withstate-decisions.md`, next `RW-T`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -271,7 +272,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §122.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -775,6 +776,24 @@ reads still counts (`EE-A`…`EE-D`). **Still refused and counted** (divergence 
 (C14-c3), and `uncomparableCustomCount` replaces `customKeyCount` at the three retention sites (the graft site is unseparated, C14-c4).
 No public declaration. Pins count work (`EnvironmentReadingTests`, `EnvironmentEpoch*Tests`).
 
+**Retained read-only state (`RW-`, record §121).** C14b-3: a framework **read of `StateTable` is not a write**. `readState` (no version
+bump, no taint, marks the entry live, records a read) and the compared `withState(_:initial:unchanged:_:)` (an equal result is a read, a changed
+one today's write) sit beside the **plain `withState`, which keeps bumping and tainting**: a new framework site picks one of the three and
+`everyStateWriteSiteIsClassified` counts them per file; input-time writers stay plain and always bump (`RW-G`); `unchanged:` is a call-site
+closure, never a protocol on `ScrollState`/`ListOrigin` (public, `RW-Q`). **A frame-long read journal** (`StateTable.readJournal`, appended
+while retaining, `peek` included; a slot with its own channel (`$ax`, `$focus`, `$anim`) is not a read) gives the paint record, the prepaint
+ledger and the graft record a read set of `(id, version)` that must be unchanged for a hit, a mismatch being a counted **miss**; liveness
+runs in three channels (the record's `marks`, the ledger's `liveStates` through `touchLive`, the graft's `.liveState`) so a replayed field's
+`TextEditState` is not swept (`RW-E`); a replay re-notes what it stands for. A creating read, a clamp that changes the offset and a first
+sighting are writes (`RW-F`); a record made then gains its ledger one counted miss later (`RW-S`). **Eligible now:** an unfocused
+`TextField`/`TextEditor`, a settled `ScrollView`/`ProposalScrollView`, a `List` whose window did not move, a closed `Picker`/`Menu`/`.popover`
+declarer (its anchor replays from the ledger, `RW-K`). **Still miss or refuse, by name:** a focused field, a typed character, a wheel or drag, a
+selection change, `scrollTo`, an open popover, alert or dialog, a `GPUSurface` (`surface`, carried `RW-L`), `.continuous` always.
+`FrameWork.retainedIneligibleReasons` counts the three ineligible counters by channel name (`RW-M`); `METALUI_VERIFY_RETAINED=1` also traps
+`unrecordedRead` and `writeMissed` (`RW-O`). **A read a record does not name is a stale replay**: a new framework read of state goes through
+`readState`/`peek`, never a private store. Orbit with panels: element requests 115 to 6, prepaints 117 to 7, ineligible 1/2/1 to 0/0/0. One
+public `MetalUITesting` field, no divergence (labels 515–524 untouched), no SwiftUI probe. The demo's panel strip is `METALUI_RETAINED_DEMO=1`.
+
 **Pan rasters (`PN-`, record §118).** Value-identical, no public API, no divergence (labels 485–494 untouched). A path with
 **no local mask** whose conservative extent `E` (`RasterAnchor.pathExtent`: bounds with the stroke pad, grown 1) meets the clip, has
 area ≤ `RasterAnchor.overscanLimit` (2^20) and lies within half the target's size of it on every side is rasterized over `E`
@@ -914,7 +933,7 @@ composite scopes — is pushed by ancestors' `paint` after every prepaint, so a 
 (swept with it) and hits only while the value, bound `@State` versions, observed reads, layout, the ambient at paint and the whole
 environment are equal and the hovered, pressed or focused element is not under it (`SB-X`); a descendant whose content ran kills its
 ancestors' records (`SB-AC`); a subtree that scrolls, edits text, animates, shows a popover/alert or draws a surface, or sits under a
-custom environment key, is ineligible. **Scene output equals a fresh frame:** `METALUI_VERIFY_RETAINED=1` runs the fresh paint beside
+custom environment key, is ineligible (a settled scroller, an unfocused field, a `List` and a closed popover declarer are not, since `RW-`, record §121). **Scene output equals a fresh frame:** `METALUI_VERIFY_RETAINED=1` runs the fresh paint beside
 every replay and traps (`SB-W`); a test that must see every prepaint sets package `Window.testingRetainedSubtrees = false`. **Lane 2 is
 the subtree placement memo alone** (`SB-AD`): `LayoutTree.markPlacementRoot` roots restore their unrounded pre-order rects from
 `LayoutMemo` under `PlacementKey(signature, proposal, bounds)`, origin included, no translation; `Color` and empty containers are keyed

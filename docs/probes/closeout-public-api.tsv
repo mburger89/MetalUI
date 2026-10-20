@@ -1989,7 +1989,7 @@ MetalUI	Sources/MetalUI/TextEditor.swift:166	TextEditor	struct	Layout
 MetalUI	Sources/MetalUI/TextEditor.swift:168	TextEditor.Layout	var	node
 MetalUI	Sources/MetalUI/TextEditor.swift:192	TextEditor	func	requestLayout
 MetalUI	Sources/MetalUI/TextEditor.swift:300	TextEditor	func	prepaint
-MetalUI	Sources/MetalUI/TextEditor.swift:351	TextEditor	func	paint
+MetalUI	Sources/MetalUI/TextEditor.swift:350	TextEditor	func	paint
 MetalUI	Sources/MetalUI/TextField.swift:26	-	struct	TextField
 MetalUI	Sources/MetalUI/TextField.swift:27	TextField	var	style
 MetalUI	Sources/MetalUI/TextField.swift:28	TextField	var	decoration
@@ -2015,7 +2015,7 @@ MetalUI	Sources/MetalUI/TextField.swift:171	TextField	struct	Layout
 MetalUI	Sources/MetalUI/TextField.swift:173	TextField.Layout	var	node
 MetalUI	Sources/MetalUI/TextField.swift:200	TextField	func	requestLayout
 MetalUI	Sources/MetalUI/TextField.swift:275	TextField	func	prepaint
-MetalUI	Sources/MetalUI/TextField.swift:323	TextField	func	paint
+MetalUI	Sources/MetalUI/TextField.swift:322	TextField	func	paint
 MetalUI	Sources/MetalUI/TextFieldStyle.swift:23	-	struct	TextFieldStyle
 MetalUI	Sources/MetalUI/TextFieldStyle.swift:35	TextFieldStyle	let	automatic
 MetalUI	Sources/MetalUI/TextFieldStyle.swift:37	TextFieldStyle	let	roundedBorder
@@ -3353,9 +3353,10 @@ MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:54	Retai
 MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:56	RetainedSubtreeDemoModel	var	applyPrepaintReplay
 MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:58	RetainedSubtreeDemoModel	var	applySkipBuild
 MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:60	RetainedSubtreeDemoModel	var	grafts
-MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:68	RetainedSubtreeDemoModel	init	init
-MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:82	RetainedSubtreeDemoModel	func	reset
-MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:106	-	let	retainedSubtreeDemoModel
+MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:62	RetainedSubtreeDemoModel	var	reasons
+MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:70	RetainedSubtreeDemoModel	init	init
+MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:84	RetainedSubtreeDemoModel	func	reset
+MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:108	-	let	retainedSubtreeDemoModel
 MetalUIDemoContent	Sources/MetalUIDemoContent/RichTextDemo.swift:25	-	func	richTextDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/SelectionDemo.swift:25	-	func	selectionDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/SelectionDemo.swift:33	-	class	SelectionDemoModel
