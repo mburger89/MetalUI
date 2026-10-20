@@ -2,7 +2,7 @@
 
 Rulings for item F3 (MetalCreator report: an `.equatable()` component stays skipped on SDL/Linux/Windows after an observed write).
 Spec: [`specs/2026-10-19-memo-observation-thread-design.md`](specs/2026-10-19-memo-observation-thread-design.md). Record:
-`../record/123-memo-observation-thread.md` (to be written). Branch `fix/memo-observation-thread` from `4d91f27f`. Reserved divergence
+`../record/123-memo-observation-thread.md`. Branch `fix/memo-observation-thread` from `4d91f27f`. Reserved divergence
 labels 535-544: none taken (no SwiftUI-visible difference; SwiftUI invalidates synchronously, which this restores).
 
 Prefix **`MO-`**, lettered. **Next unused: `MO-I`.** (Moves in the commit that appends a ruling.)

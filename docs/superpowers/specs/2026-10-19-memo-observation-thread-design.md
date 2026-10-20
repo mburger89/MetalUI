@@ -1,7 +1,9 @@
 # F3 - memo and retained observation off the main thread - design
 
 Item F3 of the gpui-gap list (MetalCreator report, 2026-10-02). Rulings: `../2026-10-19-memo-observation-thread-decisions.md`
-(prefix `MO-`). Record to write: `docs/record/123-memo-observation-thread.md`. Branch `fix/memo-observation-thread` from `4d91f27f`.
+(prefix `MO-`). Record: `docs/record/123-memo-observation-thread.md`.
+
+**Status: LANDED with two pin gaps open** (record 123 §6: the retained handle and `MO-F` have no macOS-reddening pin; spec test 5 dropped, `MO-H`; verification list unfinished). Branch `fix/memo-observation-thread` from `4d91f27f`.
 No public API, no divergence (labels 535-544 reserved, none taken), no `Platform`/`PlatformWindow` requirement, no shader change.
 
 ## 1. The defect (hypothesis verified by reading the source; the Linux red is the implementer's first step)
