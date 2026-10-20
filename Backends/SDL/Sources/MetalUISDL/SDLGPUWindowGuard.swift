@@ -7,9 +7,10 @@ import Foundation
 /// ``endDraw()``; the typed layer in `MetalUISDLGPU` reports into it. In a
 /// **debug** build a typed `waitForIdle` from inside the draw, and a draw that
 /// returns with a typed pass still open, trap naming the contract (both pinned);
-/// the async `submitBatch` and `fence.wait` call ``assertNotInsideDraw(_:)`` too,
-/// unpinned (a synchronous draw cannot reach an async verb on its own thread,
-/// `GA-O`). In a release build every method is empty.
+/// the async `submitBatch` and `fence.wait` call ``assertNotInsideDraw(_:)`` too;
+/// a synchronous draw cannot reach an async verb on its own thread (`GA-O`), so
+/// they are pinned through ``enterSimulatedDrawForTesting()`` (`GA-R`). In a
+/// release build every method is empty.
 ///
 /// It sees only what goes through the typed layer: a raw SDL call on
 /// ``SDLGPUDrawContext/commandBuffer`` is undetectable (SDL3 has no
@@ -54,6 +55,24 @@ package enum SDLGPUWindowGuard {
     package static func passEnded() {
         #if DEBUG
         lock.lock(); openPasses -= 1; lock.unlock()
+        #endif
+    }
+
+    /// Test hook (ruling `GA-R`, `package`, debug only): marks the **calling
+    /// thread** as drawing, as ``beginDraw()`` does, so a test can call a verb
+    /// that a synchronous draw cannot reach on its own thread (the async
+    /// `submitBatch` and `fence.wait`). Pair with ``leaveSimulatedDrawForTesting()``;
+    /// it is never called by the library.
+    package static func enterSimulatedDrawForTesting() {
+        #if DEBUG
+        beginDraw()
+        #endif
+    }
+
+    /// Test hook: clears what ``enterSimulatedDrawForTesting()`` set.
+    package static func leaveSimulatedDrawForTesting() {
+        #if DEBUG
+        lock.lock(); drawingThread = nil; openPasses = 0; lock.unlock()
         #endif
     }
 

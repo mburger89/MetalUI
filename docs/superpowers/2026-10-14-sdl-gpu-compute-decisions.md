@@ -2,7 +2,7 @@
 
 Rulings for items S5 and S6 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
 MetalCreator's SDL-port gaps 1 and 2 (developer-c0, 2026-10-13/14), RAISED: they block its xp-c track (GPU
-meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-R`.**
+meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-S`.**
 Spec: [`specs/2026-10-14-sdl-gpu-compute-design.md`](specs/2026-10-14-sdl-gpu-compute-design.md).
 Record: `../record/114-sdl-gpu-compute.md`. Branch `feat/sdl-gpu-compute` from `fb9a7e42`.
 Divergence labels reserved 445–454: **none taken** (`GA-J`).
@@ -356,7 +356,7 @@ older presented-frame tests. Windows is carried: the UTM VM did not answer (`ssh
 `utmctl` here); CI's Windows job runs the suite with `METALUI_REQUIRE_GPU=1` on WARP, which is where the new
 graphics tests first meet D3D12 (an R32_UINT colour target and 4x MSAA on R8G8B8A8 are the two unmeasured formats).
 
-## GA-P — The checks in `submitBatch` and `fence.wait` are unpinned, and the docs say so
+## GA-P — The checks in `submitBatch` and `fence.wait` are unpinned, and the docs say so (closed by `GA-R`)
 
 **Question.** The lane 2 verifier removed `assertNotInsideDraw("SDLGPUFence.wait")` and, separately,
 `assertNotInsideDraw("SDLGPUDevice.submitBatch")`: nothing reddened. Pin them or narrow the claim?
@@ -375,7 +375,7 @@ contract violation the guard sees; a `Task { }` or `Task.detached` call runs lat
 The two checks stay, as belt and braces for a caller that does reach them on the drawing thread, and the doc
 comments of `SDLGPUDrawContext` and `SDLGPUWindowGuard` are narrowed to what is pinned: `waitForIdle` (D2) and an
 open pass (D1). Carried: a hook that sets the flag from a test on the calling thread, which would make both
-reachable without `Task.immediate`; owner the xp-c integration if an app calls an async verb from a draw.
+reachable without `Task.immediate`; owner the xp-c integration if an app calls an async verb from a draw. **Closed by `GA-R`**, which built the hook and pinned both checks.
 **Cost if wrong.** An app that does it gets today's behaviour (an async hop that runs after the draw).
 
 ## GA-Q — A fragment stage's inputs must be the vertex stage's outputs, in order; checked-in shader files are byte-stable
@@ -398,3 +398,21 @@ a D3D12 pipeline fails. Not changed: the wrapper (no blend or depth fix was need
 **Evidence.** The register mismatch is inferred from the error and the interface; the VM was unreachable, so CI is
 the measurement (see record 114, Windows CI fixes). **Cost if wrong.** A further Windows failure of the same
 test, then a wrapper-side cause (the format) is next.
+
+## GA-R — GA-P closed: a test hook marks the calling thread as drawing, and both async checks are pinned
+
+**Question.** Can the `submitBatch` and `fence.wait` checks be pinned without `Task.immediate`?
+
+**Evidence.** `GA-P`: the old exit tests died `SIGTRAP` with the guard line removed too, so they could not tell the
+guard from an unrelated crash. The guard is a thread comparison made on entry to the verb, so it needs only the
+drawing thread to be set, not a real draw.
+**Ruling.** `SDLGPUWindowGuard.enterSimulatedDrawForTesting()` / `leaveSimulatedDrawForTesting()` (`package`, debug
+bodies, never called by the library, no public API) set and clear the calling thread as the drawing thread exactly
+as `beginDraw()` does. D6 (`aSubmitBatchInsideADrawTrapsInDebug`) calls `submitBatch` and D7
+(`aFenceWaitInsideADrawTrapsInDebug`, fence made **before** the mark) calls `fence.wait` after the mark, each in an exit
+test (`processExitsWith: .failure`, the D1/D2 pattern) that asserts stderr contains `<verb> was called inside a
+surface draw`, so an unrelated crash fails the test on the message. Separation by mutation, each applied alone: the
+`submitBatch` guard line removed reddens D6 only; the `fence.wait` line removed reddens D7 only (record 125). The doc
+comments of `SDLGPUDrawContext` and `SDLGPUWindowGuard` now list all four typed checks as pinned; a raw SDL call stays
+undetected (`GA-I`). **Cost if wrong.** A hook that diverges from a real draw's thread state; `beginDraw()` is the
+one setter both use.
