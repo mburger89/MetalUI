@@ -76,7 +76,7 @@ func theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState() throws {
 
 // MARK: The probe element: state read in layout, prepaint and paint
 
-@MainActor final class RWIDs { var id: GlobalElementID?; var layouts = 0; var paints = 0 }
+@MainActor final class RWIDs { var id: GlobalElementID?; var layouts = 0; var paints = 0; var carried = 1 }
 
 private enum RWMode: String, CaseIterable, CustomTestStringConvertible {
     case readOnly, compared, plainWrite
@@ -91,7 +91,8 @@ private enum RWPhase: String, CaseIterable, CustomTestStringConvertible {
 }
 
 /// A leaf whose width is ten times its state and whose rectangle's alpha is a tenth of it, the state read through the mode's spelling
-/// in the phase(s) `phase` names (layout feeds the width, paint the alpha, prepaint nothing visible: a miss is its only trace).
+/// in the phase(s) `phase` names (layout-only: the value is carried to paint, the width stays; prepaint-only: nothing visible, a miss
+/// is its only trace).
 private struct RWLeaf: Element {
     let mode: RWMode
     let ids: RWIDs
@@ -119,8 +120,12 @@ private struct RWLeaf: Element {
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
         ids.id = id; ids.layouts += 1
-        let v = phase.reads(.layout) ? Double(value(id, layout: pass, prepaint: nil, paint: nil)) : 1
-        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10 * v, height: 20)) }.layoutNodeID, ())
+        let v = phase.reads(.layout) ? value(id, layout: pass, prepaint: nil, paint: nil) : 1
+        // The layout-only arm reads what **selects content, not size** (a `List`'s window is the real case): the value is
+        // carried to paint and the width stays 10, so only the record's versions can tell a replay it is stale.
+        ids.carried = v
+        let width = phase == .layout ? 10 : 10 * Double(v)
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: width, height: 20)) }.layoutNodeID, ())
     }
 
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
@@ -129,7 +134,7 @@ private struct RWLeaf: Element {
 
     func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
         ids.paints += 1
-        let v = phase.reads(.paint) ? value(id, layout: nil, prepaint: nil, paint: pass) : 1
+        let v = phase == .layout ? ids.carried : phase.reads(.paint) ? value(id, layout: nil, prepaint: nil, paint: pass) : 1
         pass.fill(bounds, color: Hsla(h: 0.5, s: 0.5, l: 0.5, a: Float(v) / 10))
     }
 }
@@ -212,8 +217,8 @@ private func aReadOnlyOccurrenceReplaysAndAnInputWriteToItsStateMisses(label: St
     f = rwDraw(window); _ = rwDraw(twin)
     let rect = try #require(rwRect(window)), want = try #require(rwRect(twin))
     #expect(rect.alpha == want.alpha && rect.width == want.width, "equals the retention-off twin: \(rect) vs \(want)")
-    if phase.reads(.layout) { #expect(rect.width == 40, "layout read the new state: \(rect)") }
-    if phase.reads(.paint) { #expect(rect.alpha == 0.4, "paint read the new state: \(rect)") }
+    if phase == .all { #expect(rect.width == 40, "layout read the new state: \(rect)") }
+    if phase != .prepaint { #expect(rect.alpha == 0.4, "layout (carried) or paint read the new state: \(rect)") }
     #expect(f.retainedHits == 0 && f.retainedMisses == 1, "a miss on the version: hits \(f.retainedHits) misses \(f.retainedMisses)")
     // A record made on a miss covers only its paint (`SB-V`), so the next frame records again and the one after replays.
     f = rwDraw(window); _ = rwDraw(twin)
