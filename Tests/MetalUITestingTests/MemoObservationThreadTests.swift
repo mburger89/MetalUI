@@ -82,6 +82,18 @@ private struct MOOuter: Component, @MainActor Equatable {
     window.scene.rects.withUnsafeBytes { Data($0) }
 }
 
+private struct MOSharedReader: Component {
+    let model: MOSharedStore
+    var content: some ElementGroup { moCard("v\(model.value)", value: model.value) }
+}
+
+private struct MOSharedOuter: Component, @MainActor Equatable {
+    let rect: Int
+    let model: MOSharedStore
+    var content: some ElementGroup { MOSharedReader(model: model) }
+    static func == (l: MOSharedOuter, r: MOSharedOuter) -> Bool { l.rect == r.rect }
+}
+
 @MainActor @Suite(.serialized) struct MemoObservationThreadTests {
     /// Test 1. The MetalCreator report's shape: an `.equatable()` component reading an `@Observable` through
     /// `@Environment(Store.self)`, a write on the same instance, the very next frame. Mutation: `ContentMemoHandle.fire`
@@ -180,16 +192,47 @@ private struct MOOuter: Component, @MainActor Equatable {
     }
 
     /// Test 8 (`MO-F`). A change that lands between a record's sessions arming and the record's own clear is not
-    /// erased by it: the next frame does not replay. Mutation: the plain `observedChange = false` at the clear.
+    /// erased by it: the next frame does not replay. The write is made through `RetainedTestingHooks.beforeRecordClear`
+    /// (the one point after arming and before the clear). Mutation: the plain `_observedChange = false` in
+    /// `MemoFlags.clearObservedChange`.
     @Test func aChangeDuringARecordsFrameIsNotErasedByItsClear() throws {
         let model = MOStore()
         let budget = MOBudget()
-        budget.writes = 1
+        var fired = 0
+        RetainedTestingHooks.beforeRecordClear = {
+            if fired == 0 { fired += 1; model.value = 1 }
+        }
+        defer { RetainedTestingHooks.beforeRecordClear = nil }
         let window = try harnessWindow {
             VStack(spacing: 0) { MOOuter(rect: 1, model: model, budget: budget).equatable() }
         }
+        _ = frame(window)
+        try #require(fired == 1, "the first frame recorded and the write landed before the clear")
         let f = frame(window)
-        #expect(f.retainedHits == 0 && f.retainedGrafts == 0, "the frame after a mid-build write replays nothing")
+        #expect(f.retainedHits == 0 && f.retainedGrafts == 0, "the frame after a mid-frame write replays nothing")
         _ = try window.element(label: "v1")
+    }
+
+    /// Test 7 (`MO-G`, retained). A real `Thread` writes a model that only a retained session observes (the `MOOuter`
+    /// shape); joined with no yield, the next frame neither replays nor grafts. Red on macOS too. Mutation:
+    /// `RetainedHandle.fire` sets the flag only when `Thread.isMainThread`.
+    @Test func aWriteFromAnotherThreadIsSeenByTheRetainedRecordBeforeTheWriterReturns() throws {
+        let model = MOSharedStore()
+        let window = try harnessWindow {
+            VStack(spacing: 0) { MOSharedOuter(rect: 1, model: model).equatable() }
+        }
+        _ = try window.element(label: "v0")
+        for _ in 0..<4 { _ = frame(window) }
+        var f = frame(window)
+        try #require(f.retainedHits + f.retainedGrafts > 0, "a steady frame replays or grafts")
+        let before = rectBytes(window)
+        let done = DispatchSemaphore(value: 0)
+        let writer = Thread { model.value = 1; done.signal() }
+        writer.start()
+        done.wait()
+        f = frame(window)
+        #expect(f.retainedHits == 0 && f.retainedGrafts == 0, "the changed subtree is neither replayed nor grafted")
+        _ = try window.element(label: "v1")
+        #expect(rectBytes(window) != before)
     }
 }

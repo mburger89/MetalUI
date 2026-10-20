@@ -63,7 +63,7 @@ thread). Two sites changed, five audited and left.
 
 ## §3 Tests and guards
 
-`Tests/MetalUITestingTests/MemoObservationThreadTests.swift` (6 tests, portable: `MetalUI` and `MetalUITesting` only; no test yields
+`Tests/MetalUITestingTests/MemoObservationThreadTests.swift` (7 tests, portable: `MetalUI` and `MetalUITesting` only; no test yields
 the main actor between a write and its frame):
 
 1. `anObservedWriteOnTheMainActorIsSeenByTheNextFrameThroughAnEnvironmentStore` — the report's shape.
@@ -72,7 +72,12 @@ the main actor between a write and its frame):
 4. `aWriteFromAnotherThreadIsSeenBeforeTheWriterReturns` — a real `Thread` writes a non-main-actor `@unchecked Sendable` `@Observable`
    store (`MO-G`), is joined with no yield, the next frame re-evaluates. Memo-only (the model is read in a memo getter).
 5. `aRetiredSessionsFireChangesNothing` — three re-evaluations then two steady frames skip (guards `IV-L` item 5 under the lock).
-6. `aChangeDuringARecordsFrameIsNotErasedByItsClear` — `MO-F`.
+6. `aChangeDuringARecordsFrameIsNotErasedByItsClear` — `MO-F`, now through the `package` seam `RetainedTestingHooks.beforeRecordClear`
+   (`RetainedSubtree.swift`, run between the record being stored and the clear; the test's hook writes the model once there, so a live
+   build session fires after arming and before the clear).
+7. `aWriteFromAnotherThreadIsSeenByTheRetainedRecordBeforeTheWriterReturns` — a real `Thread` writes an `@unchecked Sendable` model read
+   only by a descendant of an `.equatable()` occurrence (retained session only, no content memo reads it), joined with no yield; the next
+   frame has `retainedHits == retainedGrafts == 0` and paints `v1`. Red on macOS.
 
 **The spec's test 5 (a write inside the getter) was dropped** (`MO-H`): `withObservationTracking` installs its registrations after the
 body returns, so such a write is invisible to that session on every platform (contentEvaluations read 0 both before and after the
@@ -92,14 +97,16 @@ existing `MemoryReleaseTests`, run unchanged. **Typecheck guards: 0 new** (no ty
 | mutation | spelling | reddened | verdict |
 |---|---|---|---|
 | set `stale` only when `Thread.isMainThread` (the old off-main behaviour) | `ContentMemoHandle.fire`, memo branch | `aWriteFromAnotherThreadIsSeenBeforeTheWriterReturns` (2 issues), `ContentMemoWindowTests.aBackgroundThreadWriteDirtiesAMemoWithinOneFrame` | proven |
-| `fireRetained()` only when `Thread.isMainThread` | `RetainedHandle.fire` | **nothing** | **gap, §6 item 1** |
-| plain `_observedChange = false` (drop the `changes` equality guard) | `MemoFlags.clearObservedChange` | **nothing** (`aChangeDuringARecordsFrameIsNotErasedByItsClear` stayed green) | **gap, §6 item 2** |
+| `fireRetained()` only when `Thread.isMainThread` | `RetainedHandle.fire` | **nothing** | **gap, §6 item 1 (closed, test 7)** |
+| plain `_observedChange = false` (drop the `changes` equality guard) | `MemoFlags.clearObservedChange` | **nothing** (`aChangeDuringARecordsFrameIsNotErasedByItsClear` stayed green) | **gap, §6 item 2 (closed, test 6 reworked)** |
 
 Both survivors ran the full suite: 3977 tests, the only issues the five `AppKitPresentationTests` sheet issues of a locked screen
 (`CI-AF`, pre-existing). Not run: the `MO-D` mutation (unpinned by construction), the serial-compare mutation behind test 5, the
 `IV-R` strong-hold mutation behind `MemoryReleaseTests`.
 
 ## §6 Open at the Record phase (named, with owners)
+
+**Items 1 and 2 are CLOSED by the F3 follow-up** (test 7 and the reworked test 6; measured below). Their original text stays for the record.
 
 1. **The retained-handle fix has no macOS pin.** Tests 3 and 4 do not separate it on macOS: test 4 is memo-only. The pin that does is red
    only in the Linux image. Owed: a deterministic cross-thread retained test (a real `Thread` writes a model only a retained session
@@ -109,7 +116,12 @@ Both survivors ran the full suite: 3977 tests, the only issues the five `AppKitP
    write does not fire a live retained session between arming and the clear. Either build the scenario (the write must land after the
    paint session is armed and before the clear) and show it red, or weaken `MO-F`'s ruling and the docstring to "unproven". The fix itself
    is in the source and harmless (a no-op when no fire landed), so no existing pin moved; its pin is unproven. Owner: F3 follow-up.
-3. **Not run:** `swift build --build-tests` (default build system) warning count, `METALUI_VERIFY_RETAINED=1` and
+3. **Follow-up measurements (native, filtered `MemoObservationThread`, 7 tests):** item 1, `RetainedHandle.fire` `if live && Thread.isMainThread { entryFlags.fireRetained() }`:
+   reddened `aWriteFromAnotherThreadIsSeenByTheRetainedRecordBeforeTheWriterReturns` (2 issues: the retained counters and the missing `v1`) and
+   nothing else in the filter. Item 2, `MemoFlags.clearObservedChange` replaced by an unconditional `_observedChange = false`: reddened
+   `aChangeDuringARecordsFrameIsNotErasedByItsClear` (2 issues). Both restored with `git checkout`. The scenario for `MO-F` can occur only
+   after the paint session is armed (a write in paint, or another thread); the guard is needed and now pinned through the hook.
+4. **Not run:** `swift build --build-tests` (default build system) warning count, `METALUI_VERIFY_RETAINED=1` and
    `METALUI_VERIFY_LAYOUT_MEMO=1` runs, the fourteen-image comparison against `4d91f27f`, `Backends/SDL` and the Linux image
    re-take after the final commit. The change touches no `Backends/SDL` file and no pixel path; the comparison is owed, not assumed.
 

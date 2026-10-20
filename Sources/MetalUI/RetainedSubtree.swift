@@ -342,6 +342,12 @@ struct RetainedBuildWindow {
     }
 }
 
+/// A test seam (`MO-F`): runs on the main actor between a record being stored and its `observedChange` clear, the
+/// one point where a fire can land after the sessions were armed. `nil` outside tests; `package`, so an app cannot spell it.
+package enum RetainedTestingHooks {
+    nonisolated(unsafe) package static var beforeRecordClear: (@MainActor () -> Void)?
+}
+
 // MARK: - The phase object
 
 /// What prepaint hands to paint (`SB-`): carried in `ComponentPrepaint`'s box.
@@ -662,6 +668,7 @@ extension Frame {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
+            RetainedTestingHooks.beforeRecordClear?()
             phase.entry.flags.clearObservedChange(ifChangesEqual: phase.changesAtStart)   // `MO-F`
         }
     }
