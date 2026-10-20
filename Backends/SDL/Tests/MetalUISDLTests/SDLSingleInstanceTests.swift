@@ -143,6 +143,10 @@ private func rawConnect(_ path: String) -> Int32? {
     #endif
     let fd = socket(AF_UNIX, stream, 0)
     guard fd >= 0 else { return nil }
+    #if !os(Linux)
+    var noSignal: Int32 = 1   // a refused write must be an error, not SIGPIPE
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
+    #endif
     var address = sockaddr_un()
     address.sun_family = sa_family_t(AF_UNIX)
     let bytes = Array(path.utf8CString)
@@ -162,7 +166,11 @@ private func rawConnect(_ path: String) -> Int32? {
 private func rawWrite(_ fd: Int32, _ bytes: [UInt8]) {
     var sent = 0
     while sent < bytes.count {
+        #if os(Linux)
+        let n = bytes[sent...].withUnsafeBytes { send(fd, $0.baseAddress, $0.count, Int32(MSG_NOSIGNAL)) }
+        #else
         let n = bytes[sent...].withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+        #endif
         if n <= 0 { return }
         sent += n
     }
