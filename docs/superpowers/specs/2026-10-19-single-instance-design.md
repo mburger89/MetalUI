@@ -86,7 +86,7 @@ directory (SN-K). Mutations are applied one at a time, full unfiltered suite, co
 11. `theSocketAndItsDirectoryArePrivate` - 0700 directory, 0600 socket and lock; a 0777 directory and a symlinked directory answer
     `.insecureDirectory`. M: drop `umask`; M: skip `lstat`.
 12. `anOverlongDirectoryIsNamedNotTruncated` - `.pathTooLong`. M: truncate.
-13. `theSixtyFifthPendingMessageIsRefused` (no platform draining) and `aDrainedQueueAcceptsAgain`. M: unbounded queue.
+13. `theSixtyFifthPendingMessageIsRefused` (no platform draining); the same test then drains and asserts the queue accepts again. M: unbounded queue.
 14. `twoIdsAreTwoIndependentPrimaries` and `anEmptyIDIsRefused`. M: id ignored in the hash.
 15. `aDeliveredMessageRaisesTheKeyWindowElseTheFirstAndNeverAHiddenOne` (the `raiseWindow` stub; an empty forward also raises;
     `raisesWindow: false` and `hidesWindows` do not). M: always raise;
