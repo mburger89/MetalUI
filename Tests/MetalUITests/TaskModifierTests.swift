@@ -205,7 +205,10 @@ private struct TKTwice: Component {
     window.drawFrameIfNeeded()
     #expect(log.take() == ["disappear", "cancel"], "task outside onDisappear (X4b)")
     let done = await pumpMainActor(until: { resumed.entries.count == 2 })
-    #expect(done && resumed.entries == ["A true", "B true"], "\(resumed.entries)")
+    // Both resumptions are ordinary main-actor jobs of two tasks: the runtime does not promise
+    // which runs first (under load, and under `METALUI_VERIFY_RETAINED=1`, "B" was seen first: F2).
+    // The cancel order is already pinned through `log` above; here only that each resumed cancelled.
+    #expect(done && resumed.entries.sorted() == ["A true", "B true"], "\(resumed.entries)")
 }
 
 /// **3.6** (`X5`, `PX-F` item 5). An id change cancels the old task, then

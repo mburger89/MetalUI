@@ -166,6 +166,62 @@ private let primary: EventModifiers = .control
     #expect(m.log == ["button"])
 }
 
+/// S3b — `CB-B`'s exact-modifier rule: only `primary` + C/X/V claims. A chord with an extra modifier
+/// (⌘⇧C, ⌘⌥V, ⌘⌃X; off Apple Ctrl+Shift/Alt/Super) is not the clipboard's: nothing is written, no
+/// action runs, and the key reaches a later stage (a `Button` shortcut for the same letter).
+/// Mutation: `key.modifiers == .primary` → `.contains(.primary)`.
+@Test @MainActor func onlyThePrimaryModifierAloneClaimsCopyCutPaste() throws {
+    let m = ClipboardModel()
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            square("a").focusable()
+                .copyable([m.graph])
+                .cuttable(for: Graph.self) { m.cuts += 1; return [m.graph] }
+                .pasteDestination(for: Graph.self) { m.pasted.append($0) }
+            Button("shift c") { m.log.append("shift-c") }.keyboardShortcut("c", modifiers: primary.union(.shift))
+            Button("alt v") { m.log.append("alt-v") }.keyboardShortcut("v", modifiers: primary.union(.option))
+        }
+    }
+    window.typeKey(.tab)
+    window.setClipboard(Graph(label: "on-board"))
+    let before = window.clipboardRepresentations.map(\.type.identifier)
+    let other: EventModifiers = primary == .command ? .control : .command
+    window.typeKey("c", modifierFlags: primary.union(.shift))
+    window.typeKey("v", modifierFlags: primary.union(.option))
+    window.typeKey("x", modifierFlags: primary.union(other))
+    #expect(m.cuts == 0)
+    #expect(m.pasted.isEmpty)
+    #expect(window.clipboardRepresentations.map(\.type.identifier) == before, "nothing was written")
+    #expect(m.log == ["shift-c", "alt-v"], "the declined chords reached the Buttons' shortcuts")
+    // Separating arm: the exact chord claims.
+    window.typeKey("c", modifierFlags: primary)
+    window.typeKey("x", modifierFlags: primary)
+    window.typeKey("v", modifierFlags: primary)
+    #expect(m.cuts == 1)
+    #expect(m.pasted.count == 1)
+}
+
+/// S3b / `CB-R` — an empty clipboard declines before anything runs: no validator call, no action, and
+/// the next stage (a `Button`'s ⌘V) runs. Pins the behaviour the removed `item.types.isEmpty` early
+/// return duplicated (`importClipboardItem` finds no type and answers `nil` first).
+@Test @MainActor func anEmptyClipboardDeclinesWithoutRunningTheValidatorOrTheAction() throws {
+    let m = ClipboardModel()
+    var validations = 0
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            square("a").focusable()
+                .pasteDestination(for: Graph.self, action: { m.pasted.append($0) },
+                                  validator: { validations += 1; return $0 })
+            Button("Paste command") { m.log.append("button") }.keyboardShortcut("v")
+        }
+    }
+    window.typeKey(.tab)
+    window.typeKey("v", modifierFlags: primary)
+    #expect(validations == 0)
+    #expect(m.pasted.isEmpty)
+    #expect(m.log == ["button"])
+}
+
 /// 1.7 — the validator decides, and an empty result declines (the next stage runs).
 /// Mutation: skip the validator.
 @Test @MainActor func theValidatorDecidesAndAnEmptyResultDeclines() throws {
