@@ -178,3 +178,18 @@ without a `Column` wrapper (`FS-C`): a public generic change to `List.Row`; owne
 (`subtreeSignature(of:relativeTo:)`), `FrameWork.swift`, the demo section and `FinerScopesTranslationTests.swift`. Lane 1 may edit
 `RetainedPrepaint.swift` only in the commit that fixes `FS-C` if the cause is in a decision function, and lane 2 starts after that commit.
 **Cost if wrong.** A merge conflict in `Frame.swift`, resolved by lane 2 (the later).
+
+## FS-M - Critic: the translation gate also requires a whole-device-pixel delta (amends FS-D, FS-E)
+
+**Defect found.** `FS-D`'s gate (recorded numbers and delta multiples of 1/16, below 2^19) makes the add exact in `Float` but not equal to a
+fresh paint: a glyph run's subpixel bin (`GlyphImage.subpixelPlacement(forDeviceX:)`, `PT-C`), an image's resampling phase and a
+`RasterAnchor` raster (`PF-A`: only a whole-device-pixel move hands back the same raster) are functions of the **fractional** device
+position, so a fractional delta (e.g. 0.25 px) adds exactly and draws different pixels, and `METALUI_VERIFY_RETAINED` would trap on it late.
+**Ruling.** A translation is accepted only if the delta is a **whole number of device pixels on both axes** (checked in device pixels after
+the scale, so 4 pt at scale 1.5 = 6 px is accepted while a 1 pt shift at 1.5 refuses), **and** the recorded coordinates satisfy the 1/16 /
+2^19 exactness test. A rect-only occurrence may be relaxed to the 1/16 rule only if the spike's differential shows equality; the default is
+whole pixels for every kind. Refusal name `fractionalTranslation` (new reason beside `inexactTranslation`). Test 2.9 uses a 0.25 px shift
+(scale 4, 1 pt) and a 1 pt shift at 1.5; 2.5 gains a whole-pixel arm at 1.5 (accepted when recorded origins are exact, else
+`inexactTranslation`); mutation for 2.9: the whole-pixel test replaced by `true` must redden the glyph-run differential.
+**Rejected.** Relying on the verify switch alone to catch it: it is a development switch, not a gate. **Cost if wrong.** Fewer accepts
+(fractional layout shifts miss as today).
