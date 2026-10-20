@@ -1,0 +1,91 @@
+import Foundation
+import MetalUI
+import MetalUIScene
+import MetalUITesting
+import Testing
+
+// C14-d design measurement (FS-, record 126). Copy to Tests/MetalUITestingTests/FinerScopesMeasure.swift and run
+//   swift test --build-system native --no-parallel --filter finerScopesMeasure
+// It prints one line per scenario and frame; nothing is asserted. Counts only (work, never time).
+
+@MainActor final class FSModel {
+    var values: [Int] = Array(0..<24)      // card i shows values[i]
+    var ids: [Int] = Array(0..<24)         // ForEach identities, in order
+    var pos: [Float] = (0..<24).map { Float($0 * 12) }
+    var shift: Float = 0
+}
+
+struct FSCard: Component, @MainActor Equatable {
+    let id: Int
+    let value: Int
+    static func == (l: FSCard, r: FSCard) -> Bool { l.id == r.id && l.value == r.value }
+    var content: some ElementGroup {
+        HStack(spacing: 4) {
+            Color(red: 0.2, green: 0.4, blue: 0.8).frame(width: Pixels(10), height: Pixels(10))
+            Text("Card \(id) = \(value)")
+            Color(red: 0.8, green: 0.4, blue: 0.2).frame(width: Pixels(10), height: Pixels(10))
+        }
+        .frame(height: Pixels(20))
+    }
+}
+
+enum FSScenario: CaseIterable { case valueChange, insertFront, position, scroll, listScroll, listStatic, listValue }
+
+struct FSRoot: Component {
+    let model: FSModel
+    let scenario: FSScenario
+    var content: some ElementGroup {
+        switch scenario {
+        case .valueChange, .insertFront:
+            VStack(spacing: 2) {
+                ForEach(model.ids, id: \.self) { i in FSCard(id: i, value: model.values[i % 24]).equatable() }
+            }
+        case .position:
+            // A header above the cards changes height: every card below it moves by the same layout delta.
+            VStack(spacing: 2) {
+                Color(red: 0.5, green: 0.5, blue: 0.5).frame(height: Pixels(10 + model.shift))
+                ForEach(model.ids, id: \.self) { i in FSCard(id: i, value: 0).equatable() }
+            }
+        case .scroll:
+            ScrollView(.vertical) {
+                VStack(spacing: 2) {
+                    ForEach(model.ids, id: \.self) { i in FSCard(id: i, value: 0).equatable() }
+                }
+            }.frame(width: Pixels(300), height: Pixels(150))
+        case .listScroll, .listStatic, .listValue:
+            ScrollView(.vertical) {
+                List(model.ids.map { FSRow(id: $0) }, rowHeight: Pixels(22)) { r in Column { FSCard(id: r.id, value: r.id == 3 ? model.values[3] : 0).equatable() } }
+            }.frame(width: Pixels(300), height: Pixels(150))
+        }
+    }
+}
+struct FSRow: Identifiable { let id: Int }
+
+@Test @MainActor func finerScopesMeasure() throws {
+    for scenario in FSScenario.allCases {
+        if let only = ProcessInfo.processInfo.environment["FSM_ONLY"], "\(scenario)" != only { continue }   // one scenario for a trace
+        for graft in [false, true] {
+            let model = FSModel()
+            let w = try TestWindow(size: Size(width: Pixels(320), height: Pixels(400)), scaleFactor: 2,
+                                   textSystem: { harnessTextSystem() }) { VStack(spacing: 0) { FSRoot(model: model, scenario: scenario) } }
+            w.window.testingRetainedGraft = graft
+            for _ in 0..<4 { w.window.setNeedsRedraw(); w.tick() }
+            w.resetFrameWork()
+            for step in 0..<3 {
+                switch scenario {
+                case .valueChange: model.values[10] += 1
+                case .insertFront: model.ids.insert(100 + step, at: 0)
+                case .position: model.shift += 4
+                case .listStatic: break
+                case .listValue: model.values[3] += 1
+                case .scroll, .listScroll:
+                    w.scroll(at: Point(x: Pixels(160), y: Pixels(200)), byDeltaX: 0, deltaY: -30)
+                }
+                w.window.setNeedsRedraw(); w.tick()
+            }
+            for (i, f) in w.frameWork.enumerated() {
+                print("FSM \(scenario) graft=\(graft) frame \(i): req \(f.elementRequests) skipReq \(f.retainedSkippedRequests) prep \(f.elementPrepaints) paint \(f.elementPaints) hits \(f.retainedHits) miss \(f.retainedMisses) inel \(f.retainedIneligible) graft \(f.retainedGrafts) transl \(f.retainedTranslated) refused \(f.retainedTranslationRefused) redo \(f.retainedRedos) pphits \(f.retainedPrepaintHits) pinel \(f.retainedPrepaintIneligible) ginel \(f.retainedGraftIneligible) why \(f.retainedIneligibleReasons)")
+            }
+        }
+    }
+}
