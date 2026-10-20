@@ -197,6 +197,14 @@ extension Window {
         lastHitboxes.map(\.fingerprint)
     }
 
+    /// The retained accessibility node of the element behind `id` (the `$ax` slot a declared node writes) and whether
+    /// it is live, or `nil` (`AT-A`: a replay writes the recomputed node there too).
+    package func testingAXRetainedNode(_ id: GlobalElementID) -> (frame: Bounds<Pixels>, isValid: Bool)? {
+        let slot = Frame.axRetentionSlot(for: id)
+        guard let node = stateTable.peek(slot, as: AXNode.self) else { return nil }
+        return (node.frame, stateTable.isLive(slot))
+    }
+
     /// The last build's region tallies: hover, pointer style, key, focus-on-press, resign (`RK-E`).
     package var testingRegionTallies: [Int] {
         [lastHoverRegionCount, lastPointerStyleRegionCount, lastKeyRegionCount, lastFocusOnPressCount,

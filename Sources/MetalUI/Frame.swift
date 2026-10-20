@@ -2182,7 +2182,7 @@ public final class Frame {
     /// `id` itself. `at: 0` is inert, on `focusRetentionSlot`'s footing:
     /// `GlobalElementID.child(of:at:name:)` always prefers `name` when one is
     /// supplied.
-    private static func axRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
+    static func axRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
         .child(of: id, at: 0, name: ElementID("$ax"))
     }
 
