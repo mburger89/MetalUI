@@ -220,8 +220,12 @@ while the rows were suppressed would replay with no rows).
 (9 builds) and read the old figures on the unfixed tree; the pins warm 16.
 **Mutations.** Refresh body skipped (`return` first): `aStaticListOfEquatableRowsReplaysPrepaintAndGrafts` (both branches),
 `aChangedListRowMissesAloneAndTheOthersGraft` (both) and `aSuppressedFirstFrameLedgerReplaysTheSameTreeAsAFreshWindow` (both) redden;
-`suppression` dropped from `retainedPrepaintKey`: the last one reddens (accessibility tree). **Unproven:** the `ledger.reads` subset guard
-(no fixture's prepaint reads state; it can only decline a refresh).
+`suppression` dropped from `retainedPrepaintKey`: the last one reddens (accessibility tree). The `ledger.reads` subset guard is pinned by
+`aFreshLedgerThatReadAnUnversionedEntryIsNotSwappedIn` (a row element whose prepaint reads, from the second frame, an entry a sibling
+outside the list created in the first: the suppressed first ledger read nothing, the fresh one reads an entry the record does not
+version). Mutation: the guard line deleted reddened that test alone (the five `AppKitPresentationTests` sheet issues of `CI-AF` on a
+locked screen aside). A `TextField` row cannot reach the guard: its creating read taints the first frame, so no suppressed ledger exists.
+**Characterisation status:** `aGraftIsRefusedUnderAnUncomparableKey` is green on arrival and reached by no window-level mutation (the paint refusal dominates); the graft-site half is pinned at `BuildKey` level only.
 **C14-c4 (`FS-H`), measured.** The graft site's `uncomparableCustomCount == 0` conjunct replaced by `true`: the whole native unfiltered
 run (3996 passed, `AppKitPresentationTests` skipped on a locked screen) and the same under `METALUI_VERIFY_RETAINED=1
 METALUI_VERIFY_LAYOUT_MEMO=1` (3996 passed) reddened nothing. Removed, with a comment naming `BuildKey`. Pins: `aBuildKeyUnderAnUncomparableReadingEqualsNothing`
