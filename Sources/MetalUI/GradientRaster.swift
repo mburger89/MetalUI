@@ -136,15 +136,21 @@ extension Frame {
         // The full raster, canonical (`PF-A`): the outline, its axis and its
         // strip rectangle translated by the floored anchor.
         let (rx, ry) = RasterAnchor.outlineAnchor(paint.geometry, map: full) ?? (0, 0)
-        var box = ExtentBox()
-        box.add((transform?.affine ?? .identity).boundingBox(of: paint.bounds))
-        let anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: box.rect(grownBy: 1), placement: placement)
+        let extent = RasterAnchor.gradientExtent(paint, outer: transform?.affine ?? .identity)
+        var anchor = RasterAnchor(rx: rx, ry: ry, full: full, extent: extent, placement: placement)
+        // `OS-A`: a raster cut by its clip is made over its whole extent and keyed uncut,
+        // the image's content mask doing the cut at draw time (`PN-A`).
+        var rasterClip = placement.clip
+        if let overscan = anchor.overscanned(extent: extent, clip: placement.clip, target: rasterTarget) {
+            anchor = overscan
+            rasterClip = extent
+        }
         var canonical = paint
         if anchor.isCanonical {
             canonical.geometry = paint.geometry.translated(dx: -rx, dy: -ry)
             canonical.axis = paint.axis.offsetBy(dx: -rx, dy: -ry)
         }
-        let clip = anchor.canonical(placement.clip)
+        let clip = anchor.canonical(rasterClip)
         var key = RasterKey()
         key.add(6)
         key.addPath(canonical.geometry)
@@ -164,7 +170,10 @@ extension Frame {
             guard !cut.rect.isEmpty else { return nil }
             return (cut.rect, cut.texture)
         }) else { return nil }
-        var quad = placement.quad(over: anchor.placed(rect))
+        let placed = anchor.placed(rect)
+        // An overscanned raster wholly outside the clip draws nothing (`OS-A`).
+        if rasterClip != placement.clip, placed.intersection(placement.clip).isEmpty { return nil }
+        var quad = placement.quad(over: placed)
         quad.opacity = paint.opacity
         return (quad, texture)
     }
@@ -233,10 +242,10 @@ extension Frame {
         switch paint.mode {
         case let .fill(rule, antialiased):
             coverage = PathRaster.fill(paint.geometry, rule: rule, transform: full.pathAffine, clip: clip,
-                                       antialiased: antialiased, rasterizer: &rasterizer)
+                                       antialiased: antialiased, rasterizer: &rasterizer, scratch: &cache.scratch)
         case let .stroke(style):
             coverage = PathRaster.stroke(paint.geometry, style: style, transform: full.pathAffine, clip: clip,
-                                         rasterizer: &rasterizer)
+                                         rasterizer: &rasterizer, scratch: &cache.scratch)
         }
         cache.noteRasterized(rasterizer.lastRasterizedPixels)
         guard let inverse = full.inverted, !coverage.rect.isEmpty else { return .empty }
@@ -284,6 +293,9 @@ struct RGBALayer {
 
     /// `mask` tinted by `color` (gamma, straight alpha).
     init(mask: AlphaMask, color: Hsla) {
+        // An empty mask (a glyph wholly outside the clip: width 0, height 12) has
+        // no texture to make (`OS-N`).
+        guard !mask.rect.isEmpty else { self = .empty; return }
         let texture = RasterCache.tint(mask, color: color)
         self.init(rect: mask.rect, pixels: texture.pixels)
     }

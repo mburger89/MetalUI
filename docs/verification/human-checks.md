@@ -1739,6 +1739,17 @@ a physical GPU, a desktop session and a console.*
   `e85cb07a` reading (20.56 ms), and no panel shows stale content after a node-library scroll, a number entry or a slider drag
   (no agent touches MetalCreator). **Observed:**
 
+## RO. Raster overscan — shadows, blurs and gradients across a clip edge (item P4, user request 2026-10-02, not a plan task; record 124)
+
+*An agent cannot: these need a real window and a person. Pixel equality with 4d91f27f is pinned (fourteen images, 0 px; per-kind byte equality, record 124 §5); what is owed is how a panned region looks on a real display.*
+
+- [ ] **RO1.** Scroll or drag a list whose rows carry a shadow, a blur and a radial or diagonal gradient across the edge of a `.clipped()`
+  panel, on AppKit and on SDL, at 1x and 2x: no seam, flicker, popped-in glow or clipped halo as a card crosses the edge, slowly and fast
+  (`OS-A`, `OS-F`). **Observed:**
+- [ ] **RO2.** Drag one shadowed card's width and a card half outside the panel: the glow is whole when it re-enters, and a card larger than the
+  `2^20`-pixel limit still draws (the old keys, `OS-D`). **Observed:**
+- [ ] **RO3.** Rotate or scale a shadowed card under a local mask (mode 3): the shadow looks as before (`OS-E`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

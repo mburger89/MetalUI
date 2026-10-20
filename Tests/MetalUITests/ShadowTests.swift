@@ -117,6 +117,15 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
     #expect(full == 255 && abs(half - 128) <= 1, "full \(full), half \(half)")
 }
 
+/// The part of `image` that draws: its bounds inside its content mask (`OS-A`).
+func visibleBounds(_ image: MUIImage) -> MUIBounds {
+    let b = image.bounds, m = image.contentMask
+    let x0 = max(b.origin.x, m.origin.x), y0 = max(b.origin.y, m.origin.y)
+    let x1 = min(b.origin.x + b.size.width, m.origin.x + m.size.width)
+    let y1 = min(b.origin.y + b.size.height, m.origin.y + m.size.height)
+    return MUIBounds(origin: MUIPoint(x: x0, y: y0), size: MUISize(width: max(0, x1 - x0), height: max(0, y1 - y0)))
+}
+
 // MARK: - 3.20 (SH7, SH7b)
 
 /// **3.20** (SH7, SH7b). A clip outside the shadow cuts it (`.shadow` then
@@ -128,8 +137,10 @@ private func runKinds(_ scene: Scene) -> [PrimitiveKind] { scene.drawList.map(\.
     let outer = gxImages(effectFrame(square().shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))
         .clipped()).finalizedScene())
     try #require(outer.count == 1, "one cut shadow: \(outer.count)")
-    #expect(gxDescribe(outer[0].image.bounds) == "(90.0, 90.0, 30.0×30.0)",
-            "cut to the box: \(gxDescribe(outer[0].image.bounds))")
+    // OS-A: the raster is the whole shadow ((90, 90, 40×40)); the box cuts it at draw time, so
+    // what draws is the image's bounds inside its content mask.
+    let visible = visibleBounds(outer[0].image)
+    #expect(gxDescribe(visible) == "(90.0, 90.0, 30.0×30.0)", "cut to the box at draw time: \(gxDescribe(visible))")
     let inner = gxImages(effectFrame(Color(.accent).frame(width: px(80), height: px(80))
         .frame(width: px(40), height: px(40)).clipped()
         .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene())

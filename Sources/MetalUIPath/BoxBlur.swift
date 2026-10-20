@@ -40,6 +40,13 @@ package enum BoxBlur {
     /// exact, so the order of the additions cannot move a byte; an `Int32` sum
     /// holds `width × 255` for any width below eight million.
     package static func blur(_ mask: AlphaMask, sigma: Double) -> AlphaMask {
+        var scratch = RasterScratch()
+        return blur(mask, sigma: sigma, scratch: &scratch)
+    }
+
+    /// As above, the two `Int32` planes and the column sums taken from `scratch` (zero-filled) and handed
+    /// back afterwards; borrowed for this call only (`OS-L`). The returned mask is its own buffer.
+    package static func blur(_ mask: AlphaMask, sigma: Double, scratch: inout RasterScratch) -> AlphaMask {
         let widths = boxWidths(sigma: sigma)
         guard !widths.isEmpty, !mask.rect.isEmpty else { return mask }
         let pad = padding(sigma: sigma)
@@ -47,9 +54,9 @@ package enum BoxBlur {
                               width: mask.rect.width + 2 * pad, height: mask.rect.height + 2 * pad)
         let w = rect.width, h = rect.height
         let mw = mask.rect.width, mh = mask.rect.height
-        var a = [Int32](repeating: 0, count: w * h)
-        var b = [Int32](repeating: 0, count: w * h)
-        var columnSums = [Int32](repeating: 0, count: w)
+        var a = scratch.takeInts(.a, count: w * h)
+        var b = scratch.takeInts(.b, count: w * h)
+        var columnSums = scratch.takeInts(.sums, count: w)
         var out = [UInt8](repeating: 0, count: w * h)
         mask.alpha.withUnsafeBufferPointer { src in
             a.withUnsafeMutableBufferPointer { pa in
@@ -80,6 +87,7 @@ package enum BoxBlur {
                 }
             }
         }
+        scratch.returnInts(.a, a); scratch.returnInts(.b, b); scratch.returnInts(.sums, columnSums)
         return AlphaMask(rect: rect, alpha: out)
     }
 
