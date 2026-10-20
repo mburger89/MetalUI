@@ -63,7 +63,7 @@ pin the refusal.
   the ninth collapses the list to its bounding rect (a one-element list). `dirtyRect` stays as the computed union of the list (every
   old reader and test compiles; `RG-H`). `clearDirtyRect()` clears both. `theDirtyRectIsTheUnionOfWhatWasWrittenAndClears` stays green
   unedited.
-- Metal: `upload` loops `replace(region:)` over `dirtyRects` (bytesPerRow stays the atlas width); the full-upload branches unchanged.
+- Metal: `upload` loops `replace(region:)` over `dirtyRects` (bytesPerRow stays the atlas width; each call's bytes pointer is offset to `y*width+x` of the rect's origin, test 17 reads back to catch a missing offset); once the cap collapses the list it stays one growing union until `clearDirtyRect()` (`RG-I`); the full-upload branches unchanged.
 - Headless: `lastAtlasUploadPixels` = sum of rect areas.
 - SDL: `mui_renderer_finish` takes `const uint32_t *atlas_rects, uint32_t atlas_rect_count` in place of `bool atlas_dirty`; a new atlas
   or size change still uploads whole; otherwise the transfer buffer packs the rects tightly (one packed copy) and one
@@ -81,7 +81,7 @@ Lane 1 (`Tests/MetalUITests/RetainedGeometryTests.swift`):
    equal sequences. Mutation: replay with the previous frame's size.
 4. `aGeometryNoteUnderAChangedRenderEffectMissesAndDelivers` - `.scaleEffect` above the occurrence changes: ledger misses, new value
    delivered. Mutation: leave `composed` out of the ambient comparison.
-5. `aTranslatedReplayOfAGeometryNoteIsRefusedByName` - a scrolling shift refuses `geometryTranslated`, equal to fresh. Mutation: let the
+5. `aTranslatedReplayOfAGeometryNoteIsRefusedByName` - a whole-pixel shift of the occurrence with offset, size and effect unchanged (the FS shift fixture; a scroll changes `AmbientKey.offset` and misses, it is not a translation) refuses `geometryTranslated`, equal to fresh. Mutation: let the
    translated ledger through.
 6. `twoGeometryScopesStackedAtOnePositionKeepTheirOrdinals` - two scopes, replay order equals fresh. Mutation: replay reversed.
 Whole-suite runs with `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`.

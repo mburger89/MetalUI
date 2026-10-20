@@ -4,7 +4,7 @@ Rulings for item C14-f. Spec: [`specs/2026-10-20-retained-geometry-design.md`](s
 `../record/128-retained-geometry.md` (Record phase). Branch `perf/retained-geometry` from `99b21a1c`. Reserved divergence labels 575-584:
 none taken.
 
-Prefix **`RG-`**, lettered. **Next unused: `RG-I`.** (Moves in the commit that appends a ruling.)
+Prefix **`RG-`**, lettered. **Next unused: `RG-J`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E` (geometry note taints, now replaced), `KF-J` (delivery semantics, unchanged), `FS-G`, `FS-P`, `FS-T` (record 126),
 `SB-AD`, `RK-S`, `RW-` (record 121), C14-e parts (c) and (f).
@@ -67,3 +67,12 @@ rect; SDL one packed transfer, one copy per rect); the headless counter is the s
 a shelf-merge is exact with no extra scan; gaps merged by threshold are deferred (a per-rect call has a fixed cost; measure before a
 heuristic). **Cost if wrong.** A glyph missing from the upload shows blank: test 17 compares every texel to the atlas, and a new or resized
 texture still uploads whole.
+
+## RG-I - Critic pass: collapse is sticky; the replayed action closure is the first build's
+
+**Ruling.** (1) After the ninth rect collapses `dirtyRects`, further `markDirty` calls union into that one rect until `clearDirtyRect()`
+(never re-grow to eight after a collapse within a frame): keeps the list a sound superset. (2) A replayed geometry note re-notes the
+**recorded** record, including its action closure from the build that produced it; this is the `.equatable()` contract already carried by
+every replayed handler (a skipped getter keeps its closures), not a new hazard, and test 3 compares deliveries to a fresh window.
+(3) Test 5 uses a pure shift, not a scroll: a scroll changes the ambient offset and misses before translation is considered.
+**Rejected:** a SwiftUI probe (no observable behaviour moves, `RG-B`); making `dirtyRects` `package` (read by `Backends/SDL`, a separate package).
