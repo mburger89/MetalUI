@@ -443,6 +443,28 @@ Notes:
   `SDLPlatform(hiddenWindows:offscreenRenderers:)` still works and forwards to
   `init(options:)` (`IC-L`).
 
+## A single-instance launch
+
+`SingleInstance` (SDL, `docs/packaging.md` "One instance on Linux and Windows")
+is tested in `Backends/SDL` with a real socket in a private temporary directory,
+so no test touches `$XDG_RUNTIME_DIR`:
+
+```text
+let directory = "/tmp/msi-test"   // mkdtemp it: 0700, short (a Unix socket path is 104 bytes on macOS)
+guard case .primary(let role) = SingleInstance.claim(
+    id: "com.example.MyApp", forwarding: [], configuration: .init(directory: directory)) else { return }
+let platform = try SDLPlatform(options: .init(hidesWindows: true, singleInstance: role))
+platform.onOpenURLs = { received.append($0) }
+_ = SingleInstance.claim(id: "com.example.MyApp", forwarding: ["/tmp/doc.myapp"],
+                         configuration: .init(directory: directory))   // .forwarded: the ack follows the enqueue
+platform.pumpEvents()   // the batch arrives: ["file:///tmp/doc.myapp"]
+```
+
+A forward returns after the primary queued the message, so a test reads the
+delivery after one `pumpEvents()`; nothing sleeps. A second *process* is
+`Backends/SDL`'s `SingleInstanceCheck` (`primary`/`forward` modes). Every test
+that creates an `SDLPlatform` on macOS arms `armMainRunLoopExitCheck()`.
+
 ## What it cannot do
 
 Each is a ruled deferral (`HT-Q`):

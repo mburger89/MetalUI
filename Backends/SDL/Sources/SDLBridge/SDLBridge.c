@@ -1,3 +1,6 @@
+#if !defined(_GNU_SOURCE) && defined(__linux__)
+#define _GNU_SOURCE 1
+#endif
 #include "SDLBridge.h"
 /* Compiled only under the root package's `SDL` trait, which defines
    METALUI_SDL (ruling PX-H item 4); without it this file is the one
@@ -1219,6 +1222,9 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
     out->timestamp = (double)e->common.timestamp / 1e9;
     if (accessibility_event_type != 0 && e->type == accessibility_event_type) {
         out->kind = MUI_EVENT_ACCESSIBILITY; out->window_id = e->user.windowID; return true;
+    }
+    if (mui_instance_is_wake_event(e->type)) {   // SN-G: counted, then handed to Swift
+        out->kind = MUI_EVENT_INSTANCE; return true;
     }
     if (dialog_event_type != 0 && e->type == dialog_event_type) {   // SV-G
         out->kind = MUI_EVENT_DIALOG; out->window_id = e->user.windowID; out->start = e->user.code; return true;

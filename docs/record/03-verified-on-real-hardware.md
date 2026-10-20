@@ -2353,3 +2353,10 @@ No real window was driven (the screen read locked). **Owed, new here — `docs/v
 agent cannot)**: EE1 the demo's Environment block (`METALUI_INVALIDATION_DEMO=1`): writing the key moves the reader's getter count by 1
 and the shown value, an unrelated key by 0, a Light/Dark switch by 1 with the colour right at once; then a window drag across two displays
 of different scale and a Light/Dark switch with the reader skipped and retained show no stale colour or size and no flicker.
+
+## 2026-10-19: single-instance launch on SDL (record §122) — looks owed
+
+No second process was started from a file manager and Windows was not run. **Owed, new here — `docs/verification/human-checks.md` group SI, none performed (an
+agent cannot)**: SI1 Linux X11 and Wayland, a `.desktop` `Exec=… %F`: the second document shows in the first window, no second window, the window raises or
+flashes; SI2 `kill -9` the primary then relaunch; SI3 Windows 11 x64 and ARM64 with Explorer, End Task and two sessions of one user; SI4 whether Wayland
+raises without an activation token; SI5 two users on one machine; SI6 a primary left eight hours.

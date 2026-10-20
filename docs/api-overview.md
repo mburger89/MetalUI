@@ -680,6 +680,8 @@ whose "Final spellings" table is the short form).
   `open -a`, Dock drops, Open Recent and URL schemes (the bundle declares its
   document types and schemes); SDL delivers a file dropped on the application
   (window 0). MetalUI never opens a window for an open.
+  On SDL, `SingleInstance.claim(id:forwarding:)` (trait `SDL`, MetalUI-only, `Backends/SDL`, outside the census) makes a second launch hand its
+  arguments to the running instance, which delivers them as an open event (`SN-A`…`SN-P`, `packaging.md` "One instance on Linux and Windows").
 - **Seam** (`AS-H`, `AS-J`; defaultless, `docs/migration.md`): seven
   `PlatformWindow` requirements (`onCloseRequest`, `close()`,
   `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`,

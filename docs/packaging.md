@@ -493,7 +493,54 @@ This is how `swift run MyApp file.myapp` opens a file, and how Linux and
 Windows file associations (below) reach the app. The app shell demo uses it
 (`appShellDemoLaunchURLs(_:)`, `METALUI_APP_SHELL_DEMO=1`). A second
 instance forwarding its arguments to the first (single-instance apps on Linux
-and Windows) is not built (owner none).
+and Windows) is the next recipe.
+
+### One instance on Linux and Windows — forwarding a second launch (SDL, item S7)
+
+A file manager runs `Exec=MyApp %F` once per open, so on Linux and Windows a
+second document starts a second process. On macOS a bundled app needs nothing
+(LaunchServices delivers the open to the running one, `application(_:open:)`).
+On SDL the app opts in with one call **before any window exists**, keyed by an
+application identifier:
+
+```swift
+let documents = CommandLine.arguments.dropFirst().filter { FileManager.default.fileExists(atPath: $0) }
+guard let platform = try SDLPlatform.launchingSingleInstance(id: "com.example.MyApp",
+                                                             forwarding: Array(documents)) else { exit(0) }
+let app = try App(platform: platform, textSystem: …)   // then openWindow, app.open(documents), app.run() as above
+```
+
+The first launch becomes the primary and keeps the role while its platform lives.
+A later launch hands its arguments (relative paths made absolute against its own
+working directory; URLs untouched) to the primary and gets `nil`: it exits 0. The
+primary delivers them as one `onOpenURLs` batch per launch (so `.onOpenURL` and
+`App.open(_:)`'s routing apply, `AS-G`; with no handler yet the batch is parked, as
+a window-0 drop's is) and raises its key window, else its first. The primary's own
+arguments stay `app.open(documents)`.
+
+- **API:** `SingleInstance.claim(id:forwarding:configuration:)` returns `.primary(role)`,
+  `.forwarded` or `.unavailable(failure)`; put a `.primary` in
+  `SDLPlatform.Options.singleInstance`. `launchingSingleInstance` does both. An
+  `.unavailable` claim (a wedged primary, an unusable directory) runs the launch as
+  an independent instance rather than lose the document (`SN-F`).
+- **Transport (per user, never across users):** Linux and macOS use `flock` on
+  `msui-<hash>.lock` to elect and a Unix socket `msui-<hash>.sock` to carry, in
+  `$XDG_RUNTIME_DIR` (else the user's temporary directory on macOS, else
+  `/tmp/metalui-<uid>`), which must be a real directory owned by the user with no
+  group or other access; the socket is 0600 and a peer of another user is dropped
+  unread. A crashed primary leaves a socket file and no lock, which the next launch
+  replaces. Windows uses a named semaphore and pipe scoped to the user's session, the
+  pipe created `FILE_FLAG_FIRST_PIPE_INSTANCE` with a descriptor for the user only.
+- **Limits:** a message is `MSI1`, a length and at most 1024 strings of 1 to 32768
+  UTF-8 bytes (no NUL), 1 MiB in all; at most 64 are pending; a stalled sender is cut
+  off after the read timeout (2 s). Nothing received is run, expanded or opened.
+- **A claim blocks** up to the connect timeout plus the read timeout (about four
+  seconds worst case) when the primary is wedged; it never blocks when there is none.
+- **Raising** is best effort: X11 usually honours it; Windows grants the foreground
+  only to a process that recently had input, so the primary's taskbar entry flashes
+  instead; Wayland needs an activation token this version does not forward (`SN-L`).
+  `Configuration.raisesWindow = false` turns it off.
+- **A `.desktop` file** keeps `Exec=/opt/myapp/MyApp %F`; no D-Bus activation is built.
 
 ### Linux: `MimeType=` and `%F` in the desktop entry — unverified
 

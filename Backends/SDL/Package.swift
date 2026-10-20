@@ -23,7 +23,9 @@ let package = Package(
         // The main-queue drain, checked from top-level code (ruling SV-H).
         .executable(name: "MainQueueDrainCheck", targets: ["MainQueueDrainCheck"]),
         // The documented headless smoke test, a plain import (rulings IC-M, IC-P).
-        .executable(name: "HeadlessLaunchCheck", targets: ["HeadlessLaunchCheck"])
+        .executable(name: "HeadlessLaunchCheck", targets: ["HeadlessLaunchCheck"]),
+        // The second process of the single-instance tests (item S7, ruling SN-K).
+        .executable(name: "SingleInstanceCheck", targets: ["SingleInstanceCheck"])
     ],
     dependencies: [.package(name: "MetalUI", path: "../..", traits: ["SDL", "AccessKit"])],
     targets: [
@@ -75,6 +77,10 @@ let package = Package(
             .product(name: "MetalUICore", package: "MetalUI"),
             .product(name: "MetalUI", package: "MetalUI"),
             .product(name: "MetalUIPortableText", package: "MetalUI")]),
+        // A claim, then a hold or a forward, in a process of its own (ruling SN-K):
+        // `SDLSingleInstanceTests` launches it.
+        .executableTarget(name: "SingleInstanceCheck", dependencies: [
+            .product(name: "MetalUISDL", package: "MetalUI")]),
         .testTarget(name: "ReplayFixtureTests", dependencies: ["ReplayFixture",
                                                                .product(name: "MetalUIScene", package: "MetalUI")])
     ]

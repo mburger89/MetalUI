@@ -21,13 +21,24 @@ extension SDLPlatform {
         /// no presented frame (a video driver with no display never yields a
         /// drawable).
         public var rendersOffscreen: Bool
+        /// The held single-instance role this platform serves, or `nil` (the
+        /// default). With a value the platform delivers each batch a later launch
+        /// forwards through ``SDLPlatform/onOpenURLs``, parks it until a handler
+        /// exists, and raises a window, as ``SingleInstance`` describes (item S7,
+        /// ruling `SN-A`). Take it from ``SingleInstance/claim(id:forwarding:configuration:)``'s
+        /// `.primary`, or let ``SDLPlatform/launchingSingleInstance(id:forwarding:options:)``
+        /// do both.
+        public var singleInstance: SingleInstance?
 
         /// - Parameters:
         ///   - hidesWindows: see ``hidesWindows``.
         ///   - rendersOffscreen: see ``rendersOffscreen``.
-        public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false) {
+        ///   - singleInstance: see ``singleInstance``.
+        public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false,
+                    singleInstance: SingleInstance? = nil) {
             self.hidesWindows = hidesWindows
             self.rendersOffscreen = rendersOffscreen
+            self.singleInstance = singleInstance
         }
 
         /// A production launch: windows shown, swapchain rendering.

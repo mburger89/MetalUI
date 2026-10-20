@@ -162,7 +162,11 @@ enum {
     // middle, X1 or X2 — `button` the lowest held one's SDL number. PINCH:
     // SDL_EVENT_PINCH_*, `scale` SDL's, `phase` a MUI_PINCH_*.
     MUI_EVENT_OTHER_DOWN, MUI_EVENT_OTHER_UP, MUI_EVENT_RIGHT_DRAG, MUI_EVENT_OTHER_DRAG,
-    MUI_EVENT_PINCH
+    MUI_EVENT_PINCH,
+    // Single-instance launch (ruling SN-G). Appended after PINCH, so no earlier
+    // kind renumbers. INSTANCE: the listener thread queued a forwarded message;
+    // the platform drains the queue (mui_instance_next).
+    MUI_EVENT_INSTANCE
 };
 enum { MUI_PINCH_BEGIN = 0, MUI_PINCH_UPDATE = 1, MUI_PINCH_END = 2 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
@@ -478,3 +482,49 @@ bool mui_surface_read_rgba(void *surface, uint8_t *out, int32_t capacity);
 int32_t mui_surface_image_count(void *surface);
 // The size of SDL_GetSurfaceImages's `index`th image; 0 × 0 out of range.
 void mui_surface_image_size(void *surface, int32_t index, int32_t *w, int32_t *h);
+
+// ---- Single-instance launch (item S7, rulings SN-A..SN-P) --------------------
+// The pure threaded transport (SDLInstance.c): an election by flock (Unix) or a
+// named semaphore (Windows), a listener thread over a Unix socket or a named
+// pipe, a bounded queue, and the forward client. No Swift closure runs off the
+// main thread (CB-H): the listener queues and pushes one SDL wake event.
+typedef struct MuiInstance MuiInstance;
+// mui_instance_claim's answers; Swift maps them to SingleInstance.Failure.
+enum {
+    MUI_INSTANCE_PRIMARY = 0, MUI_INSTANCE_FORWARDED = 1, MUI_INSTANCE_EMPTY_ID = 2,
+    MUI_INSTANCE_NO_LISTENER = 3, MUI_INSTANCE_REFUSED = 4, MUI_INSTANCE_INSECURE_DIRECTORY = 5,
+    MUI_INSTANCE_PATH_TOO_LONG = 6, MUI_INSTANCE_INSECURE = 7, MUI_INSTANCE_IO = 8
+};
+// Takes the role for `id` or forwards `count` UTF-8 strings to its holder.
+// `directory` NULL: the default (SN-C item 3). `expected_peer_uid` < 0: the
+// effective uid. PRIMARY sets `*out` (release with mui_instance_release);
+// IO sets `*error` to errno / GetLastError. Blocks up to connect_timeout_ms
+// plus read_timeout_ms when forwarding.
+int32_t mui_instance_claim(const char *id, const char *directory,
+                           const char *const *strings, uint32_t count,
+                           int32_t connect_timeout_ms, int32_t read_timeout_ms,
+                           int64_t expected_peer_uid, MuiInstance **out, int32_t *error);
+// Stops the listener, unlinks the socket, closes the lock, frees the queue.
+void mui_instance_release(MuiInstance *instance);
+// The lock file's and the socket's paths (Windows: the semaphore's and the
+// pipe's names) for `id` in `directory`; false when they do not fit or `id`
+// is empty. For tests and for Swift's path-too-long answer.
+bool mui_instance_paths(const char *id, const char *directory, char *lock, size_t lock_capacity,
+                        char *socket, size_t socket_capacity);
+// Pops the oldest queued message: `*strings` is `*count` malloc'd C strings
+// (free with mui_instance_free_message); false when none is queued.
+bool mui_instance_next(MuiInstance *instance, char ***strings, uint32_t *count);
+void mui_instance_free_message(char **strings, uint32_t count);
+// Registers the wake event (once per process) and lets the listener push it.
+// Call after mui_platform_init, on the main thread.
+void mui_instance_attach(MuiInstance *instance);
+// translate's hook: true when `sdl_type` is the wake event; counts it.
+bool mui_instance_is_wake_event(uint32_t sdl_type);
+// Wake events the event pump consumed, process-wide (a test's read-back).
+int32_t mui_instance_wakes_consumed(void);
+// The largest payload buffer the listener ever asked for, in bytes (a test's
+// read-back that a declared length is checked before it is allocated).
+int32_t mui_instance_payload_high_water(void);
+// SDL_RestoreWindow when minimised, SDL_RaiseWindow, and SDL_FlashWindow until
+// focused when the window did not take focus (ruling SN-H).
+bool mui_window_raise(void *window);
