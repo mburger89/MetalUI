@@ -314,14 +314,15 @@ func aFractionalShiftIsRefusedNotApproximated(step: Float) async throws {
 private struct FSFlexCard: Component, @MainActor Equatable {
     let index: Int
     var content: some ElementGroup {
-        Text("flex \(index)").frame(maxWidth: .infinity, alignment: .leading).frame(height: Pixels(20))
+        Text("flex \(index)").frame(maxWidth: Pixels(200), alignment: .leading).frame(height: Pixels(20))
     }
 }
 
-/// 2.8 — the separating arm for the shape comparison: cards whose **size** changed (the window narrowed) hold equal values and
-/// their record is valid, yet they are not a translation: no refusal is counted, nothing translates, they paint again
-/// (`FS-D`: same node count and signature is not enough, the top rects' sizes are in the shape). Mutation: sizes left out of
-/// `RetainedShape.shift` (the cards would replay the old width's pixels: the differential differs).
+/// 2.8 — the separating arm for the shape comparison: cards whose **size** changed (the window narrowed below their 200 point
+/// maximum, so they also move: the stack is centred) hold equal values and their record is valid, yet they are not a translation:
+/// no refusal is counted, nothing translates, they paint again (`FS-D`). The shape is checked twice (the top rects' sizes and
+/// the relative subtree signature, which hashes every node's size): each mutation alone (sizes left out, the signature left out)
+/// is an equivalent mutant, both together replay the old width's pixels and redden this test and its differential.
 @Test(.enabled(if: !rsVerifying, fsTranslationVerifyingNote)) @MainActor
 func aShiftThatAlsoResizesTheOccurrenceMisses() async throws {
     let pair = try RPPair(size: sz(320, 400), scale: 2, warm: 4, accessibility: false, graft: false) { _ in
@@ -329,7 +330,7 @@ func aShiftThatAlsoResizesTheOccurrenceMisses() async throws {
     }
     try pair.compare("warm")
     pair.on.resetFrameWork()
-    for w in [pair.on, pair.off] { w.resize(to: sz(280, 400)) }
+    for w in [pair.on, pair.off] { w.resize(to: sz(150, 400)) }
     await rsSettle()
     pair.redraw()
     let f = pair.stepWork
