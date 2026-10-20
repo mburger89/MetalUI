@@ -62,9 +62,11 @@ func theBracketNodeDragReplaysEveryUnchangedSubtree(arm: BracketArm) throws {
         #expect(f.elementRequests == base.elementRequests)
         // Layout is the placement memo's (`SB-AD`): restored subtrees are not measured again, never more.
         if index == 0 {
-            // The press frame: measure entries under a restored subtree are not refreshed by the restore, so
-            // they have aged out (two frames) by the first miss, and that miss measures its subtree once (`SB-AD`).
-            #expect(f.layoutMeasureCalls == (predicted.retainsNodes ? 135 : 52) && base.layoutMeasureCalls == 52, "frame 0: \(f.layoutMeasureCalls) vs \(base.layoutMeasureCalls)")
+            // The press frame. Until C14-e (`CF-J`) the measure entries under a restored subtree were not refreshed by the
+            // restore, aged out (two frames) by the first miss, and that miss measured its subtree once: 135 against 52 for an
+            // arm that retains nodes. A restored placement now touches its footprint, so the press frame measures what the
+            // unretained window measures: 52 in every arm.
+            #expect(f.layoutMeasureCalls == 52 && base.layoutMeasureCalls == 52, "frame 0: \(f.layoutMeasureCalls) vs \(base.layoutMeasureCalls)")
         } else {
             #expect(f.layoutMeasureCalls <= base.layoutMeasureCalls, "frame \(index): \(f.layoutMeasureCalls) vs \(base.layoutMeasureCalls)")
         }
