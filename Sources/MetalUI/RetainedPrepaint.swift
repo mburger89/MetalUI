@@ -129,6 +129,34 @@ final class PrepaintLedger {
 }
 
 extension PrepaintKey {
+    /// The parts of this key that differ from `other` (`METALUI_TRACE_RETAINED=1`).
+    func describeDifference(from other: PrepaintKey) -> String {
+        var why: [String] = []
+        if rects != other.rects { why.append("rects") }
+        if interior != other.interior { why.append("interior") }
+        if shapeInterior != other.shapeInterior { why.append("shapeInterior") }
+        if nodeCount != other.nodeCount { why.append("nodeCount") }
+        if ambient.offset != other.ambient.offset { why.append("offset") }
+        var a = ambient, b = other.ambient
+        a.offset = b.offset
+        if a != b { why.append("ambient") }
+        if extras != other.extras {
+            var x = extras, y = other.extras
+            if x.scroller.count > 7, y.scroller.count > 7 { x.scroller[7] = 0; y.scroller[7] = 0 }
+            if x != y {
+                if x.effects != y.effects { why.append("extras.effects") }
+                if x.scroller != y.scroller { why.append("extras.scroller \(x.scroller) vs \(y.scroller)") }
+                if x.share != y.share { why.append("extras.share") }
+                if x.suppression != y.suppression { why.append("extras.suppression") }
+                if x.hiddenNodes != y.hiddenNodes { why.append("extras.hiddenNodes") }
+                if x.scrollerID != y.scrollerID { why.append("extras.scrollerID") }
+                if x.collectsAccessibility != y.collectsAccessibility || x.hitTestingDisabled != y.hitTestingDisabled
+                    || x.keyboardHidden != y.keyboardHidden || x.portal != y.portal { why.append("extras.gates") }
+            }
+        }
+        return why.joined(separator: ", ")
+    }
+
     /// Whether this key is `old` but for the translation of its prepaint effects (`RK-G`).
     func differsOnlyByEffectTranslation(to other: PrepaintKey) -> Bool {
         rects == other.rects && interior == other.interior && nodeCount == other.nodeCount
@@ -193,9 +221,17 @@ extension Frame {
             }
             // The occurrence moved by layout or by a scroll since the ledger was made (`FS-D`, K1 and K2): its registrations
             // are replayed moved by the add, unless one cannot be moved exactly (refused by name).
+            if retainedTraces, ledger.key != key, ledger.key.shift(to: key) == nil {
+                print("retained prepaint not a translation \(sbPath(build.key.id).suffix(40)): " + ledger.key.describeDifference(from: key))
+            }
             if memos.translatesLayout, let shift = ledger.key.shift(to: key) {
                 switch movedPrepaintLedger(ledger, shift: shift, clip: key.ambient.clip) {
                 case .moved(let translation):
+                    // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand, not where they stood.
+                    if let point = mousePosition, translation.hitboxes.contains(where: { $0.contains(point) }) {
+                        return .run(phase.grafted ? nil : openPrepaintWindow())
+                    }
+                    memos.ledgerMoves += 1
                     memos.retained.prepaintHits += 1
                     memos.retained.skippedPrepaints += ledger.prepaints
                     if !retainedVerifiesFromEnvironment {

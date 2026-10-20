@@ -158,6 +158,9 @@ extension Window {
         set { stateTable.contentMemos.replaysPrepaint = newValue }
     }
 
+    /// The prepaint ledgers moved to a new position since the window was made (`FS-F`), cumulative.
+    package var testingLedgerMoves: Int { stateTable.contentMemos.ledgerMoves }
+
     /// Whether an occurrence whose layout origin or scroll offset moved replays translated (`FS-D`); off, it misses as it did before
     /// C14-d. Independent of the render-effect translation of `RK-G`, which stays.
     package var testingRetainedTranslation: Bool {

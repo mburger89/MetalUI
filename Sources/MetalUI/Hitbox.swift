@@ -141,6 +141,12 @@ struct Hitbox {
     /// disabled (C9). `true` for every other hitbox.
     var contextualEnabled = true
 
+    /// The element's rect translated by the active offset **before** the active clip cut it, and the clip depth the cut was read at
+    /// (`Frame.clipDepth`): what a translated prepaint ledger recomputes `bounds` from when the occurrence moved (`FS-P`: a rect cut
+    /// by the ambient clip is `clip ∩ rect`, so it moves as `clip ∩ (rect + delta)`). `nil` for a hitbox made by hand; read by nothing else.
+    var unclipped: Bounds<Pixels>? = nil
+    var clipDepth = 0
+
     /// Whether `point` lands in this hitbox — **the single region test** (ruling
     /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
     /// ancestor membership and `Window.applyScroll`'s wheel chain all call it,

@@ -509,3 +509,88 @@ func anInexactCoordinateIsRefusedNotApproximated() async throws {
     }
     if !rsVerifying { #expect(refusals["inexactTranslation", default: 0] >= 24, "refused as inexact: \(refusals)") }
 }
+
+// MARK: the switch, the rebase and the clipped hitbox
+
+/// 2.13 — the figures, both ways (`FS-I`): with `testingRetainedTranslation` off a window behaves as the lane-1 head (the "before"
+/// of F2 and F3, taken in one binary: every row misses, 171 requests, 172 prepaints, 244 paints), and on, the same frames cost
+/// 4 prepaints and 4 paints. Mutation: the switch left out of the paint decision (the off arm translates).
+@Test(.enabled(if: !rsVerifying, fsTranslationVerifyingNote), arguments: [FSShift.header, FSShift.insertFront]) @MainActor
+func theSwitchOffMissesEveryShiftedRowAndOnTranslatesThem(kind: FSShift) throws {
+    let off = try fsShiftFrames(kind, graft: false, accessibility: false, translation: false)
+    let on = try fsShiftFrames(kind, graft: false, accessibility: false, translation: true)
+    for (index, f) in off.enumerated() {
+        #expect(f.retainedHits == 0 && f.retainedTranslated == 0, "switch off, frame \(index): hits \(f.retainedHits)")
+        if kind == .header { #expect(f.elementRequests == 171 && f.elementPrepaints == 172 && f.elementPaints == 244) }
+        else { #expect(f.elementRequests == 176 + 7 * index && f.elementPrepaints == 177 + 7 * index && f.elementPaints >= 251) }
+    }
+    for (index, f) in on.enumerated() {
+        let rows = kind == .header ? 24 : 24 + index
+        #expect(f.retainedTranslated == rows && f.retainedHits == rows, "switch on, frame \(index): \(f.retainedTranslated)")
+        #expect(f.elementRequests == off[index].elementRequests, "requests are the graft's, off here")
+        if kind == .header { #expect(f.elementPrepaints == 4 && f.elementPaints == 4) }
+        else { #expect(f.elementPrepaints == 9 && f.elementPaints == 11) }
+    }
+}
+
+/// 2.14 — a frame at the position a translated ledger was made over at moves nothing: the record and the ledger were rebased,
+/// so the settle frame after a shift is an exact prepaint hit (no ledger moved, 24 prepaint hits), and the move before it moved
+/// 24 (`FS-O`, `FS-F`). Mutation: the ledger rebase left out (the settle frame moves 24 again).
+@Test(.enabled(if: !rsVerifying, fsTranslationVerifyingNote)) @MainActor
+func aFrameAfterAShiftReplaysAnExactLedgerNotAMovedOne() async throws {
+    let pair = try RPPair(size: sz(320, 400), scale: 2, warm: 4, accessibility: false, graft: false) { side in
+        VStack(spacing: 0) { FSShiftSideRoot(side: side, kind: .header) }
+    }
+    let window = pair.on.window
+    let start = window.testingLedgerMoves
+    for side in [pair.onSide, pair.offSide] { side.inputs.offset += 4 }
+    await rsSettle()
+    pair.redraw()
+    let moved = window.testingLedgerMoves
+    #expect(moved - start == 24, "the shift moved the 24 ledgers: \(moved - start)")
+    pair.on.resetFrameWork()
+    pair.redraw()
+    let settle = pair.stepWork
+    #expect(window.testingLedgerMoves == moved, "the settle frame moved nothing: \(window.testingLedgerMoves - moved)")
+    #expect(settle.retainedPrepaintHits == 24 && settle.retainedTranslated == 0, "an exact hit: \(settle.retainedPrepaintHits), \(settle.retainedTranslated)")
+    try pair.compare("settled")
+}
+
+private struct FSClipRoot: Component {
+    let side: RPSide
+    var content: some ElementGroup {
+        ScrollView(.vertical) {
+            VStack(spacing: 2) {
+                ForEach(Array(0..<6), id: \.self) { k in FSClickCard(title: "c\(k)", log: side.log).equatable() }
+            }
+        }
+        .frame(width: Pixels(300), height: Pixels(110))
+    }
+}
+
+/// 2.15 — a hitbox the scroller's clip cuts is **recomputed** at its new place, not shifted: the rows whose button straddles an edge
+/// of the viewport, and those wholly outside it (an empty cut), all replay their prepaint moved, refuse nothing, cause no redo, and the
+/// hitbox list equals a fresh window's after every wheel step (`FS-P`: the hitbox keeps its uncut rect and the clip depth it was cut at;
+/// at the ambient depth the cut is `clip ∩ (rect + delta)`). Mutation: the recompute replaced by a shift of the cut rect (the lists differ).
+@Test(.enabled(if: !rsVerifying, fsTranslationVerifyingNote)) @MainActor
+func aHitboxTheScrollersClipCutIsRecomputedAtItsNewPlace() async throws {
+    let pair = try RPPair(size: sz(320, 300), scale: 2, warm: 4, accessibility: false, graft: false) { side in
+        VStack(spacing: 0) { FSClipRoot(side: side) }
+    }
+    try pair.compare("warm")
+    var refusals: [String: Int] = [:], translated = 0, redos = 0, prepaintHits = 0, hits = 0
+    for step in 0..<6 {
+        pair.on.resetFrameWork()
+        for w in [pair.on, pair.off] { w.scroll(at: pt(150, 150), byDeltaX: 0, deltaY: step.isMultiple(of: 5) ? 13 : -13) }
+        await rsSettle()
+        pair.redraw()
+        let f = pair.stepWork
+        refusals.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +)
+        translated += f.retainedTranslated; redos += f.retainedRedos; prepaintHits += f.retainedPrepaintHits; hits += f.retainedHits
+        try pair.compare("step \(step)")
+    }
+    #expect(refusals.isEmpty, "nothing refused: \(refusals)")
+    #expect(redos == 0, "no redo: \(redos)")
+    #expect(translated >= 4 * 5, "the rows translated: \(translated)")
+    #expect(prepaintHits >= hits - 4, "the prepaints replayed with them (but the card under the pointer): \(prepaintHits) of \(hits)")
+}

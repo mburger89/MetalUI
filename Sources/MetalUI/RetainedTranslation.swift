@@ -288,12 +288,14 @@ extension PrepaintLedger {
 }
 
 extension Hitbox {
-    /// This hitbox with its clipped rect and its element origin moved by (`dx`, `dy`) window points.
-    func moved(dx: Float, dy: Float, bounds newBounds: Bounds<Pixels>) -> Hitbox {
+    /// This hitbox with its clipped rect, its uncut rect and its element origin moved by (`dx`, `dy`) window points.
+    func moved(dx: Float, dy: Float, bounds newBounds: Bounds<Pixels>, unclipped newUnclipped: Bounds<Pixels>?) -> Hitbox {
         var h = Hitbox(bounds: newBounds, id: id, layer: layer, opaque: opaque, scroll: scroll, handlers: handlers,
                        origin: Point(x: Pixels(origin.x.value + dx), y: Pixels(origin.y.value + dy)), shape: shape,
                        transform: transform)
         h.contextualEnabled = contextualEnabled
+        h.unclipped = newUnclipped
+        h.clipDepth = clipDepth
         return h
     }
 }
@@ -309,6 +311,7 @@ extension Frame {
         if !ledger.contextMenus.isEmpty { return .refused("contextMenus") }
         if !ledger.anchors.isEmpty { return .refused("presentationAnchor") }
         guard clip.count >= 4 else { return .refused("unkeyedClip") }
+        let entryDepth = ledger.key.ambient.depths.first ?? -1
         let dx = shift.windowX, dy = shift.windowY
         guard isExactSixteenth(dx), isExactSixteenth(dy) else { return .refused("inexactTranslation") }
         let c = Bounds(origin: Point(x: Pixels(clip[0]), y: Pixels(clip[1])),
@@ -329,13 +332,29 @@ extension Frame {
                 return .refused("hitboxHandlers")
             }
             let b = hitbox.bounds
+            guard isExactSixteenth(hitbox.origin.x.value), isExactSixteenth(hitbox.origin.y.value),
+                  isExactSixteenth(hitbox.origin.x.value + dx), isExactSixteenth(hitbox.origin.y.value + dy)
+            else { return .refused("inexactTranslation") }
+            if hitbox.clipDepth == entryDepth, let u = hitbox.unclipped {
+                // Cut by the ambient clip itself: the cut of the moved rect is recomputed, as `insertHitbox` computes it.
+                guard isExactSixteenth(u.origin.x.value), isExactSixteenth(u.origin.y.value),
+                      isExactSixteenth(u.origin.x.value + dx), isExactSixteenth(u.origin.y.value + dy)
+                else { return .refused("inexactTranslation") }
+                let movedU = Bounds(origin: Point(x: Pixels(u.origin.x.value + dx), y: Pixels(u.origin.y.value + dy)), size: u.size)
+                hitboxes.append(hitbox.moved(dx: dx, dy: dy, bounds: Frame.intersect(c, movedU), unclipped: movedU))
+                continue
+            }
+            // Cut by a clip derived inside the occurrence (or unknown): it moves with the occurrence only if it did not touch
+            // the ambient clip before and does not after.
             let moved = Bounds(origin: Point(x: Pixels(b.origin.x.value + dx), y: Pixels(b.origin.y.value + dy)), size: b.size)
             guard inside(b), inside(moved) else { return .refused("hitboxClipped") }
             guard isExactSixteenth(b.origin.x.value), isExactSixteenth(b.origin.y.value),
-                  isExactSixteenth(hitbox.origin.x.value), isExactSixteenth(hitbox.origin.y.value),
                   isExactSixteenth(moved.origin.x.value), isExactSixteenth(moved.origin.y.value)
             else { return .refused("inexactTranslation") }
-            hitboxes.append(hitbox.moved(dx: dx, dy: dy, bounds: moved))
+            let movedU = hitbox.unclipped.map {
+                Bounds(origin: Point(x: Pixels($0.origin.x.value + dx), y: Pixels($0.origin.y.value + dy)), size: $0.size)
+            }
+            hitboxes.append(hitbox.moved(dx: dx, dy: dy, bounds: moved, unclipped: movedU))
         }
         // Element bounds are layout rects: the layout shift only, not the scroll offset.
         let ex = shift.layoutX, ey = shift.layoutY

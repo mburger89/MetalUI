@@ -1432,7 +1432,8 @@ public final class Frame {
                                // composed map and the outer clip (`GX-I`).
                                transform: prepaintEffects.last.map {
                                    HitboxTransform(inverse: $0.inverse, outerClip: $0.outerClip)
-                               }))
+                               },
+                               unclipped: translated, clipDepth: clipDepth))
         snapshotNamedSpaces(forHitbox: hitboxes.count - 1)   // OV-E item 3
         // A proposal wrapper's own registration, noted for an effect at the same
         // rect to transform (`GX-P` item 1).
