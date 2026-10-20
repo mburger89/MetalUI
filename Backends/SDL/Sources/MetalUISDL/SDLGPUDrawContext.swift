@@ -41,8 +41,9 @@ import SDLBridge
 /// (`view`) a debug build does detect the violations it can see: a typed
 /// `waitForIdle` called inside the draw (pinned), and a draw that returns with a
 /// typed pass still open (pinned). The async `submitBatch` and `fence.wait` carry
-/// the same check, but a synchronous draw cannot reach them on its own thread, so
-/// it is unpinned (rulings `GA-I`, `GA-O`).
+/// the same check; a synchronous draw cannot reach them on its own thread, so they
+/// are pinned through a package test hook that marks the calling thread as drawing
+/// (rulings `GA-I`, `GA-O`, `GA-R`).
 public struct SDLGPUDrawContext: GPUSurfaceContext {
     /// The renderer's `SDL_GPUDevice *` — the one the target was made on.
     public let device: OpaquePointer
