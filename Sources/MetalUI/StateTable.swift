@@ -174,6 +174,16 @@ final class StateTable {
     /// and the marks a replayed paint repeats go through ``mark(_:)`` too (`SB-`). Emptied by `sweep()`.
     var markJournal: [GlobalElementID] = []
 
+    /// Every entry a retained window may have read this frame, in order (`RW-D`): the ids of `readState`, of a compared
+    /// `withState` that found its value unchanged and of `peek`. Appended only while `contentMemos.retainsSubtrees`;
+    /// the slots with a retention channel of their own (`$ax`, `$focus`, `$anim...`) are left out. A window (build, prepaint,
+    /// paint) takes `readJournal.count` at its start and end and keeps the range's ids with their versions. Emptied by `sweep()`.
+    var readJournal: [GlobalElementID] = []
+    /// The journal of the last swept build (`RW-O`).
+    private(set) var lastReadJournal: [GlobalElementID] = []
+    /// The mark journal of the last swept build: a record's `versions` name these too, so verify mode counts them as named (`RW-O`).
+    private(set) var lastMarkJournal: [GlobalElementID] = []
+
     /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
     var retainLog: RetainLog?
 
@@ -674,6 +684,10 @@ final class StateTable {
     /// This counter is what makes that frequency assertable at all.
     private(set) var writeCount: Int = 0
 
+    /// The compared `withState`s that found a changed value and wrote (`RW-O`): verify mode reads it to find a write a
+    /// replay skipped. Never reset; a window reads a difference.
+    private(set) var comparedWriteCount: Int = 0
+
     /// Read-modify-write the state at `id`, creating it from `initial` on first
     /// access, and **mark it as still live**.
     ///
@@ -750,6 +764,80 @@ final class StateTable {
                             version: versionCounter)
         writeCount += 1
     }
+
+    // MARK: Read-only access (`RW-C`, `RW-D`, `RW-E`)
+
+    /// Whether `id` is a slot with a retention channel of its own (`$ax`, `$focus`, `$anim...`): the read set leaves it out.
+    static func ownsItsChannel(_ id: GlobalElementID) -> Bool {
+        guard case .named(let name) = id.component else { return false }
+        let text = name.name
+        return text.hasPrefix("$anim") || text.hasPrefix("$ax") || text.hasPrefix("$focus")
+    }
+
+    /// Appends `id` to the read journal and the graft journal (`RW-D`). No version moves and nothing is tainted.
+    func noteRead(_ id: GlobalElementID) {
+        guard contentMemos.retainsSubtrees, !Self.ownsItsChannel(id) else { return }
+        readJournal.append(id)
+        contentMemos.journal.record(.stateRead(id, entryVersion(id)))
+    }
+
+    /// Marks `id` live without a version, a write or a journal read (`RW-E`): what a replay of a record's liveness
+    /// repeats, and what a read-only access does besides noting its read. Idempotent with a fresh frame's access.
+    func touchLive(_ id: GlobalElementID) {
+        marked.insert(id)
+        if let index = storage.index(forKey: id) { storage.values[index].isLive = true }
+    }
+
+    /// A read-only access: live in every open window's liveness channel, and a read.
+    private func noteLiveRead(_ id: GlobalElementID) {
+        touchLive(id)
+        retainLog?.lives.append(id)
+        prepaintLog?.lives.append(id)
+        contentMemos.journal.record(.liveState(id))
+        noteRead(id)
+    }
+
+    /// The entry at `id` read without writing it back (`RW-C`): no version, no `writeCount`, no taint; the access
+    /// marks the entry live and joins the read set. An absent entry, or one of another type, is today's `withState`
+    /// (a creation: a write).
+    func readState<S>(_ id: GlobalElementID, initial: @autoclosure () -> S) -> S {
+        if let entry = storage[id], let stored = entry.value as? S {
+            noteLiveRead(id)
+            return stored
+        }
+        let seed = initial()
+        var result = seed
+        withState(id, initial: seed) { result = $0 }
+        // The creating frame's windows read (and keep live) what they created: a record made there that hits later must
+        // validate against this version, and replay this entry's liveness (`RW-E`, `RW-F`).
+        noteLiveRead(id)
+        return result
+    }
+
+    /// A `withState` whose body may re-store what is there (`RW-B`): when `unchanged(old, new)` the access is a
+    /// `readState` (no version, no taint), otherwise exactly the plain write. An absent entry or another type is a write.
+    func withState<S>(_ id: GlobalElementID,
+                      initial: @autoclosure () -> S,
+                      unchanged: (S, S) -> Bool,
+                      _ body: (inout S) -> Void) {
+        guard let entry = storage[id], let old = entry.value as? S else {
+            withState(id, initial: initial(), body)
+            noteLiveRead(id)   // as `readState`'s creation: the window that created the entry names it
+            return
+        }
+        var value = old
+        body(&value)
+        if unchanged(old, value) {
+            noteLiveRead(id)
+            return
+        }
+        // The body already ran: the plain write stores its result without running it again.
+        comparedWriteCount += 1
+        let result = value
+        withState(id, initial: result) { $0 = result }
+        noteLiveRead(id)   // the write taints every open window; a prepaint-only taint still leaves a paint record, which owes the entry its liveness
+    }
+
 
     /// Mark `id` live for this frame's sweep, without reading or creating an
     /// entry for it.
@@ -891,6 +979,7 @@ final class StateTable {
     /// Pinned by `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite`
     /// and its separating arm `aNilWrittenToAnOptionalStateReadsNilNotItsInitialValue`.
     func peek<S>(_ id: GlobalElementID, as type: S.Type = S.self) -> S? {
+        if contentMemos.retainsSubtrees { noteRead(id) }
         if let overlay = departedOverlay {
             if let value = overlay.values[id] { return value as? S }
             if overlay.roots.contains(where: { id.isOrDescends(from: $0) }) { return nil }
@@ -1001,7 +1090,10 @@ final class StateTable {
         swap(&loopExtents, &previousLoopExtents)
         loopExtents.removeAll(keepingCapacity: true)
 
+        lastMarkJournal = markJournal
         markJournal.removeAll(keepingCapacity: true)
+        lastReadJournal = readJournal   // `RW-O`: verify mode compares a replayed build's reads with a fresh one's after the sweep
+        readJournal.removeAll(keepingCapacity: true)
         generation += 1
         for id in storage.keys {
             let isMarked = marked.contains(id)

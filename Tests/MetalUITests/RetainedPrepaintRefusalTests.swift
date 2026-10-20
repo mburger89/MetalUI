@@ -18,8 +18,11 @@ enum PrepaintWrite: String, CaseIterable, Sendable {
     case stateWrite
     /// A noted live animation or another-frame request in prepaint.
     case anotherFrame
-    /// A presentation anchor.
+    /// A presentation anchor: replayed now (`RW-K`), so it behaves as the control does.
     case anchor
+
+    /// Whether the occurrence's prepaint replays.
+    var replays: Bool { self == .nothing || self == .anchor }
 }
 
 private struct PrepaintWriter: Element {
@@ -57,7 +60,7 @@ private struct PrepaintControlHolder: Component, @MainActor Equatable {
 }
 
 /// 7b — an occurrence whose **prepaint alone** writes a channel a ledger does not replay (state, a live-animation note, a
-/// presentation anchor) paints from a record (`retainedHits == 2`) and runs its prepaint every frame, counted ineligible by
+/// presentation anchor, which `RW-K` made replayable: that arm now replays like the control) paints from a record (`retainedHits == 2`) and runs its prepaint every frame, counted ineligible by
 /// name; its control neighbour replays both. Mutation, per arm: that channel's audit or taint removed (`StateTable.withState`'s
 /// taint; `PrepaintAudit.movedChannel`'s `timeVarying`, `anchors`) — the arm's occurrence replays its prepaint
 /// (`retainedPrepaintHits == 2`).
@@ -73,8 +76,9 @@ func aPrepaintThatAloneWritesAChannelRunsEveryFrame(write: PrepaintWrite) async 
     window.window.setNeedsRedraw(); window.tick()
     let f = window.lastFrameWork
     #expect(f.retainedHits == 2, "both paint from a record: \(f.retainedHits)/\(f.retainedMisses)/\(f.retainedIneligible)")
-    if write == .nothing {
-        #expect(f.retainedPrepaintHits == 2, "the control replays: \(f.retainedPrepaintHits)")
+    if write.replays {
+        #expect(f.retainedPrepaintHits == 2, "\(write.rawValue) replays: \(f.retainedPrepaintHits)")
+        #expect(f.retainedPrepaintIneligible == 0)
     } else {
         #expect(f.retainedPrepaintHits == 1, "only the control replays prepaint: \(f.retainedPrepaintHits)")
         #expect(f.retainedPrepaintIneligible == 1, "the writer is refused by name: \(f.retainedPrepaintIneligible)")

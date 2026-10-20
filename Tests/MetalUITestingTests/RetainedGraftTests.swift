@@ -49,7 +49,8 @@ private struct AfterGraftFrame {
 private let afterGraftFrames: [AfterGraftFrame] = [
     AfterGraftFrame(arm: .value, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
     AfterGraftFrame(arm: .environment, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
-    AfterGraftFrame(arm: .panels, requests: 167, skippedRequests: 631, grafts: 30, graftIneligible: 1, graftedNodes: 641, prepaints: 176, prepaintHits: 30),
+    // `RW-S`: the graph panel is eligible now (read-only `withState`), no longer a graft refusal: 167 -> 144 requests, 176 -> 153 prepaints.
+    AfterGraftFrame(arm: .panels, requests: 144, skippedRequests: 654, grafts: 31, graftIneligible: 0, graftedNodes: 677, prepaints: 153, prepaintHits: 31),
 ]
 
 @Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
@@ -470,7 +471,7 @@ func theLoweredItemOfAGraftedTopNodeIsRecordedAgain() async throws {
 // MARK: 18 — what a graft refuses, by name
 
 enum RGKind: String, CaseIterable {
-    case control, hidden, lifecycle, timeline, scroll, popover
+    case control, hidden, lifecycle, timeline, scroll, stateWrite, popover
     /// The channel the refusal names: `nil` for the control (it grafts).
     var channel: String? {
         switch self {
@@ -478,7 +479,8 @@ enum RGKind: String, CaseIterable {
         case .hidden: "hiddenNodes"
         case .lifecycle: "lifecycle"
         case .timeline: "timeVarying"
-        case .scroll: "stateWrite"
+        case .scroll: nil   // read-only state since `RW-H`: a scroller grafts
+        case .stateWrite: "stateWrite"
         case .popover: "presentation"
         }
     }
@@ -497,6 +499,7 @@ private struct RGKindCard: Component, @MainActor Equatable {
             case .timeline: TimelineView(.animation) { _ in Box().frame(width: Pixels(20), height: Pixels(6)) }
             case .scroll: ScrollView(.vertical) { Text("scrolled").frame(width: Pixels(40), height: Pixels(40)) }
                     .frame(width: Pixels(60), height: Pixels(20))
+            case .stateWrite: PlainWriteLeaf()
             case .popover: Box().frame(width: Pixels(20), height: Pixels(6)).popover(isPresented: .constant(true)) { Text("pop") }
             }
         }

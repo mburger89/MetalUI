@@ -12,6 +12,52 @@ final class ContentMemoToken {
     var tick: Int = 0
 }
 
+/// The decision flags of one occurrence (`MO-A`): written by whichever thread an observation `onChange` fires on,
+/// under a lock, so the next main-actor skip, replay or graft decision sees a change made on the main actor
+/// whatever thread runs it (off Darwin Swift Testing's main actor is a pool thread, record 123). References nothing,
+/// so a handle may hold it strongly (`MO-B`, `IV-R`).
+final class MemoFlags: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _stale = false
+    private var _observedChange = false
+    private var _serial = 0
+    private var _changes = 0
+
+    private func locked<R>(_ body: () -> R) -> R {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+
+    var stale: Bool {
+        get { locked { _stale } }
+        set { locked { _stale = newValue } }
+    }
+    var observedChange: Bool {
+        get { locked { _observedChange } }
+        set { locked { _observedChange = newValue } }
+    }
+    var serial: Int {
+        get { locked { _serial } }
+        set { locked { _serial = newValue } }
+    }
+    /// Monotonic count of retained-session fires (`MO-F`).
+    var changes: Int { locked { _changes } }
+
+    /// Advances the serial and clears `stale` in one step (`MO-D`): retires the previous session.
+    func advance() -> Int {
+        locked { _serial &+= 1; _stale = false; return _serial }
+    }
+    /// A memo session of serial `s` fired: sets `stale` unless the entry moved on. Returns whether it did.
+    func fireMemo(serial s: Int) -> Bool {
+        locked { if _serial == s { _stale = true; return true }; return false }
+    }
+    /// A retained session fired.
+    func fireRetained() { locked { _observedChange = true; _changes &+= 1 } }
+    /// Clears `observedChange` only if no fire landed since `changes` was read (`MO-F`).
+    func clearObservedChange(ifChangesEqual c: Int) { locked { if _changes == c { _observedChange = false } } }
+}
+
 /// The `onChange` side of one memo session, `Sendable` so the observation
 /// machinery can call it on any thread. Holds the entry and the store **weakly**
 /// (`IV-S`): the closure lives in the observed model's registrar and the entry's
@@ -19,11 +65,13 @@ final class ContentMemoToken {
 private final class ContentMemoHandle: @unchecked Sendable {
     weak var entry: ContentMemoStore.Entry?
     weak var store: ContentMemoStore?
+    let flags: MemoFlags
     let serial: Int
 
     init(entry: ContentMemoStore.Entry, store: ContentMemoStore, serial: Int) {
         self.entry = entry
         self.store = store
+        self.flags = entry.flags
         self.serial = serial
     }
 
@@ -31,21 +79,21 @@ private final class ContentMemoHandle: @unchecked Sendable {
     /// main-thread change is handled synchronously — load-bearing for the token
     /// write that retires the previous session — an off-thread one costs a hop.
     func fire() {
+        // The flag first, on any thread, under the lock (`MO-A`): a serial the entry has moved past is a
+        // flush (the token write before a re-evaluation, or an entry that left the tree): nothing changed.
+        let changed = flags.fireMemo(serial: serial)
+        // The bookkeeping keeps the old branch (`MO-C`): it decides nothing.
         if Thread.isMainThread {
-            MainActor.assumeIsolated { self.fireOnMain() }
+            MainActor.assumeIsolated { self.bookkeep(changed) }
         } else {
-            Task { @MainActor in self.fireOnMain() }
+            Task { @MainActor in self.bookkeep(changed) }
         }
     }
 
-    @MainActor private func fireOnMain() {
+    @MainActor private func bookkeep(_ changed: Bool) {
         guard let store else { return }
         store.armed -= 1
-        // A serial the entry has moved past is a flush (the token write before a
-        // re-evaluation, or an entry that left the tree): nothing changed.
-        guard let entry, entry.serial == serial else { return }
-        entry.stale = true
-        store.markDirty?()
+        if changed { store.markDirty?() }
     }
 }
 
@@ -68,14 +116,25 @@ package final class ContentMemoStore {
         /// The readings of the declared `@Environment` properties the last evaluation was made under (`EE-A`).
         var readings: [EnvironmentReading]
         let token = ContentMemoToken()
-        var serial = 0
-        var stale = false
+        /// The decision flags (`MO-A`): the old names, over one locked box.
+        let flags = MemoFlags()
+        var serial: Int {
+            get { flags.serial }
+            set { flags.serial = newValue }
+        }
+        var stale: Bool {
+            get { flags.stale }
+            set { flags.stale = newValue }
+        }
         var touched = true
         // Retained subtrees (`SB-`): the occurrence's record (its paint, `SB-AA`), the observation
         // windows over its build recursion, prepaint and paint, and whether any observed property
         // changed since the record was made.
         var record: RetainedRecord?
-        var observedChange = false
+        var observedChange: Bool {
+            get { flags.observedChange }
+            set { flags.observedChange = newValue }
+        }
         /// Builds (by `ContentMemoStore.buildSerial`) before which this occurrence's prepaint is not replayed, and
         /// the exponent of the next quarantine: a redo this occurrence caused doubles it (`RK-D` item 3).
         var quarantineUntil = 0
@@ -215,9 +274,10 @@ package final class ContentMemoStore {
         }
         // Retire the previous session first (`IV-L` item 5): the serial moves on,
         // then the token write fires it, and its handler finds a stale serial.
-        entry.serial &+= 1
+        // The same step clears `stale` (`MO-D`): a write that lands during the getter survives it.
+        let newSerial = entry.flags.advance()
         entry.token.tick &+= 1
-        let handle = ContentMemoHandle(entry: entry, store: self, serial: entry.serial)
+        let handle = ContentMemoHandle(entry: entry, store: self, serial: newSerial)
         armed += 1
         let content = withObservationTracking {
             _ = entry.token.tick
@@ -231,7 +291,6 @@ package final class ContentMemoStore {
         entry.pristine = content
         entry.versions = versions
         entry.readings = readings
-        entry.stale = false
         return content
     }
 

@@ -477,6 +477,20 @@ a function still does (`uncomparableEnvironmentKey`). A test that counted the `.
 reads the `.value` arm's counts. The fingerprint now holds provided object **instances**, so a swapped `@Observable` object under a
 retained occurrence misses instead of replaying the old paint (`EE-K`).
 
+### Retained read-only state (`RW-`, record §121)
+
+None for the API beyond one additive `MetalUITesting` field, `FrameWork.retainedIneligibleReasons: [String: Int]` (class M; a stored
+property on a public struct, so `swift package clean` after pulling); no `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem`
+requirement is added, so no conformer changes. **Behaviour, compiles and answers differently:** an `.equatable()` occurrence that holds an
+unfocused `TextField`/`TextEditor`, a `ScrollView`/`ProposalScrollView`, a `List` or a closed `Picker`/`Menu`/`.popover` declarer was
+refused (`stateWrite`, `presentationAnchor`) and rebuilt every frame; it is now replayed and grafted while the state those controls read is
+unchanged, so a custom element under one is called less often, as in `SB-`/`RK-` (an `unfocused` field, a settled scroller, a `List` whose
+window did not move). A scroll, a wheel, a window change, a selection, a focused field and any typed character still miss; an open popover,
+an alert and a `GPUSurface` stay ineligible by name. A test that counted such an occurrence's `retainedIneligible`,
+`retainedPrepaintIneligible` or `retainedGraftIneligible` reads 0 where it read 1, and one that counted its element requests reads fewer
+(bracket `.panels` node drag: requests 167 to 144; orbit with panels: 115 to 6). **A framework `withState` that re-stores what is there is no
+longer a write**: package code that wants the old behaviour calls the plain `withState`, which still bumps the version and taints.
+
 ### Window chrome on SDL (`CW-`, item S1, record §112)
 
 Additive API, class M (SwiftUI has no window-control API, probe `swiftui-window-chrome.swift`):

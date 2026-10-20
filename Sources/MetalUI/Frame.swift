@@ -2031,9 +2031,17 @@ public final class Frame {
     /// Records `bounds` (this element's, in the current offset) as `id`'s
     /// presentation anchor, in window points.
     func recordPresentationAnchor(_ id: GlobalElementID, bounds: Bounds<Pixels>) {
-        presentationAnchors[id] = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
-                                                       y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
-                                         size: bounds.size)
+        let windowBounds = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                                                y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+                                  size: bounds.size)
+        presentationAnchors[id] = windowBounds
+        prepaintLog?.anchors.append((id, windowBounds))
+    }
+
+    /// A ledger's anchor again (`RW-K`): the bounds are already window-space, so the offset is not added twice.
+    func replayPresentationAnchor(_ id: GlobalElementID, windowBounds: Bounds<Pixels>) {
+        presentationAnchors[id] = windowBounds
+        prepaintLog?.anchors.append((id, windowBounds))
     }
 
     /// Set by a collecting `List` whose window is unbounded only because its
@@ -3860,7 +3868,7 @@ extension PrepaintExtras {
 /// Counts of the channels a prepaint can write that a record does not replay (`RK-E`): any that moves between a
 /// recorder's open and close makes its occurrence ineligible for prepaint replay, by the channel's name.
 struct PrepaintAudit: Equatable {
-    var timeVarying = 0, popovers = 0, anchors = 0, spaces = 0, scrollResolutions = 0, scrollAdjustments = 0
+    var timeVarying = 0, popovers = 0, spaces = 0, scrollResolutions = 0, scrollAdjustments = 0
     var unresolvedRequests = 0, accessibilityRetry = 0, portals = 0, namedSnapshots = 0, surfaces = 0
     var hitboxNamedSpaces = 0
 
@@ -3868,7 +3876,7 @@ struct PrepaintAudit: Equatable {
     func movedChannel(to other: PrepaintAudit) -> String? {
         if timeVarying != other.timeVarying { return "timeVarying" }
         if popovers != other.popovers { return "popover" }
-        if anchors != other.anchors { return "presentationAnchor" }
+        // Presentation anchors are no longer an audited channel: a ledger replays them (`RW-K`).
         if spaces != other.spaces { return "presentationSpace" }
         if scrollResolutions != other.scrollResolutions || scrollAdjustments != other.scrollAdjustments
             || unresolvedRequests != other.unresolvedRequests { return "scrollRequest" }
@@ -3926,7 +3934,7 @@ extension Frame {
     }
 
     func prepaintAudit() -> PrepaintAudit {
-        PrepaintAudit(timeVarying: timeVaryingNotes, popovers: openPopovers.count, anchors: presentationAnchors.count,
+        PrepaintAudit(timeVarying: timeVaryingNotes, popovers: openPopovers.count,
                       spaces: presentationSpaces.count, scrollResolutions: scrollResolutions.count,
                       scrollAdjustments: scrollAnchorAdjustments.count,
                       unresolvedRequests: unresolvedScrollRequestCount,
@@ -3984,6 +3992,9 @@ extension Frame {
             elementBounds[id] = bounds
             prepaintLog?.elementBounds.append((id, bounds))
         }
+        for (id, bounds) in l.anchors { replayPresentationAnchor(id, windowBounds: bounds) }
+        for id in l.liveStates { stateTable.touchLive(id); prepaintLog?.lives.append(id); retainLog?.lives.append(id) }
+        for id in l.reads { stateTable.noteRead(id) }
         hoverRegionCount += l.tallies.hover
         pointerStyleRegionCount += l.tallies.pointerStyle
         keyRegionCount += l.tallies.key

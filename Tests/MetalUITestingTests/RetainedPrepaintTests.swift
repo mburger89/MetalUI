@@ -32,7 +32,8 @@ private let fb9a7e42Frames = [
     Fb9a7e42Frame(arm: .environment, requests: 798, prepaints: 886, paints: 252, hits: 29, misses: 3, ineligible: 0,
                   skippedPaints: 832, evaluations: 3, skips: 29, refusals: 0, measures: 52, cacheHits: 331,
                   cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
-    Fb9a7e42Frame(arm: .panels, requests: 798, prepaints: 886, paints: 184, hits: 31, misses: 3, ineligible: 1,
+    // `RW-S`: the graph panel is a counted miss (the drag is inside it, `SB-X`), no longer ineligible; paints and the scene are unmoved.
+    Fb9a7e42Frame(arm: .panels, requests: 798, prepaints: 886, paints: 184, hits: 31, misses: 4, ineligible: 0,
                   skippedPaints: 900, evaluations: 3, skips: 32, refusals: 0, measures: 52, cacheHits: 331,
                   cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
 ]
@@ -75,7 +76,7 @@ private struct AfterPrepaintFrame {
 private let afterPrepaintFrames = [
     AfterPrepaintFrame(arm: .value, prepaints: 219, skippedPrepaints: 667, prepaintHits: 29, prepaintIneligible: 0),
     AfterPrepaintFrame(arm: .environment, prepaints: 219, skippedPrepaints: 667, prepaintHits: 29, prepaintIneligible: 0),
-    AfterPrepaintFrame(arm: .panels, prepaints: 176, skippedPrepaints: 710, prepaintHits: 30, prepaintIneligible: 1),
+    AfterPrepaintFrame(arm: .panels, prepaints: 153, skippedPrepaints: 733, prepaintHits: 31, prepaintIneligible: 0),   // `RW-S`
 ]
 
 /// 1b — the node drag's tenth frame with prepaint replay: the build and layout work is `fb9a7e42`'s to the unit (798 requests, the
@@ -469,7 +470,10 @@ struct RPInputsRoot: Component {
 // MARK: 7 — what prepaint replay refuses
 
 enum RPKind: String, CaseIterable {
-    case control, scrollRegion, textField, popover, dragSource, geometryChange
+    case control, scrollRegion, textField, plainWrite, popover, dragSource, geometryChange
+
+    /// Whether the occurrence replays like the control: a scroller and an unfocused field are read-only state (`RW-H`, `RW-J`).
+    var replays: Bool { self == .control || self == .scrollRegion || self == .textField }
 }
 
 private struct RPKindCard: Component, @MainActor Equatable {
@@ -486,6 +490,8 @@ private struct RPKindCard: Component, @MainActor Equatable {
                     .frame(width: Pixels(90), height: Pixels(30))
             case .textField:
                 TextField("t", text: Binding(get: { "" }, set: { _ in })).frame(width: Pixels(90), height: Pixels(22))
+            case .plainWrite:
+                PlainWriteLeaf()
             case .popover:
                 Text("anchor").frame(width: Pixels(60), height: Pixels(14))
                     .popover(isPresented: .constant(true)) { Text("body").frame(width: Pixels(40), height: Pixels(14)) }
@@ -500,7 +506,8 @@ private struct RPKindCard: Component, @MainActor Equatable {
     static func == (l: RPKindCard, r: RPKindCard) -> Bool { l.kind == r.kind }
 }
 
-/// 7 — an occurrence holding a scroll region, a text field (a `withState` write), a presented popover, a drag source
+/// 7 — an occurrence holding a plain `withState` write (a scroll region and an unfocused text field only read, `RW-H`/`RW-J`, and replay
+/// like the control), a presented popover, a drag source
 /// or a geometry note runs its prepaint every frame (counted ineligible, `RK-E`), and its frames equal the
 /// retention-off frames; the control arm (a button) replays prepaint, so "ineligible" is not "nothing replays".
 /// Mutation, per arm: that kind's refusal removed — the arm's scene or hitbox list, or its stale geometry note,
@@ -518,8 +525,9 @@ func aPrepaintInEachIneligibleKindRunsAsBefore(kind: RPKind) async throws {
         try pair.compare("frame \(index)")
     }
     let f = try #require(pair.frames.last)
-    if kind == .control {
+    if kind.replays {
         #expect(f.retainedPrepaintHits == 2, "both replay: \(f.retainedPrepaintHits)")
+        #expect(f.retainedPrepaintIneligible + f.retainedIneligible == 0, "\(kind.rawValue) is eligible")
     } else {
         #expect(f.retainedPrepaintHits == 1, "only the plain neighbour replays prepaint: \(f.retainedPrepaintHits)")
         #expect(f.retainedPrepaintIneligible + f.retainedIneligible >= 1, "\(kind.rawValue) is refused by name")

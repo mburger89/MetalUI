@@ -97,7 +97,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
                 entry.graft = record
             } else {
                 entry.graft = nil
-                store.retained.graftIneligible += 1
+                store.retained.noteIneligible(.graft, reason: closed.refusal ?? "unknown")
                 store.graftRefusals.append(closed.refusal ?? "unknown")
                 if retainedTraces { print("retained graft ineligible \(sbPath(id).suffix(60)) because \(closed.refusal ?? "?")") }
             }
@@ -135,6 +135,8 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         // Prepaint runs in an observation window of its own (`SB-V`): an `@Observable` read there that a
         // prepaint state carries into paint kills the record.
         let result: ComponentPrepaint<C>
+        let readLow = frame.stateTable.readJournal.count
+        defer { phase.prepaintReads = readLow..<frame.stateTable.readJournal.count }
         if phase.prepaintObserved {
             result = phase.entry.prepaintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.prepaintGroup(layout: &layout, pass: &pass)

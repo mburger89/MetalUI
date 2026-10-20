@@ -33,7 +33,7 @@ final class PrepaintLog {
     }
 
     struct Marks: Equatable {
-        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0
+        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0
     }
 
     var recorders: [PrepaintRecorder] = []
@@ -42,12 +42,17 @@ final class PrepaintLog {
     var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
+    /// Presentation anchors recorded under the prepaint, window-space (`RW-K`).
+    var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Depth of `withState` calls a replay reproduces itself (the accessibility node's retention slot).
+    /// Entries read-only accesses kept live under the prepaint (`RW-E`).
+    var lives: [GlobalElementID] = []
     var allowedStateWrites = 0
 
     var current: Marks {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
-              contextMenus: contextMenus.count, elementBounds: elementBounds.count)
+              contextMenus: contextMenus.count, elementBounds: elementBounds.count, lives: lives.count,
+              anchors: anchors.count)
     }
 
     /// Marks every open recorder as unable to leave a ledger, naming the first reason.
@@ -76,6 +81,8 @@ final class PrepaintRecorder {
     var taint: String?
     var from = PrepaintLog.Marks()
     var hitboxLow = 0, axLow = 0
+    /// `StateTable.readJournal.count` where the prepaint window opened (`RW-D`).
+    var readLow = 0
     var tallies = RegionTallies()
     var prepaints = 0
     var audit = PrepaintAudit()
@@ -105,9 +112,16 @@ final class PrepaintLedger {
     var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
+    /// Presentation anchors, window-space, replayed through `Frame.replayPresentationAnchor` (`RW-K`).
+    var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
     var tallies = RegionTallies()
     /// The element prepaints the replay stands for (`FrameWork.retainedSkippedPrepaints`).
     var prepaints = 0
+
+    /// Entries read-only accesses kept live (`RW-E`), replayed through `StateTable.touchLive`.
+    var liveStates: [GlobalElementID] = []
+    /// The entries the prepaint read (`RW-D`), noted again by a replay so an enclosing window sees them.
+    var reads: [GlobalElementID] = []
 
     init(key: PrepaintKey) { self.key = key }
 }
@@ -154,7 +168,7 @@ extension Frame {
         let build = phase.build, entry = phase.entry
         if let reason = prepaintRefusal() ?? retainedPrepaintEntryRefusal(build: build) {
             if retainedTraces { print("retained prepaint refused \(sbPath(build.key.id).suffix(60)) because \(reason)") }
-            memos.retained.prepaintIneligible += 1
+            memos.retained.noteIneligible(.prepaint, reason: reason)
             return .run(nil)
         }
         if retainedSubtreeHasPointerPressOrFocus(under: build.key.id) { return .run(nil) }
@@ -206,6 +220,7 @@ extension Frame {
         recorder.from = log.current
         recorder.hitboxLow = hitboxCount
         recorder.axLow = axEmissionCount
+        recorder.readLow = stateTable.readJournal.count
         recorder.tallies = regionTallies
         recorder.prepaints = elementPrepaints
         recorder.audit = prepaintAudit()
@@ -232,7 +247,7 @@ extension Frame {
             if retainedTraces {
                 print("retained prepaint ineligible \(sbPath(phase.build.key.id).suffix(60)) because \(recorder.taint ?? "unkeyed")")
             }
-            memos.retained.prepaintIneligible += 1
+            memos.retained.noteIneligible(.prepaint, reason: recorder.taint ?? "unkeyed")
             return nil
         }
         let ledger = PrepaintLedger(key: key)
@@ -244,6 +259,13 @@ extension Frame {
         ledger.pressOnly = Array(log.pressOnly[from.pressOnly..<to.pressOnly])
         ledger.contextMenus = Array(log.contextMenus[from.contextMenus..<to.contextMenus])
         ledger.elementBounds = Array(log.elementBounds[from.elementBounds..<to.elementBounds])
+        ledger.anchors = Array(log.anchors[from.anchors..<to.anchors])
+        ledger.liveStates = Array(log.lives[from.lives..<to.lives])
+        var seenReads = Set<GlobalElementID>()
+        for index in recorder.readLow..<stateTable.readJournal.count {
+            let id = stateTable.readJournal[index]
+            if seenReads.insert(id).inserted { ledger.reads.append(id) }
+        }
         let now = regionTallies
         ledger.tallies = RegionTallies(hover: now.hover - recorder.tallies.hover,
                                        pointerStyle: now.pointerStyle - recorder.tallies.pointerStyle,

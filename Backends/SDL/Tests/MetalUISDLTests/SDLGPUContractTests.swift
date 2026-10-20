@@ -73,6 +73,39 @@ private func leaveAPassOpen(_ ctx: any GPUSurfaceContext) {
         let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
         #expect(stderr.contains("waitForIdle was called inside a surface draw"), "the trap names the call: \(stderr)")
     }
+
+    /// **D6** (`GA-R`). `SDLGPUDevice.submitBatch` called while the calling thread is
+    /// marked as drawing (the test hook; a synchronous draw cannot reach an async
+    /// verb) traps naming the call. Mutation: the `assertNotInsideDraw` line removed
+    /// from `submitBatch` (the batch runs and the child exits 0).
+    @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
+    func aSubmitBatchInsideADrawTrapsInDebug() async throws {
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            let device = try #require(await MainActor.run { GPUTestSupport.available ? SDLGPUDevice.make() : nil })
+            SDLGPUWindowGuard.enterSimulatedDrawForTesting()
+            _ = try await device.submitBatch { _ in }
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("SDLGPUDevice.submitBatch was called inside a surface draw"),
+                "the trap names the verb: \(stderr)")
+    }
+
+    /// **D7** (`GA-R`). `SDLGPUFence.wait` called while the calling thread is marked
+    /// as drawing traps naming the call; the fence is made before the mark, so the
+    /// trap cannot be `submitBatch`'s. Mutation: the `assertNotInsideDraw` line
+    /// removed from `wait`.
+    @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
+    func aFenceWaitInsideADrawTrapsInDebug() async throws {
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            let device = try #require(await MainActor.run { GPUTestSupport.available ? SDLGPUDevice.make() : nil })
+            let fence = try await device.submitBatch { _ in }
+            SDLGPUWindowGuard.enterSimulatedDrawForTesting()
+            await fence.wait()
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("SDLGPUFence.wait was called inside a surface draw"),
+                "the trap names the verb: \(stderr)")
+    }
     #endif
 
     /// **D3.** The frame view declares no verb that would end the frame's

@@ -168,6 +168,18 @@ extension Window {
     /// sweep differential (`RK-F`).
     package var testingStateEntries: [String] { stateTable.entryDigest }
 
+    /// A write of `value` to the entry at `id` as an input would make it (`RW-`): bumps the version, dirties the window.
+    package func testingWriteState<S>(_ id: GlobalElementID, _ value: S) { stateTable.write(id, value) }
+
+    /// The presentation anchors the last frame recorded, sorted, as strings (`RW-K`).
+    package var testingPresentationAnchors: [String] {
+        lastPresentationAnchors.map { "\($0.key) \($0.value)" }.sorted()
+    }
+
+    /// The version of the entry at `id` (0 when absent) and whether it is live (`RW-`).
+    package func testingStateVersion(_ id: GlobalElementID) -> UInt64 { stateTable.entryVersion(id) }
+    package func testingStateIsLive(_ id: GlobalElementID) -> Bool { stateTable.isLive(id) }
+
     /// Every field of the last build's hitboxes that is not a closure, in registration order, as one string
     /// each: identity, bounds, layer, opacity, scroll axis, origin, shape, transform, the contextual flag and
     /// which handler members were present (`RK-E`).

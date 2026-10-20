@@ -88,6 +88,11 @@ public struct FrameWork: Sendable, Equatable {
     public var retainedSkippedRequests: Int
     /// The layout nodes the grafts appended instead of registering.
     public var retainedGraftedNodes: Int
+    /// The ineligible counts (``retainedIneligible``, ``retainedPrepaintIneligible`` and ``retainedGraftIneligible``)
+    /// summed by the name of the channel that refused, as `METALUI_TRACE_RETAINED=1` prints it (`stateWrite`, `surface`,
+    /// `presentationAnchor`, ...): one entry per refusal, so an occurrence refused at paint, prepaint and graft counts
+    /// three times. Empty when nothing was refused (`RW-M`).
+    public var retainedIneligibleReasons: [String: Int]
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -115,7 +120,7 @@ public struct FrameWork: Sendable, Equatable {
                 retainedPrepaintHits: Int = 0, retainedPrepaintIneligible: Int = 0, retainedRedos: Int = 0,
                 retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0,
                 retainedGrafts: Int = 0, retainedGraftIneligible: Int = 0, retainedSkippedRequests: Int = 0,
-                retainedGraftedNodes: Int = 0) {
+                retainedGraftedNodes: Int = 0, retainedIneligibleReasons: [String: Int] = [:]) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -156,6 +161,7 @@ public struct FrameWork: Sendable, Equatable {
         self.retainedGraftIneligible = retainedGraftIneligible
         self.retainedSkippedRequests = retainedSkippedRequests
         self.retainedGraftedNodes = retainedGraftedNodes
+        self.retainedIneligibleReasons = retainedIneligibleReasons
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -197,6 +203,7 @@ public struct FrameWork: Sendable, Equatable {
                   retainedGrafts: l.retainedGrafts + r.retainedGrafts,
                   retainedGraftIneligible: l.retainedGraftIneligible + r.retainedGraftIneligible,
                   retainedSkippedRequests: l.retainedSkippedRequests + r.retainedSkippedRequests,
-                  retainedGraftedNodes: l.retainedGraftedNodes + r.retainedGraftedNodes)
+                  retainedGraftedNodes: l.retainedGraftedNodes + r.retainedGraftedNodes,
+                  retainedIneligibleReasons: l.retainedIneligibleReasons.merging(r.retainedIneligibleReasons, uniquingKeysWith: +))
     }
 }

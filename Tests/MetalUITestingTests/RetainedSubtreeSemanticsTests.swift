@@ -549,7 +549,7 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
         case .customEnvironmentKey:
             Text("custom").frame(width: Pixels(60), height: Pixels(14))
         case .stateWrite:
-            TextField("t", text: $text).frame(width: Pixels(80), height: Pixels(24))
+            PlainWriteLeaf().frame(width: Pixels(80), height: Pixels(24))
         case .popover:
             Text("anchor").frame(width: Pixels(60), height: Pixels(20))
                 .popover(isPresented: Binding(get: { true }, set: { _ in })) { Text("popover") }
@@ -578,6 +578,10 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
     if channel == .activeAnimation { flag.on = true; await rsSettle() }
     for _ in 0..<2 { window.window.setNeedsRedraw(); window.tick() }
     let f = rsFrame(window)
+    if channel == .scrollRegion {   // read-only scroll state since `RW-H`: the scroller replays like its neighbour
+        #expect(f.retainedHits == 2 && f.retainedIneligible == 0 && f.retainedMisses == 0, "both replay: \(f.retainedHits)/\(f.retainedIneligible)/\(f.retainedMisses)")
+        return
+    }
     #expect(f.retainedHits == 1, "the plain neighbour replays: \(f.retainedHits)")
     #expect(f.retainedIneligible == 1, "the \(channel.rawValue) occurrence is ineligible: \(f.retainedIneligible)")
     #expect(f.retainedMisses == 0)

@@ -58,6 +58,8 @@ public final class RetainedSubtreeDemoModel {
     @ObservationIgnored public var applySkipBuild: ((Bool) -> Void)?
     /// The last adopted frame's grafts and the element requests they stood for (`RK-B`).
     @ObservationIgnored public var grafts = (count: 0, skippedRequests: 0)
+    /// The last adopted frame's ineligible occurrences by reason, as text (`RW-M`); empty when none.
+    @ObservationIgnored public var reasons = ""
     @ObservationIgnored private var dragStartX: Float = 0
     @ObservationIgnored private var dragStartY: Float = 0
     @ObservationIgnored private var dragging: Int?
@@ -195,6 +197,7 @@ struct RetainedDemoStrip: Component {
             Text("misses \(model.counters.misses)").font(size: 12)
             Text("ineligible \(model.counters.ineligible)").font(size: 12)
             retainedDemoPrepaintReadout(model)
+            Text("reasons \(model.reasons.isEmpty ? "none" : model.reasons)").font(size: 12)
             Text("(the last frame; drag a node, or the pan)").font(size: 11).foregroundColor(.secondary)
         }
     }
@@ -225,8 +228,46 @@ private func retainedDemoRoot(strip: some ElementGroup, canvas: some ElementGrou
         retainedDemoHeader()
         strip
         canvas
+        RetainedDemoPanel().equatable()
     }
     .padding(Edges(all: Pixels(24)))
     .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity), alignment: .topLeading)
     .background(.surface)
+}
+
+/// The panel strip (`RW-`, C14b-3): a text field, a scrolling list and a picker in one `.equatable()` component whose value
+/// never changes. Dragging a node leaves it a replayed hit (its state is read, not rewritten); typing in the field, scrolling
+/// the list or holding focus is a counted miss with a correct result. In steady state the strip reads 0 ineligible.
+struct RetainedDemoPanel: Component, @MainActor Equatable {
+    @State var query = ""
+    @State var mode = 0
+    static func == (l: RetainedDemoPanel, r: RetainedDemoPanel) -> Bool { true }
+    var content: some ElementGroup {
+        retainedDemoPanelBody(query: $query, mode: $mode)
+    }
+}
+
+struct RetainedDemoPanelRow: Identifiable { let id: Int }
+
+/// The panel's body, its own function (the Windows 1 MB stack rule).
+@MainActor @ElementBuilder
+private func retainedDemoPanelBody(query: Binding<String>, mode: Binding<Int>) -> some ElementGroup {
+    HStack(spacing: 16) {
+        Text("Panel (retained):").font(size: 12)
+        TextField("Search", text: query).frame(width: Pixels(160))
+        ScrollView(.vertical) {
+            List(retainedDemoPanelRows(), rowHeight: Pixels(20)) { row in Text("Operation \(row.id)").font(size: 12) }
+        }
+        .frame(width: Pixels(200), height: Pixels(60))
+        Picker("Mode", selection: mode) {
+            Text("Model").tag(0)
+            Text("Sketch").tag(1)
+        }
+    }
+}
+
+@MainActor private func retainedDemoPanelRows() -> [RetainedDemoPanelRow] {
+    var rows: [RetainedDemoPanelRow] = []
+    for i in 0..<30 { rows.append(RetainedDemoPanelRow(id: i)) }
+    return rows
 }

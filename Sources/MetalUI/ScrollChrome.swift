@@ -63,6 +63,11 @@ struct ScrollChrome {
                           : Point(x: Pixels(Float(value)), y: Pixels(0))
     }
 
+    /// Whether two stored scroll states are the same value (`RW-H`): the compared write's `unchanged:`.
+    static func sameScrollState(_ a: ScrollState, _ b: ScrollState) -> Bool {
+        a.offset == b.offset && a.viewportExtent == b.viewportExtent && a.lastScrollTime == b.lastScrollTime
+    }
+
     // Two overloads, one per pass type, rather than one function taking a
     // shared protocol. `PrepaintPass` and `PaintPass` have no common protocol
     // to write this against — `Passes.swift` records why: a `StatefulPass`
@@ -105,7 +110,8 @@ struct ScrollChrome {
         let viewport = extent(bounds.size)
         let content = extent(pass.bounds(of: contentNode).size)
         var resolved: Double = 0
-        pass.withState(id, initial: ScrollState()) {
+        // A compared write (`RW-H`): a settled scroller re-stores what is there, which bumps no version and taints nothing.
+        pass.withState(id, initial: ScrollState(), unchanged: Self.sameScrollState) {
             $0.offset = Self.clamp(offset: $0.offset, content: content, viewport: viewport)
             resolved = $0.offset
             // The half `ScrollState.viewportExtent`'s own doc names: this is
@@ -131,8 +137,7 @@ struct ScrollChrome {
                         contentNode: LayoutNodeID, pass: PaintPass) -> Double {
         let viewport = extent(bounds.size)
         let content = extent(pass.bounds(of: contentNode).size)
-        var stored: Double = 0
-        pass.withState(id, initial: ScrollState()) { stored = $0.offset }
+        let stored = pass.readState(id, initial: ScrollState()).offset   // `RW-H`
         return Self.clamp(offset: stored, content: content, viewport: viewport)
     }
 
@@ -168,8 +173,7 @@ struct ScrollChrome {
         // fits must cost exactly as little as a `Box`.
         guard scrollable > 0 else { return }
 
-        var lastScroll: Double = 0
-        pass.withState(id, initial: ScrollState()) { lastScroll = $0.lastScrollTime }
+        let lastScroll = pass.readState(id, initial: ScrollState()).lastScrollTime   // `RW-H`
         let age = pass.timestamp - lastScroll
         let alpha = age < 0.6 ? 1.0 : max(0, 1.0 - (age - 0.6) / 0.4)
         guard alpha > 0 else { return }

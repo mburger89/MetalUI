@@ -80,14 +80,16 @@ summary.
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
-  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-R`), `CB-` (clipboard beyond text:
+  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-S`), `CB-` (clipboard beyond text:
   `2026-10-14-clipboard-types-decisions.md`, next `CB-R`), `IC-` (image cursors, headless SDL launch:
   `2026-10-14-cursors-headless-decisions.md`, next `IC-S`), `IH-` (header-only image read and bounded decode:
   `2026-10-14-image-info-decisions.md`, next `IH-Q`), `PN-` (pan path rasters:
   `2026-10-14-pan-rasters-decisions.md`, next `PN-L`), `PA-` (layout and build allocations:
   `2026-10-14-layout-allocations-decisions.md`, next `PA-S`), `EE-` (environment epoch:
   `2026-10-14-environment-epoch-decisions.md`, next `EE-P`), `SN-` (single-instance launch on SDL:
-  `2026-10-19-single-instance-decisions.md`, next `SN-Q`), …; the full
+  `2026-10-19-single-instance-decisions.md`, next `SN-Q`), `RW-` (retained read-only state:
+  `2026-10-19-retained-withstate-decisions.md`, next `RW-U`), `MO-` (memo and retained observation off the main thread:
+  `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -122,7 +124,10 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-19, `feat/single-instance` from `ffbabb5c`: 3971 tests, 0 goldens, 248 typecheck guards** (3970 + 1, 247 + guard 1.6b; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 215 on macOS, 30 + 212 in the Linux image; the fourteen images 0 px against `ffbabb5c`; no root declaration, census unmoved; no divergence label taken; Windows transport compiled by CI only; record §122). Before it,
+- **Counts (2026-10-20, `perf/retained-withstate` from `f557d339`, merged with master `fa6464ba` (§123 memo observation off the main thread): 4000 tests, 0 goldens, 249 typecheck guards** (master's 3978 + 22 tests, 248 + guard `RW.1`; re-measured by the orchestrator on the merged tree, record §121). Before it,
+  **(2026-10-19, `perf/retained-withstate` from `f557d339`, merged with master `4d91f27f` (§122 single instance): 3993 tests, 0 goldens, 249 typecheck guards** (master's 3971 + 22 tests, 248 + guard `RW.1`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run all passed, 0 issues, in **4 suites**, `FR-J no-argument frame: succeeded=true`; also 3993 passed with `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; `swift build --build-tests` on the default build system 0 `warning:`; inventory and undocumented scripts print nothing, census +2 (`FrameWork.retainedIneligibleReasons`, the demo model's `reasons`); the fourteen images 0 px against `f557d339`; Linux image `MetalUITestingTests` 363 and the Layout/Core/CrossPlatform tests passed, `Backends/SDL` untouched; no divergence label taken; record §121). Before it,
+  **(2026-10-19, `fix/memo-observation-thread` from `4d91f27f`: 3978 tests, 0 goldens, 248 typecheck guards** (3971 + 7, no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; no public declaration, no divergence label taken; verify switches, default-build warnings, the fourteen images and the Linux image re-take owed after the final commit, two pins unproven, record §123 §6). Before it,
+  **(2026-10-19, `feat/single-instance` from `ffbabb5c`: 3971 tests, 0 goldens, 248 typecheck guards** (3970 + 1, 247 + guard 1.6b; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; `Backends/SDL` 30 + 215 on macOS, 30 + 212 in the Linux image; the fourteen images 0 px against `ffbabb5c`; no root declaration, census unmoved; no divergence label taken; Windows transport compiled by CI only; record §122). Before it,
   **(2026-10-19, `perf/layout-allocations` from `6273e3a4`, merged with master `41a2180f` (§120 environment epoch): 3968 tests, 0 goldens, 247 typecheck guards** (master's 3957 + 11 tests, no guard; re-measured by the orchestrator on the merged tree, record §119). Before it,
   **(2026-10-14, `perf/layout-allocations` from `6273e3a4`, merged with master `298c23d4` (§118 pan rasters): 3937 tests, 0 goldens, 246 typecheck guards** (master's 3926 + 11 tests (lane 1's 8, lane 2's 3), no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing; no public declaration, no divergence label taken; the fourteen images 0 px against `6273e3a4` at the lanes, not re-taken after the merge; record §119). Before it,
   **(2026-10-19, `perf/environment-epoch` from `6273e3a4`, merged with master `01631221` (§104 `IV-R` memo leak fix): 3957 tests, 0 goldens, 247 typecheck guards** (master's 3930 + 27 tests, 246 + guard G1; `swift package clean`, native build 0 `error:`, native unfiltered run on an unlocked screen all passed, `FR-J no-argument frame: succeeded=true`, default build 0 `warning:`; also 3948 passed with `AppKitPresentationTests` skipped under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1`, no trap; re-measured by the orchestrator, record §120). Before it,
@@ -271,7 +276,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §122.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -775,6 +780,24 @@ reads still counts (`EE-A`…`EE-D`). **Still refused and counted** (divergence 
 (C14-c3), and `uncomparableCustomCount` replaces `customKeyCount` at the three retention sites (the graft site is unseparated, C14-c4).
 No public declaration. Pins count work (`EnvironmentReadingTests`, `EnvironmentEpoch*Tests`).
 
+**Retained read-only state (`RW-`, record §121).** C14b-3: a framework **read of `StateTable` is not a write**. `readState` (no version
+bump, no taint, marks the entry live, records a read) and the compared `withState(_:initial:unchanged:_:)` (an equal result is a read, a changed
+one today's write) sit beside the **plain `withState`, which keeps bumping and tainting**: a new framework site picks one of the three and
+`everyStateWriteSiteIsClassified` counts them per file; input-time writers stay plain and always bump (`RW-G`); `unchanged:` is a call-site
+closure, never a protocol on `ScrollState`/`ListOrigin` (public, `RW-Q`). **A frame-long read journal** (`StateTable.readJournal`, appended
+while retaining, `peek` included; a slot with its own channel (`$ax`, `$focus`, `$anim`) is not a read) gives the paint record, the prepaint
+ledger and the graft record a read set of `(id, version)` that must be unchanged for a hit, a mismatch being a counted **miss**; liveness
+runs in three channels (the record's `marks`, the ledger's `liveStates` through `touchLive`, the graft's `.liveState`) so a replayed field's
+`TextEditState` is not swept (`RW-E`); a replay re-notes what it stands for. A creating read, a clamp that changes the offset and a first
+sighting are writes (`RW-F`); a record made then gains its ledger one counted miss later (`RW-S`). **Eligible now:** an unfocused
+`TextField`/`TextEditor`, a settled `ScrollView`/`ProposalScrollView`, a `List` whose window did not move, a closed `Picker`/`Menu`/`.popover`
+declarer (its anchor replays from the ledger, `RW-K`). **Still miss or refuse, by name:** a focused field, a typed character, a wheel or drag, a
+selection change, `scrollTo`, an open popover, alert or dialog, a `GPUSurface` (`surface`, carried `RW-L`), `.continuous` always.
+`FrameWork.retainedIneligibleReasons` counts the three ineligible counters by channel name (`RW-M`); `METALUI_VERIFY_RETAINED=1` also traps
+`unrecordedRead` and `writeMissed` (`RW-O`). **A read a record does not name is a stale replay**: a new framework read of state goes through
+`readState`/`peek`, never a private store. Orbit with panels: element requests 115 to 6, prepaints 117 to 7, ineligible 1/2/1 to 0/0/0. One
+public `MetalUITesting` field, no divergence (labels 515–524 untouched), no SwiftUI probe. The demo's panel strip is `METALUI_RETAINED_DEMO=1`.
+
 **Pan rasters (`PN-`, record §118).** Value-identical, no public API, no divergence (labels 485–494 untouched). A path with
 **no local mask** whose conservative extent `E` (`RasterAnchor.pathExtent`: bounds with the stroke pad, grown 1) meets the clip, has
 area ≤ `RasterAnchor.overscanLimit` (2^20) and lies within half the target's size of it on every side is rasterized over `E`
@@ -795,6 +818,16 @@ loops of the kernel and build do not allocate per node: `roundedRect(_:)` is the
 is thread-filtered (`countAllocations`, Darwin only), differential and floor-corrected**: a debug build logs several events per
 `malloc` and allocates per `for-in` turn (`PA-J`, `PA-O`, `PA-Q`); release allocation figures are dated measurements, not pins.
 Deferred: `AmbientKey` reshape (C14-c), array-indexed measure cache (P3); the isolation-site share is unre-measured after the loops.
+
+**Memo observation off the main thread (`MO-`, record §123).** An `.equatable()` occurrence's decision flags (`stale`, `observedChange`, the
+serials a handler compares, a monotonic `changes`) live in one **locked** `MemoFlags` per entry (and per `RetainedSession` for its serial) and
+are set **synchronously by whichever thread the observation `onChange` fires on**, never behind a `Thread.isMainThread` hop: off Darwin Swift
+Testing's main actor is a pool thread, so the old flag arrived after the next frame's skip, replay or graft decision (`MO-A`; the same fact as
+`RU-A`). `Entry.stale`/`observedChange`/`serial` are forwarding properties — a stored `var` of those names reopens the bug. The handle holds the
+`MemoFlags` strongly and the entry, store and session weakly (`MO-B`, `IV-R`); `armed` and `markDirty` stay behind the old branch and decide
+nothing (`MO-C`; `armedSessions` lags off Darwin). `materialize` clears `stale` in the locked step that bumps the serial, before the getter
+(`MO-D`); a record's clear is a no-op when a fire landed since its phase opened (`MO-F`). No public API, no divergence. **Pins:** both red on macOS: a real `Thread`
+writing a retained-only model (`MO-G`) and `MO-F` through the `package` seam `RetainedTestingHooks.beforeRecordClear` (record §123 §6).
 
 **Single-instance launch on SDL (`SN-`, record §122).** `SingleInstance.claim(id:forwarding:configuration:)` (`MetalUISDL`, trait `SDL`,
 MetalUI-only class `M`, in `Backends/SDL` so outside the census, no seam change, no divergence label) elects a **per-user** primary and
@@ -914,7 +947,7 @@ composite scopes — is pushed by ancestors' `paint` after every prepaint, so a 
 (swept with it) and hits only while the value, bound `@State` versions, observed reads, layout, the ambient at paint and the whole
 environment are equal and the hovered, pressed or focused element is not under it (`SB-X`); a descendant whose content ran kills its
 ancestors' records (`SB-AC`); a subtree that scrolls, edits text, animates, shows a popover/alert or draws a surface, or sits under a
-custom environment key, is ineligible. **Scene output equals a fresh frame:** `METALUI_VERIFY_RETAINED=1` runs the fresh paint beside
+custom environment key, is ineligible (a settled scroller, an unfocused field, a `List` and a closed popover declarer are not, since `RW-`, record §121). **Scene output equals a fresh frame:** `METALUI_VERIFY_RETAINED=1` runs the fresh paint beside
 every replay and traps (`SB-W`); a test that must see every prepaint sets package `Window.testingRetainedSubtrees = false`. **Lane 2 is
 the subtree placement memo alone** (`SB-AD`): `LayoutTree.markPlacementRoot` roots restore their unrounded pre-order rects from
 `LayoutMemo` under `PlacementKey(signature, proposal, bounds)`, origin included, no translation; `Color` and empty containers are keyed
@@ -964,8 +997,8 @@ whether or not anyone awaits it (`GA-E`); `make` is serialized, and `SDLGPUDevic
 window's device. An atomic append is a storage-buffer counter (`GA-G`). App shaders are HLSL built by
 `compile-app-shaders.py` into checked-in `.spv/.msl/.dxil/.json` blobs with `SOURCE.sha256` and found in
 `MetalUIAppShaders` beside the executable (`GA-F`, `docs/packaging.md` 4a). **`ctx.view` records into the frame's own
-buffer and has no submit, cancel, wait or acquire verb** (`GA-H`); the debug guard traps only a typed `waitForIdle` in a
-draw and a pass left open, a raw SDL call and the async verbs are unpinned (`GA-I`, `GA-P`). A new SDL GPU test needs
+buffer and has no submit, cancel, wait or acquire verb** (`GA-H`); the debug guard traps a typed `waitForIdle`, `submitBatch` and
+`fence.wait` in a draw and a pass left open (the async two through a `package` test hook, `GA-R`); a raw SDL call is undetected (`GA-I`). A new SDL GPU test needs
 `armMainRunLoopExitCheck()` on macOS, runs the Linux image on lavapipe and takes `METALUI_REQUIRE_GPU=1` in CI.
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
