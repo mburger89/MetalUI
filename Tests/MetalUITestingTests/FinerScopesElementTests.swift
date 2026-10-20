@@ -141,3 +141,39 @@ func aGraftIsRefusedUnderAnUncomparableKey() throws {
         try pair.compare("a function key")
     }
 }
+
+// MARK: the differential on the F4 fixture
+
+/// The F4 rows (text cards with no handler, the list whose first frame is unbounded under a collecting client, `AB-X`) through
+/// a retaining window and a retention-off one: scene, accessibility tree (every row's text), hitboxes, Tab order equal through an
+/// edit of one row and quiet frames; the retaining side replayed every visible row's prepaint (`FS-N`).
+/// Mutation: `suppression` ignored by `retainedPrepaintKey` (a ledger made while the rows were suppressed replays in a bounded frame).
+@Test(.enabled(if: !rsVerifying, fsVerifyingNote), arguments: FSBranch.allCases) @MainActor
+func aSuppressedFirstFrameLedgerReplaysTheSameTreeAsAFreshWindow(branch: FSBranch) throws {
+    let onModel = FSModel(), offModel = FSModel()
+    let options = HeadlessPlatformWindow.Options(scaleFactor: 2, accessibilityClientActive: true)
+    func make(_ model: FSModel) throws -> TestWindow {
+        try TestWindow(size: Size(width: Pixels(320), height: Pixels(400)), scaleFactor: 2, options: options,
+                       textSystem: { harnessTextSystem() }) { VStack(spacing: 0) { FSListRoot(model: model, branch: branch) } }
+    }
+    let on = try make(onModel), off = try make(offModel)
+    on.window.testingTimelineClockOffset = 0; off.window.testingTimelineClockOffset = 0
+    off.window.testingRetainedSubtrees = false
+    on.window.testingRetainedGraft = true
+    func redraw() { for w in [on, off] { w.window.setNeedsRedraw(); w.tick() } }
+    func compare(_ step: String) throws {
+        let differences = try RPSnapshot(on).differences(from: RPSnapshot(off))
+        #expect(differences.isEmpty, "after \(step): \(differences)")
+    }
+    for _ in 0..<16 { redraw() }
+    try compare("warm")
+    var quiet = FrameWork()
+    for step in 0..<4 {
+        if step == 2 { onModel.values[3] += 1; offModel.values[3] += 1 }
+        redraw()
+        quiet = on.lastFrameWork
+        try compare("frame \(step)")
+    }
+    #expect(quiet.retainedHits > 0 && quiet.retainedPrepaintHits == quiet.retainedHits && quiet.retainedGrafts == quiet.retainedHits,
+            "\(quiet.retainedPrepaintHits) prepaint hits and \(quiet.retainedGrafts) grafts of \(quiet.retainedHits) rows")
+}
