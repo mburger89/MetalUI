@@ -6,7 +6,7 @@ Rulings for item S7 (found answering MetalCreator's SDL-port gap 5; divergence 1
 (MetalUI-only, class `M`; SwiftUI has no cross-process API, and macOS LaunchServices already does this for a bundled app,
 probe `docs/probes/appkit-launch-arguments-open.swift` arm `A6`).
 
-Prefix **`SN-`**, lettered. **Next unused: `SN-M`.** (Moves in the commit that appends a ruling.)
+Prefix **`SN-`**, lettered. **Next unused: `SN-P`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `AS-G` (routing: key window's handler, else first window with one, else `App.onOpenURL`; never a new window), `AS-M`
 (launch arguments are the app's recipe), `AS-Q` (URLs before `App.init` are dropped), `SV-H` (the SDL loop drains the main queue),
@@ -77,7 +77,7 @@ file naming the bus name and a D-Bus client: a dependency larger than the featur
 ## SN-D - Windows transport: a named mutex elects, a named pipe carries (compiled in CI, not run locally)
 
 **Ruling.** In `SDLBridge.c` under `_WIN32`: mutex `Local\MetalUI-<h>-<s>` (`Local\` is the logon session's namespace: per user session,
-never cross-user) and pipe `\\.\pipe\MetalUI-<h>-<s>` where `s` is a hash of the user's SID string (a second user cannot guess it
+never cross-user) and pipe `\\.\pipe\MetalUI-<h>-<s>` where `s` is a hash of the user's SID string **and the logon session id** (`ProcessIdToSessionId`: the pipe namespace is machine-global while the `Local\` mutex is per session, so without the session id a second session of the same user would win its own mutex and fail `FIRST_PIPE_INSTANCE` as `.insecure`; review finding, SN-M) (a second user cannot guess it
 into collision with a squat of the first, and a same-named pipe from another user fails the client's check below). The primary
 creates the pipe with `FILE_FLAG_FIRST_PIPE_INSTANCE` (a squatter makes this fail: `.unavailable(.insecure)`), `PIPE_REJECT_REMOTE_CLIENTS`,
 byte mode, an explicit security descriptor granting only the current user's SID `GENERIC_READ|GENERIC_WRITE`, one instance served
@@ -94,9 +94,8 @@ app working.
 
 ## SN-E - Wire format, limits, ack, the listener
 
-**Ruling.** One connection carries one message: `"MSI1"` (4 bytes) | `u32 BE count` | `count` x (`u32 BE length` | UTF-8 bytes), then the
-listener answers one byte: `0x06` (queued) or `0x15` (refused). Limits: count <= 1024, each string 1..=32768 bytes, total frame
-<= 1 MiB; no NUL byte, valid UTF-8 (a NUL or an ill-formed sequence is refused, never repaired); an empty string is refused. The
+**Ruling.** One connection carries one message: `"MSI1"` (4 bytes) | `u32 BE payloadLength` | payload = `u32 BE count` | `count` x (`u32 BE length` | UTF-8 bytes), then the
+listener answers one byte: `0x06` (queued) or `0x15` (refused). The payload must be consumed **exactly**: bytes left inside `payloadLength` after the last string, or a string running past it, are refused (a half-close is not used: a pipe has none; bytes on the wire after the payload are never read or interpreted, the connection closes after the ack). Limits: count <= 1024, each string 1..=32768 bytes, `payloadLength` <= 1 MiB, checked before any allocation; no NUL byte, valid UTF-8 (a NUL or an ill-formed sequence is refused, never repaired); an empty string is refused. The
 reader enforces them **before allocating** (length checked against the remaining budget), reads with a 2 s deadline for the whole
 message (`poll` / overlapped timeout; configuration `readTimeout` so a test shortens it), serves **one connection at a time** (a
 stalled client costs at most the timeout, and cannot starve a good one beyond it), closes after the ack, and never executes, expands,
@@ -133,6 +132,11 @@ batch parks (`AS-Q` unchanged: `App.init` installs the handler; a batch delivere
 **Rejected.** `DispatchQueue.main.async` from the thread (up to 250 ms latency when the loop blocks in `mui_wait_event`; a Swift closure
 off-actor); a `Task { @MainActor }` (does not run in the loop's synchronous top-level, `SV-H`).
 
+**Listener wake (review).** The wake event type is `SDL_RegisterEvents(1)`'d when the platform attaches the claim (the `accessibility_event_type`
+pattern in `SDLBridge.c`); a message that arrives earlier only queues, and a failed `SDL_PushEvent` is ignored: the drain at the top of every
+loop iteration (and the 250 ms wait bound) delivers it. `claim` is synchronous and may block the caller up to `connectTimeout` + ack
+wait (about 4 s worst case) before any window exists; the recipe says so.
+
 ## SN-H - Raise the primary, within each platform's limits
 
 **Ruling.** After a delivered (or empty) message the platform raises one window: the key window, else the lowest-id open one, never
@@ -168,3 +172,21 @@ D-Bus activation (`org.freedesktop.Application`; owner: none, needs a client dep
 `DESKTOP_STARTUP_ID` (owner: the Wayland check SI4); forwarding the second instance's working directory or environment (an app that needs it
 sends it as an argument); a reply channel from the primary (the ack is one byte); a many-message session; macOS `NSAppleEvent` parity for the
 AppKit platform (LaunchServices already does it); a Windows `WM_COPYDATA` alternative (rejected: needs a hidden message window SDL does not expose).
+
+## SN-M - Review: election race and the wake pin are tested by what separates them
+
+**Ruling.** (1) Test 5's bind-only mutant would survive when stale files are always unlinked, so a test of N=8 concurrent `claim`s (threads,
+one directory) asserts **exactly one** `.primary` and the others `.forwarded` or `.unavailable(.noListener)`, none a second primary; the
+mutant is a claim without `flock`. (2) The wake pin counts, not times: a package read-back counts wake events the loop's pump consumed;
+the test forwards, runs `run(maxIterations: 1)` and asserts the batch delivered with the wake counted; the mutant drops `SDL_PushEvent`
+(count 0). No iteration-budget timing. (3) Test 15's muddled "ordering swapped" mutant is dropped.
+
+## SN-N - Review rejection: no transport abstraction, no per-connection ack payload
+
+An `IPC` protocol with injectable transports, and an ack carrying a reason code, were considered for testability and rejected: the tests
+drive the real socket and pipe, and `.refused` has one consequence (SN-F). Cost if wrong: a later reason byte under a new magic.
+
+## SN-O - Review rejection: no root-module surface
+
+A root `App` spelling, an `Environment` value or a `Platform` hook was re-examined and rejected again (SN-A item 4): the claim precedes `App.init`
+and the seam would burden every conformer. A trait-off stub is the only root-visible effect, guarded by 1.6b.
