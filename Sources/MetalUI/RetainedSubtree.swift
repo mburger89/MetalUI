@@ -582,6 +582,7 @@ extension Frame {
             let valid = !entry.observedChange && old.coverageComplete && old.contentSerial == entry.serial
                 && retainedVersionsUnchanged(old.versions) && !underPointer
                 && (phase.replayed == nil || old.prepaint === phase.replayed)
+                && !(old.prepaint == nil && phase.ledger != nil)   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
             let translated = valid && old.key != key && memos.replaysPrepaint && key.differsOnlyByEffectTranslation(from: old.key)
             if valid && (old.key == key || translated) {
                 memos.retained.hits += 1
@@ -755,6 +756,11 @@ extension RetainedRecord {
         }
         if ids(touches) != ids(other.touches) { return "touched entries" }
         if paintWork != other.paintWork { return "paintWork \(paintWork) vs \(other.paintWork)" }
+        // `RW-O`: every entry the fresh run read must be one this record names (and keeps live), or a change to it would
+        // leave a hit replaying the old pixels.
+        let known = Set(versions.map(\.0)), alive = Set(lives)
+        for (id, _) in other.versions where !known.contains(id) && !StateTable.ownsItsChannel(id) { return "unrecordedRead \(sbPath(id).suffix(80))" }
+        for id in other.lives where !alive.contains(id) && !known.contains(id) && !StateTable.ownsItsChannel(id) { return "unrecordedLive \(sbPath(id).suffix(80))" }
         return nil
     }
 }

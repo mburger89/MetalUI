@@ -28,8 +28,10 @@ private struct OrbitFrame {
 private let orbitBefore: [OrbitFrame] = [
     OrbitFrame(arm: .value, requests: 156, skipped: 642, prepaints: 160, paints: 178, hits: 32, misses: 0,
                ineligible: 0, prepaintIneligible: 0, graftIneligible: 0, reasons: [:]),
-    // The graph panel (`stateWrite`: the text field's, the scroller's and the list's reads, at paint, prepaint and graft) and
-    // the top bar (`presentationAnchor`: its `Picker`/`Menu` anchors, at prepaint).
+    // The `.panels` row is the **before** of lane B's conversions (`f557d339`; record 121): the graph panel (`stateWrite`: the
+    // text field's, the scroller's and the list's reads, at paint, prepaint and graft) and the top bar (`presentationAnchor`: its
+    // `Picker`/`Menu` anchors, at prepaint). It is no longer asserted (`RW-` conversions moved it, see the after test below);
+    // the retention-off conservation law still reads 798.
     OrbitFrame(arm: .panels, requests: 115, skipped: 683, prepaints: 117, paints: 110, hits: 34, misses: 0,
                ineligible: 1, prepaintIneligible: 2, graftIneligible: 1, reasons: ["stateWrite": 3, "presentationAnchor": 1]),
 ]
@@ -37,7 +39,7 @@ private let orbitBefore: [OrbitFrame] = [
 /// **Test 1, before arm** (green at `f557d339`, `RW-A`): the counts the item improves, taken with retention, prepaint replay and the
 /// graft on. `requests + skipped` is the retention-off 798 (the conservation law) on the `.panels` arm.
 /// **Mutations:** the `noteIneligible` funnel recording `"?"` reddens the reasons; `graftsBuild` forced off reddens requests.
-@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [BracketArm.value, BracketArm.panels]) @MainActor
+@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [BracketArm.value]) @MainActor
 func theOrbitWithPanelIsCountedBeforeReadOnlyState(arm: BracketArm) throws {
     let expected = try #require(orbitBefore.first { $0.arm == arm })
     let frames = try bracketOrbitFrames(arm: arm, frames: 6).frames
@@ -60,9 +62,12 @@ func theOrbitWithPanelIsCountedBeforeReadOnlyState(arm: BracketArm) throws {
             == f.retainedIneligible + f.retainedPrepaintIneligible + f.retainedGraftIneligible)
 }
 
-/// **Test 1, after arm — red on arrival** (`RW-A`; lane B turns it green by converting the call sites): in steady state the
-/// panels arm's orbit frame has no ineligible occurrence at paint, prepaint or graft, no reason, and the graph panel and the top
-/// bar join the hits (34 + 2), so the requests fall below the 115 of `f557d339`. **Red before:** ineligible 1, 2, 1.
+/// **Test 1, after arm** (`RW-A`; red on arrival at lane A, green at lane B's conversions): in steady state the panels arm's
+/// orbit frame has no ineligible occurrence at paint, prepaint or graft and no reason; the top bar, the graph panel and the
+/// inspector each replay (3 outermost hits: a hit of a panel stands for the occurrences nested in it), so the frame builds only the
+/// window component, the surface and the stacks above the panels: **6 element requests** (115 at `f557d339`), 7 prepaints (117),
+/// 7 paints (110), 792 requests skipped (683), conserving 798. **Red before:** ineligible 1, 2, 1. **Mutations:** a `readState` made
+/// to bump the version reddens the hits; the reasons funnel recording `"?"` reddens the empty reasons.
 @Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
 func theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState() throws {
     let f = try bracketOrbitFrames(arm: .panels, frames: 6).frames[3]
@@ -70,8 +75,13 @@ func theOrbitWithPanelHasNoIneligibleOccurrencesAfterReadOnlyState() throws {
     #expect(f.retainedPrepaintIneligible == 0, "prepaint ineligible \(f.retainedPrepaintIneligible)")
     #expect(f.retainedGraftIneligible == 0, "graft ineligible \(f.retainedGraftIneligible)")
     #expect(f.retainedIneligibleReasons.isEmpty, "reasons \(f.retainedIneligibleReasons)")
-    #expect(f.retainedHits == 36, "the graph panel and the top bar replay too: \(f.retainedHits)")
-    #expect(f.elementRequests < 115, "requests \(f.elementRequests)")
+    #expect(f.retainedHits == 3 && f.retainedMisses == 0, "the three panels replay: \(f.retainedHits)/\(f.retainedMisses)")
+    #expect(f.elementRequests == 6, "requests \(f.elementRequests)")
+    #expect(f.retainedSkippedRequests == 792, "skipped \(f.retainedSkippedRequests)")
+    #expect(f.elementRequests + f.retainedSkippedRequests == 798, "conservation against a retention-off frame")
+    #expect(f.elementPrepaints == 7, "prepaints \(f.elementPrepaints)")
+    #expect(f.elementPaints == 7, "paints \(f.elementPaints)")
+    #expect(f.retainedRedos == 0)
 }
 
 // MARK: The probe element: state read in layout, prepaint and paint

@@ -1895,6 +1895,8 @@ public final class Window {
             // same checkpoint, and compare what both held after the root's paint, naming the channel.
             let replayed = frame.verifySnapshot
             let replayedCounters = memos.buildCounters
+            let replayedReads = Set(stateTable.lastReadJournal).union(stateTable.lastMarkJournal)     // `RW-O`: what the replayed frame read or re-noted
+            let replayedWrites = stateTable.comparedWriteCount
             let firstFrame = frame
             memos.resetBuildCounters()
             scrollRequests.restore(pendingScrollRequests)
@@ -1905,6 +1907,14 @@ public final class Window {
             memos.redoInProgress = false
             memos.reportLast(replayedCounters)
             frame.adoptElementWork(of: firstFrame)
+            // `RW-O`: a read the fresh run made that the replay did not stand for, and a compared write the fresh run made
+            // that the replay skipped, are findings by name.
+            for id in stateTable.lastReadJournal where !replayedReads.contains(id) {
+                preconditionFailure("METALUI_VERIFY_RETAINED: unrecordedRead \(sbPath(id).suffix(80)): a fresh run read an entry the replayed frame's records do not name")
+            }
+            if stateTable.comparedWriteCount > replayedWrites {   // the replayed frame's own writes are stored, so the rebuild finds them unchanged
+                preconditionFailure("METALUI_VERIFY_RETAINED: writeMissed: a fresh run wrote a compared state the replay skipped")
+            }
             if let replayed, let fresh = frame.verifySnapshot, let difference = replayed.difference(from: fresh) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed prepaint differs from a fresh one: \(difference)")
             }

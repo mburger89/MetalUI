@@ -5,7 +5,7 @@ Rulings for item C14b-3 of the gpui-gap priority list (user request 2026-10-02; 
 Record: `../record/121-retained-withstate.md` (Record phase). Branch `perf/retained-withstate` from `f557d339`. Divergence labels
 reserved 515–524: **none taken**. One public declaration (`FrameWork.retainedIneligibleReasons`, `MetalUITesting`, class `M`, `RW-M`/`RW-N`), nothing else. No SwiftUI-facing claim, so no probe is owed (`RW-N`).
 
-**Next unused id: `RW-S`.**
+**Next unused id: `RW-T`.**
 
 ## RW-A — The slice: read-only state, scroll, list, unfocused field, closed-popover anchors; surfaces and open presentations carried
 
@@ -235,3 +235,32 @@ graft under one name counts three times (`stateWrite: 3` for the graph panel; a 
 **Not changed, noted.** A record that hits keeps the ledger and graft it was made with (`RK-E`): a record made in a creating frame has
 neither until a miss (`RW-F`); the probe tests write the entry's own value once before asserting steady state.
 **Cost if wrong.** (1) a larger journal under heavy `peek` use: counted by the Prof scenario, not pinned; (3) an extra live note.
+
+## RW-S — Lane B's realisation: a ledger-less record is upgraded; verify mode reads the swept journals; the panels arm moves by design
+
+**Question.** With the `RW-H`..`RW-K` conversions in, the unfiltered suite was red (80 issues): which of them were bugs and which were
+expectations the conversions deliberately moved?
+**Ruling.** *Two defects, fixed.* (1) **A record made while the prepaint could leave no ledger never gained one** (found by
+`aPrepaintInEachIneligibleKindRunsAsBefore`, whose scroll and field arms hit at paint but never at prepaint or graft, uncounted): a
+creating frame is a write (`RW-F`), so its prepaint is refused and the paint record holds `prepaint == nil`; every later frame ran
+the prepaint, made a ledger and threw it away because the paint decision hit the old record (`RW-R`'s "not changed, noted" was
+this). `retainedPaintDecision` now treats `old.prepaint == nil && phase.ledger != nil` as invalid: one counted miss records the
+occurrence again with the ledger, then it replays prepaint and grafts. (2) **`RW-O`'s verify comparison read journals the sweep had
+already emptied** (the Range trap in `aVerifiedGraftThatDiffersTraps`, and a SIGTRAP in the undamaged control): `sweep()` ends the
+build, and the verify rebuild runs after it. `StateTable` keeps `lastReadJournal` and `lastMarkJournal` (the swept build's, frame-local,
+classified), the replayed frame's named set is their union (a `@State` slot is named by the record's mark versions, not by a read) and
+the fresh run's reads must all be in it.
+*Expectations moved, each with a number.* The bracket `.panels` arm: the graph panel (the node drag is inside it) was ineligible
+(`stateWrite`), and is now a counted **miss** each frame (`SB-X`: the pointer is pressed inside it): misses 3 -> 4, ineligible 1 -> 0, hits
+31; with the graft, element requests 167 -> 144, prepaints 176 -> 153, grafts 30 -> 31, graft-ineligible 1 -> 0, grafted nodes 641 -> 677,
+skipped requests 631 -> 654 (conservation 798 and 886 holds). The `.value`/`.environment` arms and every scene, paint and layout count
+are unmoved. A scroll region, an unfocused text field and a replayed presentation anchor now replay like the control: the kind, channel
+and prepaint-write tests keep a **plain-write leaf** (`PlainWriteLeaf`, a `withState` with no `unchanged:` in all three phases) as the
+separating `stateWrite` arm, and `.scroll` moves to the graft-eligible side. The demo gained a panel strip (16 occurrences, 13 hits).
+*Test reads corrected, not the code:* an orbit frame in which a panel replays counts exactly 3 hits; a panel that runs lets its 31 nested
+nodes count their own (34), so `>= 3` could not tell them apart (`PanelTwin.panelsReplay`, `graphPanelReplays`); a pointer resting in a panel or
+a focus anywhere in it is `SB-X` (the wheel and a click leave both there: `leavePointer`, `focusTheInspector`); a fading scroll indicator is
+counted `requestAnotherFrame`-ineligible, not a miss (`RW-H`); a selectable list keeps focus after a click, so the card replays only before it.
+**Cost if wrong.** (1) a record upgraded on every frame would be a miss per frame: pinned by the kind test (both occurrences read 2
+prepaint hits) and the 300-frame field test; (2) a verify mode that never compares would pass a stale replay: the injected-difference
+arms and the undamaged control both run it.

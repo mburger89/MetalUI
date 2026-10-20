@@ -179,6 +179,10 @@ final class StateTable {
     /// the slots with a retention channel of their own (`$ax`, `$focus`, `$anim...`) are left out. A window (build, prepaint,
     /// paint) takes `readJournal.count` at its start and end and keeps the range's ids with their versions. Emptied by `sweep()`.
     var readJournal: [GlobalElementID] = []
+    /// The journal of the last swept build (`RW-O`).
+    private(set) var lastReadJournal: [GlobalElementID] = []
+    /// The mark journal of the last swept build: a record's `versions` name these too, so verify mode counts them as named (`RW-O`).
+    private(set) var lastMarkJournal: [GlobalElementID] = []
 
     /// The open recorders' log, set by `Frame` while any is open (`SB-D`).
     var retainLog: RetainLog?
@@ -680,6 +684,10 @@ final class StateTable {
     /// This counter is what makes that frequency assertable at all.
     private(set) var writeCount: Int = 0
 
+    /// The compared `withState`s that found a changed value and wrote (`RW-O`): verify mode reads it to find a write a
+    /// replay skipped. Never reset; a window reads a difference.
+    private(set) var comparedWriteCount: Int = 0
+
     /// Read-modify-write the state at `id`, creating it from `initial` on first
     /// access, and **mark it as still live**.
     ///
@@ -760,7 +768,7 @@ final class StateTable {
     // MARK: Read-only access (`RW-C`, `RW-D`, `RW-E`)
 
     /// Whether `id` is a slot with a retention channel of its own (`$ax`, `$focus`, `$anim...`): the read set leaves it out.
-    private func ownsItsChannel(_ id: GlobalElementID) -> Bool {
+    static func ownsItsChannel(_ id: GlobalElementID) -> Bool {
         guard case .named(let name) = id.component else { return false }
         let text = name.name
         return text.hasPrefix("$anim") || text.hasPrefix("$ax") || text.hasPrefix("$focus")
@@ -768,7 +776,7 @@ final class StateTable {
 
     /// Appends `id` to the read journal and the graft journal (`RW-D`). No version moves and nothing is tainted.
     func noteRead(_ id: GlobalElementID) {
-        guard contentMemos.retainsSubtrees, !ownsItsChannel(id) else { return }
+        guard contentMemos.retainsSubtrees, !Self.ownsItsChannel(id) else { return }
         readJournal.append(id)
         contentMemos.journal.record(.stateRead(id, entryVersion(id)))
     }
@@ -824,6 +832,7 @@ final class StateTable {
             return
         }
         // The body already ran: the plain write stores its result without running it again.
+        comparedWriteCount += 1
         let result = value
         withState(id, initial: result) { $0 = result }
         noteLiveRead(id)   // the write taints every open window; a prepaint-only taint still leaves a paint record, which owes the entry its liveness
@@ -1081,7 +1090,9 @@ final class StateTable {
         swap(&loopExtents, &previousLoopExtents)
         loopExtents.removeAll(keepingCapacity: true)
 
+        lastMarkJournal = markJournal
         markJournal.removeAll(keepingCapacity: true)
+        lastReadJournal = readJournal   // `RW-O`: verify mode compares a replayed build's reads with a fresh one's after the sweep
         readJournal.removeAll(keepingCapacity: true)
         generation += 1
         for id in storage.keys {

@@ -660,7 +660,7 @@ where Data.Element: Identifiable {
             return
         }
         let origin = Double(bounds.origin.y.value - scroller.contentOrigin.y.value)
-        pass.withState(id, initial: ListOrigin()) { $0.offset = origin }
+        pass.withState(id, initial: ListOrigin(), unchanged: ListOrigin.sameEntry) { $0.offset = origin }   // `RW-I`
 
         let count = data.count
         let fresh: Range<Int>
@@ -905,7 +905,7 @@ extension List {
             let count = data.count
             let made = layoutExtents
             var held: RowExtentIndex<Data.Element.ID>?
-            pass.withState(id, initial: ListOrigin()) { entry in
+            pass.withState(id, initial: ListOrigin(), unchanged: ListOrigin.sameEntry) { entry in   // `RW-I`
                 entry.offset = origin
                 if let existing = entry.extents as? RowExtentIndex<Data.Element.ID> {
                     held = existing
@@ -1046,6 +1046,13 @@ struct ListLeadReveal: Hashable {
     /// that has already been resolved once against an estimate, and never
     /// refines again.
     var refined: Bool = false
+}
+
+extension ListOrigin {
+    /// Whether two entries are the same value (`RW-I`): offsets, lead and anchor by value, the extent index by identity.
+    static func sameEntry(_ a: ListOrigin, _ b: ListOrigin) -> Bool {
+        a.offset == b.offset && a.lead == b.lead && a.anchor == b.anchor && a.extents === b.extents
+    }
 }
 
 extension ListSelection {
