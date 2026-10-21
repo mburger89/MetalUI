@@ -188,7 +188,7 @@ fences for the reason above.
 
 **Compute needs no window.** `SDLGPUDevice.make()` creates and owns a device and answers `nil`, with
 `SDLGPUDevice.lastFailure` naming why, when no GPU or driver answers. A kernel is HLSL you build once
-with `Backends/SDL/scripts/compile-app-shaders.py` (the recipe is section 4a of
+with `swift package compile-shaders` (the recipe is section 4a of
 [`packaging.md`](../packaging.md)) and the library loads the blob for the device's driver together with
 its reflection, so you never count bindings by hand. SDL_GPU has no append buffer: a read-write storage
 buffer holds a counter in its first word and the payload after it, and each thread claims a slot with

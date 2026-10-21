@@ -3044,6 +3044,9 @@ public final class Window {
     /// Runs the arena's callbacks in order, each under its owner (`ID-F`); a
     /// click through `runClick`, as `dispatchClick` runs one.
     private func runGestureCallbacks(_ callbacks: [GestureCallback]) {
+        // One call is one event's callbacks: every `updating` body of it starts from the value committed before it
+        // (`GS-D`).
+        GestureStateBatch.current &+= 1
         for callback in callbacks {
             switch callback {
             case .click(let owner, let handler, let modifiers):

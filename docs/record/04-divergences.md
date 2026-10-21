@@ -2702,3 +2702,18 @@ Labels 635–644 were this branch's reserved range; 635–638 are taken, 639–6
 
 **Amended:** none. **Retired:** none. The `GR-L` row of the not-built table (`LazyVGrid`/`LazyHGrid`/`GridItem`) is replaced by a `pinnedViews:`/`Section` row (`LZ-N`). The header's count and next label are left for the merge.
 
+
+## 2026-10-21: 645, 646 added, 236 amended (`@GestureState` and `phaseAnimator`, record §135)
+
+**645** (`GS-D`, `GS-G`): two simultaneously composed gestures that write one `GestureState` in one event. SwiftUI runs the **last-declared**
+member of `simultaneously(with:)` first, so the first-declared member's `updating` body runs last and its write wins (probe
+`swiftui-gesture-state.swift` `G7`, `G7d`, `G7e`, recorded 2026-10-21 and **not re-taken**, `GS-O`; human check GS7). MetalUI runs the bodies in the arena's
+order, **declaration order** (`H16`'s pin must not move), so the last-declared member's write wins; every body of one event still starts from the value
+committed before the event and any writer ending resets the whole slot, as SwiftUI does (`G7b`, `G7c`). Pinned wrong on purpose:
+`simultaneousWritersStartFromTheEventsCommittedValueAndTheLastWins`, `anyWriterEndingResetsTheSharedState`. A state written by one gesture, or by two gestures in
+different events, does not differ. Owner none (`H16`).
+
+**646** (`GS-N`, `GS-S`): the `updating` body and the `reset:` closure are `@MainActor`; SwiftUI's carry no isolation. Every MetalUI gesture callback runs under `StateDispatch` on the main actor like `Binding` (divergence 78), so a caller writing SwiftUI's spelling in `@MainActor` code compiles unchanged and only a nonisolated function that builds or calls them differs. Pinned by guard GS.5 `theUpdatingBodyAndTheResetClosureAreMainActor`. Owner none.
+
+**Amended: 236** ("`@GestureState`/`updating` are not offered" became "built since §135, reset on every one of these paths"; `onCancelled` stays for a
+caller who wants the event) and the not-built row naming `@GestureState` (now `updating` on a composed gesture and `GestureStateGesture`). **Labelled late (Record phase):** the `@MainActor` on `updating` and `reset:` is 646 (`GS-S`). Labels 647–654 of this branch's range unused.

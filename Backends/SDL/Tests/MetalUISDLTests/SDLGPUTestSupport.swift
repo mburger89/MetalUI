@@ -7,7 +7,7 @@ import MetalUISDLGPU
 /// app shaders are, and whether this machine has a GPU at all.
 enum GPUTestSupport {
     /// `Backends/SDL/Tests/AppShaders/compiled`: the append kernel's blobs, built by
-    /// `scripts/compile-app-shaders.py`, verified by hash and never regenerated
+    /// `MetalUICompileShaders` (`swift package compile-shaders`), verified by hash and never regenerated
     /// by a test (`GA-F`, so CI needs no shadercross).
     static var compiledShaders: URL { sources.appendingPathComponent("compiled") }
     static var sources: URL {

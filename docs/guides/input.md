@@ -359,6 +359,33 @@ func inputCopyFromCode(_ window: Window, _ graph: InputGraph) -> InputGraph? {
 }
 ```
 
+## How do I make a view follow a drag and snap back?
+
+Declare the offset as `@GestureState` and write it with `updating(_:body:)` on the gesture
+(SwiftUI's spelling, on `DragGesture`, `LongPressGesture`, `MagnifyGesture` and `RotateGesture`;
+on a tap it compiles and never runs). It is a `@State` slot that only a gesture writes: each
+update starts from the value committed before the event, and the state returns to its initial
+value once when the gesture ends, fails or is cancelled, before `onEnded` runs (pin:
+`theInputGuideAGestureStateSnapsBackAtTheRelease`). A `resetTransaction` animates the return,
+as the chip below eases home over a quarter second (pin:
+`theInputGuideTheResetTransactionAnimatesTheReturn`). Two simultaneous gestures that write one
+state in one event resolve in declaration order, where SwiftUI's differ (divergence 645).
+
+```swift
+/// A chip that follows a drag and eases home: its offset is `@GestureState`.
+struct InputSnapBackChip: Component {
+    @GestureState(wrappedValue: Size(width: Pixels(0), height: Pixels(0)),
+                  resetTransaction: Transaction(animation: .easeOut(duration: 0.25))) var drag: Size<Pixels>
+
+    var content: some ElementGroup {
+        Rectangle().frame(width: Pixels(60), height: Pixels(40))
+            .offset(drag)
+            .accessibilityIdentifier("snap-chip")
+            .gesture(DragGesture(minimumDistance: 0).updating($drag) { value, state, _ in state = value.translation })
+    }
+}
+```
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
@@ -373,6 +400,7 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 236: `onCancelled` exists on drag, magnify and rotate.
 - divergence 275: a window drag cuts its neighbours in the press.
 - divergence 276: a window drag moves the window on AppKit only.
+- divergence 645: two simultaneous gestures writing one `GestureState` resolve in declaration order.
 - divergence 277: an `.opacity(0)` window-drag handle still captures.
 - divergence 465: an image cursor's hot spot clamps onto the image.
 - divergence 325: a composing field's accessibility value is the committed text.

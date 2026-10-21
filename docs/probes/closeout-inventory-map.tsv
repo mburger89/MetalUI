@@ -345,6 +345,9 @@ M	MetalUI	FrameLayer.swift	ElementGroup	frame	frame\(\)	frame-no-args
 M	MetalUI	FrameLayer.swift	.*	.*	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	ElementGroup	frame	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	.*	.*	.*	modifier-layer
+M	MetalUI	GestureState.swift	.*	.*	.*	gesture-state
+M	MetalUI	PhaseAnimator.swift	.*	.*	.*	phase-animator
+M	MetalUI	(Gesture|SpatialGestures).swift	.*	updating	.*	gesture-state
 M	MetalUI	SpatialGestures.swift	SpatialTapGesture.Value	(modifiers|init)	.*	input-followups-values
 M	MetalUI	SpatialGestures.swift	(MagnifyGesture|RotateGesture)	onCancelled	.*	input-followups-cancel
 M	MetalUI	Gesture.swift	DragGesture	onCancelled	.*	input-followups-cancel
@@ -589,3 +592,5 @@ M	MetalUI	ModifierKeysChange.swift	.*	.*	.*	input-followups-modkeys
 M	MetalUI	TextMeasurer.swift	.*	.*	.*	text-measurer
 M	MetalUI	WindowDragGesture.swift	.*	.*	.*	window-drag
 M	MetalUI	EquatableComponent.swift	.*	.*	.*	equatable-component
+F	gesture-state	A	swiftui-gesture-state.swift	G1	aDragUpdatingMovesAViewDuringTheDragAndSnapsBackAtTheRelease	645	GS-A GS-B GS-C GS-D GS-E GS-F	GestureState (the eight initialisers, wrappedValue get-only, projectedValue) and updating(_:body:) on DragGesture, LongPressGesture, MagnifyGesture, RotateGesture (TapGesture and SpatialTapGesture accept it and never run it, G2/G5b): a $state<n> slot written from the gesture arena and reset once when the gesture ends, fails or is cancelled; the update returns the receiver's own type
+F	phase-animator	A	swiftui-gesture-state.swift	P1	aPhaseAnimatorWithNoTriggerCyclesForeverP1	-	GS-H GS-I GS-J GS-K	PhaseAnimator and phaseAnimator(_:trigger:content:animation:)/(_:content:animation:) on both vocabularies: a transparent scope keyed $phase<depth> in the animation store (shared keyframeDepth, never a StateTable slot); no trigger cycles for ever, a trigger runs phases 1..n-1 then 0 once and a change restarts; each phase built under animation(phase); a nil animation snaps; Reduce Motion unchanged and unmeasured (GS-K); the content closure receives the element itself (divergence 169 rule)

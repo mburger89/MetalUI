@@ -260,26 +260,84 @@ cp -R .build/checkouts/MetalUI/Backends/SDL/Shaders/compiled dist/MetalUISDLShad
 (`Backends/SDL`, macOS and the Linux CI image). **Unverified**: a moved
 application opening its window (human check X1).
 
-### 4a. An app's own SDL_GPU shaders — build script and lookup verified on macOS, Linux image
+### 4a. An app's own SDL_GPU shaders — compile command, lookup and marker rules verified on macOS and the Linux image; shadercross itself not built here
 
 An app that runs its own compute or graphics work through `MetalUISDLGPU` ships HLSL it compiled
-itself, found the way section 4's are (ruling `GA-F`, after `PX-P`). **Build** with
-`Backends/SDL/scripts/compile-app-shaders.py` (the checkout's, e.g.
-`.build/checkouts/MetalUI/Backends/SDL/scripts/`) over a directory of `NAME.vert.hlsl`,
-`NAME.frag.hlsl` and `NAME.comp.hlsl` (the stage is the suffix, the entry point `main`; read-only
-storage is `register(t…, space0)`, read-write storage `register(u…, space1)`, uniforms
-`register(b…, space2)` for a compute stage):
+itself, found the way section 4's are (ruling `GA-F`, after `PX-P`). **Build** with one command, over a
+directory of `NAME.vert.hlsl`, `NAME.frag.hlsl` and `NAME.comp.hlsl` (the stage is the suffix, the entry
+point `main`; read-only storage is `register(t…, space0)`, read-write storage `register(u…, space1)`,
+uniforms `register(b…, space2)` for a compute stage). MetalUI exports the tool and a command plugin over
+it from the root package (rulings `BS-B`, `BS-C`; no SDL trait is needed to compile a shader):
 
 ```sh
-python3 compile-app-shaders.py --shadercross /path/to/shadercross --source shaders --out shaders/compiled
+# as a command plugin of a package that depends on MetalUI (measured by path; see "Unmeasured")
+swift package --allow-writing-to-package-directory compile-shaders --source shaders --out shaders/compiled
+# or the tool, the certain fallback (--local checkout or .build/checkouts/MetalUI)
+swift run --package-path .build/checkouts/MetalUI MetalUICompileShaders --source "$PWD/shaders" --out "$PWD/shaders/compiled"
 ```
 
-It writes `NAME.<stage>.spv`, `.msl`, `.dxil` and a reflection `.json` per source, and `SOURCE.sha256`
-(one `<sha256>  <file>` line per source). Its one dependency is SDL_shadercross: a release binary or
-a source build (`libsdl-org/SDL_shadercross`); its shared libraries sit in a `lib` directory beside
-`bin`, which the script puts on the loader path. **Check in the compiled directory**: a test can
-recompute each source's SHA-256 against `SOURCE.sha256` with no shadercross, so a source edited
-without a rebuild fails anywhere (the repository's own kernel does this, `aCheckedInAppShaderBlobMatchesItsSource`).
+Flags: `--source DIR` and `--out DIR` (both required; relative paths resolve against the package for the
+plugin, against the working directory for the tool), `--shadercross PATH`, `--formats spv,msl,dxil,json`
+(default all; `spv` is the intermediate and always built, so a Vulkan/Metal app can leave `dxil` out),
+`--no-marker`. It writes `NAME.<stage>.spv`, `.msl`, `.dxil` and a reflection `.json` per source and
+`SOURCE.sha256` (one `<sha256>  <file>` line per source, sorted bytewise; the python script this
+replaces wrote the same bytes, pinned by `theMarkerEqualsTheCheckedInOneByteForByte`).
+
+**shadercross** is found by `--shadercross`, then the `METALUI_SHADERCROSS` variable, then `PATH`
+(`shadercross.exe` on Windows); a missing one is an error naming all three. A release-style archive keeps
+its shared libraries in a `lib` directory beside `bin`, which the tool puts first on the loader path of
+the child (Windows finds DLLs beside the executable). A command plugin writes only inside the package
+(`--allow-writing-to-package-directory`, without it SwiftPM refuses), so `--out` belongs under the
+package; the tool has no such limit.
+
+**The pin.** MetalCreator, the first app to build shaders this way, pins `libsdl-org/SDL_shadercross` at
+commit `1ff05bec573988a98ef9e0260b4da44f512b8367` (2026-09-03; upstream has no release or tag, checked
+2026-10-21). MetalUI publishes no binary of it (ruling `BS-H`); build it from source:
+
+```sh
+git clone https://github.com/libsdl-org/SDL_shadercross.git && cd SDL_shadercross
+git checkout 1ff05bec573988a98ef9e0260b4da44f512b8367
+git submodule update --init --depth 1   # SPIRV-Cross, SPIRV-Headers, SPIRV-Tools, libsdl-org/DirectXShaderCompiler (branch 1.8.2502-SDL)
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDLSHADERCROSS_VENDORED=ON -DSDLSHADERCROSS_INSTALL=ON
+cmake --build build && cmake --install build --prefix "$HOME/shadercross"
+export METALUI_SHADERCROSS="$HOME/shadercross/bin/shadercross"
+```
+
+Its dependencies, read from the pin's `.gitmodules` and `CMakeLists.txt`: **SDL3** (found as a package;
+Homebrew `sdl3`, Debian/Ubuntu from source or `libsdl3-dev` where it exists, vcpkg or the SDL release
+on Windows), **SPIRV-Cross** (shared `spirv-cross-c-shared` by default), **SPIRV-Headers** and
+**SPIRV-Tools** (submodules), and **DirectXShaderCompiler**, a libsdl-org fork on branch
+`1.8.2502-SDL`, an LLVM-based build (`dxcompiler` and `dxildll`, 1303 ninja steps, the long step:
+**measured 8 min 30 s of wall clock at `-j8` on a loaded 10-core Mac**, 2026-10-21). `-DSDLSHADERCROSS_DXC=OFF`
+skips building it, but the configure step still wants the submodule checked out, and the CLI then
+**cannot compile HLSL at all** (the HLSL to SPIR-V step is DXC's), only convert SPIR-V to MSL and
+JSON (measured: it reproduced the checked-in `.msl` and `.json` byte for byte).
+Per platform:
+
+- **macOS (arm64 or x86_64), Linux x86_64, Windows x64**: the recipe above; DXC builds natively and
+  shadercross can write DXIL (DXIL needs `dxil.dll`/`libdxil` beside `dxcompiler`, which the install step
+  places in `bin`/`lib`). On Windows use the Visual Studio generator or Ninja from a developer prompt and
+  put the install's `bin` (with `dxcompiler.dll`, `dxil.dll`, `SDL3.dll`) in `METALUI_SHADERCROSS`'s directory or on `PATH`.
+- **Linux aarch64**: libsdl-org ships no prebuilt DXC for it (its binaries are Linux x86_64 and Windows
+  only), but **a source build of the fork works natively** (measured in the `metalui-portable` image,
+  Ubuntu 24.04 aarch64 under OrbStack, 2026-10-21): configure with **clang** (`-DCMAKE_C_COMPILER=clang
+  -DCMAKE_CXX_COMPILER=clang++`, the Swift toolchain's; the default `cc` is gcc and DXC's flags
+  `-fcolor-diagnostics` make it fail at the first file), SDL3 on the default paths, the four submodules as
+  above; **6 min 45 s at `-j8`**. The installed `bin/shadercross` with `lib/libdxcompiler.so`, `libdxil.so`
+  beside it then compiled `Backends/SDL/Tests/AppShaders` through `MetalUICompileShaders` to **41 files
+  byte-identical to the checked-in ones, DXIL included**. So neither emulation nor SPIR-V-only is needed
+  there; they remain fallbacks. `--formats` can still leave `dxil` out of a Vulkan or Metal app's build
+  (the derivation is skipped; HLSL to SPIR-V always goes through DXC).
+  Compiling on another machine and shipping the blobs is the plain alternative.
+
+**Check in the compiled directory, or not.** A directory the tool just wrote is never stale, so
+`SDLGPUShaderLibrary(directory:)` accepts one with no `SOURCE.sha256` as long as it holds a
+`NAME.<vert|frag|comp>.json` reflection file (ruling `BS-E`); a build product kept out of the repository
+needs no marker. A directory **with** a marker can be checked against its sources:
+`SDLGPUShaderLibrary(directory:verifyingSources:)` throws a named error for a changed source, a source with
+no line and a line with no source, and compares nothing when there is no marker. A checked-in directory
+is therefore still protected: a test can recompute each source's SHA-256 against `SOURCE.sha256` with no
+shadercross (the repository's own kernel does this, `aCheckedInAppShaderBlobMatchesItsSource`).
 
 **Two Windows rules** (ruling `GA-Q`, found by Windows CI): **a fragment stage must read every vertex output it declares as an input** — the cross-compiled stage numbers only the inputs it reads, and D3D12 links stages by register, so a fragment that skips `TEXCOORD0` puts `TEXCOORD1` at the wrong register and pipeline creation fails with `E_INVALIDARG` (`0x80070057`); and **mark the shader files `eol=lf` (`*.dxil`, `*.spv` binary) in `.gitattributes`**, or a CRLF checkout changes the sources' hashes.
 **Ship** the directory as `MetalUIAppShaders` beside the executable:
@@ -290,9 +348,22 @@ cp -R shaders/compiled dist/MetalUIAppShaders
 
 `SDLGPUShaderLibrary.locate(directoryName:sourceTree:)` looks in `MetalUIAppShaders` beside the
 executable first, then in the `sourceTree` URL the app passes (a source build; the library reads no
-`#filePath` for the app) and fails naming both directories when neither holds `SOURCE.sha256`.
-**Verified**: the order and the error, `theShaderLibraryLooksBesideTheExecutableThenTheSourceTree`
-(`Backends/SDL`). **Unverified**: a moved shipped app finding its directory (human check GA3).
+`#filePath` for the app) and fails naming both directories when neither holds a `SOURCE.sha256` or a
+reflection file. A build-tool plugin that compiles on every `swift build` is **not offered** (ruling
+`BS-D`): its outputs land in the plugin work directory and a resource bundle, not beside the executable,
+and a missing shadercross would fail every consumer's build.
+
+**Verified** (macOS, 2026-10-21): the plugin from a fixture package depending on this checkout **by
+path**, refused without `--allow-writing-to-package-directory` and writing blobs and the marker with it
+(`theCompileShadersPluginRunsOnAFixturePackage`, with a stub shadercross); the argument vectors, the
+lookup order, the loader path and the marker bytes (`MetalUIShaderCompileTests`); the library rules
+(`SDLGPUShaderBuildProductTests`, `Backends/SDL`, macOS and the Linux image); the order and the error,
+`theShaderLibraryLooksBesideTheExecutableThenTheSourceTree`. **Verified with a real shadercross at the pin** (macOS arm64 and Linux aarch64, the builds above): `MetalUICompileShaders` over
+`Backends/SDL/Tests/AppShaders` wrote 41 files byte-identical to the checked-in `compiled` directory (SPIR-V,
+MSL, DXIL, reflection JSON, marker), `anEnvGatedRunCompilesAFixture` with `METALUI_SHADERCROSS`.
+**Unverified**: Linux x86_64 and Windows builds of it (human checks BS1, BS4),
+a dependency **by URL** reaching the plugin (BS3), Windows lookup and DLLs (BS4), a
+moved shipped app finding its directory (GA3).
 
 ## Windows: an `.ico` embedded as a resource
 
