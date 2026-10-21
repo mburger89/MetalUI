@@ -4,7 +4,7 @@ Rulings for item C14-f. Spec: [`specs/2026-10-20-retained-geometry-design.md`](s
 `../record/128-retained-geometry.md` (Record phase). Branch `perf/retained-geometry` from `99b21a1c`. Reserved divergence labels 575-584:
 none taken.
 
-Prefix **`RG-`**, lettered. **Next unused: `RG-L`.** (Moves in the commit that appends a ruling.)
+Prefix **`RG-`**, lettered. **Next unused: `RG-O`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E` (geometry note taints, now replaced), `KF-J` (delivery semantics, unchanged), `FS-G`, `FS-P`, `FS-T` (record 126),
 `SB-AD`, `RK-S`, `RW-` (record 121), C14-e parts (c) and (f).
@@ -99,3 +99,47 @@ from a changed note, which is a fresh note (the ledger missed), and a replayed n
 own group. Reversing the replay was run as a mutation and **survived** the first test 6 (`LR-X`: equivalent); dropping the second note
 (`prefix(1)`) is observable only after a re-made card, which the new test 6 and test 2's tag step make. The spec's wording "keep their
 ordinals" is superseded. **Cost if wrong.** none new.
+
+## RG-L - Placement translation is built: per axis, origin-free, never for a custom layout (`RG-E` measured)
+
+**Measured at 99b21a1c** (commit message of the red commit; `FSShiftRoot`, translation on, graft off): the FS fixture's 24 cards in a plain
+`VStack` re-place on a shift **but a translated placement could not hit them**: a stack divides the remaining height among the children left,
+so a shift changes every card's *proposal* (14.25, 14.0, 13.73 ...), and the proposal is in the key. A card in a `ScrollView`'s stack (no
+height proposal) keeps its proposal: ten cards, header +4 pt: frames 1 and 2 read 140 memo lookups, 0 subtree hits at 99b21a1c, 10 lookups
+and 10 hits after; insertion in front 162 and 176 lookups, 0 hits, then 19 and 20 lookups with 11 and 12 hits. Debug-build wall time on 60
+cards in a scroller, header +/-4 pt, 100 frames, alternating (a dated measurement, never a pin): 11.95 to 12.34 ms off, 10.40 to 10.84 ms on
+(about -13 percent). Not dominant (element requests 75 and signature nodes are untouched) but the largest counter that moves, additive and
+cheap, so it is built. **Ruling.** `LayoutMemo.translatedPlacements` (two generations, swept beside `placements`) is keyed
+`(signature, proposal, bounds width, bounds height)` and holds the unrounded rects with the origin they were recorded at and, per axis,
+whether the origin and every rect coordinate on that axis are exact sixteenths. `lookupPlacementTranslated` runs only after the exact-origin
+key missed: per axis the new origin is bit-equal to the recorded one (copied) or an exact sixteenth with the recorded axis exact (shifted by
+an exact add); else `nil`. A subtree holding a `.custom` layout (a `ProposalLayout` may read the absolute origin) is neither stored nor looked
+up (`LayoutTree.holdsCustomLayout`). A hit is counted in `memoSubtreeHits` (no new counter, no public declaration) and checked by the existing
+verify block (`METALUI_VERIFY_LAYOUT_MEMO=1` recomputes it). **Why per axis:** a centred card's x is `(width - w) / 2` with a fractional text
+width, so a rule needing both axes exact never fires on real content; the axes do not mix in the arithmetic. **Footprint merge (C14-e):** the
+edit is the new dictionaries and four lines at each of `endFrame`, `removeAll`, `entryCount` and the two sites in `subtreePlacement`; nothing
+else of the existing methods moved. **Not stored from a root hit:** a root memo hit restores a steady frame without visiting its subtrees, so
+the first frame of a shift has nothing recorded and the second hits; a one-off shift pays one frame. **Existing pin amended:**
+`aMovedSubtreeIsPlacedFreshNotRestored` (`SubtreePlacementTests` 2.3) expected 0 subtree hits for a moved origin; it reads 1 and keeps its
+rect equality. **Cost if wrong.** A key that left out an input restores a wrong placement: verify mode traps, and the kernel pins cover the
+proposal, the size, the inexact origin and the custom layout.
+
+## RG-M - `hitboxClipped` is reachable only where nothing paints at the inner depth
+
+**Evidence (lane 2, tests 9 to 11).** The paint record's `maskStraddlesEntryClip` is the same strict-inside predicate applied to the same
+inner clip, and a prepaint decision asks the paint record **first**: a card that paints inside a `.clipped()` box (a button, a background)
+is refused by name `maskStraddlesEntryClip` before the ledger is read, so a first attempt at the pin (a `Button` in the clipped box) counted
+`maskStraddlesEntryClip` and never `hitboxClipped`. The guard is reached when the inner-clipped region **registers a hitbox and paints
+nothing** (a `Box().onClick {}`): then rows whose cut hitbox touches the window's bottom edge refuse `hitboxClipped` and run their prepaint
+(prepaint hits 3 of 6 per step), rows inside replay translated. **Ruling.** The guard text is unchanged (`RG-F`); the pins are tests 9
+(inside both clips: six rows translated, nothing refused), 10 (the cut rows run their prepaint, equal a retention-off window) and 11 (the name
+`hitboxClipped` is counted and is the only reason). **Cost if wrong.** none new.
+
+## RG-N - A shift under a moved render effect keeps its refusal and gains a name
+
+**Ruling.** An occurrence whose layout origin and the render effect above it both move in one frame (`ZStack { card }.offset(y:)` under a
+growing header) is not replayed: `RK-G`'s effect branch needs equal rects and `FS-O`'s layout branch needs equal effects, and combining the
+two (the paint record, the hitbox transforms and the hitbox clip together) is more than a few lines and risks pixels, so `RG-G`'s default
+stands. The previously silent fall-through counts `retainedTranslationRefusedReasons["effectAndLayoutMoved"]` (a counter line in
+`retainedPrepaintDecision`, the decision unchanged); test 12 pins the name, no redo and equality with a retention-off window at every step.
+**Cost if wrong.** A moving effect over a moving layout keeps building (prepaint runs), as before.

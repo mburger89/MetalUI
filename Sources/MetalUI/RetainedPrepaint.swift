@@ -279,6 +279,10 @@ extension Frame {
                     print("retained translation refused \(sbPath(build.key.id).suffix(60)): ax \(ledger.axEmissions.count)/\(ledger.axNodes.count), hitboxes \(ledger.hitboxes.count), moved \(translatedHitboxes(of: ledger, by: delta) != nil)")
                 }
                 memos.retained.noteTranslationRefused(reason: ledger.axEmissions.isEmpty && ledger.axNodes.isEmpty ? "hitboxes" : "accessibilityRecords")
+            } else if ledger.key.rects != key.rects, key.extras.translation(from: ledger.key.extras) != nil {
+                // The layout origin and a render effect above the occurrence both moved: the two translations are not combined
+                // (`FS-O`), so the prepaint runs (`RG-G`). A counter only; the decision is unchanged.
+                memos.retained.noteTranslationRefused(reason: "effectAndLayoutMoved")
             }
         }
         return .run(phase.grafted ? nil : openPrepaintWindow())

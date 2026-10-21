@@ -1010,7 +1010,10 @@ public final class LayoutTree {
         }
         defer {
             if let recording, let memo = run.memo {
-                memo.storePlacement(recording, preorder(id).map { layouts[$0] })
+                let order = preorder(id)
+                let placed = order.map { layouts[$0] }
+                memo.storePlacement(recording, placed)
+                if !holdsCustomLayout(order) { memo.storePlacementTranslated(recording, bounds: bounds, placed) }
             }
         }
         switch nativeNode(id) {
@@ -2357,7 +2360,8 @@ extension LayoutTree {
               let signature = memo.signatures[id.index] else { return .none }
         let key = LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds)
         let order = preorder(id)
-        guard let rects = memo.lookupPlacement(key), rects.count == order.count else { return .record(key) }
+        guard let rects = memo.lookupPlacement(key) ?? translatedPlacement(key, bounds: bounds, order: order, memo: memo),
+              rects.count == order.count else { return .record(key) }
         run.work.memoSubtreeHits += 1
         for (offset, index) in order.enumerated() { layouts[index] = rects[offset] }
         if memo.verifies {
@@ -2375,6 +2379,21 @@ extension LayoutTree {
             }
         }
         return .restored
+    }
+
+    /// `RG-E`: the recorded placement of an equal subtree at another origin, moved here. Never for a subtree holding a custom
+    /// layout, whose placement may read the absolute origin.
+    private func translatedPlacement(_ key: LayoutMemo.PlacementKey, bounds: LayoutRect, order: [Int],
+                                     memo: LayoutMemo) -> [LayoutRect]? {
+        guard !holdsCustomLayout(order) else { return nil }
+        return memo.lookupPlacementTranslated(key, bounds: bounds)
+    }
+
+    private func holdsCustomLayout(_ order: [Int]) -> Bool {
+        for index in order {
+            if case .custom? = nativeNodes[index] { return true }
+        }
+        return false
     }
 
     /// Stores the just-placed, not yet rounded rects of a keyed root.

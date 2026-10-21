@@ -100,7 +100,9 @@ private func rects(_ t: Tower) -> [LayoutRect] {
     #expect(requests(marked) < requests(control), "A's leaves are not asked about when A is restored")
 }
 
-/// 2.3 — **no translation**: a marked subtree whose bounds moved is placed fresh. The stack is
+/// 2.3 — a marked subtree whose bounds moved is never restored **at its old place**. (Amended by `RG-E`, C14-f: at an exact
+/// sixteenth origin the recorded placement is restored *translated*, so the count reads 1 and the rects equal a fresh placement's;
+/// the kernel pins of the translation are `SubtreePlacementTranslationTests.swift`.) The stack is
 /// trailing-aligned, so B growing from 30 to 100 moves A's `x` from 0 to 30 while A's size and the
 /// proposal it is placed at stay equal: only the origin separates the two keys. **Red before:** hits
 /// are 0 for the wrong reason (nothing restores), so the red of this test is 2.1's counter arm.
@@ -113,7 +115,7 @@ private func rects(_ t: Tower) -> [LayoutRect] {
     memo.endFrame()
     let second = tower(generation: 2, bWidth: 100, alignment: .trailing, memo: memo)
     second.tree.computeNativeLayout(root: second.root, proposal: big, centredIn: bounds)
-    #expect(second.tree.lastNativeLayoutWork.memoSubtreeHits == 0)
+    #expect(second.tree.lastNativeLayoutWork.memoSubtreeHits == 1, "restored translated (`RG-E`), not at x = 65")
     let fresh = tower(generation: 3, bWidth: 100, mark: false, alignment: .trailing, memo: nil)
     fresh.tree.computeNativeLayout(root: fresh.root, proposal: big, centredIn: bounds)
     #expect(rects(second) == rects(fresh))

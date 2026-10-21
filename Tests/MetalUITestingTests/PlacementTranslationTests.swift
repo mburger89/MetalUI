@@ -11,17 +11,46 @@ import Testing
 private let ptVerifyingNote: Comment =
     "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the replay counts this test pins are not its to read"
 
-/// 1 (`RG-E`) - the shifted frames of the FS fixture (a header that grows, an id inserted in front): the marked card subtrees stand at a
-/// new whole-point origin with an equal signature and proposal. At 99b21a1c every one re-placed (`layoutSubtreeHits` 0, 336 memo lookups
-/// on a header frame, 358 to 372 on an insertion frame); translated, they restore and the lookups fall to the stack's own.
-/// Mutation: the translated lookup removed (`lookupPlacementTranslated` returning nil).
+/// The cards of `FSShiftRoot` in a `ScrollView` (ten of them). A scroller proposes no height, so a card's proposal is the same before and
+/// after a shift; in a plain `VStack` the stack divides the remaining height among the children left, so **every** shift changes every
+/// card's proposal and the key (the FS fixture's 24 cards, `RG-E`): a header that grows 4 points, or an id inserted in front.
+@MainActor private func ptShiftFrames(_ kind: FSShift) throws -> [FrameWork] {
+    let model = FSShiftModel()
+    model.ids = Array(0..<10)
+    let options = HeadlessPlatformWindow.Options(scaleFactor: 2, accessibilityClientActive: false)
+    let w = try TestWindow(size: Size(width: Pixels(320), height: Pixels(400)), scaleFactor: 2, options: options,
+                           textSystem: { harnessTextSystem() }) {
+        VStack(spacing: 0) {
+            ScrollView(.vertical) {
+                VStack(spacing: 2) {
+                    if kind == .header { Color(red: 0.5, green: 0.5, blue: 0.5).frame(height: Pixels(model.header)) }
+                    ForEach(model.ids, id: \.self) { i in FSCard(id: i, value: 0).equatable() }
+                }
+            }.frame(width: Pixels(300), height: Pixels(250))
+        }
+    }
+    w.window.testingRetainedGraft = false
+    for _ in 0..<16 { w.window.setNeedsRedraw(); w.tick() }
+    w.resetFrameWork()
+    for step in 0..<3 {
+        if kind == .header { model.header += 4 } else { model.ids.insert(100 + step, at: 0) }
+        w.window.setNeedsRedraw(); w.tick()
+    }
+    return w.frameWork
+}
+
+/// 1 (`RG-E`) - the cards of a scroller's stack, shifted by a header that grows or an insertion: the marked card subtrees stand at a new
+/// origin with an equal signature, proposal and size. At 99b21a1c every one re-placed (`layoutSubtreeHits` 0; figures in the commit
+/// message and `RG-E`); translated, the second and third shifted frames restore them (the first has nothing recorded: a root hit covers a
+/// steady frame and touches no subtree). Mutation: the translated lookup removed (`lookupPlacementTranslated` returning nil).
 @Test(.enabled(if: !rsVerifying, ptVerifyingNote), arguments: [FSShift.header, .insertFront]) @MainActor
 func aShiftedFrameRestoresTheCardPlacementsTranslated(kind: FSShift) throws {
-    let frames = try fsShiftFrames(kind, graft: false, accessibility: false)
+    let frames = try ptShiftFrames(kind)
     try #require(frames.count == 3)
-    for (i, f) in frames.enumerated() {
-        #expect(f.layoutSubtreeHits >= 20, "\(kind) frame \(i): card subtrees restored where they moved: \(f.layoutSubtreeHits)")
-        #expect(f.layoutMemoHits < 120, "\(kind) frame \(i): memo lookups: \(f.layoutMemoHits) (336 or more at 99b21a1c)")
+    // At 99b21a1c the second and third frames read 0 subtree hits and 140 (header) or 162 and 176 (insertion) memo lookups.
+    for f in frames.dropFirst() {
+        #expect(f.layoutSubtreeHits >= 9, "card subtrees restored where they moved: \(f.layoutSubtreeHits)")
+        #expect(f.layoutMemoHits <= 30, "memo lookups: \(f.layoutMemoHits)")
     }
 }
 
@@ -146,3 +175,4 @@ func aShiftUnderAMovedRenderEffectIsRefusedByName() async throws {
     #expect(refusals["effectAndLayoutMoved", default: 0] > 0, "named: \(refusals)")
     #expect(redos == 0)
 }
+
