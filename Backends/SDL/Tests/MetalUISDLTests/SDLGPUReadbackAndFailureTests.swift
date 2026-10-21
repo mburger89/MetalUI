@@ -179,7 +179,7 @@ private func truncated(_ blob: SDLGPUShaderBlob) -> SDLGPUShaderBlob {
     }
 
     /// **P1.** A fragment stage with its code cut short: `compileGraphicsPipeline`
-    /// throws an error whose text is non-empty and names the fragment stage;
+    /// throws an error whose text is non-empty and names the stage the driver refused at (the fragment shader on Metal, the pipeline on lavapipe, `GB-L` 6);
     /// `makeGraphicsPipeline` stays `nil` and `lastPipelineFailure` is then
     /// non-empty (and `nil` before the first failure). Mutation: the reason is
     /// dropped (an empty message, or `lastPipelineFailure` never set).
@@ -193,11 +193,12 @@ private func truncated(_ blob: SDLGPUShaderBlob) -> SDLGPUShaderBlob {
             Issue.record("a truncated fragment stage compiled")
         } catch let error as SDLGPUError {
             #expect(!error.description.isEmpty)
-            #expect(error.description.contains("fragment shader"), "names the stage: \(error)")
+            #expect(error.description.contains("fragment shader") || error.description.contains("graphics pipeline"),
+                    "names the stage the driver refused at: \(error)")
         }
         #expect(device.makeGraphicsPipeline(broken) == nil)
         let reason = try #require(device.lastPipelineFailure)
-        #expect(!reason.isEmpty && reason.contains("fragment shader"), "recorded: \(reason)")
+        #expect(reason.contains("fragment shader") || reason.contains("graphics pipeline"), "recorded: \(reason)")
     }
 
     /// **P2.** The compute twin, with the append kernel's code cut short.

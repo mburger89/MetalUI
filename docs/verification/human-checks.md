@@ -1794,6 +1794,14 @@ a physical GPU, a desktop session and a console.*
 - [ ] **AP1.** On GNOME Wayland and on an X11 session, install a `.desktop` entry named after the id (`com.example.MyApp.desktop`, `Icon=` a theme name) and launch an SDL app that passes the id as `Options.applicationID` (or only to `launchingSingleInstance(id:)`): the window shows the entry's icon in the dash and
   groups under the entry, not under the executable name; on X11 `xprop WM_CLASS` names the id. With no id set the old behaviour (generic icon) holds; with `SDL_APP_ID=other.id` exported the override wins (`AP-A`, `AP-B`, `AP-C`). **Observed:**
 
+## GB. SDL GPU gaps - anisotropy looks, Windows D3D12, the main-actor readback stall (item S11, user request 2026-10-21, not a plan task; record 137; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs three desktops and a real 3D viewport app. The sampler fields, viewport, scissor, write mask, `r32Float`, the blocking readback and the failure reasons are pinned headless on Metal and lavapipe; what is owed is how it looks and behaves elsewhere.*
+
+- [ ] **GB1.** A textured ground plane at a grazing angle with `maxAnisotropy` 1 against 16 on Metal (macOS), Vulkan (Linux) and D3D12 (Windows): distant texels are visibly sharper at 16 (`GB-E`). **Observed:**
+- [ ] **GB2.** On a real D3D12 device (CI compiles Windows only; the UTM VM runs the SDL GPU tests when reachable): the viewport and scissor sub-rect, a depth-only prepass (`writesColor: false`), `r32Float` sampling and `downloadSynchronously` give the same pixels and floats as Metal and lavapipe (`GB-B`...`GB-F`). **Observed:**
+- [ ] **GB3.** `downloadSynchronously` for a picking readback in a real 3D viewport app: one frame hitch when it is called, no deadlock, and the pipeline-failure text (`compileGraphicsPipeline`) reads usefully for a deliberately broken shader (`GB-F`, `GB-G`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

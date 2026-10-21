@@ -2,7 +2,7 @@
 
 Rulings for item S11 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by
 MetalCreator (developer session, 2026-10-21) for its xp-3 3D viewport on SDL GPU: XP-G14 to XP-G19. Prefix `GB-`.
-**Next unused: `GB-L`.** Spec: [`specs/2026-10-21-sdl-gpu-gaps-design.md`](specs/2026-10-21-sdl-gpu-gaps-design.md).
+**Next unused: `GB-M`.** Spec: [`specs/2026-10-21-sdl-gpu-gaps-design.md`](specs/2026-10-21-sdl-gpu-gaps-design.md).
 Record: `../record/137-sdl-gpu-gaps.md`. Branch `feat/sdl-gpu-gaps` from `1bdead8d`. Continues `GA-` (record 114, 125).
 Divergence labels reserved 665–674: **none taken** (`GB-A`).
 
@@ -129,3 +129,19 @@ pass 2, so no depth-parameterised vertex shader is added; the new blobs are `fla
 **Ruling.** Backends/SDL ships as source (SwiftPM), so the migration note says "source compatible; a stored function
 reference to `setViewport`-like verbs does not exist (they are new)"; `writesColor`/`maxAnisotropy` extend initialisers
 whose old spelling no longer exists as a symbol, which is acceptable for a source-distributed class M layer.
+
+## GB-L — lane 2 as built: no `level(_:)`, S6 added, compile verbs do not record, the worker check is shared
+
+**Ruling.** (1) `SDLGPUTextureRegion` has no `static func level(_:)` (a whole level needs the texture's size, which the
+type does not hold): `region: nil` means all of level 0, and any other whole level is spelled as a region. (2) The throwing
+`compile…Pipeline` verbs do **not** record `lastPipelineFailure`; only the optional `make…Pipeline` wrappers do, so a caller
+using the throwing form holds the reason already and the property means "what an optional verb refused" (GB-G said the same;
+this removes the ambiguity). (3) Test S6 (`aBlockingWaitOnTheDevicesOwnWorkerIsRefused`) pins GB-I 2's waiter-thread arm
+in an exit test by enqueueing `waitBlocking` on `device.waiterWorker` (the worker is internal, so no extra hook was needed);
+the submit-worker arm shares the one `preconditionNotOnOwnWorker` and is not separately pinned. (4) An `SDLGPUError` whose
+SDL string is empty reads `<operation> failed (SDL gave no message; <key fields>)`; lavapipe and Metal both gave a message,
+so that arm is exercised by no test (carried; it is a string choice). (5) `downloadSynchronously` takes no usage flag beyond
+what `download` takes. **Cost if wrong.** A caller wanting the failure after a throwing call keeps the error it caught.
+(6) **The stage a refusal names is the driver's.** A fragment blob with truncated code is refused by Metal at `SDL_CreateGPUShader`
+(MSL compile) but accepted there by lavapipe, which refuses at `SDL_CreateGPUGraphicsPipeline` (`vkCreateGraphicsPipelines Unhandled
+VkResult!`); P1 therefore accepts either stage name and requires SDL's text to be present. Found by the Linux image run, not by macOS.

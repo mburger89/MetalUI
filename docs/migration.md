@@ -579,6 +579,9 @@ arm owed: **`SDLGPUTextureFormat` gains `case r32Float`**, so a caller's exhaust
 `default`) stops compiling until it adds the arm (four bytes a texel, like `r32Uint`; filter it `.nearest`).
 `SDLGPUGraphicsPipelineDescription.init` gains a last `writesColor: Bool = true` and `SDLGPUSamplerDescription.init` a
 last `maxAnisotropy: Float = 1`, so existing calls are unchanged. `SDLGPURenderPass.setViewport` and `setScissor` are new.
+`SDLGPUFence.waitBlocking()`, `SDLGPUDevice.downloadSynchronously(_:region:)`, `compileGraphicsPipeline(_:)`,
+`compileComputePipeline(_:)` and `lastPipelineFailure` are new; `makeGraphicsPipeline`, `makeComputePipeline`, `wait()` and
+`download` keep their spellings. `SDLGPUError` gains an internal initialiser only.
 No `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added.
 
 ### Clipboard beyond text (`CB-`, record 115)

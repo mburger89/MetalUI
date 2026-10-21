@@ -488,6 +488,11 @@ to `GB-E`: `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:)` a
 (`@discardableResult -> Bool`, top-left target pixels, a bad size answers `false`, the scissor clamps to the target),
 `SDLGPUGraphicsPipelineDescription.writesColor` (a depth-only prepass), `SDLGPUTextureFormat.r32Float`, and
 `SDLGPUSamplerDescription.maxAnisotropy` with `effectiveMaxAnisotropy` and `SDLGPUSampler.configuration`.
+Readback and failure reasons, rulings `GB-F`, `GB-G`, `GB-L`: `SDLGPUFence.waitBlocking()` (blocks the calling thread on the
+lock the waiter thread signals, never releases the fence) and `SDLGPUDevice.downloadSynchronously(_:region:)` with
+`SDLGPUTextureRegion` (legal on the main actor outside a draw, a debug trap inside one, a precondition on the device's own
+worker threads); `SDLGPUDevice.compileGraphicsPipeline(_:)` and `compileComputePipeline(_:)` throw an `SDLGPUError` naming the
+stage, and `lastPipelineFailure` records what the unchanged optional `make…Pipeline` verbs refused.
 
 **Window chrome on SDL** (`CW-`, item S1, record §112;
 [`superpowers/2026-10-13-sdl-chrome-decisions.md`](superpowers/2026-10-13-sdl-chrome-decisions.md);
