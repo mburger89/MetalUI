@@ -42,3 +42,14 @@ full `Backends/SDL` run finished normally (30 + 223, 3 issues): reddened `explic
 scripts print nothing, census unmoved (`Backends/SDL` is outside it). Hazard: the hint is process-wide and SDL is refcounted, so a second `SDLPlatform` in one process reads the
 first `SDL_Init`'s value; this is why the pins read the recorder, not `SDL_GetHint`. Owed, not run: the Linux-image run, the fourteen-image comparison and the
 default-build-system warning count on the merged tree; AP1 and the shell's real behaviour (group `AP`).
+
+## 6 Branch check (adversarial checker)
+
+Measured on the branch head: `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice; native unfiltered run on a locked screen
+`Test run with 4092 tests in 5 suites failed after 775.410 seconds with 5 issues`, the five being `AppKitPresentationTests` sheet issues (`CI-AF`) and nothing else,
+`FR-J no-argument frame: succeeded=true`. `Backends/SDL` on macOS 30 + 223 passed; in the Linux image (`metalui-portable`, volume `metalui-sdl-build-sdl-app-id`) 30 + 220 passed,
+`SDLAppIDTests` included. The probe was re-run: A1/A2/A3 read as recorded in its header, with and without `SDL_APP_ID=env.id`.
+Two mutations of the checker's own, each on a committed tree, restored from a copy, full `Backends/SDL` run to a summary line:
+(1) `SDLPlatform.init` passes `options.applicationID` instead of `usableApplicationID`: reddened two cases of `unusableValuesAreIgnored` (`"  "`, `"a\0b"`); (2) `SDL_SetHint` replaced by
+`SDL_SetHintWithPriority(…, SDL_HINT_OVERRIDE)`: **nothing reddened** (30 + 223 passed). That is the finding behind `AP-B`: the environment-variable override is pinned by the probe (arm A2) only,
+no test exports `SDL_APP_ID`; `docs/packaging.md` now says which proof is a test and which the probe. Not a code defect.
