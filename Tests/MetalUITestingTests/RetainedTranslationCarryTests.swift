@@ -277,8 +277,18 @@ struct RCRow: Component, @MainActor Equatable {
     }
 }
 
-enum RCAXMode: CaseIterable, CustomStringConvertible { case scroller, clippedStack, effect
-    var description: String { switch self { case .scroller: "scroller"; case .clippedStack: "clippedStack"; case .effect: "effect" } }
+enum RCAXMode: CaseIterable, CustomStringConvertible { case scroller, clippedStack, effect, effectText
+    var description: String { switch self { case .scroller: "scroller"; case .clippedStack: "clippedStack"; case .effect: "effect"; case .effectText: "effectText" } }
+}
+
+struct RCTextRow: Component, @MainActor Equatable {
+    let k: Int
+    var content: some ElementGroup {
+        VStack(spacing: 1) {
+            Text("c\(k) t0").frame(width: Pixels(60), height: Pixels(12))
+            Text("c\(k) t1").frame(width: Pixels(60), height: Pixels(12))
+        }
+    }
 }
 
 struct RCAXRoot: Component {
@@ -288,6 +298,14 @@ struct RCAXRoot: Component {
     var content: some ElementGroup {
         let pad = side.inputs.offset
         switch mode {
+        case .effectText:
+            // Text only under the same effect: an accessibility record with no declared node and no hitbox.
+            VStack(spacing: 2) {
+                Box().frame(height: Pixels(10 + pad))
+                ForEach(Array(0..<3), id: \.self) { k in RCTextRow(k: k).equatable() }
+            }
+            .frame(width: Pixels(100), height: Pixels(200), alignment: .topLeading)
+            .scaleEffect(2, anchor: .topLeading)
         case .effect:
             // The cards sit under `.scaleEffect(2)`: their records and hitboxes are under an ambient effect.
             VStack(spacing: 2) {
@@ -338,7 +356,7 @@ struct RCAXArm: CustomStringConvertible, Sendable {
 func aLayoutShiftReplaysAccessibilityRecordsRecomputed(arm: RCAXArm) async throws {
     let pair = try rcAXPair(inner: arm.inner, mode: arm.mode)
     try pair.compare("warm")
-    var refused = 0, hits = 0, cut = 0
+    var refused = 0, hits = 0, cut = 0, stepsWithoutHit = 0
     var steps: [(String, () -> Void)] = []
     if arm.mode == .scroller {
         for delta in [Float(-17), -17, -40, 30, 30] {
@@ -350,28 +368,35 @@ func aLayoutShiftReplaysAccessibilityRecordsRecomputed(arm: RCAXArm) async throw
     for (name, act) in steps {
         let w = try await rcStep(pair, name, act)
         print("RC17 \(arm) \(name): hits \(w.retainedPrepaintHits) translated \(w.retainedTranslated) refused \(w.retainedTranslationRefusedReasons)")
-        refused += w.retainedTranslationRefusedReasons["accessibilityRecords", default: 0]; hits += w.retainedPrepaintHits
+        refused += arm.inner ? w.retainedTranslationRefusedReasons["accessibilityRecords", default: 0]
+            : w.retainedTranslationRefusedReasons.values.reduce(0, +)
+        hits += w.retainedPrepaintHits
+        if w.retainedPrepaintHits == 0 { stepsWithoutHit += 1 }
         cut += try pair.on.accessibilityTree.geometry.values.filter { $0.visibleFrame != $0.frame }.count
     }
     #expect(refused == 0, "no accessibilityRecords refusal: \(refused)")
     // A clip derived inside each card is a paint-record refusal (`maskStraddlesEntryClip`) that asks for no prepaint: the tree compare is the pin.
-    if !arm.inner { #expect(hits > 0, "the prepaints replay: \(hits)") }
+    if !arm.inner {
+        #expect(hits > 0, "the prepaints replay: \(hits)")
+        // Every step replays: a record the rebased ledger lost (`axNodeLocals`) refuses the next shift by name `accessibilityUnrecorded`.
+        #expect(stepsWithoutHit == 0, "every step replays its prepaint: \(stepsWithoutHit) did not")
+    }
     #expect(cut > 0, "some record is cut by the viewport: the arm must meet a cut visible frame")
 }
 
 /// 18 (`RL-H`). A record made under an effect still refuses a layout shift, by its own name `accessibilityUnderEffect` (the effect
 /// translation owns it, `AT-A`); the tree equals a fresh window's. Mutation: delete the refusal (the shifted ambient-effect records
 /// are replayed unrecomputed and the tree differs).
-@Test(.enabled(if: !rsVerifying, rcVerifyNote)) @MainActor
-func anAccessibilityRecordUnderAnEffectStillRefusesOnLayoutShift() async throws {
-    let pair = try rcAXPair(mode: .effect)
+@Test(.enabled(if: !rsVerifying, rcVerifyNote), arguments: [RCAXMode.effect, .effectText]) @MainActor
+func anAccessibilityRecordUnderAnEffectStillRefusesOnLayoutShift(mode: RCAXMode) async throws {
+    let pair = try rcAXPair(mode: mode)
     try pair.compare("warm")
     var reasons: [String: Int] = [:]
     for step in 1...3 {
         let w = try await rcStep(pair, "header \(step)") { rcShift(pair, by: 4) }
         reasons.merge(w.retainedTranslationRefusedReasons, uniquingKeysWith: +)
     }
-    print("RC18 reasons \(reasons)")
+    print("RC18 \(mode) reasons \(reasons)")
     #expect(reasons["accessibilityUnderEffect", default: 0] > 0, "\(reasons)")
     #expect(reasons["accessibilityRecords", default: 0] == 0, "\(reasons)")
 }
@@ -417,4 +442,20 @@ func aNestedEffectAccessibilityRecordIsRecomputedAtScaleTwo(arm: RCScaleArm) asy
     }
     #expect(hits > 0, "the nested nodes replay: the walk ran, so the tree compares what it computed: \(hits)")
     #expect(accessibilityRefusals == 0, "\(accessibilityRefusals)")
+}
+
+/// 15c (`RL-O`). A named space declared inside the occurrence under a **non-dyadic** ambient scale (0.8) is not moved: the pan refuses by
+/// name `geometryNamedSpace` (its moved map would not be bit-equal to a fresh prepaint's), the prepaint runs, and the deliveries equal a
+/// fresh window's. Mutation: drop the dyadic guard in `translatedGeometryNotes` (the refusal count reads 0).
+@Test(.enabled(if: !rsVerifying, rcVerifyNote)) @MainActor
+func aNamedSpaceUnderANonDyadicScaleRefusesByName() async throws {
+    let pair = try rcPair(.named, .pan, scale: 0.8)
+    try pair.compare("warm")
+    var refused = 0
+    for step in 1...3 {
+        let w = try await rcStep(pair, "pan \(step)") { rcShift(pair, by: 4) }
+        refused += w.retainedTranslationRefusedReasons["geometryNamedSpace", default: 0]
+    }
+    #expect(refused > 0, "refused by name: \(refused)")
+    #expect(pair.onSide.log.entries.count > 2, "\(pair.onSide.log.entries)")
 }
