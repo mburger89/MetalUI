@@ -5,7 +5,7 @@ Spec: [`specs/2026-10-21-lazy-containers-design.md`](specs/2026-10-21-lazy-conta
 (not yet written). Branch `feat/lazy-containers` from `1bdead8d`. Reserved divergence labels 635-644: **635, 636, 637 taken by this
 design**, 638-644 unused. Probe: `../probes/swiftui-lazy-containers.swift` (output in its header; a SwiftUI claim below cites its arm).
 
-Prefix **`LZ-`**, lettered. **Next unused: `LZ-W`.** (Moves in the commit that appends a ruling.)
+Prefix **`LZ-`**, lettered. **Next unused: `LZ-AA`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `DD-F` (window against the scroller), `VL-B`..`VL-Q` (variable rows, `RowExtentIndex`, the anchor), `TB-AH` (bounded
 retention), `FI-A`/`FI-B` (ForEach identity), `ID-R`, `PE-V` (a `ProposalScrollView` publishes `ScrollContext`), `GR-L` (lazy grids
@@ -243,3 +243,53 @@ lazy stack is deliberately NOT started fresh (as a `List` row), so the arm would
 with `.id(_:)` mints through `enteringGroupMember`, whose arms already cover it. **Evidence.** `StateTable.noteNamed`/`queueLoopResets`
 (StateTable.swift 322, 447); mutation runs M14, M14b, M15 (record section 134). **Cost if wrong.** A reader who deletes the windowed-parent
 line sees no red and may conclude it is dead; this ruling is the answer.
+
+## LZ-W - A `GridItem`'s alignment is optional and the grid's alignment does two jobs (amends LZ-A and spec section 2)
+
+**Ruling.** `GridItem.alignment` is `ProposalAlignment?`, default `nil` (SwiftUI's `Alignment?`), not the spec's non-optional `.center`: a
+`nil` item takes the grid's `alignment:` as its cells' alignment in the track, and the grid's `alignment:` ALSO places the tracks
+together inside the offered extent. A `LazyVGrid`'s `HorizontalAlignment` is read through `proposalAlignment`, so its vertical factor is
+centre (a cell is centred in its row, C10); a `LazyHGrid`'s `VerticalAlignment` has horizontal factor centre (C11). An item's own alignment
+overrides both factors for its cells (C9).
+**Evidence.** C8 against C8c: two `.fixed(30)` columns with gap 8, grid alignment `.leading`: c0 at 0 and c1 at 38, which a centred 10-wide cell
+in a 30-wide track (10 and 48) refutes; default `.center`: c0 at 76 = 66 + 10, c1 at 114. So `.leading` moves the tracks (origin 0, not 66) AND leads
+the cells; the spec's first reading ("tracks aligned by `alignment:`") was right about the tracks and silent on the cells, and its test literals
+(0 and 38) were the probe's, derived under a rule that gave 10 and 48. C9: an item's own `.topLeading` and `.bottomTrailing` place cells in a
+20-tall row at y 0 for both. **Cost if wrong.** A call site writing `GridItem(.fixed(30), alignment: .center)` is source-compatible with the
+optional spelling; a non-optional type would have made `nil` unspellable and every default a hidden `.center`. Test 3.2a separates the two
+jobs (leading and centre arms), 3.2b the item override.
+
+## LZ-X - A grid cell is a unit: several nodes are one vertical stack, none is an empty cell, an eager grid makes each node a cell (divergence 635)
+
+**Ruling.** A `ForEach` element or static member that registers several nodes is ONE cell: its nodes are stacked along the line axis with
+the platform spacing (8) and placed together by the cell's alignment (a `LazyHGrid` cell stacks them along the column, as the grid's lines run).
+A unit that registers no node is an **empty cell**: it keeps its column slot and adds no extent and no gap (a line of only empty cells adds
+nothing, as a stack's empty unit, A9); a duplicate id inside the window is the same empty cell, so the columns of its line stay aligned. The
+eager fallback (LZ-B) has no unit to group by, so there every NODE is a cell, which is SwiftUI's own rule.
+**Evidence.** C14b (added by this lane to the probe): two `.fixed(40)` columns, an element of two views a, b then c lay out as a (71, 0), b (119, 0),
+c (71, 18), byte for byte three plain cells (C14c), so SwiftUI's cell is the VIEW; C14's single column cannot separate that from one stacked cell
+(a 0, b 18, c 36 either way), which the first design took as the evidence. MetalUI's units are the realisation granule (the window is in whole
+cells and lines, the index keys a line by its first unit): splitting a unit's nodes across cells would make a cell count unknowable without
+realising it. **Cost if wrong.** A `ForEach` whose element yields two views lays out in different cells than SwiftUI's: pinned as divergence 635
+by test 3.5 (two columns: c lands in cell 1 of row 0 at (119, 9)); the common shape (one view per element) is identical.
+
+## LZ-Y - The tracks' count is known at build time from the stored width, and stored without a scroller too (amends LZ-L)
+
+**Ruling.** `LazyOrigin.crossExtent` is written by the planner's prepaint inside a scroller on the grid's line axis; a grid outside one (a plain
+stack, the other axis, an eager content) writes it through the same compared `withState(_:initial:unchanged:)` in its own prepaint,
+**only when an item is adaptive** (a fixed or flexible count is static and needs no memory, so those grids create no state outside a scroller).
+Without it an adaptive grid in a `VStack` would have built one column for ever. The next build reads it through `peek` (no read journal entry,
+no version bump) and resolves only the count (`builtColumns`); prepaint compares the count `placeSubviews` resolved
+(`LazyGridProbe.resolvedCount`, a class so the layout stays a value) with the built one and asks for one more frame when they differ.
+**Evidence.** Test 3.8 (first frame one column and 32 cells, 39 after, 65 after widening to 300 with one more frame); `LZ-L`'s `DD-F` item 3
+precedent. **Cost if wrong.** The probe box is written by placement, which a placement-memo restore (`SB-AD`) skips: a restored placement leaves
+the box `nil`, which reads as a match, never a spurious frame; the layout is tainted for the root memo (`LZ-F`) so its own placement always
+runs. A width change costs one frame at the old count (human check LZ2).
+
+## LZ-Z - The grid's work counters: cells are units, rows are lines; an eager grid counts every node
+
+**Ruling.** `lazyUnitsRealized` counts cells realised (the window's lines times the line length, the last line possibly short; an
+empty duplicate counts no unit), `lazyLinesRealized` the rows (columns) of the window, `lazyUnbounded` a container that realised everything. An
+eager grid adds one unit per node, rows by the built count, and one unbounded. A pin on a grid reads both: 26 cells and 13 lines for 20-point rows
+in two columns (test 3.6), against an eager `VStack` of `HStack` rows holding the same 10 000 cells, ratio >= 300.
+**Evidence.** Test 3.6 (cold 64 cells in 32 lines, warm 26 in 13). **Cost if wrong.** None beyond the pin's literals.

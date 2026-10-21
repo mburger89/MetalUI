@@ -61,11 +61,11 @@ private struct Cell: ProposalElement {
 
 /// Renders `grid` under the host at `proposal` and returns the grid's answer.
 @MainActor
-private func render<Grid: ProposalElementGroup>(_ proposal: ProposedSize,
+private func render<Grid: ProposalElementGroup>(_ proposal: ProposedSize, scale: Float = 1,
                                                 @ProposalContentBuilder _ grid: () -> Grid) -> SizeD? {
     let answer = GridAnswer()
     var root = ProposalLayoutContainer(ProbeHost(proposal: proposal, answer: answer), content: grid)
-    Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1).render(&root)
+    Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: scale).render(&root)
     return answer.size
 }
 
@@ -207,6 +207,8 @@ private func four(_ log: LeafBoundsLog) -> some ProposalElementGroup {
     #expect(log.byName["c3"] == bounds(28, 72, 10, 10))
 }
 
+/// (Rendered at scale 2: the kernel snaps a placement to the device pixel, and -2.5, 35.5 and -37.5 are
+/// whole device pixels there, not at scale 1.)
 /// **3.4 (probe LZ4 of `swiftui-lazy-grid-scope.swift`, C12, C13; `LZ-K`).** At a nil width the tracks come
 /// from the FIRST row's cells. Two flexible columns, cells a 30, b 20, c 100, d 20 (10 tall): the grid asks
 /// 30 + 8 + 20 = 58 and shares it, tracks (58 - 8) / 2 = 25, so a is at (25 - 30) / 2 = -2.5, b at 33 +
@@ -217,7 +219,7 @@ private func four(_ log: LeafBoundsLog) -> some ProposalElementGroup {
 @MainActor
 @Test func aNilWidthTakesTheFirstRowAndAnAdaptiveItemMakesOneColumn() {
     let lz4 = LeafBoundsLog()
-    let lz4Size = render(ProposedSize()) {
+    let lz4Size = render(ProposedSize(), scale: 2) {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
             Cell("a", 30, 10, log: lz4)
             Cell("b", 20, 10, log: lz4)

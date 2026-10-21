@@ -44,7 +44,7 @@ func gridItemAndTheLazyGridsHaveSwiftUIsSpellings() throws {
             @MainActor func tree() -> some Element { \(source) }
             """, importing: "MetalUI")
         #expect(!pinned.succeeded, "pinnedViews: is not offered (LZ-N):\n\(pinned.output)")
-        #expect(pinned.messages.contains("extra argument 'pinnedViews' in call"),
+        #expect(pinned.messages.contains("extra arguments at positions #2, #3 in call"),
                 "rejected, but not for the extra argument:\n\(pinned.output)")
     }
 }
