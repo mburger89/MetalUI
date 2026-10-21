@@ -4,7 +4,7 @@ Rulings for item XP-G21. Spec: [`specs/2026-10-21-windows-release-crash-design.m
 Record: `../record/139-windows-release-crash.md` (Record phase). Branch `fix/windows-release-crash` from `68975774`. Divergence labels
 685-694 reserved: **none taken** (no SwiftUI-facing claim, no probe of SwiftUI; the evidence is compiler runs).
 
-Prefix **`WR-`**, lettered. **Next unused: `WR-F`.** (Moves in the commit that appends a ruling.)
+Prefix **`WR-`**, lettered. **Next unused: `WR-G`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `LK-X`/`SG-E` (asserts-only SIL verifier, env-gated `AssertsCompilerTests`), `PE-K`/Windows CI hazards.
 
@@ -39,3 +39,13 @@ release-only crash reach MetalCreator again; a costly one slows every PR.
 ## WR-E - Not an upstream-fix wait
 
 **Ruling.** Ship the workaround now (MetalCreator is blocked); remove it when a toolchain bump makes `repro.sh` pass on the unmodified function.
+
+## WR-F - Critic review: rejected and tightened points
+
+**Ruling.** Reviewed with no SwiftUI claim, public spelling, platform requirement, shader primitive, C enum or demo change in scope (none arise).
+Two points tightened. (1) The repro crashed in the **demo** product while the guard builds the **MetalUI** target: the lane must show the
+guard red at `68975774` (the specialisation needs a `paintDecoration` caller inside MetalUI, which `AnimatedColor.swift:447` is); if the MetalUI-only
+release build does not redden, the guard's fixture builds `MetalUIDemo`-free but the CI step uses the product that did, and the figure is recorded.
+(2) Test 4.2's index pin must be a real mutation: it is run with `count` for `count - 1` and the reddened test named; if no seam reads the
+recorded track keys, the pin reads `AnimationStore` state through the existing testing hook rather than being dropped. **Rejected:** guarding the
+entry with `isEmpty` (variant A, measured crash); removing optnone (variant B needs it, measured); waiting for upstream (WR-E).
