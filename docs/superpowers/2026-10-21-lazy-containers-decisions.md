@@ -3,7 +3,7 @@
 Rulings for item L1 (`LazyVStack`, `LazyHStack`, `LazyVGrid`, `LazyHGrid`, `GridItem`; user request 2026-10-02, round 2 2026-10-21).
 Spec: [`specs/2026-10-21-lazy-containers-design.md`](specs/2026-10-21-lazy-containers-design.md). Record: `../record/134-lazy-containers.md`
 (not yet written). Branch `feat/lazy-containers` from `1bdead8d`. Reserved divergence labels 635-644: **635, 636, 637 taken by this
-design**, 638-644 unused. Probe: `../probes/swiftui-lazy-containers.swift` (output in its header; a SwiftUI claim below cites its arm).
+design, 638 by lane 2 (`LZ-Y`)**, 639-644 unused. Probe: `../probes/swiftui-lazy-containers.swift` (output in its header; a SwiftUI claim below cites its arm).
 
 Prefix **`LZ-`**, lettered. **Next unused: `LZ-AA`.** (Moves in the commit that appends a ruling.)
 
@@ -284,7 +284,8 @@ no version bump) and resolves only the count (`builtColumns`); prepaint compares
 **Evidence.** Test 3.8 (first frame one column and 32 cells, 39 after, 65 after widening to 300 with one more frame); `LZ-L`'s `DD-F` item 3
 precedent. **Cost if wrong.** The probe box is written by placement, which a placement-memo restore (`SB-AD`) skips: a restored placement leaves
 the box `nil`, which reads as a match, never a spurious frame; the layout is tainted for the root memo (`LZ-F`) so its own placement always
-runs. A width change costs one frame at the old count (human check LZ2).
+runs. A width change costs one frame at the old count, divergence **638** (the spec reserved 635-637 for the design; 638 is the next label of this
+branch's reserved range 635-644), human check LZ2.
 
 ## LZ-Z - The grid's work counters: cells are units, rows are lines; an eager grid counts every node
 

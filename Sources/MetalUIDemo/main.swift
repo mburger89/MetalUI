@@ -95,11 +95,20 @@ func runDemo() throws {
     // copyable/cuttable graph source, a paste destination and a text field.
     let clipboardDemo = ProcessInfo.processInfo.environment["METALUI_CLIPBOARD_DEMO"] == "1"
 
+    // The lazy containers (`LZ-Q`, spec `2026-10-21-lazy-containers-design.md` section 6, human checks
+    // group LZ): a `LazyVStack` of variable rows, an adaptive `LazyVGrid`, a `LazyHStack` carousel and a
+    // `LazyHGrid`, each of 10 000 children with a live on-screen count.
+    let lazyDemo = ProcessInfo.processInfo.environment["METALUI_LAZY_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
     if chromeDemo {
         window = try openChromeDemoWindow(app, title: "MetalUI — Window Chrome")
+    } else if lazyDemo {
+        window = try app.openWindow(title: "MetalUI — Lazy Containers",
+                                    size: Size(width: Pixels(920), height: Pixels(640)),
+                                    content: lazyContainersDemoContent)
     } else if clipboardDemo {
         window = try app.openWindow(title: "MetalUI — Clipboard",
                                     size: Size(width: Pixels(920), height: Pixels(560)),

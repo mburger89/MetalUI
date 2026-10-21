@@ -207,19 +207,20 @@ private func four(_ log: LeafBoundsLog) -> some ProposalElementGroup {
     #expect(log.byName["c3"] == bounds(28, 72, 10, 10))
 }
 
-/// (Rendered at scale 2: the kernel snaps a placement to the device pixel, and -2.5, 35.5 and -37.5 are
-/// whole device pixels there, not at scale 1.)
 /// **3.4 (probe LZ4 of `swiftui-lazy-grid-scope.swift`, C12, C13; `LZ-K`).** At a nil width the tracks come
 /// from the FIRST row's cells. Two flexible columns, cells a 30, b 20, c 100, d 20 (10 tall): the grid asks
 /// 30 + 8 + 20 = 58 and shares it, tracks (58 - 8) / 2 = 25, so a is at (25 - 30) / 2 = -2.5, b at 33 +
-/// 2.5 = 35.5, row 1: c at (25 - 100) / 2 = -37.5, d at 35.5, y 0 and 18, size 58 x 28; an adaptive item is
+/// 2.5 = 35.5, row 1: c at (25 - 100) / 2 = -37.5, d at 35.5, y 0 and 18, size 58 x 28 (SwiftUI's unrounded
+/// figures; the kernel snaps every placed edge to a whole point, round half away from zero, on the cumulative
+/// edges: a is (-2.5 .. 27.5) = (-3, 31 wide), b (35.5 .. 55.5) = (36, 20), c (-37.5 .. 62.5) = (-38, 101),
+/// d (36, 20), asserted below); an adaptive item is
 /// ONE column at nil whose width is its cell's (C12: four 10 x 10 cells, size 10 x 64 = 4 x 10 + 3 x 8, each
 /// at x 0); no items is 0 x 0 (C13). Mutation: the first row's cells replaced by every realised cell (the
 /// width becomes 100 + 8 + 20).
 @MainActor
 @Test func aNilWidthTakesTheFirstRowAndAnAdaptiveItemMakesOneColumn() {
     let lz4 = LeafBoundsLog()
-    let lz4Size = render(ProposedSize(), scale: 2) {
+    let lz4Size = render(ProposedSize()) {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
             Cell("a", 30, 10, log: lz4)
             Cell("b", 20, 10, log: lz4)
@@ -228,10 +229,10 @@ private func four(_ log: LeafBoundsLog) -> some ProposalElementGroup {
         }
     }
     #expect(lz4Size == SizeD(width: 58, height: 28))
-    #expect(lz4.byName["a"] == bounds(-2.5, 0, 30, 10))
-    #expect(lz4.byName["b"] == bounds(35.5, 0, 20, 10))
-    #expect(lz4.byName["c"] == bounds(-37.5, 18, 100, 10))
-    #expect(lz4.byName["d"] == bounds(35.5, 18, 20, 10))
+    #expect(lz4.byName["a"] == bounds(-3, 0, 31, 10))
+    #expect(lz4.byName["b"] == bounds(36, 0, 20, 10))
+    #expect(lz4.byName["c"] == bounds(-38, 18, 101, 10))
+    #expect(lz4.byName["d"] == bounds(36, 18, 20, 10))
 
     let c12 = LeafBoundsLog()
     let c12Size = render(ProposedSize()) {

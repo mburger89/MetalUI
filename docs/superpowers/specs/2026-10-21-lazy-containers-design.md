@@ -17,7 +17,7 @@ scroller, on the proposal path. Branch `feat/lazy-containers` from `1bdead8d`. R
 | realisation | On screen only, no margin (R1: 10 of 1000, 100...109 after a scroll, 20 built in all); the other axis of a scroller is **not** windowed (R5). |
 | extent of unrealised children | the measured ones' mean (R4: 20000, not 20100; G2: 15000). |
 | state of a scrolled-out child | **retained** (S1: one serial across a 4000pt round trip). |
-| `GridItem` | fixed exact; flexible = min-first then equal share clamped to the maximum with no giveback (C4, C6, C15); adaptive `n = floor((rest + s)/(min + s))` (C1-C3, C16, C17); item `spacing` is the gap after its column (C7); tracks aligned in the proposal by `alignment:` (C8); `max(proposal, tracks)` wide (C5); row height = tallest cell (C10); nil width: first row's cells (LZ4), adaptive one column (C12); a ForEach element of two views is **two cells** (C14). |
+| `GridItem` | fixed exact; flexible = min-first then equal share clamped to the maximum with no giveback (C4, C6, C15); adaptive `n = floor((rest + s)/(min + s))` (C1-C3, C16, C17); item `spacing` is the gap after its column (C7); tracks aligned in the proposal by the grid's `alignment:`, which is also the default alignment of a cell in its track (C8, `LZ-W`); `max(proposal, tracks)` wide (C5); row height = tallest cell (C10); nil width: first row's cells (LZ4), adaptive one column (C12); a ForEach element of two views is **two cells** (C14). |
 | `pinnedViews` | pinned header held at the viewport top (H1) but the control arm is broken (H0): unproven. **Not built** (LZ-N). |
 
 ## 2. Public API (class A rows in `closeout-inventory-map.tsv`, a doc comment on each)
@@ -39,8 +39,8 @@ public struct GridItem: Sendable, Hashable {
     }
     public var size: Size
     public var spacing: Pixels?            // the gap after this item's column/row; nil = 8
-    public var alignment: ProposalAlignment // the cell inside its track; default .center
-    public init(_ size: Size = .flexible(), spacing: Pixels? = nil, alignment: ProposalAlignment = .center)
+    public var alignment: ProposalAlignment? // the cell inside its track; nil = the grid's (LZ-W, amends this line)
+    public init(_ size: Size = .flexible(), spacing: Pixels? = nil, alignment: ProposalAlignment? = nil)
 }
 public struct LazyVGrid<Content: ProposalElementGroup>: Element {
     public init(columns: [GridItem], alignment: HorizontalAlignment = .center, spacing: Pixels? = nil,
@@ -150,7 +150,7 @@ realised cell. `LazyHGrid` is the same with the axes swapped (rows are the track
 
 **Lane 1 (first; the core and the stacks).** New: `Sources/MetalUI/LazyUnits.swift`, `LazyCore.swift`, `LazyStack.swift`;
 tests `Tests/MetalUITests/LazyStackLayoutTests.swift`, `Tests/MetalUITestingTests/LazyStackWindowTests.swift`,
-`LazyStackGuards.swift`; probe (done). **Lane 2 (after lane 1's core is committed; the grids).** New:
+`LazyStackGuards.swift`; probe (done). **Lane 2 (after lane 1's core is committed; the grids; as built: tests `LazyGridLayoutTests`, `LazyGridFrameTests` (3.6-3.8), `LazyGridWindowTests` (3.9-3.12), `GridTrackSolverTests`, `LazyGridGuards`, `LazyContainersDemoTests`, `GuideMirrorsLazy`; the demo is `LazyContainersDemo.swift`, wired in `MetalUIDemo` only - the SDL demo is untouched, check LZ5).** New:
 `Sources/MetalUILayout/GridTrackSolver.swift`, `Sources/MetalUI/GridItem.swift`, `LazyGrid.swift`; tests
 `Tests/MetalUILayoutTests/GridTrackSolverTests.swift`, `Tests/MetalUITests/LazyGridLayoutTests.swift`,
 `Tests/MetalUITestingTests/LazyGridWindowTests.swift`, `LazyGridGuards.swift`. Lane 2 reads lane 1's `LazyCore` API
@@ -213,10 +213,10 @@ Lane 2:
 | # | test | asserts | mutation |
 |---|---|---|---|
 | 3.1 | `gridTracksFollowTheProbe` (`MetalUILayoutTests`, Linux) | C1 7 columns of 21.71 at x origin 0; C2 3 of 61.33; C3 3 of 53.33; C4 67/67->40 total 173 origin 13.5; C5 248 origin 0; C6 96, 30; C15 150 and 42; C16 70 centred in 100; C17 n=4 of 32; C7 gaps 20, 0 | min-first pass removed; max clamp gives back; adaptive `floor` -> `ceil` |
-| 3.2 | `aLazyVGridPlacesCellsInTheirTracksByAlignment` | C8 leading (0, 38), centre (76, 114); C9 topLeading / bottomTrailing at 66 / 124; C10 row 1 is 30 tall and c3 at y 28; width `max(proposal, tracks)` (C5 248) | cell alignment ignored; origin always 0 |
+| 3.2 | `aLazyVGridPlacesTracksAndCellsByTheGridAlignment` and `...PlacesCellsInTheirTracksAndSizesRowsByTheirTallestCell` | C8 leading (0, 38), centre (76, 114) (the grid alignment moves the tracks AND leads the cells, `LZ-W`); C9 topLeading / bottomTrailing at 66 / 124; C10 row 1 is 30 tall and c3 at y 28; width `max(proposal, tracks)` (C5 248) | cell alignment ignored; origin always 0 |
 | 3.3 | `aLazyHGridIsTheSameOnTheOtherAxis` | C11 48x100, c0 (0,18), c3 (28,72) | axis swap |
 | 3.4 | `aNilWidthTakesTheFirstRowAndAnAdaptiveItemMakesOneColumn` | LZ4 58; C12 10x64; C13 0x0 | first row -> all realised cells |
-| 3.5 | `aForEachElementOfSeveralViewsIsOneGridCell` | C14 as MetalUI's own answer: one cell holding a vertical stack (divergence 635) | cell = node |
+| 3.5 | `aForEachElementOfSeveralViewsIsOneGridCell` | C14b (the probe arm that separates it; C14's one column cannot): one cell holding a vertical stack, c lands in cell 1 of row 0 at (119, 9) (divergence 635, `LZ-X`) | cell = node |
 | 3.6 | `aTenThousandCellLazyVGridRealizesOnlyTheWindow` | `lazyLinesRealized` = viewport rows + 2 + 2, `lazyUnitsRealized = lines * columns`; the eager `Grid` stand-in realises 10 000; ratio asserted | window in cells not lines |
 | 3.7 | `rowsAreAsTallAsTheirTallestRealizedCellAndUnrealizedRowsCountAsTheMean` | G2: 15 000 | mean -> 0 |
 | 3.8 | `aStaleAdaptiveWidthIsCorrectedOnTheNextFrame` | first frame builds 1 column (no stored width), then the real count within one more frame | mismatch detection removed |
