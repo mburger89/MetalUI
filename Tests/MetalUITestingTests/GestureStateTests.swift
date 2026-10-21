@@ -201,8 +201,8 @@ private struct TapChip: Component {
     @GestureState var s = 0
     var content: some ElementGroup {
         chipBody(log, "body", s, TapGesture()
-            .updating($s) { _, _, _ in log.add("tap updating ran") }
-            .onEnded { log.add("tap ended") })
+            .onEnded { log.add("tap ended") }
+            .updating($s) { _, _, _ in log.add("tap updating ran") })
     }
 }
 
@@ -211,8 +211,8 @@ private struct SpatialTapChip: Component {
     @GestureState var s = 0
     var content: some ElementGroup {
         chipBody(log, "body", s, SpatialTapGesture()
-            .updating($s) { _, _, _ in log.add("spatial updating ran") }
-            .onEnded { _ in log.add("spatial ended") })
+            .onEnded { _ in log.add("spatial ended") }
+            .updating($s) { _, _, _ in log.add("spatial updating ran") })
     }
 }
 
