@@ -625,6 +625,32 @@ struct KeyframesDemo: Component {
                         CubicKeyframe(0, duration: 0.4)
                     }
                 }
+            PhasesDemo(shakes: refusals)
+        }
+        .alignItems(.center)
+    }
+}
+
+/// The phase animator row (G1 lane 2, rulings `GS-H`, `GS-I`, `GS-M`): a pulse cycling three phases for
+/// ever (no trigger) and a box that runs its phases once each time the keyframes row's "Shake" is tapped
+/// (the trigger is that row's count, passed in as `shakes`). **No click target of its own**: the looks
+/// demo's tests count them. A `Component` of its own (Windows' 1 MB stack).
+struct PhasesDemo: Component {
+    /// The keyframes row's refusal count: a change runs the triggered box's phases once.
+    let shakes: Int
+
+    var content: some ElementGroup {
+        Row(gap: Pixels(16)) {
+            Box().frame(width: Pixels(24), height: Pixels(24)).background(.accent).cornerRadius(Pixels(12))
+                .phaseAnimator([1.0, 1.35, 1.0]) { content, scale in
+                    content.scaleEffect(scale)
+                } animation: { scale in
+                    scale > 1 ? .linear(duration: 0.35) : .easeOut(duration: 0.5)
+                }
+            Box().frame(width: Pixels(40), height: Pixels(16)).background(.separator).cornerRadius(Pixels(4))
+                .phaseAnimator([0.0, 12.0, -12.0], trigger: shakes) { content, x in
+                    content.offset(x: Pixels(Float(x)))
+                } animation: { _ in .linear(duration: 0.15) }
         }
         .alignItems(.center)
     }

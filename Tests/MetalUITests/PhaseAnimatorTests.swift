@@ -308,7 +308,7 @@ private func frame<E: Element>(_ root: E, at time: Double, _ store: AnimationSto
 @Test @MainActor func anEmptyPhaseListTrapsNamingTheModifierGSH() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         await MainActor.run {
-            frame(Column { Box().phaseAnimator([Int]()) { c, _ in c } }, at: 0, AnimationStore())
+            _ = frame(Column { Box().phaseAnimator([Int]()) { c, _ in c } }, at: 0, AnimationStore())
         }
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
