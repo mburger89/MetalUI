@@ -295,3 +295,38 @@ private func four(_ log: LeafBoundsLog) -> some ProposalElementGroup {
     #expect(one.byName["b"] == bounds(95, 18, 10, 10))
     #expect(one.byName["c"] == bounds(95, 36, 10, 10))
 }
+
+/// **3.13 (`LZ-L`, `LZ-Y`, divergence 638).** An adaptive grid OUTSIDE any scroller still packs by the width
+/// of the previous frame: in a 200-point `VStack`, `.adaptive(minimum: 45)` and six 10 x 10 cells, the first
+/// frame has no stored width and builds one column (six rows); the grid stores its width in prepaint
+/// (`noteWidth`) and the next frames settle at n = floor((200 + 8) / 53) = **3** columns, two rows: c0 c1 c2 at
+/// y 0 and c3 c4 c5 at 10 + 8 = 18, the tracks (200 - 16) / 3 = 61.33 wide (c0 centred at 25.67, c1 at 95,
+/// c2 at 164.33; the kernel rounds to 26, 95, 164). Every container is unbounded here (no scroller): one
+/// counted. Mutation: the width not stored outside a scroller (the grid stays at one column for ever).
+@MainActor
+@Test func anAdaptiveGridOutsideAScrollerPacksFromItsStoredWidth() {
+    let states = StateTable()
+    let log = LeafBoundsLog()
+    var frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1, stateTable: states)
+    func draw() {
+        frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1, stateTable: states)
+        var root = VStack(alignment: .leading, spacing: Pixels(0)) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: Pixels(45)))]) {
+                Cell("c0", log: log); Cell("c1", log: log); Cell("c2", log: log)
+                Cell("c3", log: log); Cell("c4", log: log); Cell("c5", log: log)
+            }
+        }
+        frame.render(&root)
+    }
+    draw()
+    #expect(log.byName["c1"]?.origin.y == Pixels(10 + 8), "first frame: one column, c1 below c0")
+    #expect(frame.wantsAnotherFrame, "the first frame asks for the corrected count")
+    for _ in 0..<4 where frame.wantsAnotherFrame { draw() }
+    #expect(!frame.wantsAnotherFrame)
+    #expect(frame.lazyWork == LazyWork(unitsRealized: 6, linesRealized: 2, unbounded: 1), "\(frame.lazyWork)")
+    #expect(log.byName["c0"] == bounds(26, 0, 10, 10), "\(String(describing: log.byName["c0"]))")
+    #expect(log.byName["c1"] == bounds(95, 0, 10, 10))
+    #expect(log.byName["c2"] == bounds(164, 0, 10, 10))
+    #expect(log.byName["c3"] == bounds(26, 18, 10, 10))
+    #expect(log.byName["c5"] == bounds(164, 18, 10, 10))
+}
