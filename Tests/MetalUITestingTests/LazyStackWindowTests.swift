@@ -128,6 +128,34 @@ private struct StateRow: Component {
     #expect(serials.seen[0] == first, "after the round trip \(String(describing: serials.seen[0]))")
 }
 
+/// **2.7b (`LZ-H`, `TB-AH`).** The retention is BOUNDED, as a `List` row's: after the window has walked
+/// through some 400 rows (more than 256 state entries) and returned to the top, row 0, more than two
+/// generations out, starts fresh - a new serial. SwiftUI's retention looked unbounded in the one arm
+/// run (probe S1), so this is the existing `TB-AH` family (divergence 84), no new label; the
+/// documented rule is "keep durable values in data". Pins the claim, not a mutation of the lazy code.
+@Test @MainActor func aScrolledOutChildLosesItsStateOnceTheTableIsLargeAndFarBehind() throws {
+    let serials = Serials()
+    let window = try harnessWindow(size: sz(200, 200)) {
+        ProposalScrollView {
+            LazyVStack(spacing: Pixels(0)) {
+                ForEach(0..<1000) { StateRow(index: $0, serials: serials) }
+            }
+        }
+    }
+    window.tick(); window.tick(); window.tick()
+    let first = try #require(serials.seen[0])
+    #expect(first != 0)
+    for _ in 0..<45 {
+        window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: -200)
+        window.tick()
+    }
+    #expect(serials.seen[400] != nil && serials.seen[400] != 0, "the walk reached row 400")
+    window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: 100_000)
+    window.tick(); window.tick(); window.tick()
+    let again = try #require(serials.seen[0])
+    #expect(again != first, "row 0 returned with serial \(again), its first was \(first)")
+}
+
 /// **2.12 (`LZ-A`, `PE-C`).** A realised child is an ordinary occurrence: a click on a `Button` in a
 /// realised row fires it, Tab walks the realised rows' buttons (row 0 first), and a row out of the window
 /// has no element at all. The rows are legacy `Button`s, so this also runs the legacy `ForEach` path
@@ -178,6 +206,29 @@ private struct EqRow: Component, @MainActor Equatable {
     #expect(work.lazyUnitsRealized == 13, "\(work.lazyUnitsRealized)")
     #expect(work.contentSkips == 13 && work.contentEvaluations == 0,
             "skips \(work.contentSkips) evaluations \(work.contentEvaluations)")
+}
+
+/// **2.13b (`LZ-S`).** Legacy STATIC members are units too, not an eager fallback: a legacy `Text` with a
+/// legacy `.frame`, an `.equatable()` component and a `Button` as the three children of a lazy stack in a
+/// scroller are three realised units, none of them counted unbounded, and the button is an ordinary
+/// element. Mutation: `LegacyContent` not read as a unit source (the container turns eager:
+/// `lazyUnbounded` 1).
+@Test @MainActor func legacyStaticMembersAreUnitsAndNotAnEagerFallback() throws {
+    let window = try harnessWindow(size: sz(200, 200)) {
+        ProposalScrollView {
+            LazyVStack(spacing: Pixels(0)) {
+                Text("legacy one").frame(width: Pixels(100), height: Pixels(20))
+                EqRow(index: 1).equatable()
+                Button("Tap") {}
+            }
+        }
+    }
+    window.tick(); window.tick()
+    let work = window.lastFrameWork
+    #expect(work.lazyUnitsRealized == 3 && work.lazyUnbounded == 0,
+            "units \(work.lazyUnitsRealized) unbounded \(work.lazyUnbounded)")
+    _ = try window.element(label: "Tap")
+    _ = try window.element(label: "row 1")
 }
 
 private final class ProxyBox {
