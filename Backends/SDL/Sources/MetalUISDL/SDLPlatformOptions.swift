@@ -29,13 +29,16 @@ extension SDLPlatform {
         /// `.primary`, or let ``SDLPlatform/launchingSingleInstance(id:forwarding:options:)``
         /// do both.
         public var singleInstance: SingleInstance?
+        /// Placeholder (red phase).
+        public var applicationID: String?
 
         /// - Parameters:
         ///   - hidesWindows: see ``hidesWindows``.
         ///   - rendersOffscreen: see ``rendersOffscreen``.
         ///   - singleInstance: see ``singleInstance``.
         public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false,
-                    singleInstance: SingleInstance? = nil) {
+                    singleInstance: SingleInstance? = nil, applicationID: String? = nil) {
+            self.applicationID = applicationID
             self.hidesWindows = hidesWindows
             self.rendersOffscreen = rendersOffscreen
             self.singleInstance = singleInstance

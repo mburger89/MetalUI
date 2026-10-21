@@ -198,7 +198,14 @@ typedef struct {
     float scale;
     int32_t phase;
 } MUIEvent;
-bool mui_platform_init(void);
+// `app_id`: the application id for SDL_HINT_APP_ID, set immediately before
+// SDL_Init, or NULL to touch nothing (ruling AP-E). The recorders read back
+// what the last call did: the number of hints set, the last value, and whether
+// the last call set its hint before SDL_Init.
+bool mui_platform_init(const char *app_id);
+uint32_t mui_app_id_set_count(void);
+const char *mui_app_id_last(void);
+bool mui_app_id_hint_precedes_init(void);
 bool mui_poll_event(MUIEvent *event);
 bool mui_wait_event(MUIEvent *event, int32_t timeout_ms);
 // Pushes a synthetic SDL event built from `event` — for tests. MUI_EVENT_QUIT

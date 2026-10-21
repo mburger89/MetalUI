@@ -1228,12 +1228,25 @@ static Uint32 accessibility_event_type = 0;
 static Uint32 dialog_event_type = 0;
 static SDL_Mutex *dialog_mutex = NULL;
 
-bool mui_platform_init(void) {
+/* Application id (ruling AP-E): process-global recorders written in the
+   production path, `mui_cursor_*` style. Sequence numbers order the hint
+   before SDL_Init for the last call; SDL is refcounted, so a read-back of the
+   hint after init could not prove "before". */
+static uint32_t app_id_sets = 0;
+static char app_id_last[256] = {0};
+static uint32_t app_id_seq = 0;
+static uint32_t app_id_hint_seq = 0;
+static uint32_t app_id_init_seq = 0;
+
+bool mui_platform_init(const char *app_id) {
+    app_id_hint_seq = 0;
+    (void)app_id;
     // The application decides when it ends (ruling AS-B item 6): SDL's own
     // SDL_EVENT_QUIT after the last visible window's close request would end
     // a run whose close the app just vetoed. Every close request reaches
     // MetalUI, and only an approved one closes.
     SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
+    app_id_init_seq = ++app_id_seq;
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) return false;
     // Drops from other applications (ruling DN-M) — enabled explicitly, so a
     // build of SDL that ships either kind disabled still delivers both.
@@ -2202,3 +2215,9 @@ void mui_surface_image_size(void *surface, int32_t index, int32_t *w, int32_t *h
 /* Built without the `SDL` trait: no SDL3 header, no SDL3 link. */
 int mui_bridge_built_without_sdl = 1;
 #endif
+
+uint32_t mui_app_id_set_count(void) { return app_id_sets; }
+const char *mui_app_id_last(void) { return app_id_last; }
+bool mui_app_id_hint_precedes_init(void) {
+    return app_id_hint_seq != 0 && app_id_hint_seq < app_id_init_seq;
+}

@@ -56,7 +56,7 @@ public final class SDLPlatform: Platform {
     /// Every window is created hidden and shown after its AccessKit adapter
     /// exists (ruling `WS-B`); with ``Options/hidesWindows`` it is never shown.
     public init(options: Options) throws {
-        guard mui_platform_init() else { throw SDLPlatformError("SDL_Init") }
+        guard mui_platform_init(nil) else { throw SDLPlatformError("SDL_Init") }
         self.options = options
         pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
         options.singleInstance?.attach()   // `SN-G`: the wake event, after SDL_Init
@@ -1494,11 +1494,14 @@ public final class SDLPlatform {
         public var rendersOffscreen: Bool
         /// The single-instance role's spelling (item S7, guard 1.6b).
         public var singleInstance: SingleInstance?
+        /// The application id's spelling (item XP-G13, ruling `AP-C`).
+        public var applicationID: String?
         public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false,
-                    singleInstance: SingleInstance? = nil) {
+                    singleInstance: SingleInstance? = nil, applicationID: String? = nil) {
             self.hidesWindows = hidesWindows
             self.rendersOffscreen = rendersOffscreen
             self.singleInstance = singleInstance
+            self.applicationID = applicationID
         }
         public static let `default` = Options()
         public static let headless = Options(hidesWindows: true, rendersOffscreen: true)
