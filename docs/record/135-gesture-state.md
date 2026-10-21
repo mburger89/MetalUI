@@ -154,11 +154,24 @@ in `InputFollowupsDemo.swift` (`gestureStateChips()`, `GestureStateDragChip`, `G
 (`METALUI_LOOKS_DEMO=1`, no new click target: the trigger is the row's own "Shake" count). The default `demoContent()` is untouched. Guides: `docs/guides/input.md` (the snap-back chip) and
 `docs/guides/drawing-and-gpu.md` (the pulse and the swing), mirrored by hand (`DG-C`, `DG-D`).
 
-COMPARE_LINE
+**The fourteen offscreen images** (`docs/probes/demo-pixels/compare.sh <scratch> 1bdead8d HEAD`, controls non-zero as recorded): **0 px, scene identical in all fourteen** against `1bdead8d` at the Record phase's head `37d9bbff`
+(lane 2 had read the same at its own head).
 
 ## §7 Verification, counts
 
-COUNTS
+Measured at the Record phase on the merged tree (this branch merged with master `11dca65e`, §136 and §137), after `swift package clean`, locked screen:
+
+- **Root, native, unfiltered:** `swift build --build-system native --build-tests` 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `swift test --build-system native --no-parallel`: **4159 tests in 5 suites**
+  (master's 4120 + lane 1's 21 + lane 2's 18), 0 goldens, **257 typecheck guards** (251 + the six new, by addition: there is no counter), failed with exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` (`appKitCancelledDialogArrivesAsQueuedInput`,
+  `appKitDismissPresentationEndsTheSheetAndAnswersNothing`, `appKitOpenDialogIsASheetWithTheDeclaredTypes`, `appKitSaveDialogCarriesTheNameTypesAndExportPrompt`, `appKitSecondDialogWhileASheetIsUpAnswersFalse`) and nothing else;
+  `FR-J no-argument frame: succeeded=true`; 1115 s on a shared Mac. (Lane 1's own run at `2c871688` read 4138; lane 2's with the AppKit suites skipped 4135.)
+- **Default build system:** `swift build --build-tests` 0 `warning:`.
+- **Verify switches:** `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`, `--skip AppKitPresentationTests`: **4150 tests in 5 suites passed**, no trap, 0 issues (4159 less the nine skipped).
+- **Inventory:** `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing; the census is **3710** declarations (3683 + 27: lane 1's 17, lane 2's 10), re-recorded after the final source edit (the header comment of
+  `Gesture.swift` moved lines).
+- **Linux image** (`metalui-portable`, OrbStack, volume `metalui-root-build-gesture-state`): `MetalUITestingTests` + the portable tests **451** in 2 suites, `MetalUILayoutTests` **233**, `MetalUICoreTests` **138**,
+  the cross-platform **22**, all passed (lane 2's retained arm and both guide mirrors included; `PhaseAnimatorTests` and the guards are macOS-only targets). `Backends/SDL` untouched, not re-taken.
+- **Divergences:** 645 added, 236 amended; the header's count and next-label line are left for the merge (`docs/divergences.md`).
 
 ## §8 Hazards
 
