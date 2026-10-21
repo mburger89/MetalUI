@@ -1,0 +1,6 @@
+import MetalUITesting
+
+// Counters present at every commit the harness is run against (fb9a7e42 and later; ledger snapshots arrived with retained subtrees).
+func counters(_ w: FrameWork) -> String {
+    "measures=\(w.layoutMeasureCalls) memoHits=\(w.layoutMemoHits) memoMisses=\(w.layoutMemoMisses) subtreeHits=\(w.layoutSubtreeHits) requests=\(w.elementRequests) prepaints=\(w.elementPrepaints) paints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) ledgerSnapshots=\(w.retainedLedgerSnapshots) rasterizedPixels=\(w.rasterizedPixels) blurredPixels=\(w.blurredPixels) uploadPixels=\(w.atlasUploadPixels) glyphs=\(w.glyphs) rects=\(w.rects)"
+}

@@ -1,0 +1,6 @@
+import MetalUITesting
+
+// The base counters plus the C14b-2 ones (6273e3a4 and later).
+func counters(_ w: FrameWork) -> String {
+    "measures=\(w.layoutMeasureCalls) memoHits=\(w.layoutMemoHits) memoMisses=\(w.layoutMemoMisses) subtreeHits=\(w.layoutSubtreeHits) requests=\(w.elementRequests) prepaints=\(w.elementPrepaints) paints=\(w.elementPaints) retainedHits=\(w.retainedHits) retainedMisses=\(w.retainedMisses) ledgerSnapshots=\(w.retainedLedgerSnapshots) grafts=\(w.retainedGrafts) rasterizedPixels=\(w.rasterizedPixels) blurredPixels=\(w.blurredPixels) uploadPixels=\(w.atlasUploadPixels) glyphs=\(w.glyphs) rects=\(w.rects)"
+}

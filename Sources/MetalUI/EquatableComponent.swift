@@ -194,7 +194,7 @@ extension Component where Self: Equatable {
     /// an `Environment` property, so write `==` over the stored inputs. A declared property
     /// the getter never reads still counts. **A component is evaluated every frame and
     /// counted as a refusal** when it declares `@FocusState` or reads an environment value
-    /// that cannot be compared (a closure, a struct holding one, `\.self`, `\.textMeasurer`).
+    /// that cannot be compared (a closure, a struct holding one, `\.self`).
     ///
     /// **What is saved.** The getter, and — when the occurrence is laid out where it
     /// was and its surroundings at paint are unchanged — the paint of everything

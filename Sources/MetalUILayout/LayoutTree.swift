@@ -860,12 +860,16 @@ public final class LayoutTree {
         let key = NativeMeasurementKey(id: id, proposal: proposal)
         if let cached = run.cache[key] {
             run.work.cacheHits += 1
+            if run.footprintDepth > 0, let memo = run.memo, run.memoSuspended == 0, let signature = memo.signatures[id.index] {
+                run.footprintLog.measures.append(LayoutMemo.MeasureKey(signature: signature, proposal: proposal))
+            }
             return cached
         }
         // The layout memo (`IV-E` (M)): a keyed subtree equal to one measured
         // before answers without descending. A hit is not a cache miss.
         var memoSignature: LayoutSignature?
         if let memo = run.memo, run.memoSuspended == 0, let signature = memo.signatures[id.index] {
+            if run.footprintDepth > 0 { run.footprintLog.measures.append(LayoutMemo.MeasureKey(signature: signature, proposal: proposal)) }
             if let hit = memo.lookup(signature, proposal) {
                 run.work.memoHits += 1
                 if memo.verifies { verifyMemoHit(id, proposal: proposal, expected: hit, run: run) }
@@ -1001,19 +1005,26 @@ public final class LayoutTree {
         // `SB-AD`: a marked root in the place and at the proposal of an earlier placement is
         // restored from it; otherwise it is placed below and stored on the way out.
         var recording: LayoutMemo.PlacementKey?
+        var footprintMark = (measures: 0, placements: 0)
         if !placementRoots.isEmpty, placementRoots.contains(id.index) {
             switch subtreePlacement(id, proposal: proposal, bounds: bounds, run: run) {
             case .restored: return
-            case .record(let key): recording = key
+            case .record(let key):
+                recording = key
+                footprintMark = (run.footprintLog.measures.count, run.footprintLog.placements.count)
+                run.footprintDepth += 1
             case .none: break
             }
         }
         defer {
             if let recording, let memo = run.memo {
+                run.footprintDepth -= 1
+                let footprint = run.takeFootprint(since: footprintMark)
                 let order = preorder(id)
                 let placed = order.map { layouts[$0] }
-                memo.storePlacement(recording, placed)
-                if !holdsCustomLayout(order) { memo.storePlacementTranslated(recording, bounds: bounds, placed) }
+                memo.storePlacement(recording, placed, footprint: footprint)
+                if !holdsCustomLayout(order) { memo.storePlacementTranslated(recording, bounds: bounds, placed, footprint: footprint) }
+                if run.footprintDepth > 0 { run.footprintLog.placements.append(recording) }
             }
         }
         switch nativeNode(id) {
@@ -2325,7 +2336,8 @@ extension LayoutTree {
             return false
         }
         let key = LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds)
-        guard let rects = memo.lookupPlacement(key), rects.count == run.order.count else { return false }
+        guard let placed = memo.lookupPlacement(key), placed.rects.count == run.order.count else { return false }
+        let rects = placed.rects
         run.work.memoRootHits += 1
         for (offset, index) in run.order.enumerated() { layouts[index] = rects[offset] }
         if memo.verifies {
@@ -2360,9 +2372,18 @@ extension LayoutTree {
               let signature = memo.signatures[id.index] else { return .none }
         let key = LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds)
         let order = preorder(id)
-        guard let rects = memo.lookupPlacement(key) ?? memo.lookupPlacementTranslated(key, bounds: bounds),
-              rects.count == order.count else { return .record(key) }
+        guard let placed = memo.lookupPlacement(key) ?? memo.lookupPlacementTranslated(key, bounds: bounds),
+              placed.rects.count == order.count else { return .record(key) }
+        let rects = placed.rects
         run.work.memoSubtreeHits += 1
+        // `CF-E`: the restore stands for the placement below `id`; keep what that placement used alive, and let an
+        // enclosing recording count it too.
+        memo.touch(placed.footprint)
+        if run.footprintDepth > 0 {
+            run.footprintLog.measures.append(contentsOf: placed.footprint.measures)
+            run.footprintLog.placements.append(contentsOf: placed.footprint.placements)
+            run.footprintLog.placements.append(key)
+        }
         for (offset, index) in order.enumerated() { layouts[index] = rects[offset] }
         if memo.verifies {
             let savedCache = run.cache, savedWork = run.work

@@ -1,0 +1,6 @@
+import MetalUITesting
+
+// Counters present before retained subtrees (e85cb07a and later).
+func counters(_ w: FrameWork) -> String {
+    "measures=\(w.layoutMeasureCalls) memoHits=\(w.layoutMemoHits) memoMisses=\(w.layoutMemoMisses) rasterizedPixels=\(w.rasterizedPixels) blurredPixels=\(w.blurredPixels) uploadPixels=\(w.atlasUploadPixels) glyphs=\(w.glyphs) rects=\(w.rects)"
+}

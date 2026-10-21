@@ -471,8 +471,9 @@ its position is unchanged (an `Equatable` value by `==`, a class or an `@Observa
 read properties by the observation session), and a declared property its getter never reads still counts. A component that relied on
 the refusal to stay fresh owes an honest `==` over its stored inputs (a synthesized `==` cannot see an `Environment` property): it is
 re-run when an environment value it declares changes, not when its own `==` says so alone. Still refused and counted in
-`FrameWork.contentRefusals`: `@FocusState` and a reader of an uncomparable value (a closure, a struct holding one, `\.self`,
-`\.textMeasurer`). A custom `EnvironmentKey` value that is `Equatable` no longer makes a retained occurrence ineligible; one that holds
+`FrameWork.contentRefusals`: `@FocusState` and a reader of an uncomparable value (a closure, a struct holding one, `\.self`).
+(`\.textMeasurer` was in this list until record §127: a reader of it is now skipped while the text system and the two default text
+styles it resolves are unchanged, `CF-A`; no API change.) A custom `EnvironmentKey` value that is `Equatable` no longer makes a retained occurrence ineligible; one that holds
 a function still does (`uncomparableEnvironmentKey`). A test that counted the `.environment` bracket arm's refusals or node bodies
 reads the `.value` arm's counts. The fingerprint now holds provided object **instances**, so a swapped `@Observable` object under a
 retained occurrence misses instead of replaying the old paint (`EE-K`).
@@ -487,6 +488,14 @@ shift is a whole number of device pixels, its content is rect, glyph or image on
 sits under it; a `List` row of `.equatable()` content now replays its prepaint and grafts like the same row in a `VStack`. A custom element under
 one is called less often; a test that counted such an occurrence's element requests or `retainedPrepaintHits` reads fewer and more.
 `METALUI_RETAINED_TRANSLATION=0` restores the miss. A hitbox gains two internal fields (`unclipped`, `clipDepth`).
+
+### Warm and cold frame counters (`CF-`, record §127)
+
+No API change, no conformer change. **Behaviour, compiles and reads differently** (`MetalUITesting`'s `FrameWork`, a test's numbers): on a **redo** frame
+(`RK-D`) `contentEvaluations` now includes the content getters the abandoned attempt evaluated (it read 0 before, the redo skipping what the attempt had
+made); every other counter is still the redo's own. A subtree restored by the placement memo now keeps its measurement entries alive, so the frame
+after the records exist does exactly the work of the one before it: a test that recorded the old 135-against-52 layout spike on that frame (the bracket
+node drag's press frame) reads 52. A component that read `@Environment(\.textMeasurer)` under `.equatable()` is skipped, not refused (divergence 346).
 
 ### Retained read-only state (`RW-`, record §121)
 

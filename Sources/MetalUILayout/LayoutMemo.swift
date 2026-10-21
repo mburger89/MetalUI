@@ -73,14 +73,32 @@ package final class LayoutMemo {
         let x: Double, y: Double
         let xExact: Bool, yExact: Bool
         let rects: [LayoutRect]
+        /// The footprint of the recording (`CF-E`), kept so a translated restore stands for the same entries.
+        let footprint: Footprint
     }
 
     private var measurements: [MeasureKey: LayoutMeasurement] = [:]
     private var previousMeasurements: [MeasureKey: LayoutMeasurement] = [:]
-    private var placements: [PlacementKey: [LayoutRect]] = [:]
-    private var previousPlacements: [PlacementKey: [LayoutRect]] = [:]
+    private var placements: [PlacementKey: Placed] = [:]
+    private var previousPlacements: [PlacementKey: Placed] = [:]
     private var translatedPlacements: [TranslatedPlacementKey: TranslatedPlacement] = [:]
     private var previousTranslatedPlacements: [TranslatedPlacementKey: TranslatedPlacement] = [:]
+
+    /// The memo keys a placement's recording looked up, stored or restored below its root (`CF-E`): what a later
+    /// restore of that placement stands for. A restore places nothing and so looks nothing up; without this the
+    /// entries below it age out of both generations while it keeps hitting, and the first frame that must measure
+    /// or place the subtree for itself (a graft, a changed bound) pays for all of them at once.
+    struct Footprint {
+        var measures: [MeasureKey] = []
+        var placements: [PlacementKey] = []
+        var isEmpty: Bool { measures.isEmpty && placements.isEmpty }
+    }
+
+    /// One stored placement: the unrounded rects and the footprint of the recording that made them.
+    struct Placed {
+        var rects: [LayoutRect]
+        var footprint: Footprint
+    }
 
     /// The signature of each node of the current run, by node index. Scratch:
     /// only the indices the run's pre-order visited are meaningful, and a run
@@ -107,7 +125,7 @@ package final class LayoutMemo {
         measurements[MeasureKey(signature: signature, proposal: proposal)] = measurement
     }
 
-    func lookupPlacement(_ key: PlacementKey) -> [LayoutRect]? {
+    func lookupPlacement(_ key: PlacementKey) -> Placed? {
         if let hit = placements[key] { return hit }
         if let hit = previousPlacements[key] {
             placements[key] = hit
@@ -116,14 +134,26 @@ package final class LayoutMemo {
         return nil
     }
 
-    func storePlacement(_ key: PlacementKey, _ rects: [LayoutRect]) {
-        placements[key] = rects
+    func storePlacement(_ key: PlacementKey, _ rects: [LayoutRect], footprint: Footprint = Footprint()) {
+        placements[key] = Placed(rects: rects, footprint: footprint)
+    }
+
+    /// Keeps alive what a restored placement stands for (`CF-E`): every entry of `footprint` still in the previous
+    /// generation moves into this frame's, exactly as a lookup of it would have. A key in neither generation is left
+    /// alone, and nothing is counted: the work counters read lookups, and a touch is not one.
+    func touch(_ footprint: Footprint) {
+        for key in footprint.measures where measurements[key] == nil {
+            if let hit = previousMeasurements[key] { measurements[key] = hit }
+        }
+        for key in footprint.placements where placements[key] == nil {
+            if let hit = previousPlacements[key] { placements[key] = hit }
+        }
     }
 
     /// The placement `key` names at another origin, moved to `bounds`' origin (`RG-E`), or `nil`. Per axis the origin is either
     /// bit-equal to the recorded one (the coordinates on that axis are copied) or an exact sixteenth with every recorded
     /// coordinate on that axis exact too (they are shifted: the sums are exact); otherwise the exact-origin key decides.
-    func lookupPlacementTranslated(_ key: PlacementKey, bounds: LayoutRect) -> [LayoutRect]? {
+    func lookupPlacementTranslated(_ key: PlacementKey, bounds: LayoutRect) -> Placed? {
         let free = TranslatedPlacementKey(key)
         guard let record = translatedPlacements[free] ?? previousTranslatedPlacements[free] else { return nil }
         let sameX = record.x.bitPattern == bounds.x.bitPattern, sameY = record.y.bitPattern == bounds.y.bitPattern
@@ -131,13 +161,14 @@ package final class LayoutMemo {
               sameY || (record.yExact && LayoutMemo.isExactSixteenth(bounds.y)) else { return nil }
         translatedPlacements[free] = record   // alive another frame
         let dx = bounds.x - record.x, dy = bounds.y - record.y
-        return record.rects.map {
+        let rects = record.rects.map {
             LayoutRect(x: sameX ? $0.x : $0.x + dx, y: sameY ? $0.y : $0.y + dy, width: $0.width, height: $0.height)
         }
+        return Placed(rects: rects, footprint: record.footprint)
     }
 
     /// Records `rects` (the unrounded placement under `key`, placed in `bounds`) for `lookupPlacementTranslated`.
-    func storePlacementTranslated(_ key: PlacementKey, bounds: LayoutRect, _ rects: [LayoutRect]) {
+    func storePlacementTranslated(_ key: PlacementKey, bounds: LayoutRect, _ rects: [LayoutRect], footprint: Footprint = Footprint()) {
         var xExact = LayoutMemo.isExactSixteenth(bounds.x), yExact = LayoutMemo.isExactSixteenth(bounds.y)
         for r in rects where xExact || yExact {
             xExact = xExact && LayoutMemo.isExactSixteenth(r.x)
@@ -145,7 +176,7 @@ package final class LayoutMemo {
         }
         guard xExact || yExact else { return }
         translatedPlacements[TranslatedPlacementKey(key)] =
-            TranslatedPlacement(x: bounds.x, y: bounds.y, xExact: xExact, yExact: yExact, rects: rects)
+            TranslatedPlacement(x: bounds.x, y: bounds.y, xExact: xExact, yExact: yExact, rects: rects, footprint: footprint)
     }
 
     /// A multiple of 1/16 below 2^20 in magnitude: sums of such values are exact in a `Double`.
