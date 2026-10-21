@@ -1,5 +1,7 @@
 # Sample app (E1) - design
 
+**Status: implemented** (record 136, branch `feat/sample-app`; the unlocked root run, a real-window capture and Windows are owed there).
+
 Item E1, round 2 of the gpui-gap list (user request 2026-10-21; original item 1: "`metalui new` gives a hello-world starter, but no
 real sample app exists"). Branch `feat/sample-app` from `1bdead8d`. Rulings: [`../2026-10-21-sample-app-decisions.md`](../2026-10-21-sample-app-decisions.md)
 (prefix `EX-`). Record: `docs/record/136-sample-app.md` (Record phase). Divergence labels 655-664 reserved: **none expected**.
