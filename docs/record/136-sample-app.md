@@ -3,7 +3,7 @@
 Branch `feat/sample-app` from `1bdead8d`. Not a plan task: item E1 (round 2) of the gpui-gap list, user request 2026-10-21 ("Sample app: `metalui new` gives
 a hello-world starter, but no real sample app exists"). Spec `docs/superpowers/specs/2026-10-21-sample-app-design.md`; rulings `EX-A`...`EX-S` in
 `docs/superpowers/2026-10-21-sample-app-decisions.md` (next `EX-T`). Divergence labels 655-664 reserved: **none taken** (no `Sources/` change, no public
-declaration, no SwiftUI claim, no probe). One lane. Human checks: group `EX` (proposed text in section 7), not yet in `human-checks.md`.
+declaration, no SwiftUI claim, no probe). One lane. Human checks: group `EX` (EX1-EX6, in `human-checks.md`, text in section 7), not run.
 
 ## 1 What landed
 
@@ -21,7 +21,7 @@ Root: `Tests/MetalUIScaffoldTests/SampleAppTests.swift` (+2 tests, `EX-S`); CI: 
 ## 2 Findings (API rough edges the app hit; none fixed here)
 
 1. **No `Canvas`/`GraphicsContext`** (known, `drawing-and-gpu.md`): the chart is `Rectangle`s and a `Shape` (`EX-K`).
-2. **`.accessibilityIdentifier`/`.accessibilityLabel` on a container reach every child** (as SwiftUI); on a `TextField` placed before `.frame` the node became a plain
+2. **`.accessibilityIdentifier`/`.accessibilityLabel` on a container reach every child** (SwiftUI behaviour not probed here, so no claim); on a `TextField` placed before `.frame` the node became a plain
    group with no value, after it a `textField` (`EX-N`).
 3. **`.focused($flag)` must be applied to the control before any proposal wrapper**; after `.frame`/`.accessibilityIdentifier` it bound a non-focusable wrapper and a
    focus write did nothing, silently (`EX-N`). A focus write from `.onChange` (the lifecycle drain) does apply, in the same frame.
@@ -94,7 +94,7 @@ traits, `Examples/Jotter/**` joining its path filters. `scene-linux` and Windows
 - Windows: the package was not built there (compiled by CI only; `Backends/SDL` untouched).
 - `CLAUDE.md`/`AGENTS.md` (one rule paragraph for `EX-`), `docs/record/README.md` (a row), `docs/verification/human-checks.md` (group `EX`): the Record phase.
 
-## 7 Proposed human-check group `EX`
+## 7 Human-check group `EX`
 
 EX1 the app on macOS looks right (sidebar, rows, detail, stats, toolbar, native menus); EX2 the same under SDL on Linux (the drawn menu bar and toolbar strip, `Search notes` field, drag preview); EX3 a real Export then Open
 round trip through the native panels; EX4 Theme and the system Dark mode on both; EX5 drag a row, right-click Duplicate, Delete with the sheet; EX6 ⌘N/⌘D/⌘⌫ with the title field focused and not.
