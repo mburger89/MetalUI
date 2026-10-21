@@ -278,6 +278,14 @@ damaged header, no size limit of its own; the file form seeks over the pixels th
 image from the header, before the decoder allocates; `DecodedImage` also refuses a decode whose size
 disagrees with the header. Cancelling a decode is not offered (`IH-K`).
 
+**Header-only format sniff** (`IS-A`…`IS-K`, record 130): `ImageFileFormat` (M; `png`, `jpeg`, `gif`,
+`tiff`, `bmp`, `webp`, `heif`, `avif`, `unknown`; `CaseIterable`, open, switch with a `default`) and
+`ImageInfo.sniffedFormat(of:)`/`sniffedFormat(ofFile:)` name what bytes **start like** from at most their
+first 18 bytes, no pixel work, never a trap: a prefix one byte short of a signature, empty or garbage,
+BigTIFF and OS/2 bitmaps are `.unknown`; the file form reads a regular file through the one 64 KiB window.
+A sniff is not a promise: `.png`/`.jpeg` with a `nil` `ImageInfo` is a damaged picture, any other case
+with `nil` an unsupported type, `.unknown` not a picture.
+
 **Paths** (rulings `GX-B`…`GX-E`, `GX-K`): `Path` — SwiftUI's initialisers and
 mutators (`move`, `addLine`, `addLines`, `addQuadCurve`, `addCurve`, both
 `addArc`s, `addRect`, `addRects`, `addRoundedRect`, `addEllipse`, `addPath`,
