@@ -3,6 +3,8 @@
 Item C14-i (round 2, user request 2026-10-21). Branch `perf/retained-zoom` from `1bdead8d`. Rulings `RZ-A`...: [`../2026-10-21-retained-zoom-decisions.md`](../2026-10-21-retained-zoom-decisions.md).
 Record `docs/record/133-retained-zoom.md`. Reserved divergence labels 625-634: **none expected** (346 is amended in place). Class: value-identical, no public API.
 
+**Status: built** (record `133-retained-zoom.md`, 2026-10-21): lane 1 as in section 1.3, lane 2 as in the record's section 2 (`RZ-S`, `RZ-T`; the memo-skip re-note of 2.2 was not needed, `RZ-T`). Deferred items: section 4.
+
 ## 0. What is measured and what is claimed
 
 MetalCreator's warm zoom of 50 nodes under a canvas `.scaleEffect` + `.offset` reads 1857 element requests a frame and 0/2 grafts. Cause (read from the source, to be re-confirmed

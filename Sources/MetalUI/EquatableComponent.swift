@@ -193,7 +193,7 @@ extension Component where Self: Equatable {
     /// `Equatable` value by `==`, a class by identity, an `@Observable` object by instance
     /// (its read properties by the observation session) — and a synthesized `==` cannot see
     /// an `Environment` property, so write `==` over the stored inputs. A declared property
-    /// the getter never reads still counts. ****A `@FocusState` is a
+    /// the getter never reads still counts. **A `@FocusState` is a
     /// slot like `@State`**: a focus change the window reconciles writes it, so the component
     /// is evaluated again when its own focus state moves and skipped otherwise. **A component
     /// is evaluated every frame and counted as a refusal** when it reads an environment value

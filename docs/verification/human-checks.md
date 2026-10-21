@@ -1813,6 +1813,14 @@ a physical GPU, a desktop session and a console.*
 - [ ] **GB2.** On a real D3D12 device (CI compiles Windows only; the UTM VM runs the SDL GPU tests when reachable): the viewport and scissor sub-rect, a depth-only prepass (`writesColor: false`), `r32Float` sampling and `downloadSynchronously` give the same pixels and floats as Metal and lavapipe (`GB-B`...`GB-F`). **Observed:**
 - [ ] **GB3.** `downloadSynchronously` for a picking readback in a real 3D viewport app: one frame hitch when it is called, no deadlock, and the pipeline-failure text (`compileGraphicsPipeline`) reads usefully for a deliberately broken shader (`GB-F`, `GB-G`). **Observed:**
 
+## RZ. Retained zoom - a zoom that grafts, a focus reader that stays quiet (item C14-i, user request 2026-10-21, not a plan task; record 133; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot run VoiceOver (`IX-AE`), drive a real pointer or run MetalCreator. A zoom's scene, published tree, hitboxes and raster work equal a fresh frame's, pinned; what is owed is how it reads and feels on a real window. The demo's zoom strip (`METALUI_RETAINED_DEMO=1`) is the quickest subject.*
+
+- [ ] **RZ1.** `METALUI_RETAINED_DEMO=1`: step the zoom strip's scale in and out and rotate it; nothing flickers, text and the stroked path stay sharp at each scale (no stale raster at an old scale), hover and click land on the card drawn under the pointer while the zoom moves content beneath a stationary pointer, and the strip's counters show grafts above 0 and redos 0 (`RZ-A`, `RZ-C`, `RZ-D`, `RZ-O`). **Observed:**
+- [ ] **RZ2.** An app canvas under `.scaleEffect` + `.offset` with `.equatable()` nodes and VoiceOver on (MetalCreator's zoom-50-warm): zoom with the wheel; VoiceOver's focus rectangle follows the focused node at every scale and the warm frame's element requests are O(changed) (`RZ-E`). **Observed:**
+- [ ] **RZ3.** A form of `.equatable()` components each declaring `@FocusState`: Tab through and click between fields; the focus ring and caret follow focus with no lag, a field focused from code takes focus on the next frame, and unfocused components are skipped (`contentRefusals` 0; `RZ-T`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
