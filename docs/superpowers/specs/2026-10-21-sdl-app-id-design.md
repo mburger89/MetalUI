@@ -4,6 +4,8 @@ Item XP-G13 (MetalCreator, 2026-10-21; not a plan task). Branch `feat/sdl-app-id
 decisions `docs/superpowers/2026-10-21-sdl-app-id-decisions.md` (`AP-`). Record `docs/record/132-sdl-app-id.md` (Record phase).
 Lanes: **one** (Backends/SDL only, a few dozen lines).
 
+**Status: LANDED** (2026-10-21, record 132).
+
 ## 1. Problem
 
 Linux shells match a window to its `.desktop` entry by Wayland `app_id` / X11 `WM_CLASS`. SDL3 reads `SDL_HINT_APP_ID` (set before init).

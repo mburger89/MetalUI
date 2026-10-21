@@ -33,3 +33,12 @@ proven by mutation only. Mutations, each on the committed tree, restored from a 
 ## 4 Deferred
 
 `SDL_APP_NAME` (`AP-D`), Windows AppUserModelID (`AP-E`), per-window ids, defaulting from a bare `SingleInstance` (`AP-C`), the shell's real behaviour (`AP1`, `O3`).
+
+## 5 Verification and owed
+
+Lane verdict `ok`. `Backends/SDL` on macOS: 30 + 223 passed. Mutation (the verifier's, on the committed tree): the `SDL_SetHint(SDL_HINT_APP_ID, app_id)` line deleted from `SDLBridge.c`,
+full `Backends/SDL` run finished normally (30 + 223, 3 issues): reddened `explicitOptionIsSetBeforeInit`, `singleInstanceIdDefaultsTheApplicationID`,
+`explicitOptionBeatsTheSingleInstanceId`; restored. Root: no root test added, guard `1.6b`'s fixture gained `applicationID` (typecheck guards unmoved); inventory and undocumented
+scripts print nothing, census unmoved (`Backends/SDL` is outside it). Hazard: the hint is process-wide and SDL is refcounted, so a second `SDLPlatform` in one process reads the
+first `SDL_Init`'s value; this is why the pins read the recorder, not `SDL_GetHint`. Owed, not run: the Linux-image run, the fourteen-image comparison and the
+default-build-system warning count on the merged tree; AP1 and the shell's real behaviour (group `AP`).
