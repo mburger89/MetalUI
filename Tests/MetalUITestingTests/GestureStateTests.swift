@@ -1,4 +1,4 @@
-import MetalUI
+@testable import MetalUI
 import MetalUITesting
 import Testing
 
@@ -44,6 +44,11 @@ private func moved(_ p: Point<Pixels>) -> InputEvent { .mouseMoved(MouseEvent(po
     return value
 }
 
+/// A window whose one child is `chip` (a `Component` is not an `Element`; a `Column` roots it).
+@MainActor private func chipWindow<C: ElementGroup>(_ chip: @escaping @MainActor () -> C) throws -> TestWindow {
+    try harnessWindow { Column { chip() } }
+}
+
 @MainActor private func chipBody<G: Gesture>(_ log: GSLog, _ label: String, _ s: Int, _ gesture: G) -> some ElementGroup {
     Rectangle().frame(width: Pixels(200 + Float(record(log, label, s) * 0)), height: Pixels(200)).gesture(gesture)
 }
@@ -62,7 +67,7 @@ private struct DragChip: Component {
 /// Mutation: delete `finished`'s queue in `act` (drag arm) and in `fail` → stays at 3.
 @Test @MainActor func aDragUpdatingMovesAViewDuringTheDragAndSnapsBackAtTheRelease() throws {
     let log = GSLog()
-    let window = try harnessWindow { DragChip(log: log) }
+    let window = try chipWindow { DragChip(log: log) }
     #expect(log.distinct == ["body s=0"], "\(log.distinct)")
     window.send(down()); window.tick()
     window.send(dragged(at(210, 150))); window.tick()
@@ -88,7 +93,7 @@ private struct OrderChip: Component {
 /// Mutation: queue `finished` after the ended callback.
 @Test @MainActor func theResetRunsBeforeOnEndedAndOnChangedReadsTheWrite() throws {
     let log = GSLog()
-    let window = try harnessWindow { OrderChip(log: log) }
+    let window = try chipWindow { OrderChip(log: log) }
     window.send(down()); window.send(dragged(at(210, 150))); window.send(up(at(210, 150))); window.tick()
     let calls = log.entries.filter { !$0.hasPrefix("body") }
     #expect(calls == ["changed s=1", "changed s=2", "ended s=0"], "\(calls)")
@@ -119,13 +124,13 @@ private struct TwoStatesChip: Component {
 /// declaration order and both writes are seen together, then both reset. Mutation: always run updates first.
 @Test @MainActor func updatingOrderFollowsDeclarationAgainstOnChanged() throws {
     let log = GSLog()
-    let window = try harnessWindow { ChangedFirstChip(log: log) }
+    let window = try chipWindow { ChangedFirstChip(log: log) }
     window.send(down()); window.send(dragged(at(210, 150))); window.send(up(at(210, 150))); window.tick()
     let calls = log.entries.filter { !$0.hasPrefix("body") }
     #expect(calls == ["changed s=0", "changed s=1"], "onChanged declared first reads the value before the write: \(calls)")
 
     let two = GSLog()
-    let w2 = try harnessWindow { TwoStatesChip(log: two) }
+    let w2 = try chipWindow { TwoStatesChip(log: two) }
     w2.send(down()); w2.tick()
     w2.send(dragged(at(210, 150))); w2.tick()
     w2.send(up(at(210, 150))); w2.tick()
@@ -157,7 +162,7 @@ private struct HoldChip: Component {
 /// not at the release. Mutation: remove `finished` from the long-press ended arm.
 @Test @MainActor func aLongPressUpdatingIsTrueFromThePressAndResetsWhenItEndsWhileHeld() throws {
     let log = GSLog()
-    let window = try harnessWindow { HoldChip(log: log, minimum: 0.3) }
+    let window = try chipWindow { HoldChip(log: log, minimum: 0.3) }
     #expect(try !flagIsOn(window))
     window.send(down()); window.tick()
     #expect(try flagIsOn(window), "true from the press")
@@ -174,7 +179,7 @@ private struct HoldChip: Component {
 /// that leaves `maximumDistance` fails it at the move, long before the release. Mutation: remove the queue from `fail`.
 @Test @MainActor func aLongPressThatFailsResetsAtTheFailureNotTheRelease() throws {
     let log = GSLog()
-    let window = try harnessWindow { HoldChip(log: log, minimum: 0.5) }
+    let window = try chipWindow { HoldChip(log: log, minimum: 0.5) }
     window.send(down()); window.tick()
     window.advance(by: 0.1)
     #expect(try flagIsOn(window))
@@ -215,11 +220,11 @@ private struct SpatialTapChip: Component {
 /// Mutation: wire the tap's ended callback to the update body.
 @Test @MainActor func aTapGestureUpdatingCompilesAndNeverRuns() throws {
     let log = GSLog()
-    let window = try harnessWindow { TapChip(log: log) }
+    let window = try chipWindow { TapChip(log: log) }
     window.click(at: center)
     window.advance(by: 0.5)
     let spatial = GSLog()
-    let w2 = try harnessWindow { SpatialTapChip(log: spatial) }
+    let w2 = try chipWindow { SpatialTapChip(log: spatial) }
     w2.click(at: center)
     w2.advance(by: 0.5)
     #expect(log.entries.filter { !$0.hasPrefix("body") } == ["tap ended"], "\(log.entries)")
@@ -238,7 +243,7 @@ private struct FarChip: Component {
 /// Mutation: run the update at the press.
 @Test @MainActor func updatingBeginsWithTheFirstRecognizedChange() throws {
     let log = GSLog()
-    let window = try harnessWindow { FarChip(log: log) }
+    let window = try chipWindow { FarChip(log: log) }
     window.send(down()); window.tick()
     window.send(dragged(at(203, 150))); window.tick()
     #expect(log.distinct == ["body s=0"], "3 pt of 10: \(log.distinct)")
@@ -275,7 +280,7 @@ private struct PinchChip: Component {
     // (a) a replaced primary press: the old arena is abandoned.
     do {
         GestureStateResets.count = 0
-        let window = try harnessWindow { CancelChip(log: GSLog(), button: .primary) }
+        let window = try chipWindow { CancelChip(log: GSLog(), button: .primary) }
         window.send(down()); window.send(dragged(at(210, 150)))
         #expect(GestureStateResets.count == 0)
         window.send(down())   // a press that finds the arena still pressing: a lost release (GC-C)
@@ -286,7 +291,7 @@ private struct PinchChip: Component {
     // (b) a button arena whose release was lost: a move with no button down.
     do {
         GestureStateResets.count = 0
-        let window = try harnessWindow { CancelChip(log: GSLog(), button: .middle) }
+        let window = try chipWindow { CancelChip(log: GSLog(), button: .middle) }
         window.send(odown()); window.send(odragged(at(210, 150)))
         window.send(moved(at(215, 150)))
         #expect(GestureStateResets.count == 1, "lost button release: \(GestureStateResets.count)")
@@ -296,7 +301,7 @@ private struct PinchChip: Component {
     // (c) a stale button arena: the same button presses again.
     do {
         GestureStateResets.count = 0
-        let window = try harnessWindow { CancelChip(log: GSLog(), button: .middle) }
+        let window = try chipWindow { CancelChip(log: GSLog(), button: .middle) }
         window.send(odown()); window.send(odragged(at(210, 150)))
         window.send(odown())
         #expect(GestureStateResets.count == 1, "stale button arena: \(GestureStateResets.count)")
@@ -304,7 +309,7 @@ private struct PinchChip: Component {
     // (d) a stale pinch arena: a second .began of a kind the arena holds.
     do {
         GestureStateResets.count = 0
-        let window = try harnessWindow { PinchChip(log: GSLog()) }
+        let window = try chipWindow { PinchChip(log: GSLog()) }
         window.send(.magnify(MagnifyEvent(position: center, magnification: 0, phase: .began)))
         window.send(.magnify(MagnifyEvent(position: center, magnification: 0.1, phase: .changed)))
         window.send(.magnify(MagnifyEvent(position: center, magnification: 0, phase: .began)))
@@ -313,7 +318,7 @@ private struct PinchChip: Component {
     // (e) the window leaves key mid-pinch.
     do {
         GestureStateResets.count = 0
-        let window = try harnessWindow { PinchChip(log: GSLog()) }
+        let window = try chipWindow { PinchChip(log: GSLog()) }
         window.send(.magnify(MagnifyEvent(position: center, magnification: 0, phase: .began)))
         window.send(.magnify(MagnifyEvent(position: center, magnification: 0.1, phase: .changed)))
         window.setControlActiveState(.inactive)
@@ -324,7 +329,7 @@ private struct PinchChip: Component {
     // (f) the window closes mid-drag.
     do {
         GestureStateResets.count = 0
-        let window = try harnessWindow { CancelChip(log: GSLog(), button: .primary) }
+        let window = try chipWindow { CancelChip(log: GSLog(), button: .primary) }
         window.send(down()); window.send(dragged(at(210, 150)))
         window.close()
         #expect(GestureStateResets.count == 1, "window close: \(GestureStateResets.count)")
@@ -332,7 +337,7 @@ private struct PinchChip: Component {
     // (g) a drag that is not cancelled by key loss: the release still ends it, one reset.
     do {
         GestureStateResets.count = 0
-        let window = try harnessWindow { CancelChip(log: GSLog(), button: .primary) }
+        let window = try chipWindow { CancelChip(log: GSLog(), button: .primary) }
         window.send(down()); window.send(dragged(at(210, 150)))
         window.setControlActiveState(.inactive)
         #expect(GestureStateResets.count == 0, "key loss is not a cancel of a drag (C4)")
@@ -361,7 +366,7 @@ private struct DisableChip: Component {
     GestureStateResets.count = 0
     let log = GSLog()
     let model = DisableModel()
-    let window = try harnessWindow { DisableChip(log: log, model: model) }
+    let window = try chipWindow { DisableChip(log: log, model: model) }
     window.send(down()); window.tick()
     window.send(dragged(at(210, 150))); window.tick()
     model.disabled = true
@@ -424,7 +429,7 @@ extension GestureStateResets { @MainActor static var lastValue = -1 }
 @Test @MainActor func theResetClosureAndTransactionApply() throws {
     // G9: the default reset has no animation.
     let plain = GSLog()
-    let w1 = try harnessWindow { PlainResetChip(log: plain) }
+    let w1 = try chipWindow { PlainResetChip(log: plain) }
     runThreeMovesAndRelease(w1)
     plain.transactions.removeAll()
     w1.send(up(at(220, 150))); w1.tick()
@@ -432,7 +437,7 @@ extension GestureStateResets { @MainActor static var lastValue = -1 }
 
     // G8: resetTransaction animates the reset, not the updates.
     let reset = GSLog()
-    let w2 = try harnessWindow { TransactionChip(log: reset, animateUpdate: false) }
+    let w2 = try chipWindow { TransactionChip(log: reset, animateUpdate: false) }
     w2.send(down()); w2.tick()
     w2.send(dragged(at(210, 150))); w2.tick()
     #expect(reset.transactions.allSatisfy { !$0 }, "updates carry no animation: \(reset.transactions)")
@@ -442,7 +447,7 @@ extension GestureStateResets { @MainActor static var lastValue = -1 }
 
     // G10: a transaction set inside the body applies to that update's build.
     let upd = GSLog()
-    let w3 = try harnessWindow { TransactionChip(log: upd, animateUpdate: true) }
+    let w3 = try chipWindow { TransactionChip(log: upd, animateUpdate: true) }
     w3.send(down()); w3.tick()
     upd.transactions.removeAll()
     w3.send(dragged(at(210, 150))); w3.tick()
@@ -452,7 +457,7 @@ extension GestureStateResets { @MainActor static var lastValue = -1 }
     GestureStateResets.count = 0
     GestureStateResets.lastValue = -1
     let closure = GSLog()
-    let w4 = try harnessWindow { ResetClosureChip(log: closure) }
+    let w4 = try chipWindow { ResetClosureChip(log: closure) }
     runThreeMovesAndRelease(w4)
     closure.transactions.removeAll()
     w4.send(up(at(220, 150))); w4.tick()
@@ -486,17 +491,17 @@ private struct TwoWritersChip: Component {
 /// leaves the drag's 1 (SwiftUI: 0, `G7e`). Mutation: take `base` from the live value every time (the first reads 101).
 @Test @MainActor func simultaneousWritersStartFromTheEventsCommittedValueAndTheLastWins() throws {
     let writes = GSLog()
-    let w1 = try harnessWindow { TwoWritersChip(log: writes, longPressFirst: false, longPressWrites: true) }
+    let w1 = try chipWindow { TwoWritersChip(log: writes, longPressFirst: false, longPressWrites: true) }
     w1.send(down()); w1.tick()
     #expect(writes.distinct.last == "body s=100", "base per event, last body wins (645): \(writes.distinct)")
 
     let noop = GSLog()
-    let w2 = try harnessWindow { TwoWritersChip(log: noop, longPressFirst: false, longPressWrites: false) }
+    let w2 = try chipWindow { TwoWritersChip(log: noop, longPressFirst: false, longPressWrites: false) }
     w2.send(down()); w2.tick()
     #expect(noop.distinct.last == "body s=0", "the no-op body writes its copy back last (645, G7d): \(noop.distinct)")
 
     let first = GSLog()
-    let w3 = try harnessWindow { TwoWritersChip(log: first, longPressFirst: true, longPressWrites: false) }
+    let w3 = try chipWindow { TwoWritersChip(log: first, longPressFirst: true, longPressWrites: false) }
     w3.send(down()); w3.tick()
     #expect(first.distinct.last == "body s=1", "the drag runs last (645, G7e): \(first.distinct)")
 }
@@ -506,7 +511,7 @@ private struct TwoWritersChip: Component {
 /// (the maturity's reset would run again at the release).
 @Test @MainActor func anyWriterEndingResetsTheSharedState() throws {
     let log = GSLog()
-    let window = try harnessWindow { TwoWritersChip(log: log, longPressFirst: false, longPressWrites: false) }
+    let window = try chipWindow { TwoWritersChip(log: log, longPressFirst: false, longPressWrites: false) }
     window.send(down()); window.tick()
     #expect(log.distinct.last == "body s=0" || log.distinct.last == "body s=1", "\(log.distinct)")
     window.advance(by: 0.5)
@@ -515,4 +520,85 @@ private struct TwoWritersChip: Component {
     #expect(log.distinct.last == "body s=0" || log.distinct.last == "body s=1", "\(log.distinct)")
     window.send(up(at(210, 150))); window.tick()
     #expect(log.distinct.last == "body s=0", "\(log.distinct)")
+}
+
+// MARK: - 13: a `GestureState` is a `$state<n>` slot, not an eighth reserved name (GS-A)
+
+private struct SlotsChip: Component {
+    @State var a = 1
+    @GestureState var g = 0
+    var content: some ElementGroup {
+        Rectangle().frame(width: Pixels(200 + Float(a * 0)), height: Pixels(200))
+            .gesture(DragGesture(minimumDistance: 0).updating($g) { _, st, _ in st += 1 })
+    }
+}
+
+/// **1.13** (`GS-A`). One `@State` and one `@GestureState` seed `$state0` and `$state1`, nothing else, and a drag writes
+/// the second. `theSevenRetentionSlotsAreMutuallyDistinct` is unmoved. Mutation: give the box its own slot name.
+@Test @MainActor func aGestureStateIsAStateSlotNotAnEighth() throws {
+    let window = try chipWindow { SlotsChip() }
+    let names = window.window.stateTable.ids.map { "\($0)" }
+    #expect(names.filter { $0.contains("$state0") }.count == 1, "\(names)")
+    #expect(names.filter { $0.contains("$state1") }.count == 1 || !names.contains { $0.contains("$state1") },
+            "\(names)")
+    window.send(down()); window.tick()
+    let after = window.window.stateTable.ids.map { "\($0)" }
+    #expect(after.contains { $0.contains("$state1") }, "the drag's write landed in $state1: \(after)")
+    #expect(!after.contains { $0.contains("$gesture") || $0.contains("$gs") }, "no eighth slot name: \(after)")
+}
+
+// MARK: - 14: a write is a state write for the memo (GS-A)
+
+private struct EqChip: Component, Equatable {
+    static func == (a: EqChip, b: EqChip) -> Bool { true }
+    let log: GSLog
+    @GestureState var s = 0
+    var content: some ElementGroup {
+        chipBody(log, "body", s, DragGesture(minimumDistance: 0).updating($s) { _, st, _ in st += 1 })
+    }
+}
+
+/// **1.14** (`GS-A`). An `.equatable()` component that reads a `GestureState` re-evaluates per drag event, so the view
+/// shows each value, and is skipped again at rest. Mutation: write through a private store (no version bump): the memo
+/// skips and the body log stays at 0.
+@Test @MainActor func aGestureStateWriteIsAStateWriteForTheMemoAndRetainedPaths() throws {
+    let log = GSLog()
+    let window = try chipWindow { EqChip(log: log).equatable() }
+    window.send(down()); window.tick()
+    window.send(dragged(at(210, 150))); window.tick()
+    window.send(dragged(at(220, 150))); window.tick()
+    #expect(log.distinct == ["body s=0", "body s=1", "body s=2", "body s=3"], "\(log.distinct)")
+    window.send(up(at(220, 150))); window.tick()
+    #expect(log.distinct.last == "body s=0", "\(log.distinct)")
+    window.resetFrameWork()
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    let work = window.frameWork
+    try #require(work.count == 3)
+    #expect(work.map(\.contentEvaluations).reduce(0, +) == 0 && work.map(\.contentSkips).reduce(0, +) > 0,
+            "skipped at rest: \(work.map(\.contentEvaluations)) \(work.map(\.contentSkips))")
+}
+
+// MARK: - 15: one element value placed twice resets its own occurrence (ID-F)
+
+private struct HalfChip: Component {
+    let log: GSLog
+    @GestureState var s = 0
+    var content: some ElementGroup {
+        Rectangle().frame(width: Pixels(200 + Float(record(log, "body", s) * 0)), height: Pixels(100))
+            .gesture(DragGesture(minimumDistance: 0).updating($s) { _, st, _ in st += 1 })
+    }
+}
+
+/// **1.15** (`ID-F`, `GS-A`). `Column { chip; chip }` places one value twice: dragging the first writes and resets the
+/// first occurrence's slot, the second reads 0 throughout. Mutation: resolve with `slotID` only (the last-bound slot).
+@Test @MainActor func anElementValuePlacedTwiceResetsItsOwnOccurrence() throws {
+    let log = GSLog()
+    let chip = HalfChip(log: log)
+    let window = try harnessWindow { Column { chip; chip } }
+    func lastPair() -> [String] { Array(log.entries.suffix(2)) }
+    window.send(down(at(200, 100))); window.tick()
+    window.send(dragged(at(210, 100))); window.tick()
+    #expect(lastPair() == ["body s=2", "body s=0"], "the first occurrence moved: \(lastPair())")
+    window.send(up(at(210, 100))); window.tick()
+    #expect(lastPair() == ["body s=0", "body s=0"], "and reset: \(lastPair())")
 }

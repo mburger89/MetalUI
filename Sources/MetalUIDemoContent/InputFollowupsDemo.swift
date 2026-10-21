@@ -51,6 +51,41 @@ func inputFollowupsPad() -> some Element {
                 return false
             }
             .onModifierKeysChanged { _, new in inputFollowupsModel.held = canvasDemoDescribe(new) }
+        gestureStateChips()
     }
     .alignItems(.flexStart)
+}
+
+// `@GestureState` (item G1, `GS-M`): a chip that follows the pointer and glides home, and one that grows while
+// pressed. Written only by the gestures; nothing paints before input. Human checks GS1, GS2.
+
+/// The two chips: their own function (the 1 MB stack).
+@MainActor
+func gestureStateChips() -> some Element {
+    Row(gap: Pixels(12)) {
+        GestureStateDragChip()
+        GestureStateHoldChip()
+    }
+}
+
+/// Follows a drag, then eases home over 0.25 s (`resetTransaction`).
+struct GestureStateDragChip: Component {
+    @GestureState(wrappedValue: Size(width: Pixels(0), height: Pixels(0)),
+                  resetTransaction: Transaction(animation: .easeOut(duration: 0.25))) var drag: Size<Pixels>
+
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(40), height: Pixels(24)).background(.accent)
+            .offset(drag)
+            .gesture(DragGesture(minimumDistance: 0).updating($drag) { value, state, _ in state = value.translation })
+    }
+}
+
+/// Wider while pressed and held; the pressed look turns off at the maturity and at the release.
+struct GestureStateHoldChip: Component {
+    @GestureState var held = false
+
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(held ? 56 : 40), height: Pixels(24)).background(.surfaceSecondary)
+            .gesture(LongPressGesture(minimumDuration: 0.5).updating($held) { value, state, _ in state = value })
+    }
 }

@@ -97,6 +97,9 @@ struct GestureLeaf {
     var rotateCancelled: (@MainActor () -> Void)?
     /// A draggable's payload (`DN-D`); `nil` for every other kind.
     var dragSource: DragSource?
+    /// Resets every `GestureState` the leaf's `updating` calls write (`GS-C`): queued once, by `fail(_:)` or just
+    /// before the ended callback.
+    var finished: (@MainActor () -> Void)?
 
     init(kind: Kind) { self.kind = kind }
 }
@@ -131,6 +134,13 @@ public struct TapGesture: Gesture {
         return copy
     }
 
+    /// Accepted for SwiftUI's source compatibility and **never run**: a tap reports no change, and SwiftUI's own
+    /// `updating` never runs for one (probe `G2`, `GS-B`).
+    @MainActor public func updating<StateValue>(_ state: GestureState<StateValue>,
+                                     body: @escaping @MainActor (Void, inout StateValue, inout Transaction) -> Void) -> TapGesture {
+        self
+    }
+
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .tap(count: count, spatial: nil))
         leaf.tapEnded = ended
@@ -155,6 +165,7 @@ public struct LongPressGesture: Gesture {
     var ended: (@MainActor (Bool) -> Void)?
     var changed: (@MainActor (Bool) -> Void)?
     var pressing: (@MainActor (Bool) -> Void)?
+    var updates: [GestureUpdate<Bool>] = []
 
     /// A long press held for `minimumDuration` seconds without moving
     /// `maximumDistance` or more.
@@ -177,11 +188,22 @@ public struct LongPressGesture: Gesture {
         return copy
     }
 
+    /// Writes `state` with `body` on every change this gesture reports, and returns it to its initial value when the
+    /// gesture ends, fails or is cancelled (`GS-B`, `GS-C`). `body` starts from the value committed before the
+    /// event; set `transaction.animation` to animate the update. Runs in declaration order against `onChanged`.
+    @MainActor public func updating<StateValue>(_ state: GestureState<StateValue>,
+                                     body: @escaping @MainActor (Bool, inout StateValue, inout Transaction) -> Void) -> LongPressGesture {
+        var copy = self
+        copy.updates.append(GestureUpdate(state, afterChanged: changed != nil, body: body))
+        return copy
+    }
+
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .longPress(minimumDuration: minimumDuration,
                                                 maximumDistance: maximumDistance.value))
         leaf.longPressEnded = ended
-        leaf.longPressChanged = changed
+        leaf.longPressChanged = composeChanged(changed, updates)
+        leaf.finished = composeFinished(updates)
         leaf.pressingChanged = pressing
         return _GestureRecognizers(.leaf(leaf))
     }
@@ -252,6 +274,7 @@ public struct DragGesture: Gesture {
     var changed: (@MainActor (Value) -> Void)?
     var ended: (@MainActor (Value) -> Void)?
     var cancelled: (@MainActor () -> Void)?
+    var updates: [GestureUpdate<Value>] = []
 
     /// A drag with `button` that begins once the pointer moves
     /// `minimumDistance`, reporting values in `coordinateSpace`.
@@ -276,6 +299,16 @@ public struct DragGesture: Gesture {
         return copy
     }
 
+    /// Writes `state` with `body` on every change this gesture reports, and returns it to its initial value when the
+    /// gesture ends, fails or is cancelled (`GS-B`, `GS-C`). `body` starts from the value committed before the
+    /// event; set `transaction.animation` to animate the update. Runs in declaration order against `onChanged`.
+    @MainActor public func updating<StateValue>(_ state: GestureState<StateValue>,
+                                     body: @escaping @MainActor (Value, inout StateValue, inout Transaction) -> Void) -> DragGesture {
+        var copy = self
+        copy.updates.append(GestureUpdate(state, afterChanged: changed != nil, body: body))
+        return copy
+    }
+
     /// Runs `action` once if the drag had reported a change and its gesture
     /// then ended **without** `onEnded` (ruling `IF-E`): the arena was dropped
     /// because another press replaced it, a button's release was lost (a move
@@ -295,7 +328,8 @@ public struct DragGesture: Gesture {
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .drag(minimumDistance: minimumDistance.value,
                                            coordinateSpace: coordinateSpace, button: button))
-        leaf.dragChanged = changed
+        leaf.dragChanged = composeChanged(changed, updates)
+        leaf.finished = composeFinished(updates)
         leaf.dragEnded = ended
         leaf.dragCancelled = cancelled
         return _GestureRecognizers(.leaf(leaf))
@@ -464,6 +498,8 @@ final class ArenaLeaf {
     /// Long press: `onPressingChanged(true)` is owed, and whether it ran.
     var owesPressing = false
     var pressingReported = false
+    /// An `updating` body ran and the reset is still owed (`GS-C`).
+    var owesFinish = false
     /// Drag: reached its minimum, reported a change, the change owed.
     var started = false
     var activated = false
@@ -675,6 +711,8 @@ struct GestureArena {
     /// count is counted from it (`IX-C` item 2).
     private var baseClickCount = 1
     private var callbacks: [GestureCallback] = []
+    /// Where in `callbacks` a finish hook stands, so `cancel()` can hand back those and no others (`GS-C`).
+    private var finishIndices: [Int] = []
     /// The pinch kinds begun and not yet ended (pinch mode, `CI-D` item 4).
     private var activePinchKinds: Set<ArenaLeaf.PinchKind> = []
 
@@ -1034,8 +1072,13 @@ struct GestureArena {
         var out: [GestureCallback] = []
         for leaf in leaves where leaf.status == .possible && (includingReady || !leaf.ready) {
             if let callback = cancelCallback(leaf) { out.append(callback) }
-            if leaf.activated { fail(leaf) }
+            if leaf.activated || leaf.owesFinish { fail(leaf) }
         }
+        // The finish hooks `fail` queued are owed here: the arena is about to be dropped and nothing resolves
+        // again (`GS-C`). The other queued callbacks keep their old fate.
+        for index in finishIndices { out.append(callbacks[index]) }
+        for index in finishIndices.reversed() { callbacks.remove(at: index) }
+        finishIndices = []
         return out
     }
 
@@ -1064,6 +1107,15 @@ struct GestureArena {
         leaf.status = .failed
         leaf.owesPressing = false
         if leaf.pressingReported { reportPressing(leaf, false) }
+        queueFinish(leaf)
+    }
+
+    /// Queues the leaf's reset once, when an `updating` body of it ran (`GS-C`).
+    private mutating func queueFinish(_ leaf: ArenaLeaf) {
+        guard leaf.owesFinish, case .gesture(let g) = leaf.recognizer, let finished = g.finished else { return }
+        leaf.owesFinish = false
+        finishIndices.append(callbacks.count)
+        callbacks.append(.gesture(owner: leaf.owner, run: finished))
     }
 
     private mutating func reportPressing(_ leaf: ArenaLeaf, _ pressing: Bool) {
@@ -1073,6 +1125,7 @@ struct GestureArena {
             callbacks.append(.gesture(owner: leaf.owner, run: { callback(pressing) }))
         }
         if pressing, let callback = g.longPressChanged {
+            leaf.owesFinish = g.finished != nil
             callbacks.append(.gesture(owner: leaf.owner, run: { callback(true) }))
         }
     }
@@ -1086,7 +1139,7 @@ struct GestureArena {
             for root in simultaneousRoots { changed = visit(root, ahead: []) || changed }
             changed = visit(exclusiveRoot, ahead: []) || changed
         }
-        defer { callbacks = [] }
+        defer { callbacks = []; finishIndices = [] }
         return callbacks
     }
 
@@ -1127,6 +1180,7 @@ struct GestureArena {
                 leaf.pendingChange = nil
                 leaf.activated = true
                 if let callback = g.dragChanged {
+                    leaf.owesFinish = g.finished != nil
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(change) }))
                 }
             }
@@ -1147,6 +1201,7 @@ struct GestureArena {
                 }
             case .longPress:
                 leaf.status = .ended
+                queueFinish(leaf)
                 if let callback = g.longPressEnded {
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(true) }))
                 }
@@ -1156,6 +1211,7 @@ struct GestureArena {
                     return true
                 }
                 leaf.status = .ended
+                queueFinish(leaf)
                 if let callback = g.dragEnded {
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
                 }
@@ -1193,6 +1249,7 @@ struct GestureArena {
                     return true
                 }
                 leaf.status = .ended
+                queueFinish(leaf)
                 appendPinchCallback(leaf, g, ended: true)
             }
             return true
@@ -1207,12 +1264,14 @@ struct GestureArena {
             let value = MagnifyGesture.Value(magnification: 1 + leaf.pinchAmount, startLocation: leaf.pinchStart,
                                              startAnchor: leaf.pinchAnchor)
             if let callback = ended ? g.magnifyEnded : g.magnifyChanged {
+                if !ended { leaf.owesFinish = g.finished != nil }
                 callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
             }
         case .rotate:
             let value = RotateGesture.Value(rotation: .degrees(leaf.pinchAmount), startLocation: leaf.pinchStart,
                                             startAnchor: leaf.pinchAnchor)
             if let callback = ended ? g.rotateEnded : g.rotateChanged {
+                if !ended { leaf.owesFinish = g.finished != nil }
                 callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
             }
         default:

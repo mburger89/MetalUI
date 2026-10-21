@@ -343,6 +343,8 @@ M	MetalUI	FrameLayer.swift	ElementGroup	frame	frame\(\)	frame-no-args
 M	MetalUI	FrameLayer.swift	.*	.*	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	ElementGroup	frame	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	.*	.*	.*	modifier-layer
+M	MetalUI	GestureState.swift	.*	.*	.*	gesture-state
+M	MetalUI	(Gesture|SpatialGestures).swift	.*	updating	.*	gesture-state
 M	MetalUI	SpatialGestures.swift	SpatialTapGesture.Value	(modifiers|init)	.*	input-followups-values
 M	MetalUI	SpatialGestures.swift	(MagnifyGesture|RotateGesture)	onCancelled	.*	input-followups-cancel
 M	MetalUI	Gesture.swift	DragGesture	onCancelled	.*	input-followups-cancel
@@ -584,3 +586,4 @@ M	MetalUI	ModifierKeysChange.swift	.*	.*	.*	input-followups-modkeys
 M	MetalUI	TextMeasurer.swift	.*	.*	.*	text-measurer
 M	MetalUI	WindowDragGesture.swift	.*	.*	.*	window-drag
 M	MetalUI	EquatableComponent.swift	.*	.*	.*	equatable-component
+F	gesture-state	A	swiftui-gesture-state.swift	G1	aDragUpdatingMovesAViewDuringTheDragAndSnapsBackAtTheRelease	645	GS-A GS-B GS-C GS-D GS-E GS-F	GestureState (the eight initialisers, wrappedValue get-only, projectedValue) and updating(_:body:) on DragGesture, LongPressGesture, MagnifyGesture, RotateGesture (TapGesture and SpatialTapGesture accept it and never run it, G2/G5b): a $state<n> slot written from the gesture arena and reset once when the gesture ends, fails or is cancelled; the update returns the receiver's own type
