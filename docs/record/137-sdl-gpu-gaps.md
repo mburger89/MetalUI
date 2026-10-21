@@ -74,7 +74,7 @@ that suite and the lane's own files are untouched elsewhere; the full macOS and 
 
 - **Root, after `swift package clean`, `swift build --build-system native --build-tests`, unfiltered `swift test --build-system native --no-parallel`:** **4117 tests in 5 suites** (unchanged from `1bdead8d`: no root test added), 0 goldens, 251 typecheck guards (none added), failed with exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` (locked screen) and nothing else; native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `FR-J no-argument frame: succeeded=true`; measured at `64eda50f` plus this record's docs, 911 s on a shared Mac.
 - **Backends/SDL on macOS** (`swift test $(python3 scripts/fetch-accesskit.py --print-flags)`): 30 + 243 tests passed at the lane 2 verifier's head (30 + 234 at lane 1's: 243 = 234 + 9 `SDLGPUReadbackAndFailureTests`).
-- **Linux image** (`metalui-portable`, lavapipe, `METALUI_REQUIRE_GPU=1`): 231 tests in 9 suites passed at lane 1's head; it found `GB-L` 6 (the stage a driver refuses at). Not re-taken at the final head: owed at the merge.
+- **Linux image** (`metalui-portable`, lavapipe, `METALUI_REQUIRE_GPU=1`): 30 + 240 tests in 10 suites passed at the final head `e4e72b2a` (checker, 2026-10-21; 231 at lane 1's head, where it found `GB-L` 6, the stage a driver refuses at). The macOS figure 30 + 243 was re-taken the same day under `METALUI_REQUIRE_GPU=1` (three macOS-only tests).
 - **Default build system `swift build --build-tests`:** 0 `warning:` at lane 1's head.
 - **Fourteen images:** not re-taken; `git diff --stat 1bdead8d HEAD -- Sources Tests` is empty (every code change is under `Backends/SDL`), so 0 px follows from the diff and is unmeasured. Re-take at the merge.
 - Guards: no root typecheck guard added (no root declaration; inventory and undocumented scripts print nothing, census unmoved). No divergence label.
@@ -83,3 +83,12 @@ that suite and the lane's own files are untouched elsewhere; the full macOS and 
 
 Pins for the `setViewport` depth clamp and for a non-square scissor clamp (section 0, both survived a mutation; owner: the next change to `SDLGPUGraphics.swift`); synchronous buffer download and upload (not asked); a zero-colour-target pipeline; an SDL-gave-no-message error arm no driver here exercises; a pin for the submit-worker arm of
 the worker precondition; D3D12 behaviour (check `GB2`, CI compiles Windows only).
+
+## 5. Adversarial branch check (2026-10-21, head `e4e72b2a`)
+
+- Root, after `swift package clean`, native build 0 `error:`, only SwiftPM's deprecation `warning:`: `Test run with 4117 tests in 5 suites failed after 895.600 seconds with 5 issues`; the five are the `AppKitPresentationTests` sheet issues of `CI-AF` (locked screen) and nothing else; `FR-J no-argument frame: succeeded=true`.
+- No root file differs from `1bdead8d` (`git diff --name-only` outside `docs/`, `Backends/SDL/`, `CLAUDE.md`, `AGENTS.md` prints nothing), so identity, hit testing, accessibility and animation pins are unmoved by construction and the fourteen images are 0 px by construction; the offscreen comparison and the default-build-system warning count were **not re-taken** (no root source to change them).
+- Two mutations of the checker's design, each on the committed source, restored from a copy, `git status --short` clean after: **C1** `blend.color_write_mask = 0` to `0xF` in `compileGraphicsPipeline` reddened `aPipelineThatWritesNoColourLeavesColourAndWritesDepth()` only (1 issue). **C2** `waitBlocking`'s `while !signalled { lock.wait() }` to `if false { lock.wait() }` reddened `aSynchronousDownloadReturnsTheRegionFromTheMainActor()` (2 issues) and `waitBlockingReturnsOnlyAfterTheSignalAndReleasesNothingEarly()` (2 issues). Both ran to a summary line (243 tests).
+- Every ruling id (`GB-A`..`GB-L`) and test name cited in the record, decisions doc and human checks resolves by grep; `cmp CLAUDE.md AGENTS.md` clean; inventory and undocumented scripts print nothing.
+- Windows D3D12 is compiled by CI only; the anisotropy looks are group `GB`, not claimed.
+- Code verdict: no defect found; the two lane 1 survivors (viewport depth clamp, scissor target-size swap) stay carried. **Merge: yes.**
