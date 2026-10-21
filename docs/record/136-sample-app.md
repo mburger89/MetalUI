@@ -72,7 +72,16 @@ Not mutation-red, by name: `theRootTreeBuildsOnAOneMegabyteThread` (a pin; its D
 
 ## 4 Root verification
 
-(Filled at the end of the run; see section 6.)
+Native build (`swift build --build-system native --build-tests`): 0 `error:`, the only `warning:` SwiftPM's deprecation notice; default `swift build --build-tests`: 0 `warning:`/`error:`.
+Native unfiltered run **on a locked screen with `AppKitPresentationTests` skipped** (its `NSOpenPanel.init()` hangs there; the unskipped run hung at `appKitCancelledDialogArrivesAsQueuedInput` and was killed,
+only its own processes): **4111 tests in 5 suites passed**, 0 issues, `FR-J no-argument frame: succeeded=true`, `METALUI_REQUIRE_GUARDS=1`; the unlocked unfiltered re-take (4117 + 3 root tests, 0 goldens, 249 guards expected)
+is owed. Root tests added: three, not two (`theSampleAppsManifestHasTheShapeOfAGeneratedCrossPlatformPackage`, `theSampleAppHasItsTestsAndItsDocs`, the env-gated `aSampleAppBuildsAndItsTestsPassAgainstThisCheckout`,
+which passed under `METALUI_RUN_SAMPLE_APP_TEST=1`: `swift build`, `build --build-tests`, `test --skip-build` all status 0). Manifest-shape mutations (Package.swift of the example, committed, restored from a copy): `.v14` to `.v13`
+reddened the tools/platform line check; the Linux trait list `["SDL", "AccessKit"]` to `["SDL"]` reddened the traits-block check; both `MetalUISystemFonts` products removed reddened the product-name set
+(removing only one occurrence does not: the set is by name, a named limit). `GuideDocCheck` passed with the new guide, getting-started and testing links. Inventory and undocumented scripts print nothing; no `Sources/`,
+`Backends/` or `Package.swift` change since `1bdead8d` (`git diff 1bdead8d HEAD --stat` empty for them), so the fourteen offscreen images are unchanged by construction and the comparison was not re-run (load average above 200
+from other workflows); `DemoFrameDeterminismTests` `Expected.swift` untouched.
+Example package: macOS `swift test` 21 passed; the `metalui-portable` image (volume `metalui-sdl-build-sample-app`, SDL and AccessKit traits) built with 0 `warning:`/`error:` and 20 passed (the Darwin-only arm absent).
 
 ## 5 CI
 
