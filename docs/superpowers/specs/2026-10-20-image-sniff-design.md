@@ -5,6 +5,8 @@ Item XP-G12 (user request 2026-10-02; requested by MetalCreator 2026-10-20; not 
 `../../record/130-image-sniff.md` (Record phase). Branch `feat/image-sniff` from `b15e038c`. Divergence labels reserved
 595-604: **none taken** (class `M`; SwiftUI has no such API, so no probe is owed, `IS-H`). **One lane.**
 
+**Status: LANDED** (2026-10-21, record 130; the lane's measured census delta was +3, not the +4 of §4, and the `IS-K` test seam in `ImageHeader.swift` was added after a mutation residue).
+
 ## 1 What exists and what is missing
 
 `ImageInfo(data:)`/`(contentsOfFile:)` (record 117) reads a PNG IHDR or a JPEG SOF and is `nil` for everything else:
