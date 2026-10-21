@@ -1794,6 +1794,16 @@ a physical GPU, a desktop session and a console.*
 - [ ] **AP1.** On GNOME Wayland and on an X11 session, install a `.desktop` entry named after the id (`com.example.MyApp.desktop`, `Icon=` a theme name) and launch an SDL app that passes the id as `Options.applicationID` (or only to `launchingSingleInstance(id:)`): the window shows the entry's icon in the dash and
   groups under the entry, not under the executable name; on X11 `xprop WM_CLASS` names the id. With no id set the old behaviour (generic icon) holds; with `SDL_APP_ID=other.id` exported the override wins (`AP-A`, `AP-B`, `AP-C`). **Observed:**
 
+## LZ. Lazy containers - fast scrolling, an adaptive grid's first frame, VoiceOver and resizing (item L1, user request 2026-10-02, round 2 2026-10-21, not a plan task; record 134; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot run VoiceOver (`IX-AE`), see a flash or hold a wheel. The window, the index, the anchor, the column counts and the one-frame correction are pinned by the suite (`LazyStack*Tests`, `LazyGrid*Tests`, `GridTrackSolverTests`); what is owed is how it looks and reads. Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` (and `-c release`).*
+
+- [ ] **LZ1.** Fast-scroll the variable-height `LazyVStack` (trackpad flick and scroll-bar drag) up and down through 10 000 rows: no row jumps, flashes or leaves a blank band, the row on top stays put while rows above it are measured, and the "on screen now" count stays near the viewport plus two rows each side (`LZ-E`, `LZ-G`, divergence 637). **Observed:**
+- [ ] **LZ2.** The adaptive `LazyVGrid`'s first frame in a real window: is it visibly a single column for a frame before the real count (`LZ-L`, divergence 638)? Open the demo several times and note whether the flash is seen at all. **Observed:**
+- [ ] **LZ3.** VoiceOver on the demo: it reads the realised rows and cells, reaches an off-screen row only after scrolling to it (no list position is announced, `LZ-J`), and a focused cell that scrolls out of the window does not leave a stale focus rectangle. **Observed:**
+- [ ] **LZ4.** Resize the window wider and narrower while the adaptive grid is on screen: it re-flows to the new column count with no blank band and no cell drawn at a stale width longer than one frame (`LZ-L`). **Observed:**
+- [ ] **LZ5.** The same demo on SDL (Linux, Windows) once `MetalUISDLDemo` carries it (carried: only `MetalUIDemo` wires it), and a wheel over a lazy stack inside a `ScrollView` on both. **Observed:**
+
 ## EX. Sample app - Jotter on macOS and SDL (item E1, user request 2026-10-21, not a plan task; record 136; provisional letter, in the manner of `RT`, `KF` and `IF`)
 
 *An agent cannot: the screen was locked and no real window was launched. The app's flows are pinned headlessly (`Examples/Jotter/Tests`); what is owed is how it looks and feels through real panels and menus.*

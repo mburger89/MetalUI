@@ -150,6 +150,9 @@ public final class Frame {
     /// elements produced, and how many of them minted an `IdentityKey`.
     var forEachIdentityWork: (elements: Int, keyed: Int) = (0, 0)
 
+    /// What this frame's lazy containers realised (`LZ-I`, a work counter, never time).
+    var lazyWork = LazyWork()
+
     /// Element work of this frame's phases (`SB-`, work counters, never time): group
     /// members entered in the build (`GlobalElementID.enteringGroupMember`), elements
     /// prepainted (each `recordElementBounds` site, one per element and per modifier

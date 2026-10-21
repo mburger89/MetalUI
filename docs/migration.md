@@ -591,6 +591,12 @@ still names `SOURCE.sha256`), and `init(directory:verifyingSources:)` is new. No
 `WindowRenderer` or `TextSystem` requirement changes. Nothing is published: a pinned shadercross is documented in
 `docs/packaging.md` section 4a, not shipped.
 
+### Lazy containers (`LZ-`, record §134)
+
+Nothing breaking. `LazyVStack`, `LazyHStack`, `LazyVGrid`, `LazyHGrid` and `GridItem` are new public declarations; no `PlatformWindow`, `Platform`,
+`WindowRenderer` or `TextSystem` requirement, no `Handlers` member and no `LayoutTree` kind is added. `FrameWork` gains three public counters
+(`lazyUnitsRealized`, `lazyLinesRealized`, `lazyUnbounded`) with defaults in its initialiser, so existing calls are unchanged. A third-party `PlatformWindow` conformer needs nothing.
+
 ### SDL GPU gaps (`GB-`, record §137)
 
 Source compatible for code that builds against `Backends/SDL` (a source-distributed class M layer, `GB-K`), with one

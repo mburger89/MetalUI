@@ -164,6 +164,58 @@ SwiftUI's. A modifier on a `GridRow` that holds several cells traps (divergence 
 text takes the default row spacing (divergence 65), and a baseline-aligned `GridRow` traps
 at registration (divergence 88).
 
+## How do I show ten thousand rows?
+
+Put a `LazyVStack` in a scroller and a `ForEach` in it. Only the rows near the viewport are built:
+in a 200-point window of 20-point rows, 13 of the 10 000 are realised, the ten on screen and three
+more (the rows a frame behind the wheel would otherwise miss, divergence 637; pin:
+`theLayoutGuideLazyRowsRealizeOnlyTheViewportAndTwoMore`).
+
+```swift
+/// Ten thousand rows: only the rows near the viewport are built.
+@MainActor
+func layoutLazyRows() -> some Element {
+    ProposalScrollView {
+        LazyVStack(alignment: .leading, spacing: Pixels(0)) {
+            ForEach(0..<10_000) { index in
+                ProposalText("Row \(index)").frame(height: Pixels(20))
+            }
+        }
+    }
+    .frame(width: Pixels(200), height: Pixels(200))
+}
+```
+
+Rows may differ in height: each is measured when it is first built, a row not yet built counts as the
+average of those that were, and the row on top stays where it is while the others are measured. A
+content that holds an `if`, a `switch` or a `for` beside the `ForEach` builds every child instead
+(divergence 636), so keep the lazy container's content to `ForEach` and plain views. `pinnedViews:` and
+`Section` are not offered.
+
+`LazyVGrid` takes `GridItem` columns and fills them a row at a time. `.adaptive(minimum: 40)` packs as
+many columns of at least 40 points as fit: in 200 points with the default gap of 8 that is four columns
+of 44 points, so the grid below builds 10 rows of 4, 40 cells of its 10 000 (pin:
+`theLayoutGuideLazyGridPacksFourColumnsAndRealizesTenRows`).
+
+```swift
+/// Ten thousand cells: columns of at least 40 points, as many as fit.
+@MainActor
+func layoutLazyGrid() -> some Element {
+    ProposalScrollView {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: Pixels(40)))], spacing: Pixels(8)) {
+            ForEach(0..<10_000) { index in
+                ProposalText("\(index)").frame(height: Pixels(20))
+            }
+        }
+    }
+    .frame(width: Pixels(200), height: Pixels(200))
+}
+```
+
+The count an adaptive item packs is read from the grid's width one frame earlier, so the first frame
+shows one column and the next shows four (divergence 638). A `ForEach` element that yields two views is
+one cell holding both, where SwiftUI makes each view a cell (divergence 635).
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
@@ -176,6 +228,10 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 72: two siblings with one `.id` share one identity.
 - divergence 73: a legacy `.overlay` or `.background` on a multi-member primary traps naming the count.
 - divergence 88: a baseline-aligned `GridRow` traps at registration.
+- divergence 635: a `ForEach` element of several views is one cell of a lazy grid.
+- divergence 636: a lazy container whose content holds an `if`, `switch` or `for` builds every child.
+- divergence 637: a lazy container builds two more lines than are on screen on each side.
+- divergence 638: an adaptive lazy grid packs its columns from the previous frame's width.
 
 Next: [state and identity](state-and-identity.md), [input](input.md), and
 [`api-overview.md`](../api-overview.md) for every declaration.

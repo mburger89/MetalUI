@@ -128,7 +128,10 @@ algorithms (51, 58, 70, 89). The containers take legacy content too — the
 controls, `Text`, `Box`, a `Component` — through `ProposalContentBuilder`
 (`PE-B`); `ProposalFrame`, `Padding`, `Background`, `FixedSize` and
 `nativeOverlay` (MetalUI-only wrappers) still take proposal content only. `Grid`, `GridRow`, `.gridCellColumns`,
-`.gridCellAnchor`, `.gridColumnAlignment`, `.gridCellUnsizedAxes` (61–68, 88).
+`.gridCellAnchor`, `.gridColumnAlignment`, `.gridCellUnsizedAxes` (61–68, 88). **`LazyVStack`/`LazyHStack`/`LazyVGrid`/`LazyHGrid`/`GridItem`**
+(A; `LZ-`, record §134): SwiftUI's spellings, windowed against the enclosing `ScrollView`/`ProposalScrollView` (the viewport's lines plus two each side,
+divergence 637; the whole content outside a scroller), children of a `ForEach` or static, variable extents through `List`'s own `RowExtentIndex`, an adaptive
+`GridItem` resolved by `GridTrackSolver` (635–638); `pinnedViews:` and `Section` are not built (`LZ-N`). `METALUI_LAZY_DEMO=1`; human checks group LZ, unrun.
 `ProposalScrollView`, `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)`,
 `UnitPoint`, `.scrollIndicators`. `ProposalLayout` +
 `ProposalLayoutContainer` — SwiftUI's `Layout` without a cache (`SA-A`), over
