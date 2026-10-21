@@ -233,6 +233,6 @@ private func truncated(_ blob: SDLGPUShaderBlob) -> SDLGPUShaderBlob {
         let computeBlob = try library().compute("append", for: device)
         let compute: SDLGPUComputePipeline? = device.makeComputePipeline(computeBlob)
         #expect(compute != nil)
-        #expect(device.lastPipelineFailure != nil, "a success does not clear the last failure")
+        #expect(device.lastPipelineFailure?.isEmpty == false, "a success does not clear the last failure")
     }
 }
