@@ -472,8 +472,9 @@ struct RPInputsRoot: Component {
 enum RPKind: String, CaseIterable {
     case control, scrollRegion, textField, plainWrite, popover, dragSource, geometryChange
 
-    /// Whether the occurrence replays like the control: a scroller and an unfocused field are read-only state (`RW-H`, `RW-J`).
-    var replays: Bool { self == .control || self == .scrollRegion || self == .textField }
+    /// Whether the occurrence replays like the control: a scroller and an unfocused field are read-only state (`RW-H`, `RW-J`), and a
+    /// geometry note is a ledger entry replayed by re-noting (`RG-A`, which replaced `RK-E`'s taint).
+    var replays: Bool { self == .control || self == .scrollRegion || self == .textField || self == .geometryChange }
 }
 
 private struct RPKindCard: Component, @MainActor Equatable {
@@ -507,8 +508,8 @@ private struct RPKindCard: Component, @MainActor Equatable {
 }
 
 /// 7 — an occurrence holding a plain `withState` write (a scroll region and an unfocused text field only read, `RW-H`/`RW-J`, and replay
-/// like the control), a presented popover, a drag source
-/// or a geometry note runs its prepaint every frame (counted ineligible, `RK-E`), and its frames equal the
+/// like the control; nor does a geometry note since `RG-A`, lane 1 of C14-f), a presented popover or a drag source
+/// runs its prepaint every frame (counted ineligible, `RK-E`), and its frames equal the
 /// retention-off frames; the control arm (a button) replays prepaint, so "ineligible" is not "nothing replays".
 /// Mutation, per arm: that kind's refusal removed — the arm's scene or hitbox list, or its stale geometry note,
 /// differs, and `retainedPrepaintHits` reads 1.

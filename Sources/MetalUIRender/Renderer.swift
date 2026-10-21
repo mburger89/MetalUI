@@ -742,7 +742,7 @@ public final class Renderer {
     /// Two cases, and the second is the one that is easy to get wrong:
     ///
     /// - **The texture already matches the atlas's dimensions.** Only
-    ///   `dirtyRect` is copied; `nil` means nothing was written and the call is
+    ///   each of `dirtyRects` is copied; empty means nothing was written and the call is
     ///   a no-op.
     /// - **There is no texture, or it is the wrong size.** A fresh
     ///   `MTLTexture`'s contents are undefined, so the *whole* atlas is copied,
@@ -762,7 +762,7 @@ public final class Renderer {
         // it, a steady-state frame with nothing to upload would allocate a whole
         // atlas every time, which is the churn this formulation avoids.
         let wouldMutateAnEncodedTexture = atlasTextureWasEncoded
-            && atlas.dirtyRect != nil
+            && !atlas.dirtyRects.isEmpty
         let needsFullUpload = sizeChanged || wouldMutateAnEncodedTexture
 
         let texture: any MTLTexture
@@ -787,11 +787,12 @@ public final class Renderer {
             texture = existing!
         }
 
-        let region: (x: Int, y: Int, width: Int, height: Int)
+        // One region per dirty rect (`RG-H`); a new or resized texture takes the whole atlas.
+        let regions: [(x: Int, y: Int, width: Int, height: Int)]
         if needsFullUpload {
-            region = (0, 0, atlas.width, atlas.height)
-        } else if let dirty = atlas.dirtyRect {
-            region = dirty
+            regions = [(0, 0, atlas.width, atlas.height)]
+        } else if !atlas.dirtyRects.isEmpty {
+            regions = atlas.dirtyRects
         } else {
             atlasTexture = texture
             return
@@ -805,13 +806,15 @@ public final class Renderer {
             // `bytesPerRow` stays the ATLAS's width, not the region's: the
             // source rows are slices of a wider bitmap, and Metal walks them by
             // this stride. Passing the region's width would read a diagonal
-            // smear out of the atlas.
-            let base = buffer.baseAddress! + (region.y * atlas.width + region.x)
-            texture.replace(
-                region: MTLRegionMake2D(region.x, region.y, region.width, region.height),
-                mipmapLevel: 0,
-                withBytes: base,
-                bytesPerRow: atlas.width)
+            // smear out of the atlas. Each rect's pointer is offset to its own origin.
+            for region in regions {
+                let base = buffer.baseAddress! + (region.y * atlas.width + region.x)
+                texture.replace(
+                    region: MTLRegionMake2D(region.x, region.y, region.width, region.height),
+                    mipmapLevel: 0,
+                    withBytes: base,
+                    bytesPerRow: atlas.width)
+            }
         }
 
         atlas.clearDirtyRect()

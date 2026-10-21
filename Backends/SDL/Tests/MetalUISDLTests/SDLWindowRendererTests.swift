@@ -182,6 +182,32 @@ private func replayPixels(_ scene: Scene, atlas: GlyphAtlas) throws -> [UInt8] {
     #expect(drawn != firstPixels)
 }
 
+/// **18** (`RG-H`) - the atlas transfer moves the rects' bytes, not the whole atlas: a first frame
+/// (a new texture) moves every byte, a frame that packed first-use glyphs on two or more shelves
+/// moves exactly the sum of its rects' areas (less than their span), a clean frame moves none, and
+/// the pixels are the replay path's. Mutation: pass `aw * ah` for the transfer.
+@MainActor
+@Test func theAtlasTransferMovesOnlyTheRects() throws {
+    let atlas = GlyphAtlas(width: 96, height: 128)
+    let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)
+    let first = try scene("First frame", atlas: atlas)
+    try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: first, atlas: atlas))
+    #expect(renderer.lastAtlasBytes == 96 * 128, "a new atlas texture takes the whole atlas")
+
+    try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: first, atlas: atlas))
+    #expect(renderer.lastAtlasBytes == 0, "a clean atlas moves nothing")
+
+    let second = try scene("Quiz jumps: new glyphs over many shelves", atlas: atlas)
+    let rects = atlas.dirtyRects
+    let union = try #require(atlas.dirtyRect)
+    try #require(rects.count >= 2, "the frame must dirty two shelves, got \(rects)")
+    let own = rects.reduce(0) { $0 + $1.width * $1.height }
+    try #require(own < union.width * union.height, "the rects must be smaller than their span")
+    try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: second, atlas: atlas))
+    #expect(renderer.lastAtlasBytes == own, "the transfer is the rects' bytes, not the \(union.width * union.height)-byte span")
+    #expect(try renderer.readPixels(width: width, height: height) == (try replayPixels(second, atlas: atlas)))
+}
+
 @MainActor
 @Test func finishingWithoutBeginningDrawsNothing() throws {
     let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)

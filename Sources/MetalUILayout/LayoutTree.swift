@@ -1020,7 +1020,10 @@ public final class LayoutTree {
             if let recording, let memo = run.memo {
                 run.footprintDepth -= 1
                 let footprint = run.takeFootprint(since: footprintMark)
-                memo.storePlacement(recording, preorder(id).map { layouts[$0] }, footprint: footprint)
+                let order = preorder(id)
+                let placed = order.map { layouts[$0] }
+                memo.storePlacement(recording, placed, footprint: footprint)
+                if !holdsCustomLayout(order) { memo.storePlacementTranslated(recording, bounds: bounds, placed, footprint: footprint) }
                 if run.footprintDepth > 0 { run.footprintLog.placements.append(recording) }
             }
         }
@@ -2369,7 +2372,8 @@ extension LayoutTree {
               let signature = memo.signatures[id.index] else { return .none }
         let key = LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds)
         let order = preorder(id)
-        guard let placed = memo.lookupPlacement(key), placed.rects.count == order.count else { return .record(key) }
+        guard let placed = memo.lookupPlacement(key) ?? memo.lookupPlacementTranslated(key, bounds: bounds),
+              placed.rects.count == order.count else { return .record(key) }
         let rects = placed.rects
         run.work.memoSubtreeHits += 1
         // `CF-E`: the restore stands for the placement below `id`; keep what that placement used alive, and let an
@@ -2396,6 +2400,15 @@ extension LayoutTree {
             }
         }
         return .restored
+    }
+
+    /// `RG-E`: true when a subtree holds a custom layout, whose placement may read the absolute origin: its placement is
+    /// **never stored** origin-free, so it is never translated.
+    private func holdsCustomLayout(_ order: [Int]) -> Bool {
+        for index in order {
+            if case .custom? = nativeNodes[index] { return true }
+        }
+        return false
     }
 
     /// Stores the just-placed, not yet rounded rects of a keyed root.

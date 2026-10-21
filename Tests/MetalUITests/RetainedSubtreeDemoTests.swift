@@ -33,9 +33,9 @@ struct MUIRectSnapshot: Equatable {
 @Test @MainActor func theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires() throws {
     let (on, sceneOn) = try dragFillet(replay: true)
     let (off, sceneOff) = try dragFillet(replay: false)
-    #expect(on.retainedHits + on.retainedMisses + on.retainedIneligible == 40)
+    #expect(on.retainedHits + on.retainedMisses + on.retainedIneligible == 41)
     #expect(on.retainedMisses == 3, "the dragged node and its two wires: \(on.retainedMisses)")
-    #expect(on.retainedHits == 37, "the panel strip and the section's cards replay with the nodes: \(on.retainedHits)")
+    #expect(on.retainedHits == 38, "the panel strip, the section's cards and the geometry reader replay with the nodes: \(on.retainedHits)")
     #expect(on.retainedIneligible == 0)
     #expect(off.retainedHits == 0)
     #expect(on.elementPaints + on.retainedSkippedPaints == off.elementPaints)

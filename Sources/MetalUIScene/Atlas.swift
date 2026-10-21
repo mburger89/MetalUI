@@ -149,7 +149,7 @@ public struct PackedGlyph: Hashable, Sendable {
 /// little and its state is three integers. It never revisits a closed shelf.
 ///
 /// The bitmap lives in ``pixels`` and never touches Metal (spec §3.1); a
-/// renderer uploads ``dirtyRect`` of it to an `MTLTexture`.
+/// renderer uploads ``dirtyRects`` of it to an `MTLTexture`.
 public final class GlyphAtlas {
     /// The atlas width in pixels.
     public let width: Int
@@ -159,11 +159,39 @@ public final class GlyphAtlas {
     /// R8 coverage, row-major, `width` bytes per row, row 0 at the top.
     public private(set) var pixels: [UInt8]
 
+    /// The regions written since the last ``clearDirtyRect()``, empty if nothing has been: a short
+    /// list a renderer uploads one `replace(region:)` (or one transfer) at a time, so two first-use
+    /// glyphs on distant shelves upload their own areas and not the span between them (`RG-H`).
+    ///
+    /// A slot extends the last rect when it is on the same shelf row and starts exactly where that
+    /// rect ends (the rect's height is the larger of the two); any other slot is a new rect. **At
+    /// most eight rects**: the ninth collapses the list to its bounding rect, and from then on every
+    /// slot unions into that one rect until ``clearDirtyRect()`` (the list never re-grows after a
+    /// collapse within a frame, so it is always a superset of what was written, `RG-I`). The rects
+    /// never overlap except through that collapse. ``dirtyRect`` is their union.
+    public private(set) var dirtyRects: [(x: Int, y: Int, width: Int, height: Int)] = []
+
+    /// The most rects ``dirtyRects`` holds before it collapses to one bounding rect.
+    private static let dirtyRectCap = 8
+
+    /// Whether ``dirtyRects`` has collapsed since the last clear (`RG-I`).
+    private var dirtyRectsCollapsed = false
+
     /// The region written since the last ``clearDirtyRect()``, or `nil` if
-    /// nothing has been. The union of every slot filled in that period — a
-    /// bounding box rather than a list, because the consumer is one
-    /// `replaceRegion` call.
-    public private(set) var dirtyRect: (x: Int, y: Int, width: Int, height: Int)?
+    /// nothing has been: the bounding box (union) of ``dirtyRects``. Kept for
+    /// readers that want one rectangle.
+    public var dirtyRect: (x: Int, y: Int, width: Int, height: Int)? {
+        guard var union = dirtyRects.first else { return nil }
+        var maxX = union.x + union.width
+        var maxY = union.y + union.height
+        for rect in dirtyRects.dropFirst() {
+            union.x = min(union.x, rect.x)
+            union.y = min(union.y, rect.y)
+            maxX = max(maxX, rect.x + rect.width)
+            maxY = max(maxY, rect.y + rect.height)
+        }
+        return (union.x, union.y, maxX - union.x, maxY - union.y)
+    }
 
     /// One placed glyph and the generation it was last handed back in.
     ///
@@ -330,7 +358,8 @@ public final class GlyphAtlas {
     /// resetting half is written now rather than assumed. Pinned by
     /// `theDirtyRectIsTheUnionOfWhatWasWrittenAndClears`.
     public func clearDirtyRect() {
-        dirtyRect = nil
+        dirtyRects.removeAll(keepingCapacity: true)
+        dirtyRectsCollapsed = false
     }
 
     /// Finds room for a `width x height` bitmap and commits the packer to it.
@@ -374,14 +403,28 @@ public final class GlyphAtlas {
     }
 
     private func markDirty(_ slot: AtlasSlot) {
-        guard let current = dirtyRect else {
-            dirtyRect = (slot.x, slot.y, slot.width, slot.height)
+        if dirtyRectsCollapsed, let only = dirtyRects.first {
+            dirtyRects[0] = Self.union(only, slot)
             return
         }
-        let minX = min(current.x, slot.x)
-        let minY = min(current.y, slot.y)
-        let maxX = max(current.x + current.width, slot.x + slot.width)
-        let maxY = max(current.y + current.height, slot.y + slot.height)
-        dirtyRect = (minX, minY, maxX - minX, maxY - minY)
+        if let last = dirtyRects.last, slot.y == last.y, slot.x == last.x + last.width {
+            dirtyRects[dirtyRects.count - 1] = (last.x, last.y, last.width + slot.width,
+                                                max(last.height, slot.height))
+            return
+        }
+        dirtyRects.append((slot.x, slot.y, slot.width, slot.height))
+        if dirtyRects.count > Self.dirtyRectCap, let bounds = dirtyRect {
+            dirtyRects = [bounds]
+            dirtyRectsCollapsed = true
+        }
+    }
+
+    private static func union(_ rect: (x: Int, y: Int, width: Int, height: Int),
+                              _ slot: AtlasSlot) -> (x: Int, y: Int, width: Int, height: Int) {
+        let minX = min(rect.x, slot.x)
+        let minY = min(rect.y, slot.y)
+        let maxX = max(rect.x + rect.width, slot.x + slot.width)
+        let maxY = max(rect.y + rect.height, slot.y + slot.height)
+        return (minX, minY, maxX - minX, maxY - minY)
     }
 }

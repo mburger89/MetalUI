@@ -869,6 +869,7 @@ struct MUIRenderer {
     uint32_t atlas_width, atlas_height;
     SDL_GPUFence *fence;            /* the last offscreen frame */
     uint32_t unsignaled_fence_releases;
+    uint64_t last_atlas_bytes;      /* the last frame's atlas bytes moved (RG-H) */
     uint32_t submissions;           /* every SDL_Submit… below (MV-L item 4) */
     BackdropState backdrop;         /* the frame target, the blur pool, the counters (BB-S) */
 };
@@ -1046,7 +1047,8 @@ bool mui_renderer_finish(MUIRenderer *r,
     const void *backdrops, uint32_t kb, const ReplayRegion *regions, uint32_t region_count,
     void *const *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t count,
-    const uint8_t *atlas, uint32_t aw, uint32_t ah, bool atlas_dirty,
+    const uint8_t *atlas, uint32_t aw, uint32_t ah,
+    const uint32_t *atlas_rects, uint32_t atlas_rect_count,
     const float *projection) {
     if (!r->cmd) return SDL_SetError("finish without a successful begin");
     SDL_GPUDevice *d = r->gpu->device;
@@ -1055,6 +1057,8 @@ bool mui_renderer_finish(MUIRenderer *r,
     SDL_GPUBuffer *buffers[BUF_COUNT] = {0};
     SDL_GPUTransferBuffer *uploads[BUF_COUNT + 1] = {0};
     void *packed[2] = {0};
+    uint8_t *atlas_packed = NULL;
+    uint32_t atlas_bytes = 0;
     bool ok = false;
     if (!images_valid(images, ib, texture_count, runs, count)) goto cleanup;
     if (tb % TRANSFORM_STRIDE) { SDL_SetError("unexpected MetalUI transform ABI"); goto cleanup; }
@@ -1083,10 +1087,40 @@ bool mui_renderer_finish(MUIRenderer *r,
         r->atlas_width = aw; r->atlas_height = ah;
         if (!r->atlas) goto cleanup;
     }
-    if (atlas_new || atlas_dirty) {
-        uploads[BUF_COUNT] = transfer(r->gpu, aw * ah, false, atlas);
+    /* A new or resized atlas texture takes the whole atlas; otherwise only the dirty rects, packed
+       tightly into one transfer buffer and copied one `SDL_UploadToGPUTexture` per rect (RG-H). */
+    if (atlas_new) {
+        atlas_bytes = aw * ah;
+        uploads[BUF_COUNT] = transfer(r->gpu, atlas_bytes, false, atlas);
         if (!uploads[BUF_COUNT]) goto cleanup;
+    } else if (atlas_rect_count) {
+        uint64_t total = 0;
+        for (uint32_t i = 0; i < atlas_rect_count; i++) {
+            uint32_t rx = atlas_rects[4 * i], ry = atlas_rects[4 * i + 1];
+            uint32_t rw = atlas_rects[4 * i + 2], rh = atlas_rects[4 * i + 3];
+            if (rx > aw || rw > aw - rx || ry > ah || rh > ah - ry) {
+                SDL_SetError("atlas dirty rect outside the atlas"); goto cleanup;
+            }
+            total += (uint64_t)rw * rh;
+        }
+        if (total) {
+            atlas_packed = malloc(total);
+            if (!atlas_packed) { SDL_SetError("out of memory"); goto cleanup; }
+            uint8_t *out = atlas_packed;
+            for (uint32_t i = 0; i < atlas_rect_count; i++) {
+                uint32_t rx = atlas_rects[4 * i], ry = atlas_rects[4 * i + 1];
+                uint32_t rw = atlas_rects[4 * i + 2], rh = atlas_rects[4 * i + 3];
+                for (uint32_t row = 0; row < rh; row++) {
+                    memcpy(out, atlas + (size_t)(ry + row) * aw + rx, rw);
+                    out += rw;
+                }
+            }
+            atlas_bytes = (uint32_t)total;
+            uploads[BUF_COUNT] = transfer(r->gpu, atlas_bytes, false, atlas_packed);
+            if (!uploads[BUF_COUNT]) goto cleanup;
+        }
     }
+    r->last_atlas_bytes = atlas_bytes;
     SDL_GPUCopyPass *copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
     for (int i = 0; i < BUF_COUNT; i++) if (sizes[i]) {
@@ -1094,10 +1128,22 @@ bool mui_renderer_finish(MUIRenderer *r,
         SDL_GPUBufferRegion dst = { .buffer = buffers[i], .size = sizes[i] };
         SDL_UploadToGPUBuffer(copy, &src, &dst, false);
     }
-    if (uploads[BUF_COUNT]) {
+    if (uploads[BUF_COUNT] && atlas_new) {
         SDL_GPUTextureTransferInfo atlas_src = { .transfer_buffer = uploads[BUF_COUNT] };
         SDL_GPUTextureRegion atlas_dst = { .texture = r->atlas, .w = aw, .h = ah, .d = 1 };
         SDL_UploadToGPUTexture(copy, &atlas_src, &atlas_dst, false);
+    } else if (uploads[BUF_COUNT]) {
+        uint32_t offset = 0;
+        for (uint32_t i = 0; i < atlas_rect_count; i++) {
+            uint32_t rw = atlas_rects[4 * i + 2], rh = atlas_rects[4 * i + 3];
+            if (!rw || !rh) continue;
+            SDL_GPUTextureTransferInfo src = { .transfer_buffer = uploads[BUF_COUNT], .offset = offset,
+                                               .pixels_per_row = rw, .rows_per_layer = rh };
+            SDL_GPUTextureRegion dst = { .texture = r->atlas, .x = atlas_rects[4 * i], .y = atlas_rects[4 * i + 1],
+                                         .w = rw, .h = rh, .d = 1 };
+            SDL_UploadToGPUTexture(copy, &src, &dst, false);
+            offset += rw * rh;
+        }
     }
     SDL_EndGPUCopyPass(copy);
 
@@ -1123,7 +1169,7 @@ cleanup:
     /* SDL releases these once the GPU no longer uses them. */
     for (int i = 0; i < BUF_COUNT; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
     for (int i = 0; i < BUF_COUNT + 1; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
-    free(packed[0]); free(packed[1]);
+    free(packed[0]); free(packed[1]); free(atlas_packed);
     return ok;
 }
 
@@ -1131,6 +1177,8 @@ void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]) {
     out[0] = r->backdrop.splits; out[1] = r->backdrop.blurs; out[2] = r->backdrop.passes;
     out[3] = r->backdrop.copies; out[4] = r->backdrop.made;
 }
+
+uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r) { return r->last_atlas_bytes; }
 
 bool mui_renderer_has_frame_target(MUIRenderer *r) { return r->backdrop.frame != NULL; }
 

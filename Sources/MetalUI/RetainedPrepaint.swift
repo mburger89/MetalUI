@@ -33,7 +33,7 @@ final class PrepaintLog {
     }
 
     struct Marks: Equatable {
-        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0
+        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0
     }
 
     var recorders: [PrepaintRecorder] = []
@@ -46,6 +46,8 @@ final class PrepaintLog {
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Presentation anchors recorded under the prepaint, window-space (`RW-K`).
     var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
+    /// Geometry notes made under the prepaint, in note order (`RG-A`).
+    var geometry: [GeometryNoteRecord] = []
     /// Depth of `withState` calls a replay reproduces itself (the accessibility node's retention slot).
     /// Entries read-only accesses kept live under the prepaint (`RW-E`).
     var lives: [GlobalElementID] = []
@@ -54,7 +56,7 @@ final class PrepaintLog {
     var current: Marks {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
               contextMenus: contextMenus.count, elementBounds: elementBounds.count, lives: lives.count,
-              anchors: anchors.count)
+              anchors: anchors.count, geometry: geometry.count)
     }
 
     /// Marks every open recorder as unable to leave a ledger, naming the first reason.
@@ -75,6 +77,16 @@ final class PrepaintLog {
             recorder.taint = "sharePatchesOutside"
         }
     }
+}
+
+/// One `onGeometryChange` note a prepaint made (`RG-A`): what `Frame.noteGeometry` handed `LifecycleStore.noteGeometry`, kept so an
+/// equal-key replay notes it again. `global` is the frame the proxy was made from (the value is a function of it and the key).
+struct GeometryNoteRecord {
+    let watch: GeometryWatch
+    let key: GlobalElementID
+    let owner: GlobalElementID
+    let value: Any
+    let global: Bounds<Pixels>
 }
 
 /// One occurrence's open prepaint window.
@@ -119,6 +131,8 @@ final class PrepaintLedger {
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Presentation anchors, window-space, replayed through `Frame.replayPresentationAnchor` (`RW-K`).
     var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
+    /// Geometry notes, replayed in order into the lifecycle store (`RG-A`).
+    var geometry: [GeometryNoteRecord] = []
     var tallies = RegionTallies()
     /// The element prepaints the replay stands for (`FrameWork.retainedSkippedPrepaints`).
     var prepaints = 0
@@ -259,6 +273,11 @@ extension Frame {
                     memos.retained.noteTranslationRefused(reason: "effectNotTranslation")
                     return .run(phase.grafted ? nil : openPrepaintWindow())
                 }
+                if !ledger.geometry.isEmpty {
+                    // A noted frame moved with the effect: the transform would have to run again (`RG-C`).
+                    memos.retained.noteTranslationRefused(reason: "geometryTranslated")
+                    return .run(phase.grafted ? nil : openPrepaintWindow())
+                }
                 switch translatedAccessibility(of: ledger) {
                 case .success(let accessibility):
                     if let moved = translatedHitboxes(of: ledger, by: delta) {
@@ -274,6 +293,10 @@ extension Frame {
                     if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): \(refusal.reason)") }
                     memos.retained.noteTranslationRefused(reason: refusal.reason)
                 }
+            } else if ledger.key.rects != key.rects, key.extras.translation(from: ledger.key.extras) != nil {
+                // The layout origin and a render effect above the occurrence both moved: the two translations are not combined
+                // (`FS-O`), so the prepaint runs (`RG-G`). A counter only; the decision is unchanged.
+                memos.retained.noteTranslationRefused(reason: "effectAndLayoutMoved")
             }
         }
         return .run(phase.grafted ? nil : openPrepaintWindow())
@@ -353,6 +376,7 @@ extension Frame {
         ledger.contextMenus = Array(log.contextMenus[from.contextMenus..<to.contextMenus])
         ledger.elementBounds = Array(log.elementBounds[from.elementBounds..<to.elementBounds])
         ledger.anchors = Array(log.anchors[from.anchors..<to.anchors])
+        ledger.geometry = Array(log.geometry[from.geometry..<to.geometry])
         ledger.liveStates = Array(log.lives[from.lives..<to.lives])
         var seenReads = Set<GlobalElementID>()
         for index in recorder.readLow..<stateTable.readJournal.count {

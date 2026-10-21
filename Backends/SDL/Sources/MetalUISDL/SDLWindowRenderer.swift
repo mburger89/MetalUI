@@ -223,6 +223,9 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var lastFrameTargetCopies: Int { backdropCounter(3) }
     /// Textures (frame target and pool) the last frame had to create; 0 on a steady frame.
     package var lastBackdropTexturesMade: Int { backdropCounter(4) }
+    /// The atlas bytes the last finished frame moved to the GPU (a test recorder, `RG-H`).
+    package var lastAtlasBytes: Int { Int(mui_renderer_last_atlas_bytes(renderer)) }
+
     /// Whether the renderer holds a frame target.
     package var hasBackdropFrameTarget: Bool { mui_renderer_has_frame_target(renderer) }
     /// Test hook (`BB-K`, test 3.3d): every pool allocation fails, so each record draws its flat tint.
@@ -348,7 +351,10 @@ public final class SDLWindowRenderer: WindowRenderer {
         }
         // Device-pixel coordinates, as the Metal renderer's surfaces use.
         let identity: [Float] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
-        let dirty = atlas.dirtyRect != nil
+        // The atlas' dirty rects as x, y, width, height words, one upload each (`RG-H`).
+        let atlasRects: [UInt32] = atlas.dirtyRects.flatMap {
+            [UInt32($0.x), UInt32($0.y), UInt32($0.width), UInt32($0.height)]
+        }
         let optionalHandles: [UnsafeMutableRawPointer?] = handles + surfaceHandles
         // Each record's blurred region: `Scene.backdropRegion`, the one function
         // both renderers call (`BB-D` 3); `width` 0 is "none" (a flat tint).
@@ -368,6 +374,7 @@ public final class SDLWindowRenderer: WindowRenderer {
                     optionalHandles.withUnsafeBufferPointer { textureBuffer in
                         runs.withUnsafeBufferPointer { runBuffer in
                             atlas.pixels.withUnsafeBufferPointer { pixels in
+                              atlasRects.withUnsafeBufferPointer { atlasRectBuffer in
                                 identity.withUnsafeBufferPointer { matrix in
                                     mui_renderer_finish(renderer,
                                                         rects.baseAddress, UInt32(rects.count),
@@ -379,8 +386,10 @@ public final class SDLWindowRenderer: WindowRenderer {
                                                         textureBuffer.baseAddress, UInt32(optionalHandles.count),
                                                         runBuffer.baseAddress, UInt32(runs.count),
                                                         pixels.baseAddress, UInt32(atlas.width), UInt32(atlas.height),
-                                                        dirty, matrix.baseAddress)
+                                                        atlasRectBuffer.baseAddress,
+                                                        UInt32(atlasRectBuffer.count / 4), matrix.baseAddress)
                                 }
+                              }
                             }
                         }
                     }

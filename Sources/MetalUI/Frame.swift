@@ -4070,6 +4070,12 @@ extension Frame {
             prepaintLog?.elementBounds.append((id, bounds))
         }
         for (id, bounds) in l.anchors { replayPresentationAnchor(id, windowBounds: bounds) }
+        // Each geometry note is made again, in order, so the store numbers it as a build would (`RG-A`).
+        for note in l.geometry {
+            animationStore.lifecycle.noteGeometry(note.value, watch: note.watch, key: note.key, owner: note.owner)
+            prepaintLog?.geometry.append(note)
+            stateTable.contentMemos.retained.replayedGeometryNotes += 1
+        }
         for id in l.liveStates { stateTable.touchLive(id); prepaintLog?.lives.append(id); retainLog?.lives.append(id) }
         for id in l.reads { stateTable.noteRead(id) }
         hoverRegionCount += l.tallies.hover
