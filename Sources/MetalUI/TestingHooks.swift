@@ -44,6 +44,10 @@ package struct BuildWork: Sendable, Equatable {
     package var elementPaints = 0
     /// The retained-subtree counters of the build (`SB-`).
     package var retained = RetainedCounters()
+    /// What the build's lazy containers realised (`LZ-I`): units, lines, and containers that realised everything.
+    package var lazyUnitsRealized = 0
+    package var lazyLinesRealized = 0
+    package var lazyUnbounded = 0
 }
 
 extension Window {
@@ -86,7 +90,10 @@ extension Window {
                                elementRequests: frame.elementRequests,
                                elementPrepaints: frame.elementPrepaints,
                                elementPaints: frame.elementPaints,
-                               retained: memos?.lastRetained ?? RetainedCounters()))
+                               retained: memos?.lastRetained ?? RetainedCounters(),
+                               lazyUnitsRealized: frame.lazyWork.unitsRealized,
+                               lazyLinesRealized: frame.lazyWork.linesRealized,
+                               lazyUnbounded: frame.lazyWork.unbounded))
         }
     }
 }

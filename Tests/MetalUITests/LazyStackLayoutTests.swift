@@ -202,6 +202,25 @@ private let at200 = ProposedSize(width: 200, height: 200)
     #expect(two.byName["b"] == bounds(50, 10, 100, 20))
     #expect(two.byName["c"] == bounds(75, 30, 50, 10))
 
+    // The same two-view element with spacing 6 (derived, not a probe arm): a, then b 6 below it (16), then
+    // c 6 below b (16 + 20 + 6 = 42), 10 + 6 + 20 + 6 + 10 = 52 tall.
+    let spaced = LeafBoundsLog()
+    let spacedSize = render(at200, log: spaced) {
+        LazyVStack(spacing: Pixels(6)) {
+            ForEach(0..<2) { index in
+                if index == 0 {
+                    Leaf(width: 30, height: 10, name: "a", log: spaced)
+                    Leaf(width: 100, height: 20, name: "b", log: spaced)
+                } else {
+                    Leaf(width: 50, height: 10, name: "c", log: spaced)
+                }
+            }
+        }
+    }
+    #expect(spacedSize == SizeD(width: 200, height: 52))
+    #expect(spaced.byName["b"] == bounds(50, 16, 100, 20))
+    #expect(spaced.byName["c"] == bounds(75, 42, 50, 10))
+
     let none = LeafBoundsLog()
     let noneSize = render(at200, log: none) {
         LazyVStack(spacing: Pixels(6)) {

@@ -400,7 +400,7 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
 @Test func everyStateWriteSiteIsClassified() throws {
     let expected: [String: (plain: Int, compared: Int, reads: Int)] = [
         "AnimatedColor.swift": (2, 0, 0), "AnimatedStyle.swift": (2, 0, 0), "FocusState.swift": (1, 0, 0),
-        "Frame.swift": (5, 0, 0), "List.swift": (3, 2, 0), "ProposalScrollView.swift": (0, 0, 1),
+        "Frame.swift": (5, 0, 0), "LazyCore.swift": (0, 1, 0), "List.swift": (3, 2, 0), "ProposalScrollView.swift": (0, 0, 1),
         "ScrollChrome.swift": (0, 1, 2), "ScrollView.swift": (0, 0, 1), "TestingHooks.swift": (1, 0, 0),
         "TextEditor.swift": (1, 1, 2), "TextField.swift": (1, 1, 2), "Window.swift": (5, 0, 0),
     ]

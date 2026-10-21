@@ -47,6 +47,7 @@ F	environment-locale	M	-	-	-	-	EV-Y	locale is carried and window-stamped; MetalU
 F	theme	M	-	-	-	-	EV-G EV-H	Theme/ColorToken/.theme: scoped, paint-only theme tokens
 F	focus-state	A	swiftui-interaction.swift	F1	focusDropsWhenItsElementIsRenamedAndDoesNotReturn	94	IX-I IX-J	@FocusState/.focused: read the window's focus, move it from input; focus leaves with its identity; a click does not focus a .focusable() (94)
 F	stacks	A	swiftui-stack-algorithms.swift	G1	aStackServesItsLeastFlexibleChildFirst	51 58 70 89	CN-B CN-C CN-E CN-H CN-I TE-K	HStack/VStack/ZStack/Spacer/alignments/.layoutPriority: SwiftUI's stack algorithms, typed alignment, text baselines
+F	lazy-stacks	A	swiftui-lazy-containers.swift	A1	aLazyVStackOutsideAScrollerPlacesEveryChildAndAnswersTheProposalAcross	636 637	LZ-A LZ-B LZ-C LZ-D LZ-E LZ-F LZ-G LZ-H LZ-O LZ-S	LazyVStack/LazyHStack(alignment:spacing:content:): SwiftUI's lazy stacks without pinnedViews (not offered, LZ-N); windowed against the enclosing scroller along their axis (the viewport plus two lines, 637), eager when content holds an if/switch/for member (636); the cross size is the proposal else the first child's, spacing 8, unrealised children count as the measured mean, the top child anchored across measurements (List(_:rowContent:)'s RowExtentIndex); work counted in FrameWork.lazyUnitsRealized/lazyLinesRealized/lazyUnbounded
 F	proposal-frame	A	swiftui-frame-semantics.swift	D1	aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum	38	FR-A FR-M CN-F SA-J	ProposalFrame/.frame on proposal content: fixed and flexible frames, ideal on an unspecified axis; a negative fixed size traps (38)
 F	native-frame-alias	M	-	-	-	-	SA-K	nativeFrame(...): an undeprecated alias of .frame, kept because deprecating it breaks the 0-warning baseline (record §09)
 F	proposal-padding	A	swiftui-engine-replacement-stage2.swift	N1	aNativePaddingPlacesItsChildAtTheChildsOwnSize	-	LR-AU SA-N	Padding/.padding on proposal content: insets the proposal, places the child at its own size
@@ -395,6 +396,7 @@ M	MetalUI	NativeBackgroundModifier.swift	.*	.*	.*	background-modifier
 M	MetalUI	NativeElements.swift	-	Native.*	.*	native-aliases
 M	MetalUI	NativeElements.swift	(HStack|VStack)	init	spacing: Pixels, alignment: ProposalAlignment	stack-spacing-first-init
 M	MetalUI	NativeElements.swift	(-|HStack|VStack|ZStack|Spacer)	(HStack|VStack|ZStack|Spacer|content|spacing|alignment|minLength|init|Layout|requestProposalLayout|prepaint|paint)	.*	stacks
+M	MetalUI	LazyStack.swift	(-|LazyVStack|LazyHStack)	(LazyVStack|LazyHStack|init|Layout|Prepaint|requestProposalLayout|prepaint|paint)	.*	lazy-stacks
 M	MetalUI	NativeElements.swift	-	(ProposalFrame)	.*	proposal-frame
 M	MetalUI	NativeElements.swift	(ProposalFrame)	.*	.*	proposal-frame
 M	MetalUI	NativeElements.swift	-	(Padding)	.*	proposal-padding

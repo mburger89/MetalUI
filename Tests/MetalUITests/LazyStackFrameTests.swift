@@ -303,6 +303,34 @@ private func rowHundredOnTop() throws -> (StateTable, RowLog, [Int]) {
     #expect(work.unitsRealized == 4, "\(work)")
 }
 
+/// **2.11b (`LZ-B`).** The eager fallback is visible against a scroller: a 500-row `ForEach` beside an `if`
+/// in a lazy stack in a 200-point scroller realises all **501** children (the `if` taking its one node),
+/// counted as one unbounded container, where without the `if` the same scroller realises 13. Mutation:
+/// the fallback removed, an unknown member read as one static unit (13 realised, nothing unbounded).
+@MainActor
+@Test func anIfMemberBesideAForEachRealizesEveryRowInAScroller() {
+    let states = StateTable()
+    let log = RowLog()
+    func run() -> Frame {
+        log.reset()
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1,
+                          stateTable: states)
+        let show = true
+        var root = ProposalScrollView {
+            LazyVStack(spacing: Pixels(0)) {
+                if show { Row(key: -1, log: log) }
+                ForEach(0..<500) { Row(key: $0, log: log) }
+            }
+        }
+        frame.render(&root)
+        return frame
+    }
+    _ = run()
+    let warm = run()
+    #expect(warm.lazyWork == LazyWork(unitsRealized: 501, linesRealized: 501, unbounded: 1), "\(warm.lazyWork)")
+    #expect(log.built.count == 501)
+}
+
 /// A 50 x 20 leaf logging its placed bounds under its key.
 private struct NamedRow: ProposalElement {
     let key: Int

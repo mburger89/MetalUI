@@ -5,7 +5,7 @@ Spec: [`specs/2026-10-21-lazy-containers-design.md`](specs/2026-10-21-lazy-conta
 (not yet written). Branch `feat/lazy-containers` from `1bdead8d`. Reserved divergence labels 635-644: **635, 636, 637 taken by this
 design**, 638-644 unused. Probe: `../probes/swiftui-lazy-containers.swift` (output in its header; a SwiftUI claim below cites its arm).
 
-Prefix **`LZ-`**, lettered. **Next unused: `LZ-S`.** (Moves in the commit that appends a ruling.)
+Prefix **`LZ-`**, lettered. **Next unused: `LZ-V`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `DD-F` (window against the scroller), `VL-B`..`VL-Q` (variable rows, `RowExtentIndex`, the anchor), `TB-AH` (bounded
 retention), `FI-A`/`FI-B` (ForEach identity), `ID-R`, `PE-V` (a `ProposalScrollView` publishes `ScrollContext`), `GR-L` (lazy grids
@@ -198,3 +198,33 @@ variable rows and is divergence 637 with a pin; (b) a `Hashable` layout keyed by
 measured extent, so a hit would be a stale-layout risk for no gain; (c) the probe's A3b arm does not separate first from widest (first
 is widest there); A3d and A3 do (50 vs 100, 30 vs 100), so the first-child ruling stands, re-run byte for byte (62 lines identical).
 **Evidence.** Probe re-run 2026-10-21 (A3d, C15, R4, S1 identical to the header). **Cost if wrong.** Two extra tests.
+
+## LZ-S - Legacy rows are units too: `.equatable()` rows and legacy `ForEach` stay windowed (amends LZ-B)
+
+**Ruling.** `LegacyContent` over a `ForEach` of legacy rows (a `Box`, a `Button`, an `.equatable()` component: whatever the proposal builder
+adopts) or over one legacy element or component is a unit source: each element is realised through the untyped `requestGroupLayout` with
+presentations dropped and the nodes minted as `ProposalNodeID`s, exactly as `LegacyContent.requestProposalGroupLayout` does, under the same
+identity (`FI-`, the slot at the segment ordinal, the id-named scope). LZ-B as first written made them eager; but `EquatableComponent` conforms
+to `ElementGroup` only (no proposal conformance), so a lazy stack of `.equatable()` rows, the retention unit of C14b, would never have been
+windowed, and the same holds for every legacy row. What stays eager: `if`/`switch`/`for` members and any group of unknown cursor span.
+**Evidence.** `EquatableComponent.swift` (`ElementGroup` only), `LegacyContent` (ProposalContentBuilder.swift 125); tests 2.12 (a `ForEach` of
+legacy `Button`s: an unrealised row has no element) and 2.13 (`.equatable()` rows: 13 realised, 13 getter skips, 0 evaluations).
+**Cost if wrong.** A legacy row's flex item fields (`.flexGrow`, `.margin`) are reported and trap as they do in a `VStack` (`PE-C`); a lazy
+stack of such rows traps on first realisation of one rather than never. Divergence 636's text names the surviving eager shapes.
+
+## LZ-T - A cold slice is a guess: the frame after it realises exactly the window
+
+**Ruling.** When the window was the cold slice (viewport unknown, `LZ-E`) and prepaint sees the viewport, it asks for one more frame even
+though the slice contains the real window (`LazyLinePlanner.prepaint`, `builtCold`): otherwise nothing draws the frame that would settle
+the container, and it would hold up to 32 lines until something redraws, not O(viewport). A viewport that is still 0 asks for nothing.
+**Evidence.** The harness (`aTenThousandChildLazyVStackRealizesOnlyTheWindow`, `theColdFrameRealizesABoundedSliceThenTheViewportWindow`)
+read 32 realised after any number of ticks before this; 13 after. **Cost if wrong.** One extra frame per lazy container at first show.
+
+## LZ-U - An eager lazy stack keeps the lazy cross answer
+
+**Ruling.** A container made eager by LZ-B places every child through `LazyStackLayout` (anchor slot 0, no trailing extent), not through a
+`VStack`'s node: its main-axis placement and spacing equal a `VStack`'s (test 2.11 compares y at `.leading`), its cross answer is the lazy
+rule (the proposal, else the first child's), and the identity of its children is the content's own (`requestProposalGroupLayout` under the
+stack's id, as `VStack`). One answer for a lazy stack whether or not it is windowed means a content change from `ForEach` alone to `ForEach`
+plus an `if` moves no width. **Evidence.** Probe A3d/A5 (cross rule); `VStack` A0 (widest). **Cost if wrong.** A lazy stack with an `if`
+answers a different width than `VStack` at a nil proposal, as one without it already does.
