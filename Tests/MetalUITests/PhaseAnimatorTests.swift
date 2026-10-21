@@ -176,12 +176,12 @@ private func frame<E: Element>(_ root: E, at time: Double, _ store: AnimationSto
     frame(triggered(1, log, phases: [0]), at: 0.1, store)
     #expect(log.asked.isEmpty && log.phases == [0, 0], "P7: one phase: \(log.phases) \(log.asked)")
     store = AnimationStore(); log = PhaseAnimLog()
-    frame(triggered(0, log, phases: [0, 0]), at: 0, store)
+    frame(triggered(0, log, phases: [3, 3]), at: 0, store)
     log.reset()
-    frame(triggered(1, log, phases: [0, 0]), at: 1, store)
-    frame(triggered(1, log, phases: [0, 0]), at: 1, store)
-    frame(triggered(1, log, phases: [0, 0]), at: 1, store)
-    #expect(log.asked == [1, 0], "P8: both steps in one instant: \(log.asked)")
+    frame(triggered(1, log, phases: [3, 3]), at: 1, store)
+    frame(triggered(1, log, phases: [3, 3]), at: 1, store)
+    frame(triggered(1, log, phases: [3, 3]), at: 1, store)
+    #expect(log.asked == [3, 3] && log.phases == [3, 3, 3], "P8: both steps in one instant: \(log.asked) \(log.phases)")
 }
 
 /// **GS-J, P-tx.** Each phase's content is built under a transaction whose animation is
@@ -301,4 +301,16 @@ private func frame<E: Element>(_ root: E, at time: Double, _ store: AnimationSto
     frame(host(1), at: 1, store)
     frame(host(1), at: 1.4, store)
     #expect(log.phases == [0, 1, 0], "view with a trigger: \(log.phases)")
+}
+
+/// **GS-H.** An empty phase list traps naming the modifier (there is no phase to build).
+/// Mutation: the precondition removed (an index trap with another message, or none).
+@Test @MainActor func anEmptyPhaseListTrapsNamingTheModifierGSH() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            frame(Column { Box().phaseAnimator([Int]()) { c, _ in c } }, at: 0, AnimationStore())
+        }
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("phaseAnimator needs at least one phase"), "the trap names the modifier: \(stderr)")
 }

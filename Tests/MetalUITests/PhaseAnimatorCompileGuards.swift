@@ -79,7 +79,7 @@ func phaseAnimatorTypechecksWithSwiftUIsCallShape() throws {
 func phaseAnimatorPhasesMustBeEquatable() throws {
     let positive = try typecheckFile("""
         struct Pose: Equatable { var angle = 0.0 }
-        @MainActor func tree() -> some Element {
+        @MainActor func tree() -> some ElementGroup {
             Box().phaseAnimator([Pose(), Pose(angle: 4)]) { content, pose in
                 content.rotationEffect(.degrees(pose.angle))
             }
@@ -87,7 +87,7 @@ func phaseAnimatorPhasesMustBeEquatable() throws {
         """, importing: "MetalUI")
     let negative = try typecheckFile("""
         struct Pose { var angle = 0.0 }
-        @MainActor func tree() -> some Element {
+        @MainActor func tree() -> some ElementGroup {
             Box().phaseAnimator([Pose(), Pose(angle: 4)]) { content, pose in
                 content.rotationEffect(.degrees(pose.angle))
             }
