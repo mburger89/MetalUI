@@ -2404,3 +2404,7 @@ No real window was driven (the screen was locked, `CGSSessionScreenIsLocked = 1`
 ## 2026-10-21: SDL GPU gaps (record §137) — looks owed, group GB
 
 No real window, no D3D12 device and no 3D viewport app were driven (an agent cannot; CI compiles Windows only). **Owed, new here — `docs/verification/human-checks.md` group GB, none performed**: GB1 anisotropy 1 against 16 on a grazing plane on Metal, Vulkan and D3D12, GB2 the viewport, scissor, depth-only prepass, `r32Float` and synchronous download pins' behaviour on real D3D12, GB3 the main-actor stall of `downloadSynchronously` and the pipeline-failure text in a real viewport app. Owed, not a look: the Linux-image and fourteen-image re-takes at the final head (record §137 §3).
+
+## BS. Build-time app shaders (item S12, record 138)
+
+A real shadercross at the pin was built and run by the agent on macOS arm64 and Linux aarch64 (41 files byte-identical to the checked-in blobs, `BS-L`); the plugin ran on a fixture package by path with a stub. No Linux x86_64 or Windows machine, no real aarch64 Linux GPU and no dependency by URL were driven (an agent cannot). **Owed, new here, `docs/verification/human-checks.md` group BS, none performed**: BS1 the real shadercross build and compile on Linux x86_64 and Windows x64, BS2 an aarch64 Linux Vulkan app opening the library (and one built without `dxil`), BS3 `swift package compile-shaders` from a package depending on MetalUI by URL, BS4 the Windows recipe. Owed, not a look: a CI job building the pin (`BS-G`), a published prebuilt (the user's decision).

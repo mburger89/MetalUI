@@ -1,6 +1,7 @@
 # Build-time app shaders (S12, XP-G20) — design
 
 Rulings: [`../2026-10-21-build-shaders-decisions.md`](../2026-10-21-build-shaders-decisions.md) (`BS-A`…`BS-J`).
+**Status: implemented** (record §138, 2026-10-21; rulings `BS-A`…`BS-L`).
 Branch `feat/build-shaders` from `11dca65e`. Class M, no divergence (675–684 untouched), **nothing published** (`BS-H`).
 No SwiftUI claim, so no probe; plugin behaviour was measured (decisions, `BS-B`).
 
