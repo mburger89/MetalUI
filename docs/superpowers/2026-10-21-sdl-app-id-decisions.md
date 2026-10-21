@@ -5,7 +5,7 @@ Rulings for item XP-G13 (requested by MetalCreator 2026-10-21). Spec:
 Branch `feat/sdl-app-id` from `05bb9a31`. Divergence labels 615-624 reserved: **none taken** (MetalUI-only, class `M`; SwiftUI has no
 runtime app-id API, the id is the bundle identifier; gpui sets `app_id` per window in its window options, recollection, unverified).
 
-Prefix **`AP-`**, lettered. **Next unused: `AP-F`.** (Moves in the commit that appends a ruling.)
+Prefix **`AP-`**, lettered. **Next unused: `AP-G`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SN-` (`launchingSingleInstance(id:)`, the id MetalCreator already passes), `IC-J` (`Options`, headless launch), `PX-I`/`GA-L`
 (`Backends/SDL` outside the census), `CB-H`/`mui_cursor_*` (C recorders written in the production path).
@@ -51,3 +51,10 @@ refcounted and other tests leave it initialised, so `SDL_GetHint` after init is 
 through `mui_platform_init` (`init(options:)`, the two convenience inits, the SPI one, `.headless`, offscreen), so one call site covers all.
 AppKit untouched (bundle id). On macOS and Windows SDL's own platforms do not group by it: macOS uses the bundle, Windows the AppUserModelID
 (`SDL_SetWindowsAppUserModelID` is not built, deferred, owner none); the option is accepted and harmless there. **Cost if wrong:** none beyond a no-op on those platforms.
+
+## AP-F - Critic pass: probe header corrected; pins read the recorder, never the hint
+
+**Ruling.** The probe header described A3 as "metadata read when no hint is set", contradicting AP-A (the hint wins); it now states A3 as run and carries
+the recorded output (both runs re-executed byte for byte at the critic pass, matching AP-A). Pins 1, 2, 4 compare the recorder's last value (what MetalUI
+passed), not `SDL_GetHint`, so a runner exporting `SDL_APP_ID` cannot redden them. Rejected: a Swift-side recorder (the C call site is the only place that
+orders hint before init), `SDL_HINT_OVERRIDE` (AP-B). No SwiftUI claim, no shader, no platform requirement, no pixel or demo change: nothing else found.

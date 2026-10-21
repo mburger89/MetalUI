@@ -4,8 +4,10 @@
 //     /tmp/appid; SDL_APP_ID=env.id /tmp/appid
 // Arms: A1 SetHint before init reads back after init (positive control);
 // A2 the SDL_APP_ID environment variable beats a normal-priority SDL_SetHint (separating arm: with env set the
-// read-back is the env value, without it the code's); A3 SDL_SetAppMetadataProperty identifier is what SDL reads
-// when no hint is set. Recorded output is in the header of docs/superpowers/2026-10-21-sdl-app-id-decisions.md AP-A.
+// read-back is the env value, without it the code's); A3 the hint wins over SDL_SetAppMetadataProperty's identifier
+// (SDL's metadata read answers the hint's value although the property was set afterwards).
+// Recorded output (macOS, SDL 3.4.18, 2026-10-21), no env: A2 returned 1; A1 before/after init com.example.Probe;
+// A3 com.example.Probe. With SDL_APP_ID=env.id: A2 returned 0; A1 before/after env.id; A3 env.id.
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
