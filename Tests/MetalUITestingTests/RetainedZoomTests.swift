@@ -101,8 +101,11 @@ func aStrokedPathUnderAZoomIsRerasteredNotStale(step: Float) async throws {
     await zoomStep(pair, to: step)
     try pair.compare("zoom to \(step)")
     let on = pair.on.lastFrameWork, off = pair.off.lastFrameWork
-    #expect(on.rasterizedPixels == off.rasterizedPixels, "raster work equal: \(on.rasterizedPixels) vs \(off.rasterizedPixels)")
-    #expect(on.newTextures == off.newTextures && on.newTexturePixels == off.newTexturePixels)
+    // Verify mode paints the fresh frame beside every replay, so its raster work is the sum of both.
+    if !rsVerifying {
+        #expect(on.rasterizedPixels == off.rasterizedPixels, "raster work equal: \(on.rasterizedPixels) vs \(off.rasterizedPixels)")
+        #expect(on.newTextures == off.newTextures && on.newTexturePixels == off.newTexturePixels)
+    }
     #expect(off.rasterizedPixels > 0, "the step rasterized something: the path is the instrument")
 }
 

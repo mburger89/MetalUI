@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import MetalUI
 import MetalUIScene
@@ -30,7 +31,9 @@ struct MUIRectSnapshot: Equatable {
     }
 }
 
-@Test @MainActor func theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires() throws {
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_VERIFY_RETAINED"] != "1",
+               "METALUI_VERIFY_RETAINED=1 records every hit as a hit after a fresh run: the demo's miss count reads 0 there"))
+@MainActor func theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires() throws {
     let (on, sceneOn) = try dragFillet(replay: true)
     let (off, sceneOff) = try dragFillet(replay: false)
     #expect(on.retainedHits + on.retainedMisses + on.retainedIneligible == 51)
