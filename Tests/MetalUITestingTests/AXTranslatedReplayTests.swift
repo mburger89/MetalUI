@@ -142,19 +142,24 @@ func aPanThatCrossesTheClipRecomputesTheVisibleFrame() async throws {
     #expect(cut > 0, "some row is cut by the clip: the arm must meet a cut visible frame")
 }
 
-/// 4 — changing the scale between frames is not a translation: refused by name, the tree equals the unretained one.
-/// **Red at c502f14c**: no reason is counted (a silent `.run`). Mutation: delete the `noteTranslationRefused` call.
+/// 4 — changing the scale between frames is an **affine** change, not a translation: since C14-i (`RZ-B`) it replays (prepaint and
+/// paint) instead of refusing, with no `effectNotTranslation`, and the tree equals the unretained one (it was a refusal by name at
+/// c502f14c: **red there**, the count read 0 and the reason did not exist). Mutation: `differsOnlyByEffectAffine` returning false.
 @Test(.enabled(if: !rsVerifying, atVerifyingNote)) @MainActor
-func aScaleChangeRefusesByName() async throws {
+func aScaleChangeIsAnAffineReplayNotARefusal() async throws {
     let pair = try atPair(scale: 2, warm: 8, graft: false)
     try pair.compare("warm")
     pair.onSide.inputs.showExtra = true; pair.offSide.inputs.showExtra = true
     await rsSettle()
     pair.redraw()
-    var refused = 0
-    for f in pair.frames { refused += f.retainedTranslationRefusedReasons["effectNotTranslation", default: 0] }
+    var refused = 0, replayed = 0
+    for f in pair.frames {
+        refused += f.retainedTranslationRefusedReasons["effectNotTranslation", default: 0]
+        replayed += f.retainedPrepaintHits
+    }
     try pair.compare("after the scale change")
-    #expect(refused > 0, "a scale change counts effectNotTranslation: \(pair.frames.map(\.retainedTranslationRefusedReasons))")
+    #expect(refused == 0, "a scale change is not refused: \(pair.frames.map(\.retainedTranslationRefusedReasons))")
+    #expect(replayed > 0, "the scale change replays the prepaint: \(replayed)")
 }
 
 /// 5 — a node that opens an effect of its own over its rows (`AT-G`): its records are re-derived from the recorded steps of that

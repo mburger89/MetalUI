@@ -106,22 +106,37 @@ func aStrokedPathUnderAZoomIsRerasteredNotStale(step: Float) async throws {
     #expect(off.rasterizedPixels > 0, "the step rasterized something: the path is the instrument")
 }
 
-/// Z5 — an effect change that is not an affine move of one scope is refused by name, the named reason is counted, the frame
-/// equals fresh. Arms: `flattensChanged` (`scaleEffect(x:y:)` leaves the uniform class), `outerClipChanged` (the frame outside the
-/// effect, whose clip the effect opens under, moves with the scale). Mutations: the `flattens` equality dropped, the outer-clip
-/// equality dropped (one per arm).
+/// Z5 — an effect change that is not an affine move of one scope is refused by name, the named reason is counted and only it, the
+/// frame equals fresh. Arms: `flattensChanged` (`scaleEffect(x:y:)` leaves the uniform class), `outerClipChanged` (the frame outside
+/// the effect, whose clip the effect opens under, moves with the scale), `namedSpaceNote` (a geometry note holding a space declared
+/// inside the node), `anchor` (a closed `.popover` declarer: a window-space anchor), `contextMenu` (a window-space menu record).
+/// Mutations, one per arm: the `flattens` equality dropped (in `change(from:)` and `effectRelation`), the outer-clip equality
+/// dropped, the named-space guard dropped, the anchor guard dropped, the context-menu guard dropped.
 enum ZRefusalArm: CaseIterable, CustomStringConvertible, Sendable {
-    case flattensChanged, outerClipChanged
-    var description: String { self == .flattensChanged ? "flattensChanged" : "outerClipChanged" }
-    var extra: ZExtra { self == .flattensChanged ? .nonUniform : .outerClip }
-    var reasons: Set<String> {
-        self == .flattensChanged ? ["effectFlatteningChanged"] : ["effectClipChanged"]
+    case flattensChanged, outerClipChanged, namedSpaceNote, anchor, contextMenu
+    var description: String {
+        switch self {
+        case .flattensChanged: "flattensChanged"; case .outerClipChanged: "outerClipChanged"
+        case .namedSpaceNote: "namedSpaceNote"; case .anchor: "anchor"; case .contextMenu: "contextMenu"
+        }
+    }
+    var extra: ZExtra { self == .flattensChanged ? .nonUniform : self == .outerClipChanged ? .outerClip : .none }
+    var kind: ZKind {
+        switch self {
+        case .namedSpaceNote: .namedSpace; case .anchor: .popover; case .contextMenu: .menu; default: .plain
+        }
+    }
+    var reason: String {
+        switch self {
+        case .flattensChanged: "effectFlatteningChanged"; case .outerClipChanged: "effectClipChanged"
+        case .namedSpaceNote: "geometryNamedSpace"; case .anchor: "presentationAnchor"; case .contextMenu: "contextMenus"
+        }
     }
 }
 
 @Test(.enabled(if: !rsVerifying, zVerifyingNote), arguments: ZRefusalArm.allCases) @MainActor
 func anEffectChangeThatIsNotAnAffineMoveIsRefusedByName(arm: ZRefusalArm) async throws {
-    let pair = try zoomPair(extra: arm.extra, warm: 6, graft: false)
+    let pair = try zoomPair(extra: arm.extra, kind: arm.kind, warm: 6, graft: false)
     try pair.compare("warm")
     var refusals: [String: Int] = [:]
     for scale in [Float(1.1), 1.2] {
@@ -129,8 +144,8 @@ func anEffectChangeThatIsNotAnAffineMoveIsRefusedByName(arm: ZRefusalArm) async 
         for (r, n) in try #require(pair.frames.last).retainedTranslationRefusedReasons { refusals[r, default: 0] += n }
         try pair.compare("step to \(scale) at \(arm)")
     }
-    #expect(!refusals.isEmpty, "a refusal is counted: \(refusals)")
-    #expect(Set(refusals.keys).isSubset(of: arm.reasons), "only \(arm.reasons) refuses: \(refusals)")
+    #expect(refusals[arm.reason, default: 0] > 0, "\(arm.reason) is counted: \(refusals)")
+    #expect(Set(refusals.keys) == [arm.reason], "only \(arm.reason) refuses: \(refusals)")
 }
 
 /// Z6 — a rotation step together with a scale step is replayed exactly: scene, tree and hits equal fresh. Red at 1bdead8d:
@@ -139,8 +154,12 @@ func anEffectChangeThatIsNotAnAffineMoveIsRefusedByName(arm: ZRefusalArm) async 
 func aRotationStepIsReplayedExactly() async throws {
     let pair = try zoomPair(rotation: true, warm: 6)
     try pair.compare("warm")
+    // The first rotation step turns an identity rotation (a flattening scope) into a real one: a class change, refused by name
+    // (`effectFlatteningChanged`) and re-recorded; the steps after it are affine.
+    await zoomStep(pair, to: 1.05)
+    for _ in 0..<24 { pair.redraw() }
     var replayed = 0, refused: [String: Int] = [:]
-    for (step, scale) in [Float(1.05), 1.1, 1.15].enumerated() {
+    for (step, scale) in [Float(1.1), 1.15, 1.2].enumerated() {
         await zoomStep(pair, to: scale)
         let f = try #require(pair.frames.last)
         replayed += f.retainedPrepaintHits
@@ -157,7 +176,7 @@ func aRotationStepIsReplayedExactly() async throws {
 /// walk from the current ambient). Mutation: the walk replaced by the recorded transform.
 @Test @MainActor
 func aHitboxInsideAnEffectTheOccurrenceOpenedFollowsTheZoom() async throws {
-    let pair = try zoomPair(inner: true, warm: 6)
+    let pair = try zoomPair(kind: .inner, warm: 6)
     try pair.compare("warm")
     var replayed = 0
     for (step, scale) in [Float(1.1), 1.21, 0.9].enumerated() {
@@ -206,21 +225,25 @@ func aZoomBeforeAndAfterOnTheBracketFixtureIsReported() async throws {
     print("Z9 bracket pan: requests \(f.elementRequests) prepaints \(f.elementPrepaints) paints \(f.elementPaints) grafts \(f.retainedGrafts) redos \(f.retainedRedos) translated \(f.retainedTranslated)")
 }
 
-/// Z10 — a pure pan under an effect keeps the translation arm: at scale 0.8 the tree equals fresh after every step and the replay is
-/// counted (the existing `AXTranslatedReplayTests` pins stay unedited; this one reads that a pan is never refused as an effect
-/// change). Mutation: `change(from:)` classifying a pan as affine reddens `aPanUnderAnEffectPublishesTheFreshTree` at 0.8.
-@Test(.enabled(if: !rsVerifying, zVerifyingNote)) @MainActor
-func aPurePanStillTakesTheTranslationArm() async throws {
-    let pair = try zoomPair(warm: 6)
+/// Z10 — a pure pan under the effect keeps the translation arm: with a context menu on every node (a window-space record the
+/// affine arm refuses, `RZ-F`) a pan still replays the prepaint and counts no refusal, and the tree, scene and hits equal fresh
+/// (at scale 0.8 and 2, where the pan of 0.37 points is inexact). Mutation: `change(from:)` asking the affine arm before the
+/// translation arm reddens the replay count (every pan step refuses `contextMenus`).
+@Test(.enabled(if: !rsVerifying, zVerifyingNote), arguments: [Float(0.8), 2]) @MainActor
+func aPurePanStillTakesTheTranslationArm(scale: Float) async throws {
+    let pair = try zoomPair(kind: .menu, warm: 6)
+    await zoomStep(pair, to: scale)
+    // The zoom step refuses `contextMenus` under a graft: one redo and a window-wide backoff of eight builds, flushed here.
+    for _ in 0..<24 { pair.redraw() }
+    try pair.compare("at scale \(scale)")
     var refused: [String: Int] = [:], replayed = 0
     for step in 1...4 {
-        // The offset input is the zoom here; a pan is the fixed `.offset` of the fixture, so a pan is the canvas frame's origin:
-        // the zoom stays and a redraw replays. The translation arm is exercised by `AXTranslatedReplayTests`.
-        pair.redraw()
+        await zoomPan(pair, by: 3)
         let f = try #require(pair.frames.last)
         replayed += f.retainedPrepaintHits
         for (r, n) in f.retainedTranslationRefusedReasons { refused[r, default: 0] += n }
-        try pair.compare("steady frame \(step)")
+        try pair.compare("pan step \(step) at scale \(scale)")
     }
-    #expect(replayed > 0 && refused.isEmpty, "steady frames replay and refuse nothing: \(replayed) \(refused)")
+    #expect(replayed > 0, "a pan replays: \(replayed)")
+    #expect(refused.isEmpty, "a pan refuses nothing: \(refused)")
 }
