@@ -14,6 +14,11 @@ public enum SDLGPUTextureFormat: Sendable {
     case b8g8r8a8Unorm
     /// `SDL_GPU_TEXTUREFORMAT_R32_UINT`: one 32-bit integer, for an ID pass.
     case r32Uint
+    /// `SDL_GPU_TEXTUREFORMAT_R32_FLOAT`: one 32-bit float (ruling `GB-D`), for
+    /// a depth or distance readback or a float data texture. Sampling it with a
+    /// linear filter is optional hardware: use ``SDLGPUFilter/nearest``. A new
+    /// case: a caller's exhaustive `switch` owes an arm (`docs/migration.md`).
+    case r32Float
     /// `SDL_GPU_TEXTUREFORMAT_D32_FLOAT`: a depth target.
     case d32Float
 
@@ -23,6 +28,7 @@ public enum SDLGPUTextureFormat: Sendable {
         case .r8g8b8a8Unorm: return SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
         case .b8g8r8a8Unorm: return SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM
         case .r32Uint: return SDL_GPU_TEXTUREFORMAT_R32_UINT
+        case .r32Float: return SDL_GPU_TEXTUREFORMAT_R32_FLOAT
         case .d32Float: return SDL_GPU_TEXTUREFORMAT_D32_FLOAT
         }
     }
@@ -31,7 +37,7 @@ public enum SDLGPUTextureFormat: Sendable {
     public var bytesPerTexel: Int {
         switch self {
         case .r8Unorm: return 1
-        case .r8g8b8a8Unorm, .b8g8r8a8Unorm, .r32Uint: return 4
+        case .r8g8b8a8Unorm, .b8g8r8a8Unorm, .r32Uint, .r32Float: return 4
         case .d32Float: return 0
         }
     }
