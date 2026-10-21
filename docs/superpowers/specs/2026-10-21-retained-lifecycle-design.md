@@ -1,7 +1,7 @@
 # Retained lifecycle and translation carries - design (C14-h)
 
-Branch `perf/retained-lifecycle` from `c55d44e8`. Rulings: [`../2026-10-21-retained-lifecycle-decisions.md`](../2026-10-21-retained-lifecycle-decisions.md) (prefix `RL-`).
-Record: `docs/record/131-retained-lifecycle.md` (Record phase). Reserved divergence labels 605-614: none expected, none taken. No public API.
+Branch `perf/retained-lifecycle` from `c55d44e8`. **Status: implemented and verified, record §131 (2026-10-21).** Built as designed except: no demo strip, `surface` stays refused (`RL-M`), `AXLocalRects` unchanged and an outer named space unreachable (`RL-O`, `RL-P`); see the rulings. Rulings: [`../2026-10-21-retained-lifecycle-decisions.md`](../2026-10-21-retained-lifecycle-decisions.md) (prefix `RL-`).
+Record: `docs/record/131-retained-lifecycle.md`. Reserved divergence labels 605-614: none expected, none taken. No public API.
 
 Source: MetalCreator's ViewportView reports `retainedIneligibleReasons['modifierKeys']`, `['lifecycle']` (and the graft refusal `lifecycle`) on every
 steady frame; carries from C14-f (`RG-C`, `RG-J`), C14-g (`AT-C`, `AT-G`) and `RW-L` (`surface`).

@@ -1,9 +1,9 @@
 # Retained lifecycle - decisions
 
-Rulings for item C14-h. Spec: [`specs/2026-10-21-retained-lifecycle-design.md`](specs/2026-10-21-retained-lifecycle-design.md). Record: `../record/131-retained-lifecycle.md` (Record phase).
+Rulings for item C14-h. Spec: [`specs/2026-10-21-retained-lifecycle-design.md`](specs/2026-10-21-retained-lifecycle-design.md). Record: `../record/131-retained-lifecycle.md`.
 Branch `perf/retained-lifecycle` from `c55d44e8`. Reserved divergence labels 605-614: none taken.
 
-Prefix **`RL-`**, lettered. **Next unused: `RL-Q`.** (Moves in the commit that appends a ruling.)
+Prefix **`RL-`**, lettered. **Next unused: `RL-R`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E`, `RK-F`, `RG-A`, `RG-C`, `RG-D`, `RG-J`, `AT-C`, `AT-G`, `RW-L`, `KF-J`, `IF-D`, `LC-C`...`LC-I`, `PX-F`, `TF-A`.
 No SwiftUI probe: no observable behaviour moves (`RG-B`'s argument); the oracle is differential against a window with retention off. gpui has no lifecycle-scope analogue to compare.

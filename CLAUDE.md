@@ -91,7 +91,7 @@ summary.
   `2026-10-19-retained-withstate-decisions.md`, next `RW-U`), `MO-` (memo and retained observation off the main thread:
   `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), `OS-` (raster overscan, pooled rasterizer scratch:
   `2026-10-20-raster-overscan-decisions.md`, next `OS-Q`), `FS-` (finer retention scopes:
-  `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `CF-` (warm and cold frame gaps: `2026-10-20-warm-settle-decisions.md`, next `CF-L`), `RG-` (retained geometry observers, placement translation, per-shelf atlas uploads: `2026-10-20-retained-geometry-decisions.md`, next `RG-Q`), `AT-` (accessibility under an effect-translated replay: `2026-10-20-ax-translated-replay-decisions.md`, next `AT-H`),`IS-` (header-only image format sniff: `2026-10-20-image-sniff-decisions.md`, next `IS-L`), …; the full
+  `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `CF-` (warm and cold frame gaps: `2026-10-20-warm-settle-decisions.md`, next `CF-L`), `RG-` (retained geometry observers, placement translation, per-shelf atlas uploads: `2026-10-20-retained-geometry-decisions.md`, next `RG-Q`), `AT-` (accessibility under an effect-translated replay: `2026-10-20-ax-translated-replay-decisions.md`, next `AT-H`), `RL-` (retained lifecycle and translation carries: `2026-10-21-retained-lifecycle-decisions.md`, next `RL-R`),`IS-` (header-only image format sniff: `2026-10-20-image-sniff-decisions.md`, next `IS-L`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -286,7 +286,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126, §127, §128, §129, §130.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126, §127, §128, §129, §130, §131.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -848,10 +848,18 @@ comparable `EnvironmentReading`: the text system **instance** (never the per-fra
 included), so the next frame's grafted occurrence still finds its measurements and `warm[n] == warm[n+1]` holds over the whole `FrameWork` from the frame after the records
 exist (`CF-E`, `CF-J`); the root placement has no footprint, a named residue. The cold-frame profile found no ledger-snapshot cost and landed no fix (`CF-K`). Pins count work.
 
+**Retained lifecycle (`RL-`, record §131).** Value-identical, no public API, no divergence (labels 605-614 untouched). **A replay or graft re-notes presence into the store and never computes a delivery** (`RL-A`): `LifecycleStore` forgets any key a build did
+not note, so `onAppear`/`onDisappear`/`onChange`/`.task` inside an `.equatable()` occurrence no longer refuse the graft: their notes are build-journal events with relative orders re-noted by `Frame.reapply` (`RL-C`, `GraftRecord.lifecycleOrders`; not a `StateTable`
+write site), `onModifierKeysChanged` is a ledger `ModifierNoteRecord` holding no value (`RL-B`, amends `RG-D`), and the store's diff decides every delivery in `drainLifecycle`, outside every phase (LC-F, LC-H, TF-A, PX-F). A replayed closure is the standing one (`RL-L`).
+`BuildAudit.lifecycle` is now a tripwire for a registration that bypassed the journal (**a new lifecycle-registering site goes through the journal**, `RL-D`); verify mode gains channel `lifecycleStore`. **Translation carries:** a layout, scroll or effect translated replay
+**recomputes** a geometry note (proxy rebuilt, `transform` run again; a named space declared inside moves with it only for a linear part of multiples of 1/16, else `geometryNamedSpace`; a note under the occurrence's own effect refuses a layout shift `geometryUnderEffect`; an outer
+named space never reaches a note, `RL-E`, `RL-O`) and `RG-J` narrows to a note a translation cannot recompute (`RL-G`, `RL-Q`: a grafted observer costs 0 redos across a shift); layout translation moves accessibility records by the hitbox rule (`AXEmission.clipDepth`,
+`accessibilityClipped`, `accessibilityUnderEffect`, `RL-H`, amends `AT-C`); a hitbox inside the occurrence's own effect is re-derived from a **validated** step chain (`Frame.hitboxChains`, `RL-I`, closes `AT-G`). **`surface` stays refused** (`RW-L`, `RL-M`: one paint per
+frame, a replay would owe the registry touch and the standing draw closure). Carried: a note under an effect on a layout shift, a non-dyadic named space, `FS-G`, two unpinned arms (the `rebased` modifier copy, `movedAccessibility`'s `clipDepth` arm; record §131 §8). Pins count work.
+
 **Retained geometry (`RG-`, record §128).** An `.onGeometryChange` scope in an `.equatable()` occurrence no longer taints its prepaint ledger (`RK-E` is replaced): `Frame.noteGeometry` records a
 `GeometryNoteRecord` and an equal-key replay **re-notes it in order into the lifecycle store** (a skipped note is a G7 re-report of `initial`, since `closeGeometry` drops an un-noted key); `KF-J`'s
-delivery is unchanged (`RG-A`, `RG-B`). A translated replay of a ledger with a note refuses `geometryTranslated` (`RG-C`) and **such a ledger is never grafted** (`geometryGraft`: a graft decides before
-layout, so the refusal would redo the frame, `RG-J`); `onModifierKeysChanged` stays a taint (`RG-D`). **A subtree placement restored from `LayoutMemo` at another origin is translated**
+delivery is unchanged (`RG-A`, `RG-B`). A translated replay of a ledger with a note refused `geometryTranslated` (`RG-C`) and such a ledger was never grafted (`RG-J`); `onModifierKeysChanged` stayed a taint (`RG-D`): **all three superseded by `RL-` (above)**. **A subtree placement restored from `LayoutMemo` at another origin is translated**
 (`translatedPlacements`, origin-free key `(signature, proposal, width, height)`, per axis a bit-equal or exact-sixteenth origin against an exact record, never a subtree holding a `.custom` layout, checked by
 `METALUI_VERIFY_LAYOUT_MEMO=1`; it carries the `CF-E` footprint, `RG-L`, `RG-P`); a card in a plain stack misses (the proposal moves). `hitboxClipped` is pinned (reachable only where the clipped region paints
 nothing, `RG-M`) and a shift under a moved render effect still refuses, now counted `effectAndLayoutMoved` (`RG-N`). **`GlyphAtlas.dirtyRects`** is a list (same-shelf x-adjacent slots merge, cap 8, then one
@@ -862,8 +870,7 @@ sum of areas (`RG-H`, `RG-I`, `RG-O`). One public declaration (`dirtyRects`, cla
 (`RK-G`, `RK-S`) **carries accessibility records**: a record made under a render effect keeps the operands of its frame (`AXEmission.local`, `PrepaintLedger.axNodeLocals`: the pre-effect rect, the
 clipped rect, the effect steps as `AXEffectChain`) and the replay **recomputes** the frame and visible frame against the current effect with `prepaintWithRenderEffect`'s own arithmetic, never shifts a
 bounding box (a shifted box rounds twice; `AT-A`, `AT-G`). `translation(from:)` and `translatedHitboxes` no longer assume an identity linear part: a hitbox carrying the ledger's ambient inverse takes the current
-effect's (`AT-F`). A scale or rotation change counts `effectNotTranslation`. **A new record made under an effect owes its local rects** (else `accessibilityUnrecorded`, a counted miss). Still refused by
-name: layout translation's `accessibilityRecords` (`FS-P`, `AT-C`) and a hitbox opened inside the occurrence's own effect under a non-identity scale (`hitboxes`); both carried (C14-h). Pins count work
+effect's (`AT-F`). A scale or rotation change counts `effectNotTranslation`. **A new record made under an effect owes its local rects** (else `accessibilityUnrecorded`, a counted miss). Layout translation's `accessibilityRecords` refusal and a hitbox opened inside the occurrence's own effect under a non-identity scale (`hitboxes`) were carried here and are built in `RL-` (above). Pins count work
 (`AXTranslatedReplayTests`).
 
 **Raster overscan and the pooled scratch (`OS-`, record §124).** Value-identical, no public API, no divergence (labels 545–554 untouched).

@@ -2390,3 +2390,7 @@ No real window was driven and neither VoiceOver nor MetalCreator was run (an age
 ## 2026-10-21: header-only image format sniff (record §130) — no looks owed
 
 Bytes in, an enum out: nothing a person sees, no real window driven, no human-checks group added. Not owed: the root portable run in the `metalui-portable` image passed at the Record phase (record §130 §5).
+
+## 2026-10-21: retained lifecycle and translation carries (record §131) — looks owed, group RL
+
+No real window was driven, no modifier key held, neither VoiceOver nor MetalCreator was run (an agent cannot), and no demo strip was built. **Owed, new here — `docs/verification/human-checks.md` group RL, none performed**: RL1 modifier and lifecycle callbacks through a pan with the graft on, RL2 VoiceOver and a geometry observer on a scrolling list, RL3 hitboxes and labels at non-identity zoom. Owed, and not a look: the Linux image on the merged tree and the unlocked `AppKitPresentationTests` run (record §131 §8).
