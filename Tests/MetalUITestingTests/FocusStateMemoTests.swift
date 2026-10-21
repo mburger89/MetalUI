@@ -12,6 +12,8 @@ import Testing
 /// Getter evaluations by component name (a class: a component's `==` compares it by identity).
 @MainActor final class FMLog {
     var evaluations: [String: Int] = [:]
+    /// The writer's own binding, captured at appearance so a test can write it from outside the tree (an input stand-in).
+    var writer: FocusState<Bool>.Binding?
     func note(_ name: String) { evaluations[name, default: 0] += 1 }
     func count(_ name: String) -> Int { evaluations[name, default: 0] }
 }
@@ -43,8 +45,29 @@ struct FMWriter: Component, @MainActor Equatable {
             Box().focusable().focused($focused).frame(width: Pixels(40), height: Pixels(12))
             Button("take focus") { focused = true }.frame(width: Pixels(80), height: Pixels(18))
         }
+        .onAppear { log.writer = $focused }
     }
     static func == (l: FMWriter, r: FMWriter) -> Bool { l.log === r.log }
+}
+
+/// The same writer without `.equatable()`: nested in an equatable outer, a graft of the outer never builds it, so only the graft's
+/// journal keeps its focus state bound (`RK-F`).
+struct FMInner: Component {
+    let log: FMLog
+    @FocusState var focused: Bool
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text("writer \(focused ? "focused" : "idle")").frame(width: Pixels(90), height: Pixels(14))
+            Box().focusable().focused($focused).frame(width: Pixels(40), height: Pixels(12))
+        }
+        .onAppear { log.writer = $focused }
+    }
+}
+
+struct FMOuter: Component, @MainActor Equatable {
+    let log: FMLog
+    var content: some ElementGroup { FMInner(log: log) }
+    static func == (l: FMOuter, r: FMOuter) -> Bool { l.log === r.log }
 }
 
 enum FMField: Hashable { case first, second }
@@ -68,6 +91,7 @@ enum FMArm: String, Sendable, CaseIterable {
     case three   // three Boolean readers A, B, C
     case writer  // a Boolean reader beside a writer
     case enumerated
+    case nested  // an equatable outer holding a plain component that declares the focus state
 }
 
 struct FMRoot: Component {
@@ -85,6 +109,8 @@ struct FMRoot: Component {
                 FMWriter(log: log).equatable()
             case .enumerated:
                 FMEnum(log: log).equatable()
+            case .nested:
+                FMOuter(log: log).equatable()
             }
         }
     }
@@ -236,4 +262,22 @@ struct FMRoot: Component {
     pair.settle()
     let differences = try RPSnapshot(pair.on).differences(from: RPSnapshot(pair.off))
     #expect(differences.isEmpty, "after the focus left: \(differences)")
+}
+
+/// F6b - a pending write made while the declaring component is grafted (the pointer elsewhere, the build recursion skipped)
+/// is applied: the frame before it never bound the state, so only the graft's `.focusState` journal event keeps it in
+/// `lastFocusStates`. Mutation: the `.focusState` arm of `RetainedGraft`'s journal replay removed (`RetainedGraft.swift`).
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a replayed frame twice: the graft counts this test pins are not its to read"))
+@MainActor func aPendingWriteWhileGraftedIsApplied() throws {
+    let pair = try FMPair(.nested)
+    pair.on.resetFrameWork()
+    pair.settle()
+    #expect(fmSum(pair.on).retainedGrafts > 0, "the writer is grafted while idle: \(fmSum(pair.on).retainedGrafts)")
+    let onWriter = try #require(pair.onLog.writer), offWriter = try #require(pair.offLog.writer)
+    onWriter.wrappedValue = true; offWriter.wrappedValue = true
+    pair.settle()
+    _ = try pair.on.element(label: "writer focused")
+    _ = try pair.off.element(label: "writer focused")
+    let differences = try RPSnapshot(pair.on).differences(from: RPSnapshot(pair.off))
+    #expect(differences.isEmpty, "after the write: \(differences)")
 }

@@ -3,7 +3,7 @@
 Rulings for item C14-i. Spec: [`specs/2026-10-21-retained-zoom-design.md`](specs/2026-10-21-retained-zoom-design.md). Record: `../record/133-retained-zoom.md`.
 Branch `perf/retained-zoom` from `1bdead8d`. Reserved divergence labels 625-634: none taken (346 narrowed in place if `RZ-I` lands).
 
-Prefix **`RZ-`**, lettered. **Next unused: `RZ-S`.** (Moves in the commit that appends a ruling.)
+Prefix **`RZ-`**, lettered. **Next unused: `RZ-U`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-G`, `RK-S`, `FS-D`, `FS-O`, `FS-P`, `RG-A`, `AT-A`, `AT-F`, `AT-G`, `RL-E`, `RL-I`, `EE-A`...`EE-D`, `IV-D`, `GX-` (effects, text and images resampled, divergence 106), `RW-S`.
 No SwiftUI probe: no observable behaviour moves; the oracle is differential against a window with retention off plus `METALUI_VERIFY_RETAINED=1`.
@@ -129,3 +129,17 @@ refusals cost coverage under a zoom for a node that declares a popover or a menu
 (`scopes`); **after** requests 5, grafts 10 per step (30 over three), redos 0, backoff 0; the last step's frame: element prepaints 9 of 119, paints 10 of 160, 10 translated paints, 10 prepaint hits. The raster work of the stroked path equals a fresh frame's (`rasterizedPixels`, `newTextures`:
 `RZ-C` confirmed, no raster refusal). The bracket fixture has no zoom axis (its canvas pans by an offset): its pan line reads 195 requests, 220 prepaints, 258 paints, 10 grafts, 0 redos, identical to 1bdead8d. **Carried:** layout move plus effect change together (`effectAndLayoutMoved`),
 lifting the conservative refusals of `RZ-M` and `RZ-P`, a named space under a zoom (`geometryNamedSpace`), a grafted occurrence whose geometry note holds a named space (it redoes one frame, `RG-J`).
+
+## RZ-S - The fillet-drag profile finds no framework cause; the one large cost is a shared observable property, by design
+
+**Measured (`FilletDragFixture`, release not taken: counts; a drag of 8 steps, 9 frames, per frame, scale 2, six `.equatable()` panels, retained vs retention off).** The slider outside the panels, inside panel 2, an observed read in panel 2's getter and a slider in every panel over per-panel `@Observable` objects all read the same:
+element requests 40-44 (+189-195 skipped) against 229-239 unretained, one getter a step (panel 2's), 5 grafts and 5 prepaint hits a frame, 1 miss a frame (`serial`, `interior`, `versions`, plus `observed` and `pointer/press/focus` for a slider inside the panel: the pressed panel, by design),
+**0 redos, 0 backoff, 0 ineligible, 0 translation refusals, 0 content refusals**: the reasons table is empty, so there is no refusal to fix (candidates 1-5 of the spec 2.1: the pressed slider's panel and the changing panel's own getter are by design, `valueTrack` hitboxes in the other panels' ledgers replay and graft, the non-`.equatable()` root costs 7 requests).
+**The arm that reproduces the order of MetalCreator's 888:** a slider in every panel bound to one `@Observable` array property (`model.values[i]`): every panel's binding getter reads the property, a write to one element is an observed change of all six, so all six miss (`observed`) and none grafts: requests 217 of 239. With one object per panel (`sliderEverywhereObjects`) it is 44 of 239. Observation is per property, so this is `.equatable()`'s contract and the guide's advice (keep what a panel reads in its own object or its inputs), **ruled by design**; no sound framework fix exists (the index is invisible to the observation registrar).
+**No source changed for (a).** Pins F1 are characterizations (`theFilletDragReasonsAreProfiled`, `theFilletDragFrameEqualsAnUnretainedOne`); they cannot be red at the merge base because nothing moved, and are mutation-verified in the record. **Not reproduced:** MetalCreator's own 888 (its causes live in app code outside this checkout); a MetalCreator-side check of "one observable property for all node parameters" is the lead to hand over.
+
+## RZ-T - `@FocusState` is memoized by its slot's version; the memo-skip re-note is not needed (amends RZ-I)
+
+**Ruling.** `StateBinder` counts a `@FocusState` ordinal among the memo's slots (`stateOrdinals`), so its `$state<n>` slot's `entryVersion` enters the entry's versions and `FocusState.Box.reconcile`'s `table.write` is the changed reading; `memoShape` no longer refuses, `contentRefusals` no longer counts it.
+**Soundness gate (RZ-I), measured.** F3-F6 green and the pins named below. **The re-note RZ-I planned is not built:** `StateBinder.bind` runs in `enterComponent`, before the memo decides, on every occurrence that is built, so `noteFocusState` already runs for a skipped getter (the cached content is built over; only a graft skips the bind, and its journal's `.focusState` event re-notes it, as before). Adding a second call would be dead code; the F4/F5 mutation is the bind's own `noteFocusState`, and F6's is the graft's journal arm (results in the record).
+Divergence 346's `@FocusState` clause is removed (`RZ-J`); no label taken.
