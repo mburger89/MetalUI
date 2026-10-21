@@ -21,6 +21,14 @@ private func armed() {
 @MainActor
 private func lastID() -> String { String(cString: mui_app_id_last()) }
 
+/// SDL's own hint value at the moment before `SDL_Init`; an exported `SDL_APP_ID` environment variable
+/// overrides the hint in `SDL_GetHint`, so the pin only applies when none is exported.
+@MainActor
+private func expectSDLSawHint(_ id: String) {
+    guard getenv("SDL_APP_ID") == nil else { return }
+    #expect(String(cString: mui_app_id_hint_seen_at_init()) == id)
+}
+
 private func uniqueID() -> String { "com.example.apid" + UUID().uuidString.prefix(8).lowercased() }
 
 @MainActor
@@ -35,6 +43,7 @@ struct SDLAppIDTests {
         #expect(mui_app_id_set_count() == before + 1)
         #expect(lastID() == id)
         #expect(mui_app_id_hint_precedes_init())
+        expectSDLSawHint(id)
     }
 
     /// 2. `launchingSingleInstance(id:)` supplies the id when the option is `nil`.
@@ -47,6 +56,7 @@ struct SDLAppIDTests {
         #expect(mui_app_id_set_count() == before + 1)
         #expect(lastID() == id)
         #expect(mui_app_id_hint_precedes_init())
+        expectSDLSawHint(id)
     }
 
     /// 3. With neither, no hint is set (today's behaviour).
@@ -68,6 +78,7 @@ struct SDLAppIDTests {
         _ = try #require(platform)
         #expect(mui_app_id_set_count() == before + 1)
         #expect(lastID() == explicit)
+        expectSDLSawHint(explicit)
     }
 
     /// 5. Empty, whitespace-only and NUL-bearing values are ignored, never a trap.

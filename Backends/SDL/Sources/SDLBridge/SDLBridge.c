@@ -1237,6 +1237,7 @@ static char app_id_last[256] = {0};
 static uint32_t app_id_seq = 0;
 static uint32_t app_id_hint_seq = 0;
 static uint32_t app_id_init_seq = 0;
+static char app_id_seen_at_init[256] = {0};
 
 bool mui_platform_init(const char *app_id) {
     app_id_hint_seq = 0;
@@ -1255,6 +1256,11 @@ bool mui_platform_init(const char *app_id) {
     // MetalUI, and only an approved one closes.
     SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
     app_id_init_seq = ++app_id_seq;
+    {
+        // SDL's own state immediately before SDL_Init (AP-E): what SDL will read.
+        const char *seen = SDL_GetHint(SDL_HINT_APP_ID);
+        SDL_strlcpy(app_id_seen_at_init, seen ? seen : "", sizeof app_id_seen_at_init);
+    }
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) return false;
     // Drops from other applications (ruling DN-M) — enabled explicitly, so a
     // build of SDL that ships either kind disabled still delivers both.
@@ -2221,6 +2227,7 @@ void mui_surface_image_size(void *surface, int32_t index, int32_t *w, int32_t *h
 
 uint32_t mui_app_id_set_count(void) { return app_id_sets; }
 const char *mui_app_id_last(void) { return app_id_last; }
+const char *mui_app_id_hint_seen_at_init(void) { return app_id_seen_at_init; }
 bool mui_app_id_hint_precedes_init(void) {
     return app_id_hint_seq != 0 && app_id_hint_seq < app_id_init_seq;
 }
@@ -2229,4 +2236,3 @@ bool mui_app_id_hint_precedes_init(void) {
 /* Built without the `SDL` trait: no SDL3 header, no SDL3 link. */
 int mui_bridge_built_without_sdl = 1;
 #endif
-
