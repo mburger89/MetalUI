@@ -5,9 +5,9 @@ import MetalUITesting
 @testable import MetalUIDemoContent
 
 // The retained-subtree demo (`METALUI_RETAINED_DEMO=1`, spec §13) under the harness: dragging one node
-// of eight leaves 40 occurrences (8 nodes, 7 wires, the panel strip of `RW-`: a field, a list and a picker whose state it
-// only reads, and the 24 cards of the shift-and-scroll section of `FS-D`, which a node drag does not move) of which the dragged node
-// and its two wires re-run and the other thirty-seven replay; with replay off none do and the drawn scene is the same.
+// of eight leaves 50 occurrences (8 nodes, 7 wires, the panel strip of `RW-`: a field, a list and a picker whose state it
+// only reads, and the 24 cards of the shift-and-scroll section of `FS-D`, which a node drag does not move, and the ten cards of the zoom section of
+// `RZ-A`, likewise) of which the dragged node and its two wires re-run and the other forty-seven replay; with replay off none do and the drawn scene is the same.
 // Mutation: `hit = false` in `retainedPrepaintDecision` reads 0 hits.
 
 @MainActor private func dragFillet(replay: Bool) throws -> (FrameWork, [MUIRectSnapshot]) {
@@ -33,9 +33,9 @@ struct MUIRectSnapshot: Equatable {
 @Test @MainActor func theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires() throws {
     let (on, sceneOn) = try dragFillet(replay: true)
     let (off, sceneOff) = try dragFillet(replay: false)
-    #expect(on.retainedHits + on.retainedMisses + on.retainedIneligible == 41)
+    #expect(on.retainedHits + on.retainedMisses + on.retainedIneligible == 51)
     #expect(on.retainedMisses == 3, "the dragged node and its two wires: \(on.retainedMisses)")
-    #expect(on.retainedHits == 38, "the panel strip, the section's cards and the geometry reader replay with the nodes: \(on.retainedHits)")
+    #expect(on.retainedHits == 48, "the panel strip, the section's cards, the geometry reader and the zoom section's ten cards replay with the nodes: \(on.retainedHits)")
     #expect(on.retainedIneligible == 0)
     #expect(off.retainedHits == 0)
     #expect(on.elementPaints + on.retainedSkippedPaints == off.elementPaints)
