@@ -165,6 +165,9 @@ public final class GlyphAtlas {
     /// `replaceRegion` call.
     public private(set) var dirtyRect: (x: Int, y: Int, width: Int, height: Int)?
 
+    /// RED STUB (replaced by the implementation commit).
+    public var dirtyRects: [(x: Int, y: Int, width: Int, height: Int)] { dirtyRect.map { [$0] } ?? [] }
+
     /// One placed glyph and the generation it was last handed back in.
     ///
     /// **The generation lives beside the glyph, in the one dictionary, rather

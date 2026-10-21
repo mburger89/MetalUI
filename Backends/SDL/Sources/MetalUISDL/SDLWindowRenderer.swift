@@ -223,6 +223,9 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var lastFrameTargetCopies: Int { backdropCounter(3) }
     /// Textures (frame target and pool) the last frame had to create; 0 on a steady frame.
     package var lastBackdropTexturesMade: Int { backdropCounter(4) }
+    /// The atlas bytes the last finished frame moved to the GPU (a test recorder, `RG-H`).
+    package var lastAtlasBytes: Int { Int(mui_renderer_last_atlas_bytes(renderer)) }
+
     /// Whether the renderer holds a frame target.
     package var hasBackdropFrameTarget: Bool { mui_renderer_has_frame_target(renderer) }
     /// Test hook (`BB-K`, test 3.3d): every pool allocation fails, so each record draws its flat tint.

@@ -869,6 +869,7 @@ struct MUIRenderer {
     uint32_t atlas_width, atlas_height;
     SDL_GPUFence *fence;            /* the last offscreen frame */
     uint32_t unsignaled_fence_releases;
+    uint64_t last_atlas_bytes;      /* the last frame's atlas bytes moved (RG-H) */
     uint32_t submissions;           /* every SDL_Submit… below (MV-L item 4) */
     BackdropState backdrop;         /* the frame target, the blur pool, the counters (BB-S) */
 };
@@ -1083,6 +1084,7 @@ bool mui_renderer_finish(MUIRenderer *r,
         r->atlas_width = aw; r->atlas_height = ah;
         if (!r->atlas) goto cleanup;
     }
+    r->last_atlas_bytes = (atlas_new || atlas_dirty) ? (uint64_t)aw * ah : 0;
     if (atlas_new || atlas_dirty) {
         uploads[BUF_COUNT] = transfer(r->gpu, aw * ah, false, atlas);
         if (!uploads[BUF_COUNT]) goto cleanup;
@@ -1131,6 +1133,8 @@ void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]) {
     out[0] = r->backdrop.splits; out[1] = r->backdrop.blurs; out[2] = r->backdrop.passes;
     out[3] = r->backdrop.copies; out[4] = r->backdrop.made;
 }
+
+uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r) { return r->last_atlas_bytes; }
 
 bool mui_renderer_has_frame_target(MUIRenderer *r) { return r->backdrop.frame != NULL; }
 

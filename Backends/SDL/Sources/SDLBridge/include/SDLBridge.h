@@ -90,6 +90,9 @@ bool mui_renderer_finish(MUIRenderer *r,
 // backdrop frame, else 0), textures made (frame target and pool; 0 on a steady
 // frame). All 0 on a frame without a backdrop run.
 void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]);
+// The atlas bytes the last finished frame moved to the GPU (0 for a clean
+// atlas; the whole atlas for a new or resized one). A test recorder (RG-H).
+uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r);
 // Whether the renderer holds a frame target.
 bool mui_renderer_has_frame_target(MUIRenderer *r);
 // Test hooks (ruling BB-K): every pool allocation fails (the records draw their
