@@ -73,9 +73,9 @@ lane 2 already carries geometry, two accessibility mechanisms and a hitbox chain
 (there is no way to compare it, and every scope would refuse again). **Pins.** Test 3 gains an arm where the action reads `@State` through a binding (current value delivered, not a stale copy); the journal holds closures only on the memo entry's record, so
 `MemoryReleaseTests` gains an arm for a window closed while an occurrence with `.task` and `onChange` is grafted (`IV-R`). **Cost if wrong.** A stale captured plain value, outside the contract.
 
-## RL-L2 - Demo and pixels (note, not a ruling)
+## Note - Demo and pixels (not a ruling)
 
-The lifecycle strip is behind `METALUI_RETAINED_DEMO=1`, so the fourteen offscreen images (default demo) cannot move; the 0 px comparison is still run. The strip is its own function (1 MB stack).
+The spec's lifecycle strip in `METALUI_RETAINED_DEMO=1` was not built (record 131 section 8); `Sources/MetalUIDemoContent` is untouched, so the fourteen offscreen images cannot move; the 0 px comparison is still run.
 
 ## RL-M - `surface` stays refused (`RW-L` carried, measured; closes `RL-J`/`RL-K`)
 
