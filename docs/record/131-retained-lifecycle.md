@@ -81,7 +81,7 @@ Implementation-time (lane 2's checker, at `225b1ed0`, before this merge): `swift
 five known `AppKitPresentationTests` sheet issues of `CI-AF` (screen locked), `FR-J no-argument frame: succeeded=true`; `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` run 4095 passed; default build system `swift build --build-tests` 0 `warning:`;
 inventory and undocumented scripts print nothing; the fourteen offscreen images 0 px, scene-identical against `c55d44e8` (controls non-zero); Linux image (`metalui-portable`): `MetalUITestingTests` 431, `MetalUILayoutTests` 233, `MetalUICoreTests` 128,
 `MetalUICrossPlatformTests` 22 passed. Lane 1's checker: native run skipping `AppKitPresentationTests` 4084 passed (a lane-1-only tree), fourteen images 0 px.
-Merged tree, Record phase: see the counts line of `CLAUDE.md` (re-measured after the merge; the numbers are quoted there).
+Merged tree, Record phase (merge with master `05bb9a31`): `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `swift test --build-system native --no-parallel --skip AppKitPresentationTests` (screen locked): **4106 tests in 5 suites passed** (4115 expected unlocked: master's 4092 + 23), `FR-J no-argument frame: succeeded=true`, 251 typecheck guards (none added here; master's `G-IS1` is the 251st). Inventory and undocumented scripts print nothing. Not re-taken on the merged tree: the verify-switch run, the fourteen images, the Linux image, the unlocked `AppKitPresentationTests`.
 
 ## §6 Mutation tables
 
