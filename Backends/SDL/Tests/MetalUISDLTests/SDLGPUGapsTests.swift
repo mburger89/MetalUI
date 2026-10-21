@@ -144,6 +144,52 @@ private func drawRed(_ device: SDLGPUDevice, answers: Answers = Answers(),
         for (x, y) in [(0, 0), (31, 31), (16, 16), (3, 3)] { #expect(texel(none, x, y) == blue) }
     }
 
+    /// **S11a.** The viewport's depth range is clamped to 0...1 with its order kept
+    /// (`GB-B`); pure, no device. Mutation: the clamp in `clampedDepthRange` dropped.
+    @Test func aViewportDepthRangeIsClampedToUnitInterval() {
+        let wide = SDLGPURenderPass.clampedDepthRange(-1, 2)
+        #expect(wide.min == 0 && wide.max == 1)
+        let reversed = SDLGPURenderPass.clampedDepthRange(0.75, 0.25)
+        #expect(reversed.min == 0.75 && reversed.max == 0.25)
+        let both = SDLGPURenderPass.clampedDepthRange(3, -3)
+        #expect(both.min == 1 && both.max == 0)
+    }
+
+    /// **S11b.** On a non-square 16 x 8 target a scissor past the right edge and one
+    /// past the bottom edge are each clamped on their own axis, read back from
+    /// pixels (the pass's `targetSize` is width x height, not swapped) and through
+    /// the pure clamp. Mutation: width and height swapped in `targetSize`.
+    @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
+    func aScissorIsClampedOnANonSquareTarget() async throws {
+        let device = try GPUTestSupport.requireDevice()
+        let pipeline = try makePipeline(device, vertex: "fullscreen", fragment: "flat")
+        func draw(_ rect: (Int, Int, Int, Int)) async throws -> [UInt8] {
+            let target = try #require(device.makeTexture(SDLGPUTextureDescription(
+                width: 16, height: 8, format: .r8g8b8a8Unorm, usage: [.colorTarget, .sampler])))
+            let fence = try await device.submitBatch { commandBuffer in
+                guard let pass = commandBuffer.beginRenderPass(
+                    color: SDLGPUColorAttachment(texture: target, clearColor: (0, 0, 1, 1))) else { return }
+                pass.bind(pipeline)
+                _ = pass.setScissor(x: rect.0, y: rect.1, width: rect.2, height: rect.3)
+                pass.draw(vertexCount: 3)
+                pass.end()
+            }
+            await fence.wait()
+            return try #require(await device.download(target))
+        }
+        func at(_ p: [UInt8], _ x: Int, _ y: Int) -> [UInt8] { Array(p[(y * 16 + x) * 4..<(y * 16 + x) * 4 + 4]) }
+        // Past the right edge: x 12...15 drawn, x < 12 not; all rows.
+        let right = try await draw((12, 0, 100, 100))
+        #expect(at(right, 12, 0) == red && at(right, 15, 7) == red)
+        #expect(at(right, 11, 0) == blue && at(right, 11, 7) == blue)
+        // Past the bottom edge: y 5...7 drawn, y < 5 not; all columns.
+        let bottom = try await draw((0, 5, 100, 100))
+        #expect(at(bottom, 0, 5) == red && at(bottom, 15, 7) == red)
+        #expect(at(bottom, 0, 4) == blue && at(bottom, 15, 4) == blue)
+        let clamp = SDLGPURenderPass.clampedScissor(x: 12, y: 5, width: 100, height: 100, target: (16, 8))
+        #expect(clamp == (12, 5, 4, 3))
+    }
+
     /// Two passes over one blue colour target and one depth texture: pass 1 is a
     /// depth-only prepass (fullscreen at depth 0) with `writesColor`; pass 2 loads
     /// the colour, loads or clears the depth, and draws the triangle set.

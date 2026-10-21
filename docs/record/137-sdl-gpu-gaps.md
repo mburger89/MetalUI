@@ -29,8 +29,8 @@ Mutations: the implementer's V1-V4, W1-W2, F1-F2 and A1-A2 runs reddened their n
 | mutation | reddened |
 |---|---|
 | `effectiveMaxAnisotropy` cap 16 raised to 32 | `anisotropyFieldsReachTheSamplerCreateInfo` |
-| `setViewport` depth clamp to `0...1` dropped | **none: unpinned** |
-| width and height swapped in `SDLGPURenderPass.targetSize` (the scissor clamp) | **none: unpinned** (the clamp pins use a square target) |
+| `setViewport` depth clamp to `0...1` dropped | **survived at the checker; closed by S11:** `aViewportDepthRangeIsClampedToUnitInterval()` (2 issues; the clamp is now the pure `SDLGPURenderPass.clampedDepthRange`) |
+| width and height swapped in `SDLGPURenderPass.targetSize` (the scissor clamp) | **survived at the checker (square target); closed by S11:** `aScissorIsClampedOnANonSquareTarget()` (16 x 8, 2 issues: right-edge and bottom-edge clamps; the clamp is now the pure `clampedScissor`) |
 
 The two survivors are findings, not fixed here (this phase owns docs): the depth clamp of `GB-B` and the width/height distinction of the scissor clamp have no pin (section 4).
 
@@ -81,7 +81,7 @@ that suite and the lane's own files are untouched elsewhere; the full macOS and 
 
 ## 4 Carried
 
-Pins for the `setViewport` depth clamp and for a non-square scissor clamp (section 0, both survived a mutation; owner: the next change to `SDLGPUGraphics.swift`); synchronous buffer download and upload (not asked); a zero-colour-target pipeline; an SDL-gave-no-message error arm no driver here exercises; a pin for the submit-worker arm of
+(The `setViewport` depth clamp and non-square scissor pins are done, S11: 30 + 245 on macOS.) Synchronous buffer download and upload (not asked); a zero-colour-target pipeline; an SDL-gave-no-message error arm no driver here exercises; a pin for the submit-worker arm of
 the worker precondition; D3D12 behaviour (check `GB2`, CI compiles Windows only).
 
 ## 5. Adversarial branch check (2026-10-21, head `e4e72b2a`)

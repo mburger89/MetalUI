@@ -597,6 +597,24 @@ public struct SDLGPURenderPass {
         return (texture.description.width, texture.description.height)
     }
 
+    /// The depth range `setViewport` hands SDL: each end clamped to 0...1, order kept
+    /// (a reversed range is legal, `GB-B`).
+    static func clampedDepthRange(_ minDepth: Float, _ maxDepth: Float) -> (min: Float, max: Float) {
+        (min(max(minDepth, 0), 1), min(max(maxDepth, 0), 1))
+    }
+
+    /// The scissor `setScissor` hands SDL: the rectangle intersected with the target
+    /// (`GB-B`, `GB-I`); an empty intersection has a zero width or height.
+    static func clampedScissor(x: Int, y: Int, width: Int, height: Int,
+                               target: (width: Int, height: Int)) -> (x: Int, y: Int, width: Int, height: Int) {
+        let limit = 1 << 30
+        let left = min(max(x, -limit), limit), top = min(max(y, -limit), limit)
+        let right = left + min(width, limit), bottom = top + min(height, limit)
+        let x0 = min(max(left, 0), target.width), y0 = min(max(top, 0), target.height)
+        let x1 = min(max(right, 0), target.width), y1 = min(max(bottom, 0), target.height)
+        return (x0, y0, max(0, x1 - x0), max(0, y1 - y0))
+    }
+
     /// Sets the viewport (`SDL_SetGPUViewport`): `x`, `y`, `width` and `height` in
     /// target pixels from the **top left** on every backend (SDL flips for
     /// Vulkan), depth range `minDepth`...`maxDepth` clamped to 0...1; a reversed
@@ -609,8 +627,9 @@ public struct SDLGPURenderPass {
                             minDepth: Float = 0, maxDepth: Float = 1) -> Bool {
         guard x.isFinite, y.isFinite, width.isFinite, height.isFinite, minDepth.isFinite, maxDepth.isFinite,
               width > 0, height > 0 else { return false }
+        let depth = Self.clampedDepthRange(minDepth, maxDepth)
         var viewport = SDL_GPUViewport(x: x, y: y, w: width, h: height,
-                                       min_depth: min(max(minDepth, 0), 1), max_depth: min(max(maxDepth, 0), 1))
+                                       min_depth: depth.min, max_depth: depth.max)
         SDL_SetGPUViewport(raw, &viewport)
         return true
     }
@@ -623,12 +642,8 @@ public struct SDLGPURenderPass {
     @discardableResult
     public func setScissor(x: Int, y: Int, width: Int, height: Int) -> Bool {
         guard width >= 0, height >= 0 else { return false }
-        let limit = 1 << 30
-        let left = min(max(x, -limit), limit), top = min(max(y, -limit), limit)
-        let right = left + min(width, limit), bottom = top + min(height, limit)
-        let x0 = min(max(left, 0), targetSize.width), y0 = min(max(top, 0), targetSize.height)
-        let x1 = min(max(right, 0), targetSize.width), y1 = min(max(bottom, 0), targetSize.height)
-        var rect = SDL_Rect(x: Int32(x0), y: Int32(y0), w: Int32(max(0, x1 - x0)), h: Int32(max(0, y1 - y0)))
+        let clamped = Self.clampedScissor(x: x, y: y, width: width, height: height, target: targetSize)
+        var rect = SDL_Rect(x: Int32(clamped.x), y: Int32(clamped.y), w: Int32(clamped.width), h: Int32(clamped.height))
         SDL_SetGPUScissor(raw, &rect)
         return true
     }
