@@ -149,6 +149,13 @@ but SPIR-V to MSL and JSON works: the CLI built that way in **14 s of build time
 sources), 3 s, and `anEnvGatedRunCompilesAFixture` passed. So the python script's outputs are reproduced exactly by the Swift port at the pin.
 **Cost if wrong.** None; a measurement.
 
+**Linux aarch64 (the `metalui-portable` image, native on OrbStack).** The same pin, same flags, **plus `-DCMAKE_C_COMPILER=clang
+-DCMAKE_CXX_COMPILER=clang++`** (the image's `cc` is gcc and DXC's `-fcolor-diagnostics` fails the first file, measured), built in **6 min 45 s at
+-j8**; the tool run there with that shadercross wrote the same **41 files byte-identical** to the checked-in directory, DXIL included. This
+**overturns `BS-F`'s premise** that aarch64 Linux has no DXC route: only a *prebuilt* DXC is absent; a source build works natively, so neither
+the amd64 emulation nor a SPIR-V/MSL-only path is needed there (both stay fallbacks in the doc). Linux x86_64 and Windows builds were not run
+(no such machine here; human checks BS1, BS4).
+
 ## BS-G amended — the CI job stays carried
 
 The lane measured a Mac build at 8.5 minutes with every dependency, uncached, which is inside "reasonable" for a manual run and over what

@@ -318,12 +318,16 @@ Per platform:
   shadercross can write DXIL (DXIL needs `dxil.dll`/`libdxil` beside `dxcompiler`, which the install step
   places in `bin`/`lib`). On Windows use the Visual Studio generator or Ninja from a developer prompt and
   put the install's `bin` (with `dxcompiler.dll`, `dxil.dll`, `SDL3.dll`) in `METALUI_SHADERCROSS`'s directory or on `PATH`.
-- **Linux aarch64**: libsdl-org ships no DXC for it (its binaries are Linux x86_64 and Windows only), so
-  a prebuilt DXC is unavailable; a source build of the fork on aarch64 is **unmeasured here**. The routes
-  are an amd64 container under emulation (what MetalCreator runs: slow, but one command) or a source build
-  of the fork if it compiles for the target.
-  An app that targets Vulkan or Metal only needs no DXIL, but HLSL to SPIR-V still goes through DXC, so
-  `--formats` cannot avoid DXC; only the DXIL *derivation* step is skipped.
+- **Linux aarch64**: libsdl-org ships no prebuilt DXC for it (its binaries are Linux x86_64 and Windows
+  only), but **a source build of the fork works natively** (measured in the `metalui-portable` image,
+  Ubuntu 24.04 aarch64 under OrbStack, 2026-10-21): configure with **clang** (`-DCMAKE_C_COMPILER=clang
+  -DCMAKE_CXX_COMPILER=clang++`, the Swift toolchain's; the default `cc` is gcc and DXC's flags
+  `-fcolor-diagnostics` make it fail at the first file), SDL3 on the default paths, the four submodules as
+  above; **6 min 45 s at `-j8`**. The installed `bin/shadercross` with `lib/libdxcompiler.so`, `libdxil.so`
+  beside it then compiled `Backends/SDL/Tests/AppShaders` through `MetalUICompileShaders` to **41 files
+  byte-identical to the checked-in ones, DXIL included**. So neither emulation nor SPIR-V-only is needed
+  there; they remain fallbacks. `--formats` can still leave `dxil` out of a Vulkan or Metal app's build
+  (the derivation is skipped; HLSL to SPIR-V always goes through DXC).
   Compiling on another machine and shipping the blobs is the plain alternative.
 
 **Check in the compiled directory, or not.** A directory the tool just wrote is never stale, so
@@ -354,11 +358,11 @@ path**, refused without `--allow-writing-to-package-directory` and writing blobs
 (`theCompileShadersPluginRunsOnAFixturePackage`, with a stub shadercross); the argument vectors, the
 lookup order, the loader path and the marker bytes (`MetalUIShaderCompileTests`); the library rules
 (`SDLGPUShaderBuildProductTests`, `Backends/SDL`, macOS and the Linux image); the order and the error,
-`theShaderLibraryLooksBesideTheExecutableThenTheSourceTree`. **Verified with a real shadercross at the pin** (macOS arm64, the build above): `MetalUICompileShaders` over
+`theShaderLibraryLooksBesideTheExecutableThenTheSourceTree`. **Verified with a real shadercross at the pin** (macOS arm64 and Linux aarch64, the builds above): `MetalUICompileShaders` over
 `Backends/SDL/Tests/AppShaders` wrote 41 files byte-identical to the checked-in `compiled` directory (SPIR-V,
 MSL, DXIL, reflection JSON, marker), `anEnvGatedRunCompilesAFixture` with `METALUI_SHADERCROSS`.
-**Unverified**: other platforms' builds of it (human checks BS1, BS4),
-aarch64 Linux (BS2), a dependency **by URL** reaching the plugin (BS3), Windows lookup and DLLs (BS4), a
+**Unverified**: Linux x86_64 and Windows builds of it (human checks BS1, BS4),
+a dependency **by URL** reaching the plugin (BS3), Windows lookup and DLLs (BS4), a
 moved shipped app finding its directory (GA3).
 
 ## Windows: an `.ico` embedded as a resource

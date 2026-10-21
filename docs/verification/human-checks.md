@@ -1815,10 +1815,10 @@ a physical GPU, a desktop session and a console.*
 
 ## BS. Build-time app shaders - a real shadercross through the tool and plugin (item S12, user request 2026-10-02, not a plan task; record 138; provisional letter, in the manner of `RT`, `KF` and `IF`)
 
-*An agent cannot: it needs a Windows machine, a Linux x86_64 one and (BS2) an aarch64 Linux build of DirectXShaderCompiler. The tool's plan, lookup, marker and the plugin (with a stub shadercross) are pinned headless, and the macOS arm64 run against a real shadercross at the pin was byte-identical to the checked-in blobs (record 138, `BS-L`); what is owed is the other platforms.*
+*An agent cannot: it needs a Windows machine and a Linux x86_64 one. The tool's plan, lookup, marker and the plugin (with a stub shadercross) are pinned headless, and the runs against a real shadercross at the pin on macOS arm64 and Linux aarch64 were byte-identical to the checked-in blobs (record 138, `BS-L`); what is owed is the other platforms.*
 
 - [ ] **BS1.** On a machine with SDL_shadercross built at `1ff05bec573988a98ef9e0260b4da44f512b8367` (Linux x86_64 and Windows x64; macOS arm64 was run by the agent, `BS-L`; recipe in `docs/packaging.md` section 4a): `METALUI_SHADERCROSS=<path> swift package --allow-writing-to-package-directory compile-shaders --source Backends/SDL/Tests/AppShaders --out /tmp/appshaders` (a copy of the sources inside a package) writes blobs whose reflection JSON equals the checked-in one's and that open in the SDL GPU tests (`METALUI_SHADERCROSS=<path> swift test --filter anEnvGatedRunCompilesAFixture`). **Observed:**
-- [ ] **BS2.** Linux aarch64: say which route works (a source build of the DXC fork; an amd64 container under emulation; blobs compiled elsewhere) and that a Vulkan app opens a library built without `dxil` (`--formats spv,msl,json`). **Observed:**
+- [ ] **BS2.** Linux aarch64 *app*: a Vulkan app on a real aarch64 Linux GPU opens the library built there, and one built without `dxil` (`--formats spv,msl,json`). The compile itself was run by the agent in the image (`BS-L`). **Observed:**
 - [ ] **BS3.** A package depending on MetalUI **by URL** (not path) sees `swift package compile-shaders`; if not, `swift run --package-path .build/checkouts/MetalUI MetalUICompileShaders ...` works (`BS-B`). **Observed:**
 - [ ] **BS4.** Windows: `shadercross.exe` is found on `PATH` and by `METALUI_SHADERCROSS`, its DLLs beside it load, and the tool's output matches macOS's reflection JSON. **Observed:**
 
