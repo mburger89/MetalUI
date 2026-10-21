@@ -8,7 +8,7 @@ output in its header; arms `G1`–`G13`, `P1`–`P10`, the instrument of `swiftu
 it by hand in its own mouse-up handler; gpui animations are `with_animation` over an element id, no phases): nothing is claimed from gpui.
 Divergence labels **645–654 reserved**; **645 taken** (`GS-G`, row in `docs/divergences.md`), the rest unused.
 
-Prefix **`GS-`**, lettered. **Next unused: `GS-R`.** (Moves in the commit that appends a ruling.)
+Prefix **`GS-`**, lettered. **Next unused: `GS-S`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IX-B` (a gesture's callbacks are returned by value from the pure arena and run under `StateDispatch`), `IF-E`/`IF-F`/`IF-K`/`GC-`
 (every `onCancelled` path; divergence 236 amended at Record), `ID-F` (an aliased state box resolves its occurrence from the dispatch owner),
@@ -210,3 +210,21 @@ or `act`): `mouseDown`'s `gestureArena = nil` after `abandon()`, `endPressForDra
 two release pins. **No site needed a new `cancel()`.** (6) **Re-take owed** (`GS-O`): the screen stayed locked, so probe arms `G7`/`G7e` and `P5` were not re-run; divergence 645
 and the two simultaneous-writer pins rest on the recorded lines. **Cost if wrong:** one divergence row.
 
+## GS-R — Lane 2 as built: what the implementation settled that the spec left open
+
+**Ruling.** (1) **The record is index-based and non-generic** (`PhaseRecord {trigger, index, stepStart, wait, running, stepsTaken}`); the pure `PhaseStepping.resolve` takes the
+phase count and two closures (`animation(index)`, `equal(i, j)`), so the stepping is testable without a `Phase` and the generic `PhaseAnimator` holds only the array. `wait` is a field
+beside the spec's `{trigger, index, stepStart, running}`: the hold of the phase just entered, **zero when the phase equals the one it replaced** (`P8`: equal neighbours step with no wait) and the
+animation's `nominalDuration` otherwise; `animation(phase)` is asked **once per step** and serves both the transaction and the hold. (2) **Due is `now - (stepStart + wait) >= -1e-9`**: a
+frame exactly on the boundary (`1.2 - 0.8` is `0.3999…`) must step; a nanosecond of slack is far below a frame, so no live frame is moved, and the tests' round instants read as written.
+(3) **A run's last step is the step back to `phases[0]`** and ends it (`running = false` the build that enters it), so the window stops being asked to draw at that build; the entered phase's own
+animation keeps the window drawing through its value tracks (`AN-`). (4) **The appear build in a cycling animator** records `running = (count >= 2)` with a zero wait and shows `phases[0]`; the next build
+takes the first step (`P1`), so a cycle is never one frame faster than the schedule. (5) **The content closure is called inside the transaction scope** (layout), so a closure that reads the
+transaction sees the phase's animation (`GS-J`); paint re-pushes the layout's resolved copy, prepaint pushes nothing (`AN-Y`). A non-step build keeps the inherited transaction (`disablesAnimations`
+and `snapsEveryChange` apply as for any scope). (6) **An empty phase list traps** at layout naming `phaseAnimator` (SwiftUI's answer is unmeasured; there is no phase to build); pinned by an exit test.
+(7) **`GS-P` as measured:** a cycling `phaseAnimator` inside an `.equatable()` component is **refused by name every frame, `timeVarying`**, never skipped, replayed or grafted, and keeps stepping
+one phase per 0.4 s tick (`aPhaseAnimatorInsideAnEquatableComponentKeepsSteppingGSP`); no `Retained*.swift` edit was needed and none is carried: the refusal is the conservative one `SB-J` already
+applies to a live keyframe animator, and an idle trigger animator's rest is not pinned here (C14-i owns whether a settled animator at rest replays). (8) **`Animation.nominalDuration`** is internal
+(`seconds` of a duration curve, `duration:` of a spring, `0` for a zero, negative or NaN). (9) The demo's pulse and triggered bar live in `PhasesDemo`, a `Component` inside the keyframes row, **no
+click target**: the trigger is the row's own "Shake" count. `GuideDocCheck.deniedNames` is now empty (it denied `PhaseAnimator` until this lane). (10) **Re-take owed** (`GS-O`): the screen stayed locked,
+so probe arm `P5` was not re-run; the test `aNilAnimationSnapsAndTheNextStepFollowsAtOnceP5` carries "recorded, not re-taken". **Cost if wrong:** a P5 value re-ruled.
