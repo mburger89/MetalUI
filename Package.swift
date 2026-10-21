@@ -44,6 +44,11 @@ var products: [Product] = [
         // shader library — over the same trait, re-exporting the raw `CSDL`
         // module (ruling GA-B).
         .library(name: "MetalUISDLGPU", targets: ["MetalUISDLGPU"]),
+        // Build-time app shaders (ruling BS-B): the HLSL-to-blobs tool and its
+        // command plugin (`swift package compile-shaders`). Portable, outside
+        // the `SDL` trait: compiling a shader needs shadercross, not SDL.
+        .executable(name: "MetalUICompileShaders", targets: ["MetalUICompileShaders"]),
+        .plugin(name: "CompileShaders", targets: ["CompileShaders"]),
 
 ]
 
@@ -269,10 +274,26 @@ var targets: [Target] = [
         // `SDLBridge`'s reason (a module map's `link` applies only where Swift
         // imports `CSDL`).
         .target(name: "MetalUISDLGPU",
-                dependencies: ["MetalUISDL", "SDLBridge", "MetalUIPlatform", "MetalUICore",
+                dependencies: ["MetalUISDL", "SDLBridge", "MetalUIPlatform", "MetalUICore", "MetalUIShaderCompile",
                                .target(name: "CSDL", condition: .when(traits: ["SDL"]))],
                 path: "Backends/SDL/Sources/MetalUISDLGPU",
                 linkerSettings: [.linkedLibrary("SDL3", .when(traits: ["SDL"]))]),
+
+        // The app-shader compiler (rulings BS-B, BS-I): Foundation only, `package`
+        // access, in Backends/SDL/Sources beside the library that reads its output.
+        // Declared on every platform (PC-A) and outside the `SDL` trait.
+        .target(name: "MetalUIShaderCompile", path: "Backends/SDL/Sources/MetalUIShaderCompile"),
+        .executableTarget(name: "MetalUICompileShaders", dependencies: ["MetalUIShaderCompile"],
+                          path: "Backends/SDL/Sources/MetalUICompileShaders"),
+        .testTarget(name: "MetalUIShaderCompileTests", dependencies: ["MetalUIShaderCompile"]),
+        // `swift package compile-shaders` (ruling BS-B): a command plugin over the tool.
+        .plugin(name: "CompileShaders",
+                capability: .command(
+                    intent: .custom(verb: "compile-shaders",
+                                    description: "Compile an app's HLSL shaders to SPIR-V, MSL, DXIL and reflection JSON with shadercross"),
+                    permissions: [.writeToPackageDirectory(reason: "Writes the compiled shader blobs into the package")]),
+                dependencies: ["MetalUICompileShaders"],
+                path: "Plugins/CompileShaders"),
 
         // The scaffolder (ruling SC-A): Foundation only, `package` access — a
         // tool, not framework API. `MetalUICLI` is the `metalui` executable.

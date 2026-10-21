@@ -180,7 +180,7 @@ the buffer once, after its own pass. It is MetalUI-only and has no Metal twin, b
 hands a Metal app its own encoder. These snippets are `text` fences, since this guide's blocks are compiled
 on every platform and the layer exists only under the `SDL` trait.
 
-The shaders are your HLSL, built once with `compile-app-shaders.py` (section 4a of
+The shaders are your HLSL, built once with `swift package compile-shaders` (section 4a of
 [`packaging.md`](../packaging.md)): `NAME.vert.hlsl` and `NAME.frag.hlsl` give one blob per driver
 and a reflection file, and `SDLGPUShaderLibrary` loads the pair for the device's driver. A pipeline
 description names the stages, the vertex layout if any, the colour format, the blend, the sample count
