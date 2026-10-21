@@ -88,10 +88,12 @@ private let allFormats = Set(ShaderFormat.allCases)
     let expected = try String(contentsOf: appShaders.appendingPathComponent("compiled/SOURCE.sha256"), encoding: .utf8)
     #expect(SourceMarker.contents(of: sources) == expected)
     #expect(SourceMarker.contents(of: sources.reversed()) == expected, "the order of the input does not matter")
-    // Bytewise, not Unicode-aware: an uppercase name sorts before a lowercase one, "é" after "z".
-    let tricky = SourceMarker.contents(of: [("b.vert.hlsl", []), ("B.vert.hlsl", []), ("\u{e9}.vert.hlsl", []), ("z.vert.hlsl", [])])
+    // Bytewise, not Unicode-aware: an uppercase name sorts before a lowercase one, and U+212B (ANGSTROM
+    // SIGN, canonically equal to U+00C5, which Swift's `<` sorts before U+00C6) sorts after it by its UTF-8 bytes.
+    let names2 = ["b", "B", "\u{e9}", "z", "\u{c6}", "\u{212b}"].map { "\($0).vert.hlsl" }
+    let tricky = SourceMarker.contents(of: names2.map { (name: $0, bytes: [UInt8]()) })
     #expect(tricky.split(separator: "\n").map { $0.split(separator: " ").last.map(String.init) }
-            == ["B.vert.hlsl", "b.vert.hlsl", "z.vert.hlsl", "\u{e9}.vert.hlsl"])
+            == ["B", "b", "z", "\u{c6}", "\u{e9}", "\u{212b}"].map { "\($0).vert.hlsl" })
 }
 
 /// **Test 5.** Only `NAME.<stage>.hlsl` counts; none is an error naming the directory.

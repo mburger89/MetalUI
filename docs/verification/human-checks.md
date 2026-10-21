@@ -1813,6 +1813,15 @@ a physical GPU, a desktop session and a console.*
 - [ ] **GB2.** On a real D3D12 device (CI compiles Windows only; the UTM VM runs the SDL GPU tests when reachable): the viewport and scissor sub-rect, a depth-only prepass (`writesColor: false`), `r32Float` sampling and `downloadSynchronously` give the same pixels and floats as Metal and lavapipe (`GB-B`...`GB-F`). **Observed:**
 - [ ] **GB3.** `downloadSynchronously` for a picking readback in a real 3D viewport app: one frame hitch when it is called, no deadlock, and the pipeline-failure text (`compileGraphicsPipeline`) reads usefully for a deliberately broken shader (`GB-F`, `GB-G`). **Observed:**
 
+## BS. Build-time app shaders - a real shadercross through the tool and plugin (item S12, user request 2026-10-02, not a plan task; record 138; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs a full DirectXShaderCompiler build (hours on a loaded Mac), a GPU and, for BS2 and BS4, an aarch64 Linux and a Windows machine. The tool's plan, lookup, marker and the plugin (with a stub shadercross) are pinned headless; what is owed is the real compiler at the pin.*
+
+- [ ] **BS1.** On a machine with SDL_shadercross built at `1ff05bec573988a98ef9e0260b4da44f512b8367` (macOS arm64, Linux x86_64, Windows x64; recipe in `docs/packaging.md` section 4a): `METALUI_SHADERCROSS=<path> swift package --allow-writing-to-package-directory compile-shaders --source Backends/SDL/Tests/AppShaders --out /tmp/appshaders` (a copy of the sources inside a package) writes blobs whose reflection JSON equals the checked-in one's and that open in the SDL GPU tests (`METALUI_SHADERCROSS=<path> swift test --filter anEnvGatedRunCompilesAFixture`). **Observed:**
+- [ ] **BS2.** Linux aarch64: say which route works (a source build of the DXC fork; an amd64 container under emulation; blobs compiled elsewhere) and that a Vulkan app opens a library built without `dxil` (`--formats spv,msl,json`). **Observed:**
+- [ ] **BS3.** A package depending on MetalUI **by URL** (not path) sees `swift package compile-shaders`; if not, `swift run --package-path .build/checkouts/MetalUI MetalUICompileShaders ...` works (`BS-B`). **Observed:**
+- [ ] **BS4.** Windows: `shadercross.exe` is found on `PATH` and by `METALUI_SHADERCROSS`, its DLLs beside it load, and the tool's output matches macOS's reflection JSON. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
