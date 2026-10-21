@@ -319,14 +319,17 @@ private func four(_ log: LeafBoundsLog) -> some ProposalElementGroup {
         frame.render(&root)
     }
     draw()
-    #expect(log.byName["c1"]?.origin.y == Pixels(10 + 8), "first frame: one column, c1 below c0")
+    // (The root is centred in the frame, so the rows are compared with c0's own y.)
+    let firstTop = log.byName["c0"]?.origin.y ?? Pixels(0)
+    #expect(log.byName["c1"]?.origin.y == firstTop + Pixels(10 + 8), "first frame: one column, c1 below c0")
     #expect(frame.wantsAnotherFrame, "the first frame asks for the corrected count")
     for _ in 0..<4 where frame.wantsAnotherFrame { draw() }
     #expect(!frame.wantsAnotherFrame)
     #expect(frame.lazyWork == LazyWork(unitsRealized: 6, linesRealized: 2, unbounded: 1), "\(frame.lazyWork)")
-    #expect(log.byName["c0"] == bounds(26, 0, 10, 10), "\(String(describing: log.byName["c0"]))")
-    #expect(log.byName["c1"] == bounds(95, 0, 10, 10))
-    #expect(log.byName["c2"] == bounds(164, 0, 10, 10))
-    #expect(log.byName["c3"] == bounds(26, 18, 10, 10))
-    #expect(log.byName["c5"] == bounds(164, 18, 10, 10))
+    let top = log.byName["c0"]?.origin.y.value ?? 0
+    #expect(log.byName["c0"] == bounds(26, top, 10, 10), "\(String(describing: log.byName["c0"]))")
+    #expect(log.byName["c1"] == bounds(95, top, 10, 10))
+    #expect(log.byName["c2"] == bounds(164, top, 10, 10))
+    #expect(log.byName["c3"] == bounds(26, top + 18, 10, 10))
+    #expect(log.byName["c5"] == bounds(164, top + 18, 10, 10))
 }
