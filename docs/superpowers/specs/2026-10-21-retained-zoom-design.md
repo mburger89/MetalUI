@@ -70,6 +70,17 @@ Fixture `ZoomRoot`: ten `.equatable()` nodes in a row, each a `Component` with t
 Pins use `rsVerifying` skips the same way the AT pins do. `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` must run the whole suite silent (verify mode compares a fresh paint beside
 every replay and traps naming the channel: it is the pixel oracle for Z4).
 
+### 1.3 As built (lane 1, rulings `RZ-M`...`RZ-R`)
+
+The mechanism of 1.1 held as written: no leaf is re-pointed, the live scopes are re-entered, paths and the other rasters re-key through the ordinary cache (Z4: raster work equal to a fresh frame). Differences from the design, each a ruling:
+- the prepaint effect vector gains a **flattens** bit (index 18) so a class change refuses at prepaint, not as a paint miss after a replayed prepaint (`RZ-M`); with the guard dropped the frame still equals a fresh one, so the refusal is conservative;
+- `effectNotTranslation` is retired; every refusal has a name, including `prepaintContextChanged` for a difference that is not in the effects at all (`RZ-N`);
+- the pointer is read against the moved hitboxes in **both** effect arms, which keeps a carried, un-grafted node from costing a redo (`RZ-O`);
+- the anchor and context-menu refusals are kept but the audit found them unnecessary for exactness (`RZ-P`); the named-space refusal is needed (`geometryNamedSpace`, Z5, dyadic scales);
+- four existing pins that asserted the removed refusal were rewritten (`RZ-Q`);
+- Z10 pans with a context menu on every node (the affine arm refuses it, the translation arm does not), which is what tells the two arms apart; a pan classified as affine is not otherwise visible in a differential.
+Measured: ten nodes, one zoom step, element requests 115 to 5, grafts 0 to 10, redos 1 to 0 (`RZ-R`).
+
 ## 2. Lane 2 - fillet drag and `@FocusState` (files: lane 2 owns these)
 
 Owns: `Sources/MetalUI/EquatableComponent.swift`, `ContentMemo.swift`, `StateReflection.swift`, the `@FocusState` code in `FocusState.swift` and `StateTable.swift`, `Window.swift`'s
