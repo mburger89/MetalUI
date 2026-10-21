@@ -1,7 +1,7 @@
 # Build-time app shaders (S12) — decisions
 
 Rulings for item S12 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by MetalCreator
-(developer session, 2026-10-21) as XP-G20 (wanted, not blocking). Prefix `BS-`. **Next unused: `BS-K`.**
+(developer session, 2026-10-21) as XP-G20 (wanted, not blocking). Prefix `BS-`. **Next unused: `BS-M`.**
 Spec: [`specs/2026-10-21-build-shaders-design.md`](specs/2026-10-21-build-shaders-design.md). Record: `../record/138-build-shaders.md`.
 Branch `feat/build-shaders` from `11dca65e`. Continues `GA-F`/`GA-Q` (record 114) and `GB-` (record 137).
 Divergence labels reserved 675–684: **none taken** (`BS-A`). **Nothing is published** by this item (`BS-H`).
@@ -115,3 +115,42 @@ Deleting `compile-app-shaders.py` also owes edits to every live reference, not o
 `docs/guides/cross-platform.md:191`, `docs/guides/drawing-and-gpu.md:183` (prose lines; any `swift` block stays byte-identical so no mirror
 moves, `GuideDocCheck` run), `Backends/SDL/Tests/MetalUISDLTests/SDLGPUTestSupport.swift:10` and `SDLGPUShaderLibrary.swift` doc comments.
 Frozen record files and older specs keep the old name (history). CLAUDE.md/AGENTS.md change at the Record phase only.
+
+## BS-K — what the lane measured and corrected (2026-10-21)
+
+**Measured on this Mac** (Swift 6.4, SwiftPM 6.4).
+1. **A package that depends on this checkout by path reaches the command plugin**: `swift package compile-shaders` ran from a fixture
+   package, was refused without `--allow-writing-to-package-directory`, and with it wrote blobs and the marker into the fixture
+   (`theCompileShadersPluginRunsOnAFixturePackage`, with a stub shadercross). Whether a dependency **by URL** is reached the same way is
+   still unmeasured (it uses the same SwiftPM graph; human check BS3); the tool (`swift run --package-path .build/checkouts/MetalUI
+   MetalUICompileShaders`) is the documented certain fallback.
+2. **The plugin passes `--base <package directory>`** so relative `--source`/`--out` resolve against the package, not SwiftPM's
+   working directory; `--base` is a pure field of `CompileArguments` (`noMarkerIsParsed`).
+3. **Corrections to `BS-I` and the spec.** (a) `MetalUIShaderCompile`'s declarations are **`package`**, so no library product is exported and
+   `Backends/SDL/Package.swift` needs **no** edge: `MetalUISDLGPU` is declared by the root manifest, where the edge (`"MetalUIShaderCompile"`)
+   was added; the SDL package's test target reaches the library only through `MetalUISDLGPU`. (b) **Swift's `<` on `String` equals the
+   UTF-8 byte order for every pair except canonical equivalents**: U+00E9 against `z` does not separate the two orders, U+212B (canonically
+   U+00C5) against U+00C6 does; test 4 uses that pair and mutation 4d (a Unicode-aware sort) reddens it, which the first fixture did not.
+4. **Out of scope of the spec, kept:** a source needs a non-empty stem (`.vert.hlsl` is not a source); `--help`; exit 2 for a usage error.
+
+## BS-L — shadercross at the pin, built and run (macOS arm64, 2026-10-21)
+
+**Measured.** SDL_shadercross `1ff05bec573988a98ef9e0260b4da44f512b8367` (committed 2026-09-03) builds on this Mac with
+`cmake -G Ninja -DSDLSHADERCROSS_VENDORED=ON` against Homebrew's SDL3: a full build **including DirectXShaderCompiler** (the
+libsdl-org fork, branch `1.8.2502-SDL`, 1303 ninja steps) took **8 min 30 s of wall clock at -j8 on a loaded 10-core machine**, far
+below the "hours" the spec recalled (`BS-F`'s guess is corrected in `docs/packaging.md`). The submodules need `git submodule update --init
+--depth 1` for SPIRV-Cross, SPIRV-Headers, SPIRV-Tools **and** DirectXShaderCompiler (and DXC's own nested ones): **the configure step requires the
+DXC checkout even with `-DSDLSHADERCROSS_DXC=OFF`** (the check precedes the option), and with it off the CLI cannot compile HLSL at all,
+but SPIR-V to MSL and JSON works: the CLI built that way in **14 s of build time** and reproduced the checked-in `.msl` and `.json` of
+`tri.vert`, `tri.frag` and `append.comp` byte for byte from the checked-in `.spv`. `cmake --install` places `bin/shadercross` and
+`lib/libdxcompiler.dylib`, `libdxil.dylib`, `libspirv-cross-c-shared.dylib` beside it: the layout `BS-C`'s loader-path rule expects.
+**End to end:** `MetalUICompileShaders --source Backends/SDL/Tests/AppShaders --out <dir>` with that shadercross (`METALUI_SHADERCROSS`) wrote
+**41 files byte-identical to the checked-in `compiled` directory** (`diff -r` empty: SPIR-V, MSL, **DXIL**, JSON and `SOURCE.sha256` for all ten
+sources), 3 s, and `anEnvGatedRunCompilesAFixture` passed. So the python script's outputs are reproduced exactly by the Swift port at the pin.
+**Cost if wrong.** None; a measurement.
+
+## BS-G amended — the CI job stays carried
+
+The lane measured a Mac build at 8.5 minutes with every dependency, uncached, which is inside "reasonable" for a manual run and over what
+a per-push job should pay (no cache exists to restore, and a cache is a publishing-adjacent artifact store). **Ruling stands: no CI job**
+(`BS-G`); the recipe in `docs/packaging.md` is the supported path and `METALUI_SHADERCROSS` gates the one test that needs it. Owner: the publish decision.

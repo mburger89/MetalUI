@@ -307,9 +307,11 @@ Its dependencies, read from the pin's `.gitmodules` and `CMakeLists.txt`: **SDL3
 Homebrew `sdl3`, Debian/Ubuntu from source or `libsdl3-dev` where it exists, vcpkg or the SDL release
 on Windows), **SPIRV-Cross** (shared `spirv-cross-c-shared` by default), **SPIRV-Headers** and
 **SPIRV-Tools** (submodules), and **DirectXShaderCompiler**, a libsdl-org fork on branch
-`1.8.2502-SDL`, a full LLVM build (`dxcompiler` and `dxildll`; the long step: tens of minutes to hours,
-gigabytes). `-DSDLSHADERCROSS_DXC=OFF` skips it and then **cannot compile HLSL at all** (the HLSL to
-SPIR-V step is DXC's), only convert SPIR-V.
+`1.8.2502-SDL`, an LLVM-based build (`dxcompiler` and `dxildll`, 1303 ninja steps, the long step:
+**measured 8 min 30 s of wall clock at `-j8` on a loaded 10-core Mac**, 2026-10-21). `-DSDLSHADERCROSS_DXC=OFF`
+skips building it, but the configure step still wants the submodule checked out, and the CLI then
+**cannot compile HLSL at all** (the HLSL to SPIR-V step is DXC's), only convert SPIR-V to MSL and
+JSON (measured: it reproduced the checked-in `.msl` and `.json` byte for byte).
 Per platform:
 
 - **macOS (arm64 or x86_64), Linux x86_64, Windows x64**: the recipe above; DXC builds natively and
@@ -352,8 +354,10 @@ path**, refused without `--allow-writing-to-package-directory` and writing blobs
 (`theCompileShadersPluginRunsOnAFixturePackage`, with a stub shadercross); the argument vectors, the
 lookup order, the loader path and the marker bytes (`MetalUIShaderCompileTests`); the library rules
 (`SDLGPUShaderBuildProductTests`, `Backends/SDL`, macOS and the Linux image); the order and the error,
-`theShaderLibraryLooksBesideTheExecutableThenTheSourceTree`. **Unverified**: a real shadercross compiling
-through the tool at the pin (human check BS1; `anEnvGatedRunCompilesAFixture` with `METALUI_SHADERCROSS`),
+`theShaderLibraryLooksBesideTheExecutableThenTheSourceTree`. **Verified with a real shadercross at the pin** (macOS arm64, the build above): `MetalUICompileShaders` over
+`Backends/SDL/Tests/AppShaders` wrote 41 files byte-identical to the checked-in `compiled` directory (SPIR-V,
+MSL, DXIL, reflection JSON, marker), `anEnvGatedRunCompilesAFixture` with `METALUI_SHADERCROSS`.
+**Unverified**: other platforms' builds of it (human checks BS1, BS4),
 aarch64 Linux (BS2), a dependency **by URL** reaching the plugin (BS3), Windows lookup and DLLs (BS4), a
 moved shipped app finding its directory (GA3).
 
