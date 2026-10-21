@@ -5,7 +5,7 @@ Record: `../record/136-sample-app.md` (Record phase). Branch `feat/sample-app` f
 **none taken** (no SwiftUI-facing claim is made: the app uses existing API only; no probe is owed; SwiftUI's own sample shape is the model
 for the subject, gpui's `examples/` for "an example is a program, not a test").
 
-Prefix **`EX-`**, lettered. **Next unused: `EX-H`.** (Moves in the commit that appends a ruling.)
+Prefix **`EX-`**, lettered. **Next unused: `EX-J`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SC-A`/`SC-I` and `Scaffold.swift`'s `manifest` (the package shape), `PX-J` (traits), `SG-D` (unconditional portable-text
 products), `HT-O`/`HT-V` (test target, refused names), `PE-K`/`CI-AI` (1 MB stacks), divergence 125 (never-written `@State`), `DG-C`
@@ -18,12 +18,14 @@ author copies), and a root executable target would join the root manifest's two 
 `Sources`-adjacent counts for no framework benefit. `Experiments/SDLGPU` is the precedent. **Cost if wrong:** the example drifts from
 master's API unnoticed; mitigated by EX-C (env-gated root build test) and EX-E (a CI step).
 
-## EX-B - Manifest copies the cross-platform scaffold; the product dependency omits `package:`
+## EX-B - Manifest copies the cross-platform scaffold; the dependency is named explicitly (amended by the critic)
 
-**Ruling.** Same traits block, products and `SG-D` shape as `metalui new --cross-platform`; `.product(name:)` names MetalUI products without
-`package:` because a path dependency's identity is the checkout directory's name (`sample-app` in a worktree, `MetalUI` in a clone;
-`packageIdentity(ofPath:)`). **Evidence owed at implementation:** `swift build` in a differently named checkout directory.
-**Cost if wrong:** SwiftPM rejects the by-name form; fall back to `.package(name:path:)` or a symlink-free relative identity, a one-line manifest change.
+**Ruling.** Same traits block, products and `SG-D` shape as `metalui new --cross-platform`, but the dependency is
+`.package(name: "MetalUI", path: "../..", traits: metalUITraits)` and every `.product(..., package: "MetalUI")`, as `Experiments/SDLGPU`
+does, so the example builds in any checkout directory name. The first draft omitted `package:`; the scaffold (`Scaffold.swift`, `SC-C`)
+always writes it, so that was a drift. **Evidence owed at implementation:** `swift build` in `sample-app` and in a copy named otherwise,
+and `name:` together with `traits:` accepted by the tools version in use; if refused, `package:` = the checkout directory's name and a README
+note. The EX-D manifest test compares product names and the traits block, not the identity. **Cost if wrong:** a one-line manifest change.
 
 ## EX-C - A library target holds the app; the executable is `main.swift` only
 
@@ -56,3 +58,20 @@ real notes app would autosave; named in the README as the next step, not built.
 **Ruling.** The README links files rather than quoting blocks. **Reasoning.** `GuideDocCheck` would require byte copies in
 `MetalUITestingTests`; the example's own tests already compile and drive the files. **Cost if wrong:** none; a snippet added later takes the
 DG-C path.
+
+## EX-H - Reorder is tested by in-app drag, not `drop(_:at:)`
+
+**Ruling.** Test 10 drives `TestWindow.drag(from:to:)` over the sidebar (draggable payload: the note id, dropped on a row); `drop(_:at:)` carries
+external `DropItem`s and would test a different path (`DN-F`). **Reasoning.** Found by reading `TestWindowInput.swift`. **Cost if wrong:** if the
+in-app drag cannot reach the destination in the harness, that is a finding in record 136 and the test falls back to calling the destination action.
+
+## EX-I - Autosave and launch-time file reads are out of the design
+
+**Ruling.** The first spec table listed a `.task(id:)` autosave debounce and an `.onAppear` last-file load, contradicting `EX-F` (no hidden state
+file). Both are removed: `.task(id:)` recomputes a word count and `.onAppear` selects the first note. **Cost if wrong:** none.
+
+## Critic's rejections
+
+No probe is added: the app uses only existing API with no SwiftUI-behaviour claim (checked: `.searchable`, `.confirmationDialog`,
+`.fileExporter`, `.draggable`, `.dropDestination`, `presentedAlert`, `presentedFileDialog`, `chooseMenuItem` exist). No renderer, platform
+requirement, C enum or `Sources/` change, so those attack classes do not apply. Test 17 may be an unred pin; the spec already says so honestly.

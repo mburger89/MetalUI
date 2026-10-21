@@ -50,14 +50,14 @@ created once in `makeApp()` and passed in, never defaulted in a `@State`).
 
 | Screen / flow | MetalUI API shown |
 | --- | --- |
-| sidebar | `List(selection:)` over `Identifiable` rows with `rowHeight:`, `.equatable()` `NoteRow`, `.contextMenu` (Rename-focus, Duplicate, Delete), `.draggable(_:)`/`.dropDestination` reorder, `Text` markdown literals for tag chips |
-| detail | `TextField(_:text:)`, `TextEditor(_:text:)`, `@FocusState`, `.onKeyPress` (primary-Return = done), `Text` with a markdown **literal** preview, `ScrollView`, `.task(id:)` autosave debounce counted by ticks not time |
+| sidebar | `List(selection:)` over `Identifiable` rows with `rowHeight:`, `.equatable()` `NoteRow`, `.contextMenu` (Rename-focus, Duplicate, Delete), `.draggable(_:)`/`.dropDestination` reorder (the payload is the note's id, a `Transferable`), `Text` markdown literals for tag chips |
+| detail | `TextField(_:text:)`, `TextEditor(_:text:)`, `@FocusState`, `.onKeyPress` (primary-Return = done), `Text` with a markdown **literal** preview, `ScrollView`, `.task(id:)` recomputing the word count of the selected note (counted by ticks, never time; no autosave, `EX-F`) |
 | toolbar | `.toolbar` items (New, Delete, Export, Import, Stats toggle), `.searchable(text:)` filtering the sidebar |
 | delete | `.confirmationDialog` for one note, `.alert` for a load failure |
 | persistence | `.fileExporter` (a `Data` of versioned JSON as `.json`), `.fileImporter`, `Codable` |
 | commands | `App.commands { CommandMenu / CommandGroup }`, `.keyboardShortcut` (`EventModifiers.primary`: N new, F focus search, Delete, S export, O import) |
 | stats | `Canvas` (bars + line from `Path`), `Color(light:dark:)`, `@Environment(\.colorScheme)`, `.accessibilityLabel` summary |
-| lifecycle | `.onAppear` (load last file path from the model), `.task` |
+| lifecycle | `.onAppear` (select the first note, focus the list), `.task(id:)` (word-count recompute); no file is read or written at launch (`EX-F`) |
 | theme | a palette `ThemeColorKey`, `.preferredColorScheme` from a toolbar toggle |
 
 Persistence target: the user picks the file through the dialog; the app keeps **no hidden state file** (cross-platform, no sandbox
@@ -71,7 +71,7 @@ questions, `EX-F`). Load errors (not JSON, wrong version) surface as an alert an
 - **Root env-gated test** `aSampleAppBuildsAndItsTestsPassAgainstThisCheckout` (`METALUI_RUN_SAMPLE_APP_TEST=1`, `Tests/MetalUIScaffoldTests/SampleAppTests.swift`, counts
   while skipped): runs `swift build`, `swift build --build-tests`, `swift test --skip-build` in `Examples/Jotter` (macOS and Linux only)
   and expects the named tests and the swift-testing summary line. It also checks the manifest still names every product a generated
-  cross-platform package names (a text comparison against `manifest(ScaffoldOptions(crossPlatform: true))`'s dependency lines) so the example
+  cross-platform package names (a comparison of the set of product names and the traits block against `manifest(ScaffoldOptions(crossPlatform: true))`, never the `package:` identity, which varies with the checkout directory, `EX-B`) so the example
   cannot drift from the scaffold. Root suite count moves by +2 tests (the build test, the manifest-shape test), no guard.
 - **CI**: macOS job gains a step `swift test --package-path Examples/Jotter` after the root tests (about one more MetalUI build, ~5 min,
   `EX-E`); the Linux `scene-linux` job is **not** touched (it builds portable targets only, no SDL libraries); the SDL image job
@@ -108,7 +108,7 @@ redden it. Mutations are run in the Implementation phase against the app's sourc
 | 13 | `anUnchangedRowIsNotEvaluatedWhenAnotherNoteIsEdited` (RowSkipTests) | row not `.equatable()` | drop `.equatable()`: `FrameWork` content-evaluation counter rises |
 | 14 | `theStatsCanvasSummaryNamesTheCountsAndFollowsEdits` (StatsTests) | no chart | summary uses stale model snapshot |
 | 15 | `darkSchemeChangesTheSidebarFill` (ThemeTests) | no palette | palette ignores the scheme |
-| 16 | `aWindowShrunkToMinimumKeepsEveryControlHittable` (LayoutTests) | no layout | detail given a fixed width wider than the minimum |
+| 16 | `aWindowShrunkToMinimumKeepsEveryControlHittable` (LayoutTests) | no layout | detail given a fixed width wider than the minimum; asserts each toolbar/new/search accessibility frame lies inside the window and a click at its centre runs its action |
 
 Counting rule: each is `@MainActor @Test`, no sleeps, work counted not timed, a count the loop indexes on is `try #require`.
 The root `everyProductionTreeBuildsOnAOneMegabyteThread` is **not** extended (the example is not in the root package); instead test 17,
@@ -125,6 +125,6 @@ docs and the capture.
 
 ## Open points carried to implementation (each becomes a ruling when settled)
 
-1. `package:` name of the product dependency (see `EX-B`: the identity of a `path: "../.."` dependency is the checkout directory's name).
+1. The dependency spelling (`EX-B`): `.package(name: "MetalUI", path: "../..", traits:)` as `Experiments/SDLGPU` does, built in `sample-app` and a differently named directory; fallback is `package:` = the directory name.
 2. Whether `.searchable` is shown by the SDL drawn toolbar strip with the same label (`MD-K`); if not, a finding.
-3. Drag preview on SDL; reorder driven by `drop(_:at:)` in the harness, real drags only in human check EX2.
+3. Drag preview on SDL; reorder is in-app drag and drop, driven by `TestWindow.drag(from:to:)` (`drop(_:at:)` is for external `DropItem`s and is not the reorder path, `EX-H`); real drags on SDL only in human check EX2.
