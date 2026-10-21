@@ -439,6 +439,20 @@ cursor, so an app that wants one supplies the bitmap (`IC-H`; `guides/input.md`)
 is carried (`IC-G`). At the seam (M): `PlatformPointerStyle.image` and `PlatformCursorImage`
 (`texture`, `scale`, `hotSpotX`/`hotSpotY`, `pixelWidth`/`pixelHeight`, `pointWidth`/`pointHeight`).
 
+**`@GestureState`** (`GS-`, record §135;
+[`superpowers/2026-10-21-gesture-state-decisions.md`](superpowers/2026-10-21-gesture-state-decisions.md);
+probe `probes/swiftui-gesture-state.swift`; class A, one D, 645). `GestureState<Value>` (property wrapper, `@MainActor`):
+`init(wrappedValue:)`, `init(initialValue:)`, each with `resetTransaction:` or `reset:`, and `init(resetTransaction:)`/
+`init(reset:)` where `Value: ExpressibleByNilLiteral`; `wrappedValue` is get-only and `projectedValue` is the state itself.
+`updating(_:body:)` (`(Value, inout State, inout Transaction) -> Void`) is on `DragGesture`, `LongPressGesture`,
+`MagnifyGesture`, `RotateGesture`, and on `TapGesture`/`SpatialTapGesture` where it compiles and never runs (as
+SwiftUI's), and returns the receiver's own type so it chains with `onChanged`/`onEnded`. The state is an ordinary
+`$state<n>` slot (no eighth reserved name) written from the gesture arena under `StateDispatch`, and **resets to its
+initial value when the gesture ends, fails or is cancelled** (every `onCancelled` path), before `onEnded`, with the reset
+transaction animating the return. Two simultaneously composed gestures writing one state in one event resolve in
+declaration order (D 645). Not built: `updating` on a composed gesture, the `GestureStateGesture` type
+(`GS-B`, `GS-N`); the closures are `@MainActor`, as every gesture callback is (SwiftUI's are not).
+
 **Input follow-ups** (`IF-`, record §93;
 [`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
 probe `probes/swiftui-input-followups.swift`). MetalUI-only by ruling, where SwiftUI's
@@ -446,7 +460,7 @@ values and callbacks have nothing (D 235, 236): `SpatialTapGesture.Value.modifie
 last press's keys) and `DragGesture.Value.clickCount` (the press's, 1 by default);
 `onCancelled(_:)` on `DragGesture`, `MagnifyGesture` and `RotateGesture`, run once for a
 leaf that had reported when its arena is dropped (SwiftUI resets `@GestureState` and calls
-no `onEnded`; `@GestureState` and `updating` are not built, `IF-A`).
+no `onEnded`; MetalUI resets it too, `GS-C`).
 `.onModifierKeysChanged(mask:initial:_:)` (M; SwiftUI's macOS 15 spelling, a transparent
 scope whose action runs after the build) reports the held keys with a still pointer; a window
 that loses key reports them released. A scroll's events, momentum included, go to the
@@ -931,12 +945,18 @@ bar; indeterminate when the value is `nil`), the `_ title:` and label /
 current-value-label spellings, `.progressViewStyle(.automatic/.linear/.circular)`
 on the view or a container (`LK-E`, `LK-F`, `LK-V`). Three accessibility roles
 join `AccessibilityRole` (`.progressIndicator`, `.busyIndicator`, `.colorWell`; `LK-G`) — M.
+**Phases** (`GS-H`…`GS-K`, record §135, A): `phaseAnimator(_:trigger:content:animation:)`,
+`phaseAnimator(_:content:animation:)` and `PhaseAnimator`, in both vocabularies. A transparent scope (no node, no identity
+level) whose record lives in `AnimationStore` as `$phase<depth>`; the first phase is built with no animation call, then
+(no trigger) `1, 2, 0, 1, …` forever, or (trigger) one run through the phases back to the first per change, each held for
+its animation's duration, a nil animation snapping and the next step following at once. Reduce Motion is not changed
+(unmeasured in SwiftUI, `GS-K`, human check GS3); an empty phase list traps.
 **Animation**: `keyframeAnimator(initialValue:trigger:content:keyframes:)`,
 `keyframeAnimator(initialValue:repeating:content:keyframes:)`, `KeyframeAnimator`,
 `KeyframeTimeline`, `KeyframeTrack`, `LinearKeyframe`, `CubicKeyframe`,
 `SpringKeyframe` (`duration:` required, 168), `MoveKeyframe`, `Spring`, `UnitCurve`
 and `VectorArithmetic` (169; a zero-duration keyframe reads its target, 171);
-`phaseAnimator` is not built (`LK-H`). **Looks**: `Gradient`, `LinearGradient` and
+`phaseAnimator` and `PhaseAnimator` (A; `GS-H`…`GS-K`). **Looks**: `Gradient`, `LinearGradient` and
 `RadialGradient` (colours, stops or a `Gradient`; views, `ShapeStyle`-like `fill`,
 `stroke` and `background` overloads in both vocabularies, rasterized on the CPU
 through the image path with a one-texel strip fast path, no shader change —
@@ -951,7 +971,7 @@ a renderer cannot blur; divergences 166, 245–248, Reduce Transparency 315; `BB
 reads a material's tint as a `Color` (MetalUI-only, class M; C27, `MT-B`; a material takes
 no colour, `MT-C`). Not built:
 `AngularGradient`, `EllipticalGradient`, `Gradient.colorSpace(_:)`,
-`.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, `phaseAnimator`, a native
+`.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, a native
 `NSColorPanel` route, a material that takes a colour or an opacity (`MT-C`), saturation lift — each a
 named deferral (`LK-A`, `BB-I`).
 

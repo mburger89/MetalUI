@@ -22,13 +22,14 @@ import MetalUILayout
 /// **none**, additive: opening the protocol later breaks no caller).
 ///
 /// **Not offered** (owner none, `IX-B`, `CI-A`): `sequenced(before:)`,
-/// `@GestureState`/`updating(_:body:)`, `GestureMask`/`including:`, the
+/// `GestureMask`/`including:`, `updating` on a composed gesture, the
 /// `isEnabled:`/`name:` attachment overloads, `CoordinateSpace.named(_:)` and
 /// `.coordinateSpace(_:)` (`.local` and `.global` only), `time`/`velocity`/
 /// `predictedEnd*` on gesture values, `GestureInputKinds`/`inputKinds:`, and
-/// `TapGesture().modifiers(_:)`. `@GestureState` is replaced by `onCancelled(_:)`
-/// on `DragGesture`, `MagnifyGesture` and `RotateGesture` (`IF-A`, `IF-E`):
-/// reset in it what `onChanged` set.
+/// `TapGesture().modifiers(_:)`. `@GestureState` and `updating(_:body:)` are built
+/// (`GS-A`…`GS-G`, record §135): the state resets when the gesture ends, fails or
+/// is cancelled. `onCancelled(_:)` on `DragGesture`, `MagnifyGesture` and
+/// `RotateGesture` (`IF-A`, `IF-E`) stays for a caller who wants the event.
 public protocol Gesture {
     /// The value the gesture reports — `Void` for a tap, `Bool` for a long
     /// press, `DragGesture.Value` for a drag.
@@ -315,7 +316,7 @@ public struct DragGesture: Gesture {
     /// with no button down), a draggable's preview took over, or the window
     /// closed. **MetalUI-only** (divergence 236): SwiftUI never calls `onEnded`
     /// for a cancelled gesture and tells its owner only through `@GestureState`,
-    /// which MetalUI does not offer. Never after `onEnded`, never for a drag
+    /// which MetalUI offers too (`GS-A`); this callback is for a caller who wants the event. Never after `onEnded`, never for a drag
     /// that did not begin, and not when the gesture is disabled or its owner
     /// removed mid-drag (the closure belongs to state that is reset, `IF-K`
     /// item 3). Reset what `onChanged` set here.

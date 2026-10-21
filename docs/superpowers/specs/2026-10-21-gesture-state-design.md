@@ -1,7 +1,9 @@
 # `@GestureState` and `phaseAnimator` — design
 
 Item G1, branch `feat/gesture-state` from `1bdead8d`, record §135 (Record phase). Rulings: [`../2026-10-21-gesture-state-decisions.md`](../2026-10-21-gesture-state-decisions.md)
-(`GS-A`…`GS-N`). Probe: `docs/probes/swiftui-gesture-state.swift` (output in its header). SwiftUI is the authority; gpui has no counterpart (decisions header).
+(`GS-A`…`GS-S`). Probe: `docs/probes/swiftui-gesture-state.swift` (output in its header). SwiftUI is the authority; gpui has no counterpart (decisions header).
+
+**Status: LANDED 2026-10-21** (record [§135](../../record/135-gesture-state.md); both lanes verified ok; looks and the probe re-take owed, human-checks group GS).
 
 ## 1. Inventory — what the item touches today
 

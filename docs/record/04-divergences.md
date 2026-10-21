@@ -2691,3 +2691,17 @@ reads `@Environment` is now memoized by the **readings** of its declared propert
 **Amended (earlier):** none. **Retired:** none. Label 345 refuted and unused (`IV-L`: probe arms S2/S3 show SwiftUI
 honours a custom `==` for closure and class inputs too); labels 347–354 of this branch's range unused.
 
+
+## 2026-10-21: 645 added, 236 amended (`@GestureState` and `phaseAnimator`, record §135)
+
+**645** (`GS-D`, `GS-G`): two simultaneously composed gestures that write one `GestureState` in one event. SwiftUI runs the **last-declared**
+member of `simultaneously(with:)` first, so the first-declared member's `updating` body runs last and its write wins (probe
+`swiftui-gesture-state.swift` `G7`, `G7d`, `G7e`, recorded 2026-10-21 and **not re-taken**, `GS-O`; human check GS7). MetalUI runs the bodies in the arena's
+order, **declaration order** (`H16`'s pin must not move), so the last-declared member's write wins; every body of one event still starts from the value
+committed before the event and any writer ending resets the whole slot, as SwiftUI does (`G7b`, `G7c`). Pinned wrong on purpose:
+`simultaneousWritersStartFromTheEventsCommittedValueAndTheLastWins`, `anyWriterEndingResetsTheSharedState`. A state written by one gesture, or by two gestures in
+different events, does not differ. Owner none (`H16`).
+
+**Amended: 236** ("`@GestureState`/`updating` are not offered" became "built since §135, reset on every one of these paths"; `onCancelled` stays for a
+caller who wants the event) and the not-built row naming `@GestureState` (now `updating` on a composed gesture and `GestureStateGesture`). **Not labelled:** the
+`@MainActor` on `updating` and `reset:` (every gesture callback is, `GS-N`, `GS-S`). Labels 646–654 of this branch's range unused.

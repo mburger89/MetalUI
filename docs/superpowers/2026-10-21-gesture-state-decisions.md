@@ -8,7 +8,7 @@ output in its header; arms `G1`–`G13`, `P1`–`P10`, the instrument of `swiftu
 it by hand in its own mouse-up handler; gpui animations are `with_animation` over an element id, no phases): nothing is claimed from gpui.
 Divergence labels **645–654 reserved**; **645 taken** (`GS-G`, row in `docs/divergences.md`), the rest unused.
 
-Prefix **`GS-`**, lettered. **Next unused: `GS-S`.** (Moves in the commit that appends a ruling.)
+Prefix **`GS-`**, lettered. **Next unused: `GS-T`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IX-B` (a gesture's callbacks are returned by value from the pure arena and run under `StateDispatch`), `IF-E`/`IF-F`/`IF-K`/`GC-`
 (every `onCancelled` path; divergence 236 amended at Record), `ID-F` (an aliased state box resolves its occurrence from the dispatch owner),
@@ -228,3 +228,10 @@ applies to a live keyframe animator, and an idle trigger animator's rest is not 
 (`seconds` of a duration curve, `duration:` of a spring, `0` for a zero, negative or NaN). (9) The demo's pulse and triggered bar live in `PhasesDemo`, a `Component` inside the keyframes row, **no
 click target**: the trigger is the row's own "Shake" count. `GuideDocCheck.deniedNames` is now empty (it denied `PhaseAnimator` until this lane). (10) **Re-take owed** (`GS-O`): the screen stayed locked,
 so probe arm `P5` was not re-run; the test `aNilAnimationSnapsAndTheNextStepFollowsAtOnceP5` carries "recorded, not re-taken". **Cost if wrong:** a P5 value re-ruled.
+
+## GS-S — Record phase: the `@MainActor` closures are ruled, not labelled; the counts and the one named mutation gap
+
+**Ruling.** (1) `updating`'s body and `reset:` are `@MainActor`, SwiftUI's are not (`GS-N`, `GS-Q` 3). Every MetalUI gesture callback (`onChanged`, `onEnded`, `onCancelled`) already is, no divergence label has
+ever been taken for that, and a caller who writes the SwiftUI spelling in `@MainActor` code (every view body) compiles unchanged; **no label** (646–654 stay unused). (2) The Record phase's `aGestureStateWriteIsAStateWriteForTheMemoAndRetainedPaths`
+mutation (no version bump on the write) is run and named in record §135 §5.1; the disabled-owner arm's "run the reset at the disable" mutation has no recorded red and is listed there as a gap, not a claim. (3) Probe arms `G7`, `G7e`, `P5`
+stay un-re-taken (screen locked, `GS-O`); human check GS7 owns the re-take. **Cost if wrong:** a label for a type-level isolation difference, one row.

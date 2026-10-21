@@ -2404,3 +2404,7 @@ No real window was driven (the screen was locked, `CGSSessionScreenIsLocked = 1`
 ## 2026-10-21: SDL GPU gaps (record §137) — looks owed, group GB
 
 No real window, no D3D12 device and no 3D viewport app were driven (an agent cannot; CI compiles Windows only). **Owed, new here — `docs/verification/human-checks.md` group GB, none performed**: GB1 anisotropy 1 against 16 on a grazing plane on Metal, Vulkan and D3D12, GB2 the viewport, scissor, depth-only prepass, `r32Float` and synchronous download pins' behaviour on real D3D12, GB3 the main-actor stall of `downloadSynchronously` and the pipeline-failure text in a real viewport app. Owed, not a look: the Linux-image and fourteen-image re-takes at the final head (record §137 §3).
+
+## 2026-10-21: `@GestureState` and `phaseAnimator` (record §135) — looks owed, group GS
+
+No real window was driven and the probe was not re-run (the screen was locked, `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`). **Owed, new here — `docs/verification/human-checks.md` group GS, none performed**: GS1 the chip's eased return, GS2 the hold chip's pressed look, GS3 Reduce Motion for `phaseAnimator` in SwiftUI against MetalUI (`GS-K`), GS4 key loss mid-drag, GS5 the pulse's CPU while running and occluded, GS6 the same on Linux, GS7 the re-take of probe arms `G7`, `G7e`, `P5`. Owed, not a look: the unlocked root run (five `AppKitPresentationTests` sheet issues of `CI-AF` read on a locked screen), the Linux-image re-take on the merged tree.

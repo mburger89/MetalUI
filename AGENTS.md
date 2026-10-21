@@ -91,7 +91,7 @@ summary.
   `2026-10-19-retained-withstate-decisions.md`, next `RW-U`), `MO-` (memo and retained observation off the main thread:
   `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), `OS-` (raster overscan, pooled rasterizer scratch:
   `2026-10-20-raster-overscan-decisions.md`, next `OS-Q`), `FS-` (finer retention scopes:
-  `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `CF-` (warm and cold frame gaps: `2026-10-20-warm-settle-decisions.md`, next `CF-L`), `RG-` (retained geometry observers, placement translation, per-shelf atlas uploads: `2026-10-20-retained-geometry-decisions.md`, next `RG-Q`), `AT-` (accessibility under an effect-translated replay: `2026-10-20-ax-translated-replay-decisions.md`, next `AT-H`), `RL-` (retained lifecycle and translation carries: `2026-10-21-retained-lifecycle-decisions.md`, next `RL-R`), `AP-` (SDL application id: `2026-10-21-sdl-app-id-decisions.md`, next `AP-G`), `EX-` (the sample app: `2026-10-21-sample-app-decisions.md`, next `EX-T`), `GB-` (SDL GPU gaps: `2026-10-21-sdl-gpu-gaps-decisions.md`, next `GB-M`), `IS-` (header-only image format sniff: `2026-10-20-image-sniff-decisions.md`, next `IS-L`), …; the full
+  `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `CF-` (warm and cold frame gaps: `2026-10-20-warm-settle-decisions.md`, next `CF-L`), `RG-` (retained geometry observers, placement translation, per-shelf atlas uploads: `2026-10-20-retained-geometry-decisions.md`, next `RG-Q`), `AT-` (accessibility under an effect-translated replay: `2026-10-20-ax-translated-replay-decisions.md`, next `AT-H`), `RL-` (retained lifecycle and translation carries: `2026-10-21-retained-lifecycle-decisions.md`, next `RL-R`), `AP-` (SDL application id: `2026-10-21-sdl-app-id-decisions.md`, next `AP-G`), `EX-` (the sample app: `2026-10-21-sample-app-decisions.md`, next `EX-T`), `GB-` (SDL GPU gaps: `2026-10-21-sdl-gpu-gaps-decisions.md`, next `GB-M`), `IS-` (header-only image format sniff: `2026-10-20-image-sniff-decisions.md`, next `IS-L`), `GS-` (`@GestureState`, `phaseAnimator`: `2026-10-21-gesture-state-decisions.md`, next `GS-T`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -290,7 +290,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126, §127, §128, §129, §130, §131, §132, §136, §137.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126, §127, §128, §129, §130, §131, §132, §135, §136, §137.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -934,8 +934,8 @@ press's) and `DragGesture.Value.clickCount` (the press's, never the move's) are 
 values (divergence 235); `onCancelled` on drag, magnify and rotate runs **once, only for a
 leaf that had reported**, from a dropped primary arena, a replaced stale button or pinch arena,
 a `.mouseMoved` while a button arena is live (a lost release), key loss and window close —
-never for a disabled gesture or a removed owner (`IF-E`, `IF-K` 3; divergence 236; no
-`@GestureState`). A wheel scroll **latches** to the cover of its `.began` through its momentum
+never for a disabled gesture or a removed owner (`IF-E`, `IF-K` 3; divergence 236; the
+reset is `@GestureState`, `GS-`). A wheel scroll **latches** to the cover of its `.began` through its momentum
 (`ScrollLatch`, `IF-G`) and ends with a synthesized `.cancelled` to the latched handlers on key
 loss or close (`IF-H`); the platforms send `.modifiersChanged` on becoming key (`IF-I`).
 `onModifierKeysChanged(mask:initial:_:)` is one transparent `ModifierKeysScope` (the shape of
@@ -1088,6 +1088,16 @@ window's device. An atomic append is a storage-buffer counter (`GA-G`). App shad
 buffer and has no submit, cancel, wait or acquire verb** (`GA-H`); the debug guard traps a typed `waitForIdle`, `submitBatch` and
 `fence.wait` in a draw and a pass left open (the async two through a `package` test hook, `GA-R`); a raw SDL call is undetected (`GA-I`). A new SDL GPU test needs
 `armMainRunLoopExitCheck()` on macOS, runs the Linux image on lavapipe and takes `METALUI_REQUIRE_GPU=1` in CI.
+
+**`@GestureState` and `phaseAnimator` (`GS-`, record §135).** `GestureState<Value>` is a `@MainActor` wrapper over a `State<Value>` plus a dirty set: a **`$state<n>` slot, no eighth
+reserved name** (`BindableState`, `StateTable.write`/`peek`, so the memo, retained and prepaint logs already see its writes), get-only `wrappedValue`, itself its `projectedValue`. `updating(_:body:)` is on
+the concrete gestures (a tap's compiles and never runs; none on a composition), returns the receiver's own type and runs in declaration order with `onChanged`. **The reset is one `finished` hook on the
+arena leaf, queued in `fail(_:)` and in `act(_:)` before the ended callback and handed back by `cancel()`/`abandon()` (`owesFinish`)**: a new exit from an arena owes a pin that the state resets once
+(`everyCancelPathResetsOnce`). Every body of one event starts from the value committed before it; two simultaneous writers resolve in declaration order (divergence 645, probe arms `G7`/`G7e` not re-taken). The
+update's transaction applies only when the body set an animation, the reset's only when it animates (divergence 99's one root). `phaseAnimator`/`PhaseAnimator` are `keyframeAnimator`'s transparent scope
+with a `PhaseRecord` in `AnimationStore` at **`$phase<depth>`** (never a `StateTable` slot, `keyframeDepth`'s counter shared): no trigger cycles forever, a trigger runs once through the phases back to the
+first, each held for `Animation.nominalDuration`; it calls `noteActiveAnimation()`, **never `requestAnotherFrame()`**; Reduce Motion is not changed (`GS-K`, unmeasured); it is refused by the retained paths by
+name while cycling. No `Retained*.swift` edit, no `Handlers` change, no seam requirement. Demos: `METALUI_CANVAS_DEMO=1` chips, `METALUI_LOOKS_DEMO=1` pulse. Pins count work and values.
 
 **SDL GPU gaps (`GB-`, record §137).** Class `M`, `MetalUISDLGPU` only, no divergence (665-674 untouched), no root change. `SDLGPURenderPass.setViewport`/`setScissor` are
 `@discardableResult -> Bool`: top-left target pixels, a non-finite value or size `<= 0` answers `false` and never traps, the scissor **clamps to the pass's target**, the viewport does not
@@ -1291,7 +1301,7 @@ element side as `AXNode.colorWellHint`/`progressHint` (internal, stripped in
 bridges. The spinner steps by the frame clock only while visibly painted
 (`LK-F`); keyframes are a transparent scope whose records live in
 `AnimationStore` (`$keyframes<depth>`, never a `StateTable` slot; `LK-I`);
-`phaseAnimator` is not built. **A gradient is rasterized on the CPU through the
+`phaseAnimator` is built (`GS-H`). **A gradient is rasterized on the CPU through the
 image path** (Oklab table; a one-texel strip when linear along one axis, else a
 full raster in `RasterCache`; no shader change; `LK-J`); `.blur(radius:)` is per
 leaf with sigma = radius, the shadow pipeline in colour keyed by
