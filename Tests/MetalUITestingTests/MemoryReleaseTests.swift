@@ -29,6 +29,20 @@ private struct ReleasePlain: Component {
     }
 }
 
+/// A card with every lifecycle kind and a modifier scope: a graft's journal holds these closures (`RL-L`).
+private struct ReleaseScopedCard: Component, Equatable {
+    let id: Int
+    let model: ReleaseModel
+    nonisolated static func == (a: ReleaseScopedCard, b: ReleaseScopedCard) -> Bool { a.id == b.id && a.model === b.model }
+    var content: some ElementGroup {
+        Text("scoped \(id)").frame(width: 120, height: 20)
+            .onAppear { _ = model.count }
+            .onChange(of: id) { _, _ in model.count += 1 }
+            .task(id: id) { _ = model.count }
+            .onModifierKeysChanged { _, _ in model.count += 1 }
+    }
+}
+
 private struct ReleaseWeak {
     weak var model: ReleaseModel?
     weak var testWindow: TestWindow?
@@ -83,6 +97,27 @@ private struct ReleaseWeak {
 
     @Test func anEquatableComponentWithRetentionReleasesItsWindowAndModel() throws {
         let refs = try openAndRelease(equatable: true, retain: true, frames: 12)
+        released(refs, equatable: true)
+    }
+
+    /// `RL-L`, `IV-R`: a window closed while occurrences with `onAppear`, `onChange`, `.task` and a modifier scope are grafted frees
+    /// the window and the model: the journal holds the closures only on the memo entry's record.
+    @Test func aGraftedOccurrenceWithLifecycleScopesReleasesItsWindowAndModel() async throws {
+        var refs = ReleaseWeak()
+        do {
+            let model = ReleaseModel()
+            let testWindow = try TestWindow(size: sz(400, 300), textSystem: harnessTextSystem) {
+                VStack { ForEach(0..<3, id: \.self) { ReleaseScopedCard(id: $0, model: model).equatable() } }
+            }
+            for _ in 0..<12 { testWindow.window.setNeedsRedraw(); testWindow.tick() }
+            await rsSettle()
+            refs.model = model
+            refs.testWindow = testWindow
+            refs.window = testWindow.window
+            refs.store = testWindow.window.testingContentMemos
+            testWindow.close()
+        }
+        await rsSettle()
         released(refs, equatable: true)
     }
 

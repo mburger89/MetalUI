@@ -73,7 +73,7 @@ public struct ModifierKeysScope<Content: ElementGroup>: ElementGroup {
     public mutating func prepaintGroup(layout: inout ModifierKeysScopeLayout<Content.GroupLayout>,
                                        pass: inout PrepaintPass) -> Content.GroupPrepaint {
         if let key = layout.key, let owner = layout.owner {
-            pass.frame.prepaintLog?.taint("modifierKeys")   // a note the lifecycle drain reads (`RK-E`)
+            pass.frame.prepaintLog?.modifiers.append(ModifierNoteRecord(watch: watch, key: key, owner: owner))   // `RL-B`
             pass.frame.animationStore.lifecycle.noteModifierKeys(watch: watch, key: key, owner: owner)
         }
         return content.prepaintGroup(layout: &layout.content, pass: &pass)

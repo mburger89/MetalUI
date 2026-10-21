@@ -36,6 +36,9 @@ final class BuildJournal {
         case transitionEvaluated(GlobalElementID, Animation?)
         case transitionProduced(GlobalElementID, GlobalElementID)
         case transitionArray(GlobalElementID, Int)
+        /// A lifecycle scope's store note: `(write, scope, owner, order)` (`RL-C`). The order is the build's while the journal
+        /// records and relative to the window's first reserved order in a `GraftRecord`.
+        case lifecycleNote(LifecycleWrite?, GlobalElementID, GlobalElementID, Int)
     }
 
     var events: [Event] = []
@@ -64,6 +67,8 @@ final class GraftRecorder {
     var orderStart = 0
     var requests = 0
     var audit = BuildAudit()
+    /// `LifecycleStore.nextRegistrationOrder` where the window opened (`RL-C`).
+    var lifecycleBase = 0
 }
 
 // MARK: - The key and the record
@@ -120,6 +125,8 @@ final class GraftRecord {
     let contentSerial: Int
     var segment: LayoutSegment
     var events: [BuildJournal.Event]
+    /// The lifecycle orders the build reserved, scopes with no content included (`RL-C`).
+    var lifecycleOrders = 0
     /// `Frame.elementRequests` the build made: what a graft stands for.
     let requests: Int
     /// Nested occurrences' memo entries, `@State` entries kept live and animation entries touched: they must
@@ -203,6 +210,7 @@ extension Frame {
         recorder.orderStart = lowering.order.count
         recorder.requests = elementRequests &+ stateTable.contentMemos.retained.skippedRequests
         recorder.audit = buildAudit()
+        recorder.lifecycleBase = animationStore.lifecycle.nextRegistrationOrder
         journal.open.append(recorder)
         return recorder
     }
@@ -218,8 +226,14 @@ extension Frame {
         let (segment, refusal) = tree.captureSegment(from: recorder.lower, tops: tops)
         guard let segment else { return (nil, refusal ?? "segment") }
         let record = GraftRecord(key: key, contentSerial: contentSerial, segment: segment,
-                                 events: Array(journal.events[recorder.start...]),
+                                 events: journal.events[recorder.start...].map { (event: BuildJournal.Event) -> BuildJournal.Event in
+                                     if case .lifecycleNote(let write, let scope, let owner, let order) = event {
+                                         return .lifecycleNote(write, scope, owner, order - recorder.lifecycleBase)
+                                     }
+                                     return event
+                                 },
                                  requests: elementRequests &+ stateTable.contentMemos.retained.skippedRequests - recorder.requests)
+        record.lifecycleOrders = animationStore.lifecycle.nextRegistrationOrder - recorder.lifecycleBase
         // Items of the nodes the window registered: a top's is carried, an interior one must be consumed (a record no
         // container consumed would be reported by name at the end of the frame, `LR-AQ`: not a graft's to hide).
         let range = recorder.lower..<tree.nodeCount
@@ -243,8 +257,9 @@ extension Frame {
     }
 
     /// Applies a journal through the stores' own functions (`RK-F`): the calls the build made, in the order it made them.
-    func reapply(_ events: [BuildJournal.Event]) {
+    func reapply(_ events: [BuildJournal.Event], lifecycleOrders: Int = 0) {
         let memos = stateTable.contentMemos
+        let lifecycleBase = animationStore.lifecycle.nextRegistrationOrder
         for event in events {
             switch event {
             case .mark(let id): stateTable.mark(id)
@@ -261,8 +276,11 @@ extension Frame {
             case .transitionEvaluated(let slot, let animation): animationStore.transitions.replayEvaluated(slot, animation)
             case .transitionProduced(let unit, let evaluator): animationStore.transitions.replayProduced(unit, evaluator)
             case .transitionArray(let slot, let extent): animationStore.transitions.replayArray(slot, extent)
+            case .lifecycleNote(let write, let scope, let owner, let order):
+                animationStore.lifecycle.note(write, scope: scope, owner: owner, order: lifecycleBase + order)   // `RL-A`, `RL-C`
             }
         }
+        animationStore.lifecycle.advanceOrder(by: lifecycleOrders)
     }
 
     /// Whether the entries a graft record depends on are all still there and unchanged (`RK-F`).
@@ -332,7 +350,7 @@ extension Frame {
                 lowering.record(carried, for: tops[index])
             }
         }
-        reapply(record.events)
+        reapply(record.events, lifecycleOrders: record.lifecycleOrders)
         let retained = stateTable.contentMemos.retained
         _ = retained
         stateTable.contentMemos.retained.grafts += 1

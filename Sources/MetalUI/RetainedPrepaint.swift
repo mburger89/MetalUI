@@ -33,7 +33,7 @@ final class PrepaintLog {
     }
 
     struct Marks: Equatable {
-        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0
+        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0
     }
 
     var recorders: [PrepaintRecorder] = []
@@ -48,6 +48,8 @@ final class PrepaintLog {
     var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Geometry notes made under the prepaint, in note order (`RG-A`).
     var geometry: [GeometryNoteRecord] = []
+    /// Modifier-key notes made under the prepaint, in note order (`RL-B`).
+    var modifiers: [ModifierNoteRecord] = []
     /// Depth of `withState` calls a replay reproduces itself (the accessibility node's retention slot).
     /// Entries read-only accesses kept live under the prepaint (`RW-E`).
     var lives: [GlobalElementID] = []
@@ -56,7 +58,7 @@ final class PrepaintLog {
     var current: Marks {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
               contextMenus: contextMenus.count, elementBounds: elementBounds.count, lives: lives.count,
-              anchors: anchors.count, geometry: geometry.count)
+              anchors: anchors.count, geometry: geometry.count, modifiers: modifiers.count)
     }
 
     /// Marks every open recorder as unable to leave a ledger, naming the first reason.
@@ -87,6 +89,14 @@ struct GeometryNoteRecord {
     let owner: GlobalElementID
     let value: Any
     let global: Bounds<Pixels>
+}
+
+/// One `onModifierKeysChanged` note a prepaint made (`RL-B`): the position and watch only. **No value**: the note's value is the
+/// window's current modifiers, read when it is made again, so a replay delivers a change a recorded value would miss.
+struct ModifierNoteRecord {
+    let watch: ModifierKeysWatch
+    let key: GlobalElementID
+    let owner: GlobalElementID
 }
 
 /// One occurrence's open prepaint window.
@@ -133,6 +143,8 @@ final class PrepaintLedger {
     var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Geometry notes, replayed in order into the lifecycle store (`RG-A`).
     var geometry: [GeometryNoteRecord] = []
+    /// Modifier-key notes, made again in order against the current modifiers (`RL-B`).
+    var modifiers: [ModifierNoteRecord] = []
     var tallies = RegionTallies()
     /// The element prepaints the replay stands for (`FrameWork.retainedSkippedPrepaints`).
     var prepaints = 0
@@ -377,6 +389,7 @@ extension Frame {
         ledger.elementBounds = Array(log.elementBounds[from.elementBounds..<to.elementBounds])
         ledger.anchors = Array(log.anchors[from.anchors..<to.anchors])
         ledger.geometry = Array(log.geometry[from.geometry..<to.geometry])
+        ledger.modifiers = Array(log.modifiers[from.modifiers..<to.modifiers])
         ledger.liveStates = Array(log.lives[from.lives..<to.lives])
         var seenReads = Set<GlobalElementID>()
         for index in recorder.readLow..<stateTable.readJournal.count {

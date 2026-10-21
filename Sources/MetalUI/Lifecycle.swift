@@ -379,14 +379,41 @@ final class LifecycleStore {
 
     /// The next registration order in the build being laid out.
     func reserveOrder() -> Int {
-        defer { nextOrder += 1 }
+        defer { nextOrder += 1; journaledActivity += 1 }
         return nextOrder
+    }
+
+    /// The build journal a graft window records into (`RL-C`): attached by `AnimationStore.attach`.
+    var buildJournal: BuildJournal?
+    /// Registrations the journal saw this build (`RL-D`): `buildActivity` subtracts them, so it counts the ones that bypassed it.
+    private var journaledActivity = 0
+
+    /// The order the next reserved scope takes: where a graft window opens (`RL-C`).
+    var nextRegistrationOrder: Int { nextOrder }
+
+    /// A graft stands for `count` reserved orders (`RL-C`): the pre-order numbering moves as the build's would have.
+    func advanceOrder(by count: Int) {
+        nextOrder += count
+        journaledActivity += count
+    }
+
+    /// A registration that skips the journal (test only, `RL-D`): moves the audit's channel.
+    func testingBypassJournal() { workThisFrame += 1 }
+
+    /// The notes this build holds so far, one line per key sorted, for verify mode's comparison (`RL-D`).
+    var currentDigest: [String] {
+        let lifecycle = current.map { "L \(sbPath($0.key.scope))#\($0.key.occurrence) o\($0.value.order) a\($0.value.onAppear != nil) d\($0.value.onDisappear != nil) c\($0.value.change != nil) t\($0.value.task != nil)" }
+        let geometry = geometryCurrent.map { "G \(sbPath($0.key.scope))#\($0.key.occurrence) o\($0.value.order)" }
+        let modifiers = modifierCurrent.map { "M \(sbPath($0.key.scope))#\($0.key.occurrence) o\($0.value.order) v\($0.value.value.rawValue)" }
+        return (lifecycle + geometry + modifiers).sorted()
     }
 
     /// A present scope (layout).
     /// A `nil` write is a present scope with no action (`LC-V`): its entry
     /// keeps presence steady while an action toggles to or from `nil`.
     func note(_ write: LifecycleWrite?, scope: GlobalElementID, owner: GlobalElementID, order: Int) {
+        buildJournal?.record(.lifecycleNote(write, scope, owner, order))
+        journaledActivity += 1
         let occurrence = occurrences[scope, default: 0]
         occurrences[scope] = occurrence + 1
         var entry = Entry(order: order, owner: owner)
@@ -421,6 +448,7 @@ final class LifecycleStore {
         defer {
             occurrences.removeAll(keepingCapacity: true)
             nextOrder = 0
+            journaledActivity = 0
         }
         // This build's geometry events run ahead of its lifecycle events
         // (G1: the initial value before `onAppear`; `KF-J` item 3).
@@ -558,12 +586,13 @@ final class LifecycleStore {
     /// key (a second `onAppear`). All of it is empty at the start of a build (`endFrame` swaps and clears), so
     /// the rollback is a clear. Pins: `aRedoLeavesEveryTableAsAFreshBuildWould`.
     /// Registrations made by the build in progress (`RK-F`): a graft window that moves it cannot be replayed.
-    var buildActivity: Int { workThisFrame &+ nextOrder }
+    var buildActivity: Int { workThisFrame &+ nextOrder &- journaledActivity }
 
     func rollbackBuild() {
         current.removeAll(keepingCapacity: true)
         occurrences.removeAll(keepingCapacity: true)
         nextOrder = 0
+        journaledActivity = 0
         currentHasDisappearActions = false
         workThisFrame = 0
         geometryCurrent.removeAll(keepingCapacity: true)

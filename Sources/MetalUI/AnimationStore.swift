@@ -138,6 +138,7 @@ final class AnimationStore {
     func attach(_ journal: BuildJournal) {
         buildJournal = journal
         transitions.buildJournal = journal
+        lifecycle.buildJournal = journal
     }
 
     /// Keeps the entry at `id` for this frame without reading it (a graft standing for a build that read or set it).

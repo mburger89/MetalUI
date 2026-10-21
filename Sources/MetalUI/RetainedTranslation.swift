@@ -280,6 +280,7 @@ extension PrepaintLedger {
         copy.elementBounds = moved.elementBounds
         copy.anchors = anchors
         copy.geometry = geometry
+        copy.modifiers = modifiers
         copy.tallies = tallies
         copy.prepaints = prepaints
         copy.liveStates = liveStates

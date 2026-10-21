@@ -322,3 +322,61 @@ func aViewportShapedTreeIsRetainedEligible() async throws {
             "\(f.retainedIneligible)/\(f.retainedPrepaintIneligible)/\(f.retainedGraftIneligible) \(f.retainedIneligibleReasons)")
     #expect(f.retainedGrafts == 3, "\(f.retainedGrafts)")
 }
+
+/// 7 (`RL-C`, `RL-D`). A redo's rollback leaves the store with no registration and no unjournaled activity, and a twin build holds one note
+/// per key: the journal's own counter is reset with the rest. Mutation: drop `journaledActivity = 0` from `LifecycleStore.rollbackBuild`
+/// (`buildActivity` reads negative, so the next window would refuse by name `lifecycle`).
+@Test @MainActor
+func aRedoDropsJournaledLifecycleNotes() {
+    let journal = BuildJournal(), store = LifecycleStore()
+    store.buildJournal = journal
+    journal.open.append(GraftRecorder())
+    var ran = 0
+    let scope = GlobalElementID.child(of: nil, at: 0, name: ElementID("$lifecycle0"))
+    let owner = GlobalElementID.child(of: nil, at: 0, name: nil)
+    func build() { store.note(.appear { ran += 1 }, scope: scope, owner: owner, order: store.reserveOrder()) }
+    build()
+    #expect(journal.events.count == 1 && store.buildActivity == 0, "journaled: \(journal.events.count) \(store.buildActivity)")
+    store.rollbackBuild()
+    #expect(store.buildActivity == 0, "a rollback resets the journal's counter: \(store.buildActivity)")
+    build()
+    #expect(store.buildActivity == 0, "\(store.buildActivity)")
+    store.endFrame(liveGhosts: [], departed: nil)
+    #expect(store.takeEvents().count == 1, "one appearance, not two")
+}
+
+@MainActor enum RLBypass { static var store: LifecycleStore? }
+
+private struct RLBypassCard: Component, @MainActor Equatable {
+    let tag: Int
+    static func == (l: RLBypassCard, r: RLBypassCard) -> Bool { l.tag == r.tag }
+    var content: some ElementGroup { RLBypassInner() }
+}
+
+/// Built inside the card's graft window (the card's own getter runs before it opens).
+private struct RLBypassInner: Component {
+    var content: some ElementGroup {
+        let _ = RLBypass.store?.testingBypassJournal()
+        Box().frame(width: Pixels(40), height: Pixels(20)).background(.accent)
+    }
+}
+
+/// 10 (`RL-D`). The tripwire: a registration that bypasses the journal inside an occurrence's build window refuses the graft by name
+/// `lifecycle`; the control (no bypass) refuses nothing. Mutation: delete the `lifecycle` comparison in `BuildAudit.movedChannel`.
+@Test(.enabled(if: !rlVerifying, rlVerifyNote)) @MainActor
+func anUnjournaledRegistrationRefusesTheGraftByName() async throws {
+    let model = RLModel()
+    let w = try TestWindow(size: Size(width: Pixels(200), height: Pixels(100))) {
+        VStack(spacing: 0) { RLBypassCard(tag: model.tag).equatable() }
+    }
+    await rlRedraw(w, 8)
+    #expect(w.lastFrameWork.retainedGrafts == 1)
+    model.tag += 1
+    await rlRedraw(w, 1)
+    #expect(!w.window.testingGraftRefusals.contains("lifecycle"), "the control: \(w.window.testingGraftRefusals)")
+    RLBypass.store = w.window.animationStore.lifecycle
+    defer { RLBypass.store = nil }
+    model.tag += 1
+    await rlRedraw(w, 1)
+    #expect(w.window.testingGraftRefusals == ["lifecycle"], "\(w.window.testingGraftRefusals)")
+}

@@ -4076,6 +4076,11 @@ extension Frame {
             prepaintLog?.geometry.append(note)
             stateTable.contentMemos.retained.replayedGeometryNotes += 1
         }
+        // Each modifier note is made again against the modifiers held now (`RL-B`).
+        for note in l.modifiers {
+            animationStore.lifecycle.noteModifierKeys(watch: note.watch, key: note.key, owner: note.owner)
+            prepaintLog?.modifiers.append(note)
+        }
         for id in l.liveStates { stateTable.touchLive(id); prepaintLog?.lives.append(id); retainLog?.lives.append(id) }
         for id in l.reads { stateTable.noteRead(id) }
         hoverRegionCount += l.tallies.hover

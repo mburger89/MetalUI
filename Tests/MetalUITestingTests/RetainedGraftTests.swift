@@ -477,7 +477,7 @@ enum RGKind: String, CaseIterable {
         switch self {
         case .control: nil
         case .hidden: "hiddenNodes"
-        case .lifecycle: "lifecycle"
+        case .lifecycle: nil   // journaled since `RL-C`: a scope grafts (the tripwire is `anUnjournaledRegistrationRefusesTheGraftByName`)
         case .timeline: "timeVarying"
         case .scroll: nil   // read-only state since `RW-H`: a scroller grafts
         case .stateWrite: "stateWrite"
