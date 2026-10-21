@@ -200,26 +200,43 @@ desktop-file-install --dir="$HOME/.local/share/applications" com.example.MyApp.d
 `desktop-file-validate` prints nothing (valid) and `desktop-file-install`
 installs it. `Icon=` is the theme name (no path, no extension).
 
-### 3. Matching the running window to the entry — unverified
+### 3. Matching the running window to the entry
 
 A shell associates a *running* window with its desktop entry by the window's
 application id: the Wayland `app_id`, or the X11 `WM_CLASS` (which
 `StartupWMClass` matches). SDL3's application id is its `SDL_APP_ID` hint
 (`SDL_hints.h`: "used by desktop compositors to identify and group windows
 together, as well as match applications with associated desktop settings and
-icons"; set before SDL initialises), which an environment variable of the
-same name sets, as SDL hints generally can:
+icons"; it must be set before SDL initialises). MetalUI's SDL platform sets it
+for you, before `SDL_Init` (ruling `AP-A`):
+
+```swift
+let platform = try SDLPlatform(options: .init(applicationID: "com.example.MyApp"))
+```
+
+Name the desktop file after that id (`com.example.MyApp.desktop`, and
+`StartupWMClass=com.example.MyApp` when the file is named otherwise); GNOME
+Shell on Wayland shows the entry's icon only when they match. An app that
+launches through `SDLPlatform.launchingSingleInstance(id:forwarding:options:)`
+gets its `id` as the application id unless `options.applicationID` is set
+(`AP-C`), so the one reverse-DNS id serves both. With neither, nothing is set,
+as before. An empty, whitespace-only or NUL-bearing value is ignored (`AP-D`).
+The id applies to the whole process, not per window. macOS and Windows group by
+the bundle and the AppUserModelID instead, so the option has no visible effect
+there (`AP-E`).
+
+**Override.** The `SDL_APP_ID` environment variable still wins over the code
+(`AP-B`, probe `docs/probes/sdl-app-id-hint.c`), so a packager can correct an id
+without a rebuild:
 
 ```sh
 SDL_APP_ID=com.example.MyApp /opt/myapp/MyApp
 ```
 
-Name the desktop file after that id (`com.example.MyApp.desktop`); GNOME
-Shell on Wayland shows the entry's icon only when they match. MetalUI's SDL
-platform does not set an application id itself. **Unverified** — no Linux
-desktop session was available, and whether SDL's X11 backend also derives
-`WM_CLASS` from the hint was not checked; human check O3 covers the running
-icon.
+**Verified:** the hint is set before `SDL_Init` (tests `SDLAppIDTests`) and the
+environment overrides it (the probe, arm A2; no test exports the variable). **Unverified** — no Linux desktop session
+was available: the shell's icon and grouping, and whether SDL's X11 backend
+derives `WM_CLASS` from the hint; human checks AP1 and O3.
 
 ### 4. The SDL backend's shaders — lookup verified, a moved app unverified
 

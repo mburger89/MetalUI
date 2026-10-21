@@ -2394,3 +2394,6 @@ Bytes in, an enum out: nothing a person sees, no real window driven, no human-ch
 ## 2026-10-21: retained lifecycle and translation carries (record §131) — looks owed, group RL
 
 No real window was driven, no modifier key held, neither VoiceOver nor MetalCreator was run (an agent cannot), and no demo strip was built. **Owed, new here — `docs/verification/human-checks.md` group RL, none performed**: RL1 modifier and lifecycle callbacks through a pan with the graft on, RL2 VoiceOver and a geometry observer on a scrolling list, RL3 hitboxes and labels at non-identity zoom. Owed, and not a look: the Linux image on the merged tree and the unlocked `AppKitPresentationTests` run (record §131 §8).
+## 2026-10-21: SDL application id (record §132) — looks owed, group AP
+
+No real window was driven and no Linux desktop was available (an agent cannot). **Owed, new here — `docs/verification/human-checks.md` group AP, none performed**: AP1, the dock icon and grouping under GNOME Wayland and an X11 session. Owed, not a look: the Linux-image and fourteen-image re-takes on the merged tree (record §132 §5).

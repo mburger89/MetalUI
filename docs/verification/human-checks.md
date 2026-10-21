@@ -1787,6 +1787,13 @@ a physical GPU, a desktop session and a console.*
 - [ ] **RL2.** VoiceOver on a scrolling list of `.equatable()` rows carrying an `.onGeometryChange(.global)` observer and accessibility records: scroll and resize; the VoiceOver focus rectangle follows the focused row, the observer's value matches the real frame, and the window never flickers into a rebuild (`RL-E`, `RL-H`). **Observed:**
 - [ ] **RL3.** A canvas under `.scaleEffect` + `.offset` with `.equatable()` nodes that register hitboxes inside their own effect: pan at zoom 2 and 0.8; hover and click land on the node under the pointer, and VoiceOver reads the same labels as with retention off (`RL-I`). **Observed:**
 
+## AP. SDL application id - the desktop entry's icon and grouping (item XP-G13, user request 2026-10-21, not a plan task; record 132; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs a Linux desktop session. The hint is set before `SDL_Init` and an explicit option beats the single-instance id (`SDLAppIDTests`); what is owed is what the shell does with it.*
+
+- [ ] **AP1.** On GNOME Wayland and on an X11 session, install a `.desktop` entry named after the id (`com.example.MyApp.desktop`, `Icon=` a theme name) and launch an SDL app that passes the id as `Options.applicationID` (or only to `launchingSingleInstance(id:)`): the window shows the entry's icon in the dash and
+  groups under the entry, not under the executable name; on X11 `xprop WM_CLASS` names the id. With no id set the old behaviour (generic icon) holds; with `SDL_APP_ID=other.id` exported the override wins (`AP-A`, `AP-B`, `AP-C`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

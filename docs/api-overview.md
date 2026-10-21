@@ -24,7 +24,7 @@ Platforms: macOS (AppKit + Metal, the default), Linux and Windows (the
 package traits, `PX-H`; [`getting-started.md`](getting-started.md) says what
 to install). `SDLPlatform(options:)` takes `SDLPlatform.Options`; `.headless` opens hidden
 windows that render offscreen, for a CI smoke test with no display
-([`testing.md`](testing.md#a-ci-smoke-test-of-the-real-window), `IC-J`). iOS and the other Apple platforms are out of
+([`testing.md`](testing.md#a-ci-smoke-test-of-the-real-window), `IC-J`). `Options.applicationID` names the window's Linux application id (Wayland `app_id`, X11 `WM_CLASS`) before SDL starts; `launchingSingleInstance(id:)` supplies it when unset (`AP-A`…`AP-F`, `packaging.md`). iOS and the other Apple platforms are out of
 scope (`PB-A`).
 
 ## App and window — M

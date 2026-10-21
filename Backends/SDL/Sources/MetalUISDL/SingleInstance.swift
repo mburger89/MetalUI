@@ -247,10 +247,13 @@ extension SDLPlatform {
     /// - Parameters:
     ///   - id: names the application.
     ///   - forwarding: the documents and URLs this launch was asked to open.
-    ///   - options: the platform's options; its `singleInstance` is replaced by the claim.
+    ///   - options: the platform's options; its `singleInstance` is replaced by the claim,
+    ///     and a `nil` ``Options/applicationID`` becomes `id` (ruling `AP-C`), so the
+    ///     window's desktop id matches the one the app already names here.
     public static func launchingSingleInstance(id: String, forwarding: [String],
                                                options: Options = .default) throws -> SDLPlatform? {
         var options = options
+        if options.applicationID == nil { options.applicationID = id }
         switch SingleInstance.claim(id: id, forwarding: forwarding) {
         case .primary(let instance):
             options.singleInstance = instance
