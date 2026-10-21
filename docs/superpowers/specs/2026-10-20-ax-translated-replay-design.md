@@ -5,6 +5,8 @@ Branch `fix/ax-translated-replay` from `c502f14c`. Decisions: [`../2026-10-20-ax
 (range 585-594 untouched), no SwiftUI-facing claim (divergence 107 is the existing ruling; no new probe: nothing here is a SwiftUI answer,
 and gpui has no accessibility layer to consult). One lane.
 
+**Status: implemented and recorded (2026-10-20, record 129).** Amended at implementation by `AT-F` and `AT-G`; change 2's nested-effect refusal and test 5's name are superseded, layout translation is carried to C14-h (`AT-C`).
+
 ## The defect, read in the source (not re-measured; MetalCreator's trace stands as the premise)
 
 `Frame.retainedPrepaintDecision` (`RetainedPrepaint.swift`, the block commented "The same occurrence under render effects that moved by a

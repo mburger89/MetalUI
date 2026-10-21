@@ -1762,6 +1762,14 @@ a physical GPU, a desktop session and a console.*
   mid-scroll: no tearing, no stale row, no cut-off card at the scroller's edge; the counters read `translated` on 1 and 2 and the refusal name on the non-dyadic one (`FS-M`, `FS-P`). **Observed:**
 - [ ] **FS4.** VoiceOver on the shifted strip reads the same rows as with the translation off (accessibility refuses, so this is the unretained path, `FS-F`). **Observed:**
 
+## AT. Accessibility under an effect-translated replay — a canvas pan with the graft on (item C14-g, user request 2026-10-02, not a plan task; record 129; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot run VoiceOver (`IX-AE`) or MetalCreator. Tree equality with a fresh window is pinned by the suite and by `METALUI_VERIFY_RETAINED=1`; what is owed is how it reads and feels.*
+
+- [ ] **AT1.** VoiceOver on a canvas of `.equatable()` nodes under `.scaleEffect` + `.offset` (MetalCreator's graph, or `METALUI_RETAINED_DEMO=1`): pan and zoom the canvas, the VoiceOver focus rectangle follows the
+  focused node and socket, stays on it after the pan settles, and reads the same labels as with retention off (`AT-A`). The owner also reads MetalCreator's warm graph pan counters: grafts above 0, redos 0, element
+  requests far below 1409 (no agent touches MetalCreator). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

@@ -1,7 +1,6 @@
 # Accessibility under an effect-translated replay - decisions
 
-Rulings for item C14-g. Spec: [`specs/2026-10-20-ax-translated-replay-design.md`](specs/2026-10-20-ax-translated-replay-design.md). Record: `../record/129-ax-translated-replay.md`
-(Record phase). Branch `fix/ax-translated-replay` from `c502f14c`. Reserved divergence labels 585-594: none taken.
+Rulings for item C14-g. Spec: [`specs/2026-10-20-ax-translated-replay-design.md`](specs/2026-10-20-ax-translated-replay-design.md). Record: `../record/129-ax-translated-replay.md`. Branch `fix/ax-translated-replay` from `c502f14c`. Reserved divergence labels 585-594: none taken.
 
 Prefix **`AT-`**, lettered. **Next unused: `AT-H`.** (Moves in the commit that appends a ruling.)
 

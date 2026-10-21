@@ -91,7 +91,7 @@ summary.
   `2026-10-19-retained-withstate-decisions.md`, next `RW-U`), `MO-` (memo and retained observation off the main thread:
   `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), `OS-` (raster overscan, pooled rasterizer scratch:
   `2026-10-20-raster-overscan-decisions.md`, next `OS-Q`), `FS-` (finer retention scopes:
-  `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `CF-` (warm and cold frame gaps: `2026-10-20-warm-settle-decisions.md`, next `CF-L`), …; the full
+  `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `CF-` (warm and cold frame gaps: `2026-10-20-warm-settle-decisions.md`, next `CF-L`), `AT-` (accessibility under an effect-translated replay: `2026-10-20-ax-translated-replay-decisions.md`, next `AT-H`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -282,7 +282,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126, §127.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126, §127, §129.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -843,6 +843,14 @@ comparable `EnvironmentReading`: the text system **instance** (never the per-fra
 (`CF-C`, `CF-D`). **A subtree placement restored from `LayoutMemo` touches its `Footprint`** (the `MeasureKey`s and inner `PlacementKey`s its recording looked up, run-cache hits
 included), so the next frame's grafted occurrence still finds its measurements and `warm[n] == warm[n+1]` holds over the whole `FrameWork` from the frame after the records
 exist (`CF-E`, `CF-J`); the root placement has no footprint, a named residue. The cold-frame profile found no ledger-snapshot cost and landed no fix (`CF-K`). Pins count work.
+
+**Accessibility under an effect-translated replay (`AT-`, record §129).** Value-identical, no public API, no divergence (labels 585-594 untouched). An effect-translated prepaint replay
+(`RK-G`, `RK-S`) **carries accessibility records**: a record made under a render effect keeps the operands of its frame (`AXEmission.local`, `PrepaintLedger.axNodeLocals`: the pre-effect rect, the
+clipped rect, the effect steps as `AXEffectChain`) and the replay **recomputes** the frame and visible frame against the current effect with `prepaintWithRenderEffect`'s own arithmetic, never shifts a
+bounding box (a shifted box rounds twice; `AT-A`, `AT-G`). `translation(from:)` and `translatedHitboxes` no longer assume an identity linear part: a hitbox carrying the ledger's ambient inverse takes the current
+effect's (`AT-F`). A scale or rotation change counts `effectNotTranslation`. **A new record made under an effect owes its local rects** (else `accessibilityUnrecorded`, a counted miss). Still refused by
+name: layout translation's `accessibilityRecords` (`FS-P`, `AT-C`) and a hitbox opened inside the occurrence's own effect under a non-identity scale (`hitboxes`); both carried (C14-h). Pins count work
+(`AXTranslatedReplayTests`).
 
 **Raster overscan and the pooled scratch (`OS-`, record §124).** Value-identical, no public API, no divergence (labels 545–554 untouched).
 `shadowImage`, `blurImage` and the full `gradientImage` call `RasterAnchor.overscanned` as `pathImage` does (`PN-A`; `OS-A`): rastered over

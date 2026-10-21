@@ -2379,3 +2379,7 @@ The fourteen offscreen images read 0 differing pixels against `4d91f27f` and per
 ## 2026-10-20: finer retention scopes (record §126) — looks owed, group FS
 
 No real window was driven (screen locked) and MetalCreator was not touched. **Owed, new here — `docs/verification/human-checks.md` group FS, none performed (an agent cannot)**: FS1 the owner's MetalCreator orbit and pan with the graph panel open against 25.8 ms; FS2 a long `List` of retained rows under a wheel and trackpad with a row edited mid-scroll, VoiceOver on the rows; FS3 the demo's shift-and-scroll strip at scales 1, 2 and a non-dyadic one; FS4 VoiceOver on the shifted strip. Owed, and not a look: the Linux image re-take, the verify-switch re-take and the fourteen-image comparison against `711ab9c4` on the merged tree (record §126 §7).
+
+## 2026-10-20: accessibility under an effect-translated replay (record §129) — looks owed, group AT
+
+No real window was driven and neither VoiceOver nor MetalCreator was run (an agent cannot). **Owed, new here — `docs/verification/human-checks.md` group AT, none performed**: AT1 VoiceOver focus following a canvas pan with the graft on, and the owner's MetalCreator warm-pan counters. Owed, and not a look: the fourteen-image and Linux-image re-takes on the merged tree (record §129 §6).
