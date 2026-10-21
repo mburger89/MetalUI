@@ -482,7 +482,7 @@ drag); `ColorPicker(_:selection:supportsOpacity:)` is a well that opens a drawn 
 hue, opacity, hex) on every platform, not `NSColorPanel` (divergence 165); `ProgressView()`
 spins, `ProgressView(value:total:)` fills, with `.progressViewStyle`; `.keyframeAnimator` and
 `KeyframeAnimator` run `LinearKeyframe`/`CubicKeyframe`/`SpringKeyframe`/`MoveKeyframe` tracks
-(divergences 168, 169, 171); `LinearGradient` and `RadialGradient` fill shapes and backgrounds
+(divergences 168, 169, 171), `.phaseAnimator` steps a view through phases (cycling, or once per trigger change, record §135); `@GestureState` with `Gesture.updating(_:body:)` holds a value for the length of a gesture and snaps back at its end (divergence 645); `LinearGradient` and `RadialGradient` fill shapes and backgrounds
 (rasterized on the CPU, no shader change); `.blur(radius:)` blurs per drawn leaf (divergence
 167); `.ultraThinMaterial` … `.bar` blur what is drawn beneath them (a GPU surface
 included) and tint it, on Metal and SDL (item C21, record §94; divergences 166, 245–248), `Material.tint(in:)` reads a material's tint, and `\.accessibilityReduceTransparency` swaps the blur for an opaque grey (item C27, record §101; divergence 315). `METALUI_CONTROLS_DEMO=1` and `METALUI_LOOKS_DEMO=1` show them. Human checks: groups CL and BB, unrun.

@@ -180,7 +180,7 @@ the buffer once, after its own pass. It is MetalUI-only and has no Metal twin, b
 hands a Metal app its own encoder. These snippets are `text` fences, since this guide's blocks are compiled
 on every platform and the layer exists only under the `SDL` trait.
 
-The shaders are your HLSL, built once with `compile-app-shaders.py` (section 4a of
+The shaders are your HLSL, built once with `swift package compile-shaders` (section 4a of
 [`packaging.md`](../packaging.md)): `NAME.vert.hlsl` and `NAME.frag.hlsl` give one blob per driver
 and a reflection file, and `SDLGPUShaderLibrary` loads the pair for the device's driver. A pipeline
 description names the stages, the vertex layout if any, the colour format, the blend, the sample count
@@ -346,6 +346,48 @@ func drawingPanelRoot() -> some Element {
 /// The opacity a material's tint draws at in a scheme.
 func drawingTintOpacity(of material: Material, in scheme: ColorScheme) -> Float {
     material.tint(in: scheme).resolve(in: EnvironmentValues()).opacity
+}
+```
+
+## How do I animate a view through a sequence of states?
+
+Use `phaseAnimator`, SwiftUI's spelling, in both vocabularies. Without a `trigger` the view shows
+its first phase, steps to the second at once and cycles for ever, one step each as long as the
+animation of the phase just entered (pin: `aPhaseAnimatorWithNoTriggerCyclesForeverP1`); the window
+keeps drawing while it runs and idles when it does not (pin:
+`theCycleNotesAnActiveAnimationAndNeverRequestsAnotherFrameGSI`). With a `trigger` it sits on the
+first phase until the trigger changes, then runs through the rest and back to the first once, and a
+change mid-run restarts from the second at once (pin: `aTriggerRunsEveryPhaseOnceAndReturnsToTheFirstP2P3`,
+`aTriggerChangeMidRunRestartsFromTheSecondPhaseP4`). Each phase's content is built under the
+transaction `animation(phase)` makes, and a `nil` animation snaps its phase (pin:
+`eachPhasesContentIsBuiltUnderItsAnimationGSJ`, `aNilAnimationSnapsAndTheNextStepFollowsAtOnceP5`).
+The closure receives the view itself, so write further decoration inside it: one after
+`phaseAnimator` does not compile (pin: `phaseAnimatorTypechecksWithSwiftUIsCallShape`). The guide
+blocks below swing a bar once per change and pulse a badge for ever (pin:
+`theDrawingGuideAPulseCyclesAndASwingRunsOncePerTrigger`).
+
+```swift
+/// A badge that pulses for ever, and a bar that swings once each time `taps` changes.
+struct DrawingPulse: Component {
+    var content: some ElementGroup {
+        Rectangle().frame(width: Pixels(40), height: Pixels(20))
+            .accessibilityIdentifier("pulse")
+            .phaseAnimator([Pixels(0), Pixels(10)]) { content, shift in
+                content.offset(x: shift)
+            } animation: { _ in .linear(duration: 0.2) }
+    }
+}
+
+struct DrawingSwing: Component {
+    let taps: Int
+
+    var content: some ElementGroup {
+        Rectangle().frame(width: Pixels(40), height: Pixels(20))
+            .accessibilityIdentifier("swing")
+            .phaseAnimator([Pixels(0), Pixels(12), Pixels(-12)], trigger: taps) { content, shift in
+                content.offset(x: shift)
+            } animation: { _ in .linear(duration: 0.1) }
+    }
 }
 ```
 

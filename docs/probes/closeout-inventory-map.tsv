@@ -47,6 +47,8 @@ F	environment-locale	M	-	-	-	-	EV-Y	locale is carried and window-stamped; MetalU
 F	theme	M	-	-	-	-	EV-G EV-H	Theme/ColorToken/.theme: scoped, paint-only theme tokens
 F	focus-state	A	swiftui-interaction.swift	F1	focusDropsWhenItsElementIsRenamedAndDoesNotReturn	94	IX-I IX-J	@FocusState/.focused: read the window's focus, move it from input; focus leaves with its identity; a click does not focus a .focusable() (94)
 F	stacks	A	swiftui-stack-algorithms.swift	G1	aStackServesItsLeastFlexibleChildFirst	51 58 70 89	CN-B CN-C CN-E CN-H CN-I TE-K	HStack/VStack/ZStack/Spacer/alignments/.layoutPriority: SwiftUI's stack algorithms, typed alignment, text baselines
+F	lazy-stacks	A	swiftui-lazy-containers.swift	A1	aLazyVStackOutsideAScrollerPlacesEveryChildAndAnswersTheProposalAcross	636 637	LZ-A LZ-B LZ-C LZ-D LZ-E LZ-F LZ-G LZ-H LZ-O LZ-S	LazyVStack/LazyHStack(alignment:spacing:content:): SwiftUI's lazy stacks without pinnedViews (not offered, LZ-N); windowed against the enclosing scroller along their axis (the viewport plus two lines, 637), eager when content holds an if/switch/for member (636); the cross size is the proposal else the first child's, spacing 8, unrealised children count as the measured mean, the top child anchored across measurements (List(_:rowContent:)'s RowExtentIndex); work counted in FrameWork.lazyUnitsRealized/lazyLinesRealized/lazyUnbounded
+F	lazy-grids	A	swiftui-lazy-containers.swift	C8	aLazyVGridPlacesTracksAndCellsByTheGridAlignment	635 636 637 638	LZ-A LZ-K LZ-L LZ-M LZ-W LZ-X LZ-Y LZ-Z	GridItem/LazyVGrid/LazyHGrid(columns:alignment:spacing:content:): SwiftUI's lazy grids and GridItem(.fixed/.flexible/.adaptive, spacing:, alignment:) without pinnedViews (not offered, LZ-N); tracks resolved by GridTrackSolver from the offered width (fixed exact, flexible min-first with no giveback, adaptive floor-packed), the grid alignment placing the tracks and defaulting the cell alignment (LZ-W); lines are rows windowed like LazyVStack's; a multi-view element is one cell (635); the column count is built from the previous frame's width and corrected within a frame (638)
 F	proposal-frame	A	swiftui-frame-semantics.swift	D1	aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum	38	FR-A FR-M CN-F SA-J	ProposalFrame/.frame on proposal content: fixed and flexible frames, ideal on an unspecified axis; a negative fixed size traps (38)
 F	native-frame-alias	M	-	-	-	-	SA-K	nativeFrame(...): an undeprecated alias of .frame, kept because deprecating it breaks the 0-warning baseline (record §09)
 F	proposal-padding	A	swiftui-engine-replacement-stage2.swift	N1	aNativePaddingPlacesItsChildAtTheChildsOwnSize	-	LR-AU SA-N	Padding/.padding on proposal content: insets the proposal, places the child at its own size
@@ -343,6 +345,9 @@ M	MetalUI	FrameLayer.swift	ElementGroup	frame	frame\(\)	frame-no-args
 M	MetalUI	FrameLayer.swift	.*	.*	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	ElementGroup	frame	.*	legacy-frame
 M	MetalUI	ModifiedElement.swift	.*	.*	.*	modifier-layer
+M	MetalUI	GestureState.swift	.*	.*	.*	gesture-state
+M	MetalUI	PhaseAnimator.swift	.*	.*	.*	phase-animator
+M	MetalUI	(Gesture|SpatialGestures).swift	.*	updating	.*	gesture-state
 M	MetalUI	SpatialGestures.swift	SpatialTapGesture.Value	(modifiers|init)	.*	input-followups-values
 M	MetalUI	SpatialGestures.swift	(MagnifyGesture|RotateGesture)	onCancelled	.*	input-followups-cancel
 M	MetalUI	Gesture.swift	DragGesture	onCancelled	.*	input-followups-cancel
@@ -395,6 +400,9 @@ M	MetalUI	NativeBackgroundModifier.swift	.*	.*	.*	background-modifier
 M	MetalUI	NativeElements.swift	-	Native.*	.*	native-aliases
 M	MetalUI	NativeElements.swift	(HStack|VStack)	init	spacing: Pixels, alignment: ProposalAlignment	stack-spacing-first-init
 M	MetalUI	NativeElements.swift	(-|HStack|VStack|ZStack|Spacer)	(HStack|VStack|ZStack|Spacer|content|spacing|alignment|minLength|init|Layout|requestProposalLayout|prepaint|paint)	.*	stacks
+M	MetalUI	LazyStack.swift	(-|LazyVStack|LazyHStack)	(LazyVStack|LazyHStack|init|Layout|Prepaint|requestProposalLayout|prepaint|paint)	.*	lazy-stacks
+M	MetalUI	GridItem.swift	(-|GridItem|GridItem\.Size)	.*	.*	lazy-grids
+M	MetalUI	LazyGrid.swift	(-|LazyVGrid|LazyHGrid)	(LazyVGrid|LazyHGrid|init|Layout|Prepaint|requestProposalLayout|prepaint|paint)	.*	lazy-grids
 M	MetalUI	NativeElements.swift	-	(ProposalFrame)	.*	proposal-frame
 M	MetalUI	NativeElements.swift	(ProposalFrame)	.*	.*	proposal-frame
 M	MetalUI	NativeElements.swift	-	(Padding)	.*	proposal-padding
@@ -584,3 +592,5 @@ M	MetalUI	ModifierKeysChange.swift	.*	.*	.*	input-followups-modkeys
 M	MetalUI	TextMeasurer.swift	.*	.*	.*	text-measurer
 M	MetalUI	WindowDragGesture.swift	.*	.*	.*	window-drag
 M	MetalUI	EquatableComponent.swift	.*	.*	.*	equatable-component
+F	gesture-state	A	swiftui-gesture-state.swift	G1	aDragUpdatingMovesAViewDuringTheDragAndSnapsBackAtTheRelease	645	GS-A GS-B GS-C GS-D GS-E GS-F	GestureState (the eight initialisers, wrappedValue get-only, projectedValue) and updating(_:body:) on DragGesture, LongPressGesture, MagnifyGesture, RotateGesture (TapGesture and SpatialTapGesture accept it and never run it, G2/G5b): a $state<n> slot written from the gesture arena and reset once when the gesture ends, fails or is cancelled; the update returns the receiver's own type
+F	phase-animator	A	swiftui-gesture-state.swift	P1	aPhaseAnimatorWithNoTriggerCyclesForeverP1	-	GS-H GS-I GS-J GS-K	PhaseAnimator and phaseAnimator(_:trigger:content:animation:)/(_:content:animation:) on both vocabularies: a transparent scope keyed $phase<depth> in the animation store (shared keyframeDepth, never a StateTable slot); no trigger cycles for ever, a trigger runs phases 1..n-1 then 0 once and a change restarts; each phase built under animation(phase); a nil animation snaps; Reduce Motion unchanged and unmeasured (GS-K); the content closure receives the element itself (divergence 169 rule)

@@ -45,6 +45,7 @@ private func buildEveryProductionTree() {
     buildTheRetainedSubtreeDemo()   // retained subtrees (SB-, spec §13)
     buildTheChromeDemo()   // window chrome (CW-P, spec "Demo")
     buildTheClipboardDemo()   // clipboard beyond text (CB-, spec §6)
+    buildTheLazyContainersDemo()   // lazy containers (LZ-Q, spec section 6)
 }
 
 /// The window chrome demo's tree and its bar and body (components built at layout), in its own frame.
@@ -59,6 +60,16 @@ private func buildTheChromeDemo() {
 @MainActor @inline(never)
 private func buildTheClipboardDemo() {
     _ = clipboardDemoContent()
+}
+
+/// The lazy containers demo's tree and its four sections (components built at layout), in its own frame.
+@MainActor @inline(never)
+private func buildTheLazyContainersDemo() {
+    _ = lazyContainersDemoContent()
+    _ = LazyDemoStackSection().content
+    _ = LazyDemoGridSection().content
+    _ = LazyDemoCarouselSection().content
+    _ = LazyDemoHGridSection().content
 }
 
 /// The retained-subtree demo's tree and its canvas and strip (components built at layout), in its own frame.

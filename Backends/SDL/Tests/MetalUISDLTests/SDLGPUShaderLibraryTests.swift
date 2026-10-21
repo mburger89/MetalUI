@@ -102,6 +102,125 @@ private func markAsShaderDirectory(_ directory: URL) throws {
     }
 }
 
+// MARK: - A marker-free build product (item S12, rulings BS-E; spec §5 tests 12-16)
+
+/// A scratch directory holding `append.comp`'s blobs for `extensions`, copied from the checked-in ones.
+private func buildProduct(_ extensions: [String], in root: URL, name: String = "build") throws -> URL {
+    let directory = root.appendingPathComponent(name)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    for ext in extensions {
+        try FileManager.default.copyItem(at: GPUTestSupport.compiledShaders.appendingPathComponent("append.comp.\(ext)"),
+                                         to: directory.appendingPathComponent("append.comp.\(ext)"))
+    }
+    return directory
+}
+
+private func writeMarker(_ lines: [(String, [UInt8])], to directory: URL) throws {
+    let text = lines.map { "\(SHA256Digest.hex(of: $0.1))  \($0.0)\n" }.joined()
+    try Data(text.utf8).write(to: directory.appendingPathComponent("SOURCE.sha256"))
+}
+
+@Suite struct SDLGPUShaderBuildProductTests {
+    /// **Test 12.** A build product with no `SOURCE.sha256` opens; a driver whose
+    /// blob was not built is a named error. Mutation: drop the reflection-file alternative.
+    @Test func aBuildProductWithoutAMarkerIsAccepted() throws {
+        let root = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = try buildProduct(["spv", "msl", "json"], in: root)
+        let library = try SDLGPUShaderLibrary(directory: directory)
+        #expect(try library.compute("append", driver: "vulkan").entryPoint == "main")
+        #expect(try library.compute("append", driver: "metal").entryPoint == "main0")
+        #expect(try library.compute("append", driver: "vulkan").readWriteStorageBuffers == 1)
+        do { _ = try library.compute("append", driver: "direct3d12"); Issue.record("found a DXIL that was not built") }
+        catch { #expect(String(describing: error).contains("append.comp.dxil"), "\(error)") }
+    }
+
+    /// **Test 13.** Neither a marker nor a reflection file is a refusal naming `SOURCE.sha256`.
+    /// Mutation: accept any existing directory.
+    @Test func aDirectoryWithNeitherMarkerNorReflectionIsRefused() throws {
+        let root = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let empty = root.appendingPathComponent("empty")
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        let blobsOnly = try buildProduct(["spv", "msl"], in: root, name: "blobs-only")
+        try Data("x".utf8).write(to: blobsOnly.appendingPathComponent("notes.txt"))
+        for directory in [empty, blobsOnly, root.appendingPathComponent("missing")] {
+            do { _ = try SDLGPUShaderLibrary(directory: directory); Issue.record("accepted \(directory.lastPathComponent)") }
+            catch { #expect(String(describing: error).contains("SOURCE.sha256"), "\(error)") }
+        }
+    }
+
+    /// **Test 14.** With a marker and the sources, a changed source, a source with no
+    /// line and a line with no source are each a distinct named error. Mutation:
+    /// compare only the number of lines.
+    @Test func aStaleMarkerIsRefusedWhenSourcesAreGiven() throws {
+        let root = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = try buildProduct(["spv", "msl", "json"], in: root)
+        let sources = root.appendingPathComponent("src")
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        let a = Array("float4 a;".utf8), b = Array("float4 b;".utf8)
+        try Data(a).write(to: sources.appendingPathComponent("a.frag.hlsl"))
+        try Data(b).write(to: sources.appendingPathComponent("b.frag.hlsl"))
+        try writeMarker([("a.frag.hlsl", a), ("b.frag.hlsl", b)], to: directory)
+        _ = try SDLGPUShaderLibrary(directory: directory, verifyingSources: sources)
+
+        func refusal(_ expected: String) throws {
+            do { _ = try SDLGPUShaderLibrary(directory: directory, verifyingSources: sources); Issue.record("accepted: \(expected)") }
+            catch { #expect(String(describing: error).contains(expected), "\(error)") }
+        }
+        // One edited source (same count of lines).
+        try Data(Array("float4 a; // edited".utf8)).write(to: sources.appendingPathComponent("a.frag.hlsl"))
+        try refusal("a.frag.hlsl changed")
+        try Data(a).write(to: sources.appendingPathComponent("a.frag.hlsl"))
+        // One extra source with no line.
+        try Data(Array("float4 c;".utf8)).write(to: sources.appendingPathComponent("c.frag.hlsl"))
+        try refusal("c.frag.hlsl has no line")
+        try FileManager.default.removeItem(at: sources.appendingPathComponent("c.frag.hlsl"))
+        // One extra line with no source (same count after the previous one is gone).
+        try writeMarker([("a.frag.hlsl", a), ("b.frag.hlsl", b), ("gone.frag.hlsl", Array("x".utf8))], to: directory)
+        try refusal("lists gone.frag.hlsl")
+        // A swapped pair keeps the count and the names.
+        try writeMarker([("a.frag.hlsl", b), ("b.frag.hlsl", a)], to: directory)
+        try refusal("changed")
+    }
+
+    /// **Test 15.** A matching marker is accepted; an absent marker skips the check
+    /// even when sources are given; no sources given reads none. Mutation: require a
+    /// marker when sources are given.
+    @Test func aMatchingMarkerIsAcceptedAndAbsentMarkerSkipsTheCheck() throws {
+        let root = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = try buildProduct(["spv", "json"], in: root)
+        let sources = root.appendingPathComponent("src")
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        try Data(Array("float4 a;".utf8)).write(to: sources.appendingPathComponent("a.frag.hlsl"))
+        _ = try SDLGPUShaderLibrary(directory: directory, verifyingSources: sources)
+        try writeMarker([("a.frag.hlsl", Array("float4 a;".utf8))], to: directory)
+        _ = try SDLGPUShaderLibrary(directory: directory, verifyingSources: sources)
+        _ = try SDLGPUShaderLibrary(directory: directory)
+        // The checked-in directory, with its own sources, still verifies.
+        _ = try SDLGPUShaderLibrary(directory: GPUTestSupport.compiledShaders, verifyingSources: GPUTestSupport.sources)
+    }
+
+    /// **Test 16.** `locate` keeps its order for a marker-free directory: beside the
+    /// executable first, then the source tree. Mutation: swap the order.
+    @Test func locateKeepsItsOrderForAMarkerFreeDirectory() throws {
+        let root = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let adjacent = try buildProduct(["spv", "json"], in: root, name: "bin/MetalUIAppShaders")
+        let tree = try buildProduct(["msl", "json"], in: root, name: "tree/compiled")
+        let candidates = SDLGPUShaderLibrary.candidates(directoryName: "MetalUIAppShaders", sourceTree: tree,
+                                                        executableDirectory: root.appendingPathComponent("bin"))
+        #expect(try SDLGPUShaderLibrary.locate(from: candidates).directory.path == adjacent.path)
+        try FileManager.default.removeItem(at: adjacent)
+        #expect(try SDLGPUShaderLibrary.locate(from: candidates).directory.path == tree.path)
+        try FileManager.default.removeItem(at: tree)
+        do { _ = try SDLGPUShaderLibrary.locate(from: candidates); Issue.record("found nothing") }
+        catch { #expect(String(describing: error).contains("SOURCE.sha256"), "\(error)") }
+    }
+}
+
 /// SHA-256 (FIPS 180-4), for C7: Foundation has none off Apple platforms.
 enum SHA256Digest {
     private static let k: [UInt32] = [

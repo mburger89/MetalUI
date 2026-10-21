@@ -2691,3 +2691,29 @@ reads `@Environment` is now memoized by the **readings** of its declared propert
 **Amended (earlier):** none. **Retired:** none. Label 345 refuted and unused (`IV-L`: probe arms S2/S3 show SwiftUI
 honours a custom `==` for closure and class inputs too); labels 347–354 of this branch's range unused.
 
+## 2026-10-21: 635–638 added (lazy containers, record §134)
+
+Labels 635–644 were this branch's reserved range; 635–638 are taken, 639–644 unused. All four are pinned by one test each.
+
+- **635** a `ForEach` element (or static member) of a lazy grid that produces several views is one cell holding them in a vertical stack; SwiftUI makes every view a cell (probe `swiftui-lazy-containers.swift` `C14b`, control `C14c`). Pin `aForEachElementOfSeveralViewsIsOneGridCell`; `LZ-X`.
+- **636** a lazy container whose content holds an `if`, `switch` or `for` member is eager and counted in `FrameWork.lazyUnbounded`. Pin `anIfMemberMakesTheContainerEagerAndCounted`; `LZ-B`, `LZ-S`; follow-up L1b.
+- **637** two more lines than the viewport realised on each side; SwiftUI none (probe `R1`). Pin `theOverscanAppearsBeforeTheRowsAreOnScreen`; `LZ-E`.
+- **638** an adaptive `GridItem`'s column count is decided at build time from the previous frame's width, so the first frame and the first after a width change build the previous count and ask for one more frame. Pin `aStaleAdaptiveWidthIsCorrectedOnTheNextFrame`; `LZ-L`, `LZ-Y`.
+
+**Amended:** none. **Retired:** none. The `GR-L` row of the not-built table (`LazyVGrid`/`LazyHGrid`/`GridItem`) is replaced by a `pinnedViews:`/`Section` row (`LZ-N`). The header's count and next label are left for the merge.
+
+
+## 2026-10-21: 645, 646 added, 236 amended (`@GestureState` and `phaseAnimator`, record §135)
+
+**645** (`GS-D`, `GS-G`): two simultaneously composed gestures that write one `GestureState` in one event. SwiftUI runs the **last-declared**
+member of `simultaneously(with:)` first, so the first-declared member's `updating` body runs last and its write wins (probe
+`swiftui-gesture-state.swift` `G7`, `G7d`, `G7e`, recorded 2026-10-21 and **not re-taken**, `GS-O`; human check GS7). MetalUI runs the bodies in the arena's
+order, **declaration order** (`H16`'s pin must not move), so the last-declared member's write wins; every body of one event still starts from the value
+committed before the event and any writer ending resets the whole slot, as SwiftUI does (`G7b`, `G7c`). Pinned wrong on purpose:
+`simultaneousWritersStartFromTheEventsCommittedValueAndTheLastWins`, `anyWriterEndingResetsTheSharedState`. A state written by one gesture, or by two gestures in
+different events, does not differ. Owner none (`H16`).
+
+**646** (`GS-N`, `GS-S`): the `updating` body and the `reset:` closure are `@MainActor`; SwiftUI's carry no isolation. Every MetalUI gesture callback runs under `StateDispatch` on the main actor like `Binding` (divergence 78), so a caller writing SwiftUI's spelling in `@MainActor` code compiles unchanged and only a nonisolated function that builds or calls them differs. Pinned by guard GS.5 `theUpdatingBodyAndTheResetClosureAreMainActor`. Owner none.
+
+**Amended: 236** ("`@GestureState`/`updating` are not offered" became "built since §135, reset on every one of these paths"; `onCancelled` stays for a
+caller who wants the event) and the not-built row naming `@GestureState` (now `updating` on a composed gesture and `GestureStateGesture`). **Labelled late (Record phase):** the `@MainActor` on `updating` and `reset:` is 646 (`GS-S`). Labels 647–654 of this branch's range unused.

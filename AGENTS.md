@@ -91,7 +91,7 @@ summary.
   `2026-10-19-retained-withstate-decisions.md`, next `RW-U`), `MO-` (memo and retained observation off the main thread:
   `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), `OS-` (raster overscan, pooled rasterizer scratch:
   `2026-10-20-raster-overscan-decisions.md`, next `OS-Q`), `FS-` (finer retention scopes:
-  `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `CF-` (warm and cold frame gaps: `2026-10-20-warm-settle-decisions.md`, next `CF-L`), `RZ-` (retained zoom, fillet-drag profile, `@FocusState` memo: `2026-10-21-retained-zoom-decisions.md`, next `RZ-U`), `RG-` (retained geometry observers, placement translation, per-shelf atlas uploads: `2026-10-20-retained-geometry-decisions.md`, next `RG-Q`), `AT-` (accessibility under an effect-translated replay: `2026-10-20-ax-translated-replay-decisions.md`, next `AT-H`), `RL-` (retained lifecycle and translation carries: `2026-10-21-retained-lifecycle-decisions.md`, next `RL-R`), `AP-` (SDL application id: `2026-10-21-sdl-app-id-decisions.md`, next `AP-G`), `EX-` (the sample app: `2026-10-21-sample-app-decisions.md`, next `EX-T`), `GB-` (SDL GPU gaps: `2026-10-21-sdl-gpu-gaps-decisions.md`, next `GB-M`), `IS-` (header-only image format sniff: `2026-10-20-image-sniff-decisions.md`, next `IS-L`), …; the full
+  `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `CF-` (warm and cold frame gaps: `2026-10-20-warm-settle-decisions.md`, next `CF-L`), `RZ-` (retained zoom, fillet-drag profile, `@FocusState` memo: `2026-10-21-retained-zoom-decisions.md`, next `RZ-U`), `RG-` (retained geometry observers, placement translation, per-shelf atlas uploads: `2026-10-20-retained-geometry-decisions.md`, next `RG-Q`), `AT-` (accessibility under an effect-translated replay: `2026-10-20-ax-translated-replay-decisions.md`, next `AT-H`), `RL-` (retained lifecycle and translation carries: `2026-10-21-retained-lifecycle-decisions.md`, next `RL-R`), `AP-` (SDL application id: `2026-10-21-sdl-app-id-decisions.md`, next `AP-G`), `EX-` (the sample app: `2026-10-21-sample-app-decisions.md`, next `EX-T`), `GB-` (SDL GPU gaps: `2026-10-21-sdl-gpu-gaps-decisions.md`, next `GB-M`), `IS-` (header-only image format sniff: `2026-10-20-image-sniff-decisions.md`, next `IS-L`), `LZ-` (lazy containers: `2026-10-21-lazy-containers-decisions.md`, next `LZ-AA`), `GS-` (`@GestureState`, `phaseAnimator`: `2026-10-21-gesture-state-decisions.md`, next `GS-T`), `BS-` (build-time app shaders: `2026-10-21-build-shaders-decisions.md`, next `BS-M`), …; the full
   prefix → document → record table is in record §69 "Where things are").
   **To find the next unused id, read the file's last `## <PREFIX>-` heading,
   not its header** — headers have lagged. A decisions doc's "next unused" line
@@ -104,9 +104,9 @@ summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **158 live, next label 206** (455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **164 live, next label 206** (635–638 used and 639–644 unused by L1; 645, 646 used and 647–654 unused by G1; 455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK, SI, RO, FS, RG, AT, RL, AP, EX and GB, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK, SI, RO, FS, RG, AT, RL, AP, EX, GB, GS, BS, LZ and RZ, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -122,11 +122,12 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1, METALUI_RETAINED_DEMO=1, METALUI_CHROME_DEMO=1, METALUI_CLIPBOARD_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1, METALUI_RETAINED_DEMO=1, METALUI_CHROME_DEMO=1, METALUI_CLIPBOARD_DEMO=1, METALUI_LAZY_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-21, `perf/retained-zoom` + the C14-i refusal pins: 4139 tests, 0 goldens, 251 typecheck guards** (4138 + 1: `aZoomStepWithAnAlphaOrEntryDepthChangeIsRefusedByName` (`EffectRelationKeyTests`, 2 arms) and a `gateWithZoom` arm on `anEffectChangeThatIsNotAnAffineMoveIsRefusedByName`, no guard; native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues and nothing else, `FR-J no-argument frame: succeeded=true`; 4130 passed with `AppKitPresentationTests` skipped under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`; record §133 M11, M12). Before it,
+- **Counts (2026-10-21, `perf/retained-zoom` + the C14-i refusal pins, merged with master `68975774` (§134 lazy containers, §135 gesture state, §138 build-time shaders): 4247 tests (measured unfiltered after `swift package clean` on the merged tree, only the five locked-screen `AppKitPresentationTests` issues; 4238 passed under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` with them skipped; 4139 on the branch before this merge), 0 goldens, 261 typecheck guards** (4138 + 1: `aZoomStepWithAnAlphaOrEntryDepthChangeIsRefusedByName` (`EffectRelationKeyTests`, 2 arms) and a `gateWithZoom` arm on `anEffectChangeThatIsNotAnAffineMoveIsRefusedByName`, no guard; native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues and nothing else, `FR-J no-argument frame: succeeded=true`; 4130 passed with `AppKitPresentationTests` skipped under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`; record §133 M11, M12). Before it,
+  **(2026-10-21, `feat/lazy-containers` from `1bdead8d`, merged with master `11dca65e` (§136 sample app, §137 SDL GPU gaps), then master `4365e674` (§135 gesture state, §138 build-time shaders): 4228 tests (measured unfiltered after `swift package clean` on the merged tree, only the five locked-screen `AppKitPresentationTests` issues of `CI-AF`), 0 goldens, 261 typecheck guards** (master's 251 + 3: `LazyStackGuards` 2, `LazyGridGuards` 1; the branch's 43 tests over 1bdead8d's 4117, 4161 at lane 2's head before the merge; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing, census 3720; the fourteen images 0 px against `1bdead8d` at the lanes; divergences 635-638 added (header's count and next label left to the merge); Linux image and `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` re-take on the merged tree: see record §134 §5; record §134). Before it,
   **Counts (2026-10-21, `perf/retained-zoom` from `1bdead8d`, merged with master `11dca65e` (§136 sample app, §137 SDL GPU gaps): 4138 tests, 0 goldens, 251 typecheck guards** (master's 4120 + 18 tests (lane 1's 10 pins and their arms net of one rewritten, lane 2's 6 focus tests, F6b and 10 fillet cases net of the replaced W8), no guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; the lanes' `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` runs read 4118 and 4125 passed with `AppKitPresentationTests` skipped, no trap; default build 0 `warning:` and inventory and undocumented scripts print nothing at the lanes, the fourteen images 0 px against `1bdead8d`; no public declaration, census unmoved; no divergence label taken (625-634 untouched), 346 narrowed; Linux image, the verify-switch run and the demo launch owed on the merged tree; record §133). Before it,
   **Counts (2026-10-21, `feat/sdl-gpu-gaps` from `1bdead8d`, merged with master `9849f4ea` (§136 sample app): 4120 tests (master's 4120 unchanged: the branch adds `Backends/SDL` tests only, 30 + 245 on macOS, 240 + 2 expected in the Linux image, not re-taken), 0 goldens, 251 typecheck guards** (no root test or guard; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native unfiltered run on a **locked screen** read exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; default build 0 `warning:` at lane 1; no public root declaration, census unmoved; no divergence label taken (665-674 untouched); two lane-1 mutations that survived the checker (viewport depth clamp, non-square scissor clamp) are pinned by S11 (`aViewportDepthRangeIsClampedToUnitInterval`, `aScissorIsClampedOnANonSquareTarget`; macOS now 30 + 245); Linux-image and fourteen-image re-takes at the final head owed; record §137). Before it,
   **(2026-10-21, `feat/sample-app` from `1bdead8d`: 4120 tests expected unlocked (4111 run with `AppKitPresentationTests` skipped on a locked screen), 0 goldens, 251 typecheck guards** (master's 4117 + 3 root tests, no guard: the manifest-shape and docs tests and the env-gated `aSampleAppBuildsAndItsTestsPassAgainstThisCheckout`; `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice, native run `--skip AppKitPresentationTests` **4111 tests in 5 suites passed**, 0 issues, `FR-J no-argument frame: succeeded=true`; `Examples/Jotter` 21 tests on macOS, 20 in the Linux image; no `Sources/`, `Backends/` or `Package.swift` change, no public declaration, no divergence label; unlocked re-take and fourteen-image re-take owed; record §136). Before it,
@@ -292,7 +293,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
   test — not re-taken after the merge). A count is stale the moment a test
   lands — re-measure (`swift package clean`, native build, unfiltered
   `--no-parallel` run). History: record §66, §67, §68, §70, §71 (§11, the
-  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126, §127, §128, §129, §130, §131, §132, §133, §136, §137.
+  merge), §72, §73, §74, §75, §76, §77, §78, §81, §82, §83, §84, §85, §87, §88, §89, §90, §91, §92, §94, §98, §99, §101, §102, §103, §104, §106, §109, §110, §112, §114, §115, §116, §121, §122, §123, §124, §126, §127, §128, §129, §130, §131, §132, §133, §134, §135, §136, §137, §138.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -908,6 +909,17 @@ buffers owned by `RasterCache` and borrowed `inout` per call, zero-filled on tak
 a nested raster cannot alias (`OS-L`); a call site never holds `&cache.scratch` across a `make` closure. Its win is memory traffic
 (allocated bytes -20.6 % on `shadow-drag`), **not time** (`OS-P`). Pins count work, never time (`RasterOverscanTests`, `RasterScratchTests`).
 
+**Lazy containers (`LZ-`, record §134).** `LazyVStack`/`LazyHStack`/`LazyVGrid`/`LazyHGrid`/`GridItem` are SwiftUI's spellings (class A; probe `swiftui-lazy-containers.swift`)
+over non-`Hashable` `ProposalLayout`s (`LazyStackLayout`, `LazyGridLayout`) that taint exactly their ancestors (`LZ-F`, `IV-`). A container's content is read as **units**
+(`LazyUnits.swift`: a `ForEach` element, a static leaf or component, legacy rows through `LegacyContent`); an `if`/`switch`/`for` member makes it **eager and counted**
+(`FrameWork.lazyUnbounded`, divergence 636). **One window, never forked:** `LazyLinePlanner` runs `List`'s variable-row window over lines (a stack's child, a grid's row) on the
+**unchanged `RowExtentIndex`** (`LZ-C`); the viewport plus two lines each side are realised (divergence 637), a cold slice is 32 lines, unrealised lines count as the measured mean,
+the anchor holds across measurements (`VL-G`), and outside a scroller everything is realised. A scrolled-out child keeps `@State` the `List` way (`TB-AH`); accessibility exposes
+realised children only and no list position (`LZ-J`). A stack's cross size is the proposal else the **first** child's (the "widest realised child" premise was refuted). Grid tracks
+come from `GridTrackSolver` (`MetalUILayout`, `package`, pure); `GridItem.alignment` is `ProposalAlignment?` (nil takes the grid's); an adaptive item's count is decided at build time
+from the previous frame's width and corrected by one more frame (divergence 638, `LZ-L`, `LZ-Y`); a `ForEach` element producing several views is one cell (635). `pinnedViews:`/`Section`
+are not built (`LZ-N`). A new framework state write in these files is classified in `everyStateWriteSiteIsClassified`. Pins count work (`lazyUnitsRealized`, `lazyLinesRealized`). Demo `METALUI_LAZY_DEMO=1`.
+
 **Memo observation off the main thread (`MO-`, record §123).** An `.equatable()` occurrence's decision flags (`stale`, `observedChange`, the
 serials a handler compares, a monotonic `changes`) live in one **locked** `MemoFlags` per entry (and per `RetainedSession` for its serial) and
 are set **synchronously by whichever thread the observation `onChange` fires on**, never behind a `Thread.isMainThread` hop: off Darwin Swift
@@ -943,8 +955,8 @@ press's) and `DragGesture.Value.clickCount` (the press's, never the move's) are 
 values (divergence 235); `onCancelled` on drag, magnify and rotate runs **once, only for a
 leaf that had reported**, from a dropped primary arena, a replaced stale button or pinch arena,
 a `.mouseMoved` while a button arena is live (a lost release), key loss and window close —
-never for a disabled gesture or a removed owner (`IF-E`, `IF-K` 3; divergence 236; no
-`@GestureState`). A wheel scroll **latches** to the cover of its `.began` through its momentum
+never for a disabled gesture or a removed owner (`IF-E`, `IF-K` 3; divergence 236; the
+reset is `@GestureState`, `GS-`). A wheel scroll **latches** to the cover of its `.began` through its momentum
 (`ScrollLatch`, `IF-G`) and ends with a synthesized `.cancelled` to the latched handlers on key
 loss or close (`IF-H`); the platforms send `.modifiersChanged` on becoming key (`IF-I`).
 `onModifierKeysChanged(mask:initial:_:)` is one transparent `ModifierKeysScope` (the shape of
@@ -1092,11 +1104,21 @@ portable cross-backend GPU API is refused. **A batch** (`device.submitBatch`) is
 worker thread and its fence awaited on a waiter thread, never the main actor; every fence is released after its signal
 whether or not anyone awaits it (`GA-E`); `make` is serialized, and `SDLGPUDevice(borrowing:)` never destroys the
 window's device. An atomic append is a storage-buffer counter (`GA-G`). App shaders are HLSL built by
-`compile-app-shaders.py` into checked-in `.spv/.msl/.dxil/.json` blobs with `SOURCE.sha256` and found in
+`MetalUICompileShaders` (`BS-`, below) into checked-in `.spv/.msl/.dxil/.json` blobs with `SOURCE.sha256` and found in
 `MetalUIAppShaders` beside the executable (`GA-F`, `docs/packaging.md` 4a). **`ctx.view` records into the frame's own
 buffer and has no submit, cancel, wait or acquire verb** (`GA-H`); the debug guard traps a typed `waitForIdle`, `submitBatch` and
 `fence.wait` in a draw and a pass left open (the async two through a `package` test hook, `GA-R`); a raw SDL call is undetected (`GA-I`). A new SDL GPU test needs
 `armMainRunLoopExitCheck()` on macOS, runs the Linux image on lavapipe and takes `METALUI_REQUIRE_GPU=1` in CI.
+
+**`@GestureState` and `phaseAnimator` (`GS-`, record §135).** `GestureState<Value>` is a `@MainActor` wrapper over a `State<Value>` plus a dirty set: a **`$state<n>` slot, no eighth
+reserved name** (`BindableState`, `StateTable.write`/`peek`, so the memo, retained and prepaint logs already see its writes), get-only `wrappedValue`, itself its `projectedValue`. `updating(_:body:)` is on
+the concrete gestures (a tap's compiles and never runs; none on a composition), returns the receiver's own type and runs in declaration order with `onChanged`. **The reset is one `finished` hook on the
+arena leaf, queued in `fail(_:)` and in `act(_:)` before the ended callback and handed back by `cancel()`/`abandon()` (`owesFinish`)**: a new exit from an arena owes a pin that the state resets once
+(`everyCancelPathResetsOnce`). Every body of one event starts from the value committed before it; two simultaneous writers resolve in declaration order (divergence 645, probe arms `G7`/`G7e` not re-taken). The
+update's transaction applies only when the body set an animation, the reset's only when it animates (divergence 99's one root). `phaseAnimator`/`PhaseAnimator` are `keyframeAnimator`'s transparent scope
+with a `PhaseRecord` in `AnimationStore` at **`$phase<depth>`** (never a `StateTable` slot, `keyframeDepth`'s counter shared): no trigger cycles forever, a trigger runs once through the phases back to the
+first, each held for `Animation.nominalDuration`; it calls `noteActiveAnimation()`, **never `requestAnotherFrame()`**; Reduce Motion is not changed (`GS-K`, unmeasured); it is refused by the retained paths by
+name while cycling. No `Retained*.swift` edit, no `Handlers` change, no seam requirement. Demos: `METALUI_CANVAS_DEMO=1` chips, `METALUI_LOOKS_DEMO=1` pulse. Pins count work and values.
 
 **SDL GPU gaps (`GB-`, record §137).** Class `M`, `MetalUISDLGPU` only, no divergence (665-674 untouched), no root change. `SDLGPURenderPass.setViewport`/`setScissor` are
 `@discardableResult -> Bool`: top-left target pixels, a non-finite value or size `<= 0` answers `false` and never traps, the scissor **clamps to the pass's target**, the viewport does not
@@ -1105,6 +1127,8 @@ buffer and has no submit, cancel, wait or acquire verb** (`GA-H`); the debug gua
 signals and never calls `SDL_WaitForGPUFences` or releases (the fence rule holds), `SDLGPUDevice.downloadSynchronously(_:region:)` builds on it; both trap in a draw (`GA-I`) and
 `precondition` off the device's own worker threads (`GB-F`, `GB-I`, `GB-L`). `compileGraphicsPipeline`/`compileComputePipeline` throw an `SDLGPUError` naming the stage with SDL's text read on
 the failing thread; the optional `make...Pipeline` verbs keep their spelling and record `lastPipelineFailure` (`GB-G`); **the stage a refusal names is the driver's** (`GB-L` 6).
+
+**Build-time app shaders (`BS-`, record §138).** Class `M`, no divergence (675-684 untouched), nothing published (`BS-H`). `MetalUICompileShaders` (executable) and the `CompileShaders` command plugin (`swift package compile-shaders --allow-writing-to-package-directory`) over `MetalUIShaderCompile` (portable, Foundation only, `package`, **outside the `SDL` trait**) replace `compile-app-shaders.py`: one implementation, its checked-in output the byte-for-byte oracle (`BS-B`). shadercross is found by `--shadercross`, `METALUI_SHADERCROSS`, then `PATH`, its `lib` joining the loader path (`BS-C`); the pin is SDL_shadercross `1ff05bec573988a98ef9e0260b4da44f512b8367`, documented in `docs/packaging.md` 4a, built and run at the pin on macOS arm64 and Linux aarch64 with 41 files byte-identical (`BS-L`). **`SDLGPUShaderLibrary` accepts a directory with a `SOURCE.sha256` or a reflection `.json`** (a marker-free build product is trusted); `init(directory:verifyingSources:)` checks a marker only when present and then refuses a stale, missing or orphan entry by name (`BS-E`). Carried: a build-tool plugin on `swift build` (`BS-D`), a CI job building shadercross (`BS-G`), any prebuilt, release or tag (the user's decision, to be asked).
 
 **Menus, popovers, tooltips (`MN-`, record §74).** A secondary press is its own
 `InputEvent` and **never presses, taps, drags or focuses** (divergence 110);
@@ -1300,7 +1324,7 @@ element side as `AXNode.colorWellHint`/`progressHint` (internal, stripped in
 bridges. The spinner steps by the frame clock only while visibly painted
 (`LK-F`); keyframes are a transparent scope whose records live in
 `AnimationStore` (`$keyframes<depth>`, never a `StateTable` slot; `LK-I`);
-`phaseAnimator` is not built. **A gradient is rasterized on the CPU through the
+`phaseAnimator` is built (`GS-H`). **A gradient is rasterized on the CPU through the
 image path** (Oklab table; a one-texel strip when linear along one axis, else a
 full raster in `RasterCache`; no shader change; `LK-J`); `.blur(radius:)` is per
 leaf with sigma = radius, the shadow pipeline in colour keyed by
@@ -1598,7 +1622,7 @@ edges). A root is placed centred at its own answer (`CN-J`).
   `GridRow` has its own identity level; cell modifiers are transparent. The
   outermost row mark wins; the innermost cell attribute wins;
   `gridCellColumns` sums. Spacing `nil` is per-boundary (`GR-D`). A grid
-  consumes no `LoweredItem`. Lazy grids are not built (stage G2).
+  consumes no `LoweredItem`. Lazy grids are built outside the kernel (`LZ-`, record §134).
 - **Registrars**: 13 on `LayoutPass` and on `LayoutTree` — count by type, not
   by file (`requestNativeGrid` lives in `Grid.swift`).
 - **`ScrollView` and `ProposalScrollView` share one `ScrollChrome`** (computed,
@@ -1644,7 +1668,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (158 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (164 live, next label 206). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

@@ -229,6 +229,20 @@ public struct Animation: Sendable, Equatable {
     /// the value.
     public static let `default` = Animation.spring(duration: 0.5, bounce: 0)
 
+    // MARK: - Nominal duration
+
+    /// How long this animation nominally lasts, in seconds: a duration curve's `seconds`, a
+    /// spring's `duration:`; a zero, negative or NaN duration is `0`. `phaseAnimator` (`GS-I`)
+    /// waits this long before the next phase, as SwiftUI's steps are spaced (probe `P6`, `P9`).
+    var nominalDuration: Double {
+        let seconds: Double
+        switch kind {
+        case let .duration(_, s): seconds = s
+        case let .spring(duration, _): seconds = duration
+        }
+        return seconds > 0 ? seconds : 0
+    }
+
     // MARK: - Evaluation
 
     /// Where this animation puts `from → to` at `elapsed` seconds, given the

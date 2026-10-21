@@ -1794,6 +1794,16 @@ a physical GPU, a desktop session and a console.*
 - [ ] **AP1.** On GNOME Wayland and on an X11 session, install a `.desktop` entry named after the id (`com.example.MyApp.desktop`, `Icon=` a theme name) and launch an SDL app that passes the id as `Options.applicationID` (or only to `launchingSingleInstance(id:)`): the window shows the entry's icon in the dash and
   groups under the entry, not under the executable name; on X11 `xprop WM_CLASS` names the id. With no id set the old behaviour (generic icon) holds; with `SDL_APP_ID=other.id` exported the override wins (`AP-A`, `AP-B`, `AP-C`). **Observed:**
 
+## LZ. Lazy containers - fast scrolling, an adaptive grid's first frame, VoiceOver and resizing (item L1, user request 2026-10-02, round 2 2026-10-21, not a plan task; record 134; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot run VoiceOver (`IX-AE`), see a flash or hold a wheel. The window, the index, the anchor, the column counts and the one-frame correction are pinned by the suite (`LazyStack*Tests`, `LazyGrid*Tests`, `GridTrackSolverTests`); what is owed is how it looks and reads. Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` (and `-c release`).*
+
+- [ ] **LZ1.** Fast-scroll the variable-height `LazyVStack` (trackpad flick and scroll-bar drag) up and down through 10 000 rows: no row jumps, flashes or leaves a blank band, the row on top stays put while rows above it are measured, and the "on screen now" count stays near the viewport plus two rows each side (`LZ-E`, `LZ-G`, divergence 637). **Observed:**
+- [ ] **LZ2.** The adaptive `LazyVGrid`'s first frame in a real window: is it visibly a single column for a frame before the real count (`LZ-L`, divergence 638)? Open the demo several times and note whether the flash is seen at all. **Observed:**
+- [ ] **LZ3.** VoiceOver on the demo: it reads the realised rows and cells, reaches an off-screen row only after scrolling to it (no list position is announced, `LZ-J`), and a focused cell that scrolls out of the window does not leave a stale focus rectangle. **Observed:**
+- [ ] **LZ4.** Resize the window wider and narrower while the adaptive grid is on screen: it re-flows to the new column count with no blank band and no cell drawn at a stale width longer than one frame (`LZ-L`). **Observed:**
+- [ ] **LZ5.** The same demo on SDL (Linux, Windows) once `MetalUISDLDemo` carries it (carried: only `MetalUIDemo` wires it), and a wheel over a lazy stack inside a `ScrollView` on both. **Observed:**
+
 ## EX. Sample app - Jotter on macOS and SDL (item E1, user request 2026-10-21, not a plan task; record 136; provisional letter, in the manner of `RT`, `KF` and `IF`)
 
 *An agent cannot: the screen was locked and no real window was launched. The app's flows are pinned headlessly (`Examples/Jotter/Tests`); what is owed is how it looks and feels through real panels and menus.*
@@ -1820,6 +1830,27 @@ a physical GPU, a desktop session and a console.*
 - [ ] **RZ1.** `METALUI_RETAINED_DEMO=1`: step the zoom strip's scale in and out and rotate it; nothing flickers, text and the stroked path stay sharp at each scale (no stale raster at an old scale), hover and click land on the card drawn under the pointer while the zoom moves content beneath a stationary pointer, and the strip's counters show grafts above 0 and redos 0 (`RZ-A`, `RZ-C`, `RZ-D`, `RZ-O`). **Observed:**
 - [ ] **RZ2.** An app canvas under `.scaleEffect` + `.offset` with `.equatable()` nodes and VoiceOver on (MetalCreator's zoom-50-warm): zoom with the wheel; VoiceOver's focus rectangle follows the focused node at every scale and the warm frame's element requests are O(changed) (`RZ-E`). **Observed:**
 - [ ] **RZ3.** A form of `.equatable()` components each declaring `@FocusState`: Tab through and click between fields; the focus ring and caret follow focus with no lag, a field focused from code takes focus on the next frame, and unfocused components are skipped (`contentRefusals` 0; `RZ-T`). **Observed:**
+
+## GS. `@GestureState` and `phaseAnimator` (item G1, user request 2026-10-02, round 2 2026-10-21, not a plan task; record 135; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: the screen was locked for the whole item, so no real window was driven and the probe arms `G7`, `G7e` and `P5` were not re-taken. The reset paths, the stepping schedule and the work counts are pinned headlessly (`GestureStateTests`, `PhaseAnimatorTests`, `PhaseAnimatorRetainedTests`); what is owed is how it looks, how SwiftUI behaves under Reduce Motion, and the re-take. Demos: `METALUI_CANVAS_DEMO=1`'s drag chip and hold chip (the input follow-ups pad under the canvas demo) and `METALUI_LOOKS_DEMO=1`'s keyframes row (pulse and triggered bar).*
+
+- [ ] **GS1.** Drag the chip and release: it eases home over 0.25 s (`resetTransaction`) on macOS and on SDL, with no jump at the release and none while it follows the pointer. **Observed:**
+- [ ] **GS2.** Hold the press chip past 0.5 s and release early: the pressed look turns off at the maturity and again at the release, never sticks. **Observed:**
+- [ ] **GS3.** Flip System Settings, Accessibility, Display, Reduce Motion, then re-run `docs/probes/swiftui-gesture-state.swift` `P1`/`P2` and watch the looks demo's pulse: record whether SwiftUI stops or snaps the cycle and what MetalUI does (it keeps stepping and animating, `GS-K`). If SwiftUI differs, the counter-ruling is one `snaps` read in `PhaseRecord` resolution. **Observed:**
+- [ ] **GS4.** Start a drag on the chip and Cmd-Tab away, then return: the chip is home (key loss cancels the arena and resets the state, `GC-`, `GS-C`). **Observed:**
+- [ ] **GS5.** Leave the looks demo's pulse running for a minute: one core's share while it runs, near 0 % once the window is occluded or the pulse is removed (the display link only while a step is pending, `GS-I`). **Observed:**
+- [ ] **GS6.** The same drag chip and pulse on Linux with a real pointer (an SDL window). **Observed:**
+- [ ] **GS7.** With an unlocked screen, re-take `swiftui-gesture-state.swift` arms `G7`, `G7e` (the claim behind divergence 645) and `P5` (the nil-animation step) byte for byte against the header's lines (`GS-O`); a line that differs re-rules 645 or the P5 pin. **Observed:**
+
+## BS. Build-time app shaders - a real shadercross through the tool and plugin (item S12, user request 2026-10-02, not a plan task; record 138; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs a Windows machine and a Linux x86_64 one. The tool's plan, lookup, marker and the plugin (with a stub shadercross) are pinned headless, and the runs against a real shadercross at the pin on macOS arm64 and Linux aarch64 were byte-identical to the checked-in blobs (record 138, `BS-L`); what is owed is the other platforms.*
+
+- [ ] **BS1.** On a machine with SDL_shadercross built at `1ff05bec573988a98ef9e0260b4da44f512b8367` (Linux x86_64 and Windows x64; macOS arm64 was run by the agent, `BS-L`; recipe in `docs/packaging.md` section 4a): `METALUI_SHADERCROSS=<path> swift package --allow-writing-to-package-directory compile-shaders --source Backends/SDL/Tests/AppShaders --out /tmp/appshaders` (a copy of the sources inside a package) writes blobs whose reflection JSON equals the checked-in one's and that open in the SDL GPU tests (`METALUI_SHADERCROSS=<path> swift test --filter anEnvGatedRunCompilesAFixture`). **Observed:**
+- [ ] **BS2.** Linux aarch64 *app*: a Vulkan app on a real aarch64 Linux GPU opens the library built there, and one built without `dxil` (`--formats spv,msl,json`). The compile itself was run by the agent in the image (`BS-L`). **Observed:**
+- [ ] **BS3.** A package depending on MetalUI **by URL** (not path) sees `swift package compile-shaders`; if not, `swift run --package-path .build/checkouts/MetalUI MetalUICompileShaders ...` works (`BS-B`). **Observed:**
+- [ ] **BS4.** Windows: `shadercross.exe` is found on `PATH` and by `METALUI_SHADERCROSS`, its DLLs beside it load, and the tool's output matches macOS's reflection JSON. **Observed:**
 
 ## Sign-off
 

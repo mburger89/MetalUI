@@ -1,6 +1,7 @@
 // Compiled only under the `SDL` trait (ruling PX-H item 2; GA-B).
 #if SDL
 import Foundation
+import MetalUIShaderCompile
 
 /// A shader the library could not give (ruling `GA-F`): the message names the
 /// file, directory or driver.
@@ -41,20 +42,51 @@ public struct SDLGPUShaderBlob: Sendable {
     public let threadCount: (x: Int, y: Int, z: Int)
 }
 
-/// A directory of blobs built by `scripts/compile-app-shaders.py` (ruling
-/// `GA-F`): `NAME.comp.{spv,msl,dxil,json}`, `NAME.vert.…`, `NAME.frag.…` and
-/// `SOURCE.sha256`.
+/// A directory of blobs built by `MetalUICompileShaders` (the `compile-shaders`
+/// command plugin; rulings `GA-F`, `BS-B`): `NAME.comp.{spv,msl,dxil,json}`,
+/// `NAME.vert.…`, `NAME.frag.…` and, unless the build omitted it, `SOURCE.sha256`.
 public struct SDLGPUShaderLibrary: Sendable {
     /// The directory the blobs are read from.
     public let directory: URL
 
-    /// Opens `directory`, which must hold `SOURCE.sha256` (what the script
-    /// writes beside the blobs; a directory without it does not count).
+    /// Opens `directory`, which must hold `SOURCE.sha256` (what the tool writes
+    /// beside the blobs) **or** at least one `NAME.<vert|frag|comp>.json`
+    /// reflection file, the last thing the tool writes for a stage (ruling
+    /// `BS-E`): a build product made on the spot is never stale, so it needs no
+    /// marker. A directory with neither does not count. Reads no source.
     public init(directory: URL) throws {
-        guard FileManager.default.fileExists(atPath: directory.appendingPathComponent("SOURCE.sha256").path) else {
-            throw SDLGPUShaderError(description: "\(directory.path) holds no SOURCE.sha256")
+        let manager = FileManager.default
+        let hasMarker = manager.fileExists(atPath: directory.appendingPathComponent("SOURCE.sha256").path)
+        let names = (try? manager.contentsOfDirectory(atPath: directory.path)) ?? []
+        let hasReflection = names.contains { name in
+            ["vert", "frag", "comp"].contains { name.hasSuffix(".\($0).json") && name.count > ".\($0).json".count }
+        }
+        guard hasMarker || hasReflection else {
+            throw SDLGPUShaderError(description:
+                "\(directory.path) holds no SOURCE.sha256 and no NAME.<vert|frag|comp>.json reflection file")
         }
         self.directory = directory
+    }
+
+    /// Opens `directory` as ``init(directory:)`` does, then, **when it holds a
+    /// `SOURCE.sha256`**, checks it against `sources` (ruling `BS-E`, `GA-Q`'s
+    /// staleness detector): every `NAME.<vert|frag|comp>.hlsl` there must hash to
+    /// its line, have one, and no line may stand without its source, each a named
+    /// error. Without a marker nothing is compared.
+    public init(directory: URL, verifyingSources sources: URL) throws {
+        try self.init(directory: directory)
+        let markerURL = directory.appendingPathComponent("SOURCE.sha256")
+        guard let marker = try? String(contentsOf: markerURL, encoding: .utf8) else { return }
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: sources.path) else {
+            throw SDLGPUShaderError(description: "cannot read the shader sources in \(sources.path)")
+        }
+        let listed = try names.filter { ShaderSource(fileName: $0) != nil }.map { name in
+            (name: name, bytes: [UInt8](try Data(contentsOf: sources.appendingPathComponent(name))))
+        }
+        let problems = SourceMarker.problems(marker: marker, sources: listed)
+        guard problems.isEmpty else {
+            throw SDLGPUShaderError(description: "\(markerURL.path) is stale: " + problems.joined(separator: "; "))
+        }
     }
 
     /// The directories an app's shaders are looked for, in order (ruling `GA-F`,
@@ -63,13 +95,13 @@ public struct SDLGPUShaderLibrary: Sendable {
         [executableDirectory.appendingPathComponent(directoryName)] + (sourceTree.map { [$0] } ?? [])
     }
 
-    /// The first of `candidates` that holds `SOURCE.sha256`; none throws an error
-    /// naming every directory tried.
+    /// The first of `candidates` that opens (a `SOURCE.sha256` or a reflection file, `BS-E`);
+    /// none throws an error naming every directory tried.
     static func locate(from candidates: [URL]) throws -> SDLGPUShaderLibrary {
         for candidate in candidates {
             if let library = try? SDLGPUShaderLibrary(directory: candidate) { return library }
         }
-        throw SDLGPUShaderError(description: "no app shader directory holds SOURCE.sha256; tried "
+        throw SDLGPUShaderError(description: "no app shader directory holds SOURCE.sha256 or a reflection file; tried "
             + candidates.map(\.path).joined(separator: ", "))
     }
 

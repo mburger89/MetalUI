@@ -97,6 +97,14 @@ public struct FrameWork: Sendable, Equatable {
     /// `hitboxes`, `inexactTranslation`, `fractionalTranslation`, `maskStraddlesEntryClip`, `unlistedKind:<kind>`, ...
     /// One entry per refusal; empty when nothing was refused (`FS-J`).
     public var retainedTranslationRefusedReasons: [String: Int]
+    /// Units (children) the build's lazy containers realised: a `LazyVStack` or `LazyHStack` in a scroller
+    /// along its axis realises the viewport and two on each side, every child otherwise (`LZ-I`).
+    public var lazyUnitsRealized: Int
+    /// Lines the lazy containers realised: a stack's children, a grid's rows (`LZ-I`).
+    public var lazyLinesRealized: Int
+    /// Lazy containers that realised everything: outside a scroller, in one of the other axis, under a `Deferred`,
+    /// or holding an `if`, `switch` or `for` member (`LZ-I`).
+    public var lazyUnbounded: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -125,7 +133,8 @@ public struct FrameWork: Sendable, Equatable {
                 retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0,
                 retainedGrafts: Int = 0, retainedGraftIneligible: Int = 0, retainedSkippedRequests: Int = 0,
                 retainedGraftedNodes: Int = 0, retainedIneligibleReasons: [String: Int] = [:],
-                retainedTranslationRefusedReasons: [String: Int] = [:]) {
+                retainedTranslationRefusedReasons: [String: Int] = [:],
+                lazyUnitsRealized: Int = 0, lazyLinesRealized: Int = 0, lazyUnbounded: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -168,6 +177,9 @@ public struct FrameWork: Sendable, Equatable {
         self.retainedGraftedNodes = retainedGraftedNodes
         self.retainedIneligibleReasons = retainedIneligibleReasons
         self.retainedTranslationRefusedReasons = retainedTranslationRefusedReasons
+        self.lazyUnitsRealized = lazyUnitsRealized
+        self.lazyLinesRealized = lazyLinesRealized
+        self.lazyUnbounded = lazyUnbounded
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -211,6 +223,9 @@ public struct FrameWork: Sendable, Equatable {
                   retainedSkippedRequests: l.retainedSkippedRequests + r.retainedSkippedRequests,
                   retainedGraftedNodes: l.retainedGraftedNodes + r.retainedGraftedNodes,
                   retainedIneligibleReasons: l.retainedIneligibleReasons.merging(r.retainedIneligibleReasons, uniquingKeysWith: +),
-                  retainedTranslationRefusedReasons: l.retainedTranslationRefusedReasons.merging(r.retainedTranslationRefusedReasons, uniquingKeysWith: +))
+                  retainedTranslationRefusedReasons: l.retainedTranslationRefusedReasons.merging(r.retainedTranslationRefusedReasons, uniquingKeysWith: +),
+                  lazyUnitsRealized: l.lazyUnitsRealized + r.lazyUnitsRealized,
+                  lazyLinesRealized: l.lazyLinesRealized + r.lazyLinesRealized,
+                  lazyUnbounded: l.lazyUnbounded + r.lazyUnbounded)
     }
 }
