@@ -41,6 +41,9 @@ struct MemoryHeaderSource: HeaderSource {
 /// straight (an EXIF payload, at most 1 MiB). The size is recorded once at open (`IH-N`); a file that
 /// grows afterwards is read only to that size, one that shrinks answers `nil` at the short read.
 final class FileHeaderSource: HeaderSource {
+    /// Test seam (`IS-K`): when set, a source opened with no trace of its own reports into this one, so a
+    /// test sees the work of a public file form that passes none. `nil` in production; `--no-parallel`.
+    nonisolated(unsafe) static var testingTraceForUntracedOpens: HeaderTrace?
     static let windowSize = 64 * 1024
 
     let size: Int
@@ -59,7 +62,7 @@ final class FileHeaderSource: HeaderSource {
               let end = try? handle.seekToEnd(), end <= UInt64(Int.max) else { return nil }
         self.size = Int(end)
         self.handle = handle
-        self.trace = trace
+        self.trace = trace ?? FileHeaderSource.testingTraceForUntracedOpens
     }
 
     deinit { try? handle.close() }

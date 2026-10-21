@@ -43,7 +43,7 @@ func theSniffSurfaceIsReachableAndItsWalkIsNot() throws {
         func reach(_ source: any HeaderSource) {}
         """), importing: "MetalUI")
     let walk = try typecheckFile(fixture("""
-        let _ = sniffImageFormat
+        let _ = sniffImageFormat(MemoryHeaderSource(bytes: UnsafeRawBufferPointer(start: nil, count: 0)))
         """), importing: "MetalUI")
     print("""
         IS-A reachability: with succeeded=\(with.succeeded) messages=[\(with.messages)]; \

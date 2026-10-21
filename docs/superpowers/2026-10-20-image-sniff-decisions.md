@@ -101,13 +101,14 @@ brief's 12-minute rule. **Rejected:** a SwiftUI probe (no SwiftUI claim is made,
 reading compatible brands (`IS-D`). **Evidence.** `ImageHeader.swift` lines 10-13 and the inventory map at `b15e038c`.
 **Cost if wrong.** A map row or a test gate.
 
-## IS-K — Measured residues of the mutation run (lane, 2026-10-20)
+## IS-K — Measured residues of the mutation run (lane, 2026-10-20; amended by the fix pass)
 
-**Ruling.** Two mutants survive and are named, not hidden. (1) `sniffedFormat(ofFile:)` rewritten over `Data(contentsOf:)`
-passes every pin: the public file form has no work counter, and the `HeaderTrace` pin (one refill at 0, no payload read)
-reads the internal `sniffImageFormat(FileHeaderSource)`, which the mutant bypasses. The regular-file refusal, directory,
-missing, empty and symlink pins pass either way (`Data(contentsOf:)` throws on a directory). (2) Guard `G-IS1`'s `sniffImageFormat`
-negative cannot be reddened alone: `public func sniffImageFormat(_ source: some HeaderSource)` does not compile while `HeaderSource`
-is internal, so the run made both public; the `HeaderSource` negative then reddened (and `G-IH1`'s), the walk negative still failed
-for the generic-inference reason, a weak separating control. **Evidence.** `/tmp/is-mut-*.txt` of the run; record 130 names the
-reddened tests. **Cost if wrong.** A file form that loads a whole file would go unnoticed until a counter exists; carried.
+**Ruling.** (1) `sniffedFormat(ofFile:)` rewritten over `Data(contentsOf:)` passed every pin, because the public file form had no
+work counter. **Fixed:** `FileHeaderSource.testingTraceForUntracedOpens` (internal, `nil` in production) makes an untraced open report
+into a test's `HeaderTrace`; the file-form pin goes through the *public* `sniffedFormat(ofFile:)` on a 200 KB file and requires
+`refills == [0]`, no payload read, no whole-file load. A `Data(contentsOf:)` rewrite never opens a `FileHeaderSource`, so the trace
+stays empty and the pin reddens (mutation re-run recorded in record 130). (2) Guard `G-IS1`'s walk negative now calls
+`sniffImageFormat(MemoryHeaderSource(...))` with concrete internal values, so it fails for access reasons, not generic inference;
+making the function `public` alone still cannot compile while `HeaderSource` is internal, so `G-IH1` carries that guarantee for the
+protocol. **Residue (dated).** The lane's mutations ran on filtered sets and the Linux image ran 26-27 filtered tests; record 130
+must say so and the full root portable run in `metalui-portable` is re-taken before merge.

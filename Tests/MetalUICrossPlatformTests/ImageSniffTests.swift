@@ -135,6 +135,16 @@ private func temporaryDirectory() throws -> URL {
             #expect(trace.refills == [0] && trace.payloadReads == 0 && trace.wholeFileLoads == 0, "\(name)")
         }
     }
+    // The public file form itself reads one window at offset 0 and no payload (`IS-K`; a `Data(contentsOf:)`
+    // rewrite never opens a `FileHeaderSource`, so the trace stays empty and this reddens).
+    let big = directory.appendingPathComponent("big").path
+    try Data([0x47, 0x49, 0x46, 0x38, 0x39, 0x61] + [UInt8](repeating: 9, count: 200_000)).write(to: URL(fileURLWithPath: big))
+    let publicTrace = HeaderTrace()
+    FileHeaderSource.testingTraceForUntracedOpens = publicTrace
+    defer { FileHeaderSource.testingTraceForUntracedOpens = nil }
+    #expect(ImageInfo.sniffedFormat(ofFile: big) == .gif)
+    #expect(publicTrace.refills == [0] && publicTrace.payloadReads == 0 && publicTrace.wholeFileLoads == 0)
+    FileHeaderSource.testingTraceForUntracedOpens = nil
     let empty = directory.appendingPathComponent("empty").path
     try Data().write(to: URL(fileURLWithPath: empty))
     #expect(ImageInfo.sniffedFormat(ofFile: empty) == .unknown)
