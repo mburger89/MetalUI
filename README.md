@@ -111,6 +111,10 @@ script that bundles a signed `.app` — see
 swift run --package-path MetalUI metalui new MyApp   # from beside a clone
 ```
 
+A complete sample app, **Jotter** (a notes app with a sidebar, search, drag to reorder, menus,
+file save and load, a chart, light and dark, and its own tests), is in
+[`Examples/Jotter/`](Examples/Jotter/README.md); it builds as your app would, from its own package.
+
 Task-led guides for an app author coming from SwiftUI (layout, state and
 identity, input, presentations and the app shell, drawing and the GPU,
 cross-platform) are in [`docs/guides/`](docs/guides/README.md); every code

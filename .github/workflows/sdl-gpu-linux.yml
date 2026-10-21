@@ -16,6 +16,7 @@ on:
   push:
     paths:
       - "Experiments/SDLGPU/**"
+      - "Examples/Jotter/**"
       - "Backends/SDL/**"
       - "Sources/MetalUIPlatform/**"
       - ".github/workflows/sdl-gpu-linux.yml"
@@ -51,6 +52,7 @@ on:
   pull_request:
     paths:
       - "Experiments/SDLGPU/**"
+      - "Examples/Jotter/**"
       - "Backends/SDL/**"
       - "Sources/MetalUIPlatform/**"
       - ".github/workflows/sdl-gpu-linux.yml"
@@ -164,6 +166,15 @@ jobs:
           docker run --rm -v "$PWD":/work -w /work metalui-portable bash -ec '
             git config --global --add safe.directory "*"
             METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1 swift test --filter aCrossPlatformPackage --scratch-path /tmp/root
+          '
+      - name: The sample app builds and its tests pass (Examples/Jotter, SDL trait; ruling EX-E)
+        # A package of its own, a path dependency on this checkout with the SDL and AccessKit
+        # traits its manifest turns on for Linux; the image's offscreen video driver is enough
+        # because its tests run a headless TestWindow.
+        run: |
+          docker run --rm -v "$PWD":/work -w /work/Examples/Jotter metalui-portable bash -ec '
+            swift build --build-tests --scratch-path /tmp/jotter
+            swift test --skip-build --scratch-path /tmp/jotter
           '
       - uses: actions/upload-artifact@v7
         if: failure()
