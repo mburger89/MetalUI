@@ -56,8 +56,9 @@ func aZoomStepGraftsWithoutARedo() async throws {
 
 /// Z2 — after every zoom step the published tree (nodes, geometry frame and visible frame) equals the unretained window's, at
 /// scales 1.1, 0.8, 2 and 1.21 (0.8 and 1.1 are inexact in `Float`, so a frame shifted by a delta differs from one recomputed by an
-/// ulp where scale 2 cannot show it). Mutations: the ledger's frames replayed unrecomputed; the frames scaled by the ratio of the
-/// two scales instead of recomputed from the recorded pre-effect rects.
+/// ulp where scale 2 cannot show it). The replay count reads **prepaint** hits (a paint-only replay leaves the tree to a fresh
+/// prepaint and proves nothing about it). Mutations: the ledger's frames replayed unrecomputed (`translatedAccessibility`'s two
+/// assignments); `change(from:)` refusing every affine change (the count reads 0).
 @Test(arguments: [1.1, 0.8, 2.0, 1.21].map { ZArm(scale: Float($0)) }) @MainActor
 func aZoomPublishesTheFreshAccessibilityTree(arm: ZArm) async throws {
     let pair = try zoomPair(warm: 6)
@@ -66,7 +67,7 @@ func aZoomPublishesTheFreshAccessibilityTree(arm: ZArm) async throws {
     for (step, scale) in [arm.scale, arm.scale * 1.05, arm.scale].enumerated() {
         await zoomStep(pair, to: scale)
         let f = try #require(pair.frames.last)
-        replayed += f.retainedPrepaintHits + f.retainedTranslated
+        replayed += f.retainedPrepaintHits
         try pair.compare("zoom step \(step) at \(arm)")
     }
     if !rsVerifying { #expect(replayed > 0, "the retaining side replayed nothing: the differential proves nothing") }
@@ -142,7 +143,8 @@ func anEffectChangeThatIsNotAnAffineMoveIsRefusedByName(arm: ZRefusalArm) async 
     let pair = try zoomPair(extra: arm.extra, kind: arm.kind, warm: 6, graft: false)
     try pair.compare("warm")
     var refusals: [String: Int] = [:]
-    for scale in [Float(1.1), 1.2] {
+    // Dyadic scales: the named-space arm must reach the guard, not the dyadic test that refuses 1.1 and 1.2 by itself.
+    for scale in (arm == .namedSpaceNote ? [Float(1.25), 1.5] : [Float(1.1), 1.2]) {
         await zoomStep(pair, to: scale)
         for (r, n) in try #require(pair.frames.last).retainedTranslationRefusedReasons { refusals[r, default: 0] += n }
         try pair.compare("step to \(scale) at \(arm)")
@@ -194,7 +196,8 @@ func aHitboxInsideAnEffectTheOccurrenceOpenedFollowsTheZoom() async throws {
 }
 
 /// Z8 — a stationary pointer, a zoom that carries a node under it: the node's hover paint equals fresh (the pointer is read against
-/// the moved hitboxes). Mutation: the moved-hitbox pointer read skipped.
+/// the moved hitboxes, which is what keeps the frame from being redone). Mutation: the moved-hitbox pointer read skipped
+/// (the paint under the pointer misses after a replayed prepaint: a redo, counted).
 @Test @MainActor
 func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async throws {
     let pair = try zoomPair(warm: 6)
@@ -203,10 +206,16 @@ func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async th
     let probe = pt(target.x.value + 150, target.y.value)
     for w in [pair.on, pair.off] { w.hover(at: probe) }
     try pair.compare("hover at rest")
+    var redos = 0, backoff = 0
     for (step, scale) in [Float(1.2), 1.5, 1.8].enumerated() {
         await zoomStep(pair, to: scale)
+        let f = try #require(pair.frames.last)
+        redos += f.retainedRedos; backoff += f.retainedBackoffFrames
         try pair.compare("zoom step \(step) under a stationary pointer")
     }
+    // The paint of a node under the pointer misses (hover), so a prepaint that replayed anyway would redo the frame: the pointer
+    // read against the moved hitboxes keeps it a run, and the frame is not redone.
+    if !rsVerifying { #expect(redos == 0 && backoff == 0, "the moved hitbox under the pointer runs the prepaint: redos \(redos) backoff \(backoff)") }
 }
 
 /// Z9 — the report: element requests, grafts, redos, prepaints and paints of a zoom step and of a bracket pan step, retaining and

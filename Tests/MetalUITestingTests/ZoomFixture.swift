@@ -56,7 +56,7 @@ struct ZNode: Component, @MainActor Equatable {
                     HStack(spacing: 0) {
                         Box().frame(width: Pixels(16), height: Pixels(4))
                         Box().frame(width: Pixels(24), height: Pixels(4))
-                            .onGeometryChange(for: String.self, of: { ZNode.frame($0) }) { _ in }
+                            .onGeometryChange(for: String.self, of: { ZNode.frame($0) }) { log.add("N\(k) \($0)") }
                     }
                     .coordinateSpace(.named("zin"))
                 }
