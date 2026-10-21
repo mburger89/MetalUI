@@ -9,13 +9,12 @@ struct StatsView: Component {
     var content: some ElementGroup {
         VStack(alignment: .leading, spacing: Pixels(16)) {
             Text("Statistics").font(size: 20)
-            Text(model.statsSummary).foregroundColor(.secondary)
+            Text(model.statsSummary).foregroundColor(.secondary).accessibilityIdentifier("stats-summary")
             WordBars(model: model)
             PerDayLine(model: model)
         }
         .padding(Edges(all: Pixels(16)))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .accessibilityLabel("Statistics: \(model.statsSummary)")
     }
 }
 
@@ -29,9 +28,11 @@ struct WordBars: Component {
         VStack(alignment: .leading, spacing: Pixels(6)) {
             Text("Words per note").font(size: 13)
             HStack(alignment: .bottom, spacing: Pixels(8)) {
-                ForEach(Array(counts.enumerated()), id: \.offset) { _, count in
+                ForEach(Array(counts.enumerated()), id: \.offset) { index, count in
                     Rectangle().fill(.chartInk)
                         .frame(width: Pixels(24), height: Pixels(Float(max(2, 120 * count / tallest))))
+                        .accessibilityLabel("\(model.notes[index].title): \(count) words")
+                        .accessibilityIdentifier("bar-\(index)")
                 }
             }
             .frame(height: Pixels(120), alignment: .bottomLeading)

@@ -21,5 +21,6 @@ func makeApp() throws -> App {
 // One model for the whole app, created here and handed to the views.
 let model = NotesModel.seeded()
 let app = try makeApp()
+installJotterCommands(on: app, model: model)
 try app.openWindow(title: "Jotter", size: jotterWindowSize, minSize: jotterMinimumSize) { rootView(model: model) }
 app.run()

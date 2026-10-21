@@ -19,13 +19,14 @@ func seededModel() -> NotesModel { NotesModel.seeded(today: { 20_000 }) }
 /// installed fonts on Linux and Windows.
 @MainActor
 func jotterWindow(_ model: NotesModel, options: HeadlessPlatformWindow.Options = .init(),
-                  colorScheme: ColorScheme = .light, size: Size<Pixels> = jotterSize) throws -> TestWindow {
+                  colorScheme: ColorScheme = .light, size: Size<Pixels> = jotterSize,
+                  recordsLayout: Bool = true) throws -> TestWindow {
     #if os(Linux) || os(Windows)
     let resolver = try SystemFonts.resolver()
-    return try TestWindow(size: size, colorScheme: colorScheme, options: options,
+    return try TestWindow(size: size, colorScheme: colorScheme, options: options, recordsLayout: recordsLayout,
                           textSystem: { PortableTextSystem(resolver: resolver) }) { rootView(model: model) }
     #else
-    return try TestWindow(size: size, colorScheme: colorScheme, options: options) { rootView(model: model) }
+    return try TestWindow(size: size, colorScheme: colorScheme, options: options, recordsLayout: recordsLayout) { rootView(model: model) }
     #endif
 }
 
@@ -43,4 +44,25 @@ func scratchFile(_ name: String) -> URL {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("jotter-\(UUID().uuidString)")
     try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     return directory.appendingPathComponent(name)
+}
+
+/// The app and its window together, with the menu bar's commands installed as
+/// `main.swift` installs them: what a test of a shortcut or a menu item needs.
+@MainActor
+func jotterApp(_ model: NotesModel, options: HeadlessPlatformWindow.Options? = nil) throws -> (app: TestApp, window: TestWindow) {
+    #if os(Linux) || os(Windows)
+    let resolver = try SystemFonts.resolver()
+    let testApp = try TestApp(textSystem: { PortableTextSystem(resolver: resolver) })
+    #else
+    let testApp = try TestApp()
+    #endif
+    installJotterCommands(on: testApp.app, model: model)
+    let window = try testApp.openWindow(title: "Jotter", size: jotterWindowSize, minSize: jotterMinimumSize,
+                                        options: options) { rootView(model: model) }
+    return (testApp, window)
+}
+
+/// The centre of an element's frame, in window points.
+func centre(of element: TestElement) -> Point<Pixels> {
+    Point(x: element.frame.origin.x + element.frame.size.width / 2, y: element.frame.origin.y + element.frame.size.height / 2)
 }

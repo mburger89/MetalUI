@@ -23,3 +23,21 @@ import Testing
     #expect(model.notes.map(\.id) == before.map(\.id))
     #expect(try window.element(label: "Groceries").role == .staticText, "the row follows the edit")
 }
+
+@MainActor
+@Test func theWordCountFollowsTheBodyOfTheSelectedNote() async throws {
+    let model = seededModel()
+    let window = try jotterWindow(model)
+    try await window.runUntilIdle()
+    #expect(model.selectedWordCount == model.notes[0].wordCount)
+    try window.click(window.element(identifier: "body-field"))
+    window.typeKey("a", modifierFlags: .primary)
+    window.typeText("one two three")
+    try await window.runUntilIdle()
+    #expect(model.selectedWordCount == 3)
+    #expect(try window.element(label: "3 words").role == .staticText)
+    // Another note, another count: the task re-runs for the note shown, not only for its text.
+    try window.click(window.element(identifier: rowIdentifier(model.notes[1])))
+    try await window.runUntilIdle()
+    #expect(model.selectedWordCount == model.notes[1].wordCount)
+}
