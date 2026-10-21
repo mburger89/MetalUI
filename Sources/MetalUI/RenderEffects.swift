@@ -288,6 +288,10 @@ struct PrepaintEffect {
     let inverse: Affine2D?
     let outerClip: Bounds<Pixels>
     let savedClipBase: Int
+    /// The effect's own map (`composed` is the enclosing one's `concatenating(map)`) and the clip in force at its entry when a
+    /// clip was pushed inside the enclosing effect, local to it: what an accessibility replay re-derives a nested effect from (`AT-G`).
+    var map: Affine2D = .identity
+    var clipLocal: Bounds<Pixels>?
 }
 
 /// A proposal wrapper's own registrations (`GX-P` item 1): its rect (window
@@ -347,10 +351,13 @@ extension Frame {
         }
         let composed = (prepaintEffects.last?.composed ?? .identity).concatenating(map)
         prepaintEffects.append(PrepaintEffect(composed: composed, inverse: composed.inverted,
-                                              outerClip: outerClip, savedClipBase: clipBase))
+                                              outerClip: outerClip, savedClipBase: clipBase, map: map,
+                                              clipLocal: !prepaintEffects.isEmpty && clipDepth > clipBase ? activeClip : nil))
+        axEffectChain = nil
         clipBase = clipDepth
         defer {
             clipBase = prepaintEffects.removeLast().savedClipBase
+            axEffectChain = nil
         }
         // The floor the effect's element entered at (`GX-U`): a legacy
         // element's effects open before any child enters, and a proposal
@@ -428,11 +435,13 @@ extension Frame {
         let savedCandidates = shareCandidates
         let savedFloors = (shareFloor, shareFloorAtEntry)
         prepaintEffects = []
+        axEffectChain = nil
         shareCandidates = []
         shareFloor = 0
         shareFloorAtEntry = 0
         defer {
             prepaintEffects = savedEffects
+            axEffectChain = nil
             shareCandidates = savedCandidates
             (shareFloor, shareFloorAtEntry) = savedFloors
         }

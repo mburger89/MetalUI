@@ -42,7 +42,7 @@ let rpScaleArms = [1, 1.5, 2, 3, 4].flatMap { [RPScaleArm(scale: $0, accessibili
 /// and thirds, so scale 3 and 1.5 meet the fractions `SB-H` measured as inexact for a final-stream translation.
 /// The retaining side must have translated at the steps that move. Mutations: the translation applied to hitboxes only
 /// (the scene differs), to paint only (the hitbox transforms differ at a hover), the accessibility refusal removed
-/// (the tree's frames differ), the effect-translation relaxation removed from the paint key (`translated == 0`).
+/// (the tree's frames differ), the accessibility recomputation removed (`prepaintHits` falls, `AT-A`), the effect-translation relaxation removed from the paint key (`translated == 0`).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: rpScaleArms) @MainActor
 func aTranslatedReplayEqualsAFreshFrameAtEveryScale(arm: RPScaleArm) async throws {
     let pair = try RPPair(size: sz(320, 150), scale: arm.scale, warm: 4, accessibility: arm.accessibility, graft: false) { side in
@@ -68,12 +68,9 @@ func aTranslatedReplayEqualsAFreshFrameAtEveryScale(arm: RPScaleArm) async throw
     }
     #expect(translated >= 3 * 5, "the pan's moving steps replay translated: \(translated)")
     #expect(redos == 0, "a pan moves no paint-only ambient: \(redos)")
-    if arm.accessibility {
-        #expect(refused >= 3, "with an accessibility ledger the translation is refused by name: \(refused)")
-    } else {
-        #expect(prepaintHits >= 3 * 5, "without one the prepaint translates too: \(prepaintHits)")
-        #expect(refused == 0, "\(refused)")
-    }
+    // C14-g (`AT-A`): an accessibility ledger translates too, its records recomputed against the current effect.
+    #expect(prepaintHits >= 3 * 5, "the prepaint translates, with or without a client: \(prepaintHits)")
+    #expect(refused == 0, "\(refused)")
 }
 
 /// 12 — a pan of the bracket window's graph by whole points replays every visible node, and one by a fraction

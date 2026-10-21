@@ -497,6 +497,14 @@ made); every other counter is still the redo's own. A subtree restored by the pl
 after the records exist does exactly the work of the one before it: a test that recorded the old 135-against-52 layout spike on that frame (the bracket
 node drag's press frame) reads 52. A component that read `@Environment(\.textMeasurer)` under `.equatable()` is skipped, not refused (divergence 346).
 
+### Accessibility under an effect-translated replay (`AT-`, record §129)
+
+No API change, no conformer change, no `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement. **Behaviour, counters read differently:** an `.equatable()` occurrence under a
+render effect (`.offset`, `.scaleEffect`) that moved by a translation now replays its prepaint **with a client reading the accessibility tree** (its frames are recomputed against the current
+effect), so a pan grafts instead of redoing the frame: a test that counted `retainedRedos`, `retainedBackoffFrames` or element requests of such a pan reads 0, 0 and far fewer, and
+`retainedTranslationRefusedReasons["accessibilityRecords"]` no longer appears for it (layout translation still reports it). A scale or rotation change of the effect now counts
+`effectNotTranslation` where it was silent. A custom element under such an occurrence is called less often.
+
 ### Retained read-only state (`RW-`, record §121)
 
 None for the API beyond one additive `MetalUITesting` field, `FrameWork.retainedIneligibleReasons: [String: Int]` (class M; a stored

@@ -98,6 +98,8 @@ private let frameChannels: [String: Channel] = [
     // read by `Frame.render` after the root's paint and by the window, never replayed.
     "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "verifySnapshot": .frameLocal,
     "verifyAbandoned": .frameLocal,
+    // C14-g (`AT-G`): the open effects as steps, a cache dropped whenever the stack changes.
+    "axEffectChain": .frameLocal,
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {

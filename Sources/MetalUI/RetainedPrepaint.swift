@@ -39,6 +39,8 @@ final class PrepaintLog {
     var recorders: [PrepaintRecorder] = []
     var focus: [FocusCall] = []
     var axNodes: [(GlobalElementID, AXNode)] = []
+    /// Lock-step with `axNodes`: the pre-effect rect of each node, `nil` outside an effect (`AT-A`).
+    var axNodeLocals: [AXLocalRects?] = []
     var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
@@ -111,6 +113,7 @@ final class PrepaintLedger {
     var axEmissions: [AXEmission] = []
     var focus: [PrepaintLog.FocusCall] = []
     var axNodes: [(GlobalElementID, AXNode)] = []
+    var axNodeLocals: [AXLocalRects?] = []
     var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
@@ -168,7 +171,8 @@ extension PrepaintKey {
 enum RetainedPrepaintMode {
     /// Replay the ledger; the occurrence's `component.prepaintGroup` does not run. With hitboxes: the ledger moved
     /// by the translation of the render effects around the occurrence (`RK-G`, `RK-S`), hitbox transforms rewritten.
-    case replay(PrepaintLedger, moved: [Hitbox]?, elementBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil)
+    case replay(PrepaintLedger, moved: [Hitbox]?, elementBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
+                accessibility: AXTranslation? = nil)
     /// Run prepaint, recording a ledger when a recorder is given.
     case run(PrepaintRecorder?)
 }
@@ -247,19 +251,29 @@ extension Frame {
                 }
             }
             // The same occurrence under render effects that moved by a translation (`RK-G`, `RK-S`): its
-            // registrations are replayed moved, unless an accessibility record (frames are computed boxes)
-            // or a hitbox that cannot be moved exactly is in the ledger.
-            if ledger.key.differsOnlyByEffectTranslation(to: key), let delta = key.extras.translation(from: ledger.key.extras) {
-                if ledger.axEmissions.isEmpty, ledger.axNodes.isEmpty,
-                   let moved = translatedHitboxes(of: ledger, by: delta) {
-                    memos.retained.prepaintHits += 1
-                    memos.retained.skippedPrepaints += ledger.prepaints
-                    return .replay(ledger, moved: moved, elementBounds: nil)
+            // registrations are replayed moved, its accessibility records recomputed against the current effect
+            // from their recorded pre-effect rects (`AT-A`), unless one cannot be (refused by name).
+            if ledger.key.differsOnlyByEffectTranslation(to: key) {
+                guard let delta = key.extras.translation(from: ledger.key.extras) else {
+                    if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): effectNotTranslation") }
+                    memos.retained.noteTranslationRefused(reason: "effectNotTranslation")
+                    return .run(phase.grafted ? nil : openPrepaintWindow())
                 }
-                if retainedTraces {
-                    print("retained translation refused \(sbPath(build.key.id).suffix(60)): ax \(ledger.axEmissions.count)/\(ledger.axNodes.count), hitboxes \(ledger.hitboxes.count), moved \(translatedHitboxes(of: ledger, by: delta) != nil)")
+                switch translatedAccessibility(of: ledger) {
+                case .success(let accessibility):
+                    if let moved = translatedHitboxes(of: ledger, by: delta) {
+                        memos.retained.prepaintHits += 1
+                        memos.retained.skippedPrepaints += ledger.prepaints
+                        return .replay(ledger, moved: moved, elementBounds: nil, accessibility: accessibility)
+                    }
+                    if retainedTraces {
+                        print("retained translation refused \(sbPath(build.key.id).suffix(60)): hitboxes \(ledger.hitboxes.count)")
+                    }
+                    memos.retained.noteTranslationRefused(reason: "hitboxes")
+                case .failure(let refusal):
+                    if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): \(refusal.reason)") }
+                    memos.retained.noteTranslationRefused(reason: refusal.reason)
                 }
-                memos.retained.noteTranslationRefused(reason: ledger.axEmissions.isEmpty && ledger.axNodes.isEmpty ? "hitboxes" : "accessibilityRecords")
             }
         }
         return .run(phase.grafted ? nil : openPrepaintWindow())
@@ -334,6 +348,7 @@ extension Frame {
         let from = recorder.from
         ledger.focus = Array(log.focus[from.focus..<to.focus])
         ledger.axNodes = Array(log.axNodes[from.axNodes..<to.axNodes])
+        ledger.axNodeLocals = Array(log.axNodeLocals[from.axNodes..<to.axNodes])
         ledger.pressOnly = Array(log.pressOnly[from.pressOnly..<to.pressOnly])
         ledger.contextMenus = Array(log.contextMenus[from.contextMenus..<to.contextMenus])
         ledger.elementBounds = Array(log.elementBounds[from.elementBounds..<to.elementBounds])
