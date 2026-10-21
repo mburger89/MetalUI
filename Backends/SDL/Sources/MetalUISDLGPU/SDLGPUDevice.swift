@@ -11,6 +11,12 @@ public struct SDLGPUError: Error, CustomStringConvertible, Sendable {
         let detail = String(cString: SDL_GetError())
         description = detail.isEmpty ? operation : "\(operation): \(detail)"
     }
+    /// As ``init(_:)``, naming `context` (the description's key fields) when SDL
+    /// left its error string empty (some drivers do; ruling `GB-G`).
+    init(_ operation: String, context: String) {
+        let detail = String(cString: SDL_GetError())
+        description = detail.isEmpty ? "\(operation) failed (SDL gave no message; \(context))" : "\(operation): \(detail)"
+    }
 }
 
 /// An app's `SDL_GPUDevice` (rulings `GA-A`, `GA-D`): either **owned**, made by
@@ -30,6 +36,8 @@ public final class SDLGPUDevice: @unchecked Sendable {
     /// Guards creation and release (the headers promise neither thread safe).
     private let lock = NSLock()
     private let workerLock = NSLock()
+    private let failureLock = NSLock()
+    private var _lastPipelineFailure: String?
     /// Test hook: the next batches' waiter thread blocks on this before it waits
     /// on the GPU, so a test can hold a fence unsignalled across a cancel or a
     /// main-actor advance. Per device, so a test on one device never holds
@@ -193,8 +201,21 @@ public final class SDLGPUDevice: @unchecked Sendable {
 
     /// A compute pipeline from a library blob (`SDL_CreateGPUComputePipeline`),
     /// its counts and thread sizes taken from the blob's reflection (ruling
-    /// `GA-F`), or `nil` when SDL refuses (the message is `SDL_GetError()`).
+    /// `GA-F`), or `nil` when SDL refuses. The reason is
+    /// ``lastPipelineFailure`` (ruling `GB-G`); ``compileComputePipeline(_:)``
+    /// throws it.
     public func makeComputePipeline(_ blob: SDLGPUShaderBlob) -> SDLGPUComputePipeline? {
+        do { return try compileComputePipeline(blob) } catch {
+            recordPipelineFailure(String(describing: error))
+            return nil
+        }
+    }
+
+    /// The throwing form of ``makeComputePipeline(_:)`` (ruling `GB-G`): throws
+    /// an ``SDLGPUError`` naming the compute stage with `SDL_GetError()`'s text
+    /// read on the failing call's thread, or the blob's key fields when SDL gave
+    /// none.
+    public func compileComputePipeline(_ blob: SDLGPUShaderBlob) throws -> SDLGPUComputePipeline {
         var info = SDL_GPUComputePipelineCreateInfo()
         info.format = SDL_GPUShaderFormat(blob.format)
         info.num_samplers = UInt32(blob.samplers)
@@ -206,16 +227,47 @@ public final class SDLGPUDevice: @unchecked Sendable {
         info.threadcount_x = UInt32(blob.threadCount.x)
         info.threadcount_y = UInt32(blob.threadCount.y)
         info.threadcount_z = UInt32(blob.threadCount.z)
-        let pipeline: OpaquePointer? = blob.bytes.withUnsafeBufferPointer { code in
+        let result: (OpaquePointer?, SDLGPUError?) = blob.bytes.withUnsafeBufferPointer { code in
             blob.entryPoint.withCString { entry in
                 info.code = code.baseAddress
                 info.code_size = code.count
                 info.entrypoint = entry
-                return create { SDL_CreateGPUComputePipeline($0, &info) }
+                return create { handle in
+                    guard let pipeline = SDL_CreateGPUComputePipeline(handle, &info) else {
+                        return (nil, SDLGPUError("compute pipeline \(blob.name) (SDL_CreateGPUComputePipeline)",
+                                                 context: "compute stage, blob \(blob.name), \(blob.bytes.count) bytes, format \(blob.format)"))
+                    }
+                    return (pipeline, nil)
+                }
             }
         }
-        guard let pipeline else { return nil }
+        guard let pipeline = result.0 else { throw result.1 ?? SDLGPUError("compute pipeline \(blob.name)") }
         return SDLGPUComputePipeline(raw: pipeline, device: self)
+    }
+
+    /// The reason the last ``makeGraphicsPipeline(_:)`` or
+    /// ``makeComputePipeline(_:)`` on this device returned `nil` (ruling
+    /// `GB-G`), or `nil` before any failure. A later success does **not** clear
+    /// it; the throwing ``compileGraphicsPipeline(_:)`` and
+    /// ``compileComputePipeline(_:)`` are the authoritative form.
+    public var lastPipelineFailure: String? {
+        failureLock.lock(); defer { failureLock.unlock() }
+        return _lastPipelineFailure
+    }
+
+    func recordPipelineFailure(_ reason: String) {
+        failureLock.lock(); _lastPipelineFailure = reason; failureLock.unlock()
+    }
+
+    /// `precondition` that the caller is not one of this device's own worker
+    /// threads (ruling `GB-I` 2): a blocking verb there waits on itself.
+    func preconditionNotOnOwnWorker(_ verb: String) {
+        let current = Thread.current
+        workerLock.lock()
+        let own = (_submitWorker?.thread.map { $0 === current } ?? false)
+            || (_waiterWorker?.thread.map { $0 === current } ?? false)
+        workerLock.unlock()
+        precondition(!own, "\(verb) was called on the device's own worker thread, where it would wait on itself (GB-F)")
     }
 
     // MARK: Batches

@@ -25,6 +25,8 @@ import MetalUITesting
 ```
 
 `metalui new` generates exactly this test ([`getting-started.md`](getting-started.md)).
+A worked example of a whole app's tests, written this way, is [`Examples/Jotter/Tests/JotterTests`](../Examples/Jotter/README.md#the-tests):
+twenty-one tests over a notes app's create, edit, search, delete, save and load, drag and shortcuts.
 
 ## Setting it up
 
