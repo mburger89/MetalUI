@@ -17,12 +17,6 @@ struct DetailArea: Component {
     }
 }
 
-/// What `.task(id:)` re-runs on: the note shown and its text.
-struct WordCountKey: Hashable {
-    let id: Note.ID
-    let body: String
-}
-
 /// A title field over a body editor and a footer.
 struct DetailEditor: Component {
     let model: NotesModel
@@ -45,8 +39,9 @@ struct DetailEditor: Component {
         // A new note asks for the title's focus by counting up; the lifecycle drain runs
         // this outside every phase, so the write is legal.
         .onChange(of: model.titleFocusRequest) { titleFocused = true }
-        // Recomputed when the note shown or its body changes; counted, never timed.
-        .task(id: WordCountKey(id: id, body: note.body)) { model.selectedWordCount = note.wordCount }
+        // Recomputed whenever the body shown changes (another note's body included: the count is a function of
+        // the text alone, so keying on the text is enough; a mutation keying the id too was equivalent, record 136).
+        .task(id: note.body) { model.selectedWordCount = note.wordCount }
     }
 }
 
