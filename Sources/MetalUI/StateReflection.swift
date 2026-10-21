@@ -80,20 +80,18 @@ enum StateBinder {
     private struct Shape {
         var ordinals: [Int] = []
         var hasEnvironment = false
-        /// The ordinals of the `@State` children alone (the content memo reads
-        /// their versions, `IV-D`), and whether a `@FocusState` is declared.
+        /// The ordinals of the `@State` and `@FocusState` children (the content memo reads
+        /// their slots' versions, `IV-D`, `RZ-I`): a focus slot is a `$state<n>` sibling,
+        /// written with a version bump on every focus change the window reconciles.
         var stateOrdinals: [Int] = []
-        var hasFocusState = false
     }
 
     /// What the content memo needs of a type's cached shape (`IV-D`): the
-    /// ordinals of its `@State` slots, and whether it declares a
-    /// `@FocusState` (refused: `EE-E`; an `@Environment` is covered by its
-    /// readings, `EE-A`). `nil` before the type has been
-    /// bound once — callers bind first.
-    static func memoShape(of type: Any.Type) -> (stateOrdinals: [Int], refused: Bool)? {
-        guard let shape = shapes[ObjectIdentifier(type)] else { return nil }
-        return (shape.stateOrdinals, shape.hasFocusState)
+    /// ordinals of its `@State` and `@FocusState` slots (an `@Environment` is
+    /// covered by its readings, `EE-A`; a `@FocusState` by its slot's version,
+    /// `RZ-I`). `nil` before the type has been bound once — callers bind first.
+    static func memoShape(of type: Any.Type) -> [Int]? {
+        shapes[ObjectIdentifier(type)]?.stateOrdinals
     }
 
     private static var shapes: [ObjectIdentifier: Shape] = [:]
@@ -138,11 +136,7 @@ enum StateBinder {
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
             if let bindable = child.value as? BindableState {
                 shape.ordinals.append(index)
-                if child.value is BindableFocusState {
-                    shape.hasFocusState = true
-                } else {
-                    shape.stateOrdinals.append(index)
-                }
+                shape.stateOrdinals.append(index)
                 bindable.bind(to: frame.stateTable, id: id, slot: index)
             } else if let bindable = child.value as? BindableEnvironment {
                 shape.ordinals.append(index)

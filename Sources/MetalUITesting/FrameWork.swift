@@ -35,8 +35,8 @@ public struct FrameWork: Sendable, Equatable {
     /// Getters an `.equatable()` component skipped (value, `@State` and
     /// observed reads unchanged).
     public var contentSkips: Int
-    /// `.equatable()` components refused for an `@Environment` or `@FocusState`
-    /// and evaluated anyway (divergence 346).
+    /// `.equatable()` components refused for an `@Environment` reading that cannot be compared
+    /// and evaluated anyway (divergence 346; a `@FocusState` is memoized by its slot since `RZ-I`).
     public var contentRefusals: Int
     /// Group members the build entered (`SB-`): the build recursion's work, which a retained
     /// subtree still pays in full (lane 1).

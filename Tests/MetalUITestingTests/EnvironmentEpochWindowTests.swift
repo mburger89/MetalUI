@@ -322,20 +322,8 @@ struct EEUnreadObject: Component, @MainActor Equatable {
 
 // MARK: W8, W9
 
-/// W8 — `@FocusState` stays refused (`EE-E`): counted every frame, evaluated every frame. Mutation: `refused = false`.
-@Test @MainActor func aFocusStateComponentStaysRefused() throws {
-    let log = EELog()
-    let window = try harnessWindow { VStack(spacing: 0) { EEFocusReader(log: log).equatable() } }
-    _ = try window.element(label: "plain")
-    window.resetFrameWork()
-    log.n = 0
-    let frames = 4
-    for _ in 0..<frames { _ = eeRedraw(window) }
-    let sum = window.frameWork.dropFirst().reduce(window.frameWork[0], +)
-    #expect(sum.contentRefusals == frames, "refused every frame: \(sum.contentRefusals)")
-    #expect(sum.contentEvaluations == 0 && sum.contentSkips == 0)
-    #expect(log.n == frames)
-}
+/// W8 — `@FocusState` was refused here (`EE-E`); `RZ-I` (C14-i) memoizes it by its slot's version, and the pin that
+/// held the refusal is `aFocusStateComponentIsSkippedWhileFocusIsUnchanged` (`FocusStateMemoTests`, F2).
 
 /// W9 — a declared, unprovided, never-read `@Environment(Model.self)` does not trap in the probe (`EE-D`): the child
 /// builds and redraws such a window and exits normally. Mutation: the probe reads through the trapping `read` — the

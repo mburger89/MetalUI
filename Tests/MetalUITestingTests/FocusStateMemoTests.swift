@@ -140,9 +140,8 @@ struct FMRoot: Component {
     pair.on.resetFrameWork(); pair.onLog.evaluations = [:]
     for _ in 0..<4 { pair.on.window.setNeedsRedraw(); pair.on.tick() }
     let sum = fmSum(pair.on)
-    // `dropFirst` keeps three of four frames: nine skips (three readers, three frames) at least.
     #expect(sum.contentRefusals == 0, "no refusal: \(sum.contentRefusals)")
-    #expect(sum.contentSkips == 9 && sum.contentEvaluations == 0, "skips \(sum.contentSkips) evaluations \(sum.contentEvaluations)")
+    #expect(sum.contentSkips == 12 && sum.contentEvaluations == 0, "skips \(sum.contentSkips) evaluations \(sum.contentEvaluations)")
     #expect(pair.onLog.evaluations.isEmpty, "no getter ran: \(pair.onLog.evaluations)")
 }
 
