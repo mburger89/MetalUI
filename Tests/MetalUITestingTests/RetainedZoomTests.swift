@@ -195,32 +195,35 @@ func aHitboxInsideAnEffectTheOccurrenceOpenedFollowsTheZoom() async throws {
     _ = replayed
 }
 
-/// Z8 — a stationary pointer, a zoom that carries a node under it: the frame equals fresh at every step, no frame is redone, and in
-/// the **first** frame the pointer lands on a node (scale 1 to 1.5: the probe point is blank at 1 and on node 7's button at 1.5) that
-/// node's prepaint runs instead of replaying: the pointer is read against the **moved** hitboxes (`RZ-D`, `FS-P`'s rule), since
-/// hover resolves after prepaint and the old hitboxes do not contain the point. Mutation: the moved-hitbox pointer read skipped
-/// (all ten prepaints replay in that frame).
+/// Z8 — a stationary pointer, a zoom that carries a node under it: the frame equals fresh at every step, and the **carried frame**
+/// is the one that reacts. Scale 1 to 1.5 puts the pointer on node 7's button (blank at 1): the pointer is read against the
+/// **moved** hitboxes (`RZ-D`, `FS-P`'s rule), so that node's prepaint runs in that frame; it is grafted, so with no element to
+/// prepaint the frame is redone once, there (counted). Without the read all ten prepaints replay in the carried frame (hover resolves
+/// after prepaint, the old hitboxes do not hold the point) and the redo falls on the next frame, when the hovered node misses at
+/// paint: the same cost one frame late, and the same pixels, so the pin is where the redo lands, not what is drawn. Mutation: the
+/// moved-hitbox pointer read skipped (step 0 reads 0 redos and 10 prepaint hits).
 @Test(.enabled(if: !rsVerifying, zVerifyingNote)) @MainActor
 func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async throws {
     let pair = try zoomPair(warm: 6)
-    // A point on blank canvas at scale 1 that node 7's button covers at 1.5: x past the row's end (z9's centre + 150 reads local
-    // x 504 at 1.5), y 24 + 1.5 x 65 (the button's local y runs 56...74 under the fixed 24-point offset; at scale 1 it is below the node).
-    let target = try zCentre(pair.on, "z9")
-    let probe = pt(target.x.value + 150, 24 + 1.5 * 65)
+    // A point on blank canvas at scale 1 that node 7's button hitbox covers at 1.5: the hitbox is 38 points wide at local x 459...497
+    // (node 7's 448 plus 11) and local y 53 down, so at 1.5 under the fixed 40 x 24 offset the point (757, 120) reads local (478, 64);
+    // at scale 1 it is past the row's end (676) and below the nodes.
+    let probe = pt(757, 120)
     for w in [pair.on, pair.off] { w.hover(at: probe) }
     try pair.compare("hover at rest")
-    var redos = 0, backoff = 0
-    var firstPrepaintHits = -1
+    var carried: FrameWork?
+    var redos = 0
     for (step, scale) in [Float(1.5), 1.8, 1.2].enumerated() {
         await zoomStep(pair, to: scale)
         let f = try #require(pair.frames.last)
-        redos += f.retainedRedos; backoff += f.retainedBackoffFrames
-        if step == 0 { firstPrepaintHits = f.retainedPrepaintHits }
-        print("Z8 step \(step): prepaintHits \(f.retainedPrepaintHits) redos \(f.retainedRedos) backoff \(f.retainedBackoffFrames) grafts \(f.retainedGrafts) hits \(f.retainedHits) misses \(f.retainedMisses) requests \(f.elementRequests) prepaints \(f.elementPrepaints)")
+        if step == 0 { carried = f }
+        redos += f.retainedRedos
         try pair.compare("zoom step \(step) under a stationary pointer")
     }
-    #expect(redos == 0 && backoff == 0, "no frame is redone: redos \(redos) backoff \(backoff)")
-    #expect(firstPrepaintHits < 10, "the node carried under the pointer runs its prepaint: \(firstPrepaintHits) of 10 replayed")
+    let first = try #require(carried)
+    #expect(first.retainedRedos == 1, "the carried frame is redone once: \(first.retainedRedos)")
+    #expect(first.retainedPrepaintHits < 10, "the carried node ran its prepaint: \(first.retainedPrepaintHits) of 10 replayed")
+    #expect(redos == 1, "one redo over the whole zoom, in the carried frame: \(redos)")
 }
 
 /// Z9 — the report: element requests, grafts, redos, prepaints and paints of a zoom step and of a bracket pan step, retaining and
