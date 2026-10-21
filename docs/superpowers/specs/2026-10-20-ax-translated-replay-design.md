@@ -74,3 +74,11 @@ the ledger's ax loop. If C14-f also changes `replayPrepaintLedger`'s signature, 
 ## Demo, human checks
 
 No demo change (`METALUI_RETAINED_DEMO=1` already pans under an effect); human check group `SI`-style addition: none (no look changes; VoiceOver cannot be claimed by an agent, `IX-AE`). Add one line to `docs/verification/human-checks.md` at the Record phase: a VoiceOver focus rectangle follows a canvas pan with graft on.
+
+## Amendments found at implementation (rulings AT-F, AT-G)
+
+* **AT-F.** `translation(from:)` and `translatedHitboxes` assumed an identity linear part, so a canvas under `.scaleEffect` + `.offset` never reached the effect branch (the "verify" this design asked for was
+  run: it returns `nil` under any scale). The inverse-shift check now applies to an identity linear part only; a hitbox carrying the ledger's recorded ambient inverse takes the current effect's inverse. Touches `Frame.swift`'s
+  `translation(from:)` (the inverse block) and `translatedHitboxes`.
+* **AT-G.** The nested-effect refusal (design change 2, AT-B) is replaced by recomputation from recorded effect steps: `PrepaintEffect` gains `map`/`clipLocal`, `AXLocalRects` holds an `AXEffectChain` instead of `effectDepth`,
+  `RenderEffects.swift` records the two fields at the push and drops the cached chain at the push, pop and `withoutRenderEffects`. Test 5 becomes `anEffectOpenedInsideTheOccurrenceIsRecomputedFromItsSteps`; test 7 asserts grafts and no redo.

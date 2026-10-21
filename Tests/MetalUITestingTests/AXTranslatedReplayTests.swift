@@ -65,8 +65,8 @@ struct ATRoot: Component {
     }
 }
 
-@MainActor private func atPair(scale: Double, clipped: Bool = false, nested: Bool = false, warm: Int = 12) throws -> RPPair<some Element> {
-    try RPPair(size: sz(1200, 320), scale: 2, warm: warm, accessibility: true, graft: true) { side in
+@MainActor private func atPair(scale: Double, clipped: Bool = false, nested: Bool = false, warm: Int = 12, graft: Bool = true) throws -> RPPair<some Element> {
+    try RPPair(size: sz(1200, 320), scale: 2, warm: warm, accessibility: true, graft: graft) { side in
         VStack(spacing: 0) { ATRoot(side: side, scale: scale, clipped: clipped, nested: nested) }
     }
 }
@@ -146,7 +146,7 @@ func aPanThatCrossesTheClipRecomputesTheVisibleFrame() async throws {
 /// **Red at c502f14c**: no reason is counted (a silent `.run`). Mutation: delete the `noteTranslationRefused` call.
 @Test(.enabled(if: !rsVerifying, atVerifyingNote)) @MainActor
 func aScaleChangeRefusesByName() async throws {
-    let pair = try atPair(scale: 2, warm: 8)
+    let pair = try atPair(scale: 2, warm: 8, graft: false)
     try pair.compare("warm")
     pair.onSide.inputs.showExtra = true; pair.offSide.inputs.showExtra = true
     await rsSettle()
@@ -157,19 +157,25 @@ func aScaleChangeRefusesByName() async throws {
     #expect(refused > 0, "a scale change counts effectNotTranslation: \(pair.frames.map(\.retainedTranslationRefusedReasons))")
 }
 
-/// 5 — a node that opens an effect of its own refuses by name while the outer effect pans, and the tree equals the unretained one.
-/// Mutation: drop the effect-depth comparison (stale inner frames).
-@Test(.enabled(if: !rsVerifying, atVerifyingNote)) @MainActor
-func anEffectOpenedInsideTheOccurrenceRefusesByName() async throws {
-    let pair = try atPair(scale: 2, nested: true, warm: 8)
+/// 5 — a node that opens an effect of its own over its rows (`AT-G`): its records are re-derived from the recorded steps of that
+/// effect against the panned ambient, never refused by an accessibility reason, and the tree equals the unretained one.
+/// Mutations: the nested step skipped (the inner frames keep the first pan's offset), the nested step's map dropped.
+/// At scale 1 the node's hitboxes move too (an identity linear part), so its prepaint replays; at scale 2 a hitbox registered
+/// inside the nested effect is refused by name (`hitboxes`, carried: its inverse is not the ambient's) and the records are still exact.
+@Test(.enabled(if: !rsVerifying, atVerifyingNote), arguments: [1.0, 2.0].map { ATScaleArm(scale: $0) }) @MainActor
+func anEffectOpenedInsideTheOccurrenceIsRecomputedFromItsSteps(arm: ATScaleArm) async throws {
+    let pair = try atPair(scale: arm.scale, nested: true, warm: 8, graft: false)
     try pair.compare("warm")
-    var refused = 0
+    var accessibilityRefusals = 0, translated = 0
     for step in 1...4 {
-        await atStep(pair, pan: Float(step) * 3)
-        refused += pair.frames.last?.retainedTranslationRefusedReasons["accessibilityNestedEffect", default: 0] ?? 0
+        await atStep(pair, pan: Float(step) * 3.37)
+        let f = try #require(pair.frames.last)
+        translated += f.retainedPrepaintHits
+        for (reason, n) in f.retainedTranslationRefusedReasons where reason.hasPrefix("accessibility") { accessibilityRefusals += n }
         try pair.compare("pan step \(step)")
     }
-    #expect(refused > 0, "the nested effect is refused by name")
+    #expect(accessibilityRefusals == 0, "no accessibility refusal: \(accessibilityRefusals)")
+    if arm.scale == 1 { #expect(translated > 0, "the nested node replayed its prepaint translated: \(translated)") }
 }
 
 /// 6 — after a replayed pan step the retained accessibility node of a declared element reports the moved frame and is valid, as an
@@ -206,4 +212,5 @@ func theBracketPanGraftsUnderAccessibility() throws {
     }
     print("AT pin 7 (bracket pan, tree read): grafts \(grafts) redos \(redos) requests \(requests)")
     #expect(redos == 0, "\(redos)")
+    #expect(grafts > 0, "the node subtrees graft: \(grafts)")
 }

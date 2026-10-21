@@ -577,15 +577,25 @@ func aRedoAfterAGraftMismatchRestoresEverything(arm: String) async throws {
 
 // MARK: 20b — a graft the prepaint cannot replay
 
-/// 20b — a pan of three equal occurrences under a live accessibility client: the prepaint translation is refused for a ledger that holds
-/// accessibility records (`RK-S`), so a grafted occurrence has no element layout to fall back on and the frame is redone (lane 1's
+/// 20b — a pan of an occurrence whose hitboxes sit under an effect whose outer clip depended on the translation: the prepaint translation is
+/// refused (`RK-S` item 2, `hitboxes`), so a grafted occurrence has no element layout to fall back on and the frame is redone (lane 1's
 /// tree, which builds every frame, counts a refusal and prepaints fresh). Every step equals the retention-off frame, in scene,
-/// tree, hitboxes and state table, and the redos are counted. **Red before:** `retainedRedos` reads 0 (the graft off).
+/// tree, hitboxes and state table, and the redos are counted. (Until C14-g (`AT-A`) the refusal was an accessibility record under a
+/// live client; a ledger's records are recomputed now, so the clip-dependent hitbox is the refusal this test pins.)
+/// **Red before:** `retainedRedos` reads 0 (the graft off).
 /// **Mutation:** the grafted occurrence's `.run` arm returning the old prepaint state (a trap by name: no payload).
 @Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
 func aGraftedOccurrenceUnderARefusedTranslationRedoesTheFrame() async throws {
     let pair = try RPPair(size: sz(320, 150), scale: 2, warm: 4, accessibility: true) { side in
-        VStack(spacing: 0) { RPPanRoot(side: side) }
+        let pan = side.inputs.offset, log = side.log
+        return VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) { RPClippedEffectCard(log: log).equatable() }
+                    .offset(x: Pixels(10 + pan), y: Pixels(10 + pan / 2))
+            }
+            .frame(width: Pixels(300), height: Pixels(130), alignment: .topLeading)
+            .clipped()
+        }
     }
     try pair.compare("warm")
     var redos = 0

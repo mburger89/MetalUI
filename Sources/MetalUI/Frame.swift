@@ -1854,7 +1854,8 @@ public final class Frame {
                                               synthesizes: synthesizesAccessibility,
                                               portal: portalStack.last ?? 0,
                                               geometry: accessibilityGeometry(for: bounds),
-                                              declaresAction: declaresAction))
+                                              declaresAction: declaresAction,
+                                              local: accessibilityLocalRects(for: bounds)))
             }
         }
     }
@@ -1870,7 +1871,8 @@ public final class Frame {
         axEmissions.append(AXEmission(id: id, declared: declared, text: text, isClickable: false,
                                       isEnabled: environmentTop.isEnabled, synthesizes: true,
                                       portal: portalStack.last ?? 0,
-                                      geometry: accessibilityGeometry(for: bounds)))
+                                      geometry: accessibilityGeometry(for: bounds),
+                                      local: accessibilityLocalRects(for: bounds)))
     }
 
     /// `bounds` inset by a declared content shape, or `bounds` itself — the
@@ -2122,6 +2124,21 @@ public final class Frame {
             layer: activeLayer)
     }
 
+    /// The operands `accessibilityGeometry` evaluates under a render effect, or `nil` outside one (`AT-A`).
+    private func accessibilityLocalRects(for bounds: Bounds<Pixels>) -> AXLocalRects? {
+        guard !prepaintEffects.isEmpty else { return nil }
+        let translated = translatedByActiveOffset(bounds)
+        return AXLocalRects(frame: translated, clipped: Self.intersect(activeClip, translated), chain: currentEffectChain())
+    }
+
+    /// The open effects as an `AXEffectChain`, built once per stack (`AT-G`).
+    func currentEffectChain() -> AXEffectChain {
+        if let axEffectChain { return axEffectChain }
+        let chain = AXEffectChain(steps: prepaintEffects.map { AXEffectStep(map: $0.map, clipLocal: $0.clipLocal) })
+        axEffectChain = chain
+        return chain
+    }
+
     /// `bounds` moved by the active scroll translation — what `insertHitbox`,
     /// `fill` and `emitAXNode` each apply before storing or emitting.
     private func translatedByActiveOffset(_ bounds: Bounds<Pixels>) -> Bounds<Pixels> {
@@ -2170,6 +2187,9 @@ public final class Frame {
         axNodes[id] = resolved
         if let log = prepaintLog {
             log.axNodes.append((id, resolved))
+            log.axNodeLocals.append(prepaintEffects.isEmpty ? nil : AXLocalRects(
+                frame: translatedByActiveOffset(bounds), clipped: translatedByActiveOffset(bounds),
+                chain: currentEffectChain()))
             log.allowedStateWrites += 1
         }
         stateTable.withState(Self.axRetentionSlot(for: id), initial: resolved) { $0 = resolved }
@@ -3197,13 +3217,56 @@ public final class Frame {
                     effect.outerClip,
                     effect.composed.boundingBox(of: Self.intersect(candidate.clip, candidate.rect)))
                 axEmissions[index].geometry = geometry
+                axEmissions[index].local = AXLocalRects(
+                    frame: candidate.rect, clipped: Self.intersect(candidate.clip, candidate.rect),
+                    chain: currentEffectChain())
             }
         }
     }
 
 
+    /// The ledger's accessibility records recomputed against the current effects (`AT-A`, `AT-G`): each record's pre-effect rects
+    /// under the effect its own stack makes, the ambient effects as they are now followed by the recorded steps of the effects the
+    /// occurrence opened (the arithmetic of `prepaintWithRenderEffect`, so bit-equal to a fresh prepaint), or the reason one cannot
+    /// be (a record with no recorded rects).
+    func translatedAccessibility(of ledger: PrepaintLedger) -> Result<AXTranslation, AXTranslationRefusal> {
+        guard let ambient = prepaintEffects.last else { return .failure(.unrecorded) }
+        let base = prepaintEffects.count
+        var effects: [ObjectIdentifier: PrepaintEffect] = [:]
+        func effect(for chain: AXEffectChain) -> PrepaintEffect? {
+            if let known = effects[ObjectIdentifier(chain)] { return known }
+            guard chain.steps.count >= base else { return nil }
+            var current = ambient
+            for step in chain.steps[base...] {
+                let outerClip = step.clipLocal.map { Self.intersect(current.outerClip, current.composed.boundingBox(of: $0)) }
+                    ?? current.outerClip
+                let composed = current.composed.concatenating(step.map)
+                current = PrepaintEffect(composed: composed, inverse: composed.inverted, outerClip: outerClip,
+                                         savedClipBase: 0, map: step.map, clipLocal: step.clipLocal)
+            }
+            effects[ObjectIdentifier(chain)] = current
+            return current
+        }
+        var result = AXTranslation(emissions: ledger.axEmissions, nodes: ledger.axNodes)
+        for index in result.emissions.indices {
+            guard let local = result.emissions[index].local, let effect = effect(for: local.chain) else { return .failure(.unrecorded) }
+            result.emissions[index].geometry.frame = effect.composed.boundingBox(of: local.frame)
+            result.emissions[index].geometry.visibleFrame = Self.intersect(
+                effect.outerClip, effect.composed.boundingBox(of: local.clipped))
+        }
+        guard ledger.axNodeLocals.count == ledger.axNodes.count else { return .failure(.unrecorded) }
+        for index in result.nodes.indices {
+            guard let local = ledger.axNodeLocals[index], let effect = effect(for: local.chain) else { return .failure(.unrecorded) }
+            result.nodes[index].1.frame = effect.composed.boundingBox(of: local.frame)
+        }
+        return .success(result)
+    }
+
     /// The render effects open in prepaint, innermost last (`GX-I`).
     var prepaintEffects: [PrepaintEffect] = []
+
+    /// `prepaintEffects` as steps, built when a record needs it and dropped when the stack changes (`AT-G`).
+    var axEffectChain: AXEffectChain?
 
     /// Proposal wrappers whose registrations an effect at their rect may still
     /// transform, innermost last (`GX-P` item 1), and the one collecting now.
@@ -3833,6 +3896,12 @@ struct PrepaintExtras: Equatable {
     var hiddenNodes: Int
 }
 
+/// Why `Frame.translatedAccessibility(of:)` refuses (`AT-B`).
+enum AXTranslationRefusal: Error {
+    case unrecorded
+    var reason: String { "accessibilityUnrecorded" }
+}
+
 extension PrepaintExtras {
     // Indices into an `effects` vector.
     static let effectA = 0, effectB = 1, effectC = 2, effectD = 3, effectTx = 4, effectTy = 5
@@ -3856,8 +3925,12 @@ extension PrepaintExtras {
             var a = new, b = was
             for index in [Self.effectTx, Self.effectTy, Self.inverseTx, Self.inverseTy] { a[index] = 0; b[index] = 0 }
             guard a == b else { return nil }
-            // The inverse moved by the opposite amount when the composed map did.
-            if new[Self.effectHasInverse] == 1 {
+            // The inverse moved by the opposite amount when the composed map did: true only of an identity linear part
+            // (under a scale it moves by `-L⁻¹ Δ`), where a hitbox's inverse is recomputed from the current effect instead
+            // (`AT-F`, `translatedHitboxes`).
+            let identityLinear = new[Self.effectA] == 1 && new[Self.effectA + 1] == 0 && new[Self.effectA + 2] == 0
+                && new[Self.effectA + 3] == 1
+            if new[Self.effectHasInverse] == 1, identityLinear {
                 guard new[Self.inverseTx] - was[Self.inverseTx] == -ex, new[Self.inverseTy] - was[Self.inverseTy] == -ey
                 else { return nil }
             }
@@ -3964,9 +4037,10 @@ extension Frame {
     /// Each journal entry is appended to an open prepaint log too, so an enclosing recorder sees what a replay
     /// stands for exactly as it would see a run.
     func replayPrepaintLedger(_ l: PrepaintLedger, hitboxes moved: [Hitbox]? = nil,
-                              elementBounds movedBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil) {
+                              elementBounds movedBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
+                              accessibility: AXTranslation? = nil) {
         hitboxes.append(contentsOf: moved ?? l.hitboxes)
-        axEmissions.append(contentsOf: l.axEmissions)
+        axEmissions.append(contentsOf: accessibility?.emissions ?? l.axEmissions)
         for call in l.focus {
             switch call {
             case .register(let handlers, let id): focusRegistry.register(handlers, id: id)
@@ -3975,9 +4049,10 @@ extension Frame {
             }
             prepaintLog?.focus.append(call)
         }
-        for (id, node) in l.axNodes {
+        for (index, (id, node)) in (accessibility?.nodes ?? l.axNodes).enumerated() {
             axNodes[id] = node
             prepaintLog?.axNodes.append((id, node))
+            prepaintLog?.axNodeLocals.append(index < l.axNodeLocals.count ? l.axNodeLocals[index] : nil)
             prepaintLog?.allowedStateWrites += 1
             stateTable.withState(Self.axRetentionSlot(for: id), initial: node) { $0 = node }
             prepaintLog?.allowedStateWrites -= 1
@@ -4017,10 +4092,21 @@ extension Frame {
                                          y: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 1]))),
                            size: Size(width: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 2])),
                                       height: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 3]))))
+        // The innermost ambient effect's inverse as the ledger recorded it: a hitbox that carries it was registered at the ambient
+        // depth, so the fresh frame's hitbox carries the **current** effect's inverse, whatever the linear part (`AT-F`).
+        let flat = (0..<6).map { ambient[PrepaintExtras.effectHasInverse + 1 + $0] }
+        let recorded = Affine2D(a: flat[0], b: flat[1], c: flat[2], d: flat[3], tx: flat[4], ty: flat[5])
+        let current = prepaintEffects.last?.inverse
         var out = ledger.hitboxes
         for index in out.indices {
             guard let transform = out[index].transform, transform.outerClip == outer else { return nil }
             guard let inverse = transform.inverse else { continue }
+            if inverse == recorded, let current {
+                out[index].transform = HitboxTransform(inverse: current, outerClip: transform.outerClip)
+                continue
+            }
+            // Registered inside an effect opened within the occurrence: moved by the delta, exact only under an identity linear part.
+            guard inverse.a == 1, inverse.b == 0, inverse.c == 0, inverse.d == 1 else { return nil }
             let tx = inverse.tx - delta.dx, ty = inverse.ty - delta.dy
             guard tx + delta.dx == inverse.tx, ty + delta.dy == inverse.ty else { return nil }
             out[index].transform = HitboxTransform(
