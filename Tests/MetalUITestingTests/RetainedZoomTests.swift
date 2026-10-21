@@ -195,27 +195,32 @@ func aHitboxInsideAnEffectTheOccurrenceOpenedFollowsTheZoom() async throws {
     _ = replayed
 }
 
-/// Z8 — a stationary pointer, a zoom that carries a node under it: the node's hover paint equals fresh (the pointer is read against
-/// the moved hitboxes, which is what keeps the frame from being redone). Mutation: the moved-hitbox pointer read skipped
-/// (the paint under the pointer misses after a replayed prepaint: a redo, counted).
-@Test @MainActor
+/// Z8 — a stationary pointer, a zoom that carries a node under it: the frame equals fresh at every step, no frame is redone, and in
+/// the **first** frame the pointer lands on a node (scale 1 to 1.5: the probe point is blank at 1 and on node 7's button at 1.5) that
+/// node's prepaint runs instead of replaying: the pointer is read against the **moved** hitboxes (`RZ-D`, `FS-P`'s rule), since
+/// hover resolves after prepaint and the old hitboxes do not contain the point. Mutation: the moved-hitbox pointer read skipped
+/// (all ten prepaints replay in that frame).
+@Test(.enabled(if: !rsVerifying, zVerifyingNote)) @MainActor
 func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async throws {
     let pair = try zoomPair(warm: 6)
-    // A point on blank canvas at scale 1 that node 9's button covers at 1.5.
+    // A point on blank canvas at scale 1 that node 7's button covers at 1.5: x past the row's end (z9's centre + 150 reads local
+    // x 504 at 1.5), y 24 + 1.5 x 65 (the button's local y runs 56...74 under the fixed 24-point offset; at scale 1 it is below the node).
     let target = try zCentre(pair.on, "z9")
-    let probe = pt(target.x.value + 150, target.y.value)
+    let probe = pt(target.x.value + 150, 24 + 1.5 * 65)
     for w in [pair.on, pair.off] { w.hover(at: probe) }
     try pair.compare("hover at rest")
     var redos = 0, backoff = 0
-    for (step, scale) in [Float(1.2), 1.5, 1.8].enumerated() {
+    var firstPrepaintHits = -1
+    for (step, scale) in [Float(1.5), 1.8, 1.2].enumerated() {
         await zoomStep(pair, to: scale)
         let f = try #require(pair.frames.last)
         redos += f.retainedRedos; backoff += f.retainedBackoffFrames
+        if step == 0 { firstPrepaintHits = f.retainedPrepaintHits }
+        print("Z8 step \(step): prepaintHits \(f.retainedPrepaintHits) redos \(f.retainedRedos) backoff \(f.retainedBackoffFrames) grafts \(f.retainedGrafts) hits \(f.retainedHits) misses \(f.retainedMisses) requests \(f.elementRequests) prepaints \(f.elementPrepaints)")
         try pair.compare("zoom step \(step) under a stationary pointer")
     }
-    // The paint of a node under the pointer misses (hover), so a prepaint that replayed anyway would redo the frame: the pointer
-    // read against the moved hitboxes keeps it a run, and the frame is not redone.
-    if !rsVerifying { #expect(redos == 0 && backoff == 0, "the moved hitbox under the pointer runs the prepaint: redos \(redos) backoff \(backoff)") }
+    #expect(redos == 0 && backoff == 0, "no frame is redone: redos \(redos) backoff \(backoff)")
+    #expect(firstPrepaintHits < 10, "the node carried under the pointer runs its prepaint: \(firstPrepaintHits) of 10 replayed")
 }
 
 /// Z9 — the report: element requests, grafts, redos, prepaints and paints of a zoom step and of a bracket pan step, retaining and
