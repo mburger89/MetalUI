@@ -83,7 +83,7 @@ the build fails first: the `LazyHGrid` argument was renamed instead). A rename o
 ## 5 Verification (2026-10-21, screen LOCKED, macOS 27, Swift 6.4)
 
 - `swift package clean`, `swift build --build-system native --build-tests`: 0 `error:`, the only `warning:` SwiftPM's deprecation notice. Native unfiltered run with
-  `--skip AppKitPresentationTests` (its `NSOpenPanel.init()` hangs on a locked screen, `CI-AF`): **4160 tests passed, 0 issues** at `c8613095` (baseline 4117 at `1bdead8d`; lane 1
+  `--skip AppKitPresentationTests` (its `NSOpenPanel.init()` hangs on a locked screen, `CI-AF`): **4160 tests passed, 0 issues** at `c8613095` (and 4161 after 3.13, final tree `HEAD`, 559 s, 0 issues) (baseline 4117 at `1bdead8d`; lane 1
   and lane 2 add 43), `FR-J no-argument frame: succeeded=true`, the guards `LZ-A spellings`, `LZ-A grid spellings` and the five `LZ-B seam` lines printed
   (`succeeded=true`/`false` as designed). After the 3.13 test: the same run under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`: **4161 passed**, no trap (891 s).
 - `swift build --build-tests` on the default build system: 0 `warning:`, 0 `error:`.
