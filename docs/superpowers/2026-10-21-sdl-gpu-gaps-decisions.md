@@ -2,7 +2,7 @@
 
 Rulings for item S11 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by
 MetalCreator (developer session, 2026-10-21) for its xp-3 3D viewport on SDL GPU: XP-G14 to XP-G19. Prefix `GB-`.
-**Next unused: `GB-I`.** Spec: [`specs/2026-10-21-sdl-gpu-gaps-design.md`](specs/2026-10-21-sdl-gpu-gaps-design.md).
+**Next unused: `GB-L`.** Spec: [`specs/2026-10-21-sdl-gpu-gaps-design.md`](specs/2026-10-21-sdl-gpu-gaps-design.md).
 Record: `../record/137-sdl-gpu-gaps.md`. Branch `feat/sdl-gpu-gaps` from `1bdead8d`. Continues `GA-` (record 114, 125).
 Divergence labels reserved 665–674: **none taken** (`GB-A`).
 
@@ -106,3 +106,26 @@ the throwing verbs are the authoritative form.
 lane 1 commits**: `SDLGPUFence.swift`, `SDLGPUDevice.swift`, `SDLGPUCompute.swift`, and the pipeline-making bodies in
 `SDLGPUGraphics.swift` (GB-F, GB-G). The workflow runs one agent at a time, so the shared function in `SDLGPUGraphics.swift`
 is edited in order, never concurrently. **Cost if wrong.** A merge edit inside `makeGraphicsPipeline`.
+
+## GB-I — review amendments: the sampler read-back is `configuration`, worker-thread check by thread identity, scissor target size
+
+**Ruling (rejections and fixes of GB-B, GB-E, GB-F).** (1) `SDLGPUSampler` exposes its description as
+`configuration`, not `description` (a `description` property reads as `CustomStringConvertible` and the spec's A2 would
+mislead); the spec's `description` is amended. (2) GB-F's `precondition` for a call from the device's own threads tests
+`Thread.current === submitWorker.thread || waiterWorker.thread`, never "inside a `submitBatch` closure" (that closure's
+thread is not the worker's and the claim was unmeasured); a call from a caller's closure on another thread is legal. A
+test pins the waiter-thread arm through an internal hook, or records the arm unproven. (3) GB-B's target size for the
+scissor clamp is the **minimum over the pass's colour targets**, or the depth target's when it has none. (4) New tests live
+in `Backends/SDL/Tests/MetalUISDLTests/` beside `SDLGPUGraphicsTests.swift`. **Cost if wrong.** A rename after merge.
+
+## GB-J — W1 shaders are existing ones
+
+**Ruling.** W1 uses `fullscreen.vert` (depth 0) with `flat.frag` for the prepass and `tri.vert` (depths 0.3/0.5/0.7) for
+pass 2, so no depth-parameterised vertex shader is added; the new blobs are `flat.frag` and `copy.frag` only.
+**Cost if wrong.** An extra blob.
+
+## GB-K — adding `-> Bool` and defaulted last parameters are source-compatible, not binary-compatible
+
+**Ruling.** Backends/SDL ships as source (SwiftPM), so the migration note says "source compatible; a stored function
+reference to `setViewport`-like verbs does not exist (they are new)"; `writesColor`/`maxAnisotropy` extend initialisers
+whose old spelling no longer exists as a symbol, which is acceptable for a source-distributed class M layer.

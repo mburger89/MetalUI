@@ -1,6 +1,6 @@
 # SDL GPU gaps (XP-G14 to XP-G19) — design
 
-Item S11, MetalCreator xp-3. Rulings: `../2026-10-21-sdl-gpu-gaps-decisions.md` (`GB-A`…`GB-H`). Record `§137`.
+Item S11, MetalCreator xp-3. Rulings: `../2026-10-21-sdl-gpu-gaps-decisions.md` (`GB-A`…`GB-K` (GB-I amends this spec)). Record `§137`.
 Base `1bdead8d`; `Backends/SDL` only (library `MetalUISDLGPU`, tests, app shaders, docs). Class M, no census row (`GA-L`),
 no divergence (labels 665–674 untouched), no SwiftUI claim, no probe. No `Sources/` (root) change, so the fourteen images
 must stay 0 px.
@@ -28,7 +28,7 @@ case r32Float                           // bytesPerTexel 4
 public var maxAnisotropy: Float         // init(..., maxLevel:, maxAnisotropy: Float = 1)
 public var effectiveMaxAnisotropy: Float
 // SDLGPUSampler
-public let description: SDLGPUSamplerDescription
+public let configuration: SDLGPUSamplerDescription   // GB-I
 // readback
 public struct SDLGPUTextureRegion { x, y, width, height, mipLevel }   // + static func level(_:) whole level
 extension SDLGPUFence { public func waitBlocking() }
@@ -83,7 +83,7 @@ creates an `SDLPlatform`, and `.serialized` suites.
 | F2 | `anR32FloatTextureSampledNearestEqualsItsSource` | `copy.frag` into an `r32Float` colour target, download, bit-equal floats | `copy` writes `.x` scaled; or sampler `linear` |
 | F3 | `r32FloatIsFourBytesPerTexel` | `bytesPerTexel == 4`, `byteCount` | table arm 0 |
 | A1 | `anisotropyFieldsReachTheSamplerCreateInfo` | internal `createInfo()`: 1 → disabled; 4 → enabled 4; 64 → 16; NaN, 0.5 → disabled | enable test `>= 1` |
-| A2 | `aSamplerWithAnisotropyIsBuiltAndReadsBack` | `makeSampler` non-nil on `make()`'s device with 16; `sampler.description.maxAnisotropy == 16`, default 1 | description not stored on the sampler |
+| A2 | `aSamplerWithAnisotropyIsBuiltAndReadsBack` | `makeSampler` non-nil on `make()`'s device with 16; `sampler.configuration.maxAnisotropy == 16`, default 1 | configuration not stored on the sampler |
 | S1 | `aSynchronousDownloadReturnsTheRegionFromTheMainActor` | `@MainActor`: upload a 16×16 gradient, `downloadSynchronously` whole and a region `(3,5,4,2)`, bytes equal the CPU slice | region origin ignored |
 | S2 | `waitBlockingReturnsOnlyAfterTheSignalAndReleasesNothingEarly` | held `waiterGate`: a background thread blocked in `waitBlocking` is still blocked (checked by a flag set after return) until the gate opens; afterwards `isSignalled`; `unsignalledReleaseCount == 0`, `foreignThreadWaitCount == 0` | `waitBlocking` returns at once |
 | S3 | `aSynchronousDownloadInsideADrawTrapsInDebug` | exit test via `enterSimulatedDrawForTesting`, stderr contains `SDLGPUDevice.downloadSynchronously was called inside a surface draw` | assert line removed |
