@@ -12,7 +12,8 @@ import MetalUISDL
 public final class SDLGPUFence: @unchecked Sendable {
     private let device: SDLGPUDevice
     private var raw: OpaquePointer?
-    private let lock = NSLock()
+    /// Guards `signalled`/`waiters`; a condition so ``waitBlocking()`` can sleep on it.
+    private let lock = NSCondition()
     private var signalled = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
     /// Every resource the batch touched, kept alive until the fence signals.
@@ -68,6 +69,22 @@ public final class SDLGPUFence: @unchecked Sendable {
         }
     }
 
+    /// Blocks the **calling thread** until the batch has finished on the GPU
+    /// (ruling `GB-F`; Metal's `waitUntilCompleted` parity). It sleeps on the
+    /// lock the waiter thread signals in `finish()`: it never calls
+    /// `SDL_WaitForGPUFences` and never releases the fence, so the fence rule
+    /// holds. Legal on the main actor **outside a surface draw**, at the cost of
+    /// a stalled frame; prefer ``wait()``. Inside a draw it traps in a debug build
+    /// (`GA-I`), and from the device's own worker threads it is a precondition
+    /// failure (it would wait on itself). There is no cancellation.
+    public func waitBlocking() {
+        SDLGPUWindowGuard.assertNotInsideDraw("SDLGPUFence.waitBlocking")
+        device.preconditionNotOnOwnWorker("SDLGPUFence.waitBlocking")
+        lock.lock()
+        while !signalled { lock.wait() }
+        lock.unlock()
+    }
+
     /// `SDL_WaitForGPUFences` on one fence; counts a call off the waiter thread.
     private func blockingWait() {
         if Thread.current !== device.waiterWorker.thread {
@@ -91,6 +108,7 @@ public final class SDLGPUFence: @unchecked Sendable {
     private func finish() {
         lock.lock()
         signalled = true
+        lock.broadcast()
         let toResume = waiters
         waiters = []
         let fence = raw

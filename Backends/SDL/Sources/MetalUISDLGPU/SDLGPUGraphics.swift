@@ -397,11 +397,24 @@ extension SDLGPUDevice {
     /// then `SDL_CreateGPUGraphicsPipeline`; the shaders are released at once,
     /// which SDL allows), or `nil` when SDL refuses (the message is
     /// `SDL_GetError()`: a stage of the wrong kind, a sample count the driver
-    /// lacks, a count that does not match the shader).
+    /// lacks, a count that does not match the shader). The reason is
+    /// ``lastPipelineFailure`` (ruling `GB-G`); ``compileGraphicsPipeline(_:)``
+    /// throws it.
     public func makeGraphicsPipeline(_ description: SDLGPUGraphicsPipelineDescription) -> SDLGPUGraphicsPipeline? {
-        guard let vertex = makeShader(description.vertex, stage: SDL_GPU_SHADERSTAGE_VERTEX) else { return nil }
+        do { return try compileGraphicsPipeline(description) } catch {
+            recordPipelineFailure(String(describing: error))
+            return nil
+        }
+    }
+
+    /// The throwing form of ``makeGraphicsPipeline(_:)`` (ruling `GB-G`): throws
+    /// an ``SDLGPUError`` naming the stage that failed (vertex shader, fragment
+    /// shader or pipeline) with `SDL_GetError()`'s text read at the failing call,
+    /// or the description's key fields when SDL gave none.
+    public func compileGraphicsPipeline(_ description: SDLGPUGraphicsPipelineDescription) throws -> SDLGPUGraphicsPipeline {
+        let vertex = try compileShader(description.vertex, stage: SDL_GPU_SHADERSTAGE_VERTEX, label: "vertex shader")
         defer { release { SDL_ReleaseGPUShader($0, vertex) } }
-        guard let fragment = makeShader(description.fragment, stage: SDL_GPU_SHADERSTAGE_FRAGMENT) else { return nil }
+        let fragment = try compileShader(description.fragment, stage: SDL_GPU_SHADERSTAGE_FRAGMENT, label: "fragment shader")
         defer { release { SDL_ReleaseGPUShader($0, fragment) } }
 
         let buffers = description.vertexBuffers.map { buffer -> SDL_GPUVertexBufferDescription in
@@ -455,6 +468,7 @@ extension SDLGPUDevice {
         }
         info.target_info.num_color_targets = 1
 
+        let failure = Failure()
         let pipeline: OpaquePointer? = buffers.withUnsafeBufferPointer { bufferPointer in
             attributes.withUnsafeBufferPointer { attributePointer in
                 withUnsafePointer(to: &color) { colorPointer in
@@ -463,16 +477,27 @@ extension SDLGPUDevice {
                     info.vertex_input_state.vertex_attributes = attributePointer.baseAddress
                     info.vertex_input_state.num_vertex_attributes = UInt32(attributePointer.count)
                     info.target_info.color_target_descriptions = colorPointer
-                    return create { SDL_CreateGPUGraphicsPipeline($0, &info) }
+                    return create { handle in
+                        let made = SDL_CreateGPUGraphicsPipeline(handle, &info)
+                        if made == nil {
+                            failure.error = SDLGPUError(
+                                "graphics pipeline (SDL_CreateGPUGraphicsPipeline)",
+                                context: "vertex \(description.vertex.name), fragment \(description.fragment.name), "
+                                    + "colour format \(description.colorFormat), samples \(description.sampleCount), "
+                                    + "depth \(description.depth != nil), blend \(description.blend)")
+                        }
+                        return made
+                    }
                 }
             }
         }
-        guard let pipeline else { return nil }
+        guard let pipeline else { throw failure.error ?? SDLGPUError("graphics pipeline") }
         return SDLGPUGraphicsPipeline(raw: pipeline, description: description, device: self)
     }
 
-    /// One `SDL_GPUShader` from a library blob, its counts from the reflection.
-    private func makeShader(_ blob: SDLGPUShaderBlob, stage: SDL_GPUShaderStage) -> OpaquePointer? {
+    /// One `SDL_GPUShader` from a library blob, its counts from the reflection;
+    /// throws with SDL's message read on this thread at the failing call (`GB-G`).
+    private func compileShader(_ blob: SDLGPUShaderBlob, stage: SDL_GPUShaderStage, label: String) throws -> OpaquePointer {
         var info = SDL_GPUShaderCreateInfo()
         info.format = SDL_GPUShaderFormat(blob.format)
         info.stage = stage
@@ -480,15 +505,31 @@ extension SDLGPUDevice {
         info.num_storage_textures = UInt32(blob.readOnlyStorageTextures)
         info.num_storage_buffers = UInt32(blob.readOnlyStorageBuffers)
         info.num_uniform_buffers = UInt32(blob.uniformBuffers)
-        return blob.bytes.withUnsafeBufferPointer { code in
+        let failure = Failure()
+        let shader: OpaquePointer? = blob.bytes.withUnsafeBufferPointer { code in
             blob.entryPoint.withCString { entry in
                 info.code = code.baseAddress
                 info.code_size = code.count
                 info.entrypoint = entry
-                return create { SDL_CreateGPUShader($0, &info) }
+                return create { handle in
+                    let made = SDL_CreateGPUShader(handle, &info)
+                    if made == nil {
+                        failure.error = SDLGPUError(
+                            "\(label) \(blob.name) (SDL_CreateGPUShader)",
+                            context: "\(label), blob \(blob.name), \(blob.bytes.count) bytes, format \(blob.format)")
+                    }
+                    return made
+                }
             }
         }
+        guard let shader else { throw failure.error ?? SDLGPUError("\(label) \(blob.name)") }
+        return shader
     }
+}
+
+/// Carries the error built at a failing SDL call out of a `create` closure.
+private final class Failure: @unchecked Sendable {
+    var error: SDLGPUError?
 }
 
 extension SDLGPUCommandBuffer {
