@@ -238,7 +238,7 @@ stated.
 | SwiftUI | status | ruling |
 |---|---|---|
 | `App`/`Scene` lifecycle; iOS, iPadOS, tvOS, watchOS, visionOS, touch, safe areas, `UIAccessibility` | out of scope: MetalUI is macOS, Linux and Windows desktop windowing | `PB-A` |
-| `LazyVGrid`/`LazyHGrid`/`GridItem` | not built; the windowing they need exists (`WindowedRowsLayout`) | `GR-L` |
+| `LazyVStack`/`LazyHStack`/`LazyVGrid`/`LazyHGrid` `pinnedViews:` and `Section` headers | not built (the lazy containers themselves are, record §134; 635–638) | `LZ-N` |
 | `transformEffect`, `projectionEffect`, `rotation3DEffect`; a render effect on a `Component` | not built: a public affine type and a projective primitive; on a `Component` declare the effect on its members or a wrapping element | `GX-A`, `GX-P` item 5 |
 | two-axis scrolling; `scrollPosition(id:)`; an animated `scrollTo`/scroll offset | not built | `CN-M`, `DD-AB` items 5–6, `CX-I` item 2 |
 | `ButtonStyle`/`PrimitiveButtonStyle` as open protocols, `.borderedProminent`, `.link`, `.toggleStyle`, `.pickerStyle(.inline)` and the other styles | not built (`ButtonStyle`/`PickerStyle` are closed structs; `.contextMenu` is built since menus, popovers and tooltips, `MN-E`; `.pickerStyle(.menu)` since platform services, `SV-P`) | `IX-E`, `IX-M` |

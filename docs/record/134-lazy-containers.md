@@ -80,6 +80,22 @@ Run on the **filtered set of every lazy test** (the 56 tests of both lanes plus 
 Not separately mutated: 3.10's `.equatable()` arm (its code path is lane 1's, mutation 2.13) and `MG3a` as the spec spelled it (renaming `columns:` breaks every caller, so
 the build fails first: the `LazyHGrid` argument was renamed instead). A rename of `LazyVGrid.columns:` is therefore guarded by the compile of every call site.
 
+## 4a Lane 1's tests and mutations
+
+Lane 1 (`2a7d8cfb` red, `7a45577c` code, `ba94976f`, `bca63dc1` tests) added 26 tests: `LazyStackLayoutTests` (1.1-1.5), `LazyStackFrameTests`, `LazyStackWindowTests`
+(2.1-2.16 split as 2.1b, 2.4b, 2.7b, 2.13b and the like), `LazyStackGuards` (G.1, G.2) and the `lazyWork` row of the frame-channel classification; lane 1 ran
+31 mutations (M1-M31) against its set. **The per-mutation table of those runs is not preserved in the tree** (the implementer reported conclusions only): the ones the
+tree still names are M14/M14b (`noteWindowedParent` replaced by `noteLoop`: `aScrolledOutChildKeepsItsStateAndTheTableBoundsIt`), M15 (`noteWindowedParent` removed alone:
+reddens nothing, an equivalent mutant, belt and braces, `LZ-V`), M30 (the legacy static branch removed: `2.13b`) and the `scrollTo` carry (4 above). The Record-phase checker
+re-ran one: the cold/index window overscan widened by 1000 (`LazyCore.swift` 218-220) on the lazy filter reddened `aWarmFrameRealizesTheSameWindowAndRebuildsNothing`, restored,
+`git status --short` empty. Lane 2's mutations were re-run by its checker (a last-row gap kept, the track-count correction disabled, every cell in track 0): reddened
+`aLazyVGridPlacesCellsInTheirTracksAndSizesRowsByTheirTallestCell` and the others of the table's rows, as expected.
+
+## 4b The merge
+
+Merged with master `11dca65e` (E1 record 136, S11 record 137) at `ce39af23`: one conflict, `docs/verification/human-checks.md` (groups LZ, EX and GB all kept). Record number 134
+is free on master (136 and 137 taken), so no renumbering. The divergences header's count and next label are untouched (the merge settles them with 655-664's and the other branches').
+
 ## 5 Verification (2026-10-21, screen LOCKED, macOS 27, Swift 6.4)
 
 - `swift package clean`, `swift build --build-system native --build-tests`: 0 `error:`, the only `warning:` SwiftPM's deprecation notice. Native unfiltered run with
@@ -92,6 +108,11 @@ the build fails first: the `LazyHGrid` argument was renamed instead). A rename o
 - The fourteen offscreen images, `docs/probes/demo-pixels/compare.sh <scratch> 1bdead8d 675b7874`: **0 differing pixels, scene identical, all fourteen**; controls as recorded.
 - Linux image `metalui-portable` (swift:6.4-noble, volume `metalui-root-build-lazy-containers`): root build 0 errors; `MetalUITestingTests` **451** passed (the lazy stack, grid and guide tests among them),
   `MetalUILayoutTests` **238** (the solver's five), and the 9, 40, 28 portable runs, 0 failures; `everyProductionTreeBuildsOnAOneMegabyteThread` passed with the lazy demo.
+- **On the merged tree (`ce39af23`, Record phase, screen still locked): `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice; native unfiltered run
+  with `--skip AppKitPresentationTests`: 4164 tests in 5 suites passed, 0 issues (621 s), `FR-J no-argument frame: succeeded=true`; the same under `METALUI_VERIFY_RETAINED=1
+  METALUI_VERIFY_LAYOUT_MEMO=1`: 4164 passed, no trap (552 s). Guards 254 (master's 251 + `LazyStackGuards` 2 + `LazyGridGuards` 1). Inventory and undocumented scripts print nothing.
+  Linux image on the merged tree: root build 0 errors, `MetalUITestingTests` 451, `MetalUILayoutTests` 238, `MetalUICoreTests` 22, `MetalUICrossPlatformTests` 138 passed.** The fourteen images and
+  `Backends/SDL` were not re-taken after the merge (no `Sources/` conflict; the branch does not touch `Backends/SDL`).
 - Not run: an unlocked-screen `AppKitPresentationTests` re-take; the demo window (the lock probe read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`); Windows.
 
 ## 6 Deferred and owed

@@ -2,7 +2,7 @@
 
 Rulings for item L1 (`LazyVStack`, `LazyHStack`, `LazyVGrid`, `LazyHGrid`, `GridItem`; user request 2026-10-02, round 2 2026-10-21).
 Spec: [`specs/2026-10-21-lazy-containers-design.md`](specs/2026-10-21-lazy-containers-design.md). Record: `../record/134-lazy-containers.md`
-(not yet written). Branch `feat/lazy-containers` from `1bdead8d`. Reserved divergence labels 635-644: **635, 636, 637 taken by this
+(written). Branch `feat/lazy-containers` from `1bdead8d`. Reserved divergence labels 635-644: **635, 636, 637 taken by this
 design, 638 by lane 2 (`LZ-Y`)**, 639-644 unused. Probe: `../probes/swiftui-lazy-containers.swift` (output in its header; a SwiftUI claim below cites its arm).
 
 Prefix **`LZ-`**, lettered. **Next unused: `LZ-AA`.** (Moves in the commit that appends a ruling.)

@@ -2691,3 +2691,14 @@ reads `@Environment` is now memoized by the **readings** of its declared propert
 **Amended (earlier):** none. **Retired:** none. Label 345 refuted and unused (`IV-L`: probe arms S2/S3 show SwiftUI
 honours a custom `==` for closure and class inputs too); labels 347–354 of this branch's range unused.
 
+## 2026-10-21: 635–638 added (lazy containers, record §134)
+
+Labels 635–644 were this branch's reserved range; 635–638 are taken, 639–644 unused. All four are pinned by one test each.
+
+- **635** a `ForEach` element (or static member) of a lazy grid that produces several views is one cell holding them in a vertical stack; SwiftUI makes every view a cell (probe `swiftui-lazy-containers.swift` `C14b`, control `C14c`). Pin `aForEachElementOfSeveralViewsIsOneGridCell`; `LZ-X`.
+- **636** a lazy container whose content holds an `if`, `switch` or `for` member is eager and counted in `FrameWork.lazyUnbounded`. Pin `anIfMemberMakesTheContainerEagerAndCounted`; `LZ-B`, `LZ-S`; follow-up L1b.
+- **637** two more lines than the viewport realised on each side; SwiftUI none (probe `R1`). Pin `theOverscanAppearsBeforeTheRowsAreOnScreen`; `LZ-E`.
+- **638** an adaptive `GridItem`'s column count is decided at build time from the previous frame's width, so the first frame and the first after a width change build the previous count and ask for one more frame. Pin `aStaleAdaptiveWidthIsCorrectedOnTheNextFrame`; `LZ-L`, `LZ-Y`.
+
+**Amended:** none. **Retired:** none. The `GR-L` row of the not-built table (`LazyVGrid`/`LazyHGrid`/`GridItem`) is replaced by a `pinnedViews:`/`Section` row (`LZ-N`). The header's count and next label are left for the merge.
+

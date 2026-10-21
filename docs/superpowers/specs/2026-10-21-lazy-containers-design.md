@@ -2,7 +2,7 @@
 
 `LazyVStack`, `LazyHStack`, `LazyVGrid`, `LazyHGrid` and `GridItem`: SwiftUI's spellings, windowed against the enclosing
 scroller, on the proposal path. Branch `feat/lazy-containers` from `1bdead8d`. Rulings: `../2026-10-21-lazy-containers-decisions.md`
-(prefix `LZ-`). Record: `../../record/134-lazy-containers.md` (written at the Record phase). Probe:
+(prefix `LZ-`). Record: `../../record/134-lazy-containers.md` (written). **Status: implemented**, verified 2026-10-21 (record §134 §5); `pinnedViews:`/`Section` carried (`LZ-N`, follow-up L2). Probe:
 `../../probes/swiftui-lazy-containers.swift` (recorded output in its header; extends `swiftui-lazy-grid-scope.swift` LZ0-LZ7,
 `swiftui-lifecycle.swift` S2, `swiftui-data-and-scrolling.swift` L2 and T10). Reserved divergence labels 635-644: this design takes
 **635, 636, 637** (rows added by the lanes, the header's next label left for the merge).

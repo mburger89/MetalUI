@@ -572,6 +572,12 @@ conformer changes; `SDLGPUDrawContext` is unchanged. An app that bound SDL3 itse
 binding. An app's own shaders are built with `Backends/SDL/scripts/compile-app-shaders.py` and shipped as
 `MetalUIAppShaders` (`docs/packaging.md` section 4a).
 
+### Lazy containers (`LZ-`, record §134)
+
+Nothing breaking. `LazyVStack`, `LazyHStack`, `LazyVGrid`, `LazyHGrid` and `GridItem` are new public declarations; no `PlatformWindow`, `Platform`,
+`WindowRenderer` or `TextSystem` requirement, no `Handlers` member and no `LayoutTree` kind is added. `FrameWork` gains three public counters
+(`lazyUnitsRealized`, `lazyLinesRealized`, `lazyUnbounded`) with defaults in its initialiser, so existing calls are unchanged. A third-party `PlatformWindow` conformer needs nothing.
+
 ### SDL GPU gaps (`GB-`, record §137)
 
 Source compatible for code that builds against `Backends/SDL` (a source-distributed class M layer, `GB-K`), with one
