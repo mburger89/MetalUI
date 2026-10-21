@@ -25,6 +25,11 @@ jobs:
       run: swift build -v --build-system native --build-tests
     - name: Run tests
       run: METALUI_REQUIRE_GUARDS=1 swift test -v --build-system native --no-parallel
+    # The sample app (ruling EX-E, record 136): its own package, a path dependency on this
+    # checkout, built and tested as a user's app is. A red step here is API churn the example
+    # has not followed.
+    - name: Sample app (Examples/Jotter)
+      run: swift test --package-path Examples/Jotter
 
   # MetalUIScene, MetalUIFreeType, MetalUIHarfBuzz and MetalUIPortableText must
   # build without Apple frameworks (rulings PS-G, FT-K, SH-K, PT-A): a Metal, CoreText or CoreGraphics

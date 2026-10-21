@@ -39,6 +39,15 @@ input, queries, alerts, menus, the clock and counting a frame's work. Because
 of the test target, `Testing` is a refused name (`HT-V`), beside
 `MetalUITesting` (refused by the `MetalUI` prefix).
 
+## A bigger example
+
+[`Examples/Jotter/`](../Examples/Jotter/README.md) is a finished sample app: a notes app with a
+`List(selection:)` sidebar, `TextField`/`TextEditor` editing, `.toolbar`/`.searchable`, `.contextMenu`,
+`.confirmationDialog`/`.alert`, `.fileExporter`/`.fileImporter`, drag-to-reorder, `App.commands`
+with shortcuts, a chart, light and dark, and 21 tests through `MetalUITesting`. Its `Package.swift` is
+the `--cross-platform` manifest with the checkout as a path dependency, so it is also the model for a
+package of your own (`swift run --package-path Examples/Jotter Jotter`).
+
 ## Which MetalUI the app gets
 
 The generated `Package.swift` pins MetalUI to **one commit** (`SC-I`):
