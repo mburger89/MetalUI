@@ -103,6 +103,6 @@ func theGestureStateBoxIsNotReachable() throws {
     try separate("GS.4", positive: """
         @MainActor public func spelled() { let _: GestureState<Int> = GestureState(wrappedValue: 0) }
         """, negative: """
-        @MainActor public func bad() { let _ = GestureStateBox<Int>() }
+        @MainActor public func bad() { let _: GestureStateBox<Int>? = nil }
         """)
 }
