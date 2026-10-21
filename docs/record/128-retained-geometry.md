@@ -106,6 +106,8 @@ Merged tree `c76a6a37` (branch `d85cc670` + master `c502f14c`), screen unlocked 
 
 ## §8 Mutations
 
+**Branch checker (2026-10-20).** Removing only `replayPrepaintLedger`'s `geometryTranslated` refusal (the effect-translation site, `RetainedPrepaint.swift`) reddened nothing among the six lane-1 tests (test 5 reaches `movedPrepaintLedger`'s site): the site was unpinned and, unrefused, delivered values that differ from a fresh window's. The checker's `anEffectTranslatedReplayOfAGeometryNoteIsRefusedByName` (an `.offset` above the occurrences moves 4 points) is red under that mutation (3 issues: values differ, count, `refused == 2`), green unmutated. Also by the checker: dropping the re-note in `replayPrepaintLedger` reddened `aReplayedGeometryNoteDeliversNothingUntilTheValueChanges` and `twoGeometryScopesStackedAtOnePositionAreBothHeldThroughAReplay` (filtered to the six geometry tests). The lane runs below were the verifiers' filtered runs.
+
 Each applied after commit, restored from a copy, `git status --short` clean after each. **Lane 1** (filtered to 154 retained, geometry and prepaint tests by the verifier): M3 (the
 `geometryTranslated` refusal removed at both sites) reddened `aTranslatedReplayOfAGeometryNoteIsRefusedByName`; M2 (the re-note into `LifecycleStore` dropped) reddened
 `aReplayedGeometryNoteDeliversNothingUntilTheValueChanges` and `twoGeometryScopesStackedAtOnePositionAreBothHeldThroughAReplay`; M6 (the `geometryGraft` refusal removed) reddened

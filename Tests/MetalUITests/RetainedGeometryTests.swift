@@ -46,7 +46,7 @@ private struct RGCard: Component, @MainActor Equatable {
     }
 }
 
-private enum RGKind { case plain, scrolled, effect }
+private enum RGKind { case plain, scrolled, effect, offsetEffect }
 
 private struct RGRoot: Component {
     let model: RGModel
@@ -75,6 +75,11 @@ private struct RGRoot: Component {
                 RGCard(id: 0, stacked: stacked, log: log, tag: model.tag).equatable()
                 RGCard(id: 1, stacked: stacked, log: log, tag: model.tag).equatable()
             }.scaleEffect(model.scale)
+        case .offsetEffect:
+            VStack(spacing: 2) {
+                RGCard(id: 0, stacked: stacked, log: log, tag: model.tag).equatable()
+                RGCard(id: 1, stacked: stacked, log: log, tag: model.tag).equatable()
+            }.offset(x: Pixels(model.pad), y: 0)
         }
     }
 }
@@ -220,4 +225,27 @@ func twoGeometryScopesStackedAtOnePositionAreBothHeldThroughAReplay() throws {
     model.tag += 1
     rgRedraw(w, 3)
     #expect(log.entries.isEmpty, "a re-made card with equal geometry reports neither scope: \(log.entries)")
+}
+
+/// 7 (`RG-C`, checker). An `.offset` above the occurrences moves by whole pixels (the effect translation of `FS-O`, no layout move):
+/// the ledger holds a geometry note, so the effect-translated replay is refused by name `geometryTranslated` at
+/// `replayPrepaintLedger`'s own site (test 5 reaches `movedPrepaintLedger`'s), and the values delivered equal a fresh window's.
+/// Mutation: let the effect-translation path through (`if false && !ledger.geometry.isEmpty`).
+@Test(.enabled(if: !rgVerifying, rgVerifyNote)) @MainActor
+func anEffectTranslatedReplayOfAGeometryNoteIsRefusedByName() throws {
+    func run(retained: Bool) throws -> (log: [String], refused: Int) {
+        let (w, model, log) = try rgWindow(.offsetEffect, retained: retained)
+        rgRedraw(w, 6)
+        log.entries.removeAll()
+        w.resetFrameWork()
+        model.pad += 4
+        rgRedraw(w, 1)
+        let refused = w.frameWork.reduce(0) { $0 + $1.retainedTranslationRefusedReasons["geometryTranslated", default: 0] }
+        rgRedraw(w, 2)
+        return (log.entries, refused)
+    }
+    let on = try run(retained: true), off = try run(retained: false)
+    #expect(on.log == off.log, "\(on.log) vs \(off.log)")
+    #expect(on.log.count == 2, "both cards moved: \(on.log)")
+    #expect(on.refused == 2, "refused by name: \(on.refused)")
 }
