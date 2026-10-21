@@ -3,7 +3,7 @@
 Rulings for item C14-h. Spec: [`specs/2026-10-21-retained-lifecycle-design.md`](specs/2026-10-21-retained-lifecycle-design.md). Record: `../record/131-retained-lifecycle.md` (Record phase).
 Branch `perf/retained-lifecycle` from `c55d44e8`. Reserved divergence labels 605-614: none taken.
 
-Prefix **`RL-`**, lettered. **Next unused: `RL-M`.** (Moves in the commit that appends a ruling.)
+Prefix **`RL-`**, lettered. **Next unused: `RL-O`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E`, `RK-F`, `RG-A`, `RG-C`, `RG-D`, `RG-J`, `AT-C`, `AT-G`, `RW-L`, `KF-J`, `IF-D`, `LC-C`...`LC-I`, `PX-F`, `TF-A`.
 No SwiftUI probe: no observable behaviour moves (`RG-B`'s argument); the oracle is differential against a window with retention off. gpui has no lifecycle-scope analogue to compare.
@@ -76,3 +76,19 @@ lane 2 already carries geometry, two accessibility mechanisms and a hitbox chain
 ## RL-L2 - Demo and pixels (note, not a ruling)
 
 The lifecycle strip is behind `METALUI_RETAINED_DEMO=1`, so the fourteen offscreen images (default demo) cannot move; the 0 px comparison is still run. The strip is its own function (1 MB stack).
+
+## RL-M - `surface` stays refused (`RW-L` carried, measured; closes `RL-J`/`RL-K`)
+
+**Ruling.** Not built. **Measurement.** `RetainedWithStateTests`' channel table (`RW-M`, re-run at this branch's base) already reads, for an `.onDemand` surface in an `.equatable()` occurrence: paint refused once (`surface`), prepaint replays, graft 0 refusals
+(`GPUSurface` registers nothing at build or layout beyond the `.surface` leaf; `SurfaceRegistry.buildActivity` moves only at paint), so the whole cost is **one element paint per surface per frame**. A paint replay would owe: (1) a `.surface` arm in `CapturedPrimitive`/`translatePrimitive`
+(today `unlistedKind:surface`); (2) re-appending the frame's `SurfaceDrawRequest` with the current `time` and the `draw` closure of the record that made it (`RL-L`'s contract, but a closure the renderer **calls**); (3) re-doing `SurfaceRegistry.occurrence(for:)` and `id(for:occurrence:)` so
+the target is not released by `endFrame` (`MV-E`); (4) the same on SDL's table. Sound in principle (the lifecycle store's shape, `RL-A`), but for one leaf's paint, with a renderer-visible closure that must be the standing one and no way to pin "the GPU did not redraw" on the headless platform
+(no surface draws, `HT-`). **Cost if wrong.** A surface inside a retained occurrence keeps painting (today's behaviour); owner a future C14 with a GPU-backed measurement.
+
+## RL-N - Where the build came out different from the spec (lane 1)
+
+**Rulings.** (1) The reserved-order count is a field of `GraftRecord` (`lifecycleOrders = nextOrder at close - lifecycleBase`), not a `.lifecycleOrders` event: a nested window's count then includes what an inner graft advanced, and `reapply(_:lifecycleOrders:)` advances once after the notes.
+Notes are relative to `GraftRecorder.lifecycleBase` at close (the journal holds absolute orders while recording, so every open window converts from the same numbers). (2) `RL-D`'s tripwire is `buildActivity = workThisFrame + nextOrder - journaledActivity`, the
+journal's own counter reset at `endFrame` and `rollbackBuild` (test 7). (3) Verify mode's `lifecycleStore` channel digests the lifecycle, geometry and modifier notes of the build in progress (keys, orders, presence; a modifier's masked value), so a replayed modifier or geometry note that differs also traps by that name.
+(4) The old pin `aGraftIneligibleBuildIsCountedByName(kind: .lifecycle)` is now a control arm (grafts), like `.scroll` after `RW-H`. **Cost if wrong.** As `RL-C`/`RL-D`.
+

@@ -92,9 +92,11 @@ private struct RLRoot: Component {
         let counter = Binding<Int>(get: { model.counter }, set: { model.counter = $0 })
         VStack(spacing: 2) {
             Color(red: 0.5, green: 0.5, blue: 0.5).frame(height: Pixels(model.pad))
-            if siblings {
+            if siblings && model.shown {
                 Box().frame(width: Pixels(40), height: Pixels(10)).background(.accent)
+                    .onDisappear { log.entries.append("preD") }
                     .onChange(of: model.value) { o, n in log.entries.append("pre \(o)>\(n)") }
+                    .onChange(of: model.value) { o, n in log.entries.append("pre2 \(o)>\(n)") }
             }
             if model.shown {
                 if nested {
@@ -106,8 +108,9 @@ private struct RLRoot: Component {
                     }
                 }
             }
-            if siblings {
+            if siblings && model.shown {
                 Box().frame(width: Pixels(40), height: Pixels(10)).background(.accent)
+                    .onDisappear { log.entries.append("postD") }
                     .onChange(of: model.value) { o, n in log.entries.append("post \(o)>\(n)") }
             }
         }
@@ -210,7 +213,7 @@ func lifecycleDeliveriesThroughRetentionEqualAnUnretainedWindow() async throws {
     #expect(on.first(where: { $0.hasPrefix("show:") })?.contains("appear0") == true, "\(on)")
 }
 
-/// 4 (`RL-C`). Simultaneous changes in the occurrence and in siblings before and after it deliver in `LC-F`'s order (reverse
+/// 4 (`RL-C`). Simultaneous changes in the occurrence and in siblings before and after it, and then their disappearances (the panels graft), deliver in `LC-F`'s order (reverse
 /// pre-order) exactly as an unretained window does. Mutation (iii): the re-note ignores `base + rel`.
 @Test @MainActor
 func aGraftedOccurrenceKeepsLifecycleOrderAmongSiblings() async throws {
@@ -221,15 +224,24 @@ func aGraftedOccurrenceKeepsLifecycleOrderAmongSiblings() async throws {
         model.value += 1
         await rlRedraw(w, 2)
         let changed = log.entries
+        await rlRedraw(w, 6)   // the panels graft again before they leave
         log.entries.removeAll()
         model.shown = false; await rlRedraw(w, 2)
+        let hidden = log.entries
+        log.entries.removeAll()
         model.shown = true; await rlRedraw(w, 2)
-        return changed + ["--"] + log.entries
+        return changed + ["--"] + hidden + ["--"] + log.entries
     }
     let on = try await run(retained: true), off = try await run(retained: false)
     #expect(on == off, "\non:  \(on)\noff: \(off)")
     #expect(on.contains { $0.hasPrefix("pre") } && on.contains { $0.hasPrefix("post") } && on.contains { $0.hasPrefix("c1-1") },
             "the script delivers from all three places: \(on)")
+    // The disappearances of grafted panels sort among the siblings' by the orders the graft re-noted (`RL-C`).
+    let hiddenLog = on.drop { $0 != "--" }.dropFirst().prefix { $0 != "--" }
+    #expect(Array(hiddenLog) == ["postD", "disappear1", "disappear0", "preD"], "\(hiddenLog)")
+    // Reverse pre-order (`LC-F`): the later sibling first, the panels' scopes between (the later panel first), the earlier sibling's last (the order unretained windows measure).
+    let changed = on.prefix { $0 != "--" }.map { String($0.prefix { $0 != " " }) }
+    #expect(changed == ["post", "c1-1", "c2-1", "c1-0", "c2-0", "pre", "pre2"], "\(changed)")
 }
 
 /// 5 (`RL-B`). A modifier change across a replayed ledger delivers once; a masked-out one delivers nothing; both equal an unretained
