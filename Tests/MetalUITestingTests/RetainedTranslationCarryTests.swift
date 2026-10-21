@@ -277,8 +277,21 @@ struct RCRow: Component, @MainActor Equatable {
     }
 }
 
-enum RCAXMode: CaseIterable, CustomStringConvertible { case scroller, clippedStack, effect, effectText
-    var description: String { switch self { case .scroller: "scroller"; case .clippedStack: "clippedStack"; case .effect: "effect"; case .effectText: "effectText" } }
+enum RCAXMode: CaseIterable, CustomStringConvertible { case scroller, clippedStack, effect, effectText, cutCards
+    var description: String { switch self { case .scroller: "scroller"; case .clippedStack: "clippedStack"; case .effect: "effect"; case .effectText: "effectText"; case .cutCards: "cutCards" } }
+}
+
+/// A card whose own clip (derived inside the occurrence) cuts its second and third records: a text half cut, a button wholly cut.
+struct RCCutRow: Component, @MainActor Equatable {
+    let k: Int
+    var content: some ElementGroup {
+        VStack(spacing: 1) {
+            Button("c\(k) r0") {}.accessibilityLabel("c\(k)r0").frame(width: Pixels(60), height: Pixels(12))
+            Text("c\(k) t1").frame(width: Pixels(60), height: Pixels(12))
+            Button("c\(k) r2") {}.accessibilityLabel("c\(k)r2").frame(width: Pixels(60), height: Pixels(12))
+        }
+        .frame(width: Pixels(60), height: Pixels(20), alignment: .top).clipped()
+    }
 }
 
 struct RCTextRow: Component, @MainActor Equatable {
@@ -314,6 +327,16 @@ struct RCAXRoot: Component {
             }
             .frame(width: Pixels(100), height: Pixels(200), alignment: .topLeading)   // the effect's own box does not move
             .scaleEffect(2, anchor: .topLeading)
+        case .cutCards:
+            // Cards well inside the ambient clip, each cut by a clip of its own: the paint replays (no mask straddles the entry
+            // clip) and the accessibility records are cut at a depth below the entry (`movedAccessibility`'s inner branch).
+            VStack(spacing: 2) {
+                Box().frame(height: Pixels(10 + pad))
+                ForEach(Array(0..<3), id: \.self) { k in RCCutRow(k: k).equatable() }
+            }
+            .padding(Edges(all: Pixels(10)))   // strictly inside the ambient clip on every side
+            .frame(width: Pixels(150), height: Pixels(200), alignment: .topLeading)
+            .clipped()
         case .clippedStack:
             // A header that grows over a stack cut by a clip: rows cross the clip's edge as they shift.
             VStack(spacing: 2) {
@@ -382,6 +405,27 @@ func aLayoutShiftReplaysAccessibilityRecordsRecomputed(arm: RCAXArm) async throw
         #expect(stepsWithoutHit == 0, "every step replays its prepaint: \(stepsWithoutHit) did not")
     }
     #expect(cut > 0, "some record is cut by the viewport: the arm must meet a cut visible frame")
+}
+
+/// 17b (`RL-H`). A layout shift of cards that each cut their own accessibility records with a clip pushed inside the occurrence (the
+/// cards stay strictly inside the ambient clip, so the paint replays too): the prepaints replay translated, the cut visible frames move
+/// with the card instead of being cut again at the ambient clip, and every step's published tree equals a fresh window's. Mutation:
+/// replace `emission.clipDepth == entryDepth` in `movedAccessibility` with `true` (an inner record's visible frame is then the whole
+/// frame, uncut by its card's clip).
+@Test(.enabled(if: !rsVerifying, rcVerifyNote)) @MainActor
+func aLayoutShiftMovesARecordCutByAClipInsideTheOccurrence() async throws {
+    let pair = try rcAXPair(mode: .cutCards)
+    try pair.compare("warm")
+    var hits = 0, stepsWithoutHit = 0, cut = 0
+    for delta in [Float(4), 8, -6, 10, -12] {
+        let w = try await rcStep(pair, "header \(delta)") { rcShift(pair, by: delta) }
+        print("RC17b \(delta): hits \(w.retainedPrepaintHits) translated \(w.retainedTranslated) refused \(w.retainedTranslationRefusedReasons) ineligible \(w.retainedIneligibleReasons)")
+        hits += w.retainedPrepaintHits
+        if w.retainedPrepaintHits == 0 { stepsWithoutHit += 1 }
+        cut += try pair.on.accessibilityTree.geometry.values.filter { $0.visibleFrame != $0.frame }.count
+    }
+    #expect(hits > 0 && stepsWithoutHit == 0, "every step replays its prepaint: hits \(hits), \(stepsWithoutHit) without")
+    #expect(cut > 0, "some record is cut by its card's own clip: the arm must meet a cut visible frame")
 }
 
 /// 18 (`RL-H`). A record made under an effect still refuses a layout shift, by its own name `accessibilityUnderEffect` (the effect

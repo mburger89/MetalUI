@@ -68,6 +68,7 @@ disappear, re-insert; a `testingRetainedSubtrees = false` window is the oracle, 
 `aGlobalFrameNoteUnderAPanEffectIsRecomputed(arm:)` (1, 2, 0.8), `anOuterNamedSpaceIsIneligibleBeforeAnyGeometryNote` (green at base by design: the upstream `namedSpaces` refusal), `aNamedSpaceDeclaredInsideTheOccurrenceIsInvariant(arm:)` (1, 2),
 `aNamedSpaceUnderANonDyadicScaleRefusesByName`, `anObserverGraftsAndAShiftNeedsNoRedo`, `aLayoutShiftReplaysAccessibilityRecordsRecomputed` (published tree equals a fresh window's), `anAccessibilityRecordUnderAnEffectStillRefusesOnLayoutShift(mode:)`,
 `aHitboxOpenedInsideTheOccurrencesEffectReplaysAtNonIdentityScale(arm:)` (1, 2, 0.8), `aNestedEffectAccessibilityRecordIsRecomputedAtScaleTwo(arm:)` (the arm C14-g's mutation M6 needed).
+The pin pass that closed the two unpinned arms of §8 (+2 tests, 4117 in all): `aRebasedLedgerCarriesItsModifierNote(pan:)` (RetainedLifecycleTests; `pan: false` is the layout-shift arm that reaches `rebased`; `pan: true`, the `.offset` pan, is a control: an effect translation replays the original ledger moved and never rebases it) and `aLayoutShiftMovesARecordCutByAClipInsideTheOccurrence` (RetainedTranslationCarryTests; `RCCutRow` cards cut their records with a clip of their own, padded strictly inside the ambient clip so the paint replays and the inner branch is reached).
 Amended, superseded pins (`RL-P` 4): `RetainedGeometryTests` tests 5 and 7 (refusal to recomputed), `aHitboxWhoseClipDependedOnTheTranslationIsRecomputedFromItsSteps` (was `...IsNotMoved`), `aGraftedOccurrenceUnderARefusedTranslationRedoesTheFrame`
 (its refusal is now `fractionalTranslation`), `FSRefusal.accessibility` (removed), `RetainedGraftTests`' `.lifecycle` arm (now a control arm that grafts, as `.scroll` after `RW-H`), `RetainedSubtreeInternalTests` (two lines), `Frame.hitboxChains` classified in the state-write census.
 
@@ -101,10 +102,12 @@ the red-first state at `c55d44e8` rests on the implementer's report and on the r
 | emission `underEffect` arm deleted | `anAccessibilityRecordUnderAnEffectStillRefusesOnLayoutShift(effectText)` | yes |
 | `axNodeLocals` not carried by `rebased` | `aLayoutShiftReplaysAccessibilityRecordsRecomputed` | yes |
 | hitbox transform left as recorded / chain ignored / chains not recorded / nested steps skipped | `aHitboxOpenedInsideTheOccurrencesEffectReplaysAtNonIdentityScale(arm:)`, `aHitboxWhoseClipDependedOnTheTranslationIsRecomputedFromItsSteps`, `anEffectOpenedInsideTheOccurrenceIsRecomputedFromItsSteps(arm:)`, `aNestedEffectAccessibilityRecordIsRecomputedAtScaleTwo(arm:)` | yes |
-| `movedAccessibility`: `emission.clipDepth == entryDepth` replaced by `true` | none (101 tests) | **no, survivor** |
+| `movedAccessibility`: `emission.clipDepth == entryDepth` replaced by `true` | none (101 tests) | **no, survivor** (closed below) |
+| same, after the C14-h pin pass: `if true {` in `RetainedTranslationCarries.swift` | `aLayoutShiftMovesARecordCutByAClipInsideTheOccurrence` (5 tree differences against a fresh window and `cut > 0`) | yes |
 | `movedAccessibility`'s nodes arm; the dyadic clause | none (shadowed by the emission arm; by the round-trip clause) | equivalent |
 | lane 1: the spec's mutation sites (skip the re-note, replay the recorded modifier value, drop the journal append, leave the journal untruncated on a redo, skip the task-box carry, delete the audit comparison) | the lane-1 tests of §3; the lane's commits carry no table, only `RL-B` (modifier value: tests 3 and 5) and `58236fe8` (order test mutation-verified) name results; the per-mutation reddened lists were not recorded | partly unrecorded |
-| lane 1's checker: `PrepaintLedger.rebased` without `copy.modifiers = modifiers` (full unfiltered run, 4084 passed, `/tmp/rl_v_mA.log`) | none | **no, survivor** |
+| lane 1's checker: `PrepaintLedger.rebased` without `copy.modifiers = modifiers` (full unfiltered run, 4084 passed, `/tmp/rl_v_mA.log`) | none | **no, survivor** (closed below) |
+| same, after the pin pass: `copy.modifiers = modifiers` deleted | `aRebasedLedgerCarriesItsModifierNote(pan: false)` (log `[mod1 0>1, mod0 0>1]` against the oracle's eight deliveries, and the count) | yes |
 
 ## §7 Hazards
 
@@ -117,7 +120,7 @@ the red-first state at `c55d44e8` rests on the implementer's report and on the r
 
 ## §8 Open residues and deferrals
 
-- **Two unpinned arms (checker findings, minor):** (1) the modifier-note copy in `PrepaintLedger.rebased` (a modifier scope inside an occurrence that translates while steady; consequence inferred from `RL-A`, not measured); (2) the
+- **Two unpinned arms (checker findings, minor; both closed by the pin pass, see §3 and §6):** (1) the modifier-note copy in `PrepaintLedger.rebased` (a modifier scope inside an occurrence that translates while steady; consequence inferred from `RL-A`, not measured); (2) the
   `emission.clipDepth != entryDepth` arm of `movedAccessibility` (reachable only if a record cut by a clip derived inside the occurrence reaches a prepaint replay; the `inner: true` arm's comment says that is a paint-record refusal first). Owner: the next C14 item;
   each owes a differential test (delivery sequence against a retention-off window; a layout-shift arm comparing the published tree), or, for (2), a trap or a named refusal if unreachable.
 - **No demo strip and no `RL` human checks beyond the three below were built**: the spec's lifecycle strip in `METALUI_RETAINED_DEMO=1` did not land; the fourteen default images cannot move either way (0 px confirmed).

@@ -267,6 +267,70 @@ func aModifierChangeAcrossAReplayedLedgerDelivers() async throws {
     #expect(on.hits == 2, "the change frame replays both ledgers: \(on.hits)")
 }
 
+/// A root whose panels sit under a render-effect `.offset` pan (`pan`) or under a header the layout shifts (`!pan`), `model.pad` the amount.
+private struct RLShiftRoot: Component {
+    let model: RLModel
+    let log: RLLog
+    let pan: Bool
+    var content: some ElementGroup {
+        let counter = Binding<Int>(get: { model.counter }, set: { model.counter = $0 })
+        if pan {
+            ZStack(alignment: .topLeading) {
+                VStack(spacing: 2) {
+                    ForEach(0..<2, id: \.self) { i in
+                        RLPanel(id: i, mode: .modifier, value: 0, taskID: 0, tag: 0, log: log, counter: counter).equatable()
+                    }
+                }
+                .offset(x: Pixels(model.pad), y: Pixels(model.pad / 2))
+            }
+            .frame(width: Pixels(200), height: Pixels(200), alignment: .topLeading)
+        } else {
+            VStack(spacing: 2) {
+                Box().frame(height: Pixels(model.pad))
+                ForEach(0..<2, id: \.self) { i in
+                    RLPanel(id: i, mode: .modifier, value: 0, taskID: 0, tag: 0, log: log, counter: counter).equatable()
+                }
+            }
+        }
+    }
+}
+
+/// 5b (`RL-B`). A modifier scope inside an occurrence that translates while steady (a whole-pixel `.offset` pan, or a layout shift from a
+/// growing header): the rebased ledger carries its modifier note, so a modifier change after the shift delivers once per panel and no
+/// spurious report or disappearance is delivered, equal to an unretained window's. Mutation: delete `copy.modifiers = modifiers` in
+/// `PrepaintLedger.rebased`.
+@Test(.enabled(if: !rlVerifying, rlVerifyNote), arguments: [false, true]) @MainActor
+func aRebasedLedgerCarriesItsModifierNote(pan: Bool) async throws {
+    func run(retained: Bool) async throws -> (log: [String], translated: Int, hits: Int) {
+        let model = RLModel(), log = RLLog()
+        let w = try TestWindow(size: Size(width: Pixels(200), height: Pixels(260))) {
+            VStack(spacing: 0) { RLShiftRoot(model: model, log: log, pan: pan) }
+        }
+        w.window.testingRetainedSubtrees = retained
+        await rlRedraw(w, 6)
+        w.pressModifiers([.shift]); await rlRedraw(w, 2)
+        var translated = 0, hits = 0
+        func shift() async {
+            model.pad += 4
+            w.window.setNeedsRedraw()
+            w.resetFrameWork()
+            await rlRedraw(w)
+            translated += w.lastFrameWork.retainedTranslated; hits += w.lastFrameWork.retainedPrepaintHits
+        }
+        for _ in 0..<2 { await shift() }          // the first rebases, the second replays the rebased ledger
+        w.pressModifiers([]); await rlRedraw(w, 2)
+        for _ in 0..<2 { await shift() }
+        w.pressModifiers([.shift]); await rlRedraw(w, 2)
+        await shift()
+        w.pressModifiers([]); await rlRedraw(w, 2)
+        return (log.entries, translated, hits)
+    }
+    let on = try await run(retained: true), off = try await run(retained: false)
+    #expect(on.log == off.log, "\(on.log) vs \(off.log)")
+    #expect(on.log.count == 8, "two panels, shift down, up, down, up: \(on.log)")
+    #expect(on.translated > 0 && on.hits > 0, "the shifts replay translated: \(on.translated) / \(on.hits)")
+}
+
 /// 6 (`RL-C`). An inner occurrence inside an outer one that grafts: the inner notes are journaled once, no scope appears twice and the
 /// deliveries equal an unretained window's over a value change and a re-insertion. Mutation: let `reapply`'s re-note journal twice.
 @Test @MainActor
