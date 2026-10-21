@@ -250,6 +250,7 @@ extension Window {
             case "produced": graft.events.removeAll { if case .produced = $0 { true } else { false } }
             case "named": graft.events.removeAll { if case .named = $0 { true } else { false } }
             case "loops": graft.events.removeAll { if case .loop = $0 { true } else { false } }
+            case "lifecycleNotes": graft.events.removeAll { if case .lifecycleNote = $0 { true } else { false } }
             case "memoTouches": graft.events.removeAll { if case .memoTouch = $0 { true } else { false } }
             case "leafKeys": graft.segment = graft.segment.testingDroppingLeafKeys()
             default: preconditionFailure("unknown graft channel \(channel)")

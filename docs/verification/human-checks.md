@@ -1779,6 +1779,14 @@ a physical GPU, a desktop session and a console.*
   focused node and socket, stays on it after the pan settles, and reads the same labels as with retention off (`AT-A`). The owner also reads MetalCreator's warm graph pan counters: grafts above 0, redos 0, element
   requests far below 1409 (no agent touches MetalCreator). **Observed:**
 
+## RL. Retained lifecycle and translation carries — callbacks that fire once through a graft, a reader that follows a pan (item C14-h, user request 2026-10-02, not a plan task; record 131; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot run VoiceOver (`IX-AE`), hold a real modifier key or run MetalCreator. Delivery sequences equal a retention-off window's over scripts and published trees equal a fresh window's, both pinned; what is owed is how it reads and feels on a real window. No demo strip was built: use an app with the same shape (MetalCreator's ViewportView) or any `.equatable()` panel with these scopes.*
+
+- [ ] **RL1.** An `.equatable()` viewport with `onModifierKeysChanged` and `onAppear`/`onChange`/`.task(id:)` scopes: hold and release modifiers (Shift, Option, Command) while panning and zooming; each change is reported once, none doubled or missed, nothing re-fires `onAppear` or `initial` while the viewport pans, and the owner reads `retainedIneligibleReasons` 0 for `modifierKeys` and `lifecycle` with grafts above 0 (`RL-A`, `RL-B`). **Observed:**
+- [ ] **RL2.** VoiceOver on a scrolling list of `.equatable()` rows carrying an `.onGeometryChange(.global)` observer and accessibility records: scroll and resize; the VoiceOver focus rectangle follows the focused row, the observer's value matches the real frame, and the window never flickers into a rebuild (`RL-E`, `RL-H`). **Observed:**
+- [ ] **RL3.** A canvas under `.scaleEffect` + `.offset` with `.equatable()` nodes that register hitboxes inside their own effect: pan at zoom 2 and 0.8; hover and click land on the node under the pointer, and VoiceOver reads the same labels as with retention off (`RL-I`). **Observed:**
+
 ## AP. SDL application id - the desktop entry's icon and grouping (item XP-G13, user request 2026-10-21, not a plan task; record 132; provisional letter, in the manner of `RT`, `KF` and `IF`)
 
 *An agent cannot: it needs a Linux desktop session. The hint is set before `SDL_Init` and an explicit option beats the single-instance id (`SDLAppIDTests`); what is owed is what the shell does with it.*

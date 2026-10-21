@@ -43,6 +43,10 @@ struct PaintTranslation {
 struct LedgerTranslation {
     var hitboxes: [Hitbox]
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)]
+    /// The accessibility records recomputed at the new position (`RL-H`), `nil` when the ledger holds none.
+    var accessibility: AXTranslation?
+    /// The geometry notes made again at the new position (`RL-E`), `nil` when the ledger holds none.
+    var geometry: [GeometryNoteRecord]?
 }
 
 /// What an occurrence memoises between its prepaint and paint decisions: the paint translation of one record at one shift.
@@ -272,14 +276,17 @@ extension PrepaintLedger {
     func rebased(to key: PrepaintKey, _ moved: LedgerTranslation) -> PrepaintLedger {
         let copy = PrepaintLedger(key: key)
         copy.hitboxes = moved.hitboxes
-        copy.axEmissions = axEmissions
+        copy.hitboxChains = hitboxChains
+        copy.axEmissions = moved.accessibility?.emissions ?? axEmissions
         copy.focus = focus
-        copy.axNodes = axNodes
+        copy.axNodes = moved.accessibility?.nodes ?? axNodes
+        copy.axNodeLocals = axNodeLocals
         copy.pressOnly = pressOnly
         copy.contextMenus = contextMenus
         copy.elementBounds = moved.elementBounds
         copy.anchors = anchors
-        copy.geometry = geometry
+        copy.geometry = moved.geometry ?? geometry
+        copy.modifiers = modifiers
         copy.tallies = tallies
         copy.prepaints = prepaints
         copy.liveStates = liveStates
@@ -307,11 +314,9 @@ extension Frame {
     /// hitbox that sits under a render effect, carries a content shape, scrolls, tracks a value, edits text or takes a drop
     /// (their closures or geometry hold positions the move does not reach), and one the ambient clip may have cut.
     func movedPrepaintLedger(_ ledger: PrepaintLedger, shift: LayoutShift, clip: [Float]) -> TranslationOutcome<LedgerTranslation> {
-        if !ledger.axEmissions.isEmpty || !ledger.axNodes.isEmpty { return .refused("accessibilityRecords") }
         if !ledger.pressOnly.isEmpty { return .refused("pressOnly") }
         if !ledger.contextMenus.isEmpty { return .refused("contextMenus") }
         if !ledger.anchors.isEmpty { return .refused("presentationAnchor") }
-        if !ledger.geometry.isEmpty { return .refused("geometryTranslated") }   // the noted frame moved (`RG-C`)
         guard clip.count >= 4 else { return .refused("unkeyedClip") }
         let entryDepth = ledger.key.ambient.depths.first ?? -1
         let dx = shift.windowX, dy = shift.windowY
@@ -322,6 +327,21 @@ extension Frame {
             b.origin.x.value > c.origin.x.value && b.origin.y.value > c.origin.y.value
                 && b.origin.x.value + b.size.width.value < c.origin.x.value + c.size.width.value
                 && b.origin.y.value + b.size.height.value < c.origin.y.value + c.size.height.value
+        }
+        // Accessibility records are recomputed (`RL-H`, was `AT-C`'s refusal) and geometry notes made again (`RL-E`, was `RG-C`'s).
+        var accessibility: AXTranslation?
+        if !ledger.axEmissions.isEmpty || !ledger.axNodes.isEmpty {
+            switch movedAccessibility(of: ledger, dx: dx, dy: dy, clip: c, entryDepth: entryDepth) {
+            case .refused(let reason): return .refused(reason)
+            case .moved(let translation): accessibility = translation
+            }
+        }
+        var geometry: [GeometryNoteRecord]?
+        if !ledger.geometry.isEmpty {
+            switch movedGeometryNotes(ledger.geometry, ledger: ledger, shift: shift) {
+            case .refused(let reason): return .refused(reason)
+            case .moved(let notes): geometry = notes
+            }
         }
         var hitboxes: [Hitbox] = []
         hitboxes.reserveCapacity(ledger.hitboxes.count)
@@ -370,6 +390,7 @@ extension Frame {
             elementBounds.append((id, Bounds(origin: Point(x: Pixels(b.origin.x.value + ex), y: Pixels(b.origin.y.value + ey)),
                                              size: b.size)))
         }
-        return .moved(LedgerTranslation(hitboxes: hitboxes, elementBounds: elementBounds))
+        return .moved(LedgerTranslation(hitboxes: hitboxes, elementBounds: elementBounds, accessibility: accessibility,
+                                        geometry: geometry))
     }
 }

@@ -477,7 +477,7 @@ enum RGKind: String, CaseIterable {
         switch self {
         case .control: nil
         case .hidden: "hiddenNodes"
-        case .lifecycle: "lifecycle"
+        case .lifecycle: nil   // journaled since `RL-C`: a scope grafts (the tripwire is `anUnjournaledRegistrationRefusesTheGraftByName`)
         case .timeline: "timeVarying"
         case .scroll: nil   // read-only state since `RW-H`: a scroller grafts
         case .stateWrite: "stateWrite"
@@ -577,11 +577,12 @@ func aRedoAfterAGraftMismatchRestoresEverything(arm: String) async throws {
 
 // MARK: 20b — a graft the prepaint cannot replay
 
-/// 20b — a pan of an occurrence whose hitboxes sit under an effect whose outer clip depended on the translation: the prepaint translation is
-/// refused (`RK-S` item 2, `hitboxes`), so a grafted occurrence has no element layout to fall back on and the frame is redone (lane 1's
-/// tree, which builds every frame, counts a refusal and prepaints fresh). Every step equals the retention-off frame, in scene,
-/// tree, hitboxes and state table, and the redos are counted. (Until C14-g (`AT-A`) the refusal was an accessibility record under a
-/// live client; a ledger's records are recomputed now, so the clip-dependent hitbox is the refusal this test pins.)
+/// 20b — a grafted occurrence whose prepaint translation is refused has no element layout to fall back on and the frame is redone
+/// (lane 1's tree, which builds every frame, counts a refusal and prepaints fresh). The refusal this test pins is a **fractional
+/// device-pixel** layout shift (a header that grows by a quarter point at scale 2 moves the card by half a pixel: the paint record
+/// refuses by name `fractionalTranslation`, the prepaint then runs). Every step equals the retention-off frame, in scene, tree, hitboxes
+/// and state table, and the redos are counted. (Until C14-g (`AT-A`) the refusal was an accessibility record under a live client;
+/// until C14-h (`RL-I`) a hitbox whose clip depended on the translation: both are recomputed now.)
 /// **Red before:** `retainedRedos` reads 0 (the graft off).
 /// **Mutation:** the grafted occurrence's `.run` arm returning the old prepaint state (a trap by name: no payload).
 @Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
@@ -589,9 +590,9 @@ func aGraftedOccurrenceUnderARefusedTranslationRedoesTheFrame() async throws {
     let pair = try RPPair(size: sz(320, 150), scale: 2, warm: 4, accessibility: true) { side in
         let pan = side.inputs.offset, log = side.log
         return VStack(spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                ZStack(alignment: .topLeading) { RPClippedEffectCard(log: log).equatable() }
-                    .offset(x: Pixels(10 + pan), y: Pixels(10 + pan / 2))
+            VStack(spacing: 0) {
+                Box().frame(height: Pixels(10 + pan))
+                RPClippedEffectCard(log: log).equatable()
             }
             .frame(width: Pixels(300), height: Pixels(130), alignment: .topLeading)
             .clipped()
@@ -599,7 +600,7 @@ func aGraftedOccurrenceUnderARefusedTranslationRedoesTheFrame() async throws {
     }
     try pair.compare("warm")
     var redos = 0
-    for (index, pan) in rpPanScript.enumerated() {
+    for (index, pan) in [Float(0.25), 0.5, 1.25, 2.75, 4].enumerated() {
         pair.onSide.inputs.offset = pan; pair.offSide.inputs.offset = pan
         await rsSettle()
         pair.redraw()

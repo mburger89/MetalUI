@@ -33,7 +33,7 @@ final class PrepaintLog {
     }
 
     struct Marks: Equatable {
-        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0
+        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0
     }
 
     var recorders: [PrepaintRecorder] = []
@@ -48,6 +48,8 @@ final class PrepaintLog {
     var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Geometry notes made under the prepaint, in note order (`RG-A`).
     var geometry: [GeometryNoteRecord] = []
+    /// Modifier-key notes made under the prepaint, in note order (`RL-B`).
+    var modifiers: [ModifierNoteRecord] = []
     /// Depth of `withState` calls a replay reproduces itself (the accessibility node's retention slot).
     /// Entries read-only accesses kept live under the prepaint (`RW-E`).
     var lives: [GlobalElementID] = []
@@ -56,7 +58,7 @@ final class PrepaintLog {
     var current: Marks {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
               contextMenus: contextMenus.count, elementBounds: elementBounds.count, lives: lives.count,
-              anchors: anchors.count, geometry: geometry.count)
+              anchors: anchors.count, geometry: geometry.count, modifiers: modifiers.count)
     }
 
     /// Marks every open recorder as unable to leave a ledger, naming the first reason.
@@ -87,6 +89,23 @@ struct GeometryNoteRecord {
     let owner: GlobalElementID
     let value: Any
     let global: Bounds<Pixels>
+    /// The operands of the proxy the value was computed from (`RL-E`): a translated replay rebuilds the proxy from them against the
+    /// translated position and runs the transform again. `moved` is the union after the scroll offset, before any effect; `composed`
+    /// the innermost open effect's map; `chain` the effects open at the note; `namedSpaces` the spaces in force (all declared
+    /// inside the occurrence, since an outer one refuses the ledger, `RL-O`).
+    let size: Size<Pixels>
+    let moved: Bounds<Pixels>
+    let composed: Affine2D?
+    let chain: AXEffectChain
+    let namedSpaces: [NamedSpace]
+}
+
+/// One `onModifierKeysChanged` note a prepaint made (`RL-B`): the position and watch only. **No value**: the note's value is the
+/// window's current modifiers, read when it is made again, so a replay delivers a change a recorded value would miss.
+struct ModifierNoteRecord {
+    let watch: ModifierKeysWatch
+    let key: GlobalElementID
+    let owner: GlobalElementID
 }
 
 /// One occurrence's open prepaint window.
@@ -122,6 +141,8 @@ struct PrepaintKey: Equatable {
 final class PrepaintLedger {
     let key: PrepaintKey
     var hitboxes: [Hitbox] = []
+    /// Lock-step with `hitboxes` when any hitbox sat under an effect, else empty: the effect chain each was registered under (`RL-I`).
+    var hitboxChains: [AXEffectChain?] = []
     var axEmissions: [AXEmission] = []
     var focus: [PrepaintLog.FocusCall] = []
     var axNodes: [(GlobalElementID, AXNode)] = []
@@ -133,6 +154,8 @@ final class PrepaintLedger {
     var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Geometry notes, replayed in order into the lifecycle store (`RG-A`).
     var geometry: [GeometryNoteRecord] = []
+    /// Modifier-key notes, made again in order against the current modifiers (`RL-B`).
+    var modifiers: [ModifierNoteRecord] = []
     var tallies = RegionTallies()
     /// The element prepaints the replay stands for (`FrameWork.retainedSkippedPrepaints`).
     var prepaints = 0
@@ -186,7 +209,7 @@ enum RetainedPrepaintMode {
     /// Replay the ledger; the occurrence's `component.prepaintGroup` does not run. With hitboxes: the ledger moved
     /// by the translation of the render effects around the occurrence (`RK-G`, `RK-S`), hitbox transforms rewritten.
     case replay(PrepaintLedger, moved: [Hitbox]?, elementBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
-                accessibility: AXTranslation? = nil)
+                accessibility: AXTranslation? = nil, geometry: [GeometryNoteRecord]? = nil)
     /// Run prepaint, recording a ledger when a recorder is given.
     case run(PrepaintRecorder?)
 }
@@ -257,7 +280,8 @@ extension Frame {
                         old.prepaint = rebased
                         return .replay(rebased, moved: nil)
                     }
-                    return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds)
+                    return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds,
+                                   accessibility: translation.accessibility, geometry: translation.geometry)
                 case .refused(let reason):
                     if retainedTraces { print("retained prepaint translation refused \(sbPath(build.key.id).suffix(60)): \(reason)") }
                     memos.retained.noteTranslationRefused(reason: reason)
@@ -273,17 +297,23 @@ extension Frame {
                     memos.retained.noteTranslationRefused(reason: "effectNotTranslation")
                     return .run(phase.grafted ? nil : openPrepaintWindow())
                 }
+                // A noted frame moved with the effect: the transform runs again against the rebuilt proxy (`RL-E`, was `RG-C`).
+                var movedGeometry: [GeometryNoteRecord]?
                 if !ledger.geometry.isEmpty {
-                    // A noted frame moved with the effect: the transform would have to run again (`RG-C`).
-                    memos.retained.noteTranslationRefused(reason: "geometryTranslated")
-                    return .run(phase.grafted ? nil : openPrepaintWindow())
+                    switch translatedGeometryNotes(ledger.geometry, ledger: ledger) {
+                    case .moved(let notes): movedGeometry = notes
+                    case .refused(let reason):
+                        if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): \(reason)") }
+                        memos.retained.noteTranslationRefused(reason: reason)
+                        return .run(phase.grafted ? nil : openPrepaintWindow())
+                    }
                 }
                 switch translatedAccessibility(of: ledger) {
                 case .success(let accessibility):
                     if let moved = translatedHitboxes(of: ledger, by: delta) {
                         memos.retained.prepaintHits += 1
                         memos.retained.skippedPrepaints += ledger.prepaints
-                        return .replay(ledger, moved: moved, elementBounds: nil, accessibility: accessibility)
+                        return .replay(ledger, moved: moved, elementBounds: nil, accessibility: accessibility, geometry: movedGeometry)
                     }
                     if retainedTraces {
                         print("retained translation refused \(sbPath(build.key.id).suffix(60)): hitboxes \(ledger.hitboxes.count)")
@@ -367,6 +397,10 @@ extension Frame {
         }
         let ledger = PrepaintLedger(key: key)
         ledger.hitboxes = hitboxes
+        if prepaintLog != nil, !hitboxChains.isEmpty {
+            let chains = (recorder.hitboxLow..<hitboxCount).map { hitboxChains[$0] }
+            if chains.contains(where: { $0 != nil }) { ledger.hitboxChains = chains }
+        }
         ledger.axEmissions = axEmissions(from: recorder.axLow)
         let from = recorder.from
         ledger.focus = Array(log.focus[from.focus..<to.focus])
@@ -377,6 +411,7 @@ extension Frame {
         ledger.elementBounds = Array(log.elementBounds[from.elementBounds..<to.elementBounds])
         ledger.anchors = Array(log.anchors[from.anchors..<to.anchors])
         ledger.geometry = Array(log.geometry[from.geometry..<to.geometry])
+        ledger.modifiers = Array(log.modifiers[from.modifiers..<to.modifiers])
         ledger.liveStates = Array(log.lives[from.lives..<to.lives])
         var seenReads = Set<GlobalElementID>()
         for index in recorder.readLow..<stateTable.readJournal.count {

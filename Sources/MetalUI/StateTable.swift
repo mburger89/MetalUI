@@ -1142,6 +1142,8 @@ struct BuildChannels: Equatable {
     var windowed: Set<GlobalElementID> = []
     var memoKept: Set<ContentMemoStore.Key> = []
     var animationTouched: Set<GlobalElementID> = []
+    /// The lifecycle store's notes this build (`RL-D`).
+    var lifecycle: [String] = []
 
     /// The first channel that differs, named, or `nil`.
     func difference(from other: BuildChannels) -> String? {
@@ -1153,6 +1155,7 @@ struct BuildChannels: Equatable {
         if windowed != other.windowed { return "windowed parents" }
         if memoKept != other.memoKept { return "memo entries kept" }
         if animationTouched != other.animationTouched { return "animation entries touched" }
+        if lifecycle != other.lifecycle { return "lifecycleStore: \(Set(lifecycle).symmetricDifference(other.lifecycle).sorted().prefix(3))" }
         return nil
     }
 }
@@ -1161,7 +1164,7 @@ extension StateTable {
     func buildChannels(animation: AnimationStore) -> BuildChannels {
         BuildChannels(marked: marked, produced: producedSlots, names: producedNames, positions: namedPositions,
                       loops: loopExtents, windowed: windowedParents, memoKept: contentMemos.keptKeys,
-                      animationTouched: animation.touchedIDs)
+                      animationTouched: animation.touchedIDs, lifecycle: animation.lifecycle.currentDigest)
     }
 
     /// The `@State` entries and their versions and liveness, sorted: what a test compares across two windows.

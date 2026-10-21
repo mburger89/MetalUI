@@ -185,12 +185,14 @@ func aGeometryNoteUnderAChangedRenderEffectMissesAndDelivers() throws {
     #expect(on.hits == 0, "the changed effect misses: \(on.hits)")
 }
 
-/// 5 (`RG-C`). A whole-pixel shift of the occurrences (the header above grows 4 points; offset, size and effect unchanged) is a
-/// translation: the ledger holds a geometry note, so the move is refused by name `geometryTranslated`, the prepaint runs and the
-/// values delivered equal a fresh window's. Red at 99b21a1c (no ledger exists to refuse). Mutation: let the translated ledger through.
+/// 5 (`RG-C`, superseded by `RL-E`). A whole-pixel shift of the occurrences (the header above grows 4 points; offset, size and effect
+/// unchanged) is a translation: the ledger holds a geometry note, which is now **recomputed** (the proxy rebuilt at the moved frame, the
+/// transform run again), not refused: no `geometryTranslated` is counted, both prepaints replay, the values delivered equal a fresh
+/// window's and no frame is redone. At `RG-C` this pinned the refusal by name (2); the supersession is pinned by
+/// `RetainedTranslationCarryTests` 12-16. Mutation: restore the refusal in `movedPrepaintLedger`.
 @Test(.enabled(if: !rgVerifying, rgVerifyNote)) @MainActor
-func aTranslatedReplayOfAGeometryNoteIsRefusedByName() throws {
-    func run(retained: Bool) throws -> (log: [String], refused: Int, redos: Int) {
+func aTranslatedReplayOfAGeometryNoteIsRecomputedNotRefused() throws {
+    func run(retained: Bool) throws -> (log: [String], refused: Int, redos: Int, hits: Int) {
         let (w, model, log) = try rgWindow(.plain, retained: retained)
         rgRedraw(w, 6)
         log.entries.removeAll()
@@ -199,14 +201,16 @@ func aTranslatedReplayOfAGeometryNoteIsRefusedByName() throws {
         rgRedraw(w, 1)
         let refused = w.frameWork.reduce(0) { $0 + $1.retainedTranslationRefusedReasons["geometryTranslated", default: 0] }
         let redos = w.frameWork.reduce(0) { $0 + $1.retainedRedos }
+        let hits = w.frameWork.reduce(0) { $0 + $1.retainedPrepaintHits }
         rgRedraw(w, 2)
-        return (log.entries, refused, redos)
+        return (log.entries, refused, redos, hits)
     }
     let on = try run(retained: true), off = try run(retained: false)
     #expect(on.log == off.log, "\(on.log) vs \(off.log)")
     #expect(on.log.count == 2, "both cards moved: \(on.log)")
-    #expect(on.refused == 2, "refused by name: \(on.refused)")
-    #expect(on.redos == 0, "a refusal is no redo (`RG-J`: a ledger with a note is never grafted): \(on.redos)")
+    #expect(on.refused == 0, "recomputed, not refused: \(on.refused)")
+    #expect(on.hits == 2, "both prepaints replay translated: \(on.hits)")
+    #expect(on.redos == 0, "\(on.redos)")
 }
 
 /// 6 (`RG-A`). Two scopes stacked at one position are two store keys (`$geometry<depth>`), and the ledger holds both: steady replayed
@@ -227,13 +231,14 @@ func twoGeometryScopesStackedAtOnePositionAreBothHeldThroughAReplay() throws {
     #expect(log.entries.isEmpty, "a re-made card with equal geometry reports neither scope: \(log.entries)")
 }
 
-/// 7 (`RG-C`, checker). An `.offset` above the occurrences moves by whole pixels (the effect translation of `FS-O`, no layout move):
-/// the ledger holds a geometry note, so the effect-translated replay is refused by name `geometryTranslated` at
-/// `replayPrepaintLedger`'s own site (test 5 reaches `movedPrepaintLedger`'s), and the values delivered equal a fresh window's.
-/// Mutation: let the effect-translation path through (`if false && !ledger.geometry.isEmpty`).
+/// 7 (`RG-C`, checker; superseded by `RL-E`). An `.offset` above the occurrences moves by whole pixels (the effect translation of
+/// `FS-O`, no layout move): the ledger holds a geometry note, which the effect-translated replay recomputes against the current effect
+/// (`translatedGeometryNotes`) instead of refusing it at `replayPrepaintLedger`'s site; no `geometryTranslated` is counted, both
+/// prepaints replay and the values delivered equal a fresh window's. Mutation: restore the refusal in `retainedPrepaintDecision`'s
+/// effect branch.
 @Test(.enabled(if: !rgVerifying, rgVerifyNote)) @MainActor
-func anEffectTranslatedReplayOfAGeometryNoteIsRefusedByName() throws {
-    func run(retained: Bool) throws -> (log: [String], refused: Int) {
+func anEffectTranslatedReplayOfAGeometryNoteIsRecomputedNotRefused() throws {
+    func run(retained: Bool) throws -> (log: [String], refused: Int, hits: Int) {
         let (w, model, log) = try rgWindow(.offsetEffect, retained: retained)
         rgRedraw(w, 6)
         log.entries.removeAll()
@@ -241,11 +246,13 @@ func anEffectTranslatedReplayOfAGeometryNoteIsRefusedByName() throws {
         model.pad += 4
         rgRedraw(w, 1)
         let refused = w.frameWork.reduce(0) { $0 + $1.retainedTranslationRefusedReasons["geometryTranslated", default: 0] }
+        let hits = w.frameWork.reduce(0) { $0 + $1.retainedPrepaintHits }
         rgRedraw(w, 2)
-        return (log.entries, refused)
+        return (log.entries, refused, hits)
     }
     let on = try run(retained: true), off = try run(retained: false)
     #expect(on.log == off.log, "\(on.log) vs \(off.log)")
     #expect(on.log.count == 2, "both cards moved: \(on.log)")
-    #expect(on.refused == 2, "refused by name: \(on.refused)")
+    #expect(on.refused == 0, "recomputed, not refused: \(on.refused)")
+    #expect(on.hits == 2, "both prepaints replay: \(on.hits)")
 }

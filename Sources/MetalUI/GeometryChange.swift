@@ -108,7 +108,9 @@ extension Frame {
         let value = watch.transform(GeometryProxy(size: contentUnion.size, globalFrame: global, scrolledFrame: moved,
                                                   composed: composed, namedSpaces: namedSpaces))
         // A ledger replays the note (`RG-A`, replacing `RK-E`'s taint): the store forgets a key a build did not note.
-        prepaintLog?.geometry.append(GeometryNoteRecord(watch: watch, key: key, owner: owner, value: value, global: global))
+        prepaintLog?.geometry.append(GeometryNoteRecord(
+            watch: watch, key: key, owner: owner, value: value, global: global, size: contentUnion.size, moved: moved,
+            composed: composed, chain: currentEffectChain(), namedSpaces: namedSpaces))
         animationStore.lifecycle.noteGeometry(value, watch: watch, key: key, owner: owner)
     }
 }

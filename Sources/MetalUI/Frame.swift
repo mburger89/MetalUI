@@ -1435,6 +1435,8 @@ public final class Frame {
                                },
                                unclipped: translated, clipDepth: clipDepth))
         snapshotNamedSpaces(forHitbox: hitboxes.count - 1)   // OV-E item 3
+        // The effects a hitbox was registered under, for a translated replay that re-derives its transform (`RL-I`, `AT-G`).
+        if prepaintLog != nil, !prepaintEffects.isEmpty { hitboxChains[hitboxes.count - 1] = currentEffectChain() }
         // A proposal wrapper's own registration, noted for an effect at the same
         // rect to transform (`GX-P` item 1).
         if !shareCollecting.isEmpty {
@@ -1855,7 +1857,8 @@ public final class Frame {
                                               portal: portalStack.last ?? 0,
                                               geometry: accessibilityGeometry(for: bounds),
                                               declaresAction: declaresAction,
-                                              local: accessibilityLocalRects(for: bounds)))
+                                              local: accessibilityLocalRects(for: bounds),
+                                              clipDepth: clipDepth))
             }
         }
     }
@@ -1872,7 +1875,8 @@ public final class Frame {
                                       isEnabled: environmentTop.isEnabled, synthesizes: true,
                                       portal: portalStack.last ?? 0,
                                       geometry: accessibilityGeometry(for: bounds),
-                                      local: accessibilityLocalRects(for: bounds)))
+                                      local: accessibilityLocalRects(for: bounds),
+                                      clipDepth: clipDepth))
     }
 
     /// `bounds` inset by a declared content shape, or `bounds` itself — the
@@ -3235,15 +3239,7 @@ public final class Frame {
         var effects: [ObjectIdentifier: PrepaintEffect] = [:]
         func effect(for chain: AXEffectChain) -> PrepaintEffect? {
             if let known = effects[ObjectIdentifier(chain)] { return known }
-            guard chain.steps.count >= base else { return nil }
-            var current = ambient
-            for step in chain.steps[base...] {
-                let outerClip = step.clipLocal.map { Self.intersect(current.outerClip, current.composed.boundingBox(of: $0)) }
-                    ?? current.outerClip
-                let composed = current.composed.concatenating(step.map)
-                current = PrepaintEffect(composed: composed, inverse: composed.inverted, outerClip: outerClip,
-                                         savedClipBase: 0, map: step.map, clipLocal: step.clipLocal)
-            }
+            guard let current = Self.walkEffectSteps(from: ambient, chain: chain, base: base) else { return nil }
             effects[ObjectIdentifier(chain)] = current
             return current
         }
@@ -3262,11 +3258,31 @@ public final class Frame {
         return .success(result)
     }
 
+    /// The effect a chain's steps beyond its first `base` make when they open under `ambient` (`AT-G`, `RL-I`): the arithmetic of
+    /// `prepaintWithRenderEffect`, so bit-equal to a fresh prepaint. The one step walk the accessibility records and the hitboxes of
+    /// a translated replay share. `nil` for a chain shorter than `base`.
+    static func walkEffectSteps(from ambient: PrepaintEffect, chain: AXEffectChain, base: Int) -> PrepaintEffect? {
+        guard chain.steps.count >= base else { return nil }
+        var current = ambient
+        for step in chain.steps[base...] {
+            let outerClip = step.clipLocal.map { intersect(current.outerClip, current.composed.boundingBox(of: $0)) }
+                ?? current.outerClip
+            let composed = current.composed.concatenating(step.map)
+            current = PrepaintEffect(composed: composed, inverse: composed.inverted, outerClip: outerClip,
+                                     savedClipBase: 0, map: step.map, clipLocal: step.clipLocal)
+        }
+        return current
+    }
+
     /// The render effects open in prepaint, innermost last (`GX-I`).
     var prepaintEffects: [PrepaintEffect] = []
 
     /// `prepaintEffects` as steps, built when a record needs it and dropped when the stack changes (`AT-G`).
     var axEffectChain: AXEffectChain?
+
+    /// The effect chain each hitbox was registered under, by index into `hitboxes`, kept only while a prepaint log records and only
+    /// for a hitbox under an effect (`RL-I`: a parallel table, so `Hitbox`'s layout is untouched).
+    var hitboxChains: [Int: AXEffectChain] = [:]
 
     /// Proposal wrappers whose registrations an effect at their rect may still
     /// transform, innermost last (`GX-P` item 1), and the one collecting now.
@@ -4038,8 +4054,13 @@ extension Frame {
     /// stands for exactly as it would see a run.
     func replayPrepaintLedger(_ l: PrepaintLedger, hitboxes moved: [Hitbox]? = nil,
                               elementBounds movedBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
-                              accessibility: AXTranslation? = nil) {
+                              accessibility: AXTranslation? = nil,
+                              geometry movedGeometry: [GeometryNoteRecord]? = nil) {
+        let firstHitbox = hitboxes.count
         hitboxes.append(contentsOf: moved ?? l.hitboxes)
+        if prepaintLog != nil {
+            for (offset, chain) in l.hitboxChains.enumerated() { if let chain { hitboxChains[firstHitbox + offset] = chain } }
+        }
         axEmissions.append(contentsOf: accessibility?.emissions ?? l.axEmissions)
         for call in l.focus {
             switch call {
@@ -4071,10 +4092,15 @@ extension Frame {
         }
         for (id, bounds) in l.anchors { replayPresentationAnchor(id, windowBounds: bounds) }
         // Each geometry note is made again, in order, so the store numbers it as a build would (`RG-A`).
-        for note in l.geometry {
+        for note in movedGeometry ?? l.geometry {
             animationStore.lifecycle.noteGeometry(note.value, watch: note.watch, key: note.key, owner: note.owner)
             prepaintLog?.geometry.append(note)
             stateTable.contentMemos.retained.replayedGeometryNotes += 1
+        }
+        // Each modifier note is made again against the modifiers held now (`RL-B`).
+        for note in l.modifiers {
+            animationStore.lifecycle.noteModifierKeys(watch: note.watch, key: note.key, owner: note.owner)
+            prepaintLog?.modifiers.append(note)
         }
         for id in l.liveStates { stateTable.touchLive(id); prepaintLog?.lives.append(id); retainLog?.lives.append(id) }
         for id in l.reads { stateTable.noteRead(id) }
@@ -4103,15 +4129,37 @@ extension Frame {
         let flat = (0..<6).map { ambient[PrepaintExtras.effectHasInverse + 1 + $0] }
         let recorded = Affine2D(a: flat[0], b: flat[1], c: flat[2], d: flat[3], tx: flat[4], ty: flat[5])
         let current = prepaintEffects.last?.inverse
+        // The ambient effect as the ledger saw it (composed, inverse, outer clip), the start of the step walk that re-derives a
+        // hitbox registered inside an effect the occurrence opened (`RL-I`).
+        let composedFlat = (0..<6).map { ambient[$0] }
+        let recordedComposed = Affine2D(a: composedFlat[0], b: composedFlat[1], c: composedFlat[2], d: composedFlat[3],
+                                        tx: composedFlat[4], ty: composedFlat[5])
+        let recordedEffect = PrepaintEffect(composed: recordedComposed,
+                                            inverse: ambient[PrepaintExtras.effectHasInverse] == 1 ? recorded : nil,
+                                            outerClip: outer, savedClipBase: 0)
+        let base = ledger.key.extras.effects.count
         var out = ledger.hitboxes
         for index in out.indices {
-            guard let transform = out[index].transform, transform.outerClip == outer else { return nil }
+            guard let transform = out[index].transform else { return nil }
+            if index < ledger.hitboxChains.count, let chain = ledger.hitboxChains[index], chain.steps.count > base {
+                // Registered inside an effect the occurrence opened: the walk of its recorded steps from the ambient as recorded must
+                // give the transform the hitbox carries (else a share patch rewrote it: refused), and from the ambient now gives the
+                // transform a fresh prepaint registers, at any scale (`RL-I`).
+                guard let was = Self.walkEffectSteps(from: recordedEffect, chain: chain, base: base),
+                      transform.inverse == was.inverse, transform.outerClip == was.outerClip,
+                      let now = prepaintEffects.last.flatMap({ Self.walkEffectSteps(from: $0, chain: chain, base: base) })
+                else { return nil }
+                out[index].transform = HitboxTransform(inverse: now.inverse, outerClip: now.outerClip)
+                continue
+            }
+            guard transform.outerClip == outer else { return nil }
             guard let inverse = transform.inverse else { continue }
             if inverse == recorded, let current {
                 out[index].transform = HitboxTransform(inverse: current, outerClip: transform.outerClip)
                 continue
             }
-            // Registered inside an effect opened within the occurrence: moved by the delta, exact only under an identity linear part.
+            // Registered inside an effect opened within the occurrence, no chain recorded: moved by the delta, exact only under an
+            // identity linear part.
             guard inverse.a == 1, inverse.b == 0, inverse.c == 0, inverse.d == 1 else { return nil }
             let tx = inverse.tx - delta.dx, ty = inverse.ty - delta.dy
             guard tx + delta.dx == inverse.tx, ty + delta.dy == inverse.ty else { return nil }

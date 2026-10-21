@@ -519,6 +519,15 @@ effect), so a pan grafts instead of redoing the frame: a test that counted `reta
 `retainedTranslationRefusedReasons["accessibilityRecords"]` no longer appears for it (layout translation still reports it). A scale or rotation change of the effect now counts
 `effectNotTranslation` where it was silent. A custom element under such an occurrence is called less often.
 
+### Retained lifecycle and translation carries (`RL-`, record §131)
+
+No API change, no conformer change, no `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement, no new public declaration. **Behaviour, counters read differently:** an `.equatable()` occurrence holding
+`onAppear`/`onDisappear`/`onChange`/`.task` or an `onModifierKeysChanged` scope is no longer ineligible: `retainedIneligibleReasons["lifecycle"]`/`["modifierKeys"]` and `graftRefusals["lifecycle"]` read 0 and it grafts, with
+every callback delivered exactly as for an unretained window (the actions still run after the build; a closure is the standing one, `.equatable()`'s contract). An observer (`.onGeometryChange`) in an occurrence no longer
+refuses a translated replay (`geometryTranslated` is gone; a note is recomputed) and grafts unless a note is not recomputable (`geometryGraft` now only then; new names `geometryUnderEffect`, `geometryNamedSpace`). Layout
+translation no longer refuses `accessibilityRecords` (gone; `accessibilityUnderEffect`, `accessibilityClipped` remain by name), and a hitbox opened inside the occurrence's own effect under a non-identity scale is re-derived rather
+than counted `hitboxes`. A test pinning any of the old refusals or counts reads the new ones; a custom element under such an occurrence is called less often.
+
 ### Retained read-only state (`RW-`, record §121)
 
 None for the API beyond one additive `MetalUITesting` field, `FrameWork.retainedIneligibleReasons: [String: Int]` (class M; a stored
