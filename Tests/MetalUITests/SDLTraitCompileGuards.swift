@@ -77,7 +77,8 @@ func anSDLPlatformWithoutTheSDLTraitNamesTheTraitForItsOptionsInitialiser() thro
 /// **Control**: a file that only imports `MetalUISDL` compiles.
 ///
 /// Mutation: drop `singleInstance` from the stub `Options` -> "value of type
-/// 'Options' has no member 'singleInstance'" without the remedy -> red.
+/// 'Options' has no member 'singleInstance'" without the remedy -> red. `applicationID`
+/// (`AP-C`) rides the same fixture: drop it from the stub -> "has no member 'applicationID'" -> red.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theTraitOffStubSpellsSingleInstance() throws {
     try #require(canTypecheck(module: "MetalUISDL"),
@@ -89,6 +90,7 @@ func theTraitOffStubSpellsSingleInstance() throws {
         @MainActor public func bad() throws {
             var options = SDLPlatform.Options.default
             options.singleInstance = nil
+            options.applicationID = "com.example.App"
             _ = try SDLPlatform(options: options)
         }
         """, importing: "MetalUISDL")

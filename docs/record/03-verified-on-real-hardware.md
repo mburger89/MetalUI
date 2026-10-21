@@ -2390,3 +2390,7 @@ No real window was driven and neither VoiceOver nor MetalCreator was run (an age
 ## 2026-10-21: header-only image format sniff (record §130) — no looks owed
 
 Bytes in, an enum out: nothing a person sees, no real window driven, no human-checks group added. Not owed: the root portable run in the `metalui-portable` image passed at the Record phase (record §130 §5).
+
+## 2026-10-21: SDL application id (record §132) — looks owed, group AP
+
+No real window was driven and no Linux desktop was available (an agent cannot). **Owed, new here — `docs/verification/human-checks.md` group AP, none performed**: AP1, the dock icon and grouping under GNOME Wayland and an X11 session. Owed, not a look: the Linux-image and fourteen-image re-takes on the merged tree (record §132 §5).

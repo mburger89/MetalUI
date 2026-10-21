@@ -29,13 +29,30 @@ extension SDLPlatform {
         /// `.primary`, or let ``SDLPlatform/launchingSingleInstance(id:forwarding:options:)``
         /// do both.
         public var singleInstance: SingleInstance?
+        /// The application id SDL reports to the desktop, or `nil` (the default).
+        ///
+        /// On Linux a shell matches a window to its `.desktop` entry by the window's
+        /// application id (Wayland `app_id`, X11 `WM_CLASS`), so this should equal the
+        /// `.desktop` file's basename and its `StartupWMClass=`, for example
+        /// `com.example.MyApp`. The platform sets SDL's `SDL_HINT_APP_ID` before
+        /// `SDL_Init` (ruling `AP-A`); the process-wide value applies to every window.
+        ///
+        /// When `nil`, ``SDLPlatform/launchingSingleInstance(id:forwarding:options:)``
+        /// supplies its `id`; with neither, nothing is set (ruling `AP-C`). An empty,
+        /// whitespace-only or NUL-bearing value is ignored, never a trap (`AP-D`). An
+        /// exported `SDL_APP_ID` environment variable overrides the value (`AP-B`).
+        /// macOS and Windows group by the bundle and the AppUserModelID instead:
+        /// the value is accepted and has no visible effect there (`AP-E`).
+        public var applicationID: String?
 
         /// - Parameters:
         ///   - hidesWindows: see ``hidesWindows``.
         ///   - rendersOffscreen: see ``rendersOffscreen``.
         ///   - singleInstance: see ``singleInstance``.
+        ///   - applicationID: see ``applicationID``.
         public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false,
-                    singleInstance: SingleInstance? = nil) {
+                    singleInstance: SingleInstance? = nil, applicationID: String? = nil) {
+            self.applicationID = applicationID
             self.hidesWindows = hidesWindows
             self.rendersOffscreen = rendersOffscreen
             self.singleInstance = singleInstance
@@ -46,6 +63,14 @@ extension SDLPlatform {
 
         /// A launch for CI with no display: windows hidden, offscreen rendering.
         public static let headless = Options(hidesWindows: true, rendersOffscreen: true)
+
+        /// ``applicationID`` when it can be handed to SDL: not empty, not whitespace
+        /// only, no NUL byte (ruling `AP-D`).
+        var usableApplicationID: String? {
+            guard let id = applicationID, !id.utf8.contains(0),
+                  !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return id
+        }
 
         /// ``headless`` when the environment variable `METALUI_SDL_HEADLESS` is
         /// exactly `"1"`, ``default`` otherwise.
