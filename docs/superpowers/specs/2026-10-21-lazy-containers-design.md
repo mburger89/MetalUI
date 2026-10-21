@@ -171,6 +171,8 @@ requirement.
 
 ## 5. Tests (name, red before, the mutation that must redden it)
 
+**Names are the plan's.** Several tests landed under other names (a plan name that no `func` carries, such as `theTopChildStaysPutWhenAChildAboveItIsMeasured` or `gridTracksFollowTheProbe`, is the row's intent); the names that exist are in record §134 §4, §4a and the test files `LazyStack*`/`LazyGrid*`/`GridTrackSolverTests`.
+
 Every test is red on arrival because the types do not compile; the **mutation** column is the real instrument (each on the
 declaration the test is named for, restored from a copy, full unfiltered suite, the reddened tests named in the record).
 
