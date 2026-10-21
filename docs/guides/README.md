@@ -15,6 +15,7 @@ Starting a project is [`getting-started.md`](../getting-started.md); moving a le
 | [Presentations and the app shell](presentations-and-app-shell.md) | popovers, menus and commands, alerts and file dialogs, the toolbar, windows, close and terminate |
 | [Drawing and GPU](drawing-and-gpu.md) | shapes, paths, gradients, shadows, materials, `GPUSurface` and `MetalView` |
 | [Cross-platform](cross-platform.md) | what differs on Linux and Windows, images, fonts, packaging |
+| [Sample app](../../Examples/Jotter/README.md) | one finished app that uses all of the above: a notes app with a sidebar, editing, search, menus, file save and load, drag to reorder, a chart and its own tests |
 
 ## How the code blocks are checked
 

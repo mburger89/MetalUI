@@ -5,7 +5,7 @@ Record: `../record/136-sample-app.md` (Record phase). Branch `feat/sample-app` f
 **none taken** (no SwiftUI-facing claim is made: the app uses existing API only; no probe is owed; SwiftUI's own sample shape is the model
 for the subject, gpui's `examples/` for "an example is a program, not a test").
 
-Prefix **`EX-`**, lettered. **Next unused: `EX-J`.** (Moves in the commit that appends a ruling.)
+Prefix **`EX-`**, lettered. **Next unused: `EX-T`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SC-A`/`SC-I` and `Scaffold.swift`'s `manifest` (the package shape), `PX-J` (traits), `SG-D` (unconditional portable-text
 products), `HT-O`/`HT-V` (test target, refused names), `PE-K`/`CI-AI` (1 MB stacks), divergence 125 (never-written `@State`), `DG-C`
@@ -69,6 +69,74 @@ in-app drag cannot reach the destination in the harness, that is a finding in re
 
 **Ruling.** The first spec table listed a `.task(id:)` autosave debounce and an `.onAppear` last-file load, contradicting `EX-F` (no hidden state
 file). Both are removed: `.task(id:)` recomputes a word count and `.onAppear` selects the first note. **Cost if wrong:** none.
+
+## EX-J - The reorder payload is the note's id as a `String`, not a `Transferable` `Note`
+
+**Ruling.** A row `.draggable(id.uuidString)` and `.dropDestination(for: String.self)` parses it back. **Reasoning.** `String` is
+`Transferable` already; a custom conformance (four requirements) would teach nothing about reorder and a `Note` payload would put the
+whole note in a drag. The spec's "`Note` ... `Transferable`" is dropped. **Cost if wrong:** a drop from another app of a UUID-shaped
+string moves a row; harmless (an unknown id is declined).
+
+## EX-K - The stats chart is shapes, not a `Canvas`
+
+**Ruling.** MetalUI has no `Canvas` (`docs/guides/drawing-and-gpu.md`). The words-per-note bars are `Rectangle`s in an `HStack` and the
+per-day line is a `Shape` whose `path(in:)` builds a `Path`, `.stroke`d. Every bar carries `accessibilityLabel` and an identifier, so the
+chart is testable; there is no container-level label (it propagates to every child, EX-N). Test 14 keeps its table name
+`theStatsCanvasSummaryNamesTheCountsAndFollowsEdits`. **Cost if wrong:** a chart of hundreds of points would want a `Canvas`; a finding.
+
+## EX-L - Toolbar and search are driven through the platform seam, and the drawn strip is the layout test
+
+**Ruling.** Tests press toolbar items by id (`performToolbarItem`) and type into the search field with `.text(_:)` against the native
+toolbar (the harness default, AppKit's answer). Test 16 turns `showsToolbarNatively` off (SDL's answer) so every control is in the tree at
+the 640 x 400 minimum and clickable by label, which also answers open point 2 of the spec: `.searchable` is drawn by the strip on SDL as
+a field labelled with its prompt ("Search notes").
+
+## EX-M - The sidebar's `List` stays in the tree when no note matches
+
+**Ruling.** The empty state is a `Text` over the list in a `ZStack`, not a replacement for it. **Reasoning.** Found by test 4: a `List`
+created in a frame builds its rows one frame later (it measures its origin first), so swapping it in as a search is cleared left the
+sidebar empty for a frame, a flash on a real display and a stale accessibility tree in a harness that draws one frame per action.
+
+## EX-N - Identifier and label go on the leaf; `.focused` goes on the control before any wrapper
+
+**Ruling.** `.accessibilityIdentifier` and `.accessibilityLabel` on a container stack apply to every text inside it (as SwiftUI does), so a
+row's id is on its title `Text` and the app finds rows by it; on a `TextField` the identifier must come **after** `.frame` (before it, the
+field's accessibility node became a plain group with no value), and `.focused($flag)` must be applied to the `TextField` **before** `.frame`
+(after a proposal wrapper it bound the wrapper, which is not focusable, and the focus write did nothing). Both are recorded as findings.
+
+## EX-O - Test 17 builds the six trees that do not read the model through a stdlib closure; a Darwin arm keeps it not vacuous
+
+**Ruling.** On a secondary thread `SidebarList`, `DetailArea`, `NoteRow`, `StatsView` and `PerDayLine` trap (`SIGTRAP`): they read the model
+through a closure given to `first { }`/`flatMap`, whose dynamic isolation check fails off the main actor (the fact of `SV-AK` and `HP-C`;
+they run on the main thread in the app). The test builds `rootView`, `JotterScreen`, `SidebarView`, `DetailEditor`, `DetailFooter` and
+`WordBars` on a 1 MB thread; a Darwin-only arm shows the same harness fails on a 64 KB thread (measured on macOS arm64, debug: 64 KB
+`SIGBUS`, 128 KB passes, so 1 MB is eight times the need). Not red on a mutation (inlining the sections does not come near 1 MB); it is a pin.
+
+## EX-P - A headless platform does not echo `.preferredColorScheme`; the test reports the appearance as AppKit does
+
+**Ruling.** `HeadlessPlatformWindow` records the request; AppKit forces the `NSWindow`'s appearance and reports it back
+(`setPreferredColorScheme`). The theme test therefore asserts the request and then calls `setAppearance(_:)` itself. A finding (the
+harness could echo it, `HT-` follow-up), not a bug in the framework.
+
+## EX-Q - Two View items have no shortcut; Delete's shortcut yields to a focused field
+
+**Ruling.** `Toggle` has no `.keyboardShortcut` in MetalUI, so "Statistics" and "Dark Appearance" are menu-only toggles (a finding).
+Delete is ⌘⌫, which a focused text field keeps for its own editing (delete to the line start): after New the title is focused, so the
+command test moves focus to the list by a click first. Documented in the test.
+
+## EX-R - No `Packaging/` directory
+
+**Ruling.** The spec's `Packaging/{macOS,linux}` is not built: the example's README points to `docs/packaging.md` and bundle id
+`com.example.Jotter`, which is what a user would copy. The packaging recipe is the scaffold's and is already pinned by its own tests.
+**Cost if wrong:** a user must run the recipe by hand; one more directory later.
+
+## EX-S - Root and CI wiring (EX-D, EX-E settled)
+
+**Ruling.** Root suite +2 tests in `Tests/MetalUIScaffoldTests/SampleAppTests.swift`: the always-on manifest-shape test and the env-gated
+`aSampleAppBuildsAndItsTestsPassAgainstThisCheckout` (`METALUI_RUN_SAMPLE_APP_TEST=1`). CI: `swift.yml`'s macOS job gains
+`swift test --package-path Examples/Jotter` after the root tests, and `sdl-gpu-linux.yml`'s Linux job, which already builds the
+`metalui-portable` image, gains a step running the package there with the SDL trait (`Examples/Jotter/**` joins its path filters).
+`scene-linux` is untouched. Said in the PR.
 
 ## Critic's rejections
 
