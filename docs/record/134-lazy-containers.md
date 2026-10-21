@@ -80,9 +80,19 @@ Run on the **filtered set of every lazy test** (the 56 tests of both lanes plus 
 Not separately mutated: 3.10's `.equatable()` arm (its code path is lane 1's, mutation 2.13) and `MG3a` as the spec spelled it (renaming `columns:` breaks every caller, so
 the build fails first: the `LazyHGrid` argument was renamed instead). A rename of `LazyVGrid.columns:` is therefore guarded by the compile of every call site.
 
-## 5 Verification
+## 5 Verification (2026-10-21, screen LOCKED, macOS 27, Swift 6.4)
 
-(Filled in by the final runs, section 5 of this file is updated in the verification commit.)
+- `swift package clean`, `swift build --build-system native --build-tests`: 0 `error:`, the only `warning:` SwiftPM's deprecation notice. Native unfiltered run with
+  `--skip AppKitPresentationTests` (its `NSOpenPanel.init()` hangs on a locked screen, `CI-AF`): **4160 tests passed, 0 issues** at `c8613095` (baseline 4117 at `1bdead8d`; lane 1
+  and lane 2 add 43), `FR-J no-argument frame: succeeded=true`, the guards `LZ-A spellings`, `LZ-A grid spellings` and the five `LZ-B seam` lines printed
+  (`succeeded=true`/`false` as designed). After the 3.13 test: the same run under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`: **4161 passed**, no trap (891 s).
+- `swift build --build-tests` on the default build system: 0 `warning:`, 0 `error:`.
+- Inventory and undocumented scripts print nothing; census re-recorded, 3720 rows (+20 over lane 1's 3700: `GridItem` and its nested `Size` (5 cases/properties), `LazyVGrid`/`LazyHGrid`
+  with their four members each).
+- The fourteen offscreen images, `docs/probes/demo-pixels/compare.sh <scratch> 1bdead8d 675b7874`: **0 differing pixels, scene identical, all fourteen**; controls as recorded.
+- Linux image `metalui-portable` (swift:6.4-noble, volume `metalui-root-build-lazy-containers`): root build 0 errors; `MetalUITestingTests` **451** passed (the lazy stack, grid and guide tests among them),
+  `MetalUILayoutTests` **238** (the solver's five), and the 9, 40, 28 portable runs, 0 failures; `everyProductionTreeBuildsOnAOneMegabyteThread` passed with the lazy demo.
+- Not run: an unlocked-screen `AppKitPresentationTests` re-take; the demo window (the lock probe read `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`); Windows.
 
 ## 6 Deferred and owed
 
