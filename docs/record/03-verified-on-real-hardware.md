@@ -2397,3 +2397,7 @@ No real window was driven, no modifier key held, neither VoiceOver nor MetalCrea
 ## 2026-10-21: SDL application id (record §132) — looks owed, group AP
 
 No real window was driven and no Linux desktop was available (an agent cannot). **Owed, new here — `docs/verification/human-checks.md` group AP, none performed**: AP1, the dock icon and grouping under GNOME Wayland and an X11 session. Owed, not a look: the Linux-image and fourteen-image re-takes on the merged tree (record §132 §5).
+
+## 2026-10-21: SDL GPU gaps (record §137) — looks owed, group GB
+
+No real window, no D3D12 device and no 3D viewport app were driven (an agent cannot; CI compiles Windows only). **Owed, new here — `docs/verification/human-checks.md` group GB, none performed**: GB1 anisotropy 1 against 16 on a grazing plane on Metal, Vulkan and D3D12, GB2 the viewport, scissor, depth-only prepass, `r32Float` and synchronous download pins' behaviour on real D3D12, GB3 the main-actor stall of `downloadSynchronously` and the pipeline-failure text in a real viewport app. Owed, not a look: the Linux-image and fourteen-image re-takes at the final head (record §137 §3).

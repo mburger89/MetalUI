@@ -1,7 +1,7 @@
 # SDL GPU gaps (XP-G14 to XP-G19) — design
 
 Item S11, MetalCreator xp-3. Rulings: `../2026-10-21-sdl-gpu-gaps-decisions.md` (`GB-A`…`GB-K` (GB-I amends this spec)). Record `§137`.
-Base `1bdead8d`; `Backends/SDL` only (library `MetalUISDLGPU`, tests, app shaders, docs). Class M, no census row (`GA-L`),
+**Status: built (record §137); rulings through `GB-L`.** Base `1bdead8d`; `Backends/SDL` only (library `MetalUISDLGPU`, tests, app shaders, docs). Class M, no census row (`GA-L`),
 no divergence (labels 665–674 untouched), no SwiftUI claim, no probe. No `Sources/` (root) change, so the fourteen images
 must stay 0 px.
 

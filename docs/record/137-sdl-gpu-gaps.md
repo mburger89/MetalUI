@@ -4,7 +4,35 @@ Branch `feat/sdl-gpu-gaps` from `1bdead8d`. Not a plan task: item S11 of the gpu
 `docs/superpowers/specs/2026-10-21-sdl-gpu-gaps-design.md`; rulings `GB-A`...`GB-L` in `docs/superpowers/2026-10-21-sdl-gpu-gaps-decisions.md` (next `GB-M`).
 Divergence labels 665-674 reserved: **none taken** (class `M`, `Backends/SDL`, outside the census, no SwiftUI claim, no probe). Two lanes in `MetalUISDLGPU`
 and its tests; no root `Sources/` change, no demo. Human checks: group `GB`, `GB1`...`GB3`. Lane 1 (viewport, scissor, write mask, `r32Float`,
-anisotropy: `GB-B`...`GB-E`) is recorded in its own commits and the decisions doc; this record covers lane 2.
+anisotropy: `GB-B`...`GB-E`) is section 0; lane 2 (readback, failure reasons) is sections 1 and 2.
+
+## 0 Lane 1: what landed (`GB-B`...`GB-E`, `GB-J`)
+
+- `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:)` and `setScissor(x:y:width:height:)`, both `@discardableResult -> Bool`, top-left target pixels, no trap.
+  A non-finite value or a size `<= 0` is refused (no SDL call, `false`); the viewport is not clamped to the target, its depths are clamped to `0...1`; the scissor
+  is clamped to the pass's target (`SDLGPURenderPass.targetSize`: the minimum over the colour targets, else the depth target's, `GB-I` 3). The pass resets both at `Begin`.
+- `SDLGPUGraphicsPipelineDescription.writesColor: Bool = true` (last parameter): `false` gives the one colour target `enable_color_write_mask = true`, `color_write_mask = 0`,
+  blending kept (a depth-only prepass; zero colour targets stay a `.raw` matter, `GB-C`).
+- `SDLGPUTextureFormat.r32Float` (`SDL_GPU_TEXTUREFORMAT_R32_FLOAT`, 4 bytes), the only new enum case (migration row).
+- `SDLGPUSamplerDescription.maxAnisotropy: Float = 1` (last parameter), `effectiveMaxAnisotropy` (non-finite or `< 1` is 1, above 16 is 16), `enable_anisotropy` only when
+  the effective value is `> 1`; `SDLGPUSampler.configuration` reads the requested description back (`GB-I` 1). Two app shaders, `flat.frag` and `copy.frag`, compiled by
+  `compile-app-shaders.py` into `Backends/SDL/Tests/AppShaders/compiled` with `SOURCE.sha256` (`GA-F`; the vertex shaders are existing ones, `GB-J`).
+
+Pins (`SDLGPUGapsTests`, 11 tests, one serialized suite; red on arrival by compile failure, commit `03c495f8`): V1 `aViewportConfinesADrawToItsRect`, V2 `aScissorConfinesADrawToItsRect`,
+V3 `aDegenerateViewportOrScissorIsRefusedWithoutATrap`, V4 `aScissorIsClampedToTheTarget`, W1 `aPipelineThatWritesNoColourLeavesColourAndWritesDepth` (a control arm with
+`writesColor: true` shows the colour), W2 `writesColorDefaultsToTrueAndIsStored`, F1 `anR32FloatTextureRoundTripsExactFloats`, F2 `anR32FloatTextureSampledNearestEqualsItsSource`,
+F3 `r32FloatIsFourBytesPerTexel`, A1 `anisotropyFieldsReachTheSamplerCreateInfo` (pure, no GPU), A2 `aSamplerWithAnisotropyIsBuiltAndReadsBack`.
+
+Mutations: the implementer's V1-V4, W1-W2, F1-F2 and A1-A2 runs reddened their named pins (reported by the implementer, tables not carried into this record). The lane verifier's own, full unfiltered
+`Backends/SDL` suite, each alone, tree clean after:
+
+| mutation | reddened |
+|---|---|
+| `effectiveMaxAnisotropy` cap 16 raised to 32 | `anisotropyFieldsReachTheSamplerCreateInfo` |
+| `setViewport` depth clamp to `0...1` dropped | **none: unpinned** |
+| width and height swapped in `SDLGPURenderPass.targetSize` (the scissor clamp) | **none: unpinned** (the clamp pins use a square target) |
+
+The two survivors are findings, not fixed here (this phase owns docs): the depth clamp of `GB-B` and the width/height distinction of the scissor clamp have no pin (section 4).
 
 ## 1 Lane 2: what landed (`GB-F`, `GB-G`, `GB-I`, `GB-L`)
 
@@ -28,7 +56,7 @@ S2 `waitBlockingReturnsOnlyAfterTheSignalAndReleasesNothingEarly`, S3 `aSynchron
 S5 `aSynchronousDownloadRefusesWhatItCannotRead`, S6 `aBlockingWaitOnTheDevicesOwnWorkerIsRefused` (added, `GB-L` 3), P1 `aRefusedGraphicsPipelineSaysWhy`, P2 `aRefusedComputePipelineSaysWhy`,
 P3 `theOptionalPipelineVerbsKeepTheirSpelling`. S2's "still blocked" arm is a 0.3 s bounded wait for a semaphore that must time out, not a sleep.
 
-Mutations, each alone on the committed tree, restored from a copy, `git status --short` clean after each; **run filtered to `SDLGPUReadbackAndFailureTests`** (the nine pins live in
+Mutations, each alone on the committed tree, restored from a copy, `git status --short` clean after each; **the implementer's runs were filtered to `SDLGPUReadbackAndFailureTests`** (the nine pins live in
 that suite and the lane's own files are untouched elsewhere; the full macOS and Linux runs are in section 3):
 
 | mutation | reddened |
@@ -44,10 +72,14 @@ that suite and the lane's own files are untouched elsewhere; the full macOS and 
 
 ## 3 Measured
 
-See the lane's final report for the macOS `Backends/SDL` run, the Linux image run (lavapipe, `METALUI_REQUIRE_GPU=1`), the root native suite after `swift package clean`
-and the fourteen-image comparison; the numbers are entered at the merge.
+- **Root, after `swift package clean`, `swift build --build-system native --build-tests`, unfiltered `swift test --build-system native --no-parallel`:** **4117 tests in 5 suites** (unchanged from `1bdead8d`: no root test added), 0 goldens, 251 typecheck guards (none added), failed with exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` (locked screen) and nothing else; native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `FR-J no-argument frame: succeeded=true`; measured at `64eda50f` plus this record's docs, 911 s on a shared Mac.
+- **Backends/SDL on macOS** (`swift test $(python3 scripts/fetch-accesskit.py --print-flags)`): 30 + 243 tests passed at the lane 2 verifier's head (30 + 234 at lane 1's: 243 = 234 + 9 `SDLGPUReadbackAndFailureTests`).
+- **Linux image** (`metalui-portable`, lavapipe, `METALUI_REQUIRE_GPU=1`): 231 tests in 9 suites passed at lane 1's head; it found `GB-L` 6 (the stage a driver refuses at). Not re-taken at the final head: owed at the merge.
+- **Default build system `swift build --build-tests`:** 0 `warning:` at lane 1's head.
+- **Fourteen images:** not re-taken; `git diff --stat 1bdead8d HEAD -- Sources Tests` is empty (every code change is under `Backends/SDL`), so 0 px follows from the diff and is unmeasured. Re-take at the merge.
+- Guards: no root typecheck guard added (no root declaration; inventory and undocumented scripts print nothing, census unmoved). No divergence label.
 
 ## 4 Carried
 
-Synchronous buffer download and upload (not asked); a zero-colour-target pipeline; an SDL-gave-no-message error arm no driver here exercises; a pin for the submit-worker arm of
+Pins for the `setViewport` depth clamp and for a non-square scissor clamp (section 0, both survived a mutation; owner: the next change to `SDLGPUGraphics.swift`); synchronous buffer download and upload (not asked); a zero-colour-target pipeline; an SDL-gave-no-message error arm no driver here exercises; a pin for the submit-worker arm of
 the worker precondition; D3D12 behaviour (check `GB2`, CI compiles Windows only).
