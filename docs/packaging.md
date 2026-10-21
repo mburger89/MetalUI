@@ -233,8 +233,8 @@ without a rebuild:
 SDL_APP_ID=com.example.MyApp /opt/myapp/MyApp
 ```
 
-**Verified:** the hint is set before `SDL_Init` and the environment overrides
-it (tests `SDLAppIDTests`, the probe). **Unverified** — no Linux desktop session
+**Verified:** the hint is set before `SDL_Init` (tests `SDLAppIDTests`) and the
+environment overrides it (the probe, arm A2; no test exports the variable). **Unverified** — no Linux desktop session
 was available: the shell's icon and grouping, and whether SDL's X11 backend
 derives `WM_CLASS` from the hint; human checks AP1 and O3.
 
