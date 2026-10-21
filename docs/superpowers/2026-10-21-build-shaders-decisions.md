@@ -1,7 +1,7 @@
 # Build-time app shaders (S12) — decisions
 
 Rulings for item S12 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by MetalCreator
-(developer session, 2026-10-21) as XP-G20 (wanted, not blocking). Prefix `BS-`. **Next unused: `BS-I`.**
+(developer session, 2026-10-21) as XP-G20 (wanted, not blocking). Prefix `BS-`. **Next unused: `BS-K`.**
 Spec: [`specs/2026-10-21-build-shaders-design.md`](specs/2026-10-21-build-shaders-design.md). Record: `../record/138-build-shaders.md`.
 Branch `feat/build-shaders` from `11dca65e`. Continues `GA-F`/`GA-Q` (record 114) and `GB-` (record 137).
 Divergence labels reserved 675–684: **none taken** (`BS-A`). **Nothing is published** by this item (`BS-H`).
@@ -96,3 +96,22 @@ shadercross regression is seen by an app, not CI.
 
 **Ruling.** No release, tag, package, image or registry push, no CI that publishes. A pinned prebuilt shadercross is the user's
 decision, to be asked after this item. **Cost if wrong.** None; it only defers.
+
+## BS-I — SHA-256 is one pure-Swift function in `MetalUIShaderCompile`, shared by the tool and the library
+
+**Question (critic finding).** The spec's marker (tool) and `verifyingSources` (library) both need SHA-256, but Foundation has none
+off Apple (CryptoKit is Apple-only), `MetalUIShaderCompile` imports only Foundation, and no Swift SHA-256 exists in the tree (checked:
+the only hits are the C single-instance file and test strings). **Ruling.** A small FIPS 180-4 implementation `SHA256.hexDigest(of:)`
+lives in `MetalUIShaderCompile` (no dependency, no CryptoKit, no swift-crypto package); `MetalUISDLGPU` imports that module (an edge
+added in **both** manifests, root and `Backends/SDL`, since the root declares the target by path). Pins: `sha256MatchesTheNISTVectors`
+(empty, "abc", the 56-byte two-block message, 55/56/63/64/65-byte padding boundaries, one million "a") plus test 4 against the python
+script's checked-in output; mutations: wrong rotation constant, no length padding byte, endianness of the length. Ordering of marker lines
+is **bytewise on the file name** (the script's `sorted(Path)`; Swift's `<` on String is Unicode-aware), pinned by test 4 with a
+non-ASCII-sensitive pair added to the fixture list in test 2. **Cost if wrong.** A hash helper moves.
+
+## BS-J — documentation sweep (critic finding)
+
+Deleting `compile-app-shaders.py` also owes edits to every live reference, not only packaging/migration/READMEs:
+`docs/guides/cross-platform.md:191`, `docs/guides/drawing-and-gpu.md:183` (prose lines; any `swift` block stays byte-identical so no mirror
+moves, `GuideDocCheck` run), `Backends/SDL/Tests/MetalUISDLTests/SDLGPUTestSupport.swift:10` and `SDLGPUShaderLibrary.swift` doc comments.
+Frozen record files and older specs keep the old name (history). CLAUDE.md/AGENTS.md change at the Record phase only.

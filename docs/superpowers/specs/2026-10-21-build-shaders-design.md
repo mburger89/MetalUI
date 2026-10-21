@@ -1,6 +1,6 @@
 # Build-time app shaders (S12, XP-G20) — design
 
-Rulings: [`../2026-10-21-build-shaders-decisions.md`](../2026-10-21-build-shaders-decisions.md) (`BS-A`…`BS-H`).
+Rulings: [`../2026-10-21-build-shaders-decisions.md`](../2026-10-21-build-shaders-decisions.md) (`BS-A`…`BS-J`).
 Branch `feat/build-shaders` from `11dca65e`. Class M, no divergence (675–684 untouched), **nothing published** (`BS-H`).
 No SwiftUI claim, so no probe; plugin behaviour was measured (decisions, `BS-B`).
 
@@ -28,11 +28,11 @@ own build) with one portable implementation, a documented shadercross pin, and a
 ## 3. Files (one lane)
 
 Disjoint from siblings (retained, layout, gestures): new `Backends/SDL/Sources/MetalUIShaderCompile/` (library:
-`ShaderStage`, `ShaderCompilePlan`, `ShadercrossLocator`, `SourceMarker`, `CompileArguments`, `ShaderCompiler.run`),
+`SHA256` (`BS-I`), `ShaderStage`, `ShaderCompilePlan`, `ShadercrossLocator`, `SourceMarker`, `CompileArguments`, `ShaderCompiler.run`),
 `Backends/SDL/Sources/MetalUICompileShaders/main.swift`, `Plugins/CompileShaders/Plugin.swift`, root `Package.swift` (two
 targets in the portable list, two products, one plugin target and product, one test target), `Tests/MetalUIShaderCompileTests/`,
 `Backends/SDL/Sources/MetalUISDLGPU/SDLGPUShaderLibrary.swift`, `Backends/SDL/Tests/MetalUISDLTests/SDLGPUShaderLibraryTests.swift`,
-`Backends/SDL/scripts/compile-app-shaders.py` (deleted), docs above, `docs/probes/closeout-public-api.sh` census re-record if the
+`Backends/SDL/scripts/compile-app-shaders.py` (deleted), `Backends/SDL/Package.swift` (MetalUISDLGPU gains the `MetalUIShaderCompile` edge, `BS-I`), docs above plus `docs/guides/cross-platform.md` and `drawing-and-gpu.md` prose and `SDLGPUTestSupport.swift`'s comment (`BS-J`), `docs/probes/closeout-public-api.sh` census re-record if the
 tooling counts it, the record `docs/record/138-build-shaders.md`, human checks group `BS`. **Lanes: 1.**
 `MetalUIShaderCompile` imports only Foundation (`PC-A`: a portable target, declared on every platform); the Linux/Windows CI
 builds it, so no Apple import and `Process` only through Foundation.
@@ -47,6 +47,7 @@ source is an error. Marker: one `<sha256>  <file>` line per source, sorted by na
 ## 5. Tests (each with its red-before and the mutation that must redden it)
 
 Root target `MetalUIShaderCompileTests` (portable, Foundation only; the lane names the reddened tests):
+0. `sha256MatchesTheNISTVectors` (`BS-I`) — Mutation: wrong rotation constant; drop the length padding; little-endian length.
 1. `aSourceNameYieldsItsStageAndStem` — red before: no type. Mutation: map `frag` to `compute`.
 2. `theCommandPlanIsHlslToSpirvThenTheDerivations` — exact argument vectors for one vertex and one compute source, order SPIR-V,
    MSL, DXIL, JSON. Mutation: swap `-s`/`-d` of the derivations; derive from HLSL instead of the `.spv`.
