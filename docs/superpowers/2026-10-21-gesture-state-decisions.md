@@ -6,9 +6,9 @@ Branch `feat/gesture-state` from `1bdead8d`. Evidence: `docs/probes/swiftui-gest
 output in its header; arms `G1`–`G13`, `P1`–`P10`, the instrument of `swiftui-input-followups.swift`), the earlier `swiftui-input-followups.swift`
 `C1`–`C5`, and the SwiftUI interface census. **gpui has no counterpart** for either feature (a gpui view holds ordinary entity state and resets
 it by hand in its own mouse-up handler; gpui animations are `with_animation` over an element id, no phases): nothing is claimed from gpui.
-Divergence labels **645–654 reserved**; **645 taken** (`GS-G`), the rest unused.
+Divergence labels **645–654 reserved**; **645 taken** (`GS-G`, row in `docs/divergences.md`), the rest unused.
 
-Prefix **`GS-`**, lettered. **Next unused: `GS-Q`.** (Moves in the commit that appends a ruling.)
+Prefix **`GS-`**, lettered. **Next unused: `GS-R`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IX-B` (a gesture's callbacks are returned by value from the pure arena and run under `StateDispatch`), `IF-E`/`IF-F`/`IF-K`/`GC-`
 (every `onCancelled` path; divergence 236 amended at Record), `ID-F` (an aliased state box resolves its occurrence from the dispatch owner),
@@ -193,3 +193,20 @@ row or one stepping pin re-ruled.
 measured behaviour), records it as a carried item owned by C14-i, and edits no `Retained*.swift`, `ContentMemo*` or `StateTable` file. The same holds for lane 1's
 retained/memo pin (`GS-A`): a gap there is carried, not patched in C14-i's files. Lane 1's `Window.swift` edit stays confined to `runGestureCallbacks` and the arena-discard
 sites. **Cost if wrong:** a carried item instead of a fix in this branch.
+
+## GS-Q — Lane 1 as built: what the implementation settled that the spec left open
+
+**Ruling.** (1) **`GestureState` holds a `State<Value>` and a `GestureStateBox<Value>`**, not a `State.Box`-shaped copy: `bind` forwards to the `State`'s own, so the
+occurrence bookkeeping (`ID-F`) is `@State`'s and not duplicated; the box keeps `dirty` and the per-event base **per slot** (a `Set` and one `(batch, slot, base)`), so an element
+value placed twice resets only the occurrence that wrote (`anElementValuePlacedTwiceResetsItsOwnOccurrence`). (2) **`cancel()` hands back only the finish hooks**
+(`ArenaLeaf.owesFinish`, queued by `queueFinish` into `callbacks` and remembered in `finishIndices`), never the other callbacks `fail` queued
+(`onPressingChanged(false)` keeps its old fate: dropped with the arena), so `cancel()`'s old return value is unchanged for a gesture with no `updating`. `abandon()` needs
+no drain of its own: its later `resolve()` returns what `cancel(includingReady: false)` left (mutation M9 is green by that, a correct alternative spelling). (3) **`updating` is
+`@MainActor`, the `reset:` closure is `@MainActor`** (as every gesture callback is; SwiftUI's are not, `GS-N`); `composeChanged`/`composeFinished` are nonisolated so the
+nonisolated `_recognizers()` can call them. (4) **`updating` on a tap returns `self`** (stores nothing: it never runs, so there is no finish to owe). (5) The audit of the
+arena-discard sites found every one paired with `cancel()`/`abandon()` or reached only when the arena is not `isAlive` (no undecided leaf, so every leaf passed through `fail`
+or `act`): `mouseDown`'s `gestureArena = nil` after `abandon()`, `endPressForDrag` after a draggable's or window drag's other members `fail`ed, `mouseUp`/`advanceGestures`'
+`isAlive ? arena : nil`, the button and pinch arenas' `= nil` after `cancel()` or release, `cancelLiveArenas`; the pins are `everyCancelPathResetsOnce` arms (a)–(g) and the
+two release pins. **No site needed a new `cancel()`.** (6) **Re-take owed** (`GS-O`): the screen stayed locked, so probe arms `G7`/`G7e` and `P5` were not re-run; divergence 645
+and the two simultaneous-writer pins rest on the recorded lines. **Cost if wrong:** one divergence row.
+
