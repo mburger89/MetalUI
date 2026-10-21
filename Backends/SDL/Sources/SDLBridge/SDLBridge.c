@@ -1240,7 +1240,15 @@ static uint32_t app_id_init_seq = 0;
 
 bool mui_platform_init(const char *app_id) {
     app_id_hint_seq = 0;
-    (void)app_id;
+    if (app_id != NULL && app_id[0] != '\0') {
+        // SDL_HINT_APP_ID names the Wayland app_id / X11 WM_CLASS; "should be set
+        // before SDL is initialized". Normal priority: the SDL_APP_ID environment
+        // variable still overrides (AP-B).
+        SDL_SetHint(SDL_HINT_APP_ID, app_id);
+        app_id_hint_seq = ++app_id_seq;
+        app_id_sets++;
+        SDL_strlcpy(app_id_last, app_id, sizeof app_id_last);
+    }
     // The application decides when it ends (ruling AS-B item 6): SDL's own
     // SDL_EVENT_QUIT after the last visible window's close request would end
     // a run whose close the app just vetoed. Every close request reaches

@@ -56,7 +56,14 @@ public final class SDLPlatform: Platform {
     /// Every window is created hidden and shown after its AccessKit adapter
     /// exists (ruling `WS-B`); with ``Options/hidesWindows`` it is never shown.
     public init(options: Options) throws {
-        guard mui_platform_init(nil) else { throw SDLPlatformError("SDL_Init") }
+        // The application id goes to SDL's hint before `SDL_Init` (ruling `AP-A`).
+        let ready: Bool
+        if let id = options.usableApplicationID {
+            ready = id.withCString { mui_platform_init($0) }
+        } else {
+            ready = mui_platform_init(nil)
+        }
+        guard ready else { throw SDLPlatformError("SDL_Init") }
         self.options = options
         pinchIsCumulative = SDLPinch.isCumulative(driver: String(cString: mui_current_video_driver()))
         options.singleInstance?.attach()   // `SN-G`: the wake event, after SDL_Init

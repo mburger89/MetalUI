@@ -1779,6 +1779,13 @@ a physical GPU, a desktop session and a console.*
   focused node and socket, stays on it after the pan settles, and reads the same labels as with retention off (`AT-A`). The owner also reads MetalCreator's warm graph pan counters: grafts above 0, redos 0, element
   requests far below 1409 (no agent touches MetalCreator). **Observed:**
 
+## AP. SDL application id - the desktop entry's icon and grouping (item XP-G13, user request 2026-10-21, not a plan task; record 132; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs a Linux desktop session. The hint is set before `SDL_Init` and an explicit option beats the single-instance id (`SDLAppIDTests`); what is owed is what the shell does with it.*
+
+- [ ] **AP1.** On GNOME Wayland and on an X11 session, install a `.desktop` entry named after the id (`com.example.MyApp.desktop`, `Icon=` a theme name) and launch an SDL app that passes the id as `Options.applicationID` (or only to `launchingSingleInstance(id:)`): the window shows the entry's icon in the dash and
+  groups under the entry, not under the executable name; on X11 `xprop WM_CLASS` names the id. With no id set the old behaviour (generic icon) holds; with `SDL_APP_ID=other.id` exported the override wins (`AP-A`, `AP-B`, `AP-C`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
