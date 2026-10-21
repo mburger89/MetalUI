@@ -106,3 +106,26 @@ func theGestureStateBoxIsNotReachable() throws {
         @MainActor public func bad() { let _: GestureStateBox<Int>? = nil }
         """)
 }
+
+/// **GS.5 — `updating` is `@MainActor`, so its body and `GestureState`'s `reset:` are too** (`GS-S`, divergence 646). The
+/// positive arm calls it from `@MainActor` code; the negative arm from a `nonisolated` function. **Limit:** a closure
+/// literal in `@MainActor` code is inferred main-actor and a `@MainActor` function reference converts to a nonisolated
+/// closure type without error, so mutating only the `body:`/`reset:` parameter type reddens nothing (measured, record §135);
+/// the pin is the method's isolation. Mutation (red): drop `@MainActor` from `DragGesture.updating` (body replaced by `_ = state; _ = body`).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func theUpdatingBodyAndTheResetClosureAreMainActor() throws {
+    try separate("GS.5", positive: """
+        @MainActor func body(_ v: DragGesture.Value, _ s: inout Int, _ t: inout Transaction) { s = 1 }
+        @MainActor func reset(_ v: Int, _ t: inout Transaction) { t.animation = nil }
+        @MainActor public struct Spelled: Component {
+            @GestureState(wrappedValue: 0, reset: reset) var a: Int
+            public var content: some ElementGroup {
+                Box().gesture(DragGesture().updating($a, body: body))
+            }
+        }
+        """, negative: """
+        nonisolated func offMain(_ g: GestureState<Int>) -> DragGesture {
+            DragGesture().updating(g) { _, s, _ in s = 1 }
+        }
+        """)
+}

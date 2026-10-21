@@ -47,7 +47,7 @@ the counts, the inventory scripts and the demo comparison (§6).
   call), writes its copy back always, and the last body run wins; ending any writer resets the whole slot. **Transactions** (`GS-F`): the update runs under its transaction
   only when the body set an animation, the reset under `resetTransaction` (then the `reset:` closure's writes) only when that animates — the existing `parkTransaction` path, so an
   animated reset is divergence 99's one root transaction for the next build.
-- **Divergence 645** (the order of two simultaneous writers) is the one label taken; `@MainActor` on `updating` and `reset:` is ruled, not labelled (`GS-N`, `GS-S`).
+- **Divergence 645** (the order of two simultaneous writers) is taken with **646**, the `@MainActor` on `updating` and `reset:` (`GS-N`, `GS-S`; guard GS.5 `theUpdatingBodyAndTheResetClosureAreMainActor` (pins the method's isolation; a body-only mutation survives, measured)).
 
 **Lane 2 — `phaseAnimator` and `PhaseAnimator`** (`Sources/MetalUI/PhaseAnimator.swift`, an internal `Animation.nominalDuration`):
 
@@ -101,7 +101,7 @@ three pins carry "recorded 2026-10-21, not re-taken" (`GS-O`); human check GS7 r
 
 ## §4 Divergences
 
-**645** added, **236** amended (record §04). Retired: none. **Not labelled:** `@MainActor` on `updating` and `reset:`; SwiftUI's own end-of-run content call and its not re-calling
+**645**, **646** (`@MainActor` on `updating` and `reset:`) added, **236** amended (record §04). Retired: none. SwiftUI's own end-of-run content call and its not re-calling
 content that ignores the phase (`P2` `c0@1.2`, `P10`; unpinned, unobservable but by side effect, `GS-I`). Not built, named: `updating` on a composed gesture, the
 `GestureStateGesture` type, `PlaceholderContentView` (`phaseAnimator`'s content receives the element itself, as `keyframeAnimator`'s, divergence 169's rule).
 
@@ -171,7 +171,7 @@ Measured at the Record phase on the merged tree (this branch merged with master 
   `Gesture.swift` moved lines).
 - **Linux image** (`metalui-portable`, OrbStack, volume `metalui-root-build-gesture-state`): `MetalUITestingTests` + the portable tests **451** in 2 suites, `MetalUILayoutTests` **233**, `MetalUICoreTests` **138**,
   the cross-platform **22**, all passed (lane 2's retained arm and both guide mirrors included; `PhaseAnimatorTests` and the guards are macOS-only targets). `Backends/SDL` untouched, not re-taken.
-- **Divergences:** 645 added, 236 amended; the header's count and next-label line are left for the merge (`docs/divergences.md`).
+- **Divergences:** 645, 646 added, 236 amended; the header's count is 160 (next-label line left for the merge) (`docs/divergences.md`).
 
 ## §8 Hazards
 

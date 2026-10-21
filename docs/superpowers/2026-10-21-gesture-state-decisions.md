@@ -229,9 +229,9 @@ applies to a live keyframe animator, and an idle trigger animator's rest is not 
 click target**: the trigger is the row's own "Shake" count. `GuideDocCheck.deniedNames` is now empty (it denied `PhaseAnimator` until this lane). (10) **Re-take owed** (`GS-O`): the screen stayed locked,
 so probe arm `P5` was not re-run; the test `aNilAnimationSnapsAndTheNextStepFollowsAtOnceP5` carries "recorded, not re-taken". **Cost if wrong:** a P5 value re-ruled.
 
-## GS-S — Record phase: the `@MainActor` closures are ruled, not labelled; the counts and the one named mutation gap
+## GS-S — Record phase: the `@MainActor` closures are divergence 646; the counts and the one named mutation gap
 
-**Ruling.** (1) `updating`'s body and `reset:` are `@MainActor`, SwiftUI's are not (`GS-N`, `GS-Q` 3). Every MetalUI gesture callback (`onChanged`, `onEnded`, `onCancelled`) already is, no divergence label has
-ever been taken for that, and a caller who writes the SwiftUI spelling in `@MainActor` code (every view body) compiles unchanged; **no label** (646–654 stay unused). (2) The Record phase's `aGestureStateWriteIsAStateWriteForTheMemoAndRetainedPaths`
+**Ruling.** (1) `updating`'s body and `reset:` are `@MainActor`, SwiftUI's are not (`GS-N`, `GS-Q` 3). Every MetalUI gesture callback (`onChanged`, `onEnded`, `onCancelled`) already is, no divergence label had
+ever been taken for that before, and a caller who writes the SwiftUI spelling in `@MainActor` code (every view body) compiles unchanged; **amended after review: divergence 646 is taken** (`CLAUDE.md` owes a label to every live difference; pin guard GS.5 `theUpdatingBodyAndTheResetClosureAreMainActor`; 647–654 stay unused). (2) The Record phase's `aGestureStateWriteIsAStateWriteForTheMemoAndRetainedPaths`
 mutation (no version bump on the write) was attempted at the Record phase and could not be spelled (`StateTable`'s storage and version are private; record §135 §5.1); the disabled-owner arm's "run the reset at the disable" mutation has no recorded red and is listed there as a gap, not a claim. (3) Probe arms `G7`, `G7e`, `P5`
 stay un-re-taken (screen locked, `GS-O`); human check GS7 owns the re-take. **Cost if wrong:** a label for a type-level isolation difference, one row.
