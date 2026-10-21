@@ -114,17 +114,25 @@ func aStrokedPathUnderAZoomIsRerasteredNotStale(step: Float) async throws {
 /// frame equals fresh. Arms: `flattensChanged` (`scaleEffect(x:y:)` leaves the uniform class), `outerClipChanged` (the frame outside
 /// the effect, whose clip the effect opens under, moves with the scale), `namedSpaceNote` (a geometry note holding a space declared
 /// inside the node), `anchor` (a closed `.popover` declarer: a window-space anchor), `contextMenu` (a window-space menu record).
+/// `gateWithZoom` (a zoom step plus `.allowsHitTesting(false)` in the same frame: the `rest == oldRest` guard of
+/// `PrepaintExtras.change(from:)` refuses `prepaintContextChanged`).
 /// Mutations, one per arm: the `flattens` equality dropped (in `change(from:)` and `effectRelation`), the outer-clip equality
 /// dropped, the named-space guard dropped, the anchor guard dropped, the context-menu guard dropped.
 enum ZRefusalArm: CaseIterable, CustomStringConvertible, Sendable {
-    case flattensChanged, outerClipChanged, namedSpaceNote, anchor, contextMenu
+    case flattensChanged, outerClipChanged, namedSpaceNote, anchor, contextMenu, gateWithZoom
     var description: String {
         switch self {
         case .flattensChanged: "flattensChanged"; case .outerClipChanged: "outerClipChanged"
         case .namedSpaceNote: "namedSpaceNote"; case .anchor: "anchor"; case .contextMenu: "contextMenu"
+        case .gateWithZoom: "gateWithZoom"
         }
     }
-    var extra: ZExtra { self == .flattensChanged ? .nonUniform : self == .outerClipChanged ? .outerClip : .none }
+    var extra: ZExtra {
+        switch self {
+        case .flattensChanged: .nonUniform; case .outerClipChanged: .outerClip
+        case .gateWithZoom: .gateWithZoom; default: .none
+        }
+    }
     var kind: ZKind {
         switch self {
         case .namedSpaceNote: .namedSpace; case .anchor: .popover; case .contextMenu: .menu; default: .plain
@@ -134,6 +142,7 @@ enum ZRefusalArm: CaseIterable, CustomStringConvertible, Sendable {
         switch self {
         case .flattensChanged: "effectFlatteningChanged"; case .outerClipChanged: "effectClipChanged"
         case .namedSpaceNote: "geometryNamedSpace"; case .anchor: "presentationAnchor"; case .contextMenu: "contextMenus"
+        case .gateWithZoom: "prepaintContextChanged"
         }
     }
 }

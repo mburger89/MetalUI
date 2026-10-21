@@ -86,6 +86,8 @@ struct ZWire: Shape {
 /// What a pin changes around the row (each separates one refusal of `RZ-B`).
 enum ZExtra: String, CaseIterable, CustomStringConvertible, Sendable {
     case none, nonUniform, outerClip
+    /// A zoom past 1.15 also disables hit testing on the effect stack, in the same frame as the zoom step.
+    case gateWithZoom
     var description: String { rawValue }
 }
 
@@ -125,6 +127,7 @@ struct ZoomRoot: Component {
                     .scaleEffect(scale, anchor: .topLeading).offset(x: pan, y: panY)
             }
         }
+        .allowsHitTesting(extra == .gateWithZoom ? scale < 1.15 : true)
         .frame(width: Pixels(width), height: Pixels(320), alignment: .topLeading)
         .clipped()
         .frame(width: Pixels(1500), height: Pixels(360), alignment: .topLeading)
