@@ -527,8 +527,8 @@ private struct TwoWritersChip: Component {
     let w2 = try chipWindow { TwoWritersChip(log: early, longPressFirst: false, longPressWrites: false) }
     w2.send(down()); w2.tick()
     w2.advance(by: 0.1)
-    w2.send(dragged(at(210, 150))); w2.tick()
-    w2.send(up(at(210, 150))); w2.tick()
+    w2.send(dragged(at(205, 150))); w2.tick()   // 5 pt: inside the long press's maximumDistance of 10
+    w2.send(up(at(205, 150))); w2.tick()
     #expect(GestureStateResets.count == 1, "one reset for two writers ending in one event: \(GestureStateResets.count)")
 }
 
