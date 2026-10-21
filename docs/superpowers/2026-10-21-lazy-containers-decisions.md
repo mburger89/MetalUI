@@ -5,7 +5,7 @@ Spec: [`specs/2026-10-21-lazy-containers-design.md`](specs/2026-10-21-lazy-conta
 (not yet written). Branch `feat/lazy-containers` from `1bdead8d`. Reserved divergence labels 635-644: **635, 636, 637 taken by this
 design**, 638-644 unused. Probe: `../probes/swiftui-lazy-containers.swift` (output in its header; a SwiftUI claim below cites its arm).
 
-Prefix **`LZ-`**, lettered. **Next unused: `LZ-R`.** (Moves in the commit that appends a ruling.)
+Prefix **`LZ-`**, lettered. **Next unused: `LZ-S`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `DD-F` (window against the scroller), `VL-B`..`VL-Q` (variable rows, `RowExtentIndex`, the anchor), `TB-AH` (bounded
 retention), `FI-A`/`FI-B` (ForEach identity), `ID-R`, `PE-V` (a `ProposalScrollView` publishes `ScrollContext`), `GR-L` (lazy grids
@@ -187,3 +187,14 @@ it), the guide section and its hand-copied mirrors are `DG-C`/`DG-D`, the human-
 0 px (the demo is behind a switch; the containers add no pixel path) and `Expected.swift` is not edited. The Linux image runs
 `MetalUILayoutTests` (the solver), `MetalUITestingTests` and the portable tests; `Backends/SDL` is untouched.
 **Evidence.** The item's invariants. **Cost if wrong.** None beyond the verification list.
+
+## LZ-R - Critic's pass: the taint is pinned for both layouts; two rejections recorded
+
+**Ruling.** Both `LazyStackLayout` and `LazyGridLayout` are non-`Hashable` and so taint exactly their ancestors in the layout memo
+(LZ-F, `IV-`); the spec had pinned this for no test, so tests 2.16 and 3.11 are added (a window or column-count change under a lazy
+container must never be served from `LayoutMemo`; mutation: make the layout `Hashable` over a subset). Test 2.4's literal is derived
+(ids 98...112). **Rejected:** (a) matching SwiftUI's no-margin realisation - the two-line overscan is kept for scroll continuity of
+variable rows and is divergence 637 with a pin; (b) a `Hashable` layout keyed by the window - its key would have to hold every
+measured extent, so a hit would be a stale-layout risk for no gain; (c) the probe's A3b arm does not separate first from widest (first
+is widest there); A3d and A3 do (50 vs 100, 30 vs 100), so the first-child ruling stands, re-run byte for byte (62 lines identical).
+**Evidence.** Probe re-run 2026-10-21 (A3d, C15, R4, S1 identical to the header). **Cost if wrong.** Two extra tests.

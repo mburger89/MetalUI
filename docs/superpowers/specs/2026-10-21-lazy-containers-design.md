@@ -192,7 +192,7 @@ the same 10 000 rows):
 | 2.1 | `aTenThousandChildLazyVStackRealizesOnlyTheWindow` | warm frame: `lazyUnitsRealized == 13` (20pt rows, 200pt viewport: `index(containing: 200) = 10`, `+1 +2`); the eager stand-in realises 10 000; ratio asserted >= 500 | window upper bound `+1 +overscan` removed or widened to `count` |
 | 2.2 | `theColdFrameRealizesABoundedSliceThenTheViewportWindow` | frame 1 `lazyUnitsRealized == 32`, then settled 13 | cold slice `32 -> count` |
 | 2.3 | `aWarmFrameRealizesTheSameWindowAndRebuildsNothing` | `lazyUnitsRealized` equal frame to frame, `RowExtentIndex` rebuilds 0 | rebuild every frame |
-| 2.4 | `scrollingRealizesTheNewWindowAndTheAccessibilityTreeFollows` | wheel to 2000: realised rows 98...112-ish by the literal derived in the test; a11y tree holds exactly the realised rows | window not recomputed on scroll |
+| 2.4 | `scrollingRealizesTheNewWindowAndTheAccessibilityTreeFollows` | wheel to 2000 (20pt rows, 200pt viewport): anchor line 100, `index(containing: 2200) = 110`, window `98..<113`: exactly ids 98...112 (15 realised); a11y tree holds exactly the realised rows | window not recomputed on scroll |
 | 2.5 | `variableChildExtentsAreMeasuredAndUnrealisedOnesCountAsTheMean` | 1000 rows of 20 with one 120 tall unrealised: content extent 20 000 (R4); realised becomes 20 100 after it is | estimate -> fallback 24 |
 | 2.6 | `theTopChildStaysPutWhenAChildAboveItIsMeasured` | `scrollAnchorAdjustments` equals the delta; the on-screen top row's y unchanged | anchor correction removed |
 | 2.7 | `aScrolledOutChildKeepsItsStateAndTheTableBoundsIt` | state serial equal after a round trip (S1); lost once > 256 entries (`TB-AH`) | `noteWindowedParent` removed; `noteLoop` added |
@@ -204,6 +204,7 @@ the same 10 000 rows):
 | 2.13 | `anEquatableChildInsideALazyStackIsSkippedAndRetained` | `contentSkips` rises on a warm frame; under `METALUI_VERIFY_RETAINED=1` no trap | unit box rebuilt each frame defeating the memo key |
 | 2.14 | `scrollToAnUnrealisedElementReachesItInAtMostTwoResolutions` | T10-shaped: target lands in the viewport, `scrollResolutions <= 2` | refinement carry removed |
 | 2.15 | `theOverscanAppearsBeforeTheRowsAreOnScreen` | `onAppear` fires for the 2 rows each side (divergence 637 pin, `13` appeared vs 10 on screen) | overscan 2 -> 0 |
+| 2.16 | `aLazyContainerTaintsItsAncestorsAndAMemoHitIsNeverStale` (LZ-R) | a `VStack` holding a lazy stack gets no `LayoutMemo` hit when the scroll window moves (layout work counters rise), and `METALUI_VERIFY_LAYOUT_MEMO=1` does not trap | make `LazyStackLayout` `Hashable` over its visible fields only |
 | G.1 | `lazyInitHasNoPinnedViewsParameter` (plain-import `typecheckFile`) | `LazyVStack(pinnedViews: ...)` does not compile | add the parameter |
 | G.2 | `theLazyCoreIsUnreachableOutsideTheModule` (plain-import guard) | `LazyUnitSource`, `LazyOrigin`, `LazyUnitBox` do not typecheck outside | make one `public` |
 
@@ -221,6 +222,7 @@ Lane 2:
 | 3.8 | `aStaleAdaptiveWidthIsCorrectedOnTheNextFrame` | first frame builds 1 column (no stored width), then the real count within one more frame | mismatch detection removed |
 | 3.9 | `scrollingAGridRealizesTheNewRowsAndAScrolledOutCellKeepsItsState` | rows around the scroll offset; state serial equal on return | as 2.7 |
 | 3.10 | `aLazyGridCellIsAnOrdinaryOccurrence` | click, focus, `.equatable()` skip in a cell | as 2.12/2.13 |
+| 3.11 | `aLazyGridTaintsItsAncestorsAndAMemoHitIsNeverStale` (LZ-R) | as 2.16 for a grid whose adaptive column count changes with width | `LazyGridLayout` `Hashable` without the track list |
 | G.3 | `gridItemAndTheLazyGridsHaveSwiftUIsSpellings` (typecheck) | `GridItem(.adaptive(minimum: 40))`, `GridItem(.flexible(minimum:maximum:), spacing:, alignment:)`, `LazyVGrid(columns:alignment:spacing:)`, `LazyHGrid(rows:...)` compile | rename an argument |
 
 Both lanes: `everyStateWriteSiteIsClassified` gains the new files; `everyNamingSiteStartsAReturningNameFresh` gains the unit scope arm
