@@ -233,5 +233,5 @@ so probe arm `P5` was not re-run; the test `aNilAnimationSnapsAndTheNextStepFoll
 
 **Ruling.** (1) `updating`'s body and `reset:` are `@MainActor`, SwiftUI's are not (`GS-N`, `GS-Q` 3). Every MetalUI gesture callback (`onChanged`, `onEnded`, `onCancelled`) already is, no divergence label has
 ever been taken for that, and a caller who writes the SwiftUI spelling in `@MainActor` code (every view body) compiles unchanged; **no label** (646–654 stay unused). (2) The Record phase's `aGestureStateWriteIsAStateWriteForTheMemoAndRetainedPaths`
-mutation (no version bump on the write) is run and named in record §135 §5.1; the disabled-owner arm's "run the reset at the disable" mutation has no recorded red and is listed there as a gap, not a claim. (3) Probe arms `G7`, `G7e`, `P5`
+mutation (no version bump on the write) was attempted at the Record phase and could not be spelled (`StateTable`'s storage and version are private; record §135 §5.1); the disabled-owner arm's "run the reset at the disable" mutation has no recorded red and is listed there as a gap, not a claim. (3) Probe arms `G7`, `G7e`, `P5`
 stay un-re-taken (screen locked, `GS-O`); human check GS7 owns the re-take. **Cost if wrong:** a label for a type-level isolation difference, one row.

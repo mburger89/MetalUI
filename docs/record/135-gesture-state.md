@@ -132,7 +132,7 @@ Every test was red first: lane 1's at `4792c5ee` (`unknown attribute 'GestureSta
 
 The verifier re-ran the **unmutated** full suite once (4138 tests, matching) and re-ran none of these. **Named gaps:** `aDisabledOwnerResetsAtTheReleaseAndNotBefore`'s mutation
 ("run the reset at the disable") has no recorded red; M10 and M15 are not in the verifier's table. The no-version-bump mutation `aGestureStateWriteIsAStateWriteForTheMemoAndRetainedPaths` is
-named for is run at this Record phase (§5.1).
+named for could not be spelled at this Record phase (§5.1).
 
 **Lane 2** (the implementer's twenty-one mutations on a filtered set, each named in its test's header as `Mutation:`: the first step, `requestAnotherFrame()` for the note, a run that stops at the
 last phase, a trigger change that continues the old run, a nil animation waiting `.default`, a fixed 0.4 s step, equal neighbours waiting, the previous phase's animation, `stepStart = now`,
@@ -142,7 +142,10 @@ full suite**: a trigger run that never ends (`if r.running, r.stepsTaken >= coun
 
 ### §5.1 Record-phase mutation
 
-MUTATION_TABLE
+The mutation `aGestureStateWriteIsAStateWriteForTheMemoAndRetainedPaths` is named for (a write that does not bump the slot's version) was **attempted and could not be spelled**:
+`StateTable.storage` and `Entry.version` are `private`, and `GestureState.write` has no other writer than `StateTable.write` (which bumps and taints; every spelling that avoids the bump means a private store beside the
+table, a rewrite of `update`/`finish`/`peek` rather than a one-line mutation). The source was restored (`git status --short` empty). The test is proven red by M14 and M1 only; the bump itself rests on
+`StateTable.write` being the one funnel (`GS-A`) and on `everyStateWriteSiteIsClassified` staying green. **Named gap**, not a claim.
 
 ## §6 The demo and the fourteen images
 
