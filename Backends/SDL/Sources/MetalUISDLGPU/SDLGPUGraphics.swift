@@ -28,15 +28,51 @@ public struct SDLGPUSamplerDescription: Sendable {
     public var repeats: Bool
     /// The highest mip level sampled (`max_lod`).
     public var maxLevel: Float
+    /// The anisotropic filtering cap the caller asked for (`max_anisotropy`,
+    /// ruling `GB-E`); 1 is off. Anisotropy is on only when
+    /// ``effectiveMaxAnisotropy`` is above 1. Device support varies (Vulkan's
+    /// `samplerAnisotropy` feature, Metal and D3D12 cap at 16); whether it looks
+    /// better is human check `GB1`.
+    public var maxAnisotropy: Float
+
+    /// What SDL is given: a non-finite value or one below 1 is 1 (off), one above
+    /// 16 is 16 (every backend's cap).
+    public var effectiveMaxAnisotropy: Float {
+        guard maxAnisotropy.isFinite, maxAnisotropy >= 1 else { return 1 }
+        return min(maxAnisotropy, 16)
+    }
 
     /// A clamping sampler of `filter` that reaches every mip level.
     public init(filter: SDLGPUFilter = .linear, mipmapFilter: SDLGPUFilter = .linear, repeats: Bool = false,
-                maxLevel: Float = 1000) {
+                maxLevel: Float = 1000, maxAnisotropy: Float = 1) {
         minFilter = filter
         magFilter = filter
         self.mipmapFilter = mipmapFilter
         self.repeats = repeats
         self.maxLevel = maxLevel
+        self.maxAnisotropy = maxAnisotropy
+    }
+
+    /// The `SDL_GPUSamplerCreateInfo` ``SDLGPUDevice/makeSampler(_:)`` passes (a
+    /// pure function, so a test reads the fields without a device; ruling `GB-E`).
+    func createInfo() -> SDL_GPUSamplerCreateInfo {
+        var info = SDL_GPUSamplerCreateInfo()
+        info.min_filter = minFilter.sdl
+        info.mag_filter = magFilter.sdl
+        info.mipmap_mode = mipmapFilter == .nearest ? SDL_GPU_SAMPLERMIPMAPMODE_NEAREST
+                                                    : SDL_GPU_SAMPLERMIPMAPMODE_LINEAR
+        let address = repeats ? SDL_GPU_SAMPLERADDRESSMODE_REPEAT : SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE
+        info.address_mode_u = address
+        info.address_mode_v = address
+        info.address_mode_w = address
+        info.min_lod = 0
+        info.max_lod = maxLevel
+        let anisotropy = effectiveMaxAnisotropy
+        if anisotropy > 1 {
+            info.enable_anisotropy = true
+            info.max_anisotropy = anisotropy
+        }
+        return info
     }
 }
 
@@ -44,10 +80,13 @@ public struct SDLGPUSamplerDescription: Sendable {
 public final class SDLGPUSampler: @unchecked Sendable {
     /// The `SDL_GPUSampler *`.
     public let raw: OpaquePointer
+    /// What it was made from (named `configuration`, not `description`: ruling `GB-I`).
+    public let configuration: SDLGPUSamplerDescription
     let device: SDLGPUDevice
 
-    init(raw: OpaquePointer, device: SDLGPUDevice) {
+    init(raw: OpaquePointer, configuration: SDLGPUSamplerDescription, device: SDLGPUDevice) {
         self.raw = raw
+        self.configuration = configuration
         self.device = device
     }
 
@@ -216,13 +255,18 @@ public struct SDLGPUGraphicsPipelineDescription: Sendable {
     public var sampleCount: SDLGPUSampleCount
     /// The depth test, or `nil` for a pipeline with no depth target.
     public var depth: SDLGPUDepthState?
+    /// `false` masks every colour channel off (`enable_color_write_mask` with
+    /// `color_write_mask` 0): a depth-only prepass still takes one colour
+    /// attachment, which it leaves untouched (ruling `GB-C`). `true` by default.
+    public var writesColor: Bool
 
     /// A description over two library stages.
     public init(vertex: SDLGPUShaderBlob, fragment: SDLGPUShaderBlob,
                 vertexBuffers: [SDLGPUVertexBufferDescription] = [], vertexAttributes: [SDLGPUVertexAttribute] = [],
                 primitiveType: SDLGPUPrimitiveType = .triangleList, cullMode: SDLGPUCullMode = .none,
                 colorFormat: SDLGPUTextureFormat = .b8g8r8a8Unorm, blend: SDLGPUBlend = .none,
-                sampleCount: SDLGPUSampleCount = .one, depth: SDLGPUDepthState? = nil) {
+                sampleCount: SDLGPUSampleCount = .one, depth: SDLGPUDepthState? = nil,
+                writesColor: Bool = true) {
         self.vertex = vertex
         self.fragment = fragment
         self.vertexBuffers = vertexBuffers
@@ -233,6 +277,7 @@ public struct SDLGPUGraphicsPipelineDescription: Sendable {
         self.blend = blend
         self.sampleCount = sampleCount
         self.depth = depth
+        self.writesColor = writesColor
     }
 }
 
@@ -343,19 +388,9 @@ public struct SDLGPUDepthAttachment {
 extension SDLGPUDevice {
     /// A sampler (`SDL_CreateGPUSampler`), or `nil` when SDL refuses.
     public func makeSampler(_ description: SDLGPUSamplerDescription) -> SDLGPUSampler? {
-        var info = SDL_GPUSamplerCreateInfo()
-        info.min_filter = description.minFilter.sdl
-        info.mag_filter = description.magFilter.sdl
-        info.mipmap_mode = description.mipmapFilter == .nearest ? SDL_GPU_SAMPLERMIPMAPMODE_NEAREST
-                                                                : SDL_GPU_SAMPLERMIPMAPMODE_LINEAR
-        let address = description.repeats ? SDL_GPU_SAMPLERADDRESSMODE_REPEAT : SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE
-        info.address_mode_u = address
-        info.address_mode_v = address
-        info.address_mode_w = address
-        info.min_lod = 0
-        info.max_lod = description.maxLevel
+        var info = description.createInfo()
         guard let sampler = create({ SDL_CreateGPUSampler($0, &info) }) else { return nil }
-        return SDLGPUSampler(raw: sampler, device: self)
+        return SDLGPUSampler(raw: sampler, configuration: description, device: self)
     }
 
     /// A graphics pipeline over two library stages (`SDL_CreateGPUShader` twice,
@@ -394,6 +429,10 @@ extension SDLGPUDevice {
             blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE
             blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA
             blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD
+        }
+        if !description.writesColor {
+            blend.enable_color_write_mask = true
+            blend.color_write_mask = 0
         }
         var color = SDL_GPUColorTargetDescription()
         color.format = description.colorFormat.sdl
@@ -483,7 +522,8 @@ extension SDLGPUCommandBuffer {
         if let resolve = color.resolveTexture { retained.append(resolve) }
         if let depth { retained.append(depth.texture) }
         notePassBegan()
-        return SDLGPURenderPass(raw: pass, commandBuffer: self)
+        let targetSize = SDLGPURenderPass.targetSize(color: color.texture, depth: depth?.texture)
+        return SDLGPURenderPass(raw: pass, commandBuffer: self, targetSize: targetSize)
     }
 
     /// Counts a pass opened; a surface draw's buffer reports it to the window
@@ -507,6 +547,50 @@ public struct SDLGPURenderPass {
     /// The `SDL_GPURenderPass *`.
     public let raw: OpaquePointer
     let commandBuffer: SDLGPUCommandBuffer
+    /// The pass's target size in pixels: the minimum over its colour targets, or
+    /// the depth target's when it has none (ruling `GB-I`). The scissor clamps to it.
+    let targetSize: (width: Int, height: Int)
+
+    static func targetSize(color: SDLGPUTexture?, depth: SDLGPUTexture?) -> (width: Int, height: Int) {
+        guard let texture = color ?? depth else { return (0, 0) }
+        return (texture.description.width, texture.description.height)
+    }
+
+    /// Sets the viewport (`SDL_SetGPUViewport`): `x`, `y`, `width` and `height` in
+    /// target pixels from the **top left** on every backend (SDL flips for
+    /// Vulkan), depth range `minDepth`...`maxDepth` clamped to 0...1; a reversed
+    /// range is legal. SDL resets it at each pass begin, and ``bind(_:)`` does not.
+    /// Refused without a call and answering `false` for a non-finite value or a
+    /// width or height of 0 or less; a viewport past the target is legal and not
+    /// clamped (ruling `GB-B`).
+    @discardableResult
+    public func setViewport(x: Float, y: Float, width: Float, height: Float,
+                            minDepth: Float = 0, maxDepth: Float = 1) -> Bool {
+        guard x.isFinite, y.isFinite, width.isFinite, height.isFinite, minDepth.isFinite, maxDepth.isFinite,
+              width > 0, height > 0 else { return false }
+        var viewport = SDL_GPUViewport(x: x, y: y, w: width, h: height,
+                                       min_depth: min(max(minDepth, 0), 1), max_depth: min(max(maxDepth, 0), 1))
+        SDL_SetGPUViewport(raw, &viewport)
+        return true
+    }
+
+    /// Sets the scissor rectangle (`SDL_SetGPUScissor`), in target pixels from the
+    /// top left. Refused (`false`, no call) for a negative width or height; the
+    /// rectangle is **clamped to the pass's target** (Metal and D3D12 reject a
+    /// scissor outside it), and an empty intersection is a zero-size scissor that
+    /// draws nothing and answers `true` (ruling `GB-B`, `GB-I`).
+    @discardableResult
+    public func setScissor(x: Int, y: Int, width: Int, height: Int) -> Bool {
+        guard width >= 0, height >= 0 else { return false }
+        let limit = 1 << 30
+        let left = min(max(x, -limit), limit), top = min(max(y, -limit), limit)
+        let right = left + min(width, limit), bottom = top + min(height, limit)
+        let x0 = min(max(left, 0), targetSize.width), y0 = min(max(top, 0), targetSize.height)
+        let x1 = min(max(right, 0), targetSize.width), y1 = min(max(bottom, 0), targetSize.height)
+        var rect = SDL_Rect(x: Int32(x0), y: Int32(y0), w: Int32(max(0, x1 - x0)), h: Int32(max(0, y1 - y0)))
+        SDL_SetGPUScissor(raw, &rect)
+        return true
+    }
 
     /// Binds a pipeline (`SDL_BindGPUGraphicsPipeline`).
     public func bind(_ pipeline: SDLGPUGraphicsPipeline) {

@@ -483,6 +483,12 @@ command buffer. Every wrapper has `.raw` and the product re-exports `CSDL`. Ship
 `docs/packaging.md` section 4a; the guide is [`guides/drawing-and-gpu.md`](guides/drawing-and-gpu.md). Human checks:
 group GA, unrun.
 
+**SDL GPU gaps** (`GB-`, item S11, record §137; class M, `Backends/SDL`, outside the census). Graphics, rulings `GB-B`
+to `GB-E`: `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:)` and `setScissor(x:y:width:height:)`
+(`@discardableResult -> Bool`, top-left target pixels, a bad size answers `false`, the scissor clamps to the target),
+`SDLGPUGraphicsPipelineDescription.writesColor` (a depth-only prepass), `SDLGPUTextureFormat.r32Float`, and
+`SDLGPUSamplerDescription.maxAnisotropy` with `effectiveMaxAnisotropy` and `SDLGPUSampler.configuration`.
+
 **Window chrome on SDL** (`CW-`, item S1, record §112;
 [`superpowers/2026-10-13-sdl-chrome-decisions.md`](superpowers/2026-10-13-sdl-chrome-decisions.md);
 probe `probes/swiftui-window-chrome.swift`). All class M: SwiftUI has no window-control API. On SDL

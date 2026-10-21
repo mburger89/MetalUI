@@ -572,6 +572,15 @@ conformer changes; `SDLGPUDrawContext` is unchanged. An app that bound SDL3 itse
 binding. An app's own shaders are built with `Backends/SDL/scripts/compile-app-shaders.py` and shipped as
 `MetalUIAppShaders` (`docs/packaging.md` section 4a).
 
+### SDL GPU gaps (`GB-`, record §137)
+
+Source compatible for code that builds against `Backends/SDL` (a source-distributed class M layer, `GB-K`), with one
+arm owed: **`SDLGPUTextureFormat` gains `case r32Float`**, so a caller's exhaustive `switch` over it (without
+`default`) stops compiling until it adds the arm (four bytes a texel, like `r32Uint`; filter it `.nearest`).
+`SDLGPUGraphicsPipelineDescription.init` gains a last `writesColor: Bool = true` and `SDLGPUSamplerDescription.init` a
+last `maxAnisotropy: Float = 1`, so existing calls are unchanged. `SDLGPURenderPass.setViewport` and `setScissor` are new.
+No `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added.
+
 ### Clipboard beyond text (`CB-`, record 115)
 
 **Four defaultless `PlatformWindow` requirements** (`CB-E`): a conformer outside this repository adds
