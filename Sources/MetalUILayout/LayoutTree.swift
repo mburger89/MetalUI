@@ -2360,7 +2360,7 @@ extension LayoutTree {
               let signature = memo.signatures[id.index] else { return .none }
         let key = LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds)
         let order = preorder(id)
-        guard let rects = memo.lookupPlacement(key) ?? translatedPlacement(key, bounds: bounds, order: order, memo: memo),
+        guard let rects = memo.lookupPlacement(key) ?? memo.lookupPlacementTranslated(key, bounds: bounds),
               rects.count == order.count else { return .record(key) }
         run.work.memoSubtreeHits += 1
         for (offset, index) in order.enumerated() { layouts[index] = rects[offset] }
@@ -2381,14 +2381,8 @@ extension LayoutTree {
         return .restored
     }
 
-    /// `RG-E`: the recorded placement of an equal subtree at another origin, moved here. Never for a subtree holding a custom
-    /// layout, whose placement may read the absolute origin.
-    private func translatedPlacement(_ key: LayoutMemo.PlacementKey, bounds: LayoutRect, order: [Int],
-                                     memo: LayoutMemo) -> [LayoutRect]? {
-        guard !holdsCustomLayout(order) else { return nil }
-        return memo.lookupPlacementTranslated(key, bounds: bounds)
-    }
-
+    /// `RG-E`: true when a subtree holds a custom layout, whose placement may read the absolute origin: its placement is
+    /// **never stored** origin-free, so it is never translated.
     private func holdsCustomLayout(_ order: [Int]) -> Bool {
         for index in order {
             if case .custom? = nativeNodes[index] { return true }

@@ -113,8 +113,7 @@ cheap, so it is built. **Ruling.** `LayoutMemo.translatedPlacements` (two genera
 `(signature, proposal, bounds width, bounds height)` and holds the unrounded rects with the origin they were recorded at and, per axis,
 whether the origin and every rect coordinate on that axis are exact sixteenths. `lookupPlacementTranslated` runs only after the exact-origin
 key missed: per axis the new origin is bit-equal to the recorded one (copied) or an exact sixteenth with the recorded axis exact (shifted by
-an exact add); else `nil`. A subtree holding a `.custom` layout (a `ProposalLayout` may read the absolute origin) is neither stored nor looked
-up (`LayoutTree.holdsCustomLayout`). A hit is counted in `memoSubtreeHits` (no new counter, no public declaration) and checked by the existing
+an exact add); else `nil`. A subtree holding a `.custom` layout (a `ProposalLayout` may read the absolute origin) is never stored, so never hit: the guard is **at the store only** (`LayoutTree.holdsCustomLayout`), a lookup-side twin being unobservable (its mutation survived as an equivalent mutant, so it was removed). A hit is counted in `memoSubtreeHits` (no new counter, no public declaration) and checked by the existing
 verify block (`METALUI_VERIFY_LAYOUT_MEMO=1` recomputes it). **Why per axis:** a centred card's x is `(width - w) / 2` with a fractional text
 width, so a rule needing both axes exact never fires on real content; the axes do not mix in the arithmetic. **Footprint merge (C14-e):** the
 edit is the new dictionaries and four lines at each of `endFrame`, `removeAll`, `entryCount` and the two sites in `subtreePlacement`; nothing
