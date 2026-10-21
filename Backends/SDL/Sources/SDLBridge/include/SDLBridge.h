@@ -71,7 +71,9 @@ void *mui_renderer_create_texture(MUIRenderer *r, const uint8_t *rgba, uint32_t 
 // SDL frees it once no submitted frame uses it.
 void mui_renderer_release_texture(MUIRenderer *r, void *texture);
 // Draws into the target `begin` acquired and submits. The atlas is uploaded
-// whole when `atlas_dirty` is set or its size changed. `textures[i]` is the
+// whole when its size changed; otherwise only `atlas_rects` (x, y, width, height
+// as four uint32 each, `atlas_rect_count` of them) are packed tightly into one
+// transfer buffer and copied one upload per rect (ruling RG-H). `textures[i]` is the
 // texture an image record's `texture` field `i` names (from create_texture).
 // `transforms`: the scene's MUITransform table, as for replay_render;
 // `backdrops` and `regions`, likewise (ruling BB-C: a frame with a backdrop run
@@ -83,13 +85,17 @@ bool mui_renderer_finish(MUIRenderer *r,
     const void *backdrops, uint32_t backdrop_bytes, const ReplayRegion *regions, uint32_t region_count,
     void *const *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t run_count,
-    const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height, bool atlas_dirty,
+    const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height,
+    const uint32_t *atlas_rects, uint32_t atlas_rect_count,
     const float *projection);
 // The last frame's backdrop work (ruling BB-S): `out` = splits (backdrop runs),
 // blurs (records), passes (L + 2 a record), frame-target copies (1 for a
 // backdrop frame, else 0), textures made (frame target and pool; 0 on a steady
 // frame). All 0 on a frame without a backdrop run.
 void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]);
+// The atlas bytes the last finished frame moved to the GPU (0 for a clean
+// atlas; the whole atlas for a new or resized one). A test recorder (RG-H).
+uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r);
 // Whether the renderer holds a frame target.
 bool mui_renderer_has_frame_target(MUIRenderer *r);
 // Test hooks (ruling BB-K): every pool allocation fails (the records draw their

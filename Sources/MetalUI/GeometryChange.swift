@@ -101,13 +101,14 @@ extension Frame {
     /// so an `.offset` written after the modifier is included (G4a).
     func noteGeometry(_ watch: GeometryWatch, key: GlobalElementID, owner: GlobalElementID,
                       nodes: [LayoutNodeID]) {
-        prepaintLog?.taint("geometryChange")   // a note the lifecycle drain reads: never replayed (`RK-E`)
         let contentUnion = union(of: nodes)
         let moved = scrolled(contentUnion)
         let composed = prepaintEffects.last?.composed
         let global = composed.map { $0.boundingBox(of: moved) } ?? moved
         let value = watch.transform(GeometryProxy(size: contentUnion.size, globalFrame: global, scrolledFrame: moved,
                                                   composed: composed, namedSpaces: namedSpaces))
+        // A ledger replays the note (`RG-A`, replacing `RK-E`'s taint): the store forgets a key a build did not note.
+        prepaintLog?.geometry.append(GeometryNoteRecord(watch: watch, key: key, owner: owner, value: value, global: global))
         animationStore.lifecycle.noteGeometry(value, watch: watch, key: key, owner: owner)
     }
 }

@@ -79,12 +79,9 @@ public final class HeadlessWindowRenderer: WindowRenderer {
     /// answers `true`.
     public func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool {
         lastScene = scene
-        if let dirty = atlas.dirtyRect {
-            lastAtlasUploadPixels = dirty.width * dirty.height
-            atlas.clearDirtyRect()
-        } else {
-            lastAtlasUploadPixels = 0
-        }
+        // The sum of the rects' areas, as a renderer that uploads one region per rect moves (`RG-H`).
+        lastAtlasUploadPixels = atlas.dirtyRects.reduce(0) { $0 + $1.width * $1.height }
+        atlas.clearDirtyRect()
         var current: [ObjectIdentifier: ImageTexture] = [:]
         var newCount = 0
         var newPixels = 0

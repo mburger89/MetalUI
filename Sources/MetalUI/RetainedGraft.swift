@@ -300,6 +300,9 @@ extension Frame {
         guard memos.graftAllowed, let graft = entry.graft, let old = entry.record, let ledger = old.prepaint else {
             return nil
         }
+        // A ledger holding a geometry note cannot move (`RG-C`): a graft counts on a prepaint replay moved or not, and the
+        // refusal comes after layout, so it would redo the whole frame and back replay off for eight builds (`RG-J`).
+        if !ledger.geometry.isEmpty { memos.graftRefusals.append("geometryGraft"); return nil }
         guard entry.quarantineUntil <= memos.buildSerial, !entry.observedChange, old.coverageComplete,
               old.contentSerial == entry.serial, graft.contentSerial == entry.serial, graft.key == key else {
             return nil

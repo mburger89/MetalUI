@@ -59,10 +59,30 @@ package final class LayoutMemo {
         }
     }
 
+    /// A subtree placement without its origin (`RG-E`): the signature, the proposal and the bounds' **size**.
+    struct TranslatedPlacementKey: Hashable {
+        let signature: LayoutSignature
+        let proposal: ProposedSize
+        let width: UInt64, height: UInt64
+        init(_ key: PlacementKey) { signature = key.signature; proposal = key.proposal; width = key.width; height = key.height }
+    }
+
+    /// The unrounded rects recorded at the origin `(x, y)`, and per axis whether that origin and every rect's coordinate on
+    /// it are exact sixteenths (so adding another exact origin is the arithmetic a fresh placement does).
+    struct TranslatedPlacement {
+        let x: Double, y: Double
+        let xExact: Bool, yExact: Bool
+        let rects: [LayoutRect]
+        /// The footprint of the recording (`CF-E`), kept so a translated restore stands for the same entries.
+        let footprint: Footprint
+    }
+
     private var measurements: [MeasureKey: LayoutMeasurement] = [:]
     private var previousMeasurements: [MeasureKey: LayoutMeasurement] = [:]
     private var placements: [PlacementKey: Placed] = [:]
     private var previousPlacements: [PlacementKey: Placed] = [:]
+    private var translatedPlacements: [TranslatedPlacementKey: TranslatedPlacement] = [:]
+    private var previousTranslatedPlacements: [TranslatedPlacementKey: TranslatedPlacement] = [:]
 
     /// The memo keys a placement's recording looked up, stored or restored below its root (`CF-E`): what a later
     /// restore of that placement stands for. A restore places nothing and so looks nothing up; without this the
@@ -88,6 +108,7 @@ package final class LayoutMemo {
     /// How many entries the memo holds (both generations): a test observable.
     package var entryCount: Int {
         measurements.count + previousMeasurements.count + placements.count + previousPlacements.count
+            + translatedPlacements.count + previousTranslatedPlacements.count
     }
 
     func lookup(_ signature: LayoutSignature, _ proposal: ProposedSize) -> LayoutMeasurement? {
@@ -129,6 +150,41 @@ package final class LayoutMemo {
         }
     }
 
+    /// The placement `key` names at another origin, moved to `bounds`' origin (`RG-E`), or `nil`. Per axis the origin is either
+    /// bit-equal to the recorded one (the coordinates on that axis are copied) or an exact sixteenth with every recorded
+    /// coordinate on that axis exact too (they are shifted: the sums are exact); otherwise the exact-origin key decides.
+    func lookupPlacementTranslated(_ key: PlacementKey, bounds: LayoutRect) -> Placed? {
+        let free = TranslatedPlacementKey(key)
+        guard let record = translatedPlacements[free] ?? previousTranslatedPlacements[free] else { return nil }
+        let sameX = record.x.bitPattern == bounds.x.bitPattern, sameY = record.y.bitPattern == bounds.y.bitPattern
+        guard sameX || (record.xExact && LayoutMemo.isExactSixteenth(bounds.x)),
+              sameY || (record.yExact && LayoutMemo.isExactSixteenth(bounds.y)) else { return nil }
+        translatedPlacements[free] = record   // alive another frame
+        let dx = bounds.x - record.x, dy = bounds.y - record.y
+        let rects = record.rects.map {
+            LayoutRect(x: sameX ? $0.x : $0.x + dx, y: sameY ? $0.y : $0.y + dy, width: $0.width, height: $0.height)
+        }
+        return Placed(rects: rects, footprint: record.footprint)
+    }
+
+    /// Records `rects` (the unrounded placement under `key`, placed in `bounds`) for `lookupPlacementTranslated`.
+    func storePlacementTranslated(_ key: PlacementKey, bounds: LayoutRect, _ rects: [LayoutRect], footprint: Footprint = Footprint()) {
+        var xExact = LayoutMemo.isExactSixteenth(bounds.x), yExact = LayoutMemo.isExactSixteenth(bounds.y)
+        for r in rects where xExact || yExact {
+            xExact = xExact && LayoutMemo.isExactSixteenth(r.x)
+            yExact = yExact && LayoutMemo.isExactSixteenth(r.y)
+        }
+        guard xExact || yExact else { return }
+        translatedPlacements[TranslatedPlacementKey(key)] =
+            TranslatedPlacement(x: bounds.x, y: bounds.y, xExact: xExact, yExact: yExact, rects: rects, footprint: footprint)
+    }
+
+    /// A multiple of 1/16 below 2^20 in magnitude: sums of such values are exact in a `Double`.
+    static func isExactSixteenth(_ value: Double) -> Bool {
+        let scaled = value * 16
+        return scaled == scaled.rounded() && abs(value) < 1_048_576
+    }
+
     /// Closes a frame: what was not used or stored this frame and was not used
     /// last frame is dropped.
     package func endFrame() {
@@ -136,12 +192,15 @@ package final class LayoutMemo {
         measurements = [:]
         previousPlacements = placements
         placements = [:]
+        previousTranslatedPlacements = translatedPlacements
+        translatedPlacements = [:]
     }
 
     /// Drops everything.
     package func removeAll() {
         measurements = [:]; previousMeasurements = [:]
         placements = [:]; previousPlacements = [:]
+        translatedPlacements = [:]; previousTranslatedPlacements = [:]
     }
 }
 

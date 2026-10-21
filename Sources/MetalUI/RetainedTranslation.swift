@@ -279,6 +279,7 @@ extension PrepaintLedger {
         copy.contextMenus = contextMenus
         copy.elementBounds = moved.elementBounds
         copy.anchors = anchors
+        copy.geometry = geometry
         copy.tallies = tallies
         copy.prepaints = prepaints
         copy.liveStates = liveStates
@@ -310,6 +311,7 @@ extension Frame {
         if !ledger.pressOnly.isEmpty { return .refused("pressOnly") }
         if !ledger.contextMenus.isEmpty { return .refused("contextMenus") }
         if !ledger.anchors.isEmpty { return .refused("presentationAnchor") }
+        if !ledger.geometry.isEmpty { return .refused("geometryTranslated") }   // the noted frame moved (`RG-C`)
         guard clip.count >= 4 else { return .refused("unkeyedClip") }
         let entryDepth = ledger.key.ambient.depths.first ?? -1
         let dx = shift.windowX, dy = shift.windowY
