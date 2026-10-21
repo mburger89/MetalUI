@@ -23,11 +23,21 @@ func jotterWindow(_ model: NotesModel, options: HeadlessPlatformWindow.Options =
                   recordsLayout: Bool = true) throws -> TestWindow {
     #if os(Linux) || os(Windows)
     let resolver = try SystemFonts.resolver()
-    return try TestWindow(size: size, colorScheme: colorScheme, options: options, recordsLayout: recordsLayout,
-                          textSystem: { PortableTextSystem(resolver: resolver) }) { rootView(model: model) }
+    return settled(try TestWindow(size: size, colorScheme: colorScheme, options: options, recordsLayout: recordsLayout,
+                                  textSystem: { PortableTextSystem(resolver: resolver) }) { rootView(model: model) })
     #else
-    return try TestWindow(size: size, colorScheme: colorScheme, options: options, recordsLayout: recordsLayout) { rootView(model: model) }
+    return settled(try TestWindow(size: size, colorScheme: colorScheme, options: options, recordsLayout: recordsLayout) { rootView(model: model) })
     #endif
+}
+
+/// Draws the frames a window needs to settle. A `List` measures its own origin in its first frame and
+/// asks for one more before it builds its rows; AppKit's observation hop gives that frame at once, and
+/// off macOS the test asks for it (record 136, finding 13: Linux showed no rows in the first frame).
+@MainActor
+func settled(_ window: TestWindow) -> TestWindow {
+    window.tick()
+    window.tick()
+    return window
 }
 
 /// The sidebar's rows, top to bottom, as their note ids (rows are named `note-<uuid>`).
@@ -59,7 +69,7 @@ func jotterApp(_ model: NotesModel, options: HeadlessPlatformWindow.Options? = n
     installJotterCommands(on: testApp.app, model: model)
     let window = try testApp.openWindow(title: "Jotter", size: jotterWindowSize, minSize: jotterMinimumSize,
                                         options: options) { rootView(model: model) }
-    return (testApp, window)
+    return (testApp, settled(window))
 }
 
 /// The centre of an element's frame, in window points.

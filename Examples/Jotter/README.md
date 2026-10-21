@@ -64,7 +64,7 @@ is `main.swift`: build the model, make the app, install the commands, open the w
 app's real root element in a `TestWindow`, clicks and types as a person does, finds things by
 accessibility identifier and label, answers alerts and file dialogs at the platform seam, and counts
 the work a frame did. No test sleeps and none reads a clock; the model takes "today" as a function.
-Twenty-one tests, one file per group of flows: `FlowTests` (launch, new, select), `EditTests`,
+Twenty-one tests (twenty off Darwin), one file per group of flows: `FlowTests` (launch, new, select), `EditTests`,
 `SearchTests`, `DeleteTests`, `PersistenceTests`, `ReorderTests`, `CommandTests`,
 `ContextMenuTests`, `RowSkipTests` (the `.equatable()` claim, counted), `StatsTests`, `ThemeTests`,
 `LayoutTests` (the smallest window) and `StackTests` (the trees build on a 1 MB thread).
