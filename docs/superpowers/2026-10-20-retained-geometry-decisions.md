@@ -4,7 +4,7 @@ Rulings for item C14-f. Spec: [`specs/2026-10-20-retained-geometry-design.md`](s
 `../record/128-retained-geometry.md` (Record phase). Branch `perf/retained-geometry` from `99b21a1c`. Reserved divergence labels 575-584:
 none taken.
 
-Prefix **`RG-`**, lettered. **Next unused: `RG-O`.** (Moves in the commit that appends a ruling.)
+Prefix **`RG-`**, lettered. **Next unused: `RG-P`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E` (geometry note taints, now replaced), `KF-J` (delivery semantics, unchanged), `FS-G`, `FS-P`, `FS-T` (record 126),
 `SB-AD`, `RK-S`, `RW-` (record 121), C14-e parts (c) and (f).
@@ -142,3 +142,16 @@ two (the paint record, the hitbox transforms and the hitbox clip together) is mo
 stands. The previously silent fall-through counts `retainedTranslationRefusedReasons["effectAndLayoutMoved"]` (a counter line in
 `retainedPrepaintDecision`, the decision unchanged); test 12 pins the name, no redo and equality with a retention-off window at every step.
 **Cost if wrong.** A moving effect over a moving layout keeps building (prepaint runs), as before.
+
+## RG-O - The SDL rect upload: a uint32 quadruple list, one packed buffer, a bytes recorder
+
+**Ruling.** `mui_renderer_finish` takes `const uint32_t *atlas_rects, uint32_t atlas_rect_count` (x, y, width, height per rect) in place
+of `bool atlas_dirty`. A new or resized atlas texture still takes the whole atlas in one transfer; otherwise the rects are validated
+against the atlas size (a rect outside it is an `SDL_SetError` refusal, never a read past the buffer), packed tightly into **one**
+`malloc`'d buffer and one transfer buffer, and copied by one `SDL_UploadToGPUTexture` per rect (`offset` = the packed offset,
+`pixels_per_row` = the rect's width). `mui_renderer_last_atlas_bytes` (package, test recorder) reads the bytes the last frame moved:
+the whole atlas for a new texture, the sum of the rect areas otherwise, 0 for a clean atlas. **Evidence.** SDL moved `aw * ah` on any
+dirt. **Reasoning.** The copy pass is one command buffer, so per-rect uploads from one transfer buffer cost one buffer; the recorder
+is the only way to see bytes moved (the pixels equal the replay path's either way, which test 18 also pins). **Inventory.** No map
+row is owed: `MetalUIScene` is one wildcard family row (`scene`) and `dirtyRects` joins it; the census gains one line.
+**Cost if wrong.** A rect missing from the packed copy shows a blank glyph on SDL; test 18 compares the frame to the replay path.

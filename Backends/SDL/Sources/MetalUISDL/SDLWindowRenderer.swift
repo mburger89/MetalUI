@@ -351,7 +351,10 @@ public final class SDLWindowRenderer: WindowRenderer {
         }
         // Device-pixel coordinates, as the Metal renderer's surfaces use.
         let identity: [Float] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
-        let dirty = atlas.dirtyRect != nil
+        // The atlas' dirty rects as x, y, width, height words, one upload each (`RG-H`).
+        let atlasRects: [UInt32] = atlas.dirtyRects.flatMap {
+            [UInt32($0.x), UInt32($0.y), UInt32($0.width), UInt32($0.height)]
+        }
         let optionalHandles: [UnsafeMutableRawPointer?] = handles + surfaceHandles
         // Each record's blurred region: `Scene.backdropRegion`, the one function
         // both renderers call (`BB-D` 3); `width` 0 is "none" (a flat tint).
@@ -371,6 +374,7 @@ public final class SDLWindowRenderer: WindowRenderer {
                     optionalHandles.withUnsafeBufferPointer { textureBuffer in
                         runs.withUnsafeBufferPointer { runBuffer in
                             atlas.pixels.withUnsafeBufferPointer { pixels in
+                              atlasRects.withUnsafeBufferPointer { atlasRectBuffer in
                                 identity.withUnsafeBufferPointer { matrix in
                                     mui_renderer_finish(renderer,
                                                         rects.baseAddress, UInt32(rects.count),
@@ -382,8 +386,10 @@ public final class SDLWindowRenderer: WindowRenderer {
                                                         textureBuffer.baseAddress, UInt32(optionalHandles.count),
                                                         runBuffer.baseAddress, UInt32(runs.count),
                                                         pixels.baseAddress, UInt32(atlas.width), UInt32(atlas.height),
-                                                        dirty, matrix.baseAddress)
+                                                        atlasRectBuffer.baseAddress,
+                                                        UInt32(atlasRectBuffer.count / 4), matrix.baseAddress)
                                 }
+                              }
                             }
                         }
                     }
