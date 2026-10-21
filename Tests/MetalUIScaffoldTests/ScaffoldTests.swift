@@ -755,13 +755,14 @@ private func run(_ executable: String, _ arguments: [String], in directory: URL)
 }
 
 /// A git repository named `MetalUI` under `root` holding this checkout's
-/// manifest, `Sources/`, `Tests/` and the SDL backend's sources and shaders —
+/// manifest, `Sources/`, `Tests/`, `Plugins/` (every path the manifest names, BS-) and the
+/// SDL backend's sources and shaders —
 /// not the checkout's own `.git`, which a worktree mounted in a container
 /// cannot read (PX-L item 3). Returns its URL and commit.
 private func metalUIRepository(in root: URL) throws -> (url: URL, commit: String) {
     let repository = root.appendingPathComponent("MetalUI")
     let fileManager = FileManager.default
-    for path in ["Package.swift", "Sources", "Tests", "Backends/SDL/Sources", "Backends/SDL/Shaders"] {
+    for path in ["Package.swift", "Sources", "Tests", "Plugins", "Backends/SDL/Sources", "Backends/SDL/Shaders"] {
         let destination = repository.appendingPathComponent(path)
         try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try fileManager.copyItem(at: checkout.appendingPathComponent(path), to: destination)

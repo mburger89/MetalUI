@@ -494,6 +494,13 @@ lock the waiter thread signals, never releases the fence) and `SDLGPUDevice.down
 worker threads); `SDLGPUDevice.compileGraphicsPipeline(_:)` and `compileComputePipeline(_:)` throw an `SDLGPUError` naming the
 stage, and `lastPipelineFailure` records what the unchanged optional `make…Pipeline` verbs refused.
 
+**Build-time app shaders** (`BS-`, item S12, record §138; class M, outside the census). The root package exports the
+executable `MetalUICompileShaders` and the command plugin `CompileShaders` (`swift package --allow-writing-to-package-directory
+compile-shaders`), both over the portable `MetalUIShaderCompile`; they compile `*.vert|frag|comp.hlsl` through a shadercross found
+by flag, `METALUI_SHADERCROSS` or `PATH` into `.spv/.msl/.dxil/.json` blobs, replacing `compile-app-shaders.py`.
+`SDLGPUShaderLibrary(directory:)` also opens a marker-free build product, and `init(directory:verifyingSources:)` checks
+`SOURCE.sha256` only when present. The recipe and the shadercross pin are `docs/packaging.md` section 4a. Human checks: group BS, unrun.
+
 **Window chrome on SDL** (`CW-`, item S1, record §112;
 [`superpowers/2026-10-13-sdl-chrome-decisions.md`](superpowers/2026-10-13-sdl-chrome-decisions.md);
 probe `probes/swiftui-window-chrome.swift`). All class M: SwiftUI has no window-control API. On SDL

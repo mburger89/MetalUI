@@ -569,8 +569,27 @@ None for existing code: a new library product `MetalUISDLGPU` behind the `SDL` t
 buffers, compute pipelines, passes, fences and a shader library over SDL_GPU, plus the raw `CSDL` module re-exported
 by the same import). No `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added, so no
 conformer changes; `SDLGPUDrawContext` is unchanged. An app that bound SDL3 itself keeps working and may drop its
-binding. An app's own shaders are built with `Backends/SDL/scripts/compile-app-shaders.py` and shipped as
-`MetalUIAppShaders` (`docs/packaging.md` section 4a).
+binding. An app's own shaders are built with `MetalUICompileShaders` (`swift package compile-shaders`, see
+`BS-` below) and shipped as `MetalUIAppShaders` (`docs/packaging.md` section 4a).
+
+### Build-time app shaders (`BS-`, record §138)
+
+**`Backends/SDL/scripts/compile-app-shaders.py` is deleted**: one implementation, in Swift, which a plugin can run
+where python cannot be found portably. The same inputs and outputs now go to the root package's
+`MetalUICompileShaders` executable product or its `CompileShaders` command plugin, and the flags carry over with one
+change: `--shadercross PATH` is optional (then `METALUI_SHADERCROSS`, then `PATH`), where the script required it:
+
+```text
+python3 compile-app-shaders.py --shadercross /x/shadercross --source shaders --out shaders/compiled
+swift package --allow-writing-to-package-directory compile-shaders --shadercross /x/shadercross --source shaders --out shaders/compiled
+```
+
+New `--formats spv,msl,dxil,json`, `--no-marker`. The output bytes are the script's (marker included). Source
+compatible for code: `SDLGPUShaderLibrary(directory:)` now also accepts a directory with no `SOURCE.sha256` that holds a
+`NAME.<vert|frag|comp>.json` (a build product; today's checked-in directories open exactly as before, and the error
+still names `SOURCE.sha256`), and `init(directory:verifyingSources:)` is new. No `PlatformWindow`, `Platform`,
+`WindowRenderer` or `TextSystem` requirement changes. Nothing is published: a pinned shadercross is documented in
+`docs/packaging.md` section 4a, not shipped.
 
 ### SDL GPU gaps (`GB-`, record §137)
 
