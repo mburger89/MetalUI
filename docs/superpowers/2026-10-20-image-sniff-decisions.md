@@ -1,0 +1,90 @@
+# Header-only image format sniff — decisions
+
+Rulings for item XP-G12 of the gpui-gap priority list (user request 2026-10-02, requested by MetalCreator 2026-10-20;
+**not a plan task**). Prefix `IS-`. **Next unused: `IS-J`.** Spec:
+[`specs/2026-10-20-image-sniff-design.md`](specs/2026-10-20-image-sniff-design.md). Record: `../record/130-image-sniff.md`
+(Record phase). Branch `feat/image-sniff` from `b15e038c`. Divergence labels reserved 595-604: none taken.
+
+Sources of truth. SwiftUI: none (no image sniff, no header read), so **no SwiftUI claim is made and no probe is owed**.
+gpui: none (images come from the Rust `image` crate, which sniffs by `guess_format`; not consulted, no claim). Naming
+reference only, **not probed**: UTType's `public.png/jpeg/gif/tiff/bmp/heif/heic/avif` and `org.webmproject.webp`.
+Local: `ImageInfo.swift`, `ImageHeader.swift`, record 117's `IH-` rulings, read at `b15e038c`.
+
+## IS-A — A separate enum `ImageFileFormat`; `ImageInfo.Format` is not extended
+
+**Ruling.** `public enum ImageFileFormat: Sendable, Hashable, CaseIterable` with `png, jpeg, gif, tiff, bmp, webp, heif,
+avif, unknown`. `ImageInfo.Format` stays `png, jpeg`.
+**Evidence.** `ImageInfo.Format` is neither `@frozen` nor resilient (a plain SwiftPM module), so a new case breaks every
+caller's exhaustive `switch` at compile time, and it would also let `ImageInfo.format` be `.gif`, a value no `ImageInfo`
+can hold (`IH-B`). `ImageInfo.format` today means "readable by the header walk"; the sniff means "starts like". Two
+meanings, two types. `Format` is the name `DecodedImage` also uses (`rgba`/`grey`), so `ImageFileFormat` avoids a third.
+**Cost if wrong.** A later `ImageFileFormat` case is source-breaking for exhaustive switches (documented: switch with
+`default`); folding it into `Format` later would be the same break. Additive `ImageFileFormat(_: ImageInfo.Format)` is
+possible later (carried, spec 6).
+
+## IS-B — The entry points are `ImageInfo.sniffedFormat(of:)` and `(ofFile:)`, total, non-optional
+
+**Ruling.** `static func sniffedFormat(of data: Data) -> ImageFileFormat` and `static func sniffedFormat(ofFile path:
+String) -> ImageFileFormat`; `.unknown` answers every miss. **Evidence.** The caller's question is "name what these bytes
+look like", a total function; an `Optional` would repeat the `nil`-means-everything problem this item exists to fix, and
+`.unknown` is the brief's spelling. They sit on `ImageInfo` because the sniff is its companion (the same bytes, one step
+earlier). **Cost if wrong.** A rename before first release.
+
+## IS-C — A sniff names a prefix, never a promise
+
+**Ruling.** `.png`/`.jpeg` mean the signature matched; `ImageInfo(data:)` may still be `nil` (a damaged IHDR, a bad CRC,
+no SOF) and `DecodedImage` may refuse. That pair, sniff `.png` with `ImageInfo` `nil`, **is** the caller's "damaged"
+answer; `.gif` etc. with `ImageInfo` `nil` is "unsupported type"; `.unknown` is "not a picture". Documented on the type.
+**Evidence.** A signature check reads at most 18 bytes; verifying IHDR is `readImageInfo`'s job (`IH-E`). **Cost if
+wrong.** None to the code; a doc fix.
+
+## IS-D — Signatures, and why each is that long
+
+**Ruling.** A match needs the whole signature; a prefix one byte short is `.unknown` (never a trap, never a guess):
+- PNG: `89 50 4E 47 0D 0A 1A 0A` (8, as `pngSignatureBytes`). JPEG: `FF D8 FF` (3, as `readImageInfo`).
+- GIF: `GIF87a` or `GIF89a` (6).
+- TIFF: `49 49 2A 00` or `4D 4D 00 2A` (4, both byte orders). **BigTIFF (`.. 2B 00`) is `.unknown`**: no decoder here or
+  in ImageIO's common path is promised, and MetalCreator's list has none; additive later.
+- BMP: `42 4D` **plus** a plausible DIB header size at offset 14 (little-endian 12, 40, 52, 56, 64, 108 or 124) (18
+  bytes). Two bytes `BM` match ASCII text; the DIB size is the cheapest second witness. OS/2 `BA`/`CI`/`CP` variants are
+  `.unknown`.
+- WebP: `RIFF`, any four bytes, `WEBP` (12). A `RIFF....WAVE` is `.unknown`.
+- HEIF/AVIF: bytes 4-8 `ftyp` and the **major brand** at 8-12 (12 bytes, the box size is not read). HEIF brands: `heic`,
+  `heix`, `hevc`, `hevx`, `heim`, `heis`, `mif1`, `msf1`; `.avif`: `avif`, `avis`. Compatible-brand lists are not read, so
+  an `mif1` file that is really AVIF sniffs `.heif` (documented; reading them would exceed the 12-byte floor and the box
+  size is attacker-controlled).
+**Evidence.** The brief's list; the ISO 14496-12 `ftyp` layout; BMP's weakness as above. **Cost if wrong.** A format
+sniffed wrongly is a caller mislabel in an error message, never a decode.
+
+## IS-E — `avif` is its own case
+
+**Ruling.** `.avif` is separate from `.heif`. **Evidence.** The caller's message names the format ("AVIF is not
+supported"); AVIF and HEIC differ in codec and in what platforms read (ImageIO reads both only on recent systems), and UTType
+keeps `public.avif` apart from `public.heif`. Folding them would lose a distinction the caller cannot recover
+from bytes it no longer has. **Cost if wrong.** An app that wants "any HEIF family" matches two cases.
+
+## IS-F — The sniff goes through the one header source, reads at most 18 bytes, and imports nothing new
+
+**Ruling.** One internal function `sniffImageFormat(_ source: some HeaderSource)` reads `min(size, 18)` bytes at offset
+0 once and matches on that array; `Data` goes through `MemoryHeaderSource`, a path through `FileHeaderSource`
+(regular files only, `IH-M`, `IH-O`; a directory, FIFO, device or missing path is `.unknown`). `HeaderSource` stays
+unreachable (guard `G-IH1` unmoved, new guard `G-IS1`). No stb, no ImageIO, no pixel work, no new Foundation use beyond
+`ImageHeader.swift`'s own (`IH-H`). **Evidence.** One walk (`IH-H`). The file window loads up to 64 KiB once at offset 0;
+the pin is "one refill at 0, no payload read". **Cost if wrong.** A directory sniffing `.unknown` rather than a trap is
+what `IH-M` already does for `ImageInfo`.
+
+## IS-G — `CaseIterable` is offered, `rawValue` and `UTType` mapping are not
+
+**Ruling.** `CaseIterable` (the pins iterate every case, so a new case cannot ship without an arm), no raw type, no
+`UTType`/MIME property. **Evidence.** `UTType` is Apple-only and the type must be portable (Linux/Windows). A MIME
+string is a convenience the caller can write in one `switch`. **Cost if wrong.** Additive `mimeType` later.
+
+## IS-H — Class M, no divergence, no probe
+
+**Ruling.** Class `M` (SwiftUI has no analogue); inventory row `ImageSniff.swift` -> `image-sniff` with `IS-A`…`IS-G`; no
+divergence label. **Cost if wrong.** A row edit.
+
+## IS-I — Portable, tests in the cross-platform target, one macOS guard
+
+**Ruling.** Tests live in `Tests/MetalUICrossPlatformTests/ImageSniffTests.swift` (where `ImageInfoTests` run on Linux and
+Windows CI); only the typecheck guard is in `Tests/MetalUITests`. **Cost if wrong.** None.
