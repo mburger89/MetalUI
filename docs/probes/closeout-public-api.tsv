@@ -909,6 +909,9 @@ MetalUI	Sources/MetalUI/ImageOrientation.swift:15	Image	enum	Orientation
 MetalUI	Sources/MetalUI/ImageOrientation.swift:35	Image.Orientation	init	init?
 MetalUI	Sources/MetalUI/ImageOrientation.swift:50	Image.Orientation	var	exifValue
 MetalUI	Sources/MetalUI/ImageOrientation.swift:65	Image.Orientation	var	swapsAxes
+MetalUI	Sources/MetalUI/ImageSniff.swift:16	-	enum	ImageFileFormat
+MetalUI	Sources/MetalUI/ImageSniff.swift:43	ImageInfo	func	sniffedFormat
+MetalUI	Sources/MetalUI/ImageSniff.swift:50	ImageInfo	func	sniffedFormat
 MetalUI	Sources/MetalUI/KeyboardModifier.swift:27	ProposalElementGroup	func	onKeyPress
 MetalUI	Sources/MetalUI/KeyboardModifier.swift:34	ProposalElementGroup	func	onKeyPress
 MetalUI	Sources/MetalUI/KeyboardModifier.swift:41	ProposalElementGroup	func	onKeyPress
