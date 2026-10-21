@@ -5,7 +5,7 @@ Spec: [`specs/2026-10-21-lazy-containers-design.md`](specs/2026-10-21-lazy-conta
 (not yet written). Branch `feat/lazy-containers` from `1bdead8d`. Reserved divergence labels 635-644: **635, 636, 637 taken by this
 design**, 638-644 unused. Probe: `../probes/swiftui-lazy-containers.swift` (output in its header; a SwiftUI claim below cites its arm).
 
-Prefix **`LZ-`**, lettered. **Next unused: `LZ-V`.** (Moves in the commit that appends a ruling.)
+Prefix **`LZ-`**, lettered. **Next unused: `LZ-W`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `DD-F` (window against the scroller), `VL-B`..`VL-Q` (variable rows, `RowExtentIndex`, the anchor), `TB-AH` (bounded
 retention), `FI-A`/`FI-B` (ForEach identity), `ID-R`, `PE-V` (a `ProposalScrollView` publishes `ScrollContext`), `GR-L` (lazy grids
@@ -228,3 +228,18 @@ rule (the proposal, else the first child's), and the identity of its children is
 stack's id, as `VStack`). One answer for a lazy stack whether or not it is windowed means a content change from `ForEach` alone to `ForEach`
 plus an `if` moves no width. **Evidence.** Probe A3d/A5 (cross rule); `VStack` A0 (widest). **Cost if wrong.** A lazy stack with an `if`
 answers a different width than `VStack` at a nil proposal, as one without it already does.
+
+## LZ-V - The windowed parent is belt and braces; the naming-site arm is not added
+
+**Ruling.** A lazy `ForEach` element's scope is minted at its **absolute data index** (`GlobalElementID.child(of: slot, at: unit, name:)`),
+not at a window-relative position as a `List`'s rows are, so a name never leaves a position because the window moved and
+`noteNamed` has nothing to depart: `noteWindowedParent(slot)` is not load-bearing today (mutation M15, it removed alone, reddens nothing
+in the 33-test lazy set; recorded as an equivalent mutant). It stays, as `List`'s does, so that a later position scheme or a change to
+`noteNamed` cannot reset a scrolled-out child; what test 2.7 pins is the pair the spec named (windowed parent removed **and** `noteLoop`
+called, M14b: row 0 returns with a new serial). `noteLoop` alone is inert under a windowed parent (`queueLoopResets` walks the positions
+`noteNamed` recorded, and a windowed parent records none), which is why the unit test needs both halves. The spec's extra arm of
+`everyNamingSiteStartsAReturningNameFresh` for the lazy unit scope is **not added**: under a windowed parent a returning `ForEach` id in a
+lazy stack is deliberately NOT started fresh (as a `List` row), so the arm would assert the opposite of the test's rule; a static unit
+with `.id(_:)` mints through `enteringGroupMember`, whose arms already cover it. **Evidence.** `StateTable.noteNamed`/`queueLoopResets`
+(StateTable.swift 322, 447); mutation runs M14, M14b, M15 (record section 134). **Cost if wrong.** A reader who deletes the windowed-parent
+line sees no red and may conclude it is dead; this ruling is the answer.
