@@ -132,7 +132,7 @@ command test moves focus to the list by a click first. Documented in the test.
 
 ## EX-S - Root and CI wiring (EX-D, EX-E settled)
 
-**Ruling.** Root suite +2 tests in `Tests/MetalUIScaffoldTests/SampleAppTests.swift`: the always-on manifest-shape test and the env-gated
+**Ruling.** Root suite +3 tests in `Tests/MetalUIScaffoldTests/SampleAppTests.swift`: the always-on manifest-shape test, a files-exist test and the env-gated
 `aSampleAppBuildsAndItsTestsPassAgainstThisCheckout` (`METALUI_RUN_SAMPLE_APP_TEST=1`). CI: `swift.yml`'s macOS job gains
 `swift test --package-path Examples/Jotter` after the root tests, and `sdl-gpu-linux.yml`'s Linux job, which already builds the
 `metalui-portable` image, gains a step running the package there with the SDL trait (`Examples/Jotter/**` joins its path filters).
