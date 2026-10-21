@@ -74,11 +74,11 @@ clean after the batch. **Deviation from the brief: not the full unfiltered suite
 - **End to end, a real shadercross at the pin** (`BS-L`): macOS arm64 (full build with DXC 8 min 30 s) and **Linux aarch64** (native, clang, 6 min 45 s): `MetalUICompileShaders` over `Backends/SDL/Tests/AppShaders`
   wrote **41 files byte-identical to the checked-in `compiled` directory on both**, DXIL included; `anEnvGatedRunCompilesAFixture` passed on macOS.
 - Plugin: `theCompileShadersPluginRunsOnAFixturePackage` (stub shadercross, fixture package depending on the checkout **by path**): refused without `--allow-writing-to-package-directory`, wrote blobs and marker with it.
-- The fourteen offscreen images against `11dca65e`: see section 4.
+- The fourteen offscreen images against `11dca65e`: 0 px (section 4).
 
 ## 4 Pixels
 
-PIXELS_PLACEHOLDER
+`docs/probes/demo-pixels/compare.sh <scratch> 11dca65e fc70a007`: the controls read their recorded values (light vs dark 1048576, f0 vs f3 0, chrome legacy vs proposal 0, 544 and 216 distinct values), and **all fourteen images 0 px, scene identical** against `11dca65e` (`fc70a007` differs from the tested source tree by documentation only). Nothing in rendering moved: the change adds portable build tooling and a library lookup rule; no `Sources/MetalUI*` file is edited.
 
 ## 5 Deferred (named)
 
