@@ -3,7 +3,7 @@
 Rulings for item C14-i. Spec: [`specs/2026-10-21-retained-zoom-design.md`](specs/2026-10-21-retained-zoom-design.md). Record: `../record/133-retained-zoom.md`.
 Branch `perf/retained-zoom` from `1bdead8d`. Reserved divergence labels 625-634: none taken (346 narrowed in place if `RZ-I` lands).
 
-Prefix **`RZ-`**, lettered. **Next unused: `RZ-M`.** (Moves in the commit that appends a ruling.)
+Prefix **`RZ-`**, lettered. **Next unused: `RZ-S`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-G`, `RK-S`, `FS-D`, `FS-O`, `FS-P`, `RG-A`, `AT-A`, `AT-F`, `AT-G`, `RL-E`, `RL-I`, `EE-A`...`EE-D`, `IV-D`, `GX-` (effects, text and images resampled, divergence 106), `RW-S`.
 No SwiftUI probe: no observable behaviour moves; the oracle is differential against a window with retention off plus `METALUI_VERIFY_RETAINED=1`.
@@ -87,3 +87,45 @@ hitboxes following the transform, were probed in `GX-`). **Made explicit:** (1) 
 amends `RZ-C` in the same lane, not later. (2) `RZ-F`'s audit of the translation arm's unmoved anchors may find an existing defect: that fix is in scope for lane 1 only as the same named refusal. (3) Lane 2's
 `RZ-I` soundness gate decides before any other lane-2 edit: if it fails, lane 2 ships the (a) profile and the re-carry only. (4) A zoom hit that reaches the paint record but whose prepaint refuses is a redo, counted
 under the existing reasons; Z1 asserts redos 0 so it cannot hide. **Rejected:** a new `FrameWork` affine counter (`RZ-G` stands); splitting into three lanes (the lanes own disjoint files, two is the cap).
+
+
+## RZ-M - The prepaint effect vector carries the paint scope's class, so a class change refuses at prepaint (amends RZ-B)
+
+**Ruling.** `Frame.prepaintExtras()` appends one number to each effect vector, index 18 (`PrepaintExtras.effectFlattens`): 1 when the effect's own map is a uniform positive scale plus a translation, the class the paint scope flattens
+on (`GX-G`). `PrepaintExtras.change(from:)` and `ReplayKey.effectRelation(from:)` both refuse a change of that class by name, `effectFlatteningChanged`. **Why prepaint too.** The prepaint could not see the class, so an affine change that crossed it
+replayed the prepaint, the paint then missed, and a grafted occurrence redid the frame (and backed prepaint replay off for eight builds); with the bit the prepaint runs instead, counted once. **Measured.** An identity rotation is a flattening
+scope and a real one is not, so the first rotation step of a zoom refuses once (`aRotationStepIsReplayedExactly` settles it before it measures; Z6). **Finding, carried.** With the check dropped in both places the frame still equals a fresh one (mutation M6a,
+Z5 `flattensChanged` reddened only on its refusal expectations): the re-entry of the live scopes is exact across the class, so the refusal is conservative, not required; lifting it is a candidate for the round that wants a zoom through identity rotation.
+**Appended, not inserted:** indices 0...17 are unmoved (`translation(from:)` and `translatedHitboxes` read them by number).
+
+## RZ-N - A name for every refusal: `prepaintContextChanged`, and the effect arm now runs for any effect-only difference
+
+**Ruling.** The effect arm's gate is `PrepaintKey.differsOnlyByEffects(to:)` (rects, interior, node count and ambient equal; the effect count may differ), and `change(from:)` names what differs: `effectCountChanged`, `prepaintContextChanged` (something other than the effects
+differs: a scroller, a gate, the share stack), `effectScopeChanged`, `effectFlatteningChanged`, `effectInverseChanged`, `effectClipChanged`. **`effectNotTranslation` is retired**: it named every non-translation, including a zoom that now replays and a context change that
+was never an effect change. Counters are the existing `retainedTranslationRefusedReasons`; no new field (`RZ-G`). **A refusal only the paint sees** (after a replayed prepaint) is counted by the paint decision, once, never when the prepaint already counted it.
+
+## RZ-O - Hover is read against the moved hitboxes in both effect arms (amends RZ-D)
+
+**Ruling.** After `translatedHitboxes`, a pointer inside one of the moved hitboxes makes the occurrence run its prepaint, in the translation arm as well as the affine one. **Measured (Z8, mutation M8).** Hover resolves after prepaint and before paint, so a prepaint that replayed under a pointer
+carried onto it leaves its paint (a miss: hovered) with no element prepaint state, and the frame is redone. Without the read, with no graft: 10 prepaint replays and one redo; with it: 9 replays, the carried node runs, no redo (Z8 builds without grafts for that reason). **With a graft** the
+carried node has no element to prepaint whatever the read says, so the frame is redone once either way: the read is neutral there, an observation not a defect (Z8 first measured against a grafted window, where the mutant could not be told from the original, and was re-aimed). The compare against
+a fresh window is green in every arm: nothing is drawn differently, only whether the frame is redone.
+
+## RZ-P - Audit of RZ-F: anchors and context-menu records are pre-effect values in a fresh frame too; the refusal stays, as a conservative choice with its evidence
+
+**Ruling.** `presentationAnchor` and `contextMenus` refuse an affine change as `RZ-F` ruled. **Audit.** `recordPresentationAnchor` and the context-menu record store `bounds + activeOffset`: pre-effect rects, in a fresh frame as in a replay, so replaying them unmoved is exactly what a fresh prepaint
+computes. Mutations M6d and M6e (each guard dropped) reddened only the Z5 arms' refusal expectations: the frame stays equal to a fresh one (scene, tree, hitboxes, logs), and so does the translation arm's unmoved replay (Z10 with a context menu on every node, green; no defect found, none fixed). The
+refusals cost coverage under a zoom for a node that declares a popover or a menu and are not needed for exactness here: a candidate to lift, with this evidence, once a probe-backed reason or a refuting arm turns up. They stay because the lane brief names them and an unproven lift is the cheaper mistake.
+
+## RZ-Q - Pins the change supersedes are amended in place, each with its reason
+
+**Ruling.** Four existing pins asserted the refusal this lane removes and are rewritten to the new fact (each differential half unchanged, each green): `aScaleChangeRefusesByName` (now `aScaleChangeIsAnAffineReplayNotARefusal`: `effectNotTranslation` 0, prepaint replays), the `rotation` arm of
+`everyKeyComponentSeparates` (a rotation from 5 to 3 degrees replays like the offset arm: 0 reaction, 1 translated), `aGeometryNoteUnderAChangedRenderEffectMissesAndDelivers` (now `...IsRecomputedAndDelivers`: hits > 0, delivered values equal fresh), and `theRetainedSubtreeDemoReplaysEveryNodeButTheDraggedOneAndItsWires`
+(+10 occurrences of the new zoom strip: 51 and 48 hits; skipped under `METALUI_VERIFY_RETAINED=1`, where it cannot read misses, as `InvalidationDemoTests` is). **Pre-existing, not mine:** that demo test reads 0 misses under the verify switch at 1bdead8d too; the skip makes the verify run silent.
+
+## RZ-R - Measured, and what stays carried
+
+**Measured (release not taken: counts).** Zoom fixture, ten `.equatable()` nodes, one zoom step 1.1 / 1.21 / 1.331, retained window: **before** (1bdead8d) element requests 115 (= unretained), grafts 0, one redo and backoff 3 in the first step, `effectNotTranslation` then a paint miss
+(`scopes`); **after** requests 5, grafts 10 per step (30 over three), redos 0, backoff 0; the last step's frame: element prepaints 9 of 119, paints 10 of 160, 10 translated paints, 10 prepaint hits. The raster work of the stroked path equals a fresh frame's (`rasterizedPixels`, `newTextures`:
+`RZ-C` confirmed, no raster refusal). The bracket fixture has no zoom axis (its canvas pans by an offset): its pan line reads 195 requests, 220 prepaints, 258 paints, 10 grafts, 0 redos, identical to 1bdead8d. **Carried:** layout move plus effect change together (`effectAndLayoutMoved`),
+lifting the conservative refusals of `RZ-M` and `RZ-P`, a named space under a zoom (`geometryNamedSpace`), a grafted occurrence whose geometry note holds a named space (it redoes one frame, `RG-J`).
