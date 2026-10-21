@@ -73,6 +73,12 @@ jobs:
       run: |
         swift test --skip-build
         exit $LASTEXITCODE
+    # XP-G21 / WR-D: Windows' 6.4.0+Asserts compiler verified SIL for PaintPass.withRenderEffects in a
+    # release-only specialisation and crashed; no debug build sees it. The MetalUI product alone, release.
+    - name: Release build of MetalUI (SIL verifier, XP-G21)
+      run: |
+        swift build -c release --product MetalUI
+        exit $LASTEXITCODE
 
   # Tests/PortableTests is one package with three test targets, and these jobs
   # run all of it: FreeType's rasterizer output, pinned byte for byte (size,
