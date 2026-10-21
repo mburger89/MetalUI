@@ -179,6 +179,28 @@ private func oracle(_ b: [UInt8]) -> ImageFileFormat {
     return .unknown
 }
 
+/// **8** Mutation: shrink `sniffDIBSizes` to `[40]`, drop one member (124), or add a neighbour (41).
+@Test func everyKnownBMPDIBHeaderSizeSniffsBMPAndItsNeighboursDoNot() throws {
+    func bmp(dibSize: UInt32) -> [UInt8] {
+        var bytes = [UInt8](repeating: 0, count: 18)
+        bytes[0] = 0x42
+        bytes[1] = 0x4D
+        for i in 0..<4 { bytes[14 + i] = UInt8((dibSize >> (8 * UInt32(i))) & 0xFF) }
+        return bytes
+    }
+    let known: [UInt32] = [12, 40, 52, 56, 64, 108, 124]
+    for size in known { #expect(sniff(bmp(dibSize: size)) == .bmp, "dib \(size)") }
+    let others: [UInt32] = [0, 1, 11, 13, 39, 41, 51, 53, 55, 57, 63, 65, 107, 109, 123, 125, 256, 0x2800_0000, 0x0000_0128, 0xFFFF_FFFF]
+    for size in others { #expect(sniff(bmp(dibSize: size)) == .unknown, "dib \(size)") }
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    for size in known where size != 40 {
+        let path = directory.appendingPathComponent("dib-\(size).bmp").path
+        try Data(bmp(dibSize: size) + [UInt8](repeating: 7, count: 100)).write(to: URL(fileURLWithPath: path))
+        #expect(ImageInfo.sniffedFormat(ofFile: path) == .bmp, "dib \(size)")
+    }
+}
+
 /// **7** Mutation: an unchecked index at 12.
 @Test func sniffNeverTrapsOnAnySingleByteMutationOfAValidSignature() {
     for format in knownFormats {

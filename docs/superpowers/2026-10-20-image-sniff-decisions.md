@@ -46,8 +46,8 @@ wrong.** None to the code; a doc fix.
 - TIFF: `49 49 2A 00` or `4D 4D 00 2A` (4, both byte orders). **BigTIFF (`.. 2B 00`) is `.unknown`**: no decoder here or
   in ImageIO's common path is promised, and MetalCreator's list has none; additive later.
 - BMP: `42 4D` **plus** a plausible DIB header size at offset 14 (little-endian 12, 40, 52, 56, 64, 108 or 124) (18
-  bytes). Two bytes `BM` match ASCII text; the DIB size is the cheapest second witness. OS/2 `BA`/`CI`/`CP` variants are
-  `.unknown`.
+  bytes). Two bytes `BM` match ASCII text; the DIB size is the cheapest second witness. The size set includes the OS/2 1.x/2.x headers (12, 64) carried in a `BM` file; OS/2
+  array/icon/pointer files (`BA`, `CI`, `CP`, `IC`, `PT`) are `.unknown`.
 - WebP: `RIFF`, any four bytes, `WEBP` (12). A `RIFF....WAVE` is `.unknown`.
 - HEIF/AVIF: bytes 4-8 `ftyp` and the **major brand** at 8-12 (12 bytes, the box size is not read). HEIF brands: `heic`,
   `heix`, `hevc`, `hevx`, `heim`, `heis`, `mif1`, `msf1`; `.avif`: `avif`, `avis`. Compatible-brand lists are not read, so

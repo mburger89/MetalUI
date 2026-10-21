@@ -22,7 +22,8 @@ public enum ImageFileFormat: Sendable, Hashable, CaseIterable {
     case gif
     /// TIFF, either byte order (BigTIFF is ``unknown``).
     case tiff
-    /// Windows BMP: `BM` and a plausible DIB header size (OS/2 variants are ``unknown``).
+    /// Windows BMP: `BM` and a known DIB header size (12, 40, 52, 56, 64, 108 or 124; this includes the OS/2 1.x and 2.x
+    /// headers carried in a `BM` file). OS/2 array, icon and pointer files (`BA`, `CI`, `CP`, `IC`, `PT`) are ``unknown``.
     case bmp
     /// WebP: `RIFF`, a size and `WEBP`.
     case webp

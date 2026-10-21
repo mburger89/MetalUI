@@ -50,6 +50,12 @@ both statics compile; `sniffImageFormat` over a concrete `MemoryHeaderSource` do
    `theFileFormAgreesWithTheDataFormAndRefusesWhatIsNotARegularFile` (`publicTrace.refills == [0] && payloadReads == 0 && wholeFileLoads == 0`).
 2. `sniffImageFormat` made reachable from a plain import (a public concrete overload over a public `MemoryHeaderSource`) reddens `theSniffSurfaceIsReachableAndItsWalkIsNot`
    (`!walk.succeeded && walk.messages.contains("sniffImageFormat")`); the guard's negative now fails for access, not generic inference.
+3. **The checker's DIB-size pin** (`everyKnownBMPDIBHeaderSizeSniffsBMPAndItsNeighboursDoNot`, test 8): the first run's tests used only DIB size 40 (and 41 as garbage), so shrinking `sniffDIBSizes`
+   to `[40]` stayed green. The test builds the 18-byte `BM` prefix for each of 12, 40, 52, 56, 64, 108, 124 (`.bmp`), 20 neighbours and extremes (`.unknown`), and the file form for every size but 40.
+   Mutations on `sniffDIBSizes` (restored from a copy, `git diff` shows only the doc comment after each; filtered `--filter ImageSniff` runs, the only test with a different expectation is the new one):
+   (a) set shrunk to `[40]`: red, 12 issues; (b) 124 removed alone: red, 2 issues (the in-memory and file forms of 124); (c) 41 added: red, 2 issues (the neighbour 41).
+   The `case bmp` doc comment said "OS/2 variants are unknown" while the set holds 12 (`BITMAPCOREHEADER`, OS/2 1.x / Windows 2.x) and 64 (OS/2 2.x): corrected to "a known DIB header size ... includes the OS/2 1.x and 2.x headers
+   carried in a `BM` file; OS/2 array, icon and pointer files (`BA`, `CI`, `CP`, `IC`, `PT`) are unknown".
 The per-signature arm mutations of the spec (§5) are pinned by tests 1–3 (the case's own sub-test); **the lane's mutation runs used filtered sets** (`--filter ImageSniff`, a full run took 963 s on a
 loaded machine), so a test outside the set that a mutation reddens is not listed.
 
@@ -65,7 +71,7 @@ loaded machine), so a test outside the set that a mutation reddens is not listed
 
 Measured by the Record phase on the merged tree after `swift package clean` on a **locked screen**: native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `Test run with 4091 tests in 5 suites
 failed after 874.585 seconds with 5 issues`, the five being exactly `AppKitPresentationTests`' sheet expectations (`CI-AF`, `attachedSheet != nil`) and nothing else; `FR-J no-argument frame: succeeded=true`.
-**4091 tests, 0 goldens, 251 typecheck guards** (master's 4081 + 9 tests and guard `G-IS1`, the guard counted as a test: 4060 + 10 = 4070 at the lane on `b15e038c`; guards 250 + 1, 468 `typecheck`/`typecheckFile` calls
+**4092 tests, 0 goldens, 251 typecheck guards** (master's 4081 + 10 tests and guard `G-IS1`, the tenth the checker's DIB-size pin (`everyKnownBMPDIBHeaderSizeSniffsBMPAndItsNeighboursDoNot`, §4 item 3; after it the native run on a locked screen with `AppKitPresentationTests` skipped read `Test run with 4083 tests in 5 suites passed`, 0 issues, `FR-J no-argument frame: succeeded=true`; 4083 + 9 skipped = 4092); the guard counted as a test: 4060 + 10 = 4070 at the lane on `b15e038c`; guards 250 + 1, 468 `typecheck`/`typecheckFile` calls
 against 465 on master `c55d44e8`, the three being `G-IS1`'s). Default-build-system `swift build --build-tests`: 0 `warning:` (build complete). Inventory and undocumented scripts print nothing; census 3683.
 
 ## §7 Hazards and deferrals
