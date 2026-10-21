@@ -2386,3 +2386,7 @@ No real window was driven (screen locked). **Owed, new here — `docs/verificati
 ## 2026-10-20: accessibility under an effect-translated replay (record §129) — looks owed, group AT
 
 No real window was driven and neither VoiceOver nor MetalCreator was run (an agent cannot). **Owed, new here — `docs/verification/human-checks.md` group AT, none performed**: AT1 VoiceOver focus following a canvas pan with the graft on, and the owner's MetalCreator warm-pan counters. Owed, and not a look: the fourteen-image and Linux-image re-takes on the merged tree (record §129 §6).
+
+## 2026-10-21: header-only image format sniff (record §130) — no looks owed
+
+Bytes in, an enum out: nothing a person sees, no real window driven, no human-checks group added. Not owed: the root portable run in the `metalui-portable` image passed at the Record phase (record §130 §5).
