@@ -8,7 +8,7 @@ output in its header; arms `G1`–`G13`, `P1`–`P10`, the instrument of `swiftu
 it by hand in its own mouse-up handler; gpui animations are `with_animation` over an element id, no phases): nothing is claimed from gpui.
 Divergence labels **645–654 reserved**; **645 taken** (`GS-G`), the rest unused.
 
-Prefix **`GS-`**, lettered. **Next unused: `GS-O`.** (Moves in the commit that appends a ruling.)
+Prefix **`GS-`**, lettered. **Next unused: `GS-Q`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IX-B` (a gesture's callbacks are returned by value from the pure arena and run under `StateDispatch`), `IF-E`/`IF-F`/`IF-K`/`GC-`
 (every `onCancelled` path; divergence 236 amended at Record), `ID-F` (an aliased state box resolves its occurrence from the dispatch owner),
@@ -177,3 +177,19 @@ none: `wrappedValue` is get-only); a `@GestureState` reset on `onDisappear` of t
 `phaseAnimator`'s end-of-run content call and phase-independent content skip (`GS-I`, unobservable but by side effect); Reduce Motion for `phaseAnimator`
 (`GS-K`, human check); `PlaceholderContentView`; SwiftUI's non-`@MainActor` `updating` closure (ours is `@MainActor`, like `onChanged`). `.sequenced(before:)`, `GestureMask`,
 `including:` stay `IX-B`'s not-built list.
+
+## GS-O — Critic round: the probe's recorded lines are re-taken before a pin rests on them
+
+**Ruling.** The critic could not re-run the probe's arms (the screen was locked: `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`; the instrument needs a key
+window), so the header's lines stand as recorded and **unverified by the critic**. The lanes re-run `G7`/`G7e` (the one claim behind divergence 645) and `P5` (the
+nil-animation step) byte for byte when the lock probe allows, **before writing the pin**; a line that differs is re-ruled, and the pin is written from the new line.
+If the screen stays locked, those three pins and divergence 645's row carry "recorded 2026-10-21, not re-taken" in the test header and the record. **Cost if wrong:** one divergence
+row or one stepping pin re-ruled.
+
+## GS-P — Critic round: lane 2 never edits `Retained*.swift`; a red `.equatable()` arm is refused by name, not fixed here
+
+**Ruling.** Spec §5 lane 2 item 13 said a fix shared with `keyframeAnimator` would be "named in the record". That would edit C14-i's files. **Rejected**: if
+`aPhaseAnimatorInsideAnEquatableComponentKeepsStepping` is red for `keyframeAnimator` too, lane 2 pins the refusal as it is (a counted, named refusal or the
+measured behaviour), records it as a carried item owned by C14-i, and edits no `Retained*.swift`, `ContentMemo*` or `StateTable` file. The same holds for lane 1's
+retained/memo pin (`GS-A`): a gap there is carried, not patched in C14-i's files. Lane 1's `Window.swift` edit stays confined to `runGestureCallbacks` and the arena-discard
+sites. **Cost if wrong:** a carried item instead of a fix in this branch.

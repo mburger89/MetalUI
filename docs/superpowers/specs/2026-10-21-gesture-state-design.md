@@ -122,7 +122,7 @@ symbol" unless a different reason is given. Mutations are run on the full unfilt
 10. `thePhaseAnimatorIsTransparentToIdentityAndStateTable`: adding/removing it moves no `@State` below it; the record is in `AnimationStore` (`$phase<depth>`), no `StateTable` slot. Mutation: allocate a `$state`.
 11. `aRemovedPhaseAnimatorStartsAtTheFirstPhaseOnReturn` (sweep).
 12. `aPhaseAnimatorKeepsTheDisplayLinkAwakeOnlyWhileRunning`: `noteActiveAnimation` raised while running, `requestAnotherFrame` count 0. Mutation: raise `requestAnotherFrame` instead.
-13. `aPhaseAnimatorInsideAnEquatableComponentKeepsStepping` (and under the verify switches). If red today for `keyframeAnimator` too, the fix is shared and named in the record.
+13. `aPhaseAnimatorInsideAnEquatableComponentKeepsStepping` (and under the verify switches). If red today for `keyframeAnimator` too, pin it as is and carry it (`GS-P`: no `Retained*.swift` edit).
 14. `aPhaseAnimatorKeepsProposalContentProposal`; guards: a `Self`-returning decoration after it does not compile (`LK-T` item 2), plain-import use compiles; each mutated red once.
 15. `reduceMotionDoesNotChangeAPhaseAnimator` (`GS-K`, pinned as MetalUI's choice, unmeasured in SwiftUI).
 16. `theGuideSnippetsMirrorPhaseAnimator`.
