@@ -34,4 +34,58 @@ Root: `Tests/MetalUIScaffoldTests/SampleAppTests.swift` (+2 tests, `EX-S`); CI: 
 10. **A headless platform does not echo `.preferredColorScheme` as the appearance** (`EX-P`); `Text` parses Markdown only in a literal, so there is no live preview.
 11. **A main-actor model read through a stdlib closure traps off the main thread**, which bounds a "build on a 1 MB thread" test (`EX-O`).
 12. **Delete's ⌘⌫ belongs to a focused text field** (`EX-Q`).
+13. **Off macOS a window's first frame has no sidebar rows**: a `List` measures its origin and asks for one more frame; AppKit's synchronous observation hop supplies it, the Linux image did not
+    (five tests failed there with `no element matches identifier "note-..."` until the test helper drew two settling frames). Same fact as the `runUntilIdle` note in `docs/testing.md`.
 
+## 3 The app's tests (21; 20 off Darwin) and their mutations
+
+Red-first: commit `b9e19743` holds tests 1-9 against a stub root view (9 of 9 red: `no toolbar item "new" is presented`, `no element matches identifier "title-field"`); commit `92dcc24a` holds tests 10-17
+(11 issues in 8 tests before the commands, identifiers and stats edits, e.g. `no menu item at File > New Note`, `4 elements match label "Statistics: 4 notes, 46 words"`, `SIGTRAP`;
+`draggingARowOntoAnotherReordersTheModel` was green on arrival because the drop destination was already on the row, so it is proven by mutation only).
+Mutations, each applied to a committed tree, restored from a copy, the full unfiltered `swift test` in `Examples/Jotter` (25 runs, none hung; `git status --short` clean after the last):
+
+| Mutation | Reddened |
+| --- | --- |
+| M1 seed returns no notes | process crash (index out of range in a test), no summary line: red |
+| M2a New does not select / M2b New does not ask for focus / M19 no focus handler | `newNoteAddsARowSelectsItAndFocusesTheTitle` |
+| M3 title binding writes `notes[0]` | `typingInTheTitleAndBodyEditsTheSelectedNoteOnly` |
+| M4a case-sensitive search / M4b body ignored | `searchFiltersTheSidebarAndClearingRestoresIt` |
+| M5 selection binding dropped | `selectingARowShowsItsNoteInTheDetail`, `typingInTheTitleAndBodyEditsTheSelectedNoteOnly`, `deletingTheSelectedNoteSelectsTheNeighbour`, `theWordCountFollowsTheBodyOfTheSelectedNote` |
+| M6a delete without the dialog | `deleteAsksForConfirmationAndOnlyConfirmDeletes`, `deletingTheSelectedNoteSelectsTheNeighbour`, `exportWritesVersionedJSONAndImportReadsItBack`, `theCommandsMenuShortcutsRunTheirActions` |
+| M6b Cancel deletes | `deleteAsksForConfirmationAndOnlyConfirmDeletes`, `theCommandsMenuShortcutsRunTheirActions` |
+| M7 selection left dangling | `deletingTheSelectedNoteSelectsTheNeighbour` |
+| M8a file version 2 | `exportWritesVersionedJSONAndImportReadsItBack`, `importingGarbageShowsAnAlertAndKeepsTheNotes` |
+| M8b import appends | `exportWritesVersionedJSONAndImportReadsItBack` |
+| M9 failed load empties the notes | `importingGarbageShowsAnAlertAndKeepsTheNotes` |
+| M10 drop off by one / M10b row not draggable | `draggingARowOntoAnotherReordersTheModel` |
+| M11a New on the wrong key / M11b Duplicate without shortcut | `theCommandsMenuShortcutsRunTheirActions` |
+| M12 duplicate shares the id | `contextMenuDuplicateCopiesTheNote`, `theCommandsMenuShortcutsRunTheirActions` |
+| M13 row not `.equatable()` | `anUnchangedRowIsNotEvaluatedWhenAnotherNoteIsEdited` |
+| M14 summary counts one note | `theStatsCanvasSummaryNamesTheCountsAndFollowsEdits` |
+| M15 palette ignores the scheme | `darkSchemeChangesTheSidebarFill`, `theThemeButtonAsksForTheOtherSchemeAndTheFillFollows` |
+| M25 Theme always asks for dark | `theThemeButtonAsksForTheOtherSchemeAndTheFillFollows` |
+| M16 detail 900 wide | `aWindowShrunkToMinimumKeepsEveryControlHittable` and nine more (a 900-wide detail covers the sidebar's hit area) |
+| M18 word-count task keyed on the text only | **nothing: an equivalent mutant** (the count is a function of the text); the source was simplified to key on the text |
+
+Not mutation-red, by name: `theRootTreeBuildsOnAOneMegabyteThread` (a pin; its Darwin non-vacuity arm `aThreadTooSmallForTheTreesFailsTheSameHarness` shows a 64 KB thread fails, `EX-O`);
+`theFileCommandsOpenThePanels`; the root manifest-shape test (mutated in section 4).
+
+## 4 Root verification
+
+(Filled at the end of the run; see section 6.)
+
+## 5 CI
+
+`swift.yml` (macOS): `swift test --package-path Examples/Jotter` after the root tests. `sdl-gpu-linux.yml` (Linux, the `metalui-portable` image it already builds): the package is built and tested with the SDL and AccessKit
+traits, `Examples/Jotter/**` joining its path filters. `scene-linux` and Windows are untouched. Not run by an agent (CI only).
+
+## 6 Owed
+
+- A real-window capture of the running app (`docs/probes/window-capture/capture.sh` covers `MetalUIDemo` only): the screen was locked (`CGSSessionScreenIsLocked = 1`) so nothing was launched.
+- Windows: the package was not built there (compiled by CI only; `Backends/SDL` untouched).
+- `CLAUDE.md`/`AGENTS.md` (one rule paragraph for `EX-`), `docs/record/README.md` (a row), `docs/verification/human-checks.md` (group `EX`): the Record phase.
+
+## 7 Proposed human-check group `EX`
+
+EX1 the app on macOS looks right (sidebar, rows, detail, stats, toolbar, native menus); EX2 the same under SDL on Linux (the drawn menu bar and toolbar strip, `Search notes` field, drag preview); EX3 a real Export then Open
+round trip through the native panels; EX4 Theme and the system Dark mode on both; EX5 drag a row, right-click Duplicate, Delete with the sheet; EX6 ⌘N/⌘D/⌘⌫ with the title field focused and not.
