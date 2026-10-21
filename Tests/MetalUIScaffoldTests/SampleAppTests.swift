@@ -27,7 +27,7 @@ private func productNames(in manifest: String) -> Set<String> {
 /// The `#if os(Linux) || os(Windows)` … `#endif` block, comments dropped: the traits the
 /// manifest turns on.
 private func traitsBlock(in manifest: String) throws -> [String] {
-    let lines = manifest.split(separator: "\n", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
+    let lines = manifest.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }  // CRLF is one Character: a Windows checkout
     let start = try #require(lines.firstIndex(of: "#if os(Linux) || os(Windows)"), "no traits block")
     let end = try #require(lines[start...].firstIndex(of: "#endif"), "unterminated traits block")
     return lines[start...end].filter { !$0.hasPrefix("//") && !$0.isEmpty }
