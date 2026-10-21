@@ -3,7 +3,7 @@
 Rulings for item C14-i. Spec: [`specs/2026-10-21-retained-zoom-design.md`](specs/2026-10-21-retained-zoom-design.md). Record: `../record/133-retained-zoom.md`.
 Branch `perf/retained-zoom` from `1bdead8d`. Reserved divergence labels 625-634: none taken (346 narrowed in place if `RZ-I` lands).
 
-Prefix **`RZ-`**, lettered. **Next unused: `RZ-L`.** (Moves in the commit that appends a ruling.)
+Prefix **`RZ-`**, lettered. **Next unused: `RZ-M`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-G`, `RK-S`, `FS-D`, `FS-O`, `FS-P`, `RG-A`, `AT-A`, `AT-F`, `AT-G`, `RL-E`, `RL-I`, `EE-A`...`EE-D`, `IV-D`, `GX-` (effects, text and images resampled, divergence 106), `RW-S`.
 No SwiftUI probe: no observable behaviour moves; the oracle is differential against a window with retention off plus `METALUI_VERIFY_RETAINED=1`.
@@ -79,3 +79,11 @@ mode; if the bound ordinals omit the slot or the re-note cannot reproduce `lastF
 
 **Ruling.** Layout-moved-and-effect-changed (`effectAndLayoutMoved`, `FS-O`), the identity-effect crossing, an effect with a clip that changes with the map, and a named space or anchor under
 an affine change stay refusals, counted, none silent. Owners in the spec section 4. **Cost if wrong.** A workload that zooms and drags nodes at once keeps rebuilding: counted, visible in the table.
+
+## RZ-L - Critic pass: no probe is owed, one dependency is made explicit, the rest stands
+
+**Ruling.** The critic found no SwiftUI claim, public spelling, Apple type, shader or platform requirement moved by this design, so no probe arm is re-run (nothing to re-run: the facts leaned on, divergence 106 and
+hitboxes following the transform, were probed in `GX-`). **Made explicit:** (1) `RZ-C` and `RZ-A` are hypotheses read from source; Z4 and verify mode are their gate, and a failing raster kind refuses by name and
+amends `RZ-C` in the same lane, not later. (2) `RZ-F`'s audit of the translation arm's unmoved anchors may find an existing defect: that fix is in scope for lane 1 only as the same named refusal. (3) Lane 2's
+`RZ-I` soundness gate decides before any other lane-2 edit: if it fails, lane 2 ships the (a) profile and the re-carry only. (4) A zoom hit that reaches the paint record but whose prepaint refuses is a redo, counted
+under the existing reasons; Z1 asserts redos 0 so it cannot hide. **Rejected:** a new `FrameWork` affine counter (`RZ-G` stands); splitting into three lanes (the lanes own disjoint files, two is the cap).
