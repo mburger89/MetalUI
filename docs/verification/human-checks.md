@@ -1762,6 +1762,16 @@ a physical GPU, a desktop session and a console.*
   mid-scroll: no tearing, no stale row, no cut-off card at the scroller's edge; the counters read `translated` on 1 and 2 and the refusal name on the non-dyadic one (`FS-M`, `FS-P`). **Observed:**
 - [ ] **FS4.** VoiceOver on the shifted strip reads the same rows as with the translation off (accessibility refuses, so this is the unretained path, `FS-F`). **Observed:**
 
+## RG. Retained geometry observers and per-shelf atlas uploads — a reader that follows a real window, text on distant shelves (item C14-f, user request 2026-10-02, not a plan task; record 128; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: these need a real window and a person. Delivered values equal a fresh window's over a script (resize, scroll, shift) and every atlas texel equals the atlas (Metal readback), both pinned; what is owed is how it looks on a real display and on SDL.*
+
+- [ ] **RG1.** `METALUI_RETAINED_DEMO=1`, the geometry card: drag a node, resize the window and scroll with a wheel and a trackpad; the card's reported size follows the real window and the panel it sits in (a size that lags a frame, or
+  stays at an old value after the resize ends, is the bug), and nothing is stale after a resize mid-drag (`RG-A`, `RG-C`, `RG-J`). **Observed:**
+- [ ] **RG2.** On AppKit (Metal) and on SDL (Linux and Windows): change a text field's font size so first-use glyphs land on shelves far apart in one frame (a heading and a footnote, a CJK run): every glyph is drawn, none
+  blank, at scale 1 and 2 (`RG-H`, `RG-O`). **Observed:**
+- [ ] **RG3.** SDL on Windows D3D12 (CI cannot see a pixel): the same first-use text draws whole after the packed per-rect atlas copy (`RG-O`; CI compiles it only). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

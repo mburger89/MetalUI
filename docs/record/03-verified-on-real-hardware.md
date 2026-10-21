@@ -2379,3 +2379,7 @@ The fourteen offscreen images read 0 differing pixels against `4d91f27f` and per
 ## 2026-10-20: finer retention scopes (record §126) — looks owed, group FS
 
 No real window was driven (screen locked) and MetalCreator was not touched. **Owed, new here — `docs/verification/human-checks.md` group FS, none performed (an agent cannot)**: FS1 the owner's MetalCreator orbit and pan with the graph panel open against 25.8 ms; FS2 a long `List` of retained rows under a wheel and trackpad with a row edited mid-scroll, VoiceOver on the rows; FS3 the demo's shift-and-scroll strip at scales 1, 2 and a non-dyadic one; FS4 VoiceOver on the shifted strip. Owed, and not a look: the Linux image re-take, the verify-switch re-take and the fourteen-image comparison against `711ab9c4` on the merged tree (record §126 §7).
+
+## 2026-10-20: retained geometry observers, placement translation, per-shelf atlas uploads (record §128) — looks owed, group RG
+
+No real window was driven (screen locked). **Owed, new here — `docs/verification/human-checks.md` group RG, none performed (an agent cannot)**: RG1 the demo's geometry card and a real resize and scroll with retention on against off; RG2 first-use text on distant shelves on Metal and SDL after a font-size change (no blank glyph); RG3 the SDL atlas copy on Windows D3D12 (CI only). Owed, and not a look: nothing else; the Linux image, the verify-switch run and the fourteen-image comparison were taken on the merged tree (record §128 §7).

@@ -2,9 +2,9 @@
 
 Rulings for item C14-f. Spec: [`specs/2026-10-20-retained-geometry-design.md`](specs/2026-10-20-retained-geometry-design.md). Record:
 `../record/128-retained-geometry.md` (Record phase). Branch `perf/retained-geometry` from `99b21a1c`. Reserved divergence labels 575-584:
-none taken.
+none taken. Merged with master `c502f14c` (C14-e, `CF-`) at the Record phase (`RG-P`).
 
-Prefix **`RG-`**, lettered. **Next unused: `RG-P`.** (Moves in the commit that appends a ruling.)
+Prefix **`RG-`**, lettered. **Next unused: `RG-Q`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E` (geometry note taints, now replaced), `KF-J` (delivery semantics, unchanged), `FS-G`, `FS-P`, `FS-T` (record 126),
 `SB-AD`, `RK-S`, `RW-` (record 121), C14-e parts (c) and (f).
@@ -24,7 +24,8 @@ measured 222 vs 199 requests. (2) Re-evaluate the transform at replay: needless 
 
 **Ruling.** The action still runs in the lifecycle drain after the build, only when the value differs from the last delivered; the proof
 is test 3 (retention on vs `testingRetainedSubtrees = false` over resize, scroll, shift) and `GeometryChangeTests` unedited. No SwiftUI
-probe: no observable behaviour moves. **Cost if wrong.** A delivery-order change shows as a red differential; nothing public.
+probe: no observable behaviour moves. **Amended at the Record phase:** test 3 is a regression net, not a pin: no mutation of the item reddened it (its shift step delivers correctly even with `RG-C`'s refusal removed); the mutation evidence is tests 2, 5 and 6 (record §2, §8).
+**Cost if wrong.** A delivery-order change shows as a red differential; nothing public.
 
 ## RG-C - A translated replay holding a geometry note refuses by name
 
@@ -155,3 +156,12 @@ dirt. **Reasoning.** The copy pass is one command buffer, so per-rect uploads fr
 is the only way to see bytes moved (the pixels equal the replay path's either way, which test 18 also pins). **Inventory.** No map
 row is owed: `MetalUIScene` is one wildcard family row (`scene`) and `dirtyRects` joins it; the census gains one line.
 **Cost if wrong.** A rect missing from the packed copy shows a blank glyph on SDL; test 18 compares the frame to the replay path.
+
+## RG-P - The translated placement carries the footprint (merge with C14-e `CF-E`/`CF-J`)
+
+**Ruling.** Master's C14-e made `LayoutMemo` store a `Placed` (rects plus a `Footprint`, the memo keys the recording looked up) and a restore `touch` that footprint so
+the entries below a restored subtree stay alive. `RG-L`'s translated dictionary stores the same `Footprint` beside its rects (`TranslatedPlacement.footprint`);
+`lookupPlacementTranslated` returns a `Placed` (translated rects, the recorded footprint); `subtreePlacement` runs `touch` and extends an enclosing recording's footprint for a
+translated restore exactly as for an exact one. **Evidence.** A translated restore places nothing and so looks nothing up: with no footprint it would reopen the second-frame
+layout spike `CF-E` removed, for a shifted subtree. **Alternatives rejected.** Touching only the exact key (the entries below age out of both generations while the translated
+key keeps hitting). **Cost if wrong.** A shifted occurrence that grafts later meets cold measurements; `warm[n] == warm[n+1]` is the pin (`WarmSettleTests`, unchanged and green).

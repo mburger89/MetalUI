@@ -1,5 +1,7 @@
 # Retained geometry observers, placement translation, per-shelf atlas uploads (C14-f)
 
+**Status: implemented and closed 2026-10-20** (record §128; rulings `RG-A`...`RG-P`, with `RG-I`...`RG-P` added after this text was written and superseding it where they differ: `RG-J` (no graft of an observer), `RG-K` (test 6 pins the held key), `RG-L`...`RG-N` (lane 2, built and measured), `RG-O` (the SDL upload), `RG-P` (the merge with C14-e)).
+
 Branch `perf/retained-geometry` from `99b21a1c`. Not a plan task: item C14-f of the gpui-gap list (user request 2026-10-02), carrying
 record §126 (`FS-G`, the unpinned `hitboxClipped`, a shift under a moved render effect) and C14-e parts (c) and (f) (MetalCreator's
 findings, 2026-10-20). Rulings `RG-A`...`RG-H` in [`../2026-10-20-retained-geometry-decisions.md`](../2026-10-20-retained-geometry-decisions.md).

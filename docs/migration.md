@@ -497,6 +497,19 @@ made); every other counter is still the redo's own. A subtree restored by the pl
 after the records exist does exactly the work of the one before it: a test that recorded the old 135-against-52 layout spike on that frame (the bracket
 node drag's press frame) reads 52. A component that read `@Environment(\.textMeasurer)` under `.equatable()` is skipped, not refused (divergence 346).
 
+### Retained geometry and per-shelf atlas uploads (`RG-`, record §128)
+
+One additive public declaration, `GlyphAtlas.dirtyRects: [(x: Int, y: Int, width: Int, height: Int)]` (class M). **`GlyphAtlas.dirtyRect` is still there and still read-only**, but it is now a computed
+property, the bounding union of `dirtyRects`, not a stored value: a reader compiles unchanged, and a renderer that uploaded `dirtyRect` as one region remains correct (it uploads the span). A renderer
+that wants the saving uploads each `dirtyRects` entry (Metal: one `replace(region:)` per rect, `bytesPerRow` the atlas width, the pointer offset to the rect's origin); `clearDirtyRect()` clears both. At most
+eight rects, then one bounding rect until the clear. **`Backends/SDL` internal C signature:** `mui_renderer_finish` takes `atlas_rects`/`atlas_rect_count` (x, y, w, h `uint32_t` quadruples) in place of
+`bool atlas_dirty`; a caller outside the package (none ships) passes the rects of `atlas.dirtyRects`. No `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement is added; no conformer changes.
+`MetalUITesting`'s `lastAtlasUploadPixels` is now the sum of the rect areas, not the span's area: a test that read the span for two distant glyphs reads less.
+**Behaviour, compiles and reads differently** (`FrameWork`, a test's numbers): an `.equatable()` occurrence holding an `.onGeometryChange` scope is no longer prepaint-ineligible (`retainedPrepaintIneligible`
+reasons no longer count `geometryChange`); it replays its prepaint and paint, is never grafted (`graftRefusals["geometryGraft"]`) and refuses a translated replay by name (`geometryTranslated`); its action
+fires exactly when a fresh window's would. A shifted subtree restored by the layout memo now counts a `layoutSubtreeHit` where it counted a miss (a custom `ProposalLayout` subtree never does), and
+`SubtreePlacementTests` 2.3's moved-origin case reads 1 hit. A shift under a moved render effect counts `retainedTranslationRefusedReasons["effectAndLayoutMoved"]` where it counted nothing.
+
 ### Retained read-only state (`RW-`, record §121)
 
 None for the API beyond one additive `MetalUITesting` field, `FrameWork.retainedIneligibleReasons: [String: Int]` (class M; a stored
