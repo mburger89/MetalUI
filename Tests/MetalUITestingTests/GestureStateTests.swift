@@ -537,20 +537,21 @@ private struct SlotsChip: Component {
 /// the second. `theSevenRetentionSlotsAreMutuallyDistinct` is unmoved. Mutation: give the box its own slot name.
 @Test @MainActor func aGestureStateIsAStateSlotNotAnEighth() throws {
     let window = try chipWindow { SlotsChip() }
-    let names = window.window.stateTable.ids.map { "\($0)" }
-    #expect(names.filter { $0.contains("$state0") }.count == 1, "\(names)")
-    #expect(names.filter { $0.contains("$state1") }.count == 1 || !names.contains { $0.contains("$state1") },
-            "\(names)")
+    func names() -> [String] { window.window.stateTable.ids.map { String(reflecting: $0.component) } }
     window.send(down()); window.tick()
-    let after = window.window.stateTable.ids.map { "\($0)" }
-    #expect(after.contains { $0.contains("$state1") }, "the drag's write landed in $state1: \(after)")
-    #expect(!after.contains { $0.contains("$gesture") || $0.contains("$gs") }, "no eighth slot name: \(after)")
+    let during = names()
+    #expect(during.contains { $0.contains("name: \"$state1\"") }, "the drag's write landed in $state1: \(during)")
+    window.send(up()); window.tick()
+    let after = names()
+    let reserved = ["$state0", "$state1", "$focus", "$ax", "$anim", "$anim-color"]
+    #expect(after.allSatisfy { name in reserved.contains { name.contains("name: \"\($0)\"") } },
+            "only the seven reserved names, no eighth: \(after)")
 }
 
 // MARK: - 14: a write is a state write for the memo (GS-A)
 
 private struct EqChip: Component, Equatable {
-    static func == (a: EqChip, b: EqChip) -> Bool { true }
+    nonisolated static func == (a: EqChip, b: EqChip) -> Bool { true }
     let log: GSLog
     @GestureState var s = 0
     var content: some ElementGroup {
