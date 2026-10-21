@@ -312,3 +312,19 @@ private final class PresentSet { var rows: Set<Int> = [] }
     #expect(window.lastFrameWork.layoutMemoRootHits == 0, "scroll root hits \(window.lastFrameWork.layoutMemoRootHits)")
     #expect(window.lastFrameWork.lazyUnitsRealized == 15, "\(window.lastFrameWork.lazyUnitsRealized)")
 }
+
+/// **2.1b (`PE-V`).** The legacy `ScrollView` publishes the same scroll context, so the idiom
+/// `ScrollView { LazyVStack { ForEach } }` windows too: 13 of 1000 realised, none unbounded.
+/// Mutation: the window widened to `count` (M7) reddens it with 2.1.
+@Test @MainActor func aLazyStackInALegacyScrollViewIsWindowedToo() throws {
+    let window = try harnessWindow(size: sz(200, 200)) {
+        ScrollView {
+            LazyVStack(spacing: Pixels(0)) {
+                ForEach(0..<1000) { index in ProposalText("row \(index)").frame(height: Pixels(20)) }
+            }
+        }
+    }
+    window.tick(); window.tick()
+    #expect(window.lastFrameWork.lazyUnitsRealized == 13 && window.lastFrameWork.lazyUnbounded == 0,
+            "\(window.lastFrameWork.lazyUnitsRealized) \(window.lastFrameWork.lazyUnbounded)")
+}
