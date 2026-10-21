@@ -472,7 +472,7 @@ private struct TwoWritersChip: Component {
     let log: GSLog
     let longPressFirst: Bool
     let longPressWrites: Bool
-    @GestureState var a = 0
+    @GestureState(wrappedValue: 0, reset: { _, _ in GestureStateResets.count += 1 }) var a: Int
     var content: some ElementGroup {
         let drag = DragGesture(minimumDistance: 0).updating($a) { _, st, _ in st += 1 }
         let hold = LongPressGesture(minimumDuration: 0.3).updating($a) { _, st, _ in if longPressWrites { st += 100 } }
@@ -520,6 +520,16 @@ private struct TwoWritersChip: Component {
     #expect(log.distinct.last == "body s=0" || log.distinct.last == "body s=1", "\(log.distinct)")
     window.send(up(at(210, 150))); window.tick()
     #expect(log.distinct.last == "body s=0", "\(log.distinct)")
+
+    // G7c: the release before the long press could end resets both writers' shared slot once, not once per writer.
+    GestureStateResets.count = 0
+    let early = GSLog()
+    let w2 = try chipWindow { TwoWritersChip(log: early, longPressFirst: false, longPressWrites: false) }
+    w2.send(down()); w2.tick()
+    w2.advance(by: 0.1)
+    w2.send(dragged(at(210, 150))); w2.tick()
+    w2.send(up(at(210, 150))); w2.tick()
+    #expect(GestureStateResets.count == 1, "one reset for two writers ending in one event: \(GestureStateResets.count)")
 }
 
 // MARK: - 13: a `GestureState` is a `$state<n>` slot, not an eighth reserved name (GS-A)
