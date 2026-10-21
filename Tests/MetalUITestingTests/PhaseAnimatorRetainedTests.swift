@@ -29,7 +29,7 @@ private struct PulseHost: Component, @MainActor Equatable {
 /// `PhaseAnimator.resolveStep` (the animator stalls at its first step after the frames stop coming).
 @Test @MainActor func aPhaseAnimatorInsideAnEquatableComponentKeepsSteppingGSP() throws {
     let seen = PhaseSeen()
-    let window = try TestWindow(size: Size(width: Pixels(200), height: Pixels(80))) {
+    let window = try TestWindow(size: Size(width: Pixels(200), height: Pixels(80)), textSystem: harnessTextSystem) {
         VStack(spacing: 4) { PulseHost(seen: seen).equatable() }
     }
     var f = window.lastFrameWork
