@@ -259,12 +259,20 @@ extension PaintPass {
     /// `body` inside each of `effects` in written order (the last written is
     /// the outermost). A shadow opens a shadow scope (`GX-J`), its colour on a
     /// store track under `id` when one is given (`legacyShadowColourKey`).
+    @_optimize(none)
     func withRenderEffects(_ effects: [RenderEffectSpec], bounds: Bounds<Pixels>, id: GlobalElementID? = nil,
                            _ body: () -> Void) {
-        guard let outermost = effects.last else { return body() }
-        let inner = { withRenderEffects(Array(effects.dropLast()), bounds: bounds, id: id, body) }
+        openingRenderEffects(effects, upTo: effects.count, bounds: bounds, id: id, body)
+    }
+
+    /// `withRenderEffects`' recursion over the first `count` effects, by index (`WR-A`, `WR-B`).
+    private func openingRenderEffects(_ effects: [RenderEffectSpec], upTo count: Int, bounds: Bounds<Pixels>,
+                                      id: GlobalElementID?, _ body: () -> Void) {
+        guard count > 0 else { return body() }
+        let outermost = effects[count - 1]
+        let inner = { openingRenderEffects(effects, upTo: count - 1, bounds: bounds, id: id, body) }
         if case let .shadow(token, radius, x, y) = outermost {
-            let color = id.map { storedAnimatedColor(token, at: legacyShadowColourKey(for: $0, index: effects.count - 1),
+            let color = id.map { storedAnimatedColor(token, at: legacyShadowColourKey(for: $0, index: count - 1),
                                                      pass: self) } ?? resolve(token)
             withShadow(color: color, radius: radius, x: x, y: y, inner)
         } else if case let .blur(radius) = outermost {
