@@ -3,7 +3,7 @@
 Rulings for item C14-h. Spec: [`specs/2026-10-21-retained-lifecycle-design.md`](specs/2026-10-21-retained-lifecycle-design.md). Record: `../record/131-retained-lifecycle.md` (Record phase).
 Branch `perf/retained-lifecycle` from `c55d44e8`. Reserved divergence labels 605-614: none taken.
 
-Prefix **`RL-`**, lettered. **Next unused: `RL-O`.** (Moves in the commit that appends a ruling.)
+Prefix **`RL-`**, lettered. **Next unused: `RL-Q`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E`, `RK-F`, `RG-A`, `RG-C`, `RG-D`, `RG-J`, `AT-C`, `AT-G`, `RW-L`, `KF-J`, `IF-D`, `LC-C`...`LC-I`, `PX-F`, `TF-A`.
 No SwiftUI probe: no observable behaviour moves (`RG-B`'s argument); the oracle is differential against a window with retention off. gpui has no lifecycle-scope analogue to compare.
@@ -92,3 +92,26 @@ Notes are relative to `GraftRecorder.lifecycleBase` at close (the journal holds 
 journal's own counter reset at `endFrame` and `rollbackBuild` (test 7). (3) Verify mode's `lifecycleStore` channel digests the lifecycle, geometry and modifier notes of the build in progress (keys, orders, presence; a modifier's masked value), so a replayed modifier or geometry note that differs also traps by that name.
 (4) The old pin `aGraftIneligibleBuildIsCountedByName(kind: .lifecycle)` is now a control arm (grafts), like `.scroll` after `RW-H`. **Cost if wrong.** As `RL-C`/`RL-D`.
 
+
+## RL-O - An outer named space never reaches the geometry note (amends `RL-E`, `RL-F`)
+
+**Ruling.** `prepaintRefusal()` already refuses a prepaint window opened while `Frame.namedSpaces` is non-empty (`namedSpaces`, counted ineligible), so **no ledger exists for an occurrence under an outer named space** and `geometryNamedSpace` can never name one. `RL-F`'s "outer refuses" is therefore the existing upstream gate, pinned
+as such (test 15a: hits 0, ineligible reason `namedSpaces`, no geometry refusal). Every named space a note sees is declared **inside** the occurrence and moves with it. A translated replay moves each such space's `toWindow` by what the position moved, exactly: a layout shift by `a*dx + c*dy`, `b*dx + d*dy`
+(the window delta in the space's pre-effect frame), an effect translation by the ambient composed map's translation delta, `toSpace` its inverse; **only when the space's linear part is made of multiples of 1/16** (identity, scale 2, 0.5), because the products and sums are then exact in `Double`
+whatever the order they are added in, so the moved map is bit-equal to the one a fresh prepaint composes. A non-dyadic linear part (a 0.8 scale) refuses by name `geometryNamedSpace` (and keeps `RG-J`'s graft refusal, `RL-Q`). **Cost if wrong.** A named frame an ulp off a fresh one under a dyadic space: test 15b compares deliveries to a fresh window's at scales 1 and 2, layout shift and pan.
+
+## RL-P - Where the build came out different from the spec (lane 2)
+
+**Rulings.** (1) `GeometryNoteRecord` holds `size`, `moved`, `composed`, `chain` (an `AXEffectChain`) and `namedSpaces` beside the value: `Frame.movedGeometryNotes` (layout, scroll) and `Frame.translatedGeometryNotes` (effect) rebuild the proxy and call `transform` again, in `RetainedTranslationCarries.swift`; the replay takes the made-again notes through a new `geometry:` parameter
+of `replayPrepaintLedger` and the `.replay` case, and appends them to an enclosing log, so a nested ledger holds the moved values. A note made under an effect the occurrence opened refuses a **layout** shift by name `geometryUnderEffect` (such an effect's map is anchored to the occurrence's own position: the recorded steps do not re-derive it for a layout move) and is fine under an effect translation (the step walk).
+(2) `RL-G`: `graftRecord` refuses `geometryGraft` only when a note is not recomputable (`Frame.geometryNotesRecomputable`: an inner effect or a non-dyadic named space), because those are the notes whose translated replay refuses and would cost the redo. Measured: test 16, a grafted two-card observer, steady frames graft 2/2 and three shifts across the graft cost `retainedRedos == 0`, backoff 0.
+(3) `RL-H` as built: `AXEmission` gains `clipDepth` (the hitbox's own rule: a record at the entry depth is cut again against the ambient clip, one deeper moves only if it stays strictly inside the clip before and after, refusing `accessibilityClipped`), `Frame.movedAccessibility` moves emissions and nodes by the window delta; a record with `local != nil` refuses `accessibilityUnderEffect`. `AXLocalRects` is unchanged (the spec's `clipDepth`/`entryClipCut` fields were not needed: no record under an effect is recomputed on a layout shift). `rebased` carries `axNodeLocals` and the moved records.
+(4) `RL-I` as built: the chain is a `Frame.hitboxChains[index]` side table kept only while a prepaint log records and only for a hitbox under an effect, copied into `PrepaintLedger.hitboxChains` (lock-step with `hitboxes`, empty when none sat under an effect). `translatedHitboxes` re-derives such a hitbox from the shared `Frame.walkEffectSteps` and
+**validates the walk first**: the walk from the ambient *as recorded* must reproduce the transform (inverse and outer clip) the hitbox carries, else a share patch rewrote it and it refuses `hitboxes`; then the walk from the ambient now gives the transform. This replaces the old identity-linear delta rule for a chained hitbox, at every scale, and also lifts the refusal of a hitbox whose outer clip depended on the translation (`RK-S` item 2):
+the walk recomputes that clip. Two pins of earlier records were superseded and amended in this commit: `aHitboxWhoseClipDependedOnTheTranslationIsNotMoved` (now `...IsRecomputedFromItsSteps`, refusals 0, prepaint hits 5) and `aGraftedOccurrenceUnderARefusedTranslationRedoesTheFrame` (its refusal is now a fractional device-pixel shift, `fractionalTranslation`), as `RG`'s tests 5 and 7 (refusal -> recomputed) and `FSRefusal.accessibility` (removed; test 18 owns the surviving refusal).
+(5) Refusal names added: `geometryUnderEffect`, `geometryNamedSpace`, `geometryUnrecorded`, `accessibilityUnderEffect`, `accessibilityClipped`, `accessibilityUnrecorded`; `geometryTranslated` and the layout `accessibilityRecords` are gone. Order of refusal names in `movedPrepaintLedger` changed for an occurrence with two causes: the press-only and context-menu checks now come first (`pressOnly` shows where `accessibilityRecords` did).
+**Cost if wrong.** As `RL-E`, `RL-H`, `RL-I`.
+
+## RL-Q - A graft keeps its refusal only for a note a translation cannot recompute
+
+**Ruling.** The `RG-J` refusal narrows to `Frame.geometryNotesRecomputable == false`; see `RL-P` (2). **Carried.** The outer named space is not reachable (`RL-O`); a note under an effect the occurrence opened on a layout shift (needs the effect's anchor re-derived: `RG-M`'s neighbour); named spaces with a non-dyadic linear part.

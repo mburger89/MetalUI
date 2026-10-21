@@ -100,6 +100,8 @@ private let frameChannels: [String: Channel] = [
     "verifyAbandoned": .frameLocal,
     // C14-g (`AT-G`): the open effects as steps, a cache dropped whenever the stack changes.
     "axEffectChain": .frameLocal,
+    // C14-h (`RL-I`): the effect chain each hitbox was registered under, kept only while a prepaint log records.
+    "hitboxChains": .frameLocal,
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {

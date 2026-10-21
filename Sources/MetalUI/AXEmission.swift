@@ -45,6 +45,9 @@ struct AXEmission {
     /// effect-translated prepaint replay evaluates the same two expressions against the current effect.
     /// Nothing but that replay reads it.
     var local: AXLocalRects?
+    /// The clip depth the record was made at (`RL-H`): a layout translation re-cuts `geometry.visibleFrame` against the ambient clip
+    /// only for a record whose clip was the ambient one itself, the hitbox rule (`Hitbox.clipDepth`).
+    var clipDepth = 0
 }
 
 /// One open render effect as an accessibility replay re-derives it (`AT-G`): its own map and the clip in force at its entry.

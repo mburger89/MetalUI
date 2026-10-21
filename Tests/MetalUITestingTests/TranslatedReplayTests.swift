@@ -114,12 +114,13 @@ struct RPClippedEffectCard: Component, @MainActor Equatable {
     static func == (l: RPClippedEffectCard, r: RPClippedEffectCard) -> Bool { l.log === r.log }
 }
 
-/// 11b — a hitbox registered under an effect whose outer clip depended on the translation is not moved by the inverse alone: the
-/// prepaint translation is refused by name (`retainedTranslationRefused`), the card prepaints fresh, and the frame, the
-/// hitbox list included, equals a fresh frame (`RK-S` item 2). The paint still translates. Mutation: the outer-clip comparison
-/// removed from `translatedHitboxes` (the replay keeps the stale outer clip: the hitbox fingerprints differ at the first pan).
+/// 11b — a hitbox registered under an effect whose outer clip depended on the translation (`RK-S` item 2) is **re-derived from its
+/// recorded step chain** (`RL-I`, was refused by name `hitboxes` before C14-h): the walk of the effect's own step from the current
+/// ambient gives the outer clip a fresh prepaint registers, so the prepaint replays translated, the paint translates too and the frame,
+/// the hitbox list included, equals a fresh frame. Mutation: the walked outer clip replaced by the recorded one in `translatedHitboxes`
+/// (the hitbox fingerprints differ at the first pan).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
-func aHitboxWhoseClipDependedOnTheTranslationIsNotMoved() async throws {
+func aHitboxWhoseClipDependedOnTheTranslationIsRecomputedFromItsSteps() async throws {
     let pair = try RPPair(size: sz(320, 150), warm: 4, accessibility: false, graft: false) { side in
         let pan = side.inputs.offset, log = side.log
         return VStack(spacing: 0) {
@@ -132,19 +133,22 @@ func aHitboxWhoseClipDependedOnTheTranslationIsNotMoved() async throws {
         }
     }
     try pair.compare("warm")
-    var refused = 0, translated = 0
+    var refused = 0, translated = 0, hits = 0
     for (index, pan) in [Float(0), 5, 9.5, 20, 3].enumerated() {
         pair.onSide.inputs.offset = pan; pair.offSide.inputs.offset = pan
         await rsSettle()
         pair.redraw()
         refused += pair.frames.last?.retainedTranslationRefused ?? 0
         translated += pair.frames.last?.retainedTranslated ?? 0
+        hits += pair.frames.last?.retainedPrepaintHits ?? 0
         try pair.compare("pan \(pan) (step \(index))")
         let at = pt(10 + pan + 20, 10 + pan / 2 + 28)
         for w in [pair.on, pair.off] { w.hover(at: at) }
         try pair.compare("hover at pan \(pan)")
         for w in [pair.on, pair.off] { w.hover(at: pt(318, 148)) }
     }
-    #expect(refused >= 3, "the moving steps refuse the prepaint translation by name: \(refused)")
-    #expect(translated >= 3, "the paint still translates: \(translated)")
+    print("11b: refused \(refused) translated \(translated) prepaint hits \(hits)")
+    #expect(refused == 0, "nothing is refused any more: \(refused)")
+    #expect(hits >= 3, "the moving steps replay the prepaint translated: \(hits)")
+    #expect(translated >= 3, "the paint translates too: \(translated)")
 }
