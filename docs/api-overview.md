@@ -483,6 +483,17 @@ command buffer. Every wrapper has `.raw` and the product re-exports `CSDL`. Ship
 `docs/packaging.md` section 4a; the guide is [`guides/drawing-and-gpu.md`](guides/drawing-and-gpu.md). Human checks:
 group GA, unrun.
 
+**SDL GPU gaps** (`GB-`, item S11, record §137; class M, `Backends/SDL`, outside the census). Graphics, rulings `GB-B`
+to `GB-E`: `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:)` and `setScissor(x:y:width:height:)`
+(`@discardableResult -> Bool`, top-left target pixels, a bad size answers `false`, the scissor clamps to the target),
+`SDLGPUGraphicsPipelineDescription.writesColor` (a depth-only prepass), `SDLGPUTextureFormat.r32Float`, and
+`SDLGPUSamplerDescription.maxAnisotropy` with `effectiveMaxAnisotropy` and `SDLGPUSampler.configuration`.
+Readback and failure reasons, rulings `GB-F`, `GB-G`, `GB-L`: `SDLGPUFence.waitBlocking()` (blocks the calling thread on the
+lock the waiter thread signals, never releases the fence) and `SDLGPUDevice.downloadSynchronously(_:region:)` with
+`SDLGPUTextureRegion` (legal on the main actor outside a draw, a debug trap inside one, a precondition on the device's own
+worker threads); `SDLGPUDevice.compileGraphicsPipeline(_:)` and `compileComputePipeline(_:)` throw an `SDLGPUError` naming the
+stage, and `lastPipelineFailure` records what the unchanged optional `make…Pipeline` verbs refused.
+
 **Window chrome on SDL** (`CW-`, item S1, record §112;
 [`superpowers/2026-10-13-sdl-chrome-decisions.md`](superpowers/2026-10-13-sdl-chrome-decisions.md);
 probe `probes/swiftui-window-chrome.swift`). All class M: SwiftUI has no window-control API. On SDL
@@ -959,6 +970,8 @@ input by point and by element in XCUITest's names (`click`, `typeText`,
 `MenuEvaluation`; `HeadlessPlatform` options such as `presentsMenusNatively` and `showsMenuBarNatively` choose whether the platform or the window draws) and per-frame work counters (`FrameWork`) for benchmarks
 that count work, and an input-method driver beside `typeText` (M; `IM-A`, record §102: `setMarkedText(_:selectedRange:)`, `commitMarkedText()`, `commitMarkedText(_:)`, `cancelMarkedText()`, `markedText`, `markedSelection`, sending the platforms' own composition events through `onInput`) and the clipboard read-backs (M; `CB-K`: `clipboardRepresentations`, `setClipboard(_:)`, `setClipboard(text:)`). SwiftUI tests UI out of process, so this is MetalUI-only.
 How an app uses it: [`testing.md`](testing.md).
+
+A complete app that uses only this surface, with its own tests over `MetalUITesting`: [`Examples/Jotter`](../Examples/Jotter/README.md) (a separate package, no new API; record §136).
 
 ## Backends and infrastructure — M
 
