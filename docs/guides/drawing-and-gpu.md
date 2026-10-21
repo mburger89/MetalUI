@@ -349,6 +349,48 @@ func drawingTintOpacity(of material: Material, in scheme: ColorScheme) -> Float 
 }
 ```
 
+## How do I animate a view through a sequence of states?
+
+Use `phaseAnimator`, SwiftUI's spelling, in both vocabularies. Without a `trigger` the view shows
+its first phase, steps to the second at once and cycles for ever, one step each as long as the
+animation of the phase just entered (pin: `aPhaseAnimatorWithNoTriggerCyclesForeverP1`); the window
+keeps drawing while it runs and idles when it does not (pin:
+`theCycleNotesAnActiveAnimationAndNeverRequestsAnotherFrameGSI`). With a `trigger` it sits on the
+first phase until the trigger changes, then runs through the rest and back to the first once, and a
+change mid-run restarts from the second at once (pin: `aTriggerRunsEveryPhaseOnceAndReturnsToTheFirstP2P3`,
+`aTriggerChangeMidRunRestartsFromTheSecondPhaseP4`). Each phase's content is built under the
+transaction `animation(phase)` makes, and a `nil` animation snaps its phase (pin:
+`eachPhasesContentIsBuiltUnderItsAnimationGSJ`, `aNilAnimationSnapsAndTheNextStepFollowsAtOnceP5`).
+The closure receives the view itself, so write further decoration inside it: one after
+`phaseAnimator` does not compile (pin: `phaseAnimatorTypechecksWithSwiftUIsCallShape`). The guide
+blocks below swing a bar once per change and pulse a badge for ever (pin:
+`theDrawingGuideAPulseCyclesAndASwingRunsOncePerTrigger`).
+
+```swift
+/// A badge that pulses for ever, and a bar that swings once each time `taps` changes.
+struct DrawingPulse: Component {
+    var content: some ElementGroup {
+        Rectangle().frame(width: Pixels(40), height: Pixels(20))
+            .accessibilityIdentifier("pulse")
+            .phaseAnimator([Pixels(0), Pixels(10)]) { content, shift in
+                content.offset(x: shift)
+            } animation: { _ in .linear(duration: 0.2) }
+    }
+}
+
+struct DrawingSwing: Component {
+    let taps: Int
+
+    var content: some ElementGroup {
+        Rectangle().frame(width: Pixels(40), height: Pixels(20))
+            .accessibilityIdentifier("swing")
+            .phaseAnimator([Pixels(0), Pixels(12), Pixels(-12)], trigger: taps) { content, shift in
+                content.offset(x: shift)
+            } animation: { _ in .linear(duration: 0.1) }
+    }
+}
+```
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.

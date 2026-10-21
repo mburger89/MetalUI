@@ -239,7 +239,8 @@ enum GuideDocs {
         }
     }
 
-    static let deniedNames = ["PhaseAnimator"]
+    /// Empty since `phaseAnimator` merged (G1 lane 2, `GS-H`): add a name here when a guide must not yet cite an API.
+    static let deniedNames: [String] = []
 
     private static func captures(_ pattern: String, in text: String) -> [[String]] {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }

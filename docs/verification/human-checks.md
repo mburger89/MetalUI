@@ -1813,6 +1813,18 @@ a physical GPU, a desktop session and a console.*
 - [ ] **GB2.** On a real D3D12 device (CI compiles Windows only; the UTM VM runs the SDL GPU tests when reachable): the viewport and scissor sub-rect, a depth-only prepass (`writesColor: false`), `r32Float` sampling and `downloadSynchronously` give the same pixels and floats as Metal and lavapipe (`GB-B`...`GB-F`). **Observed:**
 - [ ] **GB3.** `downloadSynchronously` for a picking readback in a real 3D viewport app: one frame hitch when it is called, no deadlock, and the pipeline-failure text (`compileGraphicsPipeline`) reads usefully for a deliberately broken shader (`GB-F`, `GB-G`). **Observed:**
 
+## GS. `@GestureState` and `phaseAnimator` (item G1, user request 2026-10-02, round 2 2026-10-21, not a plan task; record 135; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: the screen was locked for the whole item, so no real window was driven and the probe arms `G7`, `G7e` and `P5` were not re-taken. The reset paths, the stepping schedule and the work counts are pinned headlessly (`GestureStateTests`, `PhaseAnimatorTests`, `PhaseAnimatorRetainedTests`); what is owed is how it looks, how SwiftUI behaves under Reduce Motion, and the re-take. Demos: `METALUI_CANVAS_DEMO=1`'s drag chip and hold chip (the input follow-ups pad under the canvas demo) and `METALUI_LOOKS_DEMO=1`'s keyframes row (pulse and triggered bar).*
+
+- [ ] **GS1.** Drag the chip and release: it eases home over 0.25 s (`resetTransaction`) on macOS and on SDL, with no jump at the release and none while it follows the pointer. **Observed:**
+- [ ] **GS2.** Hold the press chip past 0.5 s and release early: the pressed look turns off at the maturity and again at the release, never sticks. **Observed:**
+- [ ] **GS3.** Flip System Settings, Accessibility, Display, Reduce Motion, then re-run `docs/probes/swiftui-gesture-state.swift` `P1`/`P2` and watch the looks demo's pulse: record whether SwiftUI stops or snaps the cycle and what MetalUI does (it keeps stepping and animating, `GS-K`). If SwiftUI differs, the counter-ruling is one `snaps` read in `PhaseRecord` resolution. **Observed:**
+- [ ] **GS4.** Start a drag on the chip and Cmd-Tab away, then return: the chip is home (key loss cancels the arena and resets the state, `GC-`, `GS-C`). **Observed:**
+- [ ] **GS5.** Leave the looks demo's pulse running for a minute: one core's share while it runs, near 0 % once the window is occluded or the pulse is removed (the display link only while a step is pending, `GS-I`). **Observed:**
+- [ ] **GS6.** The same drag chip and pulse on Linux with a real pointer (an SDL window). **Observed:**
+- [ ] **GS7.** With an unlocked screen, re-take `swiftui-gesture-state.swift` arms `G7`, `G7e` (the claim behind divergence 645) and `P5` (the nil-animation step) byte for byte against the header's lines (`GS-O`); a line that differs re-rules 645 or the P5 pin. **Observed:**
+
 ## BS. Build-time app shaders - a real shadercross through the tool and plugin (item S12, user request 2026-10-02, not a plan task; record 138; provisional letter, in the manner of `RT`, `KF` and `IF`)
 
 *An agent cannot: it needs a Windows machine and a Linux x86_64 one. The tool's plan, lookup, marker and the plugin (with a stub shadercross) are pinned headless, and the runs against a real shadercross at the pin on macOS arm64 and Linux aarch64 were byte-identical to the checked-in blobs (record 138, `BS-L`); what is owed is the other platforms.*

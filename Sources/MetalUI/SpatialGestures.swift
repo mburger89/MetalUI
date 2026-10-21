@@ -125,6 +125,12 @@ public struct SpatialTapGesture: Gesture {
         return copy
     }
 
+    /// Accepted for SwiftUI's source compatibility and **never run** (probe `G5b`, `GS-B`).
+    @MainActor public func updating<StateValue>(_ state: GestureState<StateValue>,
+                                     body: @escaping @MainActor (Value, inout StateValue, inout Transaction) -> Void) -> SpatialTapGesture {
+        self
+    }
+
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .tap(count: count, spatial: coordinateSpace))
         leaf.spatialTapEnded = ended
@@ -167,6 +173,7 @@ public struct MagnifyGesture: Gesture {
     var changed: (@MainActor (Value) -> Void)?
     var ended: (@MainActor (Value) -> Void)?
     var cancelled: (@MainActor () -> Void)?
+    var updates: [GestureUpdate<Value>] = []
 
     /// A pinch that reports once its magnification moves `minimumScaleDelta`
     /// from 1.
@@ -199,9 +206,20 @@ public struct MagnifyGesture: Gesture {
         return copy
     }
 
+    /// Writes `state` with `body` on every change this gesture reports, and returns it to its initial value when the
+    /// gesture ends, fails or is cancelled (`GS-B`, `GS-C`). `body` starts from the value committed before the
+    /// event; set `transaction.animation` to animate the update. Runs in declaration order against `onChanged`.
+    @MainActor public func updating<StateValue>(_ state: GestureState<StateValue>,
+                                     body: @escaping @MainActor (Value, inout StateValue, inout Transaction) -> Void) -> MagnifyGesture {
+        var copy = self
+        copy.updates.append(GestureUpdate(state, afterChanged: changed != nil, body: body))
+        return copy
+    }
+
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .magnify(minimumScaleDelta: minimumScaleDelta))
-        leaf.magnifyChanged = changed
+        leaf.magnifyChanged = composeChanged(changed, updates)
+        leaf.finished = composeFinished(updates)
         leaf.magnifyEnded = ended
         leaf.magnifyCancelled = cancelled
         return _GestureRecognizers(.leaf(leaf))
@@ -233,6 +251,7 @@ public struct RotateGesture: Gesture {
     var changed: (@MainActor (Value) -> Void)?
     var ended: (@MainActor (Value) -> Void)?
     var cancelled: (@MainActor () -> Void)?
+    var updates: [GestureUpdate<Value>] = []
 
     /// A rotation that reports once it has turned `minimumAngleDelta`.
     public init(minimumAngleDelta: Angle = .degrees(1)) {
@@ -264,9 +283,20 @@ public struct RotateGesture: Gesture {
         return copy
     }
 
+    /// Writes `state` with `body` on every change this gesture reports, and returns it to its initial value when the
+    /// gesture ends, fails or is cancelled (`GS-B`, `GS-C`). `body` starts from the value committed before the
+    /// event; set `transaction.animation` to animate the update. Runs in declaration order against `onChanged`.
+    @MainActor public func updating<StateValue>(_ state: GestureState<StateValue>,
+                                     body: @escaping @MainActor (Value, inout StateValue, inout Transaction) -> Void) -> RotateGesture {
+        var copy = self
+        copy.updates.append(GestureUpdate(state, afterChanged: changed != nil, body: body))
+        return copy
+    }
+
     @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .rotate(minimumAngleDelta: minimumAngleDelta.degrees))
-        leaf.rotateChanged = changed
+        leaf.rotateChanged = composeChanged(changed, updates)
+        leaf.finished = composeFinished(updates)
         leaf.rotateEnded = ended
         leaf.rotateCancelled = cancelled
         return _GestureRecognizers(.leaf(leaf))
