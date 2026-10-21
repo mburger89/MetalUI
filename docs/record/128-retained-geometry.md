@@ -97,8 +97,8 @@ Merged tree `c76a6a37` (branch `d85cc670` + master `c502f14c`), screen unlocked 
   guard included); **250 typecheck guards** (249 + `dirtyRectStaysReadableAsATuple`; 459 `typecheck`/`typecheckFile` calls against 458 at `99b21a1c`). Branch alone, before the merge (verifier readings):
   4044 after lane 1, 4052 after lane 2, 4058 after lane 3 (on 4038).
 - `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`: **4073 passed** in 5 suites, no trap (a skipped-by-design set of lane 2 pins is counted)
-- Default build system `swift build --build-tests`: DEFAULTWARN. Inventory and undocumented scripts print nothing; census **3680** (3679 + `GlyphAtlas.dirtyRects`), re-recorded after the merge's line shifts.
-- Fourteen images against `99b21a1c`: **0 px, scene identical in all fourteen** (lane verifiers at `121402a8` and `d85cc670`; DEMOPIXELS).
+- Default build system `swift build --build-tests`: 0 `warning:`. Inventory and undocumented scripts print nothing; census **3680** (3679 + `GlyphAtlas.dirtyRects`), re-recorded after the merge's line shifts.
+- Fourteen images against `99b21a1c`: **0 px, scene identical in all fourteen** (lane verifiers at `121402a8` and `d85cc670`; re-taken on the merged tree at `e1ff19d1`, controls as recorded, 0 differing in all fourteen).
 - Linux image `metalui-portable` (OrbStack, volumes `metalui-root-build-retained-geometry`, `metalui-sdl-build-retained-geometry`), on the merged tree: root `MetalUITestingTests` + the portable tests 412 in 2 suites,
   then 9, 40, 28, `MetalUILayoutTests` 233, `MetalUICoreTests` 128 and the cross-platform 22, all passed; `Backends/SDL` **30 + 215** (macOS 30 + 218 at lane 3: three are macOS-only).
 - `Backends/SDL` on macOS at lane 3's head: 30 + 218 passed, including `theAtlasTransferMovesOnlyTheRects`.
@@ -117,7 +117,7 @@ comparison) were run at lane 1 (commit `fc491cd3`); the verifier did not re-run 
 `anInnerClippedHitboxTouchingTheAmbientClipRefuses` and `theClippedRowsAreRefusedByTheNameHitboxClipped`; M5 (the `effectAndLayoutMoved` counter line removed)
 `aShiftUnderAMovedRenderEffectIsRefusedByName`. **Lane 3**: M1 (`Atlas.markDirty` back to the bounding union), full unfiltered native, reddened exactly `aTwoRectUploadLeavesEveryTexelEqualToTheAtlas`,
 `twoGlyphsOnDistantShelvesCountTheirOwnAreasNotTheSpan`, `adjacentSlotsOnOneShelfMergeIntoOneRect`, `theNinthRectCollapsesToTheBoundingRect`, `dirtyRectIsTheUnionOfDirtyRects`; M6 (`SDLWindowRenderer`
-passes the whole atlas as the only rect), `Backends/SDL` tests: `theAtlasTransferMovesOnlyTheRects`. GUARD-MUTATION
+passes the whole atlas as the only rect), `Backends/SDL` tests: `theAtlasTransferMovesOnlyTheRects`. The new guard `dirtyRectStaysReadableAsATuple` was mutated red once at the Record phase: `dirtyRect` made `internal` in `Atlas.swift` broke the test target's build (`GlyphABITests` reads it), so the guard was run with `--skip-build` against the mutated `Modules` directory and failed with `'dirtyRect' is inaccessible due to 'internal' protection level`; restored, `git status --short` clean.
 Filtered, not unfiltered, for lanes 1 and 2: a test outside the set that a mutation reddens is not listed.
 
 ## §9 Hazards
