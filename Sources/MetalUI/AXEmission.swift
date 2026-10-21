@@ -41,4 +41,34 @@ struct AXEmission {
     /// element with a declared action is still a button, with no press (A7).
     /// The press itself comes from the registry, behind the disabled gate.
     var declaresAction = false
+    /// The pre-effect rects `geometry` was computed from, recorded only under a render effect (`AT-A`): an
+    /// effect-translated prepaint replay evaluates the same two expressions against the current effect.
+    /// Nothing but that replay reads it.
+    var local: AXLocalRects?
+}
+
+/// One open render effect as an accessibility replay re-derives it (`AT-G`): its own map and the clip in force at its entry.
+struct AXEffectStep {
+    var map: Affine2D
+    var clipLocal: Bounds<Pixels>?
+}
+
+/// The effects open where a record was made, outermost first, shared by every record made under the same stack (`AT-G`).
+final class AXEffectChain {
+    let steps: [AXEffectStep]
+    init(steps: [AXEffectStep]) { self.steps = steps }
+}
+
+/// The operands of `Frame.accessibilityGeometry` and `emitAXNode` under a render effect (`AT-A`): the rect
+/// after the active scroll offset, that rect cut by the clip in force, and the effects open.
+struct AXLocalRects {
+    var frame: Bounds<Pixels>
+    var clipped: Bounds<Pixels>
+    var chain: AXEffectChain
+}
+
+/// An occurrence's accessibility records recomputed against the current render effect (`AT-A`).
+struct AXTranslation {
+    var emissions: [AXEmission]
+    var nodes: [(GlobalElementID, AXNode)]
 }

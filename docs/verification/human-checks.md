@@ -1771,6 +1771,13 @@ a physical GPU, a desktop session and a console.*
 - [ ] **RG2.** On AppKit (Metal) and on SDL (Linux and Windows): change a text field's font size so first-use glyphs land on shelves far apart in one frame (a heading and a footnote, a CJK run): every glyph is drawn, none
   blank, at scale 1 and 2 (`RG-H`, `RG-O`). **Observed:**
 - [ ] **RG3.** SDL on Windows D3D12 (CI cannot see a pixel): the same first-use text draws whole after the packed per-rect atlas copy (`RG-O`; CI compiles it only). **Observed:**
+## AT. Accessibility under an effect-translated replay — a canvas pan with the graft on (item C14-g, user request 2026-10-02, not a plan task; record 129; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot run VoiceOver (`IX-AE`) or MetalCreator. Tree equality with a fresh window is pinned by the suite and by `METALUI_VERIFY_RETAINED=1`; what is owed is how it reads and feels.*
+
+- [ ] **AT1.** VoiceOver on a canvas of `.equatable()` nodes under `.scaleEffect` + `.offset` (MetalCreator's graph, or `METALUI_RETAINED_DEMO=1`): pan and zoom the canvas, the VoiceOver focus rectangle follows the
+  focused node and socket, stays on it after the pan settles, and reads the same labels as with retention off (`AT-A`). The owner also reads MetalCreator's warm graph pan counters: grafts above 0, redos 0, element
+  requests far below 1409 (no agent touches MetalCreator). **Observed:**
 
 ## Sign-off
 

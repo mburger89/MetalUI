@@ -117,8 +117,8 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         // The ledger of what the prepaint registered replays while the prepaint key is equal (`RK-C`, `RK-E`);
         // the occurrence's element prepaint does not run, so its paint must be a replay too (`RK-B`).
         let mode = frame.retainedPrepaintDecision(phase)
-        if case .replay(let ledger, let moved, let movedBounds) = mode {
-            frame.replayPrepaintLedger(ledger, hitboxes: moved, elementBounds: movedBounds)
+        if case .replay(let ledger, let moved, let movedBounds, let accessibility) = mode {
+            frame.replayPrepaintLedger(ledger, hitboxes: moved, elementBounds: movedBounds, accessibility: accessibility)
             phase.replayed = ledger
             return ComponentPrepaint<C>(replayedBy: phase)
         }

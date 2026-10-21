@@ -509,6 +509,13 @@ eight rects, then one bounding rect until the clear. **`Backends/SDL` internal C
 reasons no longer count `geometryChange`); it replays its prepaint and paint, is never grafted (`graftRefusals["geometryGraft"]`) and refuses a translated replay by name (`geometryTranslated`); its action
 fires exactly when a fresh window's would. A shifted subtree restored by the layout memo now counts a `layoutSubtreeHit` where it counted a miss (a custom `ProposalLayout` subtree never does), and
 `SubtreePlacementTests` 2.3's moved-origin case reads 1 hit. A shift under a moved render effect counts `retainedTranslationRefusedReasons["effectAndLayoutMoved"]` where it counted nothing.
+### Accessibility under an effect-translated replay (`AT-`, record §129)
+
+No API change, no conformer change, no `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement. **Behaviour, counters read differently:** an `.equatable()` occurrence under a
+render effect (`.offset`, `.scaleEffect`) that moved by a translation now replays its prepaint **with a client reading the accessibility tree** (its frames are recomputed against the current
+effect), so a pan grafts instead of redoing the frame: a test that counted `retainedRedos`, `retainedBackoffFrames` or element requests of such a pan reads 0, 0 and far fewer, and
+`retainedTranslationRefusedReasons["accessibilityRecords"]` no longer appears for it (layout translation still reports it). A scale or rotation change of the effect now counts
+`effectNotTranslation` where it was silent. A custom element under such an occurrence is called less often.
 
 ### Retained read-only state (`RW-`, record §121)
 

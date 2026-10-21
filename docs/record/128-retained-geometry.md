@@ -143,3 +143,6 @@ Filtered, not unfiltered, for lanes 1 and 2: a test outside the set that a mutat
 - An atlas gap-merge threshold and eviction (`RG-H`).
 - Windows D3D12 for the SDL atlas copy: CI only (check RG3); the Linux image runs on lavapipe.
 - A shift under a moved render effect still builds (`RG-N`).
+
+
+Merge note: master `b15e038c` (§129, `AT-`, accessibility under an effect-translated replay) is merged in. The effect-translation branch now checks the `geometryTranslated` refusal after master's `effectNotTranslation` guard and before the accessibility recompute, with `effectAndLayoutMoved` kept as an `else if`.

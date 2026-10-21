@@ -2383,3 +2383,6 @@ No real window was driven (screen locked) and MetalCreator was not touched. **Ow
 ## 2026-10-20: retained geometry observers, placement translation, per-shelf atlas uploads (record §128) — looks owed, group RG
 
 No real window was driven (screen locked). **Owed, new here — `docs/verification/human-checks.md` group RG, none performed (an agent cannot)**: RG1 the demo's geometry card and a real resize and scroll with retention on against off; RG2 first-use text on distant shelves on Metal and SDL after a font-size change (no blank glyph); RG3 the SDL atlas copy on Windows D3D12 (CI only). Owed, and not a look: nothing else; the Linux image, the verify-switch run and the fourteen-image comparison were taken on the merged tree (record §128 §7).
+## 2026-10-20: accessibility under an effect-translated replay (record §129) — looks owed, group AT
+
+No real window was driven and neither VoiceOver nor MetalCreator was run (an agent cannot). **Owed, new here — `docs/verification/human-checks.md` group AT, none performed**: AT1 VoiceOver focus following a canvas pan with the graft on, and the owner's MetalCreator warm-pan counters. Owed, and not a look: the fourteen-image and Linux-image re-takes on the merged tree (record §129 §6).
