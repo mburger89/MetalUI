@@ -30,7 +30,8 @@
 //
 // RECORDED 2026-10-21 by the lazy-containers design session (item L1), macOS 27.0
 // (26A434), Apple Swift 6.4 (swiftlang-6.4.0.33.1), screen UNLOCKED. Compiled form
-// (`xcrun swiftc -O`), run twice, exit 0, byte-identical stdout (62 lines).
+// (`xcrun swiftc -O`), run twice, exit 0, byte-identical stdout (62 lines). Lane 2 (2026-10-21, screen LOCKED, the
+// layout arms and R1 ran regardless) added C14b/C14c and re-ran: 64 lines, the other 62 unchanged.
 //
 // THE READING (each line names the arm; the figures are in WHOLE STDOUT below).
 // 1. SIZE. A lazy stack answers the proposal on its cross axis whenever there is
@@ -82,7 +83,10 @@
 //    (C10 48 = 10 + 8 + 30) and a LazyHGrid column as wide as its widest (C11
 //    48 = 10 + 8 + 30). At a nil width the tracks come from the FIRST row's
 //    cells (LZ4: 58) and an adaptive item makes one column (C12). No items: 0x0
-//    (C13). A ForEach element of two views is TWO cells (C14).
+//    (C13). A ForEach element of two views is TWO cells (C14b, added by lane 2: with two
+//    .fixed(40) columns a and b are cells 0 and 1 of row 0 and c is cell 0 of row 1,
+//    byte for byte the three plain cells of C14c; C14's single column cannot
+//    separate this from one stacked cell).
 // 7. PINNING. `pinnedViews: [.sectionHeaders]` held the header at the viewport
 //    top (H1 minY 0 at offset 300), but the unpinned control never reported a
 //    frame (H0: `onChange` of a scrolled frame did not fire headless), so the
@@ -127,6 +131,8 @@
 //   C12 LazyVGrid(.adaptive(minimum: 45)) at nil width, 4 cells @nilxnil: size 10x64 | c0 (0,0 10x10) | c1 (0,18 10x10) | c2 (0,36 10x10) | c3 (0,54 10x10)
 //   C13 LazyVGrid(columns: []) (no items), 2 cells @200x200: size 0x0
 //   C14 LazyVGrid(.fixed 40) x1, a ForEach element of two views (a, b) then c @200x200: size 200x46 | a (95,0 10x10) | b (95,18 10x10) | c (95,36 10x10)
+//   C14b LazyVGrid(.fixed 40) x2, a ForEach element of two views (a, b) then c (does the element make two cells?) @200x200: size 200x28 | a (71,0 10x10) | b (119,0 10x10) | c (71,18 10x10)
+//   C14c control: LazyVGrid(.fixed 40) x2, three plain cells a, b, c @200x200: size 200x28 | a (71,0 10x10) | b (119,0 10x10) | c (71,18 10x10)
 //   C15 .flexible(minimum: 150), .flexible() (one minimum above its share), 4 cells @200x200: size 200x28 | c0 (70,0 10x10) | c1 (174,0 10x10) | c2 (70,18 10x10) | c3 (174,18 10x10)
 //   C16 .adaptive(minimum: 60, maximum: 70) at width 100 (one column wider than the maximum) @100xnil: size 100x46 | c0 (45,0 10x10) | c1 (45,18 10x10) | c2 (45,36 10x10)
 //   C17 .fixed(40), .adaptive(minimum: 30), 6 cells @200x200: size 200x28 | c0 (15,0 10x10) | c1 (59,0 10x10) | c2 (99,0 10x10) | c3 (139,0 10x10) | c4 (179,0 10x10) | c5 (15,18 10x10)
@@ -337,6 +343,13 @@ struct SizeReader: ViewModifier {
     arm("C13 LazyVGrid(columns: []) (no items), 2 cells", p200) { LazyVGrid(columns: []) { cells(2) } }
     arm("C14 LazyVGrid(.fixed 40) x1, a ForEach element of two views (a, b) then c", p200) {
         LazyVGrid(columns: [GridItem(.fixed(40))]) { ForEach(0..<1, id: \.self) { _ in fx("a", 10, 10); fx("b", 10, 10) }; fx("c", 10, 10) }
+    }
+
+    arm("C14b LazyVGrid(.fixed 40) x2, a ForEach element of two views (a, b) then c (does the element make two cells?)", p200) {
+        LazyVGrid(columns: [GridItem(.fixed(40)), GridItem(.fixed(40))]) { ForEach(0..<1, id: \.self) { _ in fx("a", 10, 10); fx("b", 10, 10) }; fx("c", 10, 10) }
+    }
+    arm("C14c control: LazyVGrid(.fixed 40) x2, three plain cells a, b, c", p200) {
+        LazyVGrid(columns: [GridItem(.fixed(40)), GridItem(.fixed(40))]) { fx("a", 10, 10); fx("b", 10, 10); fx("c", 10, 10) }
     }
 
     arm("C15 .flexible(minimum: 150), .flexible() (one minimum above its share), 4 cells", p200) {
