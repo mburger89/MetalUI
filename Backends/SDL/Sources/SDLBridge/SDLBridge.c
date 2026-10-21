@@ -2219,13 +2219,14 @@ void mui_surface_image_size(void *surface, int32_t index, int32_t *w, int32_t *h
     SDL_free(images);
 }
 
-#else
-/* Built without the `SDL` trait: no SDL3 header, no SDL3 link. */
-int mui_bridge_built_without_sdl = 1;
-#endif
-
 uint32_t mui_app_id_set_count(void) { return app_id_sets; }
 const char *mui_app_id_last(void) { return app_id_last; }
 bool mui_app_id_hint_precedes_init(void) {
     return app_id_hint_seq != 0 && app_id_hint_seq < app_id_init_seq;
 }
+
+#else
+/* Built without the `SDL` trait: no SDL3 header, no SDL3 link. */
+int mui_bridge_built_without_sdl = 1;
+#endif
+
