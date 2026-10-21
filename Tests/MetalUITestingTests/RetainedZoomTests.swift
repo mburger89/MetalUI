@@ -195,16 +195,16 @@ func aHitboxInsideAnEffectTheOccurrenceOpenedFollowsTheZoom() async throws {
     _ = replayed
 }
 
-/// Z8 — a stationary pointer, a zoom that carries a node under it: the frame equals fresh at every step, and the **carried frame**
-/// is the one that reacts. Scale 1 to 1.5 puts the pointer on node 7's button (blank at 1): the pointer is read against the
-/// **moved** hitboxes (`RZ-D`, `FS-P`'s rule), so that node's prepaint runs in that frame; it is grafted, so with no element to
-/// prepaint the frame is redone once, there (counted). Without the read all ten prepaints replay in the carried frame (hover resolves
-/// after prepaint, the old hitboxes do not hold the point) and the redo falls on the next frame, when the hovered node misses at
-/// paint: the same cost one frame late, and the same pixels, so the pin is where the redo lands, not what is drawn. Mutation: the
-/// moved-hitbox pointer read skipped (step 0 reads 0 redos and 10 prepaint hits).
+/// Z8 — a stationary pointer, a zoom that carries a node under it: the frame equals fresh at every step and is **not redone**.
+/// Scale 1 to 1.5 puts the pointer on node 7's button (blank at 1). Hover resolves after prepaint and before paint, so a prepaint
+/// that replayed would leave that node's paint (it misses under the pointer) with no element prepaint state: a redo. The pointer is
+/// read against the **moved** hitboxes (`RZ-D`, `FS-P`'s rule), so node 7's prepaint runs instead (9 of 10 replay) and the paint
+/// follows it. With a graft (`graft: true`) the node has no element to prepaint either way and the frame is redone once whether
+/// or not the read is made, which is why this arm builds without grafts. Mutation: the moved-hitbox pointer read skipped
+/// (10 replays, one redo).
 @Test(.enabled(if: !rsVerifying, zVerifyingNote)) @MainActor
 func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async throws {
-    let pair = try zoomPair(warm: 6)
+    let pair = try zoomPair(warm: 6, graft: false)
     // A point on blank canvas at scale 1 that node 7's button hitbox covers at 1.5: the hitbox is 38 points wide at local x 459...497
     // (node 7's 448 plus 11) and local y 53 down, so at 1.5 under the fixed 40 x 24 offset the point (757, 120) reads local (478, 64);
     // at scale 1 it is past the row's end (676) and below the nodes.
@@ -221,9 +221,8 @@ func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async th
         try pair.compare("zoom step \(step) under a stationary pointer")
     }
     let first = try #require(carried)
-    #expect(first.retainedRedos == 1, "the carried frame is redone once: \(first.retainedRedos)")
-    #expect(first.retainedPrepaintHits < 10, "the carried node ran its prepaint: \(first.retainedPrepaintHits) of 10 replayed")
-    #expect(redos == 1, "one redo over the whole zoom, in the carried frame: \(redos)")
+    #expect(first.retainedPrepaintHits == 9, "all but the carried node replay their prepaint: \(first.retainedPrepaintHits) of 10")
+    #expect(redos == 0, "no frame is redone: \(redos)")
 }
 
 /// Z9 — the report: element requests, grafts, redos, prepaints and paints of a zoom step and of a bracket pan step, retaining and
