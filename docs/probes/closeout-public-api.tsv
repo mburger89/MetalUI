@@ -79,8 +79,8 @@ MetalUI	Sources/MetalUI/Animation.swift:136	Animation	func	easeInOut
 MetalUI	Sources/MetalUI/Animation.swift:168	Animation	func	timingCurve
 MetalUI	Sources/MetalUI/Animation.swift:212	Animation	func	spring
 MetalUI	Sources/MetalUI/Animation.swift:230	Animation	let	`default`
-MetalUI	Sources/MetalUI/Animation.swift:239	Animation	func	value
-MetalUI	Sources/MetalUI/Animation.swift:736	-	func	withAnimation
+MetalUI	Sources/MetalUI/Animation.swift:253	Animation	func	value
+MetalUI	Sources/MetalUI/Animation.swift:750	-	func	withAnimation
 MetalUI	Sources/MetalUI/AnimationScope.swift:27	-	struct	TransactionScopeLayout
 MetalUI	Sources/MetalUI/AnimationScope.swift:42	-	struct	TransactionScope
 MetalUI	Sources/MetalUI/AnimationScope.swift:51	TransactionScope	func	requestGroupLayout
@@ -1475,6 +1475,16 @@ MetalUI	Sources/MetalUI/Path.swift:181	Path	func	contains
 MetalUI	Sources/MetalUI/Path.swift:199	Path	func	offsetBy
 MetalUI	Sources/MetalUI/Path.swift:206	Path	func	path
 MetalUI	Sources/MetalUI/Path.swift:209	Path	func	geometry
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:134	-	struct	PhaseAnimator
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:150	PhaseAnimator	init	init
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:159	PhaseAnimator	init	init
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:171	PhaseAnimator	struct	Layout
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:198	PhaseAnimator	func	requestGroupLayout
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:211	PhaseAnimator	func	prepaintGroup
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:216	PhaseAnimator	func	paintGroup
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:228	PhaseAnimator	func	requestProposalGroupLayout
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:253	ElementGroup	func	phaseAnimator
+MetalUI	Sources/MetalUI/PhaseAnimator.swift:266	ElementGroup	func	phaseAnimator
 MetalUI	Sources/MetalUI/Picker.swift:14	-	struct	PickerStyle
 MetalUI	Sources/MetalUI/Picker.swift:19	PickerStyle	let	automatic
 MetalUI	Sources/MetalUI/Picker.swift:21	PickerStyle	let	segmented
