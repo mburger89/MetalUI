@@ -48,7 +48,7 @@ defaulted parameter: take both if C14-f adds one), `translation(from:)`'s invers
 
 ## §3 Tests and guards
 
-No typecheck guard (everything is `internal`/`package`): **249** unchanged. Root **4060** (4053 + 7: `AXTranslatedReplayTests.swift` adds 7 test functions and parameterised arms, and two existing
+No typecheck guard (everything is `internal`/`package`): **249** unchanged. Root **4060** (4053 + 7: `AXTranslatedReplayTests.swift`, with parameterised arms, and two existing
 tests were edited, below). Whole suite also green under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` (checker's run).
 
 `Tests/MetalUITestingTests/AXTranslatedReplayTests.swift` (ten `ATNode` `.equatable()` components of eight labelled buttons in a `ZStack` under `.scaleEffect` then `.offset`; a `TestWindow` pair, one
@@ -105,7 +105,7 @@ declaration). The fourteen images 0 px against `c502f14c` (implementer; not re-t
 
 ## §7 Counts
 
-Measured by the Record phase after `swift package clean` (see CLAUDE.md's counts bullet).
+Measured by the Record phase after `swift package clean` on a **locked screen**: native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice; `Test run with 4060 tests in 5 suites failed after 807.979 seconds with 5 issues`, the five being exactly `AppKitPresentationTests`' sheet issues of `CI-AF` (`attachedSheet != nil`) and nothing else; `FR-J no-argument frame: succeeded=true`; 0 goldens; 249 typecheck guards (none added). `AT pin 1: grafts 60 redos 0 backoff 0 requests [5…] baseline [335…]`; `AT pin 7: grafts 81 redos 0 requests [198, 195…]` re-read from this run.
 
 ## §8 Hazards and deferrals
 
