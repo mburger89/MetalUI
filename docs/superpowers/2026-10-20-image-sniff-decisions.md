@@ -1,7 +1,7 @@
 # Header-only image format sniff — decisions
 
 Rulings for item XP-G12 of the gpui-gap priority list (user request 2026-10-02, requested by MetalCreator 2026-10-20;
-**not a plan task**). Prefix `IS-`. **Next unused: `IS-J`.** Spec:
+**not a plan task**). Prefix `IS-`. **Next unused: `IS-K`.** Spec:
 [`specs/2026-10-20-image-sniff-design.md`](specs/2026-10-20-image-sniff-design.md). Record: `../record/130-image-sniff.md`
 (Record phase). Branch `feat/image-sniff` from `b15e038c`. Divergence labels reserved 595-604: none taken.
 
@@ -88,3 +88,15 @@ divergence label. **Cost if wrong.** A row edit.
 
 **Ruling.** Tests live in `Tests/MetalUICrossPlatformTests/ImageSniffTests.swift` (where `ImageInfoTests` run on Linux and
 Windows CI); only the typecheck guard is in `Tests/MetalUITests`. **Cost if wrong.** None.
+
+## IS-J — Critic's revisions: inventory family row, nil reads, symlink pins gated, no probe stands
+
+**Ruling.** (1) The inventory owes **two** rows, not one: the `M` row for `ImageSniff.swift` and an `F` family row
+`image-sniff` beside `image-info` (line 114 of `closeout-inventory-map.tsv`), listing `IS-A`..`IS-J`. (2) `HeaderSource.read`
+returns `[UInt8]?`: a `nil` read (short or failed file) is `.unknown`, never a trap; a pin with a spy returning `nil`. (3) Test 6's
+symlink cases are gated off Windows (`#if !os(Windows)`: creating a symlink needs a privilege there); the other file cases run
+everywhere. (4) A file form that reads a 64 KiB window is bounded by `FileHeaderSource`, so the "min(size, 18)" read is the data
+form's and the spy's; the file pin is the trace (one refill at 0, `payloadReads == 0`). (5) A mutation run that hangs follows the
+brief's 12-minute rule. **Rejected:** a SwiftUI probe (no SwiftUI claim is made, `IS-H`); folding AVIF into `.heif` (`IS-E`);
+reading compatible brands (`IS-D`). **Evidence.** `ImageHeader.swift` lines 10-13 and the inventory map at `b15e038c`.
+**Cost if wrong.** A map row or a test gate.
