@@ -1,7 +1,7 @@
 # Header-only image format sniff — decisions
 
 Rulings for item XP-G12 of the gpui-gap priority list (user request 2026-10-02, requested by MetalCreator 2026-10-20;
-**not a plan task**). Prefix `IS-`. **Next unused: `IS-K`.** Spec:
+**not a plan task**). Prefix `IS-`. **Next unused: `IS-L`.** Spec:
 [`specs/2026-10-20-image-sniff-design.md`](specs/2026-10-20-image-sniff-design.md). Record: `../record/130-image-sniff.md`
 (Record phase). Branch `feat/image-sniff` from `b15e038c`. Divergence labels reserved 595-604: none taken.
 
@@ -100,3 +100,14 @@ form's and the spy's; the file pin is the trace (one refill at 0, `payloadReads 
 brief's 12-minute rule. **Rejected:** a SwiftUI probe (no SwiftUI claim is made, `IS-H`); folding AVIF into `.heif` (`IS-E`);
 reading compatible brands (`IS-D`). **Evidence.** `ImageHeader.swift` lines 10-13 and the inventory map at `b15e038c`.
 **Cost if wrong.** A map row or a test gate.
+
+## IS-K — Measured residues of the mutation run (lane, 2026-10-20)
+
+**Ruling.** Two mutants survive and are named, not hidden. (1) `sniffedFormat(ofFile:)` rewritten over `Data(contentsOf:)`
+passes every pin: the public file form has no work counter, and the `HeaderTrace` pin (one refill at 0, no payload read)
+reads the internal `sniffImageFormat(FileHeaderSource)`, which the mutant bypasses. The regular-file refusal, directory,
+missing, empty and symlink pins pass either way (`Data(contentsOf:)` throws on a directory). (2) Guard `G-IS1`'s `sniffImageFormat`
+negative cannot be reddened alone: `public func sniffImageFormat(_ source: some HeaderSource)` does not compile while `HeaderSource`
+is internal, so the run made both public; the `HeaderSource` negative then reddened (and `G-IH1`'s), the walk negative still failed
+for the generic-inference reason, a weak separating control. **Evidence.** `/tmp/is-mut-*.txt` of the run; record 130 names the
+reddened tests. **Cost if wrong.** A file form that loads a whole file would go unnoticed until a counter exists; carried.
