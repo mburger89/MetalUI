@@ -13,7 +13,7 @@ import MetalUITesting
 
 @MainActor private func dragFillet(replay: Bool) throws -> (FrameWork, [MUIRectSnapshot]) {
     retainedSubtreeDemoModel.reset()
-    let window = try TestWindow(size: Size(width: Pixels(920), height: Pixels(560)), content: retainedSubtreeDemoContent)
+    let window = try TestWindow(size: Size(width: Pixels(920), height: Pixels(680)), content: retainedSubtreeDemoContent)
     window.window.testingRetainedSubtrees = replay
     for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
     let frame = try window.element(label: "Fillet").frame
