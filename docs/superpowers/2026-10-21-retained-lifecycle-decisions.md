@@ -3,7 +3,7 @@
 Rulings for item C14-h. Spec: [`specs/2026-10-21-retained-lifecycle-design.md`](specs/2026-10-21-retained-lifecycle-design.md). Record: `../record/131-retained-lifecycle.md` (Record phase).
 Branch `perf/retained-lifecycle` from `c55d44e8`. Reserved divergence labels 605-614: none taken.
 
-Prefix **`RL-`**, lettered. **Next unused: `RL-K`.** (Moves in the commit that appends a ruling.)
+Prefix **`RL-`**, lettered. **Next unused: `RL-M`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `RK-E`, `RK-F`, `RG-A`, `RG-C`, `RG-D`, `RG-J`, `AT-C`, `AT-G`, `RW-L`, `KF-J`, `IF-D`, `LC-C`...`LC-I`, `PX-F`, `TF-A`.
 No SwiftUI probe: no observable behaviour moves (`RG-B`'s argument); the oracle is differential against a window with retention off. gpui has no lifecycle-scope analogue to compare.
@@ -61,3 +61,18 @@ a translated one, where the value changed. The transform already runs once per f
 **Ruling.** The last lane-2 commit measures an `.onDemand` surface (unchanged `value:`) inside an `.equatable()` occurrence. It is built only if all hold: paint-only (no build or layout registry write other than the `occurrence(for:)` count), the replay can re-emit the quad
 and re-touch the target without a draw, `.continuous` and changed `value:` still refuse, and the fourteen images stay 0 px. A replayed paint must re-do `surfaceRegistry.occurrence(for:)` and the target-retention touch or the registry releases the target (`MV-`); that is a
 second store like the lifecycle one, so the default is `RW-L` carried with the measured counts. **Cost if wrong.** A surface inside a retained occurrence keeps painting (today's behaviour).
+
+## RL-K - The surface gate moves to lane 1 (critic)
+
+**Ruling.** `RL-J`'s measurement and any build belong to lane 1, not lane 2. **Reasoning.** A replayed surface must re-do `SurfaceRegistry.occurrence(for:)` and the target touch: a per-window store re-noted by a replay, the lifecycle store's shape (`RL-A`), and
+lane 2 already carries geometry, two accessibility mechanisms and a hitbox chain (10 of 21 tests). The only shared file is `Frame.drawSurface`/`PaintRecord`, which lane 2 does not edit. **Cost if wrong.** A merge hunk in `PaintRecord`; the default remains `RW-L` carried.
+
+## RL-L - A replayed or journaled closure is the standing one (rejected alternative: re-capture)
+
+**Ruling.** A replayed `onChange` action, `.task` body and journaled lifecycle `write` are the closures of the build that recorded them; this is `.equatable()`'s contract, as for `RG-A`'s transform and the ledger's press-only actions. Rejected: refusing any scope whose closure is non-`Equatable`
+(there is no way to compare it, and every scope would refuse again). **Pins.** Test 3 gains an arm where the action reads `@State` through a binding (current value delivered, not a stale copy); the journal holds closures only on the memo entry's record, so
+`MemoryReleaseTests` gains an arm for a window closed while an occurrence with `.task` and `onChange` is grafted (`IV-R`). **Cost if wrong.** A stale captured plain value, outside the contract.
+
+## RL-L2 - Demo and pixels (note, not a ruling)
+
+The lifecycle strip is behind `METALUI_RETAINED_DEMO=1`, so the fourteen offscreen images (default demo) cannot move; the 0 px comparison is still run. The strip is its own function (1 MB stack).

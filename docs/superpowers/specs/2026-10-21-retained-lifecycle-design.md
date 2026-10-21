@@ -33,7 +33,7 @@ must **re-note** presence exactly as a build would, and then let the store's ord
 retention code; "a callback must actually run" is by construction a store diff, so the only refusals are the existing ones (the occurrence's value changed ->
 the getter re-evaluates -> no graft, a fresh build notes the new value).
 
-### Lane 1 - lifecycle and modifier-key scopes (files: `Lifecycle.swift`, `ModifierKeysChange.swift`, `RetainedGraft.swift`, new `RetainedLifecycle.swift`, tests)
+### Lane 1 - lifecycle and modifier-key scopes, plus the surface gate (`RL-K`; files: `Frame.drawSurface`/`PaintRecord` for the gate, `Lifecycle.swift`, `ModifierKeysChange.swift`, `RetainedGraft.swift`, new `RetainedLifecycle.swift`, tests)
 
 1. **Modifier notes join the ledger** (`RL-B`). `ModifierNoteRecord{watch, key, owner}` appended to `PrepaintLog.modifiers`/`PrepaintLedger.modifiers`
    (parallel to `geometry`); the taint is deleted. Replay calls `LifecycleStore.noteModifierKeys(watch:key:owner:)` for each record, in order, which reads the
@@ -67,7 +67,7 @@ c. **`AT-C`** (`RL-H`): layout/scroll translation of accessibility records is th
 d. **`AT-G` hitbox** (`RL-I`): the ledger records a parallel `hitboxChains: [AXEffectChain?]` (not a `Hitbox` field: size is pinned); a hitbox opened inside the
    occurrence's own effect takes `effect(for: chain).inverse/outerClip` from `translatedAccessibility`'s step walk (shared function, extracted) - exact at any
    scale. Removes the `hitboxes` refusal for this case; adds the scale-2 nested arm that catches `AT-G`'s M6.
-e. **Surface gate** (`RL-J`): measure, then build or re-carry (see decisions).
+e. **Surface gate**: moved to lane 1 (`RL-K`).
 
 **Measure step (first commit of each lane, before code):** re-take the orbit and bracket counters at `c55d44e8` with an observer / lifecycle scopes / modifier scope
 inside the occurrence and record them as the red-before numbers in the tests' headers (requests, prepaints, grafts, refusals, redos).
