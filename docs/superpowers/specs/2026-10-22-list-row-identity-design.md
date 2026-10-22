@@ -40,7 +40,7 @@ Fixtures: `Twin` (Hashable on `u`, description "twin") from `ForEachIdentityTest
 4. `anInjectiveListRowNamesThePlainIDByteForByte` — green before (a characterization, labelled so): Int, String, UUID rows' `ElementID == ElementID(String(describing:))`, `key == nil`, `listIdentityWork.keyed == 0`. M2: `keyed` forced `true`.
 5. `anAccessibilitySelectionPicksTheRightRowAmongCollidingIDs` — red before (`byRow`'s last write wins). M3: site 3 reverted to the plain name.
 6. `aPendingScrollToReachesTheRightRowAmongCollidingIDs` — red before. M4: site 2 reverted to the plain name (red: the note never matches the row's scope).
-7. `aKeyedListRowsStateSurvivesABoundedExcursionButNotALongerOne` — TB-AH twin (`TombstoneTests`). Red only under M5: the key dropped from the row scope's `==` is not applicable; M5 instead drops the key at site 1 while the test's rows still collide — red.
+7. `aKeyedListRowsStateSurvivesABoundedExcursionButNotALongerOne` — TB-AH twin (`TombstoneTests`) over Twin ids with colliding descriptions, table past 256 entries. Mutation M5: site 1 reverted to the plain name; the colliding rows then share one scope, so each row's survival/loss assertion reddens (the unmutated twin of the plain-id test is green before, so this test is a characterization of TB-AH under keys and is labelled so).
 8. `aListRowAndAForEachElementNameTheSameID` — the same id through `ForEach`, `List`, a `LazyVStack` unit gives equal `ElementID`s. M6: `forRow` joins the name with a prefix.
 9. `aListsIdentityWorkIsPerRealisedRowAtAnyCount` — `rows == window` and `keyed` (0 for Int, window for Twin) equal at 500 and at 100k rows (a 5000-row arm runs always; the 100k arm rides `METALUI_RUN_100K_LIST_TEST=1`). M7: minting over all of `data`.
 10. Existing, unmoved: 2.12 `theKeyedComponentCostsOneReference`, G1 plain-import guard, `aListsWorkIsTheSameFor100kRowsAsFor500` (before and after numbers recorded), `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`, `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`.
@@ -66,3 +66,7 @@ None added: no look changes. (`docs/verification/human-checks.md` untouched.)
 ## Record phase owes
 
 `docs/record/145-list-row-identity.md`; divergences.md 255 to Retired (header count -1, next label left); CLAUDE.md's `ForEach` identity paragraph and counts; `docs/record/README.md` row; `ForEachIdentityTests` header comments; `FI-I` cross-reference note in the FI decisions doc.
+
+## Review notes (critic, LH-I)
+
+Probe arms L1/L3 re-run byte for byte in shape (tokens differ per run, 2026-10-22). `Box.id(_:)` is `copy.elementID = ElementID(name)` (Box.swift ~914), so assigning `ElementID.forRow` is the same path, `.id()` stays outermost; the implementer confirms the `noteNamed` call (ID-R) is made from `elementID`, not from `id(_:)`, and pins it with `everyNamingSiteStartsAReturningNameFresh` arm for a keyed row.

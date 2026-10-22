@@ -9,7 +9,7 @@ SwiftUI's side: `docs/probes/swiftui-list-row-identity.swift` (arms L1–L3, run
 2026-10-22, output in its header; positive control L3, separating arm L2).
 gpui has no analogue (caller-supplied typed ids), so SwiftUI decides.
 
-**Next unused id: `LH-H`.** (Read the last `## LH-` heading, not this line, if
+**Next unused id: `LH-J`.** (Read the last `## LH-` heading, not this line, if
 they disagree.)
 
 ## LH-A — a `List` row is identified by its id's Hashable value; divergence 255 is retired
@@ -98,3 +98,10 @@ include the component's `ElementID` (`FI-C`), so a keyed row is swept and
 resurrected like a plain one: out of window more than two generations loses
 `@State` once the table exceeds 256 entries, a bounded excursion keeps it. Pinned
 by a keyed twin of `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`.
+
+## LH-I — critic's rejections
+
+**Ruling.** Rejected: a second probe (L1-L3 re-run, same shape); a public spelling (none added); a
+renderer or platform change (none); splitting into two lanes (three sites in one file). Accepted: test 7 is a
+characterization (labelled), and a keyed row owes an arm in `everyNamingSiteStartsAReturningNameFresh` (ID-R) if
+`noteNamed` is reached through `elementID` only.
