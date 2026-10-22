@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MetalUICore
 import MetalUIPlatform
-import MetalUIScene
+@testable import MetalUIScene
 import MetalUIShaderTypes
 import MetalUIPortableText
 @testable import MetalUI
