@@ -3,7 +3,7 @@
 Rulings for item C14-j. Spec: [`specs/2026-10-21-retained-single-miss-design.md`](specs/2026-10-21-retained-single-miss-design.md). Record: `../record/140-retained-single-miss.md`.
 Branch `perf/retained-single-miss` from `195ff2c8`. Reserved divergence labels 695-704: none taken.
 
-Prefix **`DM-`**, lettered. **Next unused: `DM-M`.** (Moves in the commit that appends a ruling.)
+Prefix **`DM-`**, lettered. **Next unused: `DM-L`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SB-V`, `SB-X`, `SB-AA`, `RW-S`, `RK-C`, `RK-D`, `FS-N`, `MO-A`, `MO-F`, `IV-S`, `PA-J`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
