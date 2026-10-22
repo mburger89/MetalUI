@@ -25,3 +25,9 @@ Mutations (filtered to `RetainedMoveMissTests|RetainedSingleMissTests`, source r
 | m4 predictor always true | first spelling survived (counter at the run site; a steady prepaint replays); counter moved to the decision site (`AM-K`), then `aSteadyFrameOpensNoMoveWindow` reddens |
 
 Bracket, zoom and fillet fixtures: their pins pass unmoved (a whole-pixel drag translates, `FS-M`, so those frames never take the key-only path); no per-frame number changed.
+
+## 3 Verification (lane 1)
+
+Native unfiltered run 4312 tests in 8 suites passed, `FR-J no-argument frame: succeeded=true`; the same under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`: 4312 passed (597 s).
+Build 0 `error:`, only SwiftPM's deprecation `warning:`. Inventory and undocumented scripts print nothing. Fourteen images 0 px against `b1c1269f` (`compare.sh`, all "scene identical").
+Linux image (`metalui-portable`): `MetalUITestingTests` 532 (5 suites), Layout 238, Core 141, CrossPlatform 22, all passed. Default-build-system warning re-take and the SDL package were not touched.
