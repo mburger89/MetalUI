@@ -15,7 +15,8 @@ import MetalUICore
 // `Twin`'s description is always "twin", so every pair prints alike and differs
 // in value. State is read through `ConditionalCounter` (a count that steps by
 // `step` per frame), so a shared entry or a position-bound one reads a
-// different number than an own, id-bound one.
+// different number than an own, id-bound one. The `List` residue (`FI-I`,
+// divergence 255) was fixed in record §145; `ListRowIdentityTests` holds its pins.
 
 private let size = Size<Pixels>(width: Pixels(200), height: Pixels(100))
 private let root = GlobalElementID.child(of: nil, at: 0, name: nil)
@@ -182,14 +183,8 @@ private func twinRow(_ twins: [Twin], _ reads: ConditionalReads) -> some Element
     #expect(GlobalElementID.child(of: pa, at: 0, name: nil) != GlobalElementID.child(of: pb, at: 0, name: nil))
 }
 
-/// **2.10 — the `List` residue is divergence 255** (`FI-I`): rows whose ids
-/// collide in description still name one entry. Pinned wrong on purpose; a
-/// `List` fix reddens it. The row name is `ElementID(String(describing: id))`.
-@MainActor
-@Test func aListRowsCollisionIsStillDivergence255() {
-    #expect(ElementID(String(describing: AnyHashable(1))) == ElementID(String(describing: AnyHashable("1"))))
-    #expect(ElementID(String(describing: Twin(u: 1))) == ElementID(String(describing: Twin(u: 2))))
-}
+/// **2.10 — retired.** It pinned the `List` residue (divergence 255, `FI-I`) wrong on purpose;
+/// `LH-A` fixed it and `ListRowIdentityTests` is its replacement (record 145).
 
 /// **2.11 — a NaN id is still produced once** (`FI-K`): `Double.nan` is unequal
 /// to itself so `Set<ID>` never dedupes it; the floating-point name dedupe does.

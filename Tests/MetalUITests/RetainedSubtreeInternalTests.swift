@@ -44,7 +44,7 @@ private let frameChannels: [String: Channel] = [
     // Scroll requests and keys (layout, or prepaint).
     "scrollRequestQueue": .buildOnly, "scrollRequests": .buildOnly, "scrollRequestResolved": .buildOnly,
     "unresolvedScrollRequestCount": .prepaintOnly, "notesScrollKeys": .buildOnly, "scrollKeys": .buildOnly,
-    "scrollResolutions": .prepaintOnly, "scrollAnchorAdjustments": .prepaintOnly, "forEachIdentityWork": .buildOnly, "lazyWork": .buildOnly,
+    "scrollResolutions": .prepaintOnly, "scrollAnchorAdjustments": .prepaintOnly, "forEachIdentityWork": .buildOnly, "listIdentityWork": .buildOnly, "lazyWork": .buildOnly,
     // Animation and lifecycle.
     "wantsAnotherFrame": .ledger, "hasActiveAnimations": .ledger, "timeVaryingNotes": .ledger,
     "transactionTop": .keyed, "transactionDepth": .keyed, "lifecycleDepth": .buildOnly,

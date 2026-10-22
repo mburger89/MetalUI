@@ -30,7 +30,7 @@ import MetalUILayout
 /// that no element sits at positional 0 and that the scene and hitboxes hold.
 ///
 /// **The rows number from cursor 0.** No row id depends on it: every row
-/// carries `.id(String(describing: datum.id))`, so its component is `.named`
+/// carries `ElementID.forRow(datum.id, …)` as its `elementID` (`LH-A`), so its component is `.named`
 /// and a name replaces a position rather than joining it — the `at:` argument
 /// is never consulted once a `name:` is supplied.
 ///
@@ -41,7 +41,7 @@ import MetalUILayout
 /// direct child.
 struct ListRows<Row: Element>: ElementGroup {
     /// Each realized row, already wrapped in the `Box` that pins its height and
-    /// already carrying its `.id(String(describing: datum.id))`.
+    /// already carrying its `ElementID.forRow` identity (`LH-A`).
     var rows: [Box<Row>]
 
     /// The uniform row height, in points, as `WindowedRowsLayout` wants it.
