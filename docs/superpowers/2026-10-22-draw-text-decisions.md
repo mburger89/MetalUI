@@ -14,7 +14,7 @@ sprites into the **window's own scene**, never into an app pass — gpui has no
 app-owned GPU pass at all, so it cannot answer the pass question; the answer
 below is MetalUI's own.
 
-**Next unused id: `DT-K`.**
+**Next unused id: `DT-L`.**
 
 ## DT-A — Build it, as a MetalUI-owned text pass over the surface target
 
@@ -274,3 +274,29 @@ two lanes (files are disjoint and sequential already). No Apple type enters a
 portable surface, no shader or primitive changes, no public or defaultless platform
 requirement is added, no C enum is introduced (the C parameter is a struct array of
 integers and pointers).
+
+## DT-K — Building amended `DT-F`: the sink lives in `MetalUIScene`, the hook is a `package` protocol
+
+**Question.** `DT-F` put `SurfaceTextSink` in `MetalUIPlatform` and a `package` requirement
+`textSink` with a default on `GPUSurfaceContext`. The compiler refuses both halves: a `package`
+modifier cannot be used in a protocol (so a public protocol cannot carry a package requirement,
+nor a default for one), and the sink holds `MUIGlyph`, which `MetalUIPlatform` cannot name
+without a new dependency on `MetalUIShaderTypes` (the import rule `MetalUIPlatform` imports
+`MetalUICore` and `MetalUIScene` only would change).
+
+**Evidence.** Build errors at the first compile of lane 1: `'package' modifier cannot be used in
+protocols`; `cannot find type 'MUIGlyph' in scope` in `MetalUIPlatform`. `MetalUIScene` already
+imports `MetalUIShaderTypes`, holds `GlyphAtlas`, `SurfaceID` and `Scene.glyphs`.
+
+**Ruling.** `SurfaceTextSink` is a `package` `@MainActor` final class in **`MetalUIScene`**
+(`Sources/MetalUIScene/SurfaceTextSink.swift`), so no manifest edit and no import rule moves. The hook is a
+`package protocol SurfaceTextSinkProviding { @MainActor var textSink: SurfaceTextSink? { get } }` in
+`MetalUIPlatform`, adopted by `MetalDrawContext` (and the SDL context, lane 2) and by a test fake;
+`drawText` asks `self as? any SurfaceTextSinkProviding`, and a context that is not one, or whose sink is
+`nil`, traps naming `DT-F`. `GPUSurfaceContext` itself is untouched: no public requirement, no default, no
+migration note. A sink carries `beginSurface(_:)` (the renderer names the surface before each draw) and
+`append(_:)`; batches are contiguous per surface.
+
+**Cost if wrong.** An app-defined `GPUSurfaceContext` conformer never conforms to a `package` protocol, so
+`drawText` on it traps with the named message instead of drawing; no such conformer can exist for a draw
+the renderer makes, only for a test's own fake.

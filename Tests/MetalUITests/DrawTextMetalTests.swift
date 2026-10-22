@@ -72,10 +72,8 @@ private struct Reading: Component {
     -> (Window, FakePlatformWindow) {
     let extent = px(Float(side) / scale)
     return try window(side: side, scale: scale) {
-        ZStack(alignment: .topLeading) {
-            text.padding(Edges(top: point.y, right: px(0), bottom: px(0), left: point.x))
-        }
-        .frame(width: extent, height: extent)
+        text.proposalLayout().padding(Edges(top: point.y, right: px(0), bottom: px(0), left: point.x))
+            .frame(width: extent, height: extent, alignment: .topLeading)
     }
 }
 
@@ -84,27 +82,35 @@ private func rgba(_ pixels: [UInt8], _ x: Int, _ y: Int, side: Int) -> [Int] {
     return [Int(pixels[i + 2]), Int(pixels[i + 1]), Int(pixels[i]), Int(pixels[i + 3])]
 }
 
-private let label = Text("Hg 42")
+@MainActor private func label() -> Text { Text("Hg 42") }
 
 /// **7** (`DT-C`, `DT-J`). The surface's text reads back equal to the same `Text` drawn by MetalUI at that
 /// device position, premultiplied bytes over a transparent clear on both sides, at scale 1 and 2.
 /// Mutation: the pass's viewport is the window's size, not the target's (the pixels shift).
 @Test @MainActor func aSurfaceTextReadsBackEqualToTheSameTextDrawnByMetalUI() throws {
     for (point, scale) in [(Point(x: px(4), y: px(3)), Float(1)), (Point(x: px(2), y: px(1)), Float(2))] {
-        let (surface, surfacePlatform) = try surfaceWindow(label, at: point, scale: scale)
-        let (plain, plainPlatform) = try textWindow(label, at: point, scale: scale)
+        let (surface, surfacePlatform) = try surfaceWindow(label(), at: point, side: 96, scale: scale)
+        let (plain, plainPlatform) = try textWindow(label(), at: point, side: 96, scale: scale)
         surface.drawFrameIfNeeded()
         plain.drawFrameIfNeeded()
         let a = surfacePlatform.fakeSurface.readPixels(), b = plainPlatform.fakeSurface.readPixels()
         try #require(b.contains { $0 != 0 }, "set up: the plain Text drew ink at scale \(scale)")
-        #expect(a == b, "scale \(scale): \(a.indices.filter { a[$0] != b[$0] }.count) bytes differ")
+        let diff = a.indices.filter { a[$0] != b[$0] }
+        let inkA = stride(from: 3, to: a.count, by: 4).filter { a[$0] != 0 }.count
+        let inkB = stride(from: 3, to: b.count, by: 4).filter { b[$0] != 0 }.count
+        let maxDelta = diff.map { abs(Int(a[$0]) - Int(b[$0])) }.max() ?? 0
+        let xs = diff.map { ($0 / 4) % 64 }, ys = diff.map { ($0 / 4) / 64 }
+        #expect(a == b, """
+            scale \(scale): \(diff.count) bytes differ, max delta \(maxDelta), ink pixels \(inkA) vs \(inkB), \
+            x \(xs.min() ?? 0)...\(xs.max() ?? 0) y \(ys.min() ?? 0)...\(ys.max() ?? 0)
+            """)
     }
 }
 
 /// **8** (`DT-A`). The text is drawn over the app's own drawing: the app clears opaque red, then `drawText`;
 /// the red survives away from the ink and the ink is on top. Mutation: the text pass's load action `.clear`.
 @Test @MainActor func textIsDrawnOverTheAppsOwnDrawing() throws {
-    let (window, platform) = try surfaceWindow(label, at: Point(x: px(4), y: px(3))) { ctx in
+    let (window, platform) = try surfaceWindow(label(), at: Point(x: px(4), y: px(3))) { ctx in
         ctx.clear(red: 1, green: 0, blue: 0, alpha: 1)
     }
     window.drawFrameIfNeeded()
@@ -130,7 +136,7 @@ private let label = Text("Hg 42")
 /// **10** (`DT-A`, `DT-B`). A frame with no surface text runs no text pass and one upload; the control
 /// frame with text runs one pass and still one upload. Mutation: always run a (empty) pass.
 @Test @MainActor func aFrameWithNoSurfaceTextRunsNoTextPassAndOneUpload() throws {
-    let (without, platformWithout) = try surfaceWindow(label, at: Point(x: px(4), y: px(3)), drawsText: false) { ctx in
+    let (without, platformWithout) = try surfaceWindow(label(), at: Point(x: px(4), y: px(3)), drawsText: false) { ctx in
         ctx.clear(red: 0, green: 0, blue: 1, alpha: 1)
     }
     let before = platformWithout.windowRenderer.renderer.uploadCalls
@@ -138,7 +144,7 @@ private let label = Text("Hg 42")
     let renderer = platformWithout.windowRenderer.renderer
     #expect(renderer.lastSurfaceTextPasses == 0, "no text, no pass")
     #expect(renderer.uploadCalls - before == 1, "one upload per frame")
-    let (with, platformWith) = try surfaceWindow(label, at: Point(x: px(4), y: px(3)))
+    let (with, platformWith) = try surfaceWindow(label(), at: Point(x: px(4), y: px(3)))
     let beforeWith = platformWith.windowRenderer.renderer.uploadCalls
     with.drawFrameIfNeeded()
     #expect(platformWith.windowRenderer.renderer.lastSurfaceTextPasses == 1)
@@ -148,7 +154,7 @@ private let label = Text("Hg 42")
 /// **11** (`DT-A`, `MV-F`). The text pass adds no submission: the frame's one command buffer is committed
 /// once (a second commit traps) and completes. Mutation: commit inside the pass helper.
 @Test @MainActor func theTextPassAddsNoSubmission() throws {
-    let (window, platform) = try surfaceWindow(label, at: Point(x: px(4), y: px(3)))
+    let (window, platform) = try surfaceWindow(label(), at: Point(x: px(4), y: px(3)))
     window.drawFrameIfNeeded()
     let buffer = try #require(platform.fakeSurface.lastCommandBuffer)
     buffer.waitUntilCompleted()

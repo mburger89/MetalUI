@@ -27,7 +27,7 @@ private struct Capturing: Component {
 }
 
 /// A surface context with a real sink and nothing else (the portable twin of `MetalDrawContext`).
-@MainActor private struct SinkContext: GPUSurfaceContext {
+@MainActor private struct SinkContext: GPUSurfaceContext, SurfaceTextSinkProviding {
     let sink: SurfaceTextSink?
     var scale: Float = 1
     var pixelSize = Size(width: DevicePixels(400), height: DevicePixels(300))
@@ -120,13 +120,16 @@ private func colour(_ g: MUIGlyph) -> [Float] { [g.color.h, g.color.s, g.color.l
     func rows(_ width: Pixels?) -> Int {
         let sink = makeSink()
         SinkContext(sink: sink).drawText(resolved, at: frame.origin, anchor: .topLeading, width: width)
-        return Set(sink.glyphs.map { $0.bounds.origin.y.rounded() }).count
+        // A glyph's top varies with its ink; two lines are a line height apart, so split at gaps over half of it.
+        let tops = sink.glyphs.map(\.bounds.origin.y).sorted()
+        return 1 + zip(tops, tops.dropFirst()).filter { $1 - $0 > line * 0.45 }.count
     }
     #expect(rows(nil) == 1, "unbounded is one line")
     let narrow = rows(Pixels(60))
     #expect(narrow >= 3, "a 60 pt width wraps: \(narrow) rows of \(line) pt")
     let measured = resolved.measure(in: Size(width: Pixels(60), height: .infinity))
     #expect(measured.height.value >= line * 2, "set up: the measure wraps too")
+    #expect(narrow == Int((measured.height.value / line).rounded()), "as many rows as the measured lines")
 }
 
 /// **4** (`DT-J`). The colour is the resolved foreground at the reading point's theme and scheme unless
@@ -190,4 +193,5 @@ private func colour(_ g: MUIGlyph) -> [Float] { [g.color.h, g.color.s, g.color.l
     }
     window.tick()
     #expect(ran.count == 0, "a headless frame never runs the app's draw")
+    #expect(window.platformWindow.headlessRenderer.lastSurfaceRequests.count == 1, "but it records the request")
 }
