@@ -87,10 +87,14 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         }
         // A descendant whose content ran this frame may have changed what the record holds, though this
         // occurrence's own windows never saw its reads (it was skipped when they were open): no replay.
-        if store.evaluationsSoFar != evaluationsBefore { entry.observedChange = true }
+        // `DM-L`: when only this happened (this window was closed because the standing record was complete and clean: no fire, serial equal),
+        // the build's own reads are those the record's still-armed build session covers, so the record this miss makes keeps its build
+        // half instead of forcing a second miss on `coverage.build`; the prepaint window opens (`observedChange` is set) and covers the rest.
+        let descendantRan = store.evaluationsSoFar != evaluationsBefore
+        if descendantRan { entry.observedChange = true }
         // The subtree placement memo (`SB-AD`) restores these roots' rects where they stand.
         for node in result.0 { frame.tree.markPlacementRoot(node) }
-        result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed)
+        result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed || descendantRan)
         if let graftWindow {
             let closed = frame.closeGraftWindow(graftWindow, tops: result.0, contentSerial: entry.serial, key: buildKey)
             if let record = closed.record {
@@ -99,7 +103,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
                 entry.graft = nil
                 store.retained.noteIneligible(.graft, reason: closed.refusal ?? "unknown")
                 store.graftRefusals.append(closed.refusal ?? "unknown")
-                if retainedTraces { print("retained graft ineligible \(sbPath(id).suffix(60)) because \(closed.refusal ?? "?")") }
+                RetainedTrace.emit("retained graft ineligible \(RetainedTrace.path(id)) because \(closed.refusal ?? "?")")
             }
         }
         return result
