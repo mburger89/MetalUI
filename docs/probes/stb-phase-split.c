@@ -1,8 +1,9 @@
-/* stb-phase-split.c — how much of a stb decode is the read phase (small-items item 9, SM-A).
+/* stb-phase-split.c — fread of the file vs whole decode (NOT the callback read phase; see SM-A item 3's correction) (small-items item 9, SM-A).
    Run: cc -O2 -I Sources/CStbImage stb-phase-split.c -o t && ./t a.png && ./t a.jpg   (files as in stb-callback-eof.c)
    Recorded (macOS arm64, 2026-10-22, in-memory source):
      a.png read 0.57 ms decode 20.63 ms (2048x2048)      a.jpg read 0.27 ms decode 33.23 ms (2048x2048)
-   Reading: a cancel that can only land in the read callback saves at most ~3 % (PNG) / ~1 % (JPEG) of the work. */
+   Reading (withdrawn): this times fread, not a cancel. Direct timing of stb-callback-eof.c with a time wrapper: JPEG cancelAfter=3 9.5 ms vs 28-30 ms
+   uncancelled; PNG no saving (all IDAT read before inflate). */
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG

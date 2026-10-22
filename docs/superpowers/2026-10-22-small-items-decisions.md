@@ -20,12 +20,19 @@ cancellation (nil, no partial image, no further reads, uncancelled decode byte-i
    never a partial image") is therefore held by stb for PNG only; a callback design would have to check the flag after the call and free
    the result — buildable.
 2. *Never cancelled:* the callback path is byte-identical to `stbi_load_from_memory` on both formats (the separating arm).
-3. *Where the time is.* In-memory source, 2048²: read 0.57 ms vs decode 20.63 ms (PNG, 2.7 %), read 0.27 ms vs 33.23 ms (JPEG, 0.8 %). A
-   cancel lands only in the read callback; inflate, IDCT, colour conversion and the output allocation (the 450 MB case) are one uninterruptible
-   stb call. For PNG all IDAT is read before inflating, so a cancel after the last read saves nothing.
+3. *Where the time is (corrected by the branch checker, 2026-10-22).* `stb-phase-split.c` times `fread` of the file against the whole decode
+   (PNG 0.57 vs 20.63 ms, JPEG 0.27 vs 33.23 ms); that is **file-read time, not the share of the decode a read-callback cancel could skip**, so
+   the earlier "2.7 % / 0.8 %" reading is withdrawn. Measured directly (callback over memory, 2048², `-O2`, checker's own PNG and `sips` JPEG): a
+   **PNG** reads all IDAT (3 reads) before inflating, so a cancel saves nothing (2.5 ms either way, the image comes back whole). A **JPEG** reads as
+   the entropy decoder consumes, so a cancel after 3 reads of 9303 returns the zero-padded image in **9.5 ms against 28-30 ms uncancelled** (about
+   two thirds saved; a cancel at half the reads saves proportionally less). The decode is still not abortable mid-call for PNG, and for JPEG
+   stb finishes on zeros rather than returning `nil`.
 
-**Ruling.** Not built; `IH-K` stands, now with its measurement. The only lead (`IH-K`'s) is measured: it saves at most 3 % of a decode of
-bytes already in memory, which is the only source `DecodedImage` has (`init(contentsOfFile:)` reads the whole file first, `IH-M`). The real
+**Ruling.** Not built; `IH-K` stands, now with its measurement. The only lead (`IH-K`'s) is measured: it saves nothing for PNG (JPEG: see the amendment) of a decode of
+bytes already in memory, which is the only source `DecodedImage` has (`init(contentsOfFile:)` reads the whole file first, `IH-M`).
+**Checker's amendment:** the "at most 3 %" figure is refuted for JPEG (item 3: about two thirds on an early cancel); the ruling now rests on PNG gaining
+nothing, the partial image a JPEG returns (the result must be discarded after the call, so `nil` is the wrapper's job), and no caller asking for it.
+A JPEG-only cancel (C context with an atomic flag, flag checked after the call, discard) is buildable and is the first step if an app asks. The real
 bound on a decode remains `Limits` (`IH-N`, refuses from the header before stb allocates). **Cost if wrong.** An app that decodes huge
 in-range images cannot stop one; the owner is an app that asks, and the shape then is a chunked file reader checking `Task.isCancelled`
 between 1 MiB reads plus a before/after check (a Swift-side async wrapper, additive, class `M`), not stb's callback; or a vendored-C change
@@ -86,6 +93,6 @@ cancel after the last read (a small file is 3 reads) saves nothing. The JPEG arm
 no pixel moved by construction (the diff lists only `docs/`).
 **Gap named, not fixed.** SM-D rests on record §118 §7's 6 % and on the absent toolchain (`which shadercross dxc` finds neither; re-checked), not on a
 fresh bytes-per-frame count on the fourteen images. The toolchain absence alone forbids the shader half (`TE-AD` needs regenerable blobs and parity), so
-the gap does not change the ruling; the owner's first step already names the counter. **Rejected:** building SM-A's Swift-side wrapper now (its only
+the gap does not change the ruling; the owner's first step already names the counter. **Rejected (premise amended by the checker, SM-A item 3: a JPEG cancel does save decode time):** building SM-A's Swift-side wrapper now (its only
 win is a pre-start check, which `Task.checkCancellation()` at the call site gives for free) and a version-less token wire field (SM-B).
 **Lanes: none.**
