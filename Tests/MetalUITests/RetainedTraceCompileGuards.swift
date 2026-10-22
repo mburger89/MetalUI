@@ -2,7 +2,7 @@ import Testing
 import MetalUITestSupport
 
 // Plain-import guard `TR.1` for the retained trace (`DM-F`): the sink and the switches are `package` API, a tool's seam, not
-// something an app's test target can name. Mutated red once (record 140): `RetainedTrace.sink` made `public`.
+// something an app's test target can name. Mutated red once (record 140): `RetainedTrace` and its `sink` made `public` (the type being `package` is what hides the sink).
 
 private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — guard skipped"
