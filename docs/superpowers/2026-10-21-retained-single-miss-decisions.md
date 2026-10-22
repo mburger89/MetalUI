@@ -3,7 +3,7 @@
 Rulings for item C14-j. Spec: [`specs/2026-10-21-retained-single-miss-design.md`](specs/2026-10-21-retained-single-miss-design.md). Record: `../record/140-retained-single-miss.md`.
 Branch `perf/retained-single-miss` from `195ff2c8`. Reserved divergence labels 695-704: none taken.
 
-Prefix **`DM-`**, lettered. **Next unused: `DM-K`.** (Moves in the commit that appends a ruling.)
+Prefix **`DM-`**, lettered. **Next unused: `DM-M`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SB-V`, `SB-X`, `SB-AA`, `RW-S`, `RK-C`, `RK-D`, `FS-N`, `MO-A`, `MO-F`, `IV-S`, `PA-J`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
@@ -75,3 +75,10 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
 **Question.** `DM-C` reads `record.contentSerial != serial` at build, but on a value change the serial moves only when the getter re-runs, after `needsObservation` is first read; the predicate would be false exactly on the frame it exists for.
 **Ruling.** The predicate takes the memo's own `==` decision as an input: `certainMiss = observedChange || valueDiffers || record.contentSerial != serial`, where `valueDiffers` is the result of the comparison `EquatableComponent.buildGroup` already makes before deciding to run the getter (no second `==`). The build window opens after that decision and before the getter's children are built; the prepaint window re-reads the same stored decision (never recomputes `==`, which may be non-pure). Lane 2 step 0 prints the order of `needsObservation`, the `==` and the serial bump on the fixture before code moves. A `.value` arm that still measures 2 after the change means this ordering was wrong, not that `DM-B` is.
 **Cost if wrong.** The pin `aChangedOccurrenceCostsOneMissAndTheNextFrameHits` stays red on `.value`; no unsound state, since a window opened late leaves coverage false.
+
+## DM-K - Lane 1 as built: the trace is an autoclosure behind one switch, and the fire cause is the getter's or a session's writer
+
+**Question.** How is the trace plumbed so that off costs nothing and a test can count it, and what does a fire cause name?
+**Ruling.** `RetainedTrace.emit(_ line: @autoclosure () -> String)` reads `active` (the environment switch or an installed sink) **before** building, and counts `linesBuilt` after; the miss-line builders return `""` without work when inactive. The sink is `@MainActor (String) -> Void` (package). Every decision line is `retained <paint|prepaint> <kind> <path tail> reasons=[...] [cause: <session>: <writer>] frame: ...`; the reasons come from `PaintInvalidation`/`PrepaintInvalidation` (pure, over primitive inputs; the decision reads the same struct), then every `ReplayKey` field (`key.<field>`, `key.ambient.<member>`) or `PrepaintKey` field (`ledgerKey.*`) that differs, then, for a prepaint that passed its guard and still ran, the reason named at that exit (`recordCannotMove`, `pointerInMovedLedger`, `translationRefused: ...`). An empty list prints `unclassified` and counts. The cause is recorded by both fire handles into `MemoFlags.lastFireCause` (locked, cleared with `observedChange`): `getter: <Type>.<property>.setter` for the content memo's session, `build|prepaint|paint: ...` for a retained one; `?` where the setter is inlined (release). **Measured on the fixture** (`DoubleMissFixture`, `.value` and `.observed`): the change frame misses naming `serial` (and the writer); the frame after misses naming **`coverage.build, coverage.prepaint`** and nothing else, for every changed occurrence: `DM-B` is confirmed before lane 2 moves any code. On the `.observed` arm the getter's own session fires first, so the miss names `serial`, not `observed`.
+**Evidence.** `RetainedTraceTests.aChangeNamesItsConjuncts`; the probe `observation-fire-cause.swift`.
+**Cost if wrong.** A tool grepping `retained miss` finds `retained paint miss`; the cause string is blank on a release build.
