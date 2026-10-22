@@ -76,3 +76,11 @@ screen (`BG4`); looks (group `BG`, record §03). Nothing carried has an owner ou
 
 Record phase, merged tree: `swift package clean`, native build 0 `error:` (only SwiftPM's deprecation `warning:`), native unfiltered run **4345 tests in 7 suites passed**, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing;
 census re-recorded after the merge (`closeout-public-api.tsv`, 3798 lines). The fourteen images, `Backends/SDL` and the Linux image were taken at the lanes, not re-taken after the merge (master's changes there are the clipboard and GPU sync batch, disjoint).
+
+## Branch checker (2026-10-22, on `fd31ffbb`)
+
+Clean tree, `swift package clean`, native build 0 `error:`, native unfiltered run: `Test run with 4345 tests in 7 suites passed after 615.940 seconds.`, `FR-J no-argument frame: succeeded=true`. Inventory and undocumented scripts print nothing; `cmp CLAUDE.md AGENTS.md` clean.
+Two mutations of the checker's own design, each a full unfiltered run, restored and `git status --short` clean after each:
+- `WindowShell.answerUnclaimedTitleBarPress`: dropped the `platformUsesDragRegions != true` conjunct. Reddened `aChangeOfBehaviorRepublishesTheRegionsOnceAndNeverOnAnEqualFrame` (WindowBackgroundDragTests.swift:277) only; 1 issue.
+- `ShapeCursorCache.image(for:scale:)`: key built with `scale: 1`. Reddened `aShapeCursorUnderAScaleChangeIsReSentOnceAtTheNewScale` (ShapeCursorTests.swift:194) only; 1 issue.
+Not re-taken on the merged tree: the fourteen images, `Backends/SDL` on macOS and in the Linux image, the default-build-system warnings.
