@@ -1,8 +1,8 @@
 # 147 — Small items: IH-K, SN-L, P3c measured and carried
 
 Branch `feat/small-items` from `1c53976d`. **Not a plan task**: round 2 item 9 of the gpui-gap list (user request 2026-10-21). Spec
-`docs/superpowers/specs/2026-10-22-small-items-design.md`; rulings `SM-A`…`SM-D` in `docs/superpowers/2026-10-22-small-items-decisions.md`
-(next unused `SM-E`); probes `docs/probes/stb-callback-eof.c`, `stb-phase-split.c`, `sdl-activation-token.sh`. Divergence labels 765-774: none taken.
+`docs/superpowers/specs/2026-10-22-small-items-design.md`; rulings `SM-A`…`SM-E` in `docs/superpowers/2026-10-22-small-items-decisions.md`
+(next unused `SM-F`); probes `docs/probes/stb-callback-eof.c`, `stb-phase-split.c`, `sdl-activation-token.sh`. Divergence labels 765-774: none taken.
 
 ## §1 Design phase
 

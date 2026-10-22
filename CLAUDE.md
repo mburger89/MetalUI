@@ -869,6 +869,8 @@ index-based `openingRenderEffects(_:upTo:...)`** (`WR-B`; optnone alone, or a gu
 `everyLegacyRenderEffectOpensItsScopeAtItsIndex`). **Guards:** every release arm of the env-gated `AssertsCompilerTests` (all build MetalUI; the `Effects` fixture names this one) and a `root-windows` step `swift build -c release --product MetalUI`
 (cost unmeasured on Windows, human check WR2). Remove the optnone when a toolchain bump makes `docs/probes/windows-release-crash/repro.sh` pass on the unmodified function (`WR-E`).
 
+**Small items carried (`SM-`, record §147).** No code, no public API, no divergence (765-774 untouched). **`IH-K` image decode cancellation stays carried** (stb's callback EOF cancels only the read phase, 0.8-2.7 % of a decode, and a JPEG returns a zero-filled full-size image, never `nil`: `SM-A`); **`SN-L` stays carried**: an activation token cannot be forwarded because SDL's raise ignores the environment (`SM-B`) and D-Bus activation does not fit the pure-C transport (`SM-C`); **`P3c` R8 coverage with a shader tint stays carried** on `PN-D`'s reading and the absent shader toolchain (`SM-D`; critic review `SM-E`). Re-open each only on the evidence its ruling names.
+
 **Warm and cold frames (`CF-`, record §127).** Value-identical, no public API, no divergence label (565–574 untouched; 346 narrowed). `@Environment(\.textMeasurer)` is a
 comparable `EnvironmentReading`: the text system **instance** (never the per-frame `TextSystemBox`) plus the two default `ResolvedTextStyle`s it resolves, so an
 `.equatable()` reader is skipped, not refused (`CF-A`). A redo frame's `contentEvaluations` carries the abandoned attempt's getters; every other counter is the redo's own
