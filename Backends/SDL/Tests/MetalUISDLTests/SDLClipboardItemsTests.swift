@@ -9,6 +9,9 @@ import SDLBridge
 import Testing
 @testable import MetalUISDL
 
+/// `ClipboardItemPack.mime`: the pack is `package` API of the root package, which this package cannot spell.
+private let packMime = "application/x-com.metalui.clipboard-items"
+
 @MainActor
 private func itemsWindow() throws -> (SDLPlatform, SDLWindow) {
     #if os(macOS)
@@ -40,7 +43,7 @@ struct SDLClipboardItemsTests {
         withExtendedLifetime(platform) {}
         defer { mui_clipboard_clear() }
         #expect(window.writeClipboard(items: [item(0)]))
-        #expect(!mui_clipboard_has(ClipboardItemPack.mime), "a one-item write is byte for byte CB-H's box")
+        #expect(!mui_clipboard_has(packMime), "a one-item write is byte for byte CB-H's box")
         #expect(window.clipboardTypeIdentifiers() == ["com.acme.graph", "public.utf8-plain-text"])
         #expect(window.clipboardItems() == [["com.acme.graph", "public.utf8-plain-text"]])
     }
@@ -52,7 +55,7 @@ struct SDLClipboardItemsTests {
         withExtendedLifetime(platform) {}
         defer { mui_clipboard_clear() }
         #expect(window.writeClipboard(items: [item(0), item(1), item(2)]))
-        #expect(mui_clipboard_has(ClipboardItemPack.mime))
+        #expect(mui_clipboard_has(packMime))
         #expect(window.readClipboard(identifier: "com.acme.graph") == Array("graph0".utf8), "a native read is item 0")
         #expect(window.readClipboard() == "text0")
         #expect(window.clipboardTypeIdentifiers() == ["com.acme.graph", "public.utf8-plain-text"], "the pack is not a type")
@@ -74,7 +77,7 @@ struct SDLClipboardItemsTests {
         let (platform, window) = try itemsWindow()
         withExtendedLifetime(platform) {}
         defer { mui_clipboard_clear() }
-        let mimes = ["application/x-com.acme.graph", ClipboardItemPack.mime]
+        let mimes = ["application/x-com.acme.graph", packMime]
         let names: [UnsafeMutablePointer<CChar>?] = mimes.map { strdup($0) }
         defer { names.forEach { free($0) } }
         let native: [UInt8] = Array("native".utf8)
@@ -89,7 +92,7 @@ struct SDLClipboardItemsTests {
             }
         }
         #expect(wrote)
-        #expect(mui_clipboard_has(ClipboardItemPack.mime))
+        #expect(mui_clipboard_has(packMime))
         #expect(window.clipboardItems() == [["com.acme.graph"]], "one item from the native mimes")
         #expect(window.readClipboard(item: 0, identifier: "com.acme.graph") == native)
         #expect(window.readClipboard(item: 1, identifier: "com.acme.graph") == nil)
