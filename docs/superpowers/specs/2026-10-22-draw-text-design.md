@@ -2,7 +2,7 @@
 
 Round 2 item 5; rulings `DT-A`…`DT-H` in
 [`../2026-10-22-draw-text-decisions.md`](../2026-10-22-draw-text-decisions.md).
-Branch `feat/draw-text` from `5f03ab7b`. Record §141. Status: designed, not built.
+Branch `feat/draw-text` from `5f03ab7b`. Record §141. Status: LANDED, built (both lanes verified `ok`; record §141).
 
 ## Outcome
 

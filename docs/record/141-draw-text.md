@@ -47,6 +47,29 @@ the `Text` placement (`DT-C`), colour the one resolution function (`DT-J`).
 | `Backends/SDL` in `metalui-portable` (lavapipe, `METALUI_REQUIRE_GPU=1`) | 30 + 253 passed, the six new ones run (not skipped); 0 `warning:` |
 | Inventory and undocumented scripts | print nothing; census unmoved by lane 2 (`Backends/SDL` is outside it) |
 
+Lane 1 mutations (thirteen sites, numbered here in the order of the test headers' own `Mutation:` lines, not the implementer's m-numbers; run as the filtered 34-test set, the draw-text and surface suites; the
+verifier re-ran **m9 only**, as a full unfiltered suite). The test named in each header is the one expected red:
+
+| # | Mutation | Reddened |
+|---|---|---|
+| m1 | place with a rounded-point origin instead of `Text.paint`'s `origin`/`scaleFactor` | `drawTextEmitsTheGlyphRecordsATextEmitsAtTheSameDevicePosition`; it **survived** test 1 at 1x, so `aFractionalPointKeepsItsSubPixelPhase` was added (`923ad946`) and reddens it |
+| m2 | swap the anchor's x and y fractions | `everyAnchorPlacesTheLayoutBoxAtThePoint` |
+| m3 | ignore `width` | `aFiniteWidthWrapsAndNilIsUnbounded` |
+| m4 | resolve against the default (light) theme | `theColourIsTheResolvedForegroundUnlessOverridden` |
+| m5 | the rich-text `precondition` replaced by a pass-through | `aRichResolvedTextTrapsNamingDTE` |
+| m6 | the no-sink `precondition` replaced by a pass-through | `aContextWithoutASinkTrapsNamingDTF` |
+| m7 | the draw run in `finishFrame` of the headless renderer | `aHeadlessRendererRecordsButNeverRunsASurfaceDraw` |
+| m8 | the pass's viewport the window's size, not the target's | `aSurfaceTextReadsBackEqualToTheSameTextDrawnByMetalUI` |
+| m9 | **`renderer.upload(atlas)` moved back before the surface draws** | `aGlyphFirstInsertedByASurfaceDrawIsUploadedBeforeTheTextPass`, `aSurfaceTextReadsBackEqualToTheSameTextDrawnByMetalUI`, `textIsDrawnOverTheAppsOwnDrawing` (full suite, verifier) |
+| m10 | text pass load action `.clear` | `textIsDrawnOverTheAppsOwnDrawing` |
+| m11 | an empty pass always run | `aFrameWithNoSurfaceTextRunsNoTextPassAndOneUpload` |
+| m12 | commit inside the pass helper | `theTextPassAddsNoSubmission` |
+| m13 | `drawText` / `SurfaceTextSink` made `internal` / `public` | `drawTextCompilesFromAPlainImport`, `theSurfaceTextSinkIsUnreachableFromAPlainImport` (the two new guards, each red once) |
+
+The verifier's first m9 added an extra early upload and left the later one: an equivalent mutant (the atlas is
+unbound at the second upload anyway), killed and redone as a true move. Not re-run as full suites: m1-m8, m10-m13
+(filtered sets only); the 34-test set covers each mutated site.
+
 SDL mutations (each: commit first, one change in a copy, full unfiltered `Backends/SDL` run,
 `git checkout` of the sources, `git status --short` empty after):
 
@@ -55,7 +78,7 @@ SDL mutations (each: commit first, one change in a copy, full unfiltered `Backen
 | 14 | text pass `first_instance` 0 instead of `start` | `anSDLSurfaceTextReadsBackEqualToTheSameGlyphsDrawnDirectly` |
 | 15 | the text pass moved before the atlas copy pass (frame setup and loop moved above `SDL_BeginGPUCopyPass`) | `textIsDrawnOverTheAppsOwnPassOnSDL`, `anSDLSurfaceTextReadsBackEqualToTheSameGlyphsDrawnDirectly`, `aGlyphInsertedByASurfaceDrawIsUploadedBeforeTheTextPassOnSDL` |
 | 16 | text pass load op `CLEAR` | `textIsDrawnOverTheAppsOwnPassOnSDL` |
-| 17 | an empty pass for every surface drawn (C `continue` removed, a zero-count entry per request) | `anSDLFrameWithNoSurfaceTextRunsNoTextPass` |
+| 17 | an empty pass for every surface drawn (C `continue` removed, a zero-count entry per request) | `anSDLFrameWithNoSurfaceTextRunsNoTextPass` (the verifier's counter-only stand-in, `last_text_passes` +2, also reddened `aSurfaceTextRangeOutsideTheGlyphBufferIsRefused` and the readback test) |
 | 18 | the text-range validation loop removed | `aSurfaceTextRangeOutsideTheGlyphBufferIsRefused` |
 | 19 | `SDLGPUWindowGuard.beginDraw()` removed | `drawTextInsideADrawDoesNotTripTheDrawGuard` and the existing `aWaitInsideADrawTrapsInDebug` |
 
@@ -70,6 +93,11 @@ portable test 1 pins. Readback is through the composite (`DT-L` 1). Test 18 driv
 `mui_renderer_finish` by hand with a control arm; a deliberately out-of-range range with glyph
 records present was not used (without the check it would be a real out-of-bounds GPU read).
 
+Record-phase re-take (merged with master `d062168c`, docs only; `swift package clean`, native build, unfiltered
+`--no-parallel` run on a **locked screen**): `Test run with 4264 tests in 5 suites`, 0 `error:`, exactly the five
+`AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`; typecheck
+guards 263 (261 + the two of `DrawTextCompileGuards`). Inventory and undocumented scripts print nothing.
+
 ## §3 Verification owed or not run
 
 - The fourteen demo images: `docs/probes/demo-pixels/compare.sh <scratch> 5f03ab7b HEAD` (HEAD `6a7747f4`) read `differing=0` and `scene identical` for all fourteen, controls as recorded.
@@ -77,6 +105,16 @@ records present was not used (without the check it would be a real out-of-bounds
   enum, so no `rawValue` width question.
 - Looks: human checks group `DT` (`DT1`–`DT4`), not run, an agent cannot.
 - The locked-screen state was not probed; no real window was driven.
+
+- **Limits the record states** (verifier's request): the headless renderer records no `drawText` glyphs and runs no
+  text pass, so the Metal pixel pins run only on macOS hardware; a rich `ResolvedText` traps naming `DT-E`; text is
+  drawn only after the app's draw returns, never under later app drawing (`DT-E` 2).
+- Not re-run by the verifier: mutation 19 (`SDLGPUWindowGuard.beginDraw` removed; the implementer's table names the two
+  tests it reddened), the Linux image (the implementer's 30 + 253), Windows (CI only). One `Backends/SDL` test,
+  `SDLGPUShaderBuildProductTests.aBuildProductWithoutAMarkerIsAccepted`, failed once under a mutation run with an
+  `NSCocoaErrorDomain 513` copying `append.comp.spv` on a loaded machine and passed in the unmutated 30 + 256 run:
+  environmental, to confirm on a quiet one.
+- The verifier read the default-build warning count from an incremental build; the implementer's clean re-take read 0.
 
 ## §4 Deferred, with owner
 
