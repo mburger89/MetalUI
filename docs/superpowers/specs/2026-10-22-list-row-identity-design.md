@@ -2,7 +2,7 @@
 
 Round 2 item 8; rulings `LH-A`…`LH-H` in
 [`../2026-10-22-list-row-identity-decisions.md`](../2026-10-22-list-row-identity-decisions.md).
-Branch `feat/list-row-identity` from `4197f825`. Record §145. Status: DESIGNED, not built.
+Branch `feat/list-row-identity` from `4197f825`. Record §145. Status: LANDED (record §145); the rulings are `LH-A`…`LH-K`.
 
 ## Outcome
 

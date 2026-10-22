@@ -5,7 +5,7 @@ discharges `FI-I` (record §95) and retires **divergence 255**. Spec `docs/super
 in the new decisions doc `docs/superpowers/2026-10-22-list-row-identity-decisions.md`; probe `docs/probes/swiftui-list-row-identity.swift` (arms L1–L3, run
 2026-10-22, output in its header). No public declaration, no shader or platform change, no new divergence (labels 745–754 untouched).
 
-**Numbering.** Written as §145 on the assignment of the orchestrator. The header count of `docs/divergences.md` is left to the merge (one fewer live: 255).
+**Numbering.** Written as §145 on the assignment of the orchestrator; origin/master `4d166812` holds §140-§143 and §147, so 145 stays free and was not renumbered. Merged with master `4d166812` after the branch work (record phase). The header count of `docs/divergences.md` is left to the merge (one fewer live: 255).
 
 **Status: LANDED.** One lane (three sites in one file), red first, then the implementation, then this record.
 
@@ -91,3 +91,7 @@ The warm frame is O(window): 5 rows uniform, 9 content-sized, identical at 500 a
 - Folding `ForEach`'s and `LazyUnits`' spellings into `forRow` (`LH-G`): not done, optional.
 - A duplicate id in a `List`'s `data` stays the `Identifiable` precondition (not a trap, not deduped).
 - `docs/divergences.md` header count and next label are the merge's (255 retired: one fewer live). Human checks: none added, nothing looks different.
+
+## §8 Merge re-take
+
+Merged with origin/master `4d166812` (§140 single miss, §143 sync batch, §147 small items; conflicts only in CLAUDE.md/AGENTS.md prefix list, counts and record map, and the record README). `swift package clean`, native build 0 `error:`, native unfiltered run on the merged tree: **4315 tests in 7 suites passed** (586.5 s; master 4307 + the branch's net 8: 9 tests added, test 2.10 retired), `FR-J no-argument frame: succeeded=true`, 266 typecheck guards (master's; none added here). The verify-switch run, the fourteen images, the Linux image and the 100k test were taken at the branch head (§6) and are owed on the merged tree; master's merge touched `Retained*.swift`, `ContentMemo.swift` and `Backends/SDL` only outside `List.swift`.
