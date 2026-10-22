@@ -3,7 +3,7 @@
 Rulings for item C14-j. Spec: [`specs/2026-10-21-retained-single-miss-design.md`](specs/2026-10-21-retained-single-miss-design.md). Record: `../record/140-retained-single-miss.md`.
 Branch `perf/retained-single-miss` from `195ff2c8`. Reserved divergence labels 695-704: none taken.
 
-Prefix **`DM-`**, lettered. **Next unused: `DM-N`.** (Moves in the commit that appends a ruling.)
+Prefix **`DM-`**, lettered. **Next unused: `DM-O`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SB-V`, `SB-X`, `SB-AA`, `RW-S`, `RK-C`, `RK-D`, `FS-N`, `MO-A`, `MO-F`, `IV-S`, `PA-J`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
@@ -94,6 +94,12 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
 **Question.** Lane 1's verifier found `record.coveragePrepaint = phase.build.observed` reddened nothing.
 **Ruling.** It is an equivalent mutant on every production path: the prepaint window opens whenever the build's did (`needsObservation` only grows between them, `DM-C`, `DM-L`). `RetainedTestingHooks.closesPrepaintWindow` (package, tests only) closes the prepaint window honestly, the one state with `coverageBuild == true`, `coveragePrepaint == false`; `theCoverageHalvesAreRecordedSeparately` asserts the frame after names exactly `coverage.prepaint`. Mutations run: `coveragePrepaint = phase.build.observed` and `coverageBuild = phase.prepaintObserved` each redden it alone.
 **Cost if wrong.** A test-only static; nothing reads it outside `retainedPrepaintPhase`.
+
+## DM-N - Critic review: no defect in claims or surface, three rejections and one spec fix
+
+**Rejected, with reason.** (1) A SwiftUI probe: no observable behaviour moves, the oracle is the retention-off twin and `METALUI_VERIFY_RETAINED=1` (`DM-H`). (2) A new platform requirement, renderer primitive, public declaration or C enum: none is added (package trace sink only; `Backends/SDL` untouched), so no default, fake, shader or census row is owed. (3) Folding `.moved` into this item: `DM-D` keeps it measured and carried to C14-k; a pin names it so the deferral cannot rot.
+**Fixed.** The spec described `DM-D2` and the pre-build design as live; section 7 now points at `DM-J`..`DM-M`, which supersede it.
+**Residual risk named.** `DM-L` leans on the standing build session being armed, the same premise every steady hit rests on; the soundness pin and the verify run are its instruments, and must be re-run after any change to `needsObservation`.
 
 ## RW-S amendment (record §121)
 

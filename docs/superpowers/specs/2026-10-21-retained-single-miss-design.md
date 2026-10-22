@@ -73,3 +73,7 @@ Starts after lane 1 has landed (one agent at a time here, and the trace is its i
 ## 6. Demo and human checks
 
 No demo section (counters, not looks). No human-check group (nothing a person sees; `METALUI_TRACE_RETAINED=1` is read by developers). `docs/testing.md` gains one sentence on `RetainedTrace.sink` at the Record phase.
+
+## 7. Status after review (DM-N)
+
+Both lanes are built (commits `fe5cebb5`, `976d813b`). Where this spec and the rulings differ, the rulings win: `DM-J` (predicate read after the value decision), `DM-K` (autoclosure trace), `DM-L` (descendant-ran keeps the build half), `DM-M` (coverage halves differ only under a test seam). `DM-D2` (key-only inheritance) was not taken; `.moved` stays a measured two-miss arm owned by C14-k.
