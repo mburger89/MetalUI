@@ -3,7 +3,7 @@
 Rulings for item C14-j. Spec: [`specs/2026-10-21-retained-single-miss-design.md`](specs/2026-10-21-retained-single-miss-design.md). Record: `../record/140-retained-single-miss.md`.
 Branch `perf/retained-single-miss` from `195ff2c8`. Reserved divergence labels 695-704: none taken.
 
-Prefix **`DM-`**, lettered. **Next unused: `DM-O`.** (Moves in the commit that appends a ruling.)
+Prefix **`DM-`**, lettered. **Next unused: `DM-P`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SB-V`, `SB-X`, `SB-AA`, `RW-S`, `RK-C`, `RK-D`, `FS-N`, `MO-A`, `MO-F`, `IV-S`, `PA-J`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
@@ -100,6 +100,13 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
 **Rejected, with reason.** (1) A SwiftUI probe: no observable behaviour moves, the oracle is the retention-off twin and `METALUI_VERIFY_RETAINED=1` (`DM-H`). (2) A new platform requirement, renderer primitive, public declaration or C enum: none is added (package trace sink only; `Backends/SDL` untouched), so no default, fake, shader or census row is owed. (3) Folding `.moved` into this item: `DM-D` keeps it measured and carried to C14-k; a pin names it so the deferral cannot rot.
 **Fixed.** The spec described `DM-D2` and the pre-build design as live; section 7 now points at `DM-J`..`DM-M`, which supersede it.
 **Residual risk named.** `DM-L` leans on the standing build session being armed, the same premise every steady hit rests on; the soundness pin and the verify run are its instruments, and must be re-run after any change to `needsObservation`.
+
+## DM-O - Verification: the soundness pin was weak, an equivalent mutant is a lead, `.observed` cannot test soundness
+
+**Question.** Do the pins redden under the mutations their docs name (lane 2 verify)?
+**Ruling.** Measured, filtered to the retained suites (`RetainedSingleMissTests`, `RetainedSubtreeSemanticsTests`, `RetainedTraceTests`, retained prepaint/graft; the full suite ran unmutated and under the verify switches). `needsObservation` restored (m1) reddens the count pin on all six arm/count cases, `aChangeNamesItsConjuncts`, `theCoverageHalvesAreRecordedSeparately`, `theKeyOnlyArmStillCostsTwoFramesOfMisses` and 1.8c; the coverage-half swaps (m2, m3) redden `theCoverageHalvesAreRecordedSeparately` alone; dropping `|| descendantRan` (m5) reddens the `.nested` cases alone; dropping the serial term (m6) or the `observedChange` term (m7) reddens the count pin (m7 also 1.8c). **Two findings.** (1) Declaring coverage `true` at the record (m4) reddened only the two seam/carried pins, **not the soundness pin**: on `.observed` the read is the getter's, covered by the memo session whatever the retained windows did. Fixed: a `.plain` arm (a non-equatable child whose body reads the radius, so only the occurrence's retained build window sees the write) and the pin writes both right after the change frame and after the hit that replayed it; under m1 + m4 together (windows closed, coverage declared) it reddens (4 issues, with 1.8c, `aChildGetterReadInvalidatesItsEquatableParentsRecord` and `aRetainedFrameEqualsAFreshFrameOverAScript`). (2) `observed: observed || descendantRan` -> `observed: true` (m9) reddens **nothing** in the retained suites, the twin pin on `.moved` included: where the build window is closed the standing record is complete and clean, so claiming the build half is the `DM-D2` premise and holds on every fixture. That is a lead, not a fix: `.moved` also misses on the prepaint half, so `DM-D` stays carried to C14-k with this evidence.
+**Evidence.** Record 140 section 3.
+**Cost if wrong.** A reader trusting `.observed` alone for soundness; the `.plain` arm closes it.
 
 ## RW-S amendment (record §121)
 

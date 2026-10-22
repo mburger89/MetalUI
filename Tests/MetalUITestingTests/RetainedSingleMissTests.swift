@@ -71,7 +71,8 @@ struct RetainedSingleMissTests {
     }
 
     /// 3 - the single-miss frames equal a retention-off twin: scene, hitboxes, accessibility, tallies, bounds, every script frame.
-    /// **Mutation:** record the change frame's record as complete with its windows closed (`aStaleSession...` and this one redden).
+    /// The oracle, not the instrument for coverage: measured (lane 2 verify, `DM-O`) no coverage mutation reddened it alone, so soundness is pinned by
+    /// `aStaleSessionStillFiresAfterTheSameFrameRecord` (the `.plain` arm). It does redden when a replay is stale in any arm (the verify switch's twin).
     @Test(arguments: DMArm.allCases) func theSingleMissFrameEqualsRetentionOff(arm: DMArm) throws {
         let (on, onModel) = try doubleMissWindow(arm)
         let (off, offModel) = try doubleMissWindow(arm, retain: false)
