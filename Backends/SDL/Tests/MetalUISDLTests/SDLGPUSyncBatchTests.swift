@@ -139,12 +139,13 @@ private func waitFor(_ semaphore: DispatchSemaphore, seconds: Double) {
     func theRecordClosureRunsOnTheSubmitWorker() throws {
         let device = try GPUTestSupport.requireDevice()
         let box = Box()
+        let caller = Thread.current
         let fence = try device.submitBatchSynchronously { _ in box.set(thread: Thread.current) }
         #expect(blockingWait(fence, seconds: 30), "the batch finishes")
         let recorded = try #require(box.thread)
         #expect(recorded === device.submitWorker.thread)
         #expect(!recorded.isMainThread)
-        #expect(Thread.isMainThread, "the caller is still on the main thread")
+        #expect(recorded !== caller, "never the caller's thread (off Darwin the main actor is a pool thread)")
     }
 
     #if DEBUG

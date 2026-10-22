@@ -1,7 +1,7 @@
 # Synchronous render batch for MetalCreator (XP-G22) — decisions
 
 Rulings for item XP-G22 of the gpui-gap priority list (MetalCreator request 2026-10-22; **not a plan task**). Prefix `SY-`.
-**Next unused: `SY-H`.** Spec: [`specs/2026-10-22-sync-batch-design.md`](specs/2026-10-22-sync-batch-design.md). Record: `../record/143-sync-batch.md`.
+**Next unused: `SY-I`.** Spec: [`specs/2026-10-22-sync-batch-design.md`](specs/2026-10-22-sync-batch-design.md). Record: `../record/143-sync-batch.md`.
 Branch `feat/sync-batch` from `d062168c`. Continues `GA-` (record 114, 125) and `GB-` (record 137). Divergence labels reserved 725–734: **none taken**.
 
 Sources of truth. SwiftUI has no GPU API, so there is no SwiftUI-facing claim and no probe is owed; gpui exposes no command buffer to an app
@@ -56,3 +56,11 @@ fourteen images and the root count (4248) must not move. **Cost if wrong.** A mo
 make Y2 unable to observe an unsignalled fence and its mutation untestable. `downloadSynchronously` keeps `nil` (its fence is internal).
 **Ruling.** The verb reads `waiterGate` on the caller and passes it to `recordAndSubmit`, as the async verb does; nil in production. **Cost if wrong.** Y2 would pass vacuously.
 Also rejected: a trap-message check in Y5 against the guard's text beyond the verb name (the suffix is the guard's, `SDLGPUWindowGuard.swift:95`); Y5/Y6 assert the prefix only.
+
+## SY-H — ordering is the blocking return's, so Y3's enqueue-on-waiter mutation survives (measured)
+
+**Question.** Does Y3 (a download right after two batches reads the last one) see a verb that enqueues on the waiter worker instead of the submit worker?
+**Evidence.** Measured (record 143 section 3, M3): it does not. The caller blocks until the buffer is submitted, so by the time `downloadSynchronously` enqueues its own
+job the batch is already submitted whichever thread submitted it; the FIFO claim of the spec was wrong, the ordering comes from "returns once submitted". Y4 reddens M3 (the record
+closure then runs on the waiter thread). **Ruling.** The spec's Y3 mutation is replaced by "the verb returns before its buffer is submitted", which cannot be spelled while the verb
+returns the fence; Y3 stays as the regression net for that and its doc comment says so. **Cost if wrong.** None observed; the thread rule is pinned by Y4.
