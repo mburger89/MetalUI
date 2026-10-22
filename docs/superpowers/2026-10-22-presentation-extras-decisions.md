@@ -1,8 +1,7 @@
 # Presentation extras — decisions
 
 Rulings for item BG (round 2 item 7, user request 2026-10-21; carried gaps `OV-C`, `WD-A`, `IC-G`; not a plan task). Spec:
-[`specs/2026-10-22-presentation-extras-design.md`](specs/2026-10-22-presentation-extras-design.md). Record: `../record/144-presentation-extras.md`
-(Record phase). Branch `feat/presentation-extras` from `dd9a072f`. Evidence: `docs/probes/swiftui-presentation-extras.swift` (compiled form, screen
+[`specs/2026-10-22-presentation-extras-design.md`](specs/2026-10-22-presentation-extras-design.md). Record: `../record/144-presentation-extras.md`. Branch `feat/presentation-extras` from `dd9a072f`. Evidence: `docs/probes/swiftui-presentation-extras.swift` (compiled form, screen
 **locked**, output in its header; arms `B0`–`B9`, `D` arms), `docs/probes/swiftui-presentation-extras-typecheck.sh` (`T0`–`T4`, the interface census),
 the earlier `swiftui-overlays-coords.swift` `B0`–`B2` (`OV-C`'s evidence), `swiftui-window-drag.swift`, `swiftui-image-cursor.swift`.
 **gpui** has `anchored` (no panel, so nothing to colour: it models `anchoredOverlay`, `OV-A`) and `window.start_window_move()` on a mouse-down

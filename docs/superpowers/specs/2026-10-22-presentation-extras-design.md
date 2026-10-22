@@ -1,7 +1,7 @@
 # Presentation extras — design
 
 Round 2 item 7 (user request 2026-10-21): `presentationBackground` (`OV-C`), `windowBackgroundDragBehavior` (`WD-A`), `PointerStyle.shape` (`IC-G`).
-Rulings `BG-A`…`BG-N` in [`../2026-10-22-presentation-extras-decisions.md`](../2026-10-22-presentation-extras-decisions.md). Branch `feat/presentation-extras`
+Rulings `BG-A`…`BG-S` in [`../2026-10-22-presentation-extras-decisions.md`](../2026-10-22-presentation-extras-decisions.md). Branch `feat/presentation-extras`
 from `dd9a072f`. Record §144. Status: BUILT (two lanes verified ok, record §144).
 
 ## Outcome
