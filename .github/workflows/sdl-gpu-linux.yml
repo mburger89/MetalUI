@@ -199,7 +199,21 @@ jobs:
         with:
           name: fixtures
           path: Experiments/SDLGPU/fixtures
-      - uses: compnerd/gha-setup-swift@v0.5.0
+      # The installer intermittently leaves `swift` off PATH (the action's
+      # version check fails before any build); one retry after a pause.
+      - id: setup-swift
+        uses: compnerd/gha-setup-swift@v0.5.0
+        continue-on-error: true
+        with:
+          swift-version: swift-6.4.0-release
+          swift-build: 6.4.0-RELEASE
+      - name: Pause before retrying Swift setup
+        if: steps.setup-swift.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 30
+      - name: Retry Swift setup
+        if: steps.setup-swift.outcome == 'failure'
+        uses: compnerd/gha-setup-swift@v0.5.0
         with:
           swift-version: swift-6.4.0-release
           swift-build: 6.4.0-RELEASE
