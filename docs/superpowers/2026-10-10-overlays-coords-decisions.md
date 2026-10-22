@@ -136,7 +136,7 @@ bounds (a toggling anchor still closes), whatever the attachment anchor.
 compiles unchanged and places identically (pinned by the existing
 `PopoverTests` staying green).
 
-## OV-C — `presentationBackground(_:)` is not built (deferred)
+## OV-C — `presentationBackground(_:)` is not built (deferred) — **built by `BG-A`…`BG-F`, `BG-P`** (`../2026-10-22-presentation-extras-decisions.md`)
 
 B1 shows SwiftUI's `.clear` keeps the macOS popover's chrome, so the modifier
 cannot carry EP-b; B2 shows it does recolour the fill. Building it means a

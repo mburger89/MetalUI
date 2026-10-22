@@ -683,6 +683,8 @@ public final class Frame {
             break   // values unchanged: a preference is reported, not written (`CR-L` item 1)
         case .navigationTitle, .navigationDocument, .onOpenURL:
             break   // values unchanged: window preferences are reported (`AS-D` item 6, `AS-G` item 1)
+        case .presentationBackground:
+            break   // values unchanged: reported into the presentation's slot (`BG-B`)
         }
         return values
     }
@@ -762,7 +764,25 @@ public final class Frame {
     func beginPresentationPreferences() -> PresentationCollectionMark {
         let saved = mainColorSchemePreference
         mainColorSchemePreference = nil
-        return PresentationCollectionMark(colorScheme: saved, toolbarCount: toolbarRecords.count)
+        let background = presentationBackgroundSlot
+        presentationBackgroundSlot = nil
+        presentationBracketDepth += 1
+        return PresentationCollectionMark(colorScheme: saved, toolbarCount: toolbarRecords.count,
+                                          background: background)
+    }
+
+    /// The first `.presentationBackground` reported inside the presentation bracket being built
+    /// (`BG-B`): the innermost wins. Read by `AnchoredPresentation` between its content's build and
+    /// `endPresentationPreferences`, which restores the enclosing bracket's value. Never written
+    /// outside a bracket, so the main tree has none.
+    private(set) var presentationBackgroundSlot: PresentationBackgroundSpec?
+    /// How many presentation brackets are open (a scope outside every one reports nothing).
+    private var presentationBracketDepth = 0
+
+    /// A `.presentationBackground` scope's report, after its content built (`BG-B`).
+    func reportPresentationBackground(_ spec: PresentationBackgroundSpec) {
+        guard presentationBracketDepth > 0, presentationBackgroundSlot == nil else { return }
+        presentationBackgroundSlot = spec
     }
 
     /// What `beginPresentationPreferences` saved: the main tree's colour-scheme
@@ -771,6 +791,8 @@ public final class Frame {
     struct PresentationCollectionMark {
         let colorScheme: ColorScheme?
         let toolbarCount: Int
+        /// The enclosing bracket's background slot (`BG-B`).
+        let background: PresentationBackgroundSpec?
     }
 
     /// Closes what `beginPresentationPreferences` opened. A presentation
@@ -778,6 +800,8 @@ public final class Frame {
     /// turned out not to be one (an in-flow `Deferred`) is the main tree, in
     /// build order.
     func endPresentationPreferences(saved mark: PresentationCollectionMark, isPresentation: Bool) {
+        presentationBackgroundSlot = mark.background
+        presentationBracketDepth -= 1
         let saved = mark.colorScheme
         let inner = mainColorSchemePreference
         // A presentation root's toolbars are ignored (`MD-I` item 5, probe

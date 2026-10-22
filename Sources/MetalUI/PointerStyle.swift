@@ -18,14 +18,17 @@ import MetalUIPlatform
 /// item 8). **To show a hand or a magnifier on SDL, supply the art**
 /// (`IC-H`): `.pointerStyle(.image(handImage, hotSpot: …))` for the platform
 /// that needs it, a 1x bitmap and, for 2x displays, a 2x bitmap with
-/// `Image(scale: 2)`; no art is bundled. `shape`, `columnResize(directions:)`
-/// and `rowResize(directions:)` are not offered (`CI-A`, `IC-G`).
+/// `Image(scale: 2)`; no art is bundled. `shape(_:eoFill:size:hotSpot:fill:outline:)` draws a `Shape`
+/// as a cursor (SwiftUI offers `shape` on visionOS only; ruling `BG-K`, divergence 735).
+/// `columnResize(directions:)` and `rowResize(directions:)` are not offered (`CI-A`).
 public struct PointerStyle: Sendable, Hashable {
     enum Kind: Sendable, Hashable {
         case arrow, horizontalText, verticalText, rectSelection, grabIdle, grabActive, link
         case zoomIn, zoomOut, columnResize, rowResize
         case frameResize(FrameResizePosition, FrameResizeDirection.Set)
         case image(PlatformCursorImage)
+        /// A shape rasterized by the window at send time (`BG-K`...`BG-M`).
+        case shape(ShapeCursorSpec)
     }
 
     let kind: Kind
@@ -107,6 +110,9 @@ public struct PointerStyle: Sendable, Hashable {
             .frameResize(edge: position.platformEdge,
                          inward: directions.contains(.inward), outward: directions.contains(.outward))
         case .image(let cursor): .image(cursor)
+        // A shape is resolved by the window, which owns the cache and knows the scale (`BG-M`); a caller
+        // outside the window sees the arrow.
+        case .shape: .arrow
         }
     }
 }
@@ -331,7 +337,7 @@ extension Window {
         }
         guard style != resolvedPointerStyle else { return }
         resolvedPointerStyle = style
-        sendPointerStyle(style.platformStyle)
+        sendPointerStyle(resolvedPlatformStyle(style))
     }
 
     /// The innermost style region at `point` its cover reaches (`CI-H` item 4).
