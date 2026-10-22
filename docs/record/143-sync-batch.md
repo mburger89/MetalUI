@@ -35,3 +35,7 @@ Tests alone at `ecaf1862`: `SDLGPUSyncBatchTests.swift:69:24: error: value of ty
 ## 5. Carried
 
 A synchronous buffer download or upload; `downloadSynchronously` on `recordAndSubmit` (needs a texture copy verb on `SDLGPUCommandBuffer`); Windows D3D12 is compiled by CI only.
+
+## 6. After the merge with master `dd9a072f` (§141 draw text)
+
+Merged `origin/master` (record 141 stays 141; this record stays 143; CLAUDE.md prefix list, record index and `AGENTS.md` conflicts resolved by keeping both entries, `cmp CLAUDE.md AGENTS.md` identical). `swift package clean`, native build 0 `error:`, native unfiltered run: **4264 tests in 5 suites passed** (master's count, unchanged by this branch), `FR-J no-argument frame: succeeded=true`, no issue recorded. `docs/api-overview.md` gained the verb's line; no human-check group (no look added).
