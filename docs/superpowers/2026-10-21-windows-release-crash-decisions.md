@@ -4,7 +4,7 @@ Rulings for item XP-G21. Spec: [`specs/2026-10-21-windows-release-crash-design.m
 Record: `../record/139-windows-release-crash.md` (Record phase). Branch `fix/windows-release-crash` from `68975774`. Divergence labels
 685-694 reserved: **none taken** (no SwiftUI-facing claim, no probe of SwiftUI; the evidence is compiler runs).
 
-Prefix **`WR-`**, lettered. **Next unused: `WR-G`.** (Moves in the commit that appends a ruling.)
+Prefix **`WR-`**, lettered. **Next unused: `WR-H`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `LK-X`/`SG-E` (asserts-only SIL verifier, env-gated `AssertsCompilerTests`), `PE-K`/Windows CI hazards.
 
@@ -49,3 +49,13 @@ release build does not redden, the guard's fixture builds `MetalUIDemo`-free but
 (2) Test 4.2's index pin must be a real mutation: it is run with `count` for `count - 1` and the reddened test named; if no seam reads the
 recorded track keys, the pin reads `AnimationStore` state through the existing testing hook rather than being dropped. **Rejected:** guarding the
 entry with `isEmpty` (variant A, measured crash); removing optnone (variant B needs it, measured); waiting for upstream (WR-E).
+
+## WR-G - Measured outcome: guard red then green, CI step added, cost unmeasured on Windows
+
+**Ruling.** At `68975774` the extended `theComponentSwitchShapeAgainstAnAssertsCompiler` was red on **all four release arms** (`LKX`, `MG27`,
+`Workaround`, `Effects`: "SIL verification failed: return with stack allocs that haven't been deallocated"), because they all build the MetalUI
+target in release, so the crash was *already* in the guard's reach and the `Effects` arm only names it (WR-F point 1 resolved: no `MetalUIDemo` build
+needed). Debug arms were green. After the fix all arms and the `Standalone` positive control pass (103 s incremental). The CI step is
+`swift build -c release --product MetalUI` in `root-windows`; the Mac asserts run of the whole fixture package (debug and release, four targets plus the control) took 255 s at
+`68975774` (crashing release builds) and 103 s after the fix (incremental), so the step is expected well under 10 minutes; **not measured on Windows** (the UTM x64 emulation is not CI's speed), the first CI run settles it.
+**Cost if wrong:** a slow step is removed or narrowed to the product that crashed.

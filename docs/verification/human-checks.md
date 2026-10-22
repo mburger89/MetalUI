@@ -1844,6 +1844,13 @@ a physical GPU, a desktop session and a console.*
 - [ ] **BS3.** A package depending on MetalUI **by URL** (not path) sees `swift package compile-shaders`; if not, `swift run --package-path .build/checkouts/MetalUI MetalUICompileShaders ...` works (`BS-B`). **Observed:**
 - [ ] **BS4.** Windows: `shadercross.exe` is found on `PATH` and by `METALUI_SHADERCROSS`, its DLLs beside it load, and the tool's output matches macOS's reflection JSON. **Observed:**
 
+## WR. Windows release build - MetalCreator's xp-2 zip (item XP-G21, 2026-10-21, not a plan task; record 139; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs a Windows machine with Swift 6.4.0+Asserts. The asserts snapshot on macOS is the stand-in (`WR-A`).*
+
+- [ ] **WR1.** On Windows with the CI compiler, `swift build -c release` of the root package's `MetalUI` product and of MetalCreator's `MetalCreatorApp` finishes with no "SIL verification failed", and the xp-2 release zip's app paints a shadowed, blurred and rotated legacy element like the debug build. **Observed:**
+- [ ] **WR2.** The `root-windows` job's "Release build of MetalUI" step: record its wall time from the first CI run (the lane's expectation was under 10 minutes, unmeasured). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

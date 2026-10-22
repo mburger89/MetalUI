@@ -7,6 +7,7 @@
 #   C  @_optimize(none) on it only  : FAIL  same message, same function
 #   A  index helper, both optnone   : FAIL  "inconsistent stack states entering basic block" in `closure #1 in paintDecoration`
 #      (the entry guard `isEmpty` inlined into the caller)
+#   after the lane (commit WR-B): the env-gated AssertsCompilerTests (all four release arms) red at 68975774, green after
 #   B  candidate-b.patch            : PASS  "Build complete! (73.63 sec)" -- entry @_optimize(none), index helper optimised
 scratch=${1:-${TMPDIR:-/tmp}/wr-asserts}
 tc=~/Library/Developer/Toolchains/swift-DEVELOPMENT-SNAPSHOT-2026-05-27-a.xctoolchain
