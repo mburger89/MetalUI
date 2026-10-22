@@ -2,6 +2,7 @@
 
 Item C14-m: "an unchanged `.environment(\.colorScheme, same)` override re-keys every retained pass". Branch `perf/retained-env-override` from `58843cca`.
 Decisions: [`../2026-10-22-retained-env-override-decisions.md`](../2026-10-22-retained-env-override-decisions.md) (prefix `EO-`). Record: `docs/record/148-retained-env-override.md`.
+**Status: closed 2026-10-22 - defect refuted, pins landed, no source change (record §148, `EO-G`).**
 Divergences 775-784: none taken. No public API, no SwiftUI probe (no observable behaviour moves), no gpui comparison.
 
 ## 1. Finding: the defect as stated does not reproduce
