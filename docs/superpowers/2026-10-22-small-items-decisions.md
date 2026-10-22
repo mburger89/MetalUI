@@ -1,6 +1,6 @@
 # Small items (IH-K, SN-L, P3c) — decisions
 
-Rulings for round 2 item 9 of the gpui-gap list (user request 2026-10-21; **not a plan task**). Prefix `SM-`. **Next unused: `SM-E`.**
+Rulings for round 2 item 9 of the gpui-gap list (user request 2026-10-21; **not a plan task**). Prefix `SM-`. **Next unused: `SM-F`.**
 Spec: [`specs/2026-10-22-small-items-design.md`](specs/2026-10-22-small-items-design.md). Record: `../record/147-small-items.md`.
 Branch `feat/small-items` from `1c53976d`. Divergence labels reserved 765-774: none taken. Public API: none. Lanes: none.
 
@@ -75,3 +75,17 @@ regenerated and the SDL replay-parity harness re-run on Metal, Vulkan (lavapipe)
 few KB per frame, against a two-renderer shader change that cannot be regenerated or verified locally. **Cost if wrong.** A path/shadow-heavy
 scene keeps 4x texture memory for CPU rasters (a 1024² overscan raster: 4 MiB vs 1 MiB). **Owner.** `PN-D`'s note; first step a bytes-per-frame
 counter (`RasterCache.lastTintedPixels` times 3 B already gives the saving) on a real scene before any shader work.
+
+## SM-E — Critic review: the carried outcome stands; two arms re-run, one measurement gap named
+
+**Re-run byte for byte (2026-10-22).** `sdl-activation-token.sh` re-cloned SDL `release-3.4.16`: `XDG_ACTIVATION_TOKEN` read at `SDL_waylandwindow.c:2146`
+and `SDL_waylandutil.c:68` only (plus `SDL_sysurl.c:85` setting it), none in `Wayland_RaiseWindow`: SM-B holds. `stb-callback-eof.c` on a fresh 512² PNG:
+`cancelAfter=0` and `=1` give `NULL` (reads 0 and 1), `=3` and above `IMAGE` after all 3 reads, `identical=1`: SM-A's PNG arm holds, and shows again that a
+cancel after the last read (a small file is 3 reads) saves nothing. The JPEG arm was not re-run.
+**Checked and clean:** no public declaration, no `Sources/` or `Backends/` change, no divergence label, no shader, no C enum, no platform requirement,
+no pixel moved by construction (the diff lists only `docs/`).
+**Gap named, not fixed.** SM-D rests on record §118 §7's 6 % and on the absent toolchain (`which shadercross dxc` finds neither; re-checked), not on a
+fresh bytes-per-frame count on the fourteen images. The toolchain absence alone forbids the shader half (`TE-AD` needs regenerable blobs and parity), so
+the gap does not change the ruling; the owner's first step already names the counter. **Rejected:** building SM-A's Swift-side wrapper now (its only
+win is a pre-start check, which `Task.checkCancellation()` at the call site gives for free) and a version-less token wire field (SM-B).
+**Lanes: none.**
