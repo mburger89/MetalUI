@@ -13,12 +13,17 @@ private let metalUISkipReason: Comment =
 private let platformSkipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUIPlatform not found — guard skipped"
 
-/// The four clipboard requirements, one line each, so a negative drops exactly one.
+/// The eight clipboard requirements (`CB-E`'s four, `CP-E`'s four), one line each, so a negative drops exactly one.
 private let clipboardMembers: [(name: String, line: String)] = [
     ("writeClipboard", "func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool { false }"),
     ("clipboardTypeIdentifiers", "func clipboardTypeIdentifiers() -> [String] { [] }"),
     ("readClipboard(identifier:)", "func readClipboard(identifier: String) -> [UInt8]? { nil }"),
     ("setClipboardCommands", "func setClipboardCommands(_ commands: ClipboardCommands) {}"),
+    // `CP-E`: the four item requirements.
+    ("writeClipboard(items:)", "func writeClipboard(items: [ClipboardItem]) -> Bool { false }"),
+    ("clipboardItems", "func clipboardItems() -> [[String]] { [] }"),
+    ("readClipboard(item:identifier:)", "func readClipboard(item: Int, identifier: String) -> [UInt8]? { nil }"),
+    ("setClipboardChangeHandler", "func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?) {}"),
 ]
 
 /// A `PlatformWindow` conformer with every requirement except the clipboard's four, which the
@@ -154,25 +159,22 @@ func theClipboardSpellingsCompileFromAPlainImportAndClipboardHasNoInitialiser() 
     let initialiser = try typecheckFile("""
         @MainActor func make() -> Clipboard { Clipboard() }
         """, importing: "MetalUI")
-    let pasteButton = try typecheckFile("""
-        @MainActor func button() -> some ElementGroup { PasteButton(payloadType: String.self) { _ in } }
-        """, importing: "MetalUI")
+    // `PasteButton` was the third negative here while it was not built (`CB-N`); it is built since `CP-B`
+    // and its spellings are `PasteButtonCompileGuards.swift`'s (G1.1).
 
     print("""
         CB-A spellings: succeeded=\(spellings.succeeded) messages=[\(spellings.messages)]; \
-        Clipboard() succeeded=\(initialiser.succeeded); PasteButton succeeded=\(pasteButton.succeeded)
+        Clipboard() succeeded=\(initialiser.succeeded)
         """)
 
-    try #require(spellings.succeeded && !initialiser.succeeded && !pasteButton.succeeded,
+    try #require(spellings.succeeded && !initialiser.succeeded,
                  """
-                 the spellings must compile and the two negatives must not, or this guard \
+                 the spellings must compile and the negative must not, or this guard \
                  cannot fail:
                  spellings:
                  \(spellings.output)
                  Clipboard():
                  \(initialiser.output)
-                 PasteButton:
-                 \(pasteButton.output)
                  """)
     #expect(initialiser.messages.contains("Clipboard"), "refused FOR Clipboard:\n\(initialiser.output)")
 }

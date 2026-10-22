@@ -20,8 +20,9 @@ extension StyledElement {
     /// focus, divergence 94). It runs after the `Keymap`, `onKeyPress`, a
     /// focused text field's own editing keys and `onKey`, and before a `Button`'s
     /// shortcut and the app's commands, so a focused `TextField` keeps its own
-    /// copy (`CB-M`). `items` is evaluated at copy time; only its **first** item
-    /// is written (divergence 456), as one representation per type it exports,
+    /// copy (`CB-M`). `items` is evaluated at copy time; **every** item
+    /// is written, one clipboard item each (`CP-C`), as one representation per type it exports (the
+    /// encoding is deferred to the consumer's read where the platform can, divergence 716, `CP-F`),
     /// so list `.utf8PlainText` after your own type for a text fallback. An empty
     /// result writes nothing and leaves the key to later stages. Menu enablement
     /// is by presence of the handler (divergence 455).
@@ -32,7 +33,7 @@ extension StyledElement {
 
     /// Makes this element cut to the clipboard — SwiftUI's `cuttable(for:action:)`.
     /// `action` runs once, from input, removes the items from the app's model and
-    /// returns them; the first is written as `copyable` writes (`CB-C`). Routing
+    /// returns them; all are written as `copyable` writes (`CP-C`). Routing
     /// and enablement as `copyable(_:)`. The key is claimed once `action` has
     /// run, even when it returned nothing.
     public func cuttable<T: Transferable>(for payloadType: T.Type = T.self,
@@ -44,10 +45,10 @@ extension StyledElement {
     /// Makes this element accept a paste of `T` — SwiftUI's
     /// `pasteDestination(for:action:validator:)`.
     ///
-    /// The clipboard is read as one item through `T.importedContentTypes()` in
+    /// Every clipboard item is read through `T.importedContentTypes()` in
     /// its order (`CB-F`), so a type importing `[custom, .utf8PlainText]` falls
-    /// back to text. `validator` runs on the imported value; an empty result
-    /// **declines** and `action` receives at most one value (divergence 456). When
+    /// back to text; an item it cannot import is skipped (`CP-C`). `validator` runs on the array of imported
+    /// values; an empty result **declines** and `action` receives the accepted values once, in order. When
     /// nothing imports, the key is declined and later stages run (an app command's
     /// Paste). Routing as `copyable(_:)`. The Edit menu's Paste is enabled by
     /// presence of the handler, not by the validator (`CB-G`, divergence 455).
@@ -134,19 +135,19 @@ extension Window {
             switch letter {
             case "c":
                 guard let copy = attachment.copy else { continue }
-                let representations = StateDispatch.dispatching(to: id) { copy() }
-                guard !representations.isEmpty else { return false }
-                _ = platformWindow.writeClipboard(representations)
+                let items = StateDispatch.dispatching(to: id) { copy() }
+                guard !items.isEmpty else { return false }
+                _ = platformWindow.writeClipboard(items: items)
                 return true
             case "x":
                 guard let cut = attachment.cut else { continue }
-                let representations = StateDispatch.dispatching(to: id) { cut() }
-                if !representations.isEmpty { _ = platformWindow.writeClipboard(representations) }
+                let items = StateDispatch.dispatching(to: id) { cut() }
+                if !items.isEmpty { _ = platformWindow.writeClipboard(items: items) }
                 return true
             default:
                 guard let paste = attachment.paste else { continue }
-                let item = clipboard.item
-                return StateDispatch.dispatching(to: id) { paste(item) }
+                let items = clipboard.items
+                return StateDispatch.dispatching(to: id) { paste(items) }
             }
         }
         return false

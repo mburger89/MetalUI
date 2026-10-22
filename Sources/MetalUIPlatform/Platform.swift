@@ -157,6 +157,30 @@ public protocol PlatformWindow: AnyObject {
     /// after a frame and only on change, for the platform's Edit menu.
     func setClipboardCommands(_ commands: ClipboardCommands)
 
+    /// Replaces everything the system clipboard holds with `items`, one clipboard
+    /// item each (ruling `CP-E`); `true` when the platform accepted at least one.
+    /// A `.later` representation is exported when a consumer reads on AppKit and in
+    /// the headless platform, at write time on SDL (`CP-F`). **No default
+    /// implementation, for any of the four item requirements** (`CP-E`).
+    /// **Migration**: a conformer outside this repository adds
+    /// `writeClipboard(items: [ClipboardItem]) -> Bool`, `clipboardItems() -> [[String]]`,
+    /// `readClipboard(item: Int, identifier: String) -> [UInt8]?` and
+    /// `setClipboardChangeHandler(_:)`; `{ false }`, `{ [] }`, `{ _, _ in nil }` and
+    /// `{ _ in }` are the honest answers of a platform with no typed clipboard.
+    func writeClipboard(items: [ClipboardItem]) -> Bool
+
+    /// The identifiers of the types each clipboard item holds, most preferred first
+    /// (ruling `CP-E`); `[]` for an empty clipboard.
+    func clipboardItems() -> [[String]]
+
+    /// Item `item`'s bytes as the type `identifier`; `nil` when absent (`CP-E`).
+    func readClipboard(item: Int, identifier: String) -> [UInt8]?
+
+    /// Installs (or, with `nil`, removes) the closure the platform calls on the main
+    /// actor when the clipboard's contents may have changed (ruling `CP-G`): an own
+    /// write, a foreign one seen at a poll point (AppKit) or an event (SDL).
+    func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?)
+
     func startDisplayLink(_ tick: @escaping (Double) -> Void)
 
     /// Hands an in-window drag to the operating system when the pointer leaves
