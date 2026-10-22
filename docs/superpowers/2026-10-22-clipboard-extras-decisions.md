@@ -128,7 +128,7 @@ platform; it joins the retained fingerprint the way `controlActiveState` does (`
 
 **Ruling.** The clipboard snapshot is a paint- and build-time ambient. An `.equatable()` component holding
 a `PasteButton` must not replay a stale enabled state: **decided (CP-L): retention refuses by a named counted
-reason (`pasteButtonUnderRetained`) when a `PasteButton` is under it**; no fingerprint field, no `AmbientKey` edit. Pinned with `METALUI_VERIFY_RETAINED=1` semantics (`CP-` test
+reason (taint reason `pasteButton`, a working name `pasteButtonUnderRetained` in the first draft) when a `PasteButton` is under it**; no fingerprint field, no `AmbientKey` edit. Pinned with `METALUI_VERIFY_RETAINED=1` semantics (`CP-` test
 1.9). No identity, state-slot, hit-test, focus, animation or layout rule moves: `PasteButton` is a `Button`
 inside, one identity level like `Button` (`MC-A`).
 

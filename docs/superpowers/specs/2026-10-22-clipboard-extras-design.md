@@ -1,5 +1,7 @@
 # Clipboard extras — design
 
+**Status: LANDED (record §142; looks owed, group `CP`).**
+
 Round 2 item 6 (user request 2026-10-21; record §142; rulings `CP-A`…`CP-I` in
 [`../2026-10-22-clipboard-extras-decisions.md`](../2026-10-22-clipboard-extras-decisions.md)). Branch
 `feat/clipboard-extras` from `5f03ab7b`. Discharges `CB-N` (record §115). Probes:
