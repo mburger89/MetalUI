@@ -9,7 +9,12 @@ import Testing
 // C14-m (`EO-`): MetalCreator's glass panels, reduced: N `.equatable()` panels under a drag, each panel's content wrapped in
 // `.environment(\.colorScheme, <the inherited value>)`. Counts only.
 
-enum EOArm: Sendable { case none, insideScheme, outsideScheme, insideMaterial }
+enum EOKey: Sendable, CaseIterable { case displayScale, controlActiveState, reduceMotion, reduceTransparency, theme }
+
+/// `insideMaterial` is MetalCreator's `glassBackground` shape (`EO-D`): the override sits inside a `.background { }` attachment holding a
+/// material fill, at the inherited scheme (`insideMaterial`) or the opposite one (`insideMaterialOpposite`); `backgroundTint` is the
+/// attachment with a plain colour and no override.
+enum EOArm: Sendable, Equatable { case none, insideScheme, outsideScheme, insideMaterial, insideMaterialOpposite, backgroundTint, stamped(EOKey) }
 
 struct EONode: Component, @MainActor Equatable {
     let index: Int
@@ -19,8 +24,27 @@ struct EONode: Component, @MainActor Equatable {
     var content: some ElementGroup {
         let shown = model.params[index].radius
         switch arm {
-        case .insideScheme, .insideMaterial:
+        case .insideScheme:
             body(shown).environment(\.colorScheme, scheme)
+        case .insideMaterial:
+            body(shown).background {
+                RoundedRectangle(cornerRadius: Pixels(6)).fill(Material.thinMaterial).environment(\.colorScheme, scheme)
+            }
+        case .insideMaterialOpposite:
+            body(shown).background {
+                RoundedRectangle(cornerRadius: Pixels(6)).fill(Material.thinMaterial)
+                    .environment(\.colorScheme, scheme == .light ? .dark : .light)
+            }
+        case .backgroundTint:
+            body(shown).background { RoundedRectangle(cornerRadius: Pixels(6)).fill(Color(red: 0.9, green: 0.9, blue: 0.2)) }
+        case .stamped(let key):
+            switch key {
+            case .displayScale: body(shown).environment(\.displayScale, 2)
+            case .controlActiveState: body(shown).environment(\.controlActiveState, .key)
+            case .reduceMotion: body(shown).environment(\.accessibilityReduceMotion, false)
+            case .reduceTransparency: body(shown).environment(\.accessibilityReduceTransparency, false)
+            case .theme: body(shown).theme(.light)
+            }
         default:
             body(shown)
         }
@@ -89,5 +113,66 @@ struct EnvOverrideTests {
         let drag = frames.dropLast()
         #expect(!drag.isEmpty && drag.allSatisfy { $0.retainedMisses == 1 && $0.retainedHits == 7 },
                 "\(arm) \(scheme): \(frames.map { "h\($0.retainedHits) m\($0.retainedMisses)" })")
+    }
+
+    @MainActor private func dragFrames(_ window: TestWindow) -> (frames: [FrameWork], reasons: Set<String>) {
+        var frames: [FrameWork] = []
+        let lines = collectTrace {
+            let strip = try! window.frame(ofID: "strip")
+            let y = strip.origin.y.value + strip.size.height.value / 2
+            window.resetFrameWork()
+            window.drag(from: pt(strip.origin.x.value + 20, y), to: pt(strip.origin.x.value + 320, y), steps: 6)
+            frames = window.frameWork
+        }
+        return (frames, Set(lines.compactMap(traceReasons).flatMap { $0 }))
+    }
+
+    /// EO-D: MetalCreator's shape, a material fill under a `.background { }` attachment with the override inside it.
+    @Test(arguments: [EOArm.insideMaterial, .insideMaterialOpposite, .backgroundTint]) func aBackgroundAttachmentWithAnOverrideDoesNotMiss(arm: EOArm) throws {
+        let (window, _) = try envOverrideWindow(arm)
+        let (frames, reasons) = dragFrames(window)
+        #expect(!reasons.contains { $0.contains("environment") }, "\(arm): \(reasons.sorted())")
+        let drag = frames.dropLast()
+        #expect(!drag.isEmpty && drag.allSatisfy { $0.retainedMisses == 1 && $0.retainedHits == 7 },
+                "\(arm): \(frames.map { "h\($0.retainedHits) m\($0.retainedMisses)" })")
+    }
+
+    /// EO-E, the separating arm of the pins above: a real scheme change misses every panel once, naming `colorScheme`, and the frame
+    /// (scene, hitboxes, accessibility) equals a retention-off twin's.
+    @Test func aRealSchemeChangeStillMissesAndRepaints() throws {
+        let (on, _) = try envOverrideWindow(.none)
+        let (off, _) = try envOverrideWindow(.none, retain: false)
+        var missed = 0
+        let lines = collectTrace {
+            on.resetFrameWork()
+            on.setAppearance(.dark)
+            missed = on.frameWork.reduce(0) { $0 + $1.retainedMisses }
+        }
+        off.setAppearance(.dark)
+        let reasons = Set(lines.compactMap(traceReasons).flatMap { $0 })
+        #expect(reasons.contains { $0.contains("colorScheme") }, "\(reasons.sorted())")
+        #expect(missed >= 8, "every panel misses on the change: \(missed)")
+        let changed = try RPSnapshot(on).differences(from: RPSnapshot(off))
+        #expect(changed.isEmpty, "\(changed)")
+        // And it settles: the next frames hit again.
+        var after: [String] = []
+        for _ in 0..<3 {
+            on.resetFrameWork()
+            on.window.setNeedsRedraw(); on.tick()
+            after.append(on.frameWork.map { "h\($0.retainedHits) m\($0.retainedMisses)" }.joined(separator: ","))
+        }
+        #expect(after.last == "h8 m0", "\(after)")
+        let settled = try RPSnapshot(on).differences(from: RPSnapshot(off))
+        #expect(settled.isEmpty, "\(settled)")
+    }
+
+    /// EO-C: every other stamped key, written by an override equal to the inherited value, is as free as the colour scheme.
+    @Test(arguments: EOKey.allCases) func anOverrideOfEveryStampedKeyIsFreeWhenEqual(key: EOKey) throws {
+        let (window, _) = try envOverrideWindow(.stamped(key))
+        let (frames, reasons) = dragFrames(window)
+        #expect(!reasons.contains { $0.contains("environment") }, "\(key): \(reasons.sorted())")
+        let drag = frames.dropLast()
+        #expect(!drag.isEmpty && drag.allSatisfy { $0.retainedMisses == 1 && $0.retainedHits == 7 },
+                "\(key): \(frames.map { "h\($0.retainedHits) m\($0.retainedMisses)" })")
     }
 }
