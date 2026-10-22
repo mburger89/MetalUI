@@ -182,14 +182,8 @@ private func twinRow(_ twins: [Twin], _ reads: ConditionalReads) -> some Element
     #expect(GlobalElementID.child(of: pa, at: 0, name: nil) != GlobalElementID.child(of: pb, at: 0, name: nil))
 }
 
-/// **2.10 — the `List` residue is divergence 255** (`FI-I`): rows whose ids
-/// collide in description still name one entry. Pinned wrong on purpose; a
-/// `List` fix reddens it. The row name is `ElementID(String(describing: id))`.
-@MainActor
-@Test func aListRowsCollisionIsStillDivergence255() {
-    #expect(ElementID(String(describing: AnyHashable(1))) == ElementID(String(describing: AnyHashable("1"))))
-    #expect(ElementID(String(describing: Twin(u: 1))) == ElementID(String(describing: Twin(u: 2))))
-}
+/// **2.10 — retired.** It pinned the `List` residue (divergence 255, `FI-I`) wrong on purpose;
+/// `LH-A` fixed it and `ListRowIdentityTests` is its replacement (record 145).
 
 /// **2.11 — a NaN id is still produced once** (`FI-K`): `Double.nan` is unequal
 /// to itself so `Set<ID>` never dedupes it; the floating-point name dedupe does.

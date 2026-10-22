@@ -1165,7 +1165,7 @@ extension List {
     /// Writes only a changed selection and stores the lead and anchor as a
     /// click does; unlike a click it asks for no focus (setting `AXSelected`
     /// is not a press). Input time only: one scan of `data`.
-    private static func accessibilityRowSelection(list: GlobalElementID, data: Data,
+    static func accessibilityRowSelection(list: GlobalElementID, data: Data,
                                                   selection: ListSelection<Data.Element.ID>,
                                                   table: StateTable) -> ActionHandler {
         { [weak table] action in
