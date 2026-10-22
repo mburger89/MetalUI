@@ -368,6 +368,8 @@ window.drag(from: start, to: end, steps: 8)
 #expect(window.lastFrameWork.rasterizedPixels == 0)
 ```
 
+To see why a retained occurrence did not replay, set `METALUI_TRACE_RETAINED=1`, or in a package test assign `RetainedTrace.sink` (a `@MainActor (String) -> Void`, restore it after) to capture the lines instead of reading stdout; each miss line names every failing conjunct in `reasons=[...]`.
+
 ## Measuring text
 
 `@Environment(\.textMeasurer)` answers the size a `Text` would lay out at, in

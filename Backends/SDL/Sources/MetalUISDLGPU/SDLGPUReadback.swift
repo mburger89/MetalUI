@@ -28,10 +28,23 @@ public struct SDLGPUTextureRegion: Sendable, Equatable {
     }
 }
 
-/// What a blocking readback's worker job hands back to the calling thread.
-private final class Submitted: @unchecked Sendable {
-    let ready = DispatchSemaphore(value: 0)
-    var fence: SDLGPUFence?
+/// What a blocking verb's worker job hands back to the calling thread (rulings
+/// `GB-F`, `SY-D`): the job's `Result`, then a signal.
+final class Submitted: @unchecked Sendable {
+    private let ready = DispatchSemaphore(value: 0)
+    private var result: Result<SDLGPUFence, SDLGPUError>?
+
+    /// Records the outcome and wakes the caller; called once, on the worker.
+    func finish(_ outcome: Result<SDLGPUFence, SDLGPUError>) {
+        result = outcome
+        ready.signal()
+    }
+
+    /// Blocks until the worker finished. A plain method so Swift 6 accepts the wait.
+    func await() -> Result<SDLGPUFence, SDLGPUError> {
+        ready.wait()
+        return result!
+    }
 }
 
 extension SDLGPUDevice {
@@ -62,8 +75,7 @@ extension SDLGPUDevice {
 
         let submitted = Submitted()
         submitWorker.enqueue { [self] in
-            defer { submitted.ready.signal() }
-            guard let handle = SDL_AcquireGPUCommandBuffer(raw) else { return }
+            guard let handle = SDL_AcquireGPUCommandBuffer(raw) else { submitted.finish(.failure(SDLGPUError("SDL_AcquireGPUCommandBuffer"))); return }
             let commandBuffer = SDLGPUCommandBuffer(raw: handle, device: self)
             if let pass = SDL_BeginGPUCopyPass(handle) {
                 var from = SDL_GPUTextureRegion()
@@ -81,22 +93,18 @@ extension SDLGPUDevice {
                 commandBuffer.retained.append(transfer)
             }
             commandBuffer.isOpen = false
-            guard let fence = SDL_SubmitGPUCommandBufferAndAcquireFence(handle) else { return }
+            guard let fence = SDL_SubmitGPUCommandBufferAndAcquireFence(handle) else {
+                submitted.finish(.failure(SDLGPUError("SDL_SubmitGPUCommandBufferAndAcquireFence"))); return
+            }
             let result = SDLGPUFence(raw: fence, device: self, retained: commandBuffer.retained)
             result.startWaiting(gate: nil)
-            submitted.fence = result
+            submitted.finish(.success(result))
         }
-        waitForJob(submitted.ready)
-        guard let fence = submitted.fence else { return nil }
+        guard case .success(let fence) = submitted.await() else { return nil }
         fence.waitBlocking()
         guard let memory = transfer.map() else { return nil }
         defer { transfer.unmap() }
         return Array(UnsafeRawBufferPointer(start: memory, count: byteCount))
-    }
-
-    /// Waits for a worker job; a plain function so the wait is not in a context Swift 6 refuses.
-    private func waitForJob(_ semaphore: DispatchSemaphore) {
-        semaphore.wait()
     }
 }
 #endif
