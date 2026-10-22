@@ -1,10 +1,10 @@
 # Clipboard extras — decisions
 
 Rulings for round 2 item 6 of the gpui-gap list (user request 2026-10-21; **not a plan task**): what `CB-N`
-(record §115) deferred. Prefix `CP-`. **Next unused: `CP-N`.**
+(record §115) deferred. Prefix `CP-`. **Next unused: `CP-O`.**
 Spec: [`specs/2026-10-22-clipboard-extras-design.md`](specs/2026-10-22-clipboard-extras-design.md).
 Record: `../record/142-clipboard-extras.md` (Record phase). Branch `feat/clipboard-extras` from `5f03ab7b`.
-Divergence labels reserved 715–724: **717 taken** (`CP-B`, lane 1); 715, 716 are earmarked (`CP-C`, `CP-F`).
+Divergence labels reserved 715–724: **715, 716, 717 taken** (715 `CP-C`, 716 `CP-F`/`CP-N`, 717 `CP-B`); 456 amended (`CP-J`).
 
 Sources of truth. SwiftUI: `docs/probes/swiftui-clipboard-extras.swift` (2026-10-21). **Probed:** the SDK's
 three `PasteButton` initialisers, the array signatures, and three compile-failure arms (`-DNEG1` no
@@ -175,3 +175,17 @@ the handler redraws only when `lastPasteButtonCount > 0`. `Frame` carries no sna
 exception to "never read the platform inside a phase" and costs one read per clipboard change per window holding a button.
 **Cost if wrong.** A platform whose `clipboardItems()` is slow shows it in a layout, once per change; a cache would then move to
 the handler under the dirty rule.
+
+## CP-N — Lazy export covers `copyable` and `cuttable`; `Clipboard.write` encodes now (lane 2, 2026-10-22)
+
+**Question.** `CP-F` made every copy lazy, but `CB-I` (zero-byte representations dropped, nothing written and `false` when none
+remain) is pinned by `windowClipboardRoundTripsATransferableAndReportsEmptyAndAbsent` (`!clipboard.write(Blob(bytes: []))`), and a
+lazy representation cannot be judged empty before its exporter runs.
+**Ruling.** `copyable` and `cuttable` (key-driven; nothing consumes an answer) capture the `Transferable` **values** and produce `.later`
+representations: the exported types are listed whether or not they will export bytes, and the empty one reads `nil` (divergence 716).
+`Clipboard.write(_:)` and `TestWindow.setClipboard(items:)` (public, answering whether anything was written) **encode now** and keep `CB-I`
+exact; `ClipboardItem` itself carries both spellings, so an app that wants a lazy write through the platform seam builds the item.
+`HeadlessPlatformWindow.readClipboard(item:identifier:)` answers `nil` for a representation that exports zero bytes, as AppKit does (a
+provider that supplies no data). A `.later` closure crosses into a main-actor closure through a `nonisolated(unsafe)` copy of the value
+(`Transferable` is not `Sendable`); it is read only by that closure.
+**Cost if wrong.** `Clipboard.write` of an expensive value pays its encoding at the write; a lazy `write` overload is additive.

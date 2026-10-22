@@ -809,7 +809,7 @@ public final class SDLWindow: PlatformWindow {
         defer { mui_free(UnsafeMutableRawPointer(list)) }
         return (0..<count).compactMap { index in
             list[index].map { ClipboardMime.identifier(forMime: String(cString: $0)) }
-        }
+        }.filter { $0 != SDLWindow.clipboardPackIdentifier }   // the private pack is not a type (`CP-C`)
     }
 
     /// The clipboard's bytes as `identifier`'s mime type; `nil` when absent
@@ -829,31 +829,11 @@ public final class SDLWindow: PlatformWindow {
 
     public func setClipboardCommands(_ commands: ClipboardCommands) { clipboardCommands = commands }
 
-    // MARK: Clipboard items (`CP-E`). Single-item answers until lane 2 (`SDLClipboardItems.swift`).
+    // MARK: Clipboard items (`CP-E`); the item requirements are in `SDLClipboardItems.swift`.
 
     /// What `setClipboardChangeHandler(_:)` installed; `SDLPlatform.dispatch` calls it on
     /// `SDL_EVENT_CLIPBOARD_UPDATE` (`CP-G`).
     var clipboardChangeHandler: (@MainActor () -> Void)?
-
-    public func writeClipboard(items: [ClipboardItem]) -> Bool {
-        // `.later` is realised at write time on SDL (`CP-F`).
-        guard let first = items.first(where: { !$0.payloads.isEmpty }) else { return false }
-        return writeClipboard(first.payloads.map { payload in
-            switch payload.bytes {
-            case .now(let bytes): return ClipboardRepresentation(type: payload.type, bytes: bytes)
-            case .later(let export): return ClipboardRepresentation(type: payload.type, bytes: export())
-            }
-        })
-    }
-
-    public func clipboardItems() -> [[String]] {
-        let identifiers = clipboardTypeIdentifiers()
-        return identifiers.isEmpty ? [] : [identifiers]
-    }
-
-    public func readClipboard(item: Int, identifier: String) -> [UInt8]? {
-        item == 0 ? readClipboard(identifier: identifier) : nil
-    }
 
     public func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?) { clipboardChangeHandler = handler }
 

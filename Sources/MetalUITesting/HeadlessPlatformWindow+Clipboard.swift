@@ -75,12 +75,14 @@ extension HeadlessPlatformWindow {
         clipboardStore.map { $0.payloads.map(\.type.identifier) }
     }
 
-    /// Item `item`'s bytes as `identifier`; exports a `.later` representation (once per read).
+    /// Item `item`'s bytes as `identifier`; exports a `.later` representation (once per read). A representation
+    /// that exports zero bytes reads `nil`, as on AppKit (divergence 716).
     public func readClipboard(item: Int, identifier: String) -> [UInt8]? {
         guard clipboardStore.indices.contains(item),
               let payload = clipboardStore[item].payloads.first(where: { $0.type.identifier == identifier })
         else { return nil }
-        return realise(payload.bytes)
+        let bytes = realise(payload.bytes)
+        return bytes.isEmpty ? nil : bytes
     }
 
     /// Keeps `handler`; ``replaceClipboard(with:)`` calls it on a change (`CP-G`).

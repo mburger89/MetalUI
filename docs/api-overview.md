@@ -396,10 +396,14 @@ no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
 `.copyable(_:)`, `.cuttable(for:action:)` and `.pasteDestination(for:action:validator:)` on every `StyledElement`
 and, once, on proposal content (A: SwiftUI's signatures, probe `swiftui-clipboard-types.swift` arm S) over MetalUI's
 `Transferable`: the primary-modifier C, X and V and the Edit menu reach the handler of the focused element or its
-nearest ancestor, after the keymap, `onKeyPress` and a focused field's own keys (D, 455, 456: one item, enablement by
-presence). A copy writes one representation per exported type, most preferred first, so a type lists
-`.utf8PlainText` after its own for a text fallback; a paste walks the destination's imported types in order.
-`Window.clipboard` (M) is the same from code: `write(_:)`, `read(_:)`, `contentTypes`, `hasContent(of:)`.
+nearest ancestor, after the keymap, `onKeyPress` and a focused field's own keys (D, 455: enablement by
+presence). A copy writes **every** item it is given, one clipboard item each, one representation per exported type, most preferred first, so a type lists
+`.utf8PlainText` after its own for a text fallback; a paste imports every item it can, walking the destination's imported
+types in order, runs the validator over the array and calls the action once (`CP-C`; divergences 456, 715: SDL carries the
+extra items in a private pack mime and another application sees the first only, 716: the encoding is deferred to the read on
+AppKit and happens at the copy on SDL).
+`Window.clipboard` (M) is the same from code: `write(_:)` (an array writes every item, encoded now), `read(_:)` (the first item),
+`readAll(_:)`, `itemCount`, `contentTypes`, `hasContent(of:)`.
 `ClipboardRepresentation` and `ClipboardCommands` are the platform seam's (M). On SDL a custom identifier is the mime
 type `application/x-<identifier>` with each byte outside `[a-z0-9.+-]` percent-encoded (`ClipboardMime`, `CB-D`).
 `PasteButton(payloadType:onPaste:)` (A) and `PasteButton(supportedContentTypes:payloadAction:)` (D: `DropItem` stands for `NSItemProvider`)

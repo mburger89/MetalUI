@@ -927,37 +927,15 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
     func setClipboardCommands(_ commands: ClipboardCommands) { hostView.clipboardCommands = commands }
 
-    // MARK: Clipboard items (`CP-E`). Single-item answers until lane 2 (`AppKitClipboardItems.swift`).
+    // MARK: Clipboard items (`CP-E`); the item requirements are in `AppKitClipboardItems.swift`.
 
     /// What `setClipboardChangeHandler(_:)` installed (`CP-G`); `AppKitClipboardChange.swift` calls it.
     var clipboardChangeHandler: (@MainActor () -> Void)?
     /// `pasteboard.changeCount` as of the last poll or own write (`CP-G`).
     var lastClipboardChangeCount: Int?
-
-    func writeClipboard(items: [ClipboardItem]) -> Bool {
-        guard let first = items.first(where: { !$0.payloads.isEmpty }) else { return false }
-        let representations = first.payloads.map { payload -> ClipboardRepresentation in
-            switch payload.bytes {
-            case .now(let bytes): return ClipboardRepresentation(type: payload.type, bytes: bytes)
-            case .later(let export): return ClipboardRepresentation(type: payload.type, bytes: export())
-            }
-        }
-        return writeClipboard(representations)
-    }
-
-    func clipboardItems() -> [[String]] {
-        let identifiers = clipboardTypeIdentifiers()
-        return identifiers.isEmpty ? [] : [identifiers]
-    }
-
-    func readClipboard(item: Int, identifier: String) -> [UInt8]? {
-        item == 0 ? readClipboard(identifier: identifier) : nil
-    }
-
-    func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?) {
-        clipboardChangeHandler = handler
-        lastClipboardChangeCount = handler == nil ? nil : pasteboard.changeCount
-    }
+    /// The data providers of the last write's `.later` representations, retained until the next write
+    /// (`NSPasteboard` does not retain a provider, `CP-F`).
+    var clipboardProviders: [AppKitClipboardProvider] = []
 
     /// Owned here and by the host view; it holds the host view weakly (AB-D).
     let accessibilityBridge: AppKitAccessibilityBridge

@@ -13,13 +13,17 @@ import Foundation
 ///   type (`graph` for the custom type, `text` for the fallback).
 /// - **Text field**: pastes the fallback text; copying from it replaces the graph.
 ///
+/// - **Several items and a paste button** (`CP-C`, `CP-B`): a second source copies **two** graphs, a destination
+///   lists everything it received, and a `PasteButton` beside it is dimmed until a `DemoGraph` is on the clipboard.
+///
 /// Nothing here is in the default demo, so the fourteen offscreen images and `Expected.swift`
 /// do not move. Each part is its own function passed to a generic composer (the Windows 1 MB
 /// stack rule); built on a 1 MB thread by `everyProductionTreeBuildsOnAOneMegabyteThread`.
 @MainActor
 public func clipboardDemoContent() -> some Element {
     clipboardDemoRoot(header: clipboardDemoHeader(), source: clipboardDemoSource(),
-                      destination: clipboardDemoDestination(), field: clipboardDemoField())
+                      destination: clipboardDemoDestination(), field: clipboardDemoField(),
+                      multi: clipboardDemoMulti())
 }
 
 /// An app's own clipboard type with a plain-text fallback: its own type first, `.utf8PlainText`
@@ -67,12 +71,21 @@ public final class ClipboardDemoModel {
     public var received = "nothing pasted yet"
     /// The text field's contents.
     public var field = ""
+    /// The two graphs the pair source copies.
+    public var pair = [1, 2]
+    /// What the pair destination last received.
+    public var receivedAll = "nothing pasted yet"
+    /// What the paste button last delivered.
+    public var buttonReceived = "nothing pasted yet"
 
     /// A fresh model.
     public init() {}
 
     /// Back to the launch state.
-    public func reset() { nodes = 3; received = "nothing pasted yet"; field = "" }
+    public func reset() {
+        nodes = 3; received = "nothing pasted yet"; field = ""
+        pair = [1, 2]; receivedAll = "nothing pasted yet"; buttonReceived = "nothing pasted yet"
+    }
 }
 
 /// The one model the demo and its tests share.
@@ -123,14 +136,70 @@ private func clipboardDemoField() -> some Element {
         .accessibilityIdentifier("clipboard-field")
 }
 
+/// The several-items section, in its own function (the Windows 1 MB stack rule): a source copying two
+/// graphs, a destination listing what it received and a paste button.
+@MainActor
+private func clipboardDemoMulti() -> some Element {
+    clipboardDemoMultiRoot(source: clipboardDemoPairSource(), destination: clipboardDemoPairDestination(),
+                           button: clipboardDemoPasteButton())
+}
+
+@MainActor
+private func clipboardDemoPairSource() -> some Element {
+    let model = clipboardDemoModel
+    return Box { Text("pair source: graphs of \(model.pair[0]) and \(model.pair[1]) nodes").font(size: 12) }
+        .padding(Pixels(12))
+        .frame(width: Pixels(260), height: Pixels(60))
+        .background(.surface)
+        .accessibilityIdentifier("clipboard-pair-source")
+        .focusable()
+        .copyable([DemoGraph(nodes: model.pair[0]), DemoGraph(nodes: model.pair[1])])
+}
+
+@MainActor
+private func clipboardDemoPairDestination() -> some Element {
+    let model = clipboardDemoModel
+    return Box { Text("pair destination: \(model.receivedAll)").font(size: 12) }
+        .padding(Pixels(12))
+        .frame(width: Pixels(260), height: Pixels(60))
+        .background(.surface)
+        .accessibilityIdentifier("clipboard-pair-destination")
+        .focusable()
+        .pasteDestination(for: DemoGraph.self) { graphs in
+            model.receivedAll = graphs.map { "\($0.nodes)" }.joined(separator: ", ") + " nodes (\(graphs.count) items)"
+        }
+}
+
+@MainActor
+private func clipboardDemoPasteButton() -> some Element {
+    let model = clipboardDemoModel
+    return Row(gap: Pixels(12)) {
+        PasteButton(payloadType: DemoGraph.self) { graphs in
+            model.buttonReceived = "\(graphs.count) graphs, \(graphs.reduce(0) { $0 + $1.nodes }) nodes"
+        }
+        Text("button: \(model.buttonReceived)").font(size: 12)
+    }
+}
+
+@MainActor
+private func clipboardDemoMultiRoot(source: some Element, destination: some Element, button: some Element) -> some Element {
+    Column(gap: Pixels(16)) {
+        source
+        destination
+        button
+    }
+    .alignItems(.flexStart)
+}
+
 @MainActor
 private func clipboardDemoRoot(header: some Element, source: some Element, destination: some Element,
-                               field: some Element) -> some Element {
+                               field: some Element, multi: some Element) -> some Element {
     Column(gap: Pixels(16)) {
         header
         source
         destination
         field
+        multi
     }
     .alignItems(.flexStart)
     .padding(Pixels(24))
