@@ -449,6 +449,26 @@ public final class Frame {
     /// hover lookup never see them; a press does a lookup for them.
     private(set) var resignRegionCount = 0
 
+    /// How a `PasteButton` reads the clipboard's types and its click reaches the items; stamped by
+    /// `Window` (`CP-D`, `CP-M`).
+    var clipboardAccess: ClipboardAccess?
+    /// `PasteButton`s whose prepaint ran this frame; `Window` redraws for a clipboard change only while
+    /// the last build held one (`CP-G`).
+    private(set) var pasteButtonCount = 0
+
+    /// A `PasteButton` was prepainted: counts it and taints the open prepaint recorders (`CP-H`, `CP-L`).
+    func notePasteButton() {
+        pasteButtonCount += 1
+        prepaintLog?.taint("pasteButton")
+    }
+
+    /// Taints the paint recorders and the graft journal with `reason`: a `PasteButton` reads an ambient
+    /// (the clipboard) that no retained record keys, so nothing holding one is replayed (`CP-H`, `CP-L`).
+    func taintRetention(_ reason: String) {
+        retainLog?.taint(reason)
+        stateTable.contentMemos.journal.taint(reason)
+    }
+
     /// The presentation scopes enclosing the one being laid out — the depth in
     /// its registry key (`SV-K` item 2, `LC-U`'s reason).
     private(set) var presentationDepth = 0

@@ -52,6 +52,7 @@ private let frameChannels: [String: Channel] = [
     // Tallies, prepaint's.
     "hoverRegionCount": .prepaintOnly, "pointerStyleRegionCount": .prepaintOnly, "keyRegionCount": .prepaintOnly,
     "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,
+    "clipboardAccess": .frameLocal, "pasteButtonCount": .prepaintOnly,   // PasteButton: retention refuses by name (CP-H, CP-L)
     // Presentations, toolbar, menu bar, popovers.
     "presentationDepth": .buildOnly, "presentationRecords": .buildOnly, "presentationOccurrences": .buildOnly,
     "environmentReadings": .buildOnly, "toolbarRecords": .buildOnly, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,

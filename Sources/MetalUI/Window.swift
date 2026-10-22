@@ -922,6 +922,7 @@ public final class Window {
         platformWindow.onAccessibilityRequest = { [weak self] request in
             self?.handleAccessibilityRequest(request) ?? false
         }
+        platformWindow.setClipboardChangeHandler { [weak self] in self?.clipboardDidChange() }   // CP-G
         installShell()   // the opening title and the close question (AS-B item 5)
         platformWindow.onAppearanceChange = { [weak self] appearance in
             // The platform's appearance is one input to the effective scheme
@@ -1828,6 +1829,7 @@ public final class Window {
                               surfaceRegistry: surfaceRegistry,
                               collectsAccessibility: accessibility.isActive,
                               recordsElementBounds: recordsElementBounds)
+            frame.clipboardAccess = clipboardAccess   // CP-D
             // The window's key state is stamped OVER `environment` (ruling EV-AB):
             // `environment.controlActiveState` is not the root's source, as its
             // `theme` and `displayScale` are not (the frame re-stamps those two).
@@ -1930,6 +1932,7 @@ public final class Window {
         lastKeyRegionCount = frame.keyRegionCount   // KF-E item 4
         lastFocusOnPressCount = frame.focusOnPressCount   // KF-F item 3
         lastResignRegionCount = frame.resignRegionCount   // RF-C item 2
+        lastPasteButtonCount = frame.pasteButtonCount   // CP-G
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
@@ -2502,6 +2505,10 @@ public final class Window {
     var lastKeyRegionCount = 0
     var lastFocusOnPressCount = 0
     var lastResignRegionCount = 0
+    /// `PasteButton`s the last build held (`CP-G`): a clipboard change redraws only while it is positive.
+    var lastPasteButtonCount = 0
+    /// The window's `PasteButton` view of the platform clipboard (`CP-D`, `CP-M`).
+    lazy var clipboardAccess = ClipboardAccess(platform: platformWindow)
 
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.

@@ -396,13 +396,22 @@ no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
 `.copyable(_:)`, `.cuttable(for:action:)` and `.pasteDestination(for:action:validator:)` on every `StyledElement`
 and, once, on proposal content (A: SwiftUI's signatures, probe `swiftui-clipboard-types.swift` arm S) over MetalUI's
 `Transferable`: the primary-modifier C, X and V and the Edit menu reach the handler of the focused element or its
-nearest ancestor, after the keymap, `onKeyPress` and a focused field's own keys (D, 455, 456: one item, enablement by
-presence). A copy writes one representation per exported type, most preferred first, so a type lists
-`.utf8PlainText` after its own for a text fallback; a paste walks the destination's imported types in order.
-`Window.clipboard` (M) is the same from code: `write(_:)`, `read(_:)`, `contentTypes`, `hasContent(of:)`.
+nearest ancestor, after the keymap, `onKeyPress` and a focused field's own keys (D, 455: enablement by
+presence). A copy writes **every** item it is given, one clipboard item each, one representation per exported type, most preferred first, so a type lists
+`.utf8PlainText` after its own for a text fallback; a paste imports every item it can, walking the destination's imported
+types in order, runs the validator over the array and calls the action once (`CP-C`; divergences 456, 715: SDL carries the
+extra items in a private pack mime and another application sees the first only, 716: the encoding is deferred to the read on
+AppKit and happens at the copy on SDL).
+`Window.clipboard` (M) is the same from code: `write(_:)` (an array writes every item, encoded now), `read(_:)` (the first item),
+`readAll(_:)`, `itemCount`, `contentTypes`, `hasContent(of:)`.
 `ClipboardRepresentation` and `ClipboardCommands` are the platform seam's (M). On SDL a custom identifier is the mime
 type `application/x-<identifier>` with each byte outside `[a-z0-9.+-]` percent-encoded (`ClipboardMime`, `CB-D`).
-`PasteButton` is not built (`CB-N`).
+`PasteButton(payloadType:onPaste:)` (A) and `PasteButton(supportedContentTypes:payloadAction:)` (D: `DropItem` stands for `NSItemProvider`)
+are a control composed over `Button` (`CP-B`, divergence 717): enabled while some clipboard item offers a type the payload imports,
+redrawn by the platform's change handler only while a button is on screen (`CP-G`), a click delivers every importable item
+once; no label (SwiftUI's takes none, probe `-DNEG2`). `@Environment(\.clipboard)` is **not built**: SwiftUI has no such macOS
+API (probe `-DNEG1`, `CP-A`); `Window.clipboard` is the route from code. The seam gains `ClipboardItem`, `ClipboardPayload`,
+`ClipboardBytes` and four defaultless `PlatformWindow` requirements (`CP-E`, M).
 
 **Input for viewports and canvases** (`CI-`, record §81;
 [`superpowers/2026-10-08-input-apis-decisions.md`](superpowers/2026-10-08-input-apis-decisions.md)).
@@ -512,6 +521,9 @@ lock the waiter thread signals, never releases the fence) and `SDLGPUDevice.down
 `SDLGPUTextureRegion` (legal on the main actor outside a draw, a debug trap inside one, a precondition on the device's own
 worker threads); `SDLGPUDevice.compileGraphicsPipeline(_:)` and `compileComputePipeline(_:)` throw an `SDLGPUError` naming the
 stage, and `lastPipelineFailure` records what the unchanged optional `make…Pipeline` verbs refused.
+Synchronous render batch, rulings `SY-A`…`SY-H` (record §143): `SDLGPUDevice.submitBatchSynchronously(_:) throws -> SDLGPUFence` records and
+submits on the submit worker like `submitBatch` and returns once the buffer is submitted, the fence normally unsignalled; `waitBlocking()` or
+`downloadSynchronously` then waits (`GB-F`'s rules).
 
 **Build-time app shaders** (`BS-`, item S12, record §138; class M, outside the census). The root package exports the
 executable `MetalUICompileShaders` and the command plugin `CompileShaders` (`swift package --allow-writing-to-package-directory
