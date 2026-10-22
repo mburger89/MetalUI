@@ -9,7 +9,7 @@ the earlier `swiftui-overlays-coords.swift` `B0`–`B2` (`OV-C`'s evidence), `sw
 (the app decides per element; no scene-level switch): nothing is claimed from gpui for the three items.
 Divergence labels **735–744 reserved**; 735–737 are planned (rows written in the lane that builds them), 738–744 unused.
 
-Prefix **`BG-`**, lettered. **Next unused: `BG-Q`.** (Moves in the commit that appends a ruling.)
+Prefix **`BG-`**, lettered. **Next unused: `BG-R`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `OV-C` (the deferral this closes: "a fill only, the border and shadow kept"), `CR-T`/`Frame.beginPresentationPreferences` (a presentation
 collects its own reports), `AS-D` (first report in post-order wins), `MN-M` item 5 (the panel), `MT-` (every material site draws through
@@ -215,3 +215,21 @@ panel's rounded rect (`pushClip` at the panel bounds with radius 10), before the
 (`requestNativeOverlayAttachment`: SwiftUI's `.background(alignment:content:)` kernel node: measured at the primary's size, never part of it) of the chrome node and the
 background element (`AnyElement(Box(content:))`) under `child(of: id, at: 0, name: "$presentationbackground")`, `noteNamed` called, its own preference bracket kept out of the
 main tree, its bounds recorded as the group default does.
+
+## BG-Q — Lane 1 measured: the `noteNamed` call is unobservable; the token twin needs an explicit token
+
+**Evidence (mutations, filtered family set of 21: the 13 `PresentationBackgroundTests`, the 2 guards, `everyFrameChannelIsClassified`, the Menus tests, the 1 MB stack test; applied over the
+committed tree, restored with `git checkout`, `git status --short` empty after each).**
+`M1` paint ignores the slot -> tests 1, 2, 5, 6, 7 (`aPopoverPanelTakes…`, `theInnermost…`, `aMaterial…`, `aGradient…`, `aColourToken…`). `M2` overwrite instead of keep-first -> 2.
+`M3` report before the body, the bracket not resetting, no depth guard -> 2, 3. `M4` border width 0 under a colour -> 4. `M5` `fillBackdrop` called directly -> 5 (both arms; the `MT-` scan guard
+also scans for it, not re-run in the family set). `M6` the token twin resolves against `Theme.light` -> 7 (both scheme arms of the twin spelling). `M7` alignment ignored -> 8.
+`M7b` a ZStack in place of the overlay attachment (the background answers the layout) -> 8. `M9` the report taints the graft journal -> 11. `M10` an opaque hitbox for the background node -> 12.
+`M11` an overlay reads the slot and paints a panel -> 10. `M12` the scope also reports a colour-scheme preference -> 13. Guards: the twin without `@_disfavoredOverload` -> BG1.1 (`ambiguous use of
+'surface'`), the radial overload deleted -> BG1.2, each with the other green (the module rebuilt, the test binary not). **`M8` (the `noteNamed` call dropped) reddens nothing**: the name is a constant at its
+position, so `noteNamed` can neither find a departed name nor change a produced set; the call is kept for `ID-R`'s rule and is an instrument with nothing to see (as `SG-I`), not a pin.
+
+**Rulings.** (1) The popover test 7 reaches the `ColorToken` twin with an explicit `ColorToken` value: `.presentationBackground(.accent)` resolves to the `Color.accent` overload (the twin is
+`@_disfavoredOverload`), so the implicit spelling never exercises it; both are tested. (2) Test 3's absence is structural: a scope reports **after** its body, so a declarer-level report happens after
+the presentation's bracket closed; only a pre-order report (`M3`) reaches the chrome, and that is what the test pins. (3) `Frame.presentationBackgroundSlot` and `presentationBracketDepth` are `buildOnly`
+rows of `frameChannels` (the one edit to `RetainedSubtreeInternalTests.swift`, a table row, not a retained path). (4) The demo: the existing menus-demo popover gains a gradient fill
+(`menusPopoverBackground()`, its own function); the popover is closed in the default frame.
