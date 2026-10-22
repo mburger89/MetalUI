@@ -2726,3 +2726,17 @@ labels: 2–8, 11, 12, 14–19, 24, 28, 35–37, 39, 40, 45, 48, 53, 55, 59, 64,
 sit in `## Retired`; 75 was never assigned). **Next label 206** stays right: 206 is the first label after the sequential series (205 is the last used below the
 range-reserved blocks; the gaps under it are reserved or unused ranges). Range notes in `CLAUDE.md` were checked against the table and are correct; round 2's
 unused ranges (C14-i 625–634, E1 655–664, S11 665–674, S12 675–684, XP-G21 685–694) and C14-j's reservation (695–704) were added.
+
+## 2026-10-22: clipboard extras (record §142, `CP-`)
+
+**New: 715** (several items on SDL: SDL holds one mime set per clipboard, probe `sdl-clipboard-update.c`; item 0 goes out natively and a private pack mime
+carries the rest, so another application pastes the first item only; `CP-C`, `CP-D`; pins `threeItemsWriteItemZeroNativelyAndThePackForTheRest`,
+`aMalformedPackFallsBackToTheSingleItem`), **716** (when a copy's bytes are encoded: values captured, bytes produced at read on AppKit and in the headless
+default, at write on SDL whose callback is pure C; a lazily encoded zero-byte representation is listed and reads `nil`; `CP-F`, `CP-N`; pins
+`aCopyExportsWhenAConsumerReadsAndEagerlyWhenTheOptionSaysSo`, `anEmptyLazyRepresentationIsListedAndReadsNil`, `aLaterRepresentationIsExportedAtWrite`),
+**717** (`PasteButton`'s look and the absent paste prompt: a bordered "Paste" button with no glyph, enabled by presence, no macOS paste-permission
+prompt; SwiftUI's look and enablement are unprobed; `CP-B`, `CP-G`; pins `aPasteButtonIsEnabledOnlyWhileTheClipboardHoldsWhatItImports`,
+`aPasteButtonIsOneLabelledButtonNodeThatFollowsEnablement`). **Amended: 456** (`CP-J`: "one item per clipboard" became "whether SwiftUI writes and
+receives several items", unprobed, live until human check CP1). Labels 718–724 of this branch's range unused. Not a divergence: `@Environment(\.clipboard)`
+does not exist in SwiftUI on macOS (probe `-DNEG1`, `CP-A`).
+

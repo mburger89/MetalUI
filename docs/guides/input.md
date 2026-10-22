@@ -295,7 +295,7 @@ fallback is the value's own second type, not a parameter. A paste walks the dest
 on the clipboard, the text import (pin: `theInputGuidePasteTakesTheCustomTypeThenTheTextFallback`). A
 focused text field keeps its own copy and paste (pin: `aFocusedTextFieldKeepsItsOwnCopyCutPasteUnderACopyableAncestor`).
 Code outside a view uses `window.clipboard`, which writes and reads the same representations (pin:
-`theInputGuideTheWindowClipboardRoundTripsFromCode`). Copying more than one item writes the first
+`theInputGuideTheWindowClipboardRoundTripsFromCode`). Copying several items is the next section
 (divergence 456), and the Edit menu's Paste is enabled by the presence of a destination, not by what its
 validator would accept (divergence 455). Pasting between applications is a human check.
 
@@ -386,6 +386,45 @@ struct InputSnapBackChip: Component {
 }
 ```
 
+## How do I copy several items and paste with a button?
+
+`copyable(_:)` and `cuttable(for:action:)` write **every** item they are given, one clipboard item each, and
+`pasteDestination` imports every clipboard item it can, runs its validator over the array and calls its action
+once with the accepted values in order; an item it cannot import is skipped, and a clipboard with none importable
+declines so the next stage runs (pin: `theInputGuideACopyOfTwoItemsPastesBothInOrder`). `PasteButton` is
+SwiftUI's control: `PasteButton(payloadType:onPaste:)` is enabled while some clipboard item holds a type the
+payload imports and dimmed otherwise, and a click pastes every item that imports (pin:
+`theInputGuideAPasteButtonFollowsTheClipboard`). It takes no label, and ⌘V is still the destination's. The copy's
+bytes are encoded when a consumer reads them where the platform can (AppKit; on SDL at the copy), so an exporter
+must not read state that changes between a copy and a paste (divergence 716). On SDL another application pastes the
+first item only, while MetalUI windows read all of them (divergence 715). Code outside a view uses
+`window.clipboard.write([...])`, `readAll(_:)` and `itemCount`.
+
+```swift
+/// What a paste destination and a paste button received, in order.
+@MainActor
+final class InputPasteModel {
+    var pasted: [InputGraph] = []
+    var buttonPasted: [InputGraph] = []
+}
+
+/// A source that copies two graphs, a destination for ⌘V and a paste button.
+@MainActor
+func inputPasteRoot(_ model: InputPasteModel) -> some Element {
+    VStack(alignment: .leading) {
+        Box().frame(width: Pixels(120), height: Pixels(40)).background(.surface)
+            .accessibilityIdentifier("pair-source")
+            .focusable()
+            .copyable([InputGraph(nodes: 1), InputGraph(nodes: 2)])
+        Box().frame(width: Pixels(120), height: Pixels(40)).background(.surface)
+            .accessibilityIdentifier("pair-destination")
+            .focusable()
+            .pasteDestination(for: InputGraph.self) { model.pasted += $0 }
+        PasteButton(payloadType: InputGraph.self) { model.buttonPasted += $0 }
+    }
+}
+```
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
@@ -408,4 +447,6 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 
 Back to [layout](layout.md) and [state and identity](state-and-identity.md).
 - divergence 455: the Edit menu's Paste is enabled by the destination, not by its validator.
-- divergence 456: a copy writes, and a paste receives, one item.
+- divergence 456: whether SwiftUI writes and receives several items is unprobed.
+- divergence 715: SDL's clipboard has one mime set, so another application sees the first item.
+- divergence 716: a copy's bytes are encoded at the paste on AppKit and at the copy on SDL.

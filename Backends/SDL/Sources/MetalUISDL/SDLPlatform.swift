@@ -446,6 +446,9 @@ public final class SDLPlatform: Platform {
             windows[event.window_id]?.handle(event)
         case Int(MUI_EVENT_FOCUS_LOST):
             if focusedID == event.window_id { focusedID = nil }
+        case Int(MUI_EVENT_CLIPBOARD):
+            // The clipboard is the platform's, not a window's (`CP-G`): every window's handler runs.
+            for window in windows.values { window.clipboardChangeHandler?() }
         case Int(MUI_EVENT_INSTANCE):
             drainSingleInstance()   // the listener queued a forwarded message (`SN-G`)
         case Int(MUI_EVENT_ACCESSIBILITY):
@@ -806,7 +809,7 @@ public final class SDLWindow: PlatformWindow {
         defer { mui_free(UnsafeMutableRawPointer(list)) }
         return (0..<count).compactMap { index in
             list[index].map { ClipboardMime.identifier(forMime: String(cString: $0)) }
-        }
+        }.filter { $0 != SDLWindow.clipboardPackIdentifier }   // the private pack is not a type (`CP-C`)
     }
 
     /// The clipboard's bytes as `identifier`'s mime type; `nil` when absent
@@ -825,6 +828,14 @@ public final class SDLWindow: PlatformWindow {
     private(set) var clipboardCommands: ClipboardCommands = []
 
     public func setClipboardCommands(_ commands: ClipboardCommands) { clipboardCommands = commands }
+
+    // MARK: Clipboard items (`CP-E`); the item requirements are in `SDLClipboardItems.swift`.
+
+    /// What `setClipboardChangeHandler(_:)` installed; `SDLPlatform.dispatch` calls it on
+    /// `SDL_EVENT_CLIPBOARD_UPDATE` (`CP-G`).
+    var clipboardChangeHandler: (@MainActor () -> Void)?
+
+    public func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?) { clipboardChangeHandler = handler }
 
     /// Whether a key-down is one SDL will also send as `SDL_EVENT_TEXT_INPUT`
     /// — a printable keycode with no control or command — and so, while text

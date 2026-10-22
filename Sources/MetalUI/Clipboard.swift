@@ -28,6 +28,31 @@ extension Transferable {
     }
 }
 
+extension Transferable {
+    /// This value as one outgoing item with every representation encoded now, zero-byte ones dropped;
+    /// `nil` when none remains (`CB-I`, `CP-E`). The test harness's route to a multi-item clipboard.
+    package func clipboardItem() -> ClipboardItem? { clipboardItem(lazily: false) }
+
+    /// This value as one outgoing item (`CP-F`, `CP-N`). `lazily` captures **this value** and defers only the byte
+    /// encoding: one `.later` representation per exported type, listed whether or not it will export bytes (`CB-I` cannot
+    /// be applied before the exporter runs, divergence 716). Not lazy, every representation is encoded now and a
+    /// zero-byte one dropped. `nil` when no representation remains.
+    func clipboardItem(lazily: Bool) -> ClipboardItem? {
+        guard lazily else {
+            let payloads = clipboardRepresentations().map { ClipboardPayload(type: $0.type, bytes: .now($0.bytes)) }
+            return payloads.isEmpty ? nil : ClipboardItem(payloads: payloads)
+        }
+        // The value crosses into a main-actor closure; it is a copy only that closure reads (`CP-F`).
+        nonisolated(unsafe) let value = self
+        let payloads = exportedContentTypes().map { type in
+            ClipboardPayload(type: type.pasteboardType, bytes: .later {
+                value.exported(as: type).map { [UInt8]($0) } ?? []
+            })
+        }
+        return payloads.isEmpty ? nil : ClipboardItem(payloads: payloads)
+    }
+}
+
 /// How a clipboard's items are imported as a `Transferable` (ruling `CB-F`):
 /// walk the destination's `importedContentTypes()` in order; for each, the first
 /// offered type that is it or conforms to it, read lazily, and handed to
@@ -66,15 +91,15 @@ public struct Clipboard {
         write([item])
     }
 
-    /// Replaces the clipboard with the **first** of `items` (one item per
-    /// clipboard, `CB-C`, divergence 456); an empty array writes nothing and
-    /// answers `false`.
+    /// Replaces the clipboard with `items`, one clipboard item each (`CP-C`), in order; an empty array
+    /// writes nothing and answers `false`. Each is encoded **now** (the answer needs it: an item that
+    /// exports zero bytes is dropped, `CB-I`, and with none left nothing is written); `copyable` and
+    /// `cuttable` defer the encoding to the consumer's read where the platform can (`CP-F`, `CP-N`).
     @discardableResult
     public func write<T: Transferable>(_ items: [T]) -> Bool {
-        guard let first = items.first else { return false }
-        let representations = first.clipboardRepresentations()
-        guard !representations.isEmpty else { return false }
-        return platform.writeClipboard(representations)
+        let encoded = items.compactMap { $0.clipboardItem(lazily: false) }
+        guard !encoded.isEmpty else { return false }
+        return platform.writeClipboard(items: encoded)
     }
 
     /// The clipboard read as a `T` through `T.importedContentTypes()` in its
@@ -84,7 +109,17 @@ public struct Clipboard {
         importClipboardItem(item, as: type)
     }
 
-    /// The identifiers of the types the clipboard holds, most preferred first
+    /// Every clipboard item `T` imports, in clipboard order (`CP-D`); an item it cannot import is
+    /// skipped. `read` is the first item only. MetalUI-only (class `M`).
+    public func readAll<T: Transferable>(_ type: T.Type = T.self) -> [T] {
+        items.compactMap { importClipboardItem($0, as: type) }
+    }
+
+    /// How many items the clipboard holds (`CP-D`): `0` when empty, `1` for text or any
+    /// single-item copy. MetalUI-only (class `M`).
+    public var itemCount: Int { platform.clipboardItems().count }
+
+    /// The identifiers of the types the clipboard holds (item 0's), most preferred first
     /// as the platform lists them.
     public var contentTypes: [String] { platform.clipboardTypeIdentifiers() }
 
@@ -96,7 +131,16 @@ public struct Clipboard {
         }
     }
 
-    /// The clipboard as one `DropItem` (`CB-F`): the platform's identifiers,
+    /// Every clipboard item as a lazily read `DropItem` (`CB-F`, `CP-D`), in clipboard order.
+    var items: [DropItem] {
+        let platform = self.platform
+        return platform.clipboardItems().enumerated().map { index, identifiers in
+            DropItem(types: identifiers.map { ContentType.builtIn($0)?.pasteboardType ?? PasteboardType(identifier: $0) },
+                     load: { [platform] identifier in platform.readClipboard(item: index, identifier: identifier) })
+        }
+    }
+
+    /// The clipboard's item 0 as one `DropItem` (`CB-F`): the platform's identifiers,
     /// lazily read.
     var item: DropItem {
         let platform = self.platform
@@ -120,16 +164,16 @@ extension Window {
 /// nineteen members). Each modifier makes a new box with its own closure
 /// replaced and the others kept.
 final class ClipboardAttachment {
-    /// Evaluated at copy time; the first item's representations.
-    let copy: (() -> [ClipboardRepresentation])?
-    /// Runs the cut's action once and answers what it returned, as representations.
-    let cut: (@MainActor () -> [ClipboardRepresentation])?
-    /// Imports the clipboard item and runs the action; whether it ran.
-    let paste: (@MainActor (DropItem) -> Bool)?
+    /// Evaluated at copy time; one outgoing item per value (`CP-C`).
+    let copy: (() -> [ClipboardItem])?
+    /// Runs the cut's action once and answers what it returned, as items.
+    let cut: (@MainActor () -> [ClipboardItem])?
+    /// Imports every clipboard item it can and runs the action; whether it ran (`CP-C`).
+    let paste: (@MainActor ([DropItem]) -> Bool)?
 
-    init(copy: (() -> [ClipboardRepresentation])? = nil,
-         cut: (@MainActor () -> [ClipboardRepresentation])? = nil,
-         paste: (@MainActor (DropItem) -> Bool)? = nil) {
+    init(copy: (() -> [ClipboardItem])? = nil,
+         cut: (@MainActor () -> [ClipboardItem])? = nil,
+         paste: (@MainActor ([DropItem]) -> Bool)? = nil) {
         self.copy = copy
         self.cut = cut
         self.paste = paste
@@ -144,25 +188,25 @@ final class ClipboardAttachment {
         return result
     }
 
-    func replacingCopy(_ copy: @escaping () -> [ClipboardRepresentation]) -> ClipboardAttachment {
+    func replacingCopy(_ copy: @escaping () -> [ClipboardItem]) -> ClipboardAttachment {
         ClipboardAttachment(copy: copy, cut: cut, paste: paste)
     }
-    func replacingCut(_ cut: @escaping @MainActor () -> [ClipboardRepresentation]) -> ClipboardAttachment {
+    func replacingCut(_ cut: @escaping @MainActor () -> [ClipboardItem]) -> ClipboardAttachment {
         ClipboardAttachment(copy: copy, cut: cut, paste: paste)
     }
-    func replacingPaste(_ paste: @escaping @MainActor (DropItem) -> Bool) -> ClipboardAttachment {
+    func replacingPaste(_ paste: @escaping @MainActor ([DropItem]) -> Bool) -> ClipboardAttachment {
         ClipboardAttachment(copy: copy, cut: cut, paste: paste)
     }
 
     static func copying<T: Transferable>(_ items: @escaping () -> [T],
                                          over existing: ClipboardAttachment?) -> ClipboardAttachment {
-        let copy: () -> [ClipboardRepresentation] = { items().first?.clipboardRepresentations() ?? [] }
+        let copy: () -> [ClipboardItem] = { items().compactMap { $0.clipboardItem(lazily: true) } }
         return (existing ?? ClipboardAttachment()).replacingCopy(copy)
     }
 
     static func cutting<T: Transferable>(_ action: @escaping @MainActor () -> [T],
                                          over existing: ClipboardAttachment?) -> ClipboardAttachment {
-        let cut: @MainActor () -> [ClipboardRepresentation] = { action().first?.clipboardRepresentations() ?? [] }
+        let cut: @MainActor () -> [ClipboardItem] = { action().compactMap { $0.clipboardItem(lazily: true) } }
         return (existing ?? ClipboardAttachment()).replacingCut(cut)
     }
 
@@ -170,11 +214,12 @@ final class ClipboardAttachment {
                                          action: @escaping @MainActor ([T]) -> Void,
                                          validator: @escaping @MainActor ([T]) -> [T],
                                          over existing: ClipboardAttachment?) -> ClipboardAttachment {
-        let paste: @MainActor (DropItem) -> Bool = { item in
-            guard let value = importClipboardItem(item, as: T.self) else { return false }
-            let accepted = validator([value])
+        let paste: @MainActor ([DropItem]) -> Bool = { items in
+            let values = items.compactMap { importClipboardItem($0, as: T.self) }
+            guard !values.isEmpty else { return false }
+            let accepted = validator(values)
             guard !accepted.isEmpty else { return false }
-            action(Array(accepted.prefix(1)))
+            action(accepted)
             return true
         }
         return (existing ?? ClipboardAttachment()).replacingPaste(paste)
