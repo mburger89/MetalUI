@@ -14,7 +14,7 @@ sprites into the **window's own scene**, never into an app pass — gpui has no
 app-owned GPU pass at all, so it cannot answer the pass question; the answer
 below is MetalUI's own.
 
-**Next unused id: `DT-L`.**
+**Next unused id: `DT-M`.**
 
 ## DT-A — Build it, as a MetalUI-owned text pass over the surface target
 
@@ -300,3 +300,34 @@ migration note. A sink carries `beginSurface(_:)` (the renderer names the surfac
 **Cost if wrong.** An app-defined `GPUSurfaceContext` conformer never conforms to a `package` protocol, so
 `drawText` on it traps with the named message instead of drawing; no such conformer can exist for a draw
 the renderer makes, only for a test's own fake.
+
+## DT-L — Building the SDL twin: what `DT-G` left open, as built
+
+**Question.** `DT-G` named the C parameter and the pass order; it left the readback, the validation of a text
+range and the viewport of a text pass to the build. What does the bridge do?
+
+**Evidence** (`Backends/SDL`, lane 2). (1) `mui_surface_read_rgba` reads an `SDL_Surface` (the icon path), not a
+GPU texture, and there is no texture readback sibling of `mui_renderer_read_offscreen`; the existing MetalView
+tests read a surface target back **through the composite** (a full-window surface quad over an opaque background,
+then `readPixels`), and the new tests do the same. (2) `draw_primitives` already takes `first_instance` as a
+vertex uniform (SDL warns that built-in instance ids differ across APIs), so a text pass at an arbitrary `start`
+needs nothing new. (3) The viewport uniform is a field of `FrameDraw`; a text pass copies the frame's `FrameDraw`
+and overrides `width`, `height` and `viewport` with the target's, keeping the identity projection (device-pixel
+coordinates, as the surface quads use).
+
+**Ruling.** `mui_renderer_finish` takes `const ReplaySurfaceText *texts, uint32_t text_count` (before
+`projection`); `ReplaySurfaceText` is `{ void *target; uint32_t start, count, width, height; }`. `start` indexes the
+frame's glyph buffer, which `SDLWindowRenderer` builds as the scene's glyphs **followed by** the sink's, so a
+batch's `start` is `scene.glyphs.count + range.lowerBound`. Each entry is **validated before anything is
+uploaded**: a NULL target or a zero size is refused, and the range goes through `transforms_valid` as a glyph run
+(past the records, or a record naming a transform the table lacks, is refused and the frame is not submitted).
+An entry with `count == 0` is skipped (no pass). One load-op pass per entry runs after the atlas copy pass and
+before `encode_frame`; `mui_renderer_last_text_passes` counts them. An entry whose target has no handle is
+dropped in Swift. Tests read the target through the composite, drive `mui_renderer_finish` by hand for the
+bounds pin (`SDLWindowRenderer.bridgeRenderer`, `package`), and need no presented window, so the Linux image
+(lavapipe) runs all of them. **No shader, pipeline or blend change** (`TE-AD`: nothing to land; `git diff --stat`
+shows no `.hlsl`/`.spv`/`.msl`/`.dxil`). `SDLGPUDrawContext` adopts `SurfaceTextSinkProviding`; its `textSink` is
+`package` and the `package init` gains a defaulted `textSink:`.
+
+**Cost if wrong.** The bridge signature changed once (one array): Windows compiles it in CI only (check SI3). A
+test outside the root package reads the sink only through `@testable import MetalUIScene`.
