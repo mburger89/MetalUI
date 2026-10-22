@@ -14,7 +14,7 @@ sprites into the **window's own scene**, never into an app pass — gpui has no
 app-owned GPU pass at all, so it cannot answer the pass question; the answer
 below is MetalUI's own.
 
-**Next unused id: `DT-J`.**
+**Next unused id: `DT-K`.**
 
 ## DT-A — Build it, as a MetalUI-owned text pass over the surface target
 
@@ -253,3 +253,24 @@ keeps both recipes and says which to use.
 **Cost if wrong.** If the capability turns out unwanted, the cost is one extension,
 one `package` class, one pass per surface with text and one C array; the old path
 is byte for byte unchanged for a frame with no surface text (`DT-B`'s pin).
+
+## DT-J — Critique round: colour goes through the one resolution, and what was rejected
+
+**Ruling.** (1) The captured colour is `Color.resolved(theme:scheme:)` of the
+measurer's own `environment` (`theme`, `colorScheme`: the internal environment
+holds both, `EV-G`; the same function `PaintPass.resolve(_:)` and
+`Color.resolve(in:)` call), never a second table; test 4 pins it against
+`PaintPass.resolve` under a dark scheme and a token colour. (2) The pixel pin
+compares premultiplied bytes over a transparent clear on both sides; an opaque
+backdrop would hide a coverage difference. (3) Portable tests cannot run a draw
+headless, so they drive a `package` fake context with a real sink (spec, lane 1).
+(4) `Point<Pixels>` is the surface's point space (before `scaleFactor`), stated in
+the doc comment. (5) The probe was re-run byte for byte at critique (arms A0, A, B,
+C, D reproduced the recorded output); no claim lacks an arm. (6) Rejected, with
+reasons: a divergence row (`DT-H` stands: no SwiftUI API has a GPU context); an
+encoder-taking verb (`DT-A`); a default for the new `package` requirement being
+absent (a default keeps app-defined conformers compiling); splitting into more than
+two lanes (files are disjoint and sequential already). No Apple type enters a
+portable surface, no shader or primitive changes, no public or defaultless platform
+requirement is added, no C enum is introduced (the C parameter is a struct array of
+integers and pointers).

@@ -100,6 +100,10 @@ internal colour-context field (a new stored property crossing a module boundary:
 ## Tests (name — red before — mutation that must redden it)
 
 Lane 1, portable (`Tests/MetalUITestingTests/DrawTextTests.swift`):
+`HeadlessWindowRenderer` never runs a draw (`DT-F`), so these tests call `drawText`
+on a `package` test context (a `GPUSurfaceContext` fake holding a real
+`SurfaceTextSink` and an atlas) and compare the sink's `MUIGlyph` records with the
+records a `TestWindow` frame's scene holds for the same `Text`.
 1. `drawTextEmitsTheGlyphRecordsATextEmitsAtTheSameDevicePosition` — does not compile
    before; mutation: `drawText` places with a rounded-point origin instead of the
    `Text.paint` call's `origin`/`scaleFactor` — reddens.
@@ -117,8 +121,9 @@ Lane 1, Metal (`Tests/MetalUITests/DrawTextMetalTests.swift`, macOS, an offscree
 `MetalWindowRenderer` as the existing `MetalView` tests use):
 7. `aSurfaceTextReadsBackEqualToTheSameTextDrawnByMetalUI` — the target's pixels
    (read back, whole-device-pixel origin, scale 1 and 2) equal the window pixels of
-   the same `Text` at that origin; mutation: use `filter::nearest`'s sibling is not
-   available, so mutate the pass's viewport to the window's size (pixels shift).
+   the same `Text` at that origin, both over a transparent clear (premultiplied
+   bytes compared, no opaque backdrop); mutation: set the pass's viewport to the
+   window's size (pixels shift).
 8. `textIsDrawnOverTheAppsOwnDrawing` (the app clears opaque red, then `drawText`;
    red survives, text on top) — mutation: the text pass's load action `.clear`.
 9. `aGlyphFirstInsertedByASurfaceDrawIsUploadedBeforeTheTextPass` (counted dirty
@@ -136,7 +141,7 @@ Lane 1, Metal (`Tests/MetalUITests/DrawTextMetalTests.swift`, macOS, an offscree
 
 Lane 2 (`Backends/SDL/Tests/MetalUISDLTests/SDLDrawTextTests.swift`):
 14. `anSDLSurfaceTextReadsBackEqualToTheSameTextDrawnByTheReplay` — readback of the
-    surface target equals the replay of the same scene's `Text` (the replay harness
+    surface target (`mui_surface_read_rgba`) equals the replay of the same scene's `Text` (the replay harness
     is the SDL pixel oracle); mutation: swap `first_instance` for 0.
 15. `aGlyphInsertedByASurfaceDrawIsUploadedBeforeTheTextPassOnSDL`
     (`lastAtlasBytes > 0`, non-blank) — mutation: encode the text pass before the
