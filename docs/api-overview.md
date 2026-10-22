@@ -519,6 +519,9 @@ lock the waiter thread signals, never releases the fence) and `SDLGPUDevice.down
 `SDLGPUTextureRegion` (legal on the main actor outside a draw, a debug trap inside one, a precondition on the device's own
 worker threads); `SDLGPUDevice.compileGraphicsPipeline(_:)` and `compileComputePipeline(_:)` throw an `SDLGPUError` naming the
 stage, and `lastPipelineFailure` records what the unchanged optional `make…Pipeline` verbs refused.
+Synchronous render batch, rulings `SY-A`…`SY-H` (record §143): `SDLGPUDevice.submitBatchSynchronously(_:) throws -> SDLGPUFence` records and
+submits on the submit worker like `submitBatch` and returns once the buffer is submitted, the fence normally unsignalled; `waitBlocking()` or
+`downloadSynchronously` then waits (`GB-F`'s rules).
 
 **Build-time app shaders** (`BS-`, item S12, record §138; class M, outside the census). The root package exports the
 executable `MetalUICompileShaders` and the command plugin `CompileShaders` (`swift package --allow-writing-to-package-directory

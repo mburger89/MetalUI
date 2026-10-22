@@ -298,6 +298,7 @@ commit `1ff05bec573988a98ef9e0260b4da44f512b8367` (2026-09-03; upstream has no r
 git clone https://github.com/libsdl-org/SDL_shadercross.git && cd SDL_shadercross
 git checkout 1ff05bec573988a98ef9e0260b4da44f512b8367
 git submodule update --init --depth 1   # SPIRV-Cross, SPIRV-Headers, SPIRV-Tools, libsdl-org/DirectXShaderCompiler (branch 1.8.2502-SDL)
+git -C external/DirectXShaderCompiler submodule update --init --depth 1 external/DirectX-Headers   # DXC's own nested submodule
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDLSHADERCROSS_VENDORED=ON -DSDLSHADERCROSS_INSTALL=ON
 cmake --build build && cmake --install build --prefix "$HOME/shadercross"
 export METALUI_SHADERCROSS="$HOME/shadercross/bin/shadercross"
@@ -323,7 +324,8 @@ Per platform:
   Ubuntu 24.04 aarch64 under OrbStack, 2026-10-21): configure with **clang** (`-DCMAKE_C_COMPILER=clang
   -DCMAKE_CXX_COMPILER=clang++`, the Swift toolchain's; the default `cc` is gcc and DXC's flags
   `-fcolor-diagnostics` make it fail at the first file), SDL3 on the default paths, the four submodules as
-  above; **6 min 45 s at `-j8`**. The installed `bin/shadercross` with `lib/libdxcompiler.so`, `libdxil.so`
+  above, plus DXC's nested `external/DirectX-Headers` (without it a fresh shallow checkout fails inside the fork with
+  `d3d12shader.h file not found`; reported from MetalCreator's Linux aarch64 Docker stage, 2026-10-22, not re-measured here); **6 min 45 s at `-j8`**. The installed `bin/shadercross` with `lib/libdxcompiler.so`, `libdxil.so`
   beside it then compiled `Backends/SDL/Tests/AppShaders` through `MetalUICompileShaders` to **41 files
   byte-identical to the checked-in ones, DXIL included**. So neither emulation nor SPIR-V-only is needed
   there; they remain fallbacks. `--formats` can still leave `dxil` out of a Vulkan or Metal app's build
