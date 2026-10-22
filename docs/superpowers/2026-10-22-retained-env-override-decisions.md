@@ -3,7 +3,7 @@
 Rulings for item C14-m. Spec: [`specs/2026-10-22-retained-env-override-design.md`](specs/2026-10-22-retained-env-override-design.md). Record: `../record/148-retained-env-override.md`.
 Branch `perf/retained-env-override` from `58843cca`. Reserved divergence labels 775-784: none taken.
 
-Prefix **`EO-`**, lettered. **Next unused: `EO-G`.** (Moves in the commit that appends a ruling.)
+Prefix **`EO-`**, lettered. **Next unused: `EO-H`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `AM-D`, `AM-E`, `EE-F`, `EE-K`, `SB-G`, `CR-K`, `CR-Q`, `CR-Z`, `EV-V`, `DM-F`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves.
@@ -43,3 +43,9 @@ single miss `serial`, no `environment` reason. No source change is made; the fix
 ## EO-F - Critic: evidence for EO-A/EO-B is recorded, and EO-B stays a hypothesis
 
 **Ruling.** The `EOPROBE` numbers are copied into the record (§148) from a re-run at the lane head, not cited from memory. EO-B (the 187 lines are one startup frame) was re-checked against `fillet-trace.log`: the two blocks are 187 lines each, preceded by `first-or-dropped`, and the 376 colorScheme lines occur nowhere else; it stays an inference until MetalCreator is re-traced after #126, and the record asks for that re-trace (read-only, not run here). The theme-scheme-differs-from-window case is the one place a startup transition could recur per scheme change; test 2 covers it.
+
+## EO-G - Closure: all EO-D/EO-E arms green on arrival, mutations named, no source change
+
+**Ruling.** The `insideMaterial` background-attachment arms (inherited and opposite scheme), the `.background(tint)` sibling, the real-change arm and the five stamped-key arms are green on `58843cca`; the fixture stays as pins and `Sources/` is unchanged. The pins are proved red by mutation (record 148 section 3): dropping `colorScheme` from the fingerprint reddens the real-change arm alone, an unstable (pseudo-random) `colorScheme` or any one other stamped field reddens every equal-override arm. A call-count parity mutation is not an instrument here (even calls per frame), recorded as such.
+**Evidence.** Record 148 sections 2-3; verify-switch run 4363 passed.
+**Cost if wrong.** As `EO-A`: the defect is in a shape the fixture lacks; a MetalCreator re-trace decides.
