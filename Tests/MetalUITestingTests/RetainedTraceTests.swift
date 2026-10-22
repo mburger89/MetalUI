@@ -124,7 +124,7 @@ func everyReplayKeyFieldIsNamedWhenItDiffersAlone() throws {
         ("key.ambient.snappingTransaction", { $0.ambient.snappingTransaction = true }),
         ("key.ambient.disablesAnimations", { $0.ambient.disablesAnimations = true }),
     ]
-    cases.append(("key.ambient.environment", { $0.ambient.environment.isEnabled.toggle() }))
+    cases.append(("key.ambient.environment.isEnabled", { $0.ambient.environment.isEnabled.toggle() }))
     for (name, change) in cases {
         var k = base; change(&k)
         #expect(base != k, "\(name): the mutation changes the key")
@@ -135,15 +135,68 @@ func everyReplayKeyFieldIsNamedWhenItDiffersAlone() throws {
 
 // MARK: Path tail
 
-/// The path tail is 120 characters by default and as long as `pathLength` says. **Mutation:** `suffix(60)` in `tail`.
+/// The path tail is 120 characters by default and as long as `pathLength` says, cut at a `/` (`AM-F`). **Mutation:** `suffix(60)` in `tail`.
 @Test
 func thePathSuffixIsAtLeast120ByDefaultAndConfigurable() {
     let path = String(repeating: "positional(0)/", count: 20)   // 280 characters
     #expect(RetainedTrace.defaultPathLength >= 120)
-    #expect(RetainedTrace.tail(of: path, length: RetainedTrace.defaultPathLength).count == RetainedTrace.defaultPathLength)
-    #expect(RetainedTrace.tail(of: path, length: 200).count == 200)
+    #expect(RetainedTrace.tail(of: path, length: RetainedTrace.defaultPathLength).count <= RetainedTrace.defaultPathLength)
+    #expect(RetainedTrace.tail(of: path, length: RetainedTrace.defaultPathLength).count >= RetainedTrace.defaultPathLength - "positional(0)/".count - 2)
+    #expect(RetainedTrace.tail(of: path, length: 200).count <= 200)
     #expect(RetainedTrace.tail(of: "short", length: 120) == "short")
-    #expect(RetainedTrace.tail(of: path, length: 50) == String(path.suffix(50)))
+}
+
+/// `AM-F`: a tail never starts mid component. Fits: unchanged. Cut: `…/` and whole trailing components, at most `length` characters.
+/// One component longer than the room: `…` and its last `length - 1` characters. `length` 1 and 2: the last characters. The old tails began
+/// `ional(0)/positional(1)` (record 140's log). **Mutation:** `String(path.suffix(length))` (reddens the boundary arms).
+@Test
+func aTraceSuffixIsCutAtASlash() {
+    let path = "a(0)/bb(1)/ccc(2)/dddd(3)"                       // 25 characters
+    #expect(RetainedTrace.tail(of: path, length: 25) == path)
+    #expect(RetainedTrace.tail(of: path, length: 100) == path)
+    #expect(RetainedTrace.tail(of: path, length: 20) == "…/ccc(2)/dddd(3)")   // 16: "…/" + 14
+    #expect(RetainedTrace.tail(of: path, length: 15) == "…/dddd(3)")
+    #expect(RetainedTrace.tail(of: path, length: 9) == "…/dddd(3)")
+    #expect(RetainedTrace.tail(of: path, length: 8) == "…dddd(3)")   // one component longer than the room: "…" and its tail
+    #expect(RetainedTrace.tail(of: "abcdefghij", length: 5) == "…ghij")
+    #expect(RetainedTrace.tail(of: path, length: 1) == ")")
+    for length in 3..<30 {
+        let tail = RetainedTrace.tail(of: path, length: length)
+        #expect(tail.count <= length, "length \(length): \(tail)")
+        if tail.hasPrefix("…/") { #expect(path.hasSuffix(String(tail.dropFirst(2))) && path.contains("/" + String(tail.dropFirst(2))), "\(tail)") }
+    }
+    let long = String(repeating: "positional(0)/", count: 20) + "positional(1)"
+    let tail = RetainedTrace.tail(of: long, length: 120)
+    #expect(tail.hasPrefix("…/positional("), Comment(rawValue: tail))
+}
+
+/// `AM-G`: the fire cause is a pure rule over the demangled frames, innermost first. A setter frame wins (debug); else the frame after the last
+/// observation-machinery frame, `via <function>` with the specialization wrapper and signature dropped (release: the setter is inlined into the
+/// writer, probe `observation-fire-cause-release.swift`); `release-inlined` when nothing is above the machinery; `?` for no frames.
+/// **Mutation:** return `?` (reddens every arm).
+@Test
+func aFireCauseNamesTheWriterFrameOrSaysReleaseInlined() {
+    let machinery = [
+        "closure #2 @Sendable () -> () in main.arm(Swift.String) -> ()",
+        "merged partial apply forwarder for closure #1 @Sendable (Observation.ObservationTracking) -> () in static Observation.ObservationTracking._installTracking(_: Observation.ObservationTracking._AccessList, onChange: @Sendable () -> ()) -> ()",
+        "merged function signature specialization <Arg[0] = Dead> of Observation.ObservationRegistrar.Context.willSet<A, B where A: Observation.Observable>(_: A, keyPath: Swift.KeyPath<A, B>) -> ()",
+        "Observation.ObservationRegistrar.withMutation<A, B, C where A: Observation.Observable>(of: A, keyPath: Swift.KeyPath<A, B>, _: () throws -> C) throws -> C",
+    ]
+    let debug = machinery + ["main.Model.withMutation<A, B>(keyPath: Swift.KeyPath<main.Model, A>, _: () throws -> B) throws -> B",
+                             "main.Model.radius.setter : Swift.Double", "main.theWriter(main.Model) -> ()", "start"]
+    #expect(RetainedTrace.writerCause(from: debug) == "main.Model.radius.setter")
+    let release = machinery + ["main.theWriter(main.Model) -> ()", "start"]
+    #expect(RetainedTrace.writerCause(from: release) == "via main.theWriter")
+    let wrapped = machinery + ["function signature specialization <Arg[1] = [Closure Propagated : $s4mainyAA5ModelCXEfU0_, Argument Types : []> of main.arm(Swift.String, (main.Model) -> ()) -> ()", "start"]
+    #expect(RetainedTrace.writerCause(from: wrapped) == "via main.arm")
+    let closure = machinery + ["closure #1 in MyApp.Panel.drag(_:) -> ()", "start"]
+    #expect(RetainedTrace.writerCause(from: closure) == "via closure #1 in MyApp.Panel.drag")
+    let thunks = machinery + ["reabstraction thunk helper from @escaping @callee_guaranteed () -> ()", "partial apply forwarder for foo", "main.theWriter(main.Model) -> ()"]
+    #expect(RetainedTrace.writerCause(from: thunks) == "via main.theWriter")
+    #expect(RetainedTrace.writerCause(from: machinery) == "release-inlined")
+    #expect(RetainedTrace.writerCause(from: machinery + ["start", "main"]) == "release-inlined")
+    #expect(RetainedTrace.writerCause(from: machinery + ["6   libdyld.dylib   0x00000001a2b3c4d5 start + 6992"]) == "release-inlined")
+    #expect(RetainedTrace.writerCause(from: []) == "?")
 }
 
 // MARK: Window level
@@ -224,6 +277,19 @@ struct RetainedTraceWindowTests {
         let lines = collectTrace { _ = doubleMissStep(window, model, arm: .observed, changed: [2], to: 4) }
         let cause = lines.first { $0.contains("cause:") }
         #expect(cause?.contains("radius.setter") == true, "cause names the property: \(lines.filter { $0.contains("miss") })")
+    }
+
+    /// 5b - in a release build the fire cause is never the bare `?` where stacks carry names: it names the writer's frame (`via ...`) or says
+    /// `release-inlined` (`AM-G`). Release only (debug names the setter, test 5); not on Windows, whose stacks carry no names.
+    /// **Mutation:** `writerCause()` returning `?`.
+    @Test(.enabled(if: !debugBuild && symbolicatedStacks, "debug names the setter (test 5); Windows stacks carry no symbols"))
+    func aReleaseFireCauseIsNotAQuestionMark() throws {
+        let (window, model) = try doubleMissWindow(.observed)
+        let lines = collectTrace { _ = doubleMissStep(window, model, arm: .observed, changed: [2], to: 4) }
+        let causes = lines.compactMap { line in line.range(of: "cause: ").map { String(line[$0.upperBound...].prefix { $0 != "\n" }) } }
+        try #require(!causes.isEmpty, "\(lines)")
+        #expect(causes.allSatisfy { $0.contains("via ") || $0.contains("release-inlined") || $0.contains(".setter") }, "\(causes)")
+        #expect(!causes.contains { $0.hasPrefix("getter: ?") || $0.hasPrefix("build: ?") }, "\(causes)")
     }
 
     /// 6 - the trace costs nothing when off: no line is built (`linesBuilt` stays 0) and a changed frame allocates less than

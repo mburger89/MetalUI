@@ -278,7 +278,7 @@ extension Frame {
             noteRun(phase, "pointer/press/focus under the occurrence")
             return .run(nil)
         }
-        let key = retainedPrepaintKey(phase)
+        let key = retainedPrepaintKey(phase).transactionNormalised   // `AM-D`, `AM-L`
         phase.prepaintKey = key
         let old = entry.record
         let ledgerOfRecord = old?.prepaint

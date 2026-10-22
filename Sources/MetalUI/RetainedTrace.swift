@@ -30,8 +30,26 @@ package enum RetainedTrace {
         return defaultPathLength
     }()
 
-    /// The last `length` characters of `path`.
-    package static func tail(of path: String, length: Int) -> String { String(path.suffix(length)) }
+    /// The tail of `path` that fits in `length` characters, cut at a `/` boundary (`AM-F`): the path itself when it fits, else `…/`
+    /// and the longest run of whole trailing components that fits; a last component longer than that prints `…` and its last
+    /// `length - 1` characters. Never starts mid component, never longer than `length`.
+    package static func tail(of path: String, length: Int) -> String {
+        guard path.count > length else { return path }
+        guard length > 2 else { return String(path.suffix(max(length, 0))) }
+        let prefix = "…/"
+        let budget = length - prefix.count
+        // The candidates are the suffixes that start right after a `/`, longest first.
+        var index = path.startIndex
+        while let slash = path[index...].firstIndex(of: "/") {
+            let start = path.index(after: slash)
+            let candidate = path[start...]
+            if candidate.count <= budget {
+                return candidate.isEmpty ? "…" + String(path.suffix(length - 1)) : prefix + candidate
+            }
+            index = start
+        }
+        return "…" + String(path.suffix(length - 1))
+    }
 
     /// One trace line, built only when something listens.
     @MainActor
@@ -55,17 +73,55 @@ package enum RetainedTrace {
         return tail(of: sbPath(id), length: pathLength)
     }
 
-    /// The writer behind the observation fire this is called from, best effort: the demangled `<Type>.<property>.setter` frame of the
-    /// stack (a debug build; a release build inlines the setter and this answers `?`, as does Windows, whose stack symbols carry no names; probe `observation-fire-cause.swift`).
+    /// The writer behind the observation fire this is called from, best effort (`AM-G`, probes `observation-fire-cause.swift` and
+    /// `observation-fire-cause-release.swift`): the demangled `<Type>.<property>.setter` frame in a debug build; in a release build
+    /// the setter is inlined into its caller, so `via <function>` names the nearest frame above the observation machinery; `release-inlined`
+    /// when nothing is above it; `?` only where stack symbols carry no names at all (Windows).
     static func writerCause() -> String {
-        for line in Thread.callStackSymbols {
+        var named = false
+        let frames = Thread.callStackSymbols.map { line -> String in
             for token in line.split(whereSeparator: { " ()+[]".contains($0) }) where token.hasPrefix("$s") || token.hasPrefix("_$s") {
-                if let name = demangle(String(token)), name.contains(".setter") {
-                    return String(name.split(separator: ":", maxSplits: 1)[0]).trimmingCharacters(in: .whitespaces)
-                }
+                if let name = demangle(String(token)) { named = true; return name }
             }
+            return line
         }
-        return "?"
+        return named ? writerCause(from: frames) : "?"
+    }
+
+    /// The rule of `writerCause()` over demangled frames, innermost first (pure, so a test feeds it synthetic stacks).
+    package static func writerCause(from frames: [String]) -> String {
+        if frames.isEmpty { return "?" }
+        if let setter = frames.first(where: { $0.contains(".setter") }) {
+            return String(setter.split(separator: ":", maxSplits: 1)[0]).trimmingCharacters(in: .whitespaces)
+        }
+        // The machinery is the contiguous run from the capture up to the registrar; the writer is the first frame after its last member.
+        let machinery = ["Observation.", "ObservationRegistrar", "ObservationTracking", "withObservationTracking", "withMutation",
+                         "RetainedTrace.", "MemoFlags", "RetainedSession", "ContentMemoStore"]
+        guard let last = frames.lastIndex(where: { frame in machinery.contains { frame.contains($0) } }) else { return "release-inlined" }
+        for frame in frames[(last + 1)...] {
+            let name = functionName(of: frame)
+            if name.isEmpty || runtimeFrame(name) { continue }
+            return "via " + name
+        }
+        return "release-inlined"
+    }
+
+    /// `function signature specialization <…> of main.arm(…) -> ()` becomes `main.arm`: the specialization wrapper and the signature
+    /// are dropped.
+    static func functionName(of frame: String) -> String {
+        var name = Substring(frame)
+        for wrapper in ["function signature specialization", "generic specialization", "merged ", "specialized "] where name.hasPrefix(wrapper) {
+            if let of = name.range(of: "> of ") ?? name.range(of: " of ") { name = name[of.upperBound...] }
+        }
+        if let paren = name.firstIndex(of: "(") { name = name[..<paren] }
+        return name.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// A frame that is the process or runtime, not a writer: an unsymbolicated line, a thunk, a loader or dispatch entry.
+    private static func runtimeFrame(_ name: String) -> Bool {
+        if name.contains("0x") || name.hasPrefix("reabstraction thunk") || name.hasPrefix("partial apply") { return true }
+        if name.contains(".") { return false }   // a module-qualified Swift name
+        return ["swift_", "_swift", "start", "main", "_main", "dyld", "_dispatch", "thread_start"].contains { name.hasPrefix($0) }
     }
 
     private static func demangle(_ mangled: String) -> String? {
@@ -176,7 +232,11 @@ extension AmbientKey {
         if layerOpacityScale != other.layerOpacityScale { out.append("layerOpacityScale") }
         if depths != other.depths { out.append("depths") }
         if scopes != other.scopes { out.append("scopes") }
-        if environment != other.environment { out.append("environment") }
+        if environment != other.environment {
+            // `AM-E`: the differing field, so a miss says which environment value moved (`environment` alone if none is named).
+            let fields = environment.differences(from: other.environment)
+            if fields.isEmpty { out.append("environment") } else { for field in fields { out.append("environment.\(field)") } }
+        }
         if snappingTransaction != other.snappingTransaction { out.append("snappingTransaction") }
         if disablesAnimations != other.disablesAnimations { out.append("disablesAnimations") }
         return out

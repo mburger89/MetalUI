@@ -703,7 +703,8 @@ extension Frame {
             memos.retained.noteIneligible(.paint, reason: reason)
             return .plain
         }
-        let key = retainedKey(phase)
+        // `AM-D`, `AM-L`: the transaction's two members are not part of a retained key.
+        let key = retainedKey(phase).transactionNormalised
         let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
             var inputs = PaintInvalidation.Inputs()

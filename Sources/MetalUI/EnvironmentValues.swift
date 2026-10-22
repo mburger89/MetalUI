@@ -399,6 +399,42 @@ struct EnvironmentFingerprint: Equatable {
     var custom: [ObjectIdentifier: EnvironmentReading]
 }
 
+extension EnvironmentFingerprint {
+    /// Every field of this fingerprint that differs from `other`, by name (trace only, `AM-E`: the retained trace prints
+    /// `key.ambient.environment.<field>`). A `Mirror` guard (`everyEnvironmentFingerprintFieldIsNamedWhenItDiffersAlone`) makes a new
+    /// field owe a row here.
+    func differences(from other: EnvironmentFingerprint) -> [String] {
+        var out: [String] = []
+        if isEnabled != other.isEnabled { out.append("isEnabled") }
+        if layoutDirection != other.layoutDirection { out.append("layoutDirection") }
+        if locale != other.locale { out.append("locale") }
+        if dynamicTypeSize != other.dynamicTypeSize { out.append("dynamicTypeSize") }
+        if displayScale != other.displayScale { out.append("displayScale") }
+        if controlActiveState != other.controlActiveState { out.append("controlActiveState") }
+        if accessibilityReduceMotion != other.accessibilityReduceMotion { out.append("accessibilityReduceMotion") }
+        if accessibilityReduceTransparency != other.accessibilityReduceTransparency { out.append("accessibilityReduceTransparency") }
+        if titleBarInsets != other.titleBarInsets { out.append("titleBarInsets") }
+        if windowSize != other.windowSize { out.append("windowSize") }
+        if colorScheme != other.colorScheme { out.append("colorScheme") }
+        if controlSize != other.controlSize { out.append("controlSize") }
+        if font != other.font { out.append("font") }
+        if lineLimit != other.lineLimit { out.append("lineLimit") }
+        if truncationMode != other.truncationMode { out.append("truncationMode") }
+        if multilineTextAlignment != other.multilineTextAlignment { out.append("multilineTextAlignment") }
+        if foregroundStyle != other.foregroundStyle { out.append("foregroundStyle") }
+        if fontWeight != other.fontWeight { out.append("fontWeight") }
+        if italic != other.italic { out.append("italic") }
+        if textLineLimit != other.textLineLimit { out.append("textLineLimit") }
+        if fieldStyle != other.fieldStyle { out.append("fieldStyle") }
+        if editorStyle != other.editorStyle { out.append("editorStyle") }
+        if theme != other.theme { out.append("theme") }
+        if hasTextSystem != other.hasTextSystem { out.append("hasTextSystem") }
+        if objects != other.objects { out.append("objects") }
+        if custom != other.custom { out.append("custom") }
+        return out
+    }
+}
+
 extension EnvironmentValues {
     /// How many custom (app-defined) keys carry a value that cannot be compared (a function, a struct holding
     /// one): a non-zero count makes a retained subtree ineligible (`SB-G`, `EE-F`). Keys, not writes.
