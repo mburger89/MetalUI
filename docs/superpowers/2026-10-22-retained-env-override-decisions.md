@@ -42,7 +42,7 @@ single miss `serial`, no `environment` reason. No source change is made; the fix
 
 ## EO-F - Critic: evidence for EO-A/EO-B is recorded, and EO-B stays a hypothesis
 
-**Ruling.** The `EOPROBE` numbers are copied into the record (§148) from a re-run at the lane head, not cited from memory. EO-B (the 187 lines are one startup frame) was re-checked against `fillet-trace.log`: the two blocks are 187 lines each, preceded by `first-or-dropped`, and the 376 colorScheme lines occur nowhere else; it stays an inference until MetalCreator is re-traced after #126, and the record asks for that re-trace (read-only, not run here). The theme-scheme-differs-from-window case is the one place a startup transition could recur per scheme change; test 2 covers it.
+**Ruling.** The `EOPROBE` numbers are copied into the record (§148) from a re-run at the lane head, not cited from memory. EO-B (the 187 lines are one startup frame) was re-checked against `fillet-trace.log`: the two blocks are 187 lines each, preceded by `first-or-dropped`, and the 376 colorScheme lines occur nowhere else; MetalCreator confirmed it on 2026-10-22 by line position in the same log (one block, lines 642-1020, ahead of the first observation fire at 1022 and of every drag build line, 1390-3181), so it is no longer an inference. The theme-scheme-differs-from-window case is the one place a startup transition could recur per scheme change; test 2 covers it.
 
 ## EO-G - Closure: all EO-D/EO-E arms green on arrival, mutations named, no source change
 

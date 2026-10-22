@@ -6,7 +6,7 @@ Branch `perf/retained-env-override` from `58843cca`. Decisions: `docs/superpower
 
 **The reported defect does not reproduce, and no source change was made.** An `.environment(\.colorScheme, same)` override (and one of every other stamped key) inside an `.equatable()` occurrence is an equal retained key frame to frame: `retainedFingerprint` compares every field by value and `scopedValues` runs once at layout. Every drag frame on every arm below is **h7 m1** (the single miss is the dragged panel's own observed write, reason `serial`), with no `environment` reason in the trace. Before and after are identical because `Sources/` is untouched: new fixture h7 m1 (before and after), the AM- drag, bracket and zoom fixtures unchanged (their suites pass in the same full run with the same counts).
 
-MetalCreator's 187 `colorScheme` lines are one window-start transition frame, not a per-frame cost (`EO-B`, an inference from the log's neighbours; a re-trace of MetalCreator after #126, read-only, is still owed).
+MetalCreator's 187 `colorScheme` lines are one window-start transition frame, not a per-frame cost (`EO-B`; confirmed by MetalCreator on 2026-10-22 from the `58843cca` log by position: all 374 `colorScheme` lines (187 paint, 187 prepaint) are one contiguous block, lines 642-1020, before the first `retained session fired` line (1022) and outside the drag's 375 build-cause lines (1390-3181); the 9/14 per-frame misses never contained them, and the remaining drag misses are `observed`/`serial`/`interior`, the fillet's real changes).
 
 ## 2. Pins (Tests/MetalUITestingTests/EnvOverrideFixture.swift)
 
@@ -32,7 +32,7 @@ Native unfiltered 4363 tests passed (4359 at `58843cca` + 4 new test functions, 
 
 ## 5. Carried
 
-MetalCreator re-trace after #126 (`EO-B`). If a real per-frame `colorScheme` miss reappears there it lives in a shape the fixture lacks (an override inside a `Deferred`, a theme-derived scheme changing source); build the separating arm first.
+MetalCreator re-trace after #126 (`EO-B`): answered, see the summary (the burst precedes the drag). If a real per-frame `colorScheme` miss reappears there it lives in a shape the fixture lacks (an override inside a `Deferred`, a theme-derived scheme changing source); build the separating arm first.
 
 ## 6. Branch checker (58843cca..9beb7d86)
 
