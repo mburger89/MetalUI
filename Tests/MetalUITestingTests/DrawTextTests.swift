@@ -89,6 +89,23 @@ private func colour(_ g: MUIGlyph) -> [Float] { [g.color.h, g.color.s, g.color.l
     }
 }
 
+/// **1b** (`DT-C`). A fractional point keeps its fraction: the sub-pixel part of the origin reaches
+/// `placeGlyphs` (as `Text.paint`'s origin does), so two points half a device pixel apart record different
+/// sprites. Mutation: place with a rounded-point origin.
+@Test @MainActor func aFractionalPointKeepsItsSubPixelPhase() throws {
+    let (_, frame, resolved) = try textFrame(Text(long), scaleFactor: 2)
+    func sprites(dx: Float) -> [[Float]] {
+        let sink = makeSink()
+        SinkContext(sink: sink, scale: 2).drawText(
+            resolved, at: Point(x: Pixels(frame.origin.x.value + dx), y: frame.origin.y),
+            anchor: .topLeading, width: nil)
+        return sink.glyphs.map(shape)
+    }
+    let whole = sprites(dx: 0), half = sprites(dx: 0.25)
+    #expect(!whole.isEmpty && whole.count == half.count, "set up: same glyph count")
+    #expect(whole != half, "a quarter point (half a device pixel at scale 2) moves the sprites")
+}
+
 /// **2** (`DT-D`, probe B). Every anchor places the layout box at the point: the ink's top-left moves by
 /// the anchor's fraction of the measured size. Mutation: swap the anchor's x and y fractions.
 @Test @MainActor func everyAnchorPlacesTheLayoutBoxAtThePoint() throws {
