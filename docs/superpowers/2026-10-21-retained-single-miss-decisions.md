@@ -3,7 +3,7 @@
 Rulings for item C14-j. Spec: [`specs/2026-10-21-retained-single-miss-design.md`](specs/2026-10-21-retained-single-miss-design.md). Record: `../record/140-retained-single-miss.md`.
 Branch `perf/retained-single-miss` from `195ff2c8`. Reserved divergence labels 695-704: none taken.
 
-Prefix **`DM-`**, lettered. **Next unused: `DM-J`.** (Moves in the commit that appends a ruling.)
+Prefix **`DM-`**, lettered. **Next unused: `DM-K`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SB-V`, `SB-X`, `SB-AA`, `RW-S`, `RK-C`, `RK-D`, `FS-N`, `MO-A`, `MO-F`, `IV-S`, `PA-J`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
@@ -69,3 +69,9 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
 **Ruling.** A pin reading `retainedMisses` or `retainedHits` that moves because a changed occurrence misses once is rewritten to the new exact figure in the lane's commit, with the old and new numbers in the commit message and record §140; none is loosened to an inequality. Element-work counters of unchanged paths are untouched.
 **Evidence.** `RW-S` §121: the same discipline moved the panels arm.
 **Cost if wrong.** A literal that was a floor now equals it: a regression of one miss is still red.
+
+## DM-J - The certain-miss predicate is read after the value decision, not at the top of the build
+
+**Question.** `DM-C` reads `record.contentSerial != serial` at build, but on a value change the serial moves only when the getter re-runs, after `needsObservation` is first read; the predicate would be false exactly on the frame it exists for.
+**Ruling.** The predicate takes the memo's own `==` decision as an input: `certainMiss = observedChange || valueDiffers || record.contentSerial != serial`, where `valueDiffers` is the result of the comparison `EquatableComponent.buildGroup` already makes before deciding to run the getter (no second `==`). The build window opens after that decision and before the getter's children are built; the prepaint window re-reads the same stored decision (never recomputes `==`, which may be non-pure). Lane 2 step 0 prints the order of `needsObservation`, the `==` and the serial bump on the fixture before code moves. A `.value` arm that still measures 2 after the change means this ordering was wrong, not that `DM-B` is.
+**Cost if wrong.** The pin `aChangedOccurrenceCostsOneMissAndTheNextFrameHits` stays red on `.value`; no unsound state, since a window opened late leaves coverage false.
