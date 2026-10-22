@@ -2717,3 +2717,12 @@ different events, does not differ. Owner none (`H16`).
 
 **Amended: 236** ("`@GestureState`/`updating` are not offered" became "built since §135, reset on every one of these paths"; `onCancelled` stays for a
 caller who wants the event) and the not-built row naming `@GestureState` (now `updating` on a composed gesture and `GestureStateGesture`). **Labelled late (Record phase):** the `@MainActor` on `updating` and `reset:` is 646 (`GS-S`). Labels 647–654 of this branch's range unused.
+
+## 2026-10-21: recount of live divergences (D1)
+
+Method: the labels in the `## Live` table of `docs/divergences.md` (rows `| <n> |` between `## Live` and `## Retired`) counted by script, duplicates and
+overlap with the retired labels checked: **164 live**, matching the header and `CLAUDE.md`, so no count had drifted (the file's ~247 table rows include 34 retired
+labels: 2–8, 11, 12, 14–19, 24, 28, 35–37, 39, 40, 45, 48, 53, 55, 59, 64, 69, 74, 83, 85, and 79 and 249, whose rows sat after the absences table and now
+sit in `## Retired`; 75 was never assigned). **Next label 206** stays right: 206 is the first label after the sequential series (205 is the last used below the
+range-reserved blocks; the gaps under it are reserved or unused ranges). Range notes in `CLAUDE.md` were checked against the table and are correct; round 2's
+unused ranges (C14-i 625–634, E1 655–664, S11 665–674, S12 675–684, XP-G21 685–694) and C14-j's reservation (695–704) were added.
