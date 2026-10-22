@@ -196,7 +196,7 @@ private func waitFor(_ semaphore: DispatchSemaphore, seconds: Double) {
         }
         thread.start()
         #expect(box.awaitDone(seconds: 30) == .success, "every fence signals")
-        #expect(fences.allSatisfy(\.isSignalled))
+        #expect(fences.allSatisfy { $0.isSignalled })
         for _ in 0..<8 { _ = try device.submitBatchSynchronously { _ in } }
         device.waitForIdle()
         let probe = try device.submitBatchSynchronously { _ in }   // FIFO after the eight: its signal orders the waiter
