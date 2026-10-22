@@ -80,8 +80,7 @@ red first, each verified `ok: true` by a checker; this Record phase re-took the 
 
 ## §2 Tests and guards, per file
 
-Count 4248 → **4277** (+29 tests; the checker's lane-1 reading was 4263, lane 2 adds 14), typecheck guards 261 → **263** (G1.1 and G2.1, plus the
-negative spellings of the existing guards 3.1 and `ClipboardCompileGuards` re-pointed).
+Count 4248 → **4277** (+29 tests; the checker's lane-1 reading was 4263, lane 2 adds 14), typecheck guards 261 → **263** (G1.1 and G2.1; guard 3.1's fixture gained the four requirements).
 
 | file | what it pins |
 |---|---|
@@ -141,8 +140,8 @@ bytes) is guarded and mutated.
 
 ## §5 Verification at the Record phase
 
-Merged `origin/master` `d062168c` (docs only), then: `swift package clean`, native build, native unfiltered `--no-parallel` run, `FR-J` line, warnings and
-errors, default-build-system warnings, inventory and undocumented scripts, guard count — **see §10 for the measured lines** (written after the run).
+Merged `origin/master` `d062168c` (docs only), then `swift package clean`, native build and native unfiltered `--no-parallel` run on a **locked screen**
+(§10).
 Taken by the lane checkers at their heads and not re-taken here: `Backends/SDL` on macOS (`SDLClipboard` set 9 tests in 2 suites at lane 1; lane 2 adds
 five), the Linux image `metalui-portable` (248 tests in 12 suites at lane 1), the fourteen offscreen images against `5f03ab7b` (all scene identical,
 `differing=0`, at lane 1; no `Sources/` or `Backends/` file moved after `f8705dcd` except through the lane-2 head the checker re-read), the
@@ -185,4 +184,12 @@ image and file-URL content-type constants and `Image` as `Transferable` (own ite
 
 ## §10 Counts and the measured run
 
-(filled after the suite, see the commit that follows)
+**2026-10-22, `feat/clipboard-extras` at the Record phase** (merged with master `d062168c`; the record, docs and `CLAUDE.md`/`AGENTS.md` edits were in the tree
+for the run): `swift package clean`, `swift build --build-system native --build-tests` 0 `error:`, the only `warning:` SwiftPM's deprecation notice;
+native unfiltered `--no-parallel` run, one summary line: **`Test run with 4277 tests in 5 suites failed after 979.597 seconds with 5 issues`** — the five
+issues are exactly the `AppKitPresentationTests` sheet issues of `CI-AF` (lines 120, 139, 161, 183, 200), the screen being locked
+(`CGSSessionScreenIsLocked = 1`), and nothing else; `FR-J no-argument frame: succeeded=true`. `swift build --build-tests` on the default build system:
+**0 `warning:`, 0 `error:`**. `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing; `closeout-public-api.sh` regenerates the checked-in
+census byte for byte (3784 rows). **Counts: 4277 tests, 0 goldens, 263 typecheck guards.** Not re-taken at the Record phase (see §5): the
+`METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` run, the fourteen-image comparison, `Backends/SDL` on macOS and the Linux image, and an unlocked
+screen re-take of the five sheet tests.
