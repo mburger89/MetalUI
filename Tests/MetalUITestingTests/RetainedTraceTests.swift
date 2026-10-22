@@ -224,7 +224,10 @@ struct RetainedTraceWindowTests {
                 // The getter's own session fires first and re-evaluates the getter: the miss names `serial` and the writer.
                 #expect(named.contains { $0.contains("serial") }, "observed arm names serial: \(paintMisses)")
                 #if DEBUG
-                #expect(paintMisses.contains { $0.contains("cause:") && $0.contains("radius") }, "the writer is named: \(paintMisses)")
+                // Windows' stack symbols carry no names (DM-E): the writer is named only where stacks are symbolicated.
+                if symbolicatedStacks {
+                    #expect(paintMisses.contains { $0.contains("cause:") && $0.contains("radius") }, "the writer is named: \(paintMisses)")
+                }
                 #endif
             case .ledgerGain, .moved, .movedPlain, .nested, .plain: break
             }
