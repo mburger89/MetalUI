@@ -9,7 +9,7 @@ the earlier `swiftui-overlays-coords.swift` `B0`–`B2` (`OV-C`'s evidence), `sw
 (the app decides per element; no scene-level switch): nothing is claimed from gpui for the three items.
 Divergence labels **735–744 reserved**; 735–737 are planned (rows written in the lane that builds them), 738–744 unused.
 
-Prefix **`BG-`**, lettered. **Next unused: `BG-R`.** (Moves in the commit that appends a ruling.)
+Prefix **`BG-`**, lettered. **Next unused: `BG-S`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `OV-C` (the deferral this closes: "a fill only, the border and shadow kept"), `CR-T`/`Frame.beginPresentationPreferences` (a presentation
 collects its own reports), `AS-D` (first report in post-order wins), `MN-M` item 5 (the panel), `MT-` (every material site draws through
@@ -233,3 +233,25 @@ position, so `noteNamed` can neither find a departed name nor change a produced 
 the presentation's bracket closed; only a pre-order report (`M3`) reaches the chrome, and that is what the test pins. (3) `Frame.presentationBackgroundSlot` and `presentationBracketDepth` are `buildOnly`
 rows of `frameChannels` (the one edit to `RetainedSubtreeInternalTests.swift`, a table row, not a retained path). (4) The demo: the existing menus-demo popover gains a gradient fill
 (`menusPopoverBackground()`, its own function); the popover is closed in the default frame.
+
+## BG-R — Lane 2 build notes: where the rulings landed and what the build settled
+
+**Background press.** `Window.answerUnclaimedTitleBarPress` keeps the band branch byte for byte and adds the background one behind it: `.enabled`, `clickCount == 1`
+and `platformUsesDragRegions != true` (an SDL-like platform moves the window by its region before `Window` sees the press, so it is **not** also asked; `BG-O`). The behavior
+lives in `WindowChromeState.backgroundDragBehavior`; a change dirties the window once (the regions are republished after the build) and an equal write does nothing.
+**Regions.** `ChromeRegions.compute(…, background:)` carves the content rect last by **every** blocker; `ChromeHitMap.carve` already cuts at the cap and reports
+`truncated`, so the over-cap rule is: if the carve with the background truncated anything, carve again without it (the band and the handles keep exactly what they had; no
+`ChromeHitMap` change). The window passes the background only for `.enabled` and not while `platformWindow.isZoomed`; the popover/alert/menu rule is the old
+early `[]`.
+**Shape cursor.** `ShapeCursorSpec` is `Hashable` by the path geometry value and the clamped numbers; `Kind.shape` resolves in `Window.resolvedPlatformStyle` (the one
+`sendPointerStyle` argument); `PointerStyle.platformStyle` answers `.arrow` for a shape to a caller outside the window. `Window.noteDisplayScale` runs at the start of every build
+and forgets the sent style when the **integer** scale (rounded up) changes while a shape is sent, so the post-frame resolution re-sends once; a fractional change within one
+integer sends nothing. **A `Color` fill or outline resolves in the light theme and scheme** (`Color.resolved(theme: .light, scheme: .light)`): a literal is exact, a token or dynamic
+colour takes its light value, because a cursor is not part of any scheme-scoped tree; documented on `shape`. The spelling is `@MainActor` (`Shape.path(in:)` is).
+**Tests.** The background-drag and shape tests are in `Tests/MetalUITestingTests` (portable, plain imports, real `Window` over the headless platform, runs on Linux and Windows),
+not `MetalUITests`; the AppKit arm (`appKitBackgroundPressDragsOnlyDuringAMouseDown`) is in `AppKitWindowDragTests`; the SDL arm is in `SDLChromeTests`
+(`aBackgroundRegionReachesTheSDLHitTestSnapshot`, gated on a window-manager driver like its neighbours). Guards `BackgroundDragCompileGuards.swift` (3).
+**Demo.** `chromeDemoContent` gains `ChromeDemoBackground` (its own `Component` and the star path in its own function): a `Background drag` switch applied through
+`ChromeDemoModel.applyBackgroundDrag` (set by `openChromeDemoWindow`; **a public `ChromeDemoModel.backgroundDrag` field, class M**) and a star-shaped pointer region (`eoFill`).
+The default demo is untouched, so the fourteen images do not move.
+

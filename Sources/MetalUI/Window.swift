@@ -1798,6 +1798,7 @@ public final class Window {
         // build — spec §3's non-re-entrancy — whether or not this frame
         // contains anything that can use it.
         lastDrawBuildCount += 1
+        noteDisplayScale(drawScaleFactor)
         let transaction = Animation.takeParkedRootTransaction()
         let memos = stateTable.contentMemos
         let pendingScrollRequests = scrollRequests.pending
@@ -2523,6 +2524,12 @@ public final class Window {
     /// before the first pointer event, and after the pointer left the window
     /// (`CI-S`), so the next pointer event sends unconditionally (`CI-H` item 7).
     var resolvedPointerStyle: PointerStyle?
+
+    /// The window's shape cursors (`BG-M`).
+    let shapeCursors = ShapeCursorCache()
+    /// The display scale of the last frame the window built, 1 before the first (`BG-L`): a shape cursor is
+    /// rasterized at it rounded up.
+    var lastDisplayScale: Float = 1
 
     /// How many pointer-style regions the last adopted frame registered: with
     /// none, a recompute visits no hitbox (`CI-H` item 7, `SV-U`'s shape).

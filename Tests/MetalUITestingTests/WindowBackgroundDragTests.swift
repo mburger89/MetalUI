@@ -136,6 +136,11 @@ private let backgroundPoint = pt(200, 200)
     }
     #expect(window.windowDragRegions == [rect(0, 0, 20, 24), rect(100, 0, 300, 24), rect(0, 24, 400, 276)],
             "\(window.windowDragRegions)")
+    let hover = try dragWindow(options: sdlRegions) {
+        blockerPage { Color.clear.frame(width: Pixels(80), height: Pixels(24)).onHover { _ in } }
+    }
+    #expect(hover.windowDragRegions == [rect(0, 0, 400, 300)],
+            "a hover region is not a blocker: it loses its events inside the region (divergence 737)")
     let disabled = try dragWindow(options: sdlRegions, behavior: .disabled) { emptyPage() }
     #expect(disabled.windowDragRegions.isEmpty, "only .enabled publishes a background region")
 }
@@ -183,7 +188,7 @@ private struct ShownPage: Component {
         let model = ShownModel()
         var options = sdlRegions
         options.presentsAlertsNatively = false
-        let window = try dragWindow(options: options) { ShownPage(model: model, alert: alert) }
+        let window = try dragWindow(options: options) { VStack(spacing: Pixels(0)) { ShownPage(model: model, alert: alert) } }
         #expect(!window.windowDragRegions.isEmpty, "closed: a region (alert \(alert))")
         try window.click(window.element(label: "Open"))
         window.tick()
@@ -231,12 +236,13 @@ private struct ShownPage: Component {
                     }
                 }
             }
+            Color.clear.frame(width: Pixels(400), height: Pixels(30))   // 32 + 238 + 30: the column fills the window
         }
     }
     let regions = window.windowDragRegions
     #expect(regions.count <= 64)
     #expect(regions.first == rect(0, 0, 400, 32), "the band is still published")
-    #expect(regions.contains(rect(0, 32, 100, 100)), "so is the handle")
+    #expect(regions.contains(rect(0, 32, 100, 100)), "so is the handle: \(regions)")
     #expect(regions.count == 2, "and nothing of the background: \(regions)")
 }
 

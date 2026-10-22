@@ -11,6 +11,10 @@ import Observation
 /// region); the edges and corners resize; minimise, zoom and close are the window's drawn buttons (SDL) or
 /// the traffic lights (AppKit); the content is not covered by the cluster.
 ///
+/// **Presentation extras** (`BG-G`...`BG-M`, group BG): the window also drags from empty space in the body
+/// (`Window.backgroundDragBehavior = .enabled`, switched by a button), the button, the field and the rest
+/// still work, and a labelled region shows a star-shaped pointer (`PointerStyle.shape`, an even-odd fill).
+///
 /// Nothing here is in the default demo, so the fourteen offscreen images and `Expected.swift` do not move.
 /// Built in its own function and built on a 1 MB thread by `everyProductionTreeBuildsOnAOneMegabyteThread`.
 @MainActor
@@ -29,8 +33,13 @@ public let chromeDemoSize = Size(width: Pixels(900), height: Pixels(560))
 /// Opens the chrome demo in `app` (900 × 560, `.hiddenTitleBar`) — what both demos' `main.swift` call.
 @MainActor
 public func openChromeDemoWindow(_ app: App, title: String, startsDisplayLink: Bool = true) throws -> Window {
-    try app.openWindow(title: title, size: chromeDemoSize, windowStyle: .hiddenTitleBar,
-                       startsDisplayLink: startsDisplayLink, content: chromeDemoContent)
+    let window = try app.openWindow(title: title, size: chromeDemoSize, windowStyle: .hiddenTitleBar,
+                                    startsDisplayLink: startsDisplayLink, content: chromeDemoContent)
+    chromeDemoModel.applyBackgroundDrag = { [weak window] on in
+        window?.backgroundDragBehavior = on ? .enabled : .automatic
+    }
+    chromeDemoModel.applyBackgroundDrag?(chromeDemoModel.backgroundDrag)
+    return window
 }
 
 /// The demo's state.
@@ -43,6 +52,10 @@ public final class ChromeDemoModel {
     public var taps = 0
     /// The search field's text.
     public var search = ""
+    /// Whether the window drags from empty space in the body (`BG-G`); on at launch.
+    public var backgroundDrag = true
+    /// Applies `backgroundDrag` to the demo's window (set by ``openChromeDemoWindow(_:title:startsDisplayLink:)``).
+    var applyBackgroundDrag: (@MainActor (Bool) -> Void)?
 
     /// A fresh model.
     public init() {}
@@ -52,6 +65,7 @@ public final class ChromeDemoModel {
         presses = 0
         taps = 0
         search = ""
+        backgroundDrag = true
     }
 }
 
@@ -94,8 +108,41 @@ struct ChromeDemoBody: Component {
             Text("Window chrome").font(size: 22)
             Text("Drag the empty bar or the handle at its end; resize from any edge or corner.")
             Text("Button presses: \(chromeDemoModel.presses), taps: \(chromeDemoModel.taps), search: “\(chromeDemoModel.search)”")
+            ChromeDemoBackground()
         }
         .alignItems(.flexStart)
         .padding(Pixels(24))
+    }
+}
+
+/// A five-pointed star wound twice, so an even-odd fill leaves its middle pentagon clear.
+@MainActor func chromeDemoStar() -> Path {
+    var path = Path()
+    // The vertices of a pentagon of radius 30 about (32, 32), taken every second one.
+    let corners: [(Float, Float)] = [(32, 2), (49.6, 56.3), (3.5, 22.7), (60.5, 22.7), (14.4, 56.3)]
+    let points = corners.map { Point(x: Pixels($0.0), y: Pixels($0.1)) }
+    path.move(to: points[0])
+    for point in points.dropFirst() { path.addLine(to: point) }
+    path.closeSubpath()
+    return path
+}
+
+/// The presentation-extras section (`BG-G`...`BG-M`), its own `Component` and function so the 1 MB stack
+/// budget sees it on its own: the background-drag switch and a star-pointer region.
+struct ChromeDemoBackground: Component {
+    var content: some ElementGroup {
+        Column(gap: Pixels(8)) {
+            Button("Background drag: \(chromeDemoModel.backgroundDrag ? "on" : "off")") {
+                chromeDemoModel.backgroundDrag.toggle()
+                chromeDemoModel.applyBackgroundDrag?(chromeDemoModel.backgroundDrag)
+            }
+            Text("With it on, drag the window from any empty space below; the star region shows a shape pointer.")
+            Box()
+                .frame(width: Pixels(180), height: Pixels(64))
+                .background(.surfaceSecondary)
+                .pointerStyle(.shape(chromeDemoStar(), eoFill: true, size: Size(width: Pixels(64), height: Pixels(64)),
+                                     fill: .red))
+        }
+        .alignItems(.flexStart)
     }
 }

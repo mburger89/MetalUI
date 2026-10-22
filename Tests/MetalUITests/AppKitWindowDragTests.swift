@@ -3,6 +3,7 @@ import Foundation
 import Metal
 import AppKit
 import MetalUICore
+@testable import MetalUI
 import MetalUIRender
 @testable import MetalUIPlatform
 @testable import MetalUIAppKit

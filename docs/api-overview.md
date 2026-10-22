@@ -416,7 +416,9 @@ ranking (A; SDL has a pinch on macOS, Wayland and X11, and no rotate);
 space (D 139); `PointerStyle` and `.pointerStyle(_:)` (macOS 15's spelling:
 `.default`, the I-beams, `.rectSelection` — the crosshair — the grab hands,
 `.link`, the zooms, the resizes; innermost wins, sent to the platform only on a
-change; a paint-only view does not cover it, D 141). MetalUI-only by ruling,
+change; a paint-only view does not cover it, D 141). `PointerStyle.shape(_:eoFill:size:hotSpot:fill:outline:)`
+(M, D 735: SwiftUI has `shape(_:eoFill:size:)` on visionOS only) draws a `Shape` as a cursor, black with a 1-point
+white outline, rasterized at the display scale and sent as an image cursor (`BG-K`...`BG-M`). MetalUI-only by ruling,
 where SwiftUI has nothing: `.onScrollWheel { (event: ScrollEvent) -> Bool }`
 (deltas precise or lines, phase, momentum phase, modifiers, `location` local;
 offered innermost first before each enclosing `ScrollView`, `true` claims),
@@ -531,6 +533,18 @@ requirements (`setWindowDragRegions(_:) -> Bool`, `performWindowAction(_:) -> Bo
 `isZoomed`), `PlatformWindowAction` and the portable `ChromeHitSnapshot`/`ChromeHit` in `MetalUIPlatform`;
 `MetalUITesting` gains `Options.sdlChrome`, `usesWindowDragRegions`, `hasNativeWindowControls`, `isZoomed`,
 `hiddenTitleBarInsets`, `TestWindow.windowDragRegions` and `.windowActions`. Human checks: group CW, unrun.
+
+**Background window drag** (`BG-G`...`BG-J`, record §144;
+[`superpowers/2026-10-22-presentation-extras-decisions.md`](superpowers/2026-10-22-presentation-extras-decisions.md);
+probe `probes/swiftui-presentation-extras.swift`, the `D` arms). `WindowInteractionBehavior` (A; `.automatic`,
+`.enabled`, `.disabled`, SwiftUI's macOS 15 spelling) and `Window.backgroundDragBehavior` (default `.automatic`;
+M, divergence 736: SwiftUI's `windowBackgroundDragBehavior(_:)` is a `Scene` modifier and MetalUI has no `Scene`).
+Only `.enabled` drags: a single primary press no element claims asks AppKit for the title bar's drag (never
+`isMovableByWindowBackground`, a double click does nothing), and on SDL the content rect carved by every control
+becomes a hit-test region, dropped whole past the 64-rect cap and while a popover, alert or menu is up or the
+window is zoomed (D 737: hover, wheel and pointer-style events in it are lost). A control, a text field, a
+scroller or a `WindowDragGesture` handle never drags from the background; the title band is unchanged.
+Human checks `BG2`, `BG4`.
 
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
