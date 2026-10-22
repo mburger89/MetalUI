@@ -1,13 +1,14 @@
-// `AM-D` (record 146): the two transaction members of a retained key leave it for a record that holds no animation touches.
+// `AM-D`, `AM-L` (record 146): the two transaction members are never part of a retained key.
 //
-// `snappingTransaction` and `disablesAnimations` only decide whether an animation *starts*, which needs a value that changed; a record
-// that stands has none (a changed value moves the serial, fires an observer, or moves a keyed geometry or ambient field) and touches
-// no animation track. A `GestureState.updating` body that sets `disablesAnimations` parks it for one build (`AN-Y`), so every drag
-// frame's root transaction differs from the settle frames': keyed, that is a miss of every panel on the frame the drag starts and on
-// the frame it ends, and one more per panel after it (the second frame of an ambient miss, `AM-C`).
+// `snappingTransaction` and `disablesAnimations` only decide whether an animation *starts*, which needs a value that changed; a changed
+// value is already a miss on its own conjunct (the serial moves, an observer fires, or a keyed geometry or ambient field moves). A
+// `GestureState.updating` body that sets `disablesAnimations` parks it for one build (`AN-Y`), so every drag frame's root transaction
+// differs from the settle frames': keyed, that is a miss of every panel on the frame the drag starts and on the frame it ends, and one
+// more per panel after it (the second frame of an ambient miss, `AM-C`).
 //
-// The rule: a record stores a normalised key when its paint touched no animation entry (`finishRetainedPaint`), and a decision
-// normalises the key it computes when the standing record is touch-free. A record **with** touches keeps both fields.
+// The rule: every key the decisions compute and every key a record stores is normalised (`transactionNormalised`), unconditionally. An
+// earlier build kept both fields for a record with animation touches; it left the drag unchanged because every filled panel touches an
+// animation track, and `AM-L` retired the guard.
 
 extension AmbientKey {
     /// This key with the transaction's two members zeroed.

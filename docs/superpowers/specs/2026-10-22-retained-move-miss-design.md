@@ -1,7 +1,8 @@
 # Retained move miss and the drag ambient miss - design (C14-k, C14-l)
 
 Items C14-k and C14-l, carried from C14-j (record 140, `DM-`). Branch `perf/retained-move-miss` from `b1c1269f`. Rulings `AM-A`...`AM-I` in
-[`../2026-10-22-retained-move-miss-decisions.md`](../2026-10-22-retained-move-miss-decisions.md). Record 146 (written at the Record phase).
+[`../2026-10-22-retained-move-miss-decisions.md`](../2026-10-22-retained-move-miss-decisions.md). Record 146.
+**Status: built and verified** (lane 1 `AM-A`, `AM-B`, `AM-K`; lane 2 `AM-D`...`AM-O`; record 146; `AM-M` and the section 7 residue carried as C14-m).
 Divergence labels 755-764: **none taken**. **No public API** (every new declaration is `package` or internal; no inventory row; census unmoved).
 No SwiftUI probe and no gpui comparison: no observable behaviour moves (output is value-identical to a retention-off twin, `AM-H`).
 
