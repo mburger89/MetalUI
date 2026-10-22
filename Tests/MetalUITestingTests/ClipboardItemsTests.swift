@@ -78,9 +78,9 @@ struct Counted: Transferable {
     #expect(m.log == ["button"], "nothing importable: declined, the Button's shortcut ran")
     // Separating arm: a Blob between two Graphs is the one value.
     func graphItem(_ label: String) -> ClipboardItem {
-        ClipboardItem(payloads: [ClipboardPayload(type: Graph.contentType.pasteboardType, bytes: .now(Array("graph:\(label)".utf8)))])
+        ClipboardItem(payloads: [ClipboardPayload(type: PasteboardType(identifier: Graph.contentType.identifier), bytes: .now(Array("graph:\(label)".utf8)))])
     }
-    let blob = ClipboardItem(payloads: [ClipboardPayload(type: Blob.contentType.pasteboardType, bytes: .now([7]))])
+    let blob = ClipboardItem(payloads: [ClipboardPayload(type: PasteboardType(identifier: Blob.contentType.identifier), bytes: .now([7]))])
     window.setClipboard(items: [graphItem("x"), blob, graphItem("y")])
     window.typeKey("v", modifierFlags: primary)
     #expect(m.blobs == [[Blob(bytes: [7])]])
