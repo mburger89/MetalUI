@@ -301,7 +301,7 @@ private struct ParamHolder: Component {
 // C14-c (`EE-H`) split the old test 2.5, which pinned `@Environment` and `@FocusState` as refused together: a reader of a
 // comparable `@Environment` value is memoized by its reading now (`EnvironmentEpochWindowTests` W1–W4, W6, W7); what
 // remains refused is pinned there too — `aReaderOfAFunctionKeyIsRefusedAndStillEvaluates` (W5, an uncomparable
-// reading) and `aFocusStateComponentStaysRefused` (W8, `@FocusState`), divergence 346's remainder.
+// reading), divergence 346's remainder. `@FocusState` was memoized by C14-i (`RZ-I`; `FocusStateMemoTests`).
 
 // MARK: 2.6 — a skipped subtree keeps its state and its identity
 

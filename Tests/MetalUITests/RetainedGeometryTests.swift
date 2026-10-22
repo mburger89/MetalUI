@@ -165,10 +165,12 @@ func theDeliveredValuesEqualAFreshWindowsOverAScript() throws {
     #expect(on.contains { $0.hasPrefix("shift: A") }, "the shift delivers: \(on)")
 }
 
-/// 4 (`RG-A`). A `.scaleEffect` above the occurrences changes: the ledger misses (no prepaint hit that frame) and the new value is
-/// delivered, equal to a fresh window's. Mutation: leave the effect out of the ambient comparison in `PrepaintKey`.
+/// 4 (`RG-A`, amended by `RZ-B`). A `.scaleEffect` above the occurrences changes: at `RG-A` the ledger missed (no prepaint hit that
+/// frame); since C14-i the change is affine, the ledger replays and its notes are **recomputed** under the new map (`translatedGeometryNotes`),
+/// the new value delivered equal to a fresh window's. Mutation: leave the effect out of the ambient comparison in `PrepaintKey`
+/// (the replay is taken under a stale ambient and the delivered values differ).
 @Test(.enabled(if: !rgVerifying, rgVerifyNote)) @MainActor
-func aGeometryNoteUnderAChangedRenderEffectMissesAndDelivers() throws {
+func aGeometryNoteUnderAChangedRenderEffectIsRecomputedAndDelivers() throws {
     func run(retained: Bool) throws -> (log: [String], hits: Int) {
         let (w, model, log) = try rgWindow(.effect, retained: retained)
         rgRedraw(w, 6)
@@ -182,7 +184,7 @@ func aGeometryNoteUnderAChangedRenderEffectMissesAndDelivers() throws {
     let on = try run(retained: true), off = try run(retained: false)
     #expect(on.log == off.log, "\(on.log) vs \(off.log)")
     #expect(on.log.count == 2, "both cards report the scaled frame: \(on.log)")
-    #expect(on.hits == 0, "the changed effect misses: \(on.hits)")
+    #expect(on.hits > 0, "the changed effect replays and recomputes the note: \(on.hits)")
 }
 
 /// 5 (`RG-C`, superseded by `RL-E`). A whole-pixel shift of the occurrences (the header above grows 4 points; offset, size and effect

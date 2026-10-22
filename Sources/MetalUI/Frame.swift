@@ -3925,6 +3925,8 @@ extension PrepaintExtras {
     // Indices into an `effects` vector.
     static let effectA = 0, effectB = 1, effectC = 2, effectD = 3, effectTx = 4, effectTy = 5
     static let effectHasInverse = 6, inverseTx = 11, inverseTy = 12, effectOuterClip = 13
+    /// The saved clip base, and (`RZ-B`) whether the effect's own map flattens at paint.
+    static let effectClipBase = 17, effectFlattens = 18
 
     /// The translation in points that turns `old`'s effects into these (`RK-G`, `RK-S`), or `nil` when the two differ in
     /// anything else. Only the innermost effect's composed map reaches a hitbox, so every effect's composed
@@ -3955,6 +3957,44 @@ extension PrepaintExtras {
             }
         }
         return (dx, dy)
+    }
+}
+
+/// How the render effects around an occurrence changed between a ledger and now (`RZ-B`).
+enum EffectChange: Equatable {
+    /// A pure pan: every effect's composed translation moved by the same amount or not at all (`RK-G`, `RK-S`).
+    case translation(dx: Double, dy: Double)
+    /// The affine numbers of one or more effects changed (a zoom, a rotation, or both): hitboxes, accessibility records and
+    /// geometry notes are re-derived from the current effect, never moved by a delta (`RZ-A`, `RZ-D`).
+    case affine
+    /// A change a re-entry of the live scopes cannot reproduce, named (`effectScopeChanged`, `effectCountChanged`,
+    /// `effectFlatteningChanged`, `effectInverseChanged`, `effectClipChanged`).
+    case refused(String)
+}
+
+extension PrepaintExtras {
+    /// What changed from `old`'s effects to these (`RZ-B`): the translation arm exactly as `translation(from:)` answers it, else an
+    /// affine change when everything but the six affine numbers (and the inverse's six) of each effect is equal, else a named
+    /// refusal. The paint-visible class of each effect (`flattens`) must be equal, so a prepaint replay never outlives its paint's.
+    func change(from old: PrepaintExtras) -> EffectChange {
+        if let delta = translation(from: old) { return .translation(dx: delta.dx, dy: delta.dy) }
+        guard effects.count == old.effects.count else { return .refused("effectCountChanged") }
+        var rest = self, oldRest = old
+        rest.effects = []; oldRest.effects = []
+        // Something other than the effects differs (a scroller, a gate, the share stack): not an effect change at all.
+        guard rest == oldRest else { return .refused("prepaintContextChanged") }
+        guard !effects.isEmpty else { return .refused("effectScopeChanged") }
+        var changed = false
+        for (new, was) in zip(effects, old.effects) {
+            guard new.count == was.count, new.count > Self.effectFlattens else { return .refused("effectScopeChanged") }
+            if new[Self.effectFlattens] != was[Self.effectFlattens] { return .refused("effectFlatteningChanged") }
+            if new[Self.effectHasInverse] != was[Self.effectHasInverse] { return .refused("effectInverseChanged") }
+            for index in Self.effectOuterClip...Self.effectClipBase where new[index] != was[index] {
+                return .refused("effectClipChanged")
+            }
+            if new != was { changed = true }
+        }
+        return changed ? .affine : .refused("effectScopeChanged")
     }
 }
 
@@ -4008,6 +4048,9 @@ extension Frame {
             let c = effect.outerClip
             v += [Double(c.origin.x.value), Double(c.origin.y.value), Double(c.size.width.value),
                   Double(c.size.height.value), Double(effect.savedClipBase)]
+            // Whether the paint scope for this effect flattens (a uniform positive scale plus a translation, `GX-G`): an affine
+            // change that crosses that class is a different paint scope kind and is refused by name (`RZ-B`).
+            v.append(effect.map.isUniformPositiveScaleTranslation ? 1 : 0)
             effects.append(v)
         }
         let scroller = activeScrollerFrame
@@ -4121,7 +4164,9 @@ extension Frame {
     /// map that takes a window point there moves by the opposite amount. `nil` when any hitbox sits outside every
     /// effect, carries an outer clip other than the ambient one (its clip depended on the translation), or would
     /// round (the move must be exact in `Double`, checked by round trip).
-    func translatedHitboxes(of ledger: PrepaintLedger, by delta: (dx: Double, dy: Double)) -> [Hitbox]? {
+    /// With no `delta` (an affine change, `RZ-D`) the last arm, which applies a delta to an inner effect's inverse and is exact only
+    /// under an identity linear part, refuses.
+    func translatedHitboxes(of ledger: PrepaintLedger, by delta: (dx: Double, dy: Double)?) -> [Hitbox]? {
         guard let ambient = ledger.key.extras.effects.last else { return nil }
         let outer = Bounds(origin: Point(x: Pixels(Float(ambient[PrepaintExtras.effectOuterClip])),
                                          y: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 1]))),
@@ -4163,7 +4208,7 @@ extension Frame {
             }
             // Registered inside an effect opened within the occurrence, no chain recorded: moved by the delta, exact only under an
             // identity linear part.
-            guard inverse.a == 1, inverse.b == 0, inverse.c == 0, inverse.d == 1 else { return nil }
+            guard let delta, inverse.a == 1, inverse.b == 0, inverse.c == 0, inverse.d == 1 else { return nil }
             let tx = inverse.tx - delta.dx, ty = inverse.ty - delta.dy
             guard tx + delta.dx == inverse.tx, ty + delta.dy == inverse.ty else { return nil }
             out[index].transform = HitboxTransform(

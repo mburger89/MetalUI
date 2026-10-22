@@ -2405,6 +2405,9 @@ No real window was driven (the screen was locked, `CGSSessionScreenIsLocked = 1`
 
 No real window, no D3D12 device and no 3D viewport app were driven (an agent cannot; CI compiles Windows only). **Owed, new here — `docs/verification/human-checks.md` group GB, none performed**: GB1 anisotropy 1 against 16 on a grazing plane on Metal, Vulkan and D3D12, GB2 the viewport, scissor, depth-only prepass, `r32Float` and synchronous download pins' behaviour on real D3D12, GB3 the main-actor stall of `downloadSynchronously` and the pipeline-failure text in a real viewport app. Owed, not a look: the Linux-image and fourteen-image re-takes at the final head (record §137 §3).
 
+## 2026-10-21: retained zoom (record §133) — looks owed, group RZ
+
+No real window was driven, no VoiceOver and no MetalCreator run (an agent cannot; the screen was locked at the lane checks). **Owed, new here — `docs/verification/human-checks.md` group RZ, none performed**: RZ1 the demo's zoom strip (sharpness at each scale, hover and click under a moving pointer), RZ2 VoiceOver on a zoomed `.equatable()` canvas, RZ3 `@FocusState` readers under `.equatable()`. Owed, not a look: the Linux-image re-take on the merged tree and the demo launch once the screen is unlocked (record §133).
 ## 2026-10-21: lazy containers (record §134) — looks owed, group LZ
 
 No real window was driven (the screen was locked, `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`) and an agent cannot run VoiceOver. **Owed, new here — `docs/verification/human-checks.md` group LZ, none performed**: LZ1 fast-scrolling 10 000 variable-height rows, LZ2 the adaptive grid's first frame (divergence 638), LZ3 VoiceOver on realised rows only, LZ4 resizing an adaptive grid, LZ5 the demo on SDL (carried: only `MetalUIDemo` wires it). Owed, not a look: the unlocked-screen `AppKitPresentationTests` re-take and the Linux-image re-take on the merged tree (record §134 §5).

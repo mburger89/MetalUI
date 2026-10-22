@@ -587,7 +587,7 @@ MetalUI	Sources/MetalUI/EquatableComponent.swift:31	EquatableComponent	typealias
 MetalUI	Sources/MetalUI/EquatableComponent.swift:33	EquatableComponent	func	requestGroupLayout
 MetalUI	Sources/MetalUI/EquatableComponent.swift:108	EquatableComponent	func	prepaintGroup
 MetalUI	Sources/MetalUI/EquatableComponent.swift:153	EquatableComponent	func	paintGroup
-MetalUI	Sources/MetalUI/EquatableComponent.swift:214	Component	func	equatable
+MetalUI	Sources/MetalUI/EquatableComponent.swift:216	Component	func	equatable
 MetalUI	Sources/MetalUI/ExplicitIdentity.swift:5	-	struct	IdentifiedGroupLayout
 MetalUI	Sources/MetalUI/ExplicitIdentity.swift:47	-	struct	IdentifiedGroup
 MetalUI	Sources/MetalUI/ExplicitIdentity.swift:49	IdentifiedGroup	var	content
@@ -3422,9 +3422,10 @@ MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:60	Retai
 MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:62	RetainedSubtreeDemoModel	var	reasons
 MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:64	RetainedSubtreeDemoModel	var	translationRefusals
 MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:66	RetainedSubtreeDemoModel	var	shiftHeader
-MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:78	RetainedSubtreeDemoModel	init	init
-MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:92	RetainedSubtreeDemoModel	func	reset
-MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:119	-	let	retainedSubtreeDemoModel
+MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:68	RetainedSubtreeDemoModel	var	zoom
+MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:80	RetainedSubtreeDemoModel	init	init
+MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:94	RetainedSubtreeDemoModel	func	reset
+MetalUIDemoContent	Sources/MetalUIDemoContent/RetainedSubtreeDemo.swift:122	-	let	retainedSubtreeDemoModel
 MetalUIDemoContent	Sources/MetalUIDemoContent/RichTextDemo.swift:25	-	func	richTextDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/SelectionDemo.swift:25	-	func	selectionDemoContent
 MetalUIDemoContent	Sources/MetalUIDemoContent/SelectionDemo.swift:33	-	class	SelectionDemoModel

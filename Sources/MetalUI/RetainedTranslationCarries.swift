@@ -69,7 +69,10 @@ extension Frame {
     /// `moved` is unchanged, the composed map is the current ambient's (followed through the recorded steps of an effect the
     /// occurrence opened, the walk the accessibility records share), the proxy is rebuilt and the transform runs. A named space
     /// moves with the ambient effect's translation when its linear part is dyadic, else it refuses (`geometryNamedSpace`).
-    func translatedGeometryNotes(_ notes: [GeometryNoteRecord], ledger: PrepaintLedger) -> TranslationOutcome<[GeometryNoteRecord]> {
+    func translatedGeometryNotes(_ notes: [GeometryNoteRecord], ledger: PrepaintLedger, affine: Bool = false)
+        -> TranslationOutcome<[GeometryNoteRecord]> {
+        // A named space moves by a translation only, so under a changed linear part a note holding one refuses (`RZ-E`).
+        if affine, notes.contains(where: { !$0.namedSpaces.isEmpty }) { return .refused("geometryNamedSpace") }
         guard let ambient = prepaintEffects.last, let recorded = ledger.key.extras.effects.last, recorded.count > PrepaintExtras.effectTy
         else { return .refused("geometryUnrecorded") }
         let base = prepaintEffects.count

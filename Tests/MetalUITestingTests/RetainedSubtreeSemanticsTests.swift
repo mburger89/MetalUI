@@ -832,10 +832,11 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
     let f = on.lastFrameWork
     let reaction = f.retainedMisses + f.retainedIneligible
     #expect(f.retainedHits + reaction == 2)
-    if arm == .offsetEffect {
-        // `RK-S`: the translation of an outer effect is the one key component that no longer separates; the probe
-        // replays at its new place (translated) and the scene equals the fresh one (the differential below).
-        if !rsVerifying { #expect(reaction == 0 && f.retainedTranslated == 1, "offsetEffect: hits \(f.retainedHits) translated \(f.retainedTranslated)") }
+    if arm == .offsetEffect || arm == .rotation {
+        // `RK-S`: the translation of an outer effect no longer separates; the probe replays at its new place (translated) and
+        // the scene equals the fresh one (the differential below). Since C14-i (`RZ-B`) the same holds for an affine change of
+        // the effect, a rotation from 5 to 3 degrees here: the live scopes are entered with the new map.
+        if !rsVerifying { #expect(reaction == 0 && f.retainedTranslated == 1, "\(arm.rawValue): hits \(f.retainedHits) translated \(f.retainedTranslated)") }
     } else if arm == .topRect || arm == .flexRect {
         // `FS-D` (C14-d): an occurrence that only **moved** (neither its size nor its subtree changed) replays translated, so the
         // neighbour of a padding or of a resized sibling no longer misses; these two arms used to read that miss as the

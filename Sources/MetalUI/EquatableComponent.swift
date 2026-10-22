@@ -47,9 +47,9 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         var materialized: C.Content
         var entry: ContentMemoStore.Entry?
         let key = ContentMemoStore.Key(id: id, type: ObjectIdentifier(C.self))
-        if let shape = StateBinder.memoShape(of: C.self), !shape.refused,
+        if let stateOrdinals = StateBinder.memoShape(of: C.self),
            !readings.contains(where: \.isUncomparable) {   // an uncomparable reading is refused (`EE-B`)
-            let stateIDs = shape.stateOrdinals.map {
+            let stateIDs = stateOrdinals.map {
                 GlobalElementID.child(of: id, at: $0, name: ElementID("$state\($0)"))
             }
             materialized = store.materialize(component, id: id, stateIDs: stateIDs, table: table, readings: readings) {
@@ -193,8 +193,10 @@ extension Component where Self: Equatable {
     /// `Equatable` value by `==`, a class by identity, an `@Observable` object by instance
     /// (its read properties by the observation session) — and a synthesized `==` cannot see
     /// an `Environment` property, so write `==` over the stored inputs. A declared property
-    /// the getter never reads still counts. **A component is evaluated every frame and
-    /// counted as a refusal** when it declares `@FocusState` or reads an environment value
+    /// the getter never reads still counts. **A `@FocusState` is a
+    /// slot like `@State`**: a focus change the window reconciles writes it, so the component
+    /// is evaluated again when its own focus state moves and skipped otherwise. **A component
+    /// is evaluated every frame and counted as a refusal** when it reads an environment value
     /// that cannot be compared (a closure, a struct holding one, `\.self`).
     ///
     /// **What is saved.** The getter, and — when the occurrence is laid out where it
