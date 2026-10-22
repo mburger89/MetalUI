@@ -9,7 +9,7 @@ SwiftUI's side: `docs/probes/swiftui-list-row-identity.swift` (arms L1–L3, run
 2026-10-22, output in its header; positive control L3, separating arm L2).
 gpui has no analogue (caller-supplied typed ids), so SwiftUI decides.
 
-**Next unused id: `LH-J`.** (Read the last `## LH-` heading, not this line, if
+**Next unused id: `LH-L`.** (Read the last `## LH-` heading, not this line, if
 they disagree.)
 
 ## LH-A — a `List` row is identified by its id's Hashable value; divergence 255 is retired
@@ -105,3 +105,16 @@ by a keyed twin of `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`.
 renderer or platform change (none); splitting into two lanes (three sites in one file). Accepted: test 7 is a
 characterization (labelled), and a keyed row owes an arm in `everyNamingSiteStartsAReturningNameFresh` (ID-R) if
 `noteNamed` is reached through `elementID` only.
+
+## LH-J — built as designed; one mutation has no site, the cold frame is not a window
+
+**Ruling.** The three sites and `ElementID.forRow(_:keyed:)` are built exactly as `LH-B` and `LH-D` rule. Two findings, neither a design change:
+(1) the spec's M1b (the variable path's call alone) names a site that does not exist: both `List` forms realise rows in the one `List.build` loop, so there is
+one call and no fork to guard; the pins run both paths instead. (2) A `List` in a `ScrollView` has no viewport on its first frame and realises every row
+(`MP-I`), so `listIdentityWork.rows` reads the row count there; `LH-E`'s "the same at 500 and 100k" is the **warm** frame (5 rows uniform, 9 content-sized).
+**Cost if wrong.** A pin that took the cold frame as the window would read O(n); it asserts the cold figure separately.
+
+## LH-K — `ID-R` owes no arm for a keyed row
+
+**Ruling.** `StateTable.noteNamed` ignores ids under a windowed parent (`TB-AH`), so a `List` row never reaches `ID-R`'s reset, keyed or not; the critic's
+conditional (LH-I) does not fire. The keyed row's lifetime is pinned by `aKeyedListRowsStateSurvivesABoundedExcursionButNotALongerOne` (`LH-H`).

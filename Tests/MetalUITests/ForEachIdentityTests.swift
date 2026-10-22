@@ -15,7 +15,8 @@ import MetalUICore
 // `Twin`'s description is always "twin", so every pair prints alike and differs
 // in value. State is read through `ConditionalCounter` (a count that steps by
 // `step` per frame), so a shared entry or a position-bound one reads a
-// different number than an own, id-bound one.
+// different number than an own, id-bound one. The `List` residue (`FI-I`,
+// divergence 255) was fixed in record §145; `ListRowIdentityTests` holds its pins.
 
 private let size = Size<Pixels>(width: Pixels(200), height: Pixels(100))
 private let root = GlobalElementID.child(of: nil, at: 0, name: nil)
