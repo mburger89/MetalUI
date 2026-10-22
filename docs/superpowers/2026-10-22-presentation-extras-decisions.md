@@ -9,7 +9,7 @@ the earlier `swiftui-overlays-coords.swift` `B0`–`B2` (`OV-C`'s evidence), `sw
 (the app decides per element; no scene-level switch): nothing is claimed from gpui for the three items.
 Divergence labels **735–744 reserved**; 735–737 are planned (rows written in the lane that builds them), 738–744 unused.
 
-Prefix **`BG-`**, lettered. **Next unused: `BG-S`.** (Moves in the commit that appends a ruling.)
+Prefix **`BG-`**, lettered. **Next unused: `BG-T`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `OV-C` (the deferral this closes: "a fill only, the border and shadow kept"), `CR-T`/`Frame.beginPresentationPreferences` (a presentation
 collects its own reports), `AS-D` (first report in post-order wins), `MN-M` item 5 (the panel), `MT-` (every material site draws through
@@ -254,4 +254,24 @@ not `MetalUITests`; the AppKit arm (`appKitBackgroundPressDragsOnlyDuringAMouseD
 **Demo.** `chromeDemoContent` gains `ChromeDemoBackground` (its own `Component` and the star path in its own function): a `Background drag` switch applied through
 `ChromeDemoModel.applyBackgroundDrag` (set by `openChromeDemoWindow`; **a public `ChromeDemoModel.backgroundDrag` field, class M**) and a star-shaped pointer region (`eoFill`).
 The default demo is untouched, so the fourteen images do not move.
+
+## BG-S — Lane 2 measured: mutations, the two pins strengthened, and a trap the 1 MB harness found
+
+**Evidence (mutations, filtered family set of 62 tests: the lane's 23, `WindowChromeTests`, `ImageCursorTests`; each applied over the committed tree, built, run, restored with `git checkout`, `git status --short` empty after each; the full unfiltered suite ran on the unmutated tree before and after).**
+`M1` the behavior check dropped -> `automaticAndDisabledNeverDragFromTheBackground` and `appKitBackgroundPressDragsOnlyDuringAMouseDown`. `M1b` `.automatic` treated as `.enabled` -> 16 plus 23 existing/new region tests (the chrome tests hold a window with
+default `.automatic`). `M2a` `active == nil` dropped -> `aPressOnAnOpaqueTargetANestedGestureOrAHandleNeverDragsFromTheBackground`. **`M2b` the arena check dropped reddened nothing** at first: `DragGesture` and `onClick` both make an opaque target, so `active` already
+blocks them; the case only the arena check catches is a **draggable** (non-opaque arena member, `DN-`), so the test gained that arm and `M2b` now reddens it. `M3` `clickCount` passed through -> `aSecondaryPressAndADoubleClickOnTheBackgroundDoNotDrag` and the AppKit arm. `M3b` a region platform also asked
+-> `aChangeOfBehaviorRepublishesTheRegionsOnceAndNeverOnAnEqualFrame` (its last arm). `M4` the band gated on `.enabled` -> `theTitleBandKeepsItsDragWhateverTheBehavior`. `M5` background carved by nothing -> `theBackgroundRegionIsTheWindowCarvedByEveryBlocker`,
+`aWindowWideOpaqueBackdropLeavesNoBackgroundRegion`, `aTooFragmentedBackgroundIsDroppedWholeNotCutShort`. `M6` the band's backdrop exemption reused for the background -> `aWindowWideOpaqueBackdropLeavesNoBackgroundRegion` (its first arm). `M7` zoomed arm dropped ->
+`theBackgroundRegionIsEmptyWhileAPopoverADrawnAlertOrAMenuIsOpenAndWhileZoomed`. `M8` the cut list kept -> `aTooFragmentedBackgroundIsDroppedWholeNotCutShort`. `M9` the setter does not dirty -> `aChangeOfBehaviorRepublishes…`, the region tests that set the behavior after open.
+Shape: `S1` raster at scale 1 -> `aShapeCursorIsAnImageCursorOfTheShapeRasterizedAtTheDisplayScale` (by an out-of-range pixel read: the run ends without a summary line, the test reddens by trap). `S2` always nonzero -> `eoFillLeavesTheHoleOfAnOverlappingPathTransparent`. `S3` a cache that never hits ->
+`theShapeCursorCacheKeepsTheEightMostRecentlyUsed` (and the raster count of 29 reads it). `S4` the outline ignored by the style -> `aDifferentSizeScaleHotSpotOrColourIsAnotherCursor`. `S5` the hot spot from the bitmap origin -> `theShapeCursorHotSpotIsTheCentreByDefaultAndClampsOutsideTheUnitSquare`. `S6` no 128 clamp ->
+`aNonFiniteOrEmptySizeFallsBackToTheArrowAndAnOversizedOneClampsTo128`. `S7` no eviction -> `theShapeCursorCacheKeepsTheEightMostRecentlyUsed`. **`S8` (a note of rasterized pixels at send time) reddened nothing**: the frame zeroes its counters at its start, so work done outside a frame is
+invisible to `lastRasterizedPixels`; test 34 now also reads `RasterCache.keyProbes` (never reset), and `S8` as a coverage lookup at send time reddens `aShapeCursorCostsNoFrameRasterWork`. `S9` a scale change leaving the sent style -> `aShapeCursorUnderAScaleChangeIsReSentOnceAtTheNewScale`.
+Guards (each mutated red once, the other arms green): `G1` a fourth `WindowInteractionBehavior` value -> `windowInteractionBehaviorOffersExactlyThreeValues`; `G2` the setter `internal` -> `theBackgroundDragBehaviorIsSettableFromOutsideTheModule` (read with `--target MetalUI`, the demo
+module refusing the assignment too); `G3` `size:` defaulted -> `theShapeCursorSpellingTypechecksWithTheVisionOSCall`. **`aBackgroundRegionReachesTheSDLHitTestSnapshot` is a characterization** of a platform answer no lane-2 source changes: no mutation of this lane reddens it.
+
+**A closure inside the star path trapped the stack-budget test.** `chromeDemoStar()` first built its points with `.map { … }`: a main-actor closure handed to a stdlib generic checks its isolation per call, and the 1 MB harness builds on a secondary thread (`HP-C`):
+`everyProductionTreeBuildsOnAOneMegabyteThread` read `.signal(SIGTRAP)` (not an overflow: an 8 MB thread trapped too). Plain calls fix it; the new section stays in the test. **Rulings.** (1) A demo section takes no closure over a main-actor value in a stdlib generic. (2) An SDL-like platform's bordered
+window with a whole-window region answers `.draggable` at its edge (no resize edge of its own, `CW-G`), pinned in the SDL test.
 
