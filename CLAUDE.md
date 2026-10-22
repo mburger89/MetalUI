@@ -1586,8 +1586,9 @@ UUID, Bool, Character, Double, Float) every element's `ElementID` also carries a
 today's description-only names, byte for byte (`FI-B`). `GlobalElementID.==`/`cachedHash` are
 untouched (`FI-C`); a floating-point id keeps the name dedupe because a NaN is unequal to itself
 (`FI-K`). `ElementID` is 24 bytes, a `GlobalElementID` the same 64-byte malloc bucket (`FI-G`).
-**`List` rows still name by description** (divergence 255, `FI-I`): a fix reuses
-`ElementID(name:key:)` and owns the 100k work re-take.
+**`List` rows name by value too** (`LH-`, record §145; divergence 255 retired): `ElementID.forRow(_:keyed:)` is
+`ElementID(name:key:)` with `keyed` decided once per build at the row, the `DD-K` scroll note and the AX selection map
+(three sites); injective ids are byte-identical and pay nothing, `Frame.listIdentityWork` counts per realised row.
 
 **Animation (`AN-`).** `withAnimation` = `withTransaction`; the frame's
 transaction is a stack; `.transaction`/`.animation(_:value:)` are transparent

@@ -10,8 +10,8 @@ import MetalUILayout
 /// components are assigned by the cursor walking the built children, so a row
 /// built only while visible lands on a different position when it returns —
 /// the vanishing-`if` hazard made routine. `Data.Element: Identifiable` is
-/// what stops that: each row is wrapped under `.named(ElementID(String(describing:
-/// datum.id)))`, which survives a reorder because a name replaces a position
+/// what stops that: each row is wrapped under a `.named` component (`ElementID.forRow`, the id's
+/// value, `LH-A`), which survives a reorder because a name replaces a position
 /// rather than joining it. **It is also what makes windowing safe**: a row
 /// built only while its index is inside the window still lands on the same
 /// `GlobalElementID` every time it comes back into view, because its identity
@@ -85,15 +85,15 @@ import MetalUILayout
 /// `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`
 /// (`FocusTests.swift`), each of which asserts both halves.
 ///
-/// **`String(describing:)` is not injective, and this is a real, unguarded
-/// gap.** Two distinct ids that happen to describe to the same string — e.g.
-/// `AnyHashable("1")` and `AnyHashable(1)`, both `"1"` — collide into the SAME
-/// `GlobalElementID`, so their rows silently share one `StateTable` entry.
-/// Not fixed here: `ElementID` is `String`-backed, so `String(describing:)` is
-/// the only bridge available, and changing that is a framework-wide job well
-/// outside this milestone. A caller whose `Data.Element.ID` is not already
-/// string-shaped (or is a wrapper like `AnyHashable`) must ensure distinct
-/// ids describe distinctly.
+/// **A row is identified by its id's Hashable value** (`LH-A`, divergence 255
+/// retired), as a `ForEach` element is (`FI-A`): two ids that print alike
+/// (`AnyHashable("1")` and `AnyHashable(1)`, a struct with a constant
+/// `description`) and differ in value are two rows with separate `@State`. The
+/// row's component is `ElementID.forRow(_:keyed:)`, `ElementID(name:key:)` as
+/// `ForEach` mints it; an id type that prints injectively (`Int`, `String`,
+/// `UUID`, ...) takes today's plain name, byte for byte, and pays nothing
+/// (`LH-C`). Equal values are one row; a duplicate id in `data` stays the
+/// `Identifiable` precondition.
 ///
 /// **A uniform `rowHeight` is what makes windowing O(visible) by division.**
 /// Every row's own height is pinned to `rowHeight`, so a row's position is
@@ -509,10 +509,12 @@ where Data.Element: Identifiable {
         // `DD-K`: while a `scrollTo` is pending, each realised row's `datum.id`
         // is its typed key, so a row keyed `2` is not reached by `"2"` through
         // its `String` name. The row is named directly under the list.
+        // `LH-B`: decided once per build (`FI-B`), not per row.
+        let keyed = !(Data.Element.ID.self is DescriptionInjectiveID.Type)
         if pass.frame.notesScrollKeys {
             for datum in data[windowStart..<windowEnd] {
                 let rowID = GlobalElementID.child(of: id, at: 0,
-                                                  name: ElementID(String(describing: datum.id)))
+                                                  name: ElementID.forRow(datum.id, keyed: keyed))
                 pass.frame.noteScrollKey(rowID, AnyHashable(datum.id))
             }
         }
@@ -524,11 +526,13 @@ where Data.Element: Identifiable {
         let reader = selection.reader()
         let table = pass.frame.stateTable
         let rows: [Box<Row>] = data[windowStart..<windowEnd].enumerated().map { offset, datum in
-            // `String(describing:)` is the collision the type doc names —
-            // distinct `datum.id`s that describe the same string land here as
-            // the same `GlobalElementID`.
+            // `LH-A`: the row is named by its id's Hashable value, as a `ForEach`
+            // element is (`FI-A`): ids that print alike and differ in value are two rows.
+            // Assigned, not `.id(_:)`, which mints a key-less component.
             var rowBox = Box(style: rowStyle, content: { row(datum) })
-                .id(String(describing: datum.id))
+            rowBox.elementID = ElementID.forRow(datum.id, keyed: keyed)
+            pass.frame.listIdentityWork.rows += 1          // `LH-E`, counted per realised row
+            if keyed { pass.frame.listIdentityWork.keyed += 1 }
             if indexesRows { rowBox.handlers.axNode.logicalIndex = window.lowerBound + offset }
             if let reader {
                 let selected = reader(datum.id)
@@ -1171,8 +1175,9 @@ extension List {
         { [weak table] action in
             guard let request = action as? AccessibilityRowSelection, let table else { return }
             var byRow: [GlobalElementID: Data.Element.ID] = [:]
+            let keyed = !(Data.Element.ID.self is DescriptionInjectiveID.Type)   // `LH-B`, `LH-D` site 3
             for datum in data {
-                byRow[GlobalElementID.child(of: list, at: 0, name: ElementID(String(describing: datum.id)))] = datum.id
+                byRow[GlobalElementID.child(of: list, at: 0, name: ElementID.forRow(datum.id, keyed: keyed))] = datum.id
             }
             let picked = request.rows.compactMap { byRow[$0] }
             guard picked.count == request.rows.count else { return }
