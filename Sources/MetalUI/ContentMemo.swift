@@ -152,7 +152,15 @@ package final class ContentMemoStore {
         /// Whether this occurrence's build and prepaint must open an observation window this frame
         /// (`SB-V`): when it has no record, or its record covers only its paint. A valid, completely
         /// covered record keeps the sessions of the frame it was made in armed, so a steady hit opens none.
-        @MainActor var needsObservation: Bool { record == nil || record?.coverageComplete == false }
+        ///
+        /// **A certain miss observes too** (`DM-C`, `DM-J`): a changed occurrence (its getter ran, so the serial moved past the record's, or a
+        /// read fired) misses at paint whatever its windows saw, and the record that miss makes must cover them or the next, unchanged frame
+        /// misses on `coverage` (the double miss). The value decision and the serial bump are made by `materialize` before this is read
+        /// at build, and `observedChange`/`serial` do not move between build and prepaint, so both windows read the same answer.
+        @MainActor var needsObservation: Bool {
+            guard let record else { return true }
+            return !record.coverageComplete || record.contentSerial != serial || observedChange
+        }
         let buildSession = RetainedSession("build")
         let prepaintSession = RetainedSession("prepaint")
         let paintSession = RetainedSession("paint")

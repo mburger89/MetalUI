@@ -26,6 +26,8 @@ enum DMArm: String, CaseIterable, Sendable, CustomStringConvertible {
     case value, observed, ledgerGain
     /// A node's own width follows its value by a fractional device pixel, so every later node is moved by a delta the translation refuses (a key-only miss with an equal value, `DM-D`).
     case moved
+    /// The node holds a nested `.equatable()` inner view that reads the observed radius: the outer's own getter does not run, a descendant's does (`DM-L`: the outer's build window was closed, its prepaint window opens once the descendant ran).
+    case nested
     var description: String { rawValue }
 }
 
@@ -40,6 +42,7 @@ struct DMNode: Component, @MainActor Equatable {
             RoundedRectangle(cornerRadius: Pixels(4)).fill(Color(red: 0.2 + shown * 0.1, green: 0.4, blue: 0.7))
                 .frame(width: Pixels(arm == .moved ? 90 + Float(value) * 0.3 : 90), height: Pixels(10))
             Text("node \(index)").frame(width: Pixels(90), height: Pixels(12))
+            if arm == .nested, let model { DMInner(index: index, model: model).equatable() }
             Button("go \(index)") {}.frame(width: Pixels(90), height: Pixels(16))
             if arm == .ledgerGain, let model {
                 TextField("t", text: Binding(get: { model.texts[index] }, set: { model.texts[index] = $0 }))
@@ -50,13 +53,22 @@ struct DMNode: Component, @MainActor Equatable {
     static func == (l: DMNode, r: DMNode) -> Bool { l.index == r.index && l.value == r.value && l.arm == r.arm && l.model === r.model }
 }
 
+struct DMInner: Component, @MainActor Equatable {
+    let index: Int
+    let model: DMModel
+    var content: some ElementGroup {
+        Rectangle().fill(Color(red: 0.1 + model.params[index].radius * 0.1, green: 0.5, blue: 0.3)).frame(width: Pixels(90), height: Pixels(6))
+    }
+    static func == (l: DMInner, r: DMInner) -> Bool { l.index == r.index && l.model === r.model }
+}
+
 struct DMParent: Component {
     let model: DMModel
     let arm: DMArm
     var content: some ElementGroup {
         HStack(alignment: .top, spacing: 6) {
             ForEach(Array(0..<8), id: \.self) { i in
-                DMNode(index: i, value: arm == .observed ? 1 : model.values[i], model: model, arm: arm).equatable()
+                DMNode(index: i, value: arm == .observed || arm == .nested ? 1 : model.values[i], model: model, arm: arm).equatable()
             }
         }
     }
@@ -81,7 +93,7 @@ struct DMParent: Component {
     for i in changed {
         switch arm {
         case .value, .ledgerGain, .moved: model.values[i] = value
-        case .observed: model.params[i].radius = value
+        case .observed, .nested: model.params[i].radius = value
         }
     }
     window.window.setNeedsRedraw(); window.tick()

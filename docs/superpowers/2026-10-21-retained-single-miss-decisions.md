@@ -3,7 +3,7 @@
 Rulings for item C14-j. Spec: [`specs/2026-10-21-retained-single-miss-design.md`](specs/2026-10-21-retained-single-miss-design.md). Record: `../record/140-retained-single-miss.md`.
 Branch `perf/retained-single-miss` from `195ff2c8`. Reserved divergence labels 695-704: none taken.
 
-Prefix **`DM-`**, lettered. **Next unused: `DM-L`.** (Moves in the commit that appends a ruling.)
+Prefix **`DM-`**, lettered. **Next unused: `DM-N`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `SB-V`, `SB-X`, `SB-AA`, `RW-S`, `RK-C`, `RK-D`, `FS-N`, `MO-A`, `MO-F`, `IV-S`, `PA-J`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
@@ -82,3 +82,19 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
 **Ruling.** `RetainedTrace.emit(_ line: @autoclosure () -> String)` reads `active` (the environment switch or an installed sink) **before** building, and counts `linesBuilt` after; the miss-line builders return `""` without work when inactive. The sink is `@MainActor (String) -> Void` (package). Every decision line is `retained <paint|prepaint> <kind> <path tail> reasons=[...] [cause: <session>: <writer>] frame: ...`; the reasons come from `PaintInvalidation`/`PrepaintInvalidation` (pure, over primitive inputs; the decision reads the same struct), then every `ReplayKey` field (`key.<field>`, `key.ambient.<member>`) or `PrepaintKey` field (`ledgerKey.*`) that differs, then, for a prepaint that passed its guard and still ran, the reason named at that exit (`recordCannotMove`, `pointerInMovedLedger`, `translationRefused: ...`). An empty list prints `unclassified` and counts. The cause is recorded by both fire handles into `MemoFlags.lastFireCause` (locked, cleared with `observedChange`): `getter: <Type>.<property>.setter` for the content memo's session, `build|prepaint|paint: ...` for a retained one; `?` where the setter is inlined (release). **Measured on the fixture** (`DoubleMissFixture`, `.value` and `.observed`): the change frame misses naming `serial` (and the writer); the frame after misses naming **`coverage.build, coverage.prepaint`** and nothing else, for every changed occurrence: `DM-B` is confirmed before lane 2 moves any code. On the `.observed` arm the getter's own session fires first, so the miss names `serial`, not `observed`.
 **Evidence.** `RetainedTraceTests.aChangeNamesItsConjuncts`; the probe `observation-fire-cause.swift`.
 **Cost if wrong.** A tool grepping `retained miss` finds `retained paint miss`; the cause string is blank on a release build.
+
+## DM-L - A descendant that ran keeps the outer record's build half
+
+**Question.** `DM-C` covers a change the occurrence's own windows see. A **nested** `.equatable()` whose own getter runs while the outer's value is equal (the outer's build window closed, its record being complete and clean) set `observedChange` after the build, so the outer missed once and its record, made with `coverageBuild == false` (prepaint opened, since `observedChange` is now true), missed again on `coverage.build` alone.
+**Ruling.** In `EquatableComponent.buildGroup` the build's `observed` handed to `RetainedBuildWindow.finish` is `observed || descendantRan`: a window closed only because the standing record was complete and clean (no fire, serial equal: that is what `needsObservation == false` says) has its reads covered by the still-armed build session, the assumption every steady hit already rests on, and the prepaint window opens through `DM-C`. `DM-D` (key-only misses) is unchanged. **Measured** (`DoubleMissFixture`, two nodes changed, change frame / settle frame): `.value` h6 m2 / h6 m2 -> h6 m2 / h8 m0; `.observed` the same; `.ledgerGain` h6 m2 / h8 m0 now (the `RW-S` second miss is the same coverage miss, gone with it; `DM-G`'s adoption was not needed); new `.nested` arm h6 m4 / h6 m4 -> h6 m4 / h8 m0 (inner and ancestor miss once, `SB-AC`). Bracket (`.value` 192 hits, `.panels` 18, six orbit frames) and the zoom script read 0 misses before and after: neither changes an occurrence. `.moved` stays h4 m4 / h4 m4, carried to C14-k by `DM-D` (pin `theKeyOnlyArmStillCostsTwoFramesOfMisses`).
+**Cost if wrong.** A record claiming a build half whose reads were not observed replays stale: verify mode and the twin pins (all arms) catch it; the soundness pin `aStaleSessionStillFiresAfterTheSameFrameRecord` covers the armed-session half.
+
+## DM-M - The two coverage halves differ only under a test seam
+
+**Question.** Lane 1's verifier found `record.coveragePrepaint = phase.build.observed` reddened nothing.
+**Ruling.** It is an equivalent mutant on every production path: the prepaint window opens whenever the build's did (`needsObservation` only grows between them, `DM-C`, `DM-L`). `RetainedTestingHooks.closesPrepaintWindow` (package, tests only) closes the prepaint window honestly, the one state with `coverageBuild == true`, `coveragePrepaint == false`; `theCoverageHalvesAreRecordedSeparately` asserts the frame after names exactly `coverage.prepaint`. Mutations run: `coveragePrepaint = phase.build.observed` and `coverageBuild = phase.prepaintObserved` each redden it alone.
+**Cost if wrong.** A test-only static; nothing reads it outside `retainedPrepaintPhase`.
+
+## RW-S amendment (record §121)
+
+"A record made then gains its ledger one counted miss later" no longer holds for an `.equatable()` occurrence that changes: the change frame is its one miss and the record it makes is complete and carries its ledger (`.ledgerGain` settle frame 0 misses). It still holds for a key-only miss (`DM-D`).

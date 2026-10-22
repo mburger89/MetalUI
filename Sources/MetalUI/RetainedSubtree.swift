@@ -444,6 +444,10 @@ struct RetainedBuildWindow {
 /// one point where a fire can land after the sessions were armed. `nil` outside tests; `package`, so an app cannot spell it.
 package enum RetainedTestingHooks {
     nonisolated(unsafe) package static var beforeRecordClear: (@MainActor () -> Void)?
+    /// Closes every prepaint observation window (`DM-M`): a record made then is honest, `coveragePrepaint == false` with the build half
+    /// still observed, the one state the two halves differ in. Without it no window reaches that state (the prepaint window opens
+    /// whenever the build's did), so a swapped half was an equivalent mutant.
+    nonisolated(unsafe) package static var closesPrepaintWindow = false
 }
 
 // MARK: - The phase object
@@ -664,7 +668,7 @@ extension Frame {
             entry.record = nil
             return nil
         }
-        let phase = RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation)
+        let phase = RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation && !RetainedTestingHooks.closesPrepaintWindow)
         readRetainedGeometry(into: phase)
         return phase
     }

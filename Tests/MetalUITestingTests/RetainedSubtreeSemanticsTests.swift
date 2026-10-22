@@ -433,9 +433,10 @@ private struct RSShortcutHolder: Component, @MainActor Equatable {
     #expect(window.lastFrameWork.retainedHits == 0, "the second write's frame replays nothing")
 }
 
-/// 1.8c — the frame right after a miss is not a hit (`SB-V`): a record made without the build and prepaint
-/// windows open is only a paint record, so the frame after it observes again before anything replays. Mutation:
-/// `coverageComplete` left out of the hit test — that frame replays with no session armed on the child's read.
+/// 1.8c — the frame right after a miss is a hit (`DM-C`, moved from 0 hits by lane 2 of C14-j: the change frame opened its windows, so its
+/// record is complete) and **a second write after that hit is still seen** (the sessions that record armed fire). Mutations:
+/// `needsObservation` without the certain-miss terms (the frame after the miss is no hit: red); `coverageComplete` left out of the hit
+/// test, or the change frame's coverage declared with its windows closed — the second write replays stale (red).
 @Test @MainActor func aFrameRightAfterAMissObservesAgainSoASecondWriteIsSeen() async throws {
     let model = RSModel()
     let window = try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
@@ -444,9 +445,9 @@ private struct RSShortcutHolder: Component, @MainActor Equatable {
     for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
     model.n = 5
     await rsSettle()
-    window.window.setNeedsRedraw(); window.tick()      // the miss: records a paint-only record
-    window.window.setNeedsRedraw(); window.tick()      // observes again (no hit yet)
-    #expect(window.lastFrameWork.retainedHits == 0, "the frame after a miss is not a hit")
+    window.window.setNeedsRedraw(); window.tick()      // the miss: its windows are open, so the record is complete
+    window.window.setNeedsRedraw(); window.tick()      // hits
+    #expect(window.lastFrameWork.retainedHits == 1, "the frame after a miss is a hit (DM-C)")
     model.n = 9
     await rsSettle()
     window.window.setNeedsRedraw(); window.tick()

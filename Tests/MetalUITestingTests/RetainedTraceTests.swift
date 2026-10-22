@@ -153,8 +153,7 @@ struct RetainedTraceWindowTests {
     private func missLines(_ lines: [String]) -> [String] { lines.filter { $0.hasPrefix("retained paint miss") || $0.hasPrefix("retained prepaint miss") } }
 
     /// 2 - a fixture's change frame names `serial` (both arms: the observed arm's getter session fires first and re-evaluates) and, for the observed arm, the writer; every line says
-    /// `paint` or `prepaint`; the frame after a change names a coverage half (today's second miss, `DM-B`: **lane 2 turns these
-    /// into hits and rewrites this arm**). **Mutations:** `retainedPaintDecision` reading a private `valid` instead of
+    /// `paint` or `prepaint`; the frame after a change misses nothing (lane 2, `DM-C`; it named a coverage half before, the second miss of `DM-B`). **Mutations:** `retainedPaintDecision` reading a private `valid` instead of
     /// `PaintInvalidation` (the lines disagree with the decision: `unclassified`); no coverage name (reddens the second arm).
     @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss")) func aChangeNamesItsConjuncts() throws {
         for arm in [DMArm.value, .observed] {
@@ -174,9 +173,11 @@ struct RetainedTraceWindowTests {
                 #if DEBUG
                 #expect(paintMisses.contains { $0.contains("cause:") && $0.contains("radius") }, "the writer is named: \(paintMisses)")
                 #endif
-            case .ledgerGain, .moved: break
+            case .ledgerGain, .moved, .nested: break
             }
-            #expect(named.contains { $0.contains("coverage.build") || $0.contains("coverage.prepaint") }, "\(arm): the frame after names a coverage half: \(paintMisses)")
+            // `DM-C`: the change frame observes, so the frame after hits and no line names a coverage half (it did before lane 2).
+            #expect(!named.contains { $0.contains("coverage.build") || $0.contains("coverage.prepaint") }, "\(arm): no coverage miss after a change: \(paintMisses)")
+            #expect(paintMisses.count == 2, "\(arm): one miss line per changed occurrence: \(paintMisses)")
         }
     }
 
