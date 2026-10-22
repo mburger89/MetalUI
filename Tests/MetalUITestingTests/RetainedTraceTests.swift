@@ -226,7 +226,7 @@ struct RetainedTraceWindowTests {
     }
 
     /// 6 - the trace costs nothing when off: no line is built (`linesBuilt` stays 0) and a changed frame allocates less than
-    /// with a sink (Darwin; `PA-J`: thread-filtered, differential). **Mutation:** build the string before the `active` check.
+    /// with a sink (Darwin; `PA-J`: thread-filtered, differential). **Mutation:** remove the `active` guard from `emit` and from `missLine`/`phaseFlags` together (either alone is a redundant layer; the `pathsBuilt` read reddens, the allocation differential alone did not).
     #if canImport(Darwin)
     @Test func theTraceCostsNothingWhenOff() throws {
         let (offWindow, offModel) = try doubleMissWindow(.value)
