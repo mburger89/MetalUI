@@ -870,6 +870,7 @@ struct MUIRenderer {
     SDL_GPUFence *fence;            /* the last offscreen frame */
     uint32_t unsignaled_fence_releases;
     uint64_t last_atlas_bytes;      /* the last frame's atlas bytes moved (RG-H) */
+    uint32_t last_text_passes;      /* the last frame's surface text passes (DT-G) */
     uint32_t submissions;           /* every SDL_Submit… below (MV-L item 4) */
     BackdropState backdrop;         /* the frame target, the blur pool, the counters (BB-S) */
 };
@@ -1049,8 +1050,10 @@ bool mui_renderer_finish(MUIRenderer *r,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah,
     const uint32_t *atlas_rects, uint32_t atlas_rect_count,
+    const ReplaySurfaceText *texts, uint32_t text_count,
     const float *projection) {
     if (!r->cmd) return SDL_SetError("finish without a successful begin");
+    r->last_text_passes = 0;
     SDL_GPUDevice *d = r->gpu->device;
     SDL_GPUCommandBuffer *cmd = r->cmd;
     r->cmd = NULL;
@@ -1064,6 +1067,13 @@ bool mui_renderer_finish(MUIRenderer *r,
     if (tb % TRANSFORM_STRIDE) { SDL_SetError("unexpected MetalUI transform ABI"); goto cleanup; }
     if (kb % BACKDROP_STRIDE || region_count != kb / BACKDROP_STRIDE) { SDL_SetError("unexpected MetalUI backdrop ABI"); goto cleanup; }
     if (!transforms_valid(rects, rb, glyphs, gb, images, ib, backdrops, kb, tb, runs, count)) goto cleanup;
+    /* A surface text range names glyph records the buffer holds, with transforms the table holds (DT-G):
+       checked like a run, since it is drawn like one. */
+    for (uint32_t i = 0; i < text_count; i++) {
+        if (!texts[i].target || !texts[i].width || !texts[i].height) { SDL_SetError("surface text without a target"); goto cleanup; }
+        ReplayRun run = { KIND_GLYPH, texts[i].start, texts[i].count };
+        if (!transforms_valid(NULL, 0, glyphs, gb, NULL, 0, NULL, 0, tb, &run, 1)) goto cleanup;
+    }
 
     /* The CPU ABI is scalar-packed (120/88 bytes); SDL storage buffers use
        16-byte lanes, so each record is copied into a 128/96-byte slot. An
@@ -1154,6 +1164,20 @@ bool mui_renderer_finish(MUIRenderer *r,
         .viewport = {(float)r->width, (float)r->height, 0, 0}
     };
     memcpy(frame.buffers, buffers, sizeof(buffers));
+    /* The app's surface text (ruling DT-G): one load-op pass per surface over what the app drew, with the
+       viewport the target's own size. After the atlas copy pass (its glyphs are uploaded) and before the
+       scene's pass, which samples the target. No submission, no fence, no pipeline of its own. */
+    for (uint32_t i = 0; i < text_count; i++) {
+        if (!texts[i].count) continue;
+        FrameDraw text = frame;
+        text.width = texts[i].width; text.height = texts[i].height;
+        text.viewport.width = (float)texts[i].width; text.viewport.height = (float)texts[i].height;
+        SDL_GPURenderPass *pass = begin_segment(&text, (SDL_GPUTexture *)texts[i].target, SDL_GPU_LOADOP_LOAD);
+        if (!pass) goto cleanup;
+        draw_primitives(&text, pass, KIND_GLYPH, texts[i].start, texts[i].count);
+        SDL_EndGPURenderPass(pass);
+        r->last_text_passes += 1;
+    }
     if (!encode_frame(&frame, &r->backdrop, r->target, false)) goto cleanup;
     r->submissions += 1;
     if (r->window) {
@@ -1179,6 +1203,8 @@ void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]) {
 }
 
 uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r) { return r->last_atlas_bytes; }
+
+uint32_t mui_renderer_last_text_passes(MUIRenderer *r) { return r->last_text_passes; }
 
 bool mui_renderer_has_frame_target(MUIRenderer *r) { return r->backdrop.frame != NULL; }
 

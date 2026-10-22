@@ -1868,6 +1868,15 @@ a physical GPU, a desktop session and a console.*
 - [ ] **CP3.** Copy the demo's two graphs and paste into a second MetalUI process (then `MetalUISDLDemo` on Linux X11, Wayland and Windows): both arrive (the pack, `CP-C`); paste into TextEdit or another application and only the first item's fallback text arrives on SDL (divergence 715). **Observed:**
 - [ ] **CP4.** An external clipboard manager rewrites the clipboard while the demo window is key and idle: the button's enablement follows at the next press, becoming key or key-down (`CP-G`'s named residue); and the lazy export's closure runs at paste time on AppKit, at copy on SDL (divergence 716). **Observed:**
 
+## DT. `drawText` in a GPU surface (round 2 item 5, 2026-10-21, not a plan task; record 141; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs a real window, and the screen was not unlocked for a capture. The Metal text pass reads back pixel-equal to the same `Text` at 1x and 2x (`DrawTextMetalTests`), and the SDL pass reads back equal to the same glyph records drawn directly by the scene (`SDLDrawTextTests`, macOS and the Linux image on lavapipe); what is owed is how it looks and how it behaves live. No demo section was added (the existing surface demo is not one of the fourteen images and gained nothing).*
+
+- [ ] **DT1.** macOS: a `drawText` label beside the same `Text` overlay, at 1x and 2x: the same weight, the position within a device pixel, no halo at the glyph edges. **Observed:**
+- [ ] **DT2.** Linux and Windows (SDL): the same as DT1 on a real window (Windows is compiled by CI only, check SI3). **Observed:**
+- [ ] **DT3.** A label over a `.continuous` surface: no flicker and no one-frame lag against the app's own drawing while the app animates under it. **Observed:**
+- [ ] **DT4.** Resize the window while a label is up: the label stays crisp (the target is recreated and redrawn at the new size) and never shows a stale or stretched frame. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

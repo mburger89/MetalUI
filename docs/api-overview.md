@@ -663,7 +663,14 @@ SDL renderer (`device`, `commandBuffer`, `target` as SDL3 pointers;
 `Backends/SDL`'s `MetalUISDL`). The draw runs on the main actor inside the
 renderer's `finishFrame`, before MetalUI's own pass, into the frame's own
 command buffer; it must not commit, submit, present or wait on it — Metal
-traps if it does, SDL cannot tell (`MV-F` item 5). At the seam:
+traps if it does, SDL cannot tell (`MV-F` item 5). **`drawText(_:at:anchor:width:color:)`** (M; `DT-A`,
+`DT-D`) is an extension of `GPUSurfaceContext`: it draws a `TextMeasurer.ResolvedText` into the surface's
+target through the one resolution a `Text` uses (`DT-C`) — `GraphicsContext.draw(_:at:anchor:)`'s arithmetic
+(probe `swiftui-draw-text.swift`), with the surface context as receiver — recording glyph sprites that MetalUI
+draws in one pass of its own **after the closure returns, over everything it drew**; plain text only (a rich
+one traps naming `DT-E`). It saves nothing a user can see over a `Text` overlay (`DT-I`); the label is part of
+the surface (its opacity, blur, clip, transitions, an `.onDemand` target that is not redrawn). At the seam: `SurfaceTextSink`
+(`package`), no new public requirement. At the seam, too:
 `PrimitiveKind.surface`, `SurfaceID`, `SurfaceTarget`, `SurfaceDrawRequest`,
 `SurfaceTargetTable` (the one per-window target lifecycle both renderers use)
 and the defaultless `WindowRenderer.finishFrame(scene:atlas:surfaces:)`

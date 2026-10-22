@@ -67,11 +67,6 @@ public final class MetalWindowRenderer: WindowRenderer {
     public func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool {
         guard let pending else { return false }
         self.pending = nil
-        // The atlas texture is written only while it has never been bound,
-        // and a dirty upload after an encode allocates a replacement — so the
-        // upload comes first (see `Renderer.upload`).
-        renderer.upload(atlas)
-
         let device = renderer.device
         let commandBuffer = pending.commandBuffer
         let toDraw = surfaceTable.update(
@@ -82,24 +77,41 @@ public final class MetalWindowRenderer: WindowRenderer {
             // retained references), exactly as a dropped image texture
             // (`TE-AF`).
             release: { _ in })
+        // `drawText` records into this (`DT-F`); a frame with no draw makes none.
+        let sink = toDraw.isEmpty ? nil : SurfaceTextSink(atlas: atlas)
         for (request, target, isNew) in toDraw {
+            sink?.beginSurface(request.target.id)
             let context = MetalDrawContext(
                 device: device, commandBuffer: commandBuffer, target: target,
                 pixelSize: Size(width: DevicePixels(Int32(target.width)), height: DevicePixels(Int32(target.height))),
                 scaleFactor: request.scaleFactor, time: request.time, frameIndex: finishedFrames,
-                isNewTarget: isNew)
+                isNewTarget: isNew, textSink: sink)
             if isNew { context.clear(red: 0, green: 0, blue: 0, alpha: 0) }
             request.draw(context)
             precondition(commandBuffer.status == .notEnqueued,
                          "MetalWindowRenderer: a surface's draw left the frame's command buffer "
                          + "\(commandBuffer.status) — a draw must not commit, enqueue or schedule it (MV-F item 5)")
         }
+        // The atlas texture is written only while it has never been bound, and a dirty upload after an
+        // encode allocates a replacement — so the one upload comes after the draws (which may insert
+        // glyphs, `drawText`) and before the first encode that binds the atlas (`DT-B`; see
+        // `Renderer.upload`). No draw can bind the atlas: the app has no handle to it.
+        renderer.upload(atlas)
         var targets: [SurfaceID: any MTLTexture] = [:]
         for target in scene.surfaceTargets {
             if let texture = surfaceTable.handle(for: target.id) { targets[target.id] = texture }
         }
 
         do {
+            // One MetalUI-owned pass per surface that recorded text, over the app's drawing (`DT-A`).
+            var textTargets: [SurfaceID: any MTLTexture] = [:]
+            for batch in sink?.batches ?? [] {
+                if let texture = surfaceTable.handle(for: batch.target) { textTargets[batch.target] = texture }
+            }
+            try renderer.encodeSurfaceText(sink, targets: textTargets, in: commandBuffer)
+            precondition(commandBuffer.status == .notEnqueued,
+                         "MetalWindowRenderer: a surface text pass left the frame's command buffer "
+                         + "\(commandBuffer.status) (MV-F item 5)")
             try renderer.encode(scene, view: pending.view, in: commandBuffer, surfaces: targets)
         } catch {
             return false

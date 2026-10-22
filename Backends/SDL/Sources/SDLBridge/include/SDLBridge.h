@@ -14,6 +14,10 @@ typedef struct { uint32_t kind, start, count; } ReplayRun;
 // record then draws its flat tint, ruling BB-I). The blur's level count is
 // derived from the record's own `sigma` (`mui_backdrop_levels`).
 typedef struct { int32_t x, y, width, height; } ReplayRegion;
+// One surface's `drawText` glyphs (ruling DT-G): `count` glyph records from `start` (an index into the
+// frame's glyph buffer, the scene's own glyphs first), drawn into `target` (a surface target, `width` x
+// `height` texels) in one load-op pass after the atlas copy pass and before the scene's pass.
+typedef struct { void *target; uint32_t start, count, width, height; } ReplaySurfaceText;
 // The number of 2x downsample levels a sigma (device pixels) takes before its
 // Gaussian: the smallest L >= 0 with sigma / 2^L <= 4, at most 6
 // (`MUIBackdropBlurMaxLevel`). `BackdropBlurReference.levels`, restated; a
@@ -87,7 +91,11 @@ bool mui_renderer_finish(MUIRenderer *r,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height,
     const uint32_t *atlas_rects, uint32_t atlas_rect_count,
+    const ReplaySurfaceText *texts, uint32_t text_count,
     const float *projection);
+// The text passes the last finished frame ran (ruling DT-G): one per `ReplaySurfaceText`, 0 for a
+// frame with none. A test recorder.
+uint32_t mui_renderer_last_text_passes(MUIRenderer *r);
 // The last frame's backdrop work (ruling BB-S): `out` = splits (backdrop runs),
 // blurs (records), passes (L + 2 a record), frame-target copies (1 for a
 // backdrop frame, else 0), textures made (frame target and pool; 0 on a steady
