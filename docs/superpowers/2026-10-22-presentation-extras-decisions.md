@@ -9,7 +9,7 @@ the earlier `swiftui-overlays-coords.swift` `B0`–`B2` (`OV-C`'s evidence), `sw
 (the app decides per element; no scene-level switch): nothing is claimed from gpui for the three items.
 Divergence labels **735–744 reserved**; 735–737 are planned (rows written in the lane that builds them), 738–744 unused.
 
-Prefix **`BG-`**, lettered. **Next unused: `BG-O`.** (Moves in the commit that appends a ruling.)
+Prefix **`BG-`**, lettered. **Next unused: `BG-P`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `OV-C` (the deferral this closes: "a fill only, the border and shadow kept"), `CR-T`/`Frame.beginPresentationPreferences` (a presentation
 collects its own reports), `AS-D` (first report in post-order wins), `MN-M` item 5 (the panel), `MT-` (every material site draws through
@@ -184,3 +184,12 @@ requirement, no migration note**, AppKit and SDL need no code (the image cursor 
 `presentationBackground` on `anchoredOverlay`, alerts, menus (`BG-A`); the `<S: ShapeStyle>` generic (divergence 119); animated shape cursors; a shape stroke style
 beyond the outline; `windowBackgroundDragBehavior` per scene/`Scene` modifier (MetalUI has no scene type); background drag while zoomed on SDL and in fullscreen (`BG-I`;
 AppKit's `performDrag` does nothing in fullscreen); `isMovableByWindowBackground` (`BG-H`); a drag from a control (`BG-G`, check `BG4`). Owners: none, each additive.
+
+## BG-O — Critic pass: what was attacked and what stands
+
+**Re-run.** `swiftui-presentation-extras-typecheck.sh` re-taken on 2026-10-22 (T0 compiles, T1 unavailable in macOS, T2 no member, T3/T4 compile): the header matches. The D arms need
+an unlocked screen and are not re-taken (the screen is locked); `BG-G` rests on the recorded output, and check `BG4` stays owed.
+**Checked, no defect:** no Apple type in a portable surface (`Size<Pixels>`, `UnitPoint`, `Color` are MetalUI's); no new `PlatformWindow`/`Platform`/`WindowRenderer` requirement, so no default or
+fake owed; no shader; no C enum; each spelling difference from SwiftUI (`Window` property for a `Scene` modifier, the extra `shape` parameters, no `ShapeStyle` generic) has a ruling (`BG-D`, `BG-G`, `BG-K`).
+**Pinned in the lane, not a design change:** on SDL the platform moves the window before `Window` sees the press (`CW-E`), so the `.enabled` background press must not also call
+`performTitleBarPress` there (it answers `false`; test 25 and the SDL region test read it). Test 33's mutation is read by the raster counter, not memory. Lanes stay two, disjoint by file.

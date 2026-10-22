@@ -110,7 +110,7 @@ Work counters, not time: `FrameWork.environmentTransformCount`-style reads for t
 30. `aDifferentSizeScaleHotSpotOrColourIsAnotherCursor` (four arms, each one new raster and one new send). Mutation: leave `outline` out of the key.
 31. `theShapeCursorHotSpotIsTheCentreByDefaultAndClampsOutsideTheUnitSquare`. Mutation: hot spot from the bitmap origin.
 32. `aNonFiniteOrEmptySizeFallsBackToTheArrowAndAnOversizedOneClampsTo128`. Mutation: no clamp (the pixel size reads 1000+).
-33. `theShapeCursorCacheKeepsTheEightMostRecentlyUsed` (nine shapes then the first again: a ninth raster). Mutation: no eviction (reddens 33 by memory count) .
+33. `theShapeCursorCacheKeepsTheEightMostRecentlyUsed` (nine shapes then the first again: a ninth raster). Mutation: no eviction (reddens 33 by the raster counter).
 34. `aShapeCursorCostsNoFrameRasterWork` (`RasterCache.lastTexturesMade` and `touchedImages` unmoved by a send). Mutation: route the cursor through `animationStore.rasters`.
 35. `aShapeCursorUnderAScaleChangeIsReSentOnceAtTheNewScale` (headless display-scale change).
 36. Guard `theShapeCursorSpellingTypechecksWithTheVisionOSCall` (`.shape(Circle(), size: …)` and the `eoFill:` call; a call omitting `size:` does not compile).
