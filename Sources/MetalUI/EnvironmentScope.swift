@@ -23,6 +23,9 @@ enum EnvironmentWrite {
     case navigationTitle(String)
     case navigationDocument(URL)
     case onOpenURL(@MainActor (URL) -> Void)
+    /// `.presentationBackground(...)` (rulings `BG-B`): changes no value; reports after its content builds,
+    /// into the slot an enclosing presentation's bracket opened.
+    case presentationBackground(PresentationBackgroundSpec)
 }
 
 /// What an `EnvironmentScope` carries between phases: the values it computed in
@@ -123,6 +126,10 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
             let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
             let result = body()
             frame.openURLHandlers.append(OpenURLHandler(owner: owner, action: action))
+            return result
+        case .presentationBackground(let spec):
+            let result = body()
+            frame.reportPresentationBackground(spec)   // `BG-B`: innermost wins, only inside a presentation
             return result
         case .transform, .theme:
             return body()
