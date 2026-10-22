@@ -28,7 +28,9 @@ Tests alone at `ecaf1862`: `SDLGPUSyncBatchTests.swift:69:24: error: value of ty
 ## 4. Verification
 
 - `Backends/SDL` on macOS (`METALUI_REQUIRE_GPU=1`): 30 tests in the first run and 258 in the second; the one issue seen (`SDLSingleInstanceTests.theClaimIsReleasedWhenThePlatformGoesAway`, under load from a concurrent Docker build) passed alone and is unrelated.
-- Linux image (lavapipe), root suite and fourteen images: see section 5.
+- Linux image `metalui-portable` (lavapipe, volume `metalui-sdl-build-sync-batch`): 30 + 255 tests passed at the final head. Its first run caught Y4's `Thread.isMainThread` assertion (off Darwin the main actor is a pool thread, `RU-A`); Y4 now compares against the caller's captured thread. macOS `SDLGPUSyncBatchTests` 8 of 8 at the final head.
+- Root suite (`swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice): **4248 tests in 5 suites**, the only issues the five `AppKitPresentationTests` sheet issues of `CI-AF` (the screen was locked during part of the 955 s run), `FR-J no-argument frame: succeeded=true`. Count unchanged, as required. `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+- The fourteen offscreen images: no `Sources/`, `Tests/` or `Package.swift` change since `d062168c` (`git diff --stat d062168c HEAD -- Sources Package.swift Tests` empty), so 0 px by construction; the comparison script was not run.
 
 ## 5. Carried
 
