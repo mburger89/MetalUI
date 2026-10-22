@@ -41,7 +41,7 @@ is the precondition).
 
 1. `SDLGPUDevice.swift`: extract the worker job body of `submitBatch` into one `internal func recordAndSubmit(_ record:, gate:) -> Result<SDLGPUFence, SDLGPUError>`
    (run on `submitWorker`); `submitBatch` calls it and resumes its continuation with the result (behaviour unchanged, `gate` kept);
-   `submitBatchSynchronously` enqueues it, waits on a semaphore and returns or throws its result (`gate: nil`). One recorder, never forked (`SY-A`).
+   `submitBatchSynchronously` enqueues it, waits on a semaphore and returns or throws its result, passing the device's `waiterGate` exactly as `submitBatch` does (nil in production; the Y2 hook, `SY-G`). One recorder, never forked (`SY-A`).
 2. `SDLGPUReadback.swift`: `Submitted` goes from `private` to `internal` and carries a `Result` so both blocking verbs share one hand-back box (`SY-D`).
    `downloadSynchronously`'s own copy-pass job is **not** rewritten onto `recordAndSubmit` (it needs a raw texture copy `SDLGPUCommandBuffer` has no verb for; carried, `SY-D`).
 3. Tests: new `Backends/SDL/Tests/MetalUISDLTests/SDLGPUSyncBatchTests.swift`.
@@ -56,7 +56,7 @@ another and records it (practice: a mutation that reddens nothing is the finding
 
 | # | Test | Asserts | Mutation that must redden it |
 |---|------|---------|------------------------------|
-| Y1 | `aSynchronousBatchRendersATextureTheMainActorReadsWithoutAwaiting` | 16×16 `r8g8b8a8Unorm` target, a clear render pass of (1,0,0.5,1) recorded with `beginRenderPass`/`end`, `submitBatchSynchronously`, `MainActor.assertIsolated()`, `downloadSynchronously` returns all texels the clear colour (no `await` after the texture is made) | `record(commandBuffer)` not called in `recordAndSubmit`; second mutation: the clear colour's green channel dropped in the verb's path is not possible, so also a texture region of the download started at x 1 |
+| Y1 | `aSynchronousBatchRendersATextureTheMainActorReadsWithoutAwaiting` | 16×16 `r8g8b8a8Unorm` target, a clear render pass of (1,0,0.5,1) recorded with `beginRenderPass`/`end`, `submitBatchSynchronously`, `MainActor.assertIsolated()`, `downloadSynchronously` returns all texels the clear colour (no `await` after the texture is made) | `record(commandBuffer)` not called in `recordAndSubmit`; second: the verb's fence skipped, so the download reads before the render (red or flaky, Y3 is the loop) |
 | Y2 | `aSynchronousBatchReturnsOnceSubmittedNotOnceFinished` | with `device.waiterGate` held, a background `Thread` calls the verb and signals; it returns within 20 s (test fails on timeout, never hangs), the fence is `!isSignalled`; after `gate.signal()` and `waitBlocking()` it is `isSignalled` | the verb calls `fence.waitBlocking()` before returning (the call blocks on the gate, the timeout reddens) |
 | Y3 | `aDownloadIssuedRightAfterReadsTheBatchsOutput` | two synchronous batches clearing green then blue into one texture, **no wait between**, then `downloadSynchronously` reads blue on every texel; repeated 20 times with alternating colours | the verb enqueues on `waiterWorker` instead of `submitWorker` (loses FIFO order against the download job; red or flaky, so a loop of 20) |
 | Y4 | `theRecordClosureRunsOnTheSubmitWorker` | the closure's `Thread.current === device.submitWorker.thread` and `!Thread.isMainThread`, the caller's thread is the main thread after return | `record` invoked inline on the caller |

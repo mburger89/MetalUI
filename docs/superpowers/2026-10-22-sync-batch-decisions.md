@@ -1,7 +1,7 @@
 # Synchronous render batch for MetalCreator (XP-G22) — decisions
 
 Rulings for item XP-G22 of the gpui-gap priority list (MetalCreator request 2026-10-22; **not a plan task**). Prefix `SY-`.
-**Next unused: `SY-G`.** Spec: [`specs/2026-10-22-sync-batch-design.md`](specs/2026-10-22-sync-batch-design.md). Record: `../record/143-sync-batch.md`.
+**Next unused: `SY-H`.** Spec: [`specs/2026-10-22-sync-batch-design.md`](specs/2026-10-22-sync-batch-design.md). Record: `../record/143-sync-batch.md`.
 Branch `feat/sync-batch` from `d062168c`. Continues `GA-` (record 114, 125) and `GB-` (record 137). Divergence labels reserved 725–734: **none taken**.
 
 Sources of truth. SwiftUI has no GPU API, so there is no SwiftUI-facing claim and no probe is owed; gpui exposes no command buffer to an app
@@ -14,7 +14,7 @@ Sources of truth. SwiftUI has no GPU API, so there is no SwiftUI-facing claim an
 **Evidence.** `submitBatch`'s worker job (acquire, `record`, open-pass check, submit-and-fence, wrap, `startWaiting`) is the only place GA-E's fence rule
 and the open-pass cancel live; `downloadSynchronously` already forked a smaller copy for its raw copy pass.
 **Ruling.** Extract that job body into `recordAndSubmit(_:gate:) -> Result<SDLGPUFence, SDLGPUError>`, run on `submitWorker`; `submitBatch` resumes its
-continuation with the result, the synchronous verb waits on a semaphore for it with `gate: nil`. Every `startWaiting` call stays at one site per verb
+continuation with the result, the synchronous verb waits on a semaphore for it passing `waiterGate` like `submitBatch` (`SY-G`). Every `startWaiting` call stays at one site per verb
 family, so the fence is released after its signal whether or not anyone awaits it. **Cost if wrong.** The refactor touches the async path every GPU
 test uses; the S1–S6 and compute tests are the net, and Y9's mutation proves the net sees `startWaiting(gate:)`.
 
@@ -48,3 +48,11 @@ to the spec's "Not built". **Cost if wrong.** Two submit jobs remain; both are s
 
 **Ruling.** Additive class-M API in `Backends/SDL`, no seam requirement (`PlatformWindow`/`Platform`/`WindowRenderer` untouched), no shader change. The
 fourteen images and the root count (4248) must not move. **Cost if wrong.** A moved root number would mean the lane left `Backends/SDL`.
+
+## SY-G — the synchronous verb passes `waiterGate`, not nil (critic's correction)
+
+**Question.** Y2 holds `device.waiterGate` to keep the fence unsignalled; does the verb honour it?
+**Evidence.** `waiterGate` is read in `submitBatch` and handed to `startWaiting(gate:)` (S2, compute tests use it); the first draft of SY-A said `gate: nil`, which would
+make Y2 unable to observe an unsignalled fence and its mutation untestable. `downloadSynchronously` keeps `nil` (its fence is internal).
+**Ruling.** The verb reads `waiterGate` on the caller and passes it to `recordAndSubmit`, as the async verb does; nil in production. **Cost if wrong.** Y2 would pass vacuously.
+Also rejected: a trap-message check in Y5 against the guard's text beyond the verb name (the suffix is the guard's, `SDLGPUWindowGuard.swift:95`); Y5/Y6 assert the prefix only.
