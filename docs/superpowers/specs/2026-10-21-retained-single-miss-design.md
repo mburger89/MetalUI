@@ -2,6 +2,8 @@
 
 **Status: built and recorded** (record 140; both lanes landed, rulings `DM-A`...`DM-O` win over this text where they differ, see section 7).
 
+**Test names below are the plan's, not the built ones.** The built pins are `RetainedTraceTests` (`thePaintTraceNamesEachConjunctWhenItFailsAlone`, `thePrepaintTraceNamesTheFailingGuard`, `everyReplayKeyFieldIsNamedWhenItDiffersAlone`, `aChangeNamesItsConjuncts`, `noMissLineEverHasAnEmptyReasonList`) and `RetainedSingleMissTests` (`aChangedOccurrenceCostsOneMissAndTheNextFrameHits`, `theKeyOnlyArmStillCostsTwoFramesOfMisses`, `theSingleMissFrameEqualsRetentionOff`); a name here that resolves to nothing is a planned one.
+
 Item C14-j: one miss per changed `.equatable()` occurrence (the double miss), and a trace that names every failing conjunct.
 Branch `perf/retained-single-miss` from `195ff2c8`. Rulings: [`../2026-10-21-retained-single-miss-decisions.md`](../2026-10-21-retained-single-miss-decisions.md) (prefix `DM-`). Record: `../../record/140-retained-single-miss.md` (written at the Record phase).
 No public API (package trace sink only), no divergence (labels 695-704 untouched), no SwiftUI claim (no observable behaviour moves: the oracle is a retention-off twin and `METALUI_VERIFY_RETAINED=1`; gpui has no retained-paint analogue, so no probe applies, `DM-H`).
