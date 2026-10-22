@@ -9,7 +9,7 @@ the earlier `swiftui-overlays-coords.swift` `B0`–`B2` (`OV-C`'s evidence), `sw
 (the app decides per element; no scene-level switch): nothing is claimed from gpui for the three items.
 Divergence labels **735–744 reserved**; 735–737 are planned (rows written in the lane that builds them), 738–744 unused.
 
-Prefix **`BG-`**, lettered. **Next unused: `BG-P`.** (Moves in the commit that appends a ruling.)
+Prefix **`BG-`**, lettered. **Next unused: `BG-Q`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `OV-C` (the deferral this closes: "a fill only, the border and shadow kept"), `CR-T`/`Frame.beginPresentationPreferences` (a presentation
 collects its own reports), `AS-D` (first report in post-order wins), `MN-M` item 5 (the panel), `MT-` (every material site draws through
@@ -193,3 +193,25 @@ an unlocked screen and are not re-taken (the screen is locked); `BG-G` rests on 
 fake owed; no shader; no C enum; each spelling difference from SwiftUI (`Window` property for a `Scene` modifier, the extra `shape` parameters, no `ShapeStyle` generic) has a ruling (`BG-D`, `BG-G`, `BG-K`).
 **Pinned in the lane, not a design change:** on SDL the platform moves the window before `Window` sees the press (`CW-E`), so the `.enabled` background press must not also call
 `performTitleBarPress` there (it answers `false`; test 25 and the SDL region test read it). Test 33's mutation is read by the raster counter, not memory. Lanes stay two, disjoint by file.
+
+## BG-P — Lane 1 build: a material panel has no drop shadow; the gradient and the border
+
+**Question.** `BG-C` said "the shadow is under the fill in every case" and a `Material` goes through `Frame.fillMaterial`. A backdrop record inside a shadow scope is
+drawn as its flat tint (`BB-H`, divergence 248), which would silently turn a `Material` panel into a flat translucent rect.
+
+**Evidence.** `Frame.fillBackdrop` -> `insertThroughScopes` degrades inside a `.shadow` scope; the shadow of a translucent fill shows through it. Test 5.
+
+**Ruling.** A `Material` panel is `fillMaterial` over the panel rect with its radii **outside** any shadow scope (a real backdrop blur), then the 1-pt `.separator` border as its own
+stroke-only rect; **no drop shadow** (border, radius kept). Under Reduce Transparency `fillMaterial` is the opaque grey rect, so the shadow scope is kept around it (what
+`BG-C` said). A gradient fill is `paintGradientFill` over the rounded panel **inside** the shadow scope (the image path, `LK-J`) with the border stroked over it; a colour fill is
+the one bordered rect inside the shadow scope as before. The content spelling keeps the `.surface` panel (one bordered rect, shadow) and draws its content over it, cut to the
+panel's rounded rect (`pushClip` at the panel bounds with radius 10), before the popover's own content. Amends `BG-C`'s "every case" for a non-reduced material only.
+
+**Not built / carried.** A material panel's shadow (a shadow-only primitive does not exist; adding one is a renderer change, `TE-AD`). Cost if wrong: a look, one function
+(`AnchoredPresentation.paintPanel`), check `BG1`.
+
+**Lane 1 build notes.** The slot is `Frame.presentationBackgroundSlot`, opened by `beginPresentationPreferences` (saves the enclosing value, depth +1) and restored by
+`endPresentationPreferences`; `AnchoredPresentation.requestLayout` reads it between the content's build and the end. The content spelling is an overlay attachment
+(`requestNativeOverlayAttachment`: SwiftUI's `.background(alignment:content:)` kernel node: measured at the primary's size, never part of it) of the chrome node and the
+background element (`AnyElement(Box(content:))`) under `child(of: id, at: 0, name: "$presentationbackground")`, `noteNamed` called, its own preference bracket kept out of the
+main tree, its bounds recorded as the group default does.

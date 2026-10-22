@@ -605,7 +605,7 @@ outside press of **any** button (the press still lands on what is beneath, a con
 included; a press on the declarer dismisses and reaches the declarer) and by Escape; a press or
 wheel on the overlay never reaches beneath, keys still reach a field inside it. The point
 resolves at layout, so a `.local`/`.named` overlay waits one frame for its declarer's space
-(`OV-K`, `OV-S`). `presentationBackground(_:)` is not built (`OV-C`). The demo:
+(`OV-K`, `OV-S`). `presentationBackground(_:)` is built for the popover panel (record §144, `BG-A`...`BG-F`; below). The demo:
 `METALUI_OVERLAYS_DEMO=1`.
 
 ## Drag and drop — A / D
@@ -771,6 +771,13 @@ toolbar strip, the root laid out below (divergence 195, `SG-A`); command shortcu
 `arrowEdge`'s side (default `.top`), flipped then clamped inside the window, no
 arrow; an outside press or Escape writes the binding false from input, and the
 outside press then reaches what it lands on. Published as a non-modal popover.
+`.presentationBackground(_:)` (A; a `Color`, a `ColorToken`, a `Material`, a `LinearGradient`, a
+`RadialGradient`; no `ShapeStyle` generic, divergence 119) written inside the popover's content fills its
+panel (`BG-C`): the innermost report wins, one on the declarer or elsewhere outside the content does
+nothing, and the 1-pt border, the radius 10 and the shadow stay; a `Material` panel draws through
+`Frame.fillMaterial` and has no drop shadow (`BG-P`). `presentationBackground(alignment:content:)` draws content
+proposed the panel's size and placed by the alignment, cut to the panel, under a named child
+`$presentationbackground` (`BG-E`). An `anchoredOverlay`, an alert and a menu ignore it (`BG-A`). Human check `BG1`.
 
 **Tooltips (A / D 113).** `.help("text")` publishes `accessibilityHint`'s tree on
 both bridges and shows a drawn tooltip after 1.0 s of display-link time, hidden by
