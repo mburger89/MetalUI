@@ -40,7 +40,7 @@ private func keyDown() -> InputEvent {
 @Test @MainActor func aForeignWriteFiresTheHandlerAtBecomingKeyAMouseDownAndAKeyDown() throws {
     let (window, pasteboard, counter) = try changeWindow()
     defer { pasteboard.releaseGlobally(); window.close() }
-    let nsWindow = try #require(window.window)
+    let nsWindow: NSWindow = window.window
     func becomeKey() { window.notificationCenter.post(name: NSWindow.didBecomeKeyNotification, object: nsWindow) }
 
     becomeKey()
