@@ -32,7 +32,7 @@ All three carried gaps are **built**; what the probes decided shaped each.
 | `Tests/MetalUITests/BackgroundDragCompileGuards.swift` | 3 guards (`G1`–`G3`) | three values; setter public; the visionOS-shaped `shape` call compiles |
 | `Backends/SDL/Tests/MetalUISDLTests/SDLChromeTests.swift` | 1 | the region reaches the SDL hit-test snapshot (a characterization; gated on a window-manager driver) |
 
-Root: 13 + 9 + 10 + 1 = 33 tests and 5 guards over `dd9a072f` (4264 → 4297 on its own base; lane readings 4279 and 4302 each over 4264). `Backends/SDL` 30 + 257 on macOS and 30 + 254 in the Linux image at lane 2's head.
+Root: 13 + 9 + 10 + 1 = 33 tests and 5 guards over `dd9a072f` (lane readings 4279 and 4302 each over 4264; on the merged tree master's 4307 + 33 tests + 5 guards = **4345 tests in 7 suites**, 271 typecheck guards). `Backends/SDL` 30 + 257 on macOS and 30 + 254 in the Linux image at lane 2's head.
 `everyProductionTreeBuildsOnAOneMegabyteThread` gained the chrome demo's new section; `RetainedSubtreeInternalTests` gained two `buildOnly` rows (`presentationBackgroundSlot`, `presentationBracketDepth`).
 
 ## §3 Probes
@@ -74,5 +74,5 @@ screen (`BG4`); looks (group `BG`, record §03). Nothing carried has an owner ou
 
 ## §8 Verification
 
-See the Record phase counts in `CLAUDE.md`'s counts bullet: `swift package clean`, native build, native unfiltered run on the merged tree, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing;
-census re-recorded after the merge (`closeout-public-api.tsv`).
+Record phase, merged tree: `swift package clean`, native build 0 `error:` (only SwiftPM's deprecation `warning:`), native unfiltered run **4345 tests in 7 suites passed**, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing;
+census re-recorded after the merge (`closeout-public-api.tsv`, 3798 lines). The fourteen images, `Backends/SDL` and the Linux image were taken at the lanes, not re-taken after the merge (master's changes there are the clipboard and GPU sync batch, disjoint).
