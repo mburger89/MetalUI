@@ -454,3 +454,23 @@ func aFixedAxisHasNoEdge() throws {
     let regionsAnswer = window.setWindowDragRegions([bounds(0, 0, 10, 10)])
     #expect(regionsAnswer == window.hitTestInstalled, "true exactly when the callback is installed")
 }
+
+/// **BG-I** (`BG-G`...`BG-I`; presentation extras, spec test 25). The regions `Window` publishes for
+/// `backgroundDragBehavior = .enabled` — the content rect carved by a button at (20, 0, 80 x 24) — reach the
+/// installed hit test on a window in the **standard** style: the C twin answers drag on the background, normal
+/// on the carved button, and the bordered window resizes by its system frame. On SDL the platform moves the
+/// window itself (`CW-E`), so `performTitleBarPress` is never the path.
+/// Mutation: drop the regions (everything normal) or let the callback require `borderless` for a drag.
+@MainActor
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func aBackgroundRegionReachesTheSDLHitTestSnapshot() throws {
+    let (_, window) = try chromePlatform()
+    let regions = [bounds(0, 0, 20, 24), bounds(100, 0, 300, 24), bounds(0, 24, 400, 276)]
+    #expect(window.setWindowDragRegions(regions) == true)
+    #expect(window.hitTestInstalled)
+    #expect(window.chromeHit(at: point(200, 200)) == .draggable, "the background")
+    #expect(window.chromeHit(at: point(10, 10)) == .draggable, "beside the button")
+    #expect(window.chromeHit(at: point(50, 10)) == .normal, "the carved button")
+    #expect(window.chromeHit(at: point(399, 150)) == .normal, "a bordered window resizes by its system frame")
+    #expect(window.performTitleBarPress(clickCount: 1) == false, "SDL's drag is the region, never a title-bar press")
+}

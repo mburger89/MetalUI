@@ -157,3 +157,42 @@ import MetalUIRender
     appKit.hostView.mouseDragged(with: try event(.leftMouseDragged, in: nsWindow))
     #expect(answers == [false] && drags.isEmpty, "a drag after the close finds no press")
 }
+
+/// **4.5** (`BG-G`, `BG-H`; spec test 25). A real `Window` over a real `AppKitWindow`: with
+/// `backgroundDragBehavior = .enabled`, a primary mouse-down below the title band that nothing claims reaches
+/// `performTitleBarPress(clickCount: 1)` and drags with the very event being dispatched; a double click on
+/// the background runs nothing; `.automatic` never drags. `NSWindow.isMovableByWindowBackground` is never
+/// set (SwiftUI does not use it).
+///
+/// Mutation: pass `mouse.clickCount` through (the double click runs the double-click action), or drop the
+/// behavior check (the `.automatic` arm drags).
+@MainActor
+@Test func appKitBackgroundPressDragsOnlyDuringAMouseDown() throws {
+    let (appKit, nsWindow) = try dragWindow("4.5")
+    defer { nsWindow.close() }
+    var drags: [NSEvent] = []
+    var doubleClicks = 0
+    appKit.performTitleBarDrag = { drags.append($0) }
+    appKit.performTitleBarDoubleClick = { doubleClicks += 1 }
+    let window = Window(platformWindow: appKit, startsDisplayLink: false, textSystem: nil) {
+        Box().frame(width: Pixels(400), height: Pixels(200))
+    }
+    func down(clickCount: Int) throws -> NSEvent {
+        try #require(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 100, y: 100), modifierFlags: [],
+                                        timestamp: 0, windowNumber: nsWindow.windowNumber, context: nil,
+                                        eventNumber: 0, clickCount: clickCount, pressure: 1))
+    }
+
+    appKit.hostView.mouseDown(with: try down(clickCount: 1))
+    #expect(drags.isEmpty, ".automatic: the background does not drag")
+
+    window.backgroundDragBehavior = .enabled
+    let single = try down(clickCount: 1)
+    appKit.hostView.mouseDown(with: single)
+    #expect(drags.count == 1 && drags.first === single, "one drag, with the event being dispatched")
+    appKit.hostView.mouseDown(with: try down(clickCount: 2))
+    #expect(drags.count == 1 && doubleClicks == 0, "a double click on the background does nothing")
+    #expect(appKit.performTitleBarPress(clickCount: 1) == false, "outside a mouse-down: nothing to act on")
+    #expect(nsWindow.isMovableByWindowBackground == false)
+    withExtendedLifetime(window) {}
+}
