@@ -62,10 +62,12 @@ twice; pinned at h4 m4 / h4 m4 until C14-k) and `theKeyOnlyArmStillCostsTwoFrame
 
 ## 4 Verification
 
-- Native build 0 `error:`, native unfiltered run (after the pins above, before the last doc-only test comment): **4261 tests in 7 suites passed** (4247 at `195ff2c8` + 14: lane 1's trace pins, lane 2's `RetainedSingleMissTests`, the guard `TR.1`);
-  `FR-J no-argument frame: succeeded=true`. With `.plain` and the soundness pin's second case the count is the run recorded in section 6.
+- Native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice; native unfiltered run on a **locked screen** at the final commit: **4261 tests in 7 suites** (4247 at `195ff2c8` + 14 test functions;
+  parameterised cases are not counted), the five `AppKitPresentationTests` sheet issues of `CI-AF` and nothing else, `FR-J no-argument frame: succeeded=true`. `swift build --build-tests` on the default build system 0 `warning:`.
 - `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1`, `AppKitPresentationTests` skipped: **4252 passed, no trap**.
 - Inventory and undocumented scripts print nothing (no public declaration; `RetainedTrace` is `package`).
+- The fourteen offscreen images: **0 px** against `195ff2c8` (`docs/probes/demo-pixels/compare.sh`, every row `scene identical`).
+- Linux image (`metalui-portable`, root package, `--no-parallel`): `MetalUITestingTests` 500 tests in 4 suites, `MetalUILayoutTests` 238 and `MetalUICoreTests` 22 passed; `Backends/SDL` untouched.
 - Scene, hitboxes, accessibility, tallies and bounds equal a retention-off twin on every arm every step (`theSingleMissFrameEqualsRetentionOff`).
 
 ## 5 Carried
