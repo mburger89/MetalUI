@@ -172,7 +172,10 @@ enum {
     // Single-instance launch (ruling SN-G). Appended after PINCH, so no earlier
     // kind renumbers. INSTANCE: the listener thread queued a forwarded message;
     // the platform drains the queue (mui_instance_next).
-    MUI_EVENT_INSTANCE
+    MUI_EVENT_INSTANCE,
+    // The clipboard changed (ruling CP-G): SDL_EVENT_CLIPBOARD_UPDATE, which SDL posts for an own set,
+    // a text set and a clear alike, with no window. Appended, so no earlier kind renumbers.
+    MUI_EVENT_CLIPBOARD
 };
 enum { MUI_PINCH_BEGIN = 0, MUI_PINCH_UPDATE = 1, MUI_PINCH_END = 2 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };

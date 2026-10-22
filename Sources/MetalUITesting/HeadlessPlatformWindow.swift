@@ -61,6 +61,10 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         /// The insets ``HeadlessPlatformWindow/titleBarInsets`` takes while the hidden style is applied, or
         /// `nil` to leave them as the test sets them (`CW-D`): SDL's band and cluster for ``sdlChrome``.
         public var hiddenTitleBarInsets: Edges<Pixels>?
+        /// Whether a `.later` clipboard representation is exported when a consumer reads it (`true`,
+        /// AppKit's answer) or at write time (`false`, SDL's); ``HeadlessPlatformWindow/clipboardExportCount``
+        /// counts the exports (`CP-F`).
+        public var clipboardExportsLazily: Bool
 
         /// SDL's answers under `.hiddenTitleBar` (`CW-B`…`CW-F`): the style applies, drag regions are used,
         /// there are no native window buttons, and the insets are the band, 32, and the three-button
@@ -79,7 +83,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
                     accessibilityClientActive: Bool = true, performsWindowDrag: Bool = true,
                     accessibilityReduceTransparency: Bool = false,
                     usesWindowDragRegions: Bool = false, hasNativeWindowControls: Bool = true,
-                    isZoomed: Bool = false, hiddenTitleBarInsets: Edges<Pixels>? = nil) {
+                    isZoomed: Bool = false, hiddenTitleBarInsets: Edges<Pixels>? = nil,
+                    clipboardExportsLazily: Bool = true) {
             self.appearance = appearance
             self.scaleFactor = scaleFactor
             self.presentsMenusNatively = presentsMenusNatively
@@ -95,6 +100,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
             self.hasNativeWindowControls = hasNativeWindowControls
             self.isZoomed = isZoomed
             self.hiddenTitleBarInsets = hiddenTitleBarInsets
+            self.clipboardExportsLazily = clipboardExportsLazily
         }
     }
 
@@ -221,26 +227,14 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public var keepsAccessibilityHistory = false
     /// Every `setDisplayLinkPaused` argument, in order.
     public private(set) var displayLinkPauses: [Bool] = []
-    /// The window's clipboard, private to it, as typed representations (ruling
-    /// `CB-K`): `writeClipboard(_:)` replaces all of it, text included. Most
-    /// preferred first.
-    public private(set) var clipboardRepresentations: [ClipboardRepresentation] = []
-    /// The clipboard's plain text, a view of its `public.utf8-plain-text`
-    /// representation (`CB-K`): reading decodes its bytes as UTF-8; setting
-    /// replaces the whole store with that one representation, `nil` clears it.
-    public var clipboard: String? {
-        get {
-            clipboardRepresentations.first { $0.type.identifier == "public.utf8-plain-text" }
-                .map { String(decoding: $0.bytes, as: UTF8.self) }
-        }
-        set {
-            clipboardRepresentations = newValue.map {
-                [ClipboardRepresentation(type: PasteboardType(identifier: "public.utf8-plain-text",
-                                                              conformsTo: ["public.plain-text", "public.text", "public.data", "public.item"]),
-                                         bytes: Array($0.utf8))]
-            } ?? []
-        }
-    }
+    /// The window's clipboard items, private to it (rulings `CB-K`, `CP-E`): every write replaces all
+    /// of it, text included. `HeadlessPlatformWindow+Clipboard.swift` reads and writes it.
+    var clipboardStore: [ClipboardItem] = []
+    /// The closure `Window` installed through `setClipboardChangeHandler(_:)` (`CP-G`).
+    var clipboardChangeHandler: (@MainActor () -> Void)?
+    /// How many `.later` representations have been exported so far (`CP-F`): at write time with
+    /// ``Options/clipboardExportsLazily`` `false`, else at each read of one.
+    public internal(set) var clipboardExportCount = 0
     /// Every `setClipboardCommands` argument, in call order (`CB-E`).
     public private(set) var clipboardCommandRequests: [ClipboardCommands] = []
     /// Whether the window has closed.
@@ -283,28 +277,6 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// holds it: set by a delivered `.textComposition`, cleared by a delivered
     /// `.textInput` and when the caret goes (ruling `IM-C`).
     public private(set) var markedText: String = ""
-
-    /// Reads ``clipboard``.
-    public func readClipboard() -> String? { clipboard }
-
-    /// Replaces ``clipboard``.
-    public func writeClipboard(_ text: String) { clipboard = text }
-
-    /// Replaces ``clipboardRepresentations`` with `representations`; `false`
-    /// (the store unchanged) when there are none.
-    public func writeClipboard(_ representations: [ClipboardRepresentation]) -> Bool {
-        guard !representations.isEmpty else { return false }
-        clipboardRepresentations = representations
-        return true
-    }
-
-    /// The stored representations' identifiers, in order.
-    public func clipboardTypeIdentifiers() -> [String] { clipboardRepresentations.map(\.type.identifier) }
-
-    /// The bytes stored as `identifier`.
-    public func readClipboard(identifier: String) -> [UInt8]? {
-        clipboardRepresentations.first { $0.type.identifier == identifier }?.bytes
-    }
 
     /// Records the argument in ``clipboardCommandRequests``.
     public func setClipboardCommands(_ commands: ClipboardCommands) {

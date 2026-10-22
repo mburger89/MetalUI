@@ -28,6 +28,15 @@ extension Transferable {
     }
 }
 
+extension Transferable {
+    /// This value as one outgoing item with every representation encoded now, zero-byte ones dropped;
+    /// `nil` when none remains (`CB-I`, `CP-E`). The test harness's route to a multi-item clipboard.
+    package func clipboardItem() -> ClipboardItem? {
+        let payloads = clipboardRepresentations().map { ClipboardPayload(type: $0.type, bytes: .now($0.bytes)) }
+        return payloads.isEmpty ? nil : ClipboardItem(payloads: payloads)
+    }
+}
+
 /// How a clipboard's items are imported as a `Transferable` (ruling `CB-F`):
 /// walk the destination's `importedContentTypes()` in order; for each, the first
 /// offered type that is it or conforms to it, read lazily, and handed to
