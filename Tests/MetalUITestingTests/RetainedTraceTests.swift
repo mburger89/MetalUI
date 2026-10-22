@@ -3,7 +3,9 @@ import Foundation
 import MetalUIPlatform
 import MetalUIScene
 import MetalUITesting
+#if canImport(Darwin)
 import MetalUITestSupport
+#endif
 import Testing
 
 // C14-j lane 1 (`DM-E`, `DM-F`): `METALUI_TRACE_RETAINED=1` names every failing conjunct of the paint and the prepaint decision, says
@@ -224,6 +226,7 @@ struct RetainedTraceWindowTests {
 
     /// 6 - the trace costs nothing when off: no line is built (`linesBuilt` stays 0) and a changed frame allocates less than
     /// with a sink (Darwin; `PA-J`: thread-filtered, differential). **Mutation:** build the string before the `active` check.
+    #if canImport(Darwin)
     @Test func theTraceCostsNothingWhenOff() throws {
         let (offWindow, offModel) = try doubleMissWindow(.value)
         RetainedTrace.linesBuilt = 0
@@ -237,6 +240,7 @@ struct RetainedTraceWindowTests {
         #expect(sunk > 0 && RetainedTrace.linesBuilt > 0, "the instrument sees lines when a sink is installed")
         if let off, let on { #expect(on > off, "a sink costs allocations, off does not: off \(off) on \(on)") }
     }
+    #endif
 }
 
 #if DEBUG
