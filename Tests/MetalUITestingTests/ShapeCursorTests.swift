@@ -180,6 +180,7 @@ private func pixel(_ cursor: PlatformCursorImage, _ x: Int, _ y: Int) -> (r: Int
     let rasters = window.window.animationStore.rasters
     #expect(rasters.lastRasterizedPixels == 0 && rasters.lastTexturesMade == 0)
     #expect(rasters.textureCount == 0, "\(rasters.textureCount) textures")
+    #expect(rasters.keyProbes == 0, "\(rasters.keyProbes) key probes: the cursor never asked the frame's cache")
 }
 
 /// 35 (`BG-M`) - a window moved to another display re-sends the shape once at the new scale; the same scale

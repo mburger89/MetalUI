@@ -91,6 +91,12 @@ private let backgroundPoint = pt(200, 200)
     drag.click(at: backgroundPoint)
     #expect(drag.platformWindow.titleBarPresses.isEmpty, "a DragGesture owns the press")
 
+    let draggable = try dragWindow {
+        Color.clear.frame(width: Pixels(400), height: Pixels(300)).draggable("payload")
+    }
+    draggable.click(at: backgroundPoint)
+    #expect(draggable.platformWindow.titleBarPresses.isEmpty, "a draggable's arena owns the press")
+
     let handle = try dragWindow {
         Color.clear.frame(width: Pixels(400), height: Pixels(300)).gesture(WindowDragGesture())
     }
