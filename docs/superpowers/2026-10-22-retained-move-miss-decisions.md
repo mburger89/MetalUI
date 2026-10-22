@@ -3,7 +3,7 @@
 Rulings for items C14-k and C14-l. Spec: [`specs/2026-10-22-retained-move-miss-design.md`](specs/2026-10-22-retained-move-miss-design.md). Record: `../record/146-retained-move-miss.md`.
 Branch `perf/retained-move-miss` from `b1c1269f`. Reserved divergence labels 755-764: none taken.
 
-Prefix **`AM-`**, lettered. **Next unused: `AM-J`.** (Moves in the commit that appends a ruling.)
+Prefix **`AM-`**, lettered. **Next unused: `AM-K`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `DM-B`, `DM-C`, `DM-D`, `DM-E`, `DM-L`, `DM-O`, `SB-V`, `SB-AA`, `RW-S`, `RK-C`, `FS-M`, `EE-F`, `GS-`, `AN-Y`, `PA-J`, `MO-A`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`AM-H`).
@@ -70,3 +70,10 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`AM-H`).
 **Ruling.** Two. Lane 1 (C14-k): `RetainedPhase`, `retainedPrepaintPhase`, the decision's miss branch and `finishRetainedPaint`, `EquatableComponent.swift`, its fixture arms and tests. Lane 2 (C14-l): `RetainedTrace.swift`, `RetainedPrepaint.swift`'s key, `EnvironmentValues.swift`, the new `RetainedTransactionKey.swift`, the one-line region of `retainedKey(_:)`, its own fixture and tests, the probes. Both edit `RetainedSubtree.swift` in different functions; they merge by hunk in either order.
 **Evidence.** Section 2 and 3 of the spec: no function is in both lists.
 **Cost if wrong.** A hunk conflict in `RetainedSubtree.swift`, resolved by the orchestrator at the merge.
+
+## AM-J - Critic: the post-change `coverage` measurement moves to lane 2
+
+**Question.** The spec had lane 1 measure the 179/178 lines with lane 2's not-yet-landed fixture, or a duplicate `AmbientFlip` arm.
+**Ruling.** Rejected as a cross-lane dependency and a duplicated fixture: `AM-C` already says those lines are the frame after an ambient miss, which lane 2 owns. Lane 2 measures them on `DragAmbientFixture` (before and after `AM-D`) and records the residue; lane 1 keeps only the geometry-only fix (`AM-A`, `AM-B`). The critic also checked and kept: `AM-D`'s unconditional-normalisation mutant is allowed to be equivalent (reported, not hidden); `theMovedFrameEqualsRetentionOff` is an oracle, not an instrument, and says so; no SwiftUI claim, public spelling, renderer primitive, platform requirement or C enum is touched.
+**Evidence.** Spec sections 2 item 3 and 6 before this change.
+**Cost if wrong.** A residue is found late in lane 2 instead of lane 1; either way it is named.

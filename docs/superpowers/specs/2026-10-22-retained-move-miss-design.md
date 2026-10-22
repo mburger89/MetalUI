@@ -37,9 +37,7 @@ the `.moved` pin of `RetainedSingleMissTests.swift`. **Lane 2 does not touch the
    decision's miss branch, when `valid` held (no other conjunct failed) and `old.key.describeDifference(from: key)` names only `key.rects`, `key.interior`, `key.shapeInterior`
    (ambient and `nodeCount` equal), the phase notes `inheritsBuildCoverage`; `finishRetainedPaint` sets `record.coverageBuild = phase.build.observed || phase.inheritsBuildCoverage`.
    Precedent: `DM-L` (`observed || descendantRan`) and the equivalent mutation m9 of record 140.
-3. **Coverage after a change (the `[coverage.build, coverage.prepaint]` question)**: a changed occurrence is already covered by `DM-C`; the remaining lines are ambient misses (lane 2, `AM-C`).
-   Lane 1 measures it: it runs the fillet fixture with the fixture's `disablesAnimations` flip (lane 2's fixture, once landed; before that, an `AmbientFlip` arm of its own) and records
-   which of the two causes each remaining `coverage` line has. No code beyond items 1 and 2.
+3. **Coverage after a change** is measured by lane 2 (`AM-J`): lane 1 builds nothing for it and does not depend on lane 2's fixture.
 
 **Tests (all `RetainedMoveMissTests` unless named; each red on arrival where it counts work).**
 
@@ -99,6 +97,7 @@ setter, separating arm an inlined setter) records what the frames are before the
 | `aFireCauseNamesTheWriterFrameOrSaysReleaseInlined` | pure function over synthetic symbol lists: a setter frame, only a caller frame behind machinery, framework-only; a live debug write names the setter (skips Windows, `symbolicatedStacks`) | `?` | return `?` |
 | `theTraceCostsNothingWhenOff` (existing) | `linesBuilt`/`pathsBuilt` stay 0; the new differences/frames are built inside the autoclosure | n/a | build `differences` outside it |
 
+Lane 2 also owns the `[coverage.build, coverage.prepaint]` measurement (`AM-J`): on `DragAmbientFixture` with the `disablesAnimations` flip it records which cause each remaining `coverage` line has, before and after `AM-D`, and names any residue.
 Lane 2 reports before/after misses per frame on `DragAmbientFixture`, bracket, zoom and fillet fixtures.
 
 ## 4 Invariants and gates
@@ -116,7 +115,7 @@ MetalCreator's fillet drag re-run with `METALUI_TRACE_RETAINED=1` against the me
 
 ## 6 Merge order
 
-Lane 1 and lane 2 are independent; lane 2's fixture is reused by lane 1's step 3 measurement only after it lands. Either order merges (`RetainedSubtree.swift` hunks are disjoint; `retainedKey` vs the decision).
+Lane 1 and lane 2 are independent (no shared fixture; `AM-J`). Either order merges (`RetainedSubtree.swift` hunks are disjoint; `retainedKey` vs the decision).
 
 ## 7 Deferred, with reason and owner
 
