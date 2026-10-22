@@ -119,10 +119,13 @@ struct ChromeDemoBody: Component {
 @MainActor func chromeDemoStar() -> Path {
     var path = Path()
     // The vertices of a pentagon of radius 30 about (32, 32), taken every second one.
-    let corners: [(Float, Float)] = [(32, 2), (49.6, 56.3), (3.5, 22.7), (60.5, 22.7), (14.4, 56.3)]
-    let points = corners.map { Point(x: Pixels($0.0), y: Pixels($0.1)) }
-    path.move(to: points[0])
-    for point in points.dropFirst() { path.addLine(to: point) }
+    // Plain calls, no closure: a main-actor closure handed to a stdlib generic checks its isolation per call
+    // and traps on the 1 MB thread the stack-budget test builds this on (`HP-C`).
+    path.move(to: Point(x: Pixels(32), y: Pixels(2)))
+    path.addLine(to: Point(x: Pixels(49.6), y: Pixels(56.3)))
+    path.addLine(to: Point(x: Pixels(3.5), y: Pixels(22.7)))
+    path.addLine(to: Point(x: Pixels(60.5), y: Pixels(22.7)))
+    path.addLine(to: Point(x: Pixels(14.4), y: Pixels(56.3)))
     path.closeSubpath()
     return path
 }
