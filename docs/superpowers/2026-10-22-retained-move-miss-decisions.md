@@ -3,7 +3,7 @@
 Rulings for items C14-k and C14-l. Spec: [`specs/2026-10-22-retained-move-miss-design.md`](specs/2026-10-22-retained-move-miss-design.md). Record: `../record/146-retained-move-miss.md`.
 Branch `perf/retained-move-miss` from `b1c1269f`. Reserved divergence labels 755-764: none taken.
 
-Prefix **`AM-`**, lettered. **Next unused: `AM-L`.** (Moves in the commit that appends a ruling.)
+Prefix **`AM-`**, lettered. **Next unused: `AM-P`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `DM-B`, `DM-C`, `DM-D`, `DM-E`, `DM-L`, `DM-O`, `SB-V`, `SB-AA`, `RW-S`, `RK-C`, `FS-M`, `EE-F`, `GS-`, `AN-Y`, `PA-J`, `MO-A`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`AM-H`).
@@ -84,3 +84,32 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`AM-H`).
 **Ruling.** Built as `AM-A`/`AM-B`. `RetainedPhase.prepaintObserved` is `var`; `RetainedBuild.closedOnRecord = !observed` is set after `finish`; `RetainedPhase.inheritsBuildCoverage` is set in the paint decision's miss branch under `valid`, `closedOnRecord`, equal `ambient` and equal `nodeCount`; `finishRetainedPaint` writes `coverageBuild = build.observed || inheritsBuildCoverage`. Measured: each half alone leaves the settle frame at h4 m4 (mutations m1, m2 redden the same four tests). The window counter `RetainedTestingHooks.prepaintWindowsOpened` is incremented in `retainedPrepaintPhase` (where the window is decided), not where the session runs: a steady frame's prepaint replays and never runs a session, so a run-site counter left "predictor always true" as a surviving mutant (m4, first spelling); the build counter stays at the run site (a hit grafts, so it also sees nothing, and 0 is the pin).
 **Evidence.** Record 146 section 2 (mutation table).
 **Cost if wrong.** A test counter only.
+
+## AM-L - Lane 2 as built: `AM-D` is unconditional; the touches guard never separated
+
+**Question.** `AM-D` zeroed the two transaction members only for a record with no animation touches. Does the guard hold anything back?
+**Ruling.** No, and it makes the fix inert: every record whose paint fills a colour touches an animation track (`animatedBackground`/`animatedColor` touch the settled track every frame to keep it alive), so `touches.isEmpty` was false for every fixture panel and the first build of the rule left the drag at `h0 m8` (measured, record 146 section 4). The discriminator the spec wanted is not `touches` but a **changed value**, and a record that stands has none by construction (equal value, equal serial, unfired observers, keyed geometry and ambient). So the two members are not part of any retained key: `retainedKey` and `retainedPrepaintKey` are normalised at the decision (`ReplayKey`/`PrepaintKey.transactionNormalised`, `RetainedTransactionKey.swift`), every stored key is therefore normalised, and nothing is stored or compared real. An in-flight animation is already ineligible (`noteActiveAnimation`, `SB-`), so no replay stands over one. The conditional form, the `touches` branch and its separating-arm search are retired; the unconditional mutation of `AM-D` is the built behaviour, its soundness is the twin differential (`theDragFrameEqualsRetentionOff`, `anAnimationStartedInsideAPanelStillRuns`) and verify mode.
+**Evidence.** Record 146 section 4: before `h0 m8` twice and the coverage second frame, after one miss a frame; trace lines `key.ambient.disablesAnimations`/`ledgerKey.ambient.disablesAnimations` gone.
+**Cost if wrong.** A replay that should have started an animation snaps. The start needs a changed value, which moves the serial or fires an observer, which is a miss on its own conjunct; a value moved only by an unkeyed global is stale with or without this change.
+**Carried.** The graft's `BuildKey` still carries `snapping`/`disablesAnimations` (`RK-C`): a flip frame refuses the graft by key and builds; the build is not a miss (counted by `retainedGraftIneligible`), measured in section 4, ruled in `AM-M`.
+
+## AM-M - The environment half did not reproduce; the field is named; the graft key is measured
+
+**Question.** `AM-E`: does the drag fixture also flip `key.ambient.environment`?
+**Ruling.** No. A `GestureState` drag flips `disablesAnimations` alone on the `DragAmbientFixture` (every drag-frame reason list names only `key.ambient.disablesAnimations`/`ledgerKey...`, then `coverage.build, coverage.prepaint` one frame later, the second frame of an ambient miss, `AM-C`). The environment difference MetalCreator sees together with it is therefore a second source the fixture does not have; it is **carried as C14-m** with the instrument built: the trace prints `key.ambient.environment.<field>` for every one of the 26 fingerprint fields (`EnvironmentFingerprint.differences(from:)`, guard `everyEnvironmentFingerprintFieldIsNamedWhenItDiffersAlone`), so one more MetalCreator trace names it. No rule is made for a field not seen.
+**Evidence.** Record 146 section 4 (the fixture's reason lists before and after); `AM-E`'s ruling not to track a read set stands.
+**Cost if wrong.** The MetalCreator environment half survives until its field is named.
+
+## AM-N - The path cut and the fire cause as built; the cause rule is the frame after the machinery
+
+**Question.** What exactly does the release probe leave to name a writer?
+**Ruling.** `observation-fire-cause-release.swift` (-O): the setter frame is gone and the writer's own function is the first frame after `ObservationRegistrar.withMutation` (`main.theWriter`); a writer inlined into its caller leaves that caller (`function signature specialization <...> of main.arm`). `writerCause(from:)` takes a setter frame when present, else the first non-runtime frame after the **last** machinery frame (`Observation.`, `ObservationRegistrar`, `ObservationTracking`, `withMutation`, `RetainedTrace.`, `MemoFlags`, `RetainedSession`, `ContentMemoStore`), printed `via <function>` with the specialization wrapper and signature dropped; `release-inlined` when none; `?` only for no symbolicated frame at all (Windows). `tail(of:length:)` cuts at a `/` as `AM-F` says (`…/` plus whole trailing components, an over-long last component `…` plus its last `length - 1` characters, `length` <= 2 the last characters).
+**Evidence.** Record 146 section 4 (the probe's two arms at -Onone and -O).
+**Cost if wrong.** A trace word.
+
+## AM-O - Critic: the guard test, the animation arm and the unmeasured mutation
+
+**Question.** Which lane 2 pins could be red for the wrong reason?
+**Ruling.** (1) `aTouchfulRecordStillKeysTheTransaction` is not built (`AM-L`: nothing to keep). Its place is `anAnimationStartedInsideAPanelStillRuns`: an animated panel under a `withAnimation` write equals a retention-off twin tick by tick, which reddens if a normalised key ever hid a started animation; it does not redden under the mutations (the panel misses on its own serial), so it is an oracle, not an instrument, and says so. (2) `aSteadyDragCostsExactlyTheChangedPanelsMisses` pins six drag frames h7 m1, the release frame and two settle frames h8 m0 and no `disablesAnimations`/`snapping`/`coverage` in any line; it reddens on either key left real, and on a half-normalised ambient. (3) `theTraceCostsNothingWhenOff` keeps its existing arms; moving `differences` outside the autoclosure was not mutated (`missLine` is called only inside `emit`'s autoclosure and guards `active` again: a redundant layer, as the test's own header says).
+**Evidence.** Record 146 section 5 (mutation table).
+**Cost if wrong.** A pin that passes for the wrong reason.
