@@ -53,6 +53,13 @@ private final class Box: @unchecked Sendable {
     func awaitStarted() { started.wait() }
 }
 
+/// `fence.waitBlocking()` on a helper thread, bounded: `true` when it returned in time.
+private func blockingWait(_ fence: SDLGPUFence, seconds: Double) -> Bool {
+    let box = Box()
+    Thread { fence.waitBlocking(); box.done.signal() }.start()
+    return box.awaitDone(seconds: seconds) == .success
+}
+
 private func waitFor(_ semaphore: DispatchSemaphore, seconds: Double) {
     _ = semaphore.wait(timeout: .now() + seconds)
 }
@@ -92,21 +99,26 @@ private func waitFor(_ semaphore: DispatchSemaphore, seconds: Double) {
         let returned = box.awaitDone(seconds: 20)
         device.waiterGate = nil
         let fence = box.fence
+        // Held on the gate, the fence must stay unsignalled: a blocked wait stays blocked.
+        let early = Box()
+        if let fence { Thread { fence.waitBlocking(); early.done.signal() }.start() }
+        let stillBlocked = fence == nil ? true : early.awaitDone(seconds: 0.3) == .timedOut
         let signalledOnReturn = fence?.isSignalled
         gate.signal()   // always release the waiter, even when the verb never returned
         #expect(returned == .success, "the verb returned while the fence was held")
         #expect(box.error == nil)
-        #expect(signalledOnReturn == false, "returned before the GPU finished: the fence is unsignalled")
+        #expect(signalledOnReturn == false && stillBlocked, "returned before the GPU finished: the fence is unsignalled")
         let held = try #require(fence)
-        held.waitBlocking()
+        #expect(early.awaitDone(seconds: 30) == .success, "the wait returns once the gate opens")
         #expect(held.isSignalled)
     }
 
     /// **Y3.** Two synchronous batches clearing green then blue into one
     /// texture with no wait between, then a download: every texel is blue,
-    /// twenty times with alternating colours. Mutation: the verb enqueues on the
-    /// waiter worker instead of the submit worker (FIFO order against the
-    /// download's job is lost).
+    /// twenty times with alternating colours. The order is held by the verb
+    /// returning only once its buffer is submitted, so this is the regression
+    /// net for a verb that returns early; the enqueue-on-the-waiter mutation
+    /// survives it (Y4 reddens instead, record 143 section 3).
     @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
     func aDownloadIssuedRightAfterReadsTheBatchsOutput() throws {
         let device = try GPUTestSupport.requireDevice()
@@ -128,7 +140,7 @@ private func waitFor(_ semaphore: DispatchSemaphore, seconds: Double) {
         let device = try GPUTestSupport.requireDevice()
         let box = Box()
         let fence = try device.submitBatchSynchronously { _ in box.set(thread: Thread.current) }
-        fence.waitBlocking()
+        #expect(blockingWait(fence, seconds: 30), "the batch finishes")
         let recorded = try #require(box.thread)
         #expect(recorded === device.submitWorker.thread)
         #expect(!recorded.isMainThread)
