@@ -1,7 +1,7 @@
 # Clipboard extras — decisions
 
 Rulings for round 2 item 6 of the gpui-gap list (user request 2026-10-21; **not a plan task**): what `CB-N`
-(record §115) deferred. Prefix `CP-`. **Next unused: `CP-J`.**
+(record §115) deferred. Prefix `CP-`. **Next unused: `CP-M`.**
 Spec: [`specs/2026-10-22-clipboard-extras-design.md`](specs/2026-10-22-clipboard-extras-design.md).
 Record: `../record/142-clipboard-extras.md` (Record phase). Branch `feat/clipboard-extras` from `5f03ab7b`.
 Divergence labels reserved 715–724: none taken yet; **715, 716, 717 are earmarked** (`CP-C`, `CP-F`, `CP-B`).
@@ -127,9 +127,8 @@ platform; it joins the retained fingerprint the way `controlActiveState` does (`
 ## CP-H — Retention: a `PasteButton` in a retained subtree
 
 **Ruling.** The clipboard snapshot is a paint- and build-time ambient. An `.equatable()` component holding
-a `PasteButton` must not replay a stale enabled state: the lane that builds it reads `AmbientKey`/
-`EnvironmentReading` and mirrors `controlActiveState`'s treatment, or refuses retention by a named counted
-reason when a `PasteButton` is under it. Pinned with `METALUI_VERIFY_RETAINED=1` semantics (`CP-` test
+a `PasteButton` must not replay a stale enabled state: **decided (CP-L): retention refuses by a named counted
+reason (`pasteButtonUnderRetained`) when a `PasteButton` is under it**; no fingerprint field, no `AmbientKey` edit. Pinned with `METALUI_VERIFY_RETAINED=1` semantics (`CP-` test
 1.9). No identity, state-slot, hit-test, focus, animation or layout rule moves: `PasteButton` is a `Button`
 inside, one identity level like `Button` (`MC-A`).
 
@@ -140,3 +139,24 @@ Not built, each with a reason: an environment clipboard (`CP-A`, no SwiftUI API)
 (SwiftUI takes no label; look unprobed, human check `CP2`); image/file-URL constants and `Image` as
 `Transferable` (own item, `CB-N`); the X11 primary selection; lazy export on SDL (`CP-F`, blocked by thread
 rules, owner none); clipboard change observation as **public** API (not SwiftUI; `CP-G` is internal).
+
+## CP-J — Divergence 456 is narrowed, not retired (critic, 2026-10-22)
+
+**Ruling.** CP-C retired 456 resting on an **unprobed** SwiftUI array behaviour (arm R). A retirement needs a
+probe. 456 stays live and is **amended** (MetalUI now writes and receives all items; whether SwiftUI does is
+unprobed, human check `CP1`); retirement waits for `CP1`. Labels 715–717 as earmarked.
+
+## CP-K — Steps and lanes (critic, 2026-10-22)
+
+**Ruling.** Two lanes only (`MetalUITesting`'s headless store belongs to the seam, not a lane): **lane 1 = S0 (the
+seam, with the headless store and `TestWindow.setClipboard(items:)`/`clipboardItems`/`clipboardExportCount` honest
+from the start, so lane 2 never edits lane 1's tests) then `PasteButton` and change notification**; **lane 2 =
+multi-item, lazy, the demo's two-item source and the guide snippet**, run after lane 1. The demo section is lane 2's
+(it needs both). Rejected: a third S0 agent (agents run one at a time; the commit boundary is enough). The guide
+mirror file is `GuideMirrorsClipboard.swift`, not `…Lane1`. The migration note counts **four** new requirements
+(not seven).
+
+## CP-L — Retention refusal for `PasteButton` (critic, 2026-10-22)
+
+**Ruling.** See `CP-H`: refusal by name beats a fingerprint field (smaller, cannot go stale). Test 1.9's mutation
+becomes "remove the refusal" (must redden: stale enabled state under `METALUI_VERIFY_RETAINED=1`).

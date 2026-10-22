@@ -11,7 +11,7 @@ Round 2 item 6 (user request 2026-10-21; record §142; rulings `CP-A`…`CP-I` i
 |---|---|---|
 | `@Environment(\.clipboard)` | **not built**: no such SwiftUI macOS API (probe `-DNEG1`) | `CP-A` |
 | `PasteButton` | built: two SwiftUI initialisers, own look | `CP-B` |
-| multi-item copy/paste | built; divergence 456 retired; SDL packs extras in a private mime (715) | `CP-C`, `CP-D` |
+| multi-item copy/paste | built; divergence 456 narrowed (CP-J); SDL packs extras in a private mime (715) | `CP-C`, `CP-D` |
 | lazy export | built on AppKit and headless, SDL realises at write (716) | `CP-F` |
 | change notification (for `PasteButton`) | internal platform push, AppKit polls `changeCount` | `CP-G` |
 
@@ -53,6 +53,8 @@ each, calls the action once under `StateDispatch`. `Window` counts buttons in th
 
 ## 4 Files and lanes
 
+**Final shape (CP-K): two lanes. Lane 1 = S0 below plus `PasteButton`; lane 2 = multi-item, lazy, demo, guide, after lane 1; the demo section moves to lane 2.**
+
 **Step S0 (one agent, first, committed alone): the seam.** `Sources/MetalUIPlatform/Clipboard.swift` (the
 three types, `ClipboardItemPack` with its tests), `Platform.swift` (four requirements), stub-honest
 implementations plus **stored properties** for the change handler and the lazy provider in
@@ -75,8 +77,8 @@ to an existing SDL file, `SDLPlatform.swift`'s event switch: lane 1 owns that fu
 `AppKitPlatform.swift`, lane 2 owns them), `Backends/SDL/Sources/MetalUISDL/SDLClipboardItems.swift` (new, same
 move), `Backends/SDL/Sources/SDLBridge/` additions if the pack needs C (it should not: the pack is Swift bytes
 in one more mime), `HeadlessPlatformWindow+Items.swift` (new), `docs/divergences.md` rows 715, 716 (and 717
-text from lane 1's wording, appended by lane 2 last), retire 456, `docs/guides/input.md` snippet #9
-mirrored in `GuideMirrorsLane1.swift` (`DG-C`), `docs/api-overview.md`, tests with prefix `2.`.
+text from lane 1's wording, appended by lane 2 last), amend 456 (CP-J, not retired), `docs/guides/input.md` snippet #9
+mirrored in `GuideMirrorsClipboard.swift` (`DG-C`), `docs/api-overview.md`, tests with prefix `2.`.
 
 ## 5 Tests, with red-before and the mutation that must redden each
 
@@ -104,8 +106,8 @@ Lane 1 (`Tests/MetalUITestingTests/PasteButtonTests.swift`):
   `clearContents`+write on `didBecomeKey` and on a mouse-down, never on `changeCount` unchanged; mutation:
   compare against the wrong count / fire every time.
 - **1.9 retention**: a `PasteButton` inside an `.equatable()` component re-renders enabled after a clipboard
-  change, and the same run under `METALUI_VERIFY_RETAINED=1` does not trap; mutation: omit the snapshot from the
-  fingerprint (must redden).
+  change, and the same run under `METALUI_VERIFY_RETAINED=1` does not trap; mutation: remove the named retention
+  refusal (CP-H/CP-L; must redden).
 - SDL (`SDLClipboardChangeTests.swift`, `.serialized`, `armMainRunLoopExitCheck()`): **1.10** an own set, a text
   set and a clear each call the handler once (probe's numbers); the offscreen Linux image runs it (events need no
   window, measured). Mutation: drop the event case.
@@ -165,5 +167,4 @@ rewriting the clipboard while the window is key: the button's enablement at the 
 ## 8 Deferred, named
 
 See `CP-I`. Also the Record phase owes: counts, census, the fourteen images against `5f03ab7b`, the Linux image
-runs for `Backends/SDL`, `docs/api-overview.md`, `docs/migration.md` (seven new requirements' conformers: four
-new defaultless, three item ones listed once), CLAUDE.md/AGENTS.md rule and record index (§142).
+runs for `Backends/SDL`, `docs/api-overview.md`, `docs/migration.md` (four new defaultless requirements, CP-K), CLAUDE.md/AGENTS.md rule and record index (§142).
