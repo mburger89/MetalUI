@@ -199,8 +199,9 @@ private struct PasteHolder: Component, @MainActor Equatable {
 }
 
 /// 1.9 — retention: a `PasteButton` inside an `.equatable()` component follows a clipboard change after the component has been
-/// warm for several frames, and retention names the refusal. **Mutation:** remove `taintRetention("pasteButton")` and the
-/// prepaint taint (`notePasteButton`): the stale disabled record replays and the button stays disabled.
+/// warm for several frames, and retention names the refusal. **Mutation:** remove all three taints at once (`taintRetention`'s two
+/// channels and `notePasteButton`'s prepaint taint; each alone survives, the channels being redundant by design, measured):
+/// the stale disabled record replays and the button stays disabled.
 @Test @MainActor func aPasteButtonUnderARetainedComponentStillFollowsTheClipboard() throws {
     let window = try harnessWindow { VStack(spacing: 0) { PasteHolder(tag: 1).equatable() } }
     for _ in 0..<6 { window.window.setNeedsRedraw(); window.tick() }
