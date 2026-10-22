@@ -4,6 +4,8 @@ Item XP-G21 (MetalCreator, 2026-10-21, blocking its xp-2 Windows zip; not a plan
 labels 685-694 reserved, **none taken** (no public API, value-identical). Decisions `docs/superpowers/2026-10-21-windows-release-crash-decisions.md`
 (`WR-`). Record `docs/record/139-windows-release-crash.md` (Record phase). Lanes: **one**, disjoint from `perf/retained-zoom`.
 
+**Status: landed (record §139, 2026-10-21).** Windows proof is the first `root-windows` CI run (human checks WR1, WR2).
+
 ## 1. Problem and reproduction
 
 `swift build -c release` on Windows (6.4.0+Asserts) aborts in SIL verification of `PaintPass.withRenderEffects(_:bounds:id:_:)`

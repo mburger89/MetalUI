@@ -24,6 +24,7 @@ the entry crashes in the caller (`closure #1 in paintDecoration`); optnone entry
 - **`everyLegacyRenderEffectOpensItsScopeAtItsIndex`** passes at `68975774` and after (value-identical). Mutation: `count` for `count - 1` in the shadow arm: reddened that test alone in a filtered run (tracks at 1 and 3, not 0 and 2); restored, `git status` clean.
 - **Suite**: `swift package clean`, native build 0 `error:`, only SwiftPM's deprecation `warning:`; native unfiltered **4229 tests in 5 suites** (4228 + 1), the only issues the five locked-screen `AppKitPresentationTests` sheet issues of `CI-AF`;
   `FR-J no-argument frame: succeeded=true`. Inventory and undocumented scripts print nothing (no public declaration). The fourteen offscreen images 0 px against `68975774` (`docs/probes/demo-pixels/compare.sh`, all scene identical).
+- **After the merge** with master `195ff2c8` (the only conflict the prefix list in CLAUDE.md/AGENTS.md): `swift package clean`, native build 0 `error:`, native unfiltered **4248 tests in 5 suites** (master's 4247 + 1), only the five locked-screen `AppKitPresentationTests` issues, `FR-J no-argument frame: succeeded=true`; the asserts release arms were not re-taken (`RenderEffects.swift` untouched by master). Record number 139 was still free on master.
 - **CI**: `root-windows` gains `swift build -c release --product MetalUI`; its Windows cost is unmeasured (human check WR2).
 
 ## 4. Carried
