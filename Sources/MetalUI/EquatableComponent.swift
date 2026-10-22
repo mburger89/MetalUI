@@ -79,6 +79,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         let graftWindow = store.recordsGrafts ? frame.openGraftWindow() : nil
         let result: ([LayoutNodeID], ComponentLayout<C>)
         if observed {
+            RetainedTestingHooks.buildWindowsOpened += 1
             result = entry.buildSession.run(entry: entry, store: store) {
                 component.finishComponent(&materialized, id: id, pass: &pass)
             }
@@ -143,6 +144,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         let readLow = frame.stateTable.readJournal.count
         defer { phase.prepaintReads = readLow..<frame.stateTable.readJournal.count }
         if phase.prepaintObserved {
+            RetainedTestingHooks.prepaintWindowsOpened += 1
             result = phase.entry.prepaintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.prepaintGroup(layout: &layout, pass: &pass)
             }

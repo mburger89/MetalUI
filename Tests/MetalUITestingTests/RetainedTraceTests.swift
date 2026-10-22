@@ -173,7 +173,7 @@ struct RetainedTraceWindowTests {
                 #if DEBUG
                 #expect(paintMisses.contains { $0.contains("cause:") && $0.contains("radius") }, "the writer is named: \(paintMisses)")
                 #endif
-            case .ledgerGain, .moved, .nested, .plain: break
+            case .ledgerGain, .moved, .movedPlain, .nested, .plain: break
             }
             // `DM-C`: the change frame observes, so the frame after hits and no line names a coverage half (it did before lane 2).
             #expect(!named.contains { $0.contains("coverage.build") || $0.contains("coverage.prepaint") }, "\(arm): no coverage miss after a change: \(paintMisses)")

@@ -30,6 +30,8 @@ enum DMArm: String, CaseIterable, Sendable, CustomStringConvertible {
     case nested
     /// The node holds a plain (not `.equatable()`) child that reads the observed radius in its own body: the read is the retained build window's, not the getter's, so only the occurrence's retained session sees a write (`DM-C` soundness).
     case plain
+    /// `.moved` with the `.plain` arm's child: a fractional width follows the value (a key-only miss for the later nodes) and a plain child reads the observed radius, so a write after a moved miss can only be seen by the occurrence's build session (`AM-B`).
+    case movedPlain
     var description: String { rawValue }
 }
 
@@ -42,10 +44,10 @@ struct DMNode: Component, @MainActor Equatable {
         let shown = arm == .observed ? (model?.params[index].radius ?? 0) : value
         VStack(alignment: .leading, spacing: 2) {
             RoundedRectangle(cornerRadius: Pixels(4)).fill(Color(red: 0.2 + shown * 0.1, green: 0.4, blue: 0.7))
-                .frame(width: Pixels(arm == .moved ? 90 + Float(value) * 0.3 : 90), height: Pixels(10))
+                .frame(width: Pixels(arm == .moved || arm == .movedPlain ? 90 + Float(value) * 0.3 : 90), height: Pixels(10))
             Text("node \(index)").frame(width: Pixels(90), height: Pixels(12))
             if arm == .nested, let model { DMInner(index: index, model: model).equatable() }
-            if arm == .plain, let model { DMPlain(index: index, model: model) }
+            if arm == .plain || arm == .movedPlain, let model { DMPlain(index: index, model: model) }
             Button("go \(index)") {}.frame(width: Pixels(90), height: Pixels(16))
             if arm == .ledgerGain, let model {
                 TextField("t", text: Binding(get: { model.texts[index] }, set: { model.texts[index] = $0 }))
@@ -103,7 +105,7 @@ struct DMParent: Component {
     window.resetFrameWork()
     for i in changed {
         switch arm {
-        case .value, .ledgerGain, .moved: model.values[i] = value
+        case .value, .ledgerGain, .moved, .movedPlain: model.values[i] = value
         case .observed, .nested, .plain: model.params[i].radius = value
         }
     }

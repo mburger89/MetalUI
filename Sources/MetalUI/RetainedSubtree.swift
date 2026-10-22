@@ -448,6 +448,10 @@ package enum RetainedTestingHooks {
     /// still observed, the one state the two halves differ in. Without it no window reaches that state (the prepaint window opens
     /// whenever the build's did), so a swapped half was an equivalent mutant.
     nonisolated(unsafe) package static var closesPrepaintWindow = false
+    /// Observation windows opened by `.equatable()` occurrences (`AM-A`): a steady hit frame opens none, so a predictor that says
+    /// "moved" in a frame that did not move shows here. Counts work, never read outside tests.
+    nonisolated(unsafe) package static var buildWindowsOpened = 0
+    nonisolated(unsafe) package static var prepaintWindowsOpened = 0
 }
 
 // MARK: - The phase object
