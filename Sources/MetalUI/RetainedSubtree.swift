@@ -687,6 +687,9 @@ extension Frame {
            record.key.rects != phase.rects || record.key.interior != phase.interior || record.key.shapeInterior != phase.shapeInterior {
             phase.prepaintObserved = true
         }
+        // Counted where the window is decided, not where it runs: a steady frame whose prepaint replays never runs it, and a predictor
+        // that wrongly said "moved" there would otherwise be invisible (mutation m4).
+        if phase.prepaintObserved { RetainedTestingHooks.prepaintWindowsOpened += 1 }
         return phase
     }
 

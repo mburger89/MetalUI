@@ -3,7 +3,7 @@
 Rulings for items C14-k and C14-l. Spec: [`specs/2026-10-22-retained-move-miss-design.md`](specs/2026-10-22-retained-move-miss-design.md). Record: `../record/146-retained-move-miss.md`.
 Branch `perf/retained-move-miss` from `b1c1269f`. Reserved divergence labels 755-764: none taken.
 
-Prefix **`AM-`**, lettered. **Next unused: `AM-K`.** (Moves in the commit that appends a ruling.)
+Prefix **`AM-`**, lettered. **Next unused: `AM-L`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `DM-B`, `DM-C`, `DM-D`, `DM-E`, `DM-L`, `DM-O`, `SB-V`, `SB-AA`, `RW-S`, `RK-C`, `FS-M`, `EE-F`, `GS-`, `AN-Y`, `PA-J`, `MO-A`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves (`AM-H`).
@@ -77,3 +77,10 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`AM-H`).
 **Ruling.** Rejected as a cross-lane dependency and a duplicated fixture: `AM-C` already says those lines are the frame after an ambient miss, which lane 2 owns. Lane 2 measures them on `DragAmbientFixture` (before and after `AM-D`) and records the residue; lane 1 keeps only the geometry-only fix (`AM-A`, `AM-B`). The critic also checked and kept: `AM-D`'s unconditional-normalisation mutant is allowed to be equivalent (reported, not hidden); `theMovedFrameEqualsRetentionOff` is an oracle, not an instrument, and says so; no SwiftUI claim, public spelling, renderer primitive, platform requirement or C enum is touched.
 **Evidence.** Spec sections 2 item 3 and 6 before this change.
 **Cost if wrong.** A residue is found late in lane 2 instead of lane 1; either way it is named.
+
+## AM-K - Lane 1 as built: the predictor counts where the window is decided; both halves are each necessary
+
+**Question.** Does each half of the fix carry weight alone, and how is "a steady frame opens no window" observable?
+**Ruling.** Built as `AM-A`/`AM-B`. `RetainedPhase.prepaintObserved` is `var`; `RetainedBuild.closedOnRecord = !observed` is set after `finish`; `RetainedPhase.inheritsBuildCoverage` is set in the paint decision's miss branch under `valid`, `closedOnRecord`, equal `ambient` and equal `nodeCount`; `finishRetainedPaint` writes `coverageBuild = build.observed || inheritsBuildCoverage`. Measured: each half alone leaves the settle frame at h4 m4 (mutations m1, m2 redden the same four tests). The window counter `RetainedTestingHooks.prepaintWindowsOpened` is incremented in `retainedPrepaintPhase` (where the window is decided), not where the session runs: a steady frame's prepaint replays and never runs a session, so a run-site counter left "predictor always true" as a surviving mutant (m4, first spelling); the build counter stays at the run site (a hit grafts, so it also sees nothing, and 0 is the pin).
+**Evidence.** Record 146 section 2 (mutation table).
+**Cost if wrong.** A test counter only.
