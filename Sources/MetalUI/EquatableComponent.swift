@@ -99,7 +99,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
                 entry.graft = nil
                 store.retained.noteIneligible(.graft, reason: closed.refusal ?? "unknown")
                 store.graftRefusals.append(closed.refusal ?? "unknown")
-                if retainedTraces { print("retained graft ineligible \(sbPath(id).suffix(60)) because \(closed.refusal ?? "?")") }
+                RetainedTrace.emit("retained graft ineligible \(RetainedTrace.path(id)) because \(closed.refusal ?? "?")")
             }
         }
         return result

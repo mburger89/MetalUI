@@ -22,6 +22,8 @@ final class MemoFlags: @unchecked Sendable {
     private var _observedChange = false
     private var _serial = 0
     private var _changes = 0
+    /// The writer behind the last fire, recorded only while `RetainedTrace.active` (`DM-E`); never read by a decision.
+    private var _lastFireCause: String?
 
     private func locked<R>(_ body: () -> R) -> R {
         lock.lock()
@@ -41,6 +43,10 @@ final class MemoFlags: @unchecked Sendable {
         get { locked { _serial } }
         set { locked { _serial = newValue } }
     }
+    var lastFireCause: String? {
+        get { locked { _lastFireCause } }
+        set { locked { _lastFireCause = newValue } }
+    }
     /// Monotonic count of retained-session fires (`MO-F`).
     var changes: Int { locked { _changes } }
 
@@ -55,7 +61,7 @@ final class MemoFlags: @unchecked Sendable {
     /// A retained session fired.
     func fireRetained() { locked { _observedChange = true; _changes &+= 1 } }
     /// Clears `observedChange` only if no fire landed since `changes` was read (`MO-F`).
-    func clearObservedChange(ifChangesEqual c: Int) { locked { if _changes == c { _observedChange = false } } }
+    func clearObservedChange(ifChangesEqual c: Int) { locked { if _changes == c { _observedChange = false; _lastFireCause = nil } } }
 }
 
 /// The `onChange` side of one memo session, `Sendable` so the observation
@@ -82,6 +88,7 @@ private final class ContentMemoHandle: @unchecked Sendable {
         // The flag first, on any thread, under the lock (`MO-A`): a serial the entry has moved past is a
         // flush (the token write before a re-evaluation, or an entry that left the tree): nothing changed.
         let changed = flags.fireMemo(serial: serial)
+        if changed, RetainedTrace.active { flags.lastFireCause = "getter: " + RetainedTrace.writerCause() }
         // The bookkeeping keeps the old branch (`MO-C`): it decides nothing.
         if Thread.isMainThread {
             MainActor.assumeIsolated { self.bookkeep(changed) }

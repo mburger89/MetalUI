@@ -66,12 +66,13 @@ func thePaintTraceNamesEachConjunctWhenItFailsAlone(conjunct: PaintConjunct) {
 // MARK: 4 - each prepaint guard alone
 
 enum PrepaintConjunct: String, CaseIterable, Sendable, CustomStringConvertible {
-    case quarantine, noRecord, noLedger, observed, coverageBuild = "coverage.build", coveragePrepaint = "coverage.prepaint", serial
+    case replayDisallowed, quarantine, noRecord, noLedger, observed, coverageBuild = "coverage.build", coveragePrepaint = "coverage.prepaint", serial
     case versions, pointerInLedger
     var description: String { rawValue }
     var inputs: PrepaintInvalidation.Inputs {
         var i = PrepaintInvalidation.Inputs()
         switch self {
+        case .replayDisallowed: i.replayDisallowed = true
         case .quarantine: i.quarantined = true
         case .noRecord: i.hasRecord = false
         case .noLedger: i.hasLedger = false
@@ -149,7 +150,7 @@ func thePathSuffixIsAtLeast120ByDefaultAndConfigurable() {
 struct RetainedTraceWindowTests {
     private func missLines(_ lines: [String]) -> [String] { lines.filter { $0.hasPrefix("retained paint miss") || $0.hasPrefix("retained prepaint miss") } }
 
-    /// 2 - a fixture's change frame names `serial` (the value arm) or `observed` with the writer (the observed arm); every line says
+    /// 2 - a fixture's change frame names `serial` (both arms: the observed arm's getter session fires first and re-evaluates) and, for the observed arm, the writer; every line says
     /// `paint` or `prepaint`; the frame after a change names a coverage half (today's second miss, `DM-B`: **lane 2 turns these
     /// into hits and rewrites this arm**). **Mutations:** `retainedPaintDecision` reading a private `valid` instead of
     /// `PaintInvalidation` (the lines disagree with the decision: `unclassified`); no coverage name (reddens the second arm).
@@ -166,7 +167,8 @@ struct RetainedTraceWindowTests {
             switch arm {
             case .value: #expect(named.contains { $0.contains("serial") }, "value arm names serial: \(paintMisses)")
             case .observed:
-                #expect(named.contains { $0.contains("observed") }, "observed arm names observed: \(paintMisses)")
+                // The getter's own session fires first and re-evaluates the getter: the miss names `serial` and the writer.
+                #expect(named.contains { $0.contains("serial") }, "observed arm names serial: \(paintMisses)")
                 #if DEBUG
                 #expect(paintMisses.contains { $0.contains("cause:") && $0.contains("radius") }, "the writer is named: \(paintMisses)")
                 #endif

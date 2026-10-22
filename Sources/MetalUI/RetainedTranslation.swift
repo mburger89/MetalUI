@@ -261,7 +261,7 @@ extension Frame {
         let outcome = movedPaintRecord(old, to: key)
         phase.paintTranslationMemo = PaintTranslationMemo(record: old, shift: shift, outcome: outcome)
         if case .refused(let reason) = outcome {
-            if retainedTraces { print("retained translation refused \(sbPath(phase.build.key.id).suffix(60)): \(reason)") }
+            RetainedTrace.emit("retained paint translation refused \(RetainedTrace.path(phase.build.key.id)): \(reason)")
             stateTable.contentMemos.retained.noteTranslationRefused(reason: reason)
         }
         return outcome
