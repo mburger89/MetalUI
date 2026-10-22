@@ -252,6 +252,7 @@ private func aPendingScrollToReachesTheRightRowAmongCollidingIDs(_ path: Path) t
             #expect(ints.allSatisfy { $0.keyed == 0 }, "\(path) \(n) ints: \(ints)")
             #expect(twins.allSatisfy { $0.keyed == $0.rows }, "\(path) \(n) twins: \(twins)")
             #expect(twins[1].rows == ints[1].rows, "\(path) \(n): warm window \(ints[1]) \(twins[1])")
+            print("LH-E work \(path) n=\(n): ints cold/warm \(ints[0])/\(ints[1]), twins cold/warm \(twins[0])/\(twins[1])")
             windows.append(ints[1].rows)
         }
         #expect(Set(windows).count == 1 && windows[0] > 0 && windows[0] < 100, "\(path): \(windows)")
