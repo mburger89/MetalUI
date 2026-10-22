@@ -33,3 +33,10 @@ Native unfiltered 4363 tests passed (4359 at `58843cca` + 4 new test functions, 
 ## 5. Carried
 
 MetalCreator re-trace after #126 (`EO-B`). If a real per-frame `colorScheme` miss reappears there it lives in a shape the fixture lacks (an override inside a `Deferred`, a theme-derived scheme changing source); build the separating arm first.
+
+## 6. Branch checker (58843cca..9beb7d86)
+
+Clean native build and unfiltered run after `swift package clean`: `Test run with 4371 tests in 10 suites passed after 464.703 seconds`, `FR-J no-argument frame: succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's deprecation notice; inventory and undocumented scripts print nothing; `cmp CLAUDE.md AGENTS.md` identical. `git diff ff0db06e HEAD` touches no `Sources/`, `Backends/` or `Package.swift` (only the fixture file and docs), so pixels, `Backends/SDL` and the Linux image are unchanged by construction and were not re-taken.
+Checker mutations (each from a clean tree, restored from a copy, full unfiltered suite, `git status --short` empty after):
+- **C1** `retainedFingerprint` `theme:` replaced by `Theme.light`: **survived** (4371 passed). No test reads a theme change through the retained fingerprint; the `theme` equal-override arm cannot see it either. Not a defect of this branch (a pin gap, carried: a real `.theme(_)` change under an `.equatable()` occurrence needs a separating arm, or proof that `AmbientKey`'s paint-side theme read covers it).
+- **C2** `retainedFingerprint` `isEnabled: isEnabled && Int.random(in: 0..<8) != 0` (an unlisted field made unstable): 828 issues, reddens `anEqualOverrideDoesNotMissAnOccurrence` (6 cases), `aBackgroundAttachmentWithAnOverrideDoesNotMiss` (3), `anOverrideOfEveryStampedKeyIsFreeWhenEqual` (5) and `aRealSchemeChangeStillMissesAndRepaints`, plus the retained suites.
