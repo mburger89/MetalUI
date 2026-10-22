@@ -18,6 +18,8 @@ struct WindowChromeState {
     var publishedDragRegions: [Bounds<Pixels>]?
     /// How many region computations ran (tests; `testingChromeCarveCount`).
     var carveCount = 0
+    /// ``Window/backgroundDragBehavior`` (`BG-G`).
+    var backgroundDragBehavior = WindowInteractionBehavior.automatic
 }
 
 extension Window {
@@ -92,15 +94,22 @@ extension Window {
     /// The regions now: empty while a presentation is open (a press outside must reach `Window` and
     /// dismiss), while the band is gone (fullscreen) and when there is no band and no handle; else the
     /// band and the handles minus every blocker (`ChromeRegions`).
+    ///
+    /// With ``backgroundDragBehavior`` `.enabled` the content rect is one more candidate, carved by every
+    /// blocker and dropped whole when it would not fit the cap (`BG-I`); it is not offered while the
+    /// window is zoomed. Without a band (fullscreen under the hidden style) there is still no region.
     private func chromeRegions() -> [Bounds<Pixels>] {
         if drawnAlert != nil || menuSession != nil || !lastOpenPopovers.isEmpty { return [] }
         let hidden = shell.titleBarStyleApplied
         let band = hidden ? platformWindow.titleBarInsets.top.value : 0
         if hidden && band <= 0 { return [] }
         let handles = lastHitboxes.filter(ChromeRegions.isHandle)
-        guard band > 0 || !handles.isEmpty else { return [] }
+        let size = platformWindow.contentSize
+        let background = shell.chrome.backgroundDragBehavior.dragsFromBackground && !platformWindow.isZoomed
+            ? Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: size) : nil
+        guard band > 0 || !handles.isEmpty || background != nil else { return [] }
         shell.chrome.carveCount += 1
-        return ChromeRegions.compute(hitboxes: lastHitboxes, bandHeight: band,
-                                     windowWidth: platformWindow.contentSize.width.value)
+        return ChromeRegions.compute(hitboxes: lastHitboxes, bandHeight: band, windowWidth: size.width.value,
+                                     background: background)
     }
 }

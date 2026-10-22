@@ -146,7 +146,15 @@ private func menusPopover() -> some Element {
                 Button("Close") { menusDemoModel.showPopover = false }
             }
             .alignItems(.flexStart)
+            .presentationBackground(menusPopoverBackground())
         }
+}
+
+/// The popover's panel fill (`BG-C`, human check BG1): a soft gradient behind the text and the field, the
+/// panel keeping its border, radius and shadow. Its own function, as every demo section is (the Windows stack rule).
+@MainActor
+private func menusPopoverBackground() -> LinearGradient {
+    LinearGradient(colors: [Color(.surface), Color(.surfaceSecondary)], startPoint: .top, endPoint: .bottom)
 }
 
 /// Three texts explaining themselves.

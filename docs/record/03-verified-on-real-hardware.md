@@ -2421,3 +2421,11 @@ A real shadercross at the pin was built and run by the agent on macOS arm64 and 
 ## 2026-10-22: clipboard extras (record §142) — looks owed, group CP
 
 No real window was driven: the SwiftUI probe's arm R never ran (its hosting window did not become key from a command-line process although the lock probe read unlocked) and an agent cannot compare a look. **Owed, new here — `docs/verification/human-checks.md` group CP, none performed**: CP1 re-take arm R (array copy item count, a two-item paste, `PasteButton` enablement, exporter timing; may retire or rewrite divergences 456, 715, 716), CP2 the `PasteButton` look beside SwiftUI's, CP3 a two-item paste between two real applications and between two MetalUI windows on SDL (the pack), CP4 a clipboard manager rewriting the clipboard while the window is key.
+
+## 2026-10-22: presentation extras (record §144) — looks owed, group BG
+
+No real window was captured: the screen was locked at the design session (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`), so the SwiftUI D arms of
+`docs/probes/swiftui-presentation-extras.swift` were recorded from a command-line process and a person must compare the looks. **Owed, new here —
+`docs/verification/human-checks.md` group `BG`:** `BG1` the popover panel fills (gradient, a `Material` with no drop shadow, a translucent colour), `BG2` the SDL background
+drag region on Linux and Windows (and the pointer events it takes from hover, divergence 737), `BG3` AppKit's background drag through `performDrag`, `BG4` the two SwiftUI
+behaviours left unprobed (a press on a control under `.enabled`, `.disabled` against the band), `BG5` the shape cursor at 1x and 2x. Nothing was verified on hardware.

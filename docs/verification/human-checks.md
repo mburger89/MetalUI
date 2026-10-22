@@ -1877,6 +1877,16 @@ a physical GPU, a desktop session and a console.*
 - [ ] **DT3.** A label over a `.continuous` surface: no flicker and no one-frame lag against the app's own drawing while the app animates under it. **Observed:**
 - [ ] **DT4.** Resize the window while a label is up: the label stays crisp (the target is recreated and redrawn at the new size) and never shows a stale or stretched frame. **Observed:**
 
+## BG. Presentation extras - `presentationBackground`, `windowBackgroundDragBehavior`, `PointerStyle.shape` (round 2 item 7, user request 2026-10-21, not a plan task; record 144; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: the screen was locked at the design session and no window was captured. Everything here is pinned as values, work and recorded platform calls (`PresentationBackgroundTests`, `WindowBackgroundDragTests`, `ShapeCursorTests`, `AppKitWindowDragTests`, `SDLChromeTests`); the SwiftUI D arms of `swiftui-presentation-extras.swift` rest on a locked-screen recording.*
+
+- [ ] **BG1.** `METALUI_MENUS_DEMO=1 swift run MetalUIDemo`, open the popover with the gradient fill, light and dark: the gradient fills the whole rounded panel, the 1-pt border is kept, the shadow shows under it; then a `Material` panel (divergence-free ruling `BG-P`: a real backdrop blur, **no drop shadow**) and a translucent colour. Compare with a SwiftUI `.popover` + `presentationBackground` side by side (SwiftUI's panel is glass). **Observed:**
+- [ ] **BG2.** `METALUI_CHROME_DEMO=1`, Linux X11, Wayland and Windows (SDL): switch `Background drag` on; a press-drag on the empty content moves the window, a press on a button, text field or scroller does not, hover and pointer-style regions inside the background lose their pointer events (divergence 737), and the window does not move while maximised. **Observed:**
+- [ ] **BG3.** The same demo on macOS: `Background drag` on moves the window by the empty background through `performDrag` (not `isMovableByWindowBackground`), a double click on the background does nothing, a press on a control does not drag, the title band keeps its own drag and double-click zoom. **Observed:**
+- [ ] **BG4.** In a real SwiftUI `App` with `.windowBackgroundDragBehavior(.enabled)`: does a press-drag that starts on a `Button` or a `TextField` move the window (`BG-G`'s unprobed ruling: MetalUI never drags from an opaque target)? And what does `.disabled` do to the hidden title bar's band (`BG-J`)? **Observed:**
+- [ ] **BG5.** The chrome demo's star-shaped pointer region (`PointerStyle.shape`, `eoFill`) at 1x and 2x on macOS, Linux and Windows: the black star with a 1-pt white outline is crisp (rasterized at the display scale), the hole of the even-odd star is transparent, the hot spot is its centre, and moving the window to a display of another scale re-sends one cursor at the new scale. SwiftUI has no such cursor on macOS (divergence 735): the look is ours. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

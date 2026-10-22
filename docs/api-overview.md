@@ -425,7 +425,9 @@ ranking (A; SDL has a pinch on macOS, Wayland and X11, and no rotate);
 space (D 139); `PointerStyle` and `.pointerStyle(_:)` (macOS 15's spelling:
 `.default`, the I-beams, `.rectSelection` — the crosshair — the grab hands,
 `.link`, the zooms, the resizes; innermost wins, sent to the platform only on a
-change; a paint-only view does not cover it, D 141). MetalUI-only by ruling,
+change; a paint-only view does not cover it, D 141). `PointerStyle.shape(_:eoFill:size:hotSpot:fill:outline:)`
+(M, D 735: SwiftUI has `shape(_:eoFill:size:)` on visionOS only) draws a `Shape` as a cursor, black with a 1-point
+white outline, rasterized at the display scale and sent as an image cursor (`BG-K`...`BG-M`). MetalUI-only by ruling,
 where SwiftUI has nothing: `.onScrollWheel { (event: ScrollEvent) -> Bool }`
 (deltas precise or lines, phase, momentum phase, modifiers, `location` local;
 offered innermost first before each enclosing `ScrollView`, `true` claims),
@@ -544,6 +546,18 @@ requirements (`setWindowDragRegions(_:) -> Bool`, `performWindowAction(_:) -> Bo
 `MetalUITesting` gains `Options.sdlChrome`, `usesWindowDragRegions`, `hasNativeWindowControls`, `isZoomed`,
 `hiddenTitleBarInsets`, `TestWindow.windowDragRegions` and `.windowActions`. Human checks: group CW, unrun.
 
+**Background window drag** (`BG-G`...`BG-J`, record §144;
+[`superpowers/2026-10-22-presentation-extras-decisions.md`](superpowers/2026-10-22-presentation-extras-decisions.md);
+probe `probes/swiftui-presentation-extras.swift`, the `D` arms). `WindowInteractionBehavior` (A; `.automatic`,
+`.enabled`, `.disabled`, SwiftUI's macOS 15 spelling) and `Window.backgroundDragBehavior` (default `.automatic`;
+M, divergence 736: SwiftUI's `windowBackgroundDragBehavior(_:)` is a `Scene` modifier and MetalUI has no `Scene`).
+Only `.enabled` drags: a single primary press no element claims asks AppKit for the title bar's drag (never
+`isMovableByWindowBackground`, a double click does nothing), and on SDL the content rect carved by every control
+becomes a hit-test region, dropped whole past the 64-rect cap and while a popover, alert or menu is up or the
+window is zoomed (D 737: hover, wheel and pointer-style events in it are lost). A control, a text field, a
+scroller or a `WindowDragGesture` handle never drags from the background; the title band is unchanged.
+Human checks `BG2`, `BG4`.
+
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
 probe `probes/swiftui-key-focus.swift`). SwiftUI's `onKeyPress` family — `(_
@@ -617,7 +631,7 @@ outside press of **any** button (the press still lands on what is beneath, a con
 included; a press on the declarer dismisses and reaches the declarer) and by Escape; a press or
 wheel on the overlay never reaches beneath, keys still reach a field inside it. The point
 resolves at layout, so a `.local`/`.named` overlay waits one frame for its declarer's space
-(`OV-K`, `OV-S`). `presentationBackground(_:)` is not built (`OV-C`). The demo:
+(`OV-K`, `OV-S`). `presentationBackground(_:)` is built for the popover panel (record §144, `BG-A`...`BG-F`; below). The demo:
 `METALUI_OVERLAYS_DEMO=1`.
 
 ## Drag and drop — A / D
@@ -783,6 +797,13 @@ toolbar strip, the root laid out below (divergence 195, `SG-A`); command shortcu
 `arrowEdge`'s side (default `.top`), flipped then clamped inside the window, no
 arrow; an outside press or Escape writes the binding false from input, and the
 outside press then reaches what it lands on. Published as a non-modal popover.
+`.presentationBackground(_:)` (A; a `Color`, a `ColorToken`, a `Material`, a `LinearGradient`, a
+`RadialGradient`; no `ShapeStyle` generic, divergence 119) written inside the popover's content fills its
+panel (`BG-C`): the innermost report wins, one on the declarer or elsewhere outside the content does
+nothing, and the 1-pt border, the radius 10 and the shadow stay; a `Material` panel draws through
+`Frame.fillMaterial` and has no drop shadow (`BG-P`). `presentationBackground(alignment:content:)` draws content
+proposed the panel's size and placed by the alignment, cut to the panel, under a named child
+`$presentationbackground` (`BG-E`). An `anchoredOverlay`, an alert and a menu ignore it (`BG-A`). Human check `BG1`.
 
 **Tooltips (A / D 113).** `.help("text")` publishes `accessibilityHint`'s tree on
 both bridges and shows a drawn tooltip after 1.0 s of display-link time, hidden by
