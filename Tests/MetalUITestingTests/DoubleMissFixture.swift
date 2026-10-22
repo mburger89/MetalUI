@@ -28,6 +28,8 @@ enum DMArm: String, CaseIterable, Sendable, CustomStringConvertible {
     case moved
     /// The node holds a nested `.equatable()` inner view that reads the observed radius: the outer's own getter does not run, a descendant's does (`DM-L`: the outer's build window was closed, its prepaint window opens once the descendant ran).
     case nested
+    /// The node holds a plain (not `.equatable()`) child that reads the observed radius in its own body: the read is the retained build window's, not the getter's, so only the occurrence's retained session sees a write (`DM-C` soundness).
+    case plain
     var description: String { rawValue }
 }
 
@@ -43,6 +45,7 @@ struct DMNode: Component, @MainActor Equatable {
                 .frame(width: Pixels(arm == .moved ? 90 + Float(value) * 0.3 : 90), height: Pixels(10))
             Text("node \(index)").frame(width: Pixels(90), height: Pixels(12))
             if arm == .nested, let model { DMInner(index: index, model: model).equatable() }
+            if arm == .plain, let model { DMPlain(index: index, model: model) }
             Button("go \(index)") {}.frame(width: Pixels(90), height: Pixels(16))
             if arm == .ledgerGain, let model {
                 TextField("t", text: Binding(get: { model.texts[index] }, set: { model.texts[index] = $0 }))
@@ -62,13 +65,21 @@ struct DMInner: Component, @MainActor Equatable {
     static func == (l: DMInner, r: DMInner) -> Bool { l.index == r.index && l.model === r.model }
 }
 
+struct DMPlain: Component {
+    let index: Int
+    let model: DMModel
+    var content: some ElementGroup {
+        Rectangle().fill(Color(red: 0.3, green: 0.2 + model.params[index].radius * 0.1, blue: 0.3)).frame(width: Pixels(90), height: Pixels(6))
+    }
+}
+
 struct DMParent: Component {
     let model: DMModel
     let arm: DMArm
     var content: some ElementGroup {
         HStack(alignment: .top, spacing: 6) {
             ForEach(Array(0..<8), id: \.self) { i in
-                DMNode(index: i, value: arm == .observed || arm == .nested ? 1 : model.values[i], model: model, arm: arm).equatable()
+                DMNode(index: i, value: arm == .observed || arm == .nested || arm == .plain ? 1 : model.values[i], model: model, arm: arm).equatable()
             }
         }
     }
@@ -93,7 +104,7 @@ struct DMParent: Component {
     for i in changed {
         switch arm {
         case .value, .ledgerGain, .moved: model.values[i] = value
-        case .observed, .nested: model.params[i].radius = value
+        case .observed, .nested, .plain: model.params[i].radius = value
         }
     }
     window.window.setNeedsRedraw(); window.tick()

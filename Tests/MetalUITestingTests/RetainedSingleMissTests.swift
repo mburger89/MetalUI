@@ -88,10 +88,10 @@ struct RetainedSingleMissTests {
     /// settle between), and again after a hit frame that replayed it, must miss and draw what the retention-off twin draws; a record
     /// declared complete without its windows would replay the old scene. **Mutation (measured, C14-j lane 2 verify):** `needsObservation`
     /// without the certain-miss terms **and** `coverageBuild`/`coveragePrepaint` set `true` at the record (windows closed, coverage
-    /// declared): the immediate write alone did NOT redden (the standing record's sessions still cover it), the write after the hit does.
+    /// declared): the `.observed` arm did NOT redden (its read is the getter's, covered by the memo session whatever the windows did), so the pin uses the `.plain` arm, whose read only the retained build window sees.
     @Test(arguments: [false, true]) func aStaleSessionStillFiresAfterTheSameFrameRecord(afterAHit: Bool) throws {
-        let (on, onModel) = try doubleMissWindow(.observed)
-        let (off, offModel) = try doubleMissWindow(.observed, retain: false)
+        let (on, onModel) = try doubleMissWindow(.plain)
+        let (off, offModel) = try doubleMissWindow(.plain, retain: false)
         for (model, window) in [(onModel, on), (offModel, off)] {
             model.params[2].radius = 4
             window.window.setNeedsRedraw(); window.tick()
