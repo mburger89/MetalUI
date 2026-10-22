@@ -458,7 +458,7 @@ func aFixedAxisHasNoEdge() throws {
 /// **BG-I** (`BG-G`...`BG-I`; presentation extras, spec test 25). The regions `Window` publishes for
 /// `backgroundDragBehavior = .enabled` — the content rect carved by a button at (20, 0, 80 x 24) — reach the
 /// installed hit test on a window in the **standard** style: the C twin answers drag on the background, normal
-/// on the carved button, and the bordered window resizes by its system frame. On SDL the platform moves the
+/// on the carved button, and a bordered window has no resize edge of its own. On SDL the platform moves the
 /// window itself (`CW-E`), so `performTitleBarPress` is never the path.
 /// Mutation: drop the regions (everything normal) or let the callback require `borderless` for a drag.
 @MainActor
@@ -471,6 +471,6 @@ func aBackgroundRegionReachesTheSDLHitTestSnapshot() throws {
     #expect(window.chromeHit(at: point(200, 200)) == .draggable, "the background")
     #expect(window.chromeHit(at: point(10, 10)) == .draggable, "beside the button")
     #expect(window.chromeHit(at: point(50, 10)) == .normal, "the carved button")
-    #expect(window.chromeHit(at: point(399, 150)) == .normal, "a bordered window resizes by its system frame")
+    #expect(window.chromeHit(at: point(399, 150)) == .draggable, "the whole window is background; a bordered one has no resize edge")
     #expect(window.performTitleBarPress(clickCount: 1) == false, "SDL's drag is the region, never a title-bar press")
 }
