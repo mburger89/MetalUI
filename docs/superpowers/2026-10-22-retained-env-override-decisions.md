@@ -3,7 +3,7 @@
 Rulings for item C14-m. Spec: [`specs/2026-10-22-retained-env-override-design.md`](specs/2026-10-22-retained-env-override-design.md). Record: `../record/148-retained-env-override.md`.
 Branch `perf/retained-env-override` from `58843cca`. Reserved divergence labels 775-784: none taken.
 
-Prefix **`EO-`**, lettered. **Next unused: `EO-D`.** (Moves in the commit that appends a ruling.)
+Prefix **`EO-`**, lettered. **Next unused: `EO-G`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `AM-D`, `AM-E`, `EE-F`, `EE-K`, `SB-G`, `CR-K`, `CR-Q`, `CR-Z`, `EV-V`, `DM-F`.
 No SwiftUI probe, no gpui comparison: no observable behaviour moves.
@@ -29,3 +29,17 @@ single miss `serial`, no `environment` reason. No source change is made; the fix
 **Question.** Do `displayScale`, `controlActiveState`, `accessibilityReduceMotion/Transparency`, `theme` share the defect when written by an override?
 **Ruling.** By reading they cannot: all are plain value fields of the fingerprint. The lane pins each with an equal-override arm (spec test 3) instead of changing code; a red arm is a finding.
 **Cost if wrong.** A field with identity semantics is found by test 3 and fixed then, with its own ruling.
+
+## EO-D - Critic: the fixture must hold MetalCreator's real shape before "no fix" stands
+
+**Question.** Is EO-A's refutation measured on the defect's shape?
+**Ruling.** Not yet. `glassBackground` writes the override as `.background { shape.fill(material).environment(\.colorScheme, themeScheme) }`: a **background attachment** (`.child(of:at:-1)`, MC-P) holding a **material** fill, with the scheme being the *theme's* (which may differ from the window's), inside an `.equatable()` occurrence. The fixture's declared `insideMaterial` arm is unused and no arm uses `.background`. The lane adds `insideMaterial` as `.background { RoundedRectangle.fill(Material.thin).environment(\.colorScheme, s) }` at s = inherited and the opposite, and a `.background(tint)` sibling, all at h7 m1. EO-A stands only if these are green; a red arm is the defect and is fixed (fingerprint or the point where the attachment's scope is keyed), with its own ruling.
+**Cost if wrong.** The defect lives in the attachment/material path and "no fix" ships a false closure.
+
+## EO-E - Critic: a green-on-arrival pin needs a separating arm
+
+**Ruling.** Test 2 (`aRealSchemeChangeStillMissesAndRepaints`) is mandatory, not "to write": it is the separating arm of test 1 and is red under the named mutation (drop `colorScheme` from the fingerprint). Test 1's mutation is restated without invented symbols: make `retainedFingerprint.colorScheme` depend on a per-frame value (a frame counter parity); the `outsideScheme` and `insideMaterial` arms must redden. Mutation results are named in the record, not asserted here.
+
+## EO-F - Critic: evidence for EO-A/EO-B is recorded, and EO-B stays a hypothesis
+
+**Ruling.** The `EOPROBE` numbers are copied into the record (§148) from a re-run at the lane head, not cited from memory. EO-B (the 187 lines are one startup frame) was re-checked against `fillet-trace.log`: the two blocks are 187 lines each, preceded by `first-or-dropped`, and the 376 colorScheme lines occur nowhere else; it stays an inference until MetalCreator is re-traced after #126, and the record asks for that re-trace (read-only, not run here). The theme-scheme-differs-from-window case is the one place a startup transition could recur per scheme change; test 2 covers it.

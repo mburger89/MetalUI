@@ -36,13 +36,13 @@ chase them (no separating arm exists on the fixtures).
 
 | # | Test | Asserts | Mutation that must redden it |
 |---|------|---------|------------------------------|
-| 1 | `anEqualOverrideDoesNotMissAnOccurrence(arm:scheme:)`, 6 arms | every drag frame h7 m1, no `environment` reason in the trace | `retainedFingerprint` gains a per-frame value (e.g. `custom` holds a fresh `ObjectIdentifier`, or `colorScheme` is XORed with `environmentTransformCount & 1`): the `outsideScheme` arms redden |
+| 1 | `anEqualOverrideDoesNotMissAnOccurrence(arm:scheme:)`, 6 arms | every drag frame h7 m1, no `environment` reason in the trace | `retainedFingerprint.colorScheme` made to depend on a per-frame value (frame-counter parity): the `outsideScheme` arms redden |
 | 2 | `aRealSchemeChangeStillMissesAndRepaints` (to write) | flip `Window` preferred scheme (or `TestWindow` appearance) mid-script: every panel misses once naming `colorScheme`, scene/hitboxes/AX equal a retention-off twin (`RPSnapshot`) | drop `colorScheme` from `retainedFingerprint`/`differences`: reddens (the fixture paints a scheme-dependent token) |
 | 3 | `anOverrideOfEveryStampedKeyIsFreeWhenEqual` (to write) | arms writing `displayScale`, `controlActiveState`, `accessibilityReduceMotion`, `accessibilityReduceTransparency`, `theme` equal to the inherited value: drag frames h7 m1 | as 1 for each field |
 | 4 | the verify switch | tests 1-3 pass under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_LAYOUT_MEMO=1` (they skip the work-count asserts there, as `rsVerifying` pins do) | n/a |
 
 Mutations run committed, unfiltered, restored from a copy, `git status --short` after each, reddened tests named. Tests 2 and 3 are the implementer's lane
-work; test 1 is written and green.
+work (test 2 mandatory, EO-E); test 1 is written and green. Lane also adds the `insideMaterial` arm in `.background { }` attachment shape and a `.background(tint)` sibling (EO-D); a red arm is the defect and gets fixed under its own ruling.
 
 ## 4. Demo and human checks
 
