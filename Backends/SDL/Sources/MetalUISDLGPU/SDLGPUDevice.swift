@@ -283,27 +283,62 @@ public final class SDLGPUDevice: @unchecked Sendable {
         let gate = waiterGate
         return try await withCheckedThrowingContinuation { continuation in
             submitWorker.enqueue { [self] in
-                guard let handle = SDL_AcquireGPUCommandBuffer(raw) else {
-                    continuation.resume(throwing: SDLGPUError("SDL_AcquireGPUCommandBuffer"))
-                    return
-                }
-                let commandBuffer = SDLGPUCommandBuffer(raw: handle, device: self)
-                record(commandBuffer)
-                commandBuffer.isOpen = false
-                guard commandBuffer.openPasses == 0 else {
-                    SDL_CancelGPUCommandBuffer(handle)
-                    continuation.resume(throwing: SDLGPUError("a batch ended with \(commandBuffer.openPasses) pass(es) not ended"))
-                    return
-                }
-                guard let fence = SDL_SubmitGPUCommandBufferAndAcquireFence(handle) else {
-                    continuation.resume(throwing: SDLGPUError("SDL_SubmitGPUCommandBufferAndAcquireFence"))
-                    return
-                }
-                let result = SDLGPUFence(raw: fence, device: self, retained: commandBuffer.retained)
-                result.startWaiting(gate: gate)
-                continuation.resume(returning: result)
+                continuation.resume(with: recordAndSubmit(record, gate: gate))
             }
         }
+    }
+
+    /// Records one command buffer and submits it with a fence (ruling `SY-A`):
+    /// the one job body behind ``submitBatch(_:)`` and
+    /// ``submitBatchSynchronously(_:)``. **Run only on ``submitWorker``**: a
+    /// buffer is recorded and submitted on the thread that acquired it.
+    func recordAndSubmit(_ record: @Sendable (SDLGPUCommandBuffer) -> Void,
+                         gate: DispatchSemaphore?) -> Result<SDLGPUFence, SDLGPUError> {
+        guard let handle = SDL_AcquireGPUCommandBuffer(raw) else {
+            return .failure(SDLGPUError("SDL_AcquireGPUCommandBuffer"))
+        }
+        let commandBuffer = SDLGPUCommandBuffer(raw: handle, device: self)
+        record(commandBuffer)
+        commandBuffer.isOpen = false
+        guard commandBuffer.openPasses == 0 else {
+            SDL_CancelGPUCommandBuffer(handle)
+            return .failure(SDLGPUError("a batch ended with \(commandBuffer.openPasses) pass(es) not ended"))
+        }
+        guard let fence = SDL_SubmitGPUCommandBufferAndAcquireFence(handle) else {
+            return .failure(SDLGPUError("SDL_SubmitGPUCommandBufferAndAcquireFence"))
+        }
+        let result = SDLGPUFence(raw: fence, device: self, retained: commandBuffer.retained)
+        result.startWaiting(gate: gate)
+        return .success(result)
+    }
+
+    /// As ``submitBatch(_:)`` for code that cannot `await` (ruling `SY-B`): a
+    /// viewport click that must render an ID pass and read one pixel on the main
+    /// actor. The closure is recorded and submitted on the device's submit
+    /// worker (never on the caller) by the same recorder `submitBatch` uses
+    /// (`SDL_AcquireGPUCommandBuffer`, `SDL_SubmitGPUCommandBufferAndAcquireFence`),
+    /// and the fence is released after its signal whether or not anyone awaits it
+    /// (`GA-E`). **The calling thread blocks only until the buffer is submitted,
+    /// never until it finishes**: the fence is normally unsignalled, and
+    /// ``SDLGPUFence/waitBlocking()`` or ``downloadSynchronously(_:region:)``
+    /// (whose job the one FIFO submit worker orders after this batch) is where
+    /// the caller waits for the GPU. Throws an ``SDLGPUError`` when acquiring,
+    /// ending (a pass left open) or submitting fails.
+    ///
+    /// Rules are `GB-F`'s (ruling `SY-C`): legal on the main actor outside a
+    /// surface draw; a debug trap inside one (`GA-I`); a precondition failure on
+    /// the device's own worker threads. The closure runs while the caller is
+    /// blocked, so it must not wait for the caller: **a closure that hops to the
+    /// main actor and waits deadlocks, and nothing detects it.**
+    public func submitBatchSynchronously(_ record: @escaping @Sendable (SDLGPUCommandBuffer) -> Void) throws -> SDLGPUFence {
+        SDLGPUWindowGuard.assertNotInsideDraw("SDLGPUDevice.submitBatchSynchronously")
+        preconditionNotOnOwnWorker("SDLGPUDevice.submitBatchSynchronously")
+        let gate = waiterGate
+        let submitted = Submitted()
+        submitWorker.enqueue { [self] in
+            submitted.finish(recordAndSubmit(record, gate: gate))
+        }
+        return try submitted.await().get()
     }
 
     /// Copies `bytes` into `buffer` at `offset` through a transfer buffer and
