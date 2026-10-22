@@ -238,6 +238,49 @@ struct ReplayKey: Equatable {
         }
         return moved && normalized == old.ambient
     }
+
+    /// How this (the new) key's outer render-effect scopes stand against `old`'s (`RZ-B`): a pure translation (`RK-G`), an affine
+    /// change of the scopes' six numbers with every other part equal (a zoom or a rotation: the recorded leaves are those before any
+    /// outer scope applies, so replaying them through the live scopes is arithmetic-for-arithmetic what a fresh paint does,
+    /// `RZ-A`), a named refusal (the scopes differ only in effect scopes, but in a part a re-entry cannot reproduce), or unrelated
+    /// (anything else differs: an ordinary miss, never counted here).
+    func effectRelation(from old: ReplayKey) -> EffectRelation {
+        guard rects == old.rects, interior == old.interior, nodeCount == old.nodeCount else { return .unrelated }
+        guard ambient.scopes.count == old.ambient.scopes.count else { return .unrelated }
+        var refusal: String?
+        var moved = false
+        var normalized = ambient
+        for index in ambient.scopes.indices where ambient.scopes[index] != old.ambient.scopes[index] {
+            let new = ambient.scopes[index], was = old.ambient.scopes[index]
+            guard new.count >= 10, was.count >= 10, new[0] == AmbientKey.effectKind, was[0] == AmbientKey.effectKind
+            else { return .unrelated }
+            moved = true
+            normalized.scopes[index] = was
+            if new.count != was.count { refusal = refusal ?? "effectScopeChanged"; continue }
+            // Indices 0...3: kind, alpha, entry clip depth, flattens; 4...9 the six affine numbers; 10... the outer clip.
+            if new[3] != was[3] { refusal = refusal ?? "effectFlatteningChanged"; continue }
+            if new[1] != was[1] || new[2] != was[2] { refusal = refusal ?? "effectScopeChanged"; continue }
+            if Array(new[10...]) != Array(was[10...]) { refusal = refusal ?? "effectClipChanged"; continue }
+        }
+        guard moved, normalized == old.ambient else { return .unrelated }
+        if let refusal { return .refused(refusal) }
+        return differsOnlyByEffectTranslation(from: old) ? .translation : .affine
+    }
+
+    /// Whether this key is `old` with only the affine numbers of outer render-effect scopes changed (`RZ-B`), a pure translation
+    /// included.
+    func differsOnlyByEffectAffine(from old: ReplayKey) -> Bool {
+        switch effectRelation(from: old) {
+        case .translation, .affine: true
+        case .unrelated, .refused: false
+        }
+    }
+}
+
+/// `ReplayKey.effectRelation(from:)` (`RZ-B`).
+enum EffectRelation: Equatable {
+    case unrelated, translation, affine
+    case refused(String)
 }
 
 // MARK: - The record
@@ -632,7 +675,16 @@ extension Frame {
                 && retainedVersionsUnchanged(old.versions) && !underPointer
                 && (phase.replayed == nil || old.prepaint === phase.replayed)
                 && !(old.prepaint == nil && phase.ledger != nil)   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
-            let effectTranslated = valid && old.key != key && memos.replaysPrepaint && key.differsOnlyByEffectTranslation(from: old.key)
+            var effectTranslated = false
+            if valid, old.key != key, memos.replaysPrepaint {
+                if key.differsOnlyByEffectAffine(from: old.key) {
+                    effectTranslated = true
+                } else if phase.replayed != nil, case .refused(let reason) = key.effectRelation(from: old.key) {
+                    // A prepaint that replayed has already counted its own refusals; one that ran counted what it saw. A refusal
+                    // only the paint sees, after a replayed prepaint, is the paint's to name (`RZ-B`).
+                    memos.retained.noteTranslationRefused(reason: reason)
+                }
+            }
             // The occurrence's origin or scroll offset moved and nothing else did (`FS-D`): replay at the new position when the
             // add is exact, else refused by name and a miss.
             var moved: PaintTranslation?

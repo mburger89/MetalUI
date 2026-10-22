@@ -528,6 +528,13 @@ refuses a translated replay (`geometryTranslated` is gone; a note is recomputed)
 translation no longer refuses `accessibilityRecords` (gone; `accessibilityUnderEffect`, `accessibilityClipped` remain by name), and a hitbox opened inside the occurrence's own effect under a non-identity scale is re-derived rather
 than counted `hitboxes`. A test pinning any of the old refusals or counts reads the new ones; a custom element under such an occurrence is called less often.
 
+### Retained zoom and `@FocusState` memo (`RZ-`, record §133)
+
+No API change, no conformer change, no `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement, no new public declaration. **Behaviour, counters read differently:** an `.equatable()` occurrence under a render effect whose **scale or rotation changed** (a zoom) now replays its paint and prepaint and grafts:
+a test that counted `retainedRedos`, `retainedBackoffFrames` or element requests of such a step reads 0, 0 and far fewer (ten nodes: 115 to 5 requests). **`retainedTranslationRefusedReasons["effectNotTranslation"]` is gone** (record §129 introduced it); a refusal now reads one of `effectFlatteningChanged`, `effectClipChanged`,
+`effectInverseChanged`, `effectScopeChanged`, `effectCountChanged`, `prepaintContextChanged`, `geometryNamedSpace`, `presentationAnchor`, `contextMenus` or `hitboxes`. An `.equatable()` component declaring `@FocusState` is no longer refused: `FrameWork.contentRefusals` no longer counts it, and its getter is
+skipped while focus is unchanged and run when it moves (a test that expected it evaluated every frame reads the memo). A custom element under such an occurrence is called less often.
+
 ### Retained read-only state (`RW-`, record §121)
 
 None for the API beyond one additive `MetalUITesting` field, `FrameWork.retainedIneligibleReasons: [String: Int]` (class M; a stored

@@ -202,6 +202,12 @@ extension PrepaintKey {
         rects == other.rects && interior == other.interior && nodeCount == other.nodeCount
             && ambient == other.ambient && extras.effects.count == other.extras.effects.count
     }
+
+    /// Whether this key is `old` but for its prepaint effects, their number included (`RZ-B`): the gate of the effect arm, whose
+    /// `PrepaintExtras.change(from:)` then names what changed.
+    func differsOnlyByEffects(to other: PrepaintKey) -> Bool {
+        rects == other.rects && interior == other.interior && nodeCount == other.nodeCount && ambient == other.ambient
+    }
 }
 
 /// What the prepaint of an occurrence does (`RK-C`).
@@ -291,26 +297,35 @@ extension Frame {
             // The same occurrence under render effects that moved by a translation (`RK-G`, `RK-S`): its
             // registrations are replayed moved, its accessibility records recomputed against the current effect
             // from their recorded pre-effect rects (`AT-A`), unless one cannot be (refused by name).
-            if ledger.key.differsOnlyByEffectTranslation(to: key) {
-                guard let delta = key.extras.translation(from: ledger.key.extras) else {
-                    if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): effectNotTranslation") }
-                    memos.retained.noteTranslationRefused(reason: "effectNotTranslation")
-                    return .run(phase.grafted ? nil : openPrepaintWindow())
+            if ledger.key.differsOnlyByEffects(to: key) {
+                // A pure pan keeps the translation arm (`RK-G`); a zoom or rotation re-derives everything from the current effect
+                // (`RZ-A`, `RZ-D`), with no delta; anything else is refused by name (`RZ-B`).
+                let delta: (dx: Double, dy: Double)?
+                switch key.extras.change(from: ledger.key.extras) {
+                case .translation(let dx, let dy): delta = (dx, dy)
+                case .affine:
+                    delta = nil
+                    // Window-space rects the replay does not recompute (`RZ-F`).
+                    if !ledger.anchors.isEmpty { return refuseEffect("presentationAnchor", build: build, phase: phase) }
+                    if !ledger.contextMenus.isEmpty { return refuseEffect("contextMenus", build: build, phase: phase) }
+                case .refused(let reason):
+                    return refuseEffect(reason, build: build, phase: phase)
                 }
                 // A noted frame moved with the effect: the transform runs again against the rebuilt proxy (`RL-E`, was `RG-C`).
                 var movedGeometry: [GeometryNoteRecord]?
                 if !ledger.geometry.isEmpty {
-                    switch translatedGeometryNotes(ledger.geometry, ledger: ledger) {
+                    switch translatedGeometryNotes(ledger.geometry, ledger: ledger, affine: delta == nil) {
                     case .moved(let notes): movedGeometry = notes
-                    case .refused(let reason):
-                        if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): \(reason)") }
-                        memos.retained.noteTranslationRefused(reason: reason)
-                        return .run(phase.grafted ? nil : openPrepaintWindow())
+                    case .refused(let reason): return refuseEffect(reason, build: build, phase: phase)
                     }
                 }
                 switch translatedAccessibility(of: ledger) {
                 case .success(let accessibility):
                     if let moved = translatedHitboxes(of: ledger, by: delta) {
+                        // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand (`RZ-D`).
+                        if let point = mousePosition, moved.contains(where: { $0.contains(point) }) {
+                            return .run(phase.grafted ? nil : openPrepaintWindow())
+                        }
                         memos.retained.prepaintHits += 1
                         memos.retained.skippedPrepaints += ledger.prepaints
                         return .replay(ledger, moved: moved, elementBounds: nil, accessibility: accessibility, geometry: movedGeometry)
@@ -329,6 +344,13 @@ extension Frame {
                 memos.retained.noteTranslationRefused(reason: "effectAndLayoutMoved")
             }
         }
+        return .run(phase.grafted ? nil : openPrepaintWindow())
+    }
+
+    /// The prepaint of an occurrence under an effect change a replay cannot carry: counted by name, run (`RZ-B`).
+    private func refuseEffect(_ reason: String, build: RetainedBuild, phase: RetainedPhase) -> RetainedPrepaintMode {
+        if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): \(reason)") }
+        stateTable.contentMemos.retained.noteTranslationRefused(reason: reason)
         return .run(phase.grafted ? nil : openPrepaintWindow())
     }
 

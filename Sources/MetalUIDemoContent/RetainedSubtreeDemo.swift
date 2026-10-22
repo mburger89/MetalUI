@@ -64,6 +64,8 @@ public final class RetainedSubtreeDemoModel {
     @ObservationIgnored public var translationRefusals = ""
     /// The shift-and-scroll section's header height, points (`FS-D`): every card below it moves with it.
     public var shiftHeader: Float = 10
+    /// The zoom section's scale (`RZ-A`): one `.scaleEffect` over a row of `.equatable()` cards.
+    public var zoom: Double = 1
     /// The geometry card's deliveries (`RG-A`): how many times its `onGeometryChange` action ran, and the last size it read.
     /// Observed, written only from the action (which runs after a build, on a change).
     var geometryReports = 0
@@ -93,6 +95,7 @@ public final class RetainedSubtreeDemoModel {
         nodes = RetainedSubtreeDemoModel().nodes
         pan = 0
         shiftHeader = 10
+        zoom = 1
         geometryReports = 0
         geometryLast = ""
         dragging = nil
@@ -242,6 +245,7 @@ private func retainedDemoRoot(strip: some ElementGroup, canvas: some ElementGrou
         RetainedDemoPanel().equatable()
         RetainedDemoShift()
         RetainedDemoGeometry()
+        RetainedDemoZoom()
     }
     .padding(Edges(all: Pixels(24)))
     .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity), alignment: .topLeading)
@@ -361,5 +365,69 @@ private func retainedDemoGeometryBody(_ model: RetainedSubtreeDemoModel) -> some
         RetainedDemoGeometryCard(model: model).equatable()
         Text("reports \(model.geometryReports)").font(size: 12)
         Text("size \(model.geometryLast.isEmpty ? "-" : model.geometryLast)").font(size: 12)
+    }
+}
+
+/// The zoom section (`RZ-A`, C14-i): ten `.equatable()` cards (text, a swatch, a stroked curve) under one `.scaleEffect` driven by
+/// a slider. **Drag the slider**: the cards replay their paint and prepaint under the new scale and graft (the strip's `grafted`
+/// rises, `redos` stays 0, the element requests of a frame stay those of a still one); the picture is the same with "Replay"
+/// off. A curve is re-rastered at each new scale by the ordinary cache. Before C14-i every step read `effectNotTranslation`
+/// and rebuilt all ten cards.
+struct RetainedDemoZoom: Component {
+    var content: some ElementGroup {
+        retainedDemoZoomBody(retainedSubtreeDemoModel)
+    }
+}
+
+/// One card of the section: value-equal for ever.
+private struct RetainedDemoZoomCard: Component, @MainActor Equatable {
+    let id: Int
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text("Zoom \(id)").font(size: 11).frame(width: Pixels(54), height: Pixels(14))
+            Color.accent.frame(width: Pixels(54), height: Pixels(10))
+            RetainedDemoZoomCurve().stroke(Color.accent, lineWidth: Pixels(2)).frame(width: Pixels(54), height: Pixels(18))
+        }
+    }
+}
+
+private struct RetainedDemoZoomCurve: Shape {
+    func path(in rect: Bounds<Pixels>) -> Path {
+        var p = Path()
+        let w = rect.size.width.value, h = rect.size.height.value
+        p.move(to: Point(x: Pixels(2), y: Pixels(h - 2)))
+        p.addCurve(to: Point(x: Pixels(w - 2), y: Pixels(2)), control1: Point(x: Pixels(w * 0.5), y: Pixels(h)),
+                   control2: Point(x: Pixels(w * 0.5), y: Pixels(0)))
+        return p
+    }
+}
+
+/// The section's row, its own function (the Windows 1 MB stack rule).
+@MainActor @ElementBuilder
+private func retainedDemoZoomRow(_ model: RetainedSubtreeDemoModel) -> some ElementGroup {
+    HStack(alignment: .top, spacing: 4) {
+        ForEach(Array(0..<10), id: \.self) { RetainedDemoZoomCard(id: $0).equatable() }
+    }
+}
+
+/// The section's body, its own function (the Windows 1 MB stack rule).
+@MainActor @ElementBuilder
+private func retainedDemoZoomBody(_ model: RetainedSubtreeDemoModel) -> some ElementGroup {
+    VStack(spacing: 4) {
+        HStack(spacing: 12) {
+            Text("Zoom (one scaleEffect)").font(size: 12)
+            Slider(value: Binding(get: { model.zoom }, set: { model.zoom = $0 }), in: 0.5...2).frame(width: Pixels(160))
+            Text("x\(Int(model.zoom * 100))%").font(size: 12)
+            Text("grafted \(model.grafts.count)").font(size: 12)
+            Text("redos \(model.counters.redos)").font(size: 12)
+            Text("refused \(model.translationRefusals.isEmpty ? "none" : model.translationRefusals)").font(size: 12)
+        }
+        ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) { retainedDemoZoomRow(model) }
+                .scaleEffect(model.zoom, anchor: .topLeading)
+                .offset(x: Pixels(8), y: Pixels(4))
+        }
+        .frame(width: Pixels(760), height: Pixels(80), alignment: .topLeading)
+        .clipped()
     }
 }
