@@ -24,6 +24,8 @@ import Testing
 
 enum DMArm: String, CaseIterable, Sendable, CustomStringConvertible {
     case value, observed, ledgerGain
+    /// A node's own width follows its value by a fractional device pixel, so every later node is moved by a delta the translation refuses (a key-only miss with an equal value, `DM-D`).
+    case moved
     var description: String { rawValue }
 }
 
@@ -36,7 +38,7 @@ struct DMNode: Component, @MainActor Equatable {
         let shown = arm == .observed ? (model?.params[index].radius ?? 0) : value
         VStack(alignment: .leading, spacing: 2) {
             RoundedRectangle(cornerRadius: Pixels(4)).fill(Color(red: 0.2 + shown * 0.1, green: 0.4, blue: 0.7))
-                .frame(width: Pixels(90), height: Pixels(10))
+                .frame(width: Pixels(arm == .moved ? 90 + Float(value) * 0.3 : 90), height: Pixels(10))
             Text("node \(index)").frame(width: Pixels(90), height: Pixels(12))
             Button("go \(index)") {}.frame(width: Pixels(90), height: Pixels(16))
             if arm == .ledgerGain, let model {
@@ -78,7 +80,7 @@ struct DMParent: Component {
     window.resetFrameWork()
     for i in changed {
         switch arm {
-        case .value, .ledgerGain: model.values[i] = value
+        case .value, .ledgerGain, .moved: model.values[i] = value
         case .observed: model.params[i].radius = value
         }
     }

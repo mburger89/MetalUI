@@ -174,7 +174,7 @@ struct RetainedTraceWindowTests {
                 #if DEBUG
                 #expect(paintMisses.contains { $0.contains("cause:") && $0.contains("radius") }, "the writer is named: \(paintMisses)")
                 #endif
-            case .ledgerGain: break
+            case .ledgerGain, .moved: break
             }
             #expect(named.contains { $0.contains("coverage.build") || $0.contains("coverage.prepaint") }, "\(arm): the frame after names a coverage half: \(paintMisses)")
         }
