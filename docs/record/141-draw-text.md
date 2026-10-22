@@ -120,3 +120,15 @@ guards 263 (261 + the two of `DrawTextCompileGuards`). Inventory and undocumente
 
 Rich `ResolvedText` in a surface (`DT-E` 1); text under later app drawing (`DT-E` 2, a layered
 verb); `ResolvedText.firstBaseline` (`GT-G`); a per-label effect. Each waits for its first request.
+
+## Adversarial branch check (5f03ab7b..22ade62c)
+
+Re-taken by the checker on the final tree after `swift package clean`: native build 0 `error:` and no `warning:`; unfiltered run
+`Test run with 4264 tests in 5 suites failed after 814.344 seconds with 5 issues`, the five being the `AppKitPresentationTests` sheet issues of
+`CI-AF`; `FR-J no-argument frame: succeeded=true`. The inventory and undocumented scripts print nothing; `cmp CLAUDE.md AGENTS.md` identical.
+The fourteen offscreen images read 0 differing pixels (scene identical) against 5f03ab7b with the compare script's controls non-zero.
+`Backends/SDL` on macOS with `METALUI_REQUIRE_GPU=1`: 256 tests in 11 suites passed; Linux image: 253 passed.
+Two mutations of the checker's own design: (A) `drawText` ignores its `color` argument (`SurfaceText.swift`) reddened
+`theColourIsTheResolvedForegroundUnlessOverridden` (run cut short after the red, so a partial run); (B) the atlas upload moved back before the
+surface draws (`MetalWindowRenderer.finishFrame`, a full unfiltered run, 4 issues) reddened `aGlyphFirstInsertedByASurfaceDrawIsUploadedBeforeTheTextPass`,
+`aSurfaceTextReadsBackEqualToTheSameTextDrawnByMetalUI` and `textIsDrawnOverTheAppsOwnDrawing`. Both restored, `git status` clean.
