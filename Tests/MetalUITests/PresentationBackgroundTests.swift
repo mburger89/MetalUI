@@ -205,22 +205,32 @@ private let orange = Color(red: 0.9, green: 0.5, blue: 0.1)
     withExtendedLifetime(window) {}
 }
 
-/// **7** (`CR-`, `BG-C`). A token follows the scheme: resolved at paint, not at build. Mutation: the token is
-/// resolved once against the light theme.
+/// **7** (`CR-`, `BG-C`). A token follows the scheme: resolved at paint, not at build. Two spellings, because
+/// `.accent` alone picks `Color.accent` (the `ColorToken` twin is disfavoured): the explicit `ColorToken` value
+/// reaches the twin. Mutation: the twin resolves its token once against the light theme.
 @MainActor
 @Test func aColourTokenPresentationBackgroundFollowsTheColourScheme() throws {
+    let token: ColorToken = .accent
     for scheme in [ColorScheme.light, .dark] {
-        let log = BGLog()
-        let (window, _) = try bgWindow {
-            Row {
-                declarer(log) { content100x50().presentationBackground(.accent) }
+        for twin in [false, true] {
+            let log = BGLog()
+            let (window, _) = try bgWindow {
+                Row {
+                    declarer(log) {
+                        if twin {
+                            content100x50().presentationBackground(token)
+                        } else {
+                            content100x50().presentationBackground(.accent)
+                        }
+                    }
                     .environment(\.colorScheme, scheme)
+                }
             }
+            let rect = try panel(window)
+            let want = (scheme == .dark ? window.darkTheme : window.lightTheme)[.accent]
+            #expect(same(rect.background, want), "\(scheme), twin \(twin): \(rect.background)")
+            withExtendedLifetime(window) {}
         }
-        let rect = try panel(window)
-        let want = (scheme == .dark ? window.darkTheme : window.lightTheme)[.accent]
-        #expect(same(rect.background, want), "\(scheme): \(rect.background)")
-        withExtendedLifetime(window) {}
     }
     #expect(Theme.light[.accent] != Theme.dark[.accent], "the instrument: the two schemes differ")
 }
