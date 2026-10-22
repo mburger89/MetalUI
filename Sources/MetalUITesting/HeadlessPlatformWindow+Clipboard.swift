@@ -110,7 +110,7 @@ extension HeadlessPlatformWindow {
         for (left, right) in zip(lhs, rhs) {
             guard left.payloads.count == right.payloads.count else { return false }
             for (a, b) in zip(left.payloads, right.payloads) {
-                guard a.type == b.type, case .now(let x) = a.bytes, case .now(let y) = b.bytes, x == y else { return false }
+                guard a.type.identifier == b.type.identifier, case .now(let x) = a.bytes, case .now(let y) = b.bytes, x == y else { return false }
             }
         }
         return true

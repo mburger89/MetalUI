@@ -1,10 +1,10 @@
 # Clipboard extras — decisions
 
 Rulings for round 2 item 6 of the gpui-gap list (user request 2026-10-21; **not a plan task**): what `CB-N`
-(record §115) deferred. Prefix `CP-`. **Next unused: `CP-M`.**
+(record §115) deferred. Prefix `CP-`. **Next unused: `CP-N`.**
 Spec: [`specs/2026-10-22-clipboard-extras-design.md`](specs/2026-10-22-clipboard-extras-design.md).
 Record: `../record/142-clipboard-extras.md` (Record phase). Branch `feat/clipboard-extras` from `5f03ab7b`.
-Divergence labels reserved 715–724: none taken yet; **715, 716, 717 are earmarked** (`CP-C`, `CP-F`, `CP-B`).
+Divergence labels reserved 715–724: **717 taken** (`CP-B`, lane 1); 715, 716 are earmarked (`CP-C`, `CP-F`).
 
 Sources of truth. SwiftUI: `docs/probes/swiftui-clipboard-extras.swift` (2026-10-21). **Probed:** the SDK's
 three `PasteButton` initialisers, the array signatures, and three compile-failure arms (`-DNEG1` no
@@ -160,3 +160,18 @@ mirror file is `GuideMirrorsClipboard.swift`, not `…Lane1`. The migration note
 
 **Ruling.** See `CP-H`: refusal by name beats a fingerprint field (smaller, cannot go stale). Test 1.9's mutation
 becomes "remove the refusal" (must redden: stale enabled state under `METALUI_VERIFY_RETAINED=1`).
+
+## CP-M — The snapshot is read lazily by a `PasteButton`, held in `ClipboardAccess` (lane 1, 2026-10-22)
+
+**Question.** `CP-G` had `Window` stamp a `Frame` snapshot of `clipboardItems()` at creation and in the handler. That reads
+the platform's clipboard (AppKit: `pasteboard.types`, SDL: a mime list `malloc`) in **every** window, button or not, and a window
+built without a button on its first frame would need a settle build when one appears.
+**Ruling.** A `ClipboardAccess` class (`PasteButton.swift`, weak over the platform window, stamped on each `Frame`) holds the
+snapshot and a stale flag. The **first `PasteButton` that lays out** reads the platform (inside layout, an idempotent read with
+no state write), later layouts reuse the cached snapshot, and the platform's change handler only `invalidate()`s it, so the next
+layout reads again. A window with no button never reads (pin 1.5 reads `testingClipboardReads == 0`). The dirty rule is `CP-G`'s:
+the handler redraws only when `lastPasteButtonCount > 0`. `Frame` carries no snapshot field.
+**Consequence.** Enablement is exact in the first frame with no settle build; the read inside a phase is declared here as the one
+exception to "never read the platform inside a phase" and costs one read per clipboard change per window holding a button.
+**Cost if wrong.** A platform whose `clipboardItems()` is slow shows it in a layout, once per change; a cache would then move to
+the handler under the dirty rule.

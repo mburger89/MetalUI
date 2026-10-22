@@ -85,7 +85,7 @@ private let primary: EventModifiers = .control
 }
 
 /// 1.4 — the `.disabled` gate and the keyboard: a `.disabled(true)` button neither clicks nor takes Space; a button the clipboard
-/// disables does not fire; an enabled one takes Tab focus and Space or Return. **Mutation:** skip the gate (`gated` returns the
+/// disables does not fire; an enabled one takes Tab focus and Space. **Mutation:** skip the gate (`gated` returns the
 /// body unforced).
 @Test @MainActor func aPasteButtonIsGatedAndFocusableLikeAButton() throws {
     let log = PasteLog()
@@ -107,7 +107,7 @@ private let primary: EventModifiers = .control
     on.typeKey(.tab)
     #expect(try paste(on).isFocused)
     on.typeKey(.space)
-    on.typeKey(.return)
+    on.typeKey(.space)   // `ControlKeys.activatesButton`: Space everywhere, Return off Apple only
     #expect(log.pasted.count == 2)
 }
 
@@ -140,7 +140,7 @@ private let primary: EventModifiers = .control
 }
 
 /// 1.7 — ⌘V is unchanged: with a `pasteDestination` focused and a `PasteButton` beside it, the shortcut runs only the destination.
-/// **Mutation:** route the button through `dispatchClipboardKey` (it would also run).
+/// **Mutation:** give the button a ⌘V `.keyboardShortcut` (the second arm, with no destination, would press it).
 @Test @MainActor func commandVRunsTheDestinationAndNotThePasteButton() throws {
     let log = PasteLog()
     let window = try harnessWindow {
@@ -156,6 +156,15 @@ private let primary: EventModifiers = .control
     window.typeKey("v", modifierFlags: primary)
     #expect(log.destination == [[Graph(label: "a")]])
     #expect(log.pasted.isEmpty)
+
+    // Second arm: nothing focused, no destination on the chain: ⌘V still does not press the button.
+    let bare = try harnessWindow {
+        VStack(spacing: 0) { PasteButton(payloadType: Graph.self) { log.pasted.append($0) } }
+    }
+    bare.setClipboard(items: [Graph(label: "b")])
+    bare.tick()
+    bare.typeKey("v", modifierFlags: primary)
+    #expect(log.pasted.isEmpty, "the shortcut belongs to pasteDestination and the Edit menu, not to PasteButton")
 }
 
 /// 1.8a — the headless handler fires once per changing write and never for an identical one; a `.later` write always counts.

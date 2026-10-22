@@ -402,7 +402,12 @@ presence). A copy writes one representation per exported type, most preferred fi
 `Window.clipboard` (M) is the same from code: `write(_:)`, `read(_:)`, `contentTypes`, `hasContent(of:)`.
 `ClipboardRepresentation` and `ClipboardCommands` are the platform seam's (M). On SDL a custom identifier is the mime
 type `application/x-<identifier>` with each byte outside `[a-z0-9.+-]` percent-encoded (`ClipboardMime`, `CB-D`).
-`PasteButton` is not built (`CB-N`).
+`PasteButton(payloadType:onPaste:)` (A) and `PasteButton(supportedContentTypes:payloadAction:)` (D: `DropItem` stands for `NSItemProvider`)
+are a control composed over `Button` (`CP-B`, divergence 717): enabled while some clipboard item offers a type the payload imports,
+redrawn by the platform's change handler only while a button is on screen (`CP-G`), a click delivers every importable item
+once; no label (SwiftUI's takes none, probe `-DNEG2`). `@Environment(\.clipboard)` is **not built**: SwiftUI has no such macOS
+API (probe `-DNEG1`, `CP-A`); `Window.clipboard` is the route from code. The seam gains `ClipboardItem`, `ClipboardPayload`,
+`ClipboardBytes` and four defaultless `PlatformWindow` requirements (`CP-E`, M).
 
 **Input for viewports and canvases** (`CI-`, record §81;
 [`superpowers/2026-10-08-input-apis-decisions.md`](superpowers/2026-10-08-input-apis-decisions.md)).
