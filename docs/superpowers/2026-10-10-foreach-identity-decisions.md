@@ -80,6 +80,8 @@ comparison and the tests of the spec. Identity reordering is covered by 2.2.
 
 ## FI-I — `List` rows are deferred; divergence 255
 
+**Discharged 2026-10-22 by `LH-A`…`LH-K` (record §145): divergence 255 is retired and `List` rows name by value; the ruling below is the history.**
+
 **Ruling.** `List` keeps `ElementID(String(describing: datum.id))` at its
 three sites; the silent aliasing documented in its type doc becomes divergence
 **255** (SwiftUI keeps the rows apart; pinned by 2.10). The fix reuses

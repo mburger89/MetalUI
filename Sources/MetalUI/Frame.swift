@@ -150,6 +150,10 @@ public final class Frame {
     /// elements produced, and how many of them minted an `IdentityKey`.
     var forEachIdentityWork: (elements: Int, keyed: Int) = (0, 0)
 
+    /// `List` row identity work this frame (`LH-E`, a work counter, never time):
+    /// rows realised, and how many of them minted an `IdentityKey`.
+    var listIdentityWork: (rows: Int, keyed: Int) = (0, 0)
+
     /// What this frame's lazy containers realised (`LZ-I`, a work counter, never time).
     var lazyWork = LazyWork()
 
