@@ -231,8 +231,10 @@ struct RetainedTraceWindowTests {
     @Test func theTraceCostsNothingWhenOff() throws {
         let (offWindow, offModel) = try doubleMissWindow(.value)
         RetainedTrace.linesBuilt = 0
+        RetainedTrace.pathsBuilt = 0
         let off = countAllocations { _ = doubleMissStep(offWindow, offModel, arm: .value, changed: [1, 4], to: 3) }
         #expect(RetainedTrace.linesBuilt == 0, "sink nil and the environment unset: no line is built (\(RetainedTrace.linesBuilt))")
+        #expect(RetainedTrace.pathsBuilt == 0, "sink nil and the environment unset: no path is rendered (\(RetainedTrace.pathsBuilt)); a removed `active` guard in a builder or in `emit` reddens this")
         let (onWindow, onModel) = try doubleMissWindow(.value)
         var sunk = 0
         RetainedTrace.sink = { _ in sunk += 1 }

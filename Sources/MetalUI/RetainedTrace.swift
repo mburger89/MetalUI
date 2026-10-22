@@ -18,6 +18,8 @@ package enum RetainedTrace {
 
     /// Lines built since a test reset it: stays 0 while nothing listens.
     nonisolated(unsafe) package static var linesBuilt = 0
+    /// Paths rendered since a test reset it (every line renders one): stays 0 while nothing listens, whichever layer's guard goes (`PA-J`).
+    nonisolated(unsafe) package static var pathsBuilt = 0
     /// Misses whose reason list came out empty: a test may never see this nonzero (`DM-F`).
     nonisolated(unsafe) package static var unclassified = 0
 
@@ -48,7 +50,10 @@ package enum RetainedTrace {
     }
 
     /// The path of an identity as a line prints it.
-    static func path(_ id: GlobalElementID) -> String { tail(of: sbPath(id), length: pathLength) }
+    static func path(_ id: GlobalElementID) -> String {
+        pathsBuilt += 1
+        return tail(of: sbPath(id), length: pathLength)
+    }
 
     /// The writer behind the observation fire this is called from, best effort: the demangled `<Type>.<property>.setter` frame of the
     /// stack (a debug build; a release build inlines the setter and this answers `?`, probe `observation-fire-cause.swift`).
