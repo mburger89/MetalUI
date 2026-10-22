@@ -56,7 +56,7 @@ package enum RetainedTrace {
     }
 
     /// The writer behind the observation fire this is called from, best effort: the demangled `<Type>.<property>.setter` frame of the
-    /// stack (a debug build; a release build inlines the setter and this answers `?`, probe `observation-fire-cause.swift`).
+    /// stack (a debug build; a release build inlines the setter and this answers `?`, as does Windows, whose stack symbols carry no names; probe `observation-fire-cause.swift`).
     static func writerCause() -> String {
         for line in Thread.callStackSymbols {
             for token in line.split(whereSeparator: { " ()+[]".contains($0) }) where token.hasPrefix("$s") || token.hasPrefix("_$s") {

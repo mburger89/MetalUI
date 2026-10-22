@@ -41,7 +41,7 @@ No SwiftUI probe, no gpui comparison: no observable behaviour moves (`DM-H`).
 **Question.** The trace must say which property fired `observed`.
 **Ruling.** `onChange` is `@Sendable () -> Void` with no key path and no object; the registrar's access list is not public API. Probe `docs/probes/observation-fire-cause.swift` (positive control: a write fires `onChange`; separating arm: the closure's arguments and the observed model give no property name; third arm: the writer's frames contain `Model.radius.setter`) fixes this before lane 1 relies on it. Behind `RetainedTrace.active`, the fire records the demangled writer frames (`<Type>.<property>.setter`, `withMutation(of:keyPath:_:)`), stored on the entry, printed after `observed`; a release build with the setter inlined may show only the type, which is stated in the line (`cause: ?`). No decision reads it; no cost when off. If the probe finds a better public hook the ruling is superseded by number before code.
 **Evidence.** Observation's public surface (`withObservationTracking(_:onChange:)`); none of the repository's sessions needs more (`RetainedHandle`, `ContentMemoHandle`).
-**Cost if wrong.** A cause string that is blank on some build; the pin runs in debug on Darwin and Linux only.
+**Cost if wrong.** A cause string that is blank on some build; the pin runs in debug on Darwin and Linux only (gated by `symbolicatedStacks`; Windows CI measured `?`, PR #120, since its `Thread.callStackSymbols` carries no names).
 
 ## DM-F - The trace says paint or prepaint, prints 120 characters of path, and is a sink
 

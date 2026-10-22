@@ -216,8 +216,9 @@ struct RetainedTraceWindowTests {
     }
 
     /// 5 - the writer behind an `observed` is named. Debug only: a release build inlines the setter (`DM-E`, probe
-    /// `observation-fire-cause.swift`). **Mutation:** capture nothing in `writerCause`.
-    @Test(.enabled(if: debugBuild, "release inlines the observable setter: the cause is `?` there (DM-E)"))
+    /// `observation-fire-cause.swift`). Not on Windows, whose `Thread.callStackSymbols` carries no symbol names (measured on CI,
+    /// PR #120). **Mutation:** capture nothing in `writerCause`.
+    @Test(.enabled(if: debugBuild && symbolicatedStacks, "release inlines the observable setter, and Windows stacks carry no symbols: the cause is `?` there (DM-E)"))
     func theFireCauseNamesTheWritingProperty() throws {
         let (window, model) = try doubleMissWindow(.observed)
         let lines = collectTrace { _ = doubleMissStep(window, model, arm: .observed, changed: [2], to: 4) }
@@ -250,4 +251,10 @@ struct RetainedTraceWindowTests {
 let debugBuild = true
 #else
 let debugBuild = false
+#endif
+
+#if os(Windows)
+let symbolicatedStacks = false
+#else
+let symbolicatedStacks = true
 #endif
