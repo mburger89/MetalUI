@@ -192,12 +192,21 @@ extension Window {
     /// answer for this press) and no gesture arena formed asks the platform
     /// to drag the window — or, for a double click, to run the title bar's
     /// double-click action. No lookup of its own.
+    ///
+    /// **The background press** (`BG-G`, `BG-H`): with ``backgroundDragBehavior`` `.enabled`, the same
+    /// unclaimed primary press anywhere else is a single press (`clickCount` 1, never the title bar's double
+    /// click) that asks for the same title-bar drag. A platform that moves the window through hit-test
+    /// regions (SDL, `CW-E`) has moved it already, so it is not asked.
     func answerUnclaimedTitleBarPress(_ event: InputEvent) {
-        guard case .mouseDown(let mouse) = event,
-              shell.windowStyle == .hiddenTitleBar, shell.titleBarStyleApplied,
-              mouse.position.y.value < effectiveTitleBarInsets.top.value,
-              active == nil, !hasGestureArena else { return }
-        _ = platformWindow.performTitleBarPress(clickCount: mouse.clickCount)
+        guard case .mouseDown(let mouse) = event, active == nil, !hasGestureArena else { return }
+        if shell.windowStyle == .hiddenTitleBar, shell.titleBarStyleApplied,
+           mouse.position.y.value < effectiveTitleBarInsets.top.value {
+            _ = platformWindow.performTitleBarPress(clickCount: mouse.clickCount)
+            return
+        }
+        guard shell.chrome.backgroundDragBehavior.dragsFromBackground, mouse.clickCount == 1,
+              shell.chrome.platformUsesDragRegions != true else { return }
+        _ = platformWindow.performTitleBarPress(clickCount: 1)
     }
 
     // MARK: - The close veto (`AS-B`, `AS-K`)

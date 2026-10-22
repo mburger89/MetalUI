@@ -2740,3 +2740,11 @@ prompt; SwiftUI's look and enablement are unprobed; `CP-B`, `CP-G`; pins `aPaste
 receives several items", unprobed, live until human check CP1). Labels 718–724 of this branch's range unused. Not a divergence: `@Environment(\.clipboard)`
 does not exist in SwiftUI on macOS (probe `-DNEG1`, `CP-A`).
 
+
+## 2026-10-22: presentation extras (record §144, `BG-`)
+
+Three labels taken from this branch's range 735–744 (738–744 unused): **735** `PointerStyle.shape` exists in SwiftUI on visionOS only, so MetalUI's black-and-white-outline
+look is its own (`BG-K`; pin `aShapeCursorIsAnImageCursorOfTheShapeRasterizedAtTheDisplayScale`); **736** `windowBackgroundDragBehavior` is a `Window` property because MetalUI has no `Scene`, and a press on
+a control never drags (SwiftUI's answer unmeasured, check `BG4`; pin `anUnclaimedPrimaryPressOnTheBackgroundDragsWhenEnabled`); **737** on SDL the background drag region takes hover, wheel and pointer-style events
+inside it (`BG-I`; pin `theBackgroundRegionIsTheWindowCarvedByEveryBlocker`). Not a divergence label: a `Material` popover panel has no drop shadow (`BG-P`, a renderer constraint, check `BG1`).
+`OV-C`'s deferral is closed by `BG-A`…`BG-F`.

@@ -12,7 +12,14 @@ import MetalUIPlatform
 enum ChromeRegions {
     /// The regions for `hitboxes` (the last frame's), a band `bandHeight` tall across `windowWidth` (none
     /// when 0) plus every handle, carved by every blocker, capped at `ChromeHitSnapshot.maximumRegions`.
-    static func compute(hitboxes: [Hitbox], bandHeight: Float, windowWidth: Float) -> [Bounds<Pixels>] {
+    ///
+    /// `background`, when given (`backgroundDragBehavior == .enabled`, `BG-I`), is one more candidate, last:
+    /// the content rect carved by **every** blocker, with no backdrop exemption (the band's exemption exists
+    /// because the bar floats over content; a window-wide opaque backdrop needs the pointer everywhere). A
+    /// result that the cap cut short drops the background whole and carves again without it, so an
+    /// over-fragmented background is never a partial one, and the band and the handles keep what they had.
+    static func compute(hitboxes: [Hitbox], bandHeight: Float, windowWidth: Float,
+                        background: Bounds<Pixels>? = nil) -> [Bounds<Pixels>] {
         // The one ranking's key, `(layer, registration index)` (`topmostHitbox`); a higher one is above.
         func rank(_ index: Int) -> (Int, Int) { (hitboxes[index].layer, index) }
         let blockerIndices = hitboxes.indices.filter { blocks(hitboxes[$0]) }
@@ -32,6 +39,13 @@ enum ChromeRegions {
             let above = blockerIndices.filter { rank($0) > rank(index) }.map { blockerRect(hitboxes[$0]) }
             ranked.append((hitboxes[index].bounds, above))
         }
+        guard let background else {
+            return ChromeHitMap.carve(ranked: ranked, limit: ChromeHitSnapshot.maximumRegions).rects
+        }
+        let everyBlocker = blockerIndices.map { blockerRect(hitboxes[$0]) }
+        let withBackground = ChromeHitMap.carve(ranked: ranked + [(background, everyBlocker)],
+                                                limit: ChromeHitSnapshot.maximumRegions)
+        if withBackground.truncated == 0 { return withBackground.rects }
         return ChromeHitMap.carve(ranked: ranked, limit: ChromeHitSnapshot.maximumRegions).rects
     }
 

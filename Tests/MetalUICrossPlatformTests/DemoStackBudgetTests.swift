@@ -54,6 +54,7 @@ private func buildTheChromeDemo() {
     _ = chromeDemoContent()
     _ = ChromeDemoBar().content
     _ = ChromeDemoBody().content
+    _ = ChromeDemoBackground().content   // presentation extras (BG)
 }
 
 /// The clipboard demo's tree, in its own frame.

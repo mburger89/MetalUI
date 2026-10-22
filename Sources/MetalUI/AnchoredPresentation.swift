@@ -67,6 +67,11 @@ struct AnchoredPresentation<Content: Element>: Element {
 
     struct LayoutState {
         var content: Content.GroupLayout
+        /// The panel's fill, reported by a `.presentationBackground` in the content (`BG-B`); `nil`
+        /// for an overlay and for a popover that reported none.
+        var background: PresentationBackgroundSpec?
+        /// The content spelling's element, laid out beside the chrome (`BG-E`).
+        var backgroundContent: PanelBackgroundContent?
     }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, LayoutState) {
@@ -75,15 +80,32 @@ struct AnchoredPresentation<Content: Element>: Element {
         let (nodes, contentLayout) = pass.withoutScrollContext {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
+        let reported = chrome ? pass.frame.presentationBackgroundSlot : nil   // `BG-B`; an overlay has no panel (`BG-A`)
         pass.frame.endPresentationPreferences(saved: savedPreference, isPresentation: true)
         let node = nodes[0]
         let frame = pass.frame
         _ = frame.lowering.consume(node)
-        let root = pass.lowerAnchoredPresentation(node, placement: placement)
+        // The content spelling (`BG-E`): a sibling node under a named id, proposed the chrome's size and
+        // placed by its alignment, never part of the panel's size (an overlay attachment around the chrome).
+        var backgroundContent: PanelBackgroundContent?
+        var placed = node
+        if let reported, case .content(let alignment, let make) = reported.kind {
+            var element = make()
+            let backgroundID = GlobalElementID.child(of: id, at: 0, name: PresentationBackgroundSpec.contentName)
+            frame.stateTable.noteNamed(backgroundID, at: 0)   // `ID-R`
+            let inner = frame.beginPresentationPreferences()   // its own preferences stay out of the main tree
+            let backgroundNode = pass.withoutScrollContext { element.requestLayout(backgroundID, pass: &pass) }
+            frame.endPresentationPreferences(saved: inner, isPresentation: true)
+            _ = frame.lowering.consume(backgroundNode)
+            placed = frame.requestNativeOverlayAttachment(child: node, overlay: backgroundNode, alignment: alignment)
+            backgroundContent = PanelBackgroundContent(element: element, id: backgroundID, node: backgroundNode)
+        }
+        let root = pass.lowerAnchoredPresentation(placed, placement: placement)
         let placeholder = frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
         frame.lowering.alias(placeholder, to: frame.lowering.alias(node))
         frame.lowering.presentations.append((placeholder: placeholder, root: root))
-        return (placeholder, LayoutState(content: contentLayout))
+        return (placeholder, LayoutState(content: contentLayout, background: reported,
+                                         backgroundContent: backgroundContent))
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout LayoutState,
@@ -95,6 +117,12 @@ struct AnchoredPresentation<Content: Element>: Element {
             frame.registerOpenPopover(OpenPopover(id: owner, bounds: bounds,
                                                   anchor: frame.presentationAnchors[owner] ?? anchor,
                                                   consumesAnchorPress: consumesAnchorPress, dismiss: dismiss))
+            if var background = layout.backgroundContent {
+                let backgroundBounds = frame.bounds(of: background.node)
+                frame.recordElementBounds(background.id, backgroundBounds)   // as the group default does
+                background.element.prepaint(background.id, bounds: backgroundBounds, pass: &pass)
+                layout.backgroundContent = background
+            }
             result = content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
         return result
@@ -108,14 +136,61 @@ struct AnchoredPresentation<Content: Element>: Element {
             // (`OV-A` item 1).
             let frame = pass.frame
             if chrome {
-                frame.paintWithShadow(color: frame.theme[.shadow], radius: Pixels(PopoverChrome.shadowRadius),
-                                      x: Pixels(0), y: Pixels(PopoverChrome.shadowY)) {
-                    frame.fill(bounds, color: frame.theme[.surface],
-                               cornerRadii: Corners(all: Pixels(PopoverChrome.cornerRadius)),
-                               borderColor: frame.theme[.separator], borderWidths: Edges(all: Pixels(1)))
+                paintPanel(bounds, background: layout.background, pass: pass)
+                if var background = layout.backgroundContent {
+                    let radii = Corners(all: Pixels(PopoverChrome.cornerRadius))
+                    frame.pushClip(bounds, offset: Point(x: Pixels(0), y: Pixels(0)), radii: radii)
+                    background.element.paint(background.id, bounds: frame.bounds(of: background.node), pass: &pass)
+                    frame.popClip()
+                    layout.backgroundContent = background
                 }
             }
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        }
+    }
+}
+
+extension AnchoredPresentation {
+    /// The panel (`MN-M` item 5, `BG-C`): one bordered rounded rect under the default shadow, its fill
+    /// `.surface` or what a `.presentationBackground` reported. The border, the radius and the shadow stay
+    /// whatever the fill is. A material goes through `Frame.fillMaterial` with the border as its own
+    /// stroke-only rect and no shadow (`BG-P`) unless Reduce Transparency made it an opaque rect; a gradient
+    /// goes through the gradient path inside the shadow scope with the border stroked over it.
+    func paintPanel(_ bounds: Bounds<Pixels>, background: PresentationBackgroundSpec?, pass: PaintPass) {
+        let frame = pass.frame
+        let radii = Corners(all: Pixels(PopoverChrome.cornerRadius))
+        let border = Edges(all: Pixels(1))
+        func shadowed(_ draw: () -> Void) {
+            frame.paintWithShadow(color: frame.theme[.shadow], radius: Pixels(PopoverChrome.shadowRadius),
+                                  x: Pixels(0), y: Pixels(PopoverChrome.shadowY), draw)
+        }
+        func strokeBorder() {
+            frame.fill(bounds, color: .transparent, cornerRadii: radii,
+                       borderColor: frame.theme[.separator], borderWidths: border)
+        }
+        switch background?.kind {
+        case .color(let color):
+            shadowed {
+                frame.fill(bounds, color: frame.resolve(color), cornerRadii: radii,
+                           borderColor: frame.theme[.separator], borderWidths: border)
+            }
+        case .material(let material):
+            if frame.environmentTop.accessibilityReduceTransparency {
+                shadowed { frame.fillMaterial(bounds, material: material, cornerRadii: radii) }
+            } else {
+                frame.fillMaterial(bounds, material: material, cornerRadii: radii)
+            }
+            strokeBorder()
+        case .gradient(let fill):
+            shadowed {
+                paintGradientFill(fill, .roundedRectangle(bounds, cornerRadii: radii), style: nil, pass: pass)
+            }
+            strokeBorder()
+        case .content, nil:
+            shadowed {
+                frame.fill(bounds, color: frame.theme[.surface], cornerRadii: radii,
+                           borderColor: frame.theme[.separator], borderWidths: border)
+            }
         }
     }
 }
