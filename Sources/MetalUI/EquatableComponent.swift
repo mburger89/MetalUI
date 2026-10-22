@@ -95,7 +95,9 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         if descendantRan { entry.observedChange = true }
         // The subtree placement memo (`SB-AD`) restores these roots' rects where they stand.
         for node in result.0 { frame.tree.markPlacementRoot(node) }
-        result.1.storage.retained = window.finish(frame: frame, key: key, nodes: result.0, observed: observed || descendantRan)
+        let retainedBuild = window.finish(frame: frame, key: key, nodes: result.0, observed: observed || descendantRan)
+        retainedBuild.closedOnRecord = !observed   // `AM-B`: `needsObservation` read a complete, clean record
+        result.1.storage.retained = retainedBuild
         if let graftWindow {
             let closed = frame.closeGraftWindow(graftWindow, tops: result.0, contentSerial: entry.serial, key: buildKey)
             if let record = closed.record {
