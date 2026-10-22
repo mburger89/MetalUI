@@ -85,14 +85,19 @@ struct RetainedSingleMissTests {
     }
 
     /// 4 - soundness: the record the change frame made is armed. A write of the observed read right after the change frame (no
-    /// settle between) must miss and draw what the retention-off twin draws; a record declared complete without its windows would
-    /// replay the old scene. **Mutation:** mark `coverageComplete = true` on the change frame without opening the windows.
-    @Test func aStaleSessionStillFiresAfterTheSameFrameRecord() throws {
+    /// settle between), and again after a hit frame that replayed it, must miss and draw what the retention-off twin draws; a record
+    /// declared complete without its windows would replay the old scene. **Mutation (measured, C14-j lane 2 verify):** `needsObservation`
+    /// without the certain-miss terms **and** `coverageBuild`/`coveragePrepaint` set `true` at the record (windows closed, coverage
+    /// declared): the immediate write alone did NOT redden (the standing record's sessions still cover it), the write after the hit does.
+    @Test(arguments: [false, true]) func aStaleSessionStillFiresAfterTheSameFrameRecord(afterAHit: Bool) throws {
         let (on, onModel) = try doubleMissWindow(.observed)
         let (off, offModel) = try doubleMissWindow(.observed, retain: false)
         for (model, window) in [(onModel, on), (offModel, off)] {
             model.params[2].radius = 4
             window.window.setNeedsRedraw(); window.tick()
+        }
+        if afterAHit {
+            for window in [on, off] { window.window.setNeedsRedraw(); window.tick() }   // the settle frame: a hit on the retained twin
         }
         on.resetFrameWork()
         for (model, window) in [(onModel, on), (offModel, off)] {
