@@ -636,3 +636,15 @@ chain before a `Button`'s shortcut or an app command bound to the same key (`CB-
 - [`divergences.md`](divergences.md) — every remaining difference from SwiftUI.
 - [`verification/human-checks.md`](verification/human-checks.md) — the looks
   that still need a human.
+
+### Clipboard items and change notification (`CP-`, record 142)
+
+`PlatformWindow` gains **four defaultless requirements** (a conformer adds them or fails to compile):
+`func writeClipboard(items: [ClipboardItem]) -> Bool`, `func clipboardItems() -> [[String]]`,
+`func readClipboard(item: Int, identifier: String) -> [UInt8]?` and
+`func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?)`. A platform with no typed clipboard answers
+`{ false }`, `{ [] }`, `{ _, _ in nil }` and `{ _ in }`. `ClipboardItem`/`ClipboardPayload`/`ClipboardBytes`
+(`.now(bytes)` or `.later(closure)`) are the new `MetalUIPlatform` types; the change handler is called on the
+main actor whenever the clipboard may have changed (an own write, SDL's `SDL_EVENT_CLIPBOARD_UPDATE`, AppKit's
+`changeCount` seen on becoming key and at a press). The four `CB-E` requirements stay and mean item 0.
+`HeadlessPlatform.Options` gains `clipboardExportsLazily` (default `true`).

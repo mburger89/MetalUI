@@ -57,6 +57,10 @@ private func conformer(pair: String) -> String {
         func clipboardTypeIdentifiers() -> [String] { [] }
         func readClipboard(identifier: String) -> [UInt8]? { nil }
         func setClipboardCommands(_ commands: ClipboardCommands) {}
+        func writeClipboard(items: [ClipboardItem]) -> Bool { false }
+        func clipboardItems() -> [[String]] { [] }
+        func readClipboard(item: Int, identifier: String) -> [UInt8]? { nil }
+        func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?) {}
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
         // Drag and drop's hand-off (`DN-C` item 2), defaultless too, so every

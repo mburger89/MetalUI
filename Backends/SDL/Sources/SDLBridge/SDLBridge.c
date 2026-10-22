@@ -1403,6 +1403,8 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
                    : e->type == SDL_EVENT_PINCH_UPDATE ? MUI_PINCH_UPDATE : MUI_PINCH_END;
         out->modifiers = mods(SDL_GetModState());
         return true;
+    case SDL_EVENT_CLIPBOARD_UPDATE:   // CP-G: no window; Swift tells every window's handler
+        out->kind = MUI_EVENT_CLIPBOARD; return true;
     case SDL_EVENT_KEY_DOWN: case SDL_EVENT_KEY_UP:
         out->kind = e->type == SDL_EVENT_KEY_DOWN ? MUI_EVENT_KEY_DOWN : MUI_EVENT_KEY_UP;
         out->window_id = e->key.windowID; out->keycode = e->key.key;

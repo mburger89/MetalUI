@@ -767,6 +767,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
     @objc private func controlActiveStateNotification(_ notification: Notification) {
         if notification.name == NSWindow.didResignKeyNotification { hostView.forgetHeldPress() }
+        if notification.name == NSWindow.didBecomeKeyNotification { pollClipboardChange() }
         refreshControlActiveState()
     }
 
@@ -889,13 +890,16 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// The pasteboard the clipboard requirements use (ruling `CB-K`): the general
     /// one in production; a test sets a private named one, so no test touches
     /// the user's clipboard.
-    var pasteboard: NSPasteboard = .general
+    var pasteboard: NSPasteboard = .general {
+        didSet { if clipboardChangeHandler != nil { lastClipboardChangeCount = pasteboard.changeCount } }
+    }
 
     func readClipboard() -> String? { pasteboard.string(forType: .string) }
 
     func writeClipboard(_ text: String) {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        noteClipboardWrite()
     }
 
     /// One `NSPasteboardItem` carrying every representation, replacing
@@ -910,7 +914,9 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         }
         guard wrote else { return false }
         pasteboard.clearContents()
-        return pasteboard.writeObjects([item])
+        let written = pasteboard.writeObjects([item])
+        noteClipboardWrite()
+        return written
     }
 
     func clipboardTypeIdentifiers() -> [String] { (pasteboard.types ?? []).map(\.rawValue) }
@@ -920,6 +926,16 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     }
 
     func setClipboardCommands(_ commands: ClipboardCommands) { hostView.clipboardCommands = commands }
+
+    // MARK: Clipboard items (`CP-E`); the item requirements are in `AppKitClipboardItems.swift`.
+
+    /// What `setClipboardChangeHandler(_:)` installed (`CP-G`); `AppKitClipboardChange.swift` calls it.
+    var clipboardChangeHandler: (@MainActor () -> Void)?
+    /// `pasteboard.changeCount` as of the last poll or own write (`CP-G`).
+    var lastClipboardChangeCount: Int?
+    /// The data providers of the last write's `.later` representations, retained until the next write
+    /// (`NSPasteboard` does not retain a provider, `CP-F`).
+    var clipboardProviders: [AppKitClipboardProvider] = []
 
     /// Owned here and by the host view; it holds the host view weakly (AB-D).
     let accessibilityBridge: AppKitAccessibilityBridge
@@ -976,7 +992,14 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         lastReportedAppearance = appearance
         accessibilityBridge.hostView = hostView
         hostView.accessibilityBridge = accessibilityBridge
-        hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }
+        hostView.onInput = { [weak self] event in
+            // The clipboard's change count is compared at a press (`CP-G`), before the event runs.
+            switch event {
+            case .mouseDown, .keyDown: self?.pollClipboardChange()
+            default: break
+            }
+            return self?.onInput?(event) ?? false
+        }
         hostView.onGeometryChange = { [weak self] in self?.syncSurfaceGeometry() }
         hostView.onAppearanceChange = { [weak self] in
             guard let self else { return }
