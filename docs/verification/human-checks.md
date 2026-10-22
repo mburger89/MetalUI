@@ -1852,6 +1852,22 @@ a physical GPU, a desktop session and a console.*
 - [ ] **BS3.** A package depending on MetalUI **by URL** (not path) sees `swift package compile-shaders`; if not, `swift run --package-path .build/checkouts/MetalUI MetalUICompileShaders ...` works (`BS-B`). **Observed:**
 - [ ] **BS4.** Windows: `shadercross.exe` is found on `PATH` and by `METALUI_SHADERCROSS`, its DLLs beside it load, and the tool's output matches macOS's reflection JSON. **Observed:**
 
+## WR. Windows release build - MetalCreator's xp-2 zip (item XP-G21, 2026-10-21, not a plan task; record 139; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs a Windows machine with Swift 6.4.0+Asserts. The asserts snapshot on macOS is the stand-in (`WR-A`).*
+
+- [ ] **WR1.** On Windows with the CI compiler, `swift build -c release` of the root package's `MetalUI` product and of MetalCreator's `MetalCreatorApp` finishes with no "SIL verification failed", and the xp-2 release zip's app paints a shadowed, blurred and rotated legacy element like the debug build. **Observed:**
+- [ ] **WR2.** The `root-windows` job's "Release build of MetalUI" step: record its wall time from the first CI run (the lane's expectation was under 10 minutes, unmeasured). **Observed:**
+
+## DT. `drawText` in a GPU surface (round 2 item 5, 2026-10-21, not a plan task; record 141; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it needs a real window, and the screen was not unlocked for a capture. The Metal text pass reads back pixel-equal to the same `Text` at 1x and 2x (`DrawTextMetalTests`), and the SDL pass reads back equal to the same glyph records drawn directly by the scene (`SDLDrawTextTests`, macOS and the Linux image on lavapipe); what is owed is how it looks and how it behaves live. No demo section was added (the existing surface demo is not one of the fourteen images and gained nothing).*
+
+- [ ] **DT1.** macOS: a `drawText` label beside the same `Text` overlay, at 1x and 2x: the same weight, the position within a device pixel, no halo at the glyph edges. **Observed:**
+- [ ] **DT2.** Linux and Windows (SDL): the same as DT1 on a real window (Windows is compiled by CI only, check SI3). **Observed:**
+- [ ] **DT3.** A label over a `.continuous` surface: no flicker and no one-frame lag against the app's own drawing while the app animates under it. **Observed:**
+- [ ] **DT4.** Resize the window while a label is up: the label stays crisp (the target is recreated and redrawn at the new size) and never shows a stale or stretched frame. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

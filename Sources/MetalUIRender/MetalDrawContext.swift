@@ -37,9 +37,13 @@ import MetalUIPlatform
 /// depth attachment is provided (`MV-F` item 6): allocate one sized from
 /// `pixelSize` if the drawing needs it.
 ///
+/// **Text** is `drawText(_:at:anchor:width:color:)` (in `MetalUI`, on every `GPUSurfaceContext`): it records
+/// glyph sprites, and MetalUI draws them in one pass of its own, over everything this draw encoded, once the
+/// draw has returned (`DT-A`) — never into an encoder the app holds.
+///
 /// `import MetalUI` makes this type visible; calling `MTLCommandBuffer`'s and
 /// `MTLDevice`'s methods needs `import Metal` in the app's file too.
-public struct MetalDrawContext: GPUSurfaceContext {
+public struct MetalDrawContext: GPUSurfaceContext, SurfaceTextSinkProviding {
     /// The renderer's device — the one the target was made on.
     public let device: any MTLDevice
     /// The frame's own command buffer. Encode into it; never commit it.
@@ -57,12 +61,15 @@ public struct MetalDrawContext: GPUSurfaceContext {
     public let frameIndex: UInt64
     /// Whether the target was created (and cleared to transparent) this frame.
     public let isNewTarget: Bool
+    /// Where `drawText` records this frame's text for the surface (`DT-F`); `nil` outside a renderer's frame.
+    package let textSink: SurfaceTextSink?
 
     /// Made only by `MetalWindowRenderer` — app code cannot hand a draw a
     /// forged buffer or target (guard `theMetalViewSpellingsCompileFromAPlainImport`).
     package init(device: any MTLDevice, commandBuffer: any MTLCommandBuffer, target: any MTLTexture,
                  pixelSize: Size<DevicePixels>, scaleFactor: Float, time: Double, frameIndex: UInt64,
-                 isNewTarget: Bool) {
+                 isNewTarget: Bool, textSink: SurfaceTextSink? = nil) {
+        self.textSink = textSink
         self.device = device
         self.commandBuffer = commandBuffer
         self.target = target

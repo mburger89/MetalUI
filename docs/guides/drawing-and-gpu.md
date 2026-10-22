@@ -261,8 +261,9 @@ release build checks nothing. (The tests are `aWaitInsideADrawTrapsInDebug` and
 
 ## How do I put a label over a GPU surface?
 
-Draw the label as an ordinary `Text` in a `ZStack` above the surface; the closure of a `GPUSurface`
-has no text call. To size the surface from the label, ask for its size without laying it out:
+Draw the label as an ordinary `Text` in a `ZStack` above the surface. This is the recipe for a label that
+must be accessible, selectable, themed through the element tree or carry `.help`; a label that is part of
+the surface's own picture is `drawText` ("How do I draw a label inside my GPU surface?", below). To size the surface from the label, ask for its size without laying it out:
 `@Environment(\.textMeasurer)` is a get-only `TextMeasurer` whose `resolve(_:)` takes a `Text` (or a
 `ProposalText`) and whose `ResolvedText.measure(in:)` answers the size the text would be laid out at
 under a proposal. It resolves the font, weight and rich runs from the environment **at the point you
@@ -387,6 +388,41 @@ struct DrawingSwing: Component {
             .phaseAnimator([Pixels(0), Pixels(12), Pixels(-12)], trigger: taps) { content, shift in
                 content.offset(x: shift)
             } animation: { _ in .linear(duration: 0.1) }
+    }
+}
+```
+
+## How do I draw a label inside my GPU surface?
+
+`drawText` on the surface's context draws a resolved text into the surface's own target, so the label is
+composited with the surface (its opacity, blur, clip and transitions apply) and an `.onDemand` surface keeps
+it without redrawing. Resolve the text through `@Environment(\.textMeasurer)` at the point you build the
+surface, which fixes its font, weight, italic and foreground colour exactly as a `Text` there would have,
+and call `context.drawText(_:at:anchor:width:color:)` from the closure. `point` is in the surface's own
+space, points from its top-left with y down; `anchor` says which part of the label's box sits at the point
+(`.center` by default, as SwiftUI's `draw(_:at:)`); `width` wraps the label and `nil` keeps one line; `color`
+replaces the resolved foreground. The call *records* the label: MetalUI draws it in one pass of its own once
+your closure has returned, so **the text is on top of everything your closure drew** (pin:
+`theDrawingGuideASurfaceDrawsItsOwnLabel`), in the order of the calls, and never inside an encoder you hold.
+Text under your own later drawing is not offered (use a second surface above or below). Only plain text is
+built: a rich `ResolvedText` traps naming its ruling. The closure's context is any `GPUSurfaceContext`, so the
+same block runs on the Metal and SDL renderers; read what the label depends on as `value:`, because reads
+inside the closure are untracked (divergence 103). A headless test never runs a surface's closure, so it
+reads the request and runs the draw itself on a context of its own.
+
+```swift
+/// A gauge whose label is part of the surface: drawn into the target, over the app's own fill.
+struct DrawingGauge: Component {
+    let reading: Int
+    @Environment(\.textMeasurer) var measurer
+
+    var content: some ElementGroup {
+        let label = measurer.resolve(Text("\(reading) mm"))
+        GPUSurface(redraw: .onDemand, value: reading) { context in
+            context.clear(red: 0.1, green: 0.2, blue: 0.4, alpha: 1)
+            context.drawText(label, at: Point(x: Pixels(8), y: Pixels(6)), anchor: .topLeading)
+        }
+        .frame(width: Pixels(120), height: Pixels(40))
     }
 }
 ```

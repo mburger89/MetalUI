@@ -17,6 +17,36 @@ private let checkout = URL(fileURLWithPath: #filePath)
 /// The verifier's own name, which every one of its crash reports carries.
 private let assertionMarker = "verifyLexicalLowering"
 
+/// The SIL verifier's own failure line, which the `Effects` arm's crash carries (`WR-A`): a release-only
+/// specialisation defect in `PaintPass.withRenderEffects`, not the lexical-lowering one.
+private let silVerificationMarker = "SIL verification failed"
+
+/// The lines of a build log that name a failure (the full log is dominated by one long compiler command line).
+private func diagnosticLines(_ output: String) -> String {
+    let lines = output.split(separator: "\n").filter {
+        $0.contains("error:") || $0.contains("SIL verification") || $0.contains("verifyLexicalLowering")
+            || $0.contains("In function") || $0.contains("Please submit")
+    }
+    return lines.prefix(12).map { String($0.prefix(400)) }.joined(separator: "\n")
+}
+
+/// `WR-A`'s trigger: legacy elements with several render effects (shadow, blur, compositing group, a
+/// transform), whose `paintDecoration` reaches `PaintPass.withRenderEffects`. Crashed in release only.
+private let effectsFixture = """
+    import MetalUI
+
+    struct Effects: Component {
+        var content: some ElementGroup {
+            Column {
+                Box { Text("a") }.shadow(color: .textPrimary, radius: Pixels(2)).blur(radius: Pixels(1))
+                Box { Text("b") }.shadow(color: .accent, radius: Pixels(3)).compositingGroup().rotationEffect(.degrees(5))
+                Box { Text("c") }.offset(x: Pixels(2))
+            }
+        }
+    }
+
+    """
+
 /// `LK-X`'s minimal trigger (its table's "`Column` of the `Text` and a
 /// `Component` whose content is a bare `ForEach`" row).
 private let lkxFixture = """
@@ -207,7 +237,8 @@ func theComponentSwitchShapeAgainstAnAssertsCompiler() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("metalui-asserts-compiler-\(String(hash, radix: 16))")
     let fixtures = [("LKX", lkxFixture, true), ("MG27", mg27Fixture, true),
-                    ("Workaround", workaroundFixture, true), ("Standalone", standaloneFixture, false)]
+                    ("Workaround", workaroundFixture, true), ("Effects", effectsFixture, true),
+                    ("Standalone", standaloneFixture, false)]
     for (name, source, _) in fixtures {
         let directory = root.appendingPathComponent("Sources/\(name)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -241,12 +272,12 @@ func theComponentSwitchShapeAgainstAnAssertsCompiler() throws {
                 \(configuration): the MetalUI-free reduction no longer asserts — this toolchain has no \
                 assertions, or it fixed the bug (then the box may go, SG-E): \(standalone.suffix(1500))
                 """)
-        for name in ["LKX", "MG27", "Workaround"] {
+        for name in ["LKX", "MG27", "Workaround", "Effects"] {
             let (status, output) = try swiftUnderAssertsToolchain(
                 ["build", "-c", configuration, "--target", name], in: root)
             print("SG-E \(configuration) \(name): status=\(status) asserted=\(output.contains(assertionMarker))")
-            #expect(status == 0 && !output.contains(assertionMarker),
-                    "\(configuration) \(name) did not compile: \(output.suffix(3000))")
+            #expect(status == 0 && !output.contains(assertionMarker) && !output.contains(silVerificationMarker),
+                    "\(configuration) \(name) did not compile: \(diagnosticLines(output))")
         }
     }
 }
