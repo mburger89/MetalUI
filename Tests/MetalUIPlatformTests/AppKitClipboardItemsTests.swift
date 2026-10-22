@@ -56,8 +56,8 @@ private func item(_ n: Int) -> ClipboardItem {
 }
 
 /// 2.10 — a `.later` representation is exported by the consumer's read, not at write; a read from a detached thread while the
-/// main thread spins its run loop completes and the closure ran on the main thread. **Mutation:** the provider retained by
-/// nobody (the data is absent), or the off-main hop dropped (the closure runs on the reader's thread).
+/// main thread spins its run loop completes and the closure ran on the main thread. **Mutation:** the off-main hop dropped
+/// (the closure runs on the reader's thread). "Provider retained by nobody" survives: the pasteboard retains it (`CP-O`).
 @Test @MainActor func aLazyRepresentationIsExportedByTheReadEvenFromAnotherThread() throws {
     let (window, pasteboard) = try itemsWindow()
     defer { pasteboard.releaseGlobally(); window.close() }

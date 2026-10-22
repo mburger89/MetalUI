@@ -1,7 +1,7 @@
 # Clipboard extras — decisions
 
 Rulings for round 2 item 6 of the gpui-gap list (user request 2026-10-21; **not a plan task**): what `CB-N`
-(record §115) deferred. Prefix `CP-`. **Next unused: `CP-O`.**
+(record §115) deferred. Prefix `CP-`. **Next unused: `CP-P`.**
 Spec: [`specs/2026-10-22-clipboard-extras-design.md`](specs/2026-10-22-clipboard-extras-design.md).
 Record: `../record/142-clipboard-extras.md` (Record phase). Branch `feat/clipboard-extras` from `5f03ab7b`.
 Divergence labels reserved 715–724: **715, 716, 717 taken** (715 `CP-C`, 716 `CP-F`/`CP-N`, 717 `CP-B`); 456 amended (`CP-J`).
@@ -189,3 +189,15 @@ exact; `ClipboardItem` itself carries both spellings, so an app that wants a laz
 provider that supplies no data). A `.later` closure crosses into a main-actor closure through a `nonisolated(unsafe)` copy of the value
 (`Transferable` is not `Sendable`); it is read only by that closure.
 **Cost if wrong.** `Clipboard.write` of an expensive value pays its encoding at the write; a lazy `write` overload is additive.
+
+## CP-O — The window's provider retention is insurance, and mutation 2.10 survives by measurement (lane 2, 2026-10-22)
+
+**Question.** Test 2.10 named the mutation "provider retained by nobody (data absent)". Run, it passes: the data is not absent.
+**Measured.** `docs/probes/appkit-pasteboard-provider-retention.swift`: a provider whose only references were locals of a returned
+function still answered a later read and was released after it, so `NSPasteboard.writeObjects` (or the item it keeps) retains it.
+**Ruling.** `AppKitWindow.clipboardProviders` stays: `NSPasteboard`'s documentation does not promise the retain and the cost is one
+array. The pin that would see its removal does not exist and cannot be built (nothing makes the provider die early); test 2.10's
+other halves (provider runs on read, from another thread without a hang, once per read) are mutated by the off-main-hop and the
+once-per-read assertion. Recorded as a survived mutation, an equivalent mutant on this macOS, not a finding.
+**Cost if wrong.** An OS that does not retain would lose lazy data after the write's frame; `CP1`-style human check on the oldest
+supported macOS would show an empty paste.
