@@ -587,9 +587,9 @@ MetalUI	Sources/MetalUI/EquatableComponent.swift:25	-	struct	EquatableComponent
 MetalUI	Sources/MetalUI/EquatableComponent.swift:30	EquatableComponent	typealias	GroupLayout
 MetalUI	Sources/MetalUI/EquatableComponent.swift:31	EquatableComponent	typealias	GroupPrepaint
 MetalUI	Sources/MetalUI/EquatableComponent.swift:33	EquatableComponent	func	requestGroupLayout
-MetalUI	Sources/MetalUI/EquatableComponent.swift:112	EquatableComponent	func	prepaintGroup
-MetalUI	Sources/MetalUI/EquatableComponent.swift:157	EquatableComponent	func	paintGroup
-MetalUI	Sources/MetalUI/EquatableComponent.swift:220	Component	func	equatable
+MetalUI	Sources/MetalUI/EquatableComponent.swift:115	EquatableComponent	func	prepaintGroup
+MetalUI	Sources/MetalUI/EquatableComponent.swift:160	EquatableComponent	func	paintGroup
+MetalUI	Sources/MetalUI/EquatableComponent.swift:223	Component	func	equatable
 MetalUI	Sources/MetalUI/ExplicitIdentity.swift:5	-	struct	IdentifiedGroupLayout
 MetalUI	Sources/MetalUI/ExplicitIdentity.swift:47	-	struct	IdentifiedGroup
 MetalUI	Sources/MetalUI/ExplicitIdentity.swift:49	IdentifiedGroup	var	content

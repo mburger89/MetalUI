@@ -408,6 +408,9 @@ final class RetainedBuild {
     let timeVarying: Bool
     /// Whether the build ran inside an observation window (`SB-V`).
     let observed: Bool
+    /// Whether the build window was closed *because* the standing record was complete and clean (`AM-B`): no certain miss was known, so
+    /// the record's own still-armed build session covers what a rebuild of an equal value reads. Set by `EquatableComponent` after `finish`.
+    var closedOnRecord = false
 
     init(key: ContentMemoStore.Key, topNodes: [LayoutNodeID], journal: Range<Int>, reads: Range<Int> = 0..<0, timeVarying: Bool, observed: Bool) {
         self.key = key
@@ -448,6 +451,10 @@ package enum RetainedTestingHooks {
     /// still observed, the one state the two halves differ in. Without it no window reaches that state (the prepaint window opens
     /// whenever the build's did), so a swapped half was an equivalent mutant.
     nonisolated(unsafe) package static var closesPrepaintWindow = false
+    /// Observation windows opened by `.equatable()` occurrences (`AM-A`): a steady hit frame opens none, so a predictor that says
+    /// "moved" in a frame that did not move shows here. Counts work, never read outside tests.
+    nonisolated(unsafe) package static var buildWindowsOpened = 0
+    nonisolated(unsafe) package static var prepaintWindowsOpened = 0
 }
 
 // MARK: - The phase object
@@ -457,8 +464,12 @@ package enum RetainedTestingHooks {
 final class RetainedPhase {
     let build: RetainedBuild
     let entry: ContentMemoStore.Entry
-    /// Whether prepaint ran inside an observation window, as the build did.
-    let prepaintObserved: Bool
+    /// Whether prepaint ran inside an observation window, as the build did; also true when the geometry just read differs from the
+    /// standing record's (`AM-A`: the paint key will differ, so the record that miss makes must cover this prepaint).
+    var prepaintObserved: Bool
+    /// The paint decision found a miss confined to the occurrence's geometry with every other conjunct held and the build window closed
+    /// on a clean record: the record made keeps the build half (`AM-B`).
+    var inheritsBuildCoverage = false
     /// `MemoFlags.changes` when the phase opened, before the paint session is armed (`MO-F`).
     let changesAtStart: Int
     /// The occurrence's rects and layout signature, read once at prepaint and shared by both keys.
@@ -670,6 +681,15 @@ extension Frame {
         }
         let phase = RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation && !RetainedTestingHooks.closesPrepaintWindow)
         readRetainedGeometry(into: phase)
+        // `AM-A`: a standing record whose geometry differs from what was just read will miss on its key at paint, where it is too late
+        // to open this window. Over-observing is sound; an unpredicted miss falls back to the second miss.
+        if !phase.prepaintObserved, !RetainedTestingHooks.closesPrepaintWindow, let record = entry.record,
+           record.key.rects != phase.rects || record.key.interior != phase.interior || record.key.shapeInterior != phase.shapeInterior {
+            phase.prepaintObserved = true
+        }
+        // Counted where the window is decided, not where it runs: a steady frame whose prepaint replays never runs it, and a predictor
+        // that wrongly said "moved" there would otherwise be invisible (mutation m4).
+        if phase.prepaintObserved { RetainedTestingHooks.prepaintWindowsOpened += 1 }
         return phase
     }
 
@@ -683,7 +703,8 @@ extension Frame {
             memos.retained.noteIneligible(.paint, reason: reason)
             return .plain
         }
-        let key = retainedKey(phase)
+        // `AM-D`, `AM-L`: the transaction's two members are not part of a retained key.
+        let key = retainedKey(phase).transactionNormalised
         let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
             var inputs = PaintInvalidation.Inputs()
@@ -739,6 +760,10 @@ extension Frame {
                 // it at the window, by building the frame again with replay off (`RK-N`).
                 if retainedVerifiesFromEnvironment, phase.replayed == nil { return .record(SubtreeRecorder(), key, old: old) }
                 return .hit(old)
+            }
+            // `AM-B`: only the geometry differs and every other conjunct held: the build session the record kept armed covers the rebuild.
+            if valid, phase.build.closedOnRecord, old.key.ambient == key.ambient, old.key.nodeCount == key.nodeCount {
+                phase.inheritsBuildCoverage = true
             }
             RetainedTrace.emit(missLine(old, key: key, invalidation: invalidation, phase: phase))
         } else {
@@ -806,7 +831,7 @@ extension Frame {
         if let ledger = phase.replayed {
             for id in ledger.reads where seen.insert(id).inserted { record.versions.append((id, stateTable.entryVersion(id))) }
         }
-        record.coverageBuild = phase.build.observed
+        record.coverageBuild = phase.build.observed || phase.inheritsBuildCoverage
         record.coveragePrepaint = phase.prepaintObserved
         record.prepaint = phase.ledger
         record.contentSerial = phase.entry.serial

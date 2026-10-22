@@ -60,14 +60,14 @@ struct RetainedSingleMissTests {
         #expect(settle.retainedMisses == 1)
     }
 
-    /// 2b - the key-only arm is carried, not fixed (`DM-D`, to C14-k): a fractional-width change moves every later node by a delta the translation refuses,
-    /// so the change frame and the frame after each miss four of eight (measured: h4 m4 and h4 m4, the second naming `coverage.build, coverage.prepaint`
-    /// among key differences). The twin pin (3) holds on this arm. **Mutation:** none (a count of a carried cost); it reddens when C14-k lands.
-    @Test func theKeyOnlyArmStillCostsTwoFramesOfMisses() throws {
+    /// 2b - the key-only arm costs one miss (`AM-A`, `AM-B`, C14-k; was carried by `DM-D`): a fractional-width change moves every later node by a delta the
+    /// translation refuses; the change frame misses four of eight and the frame after none (was h4 m4 and h4 m4, naming `coverage.build, coverage.prepaint`).
+    /// **Mutation:** the predictor or the inheritance off (`RetainedMoveMissTests` pins the numbers).
+    @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss")) func theKeyOnlyArmCostsOneMiss() throws {
         let (window, model) = try doubleMissWindow(.moved)
         let step = doubleMissStep(window, model, arm: .moved, changed: [1, 4], to: 3)
         #expect(step.change.retainedMisses == 4 && step.change.retainedHits == 4, "change: h\(step.change.retainedHits) m\(step.change.retainedMisses)")
-        #expect(step.settle.retainedMisses == 4 && step.settle.retainedHits == 4, "settle: h\(step.settle.retainedHits) m\(step.settle.retainedMisses)")
+        #expect(step.settle.retainedMisses == 0 && step.settle.retainedHits == 8, "settle: h\(step.settle.retainedHits) m\(step.settle.retainedMisses)")
     }
 
     /// 3 - the single-miss frames equal a retention-off twin: scene, hitboxes, accessibility, tallies, bounds, every script frame.
