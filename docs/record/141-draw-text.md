@@ -72,8 +72,7 @@ records present was not used (without the check it would be a real out-of-bounds
 
 ## §3 Verification owed or not run
 
-- The fourteen demo images against `5f03ab7b`: see the final message of the implementer (the
-  comparison script's output is the evidence; no `Sources/` path that `Text` takes moved).
+- The fourteen demo images: `docs/probes/demo-pixels/compare.sh <scratch> 5f03ab7b HEAD` (HEAD `6a7747f4`) read `differing=0` and `scene identical` for all fourteen, controls as recorded.
 - **Windows** compiles the new bridge signature in CI only (check SI3); the bridge adds no C
   enum, so no `rawValue` width question.
 - Looks: human checks group `DT` (`DT1`–`DT4`), not run, an agent cannot.
