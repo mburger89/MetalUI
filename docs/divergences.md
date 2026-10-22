@@ -230,6 +230,8 @@ retiring section for every label.
 | 74 | 2026-09-25 (task 10) | a loop's dropped element resets (`DD-C`) |
 | 83 | 2026-09-30 (task 12) | `AXSelected` is settable on AppKit (`IX-AA`) |
 | 85 | 2026-10-01 (plan task 15, `CX-F`) | an optional `@State` reads its non-`nil` default before its first write (probe O1; `anOptionalStateWithANonNilInitialValueReadsItBeforeItsFirstWrite`) |
+| 79 | 2026-10-10 (C20, record §95) | `ForEach` identifies an element by its id's Hashable value, not its description: ids that print alike and differ in value are two elements with separate `@State` (`FI-A`; `aForEachWhoseIDsCollideInDescriptionProducesBoth`, `idsEqualInDescriptionButNotInValueKeepSeparateState`). The `List` remainder is divergence 255 |
+| 249 | 2026-10-13 (C27, record §101) | Reduce Transparency was not honoured: a material was blurred whatever the accessibility setting said. Now `EnvironmentValues.accessibilityReduceTransparency` (SwiftUI's key, read-only outside) is stamped from two defaultless `PlatformWindow` requirements and every material site draws an opaque grey through `Frame.fillMaterial` (`MT-D`, `MT-F`); what remains different is the grey, divergence 315 |
 
 Label 75 was never assigned.
 
@@ -293,8 +295,6 @@ stated.
 | `windowDismissBehavior(_:)`, `WindowDragGesture`, `windowBackgroundDragBehavior(_:)` | not built (owner none): a static close switch (probe `D0`) and explicit drag regions; under `.hiddenTitleBar` a press nothing claims in the title-bar band drags the window (`AS-J`) | `AS-F` item 3, app-shell spec §10 |
 | `presentationPreventsAppTermination(_:)`, `dialogPreventsAppTermination(_:)` | not built (owner none): the probe's instrument did not separate them (`T0`–`T3`); `App.onTerminateRequest` and `Window.onCloseRequest` decide a quit | `AS-C` |
 | `handlesExternalEvents(preferring:allowing:)`, `WindowGroup` opening a window per external open | not offered: MetalUI routes opens to existing windows (divergence 176) | `AS-G` item 3 |
-| 79 | 2026-10-10 (C20, record §95) | `ForEach` identifies an element by its id's Hashable value, not its description: ids that print alike and differ in value are two elements with separate `@State` (`FI-A`; `aForEachWhoseIDsCollideInDescriptionProducesBoth`, `idsEqualInDescriptionButNotInValueKeepSeparateState`). The `List` remainder is divergence 255 |
-| 249 | 2026-10-13 (C27, record §101) | Reduce Transparency was not honoured: a material was blurred whatever the accessibility setting said. Now `EnvironmentValues.accessibilityReduceTransparency` (SwiftUI's key, read-only outside) is stamped from two defaultless `PlatformWindow` requirements and every material site draws an opaque grey through `Frame.fillMaterial` (`MT-D`, `MT-F`); what remains different is the grey, divergence 315 |
 
 <a id="scope"></a>
 ## What this list does not cover
