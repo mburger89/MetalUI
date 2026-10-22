@@ -75,3 +75,7 @@ twice; pinned at h4 m4 / h4 m4 until C14-k) and `theKeyOnlyArmStillCostsTwoFrame
 - **C14-k: key-only `.moved` misses.** A key difference with an equal value still records with an unobserved prepaint (and build). The m9 result is the lead: claiming the build half from the standing record is sound on every fixture;
   the prepaint half needs its own window on the key-only path. `DM-D2`.
 - The fillet drag's end-to-end number (MetalCreator's trace re-run); a release `?` for the fire cause (inlined setter).
+
+## 6 Merge re-take
+
+Merged with master `d062168c`-line (record 141 `drawText`, 139); 140 was free, no renumbering. On the merged tree after `swift package clean`: native build 0 `error:`, only SwiftPM's deprecation warning; native unfiltered run on a locked screen **4278 tests in 7 suites** (4264 + 14), exactly the five `AppKitPresentationTests` sheet issues, `FR-J no-argument frame: succeeded=true`; inventory and undocumented scripts print nothing. The verify-switch run, fourteen images, Linux image and default-build warning count are not re-taken on the merged tree (owed at merge).
