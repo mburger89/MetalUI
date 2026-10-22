@@ -2,6 +2,7 @@
 #if SDL
 import MetalUICore
 import MetalUIPlatform
+import MetalUIScene
 import SDLBridge
 
 /// What an app-owned surface's draw receives on the SDL GPU renderer
@@ -44,7 +45,7 @@ import SDLBridge
 /// the same check; a synchronous draw cannot reach them on its own thread, so they
 /// are pinned through a package test hook that marks the calling thread as drawing
 /// (rulings `GA-I`, `GA-O`, `GA-R`).
-public struct SDLGPUDrawContext: GPUSurfaceContext {
+public struct SDLGPUDrawContext: GPUSurfaceContext, SurfaceTextSinkProviding {
     /// The renderer's `SDL_GPUDevice *` — the one the target was made on.
     public let device: OpaquePointer
     /// The frame's own `SDL_GPUCommandBuffer *`. Record into it; never submit it.
@@ -62,12 +63,16 @@ public struct SDLGPUDrawContext: GPUSurfaceContext {
     public let frameIndex: UInt64
     /// Whether the target was created (and cleared to transparent) this frame.
     public let isNewTarget: Bool
+    /// Where `drawText` records this surface's glyphs for the frame (`DT-F`, `DT-G`); `nil` outside a renderer
+    /// that made one.
+    @MainActor package let textSink: SurfaceTextSink?
 
     /// Made only by `SDLWindowRenderer` — app code cannot hand a draw a forged
     /// buffer or target.
     package init(device: OpaquePointer, commandBuffer: OpaquePointer, target: OpaquePointer,
                  pixelSize: Size<DevicePixels>, scaleFactor: Float, time: Double, frameIndex: UInt64,
-                 isNewTarget: Bool) {
+                 isNewTarget: Bool, textSink: SurfaceTextSink? = nil) {
+        self.textSink = textSink
         self.device = device
         self.commandBuffer = commandBuffer
         self.target = target

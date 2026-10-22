@@ -95,6 +95,13 @@ public final class Renderer {
     /// then drawn against whatever was uploaded last.
     private(set) var atlasTexture: (any MTLTexture)?
 
+    /// The MetalUI-owned text passes the last ``encodeSurfaceText(_:targets:in:)`` ran: one per surface that
+    /// recorded `drawText` glyphs, 0 for a frame with none (`DT-A`; a work counter).
+    package private(set) var lastSurfaceTextPasses = 0
+
+    /// Calls of ``upload(_:)``, ever: `MetalWindowRenderer` makes one per frame (`DT-B`; a work counter).
+    package private(set) var uploadCalls = 0
+
     /// Whether ``atlasTexture`` has been bound into a render command encoder
     /// since it was created.
     ///
@@ -667,6 +674,35 @@ public final class Renderer {
                                instanceCount: glyphs.count)
     }
 
+    /// Draws the glyphs `drawText` recorded this frame (`DT-A`, `DT-B`): one render pass per surface that
+    /// recorded text, MetalUI's own, load action `.load` over what the app drew, store `.store`, the existing
+    /// glyph pipeline over the sink's sprites at the target's own size, an identity projection. Encodes into
+    /// `commandBuffer` and **never commits, enqueues or waits** (`MV-F`). The atlas must already be uploaded
+    /// (`upload(_:)`, after the surface draws); with none uploaded nothing is drawn, as ``encodeGlyphs``.
+    package func encodeSurfaceText(_ sink: SurfaceTextSink?, targets: [SurfaceID: any MTLTexture],
+                                   in commandBuffer: any MTLCommandBuffer) throws {
+        lastSurfaceTextPasses = 0
+        guard let sink, atlasTexture != nil else { return }
+        for batch in sink.batches {
+            guard let target = targets[batch.target], !batch.range.isEmpty else { continue }
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = target
+            pass.colorAttachments[0].loadAction = .load
+            pass.colorAttachments[0].storeAction = .store
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+                throw RendererError.encoderUnavailable
+            }
+            defer { encoder.endEncoding() }
+            encoder.setViewport(MTLViewport(originX: 0, originY: 0, width: Double(target.width),
+                                            height: Double(target.height), znear: 0, zfar: 1))
+            var viewport = MUISize(width: Float(target.width), height: Float(target.height))
+            var projection = matrix_identity_float4x4
+            try encodeGlyphs(Array(sink.glyphs[batch.range]), into: encoder, viewport: &viewport,
+                             projection: &projection, transforms: zeroTransformBuffer)
+            lastSurfaceTextPasses += 1
+        }
+    }
+
     /// The GPU texture for each of `scene.textures`, in order, uploading the
     /// ones not cached and releasing every cached one the scene does not
     /// reference (see ``imageTextures``).
@@ -752,6 +788,7 @@ public final class Renderer {
     ///   intermittent-blank-run failure spec 4.2 names and nothing in this repo
     ///   can see.
     public func upload(_ atlas: GlyphAtlas) {
+        uploadCalls += 1
         let existing = atlasTexture
         let sizeChanged = existing == nil
             || existing!.width != atlas.width

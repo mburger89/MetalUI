@@ -45,6 +45,14 @@ public protocol GPUSurfaceContext {
     func clear(red: Float, green: Float, blue: Float, alpha: Float)
 }
 
+/// A surface context that records `drawText` into a ``SurfaceTextSink`` (`DT-F`). `package`: a public
+/// protocol cannot carry a `package` requirement, so the hook is a package protocol the renderers'
+/// contexts adopt; `drawText` asks any other context for it and traps (naming `DT-F`) when it is not one.
+package protocol SurfaceTextSinkProviding {
+    /// The frame's sink; `nil` records nothing (and `drawText` traps).
+    @MainActor var textSink: SurfaceTextSink? { get }
+}
+
 /// One surface's draw request for one frame (ruling `MV-F` item 2), handed by
 /// `Window` to `WindowRenderer.finishFrame(scene:atlas:surfaces:)` in paint
 /// order. Not part of the `Scene`, which stays `Sendable` data: a closure is
