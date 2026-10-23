@@ -1,7 +1,7 @@
 # SDLGPUDevice adapter info and limits for MetalCreator (XP-G23, XP-G24) — decisions
 
 Rulings for items XP-G23 and XP-G24 of the gpui-gap priority list (MetalCreator request 2026-10-22; **not a plan task**). Prefix `DL-`.
-**Next unused: `DL-M`.** Spec: [`specs/2026-10-22-sdl-gpu-device-info-design.md`](specs/2026-10-22-sdl-gpu-device-info-design.md). Record: `../record/150-sdl-gpu-device-info.md`.
+**Next unused: `DL-O`.** Spec: [`specs/2026-10-22-sdl-gpu-device-info-design.md`](specs/2026-10-22-sdl-gpu-device-info-design.md). Record: `../record/150-sdl-gpu-device-info.md`.
 Branch `feat/sdl-gpu-device-info` from `63feea05`. Continues `GA-` (record 114), `GB-` (137), `SY-` (143). Divergence labels reserved 795–804: **none taken**.
 
 Sources of truth. SwiftUI has no GPU API: no SwiftUI-facing claim, no probe owed; gpui exposes no adapter query to an app (recalled, context only). Facts
@@ -93,3 +93,14 @@ count rises by the tests of the table (8 on macOS, fewer in the Linux image wher
 
 **Defect.** "A surface draw's context device" needs a presented frame; the Linux image's `offscreen` video driver never presents one, so D6 would not execute there.
 **Ruling.** D6 takes the device from the offscreen `SDLWindowRenderer` (or whatever `SDLPlatform(offscreenRenderers:)` exposes) through `init(borrowing:)`; where no accessible window device exists it falls back to `SDLGPUDevice(borrowing: owned.raw)` of a second `make` device and the test name/record says that arm proves the single-code-path claim (`DL-F`) only, not cross-device equality. Equality is asserted only when `driver` matches (`DL-F`).
+
+## DL-M — measured: the recalled minimums re-read, the thread answers, and what D7/D8 can and cannot see
+
+**Limits re-checked (`DL-C`).** The Vulkan "Required Limits" table, fetched from the registry (`vkspec.html`, 2026-10-22), reads `maxStorageBufferRange` min `2^27` and `maxComputeWorkGroupCount` min `(65535, 65535, 65535)`: both constants stand. The Direct3D 12 and Metal figures stay recalled (not on this machine); they are floors the doc comment marks as such and cannot over-claim Vulkan's own table.
+**Measured thread answers (`DL-G`).** (a) D7 passes on macOS (Metal, Apple M1 Max) and in the Linux image (lavapipe `llvmpipe (LLVM 20.1.2, 128 bits)`, Mesa 25.2.8): a detached `Thread` calls `make()` beside a live window renderer's device, uploads 256 bytes, copies them back through two synchronous batches and reads them equal. (b) D8, **filtered alone in the image** (`--filter SDLGPUDeviceInfoTests/videoInitOffTheMainThreadIsMeasured`, `videoAlreadyInitialised=false`, no probe or `make` before it on Linux), a first `make` with no window anywhere on a detached thread answers `vulkan llvmpipe…` with an empty `lastFailure`: **SDL video init off the main thread works on Linux with the offscreen driver and lavapipe.** SDL still documents it as main-thread-only, the measurement is one driver (offscreen) on one platform, and Windows is compiled by CI only, so the recommendation in `make`'s doc comment (initialise video on the main thread first) stands. `DL-G` is not refuted; no behaviour change to `make`.
+**D7/D8 instrument findings.** On macOS, `GPUTestSupport.available` is evaluated by Swift Testing off the main thread, so a `make` that lost its main hop makes **every** gated GPU test skip silently (0.001 s; only `SDLGPUComputeTests.aRequiredGPUIsPresent` under `METALUI_REQUIRE_GPU=1` would say so). D8 therefore carries no `.enabled(if:)` trait: on macOS a main-thread probe `make()` decides whether a GPU exists, then the detached `make` must answer (M11 reddens it); off macOS, D8 asserts the answer only under `METALUI_REQUIRE_GPU=1` (set by CI; the workflow's own run line does not set it, M12 reddens D8 only with it). D7 stays green with the main hop removed because its window renderer has already initialised video (a refcount bump): D7 proves (a), D8 proves the hop.
+**Survivors, named.** M10 (`make` without `makeLock`) reddens nothing on either platform (C9's recorded unproven-instrument finding stands: Vulkan's loader race is not deterministic; kept as a stress arm, not a mutation pin). M5 (`isSoftwareRasterizer` always false) survives on macOS by design (Metal is false) and is red in the Linux image through D3.
+
+## DL-N — `isSoftwareRasterizer` on Metal: the properties answer nothing, the flag is `false`
+
+**Measured.** On Apple M1 Max, `adapterName` is `Apple M1 Max` and `driverName`, `driverVersion` and `driverInfo` are `nil` (Metal has no driver strings); `isSoftwareRasterizer` is `false` (D4). On lavapipe: `driverName` `llvmpipe`, `driverVersion` `25.2.8`, flag `true`. **Ruling.** Unchanged `DL-B`; a caller must treat the three driver strings as optional on Metal.
