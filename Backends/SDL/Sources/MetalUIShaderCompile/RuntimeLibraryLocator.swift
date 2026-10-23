@@ -1,4 +1,9 @@
-/// Finds the run-time shader compiler library and its dependents (rulings `RC-C`, `RC-N`).
+/// Finds the run-time shader compiler library and its dependents (rulings `RC-C`, `RC-N`, `SX-B`).
+///
+/// After an explicit path or `METALUI_SHADERCROSS_LIB` (each the only candidate of its rank) the lookup tries the
+/// executable's directory, its `lib` subdirectory (a tarball or AppImage with RUNPATH `$ORIGIN/lib`), its `../lib`,
+/// the `lib` beside the `bin` of `METALUI_SHADERCROSS`, then the plain name on the loader path. Every platform
+/// tries the same places; the directory that wins supplies the dependents' preload (`RC-N`).
 ///
 /// Pure: every file-system question is a closure, so the order is pinned on every
 /// platform's CI with no library and no GPU. `package`, never public.
@@ -10,7 +15,7 @@ package enum RuntimeLibraryLocator {
 
     /// Where a candidate came from, in lookup order.
     package enum Source: Int, Comparable, Sendable {
-        case explicit, variable, besideExecutable, besideExecutableLib, executableSibling, loaderPath
+        case explicit, variable, besideExecutable, besideExecutableSubLib, besideExecutableLib, executableSibling, loaderPath
         package static func < (a: Source, b: Source) -> Bool { a.rawValue < b.rawValue }
     }
 
@@ -62,9 +67,9 @@ package enum RuntimeLibraryLocator {
         }
         var result: [Attempt] = []
         if let directory = executableDirectory, !directory.isEmpty {
-            for (source, base) in [(Source.besideExecutable, directory),
-                                   (Source.besideExecutableLib, ShaderCompilePlan.join(parent(of: directory), "lib"))] {
-                let place = source == .besideExecutable ? "beside the executable" : "in ../lib of the executable"
+            for (source, base, place) in [(Source.besideExecutable, directory, "beside the executable"),
+                                          (Source.besideExecutableSubLib, ShaderCompilePlan.join(directory, "lib"), "in lib beside the executable"),
+                                          (Source.besideExecutableLib, ShaderCompilePlan.join(parent(of: directory), "lib"), "in ../lib of the executable")] {
                 for name in names {
                     result.append(fileAttempt(ShaderCompilePlan.join(base, name), source, place, fileExists))
                 }

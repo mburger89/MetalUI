@@ -1897,6 +1897,13 @@ a physical GPU, a desktop session and a console.*
 - [ ] **RC4.** A desktop GPU (NVIDIA, AMD, Intel; Vulkan and D3D12): the compile time of MetalCreator's real ~1000-line generated kernel, off the main actor (`RC-V` measured generated kernels only: about 0.4-0.6 s). **Observed:**
 - [ ] **RC5.** A macOS `.app` with the four libraries in `Contents/Frameworks` launches from Finder and compiles: hardened runtime or library validation may refuse an unsigned dylib. **Observed:**
 
+## SX. shadercross in `<exe>/lib`, Microsoft's DXC (items XP-G26 and the packaging note, user request 2026-10-02, not a plan task; record 152; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it has no Windows machine and no packaged tarball from MetalCreator. The lookup order and the preload directory are pinned portably (`RuntimeLibraryLocatorTests`, `SDLGPURuntimeCompilerTests` 13b).*
+
+- [ ] **SX1.** On Windows x64, shadercross at the pin built against Microsoft's DXC release (v1.9.2602: its `dxcompiler.dll` and `dxil.dll`): `SDLGPUShaderCompiler.selfTest(for:)` compiles to DXIL and dispatches on D3D12 (`SX-D`: compatibility is **unmeasured**). **Observed:**
+- [ ] **SX2.** A Linux tarball whose libraries sit in `lib/` beside the executable (RUNPATH `$ORIGIN/lib`, no `bin/`/`../lib` layout) finds them as `<exe>/lib` with no `LD_LIBRARY_PATH` and `selfTest` passes; a missing library names `<exe>/lib/...` among the paths tried (`SX-B`, `SX-C`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
