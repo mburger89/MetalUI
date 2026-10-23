@@ -1,7 +1,7 @@
 # shadercross lookup in `<exe dir>/lib`, the Microsoft DXC note, run-time compile in the macOS default build (XP-G26, XP-G27) - decisions
 
 Rulings for items XP-G26 and XP-G27 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), from MetalCreator's `xp-c` tasks 11-13.
-Prefix `SX-`. **Next unused: `SX-F`.**
+Prefix `SX-`. **Next unused: `SX-G`.**
 Spec: [`specs/2026-10-23-shadercross-lookup-design.md`](specs/2026-10-23-shadercross-lookup-design.md). Record: `../record/152-shadercross-lookup.md` (written at the Record phase).
 Branch `feat/shadercross-lookup` from `722f0cd6`. Continues `RC-C`, `RC-N` (record 151) and `BS-H`. Divergence labels reserved 815-824: **none taken** (`SX-A`). **Nothing is published** (`BS-H`).
 
@@ -34,7 +34,7 @@ which can only be said if the preload directory is that one (no real shadercross
 **Ruling.** `docs/packaging.md` 4b says an app may ship Microsoft's DXC release (MetalCreator uses v1.9.2602 on Windows) instead of the fork: then `dxcompiler.dll` and `dxil.dll` are Microsoft's and come
 under **their** licence files (the release's `LICENSE-LLVM.txt` and `LICENSE-MIT.txt`, read from the release archive by the app, not from this repo), which the app ships; `THIRD-PARTY-NOTICES.md` names the fork row as "or
 Microsoft's release". **No compatibility is claimed**: shadercross at the pin was built against the fork (branch `1.8.2502-SDL`) and **was not run against Microsoft's DXC here**; the doc says so, names the one thing
-that could differ (the `IDxcCompiler3` interface and its flags, and `dxil.dll` signing that Microsoft's release does ship), and points to a human check (`SX1`). **Cost if wrong.** A reader trusts an unmeasured pairing; the
+that could differ (the `IDxcCompiler3` interface and its flags, and `dxil.dll` signing, which Microsoft's release is believed to ship: unmeasured), and points to a human check (`SX1`). **Cost if wrong.** A reader trusts an unmeasured pairing; the
 sentence "unmeasured" is the guard. **Measurement owed:** build shadercross at the pin against the release's `dxcompiler.dll` on Windows and run probe arm A-E.
 
 ## SX-E - XP-G27 carried: a portable run-time compile needs libSDL3 in the process, which the macOS default build does not link
@@ -42,8 +42,12 @@ sentence "unmeasured" is the guard. **Measurement owed:** build shadercross at t
 **Evidence (code, `RC-D`, `RC-N`; no new build was made).** `SDLShaderCross.c` loads shadercross with `SDL_LoadObject` and every failure text is `SDL_GetError()`; `RC-D`'s measured rule is that the app's SDL3 and
 shadercross's SDL3 must be **one instance** or the compiler's text is lost (the self test checks it). shadercross itself is an SDL3 library: its own errors, its allocations (`mui_sc_free` is `SDL_free`) and
 its logging are SDL3's. So an SDL-free route is `dlopen("libSDL3")` plus the five shadercross symbols plus `SDL_GetError`/`SDL_free`/`SDL_ClearError` by `dlsym`: a **second, hand-written loader** (a new C target in the `PC-A` portable
-list beside `SDLShaderCross.c`, or `SDLGPUShaderCompiler` forwarding to it, with libSDL3 itself found by a second lookup list) and an **app that ships libSDL3** (about 3 MB, zlib) on a Mac that never needed it.
+list beside `SDLShaderCross.c`, or `SDLGPUShaderCompiler` forwarding to it, with libSDL3 itself found by a second lookup list) and an **app that ships libSDL3** (size and licence unmeasured here; SDL3 is zlib-licensed) on a Mac that never needed it.
 **Not measured:** whether shadercross loads with libSDL3 only `dlopen`ed (not linked) - needs a build of the pin (10-25 minutes, the previous one deleted) - and it would not change the first two costs. **Ruling:** carried, not built.
 It is not cheap (new target, a second lookup, a second set of platform pins, an SDL3 licence note for macOS apps) and not clean (it would fork `RC-B`'s "one implementation, one load"). The macOS answer today is the
 `SDL` trait: `swift test --traits SDL` in the root on a Mac compiles and loads (`RC-` record 151, measured). **Re-open when** a Mac-only app (no SDL) asks, with the one measurement above and the cost of shipping libSDL3 stated.
 `SDLGPUShaderCompiler` is **not** changed and the `SDL` trait is not made default. **Owner:** the first Mac-only consumer. **Cost if wrong.** A Mac test of run-time HLSL needs the trait.
+
+## SX-F - rejections from the critic pass
+
+**Rulings.** (1) Test 7's doc check reads `docs/packaging.md` by `#filePath` and splits on `\.isNewline`, never `"\n"` (a CRLF checkout makes `"\r\n"` one Character on Windows CI). (2) A Windows-only skip of the `<exe>/lib` candidate is rejected (`SX-B`: uniform list, one stat). (3) Moving `<exe>/lib` after `<exe>/../lib` is rejected: nearest first. (4) The test 6 decoy is valid only because `load` preloads dependents before the library: the test asserts the `dxcompiler library is missing` line naming `<tmp>/bin/lib`, not the loader's text. (5) Every figure marked unmeasured stays so; no mutation or measurement claim is made before the implementation lane runs it. **Cost if wrong.** None beyond the above.
