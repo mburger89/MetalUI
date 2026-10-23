@@ -91,6 +91,19 @@ public final class SDLGPUDevice: @unchecked Sendable {
     /// the driver; `driver` names one (`"metal"`, `"vulkan"`, `"direct3d12"`)
     /// and `debug` turns on the driver's validation. Answers `nil` with
     /// ``lastFailure`` when no GPU or driver answers; it never traps.
+    ///
+    /// **Threads** (ruling `DL-G`, measured by `SDLGPUDeviceInfoTests` D7 and D8).
+    /// SDL's `SDL_Init` documentation says `SDL_INIT_VIDEO` "should be
+    /// initialized on the main thread" and `SDL_InitSubSystem` should "only be
+    /// called on the main thread"; `SDL_CreateGPUDevice` states no thread rule.
+    /// `make` takes one lock, so concurrent calls are safe, and on macOS it runs
+    /// the video init on the main thread itself (the caller must not block the
+    /// main thread waiting for `make`). On Linux and Windows it initialises video
+    /// on the calling thread. **Recommended:** initialise video on the main thread
+    /// first (an app's `SDLPlatform` does; a headless tool calls `make` once on the
+    /// main thread before starting workers), so a later `make` off the main thread
+    /// only retains the subsystem. An engine-owned device made off the main thread
+    /// beside a window renderer's device works (D7: macOS and Linux lavapipe).
     public static func make(debug: Bool = false, preferring driver: String? = nil) -> SDLGPUDevice? {
         // Two threads creating a device at once raced inside Vulkan's loader in
         // the Linux image; one lock makes `make` safe against itself.

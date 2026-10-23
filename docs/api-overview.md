@@ -503,7 +503,7 @@ Human checks: group WD, unrun.
 **SDL GPU for apps** (`GA-`, items S5 and S6, record §114;
 [`superpowers/2026-10-14-sdl-gpu-compute-decisions.md`](superpowers/2026-10-14-sdl-gpu-compute-decisions.md)). All class M,
 in `Backends/SDL` behind the `SDL` trait, outside the public census (`GA-L`); SwiftUI has no GPU API. The product
-`MetalUISDLGPU` is a thin typed layer over SDL_GPU: `SDLGPUDevice` (`make(debug:preferring:)`, `init(borrowing:)`),
+`MetalUISDLGPU` is a thin typed layer over SDL_GPU: `SDLGPUDevice` (`make(debug:preferring:)`, `init(borrowing:)`; `adapterName`, `driverName`, `driverVersion`, `driverInfo`, `isSoftwareRasterizer` and `limits`, guaranteed floors not real limits, `DL-`, record §150),
 `SDLGPUBuffer`, `SDLGPUTransferBuffer`, `SDLGPUTexture` (MSAA, depth, mips), `SDLGPUSampler`, `SDLGPUComputePipeline`,
 `SDLGPUGraphicsPipeline`, `SDLGPUCommandBuffer` with `SDLGPUComputePass` and `SDLGPURenderPass`, `SDLGPUFence`
 (`await fence.wait()` off the main actor), `SDLGPUShaderLibrary`; `SDLGPUDrawContext.view` records into the frame's own
