@@ -42,7 +42,7 @@ Failures are `SDL_SetError` (thread-local), for example `"HLSL compilation faile
 **Ruling.** `Init` under the loader's lock; **compiles are not serialized** (a serialized compile would make two engines on two threads wait for each other for seconds). The error text is read on the
 failing thread **before any other call** with the app's `SDL_GetError`. That only holds when shadercross and the app share one SDL3 instance, which a plain shared install does and a static SDL in the app would
 not: `selfTest` therefore compiles a deliberately broken kernel and requires non-empty diagnostics, and a compile that fails with an empty message throws `compileFailed` saying so (`RC-J`).
-**Cost if wrong.** A DXC race would show as a flaky identical-bytes test (`eightThreadsCompileTheSameKernelToIdenticalBytes`); the lock is a one-line change to the C shim.
+**Cost if wrong.** A DXC race would show as a flaky serial-bytes mismatch (`eightThreadsCompileDifferentKernelsToTheirOwnSerialBytes`; the first spelling was retired, RC-S); the lock is a one-line change to the C shim.
 
 ## RC-E — a bytes initializer on `SDLGPUShaderBlob`, validated before SDL sees it
 
