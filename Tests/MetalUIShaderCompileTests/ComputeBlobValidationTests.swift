@@ -26,7 +26,7 @@ private func refusal(_ body: () throws -> Void) -> String? {
 
 /// **Test 7b** (`RC-E`). Mutation: compare `> 1025`.
 @Test func aThreadGroupOf1025InvocationsIsRefused() {
-    for threads in [(1025, 1, 1), (1, 1025, 1), (1, 1, 1025), (33, 31, 1), (32, 32, 2), (Int.max, 2, 1)] {
+    for threads in [(1025, 1, 1), (1, 1025, 1), (1, 1, 1025), (33, 32, 1), (32, 32, 2), (Int.max, 2, 1)] {
         #expect(refusal { try Validation.validate(reflection(threads: threads)) } != nil, "\(threads)")
     }
 }
@@ -48,7 +48,7 @@ private func refusal(_ body: () throws -> Void) -> String? {
     for (name, path) in fields {
         var over = reflection()
         over[keyPath: path] = 65
-        #expect(refusal { try Validation.validate(over) }?.contains(name) == true, name)
+        #expect(refusal { try Validation.validate(over) }?.contains(name) == true, "\(name)")
         var negative = reflection()
         negative[keyPath: path] = -1
         #expect(refusal { try Validation.validate(negative) }?.contains(name) == true, "\(name) negative")
