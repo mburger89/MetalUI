@@ -1,6 +1,6 @@
 # Retained theme pin (C14-n) - design
 
-Status: designed 2026-10-22, branch `perf/retained-theme-pin` from `63feea05`. Prefix `TH-`; decisions
+Status: built and recorded 2026-10-22 (record 149, suite 4380, tests only), branch `perf/retained-theme-pin` from `63feea05`. Prefix `TH-`; decisions
 [`../2026-10-22-retained-theme-pin-decisions.md`](../2026-10-22-retained-theme-pin-decisions.md); record `149-retained-theme-pin.md`
 (written at the Record phase). Divergence labels 785-794: none expected, none taken.
 
