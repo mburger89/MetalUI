@@ -3,7 +3,7 @@
 Rulings for item C14-n. Spec: [`specs/2026-10-22-retained-theme-pin-design.md`](specs/2026-10-22-retained-theme-pin-design.md). Record: `../record/149-retained-theme-pin.md`.
 Branch `perf/retained-theme-pin` from `63feea05`. Reserved divergence labels 785-794: none taken.
 
-Prefix **`TH-`**, lettered. **Next unused: `TH-E`.** (Moves in the commit that appends a ruling.)
+Prefix **`TH-`**, lettered. **Next unused: `TH-F`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `EO-E`, `EE-F`, `SB-AA`, `RK-`, `CR-` (`PaintPass.resolve`), `EV-G`, `AM-D`.
 No SwiftUI probe, no gpui comparison: `Theme` has no SwiftUI counterpart and nothing observable moves.
@@ -40,3 +40,10 @@ environment is keyed whole, `RK-`, `EE-F`); the test asserts soundness (frame eq
 **Ruling.** (a) Test 8 named a `Window.verifyRetained` seam that does not exist; the verify switch is read from the environment, so the arm is the exit-test child of `RetainedVerifyTests` 14c, and its red under M1 is shown by one hand-run of that child with M1 applied, recorded in record 149 (an in-suite mutation arm is impossible). (b) Test 7 and 3b may survive their named mutations by design (`TH-C`, EO-E): they are soundness controls, never counted as the pin; the pin is arms (1), (2), (5), each of which alone must redden under M1. (c) Rejected: a new `Window` seam to flip the verify switch in-process (public/package surface for a test, and the env read is the shipped behaviour). (d) Rejected: a SwiftUI probe, as in the header (class M, nothing SwiftUI-facing).
 **Evidence.** `RetainedVerifyTests.swift` 14c; `Window.lightTheme.didSet` guard (an assignment at the other scheme sets no theme, so arm (2) must run at `.light`).
 **Cost if wrong.** If the child cannot be mutated by hand, the verify arm is recorded as unproven for M1, not claimed.
+
+## TH-E - Measured outcome: the fingerprint's theme is load-bearing in the paint key, conservative in the graft key
+
+**Question.** After the pins exist, which of M1-M4 redden what?
+**Ruling.** M1 and M2 (paint key) redden seven tests each including the verify child; M3 (graft key alone) survives the full suite, so `TH-C`'s expectation held and the graft field stays as a conservative conjunct, named here, not pinned; M4 (trace names) reddens the existing fingerprint-name guard plus five pins. Hypothesis (a) of the spec held; no source change.
+**Evidence.** Record 149 section 3.
+**Cost if wrong.** If a build later reads a theme, M3 would then redden `aGraftedOccurrenceUnderAThemeChangeIsRebuiltOrEqual`; it is the tripwire.
