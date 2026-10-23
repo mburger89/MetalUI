@@ -103,12 +103,12 @@ the format and the library path. Without the library it **throws `compilerUnavai
 **Lane A (pure, portable; `Backends/SDL/Sources/MetalUIShaderCompile` + its tests; cheap):**
 - `RuntimeLibraryLocator.swift` (the lookup order, platform names, the error text with reasons) and `ComputeBlobValidation.swift` (the blob and reflection checks above, as
   `package` pure functions over plain values, the counts' limits, SPIR-V/DXIL/MSL byte checks, the define and entry-point checks, `target(forDriver:)`).
-- `Backends/SDL/Tests/MetalUIShaderCompileTests/RuntimeLibraryLocatorTests.swift`, `ComputeBlobValidationTests.swift`.
+- `Tests/MetalUIShaderCompileTests/RuntimeLibraryLocatorTests.swift`, `ComputeBlobValidationTests.swift` (**the root test target**, `Package.swift` line 288: the root count moves from 4371 by exactly lane A's test count, RC-Q).
+- **Lane A also owns the long, independent measurement work** (RC-R): building shadercross in the Linux image volume `metalui-shadercross-sdl-gpu-runtime-shaders`, the probe arms A-I there (glibc SONAME/preload, arm H), `docs/probes/runtime-compile-measure.sh`, `docs/packaging.md` §4b and `THIRD-PARTY-NOTICES.md`, so lane B is only the shim, Swift API and its tests.
 
 **Lane B (SDL; `MetalUISDLGPU`, `SDLBridge`, tests, packaging):**
-- `SDLBridge/SDLShaderCross.c`, `include/SDLShaderCross.h`; `MetalUISDLGPU/SDLGPUShaderCompiler.swift` (types, load, compile, selfTest), `SDLGPUShaderBlob+Bytes.swift`,
-  `SDLGPUDevice+RuntimeCompile.swift`; `Tests/MetalUISDLTests/SDLGPURuntimeCompilerTests.swift`, `SDLGPURuntimeCompilerGatedTests.swift`; `docs/packaging.md` §4a (new §4b), `THIRD-PARTY-NOTICES.md`,
-  the probe and measurements script `docs/probes/runtime-compile-measure.sh`.
+- `SDLBridge/SDLShaderCross.c` and its declarations **appended to `include/SDLBridge.h`** (the target's one umbrella header; a second header in `include/` is not exposed to Swift, RC-Q); `MetalUISDLGPU/SDLGPUShaderCompiler.swift` (types, load, compile, selfTest), `SDLGPUShaderBlob+Bytes.swift`,
+  `SDLGPUDevice+RuntimeCompile.swift`; `Backends/SDL/Tests/MetalUISDLTests/SDLGPURuntimeCompilerTests.swift`, `SDLGPURuntimeCompilerGatedTests.swift`, `SDLGPURuntimeCompileGuardTests.swift`.
 - Lane B depends on lane A's validation and locator (`package` symbols in `MetalUIShaderCompile`, already a dependency of `MetalUISDLGPU`): **A lands first**; B's first commit
   is the C shim and loader, which needs none of A.
 - Neither lane edits `SDLGPUDevice.swift`, `SDLGPUShaderLibrary.swift`, `Package.swift` (the C file joins an existing target; a new test file joins an existing test target) or the root `Sources/`.
@@ -125,7 +125,7 @@ spelling, the full unfiltered suites (root native, `Backends/SDL`) are run, the 
 4. `theShadercrossExecutableVariableOffersItsSiblingLibDirectory` — look in `bin` instead of `../lib`.
 5. `theErrorNamesEveryPathTriedWithItsReason` — drop one candidate's reason.
 6. `thePlatformLibraryNamesAreDylibSoAndDll` — return the `.so` name on macOS.
-7. `aZeroThreadAxisIsRefusedByName` and `aThreadGroupOf1025InvocationsIsRefused` — compare `> 1025`.
+7. `aZeroThreadAxisIsRefusedByName`, `aThreadGroupOf1025InvocationsIsRefused` and `aThreadGroupOf1024InvocationsIsAccepted` — compare `> 1025`.
 8. `everyCountOverItsLimitIsRefusedNamingTheField` (one arm per field) — skip the uniform-buffer arm.
 9. `emptyBytesAnEmptyEntryPointAndAGraphicsStageAreRefused` — accept empty bytes.
 10. `spirvMustHaveItsMagicAndWholeWords`, `dxilMustBeADXBCContainer`, `mslMustContainItsEntryPoint` — test the wrong magic byte order.
@@ -134,8 +134,8 @@ spelling, the full unfiltered suites (root native, `Backends/SDL`) are run, the 
 12. `aDriverMapsToItsFormatAndAnyOtherIsUnsupportedNamingIt` (vulkan, metal, direct3d12, "gpu"?) — map `metal` to spirv.
 
 *Lane B, always run (`SDLGPURuntimeCompilerTests`):*
-13. `aMissingLibraryThrowsCompilerUnavailableListingEveryPathTried` — explicit bogus path and a cleared variable; mutation: `try!`/trap path replaced by an empty list.
-14. `everyCompileEntryThrowsCompilerUnavailableWithoutTheLibrary` (compile, device form, selfTest, `isAvailable == false`) — one entry skips the check.
+13. `aMissingLibraryThrowsCompilerUnavailableListingEveryPathTried` — through the `package` seam `SDLGPUShaderCompiler.load(candidates:)` that never touches the process cache (RC-O); mutation: the empty list.
+14. `everyCompileEntryThrowsCompilerUnavailableWithoutTheLibrary` (compile, device form, selfTest, `isAvailable`) over a compiler value built from the seam's failure — one entry skips the check. A call with an explicit path differing from the loaded library throws `libraryAlreadyLoaded` (RC-O).
 15. `theBlobInitializerMakesAPipelineFromTheCheckedInAppShaderBytes` (GPU; reads `AppShaders/compiled` bytes and JSON, builds the blob through the new initializer, `compileComputePipeline` succeeds) — wrong threadCount.y mapping.
 16. `aMalformedReflectionThrowsBeforeSDLIsCalled` (a recorder: zero `SDL_CreateGPUComputePipeline` calls) — validate after the SDL call.
 17. `theBlobInitializerKeepsEveryCountItWasGiven` — swap read-only and read-write buffer counts (the existing `compileComputePipeline` reads those fields).
@@ -147,15 +147,12 @@ spelling, the full unfiltered suites (root native, `Backends/SDL`) are run, the 
 21. `aCompiledKernelDispatchesAndReadsBack` (GPU too; 256 words doubled; **macOS Metal via MSL, Linux lavapipe via SPIR-V**) — hand the MSL reflection's thread count 1.
 22. `definesChangeTheCompiledKernel` (`-DK=3` versus `-DK=5` read back) — ignore defines.
 23. `aSecondSharedCallReusesTheFirstLoad` (`mui_sc_loads == 1` after N calls from several threads) — load per call.
-24. `eightThreadsCompileTheSameKernelToIdenticalBytes` (SPIR-V) — serialize nothing; mutation: share one output buffer in the C shim.
+24. `eightThreadsCompileDifferentKernelsToTheirOwnSerialBytes` (SPIR-V; thread i compiles the kernel with `-DK=i`, each result equals the serial result for that K; RC-S) — mutation: one static output buffer in the C shim (identical-kernel threads could not see it).
 25. `selfTestNamesTheDriverTheFormatAndTheLibrary` (GPU) and `selfTestFailsWhenTheDiagnosticsAreEmpty` (the C shim's test hook empties `SDL_GetError` text) — skip the broken-kernel arm.
 26. `aKernelOf200And1000LinesCompiles` (always counted; the **timings are recorded by `runtime-compile-measure.sh`, never asserted**).
 27. `aWarningOnlyKernelStillCompiles` (an unused variable) — treat a log warning as failure.
 
-**Typecheck guard (plain import, `typecheckFile`, SA-P):** `RuntimeCompileCompileGuards`: an external module can call `SDLGPUShaderCompiler.shared()`, `compileCompute`,
-the bytes initializer and `device.compileComputePipeline(hlsl:name:)`, and **cannot** name `mui_sc_*`, `RuntimeLibraryLocator` or `ComputeBlobValidation`
-(package). Backends/SDL tests do not run guards on macOS CI (`PC-A`), so the guard sits in the root `Tests/` beside `GA-` guards if they exist, else is a `Backends/SDL` test
-with a `typecheck` helper; lane B decides by finding where `GA-A`'s guard lives. Mutated red once (make `RuntimeLibraryLocator` public).
+**Guard (RC-P).** A root typecheck fixture cannot import `MetalUISDLGPU` (it exists only under the `SDL` trait; `SDLGPUContractTests` D3's own note), so: `SDLGPURuntimeCompileGuardTests.swift` is a separate file with a **plain** `import MetalUISDLGPU` (no `@testable`) that calls `SDLGPUShaderCompiler.shared()`, `compileCompute`, the bytes initializer and `device.compileComputePipeline(hlsl:name:)` (compile-time proof they are public), plus a source scan that `RuntimeLibraryLocator`, `ComputeBlobValidation` and every `mui_sc_*` use are not `public`. Mutations, each once: make `RuntimeLibraryLocator` public (scan red); make the bytes initializer `internal` (plain-import file fails to compile: recorded as a build failure, then reverted).
 
 ## 6. Packaging, notices, speed (lane B, `docs/packaging.md` new §4b)
 
@@ -173,7 +170,7 @@ No demo section (a library capability; the compiled twin of the recipe is `selfT
 `dxcompiler.dll` and `dxil.dll` beside the exe compiles and dispatches (CI compiles the Swift only); RC2 a Linux tarball and an AppImage find the library from `$ORIGIN`;
 RC3 `--self-test` on a machine **without** the library prints the named error and exits non-zero; RC4 a desktop GPU's compile time for MetalCreator's real ~1000-line kernel;
 RC5 a macOS `.app` with the libraries in `Contents/Frameworks` launches from Finder (library validation / hardened runtime may refuse an unsigned dylib).
-Pixels 0 px against `63feea05` (no rendering code touched), `Expected.swift` unedited, no root `Sources/` change (the root suite stays 4371), `Package.swift` unedited.
+Pixels 0 px against `63feea05` (no rendering code touched), `Expected.swift` unedited, no root `Sources/` change (the root suite is 4371 + lane A's tests, RC-Q), `Package.swift` unedited.
 
 ## 8. Deferred, by name
 

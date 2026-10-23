@@ -1,7 +1,7 @@
 # Run-time HLSL compute shaders on SDL_GPU (XP-G25) — decisions
 
 Rulings for item XP-G25 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by MetalCreator's `xp-c`
-track. Prefix `RC-`. **Next unused: `RC-O`.**
+track. Prefix `RC-`. **Next unused: `RC-T`.**
 Spec: [`specs/2026-10-22-sdl-gpu-runtime-shaders-design.md`](specs/2026-10-22-sdl-gpu-runtime-shaders-design.md). Record: `../record/151-sdl-gpu-runtime-shaders.md`.
 Branch `feat/sdl-gpu-runtime-shaders` from `63feea05`. Continues `GA-F` (record 114), `GB-G` (record 137), `BS-` (record 138), `SY-` (record 143).
 Divergence labels reserved 805–814: **none taken** (`RC-A`). **Nothing is published** by this item (`BS-H`).
@@ -116,3 +116,23 @@ dyld (and glibc by SONAME) treat an already-loaded image of the same install nam
 **Ruling.** After `RC-C` finds the main library, the loader preloads every sibling file of the same directory whose name holds `dxcompiler`, `spirv-cross` or `dxil` (a required two named in the error if they are missing, `dxil` optional) **before** it; on Windows the C file also calls
 `SetDllDirectoryW` on that directory (compiled by CI only). The app never sets `DYLD_LIBRARY_PATH`/`LD_LIBRARY_PATH` (SIP strips the first from a hardened or system process anyway). The preload set is a pure function of the directory listing in `RuntimeLibraryLocator`
 (`thePreloadSetIsTheDependentsInTheLibrarysDirectory`). **Alternative rejected.** Requiring the packager to rebuild with `CMAKE_INSTALL_RPATH`: it changes the pin's recipe and every consumer's build. **Cost if wrong.** A renamed dependent (a different shadercross build) is not preloaded and the load error names it.
+
+## RC-O — the process cache is not a test seam; an explicit path after a load is checked
+
+**Defect found by the critic.** Spec 5 tests 13-14 need "no library" after another test loaded one; `shared()` is process-cached. **Ruling.** A `package` seam `SDLGPUShaderCompiler.load(candidates:)` runs the locator list and returns a compiler (or the `compilerUnavailable`) **without touching the cache** (and the C recorder `mui_sc_loads` counts only cached loads); `shared(libraryPath:)` with a path that differs from the already-loaded library throws `SDLGPUShaderCompileError.libraryAlreadyLoaded(loaded:requested:)` (never silently ignores the argument, never reloads). **Cost if wrong.** One more error case.
+
+## RC-P — the compile guard is a plain-import file plus a source scan, not a root typecheck fixture
+
+**Defect found.** The spec said the guard sits in root `Tests/` or "lane B decides". `MetalUISDLGPU` is empty without the `SDL` trait, so a root fixture cannot name it. **Ruling.** See spec 5 "Guard". **Cost if wrong.** none.
+
+## RC-Q — corrections of fact: lane A's tests are root tests, and the C declarations go in `SDLBridge.h`
+
+**Defects found.** (1) `MetalUIShaderCompileTests` is a **root** target at `Tests/MetalUIShaderCompileTests` (`Package.swift` line 288), not under `Backends/SDL/Tests`, so the root count moves (4371 + lane A's tests) and Linux/Windows CI run them (wanted: that is where the lookup order is pinned). (2) `SDLBridge` has one umbrella header `include/SDLBridge.h` and no module map, so `include/SDLShaderCross.h` would not reach Swift: declarations are appended there. **Cost if wrong.** A build failure, caught at lane B's first commit.
+
+## RC-R — lane split rebalanced
+
+**Defect found.** Lane B held the shim, the Swift API, three test files, the packaging doc, notices and every measurement (a 25-minute DXC build in two environments). **Ruling.** Lane A takes packaging, notices, the Linux-image shadercross build and measurements (independent files, no dependency on B's code); lane B is shim, API and tests, and depends only on lane A's pure `package` types. The macOS `selfTest`/dispatch numbers B records in its own record section lines; A merges them into RC-H at the Record phase.
+
+## RC-S — the concurrency test uses different kernels per thread
+
+**Defect found.** `eightThreadsCompileTheSameKernelToIdenticalBytes` could not redden for a shared output buffer (identical bytes hide a race). **Ruling.** Each thread compiles a kernel differing by `-DK=<i>`; each result must equal that K's serial compile. **Cost if wrong.** none.
