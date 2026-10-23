@@ -77,7 +77,7 @@ func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
         } catch SDLGPUShaderCompileError.compilerUnavailable(let tried) {
             let line = try #require(tried.first { $0.contains(lib.path + "/" + name) }, "\(tried)")
             #expect(line.contains("failed dependents"), "\(line)")
-            #expect(line.contains(lib.path), "\(line)")
+            #expect(line.contains(lib.path + ": the dxcompiler library is missing"), "the dependents are sought in <exe>/lib: \(line)")
         }
     }
 
