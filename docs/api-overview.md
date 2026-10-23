@@ -525,6 +525,15 @@ Synchronous render batch, rulings `SY-A`…`SY-H` (record §143): `SDLGPUDevice.
 submits on the submit worker like `submitBatch` and returns once the buffer is submitted, the fence normally unsignalled; `waitBlocking()` or
 `downloadSynchronously` then waits (`GB-F`'s rules).
 
+**Run-time compute shaders** (`RC-`, item XP-G25, record §151; class M, outside the census, additive). `SDLGPUShaderCompiler.shared(libraryPath:)`
+loads libSDL3_shadercross at run time (never linked; an absent library throws `SDLGPUShaderCompileError.compilerUnavailable` listing every path tried;
+lookup order explicit path, `METALUI_SHADERCROSS_LIB`, beside the executable, the loader path); `compileCompute(...)` turns HLSL, an entry point and
+`SDLGPUShaderDefine`s into the device driver's format (`SDLGPUShaderTarget(driver:)`: SPIR-V, MSL, DXIL) with the compute reflection, throwing DXC's own
+diagnostic text on failure; `selfTest(for:)` (`async throws`) is the call for an app's `--self-test`. `SDLGPUShaderBlob.init(name:stage:bytes:format:...)`
+with `SDLGPUShaderBlob.Format` builds a validated blob from bytes (a cached compile), and the device's `compileComputePipeline(_:)`/`makeComputePipeline(_:)`
+take it like a directory blob. Compute only; compile off the main actor (a 1000-line kernel is about half a second); the app owns any cache.
+Packaging and licences: `docs/packaging.md` §4a, `THIRD-PARTY-NOTICES.md`.
+
 **Build-time app shaders** (`BS-`, item S12, record §138; class M, outside the census). The root package exports the
 executable `MetalUICompileShaders` and the command plugin `CompileShaders` (`swift package --allow-writing-to-package-directory
 compile-shaders`), both over the portable `MetalUIShaderCompile`; they compile `*.vert|frag|comp.hlsl` through a shadercross found

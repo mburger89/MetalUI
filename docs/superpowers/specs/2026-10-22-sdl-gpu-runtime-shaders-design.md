@@ -2,7 +2,7 @@
 
 Item XP-G25 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by MetalCreator's `xp-c` track
 (`MetalCreator-xp-c/docs/superpowers/plans/2026-10-22-xp-c-sdl-gpu-meshing.md`, read only). Prefix `RC-`. Rulings:
-[`../2026-10-22-sdl-gpu-runtime-shaders-decisions.md`](../2026-10-22-sdl-gpu-runtime-shaders-decisions.md). Record §151.
+[`../2026-10-22-sdl-gpu-runtime-shaders-decisions.md`](../2026-10-22-sdl-gpu-runtime-shaders-decisions.md). Record §151. **Status: built and verified (2026-10-22), see record §151.**
 Branch `feat/sdl-gpu-runtime-shaders` from `63feea05`. Divergence labels 805–814 reserved: **none expected** (class M, `Backends/SDL`
 is outside the census, `GA-L`). Continues `GA-F` (record 114), `GB-G` (record 137), `BS-` (record 138), `SY-` (record 143).
 

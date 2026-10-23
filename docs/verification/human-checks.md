@@ -1887,6 +1887,16 @@ a physical GPU, a desktop session and a console.*
 - [ ] **BG4.** In a real SwiftUI `App` with `.windowBackgroundDragBehavior(.enabled)`: does a press-drag that starts on a `Button` or a `TextField` move the window (`BG-G`'s unprobed ruling: MetalUI never drags from an opaque target)? And what does `.disabled` do to the hidden title bar's band (`BG-J`)? **Observed:**
 - [ ] **BG5.** The chrome demo's star-shaped pointer region (`PointerStyle.shape`, `eoFill`) at 1x and 2x on macOS, Linux and Windows: the black star with a 1-pt white outline is crisp (rasterized at the display scale), the hole of the even-odd star is transparent, the hot spot is its centre, and moving the window to a display of another scale re-sends one cursor at the new scale. SwiftUI has no such cursor on macOS (divergence 735): the look is ours. **Observed:**
 
+## RC. Run-time HLSL compute shaders on SDL_GPU - Windows, packaging, a real desktop GPU (item XP-G25, user request 2026-10-02, not a plan task; record 151; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: it has no Windows machine, no signed macOS `.app` run from Finder and no desktop GPU of MetalCreator's class. macOS Metal (MSL) and Linux lavapipe (SPIR-V) were compiled and dispatched by the agent (`SDLGPURuntimeCompile*`), and the pin's DXIL was compared byte for byte with the build tool's blobs.*
+
+- [ ] **RC1.** A Windows x64 machine with `SDL3_shadercross.dll`, `dxcompiler.dll`, `dxil.dll` and the spirv-cross DLL beside the `.exe`: `SDLGPUShaderCompiler.selfTest(for:)` compiles to DXIL and dispatches on D3D12. Then remove `dxil.dll` and re-run: is it needed to sign the DXIL (`RC-U` measured it unneeded on macOS and Linux only)? **Observed:**
+- [ ] **RC2.** The Linux tarball (`lib/` beside `bin/`) and an AppImage (`usr/lib`) find the library from their own layout with no `LD_LIBRARY_PATH` (`RC-C`, `RC-N`). **Observed:**
+- [ ] **RC3.** An app's `--self-test` on a machine **without** the library prints the named `compilerUnavailable` error listing the paths tried and exits non-zero. **Observed:**
+- [ ] **RC4.** A desktop GPU (NVIDIA, AMD, Intel; Vulkan and D3D12): the compile time of MetalCreator's real ~1000-line generated kernel, off the main actor (`RC-V` measured generated kernels only: about 0.4-0.6 s). **Observed:**
+- [ ] **RC5.** A macOS `.app` with the four libraries in `Contents/Frameworks` launches from Finder and compiles: hardened runtime or library validation may refuse an unsigned dylib. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:

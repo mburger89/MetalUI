@@ -2429,3 +2429,8 @@ No real window was captured: the screen was locked at the design session (`CGSSe
 `docs/verification/human-checks.md` group `BG`:** `BG1` the popover panel fills (gradient, a `Material` with no drop shadow, a translucent colour), `BG2` the SDL background
 drag region on Linux and Windows (and the pointer events it takes from hover, divergence 737), `BG3` AppKit's background drag through `performDrag`, `BG4` the two SwiftUI
 behaviours left unprobed (a press on a control under `.enabled`, `.disabled` against the band), `BG5` the shape cursor at 1x and 2x. Nothing was verified on hardware.
+
+## 2026-10-22: run-time HLSL compute shaders on SDL_GPU (record §151) — looks owed, group RC
+
+macOS Metal (MSL route) and Linux lavapipe (SPIR-V route) compiled and dispatched a generated kernel under the agent's tests, and the pin's DXIL equals the build tool's blobs; nothing ran on Windows, in a signed macOS `.app` or on a desktop GPU. **Owed, new here — `docs/verification/human-checks.md` group `RC`, none performed:** RC1 Windows x64 compile and dispatch, and whether `dxil.dll` is needed to sign DXIL; RC2 Linux tarball and AppImage find the library from their layout; RC3 `--self-test` without the library names the error and exits non-zero; RC4 a desktop GPU's compile time for MetalCreator's real ~1000-line kernel; RC5 a macOS `.app` with the libraries in `Contents/Frameworks` under library validation.
+
