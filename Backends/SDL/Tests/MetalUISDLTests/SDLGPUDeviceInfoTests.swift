@@ -194,8 +194,10 @@ private func roundTrip(on device: SDLGPUDevice) -> Bool {
 
     /// **D7.** An engine device made by `make` off the main thread works beside a window renderer's device
     /// (DL-G (a)). Mutations: `make` without its lock; on macOS the main hop removed (Cocoa init fails off main).
-    @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
-    func anEngineDeviceMadeOffTheMainThreadWorksBesideAWindowDevice() async throws {
+    @Test func anEngineDeviceMadeOffTheMainThreadWorksBesideAWindowDevice() async throws {
+        // Not `.enabled(if:)`: that probe runs off the main thread, so it would skip silently if `make`
+        // lost its macOS main hop. The probe here is on the main actor, where `make` needs no hop.
+        guard SDLGPUDevice.make() != nil else { return }
         #if os(macOS)
         armMainRunLoopExitCheck()
         #endif
@@ -211,8 +213,10 @@ private func roundTrip(on device: SDLGPUDevice) -> Bool {
     /// **D8.** `make` on a detached thread with no window anywhere returns and, when it answers, leaves no
     /// failure (DL-G (b), DL-K). Records whether video was already up: only a filtered-alone run is evidence of a first
     /// off-thread init. Mutation: `make` without `SDL_InitSubSystem` (the Vulkan loader fails in the image).
-    @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
-    func videoInitOffTheMainThreadIsMeasured() async throws {
+    @Test func videoInitOffTheMainThreadIsMeasured() async throws {
+        // Not `.enabled(if:)`: that probe runs off the main thread, so it would skip silently if `make`
+        // lost its macOS main hop. The probe here is on the main actor, where `make` needs no hop.
+        guard SDLGPUDevice.make() != nil else { return }
         #if os(macOS)
         armMainRunLoopExitCheck()
         #endif
@@ -224,6 +228,8 @@ private func roundTrip(on device: SDLGPUDevice) -> Bool {
         }
         let answered = try #require(result, "make returned within the bound")
         print("DL D8: videoAlreadyInitialised=\(wasUp) offThreadMake=\(answered ?? "nil") lastFailure=\(SDLGPUDevice.lastFailure)")
+        // The main-thread probe above made a device, so a GPU exists: the off-thread call must answer too.
+        #expect(answered != nil, "an off-main-thread make answered: \(SDLGPUDevice.lastFailure)")
         if answered != nil, failureBefore.isEmpty { #expect(SDLGPUDevice.lastFailure.isEmpty) }
     }
 }
