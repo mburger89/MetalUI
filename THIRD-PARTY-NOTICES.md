@@ -72,7 +72,7 @@ Licences read in the checkout at that commit (2026-10-22):
 | Component | Licence | Shipped as | Text in the checkout |
 |---|---|---|---|
 | SDL_shadercross | zlib | `libSDL3_shadercross` (`.dylib`, `.so`, `SDL3_shadercross.dll`) | `LICENSE.txt` (the install copies it to `share/licenses/SDL3_shadercross/`) |
-| DirectXShaderCompiler (the libsdl-org fork, branch `1.8.2502-SDL`) | LLVM Release License, University of Illinois/NCSA Open Source License (2003-2015), with the bundled third-party list the fork keeps | `libdxcompiler`, `libdxil` (`dxil.dll` on Windows) | `external/DirectXShaderCompiler/LICENSE.TXT` and `ThirdPartyNotices.txt` |
+| DirectXShaderCompiler (the libsdl-org fork, branch `1.8.2502-SDL`, or Microsoft's release: then Microsoft's own licence files from that release archive, shipped by the app, replace this row for `dxcompiler.dll`/`dxil.dll`; compatibility of shadercross at the pin with it is unmeasured, `docs/packaging.md` 4b) | LLVM Release License, University of Illinois/NCSA Open Source License (2003-2015), with the bundled third-party list the fork keeps | `libdxcompiler`, `libdxil` (`dxil.dll` on Windows) | `external/DirectXShaderCompiler/LICENSE.TXT` and `ThirdPartyNotices.txt` |
 | SPIRV-Cross | Apache-2.0 | `libspirv-cross-c-shared` (static inside shadercross when built without `SDLSHADERCROSS_SPIRVCROSS_SHARED`) | `external/SPIRV-Cross/LICENSE` |
 | SPIRV-Tools | Apache-2.0 | linked into the above, no file of its own | `external/SPIRV-Tools/LICENSE` |
 | SPIRV-Headers | Khronos MIT-style (2015-2024 The Khronos Group Inc.) | headers only, compiled into the above | `external/SPIRV-Headers/LICENSE` |

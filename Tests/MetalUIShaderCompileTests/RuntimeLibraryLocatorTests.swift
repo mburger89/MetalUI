@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import MetalUIShaderCompile
 
@@ -19,23 +20,26 @@ private struct FakeFiles {
 
 private let dylib = "libSDL3_shadercross.dylib"
 
-/// **Test 1** (`RC-C`). Mutation: swap the variable and explicit candidates.
-@Test func theLookupOrderIsExplicitThenVariableThenBesideThenSiblingThenLoaderPath() throws {
-    let all = FakeFiles(files: ["/x/\(dylib)", "/v/\(dylib)", "/app/bin/\(dylib)", "/app/lib/\(dylib)", "/sdk/lib/\(dylib)"],
+/// **Test 1** (`RC-C`, `SX-B`). Mutations: swap the variable and explicit candidates; drop the `<exe>/lib` arm;
+/// put it after `../lib`.
+@Test func theLookupOrderIsExplicitThenVariableThenBesideThenSubLibThenParentLibThenSiblingThenLoaderPath() throws {
+    let all = FakeFiles(files: ["/x/\(dylib)", "/v/\(dylib)", "/app/bin/\(dylib)", "/app/bin/lib/\(dylib)", "/app/lib/\(dylib)",
+                                "/sdk/lib/\(dylib)"],
                         directories: [])
     let env = ["METALUI_SHADERCROSS_LIB": "/v/\(dylib)", "METALUI_SHADERCROSS": "/sdk/bin/shadercross"]
     // explicit wins over everything
     #expect(try Locator.loadOrder(all.attempts(explicit: "/x/\(dylib)", environment: env, executableDirectory: "/app/bin")) == ["/x/\(dylib)"])
     // then the variable
     #expect(try Locator.loadOrder(all.attempts(environment: env, executableDirectory: "/app/bin")) == ["/v/\(dylib)"])
-    // then beside the executable, ../lib, the tool's sibling lib, the loader name
+    // then beside the executable, its lib, ../lib, the tool's sibling lib, the loader name
     let rest = try Locator.loadOrder(all.attempts(environment: ["METALUI_SHADERCROSS": "/sdk/bin/shadercross"],
                                                   executableDirectory: "/app/bin"))
-    #expect(rest == ["/app/bin/\(dylib)", "/app/lib/\(dylib)", "/sdk/lib/\(dylib)", dylib])
+    #expect(rest == ["/app/bin/\(dylib)", "/app/bin/lib/\(dylib)", "/app/lib/\(dylib)", "/sdk/lib/\(dylib)", dylib])
     // the sources are ranked in that order
     let sources = all.attempts(environment: ["METALUI_SHADERCROSS": "/sdk/bin/shadercross"], executableDirectory: "/app/bin").map(\.source)
     #expect(sources == sources.sorted())
     #expect(sources.first == .besideExecutable)
+    #expect(sources.contains(.besideExecutableSubLib))
     #expect(sources.last == .loaderPath)
 }
 
@@ -88,6 +92,7 @@ private let dylib = "libSDL3_shadercross.dylib"
         #expect(line.count > attempt.path.count + 2, "a reason follows the path")
     }
     #expect(lines.contains("/app/bin/\(dylib): no such file (beside the executable)"))
+    #expect(lines.contains("/app/bin/lib/\(dylib): no such file (in lib beside the executable)"))
     #expect(lines.contains("\(dylib): failed to load: image not found"))
     #expect(lines.contains { $0.contains("left to the loader path") } == false, "a refused loader name reports its failure instead")
     let message = ComputeValidationError.libraryMissing(lines).description
@@ -125,4 +130,59 @@ private let dylib = "libSDL3_shadercross.dylib"
     let win = try Locator.preloadSet(directory: "C:/app", listing: ["dxcompiler.dll", "spirv-cross-c-shared.dll", "dxil.dll", "x.dll"],
                                      windows: true, macOS: false)
     #expect(win == ["C:/app/dxcompiler.dll", "C:/app/spirv-cross-c-shared.dll", "C:/app/dxil.dll"])
+}
+
+/// **Test 2** (`SX-B`). Mutation: join `"lib"` onto the parent of the executable's directory instead of the directory.
+@Test func aLibraryOnlyInExecutableLibIsChosenOnEveryPlatformNaming() throws {
+    let cases: [(windows: Bool, macOS: Bool, names: [String])] = [
+        (false, true, ["libSDL3_shadercross.dylib"]),
+        (false, false, ["libSDL3_shadercross.so.0", "libSDL3_shadercross.so"]),
+        (true, false, ["SDL3_shadercross.dll"]),
+    ]
+    for c in cases {
+        for name in c.names {
+            let fake = FakeFiles(files: ["/app/bin/lib/\(name)"])
+            let order = try Locator.loadOrder(fake.attempts(executableDirectory: "/app/bin", windows: c.windows, macOS: c.macOS))
+            #expect(order.first == "/app/bin/lib/\(name)", "\(name): \(order)")
+            #expect(order.last == c.names.last!, "the loader name stays last")
+            let sub = fake.attempts(executableDirectory: "/app/bin", windows: c.windows, macOS: c.macOS)
+                .filter { $0.source == .besideExecutableSubLib }
+            #expect(sub.map(\.path) == c.names.map { "/app/bin/lib/\($0)" })
+        }
+    }
+}
+
+/// **Test 3** (`SX-B`). Mutation: swap the two sources' order.
+@Test func theLibraryInTheExecutableDirectoryOutranksOneInItsLibSubdirectory() throws {
+    let fake = FakeFiles(files: ["/app/bin/\(dylib)", "/app/bin/lib/\(dylib)"])
+    let order = try Locator.loadOrder(fake.attempts(executableDirectory: "/app/bin"))
+    #expect(order == ["/app/bin/\(dylib)", "/app/bin/lib/\(dylib)", dylib])
+}
+
+/// **Test 4** (`SX-C`, `RC-N`). Mutation: `preloadSet` joins onto a fixed directory.
+@Test func thePreloadSetComesFromTheDirectoryOfTheChosenLibrary() throws {
+    let fake = FakeFiles(files: ["/app/bin/lib/\(dylib)"])
+    let chosen = try #require(try Locator.loadOrder(fake.attempts(executableDirectory: "/app/bin")).first)
+    let directory = String(chosen.dropLast("/\(dylib)".count))
+    #expect(directory == "/app/bin/lib")
+    let set = try Locator.preloadSet(directory: directory,
+                                     listing: [dylib, "libdxcompiler.dylib", "libspirv-cross-c-shared.dylib", "libdxil.dylib"],
+                                     windows: false, macOS: true)
+    #expect(set == ["/app/bin/lib/libdxcompiler.dylib", "/app/bin/lib/libspirv-cross-c-shared.dylib", "/app/bin/lib/libdxil.dylib"])
+}
+
+/// **Test 7** (`SX-F` 1). `docs/packaging.md` 4b names the `<exe>/lib` lookup and says Microsoft's DXC is unmeasured.
+/// Splits on `\.isNewline`, never `"\n"` (a CRLF checkout makes `"\r\n"` one Character). Mutation: remove either sentence.
+@Test func packagingNamesTheExecutableLibLookupAndMarksMicrosoftDXCUnmeasured() throws {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let text = try String(contentsOf: root.appendingPathComponent("docs/packaging.md"), encoding: .utf8)
+    let lines = text.split(whereSeparator: \.isNewline).map(String.init)
+    let start = try #require(lines.firstIndex { $0.hasPrefix("### 4b.") })
+    let end = lines[(start + 1)...].firstIndex { $0.hasPrefix("### ") } ?? lines.count
+    let section = lines[start..<end].joined(separator: " ")
+    #expect(section.contains("`<exe>/lib`"), "the lookup sentence names <exe>/lib")
+    #expect(section.contains("Microsoft"), "the Microsoft DXC paragraph is in 4b")
+    #expect(section.contains("unmeasured"))
+    let notices = try String(contentsOf: root.appendingPathComponent("THIRD-PARTY-NOTICES.md"), encoding: .utf8)
+    #expect(notices.contains("Microsoft's release"))
 }

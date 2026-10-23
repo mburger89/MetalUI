@@ -387,10 +387,10 @@ About **39 MB** on Linux aarch64 and **32 MB** on macOS in all. The licences are
 run-time shader compiler"); the DXC fork's licence is not Apache-2.0 and its `LICENSE.TXT` and `ThirdPartyNotices.txt` travel with the binary.
 
 **Placement.** The lookup (`RuntimeLibraryLocator`, `RC-C`; a pure function with pins on every platform) tries, in order: the explicit
-`libraryPath:`, `METALUI_SHADERCROSS_LIB` (the library file, or a directory holding it), the executable's directory and its `../lib`, the
+`libraryPath:`, `METALUI_SHADERCROSS_LIB` (the library file, or a directory holding it), the executable's directory, its `lib` subdirectory (`<exe>/lib`, `SX-B`: RUNPATH `$ORIGIN/lib` layouts), its `../lib`, the
 `lib` beside the `bin` of `METALUI_SHADERCROSS` (the install layout of 4a), then the plain library name on the loader path. **An explicit
 path or variable that names a missing file is an error, never a fall-through.** So: a **Linux tarball** puts the four files in `lib/` beside
-`bin/` (found as `../lib`); an **AppImage** puts them in `usr/lib` beside `usr/bin`; a **Windows zip** puts them beside the `.exe`
+`bin/` (found as `../lib`), or in `lib/` beside the executable itself (found as `<exe>/lib`); an **AppImage** puts them in `usr/lib` beside `usr/bin`; a **Windows zip** puts them beside the `.exe`
 (before loading, the library's directory is added to the DLL search path so `dxcompiler.dll` and `dxil.dll` resolve; compiled by CI only);
 a **macOS `.app`** needs `METALUI_SHADERCROSS_LIB` or `libraryPath:` pointed at `Contents/Frameworks` (not found by default there), and
 **library validation or the hardened runtime may refuse an unsigned dylib** (human check RC5; sign every file with the app's identity).
@@ -410,6 +410,12 @@ be left out when the full name is shipped.
 Windows' D3D12 accepts DXIL compiled without `dxil.dll` beside `dxcompiler.dll` is **unmeasured** (human check RC1), so the Windows zip ships it. The pin's
 `libdxcompiler.so` carries a `RUNPATH` of `$ORIGIN/../lib` (it would find a `libdxil` there), and on macOS `@executable_path/../lib`.
 
+**Microsoft's DXC instead of the fork.** An app may ship Microsoft's prebuilt DXC release (MetalCreator uses v1.9.2602 on Windows) as `dxcompiler.dll` and
+`dxil.dll` instead of the libsdl-org fork. Those two files are then Microsoft's and come under **Microsoft's own licence files**, taken from that release
+archive and shipped by the app (`THIRD-PARTY-NOTICES.md`); this repository holds none of them. **Compatibility is unmeasured**: shadercross at the pin was
+built against the fork and was **not** run against Microsoft's DXC here. What could differ is the `IDxcCompiler3` interface and flags it was built for,
+and `dxil.dll` signing (Microsoft's release is believed to ship a signing `dxil.dll`; unmeasured). Human check `SX1`.
+
 **Self test.** `SDLGPUShaderCompiler.selfTest(for:)` (lane B, `RC-J`) is the call for an app's `--self-test`: it loads the compiler, compiles a
 four-line kernel, compiles a broken one and requires DXC's diagnostics, and with a device runs one dispatch and reads it back; it
 **throws `compilerUnavailable`** where the library is missing, so a packaging mistake fails the check naming the paths tried.
@@ -427,7 +433,7 @@ The first compile in a process costs nothing beyond itself (0.056 s Linux, 0.081
 kernel); the Metal route adds SPIR-V to MSL, under 0.07 s. Compile on a worker thread, never the main actor, and cache by source hash: the app
 owns the cache (`RC-M`) and loads a cached blob through `SDLGPUShaderBlob`'s bytes initializer.
 
-**Unverified:** Windows (compile and load, `dxil.dll`'s need, the DLL search path; human check RC1), Linux x86_64 (the build is the same recipe), an AppImage and a tarball
+**Unverified:** `<exe>/lib` in a real tarball (human check SX2), Microsoft's DXC with shadercross at the pin (unmeasured, human check SX1), Windows (compile and load, `dxil.dll`'s need, the DLL search path; human check RC1), Linux x86_64 (the build is the same recipe), an AppImage and a tarball
 finding `../lib` (RC2), `--self-test` without the library (RC3), a macOS `.app` with the files in `Contents/Frameworks` (RC5).
 
 ## Windows: an `.ico` embedded as a resource

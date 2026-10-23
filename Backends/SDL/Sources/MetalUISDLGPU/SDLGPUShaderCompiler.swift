@@ -107,7 +107,7 @@ public struct SDLGPUShaderCompilerReport: Sendable {
 /// SDL_shadercross's shared library loaded with `SDL_LoadObject` at the first call. MetalUI links
 /// none of it; an absent library is a thrown ``SDLGPUShaderCompileError/compilerUnavailable(tried:)``
 /// listing every path tried (lookup order: the explicit `libraryPath:`, `METALUI_SHADERCROSS_LIB`,
-/// beside the executable and its `../lib`, the `lib` beside `METALUI_SHADERCROSS`'s `bin`, then the
+/// beside the executable, its `lib` (`<exe>/lib`, `SX-B`) and its `../lib`, the `lib` beside `METALUI_SHADERCROSS`'s `bin`, then the
 /// loader path; `docs/packaging.md` 4b).
 ///
 /// Threads: every member is `nonisolated` and **compiles run concurrently** (the pinned

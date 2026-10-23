@@ -51,6 +51,36 @@ func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
         }
     }
 
+    /// **13b** (`SX-C`). A decoy library file in `<exe>/lib` is an attempt and its dependents are looked for in
+    /// `<exe>/lib`: the error line says `failed dependents` and names that directory (no real shadercross needed).
+    /// Mutation: preload from `<exe>`.
+    @Test func aLibraryInExecutableLibIsPreloadedFromThere() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("mui-sx-\(UUID().uuidString)")
+        let bin = root.appendingPathComponent("bin"), lib = bin.appendingPathComponent("lib")
+        try FileManager.default.createDirectory(at: lib, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let names = SDLGPUShaderCompiler.libraryAttempts(
+            explicit: nil, environment: [:], executableDirectory: "/x", windows: SDLGPUShaderCompiler.isWindows,
+            macOS: SDLGPUShaderCompiler.isMacOS, fileExists: { _ in false }, directoryExists: { _ in false })
+            .filter { !$0.isLoaderName }.map { ($0.path as NSString).lastPathComponent }
+        let name = try #require(names.first)
+        try Data().write(to: lib.appendingPathComponent(name))
+        let attempts = SDLGPUShaderCompiler.libraryAttempts(
+            explicit: nil, environment: [:], executableDirectory: bin.path, windows: SDLGPUShaderCompiler.isWindows,
+            macOS: SDLGPUShaderCompiler.isMacOS, fileExists: { FileManager.default.fileExists(atPath: $0) },
+            directoryExists: { var d: ObjCBool = false
+                return FileManager.default.fileExists(atPath: $0, isDirectory: &d) && d.boolValue })
+            .filter { !$0.isLoaderName }
+        do {
+            _ = try SDLGPUShaderCompiler.load(candidates: attempts)
+            Issue.record("a decoy loaded")
+        } catch SDLGPUShaderCompileError.compilerUnavailable(let tried) {
+            let line = try #require(tried.first { $0.contains(lib.path + "/" + name) }, "\(tried)")
+            #expect(line.contains("failed dependents"), "\(line)")
+            #expect(line.contains(lib.path + ": the dxcompiler library is missing"), "the dependents are sought in <exe>/lib: \(line)")
+        }
+    }
+
     /// **14.** Every entry that needs the compiler throws the one named error without it: `shared`,
     /// `isAvailable` (false, no throw), the static self test and the device form. Over a process
     /// cache that finds nothing, swapped in by the `package` seam.
