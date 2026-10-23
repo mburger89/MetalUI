@@ -1,7 +1,7 @@
 # Run-time HLSL compute shaders on SDL_GPU (XP-G25) — decisions
 
 Rulings for item XP-G25 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by MetalCreator's `xp-c`
-track. Prefix `RC-`. **Next unused: `RC-T`.**
+track. Prefix `RC-`. **Next unused: `RC-X`.**
 Spec: [`specs/2026-10-22-sdl-gpu-runtime-shaders-design.md`](specs/2026-10-22-sdl-gpu-runtime-shaders-design.md). Record: `../record/151-sdl-gpu-runtime-shaders.md`.
 Branch `feat/sdl-gpu-runtime-shaders` from `63feea05`. Continues `GA-F` (record 114), `GB-G` (record 137), `BS-` (record 138), `SY-` (record 143).
 Divergence labels reserved 805–814: **none taken** (`RC-A`). **Nothing is published** by this item (`BS-H`).
@@ -136,3 +136,38 @@ dyld (and glibc by SONAME) treat an already-loaded image of the same install nam
 ## RC-S — the concurrency test uses different kernels per thread
 
 **Defect found.** `eightThreadsCompileTheSameKernelToIdenticalBytes` could not redden for a shared output buffer (identical bytes hide a race). **Ruling.** Each thread compiles a kernel differing by `-DK=<i>`; each result must equal that K's serial compile. **Cost if wrong.** none.
+
+## RC-T — lane A's `package` API, as lane B calls it
+
+**Ruling.** `MetalUIShaderCompile` (portable, Foundation-free for these two files, `package`): `RuntimeLibraryLocator.attempts(explicit:environment:executableDirectory:windows:macOS:fileExists:directoryExists:)`
+returns the ordered `[Attempt]` (path, `Source`, `exists: Bool?`, reason; the spec's `candidates(...)` spelling is this), `loadOrder(_:)` is the list of paths to `SDL_LoadObject` in order and the one place that
+turns an explicit or variable path naming a missing file into an error (`ComputeValidationError.libraryMissing`), `describe(_:loadFailures:)` is the `path: reason` text (a refused load replaces the reason with
+`failed to load: <SDL text>`), `libraryNames(windows:macOS:)`, `preloadSet(directory:listing:windows:macOS:)`. `ComputeBlobValidation.validate(bytes:format:entryPoint:stage:reflection:)`, `validate(_ reflection:)`,
+`validateBytes`, `validateEntryPoint`, `validateSource`, `validateDefine(s)`, `target(forDriver:)` over `ComputeBlobFormat`, `ComputeBlobStage`, `ComputeReflection` and the error `ComputeValidationError`
+(`invalidInput`, `malformedReflection`, `unsupportedTarget`, `libraryMissing`), which lane B maps onto the public `SDLGPUShaderCompileError`. Choices a lane-B author must not undo: SPIR-V magic is
+**little-endian only** (`03 02 23 07`; a big-endian word stream is refused, as shadercross never writes one); a define value may be empty or nil, a name is an ASCII identifier, an entry point likewise;
+a count is `0...64`, a thread axis `>= 1`, `x*y*z <= 1024` with an overflowing product refused; a **preload group matches by file stem** (`dxcompiler`, `dxil`, prefix `spirv-cross`), so `libdxilconv` and
+`libdxcompiler.dylib.bak` are ignored, every version symlink of a group is preloaded (one image), shortest name first. The loader names left to the loader path are a bare list, never existence-checked.
+**Cost if wrong.** A signature moves with lane B's first commit.
+
+## RC-U — Linux aarch64 (glibc) facts: arm H and the dependents, measured 2026-10-22
+
+**Evidence** (the pin built in the image `metalui-portable`, Ubuntu 24.04 aarch64, clang, Release, volume `metalui-shadercross-sdl-gpu-runtime-shaders`; **a first build stopped at step 1115 of 1304 with `No space left on device`** when the OrbStack VM filled, and the resumed build finished). `readelf -d`: `libSDL3_shadercross.so.0.0.0` NEEDED
+`libSDL3.so.0`, `libspirv-cross-c-shared.so.0`, `libdxcompiler.so`, **no RPATH or RUNPATH** (`ldd`: both dependents `not found`); `libdxcompiler.so` carries RUNPATH `$ORIGIN/../lib` and SONAME `libdxcompiler.so`; `libdxil.so` SONAME `libdxildll.so`, RUNPATH `$ORIGIN/../lib`.
+Probe arms on glibc, all as on macOS (RC-H): **H negative**, load by full path alone: `libspirv-cross-c-shared.so.0: cannot open shared object file`. **H positive**, after preloading `libdxcompiler.so` and `libspirv-cross-c-shared.so.0` by full path: every arm passes, so glibc, like dyld, accepts an
+already-loaded image of the same SONAME (the ruling of RC-N stands; no `$ORIGIN` advice needed). A (1092 bytes, magic `07230203`), B (467 bytes of DXC text, `hlsl.hlsl:1:32: error: expected parameter declarator`), C (`robuf=1 rwbuf=1 ubo=1 threads=64,1,1`), D (577 characters, `main0`), F (8 threads x 3 compiles, 0 mismatches), I (the same struct sizes and offsets as macOS: 40, 16, 32, 36). **E:
+DXIL is 3,368 bytes with a non-zero digest, identical with `libdxil.so` absent and present** (a relocated copy of the four other files), and the same bytes on macOS (also `libdxil`-independent there: `libdxil.dylib`'s install name is `libdxildll.dylib`, found only through `@executable_path/../lib`). So `libdxil` is not needed on Linux aarch64 or macOS to *produce* DXIL; Windows is unmeasured (human check RC1) and the zip ships it (`RC-K`).
+Install sizes: aarch64 Linux `lib` 39 MB (`libdxcompiler.so` 33,305,136, `libdxil.so` 2,724,952, `libspirv-cross-c-shared.so.0.68.0` 4,033,808, `libSDL3_shadercross.so.0.0.0` 74,016); macOS `lib` 32 MB (`libdxcompiler.dylib` 27,868,432 as in RC-K).
+**Cost if wrong.** None: facts for packaging.
+
+## RC-V — compile-time measurements, dated 2026-10-22 (never pinned)
+
+**Instrument.** `docs/probes/runtime-compile-measure.sh` (+ `.c`): median of 3 of HLSL to SPIR-V, SPIR-V to MSL and HLSL to DXIL for generated kernels of 200, 1000 and 2000 lines, the first compile in a process, the library load. **Linux aarch64 image, idle (load 0.16): 200 lines 0.056 s to SPIR-V (47,736 bytes), 0.005 s to MSL, 0.085 s to DXIL (18,356 bytes); 1000 lines 0.564 / 0.021 / 0.679 s (242,936 / 84,372 bytes); 2000 lines 2.658 / 0.057 / 2.904 s (471,020 / 159,860 bytes);**
+first compile 0.056 s, load 7 ms. **macOS arm64 under a load average of 265 to 470 (other sessions: an upper bound, not a reading of the machine):** 0.081 / 0.004 / 0.121 s, 0.441 / 0.018 / 0.567 s, 1.588 / 0.063 / 2.546 s; first compile 0.081 s, load 0.146 s. The idle-Mac figures of RC-H (0.044 / 0.421 / 1.372 s to SPIR-V) stand as the quieter reading.
+**Reading.** DXC's HLSL to SPIR-V is more than 95 % of a Metal-route compile, grows faster than linearly (2000 lines is about 4.7 times the 1000-line kernel on Linux) and DXIL costs 9 to 52 % more than SPIR-V; a 1000-line kernel compiles in about half a second, so a solid that changes should compile off the main actor and be cached by the app (`RC-M`).
+**Cost if wrong.** None: no pin rests on a time.
+
+## RC-W — lane A's mutations ran as filtered sets (see record)
+
+**Ruling.** Lane A's 18 tests live in a pure target no other test references, so each mutation ran the **`MetalUIShaderCompileTests` filter** (33 tests, 0.4 to 1.1 s per run) and the full unfiltered root suite ran once on the final tree (4389 tests, 4371 + 18). Twenty-one mutations, each applied to one spelling and restored with `git checkout`, `git status --short` clean after each: one survived
+(M9a, an accepted empty byte array, because the SPIR-V magic check also refused it and the test only looked for the word "bytes"); the test now requires `bytes is empty` and the mutation reddens `emptyBytesAnEmptyEntryPointAndAGraphicsStageAreRefused`. **Cost if wrong.** None.

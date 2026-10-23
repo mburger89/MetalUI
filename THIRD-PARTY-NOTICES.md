@@ -61,6 +61,26 @@ These are linked only when a dependent enables the `SDL` trait (SDL3) and the
 Gap: neither SDL3's nor AccessKit's licence text is in this repo; take them
 from the SDL3 release and the fetched `accesskit-c-0.23.0` directory.
 
+## Optional run-time shader compiler (not vendored, not published)
+
+Only an app that calls `SDLGPUShaderCompiler` (`MetalUISDLGPU`, item XP-G25, record 151) ships these; MetalUI loads the
+library at run time with `SDL_LoadObject` and links none of it, so an app that never compiles HLSL in the running process
+ships none of it and owes none of these notices. The files come from a build of `libsdl-org/SDL_shadercross` at commit
+`1ff05bec573988a98ef9e0260b4da44f512b8367` (`docs/packaging.md` 4a and 4b); MetalUI publishes no binary of it (`BS-H`).
+Licences read in the checkout at that commit (2026-10-22):
+
+| Component | Licence | Shipped as | Text in the checkout |
+|---|---|---|---|
+| SDL_shadercross | zlib | `libSDL3_shadercross` (`.dylib`, `.so`, `SDL3_shadercross.dll`) | `LICENSE.txt` (the install copies it to `share/licenses/SDL3_shadercross/`) |
+| DirectXShaderCompiler (the libsdl-org fork, branch `1.8.2502-SDL`) | LLVM Release License, University of Illinois/NCSA Open Source License (2003-2015), with the bundled third-party list the fork keeps | `libdxcompiler`, `libdxil` (`dxil.dll` on Windows) | `external/DirectXShaderCompiler/LICENSE.TXT` and `ThirdPartyNotices.txt` |
+| SPIRV-Cross | Apache-2.0 | `libspirv-cross-c-shared` (static inside shadercross when built without `SDLSHADERCROSS_SPIRVCROSS_SHARED`) | `external/SPIRV-Cross/LICENSE` |
+| SPIRV-Tools | Apache-2.0 | linked into the above, no file of its own | `external/SPIRV-Tools/LICENSE` |
+| SPIRV-Headers | Khronos MIT-style (2015-2024 The Khronos Group Inc.) | headers only, compiled into the above | `external/SPIRV-Headers/LICENSE` |
+
+The DXC fork is **not Apache-2.0**: its licence requires the copyright notice and the licence text to travel with a binary
+distribution, so ship `LICENSE.TXT` and `ThirdPartyNotices.txt` beside `libdxcompiler`. Gap: none of these texts is in this
+repository (nothing is vendored); take them from the checkout of the pin.
+
 ## What the repository does not ship
 
 `Tests/Fonts/` (Noto Sans, Noto Sans Arabic, Source Sans 3) are test inputs
