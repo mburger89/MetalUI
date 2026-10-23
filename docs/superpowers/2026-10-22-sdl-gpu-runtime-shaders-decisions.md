@@ -1,7 +1,7 @@
 # Run-time HLSL compute shaders on SDL_GPU (XP-G25) — decisions
 
 Rulings for item XP-G25 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by MetalCreator's `xp-c`
-track. Prefix `RC-`. **Next unused: `RC-Y`.**
+track. Prefix `RC-`. **Next unused: `RC-Z`.**
 Spec: [`specs/2026-10-22-sdl-gpu-runtime-shaders-design.md`](specs/2026-10-22-sdl-gpu-runtime-shaders-design.md). Record: `../record/151-sdl-gpu-runtime-shaders.md`.
 Branch `feat/sdl-gpu-runtime-shaders` from `63feea05`. Continues `GA-F` (record 114), `GB-G` (record 137), `BS-` (record 138), `SY-` (record 143).
 Divergence labels reserved 805–814: **none taken** (`RC-A`). **Nothing is published** by this item (`BS-H`).
@@ -175,3 +175,34 @@ first compile 0.056 s, load 7 ms. **macOS arm64 under a load average of 265 to 4
 ## RC-X — lane B's API corrections of fact: `package` is invisible to the `MetalUISDL` tests, `selfTest` is async, and the seam is internal
 
 **Defects found while building.** (1) The `Backends/SDL` tests are the package `MetalUISDL`; `MetalUIShaderCompile` and `MetalUISDLGPU` are root-package targets, so a **`package` symbol is not reachable from those tests** (only `internal` through `@testable`). The spec's `package` seam (`load(candidates:)`, `ProcessCache`) is therefore **internal**, and its parameter type is `SDLGPUShaderCompiler.LibraryAttempt`, a wrapper of lane A's `RuntimeLibraryLocator.Attempt` (whose memberwise initializer is internal: lane A's file gained one `package init`, additive). The plain-import guard (`RC-P`) scans that these stay non-public. (2) A device self test builds a pipeline, dispatches and reads a **buffer** back, and the only buffer readback is `async` (`download`): `selfTest(for:)` is **`async throws`** (the spec said `throws`), as an instance member and as a static convenience `selfTest(for:libraryPath:)` that does `shared()` first, so an app's `--self-test` is one call that throws `compilerUnavailable` without the library. (3) The report's `format` is the target's case name as a `String` (`spirv`, `msl`, `dxil`), its `driver` `"none"` without a device. (4) The empty-diagnostics test hook is `mui_sc_test_empty_diagnostics(_:)` in the C shim; an empty compiler message is turned into `compileFailed` carrying a fixed sentence (`emptyDiagnostics`) and the self test refuses to pass on it (`RC-D`). (5) `SDL_ShaderCross_Init` runs once per process even when several loads succeed (a seam load in a test): the shim guards it with an atomic. **Cost if wrong.** A signature.
+
+## RC-Y — lane B's verification, mutations and measurements (2026-10-22)
+
+**Red first.** Commit `96fd5539` (tests only, the C shim already built): `cannot find 'SDLGPUShaderCompiler' in scope`, `cannot find 'SDLGPUShaderDefine' in scope`, `cannot find 'SDLGPUShaderTarget' in scope`,
+`cannot find type 'SDLGPUShaderCompileError' in scope`, `type 'SDLGPUShaderBlob' has no member 'Format'`, `'SDLGPUShaderBlob' initializer is inaccessible due to 'internal' protection level` (29 errors in all).
+**Green:** `Backends/SDL` on macOS with `METALUI_REQUIRE_GPU=1 METALUI_REQUIRE_SHADERCROSS=1` and the pin's install in `METALUI_SHADERCROSS_LIB`: **291 tests in 16 suites passed**, of which 21 are the new `SDLGPURuntimeCompile*` ones (every gated one ran, none skipped); without the variable the eleven gated tests skip naming the variable and the other ten pass.
+`METALUI_SHADERCROSS_AT_PIN=1`: SPIR-V, MSL and DXIL of the run-time compile of `append.comp.hlsl` are **byte-equal** to the checked-in build-tool blobs (test 19). **Linux image** (`metalui-portable`, aarch64, lavapipe, shadercross from volume `metalui-shadercross-sdl-gpu-runtime-shaders`, `METALUI_SHADERCROSS_LIB=/vol/install/lib`): **288 tests in 16 suites passed**, every gated test ran, the dispatch test read back through SPIR-V on lavapipe; the 30 XCTests also passed. Root native suite: **4389 tests in 10 suites passed** (4371 + lane A's 18; lane B adds no root test), `FR-J no-argument frame: succeeded=true`; default build 0 `warning:`; inventory and undocumented scripts print nothing.
+Self test, wall clock of the test (dated, loaded machines, never pinned): macOS Metal (MSL route, one dispatch) 0.039 s, Linux lavapipe (SPIR-V route) 0.052 s.
+
+**Mutations** (each applied to one spelling, restored with `git checkout`, `git status --short` empty after each, the full unfiltered `Backends/SDL` suite run with the library and a GPU; tests named, not counted):
+
+| Mutation (spelling) | Reddened |
+|---|---|
+| M13 `load(candidates:)` throws `tried: []` | `aMissingLibraryThrowsCompilerUnavailableListingEveryPathTried`, `everyCompileEntryThrowsCompilerUnavailableWithoutTheLibrary` |
+| M14 static `selfTest` answers a report when `shared()` fails | `everyCompileEntryThrowsCompilerUnavailableWithoutTheLibrary` |
+| M15 initializer maps `threadCount` as `(y, x, z)` | `theBlobInitializerMakesAPipelineFromTheCheckedInAppShaderBytes`, `theBlobInitializerKeepsEveryCountItWasGiven`, `aCompiledKernelDispatchesAndReadsBack` and six more compile tests |
+| M16 initializer validates the bytes but not the reflection | `aMalformedReflectionThrowsBeforeSDLIsCalled` |
+| M17 initializer swaps the read-only and read-write buffer counts | `theBlobInitializerKeepsEveryCountItWasGiven`, `theBlobInitializerMakesAPipelineFromTheCheckedInAppShaderBytes`, `aValidKernelCompilesToTheDevicesFormatWithItsReflection` and three more |
+| M18 `compileCompute` drops the read-write buffer count | `aValidKernelCompilesToTheDevicesFormatWithItsReflection`, `aCompiledKernelDispatchesAndReadsBack` and five more |
+| M19 the C call gets entry point `"mainx"` | eight tests, `eightThreadsCompileDifferentKernelsToTheirOwnSerialBytes` among them |
+| M20 the shim never reads `SDL_GetError` | `aSyntaxErrorThrowsCompileFailedWithDXCsText`, `selfTestNamesTheDriverTheFormatAndTheLibrary` |
+| M21 the MSL route reports thread count 1 | `aCompiledKernelDispatchesAndReadsBack`, `aValidKernelCompilesToTheDevicesFormatWithItsReflection`, `definesChangeTheCompiledKernel` and two more |
+| M22 defines are not passed | `definesChangeTheCompiledKernel`, `eightThreadsCompileDifferentKernelsToTheirOwnSerialBytes`, `aCompiledKernelDispatchesAndReadsBack`, `aValidKernelCompilesToTheDevicesFormatWithItsReflection` |
+| M23 `shared()` loads on every call | `aSecondSharedCallReusesTheFirstLoad` |
+| M24 one static output buffer in the C shim (and no free) | `eightThreadsCompileDifferentKernelsToTheirOwnSerialBytes` (alone: the identical-kernel arm of the old spec could not have seen it, `RC-S`) |
+| M25 the self test skips the broken-kernel arm | `selfTestFailsWhenTheDiagnosticsAreEmpty` |
+| M27 the shim fails a compile when `SDL_GetError` is non-empty after a success | **survived**, and is unrealizable at that spelling: DXC's warnings go to `SDL_LogWarn`, not to `SDL_GetError` (`RC-I`). The test now proves its arm is real instead: it counts SDL's warn-priority log lines through `SDL_SetLogOutputFunction` (an unused variable does **not** warn; an implicit vector truncation does) and requires at least one |
+| G1 `RuntimeLibraryLocator` made `public` | `theLocatorTheValidationAndTheCShimAreNotPublic` |
+| G2 the bytes initializer made `internal` | build failure of `SDLGPURuntimeCompileGuardTests.swift` (`'SDLGPUShaderBlob' initializer is inaccessible due to 'internal' protection level`), reverted |
+
+No mutation was left applied. **Cost if wrong.** None.
