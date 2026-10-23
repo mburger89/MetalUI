@@ -54,6 +54,10 @@ import Testing
 /// 1.20 — a `.task` whose work is main-actor and timer-free completes under
 /// `runUntilIdle()` and its write is drawn: the box is 50 wide after, 10
 /// before. Mutation: `runUntilIdle` without `Task.yield()`.
+///
+/// Waits on the write, bounded, rather than on one call: off Darwin the executor
+/// may run the test's four quiet yields before the task's second resumes (seen
+/// serially on Linux and Windows CI, and on a one-CPU Linux container, 2 in 25).
 @Test @MainActor func aTaskCompletesUnderRunUntilIdle() async throws {
     let loader = HarnessLoader()
     let window = try harnessWindow {
@@ -63,7 +67,7 @@ import Testing
         }
     }
     #expect(rects(window, height: 10).map { $0.bounds.size.width } == [10], "the task has not finished")
-    try await window.runUntilIdle()
+    for _ in 0..<64 where loader.value != 42 { try await window.runUntilIdle() }
     #expect(loader.value == 42)
     #expect(rects(window, height: 10).map { $0.bounds.size.width } == [50], "its write was drawn")
 }
