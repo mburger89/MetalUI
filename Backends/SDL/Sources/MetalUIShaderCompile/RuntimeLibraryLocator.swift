@@ -22,6 +22,13 @@ package enum RuntimeLibraryLocator {
         package var exists: Bool?
         /// The words after the path in an error line.
         package var reason: String
+
+        package init(path: String, source: Source, exists: Bool?, reason: String) {
+            self.path = path
+            self.source = source
+            self.exists = exists
+            self.reason = reason
+        }
     }
 
     /// The loader-path names of the library: `.dylib`, then `.so.0` and `.so`, or `.dll`.

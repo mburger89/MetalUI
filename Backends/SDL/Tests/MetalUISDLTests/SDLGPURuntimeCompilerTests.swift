@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-import MetalUIShaderCompile
 import MetalUISDLGPU
 @testable import MetalUISDLGPU
 
@@ -11,13 +10,12 @@ import MetalUISDLGPU
 
 /// Attempts naming files that do not exist, plus one bare loader name no machine has, so a
 /// real `load(candidates:)` runs the whole path with no library on the loader path.
-func missingLibraryAttempts() -> [RuntimeLibraryLocator.Attempt] {
-    var attempts = RuntimeLibraryLocator.attempts(
+func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
+    var attempts = SDLGPUShaderCompiler.libraryAttempts(
         explicit: nil, environment: ["METALUI_SHADERCROSS": "/nonexistent/tool/bin/shadercross"],
         executableDirectory: "/nonexistent/app/bin", windows: false, macOS: true,
-        fileExists: { _ in false }, directoryExists: { _ in false }).filter { $0.source != .loaderPath }
-    attempts.append(RuntimeLibraryLocator.Attempt(path: "libmui_no_such_shadercross.dylib", source: .loaderPath,
-                                                  exists: nil, reason: "left to the loader path (not checked)"))
+        fileExists: { _ in false }, directoryExists: { _ in false }).filter { !$0.isLoaderName }
+    attempts.append(.loaderName("libmui_no_such_shadercross.dylib"))
     return attempts
 }
 
@@ -42,7 +40,7 @@ func missingLibraryAttempts() -> [RuntimeLibraryLocator.Attempt] {
                     "the loader's refusal is the reason: \(tried)")
         }
         // An explicit path naming a missing file is an error from the lookup, never a fall-through.
-        let explicit = RuntimeLibraryLocator.attempts(
+        let explicit = SDLGPUShaderCompiler.libraryAttempts(
             explicit: "/nonexistent/libSDL3_shadercross.dylib", environment: [:], executableDirectory: nil,
             windows: false, macOS: true, fileExists: { _ in false }, directoryExists: { _ in false })
         do {
@@ -59,20 +57,26 @@ func missingLibraryAttempts() -> [RuntimeLibraryLocator.Attempt] {
     /// Mutation: the static `selfTest` skips its `shared()` check and answers a report.
     @Test func everyCompileEntryThrowsCompilerUnavailableWithoutTheLibrary() async throws {
         let cache = SDLGPUShaderCompiler.ProcessCache(attempts: { _ in missingLibraryAttempts() })
+        let device = SDLGPUDevice.make()
+        var failures: [String] = []
         await SDLGPUShaderCompiler.withProcessCache(cache) {
-            func unavailable(_ body: () async throws -> Void, _ entry: String) async {
-                do { try await body(); Issue.record("\(entry) did not throw") }
-                catch SDLGPUShaderCompileError.compilerUnavailable(let tried) { #expect(!tried.isEmpty, "\(entry) names the paths") }
-                catch { Issue.record("\(entry) threw \(error)") }
+            func record(_ entry: String, _ error: Error?) {
+                guard let error else { failures.append("\(entry) did not throw"); return }
+                guard case SDLGPUShaderCompileError.compilerUnavailable(let tried) = error, !tried.isEmpty else {
+                    failures.append("\(entry) threw \(error)"); return
+                }
             }
-            await unavailable({ _ = try SDLGPUShaderCompiler.shared() }, "shared()")
-            #expect(SDLGPUShaderCompiler.isAvailable == false)
-            await unavailable({ _ = try await SDLGPUShaderCompiler.selfTest(for: nil) }, "selfTest(for:)")
-            if let device = SDLGPUDevice.make() {
-                await unavailable({ _ = try device.compileComputePipeline(hlsl: "[numthreads(1,1,1)] void main() {}", name: "k") },
-                                  "device.compileComputePipeline(hlsl:)")
+            do { _ = try SDLGPUShaderCompiler.shared(); record("shared()", nil) } catch { record("shared()", error) }
+            if SDLGPUShaderCompiler.isAvailable { failures.append("isAvailable is true") }
+            do { _ = try await SDLGPUShaderCompiler.selfTest(for: nil); record("selfTest(for:)", nil) }
+            catch { record("selfTest(for:)", error) }
+            if let device {
+                do { _ = try device.compileComputePipeline(hlsl: "[numthreads(1,1,1)] void main() {}", name: "k")
+                    record("device.compileComputePipeline(hlsl:)", nil) }
+                catch { record("device.compileComputePipeline(hlsl:)", error) }
             }
         }
+        #expect(failures.isEmpty, "\(failures)")
     }
 
     /// **15.** The bytes initializer makes a pipeline from the checked-in app shader's bytes and

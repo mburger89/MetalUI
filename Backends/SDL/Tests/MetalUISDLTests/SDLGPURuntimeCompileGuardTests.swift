@@ -65,7 +65,7 @@ import MetalUISDLGPU   // a plain import, never @testable: this file proves what
         }
         // The process cache and the loading seam are package, not public.
         for needle in ["public final class ProcessCache", "public static func load(candidates", "public static func withProcessCache"] {
-            #expect(!compiler.contains(needle), needle)
+            #expect(!compiler.contains(needle), Comment(rawValue: needle))
         }
     }
 }

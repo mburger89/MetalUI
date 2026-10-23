@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 import SDLBridge
-import MetalUIShaderCompile
 import MetalUISDLGPU
 @testable import MetalUISDLGPU
 
@@ -180,11 +179,11 @@ extension SDLGPURuntimeCompilerTests {
     @Test(.enabled(if: RuntimeCompilerSupport.available, needsCompiler))
     func eightThreadsCompileDifferentKernelsToTheirOwnSerialBytes() throws {
         let compiler = try SDLGPUShaderCompiler.shared()
-        func compile(_ k: Int) throws -> [UInt8] {
+        let compile: @Sendable (Int) throws -> [UInt8] = { k in
             try compiler.compileCompute(name: "k\(k)", hlsl: RuntimeCompilerSupport.scaleKernel,
                                         defines: [SDLGPUShaderDefine("K", String(k + 2))], target: .spirv).bytes
         }
-        let serial = try (0..<8).map(compile)
+        let serial = try (0..<8).map { try compile($0) }
         #expect(Set(serial).count == 8, "the eight kernels differ")
         let results = Results(count: 8)
         DispatchQueue.concurrentPerform(iterations: 8) { index in
