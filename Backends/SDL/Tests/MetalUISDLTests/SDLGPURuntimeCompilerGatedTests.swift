@@ -45,6 +45,14 @@ enum RuntimeCompilerSupport {
     }
 }
 
+/// Warnings SDL logged while the warning test runs.
+private let warningCount = LockedCounter()
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    func withLock<R>(_ body: (inout Int) -> R) -> R { lock.lock(); defer { lock.unlock() }; return body(&value) }
+}
+
 private let needsCompiler = Comment(rawValue: "needs the shader compiler library (METALUI_SHADERCROSS_LIB)")
 
 extension SDLGPURuntimeCompilerTests {
@@ -236,14 +244,26 @@ extension SDLGPURuntimeCompilerTests {
         }
     }
 
-    /// **27.** A kernel that only warns (an unused variable) still compiles.
-    /// Mutation: the C shim treats a non-empty `SDL_GetError` after a success as failure.
+    /// **27.** A kernel that only warns (an unused variable) still compiles, and the compiler really
+    /// did warn: the warning went to SDL's log (`RC-I`), counted here through the log output
+    /// function, so the arm is not a kernel that never warned. Mutation: the `RC-I` ruling cannot be
+    /// mutated at the shim (a warning is not in `SDL_GetError`; M27 survived and says so): a pin on a
+    /// warning text would need the app's log hook.
     @Test(.enabled(if: RuntimeCompilerSupport.available, needsCompiler))
     func aWarningOnlyKernelStillCompiles() throws {
         let compiler = try SDLGPUShaderCompiler.shared()
-        let source = "RWStructuredBuffer<uint> dst : register(u0, space1);\n[numthreads(8,1,1)]\nvoid main(uint3 id : SV_DispatchThreadID) { float unused = 1.0; uint dead; dst[id.x] = id.x; }\n"
+        let source = "RWStructuredBuffer<uint> dst : register(u0, space1);\n[numthreads(8,1,1)]\nvoid main(uint3 id : SV_DispatchThreadID) { float2 truncated = float3(1.0, 2.0, 3.0); float unused = 1.0; dst[id.x] = id.x + (uint)truncated.x; }\n"
+        warningCount.withLock { $0 = 0 }
+        var previous: SDL_LogOutputFunction?
+        var previousData: UnsafeMutableRawPointer?
+        SDL_GetLogOutputFunction(&previous, &previousData)
+        SDL_SetLogOutputFunction({ _, _, priority, _ in
+            if priority == SDL_LOG_PRIORITY_WARN { warningCount.withLock { $0 += 1 } }
+        }, nil)
+        defer { if let previous { SDL_SetLogOutputFunction(previous, previousData) } }
         let blob = try compiler.compileCompute(name: "warn", hlsl: source, target: .spirv)
         #expect(blob.threadCount.x == 8 && blob.readWriteStorageBuffers == 1)
+        #expect(warningCount.withLock { $0 } >= 1, "the compiler logged no warning for an unused variable")
     }
 
     /// Compiles the control kernel for `device` with `K = factor`, dispatches it over 256 words
