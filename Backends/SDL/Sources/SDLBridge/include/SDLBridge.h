@@ -554,3 +554,44 @@ int32_t mui_instance_payload_high_water(void);
 // SDL_RestoreWindow when minimised, SDL_RaiseWindow, and SDL_FlashWindow until
 // focused when the window did not take focus (ruling SN-H).
 bool mui_window_raise(void *window);
+
+// ---- Run-time shader compiler (item XP-G25, rulings RC-B..RC-S): SDL_shadercross loaded with
+// SDL_LoadObject, never linked. Compiled only under the `SDL` trait (SDLShaderCross.c); the
+// Swift side is `SDLGPUShaderCompiler` in MetalUISDLGPU. Every function that can fail writes
+// SDL_GetError()'s text, read on the calling thread right after the failing call, into the
+// caller's `error` buffer (RC-D); nothing is held in a static buffer, so compiles run
+// concurrently (RC-S).
+typedef struct MuiShaderCross MuiShaderCross;
+// The compute counts and thread group SDL_CreateGPUComputePipeline needs: the nine Uint32s of
+// SDL_ShaderCross_ComputePipelineMetadata, in its order.
+typedef struct {
+    uint32_t samplers, readonly_storage_textures, readonly_storage_buffers,
+             readwrite_storage_textures, readwrite_storage_buffers, uniform_buffers,
+             threadcount_x, threadcount_y, threadcount_z;
+} MuiShaderCrossReflection;
+// Loads the dependents named in `preload` (full paths, in order) and then the library at `path`
+// (a full path or a bare loader name), resolves the five functions and calls
+// SDL_ShaderCross_Init once. NULL on failure with the text in `error`. `counted` adds one to
+// mui_sc_loads (the process cache's load; a test seam's load is not counted). On Windows the
+// library's directory is added to the DLL search path first. Never unloaded (RC-B).
+MuiShaderCross *mui_sc_load(const char *path, const char *const *preload, uint32_t preload_count,
+                            bool counted, char *error, size_t error_capacity);
+// How many counted loads happened in this process (a test's read-back of the one-load rule).
+int32_t mui_sc_loads(void);
+// HLSL compute to SPIR-V (`target` 0) or DXIL (1). `*out` is SDL_malloc'd: free it with mui_sc_free.
+// Defines are `define_count` name/value pairs (a NULL value is a bare define). 0 on success.
+int32_t mui_sc_compile_hlsl(const MuiShaderCross *sc, int32_t target, const char *source, const char *entry,
+                            const char *include_dir, const char *const *define_names,
+                            const char *const *define_values, uint32_t define_count,
+                            uint8_t **out, size_t *out_size, char *error, size_t error_capacity);
+// SPIR-V compute to MSL text; `*out` is SDL_malloc'd (NUL-terminated, `*out_size` without the NUL).
+int32_t mui_sc_msl(const MuiShaderCross *sc, const uint8_t *spirv, size_t size, const char *entry,
+                   uint8_t **out, size_t *out_size, char *error, size_t error_capacity);
+// Reflection of a compute SPIR-V module.
+int32_t mui_sc_reflect(const MuiShaderCross *sc, const uint8_t *spirv, size_t size,
+                       MuiShaderCrossReflection *out, char *error, size_t error_capacity);
+// SDL_free for what the functions above returned.
+void mui_sc_free(void *pointer);
+// Test hook: while set, every failure's text is emptied, as if shadercross and the app held two
+// SDL instances (RC-D, the self test's broken-kernel arm).
+void mui_sc_test_empty_diagnostics(bool empty);
