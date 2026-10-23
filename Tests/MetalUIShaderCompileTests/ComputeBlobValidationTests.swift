@@ -80,6 +80,8 @@ private func refusal(_ body: () throws -> Void) -> String? {
     #expect(refusal { try Validation.validateBytes([0x07, 0x23, 0x02, 0x03, 0, 0, 0, 0], format: .spirv, entryPoint: "main") } != nil,
             "big-endian magic")
     #expect(refusal { try Validation.validateBytes(spirv + [0], format: .spirv, entryPoint: "main") }?.contains("words") == true)
+    #expect(refusal { try Validation.validateBytes(spirv + [0, 0], format: .spirv, entryPoint: "main") }?.contains("words") == true,
+            "two extra bytes: even but not a whole word")
     #expect(refusal { try Validation.validateBytes([0x03, 0x02, 0x23], format: .spirv, entryPoint: "main") } != nil)
     #expect(refusal { try Validation.validateBytes([1, 2, 3, 4], format: .spirv, entryPoint: "main") } != nil)
 }
