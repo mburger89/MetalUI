@@ -47,10 +47,11 @@ import MetalUISDLGPU   // a plain import, never @testable: this file proves what
         let files = ["MetalUIShaderCompile/RuntimeLibraryLocator.swift", "MetalUIShaderCompile/ComputeBlobValidation.swift",
                      "MetalUISDLGPU/SDLGPUShaderCompiler.swift", "MetalUISDLGPU/SDLGPUShaderBlob+Bytes.swift",
                      "MetalUISDLGPU/SDLGPUDevice+RuntimeCompile.swift"]
+        // `\.isNewline`, never `"\n"`: a CRLF checkout (Windows) makes "\r\n" one Character.
         var text: [String: String] = [:]
         for file in files { text[file] = try String(contentsOf: sources.appendingPathComponent(file), encoding: .utf8) }
         for file in ["MetalUIShaderCompile/RuntimeLibraryLocator.swift", "MetalUIShaderCompile/ComputeBlobValidation.swift"] {
-            let lines = try #require(text[file]).split(separator: "\n").map(String.init)
+            let lines = try #require(text[file]).split(whereSeparator: \.isNewline).map(String.init)
             for line in lines where line.contains("public ") && !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
                 Issue.record("\(file) declares public API: \(line)")
             }
@@ -60,7 +61,7 @@ import MetalUISDLGPU   // a plain import, never @testable: this file proves what
             #expect(!body.contains("mui_sc_"), "\(file) reaches the C shim")
         }
         let compiler = try #require(text["MetalUISDLGPU/SDLGPUShaderCompiler.swift"])
-        for line in compiler.split(separator: "\n") where line.contains("public") && line.contains("MuiShaderCross") {
+        for line in compiler.split(whereSeparator: \.isNewline) where line.contains("public") && line.contains("MuiShaderCross") {
             Issue.record("a public signature names the C handle: \(line)")
         }
         // The process cache and the loading seam are package, not public.
