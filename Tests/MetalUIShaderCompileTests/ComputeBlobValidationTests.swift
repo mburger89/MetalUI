@@ -62,7 +62,7 @@ private func refusal(_ body: () throws -> Void) -> String? {
 @Test func emptyBytesAnEmptyEntryPointAndAGraphicsStageAreRefused() throws {
     try Validation.validate(bytes: spirv, format: .spirv, entryPoint: "main", stage: .compute, reflection: reflection())
     #expect(refusal { try Validation.validate(bytes: [], format: .spirv, entryPoint: "main", stage: .compute, reflection: reflection()) }?
-        .contains("bytes") == true)
+        .contains("bytes is empty") == true)
     #expect(refusal { try Validation.validate(bytes: spirv, format: .spirv, entryPoint: "", stage: .compute, reflection: reflection()) }?
         .contains("entryPoint") == true)
     for stage in [ComputeBlobStage.vertex, .fragment] {
