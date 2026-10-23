@@ -216,7 +216,9 @@ private func roundTrip(on device: SDLGPUDevice) -> Bool {
     @Test func videoInitOffTheMainThreadIsMeasured() async throws {
         // Not `.enabled(if:)`: that probe runs off the main thread, so it would skip silently if `make`
         // lost its macOS main hop. The probe here is on the main actor, where `make` needs no hop.
+        #if os(macOS)
         guard SDLGPUDevice.make() != nil else { return }
+        #endif
         #if os(macOS)
         armMainRunLoopExitCheck()
         #endif
@@ -228,8 +230,13 @@ private func roundTrip(on device: SDLGPUDevice) -> Bool {
         }
         let answered = try #require(result, "make returned within the bound")
         print("DL D8: videoAlreadyInitialised=\(wasUp) offThreadMake=\(answered ?? "nil") lastFailure=\(SDLGPUDevice.lastFailure)")
-        // The main-thread probe above made a device, so a GPU exists: the off-thread call must answer too.
+        // On macOS the main-thread probe above made a device, so a GPU exists: the off-thread call must answer too.
+        // Off macOS no probe runs first, so a filtered-alone run is the first video init of the process (DL-K).
+        #if os(macOS)
         #expect(answered != nil, "an off-main-thread make answered: \(SDLGPUDevice.lastFailure)")
+        #else
+        #expect(answered != nil || !GPUTestSupport.required, "an off-main-thread make answered: \(SDLGPUDevice.lastFailure)")
+        #endif
         if answered != nil, failureBefore.isEmpty { #expect(SDLGPUDevice.lastFailure.isEmpty) }
     }
 }
