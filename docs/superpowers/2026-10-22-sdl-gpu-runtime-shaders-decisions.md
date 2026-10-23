@@ -1,7 +1,7 @@
 # Run-time HLSL compute shaders on SDL_GPU (XP-G25) — decisions
 
 Rulings for item XP-G25 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), requested by MetalCreator's `xp-c`
-track. Prefix `RC-`. **Next unused: `RC-X`.**
+track. Prefix `RC-`. **Next unused: `RC-Y`.**
 Spec: [`specs/2026-10-22-sdl-gpu-runtime-shaders-design.md`](specs/2026-10-22-sdl-gpu-runtime-shaders-design.md). Record: `../record/151-sdl-gpu-runtime-shaders.md`.
 Branch `feat/sdl-gpu-runtime-shaders` from `63feea05`. Continues `GA-F` (record 114), `GB-G` (record 137), `BS-` (record 138), `SY-` (record 143).
 Divergence labels reserved 805–814: **none taken** (`RC-A`). **Nothing is published** by this item (`BS-H`).
@@ -171,3 +171,7 @@ first compile 0.056 s, load 7 ms. **macOS arm64 under a load average of 265 to 4
 
 **Ruling.** Lane A's 18 tests live in a pure target no other test references, so each mutation ran the **`MetalUIShaderCompileTests` filter** (33 tests, 0.4 to 1.1 s per run) and the full unfiltered root suite ran once on the final tree (4389 tests, 4371 + 18). Twenty-one mutations, each applied to one spelling and restored with `git checkout`, `git status --short` clean after each: one survived
 (M9a, an accepted empty byte array, because the SPIR-V magic check also refused it and the test only looked for the word "bytes"); the test now requires `bytes is empty` and the mutation reddens `emptyBytesAnEmptyEntryPointAndAGraphicsStageAreRefused`. **Cost if wrong.** None.
+
+## RC-X — lane B's API corrections of fact: `package` is invisible to the `MetalUISDL` tests, `selfTest` is async, and the seam is internal
+
+**Defects found while building.** (1) The `Backends/SDL` tests are the package `MetalUISDL`; `MetalUIShaderCompile` and `MetalUISDLGPU` are root-package targets, so a **`package` symbol is not reachable from those tests** (only `internal` through `@testable`). The spec's `package` seam (`load(candidates:)`, `ProcessCache`) is therefore **internal**, and its parameter type is `SDLGPUShaderCompiler.LibraryAttempt`, a wrapper of lane A's `RuntimeLibraryLocator.Attempt` (whose memberwise initializer is internal: lane A's file gained one `package init`, additive). The plain-import guard (`RC-P`) scans that these stay non-public. (2) A device self test builds a pipeline, dispatches and reads a **buffer** back, and the only buffer readback is `async` (`download`): `selfTest(for:)` is **`async throws`** (the spec said `throws`), as an instance member and as a static convenience `selfTest(for:libraryPath:)` that does `shared()` first, so an app's `--self-test` is one call that throws `compilerUnavailable` without the library. (3) The report's `format` is the target's case name as a `String` (`spirv`, `msl`, `dxil`), its `driver` `"none"` without a device. (4) The empty-diagnostics test hook is `mui_sc_test_empty_diagnostics(_:)` in the C shim; an empty compiler message is turned into `compileFailed` carrying a fixed sentence (`emptyDiagnostics`) and the self test refuses to pass on it (`RC-D`). (5) `SDL_ShaderCross_Init` runs once per process even when several loads succeed (a seam load in a test): the shim guards it with an atomic. **Cost if wrong.** A signature.

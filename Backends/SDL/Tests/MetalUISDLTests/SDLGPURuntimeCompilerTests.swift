@@ -81,9 +81,11 @@ func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
 
     /// **15.** The bytes initializer makes a pipeline from the checked-in app shader's bytes and
     /// reflection JSON, for this device's driver.
-    /// Mutation: the initializer stores `threadCount.y` into `z`.
+    /// The pipeline then runs the append kernel: 16 groups of the blob's thread count must claim exactly
+    /// the CPU's list, so a thread group mapped to the wrong axis is red.
+    /// Mutation: the initializer maps `threadCount` as `(y, x, z)`.
     @Test(.enabled(if: GPUTestSupport.available, GPUTestSupport.skipReason))
-    func theBlobInitializerMakesAPipelineFromTheCheckedInAppShaderBytes() throws {
+    func theBlobInitializerMakesAPipelineFromTheCheckedInAppShaderBytes() async throws {
         let device = try GPUTestSupport.requireDevice()
         let format = try #require(SDLGPUShaderBlob.Format(driver: device.driver))
         let (ext, entry) = format == .msl ? ("msl", "main0") : (format == .dxil ? ("dxil", "main") : ("spv", "main"))
@@ -97,7 +99,20 @@ func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
             readOnlyStorageBuffers: n("readonly_storage_buffers"), readWriteStorageTextures: n("readwrite_storage_textures"),
             readWriteStorageBuffers: n("readwrite_storage_buffers"), uniformBuffers: n("uniform_buffers"),
             threadCount: (n("threadcount_x"), n("threadcount_y"), n("threadcount_z")))
-        _ = try device.compileComputePipeline(blob)
+        let pipeline = try device.compileComputePipeline(blob)
+        let words = 1025
+        let buffer = try #require(device.makeBuffer(size: words * 4, usage: [.computeStorageRead, .computeStorageWrite]))
+        try #require(await device.upload([UInt8](repeating: 0, count: words * 4), to: buffer))
+        let fence = try await device.submitBatch { commandBuffer in
+            guard let pass = commandBuffer.beginComputePass(readWrite: [buffer]) else { return }
+            pass.bind(pipeline)
+            pass.push(uniform: GPUTestSupport.bytes(of: [UInt32(1024), 0, 0, 0]), at: 0)
+            pass.dispatch(x: 16, y: 1, z: 1)
+            pass.end()
+        }
+        await fence.wait()
+        let counter = GPUTestSupport.words(from: try #require(await device.download(buffer, range: 0..<4)))[0]
+        #expect(Int(counter) == (0..<1024).filter { ($0 * 7) % 13 < 5 }.count, "the append kernel's counter")
     }
 
     /// **16.** A malformed reflection throws from the initializer itself, which takes no device, so
