@@ -343,8 +343,9 @@ continuation, an observation hop — drawing whenever the window is dirty,
 window that never settles (a phase-time write). A task awaiting real time
 (`Task.sleep`) does not finish there: inject a clock into the model. Idle
 means four quiet yields, not "every task done": off macOS a task that
-suspends several times can still be mid-flight when it returns, so wait on
-the task's effect in a bounded loop
+suspends several times can still be mid-flight when it returns, and its
+write's frame can still be on its way, so wait on what you assert (the drawn
+result, not only the model) in a bounded loop
 (`for _ in 0..<64 where !done { try await window.runUntilIdle() }`).
 
 `resize(to:)`, `setScaleFactor(_:)`, `setAppearance(_:)`,
