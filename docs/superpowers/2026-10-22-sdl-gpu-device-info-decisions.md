@@ -1,7 +1,7 @@
 # SDLGPUDevice adapter info and limits for MetalCreator (XP-G23, XP-G24) — decisions
 
 Rulings for items XP-G23 and XP-G24 of the gpui-gap priority list (MetalCreator request 2026-10-22; **not a plan task**). Prefix `DL-`.
-**Next unused: `DL-J`.** Spec: [`specs/2026-10-22-sdl-gpu-device-info-design.md`](specs/2026-10-22-sdl-gpu-device-info-design.md). Record: `../record/150-sdl-gpu-device-info.md`.
+**Next unused: `DL-M`.** Spec: [`specs/2026-10-22-sdl-gpu-device-info-design.md`](specs/2026-10-22-sdl-gpu-device-info-design.md). Record: `../record/150-sdl-gpu-device-info.md`.
 Branch `feat/sdl-gpu-device-info` from `63feea05`. Continues `GA-` (record 114), `GB-` (137), `SY-` (143). Divergence labels reserved 795–804: **none taken**.
 
 Sources of truth. SwiftUI has no GPU API: no SwiftUI-facing claim, no probe owed; gpui exposes no adapter query to an app (recalled, context only). Facts
@@ -14,7 +14,7 @@ not on this machine) and marked so; the implementer re-checks them if the regist
 **Evidence.** `SDL_GetGPUDeviceProperties` is "available since SDL 3.4.0", thread-safe from any thread; both 3.4.16 (CI/image) and 3.4.18 (here) have it.
 **Ruling.** Read the four string properties directly; no `#if` or runtime probe. A property id of `0` or an absent key answers `nil`; an empty string is `nil`.
 **Cost if wrong.** A consumer on SDL 3.2 would fail to link; the package already requires 3.4 for other calls (verify with the Package's SDL pin at implementation; if it
-claims 3.2, a ruling `DL-J` raises the floor).
+claims 3.2, a later ruling raises the floor).
 
 ## DL-B — `isSoftwareRasterizer` is a documented substring heuristic over name, driver name and driver info
 
@@ -64,7 +64,7 @@ On Linux/Windows the init runs on the caller. SDL's init is reference counted (r
 image on lavapipe. (b) Recommended, not required: **initialise video on the main thread first** (the app's `SDLPlatform` does; a headless tool calls `make` once on the main thread before
 spawning workers); an off-thread first `make` on Linux is measured by D8 and the result is recorded verbatim. `make` does not hop to the main queue off macOS: a headless process that never
 pumps the main queue would deadlock (`SV-H`: SDL drains it only inside its run loop). The doc comment on `make` carries the SDL quotes and the measured result. **If D7 or D8 refute this**
-(a hang, a trap, a `nil`), a ruling `DL-J` amends `make` (for example a main-thread requirement as a `precondition` naming the fix) with a migration note.
+(a hang, a trap, a `nil`), a later ruling amends `make` (for example a main-thread requirement as a `precondition` naming the fix) with a migration note.
 **Cost if wrong.** MetalCreator hits a loader fault on a platform we did not measure (Windows is compiled by CI only); the reply-ready text says so.
 
 ## DL-H — reply-ready text for MetalCreator (final numbers filled at the Record phase)
@@ -78,3 +78,18 @@ fills `<result>`.
 
 **Ruling.** Additive class-M API outside the census; no seam requirement; no shader change; no `Sources/` change, so the fourteen images 0 px and the root count 4371. The `Backends/SDL`
 count rises by the tests of the table (8 on macOS, fewer in the Linux image where D4 is compiled out). **Cost if wrong.** A moved root number would mean the lane left `Backends/SDL`.
+
+## DL-J — critic: D3 is required on Linux, not gated by an env var
+
+**Defect.** D3 leaned on `METALUI_REQUIRE_SOFTWARE=1` "set by the Docker run line"; the run line is fixed by the workflow and sets no such variable, so D3 would skip silently in the image and could never be red there.
+**Ruling.** On `#if os(Linux)` D3 requires `driver == "vulkan"` and, when `adapterName` contains `llvmpipe` (read raw, independent of the matcher), `isSoftwareRasterizer == true`; if no GPU exists the test is skipped by `GPUTestSupport` as the others are, and the Linux image result must be quoted from a run where it executed (a skipped D3 is not evidence). No new environment variable.
+
+## DL-K — critic: D7/D8 never block the main actor, and D8 says whether it was the first video init
+
+**Defect.** On macOS `make` hops to the main queue for video init; a test that waits for the detached thread on a semaphore from the main actor deadlocks that hop. And D8 cannot measure "first init off the main thread" if an earlier test of the same process initialised video (SDL's init is process-wide).
+**Ruling.** The test awaits the worker through a continuation (main actor suspended, main queue free), with a bounded timeout task, never a blocking wait. D8 reads `SDL_WasInit(SDL_INIT_VIDEO)` first and records it: with video already up it measures only the refcount path and the record says so; the first-call-off-thread evidence is the Linux image run of D8 **filtered alone** (`swift test --skip-build --filter SDLGPUDeviceInfoTests/videoInitOffTheMainThreadIsMeasured`), quoted with that filter. If no filtered-alone run is possible the record states (b) as unmeasured for the first call.
+
+## DL-L — critic: D6 borrows from a window renderer's device where a frame can run, and says what it could not compare
+
+**Defect.** "A surface draw's context device" needs a presented frame; the Linux image's `offscreen` video driver never presents one, so D6 would not execute there.
+**Ruling.** D6 takes the device from the offscreen `SDLWindowRenderer` (or whatever `SDLPlatform(offscreenRenderers:)` exposes) through `init(borrowing:)`; where no accessible window device exists it falls back to `SDLGPUDevice(borrowing: owned.raw)` of a second `make` device and the test name/record says that arm proves the single-code-path claim (`DL-F`) only, not cross-device equality. Equality is asserted only when `driver` matches (`DL-F`).

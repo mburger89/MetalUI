@@ -1,7 +1,7 @@
 # SDLGPUDevice adapter info, software flag and compute limits (XP-G23, XP-G24) — design
 
 Items XP-G23 and XP-G24 of the gpui-gap priority list (MetalCreator xp-c plan, branch xp-c `8342d72`; **not a plan task**). Rulings:
-`../2026-10-22-sdl-gpu-device-info-decisions.md` (`DL-A`…`DL-I`). Record `§150` (written at the Record phase). Base `63feea05`, branch
+`../2026-10-22-sdl-gpu-device-info-decisions.md` (`DL-A`…`DL-L`). Record `§150` (written at the Record phase). Base `63feea05`, branch
 `feat/sdl-gpu-device-info`. `Backends/SDL` only (`MetalUISDLGPU` and its tests) plus docs. Class M, no census row (`GA-L`), no divergence
 (labels 795–804 untouched), no SwiftUI claim and no probe (SwiftUI has no GPU API; gpui gives an app no adapter query, recalled, context only).
 No root `Sources/` change: the fourteen images stay 0 px and the root count stays 4371.
@@ -61,7 +61,7 @@ Red before: every test is a compile failure (the declarations are absent). A mut
 |---|------|---------|------------------------------|
 | D1 | `theMatcherRecognisesTheSoftwareNamesSDLDocuments` | pure: `llvmpipe (LLVM 15.0.4, 256 bits)`, `SwiftShader Device (LLVM 16.0.0)`, `Microsoft Basic Render Driver`, `Microsoft Direct3D12 (WARP)`, a driverInfo `Mesa 24.0 (LLVM 17)` with name `lavapipe` are software, in any case; `NVIDIA GeForce GTX 970`, `AMD Radeon (TM) Graphics`, `Apple M3`, `MoltenVK`-driver `Apple M3 Max` are not; `warpath` is not (word match); backend `"metal"` is false even for a software-looking name | drop the lowercasing; drop `warp` word boundary; drop `microsoft basic render driver` |
 | D2 | `aDeviceHasANonEmptyAdapterName` | `make()` -> `adapterName` non-nil and non-empty after trimming | read the wrong property key (driver name key) -> on Linux lavapipe name is `llvmpipe…`, driver name `llvmpipe`/`Mesa…`: assert `adapterName != driverName` where both exist, plus `adapterName == String(cString: SDL_GetStringProperty(…NAME_STRING))` |
-| D3 | `lavapipeIsASoftwareRasterizerInTheLinuxImage` | `.enabled(if: driver == "vulkan" && name contains llvmpipe)` is the gate for the cross-check; on `SDL_VIDEO_DRIVER=offscreen`/`METALUI_REQUIRE_SOFTWARE=1` (set by the Docker run line) the test **requires** `isSoftwareRasterizer == true` | `isSoftwareRasterizer` returns `false`; matcher without `llvmpipe` |
+| D3 | `lavapipeIsASoftwareRasterizerInTheLinuxImage` | `.enabled(if: driver == "vulkan" && name contains llvmpipe)` is the gate for the cross-check; on Linux the test **requires** `isSoftwareRasterizer == true` when the raw name contains `llvmpipe` (`DL-J`; no env var) | `isSoftwareRasterizer` returns `false`; matcher without `llvmpipe` |
 | D4 | `aHardwareMacIsNotASoftwareRasterizer` | `driver == "metal"` and `METALUI_REQUIRE_GPU=1` -> `isSoftwareRasterizer == false` (macOS only, `#if os(macOS)`) | matcher run on Metal without the backend guard AND a name containing "software"; (separating arm: D1 backend case) |
 | D5 | `limitsAreAtLeastTheDocumentedMinimums` | `maxStorageBufferBindingBytes >= 1<<27`, each workgroup count `>= 65535`, `areGuaranteedFloors` | lower a constant by 1 |
 | D6 | `aBorrowedDeviceAnswersLikeAnOwnedOneOnTheSameDriver` | a surface draw's context device (`SDLGPUDevice(borrowing:)`, as C9) vs `make()`: equal `driver`, `adapterName`, `driverVersion`, `isSoftwareRasterizer`, `limits` | `adapterName` reads a stored string set only in `make`; (or `limits` branching on `owned`) |
@@ -69,7 +69,7 @@ Red before: every test is a compile failure (the declarations are absent). A mut
 | D8 | `videoInitOffTheMainThreadIsMeasured` | no window anywhere (before any `SDLPlatform`): a detached Thread calls `make()`; records `adapterName` and the answer in the record; Linux image result is the evidence for `DL-G`; asserts only that the call returns (does not trap or hang within 60 s) and that `lastFailure` is empty when it answers non-nil | `make` removing `SDL_InitSubSystem` (Vulkan loader then fails in the image) |
 
 D7/D8 run on macOS (`armMainRunLoopExitCheck()` in every test that creates an `SDLPlatform` or touches SDL video) and in the Linux image on lavapipe.
-Timing-free: bounded waits fail on timeout and never hang; no sleeps.
+D7/D8 wait by continuation, never blocking the main actor; D8 is quoted from a filtered-alone image run (`DL-K`); D6 borrows per `DL-L`. Timing-free: bounded waits fail on timeout and never hang; no sleeps.
 
 ## Demo, human checks, divergences
 
