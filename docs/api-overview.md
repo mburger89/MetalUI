@@ -527,7 +527,7 @@ submits on the submit worker like `submitBatch` and returns once the buffer is s
 
 **Run-time compute shaders** (`RC-`, item XP-G25, record §151; class M, outside the census, additive). `SDLGPUShaderCompiler.shared(libraryPath:)`
 loads libSDL3_shadercross at run time (never linked; an absent library throws `SDLGPUShaderCompileError.compilerUnavailable` listing every path tried;
-lookup order explicit path, `METALUI_SHADERCROSS_LIB`, beside the executable, the loader path); `compileCompute(...)` turns HLSL, an entry point and
+lookup order explicit path, `METALUI_SHADERCROSS_LIB`, beside the executable, `<exe>/lib` (`SX-B`, record §152), the loader path); `compileCompute(...)` turns HLSL, an entry point and
 `SDLGPUShaderDefine`s into the device driver's format (`SDLGPUShaderTarget(driver:)`: SPIR-V, MSL, DXIL) with the compute reflection, throwing DXC's own
 diagnostic text on failure; `selfTest(for:)` (`async throws`) is the call for an app's `--self-test`. `SDLGPUShaderBlob.init(name:stage:bytes:format:...)`
 with `SDLGPUShaderBlob.Format` builds a validated blob from bytes (a cached compile), and the device's `compileComputePipeline(_:)`/`makeComputePipeline(_:)`

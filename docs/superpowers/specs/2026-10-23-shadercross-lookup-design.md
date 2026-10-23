@@ -1,5 +1,7 @@
 # shadercross lookup in `<exe dir>/lib`, Microsoft DXC note, XP-G27 (design)
 
+**Status:** implemented and verified, record [152](../../record/152-shadercross-lookup.md); XP-G27 carried (`SX-E`).
+
 Items XP-G26 (must), the packaging note (must), XP-G27 (low). Rulings: [`../2026-10-23-shadercross-lookup-decisions.md`](../2026-10-23-shadercross-lookup-decisions.md) (`SX-A`..`SX-E`). Branch `feat/shadercross-lookup` from `722f0cd6`.
 No SwiftUI/gpui claim, no probe. No public API, no divergence (815-824 untouched), no `Package.swift` change, no `Handlers`/seam/shader change. One lane (disjoint files below).
 
