@@ -3,7 +3,7 @@
 Rulings for item C14-n. Spec: [`specs/2026-10-22-retained-theme-pin-design.md`](specs/2026-10-22-retained-theme-pin-design.md). Record: `../record/149-retained-theme-pin.md`.
 Branch `perf/retained-theme-pin` from `63feea05`. Reserved divergence labels 785-794: none taken.
 
-Prefix **`TH-`**, lettered. **Next unused: `TH-D`.** (Moves in the commit that appends a ruling.)
+Prefix **`TH-`**, lettered. **Next unused: `TH-E`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `EO-E`, `EE-F`, `SB-AA`, `RK-`, `CR-` (`PaintPass.resolve`), `EV-G`, `AM-D`.
 No SwiftUI probe, no gpui comparison: `Theme` has no SwiftUI counterpart and nothing observable moves.
@@ -33,3 +33,10 @@ A scheme-switch arm is kept (3, 3b) for the two-field case and the same-theme ca
 environment is keyed whole, `RK-`, `EE-F`); the test asserts soundness (frame equals the twin), and M3 is recorded as a survivor if it survives, named, not hidden.
 **Evidence.** Spec section 1 (no build or layout read). Record 149 states the measured outcome.
 **Cost if wrong.** If M3 reddens something, a build does read a theme through a path the grep missed, and the field is load-bearing; the test names it.
+
+## TH-D - The verify arm is a child-process exit test, and arm (7) is a soundness pin that may stay green under M3
+
+**Question.** Critic review of the committed design: which arms could not be red as written?
+**Ruling.** (a) Test 8 named a `Window.verifyRetained` seam that does not exist; the verify switch is read from the environment, so the arm is the exit-test child of `RetainedVerifyTests` 14c, and its red under M1 is shown by one hand-run of that child with M1 applied, recorded in record 149 (an in-suite mutation arm is impossible). (b) Test 7 and 3b may survive their named mutations by design (`TH-C`, EO-E): they are soundness controls, never counted as the pin; the pin is arms (1), (2), (5), each of which alone must redden under M1. (c) Rejected: a new `Window` seam to flip the verify switch in-process (public/package surface for a test, and the env read is the shipped behaviour). (d) Rejected: a SwiftUI probe, as in the header (class M, nothing SwiftUI-facing).
+**Evidence.** `RetainedVerifyTests.swift` 14c; `Window.lightTheme.didSet` guard (an assignment at the other scheme sets no theme, so arm (2) must run at `.light`).
+**Cost if wrong.** If the child cannot be mutated by hand, the verify arm is recorded as unproven for M1, not claimed.
