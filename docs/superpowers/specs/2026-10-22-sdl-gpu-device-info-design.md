@@ -1,7 +1,7 @@
 # SDLGPUDevice adapter info, software flag and compute limits (XP-G23, XP-G24) — design
 
 Items XP-G23 and XP-G24 of the gpui-gap priority list (MetalCreator xp-c plan, branch xp-c `8342d72`; **not a plan task**). Rulings:
-`../2026-10-22-sdl-gpu-device-info-decisions.md` (`DL-A`…`DL-L`). Record `§150` (written at the Record phase). Base `63feea05`, branch
+`../2026-10-22-sdl-gpu-device-info-decisions.md` (`DL-A`…`DL-N`). Record `§150`. **Status: built and verified (2026-10-22), see record §150.** Base `63feea05`, branch
 `feat/sdl-gpu-device-info`. `Backends/SDL` only (`MetalUISDLGPU` and its tests) plus docs. Class M, no census row (`GA-L`), no divergence
 (labels 795–804 untouched), no SwiftUI claim and no probe (SwiftUI has no GPU API; gpui gives an app no adapter query, recalled, context only).
 No root `Sources/` change: the fourteen images stay 0 px and the root count stays 4371.
