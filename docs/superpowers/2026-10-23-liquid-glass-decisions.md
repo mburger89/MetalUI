@@ -294,7 +294,7 @@ the old layout and read garbage. A mutation result taken after a header restore 
 
 ## LG-U — Lane C as built: the public surface, the container, the buttons
 
-**Ruling.** Eleven points, each amending the text it names.
+**Ruling.** Thirteen points, each amending the text it names.
 1. **One `LayoutModifier` case, not three** (`LG-A`): `.glassEffect(Glass, any Shape)`. `glassEffectID` and `glassEffectUnion` are **transparent
 `GlassTagScope`s on `ElementGroup`** (`CoordinateSpaceScope`'s shape: no node, no identity level, conditional `ProposalElementGroup`), pushing a `GlassTag`
 on `Frame.glassTags` around their content's prepaint; the `glassEffect` layer below reads the innermost union tag at registration, so a tag written **outside**
@@ -336,4 +336,21 @@ Under Reduce Transparency every member is an ordinary opaque rect of the tinted 
 11. **Retention** (`LG-I`): a container taints `prepaintLog` and `taintRetention("glassContainer")` (the `pasteButton` pair); a standalone glass is the existing
 `fillBackdrop` paint, already in the paint log (test 26); no `AmbientKey` field, no `StateTable` write site beyond `Namespace`'s slot mark, no `noteNamed` site;
 `Frame.glassGroups`, `glassTags` and `glassContainerPaintDepth` are scratch reset at `render`.
+12. **Mutations of lane C, each applied to a committed tree, built, run as the glass family set (138 tests: the lane-A, B and C glass tests), restored by
+`git checkout` with `git status --short` clean after each; the full unfiltered suite ran unmutated before and after.** Reddened, by name: M17 (paint after
+the content) test 17; M18 (default `Rectangle()`) 18; M19 (both identity guards removed) 19; M20 (swap the dark clear and dark regular rows) 20; M21 (`2 ×`
+dropped from the gap test) 21 and 22; M21b (chunk size 5) 21b; M22 (`nil` spacing 0) 22; M23 (union branch disabled) 23; M24 (members also emit) 24, 21, 21b,
+22, 23, 25, 28, 29 and 37; M25 (both taints dropped) 25; M26 (`noteDirect` dropped from `fillBackdrop`) 26 and 25; M27 (rect for a path) 27; M28
+(Reduce Transparency block disabled) 28; M29 (the degrade arm disabled) 29; M30 (hover only) 30; M31 (an interactive layer registers a hitbox) 31; M32
+(`isBordered` true for the glass kinds) 32; M32b (`isFocusable` off for glass) 32b; M33 (a random id per read, `name: nil`) 33 and 23; M34 (`.identity` fades)
+34; M35a (`public init()` on `Glass`), M35b (`Glass: Hashable`), M35c (`public enum GlassLook`), M35d (an `isEnabled:` parameter) 35a; M35e (`public class
+GlassGroup`) and M35f (`public struct GlassMember`) 35b; M36 (a second glass-tailed `fillBackdrop(` call in `Passes.swift`) 36; M37 (demo spacing 4) 37. The
+first M33 spelling (`GlobalElementID.child(of:at:)`) did not compile (a `name:` parameter has no default) and was redone, not counted. **Not run:** M25's
+`METALUI_VERIFY_RETAINED=1` arm (the test reddens without it). **Equivalent-mutant note:** none found in lane C.
+**Not in lane C, carried to the Record phase:** `docs/api-overview.md`, `docs/verification/human-checks.md` group LG, record 153, the counts bullet, CLAUDE.md's
+rule and AGENTS.md's copy.
+13. **The demo is a root of its own, not a section of the looks demo** (amends `LG-P`'s first choice, which its own fallback allows): the first build put
+`liquidGlassSection()` under `looksDemoContent()` and reddened `theLooksDemoDrawsEverySurfaceItsHumanChecksName` (14 clickable hitboxes became 18) and
+`theLooksColourSectionPaintsLiteralDynamicAndPaletteColours` (its scheme toggle is "the lowest clickable hitbox"). `liquidGlassDemoContent()` is reached with
+`METALUI_GLASS_DEMO=1`, built by `buildTheLiquidGlassDemo` in the 1 MB-stack pin, drawn by test 37.
 **Cost if wrong.** A constants edit (5), one table row (3), the union rule is one function (4).
