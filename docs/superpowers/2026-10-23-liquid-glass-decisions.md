@@ -9,7 +9,7 @@ backdrop blur (`BB-`, record §94,
 (Record phase). Branch `feat/liquid-glass` from `f1c422e5`; divergence labels reserved for this
 branch: **825–834** (planned below: 825–829).
 
-**Next unused id: `LG-S`.** (Moves in the commit that appends a ruling; read the last `## LG-`
+**Next unused id: `LG-T`.** (Moves in the commit that appends a ruling; read the last `## LG-`
 heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-liquid-glass.swift`](../probes/swiftui-liquid-glass.swift) (groups `A`, `P`, `R`, `W`;
@@ -250,3 +250,35 @@ Apple `CGFloat` has no place in a portable surface. **Ruled `Pixels?`.** Probe a
 `Hashable`) were re-run and reproduce. Rejected as defects, with reason: three lanes are the cap and A's header change is the shared
 dependency, so the A, then B and C order stays; lane C is large but disjoint from A and B. Every primitive lands on both renderers
 (lanes A and B, parity frames 12-14), no platform requirement is added (no default or fake owed), no C enum is introduced.
+
+## LG-S — Lane A as built: what the renderer measured against the design
+
+**Ruling.** Seven points, each amending the text it names (the spec §3 and §5 carry a pointer here).
+1. **The tail's fields are flat and named** (`LG-B`): `glassFlags`, `lensDepth`, `band`, `rimStrength`, `blendK`, `press`, `pressLift`,
+`glassReserved` at 96…124, then `member0…member3` (`MUIGlassMember`: a `MUIBounds` and a `MUICorners`, 32 bytes) at 128, 160, 192, 224;
+stride 256, the first six lanes' nine fields at 0, 16, 32, 48, 64, 80, 84, 88, 92 (test 1). Not `look0`/`look1` tuples: Swift would
+import an array as a tuple. A nine-argument `public init` in `MetalUIScene` (`BackdropGlass.swift`) keeps every material site and the plain-import
+guard 1.13 compiling; it is a public declaration owing a census row and a doc comment (it has the comment; the row is the Record phase's).
+2. **The rim has no cutoff before `t = 1`** (`LG-D` 2 stands, `(1 − t)^4` over the whole band): the spec's test 6 said "zero at `t ≥ 0.25`", which
+the formula does not give (`0.75^4` is 0.32). Test 6 pins the upper-left over lower-right ratio 10/3, the decay with depth and exactly zero at `t ≥ 1`
+and with `lensRim` clear.
+3. **The lens reads a copy of the frame region, not the frame target.** The frame target is the pass's own render target, and sampling it
+inside that pass is undefined in Metal (no texture barrier), so each glass with the lens on gets a blit of its `backdropRegion` into a pool texture
+(`Renderer.sharpCopy`, the `BB-D` pool, released after the draw) bound as texture 1; a record that reads none gets the blurred texture bound
+(a texture must be bound), and a failed copy degrades the lens to the blur. Counted: `lastGlassRecords`, `lastGlassSharpCopies`; the copy is a
+blit, not a render pass, so `lastBackdropPasses` stays `L + 2` (test 12). The lens read is bilinear at `(q − regionOrigin) / regionSize`.
+4. **Press lift applies whenever `press · pressLift > 0`**, after the base and before the rim, and with `lensRim` clear (the lift is not part of the lens).
+The flat arm and the Reduce Transparency grey carry no lift.
+5. **Test 2's spec mutation ("run the glass branch when `flags == 0`") is an equivalent mutant on pixels, by design**: a glass with the lens, rim and lift
+off is a material to the byte (test 8 pins it), so routing a material through the glass arithmetic changes nothing. Test 2 is the instrument
+for the *material* arithmetic (a stored readback taken on `f1c422e5`, within one level because the bytes are a GPU's); its mutation is the material
+path's premultiply, which reddens it.
+6. **Two tests the spec's twelve did not hold were added**: 4b (the shader's fold against `GlassReference` over a three-member blob, which the
+reference-only test 3 cannot see in the shader) and 11b (`backdropPoolFailsAllocation` with a two-member blob: one flat rect per member).
+7. **`MUIBackdrop.flatTintRects` is `package` in `MetalUIScene`; `MetalUI`'s internal `flatTintRect` stays** (a same-named package member would be
+ambiguous with it), and the renderer's private copy is gone (it now flat-maps `flatTintRects`). A blob whose blur cannot be had draws
+`encodeRects(flatTintRects)` (one pipeline change: `encodeBackdrop` throws).
+**Hazard measured.** SwiftPM's native build does not notice an edit to `MetalUIShaderTypes.h` through the `Sources/MetalUIShaderTypes/include`
+symlink on every run: after editing **or restoring** it, `touch Sources/MetalUIShaderTypes/shim.c` (or `swift package clean`) or the test targets keep
+the old layout and read garbage. A mutation result taken after a header restore without it is contaminated (the first batch was, and was thrown away).
+**Cost if wrong.** Constants and one blit; the rim cutoff is one expression.

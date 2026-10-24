@@ -3,7 +3,7 @@
 Item LG (user request 2026-10-23, MetalUI only; gpui-gap list; not a plan task): SwiftUI's Liquid Glass on both
 renderers, built on the backdrop blur. Branch `feat/liquid-glass` from `f1c422e5`; rulings `LG-A`… in
 [`../2026-10-23-liquid-glass-decisions.md`](../2026-10-23-liquid-glass-decisions.md); divergence labels reserved **825–834**
-(825–829 planned); record `docs/record/153-liquid-glass.md` (Record phase). **Status: DESIGNED (2026-10-23), not built.**
+(825–829 planned); record `docs/record/153-liquid-glass.md` (Record phase). **Status: lane A built (2026-10-23, `LG-S`: flat tail field names, a sharp copy for the lens, tests 4b and 11b added); lanes B and C not built.**
 
 Evidence: [`docs/probes/swiftui-liquid-glass.swift`](../../probes/swiftui-liquid-glass.swift) (recorded output and reading in
 its header). **`ImageRenderer` draws no glass; every pixel claim is a real-window capture.** SwiftUI has these APIs only in the
@@ -84,7 +84,7 @@ Lane A (`Tests/MetalUIPathTests/GlassReferenceTests`, `Tests/MetalUIRenderTests/
 3. `theSmoothMinCrossesZeroAtSpacingTwiceTheGap` — `GlassReference`: g = 10, k 19 outside, 21 inside; g = 20, 39 outside, 41 inside. Mutation: `h²k/4` → `h²k/2`.
 4. `aBlobFoldsMembersInTreeOrderAndFourIsTheCap` — five members make two blobs (4 + 1), no merge across. Mutation: cap 5.
 5. `theLensReadsTheSharpTargetOnlyInsideTheEdgeBand` — a diagonal ramp plus a checker: `t = 1` equals the blurred read, `t = 0` differs, zero when the lensRim bit is clear. Mutations: weight `(1−t)` for `(1−t)²`; lens off when dark.
-6. `theRimIsBrightestTowardTheUpperLeft` — upper-left over lower-right by the 0.65/0.35 ratio, zero at `t ≥ 0.25`. Mutation: flip `L`.
+6. `theRimIsBrightestTowardTheUpperLeft` — upper-left over lower-right by the 0.65/0.35 ratio, zero at `t ≥ 1` (`LG-S` 2, was 0.25). Mutation: flip `L`.
 7. `aTintCompositesSourceOverTheBase` — alpha 0.3 red over regular-light over gray equals the reference to one byte. Mutation: tint under the base.
 8. `aSingleMemberGlassHasAMaterialsEdge` — coverage equals `rect_shade`'s across a rounded edge. Mutation: smooth-min SDF for one member.
 9. `aGlassWithAnOpacityIsAHalfWeightCompositeOverTheSharpBackdrop` — `BB-A` with a tail. Mutation: opacity on the tint only.
