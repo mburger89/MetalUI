@@ -9,7 +9,7 @@ backdrop blur (`BB-`, record §94,
 (Record phase). Branch `feat/liquid-glass` from `f1c422e5`; divergence labels reserved for this
 branch: **825–834** (planned below: 825–829).
 
-**Next unused id: `LG-R`.** (Moves in the commit that appends a ruling; read the last `## LG-`
+**Next unused id: `LG-S`.** (Moves in the commit that appends a ruling; read the last `## LG-`
 heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-liquid-glass.swift`](../probes/swiftui-liquid-glass.swift) (groups `A`, `P`, `R`, `W`;
@@ -242,3 +242,11 @@ shape; measured on one backdrop at 2x only. Owner: a follow-up after human check
 5. **A real blurred glass on a `Path`** — needs a path SDF (`BB-H`). Owner: `GX-` follow-up.
 6. **Sigma and the lens depth against SwiftUI** — not separable headless (`LG-D`). Owner: human check LG1.
 7. **Windows D3D12** parity — CI only, as `BB-J`.
+
+## LG-R — Critic review: `spacing` is `Pixels?`; lane split stays
+
+The design spelled `GlassEffectContainer(spacing: CGFloat?)`; MetalUI's public length type is `Pixels` (`Grid`, stacks), and an
+Apple `CGFloat` has no place in a portable surface. **Ruled `Pixels?`.** Probe arms A4 (`isEnabled:` rejected) and A15 (`Glass` not
+`Hashable`) were re-run and reproduce. Rejected as defects, with reason: three lanes are the cap and A's header change is the shared
+dependency, so the A, then B and C order stays; lane C is large but disjoint from A and B. Every primitive lands on both renderers
+(lanes A and B, parity frames 12-14), no platform requirement is added (no default or fake owed), no C enum is introduced.

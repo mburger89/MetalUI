@@ -22,7 +22,7 @@ modifiers (proposal content, and ElementGroup/StyledElement, both vocabularies):
     glassEffectUnion<ID: Hashable & Sendable>(id: ID?, namespace: Namespace.ID)
     glassEffectTransition(_ t: GlassEffectTransition)
 public struct GlassEffectTransition: Sendable   // .matchedGeometry, .materialize, .identity
-public struct GlassEffectContainer<Content>     // init(spacing: CGFloat? = nil, @ProposalContentBuilder content:)
+public struct GlassEffectContainer<Content>     // init(spacing: Pixels? = nil, @ProposalContentBuilder content:)
 ButtonStyle.glass, ButtonStyle.glassProminent
 @propertyWrapper public struct Namespace        // wrappedValue: Namespace.ID (Hashable, Sendable)
 ```
