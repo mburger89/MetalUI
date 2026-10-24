@@ -341,7 +341,12 @@ then `tick()` draws exactly one frame, deliberately.
 continuation, an observation hop — drawing whenever the window is dirty,
 **without moving the clock**, and throws `.notIdle` after 64 rounds of a
 window that never settles (a phase-time write). A task awaiting real time
-(`Task.sleep`) does not finish there: inject a clock into the model.
+(`Task.sleep`) does not finish there: inject a clock into the model. Idle
+means four quiet yields, not "every task done": off macOS a task that
+suspends several times can still be mid-flight when it returns, and its
+write's frame can still be on its way, so wait on what you assert (the drawn
+result, not only the model) in a bounded loop
+(`for _ in 0..<64 where !done { try await window.runUntilIdle() }`).
 
 `resize(to:)`, `setScaleFactor(_:)`, `setAppearance(_:)`,
 `setControlActiveState(_:)`, `setReduceMotion(_:)`, `close()` and
