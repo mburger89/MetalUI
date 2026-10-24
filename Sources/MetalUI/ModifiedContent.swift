@@ -555,6 +555,11 @@ extension LayoutModifier: ModifierLayerKind {
         case .rotationEffect, .scaleEffect, .offset:
             // Hitboxes and accessibility records inside follow the effect (`GX-I`).
             return pass.withRenderEffect(renderEffect!, bounds: bounds, inside)
+        case let .glassEffect(glass, shape):
+            // Inside a `GlassEffectContainer` the glass registers (shape, glass, rect, union tag) and the container
+            // emits the merged blobs at its paint (`LG-I`); outside one this registers nothing.
+            pass.frame.registerGlassMember(glass, shape: shape, bounds: bounds)
+            return inside()
         default:
             return inside()
         }
@@ -576,6 +581,10 @@ extension LayoutModifier: ModifierLayerKind {
         case let .backgroundMaterial(material):
             // One backdrop record (`BB-A`); a change of material snaps.
             pass.fillMaterial(bounds, material: material)
+            inside()
+        case let .glassEffect(glass, shape):
+            // One glass record behind the content (`LG-I`), or nothing where the enclosing container emits it.
+            pass.paintGlassLayer(glass, shape: shape, bounds: bounds)
             inside()
         case let .clip(cornerRadius):
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
@@ -654,7 +663,7 @@ extension LayoutModifier: ModifierLayerKind {
             // `MD-G`): the content's item record moves to the layer's node.
             pass.frame.lowering.forward(child.layoutNodeID, to: node.layoutNodeID, priority: priority)
             return node
-        case .background, .backgroundMaterial, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
+        case .background, .backgroundMaterial, .glassEffect, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
              .rotationEffect, .scaleEffect, .offset, .shadow, .blur, .compositingGroup:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved

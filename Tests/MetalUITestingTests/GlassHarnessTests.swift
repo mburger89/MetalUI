@@ -99,7 +99,7 @@ private struct StandaloneGlassHolder: Component, @MainActor Equatable {
         VStack(spacing: 0) { Button("Go") { log.add("go") }.buttonStyle(.glass) }
     }
     window.typeKey(.tab)
-    #expect(window.focusedElement?.label == "Go", "Tab reaches it")
+    #expect(try window.focusedElement?.label == "Go", "Tab reaches it")
     window.typeKey(.space)
     #expect(log.entries == ["go"], "Space fires it: \(log.entries)")
 }
@@ -118,7 +118,7 @@ private struct NamespaceHolder: Component {
     }
 }
 
-/// **33** (`LG-K`). A `Namespace.ID` is stable across frames and distinct per declaration (two `@Namespace`s in one
+/// **33** (`LG-K`; probe arm A10, `glassEffectID(_:in:)` over a namespace). A `Namespace.ID` is stable across frames and distinct per declaration (two `@Namespace`s in one
 /// component, and two components), with no eighth reserved slot (`theSevenRetentionSlotsAreMutuallyDistinct` is run
 /// unfiltered). **Mutation:** a per-frame id.
 @Test @MainActor func aNamespaceIdIsStableAcrossFramesAndDistinctPerDeclaration() throws {

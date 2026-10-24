@@ -478,7 +478,7 @@ struct CapturedPrimitive {
         /// `insertThroughScopes` already degrades a backdrop that reaches a
         /// shadow, blur or composite scope, so this is the belt to its braces.
         var flatteningBackdrop: Kind {
-            if case let .backdrop(record) = self { return .rect(record.flatTintRect) }
+            if case let .backdrop(record) = self { return .rect(record.flatTintRects[0]) }
             return self
         }
     }
@@ -514,7 +514,18 @@ struct CapturedPrimitive {
     /// can hold. Any other kind is left alone.
     mutating func degradeBackdropToFlatTint() {
         guard case let .backdrop(record) = kind else { return }
-        kind = .rect(record.flatTintRect)
+        kind = .rect(record.flatTintRects[0])
+    }
+
+    /// The primitives a backdrop degrades to (`BB-H`, `LG-L`): its flat tint rect, **one per member** of a glass
+    /// blob (`MUIBackdrop.flatTintRects`); any other kind is itself.
+    func degradingBackdrop() -> [CapturedPrimitive] {
+        guard case let .backdrop(record) = kind else { return [self] }
+        return record.flatTintRects.map { rect in
+            var primitive = self
+            primitive.kind = .rect(rect)
+            return primitive
+        }
     }
 
     /// The primitive's own bounds, in (local) device pixels.

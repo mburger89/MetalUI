@@ -9,7 +9,7 @@ backdrop blur (`BB-`, record §94,
 (Record phase). Branch `feat/liquid-glass` from `f1c422e5`; divergence labels reserved for this
 branch: **825–834** (planned below: 825–829).
 
-**Next unused id: `LG-U`.** (Moves in the commit that appends a ruling; read the last `## LG-`
+**Next unused id: `LG-V`.** (Moves in the commit that appends a ruling; read the last `## LG-`
 heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-liquid-glass.swift`](../probes/swiftui-liquid-glass.swift) (groups `A`, `P`, `R`, `W`;
@@ -291,3 +291,49 @@ the old layout and read garbage. A mutation result taken after a header restore 
 4. **Measured:** SDL's Metal driver equals Metal at 0 px on frames 12-14; Mesa lavapipe (Vulkan) reads max Δ3 on frames 12 and 13, **at `BB-J`'s tolerance of 3 exactly, no headroom**.
 5. **Carried (lane A's file):** when the sharp copy fails but the blur succeeds, Metal binds the blurred texture as `sharp` and the lens reads it at the wrong scale (SDL mirrors that); the one-line fix is clearing `glassFlags` bit 1 in `Renderer.encodeBackdrop` when `sharp == nil`.
 **Cost if wrong.** Tolerance 3 is one constant; the slot count is one enum.
+
+## LG-U — Lane C as built: the public surface, the container, the buttons
+
+**Ruling.** Eleven points, each amending the text it names.
+1. **One `LayoutModifier` case, not three** (`LG-A`): `.glassEffect(Glass, any Shape)`. `glassEffectID` and `glassEffectUnion` are **transparent
+`GlassTagScope`s on `ElementGroup`** (`CoordinateSpaceScope`'s shape: no node, no identity level, conditional `ProposalElementGroup`), pushing a `GlassTag`
+on `Frame.glassTags` around their content's prepaint; the `glassEffect` layer below reads the innermost union tag at registration, so a tag written **outside**
+the glass reaches it and one written inside does not (SwiftUI's modifier order). `GlassEffectContainer` is the same kind of scope. `glassEffectTransition` is
+`ElementGroup.transition(_:)` over `.opacity` or `.identity`. The legacy spelling is `StyledElement.glassEffect(_:in:)` (a `Decoration` field `backgroundGlass`
+in `DecorationExtras`, a `Hashable` `GlassBox`; `Shape & Hashable` as `clipShape`), painted where a material is. Exhaustive-switch sites that gained an arm:
+`ProposalAnimation`'s snap list and `nativeWrapperNode` (migration note added).
+2. **Member registration is prepaint, in layout coordinates** (`LG-I`): a glass layer inside an open container records `shape.geometry(in: bounds)`'s rect, radii
+and kind, its `Glass` and its union key; the container emits at the start of its paint through the paint position's `activeOffset`, `activeClip` and
+`activeOpacity`. **Named limit:** a scroll offset, render effect or opacity written *between* the container and a member is the container's, not the member's
+(the blob is placed where the container paints). A `Path` member never registers and draws its own flat tint even inside a container; `.identity` registers
+nothing; a **legacy** decorated glass inside a container draws its own record and never merges (`mergesInContainer: false`).
+3. **Dark regular is the minimax line, not the least-squares line** (amends `LG-C`): through the readings 19 / 132 / 169 at backdrop 0 / 142 / 255 the minimax
+fit is slope 0.588, intercept 33.75/255, i.e. **grey 0.321 at alpha 0.412**, off by at most **14.8/255** at all three points (a least-squares line is off by
+19.6 at grey); `LG-C`'s "exact at black" is withdrawn. The other three rows are the table as written.
+4. **The merge rule** (`LG-G`, `LG-H`): two members join when their `Glass` values are equal and `2 × gap < spacing` (`gap` the distance between their
+bounding rectangles; a circle's diagonal neighbour is judged by its box, the smooth-min then bridges only what its true distance allows) or when they share a
+union key (glass need not be equal; the first member's glass wins); joins are transitive (union-find, tree order); each set is cut in greedy chunks of four by
+`GlassReference.chunks`; a chunk whose members all share one union key blends at `max(spacing, 2 × widest gap + 2)`. The record's bounds are the union of the
+chunk's members **padded by `k/4 + 1` points** (the smooth-min bulges `k/4` past the members' union), members normalised to the padded bounds.
+5. **Constants** (`GlassLook`, tunable in one place, human check LG1): lens band `min(0.5 × shortest member side, 12)` pt, lens depth `0.5 × band`, rim alpha
+0.45 light and 0.30 dark, press lift 0.12.
+6. **`interactive` is a press lift only** (`LG-J`): `press` is 1 while the element's own pointer press is held over it (`isActive && isHovered`, paint-only),
+else 0; **no hover lift** (the record has one weight, and the spec's test 30 pins 1 then 0), no animation (it snaps). A bare proposal glass has no id that is ever
+pressed and is inert (divergence 827); `.buttonStyle(.glass)` reaches it through the `Button`'s own `Decoration`.
+7. **Buttons** (`LG-M`): `ButtonStyle.glass` is `.regular.interactive()`, `.glassProminent` is `.regular.tint(.accent).interactive()`; both take the bordered
+metrics (padding and strut), drop the chrome's fill and border where still the chrome's own, set `cornerRadius = strut height / 2` (a capsule while the label is
+no taller than the strut) and a `GlassBox(…, Capsule())` unless the caller wrote a glass; a glass button neither dims nor washes when pressed. **The prominent
+label is not turned white** (no foreground environment on `Text` is spelled; LG2 compares the look). Disabled: `paintControl`'s 0.5 opacity scope applies to the
+record.
+8. **`Namespace` rides a `State<Bool>`** the wrapper never writes (`BindableState` conformance forwarding to the box's bind, one `$state<n>` slot, no eighth
+reserved name): `Namespace.ID` is the declaring slot's `GlobalElementID` (`Hashable`, `Sendable`), `ID(owner: nil)` before binding (test 33).
+9. **`fillGlass` lives in `MaterialTransparency.swift`**, beside `fillMaterial`, because `noMaterialSiteBypassesFillMaterial` (`MT-I`) exempts that file; the one
+glass-tailed `fillBackdrop(…, glassTail:)` call is there (test 36 scans for it), and `fillBackdrop` gained `glassTail: ((inout MUIBackdrop) -> Void)?`.
+Under Reduce Transparency every member is an ordinary opaque rect of the tinted table grey (alpha 1), unmerged.
+10. **The flat arm is one rect per member** (`LG-L`): `insertThroughScopes` flat-maps a degraded backdrop through `CapturedPrimitive.degradingBackdrop()` (the
+`depths:` path keeps the one-for-one `degradeBackdropToFlatTint()`, which now takes `flatTintRects[0]`, equal to `flatTintRect` for a material), pinned by test
+29's blob arm.
+11. **Retention** (`LG-I`): a container taints `prepaintLog` and `taintRetention("glassContainer")` (the `pasteButton` pair); a standalone glass is the existing
+`fillBackdrop` paint, already in the paint log (test 26); no `AmbientKey` field, no `StateTable` write site beyond `Namespace`'s slot mark, no `noteNamed` site;
+`Frame.glassGroups`, `glassTags` and `glassContainerPaintDepth` are scratch reset at `render`.
+**Cost if wrong.** A constants edit (5), one table row (3), the union rule is one function (4).

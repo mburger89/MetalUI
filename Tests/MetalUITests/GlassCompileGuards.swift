@@ -9,7 +9,7 @@ import MetalUITestSupport
 private let glassSkipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — guard skipped"
 
-/// **35a** (`LG-A`). Every glass spelling of the spec's §1 compiles from a plain import, and an outside exhaustive
+/// **35a** (`LG-A`; probe arms A4, A8, A12, A14, A15, A17). Every glass spelling of the spec's §1 compiles from a plain import, and an outside exhaustive
 /// `switch` over `LayoutModifier` that names the old cases is the migration note's break. **Negative arms**, each its
 /// own fixture so a failure names which one leaked: `Glass()` (no public initialiser, A14), a `Hashable` use of
 /// `Glass` (A15), `glassEffect(isEnabled:)` (the SDK has none, A4/A17) and the non-public `GlassLook`.

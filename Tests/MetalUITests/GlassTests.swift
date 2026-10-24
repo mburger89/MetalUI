@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MetalUICore
+import MetalUIDemoContent
 import MetalUILayout
 import MetalUIScene
 import MetalUIShaderTypes
@@ -64,7 +65,7 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
 // MARK: - 18
 
 /// **18** (`LG-A`). The default shape is a capsule (radii half the shorter side); `Rectangle()` is square and
-/// `Circle()` is the ellipse kind (separating arms). **Mutation:** the default radius 0.
+/// `Ellipse()` is the ellipse kind (separating arms). **Mutation:** the default radius 0.
 @Test @MainActor func theDefaultShapeIsACapsule() throws {
     func record<E: ProposalElementGroup>(_ view: E) throws -> MUIBackdrop {
         let scene = glassScene(VStack(spacing: 0) { view })
@@ -75,7 +76,7 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
     #expect(capsule.shape & 0xFF == 0, "a rounded rectangle")
     let square = try record(Color.clear.frame(width: px(80), height: px(40)).glassEffect(in: Rectangle()))
     #expect(square.cornerRadii.topLeft == 0, "\(square.cornerRadii)")
-    let round = try record(Color.clear.frame(width: px(40), height: px(40)).glassEffect(in: Circle()))
+    let round = try record(Color.clear.frame(width: px(60), height: px(40)).glassEffect(in: Ellipse()))
     #expect(round.shape & 0xFF == 1, "the ellipse kind: \(round.shape)")
 }
 
@@ -199,7 +200,7 @@ private struct UnionTree: Component {
 /// backdrop before the sibling's rect. **Mutation:** members also emit (three records).
 @Test @MainActor func aContainerEmitsBeforeItsContentAndItsMembersEmitNothing() throws {
     let scene = glassScene(VStack(spacing: 0) {
-        GlassEffectContainer(spacing: px(40)) {
+        GlassEffectContainer(spacing: px(60)) {
             HStack(spacing: 4) {
                 circle()
                 Color(.accent).frame(width: px(20), height: px(20))
@@ -254,7 +255,7 @@ private struct Wedge: Shape, Equatable {
         }.shadow(radius: px(4))
     })
     #expect(blob.backdrops.isEmpty, "no blob record inside a shadow")
-    let flat = blob.rects.filter { abs($0.background.a - 0.60) < 0.01 && $0.bounds.size.width == 60 }
+    let flat = blob.rects.filter { abs($0.background.a - 0.60) < 0.01 && abs($0.bounds.size.width - 60) < 0.01 }
     #expect(flat.count == 3, "one flat rect per member: \(flat.count)")
 }
 
@@ -367,4 +368,20 @@ private struct Wedge: Shape, Equatable {
     }
     #expect(offenders.isEmpty, "glass tails outside fillGlass's home: \(offenders)")
     #expect(homeCalls >= 1, "the scan sees the real call (an unreadable scan passes nothing)")
+}
+
+// MARK: - 37
+
+/// **37** (`LG-P`, `LG-V`; human checks LG1-LG6). The Liquid Glass demo draws what those checks name: four standalone
+/// capsules, the two glass buttons (each one record) and the container's three circles as ONE blob of three members
+/// (spacing 40 over a gap of 14); and it holds exactly the four buttons it declares, which is why it is a root of its
+/// own and not a section of the looks demo (whose pins count its clickable hitboxes). **Mutation:** the container
+/// spacing 4 (the blob falls apart into three records).
+@Test @MainActor func theLiquidGlassDemoDrawsEveryLookItsHumanChecksName() throws {
+    let frame = effectFrame(liquidGlassDemoContent(), side: 720)
+    let scene = frame.finalizedScene()
+    let members = scene.backdrops.map(\.glassMemberCount).sorted()
+    #expect(members == [1, 1, 1, 1, 1, 1, 3], "four capsules, two buttons, one blob of three: \(members)")
+    #expect(scene.backdrops.allSatisfy { $0.isGlass }, "every record is a glass")
+    #expect(frame.hitboxes.filter { $0.handlers.onClick != nil }.count == 4, "the two glass buttons and the spacing pair")
 }

@@ -434,6 +434,13 @@ public struct Decoration: Sendable, Hashable {
         set { setExtra { $0.backgroundMaterial = newValue } }
     }
 
+    /// A legacy glass background (`LG-A`): painted where `backgroundMaterial` is, as one glass record through
+    /// `fillGlass`. The last background written wins. Not animated. Internal, in `extras` (`LK-W` item 10).
+    var backgroundGlass: GlassBox? {
+        get { extras?.fields.backgroundGlass }
+        set { setExtra { $0.backgroundGlass = newValue } }
+    }
+
     /// The rarely-set paint fields `clipShape`, `backgroundGradient` and `backgroundMaterial`, in
     /// one heap box (`LK-W` item 10): stored inline they grow every legacy
     /// element, and a production tree is built on a 1 MB thread on Windows
@@ -926,7 +933,7 @@ extension StyledElement {
     /// follows the scheme.
     public func background(_ color: Color) -> Self {
         decorating {
-            $0.background = color; $0.backgroundGradient = nil; $0.backgroundMaterial = nil
+            $0.background = color; $0.backgroundGradient = nil; $0.backgroundMaterial = nil; $0.backgroundGlass = nil
             $0.noteWrite(.plainFill)
         }
     }
@@ -944,7 +951,7 @@ extension StyledElement {
     /// a change snaps (`LK-J` item 7).
     public func background(_ gradient: LinearGradient) -> Self {
         decorating {
-            $0.backgroundGradient = .linear(gradient); $0.background = nil; $0.backgroundMaterial = nil
+            $0.backgroundGradient = .linear(gradient); $0.background = nil; $0.backgroundMaterial = nil; $0.backgroundGlass = nil
             $0.noteWrite(.plainFill)
         }
     }
@@ -952,7 +959,7 @@ extension StyledElement {
     /// Fills this element's border box with `gradient` (`LK-J` item 8).
     public func background(_ gradient: RadialGradient) -> Self {
         decorating {
-            $0.backgroundGradient = .radial(gradient); $0.background = nil; $0.backgroundMaterial = nil
+            $0.backgroundGradient = .radial(gradient); $0.background = nil; $0.backgroundMaterial = nil; $0.backgroundGlass = nil
             $0.noteWrite(.plainFill)
         }
     }
@@ -965,7 +972,7 @@ extension StyledElement {
     /// snaps.
     public func background(_ material: Material) -> Self {
         decorating {
-            $0.backgroundMaterial = material; $0.background = nil; $0.backgroundGradient = nil
+            $0.backgroundMaterial = material; $0.background = nil; $0.backgroundGradient = nil; $0.backgroundGlass = nil
             $0.noteWrite(.plainFill)
         }
     }
@@ -1774,6 +1781,7 @@ indirect enum DecorationExtras: Sendable, Hashable {
         var clipShape: ClipShapeBox?
         var backgroundGradient: GradientFill?
         var backgroundMaterial: Material?
+        var backgroundGlass: GlassBox?
     }
 
     case box(Fields)

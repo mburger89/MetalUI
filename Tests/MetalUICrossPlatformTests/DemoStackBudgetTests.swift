@@ -46,6 +46,7 @@ private func buildEveryProductionTree() {
     buildTheChromeDemo()   // window chrome (CW-P, spec "Demo")
     buildTheClipboardDemo()   // clipboard beyond text (CB-, spec §6)
     buildTheLazyContainersDemo()   // lazy containers (LZ-Q, spec section 6)
+    buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
 }
 
 /// The window chrome demo's tree and its bar and body (components built at layout), in its own frame.
@@ -71,6 +72,13 @@ private func buildTheLazyContainersDemo() {
     _ = LazyDemoGridSection().content
     _ = LazyDemoCarouselSection().content
     _ = LazyDemoHGridSection().content
+}
+
+/// The Liquid Glass demo's tree and its container component, in its own frame.
+@MainActor @inline(never)
+private func buildTheLiquidGlassDemo() {
+    _ = liquidGlassDemoContent()
+    _ = LooksGlassContainer().content
 }
 
 /// The retained-subtree demo's tree and its canvas and strip (components built at layout), in its own frame.
