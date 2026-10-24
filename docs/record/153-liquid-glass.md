@@ -129,7 +129,7 @@ LG1 the look in a key window against a SwiftUI app on macOS 26, light and dark (
 
 ## §8 Close (2026-10-23)
 
-- `swift package clean`, native build **0 `error:`**, the only `warning:` SwiftPM's deprecation notice; native unfiltered `--no-parallel` run: see the counts bullet in `CLAUDE.md` (filled from the run below).
+- `swift package clean`, native build **0 `error:`**, the only `warning:` SwiftPM's deprecation notice; native unfiltered `--no-parallel` run **4442 tests in 11 suites passed** (504 s), `FR-J no-argument frame: succeeded=true`, 0 issues; the guard count 273 is 271 + the two guards of `GlassCompileGuards.swift` (not separately re-counted).
 - The fourteen offscreen images **0 px** against `f1c422e5` (`compare.sh f1c422e5 HEAD`, lanes A and B; scenes identical, controls match their recorded values); `Expected.swift` unedited.
 - Inventory and undocumented scripts print nothing; census 3833 lines (3798 + 35 declarations of the glass families).
 
