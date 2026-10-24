@@ -53,6 +53,9 @@ private let frameChannels: [String: Channel] = [
     "hoverRegionCount": .prepaintOnly, "pointerStyleRegionCount": .prepaintOnly, "keyRegionCount": .prepaintOnly,
     "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,
     "clipboardAccess": .frameLocal, "pasteButtonCount": .prepaintOnly,   // PasteButton: retention refuses by name (CP-H, CP-L)
+    // Liquid Glass (`LG-I`): a container's members register in prepaint and the container's subtree refuses retention by
+    // the taint `glassContainer`; the paint depth is scratch the container's own paint opens and closes.
+    "glassGroups": .prepaintOnly, "glassTags": .prepaintOnly, "glassContainerPaintDepth": .frameLocal,
     // Presentations, toolbar, menu bar, popovers.
     "presentationDepth": .buildOnly, "presentationRecords": .buildOnly, "presentationOccurrences": .buildOnly,
     "environmentReadings": .buildOnly, "toolbarRecords": .buildOnly, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,
