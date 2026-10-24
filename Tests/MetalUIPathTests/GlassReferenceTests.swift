@@ -132,7 +132,7 @@ private func lensRecord(flags: UInt32) -> Ref.Record {
     let lowerRight = rim(circle, 40 + k, 40 + k)
     #expect(upperLeft > 0 && lowerRight > 0)
     #expect(abs(upperLeft / lowerRight - 10.0 / 3.0) < 0.1, "ratio \(upperLeft / lowerRight)")
-    let deeper = 0.70710678 * 37
+    let deeper: Float = 0.70710678 * 37
     #expect(rim(circle, 40 - deeper, 40 - deeper) < upperLeft, "the rim decays with depth")
     #expect(rim(circle, 40, 40) == 0, "the interior carries none")
     #expect(rim(circle, 40 - 0.70710678 * 27, 40 - 0.70710678 * 27) == 0, "none at t >= 1 (13 inside)")

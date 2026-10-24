@@ -57,9 +57,9 @@ private func record(members: Int) -> MUIBackdrop {
                         cornerRadii: MUICorners(topLeft: 3, topRight: 3, bottomRight: 3, bottomLeft: 3),
                         tint: MUIHsla(h: 0.5, s: 0.4, l: 0.6, a: 0.5), order: 7, shape: 1 << 8, sigma: 52, opacity: 0.5)
     r.glassFlags = 1 | UInt32(members) << 3 | 1 << 7        // glass, count, member 1 an ellipse
-    let slots = [MUIGlassMember(bounds: box(0, 0, 0.3, 1), radii: MUICorners(topLeft: 0.5, topRight: 0.5, bottomRight: 0.5, bottomLeft: 0.5)),
-                 MUIGlassMember(bounds: box(0.4, 0.25, 0.2, 0.5), radii: square),
-                 MUIGlassMember(bounds: box(0.7, 0, 0.3, 1), radii: MUICorners(topLeft: 0.25, topRight: 0, bottomRight: 0.25, bottomLeft: 0))]
+    let slots = [MUIGlassMember(bounds: box(0, 0, 0.25, 1), radii: MUICorners(topLeft: 0.5, topRight: 0.5, bottomRight: 0.5, bottomLeft: 0.5)),
+                 MUIGlassMember(bounds: box(0.5, 0.25, 0.25, 0.5), radii: square),
+                 MUIGlassMember(bounds: box(0.75, 0, 0.25, 1), radii: MUICorners(topLeft: 0.25, topRight: 0, bottomRight: 0.25, bottomLeft: 0))]
     r.member0 = slots[0]; r.member1 = slots[1]; r.member2 = slots[2]
     return r
 }
@@ -74,12 +74,12 @@ private func record(members: Int) -> MUIBackdrop {
     let rects = blob.flatTintRects
     try #require(rects.count == 3)
     #expect(rects[0].bounds.origin.x == 10 && rects[0].bounds.origin.y == 20
-            && rects[0].bounds.size.width == 30 && rects[0].bounds.size.height == 40)
+            && rects[0].bounds.size.width == 25 && rects[0].bounds.size.height == 40)
     #expect(rects[0].cornerRadii.topLeft == 20 && rects[0].shape == 1 << 8, "radii are a fraction of the shorter side; the transform bits ride along")
-    #expect(rects[1].bounds.origin.x == 50 && rects[1].bounds.origin.y == 30
-            && rects[1].bounds.size.width == 20 && rects[1].bounds.size.height == 20)
+    #expect(rects[1].bounds.origin.x == 60 && rects[1].bounds.origin.y == 30
+            && rects[1].bounds.size.width == 25 && rects[1].bounds.size.height == 20)
     #expect(rects[1].shape == 1 | 1 << 8, "member 1 is an ellipse")
-    #expect(rects[2].bounds.origin.x == 80 && rects[2].cornerRadii.topLeft == 10 && rects[2].cornerRadii.topRight == 0)
+    #expect(rects[2].bounds.origin.x == 85 && rects[2].cornerRadii.topLeft == 10 && rects[2].cornerRadii.topRight == 0)
     for r in rects {
         #expect(r.background.a == 0.25 && r.background.h == 0.5 && r.order == 7, "tint alpha times opacity")
         #expect(r.contentMask.size.width == 500)

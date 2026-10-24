@@ -828,17 +828,140 @@ static float backdrop_coverage(MUIBackdrop b, RectVertexOut in,
     return rect_shade(r, in.pixelPosition, t.pixelScale).a * clip;
 }
 
+// ---------------------------------------------------------------------------
+// Liquid Glass (rulings LG-B, LG-C, LG-D, LG-G; `GlassReference` is the CPU
+// twin and `replay.hlsl` the other renderer's, TE-AD)
+//
+// A glass is a `MUIBackdrop` whose `glassFlags` bit 0 is set. `backdrop_fragment`
+// takes the glass branch before touching anything a material reads, so a record
+// with a zero tail runs today's statements byte for byte. Per pixel, every
+// distance in the record's LOCAL device pixels:
+//
+//   d     the blob's signed distance: one member is the record's own bounds,
+//         radii and shape (the rect shader's SDF, so the edge equals a
+//         material's); two to four members fold `glass_smin` in tree order
+//   c     saturate(0.5 - d * s) * clip
+//   B     the blurred backdrop; with lensRim, inside the band
+//         t = saturate(-d / band) < 1 the SHARP frame read at p - n * depth *
+//         (1 - t)^2 mixed over it with weight (1 - t)^2, n the outward unit
+//         gradient of d (central difference over one local pixel)
+//   base  T + (1 - T.a) * B', then the press lift, then the rim: white at
+//         rimStrength * (1 - t)^4 * (0.65 + 0.35 * dot(n, L)), L the upper left
+//   out   c * opacity * base
+//
+// `glassFlags`: bit 0 glass, 1 lensRim, 2 dark (the scheme the record was
+// resolved for; the arithmetic never reads it), 3...5 member count (zero or one
+// read the record itself, more than four are four), 6...9 member k is an
+// ellipse. Members 0...3 are `MUIGlassMember`s normalised to `bounds`.
+// ---------------------------------------------------------------------------
+
+static float glass_smin(float a, float b, float k) {
+    if (k <= 0.0) { return min(a, b); }
+    float h = max(k - abs(a - b), 0.0) / k;
+    return min(a, b) - h * h * k * 0.25;
+}
+
+static float glass_member_sdf(MUIBackdrop b, uint k, float2 p) {
+    MUIGlassMember m = k == 0 ? b.member0 : (k == 1 ? b.member1 : (k == 2 ? b.member2 : b.member3));
+    float2 whole = float2(b.bounds.size.width, b.bounds.size.height);
+    float shorter = min(whole.x, whole.y);
+    float2 size = float2(m.bounds.size.width, m.bounds.size.height) * whole;
+    float2 halfSize = size * 0.5;
+    float2 center = float2(b.bounds.origin.x, b.bounds.origin.y)
+                  + float2(m.bounds.origin.x, m.bounds.origin.y) * whole + halfSize;
+    float2 rel = p - center;
+    if (((b.glassFlags >> (6u + k)) & 1u) != 0u) { return ellipse_sdf(rel, halfSize); }
+    MUICorners radii = MUICorners{m.radii.topLeft * shorter, m.radii.topRight * shorter,
+                                  m.radii.bottomRight * shorter, m.radii.bottomLeft * shorter};
+    return rect_sdf(rel, halfSize, pick_corner_radius(rel, radii));
+}
+
+static float glass_sdf(MUIBackdrop b, float2 p) {
+    uint count = min((b.glassFlags >> 3u) & 7u, 4u);
+    if (count <= 1u) {
+        float2 halfSize = float2(b.bounds.size.width, b.bounds.size.height) * 0.5;
+        float2 rel = p - (float2(b.bounds.origin.x, b.bounds.origin.y) + halfSize);
+        if ((b.shape & 0xFFu) == MUIShapeEllipse) { return ellipse_sdf(rel, halfSize); }
+        return rect_sdf(rel, halfSize, pick_corner_radius(rel, b.cornerRadii));
+    }
+    float d = glass_member_sdf(b, 0u, p);
+    for (uint k = 1u; k < count; k++) { d = glass_smin(d, glass_member_sdf(b, k, p), b.blendK); }
+    return d;
+}
+
+static float2 glass_normal(MUIBackdrop b, float2 p) {
+    float gx = glass_sdf(b, p + float2(1.0, 0.0)) - glass_sdf(b, p - float2(1.0, 0.0));
+    float gy = glass_sdf(b, p + float2(0.0, 1.0)) - glass_sdf(b, p - float2(0.0, 1.0));
+    float l = max(sqrt(gx * gx + gy * gy), 1.0e-6);
+    return float2(gx / l, gy / l);
+}
+
+static float4 glass_shade(MUIBackdrop b, RectVertexOut in,
+                          constant MUITransform *transforms, float4 draw,
+                          texture2d<float> blurred, texture2d<float> sharp) {
+    constexpr sampler linearClamp(coord::normalized, filter::linear, address::clamp_to_edge);
+    uint transformIndex = b.shape >> 8;
+    float s = 1.0;
+    float clip;
+    float4 lin = float4(1.0, 0.0, 0.0, 1.0);   // (a, b, c, d)
+    if (transformIndex == 0) {
+        clip = mask_coverage(in.pixelPosition, b.contentMask, b.maskCornerRadii);
+    } else {
+        MUITransform t = transforms[transformIndex - 1];
+        s = t.pixelScale;
+        lin = float4(t.a, t.b, t.c, t.d);
+        clip = mask_coverage_scaled(in.pixelPosition, b.contentMask, b.maskCornerRadii, s)
+             * mask_coverage(in.screenPosition, t.outerMask, t.outerMaskRadii);
+    }
+    float d = glass_sdf(b, in.pixelPosition);
+    float c = saturate(0.5 - d * s) * clip;
+
+    float2 uv = (in.screenPosition - draw.xy) * draw.zw;
+    float4 backdrop = blurred.sample(linearClamp, uv);
+    bool lens = (b.glassFlags & 2u) != 0u;
+    float t = b.band > 0.0 ? saturate(-d / b.band) : 1.0;
+    float2 n = float2(0.0, 0.0);
+    if (lens && t < 1.0) {
+        n = glass_normal(b, in.pixelPosition);
+        float u = 1.0 - t;
+        float weight = u * u;
+        float depth = b.lensDepth * weight;
+        float2 offset = n * depth;
+        float2 q = in.screenPosition - float2(lin.x * offset.x + lin.z * offset.y,
+                                               lin.y * offset.x + lin.w * offset.y);
+        float2 sharpSize = float2(sharp.get_width(), sharp.get_height());
+        float4 read = sharp.sample(linearClamp, (q - draw.xy) / sharpSize);
+        backdrop = backdrop + (read - backdrop) * weight;
+    }
+    float4 tc = hsla_to_srgba(b.tint);
+    float4 tint = float4(tc.rgb * tc.a, tc.a);
+    float4 base = tint + (1.0 - tint.a) * backdrop;
+    float lift = b.press * b.pressLift;
+    base = float4(lift) + base * (1.0 - lift);
+    if (lens && t < 1.0) {
+        float u = 1.0 - t;
+        float u2 = u * u;
+        float rim = b.rimStrength * (u2 * u2) * (0.65 + 0.35 * dot(n, float2(-0.70710678, -0.70710678)));
+        base = float4(rim) + base * (1.0 - rim);
+    }
+    return base * (c * b.opacity);
+}
+
 /// `c * o * (T + (1 - T.a) * B)`. `draw` is `(regionOriginX, regionOriginY,
-/// uvScaleX, uvScaleY)` (BB-R).
+/// uvScaleX, uvScaleY)` (BB-R). A record with `glassFlags` bit 0 takes the glass
+/// branch above (LG-B); `sharp` is the region of the frame target, unblurred,
+/// and is read only by a glass with the lens on.
 fragment float4 backdrop_fragment(
     RectVertexOut in [[stage_in]],
     constant MUIBackdrop *records [[buffer(MUIRectBufferRects)]],
     constant MUITransform *transforms [[buffer(MUIRectBufferTransforms)]],
     constant float4 &draw [[buffer(5)]],
-    texture2d<float> blurred [[texture(0)]]
+    texture2d<float> blurred [[texture(0)]],
+    texture2d<float> sharp [[texture(1)]]
 ) {
     constexpr sampler linearClamp(coord::normalized, filter::linear, address::clamp_to_edge);
     MUIBackdrop b = records[in.rectID];
+    if ((b.glassFlags & 1u) != 0u) { return glass_shade(b, in, transforms, draw, blurred, sharp); }
     float c = backdrop_coverage(b, in, transforms);
     float4 tc = hsla_to_srgba(b.tint);
     float4 tint = float4(tc.rgb * tc.a, tc.a);
