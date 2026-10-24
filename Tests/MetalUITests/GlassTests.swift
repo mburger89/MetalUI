@@ -62,6 +62,24 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
     #expect(at < content, "the glass is behind its content: \(kinds)")
 }
 
+// MARK: - 17b
+
+/// **17b** (branch checker, record 153). The lens-and-rim bit and the scheme bit of the record's flags word reach
+/// the scene from `fillGlass`: a glass asks for the lens and rim, and the dark bit follows the scheme. Nothing else
+/// read the frame-to-record flags: the checker's mutation `lensRim: false` in `fillGlass` passed the 4442-test suite.
+/// **Mutation:** `lensRim: false`, or `dark` inverted, in `fillGlass`'s tail.
+@Test @MainActor func aGlassRecordCarriesTheLensRimAndSchemeBits() throws {
+    func flags(_ scheme: ColorScheme) throws -> UInt32 {
+        let scene = glassScene(Color.clear.frame(width: px(80), height: px(40)).glassEffect(), scheme: scheme)
+        return try #require(scene.backdrops.first).glassFlags
+    }
+    // Bits: 2 lens and rim, 4 dark (`GlassReference.lensRimBit`, `darkBit`).
+    let light = try flags(.light), dark = try flags(.dark)
+    #expect(light & 2 != 0 && dark & 2 != 0, "lens/rim \(light) \(dark)")
+    #expect(light & 4 == 0, "light is not dark: \(light)")
+    #expect(dark & 4 != 0, "dark is dark: \(dark)")
+}
+
 // MARK: - 18
 
 /// **18** (`LG-A`). The default shape is a capsule (radii half the shorter side); `Rectangle()` is square and

@@ -136,3 +136,9 @@ LG1 the look in a key window against a SwiftUI app on macOS 26, light and dark (
 ## §9 Deferrals, each with an owner
 
 The 1 px outer hairline, the morph between `glassEffectID` shapes, press scale/bounce, more than four members, a real blurred glass on a `Path`, sigma and lens depth against SwiftUI, Windows D3D12 parity (`LG-Q`, owners named there); §6 items 1 and 2 above.
+
+## §10 Branch checker (2026-10-24, f1c422e5..effcd5e4)
+
+- Clean build and native unfiltered `--no-parallel` run re-taken: **4442 tests in 11 suites passed** (513 s), `FR-J no-argument frame: succeeded=true`, 0 `error:`, the only `warning:` SwiftPM's deprecation notice. `Backends/SDL` on macOS with `METALUI_REQUIRE_GPU=1`: 31 + 303 passed. Linux image (`metalui-portable`): 31 + 299 passed. The fourteen offscreen images re-taken: 0 px, every scene identical. Inventory and undocumented scripts print nothing; `cmp CLAUDE.md AGENTS.md` clean; every `LG-` id and every test or file name cited in the changed docs resolves.
+- **Mutation M1** (`GlassLook.composited`: the base's own alpha dropped from the under term): full suite, 1 issue, `regularAndClearAndTintMapToTheFittedTable`.
+- **Mutation M2 survived** (`fillGlass`: `lensRim: true` to `false`, so no glass ever asks for the lens or rim): full suite **4442 passed**. Nothing read the frame-to-record flags. Closed by `aGlassRecordCarriesTheLensRimAndSchemeBits` (17b, `GlassTests.swift`): green unmutated, reddened by M2. Root tests are now 4443.
