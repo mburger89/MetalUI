@@ -9,7 +9,7 @@ backdrop blur (`BB-`, record §94,
 (Record phase). Branch `feat/liquid-glass` from `f1c422e5`; divergence labels reserved for this
 branch: **825–834** (planned below: 825–829).
 
-**Next unused id: `LG-T`.** (Moves in the commit that appends a ruling; read the last `## LG-`
+**Next unused id: `LG-U`.** (Moves in the commit that appends a ruling; read the last `## LG-`
 heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-liquid-glass.swift`](../probes/swiftui-liquid-glass.swift) (groups `A`, `P`, `R`, `W`;
@@ -282,3 +282,12 @@ ambiguous with it), and the renderer's private copy is gone (it now flat-maps `f
 symlink on every run: after editing **or restoring** it, `touch Sources/MetalUIShaderTypes/shim.c` (or `swift package clean`) or the test targets keep
 the old layout and read garbage. A mutation result taken after a header restore without it is contaminated (the first batch was, and was thrown away).
 **Cost if wrong.** Constants and one blit; the rim cutoff is one expression.
+
+## LG-T — Lane B as built: SDL (`replay.hlsl`, bridge, fixture v5)
+
+**Ruling.** 1. HLSL reads the 256-byte record as sixteen lanes (lane 6 flags/lens/band/rim, lane 7 blendK/press/lift, lanes 8-15 members); the backdrop fragment has **two sampler pairs** (t0/s0 blurred, t1/s1 the sharp copy, storage buffers at t2/t3), `stage(...)` declares 2 samplers; only `backdrop.*` blobs changed in `Shaders/compiled` (the other nine stages byte-identical, built with the pinned shadercross in the `metalcreator-linux:xp-c` image).
+2. The bridge keeps **`FLAT_SLOTS = 4` flat rect slots per backdrop record** (one rect per member of a blob for the `BB-I`/`LG-L` arm, `flat_tint_rects` restating `flatTintRects`); a run's fallback draws per record. The sharp copy is an `SDL_BlitGPUTexture` of the region into a pool slot between passes; counters `out[7]` add glass records and sharp copies (`lastGlassRecords`, `lastGlassSharpCopies` on `SDLWindowRenderer`).
+3. Fixture version 5; version 4 (96-byte records) widens with a **zero tail** (a material); `GlassParityFrames` (`ReplayFixture`) holds frames 12-14 for `Replay` and the tests; CI `--expect 12` became `15`.
+4. **Measured:** SDL's Metal driver equals Metal at 0 px on frames 12-14; Mesa lavapipe (Vulkan) reads max Δ3 on frames 12 and 13, **at `BB-J`'s tolerance of 3 exactly, no headroom**.
+5. **Carried (lane A's file):** when the sharp copy fails but the blur succeeds, Metal binds the blurred texture as `sharp` and the lens reads it at the wrong scale (SDL mirrors that); the one-line fix is clearing `glassFlags` bit 1 in `Renderer.encodeBackdrop` when `sharp == nil`.
+**Cost if wrong.** Tolerance 3 is one constant; the slot count is one enum.
