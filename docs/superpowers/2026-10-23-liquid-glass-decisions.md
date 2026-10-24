@@ -70,7 +70,7 @@ source for record, flat fallback and Reduce Transparency, as `Material.fill`):
 |---|---|---|---|---|---|
 | regular, light | 139 | 197 | 241 | I 139, s 0.40 | 0.908 grey, 0.60 |
 | clear, light | 71 | 167 | 244 | I 71, s 0.68 | 0.870 grey, 0.32 |
-| clear, dark | 25 | 133 | 207 | I 25, s 0.71 | 0.306 grey, 0.29 |
+| clear, dark | 25 | 133 | 207 | I 25, s 0.71 | 0.338 grey, 0.29 |
 | regular, dark | 19 | 132 | 169 | **not affine** (chord misses gray by 24) | least-squares line over the three points, error up to 14/255 |
 
 (values are 0–255 red-channel readings of a neutral backdrop; the lane re-fits to Oklab-free sRGB bytes and records the
