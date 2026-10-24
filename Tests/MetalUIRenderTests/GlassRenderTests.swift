@@ -126,7 +126,7 @@ private let fieldWidth = 60, fieldHeight = 40
     let off = maxOff(pixels, width: w, expected: expected)
     print("LG theGlassShaderMatchesTheReference: worst \(off) levels, lens and rim effect \(effect * 255) levels")
     #expect(effect * 255 > 25, "the field makes the lens and rim visible (\(effect * 255) levels), or this test cannot fail")
-    #expect(off <= 5, "worst channel \(off) levels off the reference")
+    #expect(off <= 3, "worst channel \(off) levels off the reference")
 }
 
 /// **7** (`LG-C`). A tint composites source-over the blurred backdrop: red at alpha 0.3 over a
@@ -249,4 +249,55 @@ private let fieldWidth = 60, fieldHeight = 40
     other.finalize()
     _ = try renderer.renderOffscreen(other, size: glassTargetSize(64, 32))
     #expect(renderer.lastGlassRecords == 0 && renderer.lastGlassSharpCopies == 0)
+}
+
+/// **4b** (`LG-G`, `TE-AD`). The shader's blob fold equals `GlassReference`'s: three members (a
+/// circle, a rounded rect, a circle) at a blend radius of 18 over the two-axis field, no lens, no
+/// rim, an opaque white tint over everything so the readback is the coverage `c`. Mutation:
+/// `h·h·k·0.25` → `h·h·k·0.5` in `glass_smin`.
+@Test @MainActor func theShaderFoldMatchesTheReference() throws {
+    let renderer = try glassRenderer()
+    let (w, h) = (96, 40)
+    var scene = Scene()
+    scene.insert(glassSolid(glassBounds(0, 0, Float(w), Float(h)), glassRedHSLA))
+    let record = glassRecord(glassBounds(4, 6, 88, 28), tint: glassGray(1), sigma: 8, blendK: 18,
+                             members: [(glassBounds(0, 0, 0.3, 1), glassSquare),
+                                       (glassBounds(0.33, 0.2, 0.3, 0.6), MUICorners(topLeft: 0.2, topRight: 0.2, bottomRight: 0.2, bottomLeft: 0.2)),
+                                       (glassBounds(0.7, 0, 0.3, 1), glassSquare)],
+                             ellipses: [true, false, true])
+    scene.insert(record)
+    scene.finalize()
+    let pixels = try renderer.renderOffscreen(scene, size: glassTargetSize(w, h))
+    let ref = referenceRecord(record, tint: SIMD4(1, 1, 1, 1))
+    var expected: [SIMD4<Float>] = []
+    var partial = 0
+    for y in 0..<h { for x in 0..<w {
+        let red = SIMD4<Float>(1, 0, 0, 1)
+        let g = GlassReference.shade(ref, x: Float(x) + 0.5, y: Float(y) + 0.5, blurred: red, sharp: { _, _ in red })
+        expected.append(g + red * (1 - g.w))
+        if g.w > 0.05 && g.w < 0.95 { partial += 1 }
+    } }
+    #expect(partial > 40, "the blob's edge and necks are antialiased (\(partial) partial pixels), or the fold is not exercised")
+    let off = maxOff(pixels, width: w, expected: expected)
+    #expect(off <= 3, "worst channel \(off) levels off the reference")
+}
+
+/// **11b** (`LG-L`, `BB-I`). A blob whose blur cannot be allocated draws its flat arm, one rect per
+/// member: two square members at local x 0...20 and 60...80 of an 80x20 blob over red, white tint:
+/// each member's middle is white and the gap between them is the sharp backdrop. Mutation: drop the
+/// per-member branch in `encodeBackdrop` (the union's bounds are filled).
+@Test @MainActor func aBlobThatCannotBlurDrawsOneFlatRectPerMember() throws {
+    let renderer = try glassRenderer()
+    var scene = Scene()
+    scene.insert(glassSolid(glassBounds(0, 0, 100, 40), glassRedHSLA))
+    scene.insert(glassRecord(glassBounds(10, 10, 80, 20), tint: glassGray(1), sigma: 8, blendK: 0,
+                             members: [(glassBounds(0, 0, 0.25, 1), glassSquare), (glassBounds(0.75, 0, 0.25, 1), glassSquare)]))
+    scene.finalize()
+    renderer.backdropPoolFailsAllocation = true
+    defer { renderer.backdropPoolFailsAllocation = false }
+    let pixels = try renderer.renderOffscreen(scene, size: glassTargetSize(100, 40))
+    #expect(renderer.lastBackdropBlurs == 0, "the blur was refused")
+    #expect(glassPixel(pixels, 20, 20, width: 100) == [255, 255, 255, 255], "first member")
+    #expect(glassPixel(pixels, 80, 20, width: 100) == [255, 255, 255, 255], "second member")
+    #expect(glassPixel(pixels, 50, 20, width: 100) == [255, 0, 0, 255], "the gap is the sharp backdrop: \(glassPixel(pixels, 50, 20, width: 100))")
 }
