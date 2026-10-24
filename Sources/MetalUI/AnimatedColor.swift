@@ -467,8 +467,13 @@ extension PaintPass {
 
         let gradient = decoration.backgroundGradient
         let material = decoration.backgroundMaterial
+        // A legacy glass background (`LG-A`, `LG-J`): its press lift reads this element's own pressed state, the
+        // pointer being over it with the primary button held (paint-only, as `Button`'s pressed wash).
+        let glass = decoration.backgroundGlass
+        let glassPress: Float = (glass?.glass.isInteractive ?? false) && isActive(id) && isHovered(id) ? 1 : 0
         guard decoration.opacity < 1 else {
             paintDecorationBody(bounds, radii: radii, gradient: gradient, material: material,
+                                glass: glass, glassPress: glassPress,
                                 background: background?.color,
                                 border: border, clip: decoration.clipRegion(in: bounds), content: content)
             return
@@ -482,15 +487,18 @@ extension PaintPass {
         // A gradient is the plain fill slot (`LK-J` item 8).
         let gradientEscapes = gradient != nil && escapes.contains(.plainFill)
         let materialEscapes = material != nil && escapes.contains(.plainFill)
-        if fillEscapes || gradientEscapes || materialEscapes {
+        let glassEscapes = glass != nil && escapes.contains(.plainFill)
+        if fillEscapes || gradientEscapes || materialEscapes || glassEscapes {
             paintDecorationBody(bounds, radii: radii, gradient: gradientEscapes ? gradient : nil,
                                 material: materialEscapes ? material : nil,
+                                glass: glassEscapes ? glass : nil, glassPress: glassPress,
                                 background: fillEscapes ? background?.color : nil, border: nil,
                                 clip: nil) {}
         }
         opacity(decoration.opacity) {
             paintDecorationBody(bounds, radii: radii, gradient: gradientEscapes ? nil : gradient,
                                 material: materialEscapes ? nil : material,
+                                glass: glassEscapes ? nil : glass, glassPress: glassPress,
                                 background: fillEscapes ? nil : background?.color,
                                 border: borderEscapes ? nil : border,
                                 clip: decoration.clipRegion(in: bounds), content: content)
@@ -505,6 +513,7 @@ extension PaintPass {
     private func paintDecorationBody(_ bounds: Bounds<Pixels>, radii: Corners<Pixels>,
                                      gradient: GradientFill? = nil,
                                      material: Material? = nil,
+                                     glass: GlassBox? = nil, glassPress: Float = 0,
                                      background: Hsla?,
                                      border: (color: Hsla, widths: Edges<Pixels>)?,
                                      clip: (bounds: Bounds<Pixels>, radii: Corners<Pixels>)?,
@@ -519,6 +528,11 @@ extension PaintPass {
             // A legacy material background (`BB-A`): one backdrop record, under
             // the corner radius, before a pointer-state colour and the border.
             fillMaterial(bounds, material: material, cornerRadii: radii)
+        }
+        if let glass {
+            // A legacy glass background (`LG-A`): one record in its shape over the border box, before a
+            // pointer-state colour and the border. A legacy element never merges (`LG-U`).
+            paintGlassLayer(glass.glass, shape: glass.shape, bounds: bounds, press: glassPress, mergesInContainer: false)
         }
         if let background {
             fill(bounds, color: background, cornerRadii: radii)

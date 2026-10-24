@@ -9,8 +9,12 @@
 // Storage is float4 lanes: rectangle stride 8 lanes (128 bytes), glyph 6 (96),
 // image 4 (64, uploaded as recorded), transform 4 (64, `MUITransform`, ruling
 // GX-F). Uniforms occupy 16 and 64 bytes. See SDLBridge.c for the packing
-// boundary. A backdrop record (MUIBackdrop, 96 bytes) is 6 lanes, uploaded as
-// recorded. A primitive's transform index (rect lane 7 .y and image lane 3 .z
+// boundary. A backdrop record (MUIBackdrop, 256 bytes since Liquid Glass, ruling
+// LG-B) is 16 lanes, uploaded as recorded: lanes 0-5 are the material's (bounds,
+// contentMask, maskCornerRadii, cornerRadii, tint, (order, shape, sigma,
+// opacity)), lane 6 (glassFlags, lensDepth, band, rimStrength), lane 7 (blendK,
+// press, pressLift, reserved), lanes 8-15 four members of two lanes each
+// (bounds, radii as fractions of the record's bounds, `LG-S` 1). A primitive's transform index (rect lane 7 .y and image lane 3 .z
 // bits 8…31, glyph lane 5 .y) is 0 for today's code; i > 0 reads transform
 // record i − 1 — shaders.metal's transformed branches, statement for statement.
 #ifdef PASS_STAGE
@@ -91,12 +95,16 @@ SamplerState imageSampler : register(s0, space2);
 StructuredBuffer<float4> primitives : register(t1, space2);
 StructuredBuffer<float4> transforms : register(t2, space2);
 #elif defined(BACKDROP_STAGE)
-// The blurred level-L texture; `drawConstants` is (region origin x, y, uv scale
-// x, y), shaders.metal's `draw` (BB-R).
+// The blurred level-L texture and the sharp copy of the record's frame region (the
+// glass lens' read, `LG-D`; the blurred texture is bound again where a record reads
+// none); `drawConstants` is (region origin x, y, uv scale x, y), shaders.metal's `draw`
+// (BB-R). Two texture-sampler pairs take t0/s0 and t1/s1, the storage buffers follow.
 Texture2D<float4> blurred : register(t0, space2);
+Texture2D<float4> sharpTexture : register(t1, space2);
 SamplerState blurredSampler : register(s0, space2);
-StructuredBuffer<float4> primitives : register(t1, space2);
-StructuredBuffer<float4> transforms : register(t2, space2);
+SamplerState sharpSampler : register(s1, space2);
+StructuredBuffer<float4> primitives : register(t2, space2);
+StructuredBuffer<float4> transforms : register(t3, space2);
 cbuffer Draw : register(b0, space3) { float4 drawConstants; };
 #else
 StructuredBuffer<float4> primitives : register(t0, space2);
@@ -128,7 +136,7 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
 #elif defined(IMAGE_STAGE)
     uint base = id * 4;
 #elif defined(BACKDROP_STAGE)
-    uint base = id * 6;
+    uint base = id * 16;
 #else
     uint base = id * 8;
 #endif
@@ -305,11 +313,111 @@ float backdropCoverage(uint base, float2 pixelPosition, float s) {
     float radius = cornerRadius(p, primitives[base + 3]);
     return saturate(0.5 - rectSDF(p, halfSize, radius) * s);
 }
+
+// ---------------------------------------------------------------------------
+// Liquid Glass (rulings LG-B, LG-C, LG-D, LG-G): shaders.metal's `glass_*`
+// statement for statement (TE-AD); `GlassReference` is the CPU twin. A glass is a
+// record whose glassFlags bit 0 is set (lane 6 .x): bit 1 lensRim, 2 dark (never
+// read here), 3...5 member count, 6...9 member k is an ellipse.
+// ---------------------------------------------------------------------------
+float glassSmin(float a, float b, float k) {
+    if (k <= 0.0) { return min(a, b); }
+    float h = max(k - abs(a - b), 0.0) / k;
+    return min(a, b) - h * h * k * 0.25;
+}
+float glassMemberSDF(uint base, uint flags, uint k, float2 p) {
+    float4 whole = primitives[base];
+    float4 member = primitives[base + 8 + 2 * k];
+    float4 radii = primitives[base + 9 + 2 * k];
+    float shorter = min(whole.z, whole.w);
+    float2 halfSize = member.zw * whole.zw * 0.5;
+    float2 center = whole.xy + member.xy * whole.zw + halfSize;
+    float2 rel = p - center;
+    if (((flags >> (6u + k)) & 1u) != 0u) { return ellipseSDF(rel, halfSize); }
+    return rectSDF(rel, halfSize, cornerRadius(rel, radii * shorter));
+}
+float glassSDF(uint base, uint flags, float2 p) {
+    uint count = min((flags >> 3u) & 7u, 4u);
+    if (count <= 1u) {
+        float4 whole = primitives[base];
+        float2 halfSize = whole.zw * 0.5;
+        float2 rel = p - (whole.xy + halfSize);
+        if ((asuint(primitives[base + 5].y) & 0xFF) == 1) { return ellipseSDF(rel, halfSize); }
+        return rectSDF(rel, halfSize, cornerRadius(rel, primitives[base + 3]));
+    }
+    float blendK = primitives[base + 7].x;
+    float d = glassMemberSDF(base, flags, 0u, p);
+    for (uint k = 1u; k < count; k++) { d = glassSmin(d, glassMemberSDF(base, flags, k, p), blendK); }
+    return d;
+}
+float2 glassNormal(uint base, uint flags, float2 p) {
+    float gx = glassSDF(base, flags, p + float2(1.0, 0.0)) - glassSDF(base, flags, p - float2(1.0, 0.0));
+    float gy = glassSDF(base, flags, p + float2(0.0, 1.0)) - glassSDF(base, flags, p - float2(0.0, 1.0));
+    float l = max(sqrt(gx * gx + gy * gy), 1.0e-6);
+    return float2(gx / l, gy / l);
+}
+float4 glassShade(uint base, uint flags, VertexOut input) {
+    uint transformIndex = asuint(primitives[base + 5].y) >> 8;
+    float s = 1.0;
+    float clip;
+    float4 lin = float4(1.0, 0.0, 0.0, 1.0);   // (a, b, c, d)
+    if (transformIndex == 0) {
+        clip = maskCoverage(input.pixelPosition, primitives[base + 1], primitives[base + 2]);
+    } else {
+        uint record = (transformIndex - 1) * 4;
+        lin = transforms[record];
+        s = transforms[record + 1].z;
+        clip = maskCoverageScaled(input.pixelPosition, primitives[base + 1], primitives[base + 2], s)
+             * maskCoverage(input.screenPosition, transforms[record + 2], transforms[record + 3]);
+    }
+    float4 look0 = primitives[base + 6];
+    float4 look1 = primitives[base + 7];
+    float lensDepth = look0.y;
+    float band = look0.z;
+    float rimStrength = look0.w;
+    float d = glassSDF(base, flags, input.pixelPosition);
+    float c = saturate(0.5 - d * s) * clip;
+
+    float2 uv = (input.screenPosition - drawConstants.xy) * drawConstants.zw;
+    float4 backdrop = blurred.SampleLevel(blurredSampler, uv, 0);
+    bool lens = (flags & 2u) != 0u;
+    float t = band > 0.0 ? saturate(-d / band) : 1.0;
+    float2 n = float2(0.0, 0.0);
+    if (lens && t < 1.0) {
+        n = glassNormal(base, flags, input.pixelPosition);
+        float u = 1.0 - t;
+        float weight = u * u;
+        float depth = lensDepth * weight;
+        float2 offset = n * depth;
+        float2 q = input.screenPosition - float2(lin.x * offset.x + lin.z * offset.y,
+                                                  lin.y * offset.x + lin.w * offset.y);
+        uint sharpWidth, sharpHeight;
+        sharpTexture.GetDimensions(sharpWidth, sharpHeight);
+        float2 sharpSize = float2(sharpWidth, sharpHeight);
+        float4 read = sharpTexture.SampleLevel(sharpSampler, (q - drawConstants.xy) / sharpSize, 0);
+        backdrop = backdrop + (read - backdrop) * weight;
+    }
+    float4 tc = hslaToRGBA(primitives[base + 4]);
+    float4 tint = float4(tc.rgb * tc.a, tc.a);
+    float4 baseColor = tint + (1.0 - tint.a) * backdrop;
+    float lift = look1.y * look1.z;
+    baseColor = float4(lift, lift, lift, lift) + baseColor * (1.0 - lift);
+    if (lens && t < 1.0) {
+        float u = 1.0 - t;
+        float u2 = u * u;
+        float rim = rimStrength * (u2 * u2) * (0.65 + 0.35 * dot(n, float2(-0.70710678, -0.70710678)));
+        baseColor = float4(rim, rim, rim, rim) + baseColor * (1.0 - rim);
+    }
+    return baseColor * (c * primitives[base + 5].w);
+}
 #endif
 float4 main(VertexOut input) : SV_Target0 {
 #ifdef BACKDROP_STAGE
-    // `c * o * (T + (1 - T.a) * B)`, premultiplied (shaders.metal's `backdrop_fragment`).
-    uint base = input.primitiveID * 6;
+    // `c * o * (T + (1 - T.a) * B)`, premultiplied (shaders.metal's `backdrop_fragment`);
+    // a record with glassFlags bit 0 takes the glass branch above (LG-B).
+    uint base = input.primitiveID * 16;
+    uint glassFlags = asuint(primitives[base + 6].x);
+    if ((glassFlags & 1u) != 0u) { return glassShade(base, glassFlags, input); }
     uint transformIndex = asuint(primitives[base + 5].y) >> 8;
     float s = 1.0;
     float clip;

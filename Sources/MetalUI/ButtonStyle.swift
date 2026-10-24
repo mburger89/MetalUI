@@ -44,7 +44,7 @@ public struct ButtonRole: Equatable, Sendable {
 /// shape. Not offered (owner none): `.borderedProminent`, `.link`, custom styles
 /// and `configuration.isPressed`.
 public struct ButtonStyle: Equatable, Sendable {
-    enum Kind: Equatable, Sendable { case bordered, borderless, plain }
+    enum Kind: Equatable, Sendable { case bordered, borderless, plain, glass, glassProminent }
     let kind: Kind
 
     /// The platform's default: bordered on macOS.
@@ -56,6 +56,25 @@ public struct ButtonStyle: Equatable, Sendable {
     /// The label alone.
     public static let plain = ButtonStyle(kind: .plain)
 
+    /// SwiftUI's `.glass`: the label padded as the bordered style is, in a capsule of regular interactive Liquid
+    /// Glass (`LG-M`; `.regular.interactive()` through `Frame.fillGlass`, so it blurs the backdrop, lifts while
+    /// pressed and follows Reduce Transparency). The look's metrics are MetalUI's (human check LG2).
+    public static let glass = ButtonStyle(kind: .glass)
+    /// SwiftUI's `.glassProminent`: `.glass` tinted with the accent (`.regular.tint(accent).interactive()`, `LG-M`).
+    public static let glassProminent = ButtonStyle(kind: .glassProminent)
+
     /// Whether this style draws the bordered chrome.
     var isBordered: Bool { kind == .bordered }
+
+    /// Whether this style draws a Liquid Glass capsule (`LG-M`).
+    var isGlass: Bool { kind == .glass || kind == .glassProminent }
+
+    /// The glass this style draws, or `nil`.
+    var glass: Glass? {
+        switch kind {
+        case .glass: .regular.interactive()
+        case .glassProminent: .regular.tint(Color.accent).interactive()
+        default: nil
+        }
+    }
 }

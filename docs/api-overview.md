@@ -1034,6 +1034,19 @@ no colour, `MT-C`). Not built:
 `NSColorPanel` route, a material that takes a colour or an opacity (`MT-C`), saturation lift — each a
 named deferral (`LK-A`, `BB-I`).
 
+**Liquid Glass** (user request 2026-10-23, item LG, not a plan task; record §153, rulings `LG-A`…`LG-V`, probe
+`swiftui-liquid-glass.swift`; divergences 825-829): `glassEffect(_ glass: Glass = .regular, in shape: some Shape = Capsule())` on proposal
+content and on `StyledElement` (A/D; **no `isEnabled:`, the SDK has none**), `Glass` (`.regular`, `.clear`, `.identity`,
+`tint(_:)`, `interactive(_:)`; `Equatable`, `Sendable`, not `Hashable`, no initialiser), `GlassEffectContainer(spacing: Pixels?, content:)`
+(shapes closer than `spacing / 2` merge by a smooth minimum, four members to a blob, 826), `glassEffectID(_:in:)`,
+`glassEffectUnion(id:namespace:)`, `GlassEffectTransition` with `glassEffectTransition(_:)` (an opacity transition, no morph, 828),
+`@Namespace`/`Namespace.ID` and `ButtonStyle.glass`/`.glassProminent`. A glass is one backdrop record behind its content on both
+renderers: the blurred backdrop under the fitted tint, a lens read from a sharp copy of the backdrop at the edge and a specular rim (the
+look's lens and rim are MetalUI's own, 825); a `Path` shape, a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` and a renderer that
+cannot blur draw the flat tint (829), Reduce Transparency an opaque grey, `.interactive()` lifts the tint on a pressed control only (827). The
+demo is `METALUI_GLASS_DEMO=1`. Human checks: group `LG`, unrun. Carried: the 1 px outer hairline, the morph, more than four members to a
+blob, a real blur on a `Path` (`LG-Q`).
+
 ## Testing — M
 
 `MetalUITesting` (a library product for test targets, portable; rulings

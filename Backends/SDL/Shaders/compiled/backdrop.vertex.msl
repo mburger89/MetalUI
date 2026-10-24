@@ -32,7 +32,7 @@ vertex main0_out main0(constant type_Viewport& Viewport [[buffer(0)]], constant 
 {
     main0_out out = {};
     uint _58 = gl_InstanceIndex + Viewport.firstInstance;
-    uint _59 = _58 * 6u;
+    uint _59 = _58 * 16u;
     uint _69 = as_type<uint>(((device float*)&primitives._m0[_59 + 5u])[1]) >> 8u;
     float2 _113;
     float2 _114;

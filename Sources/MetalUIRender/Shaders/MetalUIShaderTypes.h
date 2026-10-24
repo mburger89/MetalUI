@@ -61,12 +61,34 @@ typedef enum {
 // fade reproduces SwiftUI's half-weight composite of the whole layer. 96 bytes:
 // six `float4` lanes, so the SDL bridge uploads the records as they are.
 //
+// **256 bytes since Liquid Glass (ruling LG-B)**: the six lanes above did not
+// move (offsets 0, 16, 32, 48, 64, 80, 84, 88, 92, pinned), and a glass tail of
+// ten more lanes follows -- two look lanes (96...127) and four members of two
+// lanes each (128...255). A material's tail is all zero and `glassFlags == 0`
+// takes today's arithmetic byte for byte. The tail:
+//   `glassFlags`  bit 0 glass, 1 lensRim, 2 dark (the scheme the record was
+//                 resolved for; no arithmetic reads it), 3...5 member count
+//                 (zero or one read the record itself, more than four are four),
+//                 6...9 member k is an ellipse
+//   `lensDepth`, `band`, `rimStrength`   device pixels, device pixels, alpha
+//   `blendK`      the smooth-min blend radius, device pixels
+//   `press`, `pressLift`   0...1 and the white lift's alpha at press 1
+//   `member0...3` a member's bounds as fractions of `bounds` (origin and size)
+//                 and its four corner radii as fractions of `bounds`' shorter
+//                 side, so every site that translates or scales `bounds` moves
+//                 the members with it. Read only when the count is two or more.
+//
 // `bounds`, `contentMask`, `maskCornerRadii`, `cornerRadii` and `shape` mean
 // exactly what they mean on `MUIRect` (`shape`: `MUIShape` in bits 0...7, the
 // transform index, 1 + an index into `Scene.transforms`, in bits 8...31, ruling
 // GX-F). `tint` is straight alpha, like a rect's `background`. `sigma` is the
 // blur's standard deviation in DEVICE pixels (`MUIBackdropSigmaPoints` x the
 // display scale); `opacity` multiplies the whole result.
+typedef struct {
+    MUIBounds bounds;
+    MUICorners radii;
+} MUIGlassMember;
+
 typedef struct {
     MUIBounds bounds;
     MUIBounds contentMask;
@@ -77,6 +99,18 @@ typedef struct {
     MUIUInt shape;
     float sigma;
     float opacity;
+    MUIUInt glassFlags;
+    float lensDepth;
+    float band;
+    float rimStrength;
+    float blendK;
+    float press;
+    float pressLift;
+    float glassReserved;
+    MUIGlassMember member0;
+    MUIGlassMember member1;
+    MUIGlassMember member2;
+    MUIGlassMember member3;
 } MUIBackdrop;
 
 // The blur's standard deviation in points, one constant for all six materials

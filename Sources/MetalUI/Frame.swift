@@ -2035,6 +2035,19 @@ public final class Frame {
     /// `Deferred` presentation keeps the stack (`OV-M` item 2).
     var namedSpaces: [NamedSpace] = []
 
+    // MARK: Liquid Glass (`LG-I`)
+
+    /// The containers open in prepaint, innermost last: a `GlassEffectContainer` pushes one around its content's
+    /// prepaint, and a glass layer inside registers into the last (`LG-I`). Per-frame scratch, cleared at `render`.
+    var glassGroups: [GlassGroup] = []
+
+    /// The `glassEffectID`/`glassEffectUnion` tags open in prepaint, innermost last (`LG-H`, `LG-K`).
+    var glassTags: [GlassTag] = []
+
+    /// How many `GlassEffectContainer`s are painting their content: a glass layer inside one emits nothing (the
+    /// container emitted the merged blobs before its content, `LG-I`).
+    var glassContainerPaintDepth = 0
+
     /// The named-space stack in force at each hitbox's registration, by
     /// hitbox index (`OV-E` item 3) — filled only while `namedSpaces` is
     /// non-empty, so a tree with no scope stores nothing. `Window` keeps it as
@@ -2967,12 +2980,13 @@ public final class Frame {
     /// (`BB-H`, divergence 248).
     func fillBackdrop(_ bounds: Bounds<Pixels>, tint: Hsla,
                       cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
-                      shape: PrimitiveShape = .roundedRectangle) {
+                      shape: PrimitiveShape = .roundedRectangle,
+                      glassTail: ((inout MUIBackdrop) -> Void)? = nil) {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
-        let record = MUIBackdrop(
+        var record = MUIBackdrop(
             bounds: MUIBounds(translated.scaled(by: scaleFactor)),
             contentMask: MUIBounds(activeClip.scaled(by: scaleFactor)),
             maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
@@ -2981,6 +2995,8 @@ public final class Frame {
             order: 0, shape: shape.rawValue,
             sigma: Float(MUIBackdropSigmaPoints) * scaleFactor,
             opacity: activeOpacity)
+        // A glass's tail (`LG-B`): the look lanes and the members, written by `fillGlass` alone.
+        glassTail?(&record)
         if paintScopes.isEmpty {
             retainLog?.noteDirect(CapturedPrimitive(kind: .backdrop(record), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(record, layer: activeLayer)
@@ -3412,7 +3428,12 @@ public final class Frame {
         // flat tint rect (`BB-H`, divergence 248; the surface-leaf precedent).
         if leaf.contains(where: { if case .backdrop = $0.kind { true } else { false } }),
            backdropDegrades {
-            for i in leaf.indices { leaf[i].degradeBackdropToFlatTint() }
+            if depths == nil {
+                // A glass blob is one flat rect per member (`LG-L`).
+                leaf = leaf.flatMap { $0.degradingBackdrop() }
+            } else {
+                for i in leaf.indices { leaf[i].degradeBackdropToFlatTint() }
+            }
         }
         processScopes([(leaf, depths)], from: paintScopes.count, depth: clipStack.count)
     }
@@ -3698,6 +3719,7 @@ public final class Frame {
 
     private func renderOutsideDispatch<E: Element>(_ element: inout E) {
         isRendering = true
+        glassGroups.removeAll(); glassTags.removeAll(); glassContainerPaintDepth = 0   // Liquid Glass scratch (`LG-I`)
         beginScrollRequests()  // `DD-G` item 3: before layout, where `ForEach` and `List` note keys
         // The root is the only id with no parent, and the only one this file
         // builds. `at: 0` is not inert: an unnamed root element takes
