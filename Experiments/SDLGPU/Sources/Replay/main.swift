@@ -571,21 +571,24 @@ func run() throws {
     let transformsAtlas = GlyphAtlas(width: 512, height: 512)
     // Frame 8's blurred text is PortableText's, into its own atlas (`LK-S`).
     let looksAtlas = GlyphAtlas(width: 512, height: 512)
-    // Frames 9–11 (ruling BB-J) need the portable shaders: the adapted MSL has no backdrop stages.
+    // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O) need the portable shaders: the adapted MSL has no backdrop stages.
     let portableShaders = portable
     let sizes = [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200)]
+                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200)]
     for (index, dimensions) in sizes.enumerated() {
         let (width, height) = dimensions
         let backdrops = index >= 9
-        if backdrops && !portableShaders { print("frame \(index) (backdrop blur): skipped, needs --portable"); continue }
+        let glass = index >= 12
+        if backdrops && !portableShaders { print("frame \(index) (\(glass ? "liquid glass" : "backdrop blur")): skipped, needs --portable"); continue }
         let portable = index == 4
         let demo = index == 5
         let shapes = index == 6
         let transforms = index == 7
         let looks = index == 8
         let frameAtlas = backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = backdrops
+        let scene = glass
+            ? GlassParityFrames.scene(index: index)
+            : backdrops
             ? backdropFrame(index: index, width: width, height: height)
             : looks
             ? try looksFrame(width: width, height: height, atlas: looksAtlas)
@@ -606,7 +609,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
@@ -615,8 +618,9 @@ func run() throws {
         // 6): ≤ 8 inside an image quad, ≤ 1 outside; frame 7's transformed
         // sprites likewise (ruling GX-F), its quads placed by the records.
         // Frame 8's CPU-made images likewise (`LK-S`).
-        // Frames 9–11 (ruling BB-J): the blurred quad is judged at the sprite tolerance
-        // (`ReplayFixture.spriteMask()` covers backdrop bounds), every other pixel to one step.
+        // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O, the glass frames of
+        // `GlassParityFrames`): the blurred quad is judged at the backdrop tolerance
+        // (`ReplayFixture.backdropMask()` covers backdrop bounds), every other pixel to one step.
         try require(shapes || transforms || looks || backdrops ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")

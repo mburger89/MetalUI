@@ -209,7 +209,7 @@ public final class SDLWindowRenderer: WindowRenderer {
     // BB-E, BB-K, BB-S): the Metal renderer's counters under the same names,
     // kept in the bridge, 0 for a frame without a backdrop run.
     private func backdropCounter(_ index: Int) -> Int {
-        var counters: [UInt32] = [0, 0, 0, 0, 0]
+        var counters: [UInt32] = [0, 0, 0, 0, 0, 0, 0]
         mui_renderer_backdrop_counters(renderer, &counters)
         return Int(counters[index])
     }
@@ -223,6 +223,10 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var lastFrameTargetCopies: Int { backdropCounter(3) }
     /// Textures (frame target and pool) the last frame had to create; 0 on a steady frame.
     package var lastBackdropTexturesMade: Int { backdropCounter(4) }
+    /// Glass records (`glassFlags` bit 0) the last frame encoded (`LG-B`), the Metal renderer's `lastGlassRecords`.
+    package var lastGlassRecords: Int { backdropCounter(5) }
+    /// Sharp copies of a frame region the lens of a glass read in the last frame (`LG-D`), one per glass with the lens on.
+    package var lastGlassSharpCopies: Int { backdropCounter(6) }
     /// The atlas bytes the last finished frame moved to the GPU (a test recorder, `RG-H`).
     package var lastAtlasBytes: Int { Int(mui_renderer_last_atlas_bytes(renderer)) }
     /// The bridge's renderer handle, for a test that drives `mui_renderer_finish` by hand.

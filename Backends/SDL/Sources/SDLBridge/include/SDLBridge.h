@@ -6,8 +6,8 @@
 typedef struct ReplayGPU ReplayGPU;
 // kind: 0 rect, 1 glyph, 2 image (ruling TE-AF), 3 backdrop (ruling BB-J). An
 // image run samples one texture: the one its first record's `texture` field
-// names. A backdrop run's `start`/`count` index the backdrop records (96 bytes
-// each, `MUIBackdrop`); the run is a segment break (ruling BB-C).
+// names. A backdrop run's `start`/`count` index the backdrop records (256 bytes
+// each, `MUIBackdrop`, `LG-B`); the run is a segment break (ruling BB-C).
 typedef struct { uint32_t kind, start, count; } ReplayRun;
 // The device-pixel rectangle one backdrop record blurs: `Scene.backdropRegion`'s
 // answer (ruling BB-D 3), clamped to the target; `width` 0 means none (the
@@ -37,7 +37,7 @@ bool replay_use_nearest_filter(ReplayGPU *gpu);
 // Buffers are opaque: Swift supplies the existing MetalUI shader ABI.
 // `transforms` is the scene's MUITransform table (64 bytes a record, ruling
 // GX-F); 0 bytes binds one zero record, which index 0 never reads.
-// `backdrops` is the scene's MUIBackdrop table (96 bytes a record, ruling BB-B)
+// `backdrops` is the scene's MUIBackdrop table (256 bytes a record, rulings BB-B, LG-B)
 // with one `regions` entry per record; a frame holding a backdrop run renders
 // into a frame target in segments and blits it to the result (ruling BB-C),
 // and needs the portable shaders (replay_create_portable).
@@ -99,8 +99,9 @@ uint32_t mui_renderer_last_text_passes(MUIRenderer *r);
 // The last frame's backdrop work (ruling BB-S): `out` = splits (backdrop runs),
 // blurs (records), passes (L + 2 a record), frame-target copies (1 for a
 // backdrop frame, else 0), textures made (frame target and pool; 0 on a steady
-// frame). All 0 on a frame without a backdrop run.
-void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]);
+// frame), glass records encoded and sharp copies of the frame region made for
+// their lens (ruling LG-D). All 0 on a frame without a backdrop run.
+void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[7]);
 // The atlas bytes the last finished frame moved to the GPU (0 for a clean
 // atlas; the whole atlas for a new or resized one). A test recorder (RG-H).
 uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r);

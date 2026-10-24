@@ -259,9 +259,10 @@ private let gray = MUIHsla(h: 0, s: 0, l: 0.5, a: 0.2)
     let pixels = try draw(renderer, scene, width: w, height: h)
     #expect(gpx(pixels, 125, 3, width: w) == [255, 0, 0, 255], "member 3's square corner is red")
     #expect(gpx(pixels, 123, 37, width: w) == [0, 0, 0, 255], "member 3's rounded bottom-left corner is the field")
-    #expect(gpx(pixels, 20, 20, width: w) == [0, 0, 0, 255], "the gap between members 0 and 1 is the field")
-    #expect(gpx(pixels, 5, 20, width: w) == [255, 0, 0, 255] && gpx(pixels, 40, 20, width: w) == [255, 0, 0, 255])
-    #expect(gpx(pixels, 60, 20, width: w) == [255, 0, 0, 255] && gpx(pixels, 90, 20, width: w) == [255, 0, 0, 255])
+    #expect(gpx(pixels, 36, 20, width: w) == [0, 0, 0, 255], "the gap between members 0 and 1 (x 32...40) is the field")
+    #expect(gpx(pixels, 5, 20, width: w) == [255, 0, 0, 255] && gpx(pixels, 56, 20, width: w) == [255, 0, 0, 255])
+    #expect(gpx(pixels, 96, 20, width: w) == [255, 0, 0, 255] && gpx(pixels, 76, 20, width: w) == [0, 0, 0, 255],
+            "members 1 and 2 are covered, the gap between them (72...80) is not")
     // Record 1: the second slot, two members, the lane-7 lift.
     let lifted = gpx(pixels, 100, 75, width: w)
     #expect(abs(lifted[0] - 128) <= 1 && abs(lifted[1] - 128) <= 1 && lifted[2] == 255 && lifted[3] == 255,
@@ -317,7 +318,9 @@ func theThreeGlassParityFramesMatchMetalWithinTheBackdropTolerance(index: Int) t
                                     projection: projection, reference: metal)
     let parity = fixture.parity(of: sdl)
     #expect(parity.passes, "frame \(index): \(parity)")
-    #expect(parity.backdrop.pixels > 5000, "the glass quad is judged at the backdrop tolerance")
+    print("glass frame \(index): outside Δ\(parity.outside.maxDelta), inside sprites Δ\(parity.inside.maxDelta), "
+          + "glass quad \(parity.backdrop.pixels) px differ, max Δ\(parity.backdrop.maxDelta) (≤\(ParityTolerance.insideBackdrops))")
+    #expect(parity.backdrop.maxDelta <= ParityTolerance.insideBackdrops, "the glass quad is judged at the backdrop tolerance")
     let field = try metalPixels(GlassParityFrames.fieldScene(), width: w, height: h)
     #expect(pixelDifference(field, metal, above: 4).pixels > 5000, "frame \(index): the glass changes the field")
 }

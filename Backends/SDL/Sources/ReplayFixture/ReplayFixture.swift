@@ -4,18 +4,20 @@
 // side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
 // `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
-// Layout (little-endian, no padding), version 4 (ruling BB-J: backdrops;
-// version 3, GX-F, added transforms; version 2, TE-AF, images — versions 2
-// and 3 still load, as the same frame without what they lack):
+// Layout (little-endian, no padding), version 5 (ruling LG-O: the 256-byte
+// backdrop record with the Liquid Glass tail; version 4, BB-J, backdrops at 96
+// bytes; version 3, GX-F, added transforms; version 2, TE-AF, images — versions
+// 2, 3 and 4 still load, as the same frame without what they lack; a version-4
+// record is widened with a zero tail, which is a material):
 //   "MUIRPLY\0"  u32 version
 //   u32 width, height, rectStride, glyphStride, imageStride, transformStride,
-//       backdropStride                              (the last two: version 3, 4)
+//       backdropStride                              (the last two: version 3, 4; 96 in 4, 256 from 5)
 //   u32 rectByteCount,  rect bytes
 //   u32 glyphByteCount, glyph bytes
 //   u32 imageByteCount, image bytes
 //   u32 textureCount, textureCount × (u32 width, height, width × height × 4 RGBA8 bytes)
 //   u32 transformByteCount, transform bytes (MUITransform records)   (version 3, 4)
-//   u32 backdropByteCount, backdrop bytes (MUIBackdrop records)      (version 4)
+//   u32 backdropByteCount, backdrop bytes (MUIBackdrop records)      (version 4, 5)
 //   u32 runCount, runCount × (u32 kind, start, count)
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
 //   16 × f32 projection (column-major)
@@ -64,7 +66,7 @@ public struct FixtureTexture: Equatable, Sendable {
 }
 
 public struct ReplayFixture: Equatable, Sendable {
-    public static let version: UInt32 = 4
+    public static let version: UInt32 = 5
     /// The oldest version ``init(decoding:)`` still reads (ruling `BB-J`):
     /// version 1 had no images and is re-recorded, never read.
     public static let oldestReadableVersion: UInt32 = 2
@@ -79,6 +81,9 @@ public struct ReplayFixture: Equatable, Sendable {
     /// The backdrop record's stride (version 4, ruling `BB-B`): six `float4` lanes,
     /// read by `replay.hlsl` as they are.
     public static let backdropStride = UInt32(MemoryLayout<MUIBackdrop>.stride)
+    /// The backdrop record's stride in a version-4 file (ruling `LG-O`): the six lanes
+    /// before the glass tail, widened with a zero tail on decode.
+    public static let version4BackdropStride: UInt32 = 96
     public static let maxDimension: UInt32 = 4096
 
     public var width: UInt32
@@ -312,8 +317,10 @@ extension ReplayFixture {
               transformStride == Self.transformStride else {
             throw .strideMismatch(rect: rectStride, glyph: glyphStride, image: imageStride)
         }
-        guard backdropStride == Self.backdropStride else {
-            throw .invalid("backdrop ABI changed: stride \(backdropStride), shaders expect \(Self.backdropStride)")
+        // A version-4 table holds 96-byte records (widened below), a later one the current stride.
+        let expectedBackdropStride = version == 4 ? Self.version4BackdropStride : Self.backdropStride
+        guard backdropStride == expectedBackdropStride else {
+            throw .invalid("backdrop ABI changed: stride \(backdropStride), shaders expect \(expectedBackdropStride)")
         }
         let rects = try bytes(Int(try u32()))
         let glyphs = try bytes(Int(try u32()))
@@ -330,7 +337,21 @@ extension ReplayFixture {
                                            pixels: try bytes(Int(textureWidth) * Int(textureHeight) * 4)))
         }
         let transforms = version >= 3 ? try bytes(Int(try u32())) : []
-        let backdrops = version >= 4 ? try bytes(Int(try u32())) : []
+        var backdrops = version >= 4 ? try bytes(Int(try u32())) : []
+        if version == 4 {
+            // Each 96-byte record keeps its six lanes and gains a zero glass tail (ruling `LG-O`).
+            let old = Int(Self.version4BackdropStride), new = Int(Self.backdropStride)
+            guard backdrops.count % old == 0 else {
+                throw .invalid("backdrop bytes \(backdrops.count) not a multiple of \(old)")
+            }
+            var widened: [UInt8] = []
+            widened.reserveCapacity(backdrops.count / old * new)
+            for start in stride(from: 0, to: backdrops.count, by: old) {
+                widened += backdrops[start..<start + old]
+                widened += [UInt8](repeating: 0, count: new - old)
+            }
+            backdrops = widened
+        }
         let runCount = Int(try u32())
         var runs: [FixtureRun] = []
         for _ in 0..<runCount {
