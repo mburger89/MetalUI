@@ -81,6 +81,8 @@ public final class Renderer {
     private(set) var lastBackdropTexturesMade = 0
     /// Test hook (`BB-K`, test 2.7): every pool allocation fails, so each record draws its flat tint.
     var backdropPoolFailsAllocation = false
+    /// Test hook (`LG-W`): only the glass lens's sharp copy fails, the blur succeeds.
+    var glassSharpCopyFailsAllocation = false
     /// Test hook (test 2.3): route every scene, backdrop or not, through the frame target.
     var routesEveryFrameThroughTheFrameTarget = false
     /// Whether the default state holds a frame target (test 2.3).
@@ -574,6 +576,7 @@ public final class Renderer {
         }
         var record = record
         var draw = draw
+        record.glassFlags = Renderer.glassFlags(record.glassFlags, haveSharpCopy: sharp != nil)
         encoder.setRenderPipelineState(blurred == nil ? pipelines.flat : pipelines.blurred)
         encoder.setVertexBuffer(unitVertexBuffer, offset: 0, index: Int(MUIRectBufferVertices.rawValue))
         encoder.setVertexBytes(&record, length: MemoryLayout<MUIBackdrop>.stride, index: Int(MUIRectBufferRects.rawValue))
@@ -586,10 +589,17 @@ public final class Renderer {
             encoder.setFragmentBytes(&draw, length: MemoryLayout<SIMD4<Float>>.stride, index: BackdropPipelines.drawConstantsIndex)
             encoder.setFragmentTexture(blurred, index: 0)
             // The sharp region the lens reads; a record that does not read it gets the blurred texture
-            // (a texture must be bound, and a failed copy degrades the lens to the blur).
+            // (a texture must be bound; the flags above already dropped the lens, `LG-W`).
             encoder.setFragmentTexture(sharp ?? blurred, index: 1)
         }
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4, instanceCount: 1)
+    }
+
+    /// The flags a glass draws with (`LG-W`): the lens and rim bit (bit 1) is cleared when the lens has no sharp
+    /// copy to read, so the record degrades to the plain material look by name rather than reading the
+    /// downsampled blurred texture at the wrong scale. A material (bit 0 clear) is untouched.
+    static func glassFlags(_ flags: MUIUInt, haveSharpCopy: Bool) -> MUIUInt {
+        (flags & 1 != 0 && !haveSharpCopy) ? flags & ~2 : flags
     }
 
     /// A copy of backdrop `index`'s region of `frame` into a pool texture, unblurred (`LG-D`): what the
@@ -599,7 +609,7 @@ public final class Renderer {
                            commandBuffer: any MTLCommandBuffer, state: BackdropFrameState) throws -> (any MTLTexture)? {
         guard let region = scene.backdropRegion(index, target: (width, height)),
               let copy = state.acquire(device: device, width: region.width, height: region.height,
-                                       failing: backdropPoolFailsAllocation) else { return nil }
+                                       failing: backdropPoolFailsAllocation || glassSharpCopyFailsAllocation) else { return nil }
         guard let blit = commandBuffer.makeBlitCommandEncoder() else {
             state.release(copy)
             throw RendererError.encoderUnavailable

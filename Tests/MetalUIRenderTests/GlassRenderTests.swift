@@ -301,3 +301,72 @@ private let fieldWidth = 60, fieldHeight = 40
     #expect(glassPixel(pixels, 80, 20, width: 100) == [255, 255, 255, 255], "second member")
     #expect(glassPixel(pixels, 50, 20, width: 100) == [255, 0, 0, 255], "the gap is the sharp backdrop: \(glassPixel(pixels, 50, 20, width: 100))")
 }
+
+/// **15** (`LG-W`). A glass whose lens cannot get its sharp copy (the blur succeeded) draws the plain
+/// material look: bit 1 of its flags is cleared, so its pixels equal the same record without the lens
+/// and rim, not a lens reading the downsampled blurred texture at the wrong scale. The control run
+/// (the copy succeeds) differs from it, so the lens is on in the arm that fails. Mutation: bind
+/// `sharp ?? blurred` with the flags untouched (drop `Renderer.glassFlags`'s clearing).
+@Test @MainActor func aGlassWhoseSharpCopyFailsDrawsWithoutItsLens() throws {
+    let renderer = try glassRenderer()
+    let (w, h) = (fieldWidth, fieldHeight)
+    let field = glassField(width: w, height: h)
+    func render(lens: Bool, sharpFails: Bool) throws -> [UInt8] {
+        var scene = Scene()
+        for r in field.rects { scene.insert(r) }
+        scene.insert(glassRecord(glassBounds(0, 0, Float(w), Float(h)), tint: glassHSLA(0.2, 0.4, 0.9, 0.35), radius: 14, sigma: 52,
+                                 lensRim: lens, lensDepth: 6, band: 12, rim: 0.6))
+        scene.finalize()
+        renderer.glassSharpCopyFailsAllocation = sharpFails
+        defer { renderer.glassSharpCopyFailsAllocation = false }
+        return try renderer.renderOffscreen(scene, size: glassTargetSize(w, h))
+    }
+    let failed = try render(lens: true, sharpFails: true)
+    #expect(renderer.lastGlassSharpCopies == 0 && renderer.lastBackdropBlurs == 1, "only the sharp copy failed")
+    let plain = try render(lens: false, sharpFails: false)
+    let lensed = try render(lens: true, sharpFails: false)
+    #expect(renderer.lastGlassSharpCopies == 1)
+    var toPlain = 0, toLensed = 0
+    for i in 0..<failed.count {
+        toPlain = max(toPlain, abs(Int(failed[i]) - Int(plain[i])))
+        toLensed = max(toLensed, abs(Int(failed[i]) - Int(lensed[i])))
+    }
+    #expect(toPlain <= 1, "a failed sharp copy is \(toPlain) levels from the plain look")
+    #expect(toLensed > 8, "the lens is on in the control run (\(toLensed))")
+    #expect(Renderer.glassFlags(3, haveSharpCopy: false) == 1 && Renderer.glassFlags(3, haveSharpCopy: true) == 3
+            && Renderer.glassFlags(2, haveSharpCopy: false) == 2, "a material's flags are untouched")
+}
+
+/// **16** (`LG-W`). The glass coverage is taken in device pixels: under a uniform scale of 2 a box whose
+/// local left edge is 5.1 lies at screen 10.2, so the pixel at 10 (centre 10.5) is 80 % covered
+/// (`saturate(0.5 - d * s)`, d = -0.15 local, s = 2), not 65 % (the unscaled `saturate(0.5 - d)`). The
+/// readback over red under an opaque white tint is `255 * c` in green; the same box as a material
+/// agrees. Mutation: `d * s` for `d` in `glass_shade`'s coverage (shaders.metal).
+@Test @MainActor func aGlassEdgeUnderAScaleIsCoveredInDevicePixels() throws {
+    let renderer = try glassRenderer()
+    let (w, h) = (80, 60)
+    func render(glass: Bool) throws -> [UInt8] {
+        var scene = Scene()
+        scene.insert(glassSolid(glassBounds(0, 0, Float(w), Float(h)), glassRedHSLA))
+        let scale = MUITransform(a: 2, b: 0, c: 0, d: 2, tx: 0, ty: 0, pixelScale: 2, _reserved: 0,
+                                 outerMask: glassBounds(0, 0, Float(w), Float(h)), outerMaskRadii: glassSquare)
+        let box = glassBounds(5.1, 5.1, 20, 12)
+        if glass {
+            scene.insert(glassRecord(box, tint: glassGray(1), sigma: 8), transform: scale)
+        } else {
+            scene.insert(MUIBackdrop(bounds: box, contentMask: glassWide, maskCornerRadii: glassSquare,
+                                     cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+                                     tint: glassGray(1), order: 0, shape: 0, sigma: 8, opacity: 1),
+                         transform: scale)
+        }
+        scene.finalize()
+        return try renderer.renderOffscreen(scene, size: glassTargetSize(w, h))
+    }
+    let glass = try render(glass: true), material = try render(glass: false)
+    // Row 20 is inside the box (screen 10.2...34.2 vertically); the left edge is at 10.2, the right at 50.2.
+    for (x, expected) in [(10, Float(0.8 * 255)), (50, Float(0.2 * 255))] {
+        let g = glassPixel(glass, x, 20, width: w), m = glassPixel(material, x, 20, width: w)
+        #expect(abs(g[1] - expected) <= 3, "column \(x): glass green \(g[1]), expected \(expected)")
+        #expect(abs(g[1] - m[1]) <= 1, "column \(x): glass \(g[1]) against its material \(m[1])")
+    }
+}

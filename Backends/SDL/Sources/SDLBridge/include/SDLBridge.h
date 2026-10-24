@@ -110,7 +110,7 @@ bool mui_renderer_has_frame_target(MUIRenderer *r);
 // Test hooks (ruling BB-K): every pool allocation fails (the records draw their
 // flat tint, test 3.3d); every frame, backdrop or not, goes through the frame
 // target (test 3.3b).
-void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame);
+void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame, bool sharp_fails);
 // The last offscreen frame as BGRA rows (waits for it).
 bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *bgra);
 // How many times the renderer has released an offscreen frame's fence before

@@ -239,11 +239,15 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var hasBackdropFrameTarget: Bool { mui_renderer_has_frame_target(renderer) }
     /// Test hook (`BB-K`, test 3.3d): every pool allocation fails, so each record draws its flat tint.
     package var backdropPoolFailsAllocation = false {
-        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget) }
+        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget, glassSharpCopyFailsAllocation) }
+    }
+    /// Test hook (`LG-W`): only the glass lens's sharp copy fails; the record draws its flat arm.
+    package var glassSharpCopyFailsAllocation = false {
+        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget, glassSharpCopyFailsAllocation) }
     }
     /// Test hook (test 3.3b): route every frame, backdrop or not, through the frame target.
     package var routesEveryFrameThroughTheFrameTarget = false {
-        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget) }
+        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget, glassSharpCopyFailsAllocation) }
     }
 
     public func beginFrame() -> Float? {

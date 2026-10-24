@@ -365,7 +365,7 @@ typedef struct {
     uint32_t splits, blurs, passes, copies, made;
     /* Glass records encoded and sharp copies of the frame region made for their lens (LG-D). */
     uint32_t glass_records, glass_copies;
-    bool pool_fails, route_every_frame;
+    bool pool_fails, route_every_frame, sharp_fails;
 } BackdropState;
 
 static void backdrop_begin_frame(BackdropState *b) {
@@ -524,6 +524,7 @@ static bool blur_record(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cm
    The slot, or -1 when none can be had (the lens then reads the bound blurred texture). */
 static int sharp_copy(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *frame,
                       const ReplayRegion *region) {
+    if (b->sharp_fails) return -1;
     int slot = backdrop_acquire(g, b, (uint32_t)region->width, (uint32_t)region->height);
     if (slot < 0) return -1;
     SDL_GPUBlitInfo blit = {
@@ -735,8 +736,12 @@ static bool encode_frame(FrameDraw *f, BackdropState *b, SDL_GPUTexture *target,
             memcpy(&flags, (const uint8_t *)f->backdrops + (size_t)(run->start + k) * BACKDROP_STRIDE + BACKDROP_FLAGS_OFFSET, sizeof(flags));
             if (flags & 1u) b->glass_records += 1;
             /* A glass with the lens on also reads the frame unblurred (LG-D). */
-            if ((flags & 3u) == 3u && results[k].slot >= 0)
+            if ((flags & 3u) == 3u && results[k].slot >= 0) {
                 results[k].sharp = sharp_copy(g, b, f->cmd, frame, &f->regions[run->start + k]);
+                /* No sharp copy: the lens cannot read its region, so the record draws its flat arm
+                   (ruling LG-W; Metal clears the lens bit, the storage buffer is already uploaded here). */
+                if (results[k].sharp < 0) { backdrop_release(b, results[k].slot); results[k].slot = -1; }
+            }
         }
         pass = begin_segment(f, frame, SDL_GPU_LOADOP_LOAD);
         if (!pass) goto done;
@@ -1295,8 +1300,9 @@ uint32_t mui_renderer_last_text_passes(MUIRenderer *r) { return r->last_text_pas
 
 bool mui_renderer_has_frame_target(MUIRenderer *r) { return r->backdrop.frame != NULL; }
 
-void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame) {
+void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame, bool sharp_fails) {
     r->backdrop.pool_fails = pool_fails;
+    r->backdrop.sharp_fails = sharp_fails;
     r->backdrop.route_every_frame = route_every_frame;
 }
 

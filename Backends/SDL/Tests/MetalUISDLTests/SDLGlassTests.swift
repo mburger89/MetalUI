@@ -226,6 +226,30 @@ private let gray = MUIHsla(h: 0, s: 0, l: 0.5, a: 0.2)
     #expect(neck != bareNeck, "the neck between the members is glass: \(neck)")
 }
 
+/// **15b** (`LG-W`). A glass whose lens cannot get its sharp copy (the blur succeeded) draws its flat
+/// arm, the same pixels a record whose pool fails draws, and not the lens reading the blurred texture at
+/// the wrong scale; the control frame differs, and counts its sharp copy. Mutation: drop the
+/// `results[k].sharp < 0` branch in `SDLBridge.c`.
+@Test @MainActor func aGlassWhoseSharpCopyFailsDrawsItsFlatArm() throws {
+    let (w, h) = (120, 90)
+    let renderer = try offscreenRenderer(w, h)
+    var (scene, _) = cellField(width: w, height: h)
+    scene.insert(GlassParityFrames.record(gmb(20, 12, 80, 56), radius: 20, tint: gray, sigma: 16,
+                                          lensDepth: 8, band: 12, rim: 0.5))
+    scene.finalize()
+    let normal = try draw(renderer, scene, width: w, height: h)
+    #expect(renderer.lastGlassSharpCopies == 1)
+    renderer.glassSharpCopyFailsAllocation = true
+    let failed = try draw(renderer, scene, width: w, height: h)
+    renderer.glassSharpCopyFailsAllocation = false
+    #expect(renderer.lastGlassSharpCopies == 0, "the sharp copy failed")
+    renderer.backdropPoolFailsAllocation = true
+    let flat = try draw(renderer, scene, width: w, height: h)
+    renderer.backdropPoolFailsAllocation = false
+    #expect(failed == flat, "a record without its sharp copy draws the flat arm")
+    #expect(failed != normal, "the lens is on in the control frame")
+}
+
 /// **16** (`LG-B`, `LG-O`). The bridge uploads the whole 256-byte record, at its stride:
 /// record 0 has four members and member 3's bottom-left radius (the LAST lane's last
 /// field) rounds that corner away; record 1, a second 256-byte slot, has two members and a
