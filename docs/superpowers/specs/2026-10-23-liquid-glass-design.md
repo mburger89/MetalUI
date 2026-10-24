@@ -3,7 +3,7 @@
 Item LG (user request 2026-10-23, MetalUI only; gpui-gap list; not a plan task): SwiftUI's Liquid Glass on both
 renderers, built on the backdrop blur. Branch `feat/liquid-glass` from `f1c422e5`; rulings `LG-A`… in
 [`../2026-10-23-liquid-glass-decisions.md`](../2026-10-23-liquid-glass-decisions.md); divergence labels reserved **825–834**
-(825–829 planned); record `docs/record/153-liquid-glass.md` (Record phase). **Status: lanes A (`LG-S`), B (`LG-T`) and C (2026-10-23, `LG-U`: one `LayoutModifier` case, ID and union as transparent scopes, `fillGlass` in `MaterialTransparency.swift`, test 21b added) built.**
+(825–829 planned); record `docs/record/153-liquid-glass.md` (Record phase). **Status: lanes A (`LG-S`), B (`LG-T`) and C (2026-10-23, `LG-U`: one `LayoutModifier` case, ID and union as transparent scopes, `fillGlass` in `MaterialTransparency.swift`, test 21b added) built; Record phase 2026-10-23: LANDED, record §153, looks owed to a human (group `LG`).**
 
 Evidence: [`docs/probes/swiftui-liquid-glass.swift`](../../probes/swiftui-liquid-glass.swift) (recorded output and reading in
 its header). **`ImageRenderer` draws no glass; every pixel claim is a real-window capture.** SwiftUI has these APIs only in the

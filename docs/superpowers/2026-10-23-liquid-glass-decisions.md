@@ -6,10 +6,10 @@ Rulings for item LG: SwiftUI's Liquid Glass (`glassEffect`, `Glass`, `GlassEffec
 backdrop blur (`BB-`, record §94,
 [`2026-10-10-backdrop-blur-decisions.md`](2026-10-10-backdrop-blur-decisions.md)). Spec:
 [`specs/2026-10-23-liquid-glass-design.md`](specs/2026-10-23-liquid-glass-design.md). Record: `docs/record/153-liquid-glass.md`
-(Record phase). Branch `feat/liquid-glass` from `f1c422e5`; divergence labels reserved for this
+(written at the Record phase, 2026-10-23). Branch `feat/liquid-glass` from `f1c422e5`; divergence labels reserved for this
 branch: **825–834** (planned below: 825–829).
 
-**Next unused id: `LG-V`.** (Moves in the commit that appends a ruling; read the last `## LG-`
+**Next unused id: `LG-W`.** (Moves in the commit that appends a ruling; read the last `## LG-`
 heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-liquid-glass.swift`](../probes/swiftui-liquid-glass.swift) (groups `A`, `P`, `R`, `W`;
@@ -354,3 +354,13 @@ rule and AGENTS.md's copy.
 `theLooksColourSectionPaintsLiteralDynamicAndPaletteColours` (its scheme toggle is "the lowest clickable hitbox"). `liquidGlassDemoContent()` is reached with
 `METALUI_GLASS_DEMO=1`, built by `buildTheLiquidGlassDemo` in the 1 MB-stack pin, drawn by test 37.
 **Cost if wrong.** A constants edit (5), one table row (3), the union rule is one function (4).
+
+## LG-V — Record phase: the close, the demo root and the open residue
+
+**Ruling.** 1. The demo is a root of its own, `METALUI_GLASS_DEMO=1` (`LG-U` 13): `LooksDemo` stays unchanged, so the fourteen images and the two looks tests that count its hitboxes do not move.
+2. **Two findings are carried, not fixed** (the Record phase writes docs only): (a) the glass coverage's pixel scale `s` is unpinned (the verifier's mutation `saturate(0.5 - d)` for `saturate(0.5 - d * s)` survived `Glass|Backdrop`; a glass under a `scaleEffect` other than 1 against a material's edge would pin it); (b) the sharp-copy fallback (`LG-T` 5): clear `glassFlags` bit 1 in `Renderer.encodeBackdrop` when `sharp == nil`, with a pin, on the next change to that file. Owners: the next change to `glass_shade`'s coverage and to `Renderer.swift`.
+3. **An HLSL source edit reddens no Swift test**: the tests run `Shaders/compiled`; the instrument is CI's `Compiled shaders match replay.hlsl` step. A mutation of the shader edits the blob (the verifier's `backdrop.fragment.msl` smooth-min edit reddened two tests; the same edit in `replay.hlsl` none).
+4. **After editing or restoring `MetalUIShaderTypes.h`, `touch Sources/MetalUIShaderTypes/shim.c`** (`LG-S` hazard), or a mutation result is contaminated.
+5. Lane C's mutations ran as a filtered 138-test set; the verifier re-ran M25 on the full suite. The lavapipe parity (max delta 3 on frames 12 and 13) sits at `BB-J`'s tolerance with no headroom.
+6. The human-checks group is `LG` (LG1-LG6, as the spec's §8 named them). No divergence label beyond 829 was taken.
+**Cost if wrong.** none; the residue is named with owners.

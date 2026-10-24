@@ -1904,6 +1904,17 @@ a physical GPU, a desktop session and a console.*
 - [ ] **SX1.** On Windows x64, shadercross at the pin built against Microsoft's DXC release (v1.9.2602: its `dxcompiler.dll` and `dxil.dll`): `SDLGPUShaderCompiler.selfTest(for:)` compiles to DXIL and dispatches on D3D12 (`SX-D`: compatibility is **unmeasured**). **Observed:**
 - [ ] **SX2.** A Linux tarball whose libraries sit in `lib/` beside the executable (RUNPATH `$ORIGIN/lib`, no `bin/`/`../lib` layout) finds them as `<exe>/lib` with no `LD_LIBRARY_PATH` and `selfTest` passes; a missing library names `<exe>/lib/...` among the paths tried (`SX-B`, `SX-C`). **Observed:**
 
+## LG. Liquid Glass - `glassEffect`, the container, the glass buttons (item LG, user request 2026-10-23, not a plan task; record 153; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: `ImageRenderer` draws no glass (probe `R`), so no test compares with SwiftUI; the real-window numbers of `swiftui-liquid-glass.swift` `W` are captures of an inactive borderless window. Everything here is pinned as MetalUI's own arithmetic against `GlassReference` (`GlassRenderTests`, `GlassReferenceTests`, `SDLGlassTests`), scene records and counted work (`GlassTests`, `GlassHarnessTests`). Run `METALUI_GLASS_DEMO=1 swift run MetalUIDemo`.*
+
+- [ ] **LG1.** The demo's standalone glasses (regular, clear, tinted) over its striped, coloured backdrop, light and dark, beside a SwiftUI app on macOS 26 with the same shapes over the same photo and text: compare the edge lens depth, the specular rim (upper left), the blur radius (sigma 52 pt is the Material constant, unseparated by the probe) and the 1-pixel outer hairline `LG-Q` carries. The lens and rim are MetalUI's own look (divergence 825), tunable in `GlassLook` alone. **Observed:**
+- [ ] **LG2.** `.buttonStyle(.glass)` and `.glassProminent` (padding, the capsule radius, the accent tint, a label that is **not** turned white, `LG-U` 7) and `Glass.regular.tint(_:)` against SwiftUI; SwiftUI's regular tint read a colour-independent grey in the capture (`LG-E`). **Observed:**
+- [ ] **LG3.** The container's three circles with the spacing control: the merge threshold (`spacing > 2 × gap`) and the neck against SwiftUI's; `glassEffectUnion` as one blob regardless of distance, where SwiftUI's capture showed one circle between the two (`LG-H`, divergence 826); a non-glass sibling between two members sits **under** the blob. **Observed:**
+- [ ] **LG4.** System Settings, Accessibility, Display, Reduce transparency on: glass shapes are an opaque grey with no blur (`LG-F`); SwiftUI's own fallback is unmeasured. **Observed:**
+- [ ] **LG5.** The demo on SDL, a desktop GPU: Linux (Vulkan) and Windows (D3D12). Lens, rim and merge look as on macOS (lavapipe reads max delta 3 on parity frames 12 and 13, `BB-J`'s tolerance with no headroom; D3D12 is CI only). **Observed:**
+- [ ] **LG6.** A press held on a `.glass` button: the tint lifts by a white wash (alpha 0.12) while the pointer is down over it and drops on release; SwiftUI scales and bounces (carried, `LG-J`, divergence 827); a bare `.glassEffect(.interactive())` on non-control content does nothing. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
