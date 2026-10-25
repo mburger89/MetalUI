@@ -1,7 +1,7 @@
 # Hung `MetalUISDLTests` helpers (item HG) — design
 
 Item HG of the gpui-gap priority list (user request 2026-10-02) with MetalCreator's report of 2026-10-24; **not a plan task**. Rulings:
-`../2026-10-24-sdl-test-hangs-decisions.md` (`TL-A`…`TL-J`). Record `§154` (Record phase). Base `935d0096`, branch `fix/sdl-test-hangs`.
+`../2026-10-24-sdl-test-hangs-decisions.md` (`TL-A`…`TL-J`). Record `§154`. **Status: built and verified (2026-10-24); see record 154.** Base `935d0096`, branch `fix/sdl-test-hangs`.
 `Backends/SDL` test infrastructure plus docs. Class M, no public declaration, no census row, no divergence (labels 835-844 untouched), no
 SwiftUI claim (SwiftUI and gpui have no answer to a test process's lifetime: nothing to probe on either; the probes are of Swift Testing and SDL).
 No root `Sources/` change: root stays **4445**, the fourteen images 0 px against `935d0096` by construction.
