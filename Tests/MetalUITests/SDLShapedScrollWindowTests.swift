@@ -61,11 +61,15 @@ private func twoRows(_ log: SLog) -> some Element {
 
 /// **W1** (`TP-H`). A synthesized `.began` over A latches A as AppKit's does:
 /// a `.changed` with the pointer over B and the zero-delta `.ended` still reach
-/// A, and the next phaseless event dispatches by the pointer.
-/// Mutations: `ScrollLatch.isGestureEvent` false for `.changed`; the latch not
-/// cleared by the `.ended` event's end (`advance` keeping it).
+/// A. **The `.ended` itself does not clear the latch** (only a momentum end, a
+/// phaseless event or a new `.began` does, `IF-G` item 3, which SDL never sends
+/// a momentum for): the next phaseless event dispatches by the pointer and
+/// ends it, and a new `.began` replaces it, so a stale latch is never reached
+/// from SDL (the spec's "ended clears it" was inexact, `TP-Q`).
+/// Mutations: `ScrollLatch.isGestureEvent` false for `.changed`; delete
+/// `applyScroll`'s `phase == .none` reset (reddens the second half).
 @MainActor
-@Test func aSyntheticBeganLatchesTheCoverAndEndedClearsIt() throws {
+@Test func aSyntheticBeganLatchesTheCoverAndTheNextEventEndsOrReplacesIt() throws {
     let log = SLog()
     let (window, platform) = try sWindow { twoRows(log) }
     platform.simulateInput(sdl(atA, .began, dy: -5))
@@ -75,12 +79,17 @@ private func twoRows(_ log: SLog) -> some Element {
     #expect(log.events.last?.delta.y.value == 0 && log.events.last?.phase == .ended, "\(String(describing: log.events.last))")
     log.entries = []
     platform.simulateInput(phaseless(atB, dy: -1))
-    #expect(log.entries == ["B"], "after the end the pointer decides: \(log.entries)")
-    // The end cleared the latch itself: a gesture event with no latch dispatches
-    // by the pointer, not to A.
+    #expect(log.entries == ["B"], "a notch after the end is dispatched by the pointer: \(log.entries)")
     log.entries = []
     platform.simulateInput(sdl(atB, .changed, dy: -5))
-    #expect(log.entries == ["B"], "no latch survives the ended: \(log.entries)")
+    #expect(log.entries == ["B"], "and it ended the latch: \(log.entries)")
+    // A new stream after an ended replaces the latch.
+    log.entries = []
+    platform.simulateInput(sdl(atA, .began, dy: -5))
+    platform.simulateInput(sdl(atA, .ended, dy: 0))
+    platform.simulateInput(sdl(atB, .began, dy: -5))
+    platform.simulateInput(sdl(atA, .changed, dy: -5))
+    #expect(log.entries == ["A", "A", "B", "B"], "a began replaces the standing latch: \(log.entries)")
     withExtendedLifetime(window) {}
 }
 
