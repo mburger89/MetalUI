@@ -69,3 +69,11 @@ No demo section, no new env var. `METALUI_CANVAS_DEMO=1`'s canvas (`CanvasDemo.s
 - **A configurable `quietInterval`** (`TP-L` 3): only if `TP` measurements disagree with 0.15 s.
 - **Windows precision-touchpad `WM_POINTER` gestures** (`TP-L` 4): SDL's loop does not expose them.
 - Lane 1's per-mutation table (section 4): re-take `SDLScrollClassifierTests` and the platform arms under the spec's list if a later change touches the classifier (owner: the next change to `SDLScrollClassifier.swift`).
+
+## 9. Branch checker (2026-10-25)
+
+Re-taken on the branch (`abacf4d0`): `swift package clean`, native build 0 `error:`, the only `warning:` SwiftPM's deprecation notice; native unfiltered `Test run with 4449 tests in 11 suites failed ... with 5 issues`, exactly the five `AppKitPresentationTests` sheet issues of `CI-AF` (locked screen), `FR-J no-argument frame: succeeded=true`. `Backends/SDL` on macOS `METALUI_REQUIRE_GPU=1 --no-parallel`: 329 passed before, **330** with the checker's pin; Linux image 31 + **326**. Inventory and undocumented scripts print nothing; `cmp CLAUDE.md AGENTS.md` identical. `git diff 935d0096..HEAD -- Sources` is doc comments only (`InputEvent.swift`), so the fourteen images were not re-rendered; lane 2's 0 px stands.
+
+Two mutations of the checker's design, each a full unfiltered `Backends/SDL` run: **CM1** the classifier refreshes `deadline` only on a fractional event (an integral event inside a stream no longer extends it): **survived all 329**, a real pin gap (a flick of whole `WHEEL_DELTA` multiples would end its stream 0.15 s after the last fractional event); closed by `anIntegralEventInsideAStreamMovesTheDeadline` (T4b), which reddens CM1 with 2 issues. **CM2** `SDLWindow.handleWheel` delivers the stale `.ended` after the event instead of before: reddens only `aStaleStreamIsEndedBeforeTheNextBegan` (P3, 3 issues). Both restored, `git status` clean after each.
+
+Doc defects fixed: the demo named `METALUI_INPUT_FOLLOWUPS` does not exist (it is `METALUI_CANVAS_DEMO=1`, `CanvasDemo.scroll`, which prints `precise`/`lines`) in this record, the spec and human checks `TP`; the spec's W1 carried its pre-`TP-Q` name. Not done: the lane 1 22-mutation table (section 4) was still not re-taken.
