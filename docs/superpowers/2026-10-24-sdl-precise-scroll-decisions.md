@@ -1,7 +1,7 @@
 # SDL precise scroll for MetalCreator (XP-G28) — decisions
 
 Rulings for item XP-G28 of the gpui-gap priority list (MetalCreator request 2026-10-24, `docs/metalui-gaps.md` XP-G28; **not a plan task**). Prefix `TP-`.
-**Next unused: `TP-P`.** Spec: [`specs/2026-10-24-sdl-precise-scroll-design.md`](specs/2026-10-24-sdl-precise-scroll-design.md). Record: `../record/155-sdl-precise-scroll.md`.
+**Next unused: `TP-Q`.** Spec: [`specs/2026-10-24-sdl-precise-scroll-design.md`](specs/2026-10-24-sdl-precise-scroll-design.md). Record: `../record/155-sdl-precise-scroll.md`.
 Branch `feat/sdl-precise-scroll` from `935d0096`. Amends `CI-I` item 6 (SDL fills `.none/.none/false`) and builds on `IF-G`/`IF-H` (record 93). Divergence labels reserved 845-854: **845, 846 taken** (spec section 7).
 
 Sources of truth. Facts about SDL come from the SDL 3.4.16 source tree (`fa2c02bb`, the Dockerfile's pin; `src/events/SDL_mouse.c`, `src/video/{wayland,x11,windows,cocoa}`, headers
@@ -118,3 +118,9 @@ the AppKit conformer's behaviour is untouched (values pinned by `PlatformTests`,
 ## TP-O — critic's rejections
 
 **Ruling.** Rejected: making `.ended` carry `momentumPhase` (TP-G); synthesizing `.mayBegin` (no signal precedes the first event); a SwiftUI claim (probe re-run byte for byte by the critic on 2026-10-24: control exit 0, ARM_1 `no member 'isPrecise'`, ARM_2 `no member 'onScrollWheel'`, as recorded). Accepted limits: lanes are disjoint (lane 1 `Backends/SDL`, lane 2 root tests and a doc comment); no shader, seam, census, pixel or demo change, so the fourteen images and `DemoFrameDeterminismTests` cannot move.
+
+## TP-P — the deadline is inclusive at both ends; the idle wait ignores clock-sum noise (implementer, amends TP-C)
+
+**Ruling.** A stream ends when `now >= deadline`: `expire(at:)` and the stale test in `classify` use the same comparison, so an event arriving exactly at the deadline is not precise-by-stickiness and reports the old stream closed, and `expire` at the deadline ends it. (The draft's "`now - lastPreciseTime <= 0.15` is open" differed from `expire`'s boundary by one tick; one boundary is simpler to pin, T7.) `scrollWaitTimeoutMilliseconds` rounds `remaining * 1000` up after subtracting `1e-6`, because `(t + 0.15) - t` is `0.15000000000000568` in doubles and a plain `ceil` added a millisecond (P5 caught it).
+`mui_push_event` leaves `common.timestamp` zero and `SDL_PushEvent` stamps `SDL_GetTicksNS()`, the clock of `mui_now`, so P1's pushed events and the loop's `expireScrollStreams(now: mui_now())` compare directly; P2-P6 inject times regardless.
+**Cost if wrong.** One tick of boundary; a millisecond of wait.
