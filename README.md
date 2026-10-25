@@ -463,7 +463,7 @@ and Wayland drivers); `DragGesture(…, button: .middle / .secondary)` drags wit
 (a right-drag declared on a node defers its context menu to the release), and
 `DragGesture.Value.modifiers` reports the keys held (divergence 140); `.onScrollWheel` hands a
 `ScrollEvent` with phase, momentum, precision and a local location, and claims or passes it on
-around `ScrollView`; `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors, and `PointerStyle.image(_:hotSpot:)` from a bitmap on both, record §116).
+around `ScrollView` (on SDL `isPrecise` and the phases are inferred from the wheel's delta granularity so a trackpad pans and a wheel zooms, `SDLPlatform.Options.scrollPrecision`, divergences 845, 846, record §155, human checks group TP); `.pointerStyle(_:)` sets the cursor (`NSCursor`, SDL system cursors, and `PointerStyle.image(_:hotSpot:)` from a bitmap on both, record §116).
 `METALUI_CANVAS_DEMO=1 swift run MetalUIDemo` is a pannable, zoomable node canvas. Human checks:
 group Y, unrun.
 **Input follow-ups** (user request 2026-10-02, item C16, not a plan task; record §93):

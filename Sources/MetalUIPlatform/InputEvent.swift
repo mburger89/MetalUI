@@ -33,7 +33,8 @@ public struct Modifiers: OptionSet, Sendable, Hashable {
 
 /// The phase of a trackpad gesture or a scroll (ruling `CI-I` item 1): AppKit's
 /// `NSEvent.Phase`, one value per event. `.none` where the platform reports no
-/// phase — a wheel mouse, and every event on SDL.
+/// phase — a wheel mouse, and an SDL notch (an SDL precise stream carries
+/// synthesized `.began`/`.changed`/`.ended`, ruling `TP-F`).
 public enum InputPhase: Sendable, Hashable {
     /// No phase: the event is not part of a gesture the platform tracks.
     case none
@@ -81,13 +82,22 @@ public struct ScrollEvent: Sendable {
     /// The modifier keys held.
     public var modifiers: Modifiers
     /// The trackpad gesture's phase (`NSEvent.phase`); `.none` for a wheel
-    /// mouse, for momentum events, and on SDL (ruling `CI-I` items 1 and 6).
+    /// mouse and for momentum events (ruling `CI-I` item 1). On SDL the phase
+    /// is **synthesized** for a precise stream (rulings `TP-C`, `TP-F`): the
+    /// first fractional event is `.began`, the rest `.changed`, and the
+    /// `.ended` (zero delta, same position and modifiers) is **inferred** when
+    /// the stream has been quiet for the interval, not reported by the device;
+    /// a wheel notch outside a stream is `.none`.
     public var phase: InputPhase
     /// The momentum phase (`NSEvent.momentumPhase`): not `.none` while the
-    /// system coasts after the fingers lift; `.none` on SDL.
+    /// system coasts after the fingers lift; always `.none` on SDL, which
+    /// forwards no momentum (ruling `TP-G`).
     public var momentumPhase: InputPhase
     /// Whether `delta` came from a precise device (a trackpad, a Magic Mouse)
-    /// in points; `false` for a wheel mouse's lines × 10, and always on SDL.
+    /// in points; `false` for a wheel mouse's lines × 10. On SDL it is a
+    /// heuristic (rulings `TP-B`, `TP-C`): an event with a fractional delta,
+    /// and the events of its stream until the quiet interval passes, are
+    /// precise; a high-resolution wheel can read precise (divergence 845).
     public var isPrecise: Bool
     /// The pointer in the receiving element's local space, render effects
     /// undone (ruling `CI-I` item 1). At the platform seam and in

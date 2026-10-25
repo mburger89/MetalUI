@@ -16,9 +16,13 @@ public struct SDLPlatformError: Error, CustomStringConvertible {
 /// appearance and close on Linux, Windows and macOS, each window drawing
 /// through an ``SDLWindowRenderer``.
 ///
-/// **Input constraints of SDL 3.4** (rulings `CI-I` item 6, `CI-K`): a wheel
-/// event has no gesture phase, momentum phase or precise flag (`.none`,
-/// `.none`, `false`); a trackpad pinch arrives as `.magnify` (no position:
+/// **Input constraints of SDL 3.4** (rulings `CI-I` item 6, `CI-K`, `TP-A`…`TP-G`): SDL gives a wheel
+/// event no gesture phase, momentum phase or precise flag, so MetalUI infers them
+/// (``Options/scrollPrecision``): an event whose delta is not a whole number, and the
+/// events within 0.15 s after it, are `isPrecise` with synthesized `.began`, `.changed`
+/// and a late, inferred `.ended`; a whole-notch wheel stays `.none`, `.none`, `false`. A
+/// hi-res wheel reads precise and there is no momentum phase (divergences 845, 846);
+/// a trackpad pinch arrives as `.magnify` (no position:
 /// the window's last pointer position) where the video driver sends one — not
 /// on Windows, whose precision touchpads send control+wheel; there is **no
 /// rotate** event; the pointer styles map to system cursors, with both grab
@@ -120,6 +124,7 @@ public final class SDLPlatform: Platform {
         let window = try SDLWindow(handle: OpaquePointer(handle), offscreen: offscreenRenderers,
                                    show: hidden ? nil : { showWindow(handle) })
         windows[window.id] = window
+        window.setScrollPrecision(options.scrollPrecision)
         window.platform = self
         applyIcon(to: [window])
         if mui_window_has_input_focus(handle) { focusedID = window.id }
@@ -172,15 +177,35 @@ public final class SDLPlatform: Platform {
                 pumpEvents()
                 drainMainQueue()   // SV-H: after the events, before the ticks
                 let now = mui_now()
+                expireScrollStreams(now: now)
                 for window in windows.values where window.linkRunning { window.tick(now) }
             } else {
                 var event = MUIEvent()
-                if mui_wait_event(&event, 250) { dispatch(event) }
+                if mui_wait_event(&event, scrollWaitTimeoutMilliseconds(now: mui_now())) { dispatch(event) }
                 pumpEvents()   // also drains the single-instance queue (`SN-G`)
                 drainMainQueue()   // SV-H
+                expireScrollStreams(now: mui_now())   // `TP-I`
             }
         }
         running = false
+    }
+
+    /// Ends every window's precise scroll stream whose quiet interval has passed (ruling `TP-I`): one
+    /// zero-delta `.ended` each. Called every loop pass with `mui_now()`; tests pass chosen times.
+    func expireScrollStreams(now: Double) {
+        for window in windows.values { window.expireScrollStream(now: now) }
+    }
+
+    /// The loop's idle wait in milliseconds while a scroll stream is open: the time to the earliest deadline
+    /// rounded up, at least 1, at most 250 (ruling `TP-I`).
+    func scrollWaitTimeoutMilliseconds(now: Double) -> Int32 {
+        var wait: Int32 = 250
+        for window in windows.values {
+            guard let deadline = window.scrollDeadline else { continue }
+            let ms = (max(0, deadline - now) * 1000 - 1e-6).rounded(.up)   // 1e-6: clock-sum noise must not add a millisecond
+            wait = min(wait, Int32(max(1, min(250, ms))))
+        }
+        return wait
     }
 
     /// Windows open and not yet closed.
@@ -446,6 +471,7 @@ public final class SDLPlatform: Platform {
             windows[event.window_id]?.handle(event)
         case Int(MUI_EVENT_FOCUS_LOST):
             if focusedID == event.window_id { focusedID = nil }
+            windows[event.window_id]?.focusLost()   // drops a scroll stream, emits nothing (`TP-F`)
         case Int(MUI_EVENT_CLIPBOARD):
             // The clipboard is the platform's, not a window's (`CP-G`): every window's handler runs.
             for window in windows.values { window.clipboardChangeHandler?() }
@@ -1100,6 +1126,7 @@ public final class SDLWindow: PlatformWindow {
     public func close() {
         guard !closed else { return }
         closed = true
+        scrollClassifier.reset()   // no `.ended` after a close (`TP-F`)
         _ = mui_window_hide(rawHandle)
         platform?.remove(self)
         onClose?()
@@ -1262,6 +1289,48 @@ public final class SDLWindow: PlatformWindow {
         publishChrome()
     }
 
+    // MARK: Scroll streams (rulings `TP-B`…`TP-F`, `TP-I`, `TP-M`)
+
+    private var scrollClassifier = SDLScrollClassifier()
+    /// The last precise event's position and modifiers, which the inferred `.ended` repeats.
+    private var scrollStreamPosition = Point(x: Pixels(0), y: Pixels(0))
+    private var scrollStreamModifiers: Modifiers = []
+
+    func setScrollPrecision(_ mode: SDLScrollPrecision) { scrollClassifier.mode = mode }
+
+    /// When the open precise stream ends, or `nil`.
+    var scrollDeadline: Double? { scrollClassifier.deadline }
+
+    /// A wheel event, classified: precise events carry synthesized phases, a stale stream's `.ended` comes
+    /// first. `timestamp` is `mui_now`'s clock (SDL's `SDL_GetTicksNS`).
+    func handleWheel(dx: Float, dy: Float, timestamp: Double, modifiers: Modifiers, position: Point<Pixels>) {
+        let result = scrollClassifier.classify(dx: dx, dy: dy, at: timestamp)
+        if result.closedStale { deliverScrollEnd(timestamp: timestamp) }
+        if result.isPrecise {
+            scrollStreamPosition = position
+            scrollStreamModifiers = modifiers
+        }
+        _ = onInput?(.scrollWheel(ScrollEvent(position: position,
+                                              delta: SDLKeys.scrollDelta(x: dx, y: dy),
+                                              modifiers: modifiers, phase: result.phase, momentumPhase: .none,
+                                              isPrecise: result.isPrecise, timestamp: timestamp)))
+    }
+
+    /// Delivers the inferred `.ended` when the quiet interval has passed.
+    func expireScrollStream(now: Double) {
+        if scrollClassifier.expire(at: now) { deliverScrollEnd(timestamp: now) }
+    }
+
+    private func deliverScrollEnd(timestamp: Double) {
+        _ = onInput?(.scrollWheel(ScrollEvent(position: scrollStreamPosition,
+                                              delta: Point(x: Pixels(0), y: Pixels(0)),
+                                              modifiers: scrollStreamModifiers, phase: .ended,
+                                              momentumPhase: .none, isPrecise: true, timestamp: timestamp)))
+    }
+
+    /// Focus loss: the stream is dropped and nothing is delivered (`Window` cancels the gesture, `IF-H`).
+    func focusLost() { scrollClassifier.reset() }
+
     /// The last pointer position a motion, button or wheel event delivered —
     /// where a pinch, which has none in SDL, is placed (ruling `CI-K` item 2).
     private var lastPointerPosition = Point(x: Pixels(0), y: Pixels(0))
@@ -1355,12 +1424,10 @@ public final class SDLWindow: PlatformWindow {
             _ = onInput?(.textComposition(SDLKeys.composition(String(cString: text),
                                                              start: Int(event.start), length: Int(event.length))))
         case Int(MUI_EVENT_WHEEL):
-            // SDL 3.4 has no scroll phase, momentum or precise flag (ruling
-            // `CI-I` item 6): its delta is lines, scaled to points.
-            _ = onInput?(.scrollWheel(ScrollEvent(position: position,
-                                                  delta: SDLKeys.scrollDelta(x: event.dx, y: event.dy),
-                                                  modifiers: modifiers, phase: .none, momentumPhase: .none,
-                                                  isPrecise: false, timestamp: event.timestamp)))
+            // SDL 3.4 has no scroll phase, momentum or precise flag (`CI-I` item 6): the delta is lines,
+            // scaled to points; precision and phases are inferred (`TP-B`, `TP-F`).
+            handleWheel(dx: event.dx, dy: event.dy, timestamp: event.timestamp, modifiers: modifiers,
+                        position: position)
         case Int(MUI_EVENT_FOCUS_GAINED):
             _ = onInput?(.modifiersChanged(modifiers))
         case Int(MUI_EVENT_KEY_DOWN), Int(MUI_EVENT_KEY_UP):
@@ -1493,6 +1560,9 @@ enum SDLChrome {
 }
 
 #else
+/// The scroll heuristic's spelling with the `SDL` trait off (ruling `TP-N`).
+public enum SDLScrollPrecision: Sendable, Hashable { case automatic, disabled }
+
 /// Not built: the `SDL` trait is off (ruling PX-H item 4). `MetalUISDL` is
 /// compiled with SDL3 only when a dependent enables the trait on its MetalUI
 /// dependency — `.package(url: …, traits: ["SDL", "AccessKit"])`, or
@@ -1514,8 +1584,12 @@ public final class SDLPlatform {
         public var singleInstance: SingleInstance?
         /// The application id's spelling (item XP-G13, ruling `AP-C`).
         public var applicationID: String?
+        /// The scroll heuristic's spelling (ruling `TP-N`).
+        public var scrollPrecision: SDLScrollPrecision
         public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false,
-                    singleInstance: SingleInstance? = nil, applicationID: String? = nil) {
+                    singleInstance: SingleInstance? = nil, applicationID: String? = nil,
+                    scrollPrecision: SDLScrollPrecision = .automatic) {
+            self.scrollPrecision = scrollPrecision
             self.hidesWindows = hidesWindows
             self.rendersOffscreen = rendersOffscreen
             self.singleInstance = singleInstance

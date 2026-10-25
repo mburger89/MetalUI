@@ -4,6 +4,15 @@
 #if SDL
 import Foundation
 
+/// Whether the platform infers a trackpad scroll from SDL's wheel events (rulings `TP-B`, `TP-D`).
+public enum SDLScrollPrecision: Sendable, Hashable {
+    /// A wheel event with a fractional delta, and the events within 0.15 s after it, are `isPrecise` with
+    /// synthesized `.began`/`.changed`/`.ended` phases (divergences 845, 846). The default.
+    case automatic
+    /// Every wheel event is `.none`, `.none`, `isPrecise == false`, as before the heuristic existed.
+    case disabled
+}
+
 extension SDLPlatform {
     /// How an ``SDLPlatform`` opens its windows.
     ///
@@ -44,14 +53,20 @@ extension SDLPlatform {
         /// macOS and Windows group by the bundle and the AppUserModelID instead:
         /// the value is accepted and has no visible effect there (`AP-E`).
         public var applicationID: String?
+        /// Whether a trackpad scroll is inferred from the wheel's delta granularity (ruling `TP-D`); a hi-res
+        /// wheel reads precise, so an app with such users may choose ``SDLScrollPrecision/disabled``.
+        public var scrollPrecision: SDLScrollPrecision
 
         /// - Parameters:
         ///   - hidesWindows: see ``hidesWindows``.
         ///   - rendersOffscreen: see ``rendersOffscreen``.
         ///   - singleInstance: see ``singleInstance``.
         ///   - applicationID: see ``applicationID``.
+        ///   - scrollPrecision: see ``scrollPrecision``.
         public init(hidesWindows: Bool = false, rendersOffscreen: Bool = false,
-                    singleInstance: SingleInstance? = nil, applicationID: String? = nil) {
+                    singleInstance: SingleInstance? = nil, applicationID: String? = nil,
+                    scrollPrecision: SDLScrollPrecision = .automatic) {
+            self.scrollPrecision = scrollPrecision
             self.applicationID = applicationID
             self.hidesWindows = hidesWindows
             self.rendersOffscreen = rendersOffscreen
