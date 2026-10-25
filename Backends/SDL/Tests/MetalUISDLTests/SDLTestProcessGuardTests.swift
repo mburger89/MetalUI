@@ -93,6 +93,14 @@ struct SDLTestProcessGuardTests {
         #expect(muitg_parse_deadline_seconds("30") == 30)
         #expect(muitg_parse_deadline_seconds("999999999999") == 600)
     }
+
+    /// **TL7.** The probe's hold (TL-J): with `METALUI_TL_HOLD=1` it blocks the helper for two minutes on a
+    /// semaphore, the state of a hung GPU wait, so `docs/probes/sdl-orphan-exit.sh` can kill the runner.
+    /// Disabled otherwise.
+    @Test(.enabled(if: getenv("METALUI_TL_HOLD") != nil)) func theProbeHoldBlocksTheHelper() {
+        let never = DispatchSemaphore(value: 0)
+        _ = never.wait(timeout: .now() + 120)
+    }
 }
 
 #endif
