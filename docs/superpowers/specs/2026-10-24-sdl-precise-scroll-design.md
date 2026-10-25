@@ -2,6 +2,8 @@
 
 Rulings: [`../2026-10-24-sdl-precise-scroll-decisions.md`](../2026-10-24-sdl-precise-scroll-decisions.md) (`TP-A`…`TP-O`). Branch `feat/sdl-precise-scroll` from `935d0096`. Backends/SDL plus root tests; no seam change.
 
+**Status: built and verified (2026-10-25); see record 155.** Two details differ from the draft below, by ruling `TP-Q`: W1 is `aSyntheticBeganLatchesTheCoverAndTheNextEventEndsOrReplacesIt` (an `.ended` does not clear the latch) and W3 claims no extra-frame property; divergences 845, 846, group `TP` added at the Record phase.
+
 ## 1. Goal
 
 On SDL (Linux, Windows, macOS-under-SDL) a two-finger trackpad scroll reaches `ScrollEvent` as `isPrecise: true` with `.began/.changed/.ended` so an app can pan on a trackpad and zoom on a wheel. AppKit untouched.

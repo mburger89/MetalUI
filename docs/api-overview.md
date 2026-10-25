@@ -437,7 +437,7 @@ defers the context menu to the release), `DragGesture.Value.modifiers` (D 140),
 and the located `.contextMenu { (location: Point<Pixels>?) in … }` (M). At the
 seam (M): `InputEvent.rightMouseDragged`/`.otherMouseDown`/`.otherMouseDragged`/
 `.otherMouseUp`/`.magnify`/`.rotate`, `MagnifyEvent`, `RotateEvent`,
-`InputPhase`, `ScrollEvent.phase`/`.momentumPhase`/`.isPrecise`/`.location`,
+`InputPhase`, `ScrollEvent.phase`/`.momentumPhase`/`.isPrecise`/`.location` (on SDL `isPrecise` and the phases are synthesized from delta granularity, `SDLPlatform.Options.scrollPrecision`, M, D 845, 846),
 `PlatformPointerStyle`, and the defaultless `PlatformWindow.setPointerStyle(_:)`.
 The canvas demo: `METALUI_CANVAS_DEMO=1`.
 
