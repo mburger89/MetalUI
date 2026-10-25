@@ -836,3 +836,89 @@ private func looksMaterialsRow(scheme: ColorScheme) -> some ElementGroup {
     ("ultraThin", .ultraThinMaterial), ("thin", .thinMaterial), ("regular", .regularMaterial),
     ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar),
 ]
+
+// MARK: - Liquid Glass (item LG; rulings `LG-A`...`LG-V`; human checks LG1-LG6)
+
+/// The Liquid Glass demo, reached with `METALUI_GLASS_DEMO=1 swift run MetalUIDemo` (`LG-P`, `LG-V`): a root of its own
+/// holding ``liquidGlassSection()``. **Not under `looksDemoContent()`**: the looks demo's pins count its clickable
+/// hitboxes (`theLooksDemoDrawsEverySurfaceItsHumanChecksName`, `pressSchemeToggle`) and the glass buttons add some.
+/// Nothing here is in the default demo, so the fourteen offscreen images and `Expected.swift` do not move.
+@MainActor
+public func liquidGlassDemoContent() -> some Element {
+    liquidGlassSection()
+}
+
+/// Liquid Glass over a striped, coloured backdrop so the blur, the lens and rim near each edge, the tint and the
+/// merge are visible: regular, clear and tinted capsules, a `.glass` and a `.glassProminent` button, and a
+/// container of three circles whose spacing a pair of buttons moves. **Its own function** (Windows' 1 MB stack,
+/// `LK-X`); the container is a `Component` over no loop.
+@MainActor
+func liquidGlassSection() -> some Element {
+    VStack(spacing: Pixels(8)) {
+        Text("Liquid Glass").font(size: 20)
+        ZStack {
+            liquidGlassBackdrop()
+            liquidGlassRows()
+        }
+        .frame(width: Pixels(520), height: Pixels(200))
+    }
+}
+
+/// Twenty-six alternating stripes and two discs, so the blur, the lens and the tint have something to bend.
+@MainActor
+private func liquidGlassBackdrop() -> some Element {
+    ZStack {
+        backdropStripes()
+        Circle().fill(Color.yellow).frame(width: Pixels(90), height: Pixels(90)).offset(x: Pixels(-150), y: Pixels(10))
+        Circle().fill(Color.green).frame(width: Pixels(60), height: Pixels(60)).offset(x: Pixels(170), y: Pixels(-40))
+    }
+}
+
+/// The capsules, the buttons and the container, three rows in one frame.
+@MainActor
+private func liquidGlassRows() -> some Element {
+    VStack(spacing: Pixels(14)) {
+        liquidGlassCapsules()
+        liquidGlassButtons()
+        LooksGlassContainer()
+    }
+}
+
+@MainActor
+private func liquidGlassCapsules() -> some Element {
+    HStack(spacing: Pixels(10)) {
+        Text("regular").font(size: 11).frame(width: Pixels(84), height: Pixels(30)).glassEffect(.regular)
+        Text("clear").font(size: 11).frame(width: Pixels(84), height: Pixels(30)).glassEffect(.clear)
+        Text("tint").font(size: 11).frame(width: Pixels(84), height: Pixels(30))
+            .glassEffect(.regular.tint(Color.blue.opacity(0.35)))
+        Text("rounded").font(size: 11).frame(width: Pixels(84), height: Pixels(30))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Pixels(8)))
+    }
+}
+
+@MainActor
+private func liquidGlassButtons() -> some Element {
+    HStack(spacing: Pixels(10)) {
+        Button("Glass") {}.buttonStyle(.glass)
+        Button("Prominent") {}.buttonStyle(.glassProminent)
+    }
+}
+
+/// Three circles in a `GlassEffectContainer` whose spacing the buttons move: they merge into a blob below the
+/// blend threshold `spacing > 2 x gap` (`LG-G`).
+struct LooksGlassContainer: Component {
+    @State private var spacing: Float = 40
+    var content: some ElementGroup {
+        HStack(spacing: Pixels(12)) {
+            Button("-") { spacing = max(0, spacing - 8) }
+            GlassEffectContainer(spacing: Pixels(spacing)) {
+                HStack(spacing: Pixels(14)) {
+                    Color.clear.frame(width: Pixels(36), height: Pixels(36)).glassEffect(in: Circle())
+                    Color.clear.frame(width: Pixels(36), height: Pixels(36)).glassEffect(in: Circle())
+                    Color.clear.frame(width: Pixels(36), height: Pixels(36)).glassEffect(in: Circle())
+                }
+            }
+            Button("+") { spacing += 8 }
+        }
+    }
+}

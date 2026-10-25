@@ -72,7 +72,7 @@ private func stepScene(width: Int, height: Int, edge: Int) -> Scene {
 // MARK: - The reference (the algorithm of `BackdropBlurReference`, re-stated)
 
 /// The downsample level count: the smallest `L ≥ 0` with `sigma / 2^L ≤ 4`, at most 6.
-private func levels(sigma: Float) -> Int {
+func levels(sigma: Float) -> Int {
     var level = 0
     var s = sigma
     while s > 4, level < 6 { s *= 0.5; level += 1 }
@@ -120,7 +120,7 @@ private func gaussian(_ src: [Float], _ width: Int, _ height: Int, sigma: Float)
     return pass(pass(src, horizontal: true), horizontal: false)
 }
 
-private func blurred(_ pixels: [Float], width: Int, height: Int, sigma: Float) -> [Float] {
+func blurred(_ pixels: [Float], width: Int, height: Int, sigma: Float) -> [Float] {
     let level = levels(sigma: sigma)
     var current = pixels
     var w = width, h = height
@@ -167,7 +167,7 @@ private func composite(blurred: [Float], destination: [Float], grayTint l: Float
 /// floats: structure on both axes at every scale, so a blur of it differs
 /// from the field wherever it is applied (a step is vertically uniform, and a
 /// pixel far from its edge reads the same blurred or not).
-private func cellField(width w: Int, height h: Int) -> (scene: Scene, pixels: [Float]) {
+func cellField(width w: Int, height h: Int) -> (scene: Scene, pixels: [Float]) {
     let palette: [(MUIHsla, [Float])] = [(red, [1, 0, 0]), (blue, [0, 0, 1]),
                                          (MUIHsla(h: 0, s: 0, l: 1, a: 1), [1, 1, 1]), (black, [0, 0, 0])]
     var scene = Scene()

@@ -100,10 +100,19 @@ func runDemo() throws {
     // `LazyHGrid`, each of 10 000 children with a live on-screen count.
     let lazyDemo = ProcessInfo.processInfo.environment["METALUI_LAZY_DEMO"] == "1"
 
+    // Liquid Glass (`LG-P`, `LG-V`, spec `2026-10-23-liquid-glass-design.md` section 6, human checks group LG):
+    // regular, clear and tinted capsules, `.glass` and `.glassProminent` buttons and a container of three circles
+    // with a spacing control, over a striped backdrop.
+    let glassDemo = ProcessInfo.processInfo.environment["METALUI_GLASS_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if chromeDemo {
+    if glassDemo {
+        window = try app.openWindow(title: "MetalUI — Liquid Glass",
+                                    size: Size(width: Pixels(720), height: Pixels(420)),
+                                    content: liquidGlassDemoContent)
+    } else if chromeDemo {
         window = try openChromeDemoWindow(app, title: "MetalUI — Window Chrome")
     } else if lazyDemo {
         window = try app.openWindow(title: "MetalUI — Lazy Containers",

@@ -6,14 +6,18 @@
 typedef struct ReplayGPU ReplayGPU;
 // kind: 0 rect, 1 glyph, 2 image (ruling TE-AF), 3 backdrop (ruling BB-J). An
 // image run samples one texture: the one its first record's `texture` field
-// names. A backdrop run's `start`/`count` index the backdrop records (96 bytes
-// each, `MUIBackdrop`); the run is a segment break (ruling BB-C).
+// names. A backdrop run's `start`/`count` index the backdrop records (256 bytes
+// each, `MUIBackdrop`, `LG-B`); the run is a segment break (ruling BB-C).
 typedef struct { uint32_t kind, start, count; } ReplayRun;
 // The device-pixel rectangle one backdrop record blurs: `Scene.backdropRegion`'s
 // answer (ruling BB-D 3), clamped to the target; `width` 0 means none (the
 // record then draws its flat tint, ruling BB-I). The blur's level count is
 // derived from the record's own `sigma` (`mui_backdrop_levels`).
 typedef struct { int32_t x, y, width, height; } ReplayRegion;
+// One surface's `drawText` glyphs (ruling DT-G): `count` glyph records from `start` (an index into the
+// frame's glyph buffer, the scene's own glyphs first), drawn into `target` (a surface target, `width` x
+// `height` texels) in one load-op pass after the atlas copy pass and before the scene's pass.
+typedef struct { void *target; uint32_t start, count, width, height; } ReplaySurfaceText;
 // The number of 2x downsample levels a sigma (device pixels) takes before its
 // Gaussian: the smallest L >= 0 with sigma / 2^L <= 4, at most 6
 // (`MUIBackdropBlurMaxLevel`). `BackdropBlurReference.levels`, restated; a
@@ -33,7 +37,7 @@ bool replay_use_nearest_filter(ReplayGPU *gpu);
 // Buffers are opaque: Swift supplies the existing MetalUI shader ABI.
 // `transforms` is the scene's MUITransform table (64 bytes a record, ruling
 // GX-F); 0 bytes binds one zero record, which index 0 never reads.
-// `backdrops` is the scene's MUIBackdrop table (96 bytes a record, ruling BB-B)
+// `backdrops` is the scene's MUIBackdrop table (256 bytes a record, rulings BB-B, LG-B)
 // with one `regions` entry per record; a frame holding a backdrop run renders
 // into a frame target in segments and blits it to the result (ruling BB-C),
 // and needs the portable shaders (replay_create_portable).
@@ -87,12 +91,17 @@ bool mui_renderer_finish(MUIRenderer *r,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height,
     const uint32_t *atlas_rects, uint32_t atlas_rect_count,
+    const ReplaySurfaceText *texts, uint32_t text_count,
     const float *projection);
+// The text passes the last finished frame ran (ruling DT-G): one per `ReplaySurfaceText`, 0 for a
+// frame with none. A test recorder.
+uint32_t mui_renderer_last_text_passes(MUIRenderer *r);
 // The last frame's backdrop work (ruling BB-S): `out` = splits (backdrop runs),
 // blurs (records), passes (L + 2 a record), frame-target copies (1 for a
 // backdrop frame, else 0), textures made (frame target and pool; 0 on a steady
-// frame). All 0 on a frame without a backdrop run.
-void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]);
+// frame), glass records encoded and sharp copies of the frame region made for
+// their lens (ruling LG-D). All 0 on a frame without a backdrop run.
+void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[7]);
 // The atlas bytes the last finished frame moved to the GPU (0 for a clean
 // atlas; the whole atlas for a new or resized one). A test recorder (RG-H).
 uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r);
@@ -101,7 +110,7 @@ bool mui_renderer_has_frame_target(MUIRenderer *r);
 // Test hooks (ruling BB-K): every pool allocation fails (the records draw their
 // flat tint, test 3.3d); every frame, backdrop or not, goes through the frame
 // target (test 3.3b).
-void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame);
+void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame, bool sharp_fails);
 // The last offscreen frame as BGRA rows (waits for it).
 bool mui_renderer_read_offscreen(MUIRenderer *r, uint8_t *bgra);
 // How many times the renderer has released an offscreen frame's fence before
@@ -172,7 +181,10 @@ enum {
     // Single-instance launch (ruling SN-G). Appended after PINCH, so no earlier
     // kind renumbers. INSTANCE: the listener thread queued a forwarded message;
     // the platform drains the queue (mui_instance_next).
-    MUI_EVENT_INSTANCE
+    MUI_EVENT_INSTANCE,
+    // The clipboard changed (ruling CP-G): SDL_EVENT_CLIPBOARD_UPDATE, which SDL posts for an own set,
+    // a text set and a clear alike, with no window. Appended, so no earlier kind renumbers.
+    MUI_EVENT_CLIPBOARD
 };
 enum { MUI_PINCH_BEGIN = 0, MUI_PINCH_UPDATE = 1, MUI_PINCH_END = 2 };
 enum { MUI_MOD_SHIFT = 1, MUI_MOD_CONTROL = 2, MUI_MOD_OPTION = 4, MUI_MOD_COMMAND = 8 };
@@ -543,3 +555,44 @@ int32_t mui_instance_payload_high_water(void);
 // SDL_RestoreWindow when minimised, SDL_RaiseWindow, and SDL_FlashWindow until
 // focused when the window did not take focus (ruling SN-H).
 bool mui_window_raise(void *window);
+
+// ---- Run-time shader compiler (item XP-G25, rulings RC-B..RC-S): SDL_shadercross loaded with
+// SDL_LoadObject, never linked. Compiled only under the `SDL` trait (SDLShaderCross.c); the
+// Swift side is `SDLGPUShaderCompiler` in MetalUISDLGPU. Every function that can fail writes
+// SDL_GetError()'s text, read on the calling thread right after the failing call, into the
+// caller's `error` buffer (RC-D); nothing is held in a static buffer, so compiles run
+// concurrently (RC-S).
+typedef struct MuiShaderCross MuiShaderCross;
+// The compute counts and thread group SDL_CreateGPUComputePipeline needs: the nine Uint32s of
+// SDL_ShaderCross_ComputePipelineMetadata, in its order.
+typedef struct {
+    uint32_t samplers, readonly_storage_textures, readonly_storage_buffers,
+             readwrite_storage_textures, readwrite_storage_buffers, uniform_buffers,
+             threadcount_x, threadcount_y, threadcount_z;
+} MuiShaderCrossReflection;
+// Loads the dependents named in `preload` (full paths, in order) and then the library at `path`
+// (a full path or a bare loader name), resolves the five functions and calls
+// SDL_ShaderCross_Init once. NULL on failure with the text in `error`. `counted` adds one to
+// mui_sc_loads (the process cache's load; a test seam's load is not counted). On Windows the
+// library's directory is added to the DLL search path first. Never unloaded (RC-B).
+MuiShaderCross *mui_sc_load(const char *path, const char *const *preload, uint32_t preload_count,
+                            bool counted, char *error, size_t error_capacity);
+// How many counted loads happened in this process (a test's read-back of the one-load rule).
+int32_t mui_sc_loads(void);
+// HLSL compute to SPIR-V (`target` 0) or DXIL (1). `*out` is SDL_malloc'd: free it with mui_sc_free.
+// Defines are `define_count` name/value pairs (a NULL value is a bare define). 0 on success.
+int32_t mui_sc_compile_hlsl(const MuiShaderCross *sc, int32_t target, const char *source, const char *entry,
+                            const char *include_dir, const char *const *define_names,
+                            const char *const *define_values, uint32_t define_count,
+                            uint8_t **out, size_t *out_size, char *error, size_t error_capacity);
+// SPIR-V compute to MSL text; `*out` is SDL_malloc'd (NUL-terminated, `*out_size` without the NUL).
+int32_t mui_sc_msl(const MuiShaderCross *sc, const uint8_t *spirv, size_t size, const char *entry,
+                   uint8_t **out, size_t *out_size, char *error, size_t error_capacity);
+// Reflection of a compute SPIR-V module.
+int32_t mui_sc_reflect(const MuiShaderCross *sc, const uint8_t *spirv, size_t size,
+                       MuiShaderCrossReflection *out, char *error, size_t error_capacity);
+// SDL_free for what the functions above returned.
+void mui_sc_free(void *pointer);
+// Test hook: while set, every failure's text is emptied, as if shadercross and the app held two
+// SDL instances (RC-D, the self test's broken-kernel arm).
+void mui_sc_test_empty_diagnostics(bool empty);

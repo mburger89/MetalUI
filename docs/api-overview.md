@@ -396,13 +396,22 @@ no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
 `.copyable(_:)`, `.cuttable(for:action:)` and `.pasteDestination(for:action:validator:)` on every `StyledElement`
 and, once, on proposal content (A: SwiftUI's signatures, probe `swiftui-clipboard-types.swift` arm S) over MetalUI's
 `Transferable`: the primary-modifier C, X and V and the Edit menu reach the handler of the focused element or its
-nearest ancestor, after the keymap, `onKeyPress` and a focused field's own keys (D, 455, 456: one item, enablement by
-presence). A copy writes one representation per exported type, most preferred first, so a type lists
-`.utf8PlainText` after its own for a text fallback; a paste walks the destination's imported types in order.
-`Window.clipboard` (M) is the same from code: `write(_:)`, `read(_:)`, `contentTypes`, `hasContent(of:)`.
+nearest ancestor, after the keymap, `onKeyPress` and a focused field's own keys (D, 455: enablement by
+presence). A copy writes **every** item it is given, one clipboard item each, one representation per exported type, most preferred first, so a type lists
+`.utf8PlainText` after its own for a text fallback; a paste imports every item it can, walking the destination's imported
+types in order, runs the validator over the array and calls the action once (`CP-C`; divergences 456, 715: SDL carries the
+extra items in a private pack mime and another application sees the first only, 716: the encoding is deferred to the read on
+AppKit and happens at the copy on SDL).
+`Window.clipboard` (M) is the same from code: `write(_:)` (an array writes every item, encoded now), `read(_:)` (the first item),
+`readAll(_:)`, `itemCount`, `contentTypes`, `hasContent(of:)`.
 `ClipboardRepresentation` and `ClipboardCommands` are the platform seam's (M). On SDL a custom identifier is the mime
 type `application/x-<identifier>` with each byte outside `[a-z0-9.+-]` percent-encoded (`ClipboardMime`, `CB-D`).
-`PasteButton` is not built (`CB-N`).
+`PasteButton(payloadType:onPaste:)` (A) and `PasteButton(supportedContentTypes:payloadAction:)` (D: `DropItem` stands for `NSItemProvider`)
+are a control composed over `Button` (`CP-B`, divergence 717): enabled while some clipboard item offers a type the payload imports,
+redrawn by the platform's change handler only while a button is on screen (`CP-G`), a click delivers every importable item
+once; no label (SwiftUI's takes none, probe `-DNEG2`). `@Environment(\.clipboard)` is **not built**: SwiftUI has no such macOS
+API (probe `-DNEG1`, `CP-A`); `Window.clipboard` is the route from code. The seam gains `ClipboardItem`, `ClipboardPayload`,
+`ClipboardBytes` and four defaultless `PlatformWindow` requirements (`CP-E`, M).
 
 **Input for viewports and canvases** (`CI-`, record §81;
 [`superpowers/2026-10-08-input-apis-decisions.md`](superpowers/2026-10-08-input-apis-decisions.md)).
@@ -416,7 +425,9 @@ ranking (A; SDL has a pinch on macOS, Wayland and X11, and no rotate);
 space (D 139); `PointerStyle` and `.pointerStyle(_:)` (macOS 15's spelling:
 `.default`, the I-beams, `.rectSelection` — the crosshair — the grab hands,
 `.link`, the zooms, the resizes; innermost wins, sent to the platform only on a
-change; a paint-only view does not cover it, D 141). MetalUI-only by ruling,
+change; a paint-only view does not cover it, D 141). `PointerStyle.shape(_:eoFill:size:hotSpot:fill:outline:)`
+(M, D 735: SwiftUI has `shape(_:eoFill:size:)` on visionOS only) draws a `Shape` as a cursor, black with a 1-point
+white outline, rasterized at the display scale and sent as an image cursor (`BG-K`...`BG-M`). MetalUI-only by ruling,
 where SwiftUI has nothing: `.onScrollWheel { (event: ScrollEvent) -> Bool }`
 (deltas precise or lines, phase, momentum phase, modifiers, `location` local;
 offered innermost first before each enclosing `ScrollView`, `true` claims),
@@ -492,7 +503,7 @@ Human checks: group WD, unrun.
 **SDL GPU for apps** (`GA-`, items S5 and S6, record §114;
 [`superpowers/2026-10-14-sdl-gpu-compute-decisions.md`](superpowers/2026-10-14-sdl-gpu-compute-decisions.md)). All class M,
 in `Backends/SDL` behind the `SDL` trait, outside the public census (`GA-L`); SwiftUI has no GPU API. The product
-`MetalUISDLGPU` is a thin typed layer over SDL_GPU: `SDLGPUDevice` (`make(debug:preferring:)`, `init(borrowing:)`),
+`MetalUISDLGPU` is a thin typed layer over SDL_GPU: `SDLGPUDevice` (`make(debug:preferring:)`, `init(borrowing:)`; `adapterName`, `driverName`, `driverVersion`, `driverInfo`, `isSoftwareRasterizer` and `limits`, guaranteed floors not real limits, `DL-`, record §150),
 `SDLGPUBuffer`, `SDLGPUTransferBuffer`, `SDLGPUTexture` (MSAA, depth, mips), `SDLGPUSampler`, `SDLGPUComputePipeline`,
 `SDLGPUGraphicsPipeline`, `SDLGPUCommandBuffer` with `SDLGPUComputePass` and `SDLGPURenderPass`, `SDLGPUFence`
 (`await fence.wait()` off the main actor), `SDLGPUShaderLibrary`; `SDLGPUDrawContext.view` records into the frame's own
@@ -510,6 +521,18 @@ lock the waiter thread signals, never releases the fence) and `SDLGPUDevice.down
 `SDLGPUTextureRegion` (legal on the main actor outside a draw, a debug trap inside one, a precondition on the device's own
 worker threads); `SDLGPUDevice.compileGraphicsPipeline(_:)` and `compileComputePipeline(_:)` throw an `SDLGPUError` naming the
 stage, and `lastPipelineFailure` records what the unchanged optional `make…Pipeline` verbs refused.
+Synchronous render batch, rulings `SY-A`…`SY-H` (record §143): `SDLGPUDevice.submitBatchSynchronously(_:) throws -> SDLGPUFence` records and
+submits on the submit worker like `submitBatch` and returns once the buffer is submitted, the fence normally unsignalled; `waitBlocking()` or
+`downloadSynchronously` then waits (`GB-F`'s rules).
+
+**Run-time compute shaders** (`RC-`, item XP-G25, record §151; class M, outside the census, additive). `SDLGPUShaderCompiler.shared(libraryPath:)`
+loads libSDL3_shadercross at run time (never linked; an absent library throws `SDLGPUShaderCompileError.compilerUnavailable` listing every path tried;
+lookup order explicit path, `METALUI_SHADERCROSS_LIB`, beside the executable, `<exe>/lib` (`SX-B`, record §152), the loader path); `compileCompute(...)` turns HLSL, an entry point and
+`SDLGPUShaderDefine`s into the device driver's format (`SDLGPUShaderTarget(driver:)`: SPIR-V, MSL, DXIL) with the compute reflection, throwing DXC's own
+diagnostic text on failure; `selfTest(for:)` (`async throws`) is the call for an app's `--self-test`. `SDLGPUShaderBlob.init(name:stage:bytes:format:...)`
+with `SDLGPUShaderBlob.Format` builds a validated blob from bytes (a cached compile), and the device's `compileComputePipeline(_:)`/`makeComputePipeline(_:)`
+take it like a directory blob. Compute only; compile off the main actor (a 1000-line kernel is about half a second); the app owns any cache.
+Packaging and licences: `docs/packaging.md` §4a, `THIRD-PARTY-NOTICES.md`.
 
 **Build-time app shaders** (`BS-`, item S12, record §138; class M, outside the census). The root package exports the
 executable `MetalUICompileShaders` and the command plugin `CompileShaders` (`swift package --allow-writing-to-package-directory
@@ -531,6 +554,18 @@ requirements (`setWindowDragRegions(_:) -> Bool`, `performWindowAction(_:) -> Bo
 `isZoomed`), `PlatformWindowAction` and the portable `ChromeHitSnapshot`/`ChromeHit` in `MetalUIPlatform`;
 `MetalUITesting` gains `Options.sdlChrome`, `usesWindowDragRegions`, `hasNativeWindowControls`, `isZoomed`,
 `hiddenTitleBarInsets`, `TestWindow.windowDragRegions` and `.windowActions`. Human checks: group CW, unrun.
+
+**Background window drag** (`BG-G`...`BG-J`, record §144;
+[`superpowers/2026-10-22-presentation-extras-decisions.md`](superpowers/2026-10-22-presentation-extras-decisions.md);
+probe `probes/swiftui-presentation-extras.swift`, the `D` arms). `WindowInteractionBehavior` (A; `.automatic`,
+`.enabled`, `.disabled`, SwiftUI's macOS 15 spelling) and `Window.backgroundDragBehavior` (default `.automatic`;
+M, divergence 736: SwiftUI's `windowBackgroundDragBehavior(_:)` is a `Scene` modifier and MetalUI has no `Scene`).
+Only `.enabled` drags: a single primary press no element claims asks AppKit for the title bar's drag (never
+`isMovableByWindowBackground`, a double click does nothing), and on SDL the content rect carved by every control
+becomes a hit-test region, dropped whole past the 64-rect cap and while a popover, alert or menu is up or the
+window is zoomed (D 737: hover, wheel and pointer-style events in it are lost). A control, a text field, a
+scroller or a `WindowDragGesture` handle never drags from the background; the title band is unchanged.
+Human checks `BG2`, `BG4`.
 
 **Key and focus scoping** (`KF-`, record §88;
 [`superpowers/2026-10-08-key-focus-decisions.md`](superpowers/2026-10-08-key-focus-decisions.md);
@@ -605,7 +640,7 @@ outside press of **any** button (the press still lands on what is beneath, a con
 included; a press on the declarer dismisses and reaches the declarer) and by Escape; a press or
 wheel on the overlay never reaches beneath, keys still reach a field inside it. The point
 resolves at layout, so a `.local`/`.named` overlay waits one frame for its declarer's space
-(`OV-K`, `OV-S`). `presentationBackground(_:)` is not built (`OV-C`). The demo:
+(`OV-K`, `OV-S`). `presentationBackground(_:)` is built for the popover panel (record §144, `BG-A`...`BG-F`; below). The demo:
 `METALUI_OVERLAYS_DEMO=1`.
 
 ## Drag and drop — A / D
@@ -654,7 +689,14 @@ SDL renderer (`device`, `commandBuffer`, `target` as SDL3 pointers;
 `Backends/SDL`'s `MetalUISDL`). The draw runs on the main actor inside the
 renderer's `finishFrame`, before MetalUI's own pass, into the frame's own
 command buffer; it must not commit, submit, present or wait on it — Metal
-traps if it does, SDL cannot tell (`MV-F` item 5). At the seam:
+traps if it does, SDL cannot tell (`MV-F` item 5). **`drawText(_:at:anchor:width:color:)`** (M; `DT-A`,
+`DT-D`) is an extension of `GPUSurfaceContext`: it draws a `TextMeasurer.ResolvedText` into the surface's
+target through the one resolution a `Text` uses (`DT-C`) — `GraphicsContext.draw(_:at:anchor:)`'s arithmetic
+(probe `swiftui-draw-text.swift`), with the surface context as receiver — recording glyph sprites that MetalUI
+draws in one pass of its own **after the closure returns, over everything it drew**; plain text only (a rich
+one traps naming `DT-E`). It saves nothing a user can see over a `Text` overlay (`DT-I`); the label is part of
+the surface (its opacity, blur, clip, transitions, an `.onDemand` target that is not redrawn). At the seam: `SurfaceTextSink`
+(`package`), no new public requirement. At the seam, too:
 `PrimitiveKind.surface`, `SurfaceID`, `SurfaceTarget`, `SurfaceDrawRequest`,
 `SurfaceTargetTable` (the one per-window target lifecycle both renderers use)
 and the defaultless `WindowRenderer.finishFrame(scene:atlas:surfaces:)`
@@ -764,6 +806,13 @@ toolbar strip, the root laid out below (divergence 195, `SG-A`); command shortcu
 `arrowEdge`'s side (default `.top`), flipped then clamped inside the window, no
 arrow; an outside press or Escape writes the binding false from input, and the
 outside press then reaches what it lands on. Published as a non-modal popover.
+`.presentationBackground(_:)` (A; a `Color`, a `ColorToken`, a `Material`, a `LinearGradient`, a
+`RadialGradient`; no `ShapeStyle` generic, divergence 119) written inside the popover's content fills its
+panel (`BG-C`): the innermost report wins, one on the declarer or elsewhere outside the content does
+nothing, and the 1-pt border, the radius 10 and the shadow stay; a `Material` panel draws through
+`Frame.fillMaterial` and has no drop shadow (`BG-P`). `presentationBackground(alignment:content:)` draws content
+proposed the panel's size and placed by the alignment, cut to the panel, under a named child
+`$presentationbackground` (`BG-E`). An `anchoredOverlay`, an alert and a menu ignore it (`BG-A`). Human check `BG1`.
 
 **Tooltips (A / D 113).** `.help("text")` publishes `accessibilityHint`'s tree on
 both bridges and shows a drawn tooltip after 1.0 s of display-link time, hidden by
@@ -984,6 +1033,19 @@ no colour, `MT-C`). Not built:
 `.foregroundStyle(gradient)`, `.blur(radius:opaque:)`, a native
 `NSColorPanel` route, a material that takes a colour or an opacity (`MT-C`), saturation lift — each a
 named deferral (`LK-A`, `BB-I`).
+
+**Liquid Glass** (user request 2026-10-23, item LG, not a plan task; record §153, rulings `LG-A`…`LG-V`, probe
+`swiftui-liquid-glass.swift`; divergences 825-829): `glassEffect(_ glass: Glass = .regular, in shape: some Shape = Capsule())` on proposal
+content and on `StyledElement` (A/D; **no `isEnabled:`, the SDK has none**), `Glass` (`.regular`, `.clear`, `.identity`,
+`tint(_:)`, `interactive(_:)`; `Equatable`, `Sendable`, not `Hashable`, no initialiser), `GlassEffectContainer(spacing: Pixels?, content:)`
+(shapes closer than `spacing / 2` merge by a smooth minimum, four members to a blob, 826), `glassEffectID(_:in:)`,
+`glassEffectUnion(id:namespace:)`, `GlassEffectTransition` with `glassEffectTransition(_:)` (an opacity transition, no morph, 828),
+`@Namespace`/`Namespace.ID` and `ButtonStyle.glass`/`.glassProminent`. A glass is one backdrop record behind its content on both
+renderers: the blurred backdrop under the fitted tint, a lens read from a sharp copy of the backdrop at the edge and a specular rim (the
+look's lens and rim are MetalUI's own, 825); a `Path` shape, a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` and a renderer that
+cannot blur draw the flat tint (829), Reduce Transparency an opaque grey, `.interactive()` lifts the tint on a pressed control only (827). The
+demo is `METALUI_GLASS_DEMO=1`. Human checks: group `LG`, unrun. Carried: the 1 px outer hairline, the morph, more than four members to a
+blob, a real blur on a `Path` (`LG-Q`).
 
 ## Testing — M
 

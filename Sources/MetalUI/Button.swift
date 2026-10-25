@@ -92,11 +92,12 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
         -> (LayoutNodeID, Box<Pair<Label, Box<EmptyGroup>>>.Layout) {
         let environment = pass.environment
         let bordered = buttonStyleValue.isBordered
+        let glassStyle = buttonStyleValue.glass
         let metrics = Self.metrics(environment.controlSize)
         var chrome = style
         var decorated = decoration
         var strut = Style()
-        if bordered {
+        if bordered || glassStyle != nil {
             chrome.padding.left = .pixels(Pixels(metrics.padding))
             chrome.padding.right = .pixels(Pixels(metrics.padding))
             strut.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(metrics.height))))
@@ -109,6 +110,14 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
             if decorated.background == Color(Self.chromeBackground) { decorated.background = nil }
             if decorated.cornerRadius == Self.chromeCornerRadius { decorated.cornerRadius = Pixels(0) }
             if decorated.border == Self.chromeBorder { decorated.border = nil }
+        }
+        if let glassStyle {
+            // `.glass` / `.glassProminent` (`LG-M`): the bordered metrics with the chrome's fill, border and radius
+            // swapped for a capsule glass, unless the caller wrote a glass or fill of their own.
+            if decorated.background == Color(Self.chromeBackground) { decorated.background = nil }
+            if decorated.border == Self.chromeBorder { decorated.border = nil }
+            decorated.cornerRadius = Pixels(metrics.height / 2)
+            if decorated.backgroundGlass == nil { decorated.backgroundGlass = GlassBox(glassStyle, Capsule()) }
         }
         // The focus ring (`IX-H` item 2), unless the caller declared one.
         if decorated.focusBorder == nil { decorated.focusBorder = controlRing(environment) }
@@ -149,9 +158,11 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
         // the bordered chrome; the label at 60 % for `.plain`/`.borderless`.
         let pressed = pass.isActive(id) && pass.isHovered(id)
         let bordered = buttonStyleValue.isBordered
+        // A glass button lifts its own tint while pressed (`LG-J`) and neither dims nor washes.
+        let isGlass = buttonStyleValue.isGlass
         let radius = box.decoration.cornerRadius
         pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
-            if pressed && !bordered {
+            if pressed && !bordered && !isGlass {
                 pass.opacity(0.6) {
                     box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
                 }

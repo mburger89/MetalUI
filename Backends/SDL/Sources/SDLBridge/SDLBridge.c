@@ -44,11 +44,26 @@ static const uint8_t empty_transform[TRANSFORM_STRIDE] = {0};
    image `filter` (offset 56) bits 8…31, glyph `transform` (offset 84). */
 enum { RECT_STRIDE = 120, GLYPH_STRIDE = 88, RECT_SHAPE_OFFSET = 116, GLYPH_TRANSFORM_OFFSET = 84,
        IMAGE_FILTER_OFFSET = 56 };
-/* A backdrop record is 96 bytes, six float4 lanes (MUIBackdrop, ruling BB-B):
-   bounds, contentMask, maskCornerRadii, cornerRadii, tint, then order, shape,
-   sigma, opacity. Its `shape` keeps the transform index in bits 8…31. Uploaded
-   as recorded (already whole lanes). */
-enum { BACKDROP_STRIDE = 96, BACKDROP_SHAPE_OFFSET = 84, BACKDROP_SIGMA_OFFSET = 88, BACKDROP_MAX_LEVEL = 6 };
+/* A backdrop record is 256 bytes, sixteen float4 lanes (MUIBackdrop, rulings BB-B,
+   LG-B): bounds, contentMask, maskCornerRadii, cornerRadii, tint, then order, shape,
+   sigma, opacity (the six lanes a material was, 96 bytes), the glass lanes (glassFlags,
+   lensDepth, band, rimStrength; blendK, press, pressLift, reserved) at 96 and four
+   members of 32 bytes (bounds, radii as fractions of the record's bounds) at 128. Its
+   `shape` keeps the transform index in bits 8…31. Uploaded as recorded (already whole
+   lanes). A record that cannot be blurred draws its flat tint, one rect per member of a
+   blob: FLAT_SLOTS rect slots a record, ruling LG-L. */
+enum { BACKDROP_STRIDE = 256, BACKDROP_SHAPE_OFFSET = 84, BACKDROP_SIGMA_OFFSET = 88, BACKDROP_FLAGS_OFFSET = 96,
+       BACKDROP_MEMBER_OFFSET = 128, BACKDROP_MAX_LEVEL = 6, FLAT_SLOTS = 4 };
+
+/* The members a record's flat arm draws: a glass's count (bits 3…5 of its flags, 1…4),
+   one for a material and for a one-member glass. */
+static uint32_t backdrop_member_count(const uint8_t *record) {
+    uint32_t flags;
+    memcpy(&flags, record + BACKDROP_FLAGS_OFFSET, sizeof(flags));
+    if (!(flags & 1u)) return 1;
+    uint32_t count = (flags >> 3) & 7u;
+    return count < 1 ? 1 : count > 4 ? 4 : count;
+}
 
 /* Every record a run draws names a transform the table holds (the shaders
    read record i − 1 for index i, ruling GX-F), checked once, as images_valid
@@ -173,7 +188,7 @@ static bool ensure_backdrop_pipelines(ReplayGPU *g) {
     if (!g->portable || !g->shader_dir)
         return SDL_SetError("a backdrop needs the portable shaders (replay_create_portable)");
     SDL_GPUShader *quad_v = stage(g, NULL, NULL, "backdrop", false, 0, 3, 2);
-    SDL_GPUShader *quad_f = quad_v ? stage(g, NULL, NULL, "backdrop", true, 1, 2, 1) : NULL;
+    SDL_GPUShader *quad_f = quad_v ? stage(g, NULL, NULL, "backdrop", true, 2, 2, 1) : NULL;
     SDL_GPUGraphicsPipeline *backdrop = make_pipeline(g, quad_v, quad_f, true);
     if (!backdrop) return false;
     SDL_GPUGraphicsPipeline *passes[2] = {NULL, NULL};
@@ -348,11 +363,14 @@ typedef struct {
     PoolSize *used; uint32_t used_count, used_capacity;
     /* The last frame's work (ruling BB-S). */
     uint32_t splits, blurs, passes, copies, made;
-    bool pool_fails, route_every_frame;
+    /* Glass records encoded and sharp copies of the frame region made for their lens (LG-D). */
+    uint32_t glass_records, glass_copies;
+    bool pool_fails, route_every_frame, sharp_fails;
 } BackdropState;
 
 static void backdrop_begin_frame(BackdropState *b) {
     b->splits = b->blurs = b->passes = b->copies = b->made = 0;
+    b->glass_records = b->glass_copies = 0;
     b->used_count = 0;
 }
 
@@ -457,12 +475,13 @@ static bool blur_pass(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd,
    `draw` is (region origin x, y, uv scale x, y): the texel coordinate
    `(p + ½)/2^L − ½` of ruling BB-R, not `uv × size`. A false return is a
    failed pass (an SDL error), not a fallback. */
-typedef struct { int slot; float draw[4]; } BlurResult;
+typedef struct { int slot; int sharp; float draw[4]; } BlurResult;
 
 static bool blur_record(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *frame,
                         uint32_t target_width, uint32_t target_height,
                         const ReplayRegion *region, float sigma, BlurResult *out) {
     out->slot = -1;
+    out->sharp = -1;
     memset(out->draw, 0, sizeof(out->draw));
     if (region->width <= 0 || region->height <= 0 || region->x < 0 || region->y < 0
         || (uint64_t)region->x + (uint64_t)region->width > target_width
@@ -499,12 +518,32 @@ static bool blur_record(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cm
     return true;
 }
 
+/* A copy of a glass record's region of the frame into a pool slot, unblurred (ruling LG-D):
+   what the lens reads, since the frame is the pass's own render target and a texture bound
+   as a sampler may not be sampled inside the pass that renders into it. Called between passes.
+   The slot, or -1 when none can be had (the lens then reads the bound blurred texture). */
+static int sharp_copy(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *frame,
+                      const ReplayRegion *region) {
+    if (b->sharp_fails) return -1;
+    int slot = backdrop_acquire(g, b, (uint32_t)region->width, (uint32_t)region->height);
+    if (slot < 0) return -1;
+    SDL_GPUBlitInfo blit = {
+        .source = { .texture = frame, .x = (uint32_t)region->x, .y = (uint32_t)region->y,
+                    .w = (uint32_t)region->width, .h = (uint32_t)region->height },
+        .destination = { .texture = b->slots[slot].texture, .w = (uint32_t)region->width, .h = (uint32_t)region->height },
+        .load_op = SDL_GPU_LOADOP_DONT_CARE, .filter = SDL_GPU_FILTER_NEAREST
+    };
+    SDL_BlitGPUTexture(cmd, &blit);
+    b->glass_copies += 1;
+    return slot;
+}
+
 /* Where each primitive buffer sits in a frame's list. */
 enum { BUF_QUAD = 0, BUF_RECT = 1, BUF_GLYPH = 2, BUF_IMAGE = 3, BUF_TRANSFORM = 4, BUF_BACKDROP = 5, BUF_COUNT = 6 };
 
 /* The scalar-packed CPU ABI (120/88 bytes) widened to the SDL storage buffers'
-   16-byte lanes (128/96); an image (64) and a backdrop (96) are whole lanes. The
-   rect slots hold the scene's rects, then one FLAT-TINT rect per backdrop record
+   16-byte lanes (128/96); an image (64) and a backdrop (256) are whole lanes. The
+   rect slots hold the scene's rects, then FLAT_SLOTS FLAT-TINT rects per backdrop record (one per member of a blob)
    — what a record draws when it cannot be blurred (ruling BB-I): the record's
    bounds, clip, radii, order and shape with its tint's alpha times its opacity,
    `c·o·T`, which the rect shader draws exactly. Returns false (with an error)
@@ -521,6 +560,36 @@ static void flat_tint_rect(uint8_t *rect, const uint8_t *backdrop) {
     memcpy(rect + 116, backdrop + 84, 4);             /* shape, the transform index with it */
 }
 
+/* The flat arm of a record: its tint over the sharp backdrop, one rect (FLAT_SLOTS of 128
+   bytes are reserved). A blob of two to four members is one rect per member: the member's
+   slot scaled by the record's bounds, its radii by the shorter side, its ellipse bit from
+   the flags and the transform bits from `shape` (`MUIBackdrop.flatTintRects`, restated). */
+static void flat_tint_rects(uint8_t *rects, const uint8_t *backdrop) {
+    uint32_t count = backdrop_member_count(backdrop);
+    flat_tint_rect(rects, backdrop);
+    if (count < 2) return;
+    float whole[4], radii[4];
+    uint32_t flags, shape;
+    memcpy(whole, backdrop, sizeof(whole));
+    memcpy(&flags, backdrop + BACKDROP_FLAGS_OFFSET, sizeof(flags));
+    memcpy(&shape, backdrop + BACKDROP_SHAPE_OFFSET, sizeof(shape));
+    float shorter = whole[2] < whole[3] ? whole[2] : whole[3];
+    for (uint32_t k = 0; k < count; k++) {
+        uint8_t *rect = rects + (size_t)k * 128;
+        if (k > 0) flat_tint_rect(rect, backdrop);
+        float member[4];
+        memcpy(member, backdrop + BACKDROP_MEMBER_OFFSET + 32 * k, sizeof(member));
+        memcpy(radii, backdrop + BACKDROP_MEMBER_OFFSET + 32 * k + 16, sizeof(radii));
+        float box[4] = {whole[0] + member[0] * whole[2], whole[1] + member[1] * whole[3],
+                        member[2] * whole[2], member[3] * whole[3]};
+        for (int i = 0; i < 4; i++) radii[i] *= shorter;
+        uint32_t member_shape = (shape & ~0xFFu) | ((flags >> (6 + k)) & 1u);
+        memcpy(rect, box, sizeof(box));               /* bounds; the clip stays the record's */
+        memcpy(rect + 80, radii, sizeof(radii));      /* cornerRadii */
+        memcpy(rect + 116, &member_shape, sizeof(member_shape));
+    }
+}
+
 static bool pack_records(const void *rects, uint32_t rb, const void *glyphs, uint32_t gb, const void *backdrops, uint32_t kb,
                          void *packed[2], const void *data[BUF_COUNT], uint32_t sizes[BUF_COUNT], uint32_t *rect_records) {
     const uint32_t old_stride[] = {RECT_STRIDE, GLYPH_STRIDE}, new_stride[] = {128, 96};
@@ -531,7 +600,7 @@ static bool pack_records(const void *rects, uint32_t rb, const void *glyphs, uin
     *rect_records = records[0];
     const void *source[2] = {rects, glyphs};
     for (int i = 0; i < 2; i++) {
-        uint32_t count = records[i] + (i == 0 ? flats : 0);
+        uint32_t count = records[i] + (i == 0 ? flats * FLAT_SLOTS : 0);
         if (!count) continue;
         packed[i] = calloc(count, new_stride[i]);
         if (!packed[i]) return SDL_SetError("packing allocation failed");
@@ -539,8 +608,8 @@ static bool pack_records(const void *rects, uint32_t rb, const void *glyphs, uin
             memcpy((uint8_t *)packed[i] + (size_t)j * new_stride[i], (const uint8_t *)source[i] + (size_t)j * old_stride[i], old_stride[i]);
         if (i == 0)
             for (uint32_t j = 0; j < flats; j++)
-                flat_tint_rect((uint8_t *)packed[0] + (size_t)(records[0] + j) * new_stride[0],
-                               (const uint8_t *)backdrops + (size_t)j * BACKDROP_STRIDE);
+                flat_tint_rects((uint8_t *)packed[0] + (size_t)(records[0] + j * FLAT_SLOTS) * new_stride[0],
+                                (const uint8_t *)backdrops + (size_t)j * BACKDROP_STRIDE);
         data[BUF_RECT + i] = packed[i]; sizes[BUF_RECT + i] = count * new_stride[i];
     }
     return true;
@@ -589,8 +658,14 @@ static void draw_primitives(FrameDraw *f, SDL_GPURenderPass *pass, uint32_t kind
     SDL_DrawGPUPrimitives(pass, 4, count, 0, 0);
 }
 
+/* A backdrop record's flat arm: one rect, or one per member of a blob. */
+static void draw_flat_record(FrameDraw *f, SDL_GPURenderPass *pass, uint32_t record) {
+    draw_primitives(f, pass, KIND_RECT, f->rect_records + record * FLAT_SLOTS,
+                    backdrop_member_count((const uint8_t *)f->backdrops + (size_t)record * BACKDROP_STRIDE));
+}
+
 static void draw_run(FrameDraw *f, SDL_GPURenderPass *pass, const ReplayRun *run) {
-    if (run->kind == KIND_BACKDROP) draw_primitives(f, pass, KIND_RECT, f->rect_records + run->start, run->count);
+    if (run->kind == KIND_BACKDROP) { for (uint32_t k = 0; k < run->count; k++) draw_flat_record(f, pass, run->start + k); }
     else draw_primitives(f, pass, run->kind, run->start, run->count);
 }
 
@@ -657,24 +732,40 @@ static bool encode_frame(FrameDraw *f, BackdropState *b, SDL_GPUTexture *target,
             float sigma;
             memcpy(&sigma, (const uint8_t *)f->backdrops + (size_t)(run->start + k) * BACKDROP_STRIDE + BACKDROP_SIGMA_OFFSET, sizeof(sigma));
             if (!blur_record(g, b, f->cmd, frame, f->width, f->height, &f->regions[run->start + k], sigma, &results[k])) goto done;
+            uint32_t flags;
+            memcpy(&flags, (const uint8_t *)f->backdrops + (size_t)(run->start + k) * BACKDROP_STRIDE + BACKDROP_FLAGS_OFFSET, sizeof(flags));
+            if (flags & 1u) b->glass_records += 1;
+            /* A glass with the lens on also reads the frame unblurred (LG-D). */
+            if ((flags & 3u) == 3u && results[k].slot >= 0) {
+                results[k].sharp = sharp_copy(g, b, f->cmd, frame, &f->regions[run->start + k]);
+                /* No sharp copy: the lens cannot read its region, so the record draws its flat arm
+                   (ruling LG-W; Metal clears the lens bit, the storage buffer is already uploaded here). */
+                if (results[k].sharp < 0) { backdrop_release(b, results[k].slot); results[k].slot = -1; }
+            }
         }
         pass = begin_segment(f, frame, SDL_GPU_LOADOP_LOAD);
         if (!pass) goto done;
         for (uint32_t k = 0; k < run->count; k++) {
             uint32_t record = run->start + k;
-            if (results[k].slot < 0) { draw_primitives(f, pass, KIND_RECT, f->rect_records + record, 1); continue; }
+            if (results[k].slot < 0) { draw_flat_record(f, pass, record); continue; }
             SDL_GPUBuffer *vertex_buffers[] = {f->buffers[BUF_QUAD], f->buffers[BUF_BACKDROP], f->buffers[BUF_TRANSFORM]};
             SDL_GPUBuffer *fragment_buffers[] = {f->buffers[BUF_BACKDROP], f->buffers[BUF_TRANSFORM]};
             SDL_BindGPUGraphicsPipeline(pass, g->backdrop);
             SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 3);
             SDL_BindGPUFragmentStorageBuffers(pass, 0, fragment_buffers, 2);
-            SDL_GPUTextureSamplerBinding binding = {b->slots[results[k].slot].texture, g->sampler};
-            SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+            /* The blurred level and the sharp region the lens reads; a record that reads none
+               gets the blurred texture again (a sampler must be bound, shaders.metal's the same). */
+            SDL_GPUTexture *blurred_texture = b->slots[results[k].slot].texture;
+            SDL_GPUTextureSamplerBinding bindings[2] = {
+                {blurred_texture, g->sampler},
+                {results[k].sharp >= 0 ? b->slots[results[k].sharp].texture : blurred_texture, g->sampler}};
+            SDL_BindGPUFragmentSamplers(pass, 0, bindings, 2);
             f->viewport.first_instance = record;
             SDL_PushGPUVertexUniformData(f->cmd, 0, &f->viewport, sizeof(f->viewport));
             SDL_PushGPUFragmentUniformData(f->cmd, 0, results[k].draw, sizeof(results[k].draw));
             SDL_DrawGPUPrimitives(pass, 4, 1, 0, 0);
             backdrop_release(b, results[k].slot);
+            backdrop_release(b, results[k].sharp);
         }
     }
     SDL_EndGPURenderPass(pass);
@@ -870,6 +961,7 @@ struct MUIRenderer {
     SDL_GPUFence *fence;            /* the last offscreen frame */
     uint32_t unsignaled_fence_releases;
     uint64_t last_atlas_bytes;      /* the last frame's atlas bytes moved (RG-H) */
+    uint32_t last_text_passes;      /* the last frame's surface text passes (DT-G) */
     uint32_t submissions;           /* every SDL_Submit… below (MV-L item 4) */
     BackdropState backdrop;         /* the frame target, the blur pool, the counters (BB-S) */
 };
@@ -1049,8 +1141,10 @@ bool mui_renderer_finish(MUIRenderer *r,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah,
     const uint32_t *atlas_rects, uint32_t atlas_rect_count,
+    const ReplaySurfaceText *texts, uint32_t text_count,
     const float *projection) {
     if (!r->cmd) return SDL_SetError("finish without a successful begin");
+    r->last_text_passes = 0;
     SDL_GPUDevice *d = r->gpu->device;
     SDL_GPUCommandBuffer *cmd = r->cmd;
     r->cmd = NULL;
@@ -1064,10 +1158,17 @@ bool mui_renderer_finish(MUIRenderer *r,
     if (tb % TRANSFORM_STRIDE) { SDL_SetError("unexpected MetalUI transform ABI"); goto cleanup; }
     if (kb % BACKDROP_STRIDE || region_count != kb / BACKDROP_STRIDE) { SDL_SetError("unexpected MetalUI backdrop ABI"); goto cleanup; }
     if (!transforms_valid(rects, rb, glyphs, gb, images, ib, backdrops, kb, tb, runs, count)) goto cleanup;
+    /* A surface text range names glyph records the buffer holds, with transforms the table holds (DT-G):
+       checked like a run, since it is drawn like one. */
+    for (uint32_t i = 0; i < text_count; i++) {
+        if (!texts[i].target || !texts[i].width || !texts[i].height) { SDL_SetError("surface text without a target"); goto cleanup; }
+        ReplayRun run = { KIND_GLYPH, texts[i].start, texts[i].count };
+        if (!transforms_valid(NULL, 0, glyphs, gb, NULL, 0, NULL, 0, tb, &run, 1)) goto cleanup;
+    }
 
     /* The CPU ABI is scalar-packed (120/88 bytes); SDL storage buffers use
        16-byte lanes, so each record is copied into a 128/96-byte slot. An
-       image (64 bytes) and a backdrop (96) are already whole lanes. */
+       image (64 bytes) and a backdrop (256) are already whole lanes. */
     const float aligned_quad[] = {0,0,0,0, 1,0,0,0, 0,1,0,0, 1,1,0,0};
     const void *data[BUF_COUNT] = {aligned_quad, rects, glyphs, images, tb ? transforms : empty_transform, backdrops};
     uint32_t sizes[BUF_COUNT] = {sizeof(aligned_quad), rb, gb, ib, tb ? tb : TRANSFORM_STRIDE, kb};
@@ -1154,6 +1255,20 @@ bool mui_renderer_finish(MUIRenderer *r,
         .viewport = {(float)r->width, (float)r->height, 0, 0}
     };
     memcpy(frame.buffers, buffers, sizeof(buffers));
+    /* The app's surface text (ruling DT-G): one load-op pass per surface over what the app drew, with the
+       viewport the target's own size. After the atlas copy pass (its glyphs are uploaded) and before the
+       scene's pass, which samples the target. No submission, no fence, no pipeline of its own. */
+    for (uint32_t i = 0; i < text_count; i++) {
+        if (!texts[i].count) continue;
+        FrameDraw text = frame;
+        text.width = texts[i].width; text.height = texts[i].height;
+        text.viewport.width = (float)texts[i].width; text.viewport.height = (float)texts[i].height;
+        SDL_GPURenderPass *pass = begin_segment(&text, (SDL_GPUTexture *)texts[i].target, SDL_GPU_LOADOP_LOAD);
+        if (!pass) goto cleanup;
+        draw_primitives(&text, pass, KIND_GLYPH, texts[i].start, texts[i].count);
+        SDL_EndGPURenderPass(pass);
+        r->last_text_passes += 1;
+    }
     if (!encode_frame(&frame, &r->backdrop, r->target, false)) goto cleanup;
     r->submissions += 1;
     if (r->window) {
@@ -1173,17 +1288,21 @@ cleanup:
     return ok;
 }
 
-void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[5]) {
+void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[7]) {
     out[0] = r->backdrop.splits; out[1] = r->backdrop.blurs; out[2] = r->backdrop.passes;
     out[3] = r->backdrop.copies; out[4] = r->backdrop.made;
+    out[5] = r->backdrop.glass_records; out[6] = r->backdrop.glass_copies;
 }
 
 uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r) { return r->last_atlas_bytes; }
 
+uint32_t mui_renderer_last_text_passes(MUIRenderer *r) { return r->last_text_passes; }
+
 bool mui_renderer_has_frame_target(MUIRenderer *r) { return r->backdrop.frame != NULL; }
 
-void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame) {
+void mui_renderer_set_backdrop_hooks(MUIRenderer *r, bool pool_fails, bool route_every_frame, bool sharp_fails) {
     r->backdrop.pool_fails = pool_fails;
+    r->backdrop.sharp_fails = sharp_fails;
     r->backdrop.route_every_frame = route_every_frame;
 }
 
@@ -1377,6 +1496,8 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
                    : e->type == SDL_EVENT_PINCH_UPDATE ? MUI_PINCH_UPDATE : MUI_PINCH_END;
         out->modifiers = mods(SDL_GetModState());
         return true;
+    case SDL_EVENT_CLIPBOARD_UPDATE:   // CP-G: no window; Swift tells every window's handler
+        out->kind = MUI_EVENT_CLIPBOARD; return true;
     case SDL_EVENT_KEY_DOWN: case SDL_EVENT_KEY_UP:
         out->kind = e->type == SDL_EVENT_KEY_DOWN ? MUI_EVENT_KEY_DOWN : MUI_EVENT_KEY_UP;
         out->window_id = e->key.windowID; out->keycode = e->key.key;

@@ -71,12 +71,18 @@ public final class Renderer {
     private(set) var lastBackdropBlurs = 0
     /// Render passes the blurs took: `L + 2` per record (`BB-S`).
     private(set) var lastBackdropPasses = 0
+    /// Glass records (`MUIBackdrop.glassFlags` bit 0) encoded in the last frame's backdrop runs (`LG-B`).
+    private(set) var lastGlassRecords = 0
+    /// Sharp copies of a region of the frame target the lens read (`LG-D`): one per glass record with the lens on.
+    private(set) var lastGlassSharpCopies = 0
     /// 1 when the last frame copied the frame target to its drawable, else 0.
     private(set) var lastFrameTargetCopies = 0
     /// Textures (frame target and pool) the last frame had to create; 0 on a steady frame.
     private(set) var lastBackdropTexturesMade = 0
     /// Test hook (`BB-K`, test 2.7): every pool allocation fails, so each record draws its flat tint.
     var backdropPoolFailsAllocation = false
+    /// Test hook (`LG-W`): only the glass lens's sharp copy fails, the blur succeeds.
+    var glassSharpCopyFailsAllocation = false
     /// Test hook (test 2.3): route every scene, backdrop or not, through the frame target.
     var routesEveryFrameThroughTheFrameTarget = false
     /// Whether the default state holds a frame target (test 2.3).
@@ -94,6 +100,13 @@ public final class Renderer {
     /// ``upload(_:)``. `nil` until the first upload; a scene carrying glyphs is
     /// then drawn against whatever was uploaded last.
     private(set) var atlasTexture: (any MTLTexture)?
+
+    /// The MetalUI-owned text passes the last ``encodeSurfaceText(_:targets:in:)`` ran: one per surface that
+    /// recorded `drawText` glyphs, 0 for a frame with none (`DT-A`; a work counter).
+    package private(set) var lastSurfaceTextPasses = 0
+
+    /// Calls of ``upload(_:)``, ever: `MetalWindowRenderer` makes one per frame (`DT-B`; a work counter).
+    package private(set) var uploadCalls = 0
 
     /// Whether ``atlasTexture`` has been bound into a render command encoder
     /// since it was created.
@@ -234,6 +247,7 @@ public final class Renderer {
                 surfaces: [SurfaceID: any MTLTexture],
                 backdropState: BackdropFrameState?) throws {
         lastBackdropSplits = 0; lastBackdropBlurs = 0; lastBackdropPasses = 0
+        lastGlassRecords = 0; lastGlassSharpCopies = 0
         lastFrameTargetCopies = 0; lastBackdropTexturesMade = 0
         let state = backdropState ?? defaultBackdropState
         let wantsBackdrops = !scene.isEmpty
@@ -373,7 +387,7 @@ public final class Renderer {
                              into: encoder, viewport: &viewport, projection: &projection,
                              transforms: transformBuffer)
         case .backdrop:
-            try encodeRects(scene.backdrops[run.start..<(run.start + run.count)].map(flatTintRect),
+            try encodeRects(scene.backdrops[run.start..<(run.start + run.count)].flatMap(\.flatTintRects),
                             into: encoder, viewport: &viewport, projection: &projection,
                             transforms: transformBuffer)
         }
@@ -435,16 +449,27 @@ public final class Renderer {
             // Every record of the run reads the frame as it stands at the split
             // (a run holds no two overlapping records, `BB-E`).
             var blurred: [(texture: (any MTLTexture)?, draw: SIMD4<Float>)] = []
+            var sharps: [(any MTLTexture)?] = []
             for index in run.start..<(run.start + run.count) {
                 blurred.append(try blur(record: index, of: scene, from: frame, width: width, height: height,
                                         commandBuffer: commandBuffer, pipelines: pipelines, state: state))
+                // A glass with the lens on also reads the frame unblurred (`LG-D`): a copy of its
+                // region, since the frame is the pass's own render target.
+                let record = scene.backdrops[index]
+                if record.isGlass { lastGlassRecords += 1 }
+                sharps.append(record.isGlass && record.glassFlags & 2 != 0 && blurred[blurred.count - 1].texture != nil
+                              ? try sharpCopy(record: index, of: scene, from: frame, width: width, height: height,
+                                              commandBuffer: commandBuffer, state: state)
+                              : nil)
             }
             encoder = try segment(load: .load)
             for (k, index) in (run.start..<(run.start + run.count)).enumerated() {
-                encodeBackdrop(scene.backdrops[index], blurred: blurred[k].texture, draw: blurred[k].draw,
-                               into: encoder, viewport: &viewport, projection: &projection,
-                               transforms: transformBuffer, pipelines: pipelines)
+                try encodeBackdrop(scene.backdrops[index], blurred: blurred[k].texture, sharp: sharps[k],
+                                   draw: blurred[k].draw,
+                                   into: encoder, viewport: &viewport, projection: &projection,
+                                   transforms: transformBuffer, pipelines: pipelines)
                 if let texture = blurred[k].texture { state.release(texture) }
+                if let texture = sharps[k] { state.release(texture) }
             }
         }
         encoder.endEncoding()
@@ -538,12 +563,20 @@ public final class Renderer {
     /// constants, or the flat one when `blurred` is `nil`. The record travels
     /// by `setVertexBytes`/`setFragmentBytes` (96 bytes), so no alignment of a
     /// shared buffer's offset is assumed.
-    private func encodeBackdrop(_ record: MUIBackdrop, blurred: (any MTLTexture)?, draw: SIMD4<Float>,
+    private func encodeBackdrop(_ record: MUIBackdrop, blurred: (any MTLTexture)?, sharp: (any MTLTexture)?,
+                                draw: SIMD4<Float>,
                                 into encoder: any MTLRenderCommandEncoder,
                                 viewport: inout MUISize, projection: inout simd_float4x4,
-                                transforms: any MTLBuffer, pipelines: BackdropPipelines) {
+                                transforms: any MTLBuffer, pipelines: BackdropPipelines) throws {
+        // A blob that cannot blur draws one flat rect per member (`BB-I`, `LG-L`).
+        if blurred == nil, record.glassMemberCount > 1 {
+            try encodeRects(record.flatTintRects, into: encoder, viewport: &viewport, projection: &projection,
+                            transforms: transforms)
+            return
+        }
         var record = record
         var draw = draw
+        record.glassFlags = Renderer.glassFlags(record.glassFlags, haveSharpCopy: sharp != nil)
         encoder.setRenderPipelineState(blurred == nil ? pipelines.flat : pipelines.blurred)
         encoder.setVertexBuffer(unitVertexBuffer, offset: 0, index: Int(MUIRectBufferVertices.rawValue))
         encoder.setVertexBytes(&record, length: MemoryLayout<MUIBackdrop>.stride, index: Int(MUIRectBufferRects.rawValue))
@@ -555,8 +588,39 @@ public final class Renderer {
         if let blurred {
             encoder.setFragmentBytes(&draw, length: MemoryLayout<SIMD4<Float>>.stride, index: BackdropPipelines.drawConstantsIndex)
             encoder.setFragmentTexture(blurred, index: 0)
+            // The sharp region the lens reads; a record that does not read it gets the blurred texture
+            // (a texture must be bound; the flags above already dropped the lens, `LG-W`).
+            encoder.setFragmentTexture(sharp ?? blurred, index: 1)
         }
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4, instanceCount: 1)
+    }
+
+    /// The flags a glass draws with (`LG-W`): the lens and rim bit (bit 1) is cleared when the lens has no sharp
+    /// copy to read, so the record degrades to the plain material look by name rather than reading the
+    /// downsampled blurred texture at the wrong scale. A material (bit 0 clear) is untouched.
+    static func glassFlags(_ flags: MUIUInt, haveSharpCopy: Bool) -> MUIUInt {
+        (flags & 1 != 0 && !haveSharpCopy) ? flags & ~2 : flags
+    }
+
+    /// A copy of backdrop `index`'s region of `frame` into a pool texture, unblurred (`LG-D`): what the
+    /// lens of a glass reads, since sampling the pass's own render target is undefined. `nil` when
+    /// the region is empty or no texture can be had (the lens then reads the blur).
+    private func sharpCopy(record index: Int, of scene: Scene, from frame: any MTLTexture, width: Int, height: Int,
+                           commandBuffer: any MTLCommandBuffer, state: BackdropFrameState) throws -> (any MTLTexture)? {
+        guard let region = scene.backdropRegion(index, target: (width, height)),
+              let copy = state.acquire(device: device, width: region.width, height: region.height,
+                                       failing: backdropPoolFailsAllocation || glassSharpCopyFailsAllocation) else { return nil }
+        guard let blit = commandBuffer.makeBlitCommandEncoder() else {
+            state.release(copy)
+            throw RendererError.encoderUnavailable
+        }
+        blit.copy(from: frame, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: MTLOrigin(x: region.x, y: region.y, z: 0),
+                  sourceSize: MTLSize(width: region.width, height: region.height, depth: 1),
+                  to: copy, destinationSlice: 0, destinationLevel: 0, destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+        blit.endEncoding()
+        lastGlassSharpCopies += 1
+        return copy
     }
 
     private func encodeRects(_ rects: [MUIRect],
@@ -667,6 +731,35 @@ public final class Renderer {
                                instanceCount: glyphs.count)
     }
 
+    /// Draws the glyphs `drawText` recorded this frame (`DT-A`, `DT-B`): one render pass per surface that
+    /// recorded text, MetalUI's own, load action `.load` over what the app drew, store `.store`, the existing
+    /// glyph pipeline over the sink's sprites at the target's own size, an identity projection. Encodes into
+    /// `commandBuffer` and **never commits, enqueues or waits** (`MV-F`). The atlas must already be uploaded
+    /// (`upload(_:)`, after the surface draws); with none uploaded nothing is drawn, as ``encodeGlyphs``.
+    package func encodeSurfaceText(_ sink: SurfaceTextSink?, targets: [SurfaceID: any MTLTexture],
+                                   in commandBuffer: any MTLCommandBuffer) throws {
+        lastSurfaceTextPasses = 0
+        guard let sink, atlasTexture != nil else { return }
+        for batch in sink.batches {
+            guard let target = targets[batch.target], !batch.range.isEmpty else { continue }
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = target
+            pass.colorAttachments[0].loadAction = .load
+            pass.colorAttachments[0].storeAction = .store
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+                throw RendererError.encoderUnavailable
+            }
+            defer { encoder.endEncoding() }
+            encoder.setViewport(MTLViewport(originX: 0, originY: 0, width: Double(target.width),
+                                            height: Double(target.height), znear: 0, zfar: 1))
+            var viewport = MUISize(width: Float(target.width), height: Float(target.height))
+            var projection = matrix_identity_float4x4
+            try encodeGlyphs(Array(sink.glyphs[batch.range]), into: encoder, viewport: &viewport,
+                             projection: &projection, transforms: zeroTransformBuffer)
+            lastSurfaceTextPasses += 1
+        }
+    }
+
     /// The GPU texture for each of `scene.textures`, in order, uploading the
     /// ones not cached and releasing every cached one the scene does not
     /// reference (see ``imageTextures``).
@@ -752,6 +845,7 @@ public final class Renderer {
     ///   intermittent-blank-run failure spec 4.2 names and nothing in this repo
     ///   can see.
     public func upload(_ atlas: GlyphAtlas) {
+        uploadCalls += 1
         let existing = atlasTexture
         let sizeChanged = existing == nil
             || existing!.width != atlas.width
@@ -871,15 +965,4 @@ public final class Renderer {
         }
         return pixels
     }
-}
-
-/// The record's flat tint as a rect: `c * o * T` -- the fallback every renderer
-/// draws for a backdrop it cannot blur (ruling BB-I), which is today's
-/// `LK-L` flat tint pixel for pixel.
-private func flatTintRect(_ b: MUIBackdrop) -> MUIRect {
-    var tint = b.tint
-    tint.a *= b.opacity
-    return MUIRect(bounds: b.bounds, contentMask: b.contentMask, maskCornerRadii: b.maskCornerRadii,
-                   background: tint, borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0), cornerRadii: b.cornerRadii,
-                   borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: b.order, shape: b.shape)
 }

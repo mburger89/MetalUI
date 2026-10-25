@@ -2417,3 +2417,23 @@ No real window was driven and the probe was not re-run (the screen was locked, `
 ## BS. Build-time app shaders (item S12, record 138)
 
 A real shadercross at the pin was built and run by the agent on macOS arm64 and Linux aarch64 (41 files byte-identical to the checked-in blobs, `BS-L`); the plugin ran on a fixture package by path with a stub. No Linux x86_64 or Windows machine, no real aarch64 Linux GPU and no dependency by URL were driven (an agent cannot). **Owed, new here, `docs/verification/human-checks.md` group BS, none performed**: BS1 the real shadercross build and compile on Linux x86_64 and Windows x64, BS2 an aarch64 Linux Vulkan app opening the library (and one built without `dxil`), BS3 `swift package compile-shaders` from a package depending on MetalUI by URL, BS4 the Windows recipe. Owed, not a look: a CI job building the pin (`BS-G`), a published prebuilt (the user's decision).
+
+## 2026-10-22: clipboard extras (record §142) — looks owed, group CP
+
+No real window was driven: the SwiftUI probe's arm R never ran (its hosting window did not become key from a command-line process although the lock probe read unlocked) and an agent cannot compare a look. **Owed, new here — `docs/verification/human-checks.md` group CP, none performed**: CP1 re-take arm R (array copy item count, a two-item paste, `PasteButton` enablement, exporter timing; may retire or rewrite divergences 456, 715, 716), CP2 the `PasteButton` look beside SwiftUI's, CP3 a two-item paste between two real applications and between two MetalUI windows on SDL (the pack), CP4 a clipboard manager rewriting the clipboard while the window is key.
+
+## 2026-10-22: presentation extras (record §144) — looks owed, group BG
+
+No real window was captured: the screen was locked at the design session (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`), so the SwiftUI D arms of
+`docs/probes/swiftui-presentation-extras.swift` were recorded from a command-line process and a person must compare the looks. **Owed, new here —
+`docs/verification/human-checks.md` group `BG`:** `BG1` the popover panel fills (gradient, a `Material` with no drop shadow, a translucent colour), `BG2` the SDL background
+drag region on Linux and Windows (and the pointer events it takes from hover, divergence 737), `BG3` AppKit's background drag through `performDrag`, `BG4` the two SwiftUI
+behaviours left unprobed (a press on a control under `.enabled`, `.disabled` against the band), `BG5` the shape cursor at 1x and 2x. Nothing was verified on hardware.
+
+## 2026-10-22: run-time HLSL compute shaders on SDL_GPU (record §151) — looks owed, group RC
+
+macOS Metal (MSL route) and Linux lavapipe (SPIR-V route) compiled and dispatched a generated kernel under the agent's tests, and the pin's DXIL equals the build tool's blobs; nothing ran on Windows, in a signed macOS `.app` or on a desktop GPU. **Owed, new here — `docs/verification/human-checks.md` group `RC`, none performed:** RC1 Windows x64 compile and dispatch, and whether `dxil.dll` is needed to sign DXIL; RC2 Linux tarball and AppImage find the library from their layout; RC3 `--self-test` without the library names the error and exits non-zero; RC4 a desktop GPU's compile time for MetalCreator's real ~1000-line kernel; RC5 a macOS `.app` with the libraries in `Contents/Frameworks` under library validation.
+
+## 2026-10-23: Liquid Glass (record §153) — looks owed, group LG
+
+No real window was compared with SwiftUI: `ImageRenderer` draws no glass, and the design session's captures (`swiftui-liquid-glass.swift` `W`) are of an inactive borderless window; the renderer's own readbacks (Metal, SDL Metal, lavapipe) are against MetalUI's `GlassReference`, not SwiftUI. **Owed, new here — `docs/verification/human-checks.md` group `LG`, none performed:** LG1 the look in a key window against a SwiftUI app on macOS 26, light and dark (lens, rim, sigma, the carried hairline); LG2 the glass buttons and `regular.tint`; LG3 `glassEffectUnion` and the merge neck; LG4 Reduce Transparency's grey; LG5 SDL on Linux and Windows D3D12 desktop GPUs; LG6 a press on a `.glass` button. Nothing was verified on hardware.

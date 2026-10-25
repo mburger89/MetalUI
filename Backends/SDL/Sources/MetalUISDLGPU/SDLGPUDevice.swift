@@ -91,6 +91,19 @@ public final class SDLGPUDevice: @unchecked Sendable {
     /// the driver; `driver` names one (`"metal"`, `"vulkan"`, `"direct3d12"`)
     /// and `debug` turns on the driver's validation. Answers `nil` with
     /// ``lastFailure`` when no GPU or driver answers; it never traps.
+    ///
+    /// **Threads** (ruling `DL-G`, measured by `SDLGPUDeviceInfoTests` D7 and D8).
+    /// SDL's `SDL_Init` documentation says `SDL_INIT_VIDEO` "should be
+    /// initialized on the main thread" and `SDL_InitSubSystem` should "only be
+    /// called on the main thread"; `SDL_CreateGPUDevice` states no thread rule.
+    /// `make` takes one lock, so concurrent calls are safe, and on macOS it runs
+    /// the video init on the main thread itself (the caller must not block the
+    /// main thread waiting for `make`). On Linux and Windows it initialises video
+    /// on the calling thread. **Recommended:** initialise video on the main thread
+    /// first (an app's `SDLPlatform` does; a headless tool calls `make` once on the
+    /// main thread before starting workers), so a later `make` off the main thread
+    /// only retains the subsystem. An engine-owned device made off the main thread
+    /// beside a window renderer's device works (D7: macOS and Linux lavapipe).
     public static func make(debug: Bool = false, preferring driver: String? = nil) -> SDLGPUDevice? {
         // Two threads creating a device at once raced inside Vulkan's loader in
         // the Linux image; one lock makes `make` safe against itself.
@@ -283,27 +296,62 @@ public final class SDLGPUDevice: @unchecked Sendable {
         let gate = waiterGate
         return try await withCheckedThrowingContinuation { continuation in
             submitWorker.enqueue { [self] in
-                guard let handle = SDL_AcquireGPUCommandBuffer(raw) else {
-                    continuation.resume(throwing: SDLGPUError("SDL_AcquireGPUCommandBuffer"))
-                    return
-                }
-                let commandBuffer = SDLGPUCommandBuffer(raw: handle, device: self)
-                record(commandBuffer)
-                commandBuffer.isOpen = false
-                guard commandBuffer.openPasses == 0 else {
-                    SDL_CancelGPUCommandBuffer(handle)
-                    continuation.resume(throwing: SDLGPUError("a batch ended with \(commandBuffer.openPasses) pass(es) not ended"))
-                    return
-                }
-                guard let fence = SDL_SubmitGPUCommandBufferAndAcquireFence(handle) else {
-                    continuation.resume(throwing: SDLGPUError("SDL_SubmitGPUCommandBufferAndAcquireFence"))
-                    return
-                }
-                let result = SDLGPUFence(raw: fence, device: self, retained: commandBuffer.retained)
-                result.startWaiting(gate: gate)
-                continuation.resume(returning: result)
+                continuation.resume(with: recordAndSubmit(record, gate: gate))
             }
         }
+    }
+
+    /// Records one command buffer and submits it with a fence (ruling `SY-A`):
+    /// the one job body behind ``submitBatch(_:)`` and
+    /// ``submitBatchSynchronously(_:)``. **Run only on ``submitWorker``**: a
+    /// buffer is recorded and submitted on the thread that acquired it.
+    func recordAndSubmit(_ record: @Sendable (SDLGPUCommandBuffer) -> Void,
+                         gate: DispatchSemaphore?) -> Result<SDLGPUFence, SDLGPUError> {
+        guard let handle = SDL_AcquireGPUCommandBuffer(raw) else {
+            return .failure(SDLGPUError("SDL_AcquireGPUCommandBuffer"))
+        }
+        let commandBuffer = SDLGPUCommandBuffer(raw: handle, device: self)
+        record(commandBuffer)
+        commandBuffer.isOpen = false
+        guard commandBuffer.openPasses == 0 else {
+            SDL_CancelGPUCommandBuffer(handle)
+            return .failure(SDLGPUError("a batch ended with \(commandBuffer.openPasses) pass(es) not ended"))
+        }
+        guard let fence = SDL_SubmitGPUCommandBufferAndAcquireFence(handle) else {
+            return .failure(SDLGPUError("SDL_SubmitGPUCommandBufferAndAcquireFence"))
+        }
+        let result = SDLGPUFence(raw: fence, device: self, retained: commandBuffer.retained)
+        result.startWaiting(gate: gate)
+        return .success(result)
+    }
+
+    /// As ``submitBatch(_:)`` for code that cannot `await` (ruling `SY-B`): a
+    /// viewport click that must render an ID pass and read one pixel on the main
+    /// actor. The closure is recorded and submitted on the device's submit
+    /// worker (never on the caller) by the same recorder `submitBatch` uses
+    /// (`SDL_AcquireGPUCommandBuffer`, `SDL_SubmitGPUCommandBufferAndAcquireFence`),
+    /// and the fence is released after its signal whether or not anyone awaits it
+    /// (`GA-E`). **The calling thread blocks only until the buffer is submitted,
+    /// never until it finishes**: the fence is normally unsignalled, and
+    /// ``SDLGPUFence/waitBlocking()`` or ``downloadSynchronously(_:region:)``
+    /// (whose job the one FIFO submit worker orders after this batch) is where
+    /// the caller waits for the GPU. Throws an ``SDLGPUError`` when acquiring,
+    /// ending (a pass left open) or submitting fails.
+    ///
+    /// Rules are `GB-F`'s (ruling `SY-C`): legal on the main actor outside a
+    /// surface draw; a debug trap inside one (`GA-I`); a precondition failure on
+    /// the device's own worker threads. The closure runs while the caller is
+    /// blocked, so it must not wait for the caller: **a closure that hops to the
+    /// main actor and waits deadlocks, and nothing detects it.**
+    public func submitBatchSynchronously(_ record: @escaping @Sendable (SDLGPUCommandBuffer) -> Void) throws -> SDLGPUFence {
+        SDLGPUWindowGuard.assertNotInsideDraw("SDLGPUDevice.submitBatchSynchronously")
+        preconditionNotOnOwnWorker("SDLGPUDevice.submitBatchSynchronously")
+        let gate = waiterGate
+        let submitted = Submitted()
+        submitWorker.enqueue { [self] in
+            submitted.finish(recordAndSubmit(record, gate: gate))
+        }
+        return try submitted.await().get()
     }
 
     /// Copies `bytes` into `buffer` at `offset` through a transfer buffer and

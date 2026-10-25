@@ -169,32 +169,29 @@ final class PrepaintLedger {
 }
 
 extension PrepaintKey {
-    /// The parts of this key that differ from `other` (`METALUI_TRACE_RETAINED=1`).
-    func describeDifference(from other: PrepaintKey) -> String {
+    /// Every part of this key that differs from `other` (`METALUI_TRACE_RETAINED=1`), `ledgerKey.<field>`.
+    func describeDifference(from other: PrepaintKey) -> [String] {
         var why: [String] = []
-        if rects != other.rects { why.append("rects") }
-        if interior != other.interior { why.append("interior") }
-        if shapeInterior != other.shapeInterior { why.append("shapeInterior") }
-        if nodeCount != other.nodeCount { why.append("nodeCount") }
-        if ambient.offset != other.ambient.offset { why.append("offset") }
-        var a = ambient, b = other.ambient
-        a.offset = b.offset
-        if a != b { why.append("ambient") }
+        if rects != other.rects { why.append("ledgerKey.rects") }
+        if interior != other.interior { why.append("ledgerKey.interior") }
+        if shapeInterior != other.shapeInterior { why.append("ledgerKey.shapeInterior") }
+        if nodeCount != other.nodeCount { why.append("ledgerKey.nodeCount") }
+        for member in ambient.differences(from: other.ambient) { why.append("ledgerKey.ambient.\(member)") }
         if extras != other.extras {
             var x = extras, y = other.extras
             if x.scroller.count > 7, y.scroller.count > 7 { x.scroller[7] = 0; y.scroller[7] = 0 }
             if x != y {
-                if x.effects != y.effects { why.append("extras.effects") }
-                if x.scroller != y.scroller { why.append("extras.scroller \(x.scroller) vs \(y.scroller)") }
-                if x.share != y.share { why.append("extras.share") }
-                if x.suppression != y.suppression { why.append("extras.suppression") }
-                if x.hiddenNodes != y.hiddenNodes { why.append("extras.hiddenNodes") }
-                if x.scrollerID != y.scrollerID { why.append("extras.scrollerID") }
+                if x.effects != y.effects { why.append("ledgerKey.extras.effects") }
+                if x.scroller != y.scroller { why.append("ledgerKey.extras.scroller") }
+                if x.share != y.share { why.append("ledgerKey.extras.share") }
+                if x.suppression != y.suppression { why.append("ledgerKey.extras.suppression") }
+                if x.hiddenNodes != y.hiddenNodes { why.append("ledgerKey.extras.hiddenNodes") }
+                if x.scrollerID != y.scrollerID { why.append("ledgerKey.extras.scrollerID") }
                 if x.collectsAccessibility != y.collectsAccessibility || x.hitTestingDisabled != y.hitTestingDisabled
-                    || x.keyboardHidden != y.keyboardHidden || x.portal != y.portal { why.append("extras.gates") }
+                    || x.keyboardHidden != y.keyboardHidden || x.portal != y.portal { why.append("ledgerKey.extras.gates") }
             }
         }
-        return why.joined(separator: ", ")
+        return why
     }
 
     /// Whether this key is `old` but for the translation of its prepaint effects (`RK-G`).
@@ -238,27 +235,72 @@ extension Frame {
         return ledger.hitboxes.contains { $0.contains(point) }
     }
 
-    /// The decision of `EquatableComponent.prepaintGroup` (`RK-C`, `RK-E`): replay, run and record, or run.
+    /// The decision of `EquatableComponent.prepaintGroup` (`RK-C`, `RK-E`): replay, run and record, or run. A decision that does
+    /// not replay prints one `retained prepaint miss` line naming why (`DM-F`).
     func retainedPrepaintDecision(_ phase: RetainedPhase) -> RetainedPrepaintMode {
+        phase.prepaintNote = nil
+        phase.prepaintInvalidation = []
+        let mode = retainedPrepaintDecisionInner(phase)
+        if case .run = mode, RetainedTrace.active, phase.prepaintNote != "traced" {
+            RetainedTrace.emit(prepaintMissLine(phase))
+        }
+        return mode
+    }
+
+    private func prepaintMissLine(_ phase: RetainedPhase) -> String {
+        var why = phase.prepaintInvalidation
+        if let note = phase.prepaintNote { why.append(note) }
+        if why.isEmpty {
+            why = ["unclassified"]
+            RetainedTrace.unclassified += 1
+        }
+        let cause = phase.prepaintInvalidation.contains("observed") || phase.prepaintInvalidation.contains("serial")
+            ? RetainedTrace.causeSuffix(of: phase.entry) : ""
+        return "retained prepaint miss \(RetainedTrace.path(phase.build.key.id)) reasons=[\(why.joined(separator: ", "))]\(cause) frame: grafted=\(phase.grafted)"
+    }
+
+    /// Names why a prepaint that passed its guard still runs (trace only).
+    private func noteRun(_ phase: RetainedPhase, _ note: @autoclosure () -> String) {
+        if RetainedTrace.active { phase.prepaintNote = note() }
+    }
+
+    private func retainedPrepaintDecisionInner(_ phase: RetainedPhase) -> RetainedPrepaintMode {
         let memos = stateTable.contentMemos
         guard memos.replaysPrepaint else { return .run(nil) }
         let build = phase.build, entry = phase.entry
         if let reason = prepaintRefusal() ?? retainedPrepaintEntryRefusal(build: build) {
-            if retainedTraces { print("retained prepaint refused \(sbPath(build.key.id).suffix(60)) because \(reason)") }
+            RetainedTrace.emit("retained prepaint refused \(RetainedTrace.path(build.key.id)) because \(reason)")
+            phase.prepaintNote = "traced"
             memos.retained.noteIneligible(.prepaint, reason: reason)
             return .run(nil)
         }
-        if retainedSubtreeHasPointerPressOrFocus(under: build.key.id) { return .run(nil) }
-        let key = retainedPrepaintKey(phase)
+        if retainedSubtreeHasPointerPressOrFocus(under: build.key.id) {
+            noteRun(phase, "pointer/press/focus under the occurrence")
+            return .run(nil)
+        }
+        let key = retainedPrepaintKey(phase).transactionNormalised   // `AM-D`, `AM-L`
         phase.prepaintKey = key
-        if memos.prepaintReplayAllowed, entry.quarantineUntil <= memos.buildSerial, let old = entry.record,
-           let ledger = old.prepaint, !entry.observedChange, old.coverageComplete,
-           old.contentSerial == entry.serial, old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }),
-           !retainedPointerIsInside(ledger) {
+        let old = entry.record
+        let ledgerOfRecord = old?.prepaint
+        var inputs = PrepaintInvalidation.Inputs()
+        inputs.replayDisallowed = !memos.prepaintReplayAllowed
+        inputs.quarantined = entry.quarantineUntil > memos.buildSerial
+        inputs.hasRecord = old != nil
+        inputs.hasLedger = ledgerOfRecord != nil
+        inputs.observedChange = entry.observedChange
+        inputs.coverageBuild = old?.coverageBuild ?? true
+        inputs.coveragePrepaint = old?.coveragePrepaint ?? true
+        inputs.serialMatches = old.map { $0.contentSerial == entry.serial } ?? true
+        inputs.versionsUnchanged = old.map { retainedVersionsUnchanged($0.versions) } ?? true
+        inputs.pointerInLedger = ledgerOfRecord.map { retainedPointerIsInside($0) } ?? false
+        let invalidation = PrepaintInvalidation(inputs)
+        if RetainedTrace.active { phase.prepaintInvalidation = invalidation.names }
+        if invalidation.isReplayable, let old, let ledger = ledgerOfRecord {
             // The paint record may stand where the occurrence was before it moved: a replayed prepaint leaves nothing to
             // paint from, so the record must be movable here too, or the frame would be redone (`FS-D`).
             let recordMoves = memos.translatesLayout ? recordShiftAtPrepaint(old, phase: phase, key: key) : nil
             if let recordMoves, case .refused = paintTranslation(of: old, shift: recordMoves, key: retainedReplayKeyForTranslation(phase, key), phase: phase) {
+                noteRun(phase, "recordCannotMove")
                 return .run(phase.grafted ? nil : openPrepaintWindow())
             }
             if ledger.key == key {
@@ -268,14 +310,15 @@ extension Frame {
             }
             // The occurrence moved by layout or by a scroll since the ledger was made (`FS-D`, K1 and K2): its registrations
             // are replayed moved by the add, unless one cannot be moved exactly (refused by name).
-            if retainedTraces, ledger.key != key, ledger.key.shift(to: key) == nil {
-                print("retained prepaint not a translation \(sbPath(build.key.id).suffix(40)): " + ledger.key.describeDifference(from: key))
+            if ledger.key != key, ledger.key.shift(to: key) == nil {
+                noteRun(phase, ledger.key.describeDifference(from: key).joined(separator: ", "))
             }
             if memos.translatesLayout, let shift = ledger.key.shift(to: key) {
                 switch movedPrepaintLedger(ledger, shift: shift, clip: key.ambient.clip) {
                 case .moved(let translation):
                     // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand, not where they stood.
                     if let point = mousePosition, translation.hitboxes.contains(where: { $0.contains(point) }) {
+                        noteRun(phase, "pointerInMovedLedger")
                         return .run(phase.grafted ? nil : openPrepaintWindow())
                     }
                     memos.ledgerMoves += 1
@@ -289,7 +332,7 @@ extension Frame {
                     return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds,
                                    accessibility: translation.accessibility, geometry: translation.geometry)
                 case .refused(let reason):
-                    if retainedTraces { print("retained prepaint translation refused \(sbPath(build.key.id).suffix(60)): \(reason)") }
+                    noteRun(phase, "translationRefused: \(reason)")
                     memos.retained.noteTranslationRefused(reason: reason)
                     return .run(phase.grafted ? nil : openPrepaintWindow())
                 }
@@ -324,23 +367,23 @@ extension Frame {
                     if let moved = translatedHitboxes(of: ledger, by: delta) {
                         // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand (`RZ-D`).
                         if let point = mousePosition, moved.contains(where: { $0.contains(point) }) {
+                            noteRun(phase, "pointerInMovedLedger")
                             return .run(phase.grafted ? nil : openPrepaintWindow())
                         }
                         memos.retained.prepaintHits += 1
                         memos.retained.skippedPrepaints += ledger.prepaints
                         return .replay(ledger, moved: moved, elementBounds: nil, accessibility: accessibility, geometry: movedGeometry)
                     }
-                    if retainedTraces {
-                        print("retained translation refused \(sbPath(build.key.id).suffix(60)): hitboxes \(ledger.hitboxes.count)")
-                    }
+                    noteRun(phase, "translationRefused: hitboxes \(ledger.hitboxes.count)")
                     memos.retained.noteTranslationRefused(reason: "hitboxes")
                 case .failure(let refusal):
-                    if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): \(refusal.reason)") }
+                    noteRun(phase, "translationRefused: \(refusal.reason)")
                     memos.retained.noteTranslationRefused(reason: refusal.reason)
                 }
             } else if ledger.key.rects != key.rects, key.extras.translation(from: ledger.key.extras) != nil {
                 // The layout origin and a render effect above the occurrence both moved: the two translations are not combined
                 // (`FS-O`), so the prepaint runs (`RG-G`). A counter only; the decision is unchanged.
+                noteRun(phase, "translationRefused: effectAndLayoutMoved")
                 memos.retained.noteTranslationRefused(reason: "effectAndLayoutMoved")
             }
         }
@@ -349,7 +392,7 @@ extension Frame {
 
     /// The prepaint of an occurrence under an effect change a replay cannot carry: counted by name, run (`RZ-B`).
     private func refuseEffect(_ reason: String, build: RetainedBuild, phase: RetainedPhase) -> RetainedPrepaintMode {
-        if retainedTraces { print("retained translation refused \(sbPath(build.key.id).suffix(60)): \(reason)") }
+        noteRun(phase, "translationRefused: \(reason)")
         stateTable.contentMemos.retained.noteTranslationRefused(reason: reason)
         return .run(phase.grafted ? nil : openPrepaintWindow())
     }
@@ -411,9 +454,7 @@ extension Frame {
             recorder.taint = "dragAndDrop"
         }
         guard recorder.taint == nil, let key = phase.prepaintKey else {
-            if retainedTraces {
-                print("retained prepaint ineligible \(sbPath(phase.build.key.id).suffix(60)) because \(recorder.taint ?? "unkeyed")")
-            }
+            RetainedTrace.emit("retained prepaint ineligible \(RetainedTrace.path(phase.build.key.id)) because \(recorder.taint ?? "unkeyed")")
             memos.retained.noteIneligible(.prepaint, reason: recorder.taint ?? "unkeyed")
             return nil
         }

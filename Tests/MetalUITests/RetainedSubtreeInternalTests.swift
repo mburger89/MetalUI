@@ -44,7 +44,7 @@ private let frameChannels: [String: Channel] = [
     // Scroll requests and keys (layout, or prepaint).
     "scrollRequestQueue": .buildOnly, "scrollRequests": .buildOnly, "scrollRequestResolved": .buildOnly,
     "unresolvedScrollRequestCount": .prepaintOnly, "notesScrollKeys": .buildOnly, "scrollKeys": .buildOnly,
-    "scrollResolutions": .prepaintOnly, "scrollAnchorAdjustments": .prepaintOnly, "forEachIdentityWork": .buildOnly, "lazyWork": .buildOnly,
+    "scrollResolutions": .prepaintOnly, "scrollAnchorAdjustments": .prepaintOnly, "forEachIdentityWork": .buildOnly, "listIdentityWork": .buildOnly, "lazyWork": .buildOnly,
     // Animation and lifecycle.
     "wantsAnotherFrame": .ledger, "hasActiveAnimations": .ledger, "timeVaryingNotes": .ledger,
     "transactionTop": .keyed, "transactionDepth": .keyed, "lifecycleDepth": .buildOnly,
@@ -52,6 +52,10 @@ private let frameChannels: [String: Channel] = [
     // Tallies, prepaint's.
     "hoverRegionCount": .prepaintOnly, "pointerStyleRegionCount": .prepaintOnly, "keyRegionCount": .prepaintOnly,
     "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,
+    "clipboardAccess": .frameLocal, "pasteButtonCount": .prepaintOnly,   // PasteButton: retention refuses by name (CP-H, CP-L)
+    // Liquid Glass (`LG-I`): a container's members register in prepaint and the container's subtree refuses retention by
+    // the taint `glassContainer`; the paint depth is scratch the container's own paint opens and closes.
+    "glassGroups": .prepaintOnly, "glassTags": .prepaintOnly, "glassContainerPaintDepth": .frameLocal,
     // Presentations, toolbar, menu bar, popovers.
     "presentationDepth": .buildOnly, "presentationRecords": .buildOnly, "presentationOccurrences": .buildOnly,
     "environmentReadings": .buildOnly, "toolbarRecords": .buildOnly, "drawsToolbarStrip": .frameLocal, "drewToolbarStrip": .frameLocal,
@@ -66,6 +70,9 @@ private let frameChannels: [String: Channel] = [
     "colorSchemePreferenceDepth": .buildOnly, "mainColorSchemePreference": .buildOnly,
     "presentationColorSchemePreference": .buildOnly, "collectedNavigationTitle": .buildOnly,
     "collectedNavigationDocument": .buildOnly, "openURLHandlers": .buildOnly,
+    // Presentation extras (`BG-B`, record 144): the popover bracket's collected fill and its depth, read inside
+    // `AnchoredPresentation.requestLayout` only; an open popover is retention-ineligible by name (`BG-F`).
+    "presentationBackgroundSlot": .buildOnly, "presentationBracketDepth": .buildOnly,
     "contentSizeLimitsMode": .buildOnly, "contentMinimum": .buildOnly, "contentMaximum": .buildOnly,
     "environmentPushCount": .frameLocal, "environmentSnapshotCount": .frameLocal,
     "environmentTransformCount": .frameLocal,

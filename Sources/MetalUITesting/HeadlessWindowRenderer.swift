@@ -7,7 +7,9 @@ import MetalUIScene
 /// then `GlyphAtlas.clearDirtyRect()`), counting the image textures no earlier
 /// frame referenced, and recording the frame's GPU-surface draw requests
 /// **without running them** (there is no GPU context to hand a `GPUSurface`
-/// draw; `HT-Q` item 2).
+/// draw; `HT-Q` item 2). For the same reason it records no `drawText` glyph and runs no text pass (`DT-F`):
+/// text drawn into a surface needs the GPU's context, so a headless test reads the label as a `Text` overlay
+/// or drives `drawText` on a context of its own.
 ///
 /// MetalUI-only, like every declaration in `MetalUITesting` (`HT-B`): SwiftUI
 /// has no in-process test harness.

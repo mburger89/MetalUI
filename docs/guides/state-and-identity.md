@@ -178,8 +178,8 @@ for long enough loses its state once the state table is large (`TB-AH`, record Â
 content-sized row is exactly its content's height at the list's width, with no inset and no floor
 (divergence 145); an insertion above the viewport keeps the top row where it is (divergence 146);
 rows not yet measured count at an estimate (divergence 147), which you can set with
-`estimatedRowHeight:`. Rows whose ids print alike share one state in a `List`, though not in a
-`ForEach` (divergence 255).
+`estimatedRowHeight:`. Rows whose ids print alike but differ in value are separate rows with
+separate state, in a `List` as in a `ForEach` (pin: `aUniformListsCollidingIDsKeepSeparateState`).
 
 ## Divergences you will hit
 
@@ -192,6 +192,5 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 145: a content-sized `List` row is exactly its content's height.
 - divergence 146: an insertion above the viewport keeps the top row in place.
 - divergence 147: unmeasured rows count at an estimate.
-- divergence 255: `List` rows whose ids print alike share one state entry.
 
 Next: [input](input.md); back to [layout](layout.md).

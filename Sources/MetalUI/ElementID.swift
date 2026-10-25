@@ -28,6 +28,18 @@ public struct ElementID: Hashable, Sendable {
     }
 }
 
+extension ElementID {
+    /// The component naming a `List` row (`LH-B`): `String(describing: id)`, plus the id's
+    /// value as the `IdentityKey` when `keyed` (an id type that is not a
+    /// `DescriptionInjectiveID`, decided once per build, `FI-B`). The one spelling of
+    /// `ForEach`'s `ElementID(name:key:)` for the three `List` sites, so a row, a
+    /// `ForEach` element and a lazy unit of one id name one component (`LH-G`).
+    static func forRow<ID: Hashable>(_ id: ID, keyed: Bool) -> ElementID {
+        keyed ? ElementID(name: String(describing: id), key: IdentityKey(AnyHashable(id)))
+              : ElementID(String(describing: id))
+    }
+}
+
 /// An id's Hashable value, carried in a path component (`FI-J`).
 ///
 /// A final class rather than a struct around `AnyHashable` so `ElementID` grows

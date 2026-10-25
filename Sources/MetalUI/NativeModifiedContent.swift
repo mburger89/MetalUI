@@ -33,6 +33,11 @@ public enum LayoutModifier: Sendable {
     /// **New since the backdrop blur** -- an exhaustive `switch` outside the
     /// package gains one arm (`docs/migration.md`).
     case backgroundMaterial(Material)
+    /// Liquid Glass behind the content, in a shape (rulings `LG-A`, `LG-I`): one backdrop record with a glass tail
+    /// through `Frame.fillGlass`, or, inside a `GlassEffectContainer`, a registration the container merges and
+    /// emits. **New since Liquid Glass** -- an exhaustive `switch` outside the package gains one arm
+    /// (`docs/migration.md`).
+    case glassEffect(Glass, any Shape)
     case clip(cornerRadius: Pixels = Pixels(0))
     /// SwiftUI's `clipShape(_:)` (plan task 11, part 2, `TE-AJ` item 1): the
     /// shape's geometry in the layer's bounds, pushed as `.clip` pushes its

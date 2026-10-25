@@ -311,7 +311,10 @@ final class RetainedRecord {
     /// (`SB-V`). A record made on a frame that skipped the build and prepaint sessions (the frame a
     /// valid record missed on) covers only its paint, so it is not replayed: the next frame observes
     /// all three and records again.
-    var coverageComplete = true
+    var coverageComplete: Bool { coverageBuild && coveragePrepaint }
+    /// The two halves of `coverageComplete`, kept apart so a trace names the one that failed (`DM-F`).
+    var coverageBuild = true
+    var coveragePrepaint = true
     /// What the occurrence's prepaint registered (`RK-E`), or `nil` when it could not be recorded.
     var prepaint: PrepaintLedger?
 
@@ -356,8 +359,10 @@ private final class RetainedHandle: @unchecked Sendable {
     let entryFlags: MemoFlags
     let sessionFlags: MemoFlags
     let serial: Int
+    let sessionLabel: String
 
     init(entry: ContentMemoStore.Entry, store: ContentMemoStore, session: RetainedSession, serial: Int) {
+        self.sessionLabel = session.label
         self.entry = entry
         self.store = store
         self.session = session
@@ -369,7 +374,10 @@ private final class RetainedHandle: @unchecked Sendable {
     func fire() {
         // Flag first, any thread, under the locks (`MO-A`, `MO-G`); a retired session's fire changes nothing.
         let live = sessionFlags.serial == serial
-        if live { entryFlags.fireRetained() }
+        if live {
+            if RetainedTrace.active { entryFlags.lastFireCause = "\(sessionLabel): " + RetainedTrace.writerCause() }
+            entryFlags.fireRetained()
+        }
         if Thread.isMainThread {
             MainActor.assumeIsolated { self.bookkeep(live) }
         } else {
@@ -379,7 +387,7 @@ private final class RetainedHandle: @unchecked Sendable {
 
     @MainActor private func bookkeep(_ live: Bool) {
         guard live, let session, let store else { return }
-        if retainedTraces { print("retained session fired: \(session.label)") }
+        RetainedTrace.emit("retained session fired: \(session.label)\(RetainedTrace.causeSuffix(of: entry))")
         store.markDirty?()
     }
 }
@@ -400,6 +408,9 @@ final class RetainedBuild {
     let timeVarying: Bool
     /// Whether the build ran inside an observation window (`SB-V`).
     let observed: Bool
+    /// Whether the build window was closed *because* the standing record was complete and clean (`AM-B`): no certain miss was known, so
+    /// the record's own still-armed build session covers what a rebuild of an equal value reads. Set by `EquatableComponent` after `finish`.
+    var closedOnRecord = false
 
     init(key: ContentMemoStore.Key, topNodes: [LayoutNodeID], journal: Range<Int>, reads: Range<Int> = 0..<0, timeVarying: Bool, observed: Bool) {
         self.key = key
@@ -436,6 +447,14 @@ struct RetainedBuildWindow {
 /// one point where a fire can land after the sessions were armed. `nil` outside tests; `package`, so an app cannot spell it.
 package enum RetainedTestingHooks {
     nonisolated(unsafe) package static var beforeRecordClear: (@MainActor () -> Void)?
+    /// Closes every prepaint observation window (`DM-M`): a record made then is honest, `coveragePrepaint == false` with the build half
+    /// still observed, the one state the two halves differ in. Without it no window reaches that state (the prepaint window opens
+    /// whenever the build's did), so a swapped half was an equivalent mutant.
+    nonisolated(unsafe) package static var closesPrepaintWindow = false
+    /// Observation windows opened by `.equatable()` occurrences (`AM-A`): a steady hit frame opens none, so a predictor that says
+    /// "moved" in a frame that did not move shows here. Counts work, never read outside tests.
+    nonisolated(unsafe) package static var buildWindowsOpened = 0
+    nonisolated(unsafe) package static var prepaintWindowsOpened = 0
 }
 
 // MARK: - The phase object
@@ -445,8 +464,12 @@ package enum RetainedTestingHooks {
 final class RetainedPhase {
     let build: RetainedBuild
     let entry: ContentMemoStore.Entry
-    /// Whether prepaint ran inside an observation window, as the build did.
-    let prepaintObserved: Bool
+    /// Whether prepaint ran inside an observation window, as the build did; also true when the geometry just read differs from the
+    /// standing record's (`AM-A`: the paint key will differ, so the record that miss makes must cover this prepaint).
+    var prepaintObserved: Bool
+    /// The paint decision found a miss confined to the occurrence's geometry with every other conjunct held and the build window closed
+    /// on a clean record: the record made keeps the build half (`AM-B`).
+    var inheritsBuildCoverage = false
     /// `MemoFlags.changes` when the phase opened, before the paint session is armed (`MO-F`).
     let changesAtStart: Int
     /// The occurrence's rects and layout signature, read once at prepaint and shared by both keys.
@@ -471,6 +494,9 @@ final class RetainedPhase {
     var grafted = false
     /// Whether its prepaint asked for the frame to be redone: paint then does nothing.
     var abandoned = false
+    /// The prepaint decision's guard names and the reason a passing guard still ran (`DM-F`), set only while `RetainedTrace.active`.
+    var prepaintInvalidation: [String] = []
+    var prepaintNote: String?
 
     init(build: RetainedBuild, entry: ContentMemoStore.Entry, prepaintObserved: Bool) {
         self.build = build
@@ -653,8 +679,17 @@ extension Frame {
             entry.record = nil
             return nil
         }
-        let phase = RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation)
+        let phase = RetainedPhase(build: build, entry: entry, prepaintObserved: entry.needsObservation && !RetainedTestingHooks.closesPrepaintWindow)
         readRetainedGeometry(into: phase)
+        // `AM-A`: a standing record whose geometry differs from what was just read will miss on its key at paint, where it is too late
+        // to open this window. Over-observing is sound; an unpredicted miss falls back to the second miss.
+        if !phase.prepaintObserved, !RetainedTestingHooks.closesPrepaintWindow, let record = entry.record,
+           record.key.rects != phase.rects || record.key.interior != phase.interior || record.key.shapeInterior != phase.shapeInterior {
+            phase.prepaintObserved = true
+        }
+        // Counted where the window is decided, not where it runs: a steady frame whose prepaint replays never runs it, and a predictor
+        // that wrongly said "moved" there would otherwise be invisible (mutation m4).
+        if phase.prepaintObserved { RetainedTestingHooks.prepaintWindowsOpened += 1 }
         return phase
     }
 
@@ -663,18 +698,26 @@ extension Frame {
         let build = phase.build, entry = phase.entry
         let memos = stateTable.contentMemos
         if let reason = retainedEntryRefusal(build: build) {
-            if retainedTraces { print("retained refused \(sbPath(build.key.id).suffix(60)) because \(reason)") }
+            RetainedTrace.emit("retained paint refused \(RetainedTrace.path(build.key.id)) because \(reason)\(phaseFlags(phase))")
             entry.record = nil
             memos.retained.noteIneligible(.paint, reason: reason)
             return .plain
         }
-        let key = retainedKey(phase)
+        // `AM-D`, `AM-L`: the transaction's two members are not part of a retained key.
+        let key = retainedKey(phase).transactionNormalised
         let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
         if let old = entry.record {
-            let valid = !entry.observedChange && old.coverageComplete && old.contentSerial == entry.serial
-                && retainedVersionsUnchanged(old.versions) && !underPointer
-                && (phase.replayed == nil || old.prepaint === phase.replayed)
-                && !(old.prepaint == nil && phase.ledger != nil)   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
+            var inputs = PaintInvalidation.Inputs()
+            inputs.observedChange = entry.observedChange
+            inputs.coverageBuild = old.coverageBuild
+            inputs.coveragePrepaint = old.coveragePrepaint
+            inputs.serialMatches = old.contentSerial == entry.serial
+            inputs.versionsUnchanged = retainedVersionsUnchanged(old.versions)
+            inputs.underPointer = underPointer
+            inputs.ledgerIdentityDiffers = phase.replayed != nil && old.prepaint !== phase.replayed
+            inputs.ledgerGain = old.prepaint == nil && phase.ledger != nil   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
+            let invalidation = PaintInvalidation(inputs)
+            let valid = invalidation.isValid
             var effectTranslated = false
             if valid, old.key != key, memos.replaysPrepaint {
                 if key.differsOnlyByEffectAffine(from: old.key) {
@@ -718,9 +761,13 @@ extension Frame {
                 if retainedVerifiesFromEnvironment, phase.replayed == nil { return .record(SubtreeRecorder(), key, old: old) }
                 return .hit(old)
             }
-            if retainedTraces { traceMiss(old, key: key, build: build, entry: entry, underPointer: underPointer) }
-        } else if retainedTraces {
-            print("retained first-or-dropped \(sbPath(build.key.id).suffix(60))")
+            // `AM-B`: only the geometry differs and every other conjunct held: the build session the record kept armed covers the rebuild.
+            if valid, phase.build.closedOnRecord, old.key.ambient == key.ambient, old.key.nodeCount == key.nodeCount {
+                phase.inheritsBuildCoverage = true
+            }
+            RetainedTrace.emit(missLine(old, key: key, invalidation: invalidation, phase: phase))
+        } else {
+            RetainedTrace.emit("retained paint first-or-dropped \(RetainedTrace.path(build.key.id))\(phaseFlags(phase))")
         }
         entry.record = nil
         return .record(SubtreeRecorder(), key, old: nil)
@@ -739,28 +786,24 @@ extension Frame {
         old.prepaint = fresh
     }
 
-    private func traceMiss(_ old: RetainedRecord, key: ReplayKey, build: RetainedBuild, entry: ContentMemoStore.Entry,
-                           underPointer: Bool) {
-        var why: [String] = []
-        if entry.observedChange { why.append("observed") }
-        if old.contentSerial != entry.serial { why.append("serial") }
-        if old.key.rects != key.rects { why.append("rects") }
-        if old.key.interior != key.interior { why.append("interior") }
-        if old.key.ambient != key.ambient {
-            let a = old.key.ambient, b = key.ambient
-            if a.clip != b.clip { why.append("clip") }
-            if a.offset != b.offset { why.append("offset") }
-            if a.layerOpacityScale != b.layerOpacityScale { why.append("layerOpacityScale") }
-            if a.depths != b.depths { why.append("depths") }
-            if a.scopes != b.scopes { why.append("scopes") }
-            if a.environment != b.environment { why.append("environment") }
-            if a.snappingTransaction != b.snappingTransaction || a.disablesAnimations != b.disablesAnimations {
-                why.append("transaction")
-            }
+    /// The flags of the frame a line was printed in: whether the prepaint replayed, the occurrence was grafted, the frame is a redo.
+    private func phaseFlags(_ phase: RetainedPhase) -> String {
+        guard RetainedTrace.active else { return "" }
+        return " frame: replayed=\(phase.replayed != nil) grafted=\(phase.grafted) replayAllowed=\(stateTable.contentMemos.prepaintReplayAllowed)"
+    }
+
+    /// The miss line (`DM-F`): every conjunct of the decision that failed, then every key field that differs (a record that is
+    /// valid but for its key misses on the key). An empty list prints `unclassified` and counts (a test asserts zero).
+    private func missLine(_ old: RetainedRecord, key: ReplayKey, invalidation: PaintInvalidation, phase: RetainedPhase) -> String {
+        guard RetainedTrace.active else { return "" }
+        var why = invalidation.names
+        why += old.key.describeDifference(from: key)
+        if why.isEmpty {
+            why = ["unclassified"]
+            RetainedTrace.unclassified += 1
         }
-        if !retainedVersionsUnchanged(old.versions) { why.append("versions") }
-        if underPointer { why.append("pointer/press/focus") }
-        print("retained miss \(sbPath(build.key.id).suffix(60)) \(why)")
+        let cause = (invalidation.inputs.observedChange || !invalidation.inputs.serialMatches) ? RetainedTrace.causeSuffix(of: phase.entry) : ""
+        return "retained paint miss \(RetainedTrace.path(phase.build.key.id)) reasons=[\(why.joined(separator: ", "))]\(cause)\(phaseFlags(phase))"
     }
 
     /// Closes the paint window; stores the record, or counts why not.
@@ -788,7 +831,8 @@ extension Frame {
         if let ledger = phase.replayed {
             for id in ledger.reads where seen.insert(id).inserted { record.versions.append((id, stateTable.entryVersion(id))) }
         }
-        record.coverageComplete = phase.build.observed && phase.prepaintObserved
+        record.coverageBuild = phase.build.observed || phase.inheritsBuildCoverage
+        record.coveragePrepaint = phase.prepaintObserved
         record.prepaint = phase.ledger
         record.contentSerial = phase.entry.serial
         let ops = log.scene[from.scene..<to.scene]
@@ -825,7 +869,7 @@ extension Frame {
             return
         }
         if let reason = recorder.taint {
-            if retainedTraces { print("retained ineligible \(sbPath(phase.build.key.id).suffix(60)) because \(reason)") }
+            RetainedTrace.emit("retained paint ineligible \(RetainedTrace.path(phase.build.key.id)) because \(reason)\(phaseFlags(phase))")
             phase.entry.record = nil
             memos.retained.noteIneligible(.paint, reason: reason)
             return
@@ -851,7 +895,7 @@ extension RetainedRecord {
         copy.contentSerial = contentSerial; copy.versions = versions
         copy.scene = scene; copy.finalScene = nil
         copy.marks = marks; copy.touches = touches; copy.lives = lives
-        copy.paintWork = paintWork; copy.coverageComplete = coverageComplete; copy.prepaint = prepaint
+        copy.paintWork = paintWork; copy.coverageBuild = coverageBuild; copy.coveragePrepaint = coveragePrepaint; copy.prepaint = prepaint
         copy.innerScopes = innerScopes
         return copy
     }

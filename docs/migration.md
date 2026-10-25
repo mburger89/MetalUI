@@ -248,6 +248,10 @@ public-API removals the records list. **Source** changes stop compiling;
 | an exhaustive `switch` over `PrimitiveKind` | add a `.surface` arm (an app-owned GPU surface's quad, drawn by the image pipeline over its render target) | `MV-C` item 3 |
 | an exhaustive `switch` over `PrimitiveKind` (again) | add a `.backdrop` arm (a material's blurred backdrop plus its tint, one `MUIBackdrop` record in `Scene.backdrops`); a **renderer** outside the package must draw it or fall back to the flat tint rect `c · o · T` (`BB-I`) — `Scene.backdropRegion(_:target:)` is the one region function | `BB-A`, `BB-L` |
 | an exhaustive `switch` over `LayoutModifier` (again) | add a `.backgroundMaterial(Material)` arm (or `default:`): a material behind the content, one layer, painted as a backdrop record | `BB-P` |
+| an exhaustive `switch` over `LayoutModifier` (once more, Liquid Glass) | add a `.glassEffect(Glass, any Shape)` arm (or `default:`): a glass behind the content, one layer, painted as a backdrop record with a glass tail through `Frame.fillGlass` (or registered with the enclosing `GlassEffectContainer`) | `LG-A`, `LG-I` |
+| `MUIBackdrop` (`MetalUIShaderTypes`) readers and a **renderer** outside the package | the record is **256 bytes** (was 96): the nine original fields did not move, a glass tail follows (`glassFlags`, `lensDepth`, `band`, `rimStrength`, `blendK`, `press`, `pressLift`, `glassReserved`, `member0`…`member3`). `MUIBackdrop(bounds:contentMask:maskCornerRadii:cornerRadii:tint:order:shape:sigma:opacity:)` still builds a material (tail zero, `glassFlags == 0` takes the material arithmetic). A renderer that cannot blur draws `MUIBackdrop.flatTintRects` (one flat rect per blob member) in place of `flatTintRect` | `LG-B`, `LG-L`, `LG-S` |
+| `ReplayFixture` readers (the `Backends/SDL` library product) | `ReplayFixture.version` is **5** (`backdropStride` 256); version 4's 96-byte records widen with a zero tail on decode, so a v4 fixture replays as materials | `LG-O`, `LG-T` |
+| a `ButtonStyle` shown in an exhaustive `switch` over its (internal) kind | none outside the package: `ButtonStyle` is a struct with statics; `.glass` and `.glassProminent` join `.plain`/`.borderless`/`.bordered`/`.automatic` | `LG-M` |
 | `ReplayFixture` (the `Backends/SDL` library product) readers and exhaustive `switch`es over `FixtureRun.Kind` | add a `.backdrop` arm (`rawValue` 3); `ReplayFixture.version` is **4** (a seventh stride, `backdropStride` 96, and a backdrop byte table after the transforms); versions 2 and 3 still load without backdrops, 1 stays refused; fixtures recorded at version 4 do not load in an older reader. `FixtureRun(scene:)` records a `.backdrop` run and still traps on `.surface` | `BB-J`, `BB-T` item 6 |
 | a `WindowRenderer` conformer outside the package | no new requirement. A renderer that cannot blur draws each `.backdrop` run's records as `MUIBackdrop.flatTintRect` (the flat tint `c · o · T`, today's pixels); one that does follows `BackdropBlurReference` within three levels and `Scene.backdropRegion(_:target:)` | `BB-I`, `BB-S`, `BB-T` |
 | a `WindowRenderer` conformer outside the package implementing `finishFrame(scene:atlas:)` | implement `finishFrame(scene:atlas:surfaces:)` (no default); a renderer with no surface support may ignore `surfaces` and composites nothing for surface runs. **Callers** of `finishFrame(scene:atlas:)` compile unchanged (it forwards `surfaces: []`) | `MV-F` item 1, `MV-K` item 3 |
@@ -636,3 +640,15 @@ chain before a `Button`'s shortcut or an app command bound to the same key (`CB-
 - [`divergences.md`](divergences.md) — every remaining difference from SwiftUI.
 - [`verification/human-checks.md`](verification/human-checks.md) — the looks
   that still need a human.
+
+### Clipboard items and change notification (`CP-`, record 142)
+
+`PlatformWindow` gains **four defaultless requirements** (a conformer adds them or fails to compile):
+`func writeClipboard(items: [ClipboardItem]) -> Bool`, `func clipboardItems() -> [[String]]`,
+`func readClipboard(item: Int, identifier: String) -> [UInt8]?` and
+`func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?)`. A platform with no typed clipboard answers
+`{ false }`, `{ [] }`, `{ _, _ in nil }` and `{ _ in }`. `ClipboardItem`/`ClipboardPayload`/`ClipboardBytes`
+(`.now(bytes)` or `.later(closure)`) are the new `MetalUIPlatform` types; the change handler is called on the
+main actor whenever the clipboard may have changed (an own write, SDL's `SDL_EVENT_CLIPBOARD_UPDATE`, AppKit's
+`changeCount` seen on becoming key and at a press). The four `CB-E` requirements stay and mean item 0.
+`HeadlessPlatform.Options` gains `clipboardExportsLazily` (default `true`).

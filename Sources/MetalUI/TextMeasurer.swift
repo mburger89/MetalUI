@@ -69,13 +69,16 @@ public struct TextMeasurer {
     @MainActor
     private func resolved(content: TextContent, own: TextStyleRequest, rich: TextRichFields) -> ResolvedText {
         let system = self.system
+        // The theme and scheme at the reading point, captured beside the font (`DT-J`): `drawText` resolves
+        // the foreground through the one function paint uses, `Color.resolved(theme:scheme:)`.
+        let colors = ColorContext(theme: environment.theme, scheme: environment.colorScheme)
         guard let plain = plainTextForm(content, own: own, rich: rich) else {
-            return ResolvedText(system: system,
+            return ResolvedText(system: system, colors: colors,
                                 form: .rich(resolveRichText(content, own: own, rich: rich, in: environment,
                                                             system: system)))
         }
         let style = resolveTextStyle(plain.request, in: environment)
-        return ResolvedText(system: system,
+        return ResolvedText(system: system, colors: colors,
                             form: .plain(string: plain.string, key: system.resolveFont(style.descriptor), style: style))
     }
 
@@ -87,6 +90,8 @@ public struct TextMeasurer {
             case rich(ResolvedRichText)
         }
         let system: any TextSystem
+        /// The reading point's theme and scheme (`DT-J`).
+        let colors: ColorContext
         let form: Form
 
         /// The size the text is laid out at under `proposal` (SwiftUI's
@@ -95,16 +100,22 @@ public struct TextMeasurer {
         /// unbounded. The empty string is 0 by 0 (divergence 295).
         @MainActor
         public func measure(in proposal: Size<Pixels>) -> Size<Pixels> {
+            let answer = measurement(in: proposal)
+            return Size(width: Pixels(Float(answer.size.width)), height: Pixels(Float(answer.size.height)))
+        }
+
+        /// ``measure(in:)``'s answer before it narrows to `Float` — what `drawText` lays out at (`DT-C`): a
+        /// `Float` round trip of the widest line can fall below the line and wrap its last word.
+        @MainActor
+        func measurement(in proposal: Size<Pixels>) -> LayoutMeasurement {
             let width = Double(proposal.width.value), height = Double(proposal.height.value)
             let asked = ProposedSize(width: width.isFinite ? width : nil, height: height.isFinite ? height : nil)
-            let answer: LayoutMeasurement
             switch form {
             case .plain(let string, let key, let style):
-                answer = proposalTextMeasurement(string, font: key, system: system, proposal: asked, style: style)
+                return proposalTextMeasurement(string, font: key, system: system, proposal: asked, style: style)
             case .rich(let rich):
-                answer = richTextMeasurement(rich, system: system, proposal: asked)
+                return richTextMeasurement(rich, system: system, proposal: asked)
             }
-            return Size(width: Pixels(Float(answer.size.width)), height: Pixels(Float(answer.size.height)))
         }
     }
 }

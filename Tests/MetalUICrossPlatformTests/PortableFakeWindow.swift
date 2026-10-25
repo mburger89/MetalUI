@@ -70,6 +70,25 @@ final class PortableFakeWindow: PlatformWindow {
         clipboardRepresentations.first { $0.type.identifier == identifier }?.bytes
     }
     func setClipboardCommands(_ commands: ClipboardCommands) { clipboardCommandRequests.append(commands) }
+    private(set) var clipboardItemStore: [ClipboardItem] = []
+    func writeClipboard(items: [ClipboardItem]) -> Bool {
+        let kept = items.filter { !$0.payloads.isEmpty }
+        guard !kept.isEmpty else { return false }
+        clipboardItemStore = kept
+        return true
+    }
+    func clipboardItems() -> [[String]] { clipboardItemStore.map { $0.payloads.map(\.type.identifier) } }
+    func readClipboard(item: Int, identifier: String) -> [UInt8]? {
+        guard clipboardItemStore.indices.contains(item),
+              let payload = clipboardItemStore[item].payloads.first(where: { $0.type.identifier == identifier })
+        else { return nil }
+        switch payload.bytes {
+        case .now(let bytes): return bytes
+        case .later(let export): return export()
+        }
+    }
+    private(set) var clipboardChangeHandler: (@MainActor () -> Void)?
+    func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?) { clipboardChangeHandler = handler }
     func startDisplayLink(_ tick: @escaping (Double) -> Void) { self.tick = tick }
     func setDisplayLinkPaused(_ paused: Bool) {}
     func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool { false }

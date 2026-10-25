@@ -150,6 +150,10 @@ public final class Frame {
     /// elements produced, and how many of them minted an `IdentityKey`.
     var forEachIdentityWork: (elements: Int, keyed: Int) = (0, 0)
 
+    /// `List` row identity work this frame (`LH-E`, a work counter, never time):
+    /// rows realised, and how many of them minted an `IdentityKey`.
+    var listIdentityWork: (rows: Int, keyed: Int) = (0, 0)
+
     /// What this frame's lazy containers realised (`LZ-I`, a work counter, never time).
     var lazyWork = LazyWork()
 
@@ -449,6 +453,26 @@ public final class Frame {
     /// hover lookup never see them; a press does a lookup for them.
     private(set) var resignRegionCount = 0
 
+    /// How a `PasteButton` reads the clipboard's types and its click reaches the items; stamped by
+    /// `Window` (`CP-D`, `CP-M`).
+    var clipboardAccess: ClipboardAccess?
+    /// `PasteButton`s whose prepaint ran this frame; `Window` redraws for a clipboard change only while
+    /// the last build held one (`CP-G`).
+    private(set) var pasteButtonCount = 0
+
+    /// A `PasteButton` was prepainted: counts it and taints the open prepaint recorders (`CP-H`, `CP-L`).
+    func notePasteButton() {
+        pasteButtonCount += 1
+        prepaintLog?.taint("pasteButton")
+    }
+
+    /// Taints the paint recorders and the graft journal with `reason`: a `PasteButton` reads an ambient
+    /// (the clipboard) that no retained record keys, so nothing holding one is replayed (`CP-H`, `CP-L`).
+    func taintRetention(_ reason: String) {
+        retainLog?.taint(reason)
+        stateTable.contentMemos.journal.taint(reason)
+    }
+
     /// The presentation scopes enclosing the one being laid out — the depth in
     /// its registry key (`SV-K` item 2, `LC-U`'s reason).
     private(set) var presentationDepth = 0
@@ -659,6 +683,8 @@ public final class Frame {
             break   // values unchanged: a preference is reported, not written (`CR-L` item 1)
         case .navigationTitle, .navigationDocument, .onOpenURL:
             break   // values unchanged: window preferences are reported (`AS-D` item 6, `AS-G` item 1)
+        case .presentationBackground:
+            break   // values unchanged: reported into the presentation's slot (`BG-B`)
         }
         return values
     }
@@ -738,7 +764,25 @@ public final class Frame {
     func beginPresentationPreferences() -> PresentationCollectionMark {
         let saved = mainColorSchemePreference
         mainColorSchemePreference = nil
-        return PresentationCollectionMark(colorScheme: saved, toolbarCount: toolbarRecords.count)
+        let background = presentationBackgroundSlot
+        presentationBackgroundSlot = nil
+        presentationBracketDepth += 1
+        return PresentationCollectionMark(colorScheme: saved, toolbarCount: toolbarRecords.count,
+                                          background: background)
+    }
+
+    /// The first `.presentationBackground` reported inside the presentation bracket being built
+    /// (`BG-B`): the innermost wins. Read by `AnchoredPresentation` between its content's build and
+    /// `endPresentationPreferences`, which restores the enclosing bracket's value. Never written
+    /// outside a bracket, so the main tree has none.
+    private(set) var presentationBackgroundSlot: PresentationBackgroundSpec?
+    /// How many presentation brackets are open (a scope outside every one reports nothing).
+    private var presentationBracketDepth = 0
+
+    /// A `.presentationBackground` scope's report, after its content built (`BG-B`).
+    func reportPresentationBackground(_ spec: PresentationBackgroundSpec) {
+        guard presentationBracketDepth > 0, presentationBackgroundSlot == nil else { return }
+        presentationBackgroundSlot = spec
     }
 
     /// What `beginPresentationPreferences` saved: the main tree's colour-scheme
@@ -747,6 +791,8 @@ public final class Frame {
     struct PresentationCollectionMark {
         let colorScheme: ColorScheme?
         let toolbarCount: Int
+        /// The enclosing bracket's background slot (`BG-B`).
+        let background: PresentationBackgroundSpec?
     }
 
     /// Closes what `beginPresentationPreferences` opened. A presentation
@@ -754,6 +800,8 @@ public final class Frame {
     /// turned out not to be one (an in-flow `Deferred`) is the main tree, in
     /// build order.
     func endPresentationPreferences(saved mark: PresentationCollectionMark, isPresentation: Bool) {
+        presentationBackgroundSlot = mark.background
+        presentationBracketDepth -= 1
         let saved = mark.colorScheme
         let inner = mainColorSchemePreference
         // A presentation root's toolbars are ignored (`MD-I` item 5, probe
@@ -1987,6 +2035,19 @@ public final class Frame {
     /// `Deferred` presentation keeps the stack (`OV-M` item 2).
     var namedSpaces: [NamedSpace] = []
 
+    // MARK: Liquid Glass (`LG-I`)
+
+    /// The containers open in prepaint, innermost last: a `GlassEffectContainer` pushes one around its content's
+    /// prepaint, and a glass layer inside registers into the last (`LG-I`). Per-frame scratch, cleared at `render`.
+    var glassGroups: [GlassGroup] = []
+
+    /// The `glassEffectID`/`glassEffectUnion` tags open in prepaint, innermost last (`LG-H`, `LG-K`).
+    var glassTags: [GlassTag] = []
+
+    /// How many `GlassEffectContainer`s are painting their content: a glass layer inside one emits nothing (the
+    /// container emitted the merged blobs before its content, `LG-I`).
+    var glassContainerPaintDepth = 0
+
     /// The named-space stack in force at each hitbox's registration, by
     /// hitbox index (`OV-E` item 3) — filled only while `namedSpaces` is
     /// non-empty, so a tree with no scope stores nothing. `Window` keeps it as
@@ -2919,12 +2980,13 @@ public final class Frame {
     /// (`BB-H`, divergence 248).
     func fillBackdrop(_ bounds: Bounds<Pixels>, tint: Hsla,
                       cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
-                      shape: PrimitiveShape = .roundedRectangle) {
+                      shape: PrimitiveShape = .roundedRectangle,
+                      glassTail: ((inout MUIBackdrop) -> Void)? = nil) {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
-        let record = MUIBackdrop(
+        var record = MUIBackdrop(
             bounds: MUIBounds(translated.scaled(by: scaleFactor)),
             contentMask: MUIBounds(activeClip.scaled(by: scaleFactor)),
             maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
@@ -2933,6 +2995,8 @@ public final class Frame {
             order: 0, shape: shape.rawValue,
             sigma: Float(MUIBackdropSigmaPoints) * scaleFactor,
             opacity: activeOpacity)
+        // A glass's tail (`LG-B`): the look lanes and the members, written by `fillGlass` alone.
+        glassTail?(&record)
         if paintScopes.isEmpty {
             retainLog?.noteDirect(CapturedPrimitive(kind: .backdrop(record), layer: activeLayer, innerMask: false), depth: clipDepth)
             scene.insert(record, layer: activeLayer)
@@ -3364,7 +3428,12 @@ public final class Frame {
         // flat tint rect (`BB-H`, divergence 248; the surface-leaf precedent).
         if leaf.contains(where: { if case .backdrop = $0.kind { true } else { false } }),
            backdropDegrades {
-            for i in leaf.indices { leaf[i].degradeBackdropToFlatTint() }
+            if depths == nil {
+                // A glass blob is one flat rect per member (`LG-L`).
+                leaf = leaf.flatMap { $0.degradingBackdrop() }
+            } else {
+                for i in leaf.indices { leaf[i].degradeBackdropToFlatTint() }
+            }
         }
         processScopes([(leaf, depths)], from: paintScopes.count, depth: clipStack.count)
     }
@@ -3650,6 +3719,7 @@ public final class Frame {
 
     private func renderOutsideDispatch<E: Element>(_ element: inout E) {
         isRendering = true
+        glassGroups.removeAll(); glassTags.removeAll(); glassContainerPaintDepth = 0   // Liquid Glass scratch (`LG-I`)
         beginScrollRequests()  // `DD-G` item 3: before layout, where `ForEach` and `List` note keys
         // The root is the only id with no parent, and the only one this file
         // builds. `at: 0` is not inert: an unnamed root element takes

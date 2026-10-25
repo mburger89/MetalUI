@@ -209,7 +209,7 @@ public final class SDLWindowRenderer: WindowRenderer {
     // BB-E, BB-K, BB-S): the Metal renderer's counters under the same names,
     // kept in the bridge, 0 for a frame without a backdrop run.
     private func backdropCounter(_ index: Int) -> Int {
-        var counters: [UInt32] = [0, 0, 0, 0, 0]
+        var counters: [UInt32] = [0, 0, 0, 0, 0, 0, 0]
         mui_renderer_backdrop_counters(renderer, &counters)
         return Int(counters[index])
     }
@@ -223,18 +223,31 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var lastFrameTargetCopies: Int { backdropCounter(3) }
     /// Textures (frame target and pool) the last frame had to create; 0 on a steady frame.
     package var lastBackdropTexturesMade: Int { backdropCounter(4) }
+    /// Glass records (`glassFlags` bit 0) the last frame encoded (`LG-B`), the Metal renderer's `lastGlassRecords`.
+    package var lastGlassRecords: Int { backdropCounter(5) }
+    /// Sharp copies of a frame region the lens of a glass read in the last frame (`LG-D`), one per glass with the lens on.
+    package var lastGlassSharpCopies: Int { backdropCounter(6) }
     /// The atlas bytes the last finished frame moved to the GPU (a test recorder, `RG-H`).
     package var lastAtlasBytes: Int { Int(mui_renderer_last_atlas_bytes(renderer)) }
+    /// The bridge's renderer handle, for a test that drives `mui_renderer_finish` by hand.
+    package var bridgeRenderer: OpaquePointer { renderer }
+    /// The surface text passes the last finished frame ran: one per surface that recorded `drawText` glyphs
+    /// (`DT-G`). A test recorder.
+    package var lastTextPasses: Int { Int(mui_renderer_last_text_passes(renderer)) }
 
     /// Whether the renderer holds a frame target.
     package var hasBackdropFrameTarget: Bool { mui_renderer_has_frame_target(renderer) }
     /// Test hook (`BB-K`, test 3.3d): every pool allocation fails, so each record draws its flat tint.
     package var backdropPoolFailsAllocation = false {
-        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget) }
+        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget, glassSharpCopyFailsAllocation) }
+    }
+    /// Test hook (`LG-W`): only the glass lens's sharp copy fails; the record draws its flat arm.
+    package var glassSharpCopyFailsAllocation = false {
+        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget, glassSharpCopyFailsAllocation) }
     }
     /// Test hook (test 3.3b): route every frame, backdrop or not, through the frame target.
     package var routesEveryFrameThroughTheFrameTarget = false {
-        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget) }
+        didSet { mui_renderer_set_backdrop_hooks(renderer, backdropPoolFailsAllocation, routesEveryFrameThroughTheFrameTarget, glassSharpCopyFailsAllocation) }
     }
 
     public func beginFrame() -> Float? {
@@ -307,18 +320,38 @@ public final class SDLWindowRenderer: WindowRenderer {
                 mui_renderer_release_texture(renderer, handle)
                 surfaceTargetsReleased += 1
             })
+        // `drawText` records into this (`DT-F`); a frame with no draw makes none.
+        let sink = toDraw.isEmpty ? nil : SurfaceTextSink(atlas: atlas)
         for (request, target, isNew) in toDraw {
+            sink?.beginSurface(request.target.id)
             let context = SDLGPUDrawContext(
                 device: device, commandBuffer: OpaquePointer(commandBuffer), target: OpaquePointer(target),
                 pixelSize: Size(width: DevicePixels(Int32(request.target.width)),
                                 height: DevicePixels(Int32(request.target.height))),
                 scaleFactor: request.scaleFactor, time: request.time, frameIndex: finishedFrames,
-                isNewTarget: isNew)
+                isNewTarget: isNew, textSink: sink)
             if isNew { context.clear(red: 0, green: 0, blue: 0, alpha: 0) }
             SDLGPUWindowGuard.beginDraw()
             request.draw(context)
             SDLGPUWindowGuard.endDraw()
             surfaceDraws += 1
+        }
+
+        // The surfaces' recorded text joins the glyph buffer after the scene's glyphs, as the surface quads join
+        // the image array, and each surface's batch names its range there (`DT-G`). A batch whose target has no
+        // handle is dropped.
+        let sceneGlyphs = scene.glyphs.count
+        var glyphRecords = scene.glyphs
+        var texts: [ReplaySurfaceText] = []
+        if let sink, !sink.glyphs.isEmpty {
+            glyphRecords.append(contentsOf: sink.glyphs)
+            for batch in sink.batches {
+                guard let handle = surfaceTable.handle(for: batch.target),
+                      let size = surfaces.first(where: { $0.target.id == batch.target })?.target else { continue }
+                texts.append(ReplaySurfaceText(target: handle, start: UInt32(sceneGlyphs + batch.range.lowerBound),
+                                               count: UInt32(batch.range.count),
+                                               width: UInt32(size.width), height: UInt32(size.height)))
+            }
         }
 
         // Each surface target's handle, after the image textures' (`nil` where
@@ -366,7 +399,7 @@ public final class SDLWindowRenderer: WindowRenderer {
                                 width: Int32(region.width), height: Int32(region.height))
         }
         let ok = scene.rects.withUnsafeBytes { rects in
-            scene.glyphs.withUnsafeBytes { glyphs in
+            glyphRecords.withUnsafeBytes { glyphs in
                 images.withUnsafeBytes { images in
                   scene.transforms.withUnsafeBytes { transforms in
                    scene.backdrops.withUnsafeBytes { backdrops in
@@ -375,6 +408,7 @@ public final class SDLWindowRenderer: WindowRenderer {
                         runs.withUnsafeBufferPointer { runBuffer in
                             atlas.pixels.withUnsafeBufferPointer { pixels in
                               atlasRects.withUnsafeBufferPointer { atlasRectBuffer in
+                                texts.withUnsafeBufferPointer { textBuffer in
                                 identity.withUnsafeBufferPointer { matrix in
                                     mui_renderer_finish(renderer,
                                                         rects.baseAddress, UInt32(rects.count),
@@ -387,7 +421,10 @@ public final class SDLWindowRenderer: WindowRenderer {
                                                         runBuffer.baseAddress, UInt32(runs.count),
                                                         pixels.baseAddress, UInt32(atlas.width), UInt32(atlas.height),
                                                         atlasRectBuffer.baseAddress,
-                                                        UInt32(atlasRectBuffer.count / 4), matrix.baseAddress)
+                                                        UInt32(atlasRectBuffer.count / 4),
+                                                        textBuffer.baseAddress, UInt32(textBuffer.count),
+                                                        matrix.baseAddress)
+                                }
                                 }
                               }
                             }

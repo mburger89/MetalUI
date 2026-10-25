@@ -298,6 +298,7 @@ commit `1ff05bec573988a98ef9e0260b4da44f512b8367` (2026-09-03; upstream has no r
 git clone https://github.com/libsdl-org/SDL_shadercross.git && cd SDL_shadercross
 git checkout 1ff05bec573988a98ef9e0260b4da44f512b8367
 git submodule update --init --depth 1   # SPIRV-Cross, SPIRV-Headers, SPIRV-Tools, libsdl-org/DirectXShaderCompiler (branch 1.8.2502-SDL)
+git -C external/DirectXShaderCompiler submodule update --init --depth 1 external/DirectX-Headers   # DXC's own nested submodule
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDLSHADERCROSS_VENDORED=ON -DSDLSHADERCROSS_INSTALL=ON
 cmake --build build && cmake --install build --prefix "$HOME/shadercross"
 export METALUI_SHADERCROSS="$HOME/shadercross/bin/shadercross"
@@ -323,7 +324,8 @@ Per platform:
   Ubuntu 24.04 aarch64 under OrbStack, 2026-10-21): configure with **clang** (`-DCMAKE_C_COMPILER=clang
   -DCMAKE_CXX_COMPILER=clang++`, the Swift toolchain's; the default `cc` is gcc and DXC's flags
   `-fcolor-diagnostics` make it fail at the first file), SDL3 on the default paths, the four submodules as
-  above; **6 min 45 s at `-j8`**. The installed `bin/shadercross` with `lib/libdxcompiler.so`, `libdxil.so`
+  above, plus DXC's nested `external/DirectX-Headers` (without it a fresh shallow checkout fails inside the fork with
+  `d3d12shader.h file not found`; reported from MetalCreator's Linux aarch64 Docker stage, 2026-10-22, not re-measured here); **6 min 45 s at `-j8`**. The installed `bin/shadercross` with `lib/libdxcompiler.so`, `libdxil.so`
   beside it then compiled `Backends/SDL/Tests/AppShaders` through `MetalUICompileShaders` to **41 files
   byte-identical to the checked-in ones, DXIL included**. So neither emulation nor SPIR-V-only is needed
   there; they remain fallbacks. `--formats` can still leave `dxil` out of a Vulkan or Metal app's build
@@ -364,6 +366,75 @@ MSL, DXIL, reflection JSON, marker), `anEnvGatedRunCompilesAFixture` with `METAL
 **Unverified**: Linux x86_64 and Windows builds of it (human checks BS1, BS4),
 a dependency **by URL** reaching the plugin (BS3), Windows lookup and DLLs (BS4), a
 moved shipped app finding its directory (GA3).
+
+### 4b. Compiling HLSL compute shaders in the running app (optional) — Linux aarch64 and macOS measured, Windows unmeasured
+
+`SDLGPUShaderCompiler` (`MetalUISDLGPU`, item XP-G25, rulings `RC-B`...`RC-V`, record 151) turns HLSL text into a compute
+pipeline in the running process, for an app that generates its kernels (MetalCreator's implicit solids). It needs the same
+shadercross as section 4a, **as shared libraries next to the app**, and loads them with `SDL_LoadObject` at the first call:
+MetalUI links none of it, an app that never compiles ships none of it, and a missing library is a thrown
+`compilerUnavailable` naming every path tried, never a trap. MetalUI publishes no binary of any of it (`BS-H`): build it from
+source with the recipe of 4a (pin `1ff05bec573988a98ef9e0260b4da44f512b8367`), then **ship these files, all in one directory**:
+
+| File (Linux / macOS / Windows) | Measured size (aarch64 Linux / arm64 macOS) | Licence | Needed for |
+|---|---|---|---|
+| `libSDL3_shadercross.so.0` (+ `.so`) / `libSDL3_shadercross.dylib` / `SDL3_shadercross.dll` | 74 KB / 72 KB | zlib | the API itself |
+| `libdxcompiler.so` / `.dylib` / `dxcompiler.dll` | 33.3 MB / 27.9 MB | LLVM Release License (NCSA) | HLSL to SPIR-V and to DXIL (DXC) |
+| `libspirv-cross-c-shared.so.0` / `.dylib` / `spirv-cross-c-shared.dll` | 4.0 MB / 3.6 MB | Apache-2.0 | reflection and SPIR-V to MSL |
+| `libdxil.so` / `libdxil.dylib` / `dxil.dll` | 2.7 MB / 2.0 MB | LLVM Release License (NCSA) | signing DXIL for D3D12 (see below) |
+
+About **39 MB** on Linux aarch64 and **32 MB** on macOS in all. The licences are listed in `THIRD-PARTY-NOTICES.md` ("Optional
+run-time shader compiler"); the DXC fork's licence is not Apache-2.0 and its `LICENSE.TXT` and `ThirdPartyNotices.txt` travel with the binary.
+
+**Placement.** The lookup (`RuntimeLibraryLocator`, `RC-C`; a pure function with pins on every platform) tries, in order: the explicit
+`libraryPath:`, `METALUI_SHADERCROSS_LIB` (the library file, or a directory holding it), the executable's directory, its `lib` subdirectory (`<exe>/lib`, `SX-B`: RUNPATH `$ORIGIN/lib` layouts), its `../lib`, the
+`lib` beside the `bin` of `METALUI_SHADERCROSS` (the install layout of 4a), then the plain library name on the loader path. **An explicit
+path or variable that names a missing file is an error, never a fall-through.** So: a **Linux tarball** puts the four files in `lib/` beside
+`bin/` (found as `../lib`), or in `lib/` beside the executable itself (found as `<exe>/lib`); an **AppImage** puts them in `usr/lib` beside `usr/bin`; a **Windows zip** puts them beside the `.exe`
+(before loading, the library's directory is added to the DLL search path so `dxcompiler.dll` and `dxil.dll` resolve; compiled by CI only);
+a **macOS `.app`** needs `METALUI_SHADERCROSS_LIB` or `libraryPath:` pointed at `Contents/Frameworks` (not found by default there), and
+**library validation or the hardened runtime may refuse an unsigned dylib** (human check RC5; sign every file with the app's identity).
+
+**The install has no rpath for the library itself** (measured on both, `RC-N`, `RC-U`): `libSDL3_shadercross` names `libspirv-cross-c-shared`
+and `libdxcompiler` as `@rpath`/bare-SONAME dependents and carries no `LC_RPATH`/`RUNPATH`, so loading it by full path alone fails
+(macOS: `Library not loaded: @rpath/libspirv-cross-c-shared.0.dylib`; glibc: `libspirv-cross-c-shared.so.0: cannot open shared object file`).
+MetalUI therefore **preloads `dxcompiler`, `spirv-cross` and `dxil` by full path from the library's directory first**
+(`RuntimeLibraryLocator.preloadSet`; `dxcompiler` and `spirv-cross` required and named in the error when missing, `dxil` optional); an
+already-loaded image satisfies a dependent of the same install name (dyld) or SONAME (glibc, measured in the Linux image: preloading
+by the full path of `libspirv-cross-c-shared.so.0` and `libdxcompiler.so`, then the library, works and every probe arm passes). **An app never
+sets `LD_LIBRARY_PATH` or `DYLD_LIBRARY_PATH`** (SIP strips the second from a hardened process). The unversioned `.so`/`.dylib` symlinks may
+be left out when the full name is shipped.
+
+**Is `libdxil` needed?** **Not on Linux aarch64 or macOS** to produce DXIL: the DXIL container's digest was non-zero and the bytes identical
+(3,368 bytes) with `libdxil` absent and present, on both (probe arm E). SPIR-V and MSL, the formats Vulkan and Metal take, never use it. Whether
+Windows' D3D12 accepts DXIL compiled without `dxil.dll` beside `dxcompiler.dll` is **unmeasured** (human check RC1), so the Windows zip ships it. The pin's
+`libdxcompiler.so` carries a `RUNPATH` of `$ORIGIN/../lib` (it would find a `libdxil` there), and on macOS `@executable_path/../lib`.
+
+**Microsoft's DXC instead of the fork.** An app may ship Microsoft's prebuilt DXC release (MetalCreator uses v1.9.2602 on Windows) as `dxcompiler.dll` and
+`dxil.dll` instead of the libsdl-org fork. Those two files are then Microsoft's and come under **Microsoft's own licence files**, taken from that release
+archive and shipped by the app (`THIRD-PARTY-NOTICES.md`); this repository holds none of them. **Compatibility is unmeasured**: shadercross at the pin was
+built against the fork and was **not** run against Microsoft's DXC here. What could differ is the `IDxcCompiler3` interface and flags it was built for,
+and `dxil.dll` signing (Microsoft's release is believed to ship a signing `dxil.dll`; unmeasured). Human check `SX1`.
+
+**Self test.** `SDLGPUShaderCompiler.selfTest(for:)` (lane B, `RC-J`) is the call for an app's `--self-test`: it loads the compiler, compiles a
+four-line kernel, compiles a broken one and requires DXC's diagnostics, and with a device runs one dispatch and reads it back; it
+**throws `compilerUnavailable`** where the library is missing, so a packaging mistake fails the check naming the paths tried.
+
+**Speed** (`docs/probes/runtime-compile-measure.sh`, dated; wall clock, **never pinned**: a pin counts work). Generated kernels of about 200,
+1000 and 2000 lines (every line a float expression with a call, a `sqrt`, an `abs`, a `floor`), median of 3, 2026-10-22:
+
+| Machine | Lines | HLSL to SPIR-V | SPIR-V to MSL | HLSL to DXIL |
+|---|---|---|---|---|
+| Linux aarch64 image (`metalui-portable`, 10 cores, load 0.16, idle) | 200 / 1000 / 2000 | 0.056 / 0.564 / 2.658 s | 0.005 / 0.021 / 0.057 s | 0.085 / 0.679 / 2.904 s |
+| macOS arm64 (10 cores, **load average 265 to 470 from other sessions**: noisy, an upper bound) | 200 / 1000 / 2000 | 0.081 / 0.441 / 1.588 s | 0.004 / 0.018 / 0.063 s | 0.121 / 0.567 / 2.546 s |
+
+The first compile in a process costs nothing beyond itself (0.056 s Linux, 0.081 s macOS for 200 lines, the library load 7 ms and 146 ms loaded).
+**DXC's HLSL to SPIR-V is more than 95 % of a Metal-route compile and grows faster than linearly** (2000 lines costs about 5 times the 1000-line
+kernel); the Metal route adds SPIR-V to MSL, under 0.07 s. Compile on a worker thread, never the main actor, and cache by source hash: the app
+owns the cache (`RC-M`) and loads a cached blob through `SDLGPUShaderBlob`'s bytes initializer.
+
+**Unverified:** `<exe>/lib` in a real tarball (human check SX2), Microsoft's DXC with shadercross at the pin (unmeasured, human check SX1), Windows (compile and load, `dxil.dll`'s need, the DLL search path; human check RC1), Linux x86_64 (the build is the same recipe), an AppImage and a tarball
+finding `../lib` (RC2), `--self-test` without the library (RC3), a macOS `.app` with the files in `Contents/Frameworks` (RC5).
 
 ## Windows: an `.ico` embedded as a resource
 
