@@ -42,7 +42,11 @@ struct SDLTestProcessGuardTests {
     /// Mutation: as TL1.
     @Test func aSIGTERMKillsAProcessThatHasInitialisedSDLVideo() async {
         await #expect(processExitsWith: .signal(SIGTERM)) {
-            _ = SDL_Init(SDL_INIT_VIDEO)
+            // `make()` initialises video where SDL needs it (on the main thread on macOS), which is
+            // what installs SDL's SIGINT/SIGTERM handlers; a process that failed to do so proves nothing.
+            let device = SDLGPUDevice.make()
+            guard SDL_WasInit(SDL_INIT_VIDEO) != 0 else { exit(3) }
+            _ = device
             kill(getpid(), SIGTERM)
             let never = DispatchSemaphore(value: 0)
             _ = never.wait(timeout: .now() + 20)
