@@ -1,7 +1,7 @@
 # Hung SDL test helpers (item HG) — decisions
 
 Rulings for item HG of the gpui-gap priority list (user request 2026-10-02; MetalCreator report 2026-10-24; **not a plan task**). Prefix `TL-`.
-**Next unused: `TL-K`.** Spec: [`specs/2026-10-24-sdl-test-hangs-design.md`](specs/2026-10-24-sdl-test-hangs-design.md). Record: `../record/154-sdl-test-hangs.md`.
+**Next unused: `TL-L`.** Spec: [`specs/2026-10-24-sdl-test-hangs-design.md`](specs/2026-10-24-sdl-test-hangs-design.md). Record: `../record/154-sdl-test-hangs.md`.
 Branch `fix/sdl-test-hangs` from `935d0096`. Continues `GA-` (record 114), `GB-` (137), `SY-` (143), `DL-` (150). Divergence labels reserved 835-844: **none taken**.
 
 Sources of truth. No SwiftUI or gpui claim exists (a test process's lifetime), so no SwiftUI probe is owed. Facts: this repository at `935d0096`,
