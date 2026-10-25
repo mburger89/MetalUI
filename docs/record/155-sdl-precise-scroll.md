@@ -47,7 +47,7 @@ Two spec mutations did not redden and the spec changed to what is real (`TP-Q`):
 
 ## 5. Demo and pixels
 
-No demo section, no new env var. `METALUI_INPUT_FOLLOWUPS`'s demo already prints `isPrecise` and phases, so on a Linux desktop it shows `precise` with `began`...`ended` for a trackpad and `wheel` for a notch (a look, group `TP`). Fourteen offscreen images **0 px** against `935d0096` (lane 2's `compare.sh`, scene-identical; the merged tree adds only `Backends/SDL` test files, docs and probes from master, so it is not re-taken). `DemoFrameDeterminismTests` `Expected.swift` unedited.
+No demo section, no new env var. `METALUI_CANVAS_DEMO=1`'s canvas (`CanvasDemo.scroll`) already prints `phase … · momentum … · precise|lines`, so on a Linux desktop it shows `precise` with `began`...`ended` for a trackpad and `lines` for a notch (a look, group `TP`). Fourteen offscreen images **0 px** against `935d0096` (lane 2's `compare.sh`, scene-identical; the merged tree adds only `Backends/SDL` test files, docs and probes from master, so it is not re-taken). `DemoFrameDeterminismTests` `Expected.swift` unedited.
 
 ## 6. Verification on the merged tree
 

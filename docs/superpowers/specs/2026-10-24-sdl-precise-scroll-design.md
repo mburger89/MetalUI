@@ -55,7 +55,7 @@ Platform (`SDLInputAPITests`, arm `armMainRunLoopExitCheck()` via `inputWindow()
 - P5 `theIdleWaitShortensWhileAStreamIsOpen` — `scrollWaitTimeoutMilliseconds`: 250 with none, `ceil(remaining*1000)` with a stream, never below 1. Mut: constant 250.
 - P6 `scrollPrecisionDisabledKeepsTheOldWheel` through the platform. Mut: ignore option.
 Window (`SDLShapedScrollWindowTests`, root; **green on arrival by design — Window is unchanged; these are the TP-H pins, red only under the named mutations**):
-- W1 `aSyntheticBeganLatchesTheCoverAndEndedClearsIt` — handler claims; `.began` at cover A, pointer moved, `.changed` still reaches A, `.ended` zero delta reaches A, next phaseless event dispatches by pointer (renamed, `TP-Q`: an `.ended` does not clear the latch). Mut: `ScrollLatch.isGestureEvent` returns false for `.changed`; delete the `phase == .none` reset.
+- W1 `aSyntheticBeganLatchesTheCoverAndTheNextEventEndsOrReplacesIt` — handler claims; `.began` at cover A, pointer moved, `.changed` still reaches A, `.ended` zero delta reaches A, next phaseless event dispatches by pointer (named as built; the draft's name was `aSyntheticBeganLatchesTheCoverAndEndedClearsIt`, but an `.ended` does not clear the latch, `TP-Q`). Mut: `ScrollLatch.isGestureEvent` returns false for `.changed`; delete the `phase == .none` reset.
 - W2 `aNotchDuringAPreciseStreamEndsTheLatch` — Mut: delete `Window.applyScroll`'s `phase == .none` latch reset.
 - W3 `aPreciseSDLStreamScrollsAScrollViewByItsDelta` — offsets equal the summed deltas; `.ended` zero delta leaves the offset (no frame claim, `TP-Q`). Mut: apply `ended` with a nonzero repeat of `last` delta.
 - W4 `aHandlerAboveAScrollViewVetoStillWorksForAPreciseStream` (`CI-AH` unchanged). Mut: dispatch order flip.
@@ -64,7 +64,7 @@ Guards: none new (a trait-off stub compile is covered by the root build; run `sw
 
 ## 5. Demo
 
-No new demo section, no pixel change. `METALUI_INPUT_FOLLOWUPS` (InputFollowupsDemo) already prints `isPrecise` and phases; on a Linux desktop it now shows `precise` with `began…ended` for a trackpad and `wheel` for a notch (look, group TP).
+No new demo section, no pixel change. `METALUI_CANVAS_DEMO=1` (`CanvasDemo.scroll`) already prints `phase … · momentum … · precise|lines`; on a Linux desktop it now shows `precise` with `began…ended` for a trackpad and `lines` for a notch (look, group TP).
 
 ## 6. Human checks (group `TP`, added at Record; not run by an agent)
 

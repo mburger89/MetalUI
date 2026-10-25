@@ -1929,7 +1929,7 @@ Name, date, machine (macOS version, display(s)), build commit:
 
 ## TP. SDL precise scroll - `isPrecise` and synthesized phases on a trackpad (item XP-G28, user request 2026-10-02 and MetalCreator's request 2026-10-24, not a plan task; record 155; provisional letter, in the manner of `RT`, `KF` and `IF`)
 
-*An agent cannot: no real trackpad or desktop session exists in the agent's environment, so every statement about what Wayland, X11 or Windows sends is a reading of SDL 3.4.16's source (`TP-A`). The classifier, the expiry and the `Window` rules are pinned with synthesized events (`SDLScrollClassifierTests`, `SDLInputAPITests` 1.16, `SDLShapedScrollWindowTests`). Run the demo `METALUI_INPUT_FOLLOWUPS` (it prints `isPrecise` and phases) on each desktop.*
+*An agent cannot: no real trackpad or desktop session exists in the agent's environment, so every statement about what Wayland, X11 or Windows sends is a reading of SDL 3.4.16's source (`TP-A`). The classifier, the expiry and the `Window` rules are pinned with synthesized events (`SDLScrollClassifierTests`, `SDLInputAPITests` 1.16, `SDLShapedScrollWindowTests`). Run the demo `METALUI_CANVAS_DEMO=1` (its canvas prints the scroll's phases and `precise`/`lines`) on each desktop.*
 
 - [ ] **TP1.** Wayland (GNOME and KDE), two-finger trackpad scroll: `isPrecise` true, one `.began`, `.changed` events, one zero-delta `.ended` about 150 ms after the last motion; **log the inter-event gaps** (they measure `quietInterval`, `TP-C`, an unmeasured ruling) and note any gesture split by a pause. **Observed:**
 - [ ] **TP2.** X11 (XI2 smooth scrolling), the same as TP1. **Observed:**
