@@ -1915,6 +1915,13 @@ a physical GPU, a desktop session and a console.*
 - [ ] **LG5.** The demo on SDL, a desktop GPU: Linux (Vulkan) and Windows (D3D12). Lens, rim and merge look as on macOS (lavapipe reads max delta 3 on parity frames 12 and 13, `BB-J`'s tolerance with no headroom; D3D12 is CI only). **Observed:**
 - [ ] **LG6.** A press held on a `.glass` button: the tint lifts by a white wash (alpha 0.12) while the pointer is down over it and drops on release; SwiftUI scales and bounces (carried, `LG-J`, divergence 827); a bare `.glassEffect(.interactive())` on non-control content does nothing. **Observed:**
 
+## TL. Hung SDL test helpers - SIGTERM, orphaned helpers, the run deadline (item HG, user request 2026-10-02 and MetalCreator's report 2026-10-24, not a plan task; record 154; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: a test cannot orphan its own runner. The watcher's decision, the deadline and the environment parse are pinned (`SDLTestProcessGuardTests` TL1-TL6); the end-to-end exit is `docs/probes/sdl-orphan-exit.sh` (`TL-J`).*
+
+- [ ] **TL1.** macOS: in `Backends/SDL`, start `swift test` on a GPU test that blocks (a temporary test waiting on a semaphore), press Ctrl-C: the helper ends within a second and `pgrep -f swiftpm-testing-helper` shows none. **Observed:**
+- [ ] **TL2.** The same in the Linux image (`docker run` as in `docs/testing.md`), then `docker stop` the container mid-run: no helper outlives it. **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
