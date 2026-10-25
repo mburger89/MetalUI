@@ -218,6 +218,7 @@ private let pos = Point(x: Pixels(7), y: Pixels(9))
     #expect(log.events.map(\.phase) == [.began, .ended, .began])
     // and a notch after a stale stream: the end comes first, the notch is phaseless
     window.handleWheel(dx: 0, dy: -1, timestamp: t0 + 3, modifiers: [], position: pos)
+    try #require(log.events.count == 5)
     #expect(log.events.map(\.phase) == [.began, .ended, .began, .ended, .none])
     #expect(!log.events[4].isPrecise)
 }
@@ -235,8 +236,10 @@ private let pos = Point(x: Pixels(7), y: Pixels(9))
     window.handleWheel(dx: 0, dy: 0.25, timestamp: t0 + 6, modifiers: [], position: pos)
     #expect(log.events.map(\.phase) == [.began, .began])
     window.close()
-    platform.expireScrollStreams(now: t0 + 10)
+    // a closed window leaves the platform's list, so ask the window itself
+    window.expireScrollStream(now: t0 + 10)
     #expect(log.events.map(\.phase) == [.began, .began])
+    #expect(window.scrollDeadline == nil)
 }
 
 /// **P5** (`TP-I`). The idle wait shortens while a stream is open: 250 with none, the remaining milliseconds
