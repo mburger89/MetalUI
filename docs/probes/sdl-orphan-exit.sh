@@ -1,33 +1,36 @@
 #!/bin/zsh
 # Probe TL-3 (item HG, rulings TL-E, TL-J, record 154): an orphaned MetalUISDLTests helper exits.
-# Run from anywhere after `swift build --build-tests` in Backends/SDL (flags of scripts/fetch-accesskit.py):
+# Run after `swift build --build-tests` in Backends/SDL (it passes the flags of scripts/fetch-accesskit.py):
 #   zsh docs/probes/sdl-orphan-exit.sh
-# A stand-in runner (a zsh we own) starts the real swiftpm-testing-helper on the guard suite, the script
-# kills the runner with SIGKILL (the helper re-parents to PID 1, as when `swift test` is killed) and
-# asserts the helper is gone within 3 s. Prints `ok orphan exited` or `FAIL helper ... survived`.
-# Separating arm: the pre-guard measurement of record 154 section 2 (helper re-parented, slept on, SIGTERM
-# ignored). The guard suite is short, so the helper may finish by itself before the kill: the script
-# only claims the watcher when the helper was still alive at the kill (it prints `inconclusive` otherwise).
+# Starts `swift test --skip-build` (the whole suite, 10-16 s) as a background job, waits for its
+# swiftpm-testing-helper child, kills `swift test` (not the helper) with SIGKILL after 2 s (the helper
+# re-parents to PID 1) and asserts the helper is gone within 3 s.
+# Prints `ok orphan exited after <n> s`, `FAIL helper <pid> survived 3 s` or `inconclusive: ...`.
+# Separating arm: the pre-guard measurement of record 154 section 2 (helper re-parented, slept on).
 # Recorded output: see record 154.
 set -u
 ROOT=${0:A:h:h:h}
 cd "$ROOT/Backends/SDL" || exit 2
-HELPER=$(xcrun --find swiftpm-testing-helper 2>/dev/null)
-BUNDLE=$(find .build -type d -name 'MetalUISDLTests.xctest' 2>/dev/null | head -1)
-[ -n "$HELPER" ] && [ -n "$BUNDLE" ] || { echo "need swiftpm-testing-helper and a built test bundle"; exit 2; }
-# The hold test: a runner shell that starts the helper on a test that blocks. The blocking test is
-# TL2's exit-test child arm running with SIGTERM disabled is not available, so use the suite filter
-# `aDeadlineExpiresOnceAfterItsMilliseconds`-free: any test of the suite keeps the helper alive
-# at least a second (TL4 polls 5 x 1 ms, TL2 waits). TL2 is the longest when the guard is absent.
-zsh -c "'$HELPER' --test-bundle-path '$BUNDLE/Contents/MacOS/MetalUISDLTests' --testing-library swift-testing --filter SDLTestProcessGuardTests >/dev/null 2>&1 & echo \$! > /tmp/muitg-helper.pid; wait" &
+FLAGS=("${(@f)$(python3 scripts/fetch-accesskit.py --print-flags)}")
+METALUI_REQUIRE_GPU=1 swift test --skip-build --no-parallel "${FLAGS[@]}" >/dev/null 2>&1 &
 RUNNER=$!
-until [ -s /tmp/muitg-helper.pid ]; do :; done
-HELPER_PID=$(cat /tmp/muitg-helper.pid); rm -f /tmp/muitg-helper.pid
+HELPER_PID=""
+for i in {1..300}; do
+  HELPER_PID=$(pgrep -P $RUNNER -f swiftpm-testing-helper | head -1)
+  [ -n "$HELPER_PID" ] && break
+  kill -0 $RUNNER 2>/dev/null || break
+  sleep 0.1
+done
+[ -n "$HELPER_PID" ] || { echo "inconclusive: no helper found"; exit 3; }
+sleep 2
+# swift test starts a helper per phase (listing, then the run): take the one alive now.
+HELPER_PID=$(pgrep -P $RUNNER -f swiftpm-testing-helper | tail -1)
+[ -n "$HELPER_PID" ] || { echo "inconclusive: no helper alive after 2 s"; exit 3; }
 kill -0 $HELPER_PID 2>/dev/null || { echo "inconclusive: helper already finished"; exit 3; }
 kill -9 $RUNNER
-START=$(python3 -c 'import time;print(time.time())')
+START=$SECONDS
 while kill -0 $HELPER_PID 2>/dev/null; do
-  NOW=$(python3 -c 'import time;print(time.time())')
-  if [ $(python3 -c "print(int(($NOW-$START)>3))") = 1 ]; then echo "FAIL helper $HELPER_PID survived 3 s"; kill -9 $HELPER_PID; exit 1; fi
+  if (( SECONDS - START >= 3 )); then echo "FAIL helper $HELPER_PID survived 3 s"; kill -9 $HELPER_PID; exit 1; fi
+  sleep 0.05
 done
-echo "ok orphan exited"
+echo "ok orphan exited after $(( SECONDS - START )) s"
