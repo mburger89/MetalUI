@@ -229,14 +229,13 @@ private func describe(_ event: InputEvent) -> String {
 
 // MARK: - 1.16: the wheel
 
-/// **1.16** (`CI-I` item 6). SDL 3.4 has no scroll phase, momentum or precise
-/// flag: a wheel event's `phase` and `momentumPhase` are `.none`, `isPrecise`
-/// is `false` (SDL's delta is lines, scaled to points), and `location` is the
-/// seam's `position`.
+/// **1.16** (`CI-I` item 6, amended by `TP-B`/`TP-F`; rewritten as **P1**). A whole-notch wheel event pushed through
+/// SDL's own queue is phaseless and not precise (`location` is the seam's `position`, the delta is lines scaled to
+/// points); a fractional one after it opens a precise stream: `.began`, `isPrecise`, momentum `.none` always.
 ///
-/// Mutation: `isPrecise: true` (reddens).
+/// Mutation: `isPrecise: false` literal (reddens), `phase: .none` literal (reddens).
 @MainActor
-@Test func sdlWheelHasNoPhaseMomentumOrPrecision() throws {
+@Test func sdlWheelNotchIsPhaselessAndAFractionBeginsAPreciseStream() throws {
     let (platform, window) = try inputWindow()
     var scrolls: [ScrollEvent] = []
     window.onInput = { event in
@@ -256,6 +255,14 @@ private func describe(_ event: InputEvent) -> String {
     #expect(scrolls[0].location == Point(x: Pixels(30), y: Pixels(40)))
     #expect(scrolls[0].position == scrolls[0].location)
     #expect(scrolls[0].delta.y == Pixels(-20))
+    event.dy = -0.25
+    #expect(mui_push_event(&event))
+    platform.pumpEvents()
+    try #require(scrolls.count == 2)
+    #expect(scrolls[1].isPrecise)
+    #expect(scrolls[1].phase == .began)
+    #expect(scrolls[1].momentumPhase == .none)
+    #expect(scrolls[1].delta.y == Pixels(-2.5))
 }
 
 // MARK: - 1.17: cursors
