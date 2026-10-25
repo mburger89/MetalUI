@@ -91,7 +91,16 @@ struct SDLTestProcessGuardTests {
         #expect(muitg_parse_deadline_seconds("-5") == 600)
         #expect(muitg_parse_deadline_seconds("0") == 0)
         #expect(muitg_parse_deadline_seconds("30") == 30)
+        #expect(muitg_parse_deadline_seconds("30x") == 600)
+        #expect(muitg_parse_deadline_seconds("3 0") == 600)
         #expect(muitg_parse_deadline_seconds("999999999999") == 600)
+    }
+
+    /// **TL8.** The constructor armed the deadline the environment names (default 600 s).
+    /// Mutation: the constructor's `muitg_arm_deadline` call removed (TL1 cannot see it).
+    @Test func theConstructorArmedTheDeadlineBeforeMain() {
+        let seconds = muitg_parse_deadline_seconds(getenv("METALUI_TEST_DEADLINE_SECONDS"))
+        #expect(muitg_constructor_armed_deadline_milliseconds() == Int32(seconds) * 1000)
     }
 
     /// **TL7.** The probe's hold (TL-J): with `METALUI_TL_HOLD=1` it blocks the helper for two minutes on a

@@ -18,4 +18,8 @@ void muitg_watch_parent(pid_t original, int pollMilliseconds, void (*onOrphan)(v
 /// Starts one detached thread that calls `onExpire` once after `milliseconds` (> 0), then returns.
 void muitg_start_deadline(int milliseconds, void (*onExpire)(void));
 
+/// The deadline in milliseconds the constructor armed before `main`, or 0 when it armed none
+/// (`METALUI_TEST_DEADLINE_SECONDS=0`). Read-back seam of TL-K.
+int muitg_constructor_armed_deadline_milliseconds(void);
+
 #endif

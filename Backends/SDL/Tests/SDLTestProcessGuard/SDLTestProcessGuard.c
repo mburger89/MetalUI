@@ -108,6 +108,7 @@ static void muitg_orphaned(void) {
 }
 
 static int muitg_deadline_seconds_in_force = MUITG_DEFAULT_DEADLINE_SECONDS;
+static int muitg_armed_deadline = 0;
 
 #if defined(__APPLE__)
 static void muitg_run_sample(char *path, size_t pathSize) {
@@ -149,6 +150,18 @@ static void muitg_deadline_expired(void) {
     _exit(71);
 }
 
+static void muitg_deadline_expired(void);
+
+/* The constructor's one arming site; records what it armed for the read-back (TL-K). */
+static void muitg_arm_deadline(int milliseconds) {
+    muitg_start_deadline(milliseconds, muitg_deadline_expired);
+    muitg_armed_deadline = milliseconds;
+}
+
+int muitg_constructor_armed_deadline_milliseconds(void) {
+    return muitg_armed_deadline;
+}
+
 __attribute__((constructor))
 static void muitg_constructor(void) {
     /* TL-B: SDL's own SIGINT/SIGTERM handlers turn the signal into an event nobody reads. */
@@ -156,7 +169,7 @@ static void muitg_constructor(void) {
     muitg_watch_parent(getppid(), 500, muitg_orphaned, NULL);
     int seconds = muitg_parse_deadline_seconds(getenv("METALUI_TEST_DEADLINE_SECONDS"));
     muitg_deadline_seconds_in_force = seconds;
-    if (seconds > 0) muitg_start_deadline(seconds * 1000, muitg_deadline_expired);
+    if (seconds > 0) muitg_arm_deadline(seconds * 1000);
 }
 
 #endif

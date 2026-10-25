@@ -72,3 +72,10 @@ recurrence now ends at the deadline with a sampled stack. **Cost if wrong.** A w
 **Ruling.** TL3/TL4 pin the watcher's decision and TL1/TL2 pin the environment; whether the constructor is linked and wired is measured by
 `docs/probes/sdl-orphan-exit.sh` (kill -9 the parent of a blocked helper, assert it is gone within 3 s) recorded in its header, since a test cannot
 orphan its own runner. **Cost if wrong.** A regression of the wiring alone is caught by TL1 (the variable) but not the watcher thread's start.
+
+## TL-K — the constructor's deadline is read back through one C function
+
+**Ruling.** `muitg_constructor_armed_deadline_milliseconds()` (test-only, in `SDLTestProcessGuard.h`) returns what the constructor's one arming site,
+`muitg_arm_deadline`, armed (0 when `METALUI_TEST_DEADLINE_SECONDS=0`); TL8 compares it with the parse of the environment. The branch check found that removing
+the arming survived every pin (TL1 sees only the variable). Unlike `muitg_start_deadline` the recorder is written only by the constructor's path, so TL5's own
+calls cannot satisfy it. **Cost if wrong.** A recorder written without the arm would pass; the arm and the record sit in one four-line function.

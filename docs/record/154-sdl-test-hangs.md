@@ -23,7 +23,7 @@ Why: the orphans of the report sleep because (a) SDL's handlers turn SIGTERM int
 
 ## 3. Tests (`SDLTestProcessGuardTests`, `@Suite(.serialized)`, bounded semaphores, no sleeps)
 
-`TL1 theTestProcessRunsWithSDLsSignalHandlersOff`; `TL2 aSIGTERMKillsAProcessThatHasInitialisedSDLVideo` (exit test, child initialises video, raises SIGTERM, `.signal(SIGTERM)`); `TL3 aWatcherWhoseOriginalParentIsNotTheParentExits`; `TL4 aWatcherWhoseParentIsUnchangedStaysQuiet`; `TL5 aDeadlineExpiresOnceAfterItsMilliseconds`; `TL6 theDeadlineEnvironmentParses`; `TL7 theProbeHoldBlocksTheHelper` (env-gated by `METALUI_TL_HOLD`, the probe's blocker, skipped otherwise). `Backends/SDL`: 304 -> 311 Swift Testing tests (18 suites), 31 XCTest.
+`TL1 theTestProcessRunsWithSDLsSignalHandlersOff`; `TL2 aSIGTERMKillsAProcessThatHasInitialisedSDLVideo` (exit test, child initialises video, raises SIGTERM, `.signal(SIGTERM)`); `TL3 aWatcherWhoseOriginalParentIsNotTheParentExits`; `TL4 aWatcherWhoseParentIsUnchangedStaysQuiet`; `TL5 aDeadlineExpiresOnceAfterItsMilliseconds`; `TL6 theDeadlineEnvironmentParses`; `TL8 theConstructorArmedTheDeadlineBeforeMain` (reads `muitg_constructor_armed_deadline_milliseconds`, `TL-K`); `TL7 theProbeHoldBlocksTheHelper` (env-gated by `METALUI_TL_HOLD`, the probe's blocker, skipped otherwise). `Backends/SDL`: 304 -> 312 Swift Testing tests (18 suites), 31 XCTest.
 
 ## 4. Red runs and mutations
 
@@ -37,12 +37,14 @@ Red first: the pins ran over a stubbed guard target (`5e1a87c9`), then TL2 was c
 | M3b deadline callback never invoked | `aDeadlineExpiresOnceAfterItsMilliseconds` |
 | M4 parser default 600 -> 60 | `theDeadlineEnvironmentParses` |
 | M5 parser maps `"0"` to the default | `theDeadlineEnvironmentParses` |
+| MA (branch check, survived M1-M5) constructor's deadline arming removed | `theConstructorArmedTheDeadlineBeforeMain` (TL8; 1 issue, `SDLTestProcessGuardTests` filtered run, after the seam of `TL-K`) |
+| MC (branch check) parser's trailing-junk test `*end != '\0'` dropped | `theDeadlineEnvironmentParses` (2 issues: the new `"30x"` and `"3 0"` arms; `"abc"` alone could not see it) |
 
-M2 is the honest weak spot: TL3/TL4 were red only against the stub target. A `METALUI_TL_NO_WATCHER`-style switch or running them in an exit-test child would let M2 redden them by name (carried, below).
+M2 is the honest weak spot: TL3/TL4 were red only against the stub target. A `METALUI_TL_NO_WATCHER`-style switch or running them in an exit-test child would let M2 redden them by name (carried, below; left as is after the branch check).
 
 ## 5. Verification
 
-Root native suite, 0 `error:`, `FR-J` line: see the counts bullet in `CLAUDE.md` (taken at the Record phase). `Backends/SDL` macOS 31 + 311 with `METALUI_REQUIRE_GPU=1`; Linux image 307 passing (the implementer's reading, **not re-taken** at the Record phase or by the verifier). The root count and the fourteen images are unmoved by construction (`git diff --stat 935d0096 HEAD` touches only `Backends/SDL` test files, `Backends/SDL/Package.swift`, docs and probes).
+Root native suite, 0 `error:`, `FR-J` line: see the counts bullet in `CLAUDE.md` (taken at the Record phase). `Backends/SDL` macOS 31 + 312 with `METALUI_REQUIRE_GPU=1`; Linux image 308 passing (re-taken after TL8). The root count and the fourteen images are unmoved by construction (`git diff --stat 935d0096 HEAD` touches only `Backends/SDL` test files, `Backends/SDL/Package.swift`, docs and probes).
 
 ## 6. Hazards
 
