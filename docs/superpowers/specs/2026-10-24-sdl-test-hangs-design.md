@@ -94,3 +94,7 @@ suite (4445, unmoved), `swift build --build-tests` 0 warnings.
 - **Carried:** the 18-minute parallel whole-suite hang near `SDLImageCursorTests` (did not reproduce in 2 parallel runs, `TL-G`; owner: the next
   SDL-window change, re-open on a recurrence, whose deadline output will now name the wait); Windows (constructor compiled out, `TL-I`; owner: the
   first Windows SDL-test job); a production opt-out of SDL's signal handlers for apps (Ctrl-C quitting an app is the useful default, not asked).
+
+## Critic note
+
+Linking: the guard's constructor is only kept if the object file is linked; TL3-TL6 call `muitg_` symbols from Swift, which forces it (TL1 then proves the constructor ran). Nothing else rejected or changed.

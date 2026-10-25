@@ -15,7 +15,7 @@ measured in record 154 section 2. Backends/SDL is outside the census (`GA-L`); c
 re-parents its helper to PID 1 (measured, also without SDL); the sleeping thread is in `semaphore_wait_trap` (sample). Unmutated code never blocks
 (30 filtered + 3 whole-suite runs). The two sync-batch orphans ran the filtered suites that records 137 and 143's mutation runs execute, and those
 mutations (a fence never signalled, a precondition removed) leave a main-actor wait with no partner.
-**Ruling.** The cause is the combination, not a library bug: a mutation (or a future defect) blocks a wait; the runner's kill reaches the parent only;
+**Ruling.** The cause is the combination, not a library bug (the link from the two orphans to mutation runs is an inference from the filter strings and the record's own mutation lists, not an observation; no orphan's stack was sampled before it was killed): a mutation (or a future defect) blocks a wait; the runner's kill reaches the parent only;
 SDL's handler turns the helper's SIGTERM into an event nobody reads. The fix targets the last two links and the sleeping-forever property.
 **Cost if wrong.** If a real library hang exists the deadline (`TL-D`) names its wait within 10 minutes the next time; nothing is hidden by the ruling.
 
