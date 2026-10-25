@@ -1,7 +1,7 @@
 # SDL precise scroll for MetalCreator (XP-G28) — decisions
 
 Rulings for item XP-G28 of the gpui-gap priority list (MetalCreator request 2026-10-24, `docs/metalui-gaps.md` XP-G28; **not a plan task**). Prefix `TP-`.
-**Next unused: `TP-M`.** Spec: [`specs/2026-10-24-sdl-precise-scroll-design.md`](specs/2026-10-24-sdl-precise-scroll-design.md). Record: `../record/155-sdl-precise-scroll.md`.
+**Next unused: `TP-P`.** Spec: [`specs/2026-10-24-sdl-precise-scroll-design.md`](specs/2026-10-24-sdl-precise-scroll-design.md). Record: `../record/155-sdl-precise-scroll.md`.
 Branch `feat/sdl-precise-scroll` from `935d0096`. Amends `CI-I` item 6 (SDL fills `.none/.none/false`) and builds on `IF-G`/`IF-H` (record 93). Divergence labels reserved 845-854: **845, 846 taken** (spec section 7).
 
 Sources of truth. Facts about SDL come from the SDL 3.4.16 source tree (`fa2c02bb`, the Dockerfile's pin; `src/events/SDL_mouse.c`, `src/video/{wayland,x11,windows,cocoa}`, headers
@@ -79,8 +79,7 @@ A synthesized momentum would be a fiction. **Cost if wrong.** None built; a cons
 
 ## TP-H — the latch (`IF-G`), `DD-Y` and `onScrollWheel` dispatch are untouched; pinned, not edited
 
-**Ruling.** No `Window` source change. A synthesized `.began` latches the cover as AppKit's does; `.changed`/`.ended` dispatch to the latched chain; **a phaseless wheel event still ends a latch** (`Window.applyScroll`'s first line, `IF-G` item 3), so a notch during a trackpad stream ends the
-latch and is dispatched fresh; the `.ended` that follows is a gesture event with no latch, so it dispatches normally by the pointer (a harmless zero-delta). `ScrollView`s scroll by `delta` exactly as before (a zero-delta `.ended` scrolls nothing).
+**Ruling.** No `Window` source change. A synthesized `.began` latches the cover as AppKit's does; `.changed`/`.ended` dispatch to the latched chain; **a phaseless wheel event still ends a latch** (`Window.applyScroll`'s first line, `IF-G` item 3). SDL cannot produce that inside an open stream (TP-C keeps an integral event precise), so W2 pins the `Window` rule through a hand-built phaseless event, not an SDL one; a notch after the quiet interval ends the latch and is dispatched fresh; the `.ended` that follows is a gesture event with no latch, so it dispatches normally by the pointer (a harmless zero-delta). `ScrollView`s scroll by `delta` exactly as before (a zero-delta `.ended` scrolls nothing).
 **Evidence to take before relying on it:** pins W1-W4 (spec section 4) run SDL-shaped streams through a real `Window`.
 **Cost if wrong.** A latched cover that is removed mid-stream is dropped by `latchedScrollCover` (existing); nothing new.
 
@@ -106,3 +105,16 @@ the AppKit conformer's behaviour is untouched (values pinned by `PlatformTests`,
 
 **Ruling.** Deferred, by name: (1) real libinput `axis_source`/`axis_stop` and XI2 scroll flags, needs SDL to forward them or a private Wayland listener (owner: a later `TP-` item, trigger: an SDL release that forwards, or MetalCreator evidence the heuristic mis-reads real hardware, human checks `TP`);
 (2) momentum (TP-G); (3) a `quietInterval` option (made configurable only if `TP` measurements disagree); (4) Windows precision-touchpad `WM_POINTER` gestures (SDL's loop does not expose them; `CI-K` item 1 already records Windows' control+wheel pinch).
+
+## TP-M — a stale stream is closed by ANY later event; the finite guard and T11 (critic, amends TP-C, TP-F)
+
+**Ruling.** `closedStale` is set for any event arriving after the open stream's deadline, precise or not, so `.ended` always precedes a later wheel notch and the order a window sees is `.ended` then the notch (the spec's draft closed it only for a precise event, leaving a late `.ended` after the notch). T11 is a characterization pin: a NaN or infinite delta compares false against the tolerance with no guard, so no `isFinite` guard is written and no mutation is claimed for it. T5's mutation is the interval, not a comparison.
+**Cost if wrong.** Ordering only.
+
+## TP-N — `Options.scrollPrecision` lives in both `Options` declarations (critic)
+
+**Ruling.** `SDLPlatformOptions.swift` and the trait-off stub in `SDLPlatform.swift` each gain the field and a defaulted `init` parameter (placed last; existing call sites unchanged); a stored property on a public type crossing a module boundary owes `swift package clean` before the suite. Rejected: reading the setting from the environment (TP-D).
+
+## TP-O — critic's rejections
+
+**Ruling.** Rejected: making `.ended` carry `momentumPhase` (TP-G); synthesizing `.mayBegin` (no signal precedes the first event); a SwiftUI claim (probe re-run byte for byte by the critic on 2026-10-24: control exit 0, ARM_1 `no member 'isPrecise'`, ARM_2 `no member 'onScrollWheel'`, as recorded). Accepted limits: lanes are disjoint (lane 1 `Backends/SDL`, lane 2 root tests and a doc comment); no shader, seam, census, pixel or demo change, so the fourteen images and `DemoFrameDeterminismTests` cannot move.

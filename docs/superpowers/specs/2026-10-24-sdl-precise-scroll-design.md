@@ -1,6 +1,6 @@
 # SDL precise scroll — design (XP-G28)
 
-Rulings: [`../2026-10-24-sdl-precise-scroll-decisions.md`](../2026-10-24-sdl-precise-scroll-decisions.md) (`TP-A`…`TP-L`). Branch `feat/sdl-precise-scroll` from `935d0096`. Backends/SDL plus root tests; no seam change.
+Rulings: [`../2026-10-24-sdl-precise-scroll-decisions.md`](../2026-10-24-sdl-precise-scroll-decisions.md) (`TP-A`…`TP-O`). Branch `feat/sdl-precise-scroll` from `935d0096`. Backends/SDL plus root tests; no seam change.
 
 ## 1. Goal
 
@@ -20,7 +20,7 @@ public enum SDLScrollPrecision: Sendable { case automatic, disabled }
 
 Lane 1 (all `Backends/SDL`):
 - `Sources/MetalUISDL/SDLScrollClassifier.swift` (new, internal, pure, imports only `MetalUIPlatform`/Foundation-free): `struct SDLScrollClassifier { static let quietInterval = 0.15; static let fractionTolerance: Float = 1e-4; var mode; mutating func classify(dx:dy:at:) -> Result; mutating func expire(at:) -> Bool; var deadline: Double?; mutating func reset() }` with `Result { isPrecise, phase, closedStale }`.
-  `closedStale` is true when a precise event arrives after the old stream's deadline (the window then delivers the old stream's `.ended` first).
+  `closedStale` is true when ANY event (precise or not) arrives after the old stream's deadline (TP-M) (the window then delivers the old stream's `.ended` first).
 - `Sources/MetalUISDL/SDLPlatform.swift`: `SDLWindow.handle` `MUI_EVENT_WHEEL` arm calls internal `handleWheel(dx:dy:timestamp:modifiers:position:)`; `expireScrollStreams(now:)` on platform and window; `run()` idle wait `min(250, scrollWaitTimeoutMilliseconds(now:))`; focus loss and close call `classifier.reset()` (emit nothing); `Options.scrollPrecision`; doc comments.
 - Tests: `Tests/MetalUISDLTests/SDLScrollClassifierTests.swift` (new), `SDLInputAPITests.swift` (test 1.16 rewritten).
 Lane 2 (root tests and comments, disjoint):
@@ -37,13 +37,13 @@ Pure classifier (`SDLScrollClassifierTests`, run on macOS and in the Linux image
 - T2 `aFractionalEventIsPreciseAndBegins` — (0,0.25): precise, `.began`, deadline `t+0.15`. Mut: classify on `integer_y`-style truncation (`Int(v) != 0`).
 - T3 `aSecondEventInsideTheQuietIntervalChanges` — `.changed`, deadline moved. Mut: always `.began`.
 - T4 `anIntegralEventInsideAStreamStaysPrecise` — (0,0.3) then (0,1) at +0.05: second precise `.changed`. Mut: drop the sticky clause.
-- T5 `aNotchAfterTheQuietIntervalIsAWheelAgain` — Mut: `<=` → `<=` with interval ×10.
+- T5 `aNotchAfterTheQuietIntervalIsAWheelAgain` — also `closedStale == true` for the notch (TP-M). Mut: quietInterval 0.15 → 1.5 (the notch then stays precise).
 - T6 `anEventAfterTheDeadlineBeginsANewStreamAndReportsTheStaleEnd` — `closedStale == true`, `.began`. Mut: never set `closedStale`.
 - T7 `expireEndsAStreamExactlyOnceAtTheBoundary` — at `t+0.149` false, at `t+0.15` true, again false. Mut: `<` for `<=`; not clearing the stream (a second `true`).
 - T8 `aHorizontalFractionIsPrecise` — (0.2,0). Mut: test y only.
 - T9 `aHiResWheelStepIsPreciseByDesign` (characterization of divergence 845) — (0,1/120). Red before: type missing; mutation: tolerance `1e-2` reddens it (pins the tolerance choice).
 - T10 `disabledModeIsTodaysBehaviour` — fractional with `.disabled`: false/`.none`/no deadline. Mut: ignore mode.
-- T11 `aNonFiniteDeltaIsNotPreciseAndDoesNotTrap` — NaN, inf. Mut: no `isFinite` guard (traps on `rounded`? no — reddens by classifying precise).
+- T11 `aNonFiniteDeltaIsNotPreciseAndDoesNotTrap` — NaN, inf. **No mutation can redden it** (NaN/inf compare false against the tolerance without any guard: it is a characterization pin, recorded as such in the record, TP-M); no `isFinite` guard is written.
 - T12 `resetDropsTheStreamWithoutAnEnd` — after reset `expire` is false, deadline nil. Mut: reset leaves the deadline.
 Platform (`SDLInputAPITests`, arm `armMainRunLoopExitCheck()` via `inputWindow()`; run in the Linux image too, none needs a presented frame):
 - P1 (1.16 rewritten) `sdlWheelNotchIsPhaselessAndAFractionBeginsAPreciseStream` — pushes a real `MUI_EVENT_WHEEL` with `dy = -2` (phase none, not precise) then `dy = -0.25` (precise, `.began`, `delta.y == -2.5`). **Red before: behaviour** (`isPrecise` false). Mut: `isPrecise: false` literal (reddens), `phase: .none` literal.
@@ -57,7 +57,8 @@ Window (`SDLShapedScrollWindowTests`, root; **green on arrival by design — Win
 - W2 `aNotchDuringAPreciseStreamEndsTheLatch` — Mut: delete `Window.applyScroll`'s `phase == .none` latch reset.
 - W3 `aPreciseSDLStreamScrollsAScrollViewByItsDelta` — offsets equal the summed deltas; `.ended` zero delta leaves the offset and requests no extra frame. Mut: apply `ended` with a nonzero repeat of `last` delta.
 - W4 `aHandlerAboveAScrollViewVetoStillWorksForAPreciseStream` (`CI-AH` unchanged). Mut: dispatch order flip.
-Guards: none new (no new public type in the root; `SDLScrollPrecision` is `Backends/SDL`). Existing tests that must stay green: `ScrollLatchTests`, `InputAPIWindowTests`, `PlatformTests`, AppKit scroll tests, the fourteen images 0 px, `DemoFrameDeterminismTests`.
+P1 note: `mui_push_event` may stamp timestamp 0 or now; the lane reads `SDLBridge.c` and, if the stamp is not mui_now, P1 drives `handleWheel` directly for the stream arms and keeps the push only for the bridge round trip.
+Guards: none new (a trait-off stub compile is covered by the root build; run `swift build` without the SDL trait) (no new public type in the root; `SDLScrollPrecision` is `Backends/SDL`). Existing tests that must stay green: `ScrollLatchTests`, `InputAPIWindowTests`, `PlatformTests`, AppKit scroll tests, the fourteen images 0 px, `DemoFrameDeterminismTests`.
 
 ## 5. Demo
 
