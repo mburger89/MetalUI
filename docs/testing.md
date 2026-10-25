@@ -474,6 +474,15 @@ delivery after one `pumpEvents()`; nothing sleeps. A second *process* is
 `Backends/SDL`'s `SingleInstanceCheck` (`primary`/`forward` modes). Every test
 that creates an `SDLPlatform` on macOS arms `armMainRunLoopExitCheck()`.
 
+## SDL test processes (`Backends/SDL`)
+
+`MetalUISDLTests` links a test-only C guard (`SDLTestProcessGuard`, rulings `TL-B`...`TL-J`). Before `main` it sets
+`SDL_NO_SIGNAL_HANDLERS=1` (an explicit value wins), so SIGTERM and Ctrl-C end a process that initialised SDL video; it
+starts a watcher that exits 70 within about half a second when the parent that started the run is gone; and a deadline
+that exits 71 naming `METALUI_TEST_DEADLINE_SECONDS` (default 600, `0` disables) and, on macOS, writes a `sample` of the
+blocked threads. Windows is carried. To stop a run, `kill <helper pid>`, never a name pattern; a blocked wait now ends
+at the deadline instead of sleeping.
+
 ## What it cannot do
 
 Each is a ruled deferral (`HT-Q`):
