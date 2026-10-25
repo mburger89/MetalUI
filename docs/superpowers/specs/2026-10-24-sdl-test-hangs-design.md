@@ -66,9 +66,8 @@ The constructor passes `_exit`-calling callbacks; a test passes recording callba
 | `TL4 aWatcherWhoseParentIsUnchangedStaysQuiet`: original = `getppid()`; wait for 5 `onPoll` signals with a 1 ms poll, then assert `onOrphan` never ran | same | same |
 | `TL5 aDeadlineExpiresOnceAfterItsMilliseconds`: 100 ms, `onExpire` counted, bounded wait, then 5 more polls of a second semaphore proving once | no `muitg_start_deadline` | the callback invoked in a loop (count 2) / never invoked |
 | `TL6 theDeadlineEnvironmentParses`: nil, "", "abc", "-5" give 600; "0" gives 0; "30" gives 30; "999999999999" gives 600 | no parser | default changed to 60, or "0" mapped to default: TL6 |
-| `TL7 theProcessStillRunsTheWholeSuiteUnderTheConstructor`: the whole suite's own passing, not a test | n/a | n/a |
 
-TL7 is not a test; the unfiltered run is the gate. The end-to-end orphan exit is measured by the checker with `docs/probes/sdl-orphan-exit.sh`
+The unfiltered run is the gate. The end-to-end orphan exit is measured by the checker with `docs/probes/sdl-orphan-exit.sh`
 (probe TL-3, written in the Implement phase: start a filtered run whose test blocks, `kill -9` the parent, assert the helper is gone within 3 s,
 recorded in its header), and is **not a pin** (`TL-J`); with the watcher's decision pinned by TL3/TL4 the residue is the constructor's wiring,
 which TL1 and the probe cover.
@@ -76,8 +75,7 @@ which TL1 and the probe cover.
 ### Documentation
 
 `docs/testing.md` (an "SDL tests" paragraph: SIGTERM works, the deadline variable, how a workflow kills a run: `kill <helper pid>`, never a name pattern),
-`docs/verification/human-checks.md` group `TL` (TL1 Linux image: `docker run ... sleep` no; real check: kill a running `swift test` in the image and
-see the helper end; TL2 macOS Ctrl-C of `swift test` while a GPU test blocks), record 154, CLAUDE.md one rule at the Record phase.
+`docs/verification/human-checks.md` group `TL` (TL1 macOS: Ctrl-C a `swift test` whose GPU test blocks and see the helper end; TL2 the same in the Linux image), record 154, CLAUDE.md one rule at the Record phase.
 
 ## Lanes
 
