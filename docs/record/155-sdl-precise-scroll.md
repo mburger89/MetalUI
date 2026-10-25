@@ -29,7 +29,33 @@ Counts: root **4445 -> 4449** (+4), typecheck guards unmoved (273); `Backends/SD
 
 ## 4. Red runs and mutations
 
-Red first: lane 1's commit `e5a10bdd` adds T1-T12 and P1-P6 over no implementation (a compile failure for the classifier arms, a behaviour failure for P1). Lane 2's W tests cannot be red before (the `Window` rule exists), so their proof is the mutation table. Lane 1: the implementer ran 22 mutations over T1-T12, P1-P6 and the stubs (the spec's named list) with `Backends/SDL` unfiltered on macOS (`METALUI_REQUIRE_GPU=1 --no-parallel`); the table of per-mutation reddened tests was **not carried into this record's inputs**, only the two the checker re-ran and the survivor below, which is stated rather than reconstructed. Lane 2: full unfiltered native suite per mutation (baseline the five locked-screen `AppKitPresentationTests` issues of `CI-AF`).
+Red first: lane 1's commit `e5a10bdd` adds T1-T12 and P1-P6 over no implementation (a compile failure for the classifier arms, a behaviour failure for P1). Lane 2's W tests cannot be red before (the `Window` rule exists), so their proof is the mutation table. Lane 1: the implementer ran 22 mutations over T1-T12, P1-P6 and the stubs (the spec's named list) with `Backends/SDL` unfiltered on macOS (`METALUI_REQUIRE_GPU=1 --no-parallel`); its table, copied from the implementer's report (the orchestrator, 2026-10-25; T11 is a characterization pin with no mutation, `TP-M`; P4b first survived, then P4 called `expireScrollStream` on the closed window; T6 and P3 first crashed on an index and now guard it):
+
+| Mutation | Tests reddened |
+|---|---|
+| T1 | `aWholeNotchIsNotPreciseAndOpensNoStream`, `aNotchAfterTheQuietIntervalIsAWheelAgain`, `aStaleStreamIsEndedBeforeTheNextBegan`, `aNonFiniteDeltaIsNotPreciseAndDoesNotTrap`, `sdlWheelNotchIsPhaselessAndAFractionBeginsAPreciseStream` |
+| T2 | `aFractionalEventIsPreciseAndBegins`, `aHiResWheelStepIsPreciseByDesign`, `aHorizontalFractionIsPrecise`, plus others |
+| T3 | `aSecondEventInsideTheQuietIntervalChanges`, `anIntegralEventInsideAStreamStaysPrecise` |
+| T4 | `anIntegralEventInsideAStreamStaysPrecise` |
+| T5 | `aNotchAfterTheQuietIntervalIsAWheelAgain`, `aPreciseStreamIsEndedOnceByExpiry`, `aStaleStreamIsEndedBeforeTheNextBegan`, `anEventAfterTheDeadlineBeginsANewStreamAndReportsTheStaleEnd` |
+| T6 | `aNotchAfterTheQuietIntervalIsAWheelAgain`, `aStaleStreamIsEndedBeforeTheNextBegan`, `anEventAfterTheDeadlineBeginsANewStreamAndReportsTheStaleEnd` |
+| T7a (`>` for `>=`) | `expireEndsAStreamExactlyOnceAtTheBoundary` |
+| T7b (stream not cleared) | `aPreciseStreamIsEndedOnceByExpiry`, `expireEndsAStreamExactlyOnceAtTheBoundary`, `theIdleWaitShortensWhileAStreamIsOpen` |
+| T8 | `aHorizontalFractionIsPrecise` |
+| T9 | `aHiResWheelStepIsPreciseByDesign` |
+| T10 | `disabledModeIsTodaysBehaviour`, `scrollPrecisionDisabledKeepsTheOldWheel` |
+| T12 | `closingOrLosingFocusDropsTheStreamWithoutEnded`, `resetDropsTheStreamWithoutAnEnd` |
+| P1a (`isPrecise: false` literal) | `sdlWheelNotchIsPhaselessAndAFractionBeginsAPreciseStream` |
+| P1b (`phase: .none` literal) | `sdlWheelNotchIsPhaselessAndAFractionBeginsAPreciseStream`, `aStaleStreamIsEndedBeforeTheNextBegan`, `closingOrLosingFocusDropsTheStreamWithoutEnded` |
+| P2a (expiry delivers nothing) | `aPreciseStreamIsEndedOnceByExpiry` |
+| P2b (expiry delivers twice) | `aPreciseStreamIsEndedOnceByExpiry` |
+| P3 | `aStaleStreamIsEndedBeforeTheNextBegan` |
+| P4a (`focusLost` does nothing) | `closingOrLosingFocusDropsTheStreamWithoutEnded` |
+| P4b (no reset on close) | `closingOrLosingFocusDropsTheStreamWithoutEnded` |
+| P5 | `theIdleWaitShortensWhileAStreamIsOpen` |
+| P6 | `scrollPrecisionDisabledKeepsTheOldWheel` |
+
+The checker re-ran T2 and T7a with the same result. Lane 2: full unfiltered native suite per mutation (baseline the five locked-screen `AppKitPresentationTests` issues of `CI-AF`).
 
 | Mutation (branch, spelling) | Reddened |
 |---|---|
@@ -68,7 +94,6 @@ No demo section, no new env var. `METALUI_CANVAS_DEMO=1`'s canvas (`CanvasDemo.s
 - **Momentum** (`TP-G`): a consumer applies its own; owner none.
 - **A configurable `quietInterval`** (`TP-L` 3): only if `TP` measurements disagree with 0.15 s.
 - **Windows precision-touchpad `WM_POINTER` gestures** (`TP-L` 4): SDL's loop does not expose them.
-- Lane 1's per-mutation table (section 4): re-take `SDLScrollClassifierTests` and the platform arms under the spec's list if a later change touches the classifier (owner: the next change to `SDLScrollClassifier.swift`).
 
 ## 9. Branch checker (2026-10-25)
 
@@ -76,4 +101,4 @@ Re-taken on the branch (`abacf4d0`): `swift package clean`, native build 0 `erro
 
 Two mutations of the checker's design, each a full unfiltered `Backends/SDL` run: **CM1** the classifier refreshes `deadline` only on a fractional event (an integral event inside a stream no longer extends it): **survived all 329**, a real pin gap (a flick of whole `WHEEL_DELTA` multiples would end its stream 0.15 s after the last fractional event); closed by `anIntegralEventInsideAStreamMovesTheDeadline` (T4b), which reddens CM1 with 2 issues. **CM2** `SDLWindow.handleWheel` delivers the stale `.ended` after the event instead of before: reddens only `aStaleStreamIsEndedBeforeTheNextBegan` (P3, 3 issues). Both restored, `git status` clean after each.
 
-Doc defects fixed: the demo named `METALUI_INPUT_FOLLOWUPS` does not exist (it is `METALUI_CANVAS_DEMO=1`, `CanvasDemo.scroll`, which prints `precise`/`lines`) in this record, the spec and human checks `TP`; the spec's W1 carried its pre-`TP-Q` name. Not done: the lane 1 22-mutation table (section 4) was still not re-taken.
+Doc defects fixed: the demo named `METALUI_INPUT_FOLLOWUPS` does not exist (it is `METALUI_CANVAS_DEMO=1`, `CanvasDemo.scroll`, which prints `precise`/`lines`) in this record, the spec and human checks `TP`; the spec's W1 carried its pre-`TP-Q` name. The lane 1 22-mutation table is in section 4 (copied by the orchestrator from the implementer's report).
