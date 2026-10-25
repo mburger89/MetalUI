@@ -59,6 +59,20 @@ private func fresh(_ mode: SDLScrollPrecision = .automatic) -> SDLScrollClassifi
     #expect(r.phase == .changed)
 }
 
+/// **T4b** (`TP-C`, checker). An integral event inside a stream moves the deadline as a fractional one does: a
+/// flick of whole `WHEEL_DELTA` multiples keeps the stream open for its whole length.
+/// Mutation: refresh the deadline only on a fractional event (the stream then ends 0.15 s after its last
+/// fractional event); survived the lane's 12 + 6 tests until this pin.
+@Test func anIntegralEventInsideAStreamMovesTheDeadline() throws {
+    var c = fresh()
+    _ = c.classify(dx: 0, dy: 0.3, at: t0)
+    _ = c.classify(dx: 0, dy: 1, at: t0 + 0.1)
+    let deadline = try #require(c.deadline)
+    #expect(abs(deadline - (t0 + 0.1 + quiet)) < 1e-9)
+    let ended = c.expire(at: t0 + quiet)   // the first event's deadline has passed; the stream is still open
+    #expect(!ended)
+}
+
 /// **T5** (`TP-C`, `TP-M`). A notch after the quiet interval is a wheel again, and the old stream closes first.
 /// Mutation: `quietInterval` 0.15 becomes 1.5 (the notch then stays precise).
 @Test func aNotchAfterTheQuietIntervalIsAWheelAgain() {
