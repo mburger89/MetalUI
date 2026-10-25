@@ -1,6 +1,7 @@
 #ifndef SDL_TEST_PROCESS_GUARD_H
 #define SDL_TEST_PROCESS_GUARD_H
 
+#if !defined(_WIN32)
 #include <sys/types.h>
 
 /// Test-only process guard of `MetalUISDLTests` (rulings TL-B, TL-D, TL-E, item HG). Compiled out
@@ -21,5 +22,7 @@ void muitg_start_deadline(int milliseconds, void (*onExpire)(void));
 /// The deadline in milliseconds the constructor armed before `main`, or 0 when it armed none
 /// (`METALUI_TEST_DEADLINE_SECONDS=0`). Read-back seam of TL-K.
 int muitg_constructor_armed_deadline_milliseconds(void);
+
+#endif
 
 #endif
