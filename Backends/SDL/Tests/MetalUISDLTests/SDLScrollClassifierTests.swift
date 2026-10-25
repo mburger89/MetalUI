@@ -88,9 +88,12 @@ private func fresh(_ mode: SDLScrollPrecision = .automatic) -> SDLScrollClassifi
     var c = fresh()
     _ = c.classify(dx: 0, dy: 0.3, at: t0)
     let end = c.deadline ?? 0
-    #expect(!c.expire(at: end - 0.001))
-    #expect(c.expire(at: end))
-    #expect(!c.expire(at: end))
+    let early = c.expire(at: end - 0.001)
+    let atEnd = c.expire(at: end)
+    let again = c.expire(at: end)
+    #expect(!early)
+    #expect(atEnd)
+    #expect(!again)
     #expect(c.deadline == nil)
 }
 
@@ -120,16 +123,18 @@ private func fresh(_ mode: SDLScrollPrecision = .automatic) -> SDLScrollClassifi
     #expect(r.phase == .none)
     #expect(!r.closedStale)
     #expect(c.deadline == nil)
-    #expect(!c.expire(at: t0 + 10))
+    let expired = c.expire(at: t0 + 10)
+    #expect(!expired)
 }
 
 /// **T11** (`TP-M`). A non-finite delta is not precise and does not trap. A characterization pin: NaN and
 /// infinity compare false against the tolerance with no guard, so no mutation can redden it.
 @Test func aNonFiniteDeltaIsNotPreciseAndDoesNotTrap() {
     var c = fresh()
-    #expect(!c.classify(dx: .nan, dy: 0, at: t0).isPrecise)
-    #expect(!c.classify(dx: 0, dy: .infinity, at: t0).isPrecise)
-    #expect(!c.classify(dx: -.infinity, dy: .nan, at: t0).isPrecise)
+    let a = c.classify(dx: .nan, dy: 0, at: t0)
+    let b = c.classify(dx: 0, dy: .infinity, at: t0)
+    let d = c.classify(dx: -.infinity, dy: .nan, at: t0)
+    #expect(!a.isPrecise && !b.isPrecise && !d.isPrecise)
     #expect(c.deadline == nil)
 }
 
@@ -140,7 +145,8 @@ private func fresh(_ mode: SDLScrollPrecision = .automatic) -> SDLScrollClassifi
     _ = c.classify(dx: 0, dy: 0.3, at: t0)
     c.reset()
     #expect(c.deadline == nil)
-    #expect(!c.expire(at: t0 + 10))
+    let expired = c.expire(at: t0 + 10)
+    #expect(!expired)
 }
 
 // MARK: - P2-P6: the platform and window (`TP-F`, `TP-I`, `TP-D`)
