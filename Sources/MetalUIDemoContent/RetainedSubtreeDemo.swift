@@ -66,8 +66,9 @@ public final class RetainedSubtreeDemoModel {
     public var shiftHeader: Float = 10
     /// The zoom section's scale (`RZ-A`): one `.scaleEffect` over a row of `.equatable()` cards.
     public var zoom: Double = 1
-    /// The growing-header-over-a-zoom section's header height, points, and scale (`EL-`, FS-O): both move in one frame.
+    /// The growing-header-over-a-zoom section's header height in points (`EL-B`, FS-O): it moves with the scale in one frame.
     public var zoomShiftHeader: Float = 10
+    /// The growing-header-over-a-zoom section's scale (`EL-B`, FS-O).
     public var zoomShiftScale: Double = 1
     /// The geometry card's deliveries (`RG-A`): how many times its `onGeometryChange` action ran, and the last size it read.
     /// Observed, written only from the action (which runs after a build, on a change).
