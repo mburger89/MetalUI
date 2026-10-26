@@ -245,6 +245,76 @@ private struct EqContextHost: Component {
     }
 }
 
+/// T5d - the shifted replay under an OUTER `.scaleEffect` (dyadic 1.5 and non-dyadic 1.3) with a moving fractional INNER `.offset`:
+/// the Menu's anchor and a `.contextMenu` record equal a fresh frame's (`MA-H`, the Float cast of the Double delta).
+private struct EqBoth: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        VStack(alignment: .leading, spacing: 4) {
+            Menu("View") { Button("Perspective") {} }
+            Button("Target") {}.contextMenu { Button("Copy") {} }.frame(width: Pixels(80), height: Pixels(24))
+        }
+    }
+    static func == (l: EqBoth, r: EqBoth) -> Bool { true }
+}
+
+private struct ScaledHost: Component {
+    let model: AnchorModel
+    let scale: Double
+    var content: some ElementGroup {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Pixels(100))
+            VStack { EqBoth().equatable() }
+                .offset(x: Pixels(model.dx), y: Pixels(model.dy))
+                .scaleEffect(scale, anchor: .topLeading)
+        }
+    }
+}
+
+@Test(arguments: [1.5, 1.3]) @MainActor func aShiftedReplayUnderAnOuterScalePresentsWhereAFreshFrameDoes(scale: Double) async throws {
+    func points(retained: Bool) async throws -> (menus: [Point<Pixels>], contexts: [Point<Pixels>], hits: Int) {
+        let model = AnchorModel()
+        let window = try harnessWindow { VStack(spacing: 0) { ScaledHost(model: model, scale: scale) } }
+        window.window.testingRetainedSubtrees = retained
+        var hits = 0
+        func draw() { window.window.setNeedsRedraw(); window.tick(); hits += window.lastFrameWork.retainedPrepaintHits }
+        for _ in 0..<6 { draw() }
+        var menus: [Point<Pixels>] = [], contexts: [Point<Pixels>] = []
+        for (dx, dy) in [(Float(67.25), Float(41.5)), (74.1, 41.5), (88.5, 45.3), (60.7, 40.15), (13.37, 91.9)] {
+            model.dx = dx
+            model.dy = dy
+            try await window.runUntilIdle()
+            for _ in 0..<3 { draw() }
+            window.exitPointer()
+            let label = try window.element(label: "View")
+            try window.click(label)
+            let shown = try #require(window.platformWindow.presentedMenus.last)
+            menus.append(shown.at)
+            try window.dismissMenu()
+            window.exitPointer()
+            let target = try window.element(label: "Target")
+            #expect(try window.performAccessibilityAction(.showMenu, on: target))
+            let ctx = try #require(window.platformWindow.presentedMenus.last)
+            contexts.append(ctx.at)
+            #expect(abs(ctx.at.x.value - target.frame.origin.x.value) < 1.01 && abs(ctx.at.y.value - target.frame.bottom) < 1.01,
+                    "context: \(ctx.at) vs \(target.frame)")
+            try window.dismissMenu()
+            window.exitPointer()
+        }
+        return (menus, contexts, hits)
+    }
+    let fresh = try await points(retained: false)
+    let retained = try await points(retained: true)
+    #expect(retained.hits > 0, "the retained run replays prepaints: \(retained.hits)")
+    #expect(fresh.menus.count == 5 && retained.menus.count == 5 && retained.contexts.count == 5)
+    // A dyadic scale is bit-exact; a non-dyadic one is within a few ulps (`MA-I`): a placement hint, not a pixel.
+    let tolerance: Float = scale == 1.5 ? 0 : 1e-3
+    func same(_ a: Point<Pixels>, _ b: Point<Pixels>) -> Bool {
+        abs(a.x.value - b.x.value) <= tolerance && abs(a.y.value - b.y.value) <= tolerance
+    }
+    for (a, b) in zip(fresh.menus, retained.menus) { #expect(same(a, b), "menu \(b) equals fresh \(a)") }
+    for (a, b) in zip(fresh.contexts, retained.contexts) { #expect(same(a, b), "context \(b) equals fresh \(a)") }
+}
+
 /// T6 - `.pickerStyle(.menu)`.
 @Test @MainActor func aPickerMenuUnderOffsetAnchorsToTheDrawnBox() throws {
     let window = try harnessWindow {

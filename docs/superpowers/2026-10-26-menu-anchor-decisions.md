@@ -75,3 +75,12 @@ report's own shape: a moving `.offset`) and replays the ledger, whose `anchors` 
 linear parts and the innermost composed translation moved by `(dx, dy)`, and a bounding box of `M x + t` moves by `Delta t` whatever `M` is. The affine arm and the layout/scroll shift arm (`movedPrepaintLedger`) keep their by-name refusals
 (a bounding box of an affine change is not a shift). The shifted rect equals a fresh frame's bit for bit where the sum is exact in Float (whole points, halves, quarters: T5c) and within one ulp elsewhere - an anchor is a placement hint,
 not a pixel. **Mutation** M4 removes the shift (T5, T5b, T5c red) and M4b drops the stored rects' replay entirely.
+
+## MA-I - the shifted replay is bit-exact under a dyadic outer scale and within an ulp under a non-dyadic one; the refusal was tried and rejected (open arm of MA-H, closed)
+
+**Evidence.** T5d (`aShiftedReplayUnderAnOuterScalePresentsWhereAFreshFrameDoes`, an `.equatable()` `Menu` and a `.contextMenu` declarer under an outer `.scaleEffect(s, anchor: .topLeading)` with a moving fractional inner
+`.offset`, five steps, replays counted) against a retention-off run: `s = 1.5` bit-equal for menu and context-menu points; `s = 1.3` one ulp off on some steps (`288.90997` against `288.91`, `227.38101` against `227.381`), the Float cast of
+the Double delta added to an already rounded Float rect. **Refusal tried.** Refusing `presentationAnchor`/`contextMenus` in the translation arm unless the delta and every stored origin are exact sixteenths made T5d bit-equal, but
+reddened 16 existing pins (`aTranslatedReplayEqualsAFreshFrameAtEveryScale` x10, `aPurePanStillTakesTheTranslationArm` at 0.8), whose `RPCard` carries a `.contextMenu` and whose pans are fractional: they assert a pan replays with no
+refusal (`refused == 0`), the same cost MA-H already rejected. **Ruling.** Keep MA-H's shift; an anchor is a placement hint, so T5d asserts bit-equality at the dyadic scale and 1e-3 point at the non-dyadic one (a lost dx or dy is
+whole points and reddens it). Not a pixel; no divergence label. **Mutation** M7 drops `dy` from the shift: T5, T5b, T5c and T5d (1.5) red. Next unused id `MA-J`.
