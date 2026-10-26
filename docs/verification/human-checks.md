@@ -1939,3 +1939,12 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **TP6.** macOS under the SDL trait (a trackpad and a wheel through `SDLPlatform`): same readings as TP1 and TP4; AppKit's own values are unchanged. **Observed:**
 - [ ] **TP7.** A notch within 150 ms after a trackpad stream (expected: the `.ended` first, then the notch as a wheel), and over 50 trackpad gestures the count whose first event was integral and read as a wheel. **Observed:**
 - [ ] **TP8.** `SDLPlatform.Options(scrollPrecision: .disabled)` restores `false`/`.none` for every event, trackpad included. **Observed:**
+
+
+## MA. Menu anchor under render effects - `Menu`, `Picker(.menu)`, popovers (item XP-G29, MetalCreator report 2026-10-26, not a plan task; record 156; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: a real `NSMenu` pop-up runs AppKit's tracking loop and a real window needs an unlocked desktop. The point handed to the platform is pinned (`MenuAnchorTests`, `AppKitMenuTests`); where the pop-up appears on screen is a look. Run `METALUI_MENUS_DEMO=1 swift run MetalUIDemo` (the "Anchor check" strip: a `Menu("View")` under `.offset(x: 40, y: 20)` and a `Picker(.menu)` under `.scaleEffect(1.5, anchor: .topLeading)`, in the right half of a split).*
+
+- [ ] **MA1.** AppKit, real window: click "View" and the Mode picker. Each pop-up opens at its label's **drawn** bottom-leading corner, not at the layout position (about 40 and 20 points up-left of it for "View"). Repeat with the window resized and a different `.offset`. Compare with a real SwiftUI `Menu` under `.offset` in a scratch app (MA-E: SwiftUI's behaviour is MetalCreator's stated expectation, not probed). **Observed:**
+- [ ] **MA2.** SDL (`METALUI_MENUS_DEMO=1 swift run MetalUISDLDemo`, which draws its own menu panel), the same two controls: the drawn panel's top-leading corner is the label's drawn bottom-leading corner, clamped to the window. **Observed:**
+- [ ] **MA3.** MetalCreator's real app: the `View` menu of `cubeControls` (offset by the cube layout's origin, over the GPU surface in the right pane) opens under its label at about (1000, 410) on the report's window, not at (10, 100). Also drag the cube (the offset moves each frame) and open the menu again: it follows the label. **Observed:**

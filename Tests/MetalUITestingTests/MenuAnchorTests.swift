@@ -1,0 +1,440 @@
+import Foundation
+import MetalUI
+import MetalUITesting
+import Observation
+import Testing
+
+// XP-G29 (`MA-A`...`MA-F`): a presentation anchor is the label's DRAWN frame in
+// window points - scroll, render effects and container origins included - the
+// same bounding box the accessibility frame is. PLAIN imports.
+
+private extension Bounds where Unit == Pixels {
+    var bottom: Float { origin.y.value + size.height.value }
+    var centerX: Float { origin.x.value + size.width.value / 2 }
+    var centerY: Float { origin.y.value + size.height.value / 2 }
+}
+
+/// A model whose offset a test moves.
+@Observable @MainActor private final class AnchorModel {
+    var dx: Float = 60
+    var dy: Float = 40
+}
+
+/// The label's drawn box, and where the platform was asked to pop the menu.
+@MainActor private func expectNativeAnchor(_ window: TestWindow, label text: String = "View",
+                                           sourceLocation: SourceLocation = #_sourceLocation) throws {
+    let label = try window.element(label: text)
+    try window.click(label)
+    let shown = try #require(window.platformWindow.presentedMenus.last, sourceLocation: sourceLocation)
+    #expect(abs(shown.at.x.value - label.frame.origin.x.value) < 1.01,
+            "x is the drawn label's: \(shown.at) vs \(label.frame)", sourceLocation: sourceLocation)
+    #expect(abs(shown.at.y.value - (label.frame.bottom)) < 1.01,
+            "y is the drawn label's bottom: \(shown.at) vs \(label.frame)", sourceLocation: sourceLocation)
+}
+
+@MainActor private func viewMenu() -> some Element {
+    Menu("View") {
+        Button("Perspective") {}
+        Button("Orthographic") {}
+    }
+}
+
+/// T1 - the repro: a pane that does not start at the window origin, `.offset`.
+@MainActor private func offsetMenuTree() -> some Element {
+    HStack(spacing: 0) {
+        Color.clear.frame(width: Pixels(120))
+        VStack(alignment: .leading, spacing: 4) {
+            Button("Home") {}
+            viewMenu()
+        }
+        .offset(x: Pixels(60), y: Pixels(40))
+    }
+}
+
+@Test @MainActor func aMenuUnderOffsetPresentsAtItsDrawnLabel() throws {
+    let window = try harnessWindow { offsetMenuTree() }
+    try expectNativeAnchor(window)
+    // Separating arm: the drawn label is away from its layout position.
+    #expect(try window.element(label: "View").frame.origin.x.value >= 180)
+}
+
+/// T2 - a split pane with a non-zero origin under `.offset` and `.scaleEffect`, both nestings.
+@Test @MainActor func aMenuInAPaneUnderOffsetAndScaleAnchorsToTheDrawnBox() throws {
+    let a = try harnessWindow {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Pixels(120))
+            VStack(alignment: .leading, spacing: 4) { Button("Home") {}; viewMenu() }
+                .offset(x: Pixels(30), y: Pixels(20))
+                .scaleEffect(1.5, anchor: .topLeading)
+        }
+    }
+    try expectNativeAnchor(a)
+    let b = try harnessWindow {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Pixels(120))
+            VStack(alignment: .leading, spacing: 4) { Button("Home") {}; viewMenu() }
+                .scaleEffect(1.5, anchor: .topLeading)
+                .offset(x: Pixels(30), y: Pixels(20))
+        }
+    }
+    try expectNativeAnchor(b)
+}
+
+/// T2b - MetalCreator's shape: a large model offset, an overlay over a `GPUSurface` in the right pane of a split.
+@Test @MainActor func aMenuUnderMetalCreatorsShapeAnchorsToTheDrawnBox() throws {
+    let model = AnchorModel()
+    model.dx = 990
+    model.dy = 310
+    let window = try harnessWindow(size: sz(1200, 700)) {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) { Text("graph").frame(width: Pixels(300), height: Pixels(100)) }
+                .frame(width: Pixels(200))
+            GPUSurface(redraw: .onDemand, value: 0) { _ in }
+                .overlay(alignment: .topLeading) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) { Button("A") {}; Button("B") {}; Button("C") {} }
+                        viewMenu()
+                    }
+                    .offset(x: Pixels(model.dx - 200), y: Pixels(model.dy))
+                }
+        }
+    }
+    let label = try window.element(label: "View")
+    try expectNativeAnchor(window)
+    let shown = try #require(window.platformWindow.presentedMenus.last)
+    #expect(shown.at.x.value > 600 && shown.at.y.value > 300, "far from the layout origin: \(shown.at), label \(label.frame)")
+}
+
+/// T3 - a rotated label anchors to its bounding box (`MA-B`'s approximation).
+@Test @MainActor func aMenuUnderRotationAnchorsToTheBoundingBoxCorner() throws {
+    let window = try harnessWindow {
+        VStack { viewMenu() }.rotationEffect(.degrees(30), anchor: .topLeading).offset(x: Pixels(80), y: Pixels(60))
+    }
+    try expectNativeAnchor(window)
+}
+
+/// T4 - scroll plus `.offset`: the scroll translation counts once.
+@Test @MainActor func aMenuInAScrolledScrollViewUnderOffsetAnchorsToTheDrawnBox() throws {
+    let window = try harnessWindow {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 0) {
+                Color.clear.frame(width: Pixels(100), height: Pixels(120))
+                VStack { viewMenu() }.offset(x: Pixels(40), y: Pixels(20))
+                Color.clear.frame(width: Pixels(100), height: Pixels(600))
+            }
+        }
+    }
+    window.scroll(at: pt(200, 150), byDeltaX: 0, deltaY: -50)
+    window.tick()
+    try expectNativeAnchor(window)
+}
+
+/// T5 - an `.equatable()` component replays its anchor on an unchanged key and re-anchors when the offset moves.
+private struct EqMenu: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        VStack(alignment: .leading, spacing: 4) { Button("Home") {}; Menu("View") { Button("Perspective") {} } }
+    }
+    static func == (l: EqMenu, r: EqMenu) -> Bool { true }
+}
+
+private struct EqHost: Component {
+    let model: AnchorModel
+    var content: some ElementGroup {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Pixels(100))
+            VStack { EqMenu().equatable() }.offset(x: Pixels(model.dx), y: Pixels(model.dy))
+        }
+    }
+}
+
+@Test @MainActor func aMenuInAnEquatableComponentReplaysItsAnchor() async throws {
+    @MainActor func warmWindow(_ model: AnchorModel) throws -> (TestWindow, () -> FrameWork) {
+        let window = try harnessWindow { VStack(spacing: 0) { EqHost(model: model) } }
+        window.window.testingRetainedSubtrees = true
+        func draw() -> FrameWork { window.window.setNeedsRedraw(); window.tick(); return window.lastFrameWork }
+        return (window, draw)
+    }
+    // An unchanged key replays the prepaint, and the replayed anchor is the drawn one.
+    let model = AnchorModel()
+    let (window, draw) = try warmWindow(model)
+    var replayed = 0
+    for _ in 0..<6 { replayed += draw().retainedPrepaintHits }
+    #expect(replayed > 0, "the unchanged occurrence replays its prepaint: \(replayed)")
+    try expectNativeAnchor(window)
+    // A moved offset re-anchors, and the record made then replays the new anchor.
+    let moving = AnchorModel()
+    let (second, drawSecond) = try warmWindow(moving)
+    for _ in 0..<3 { _ = drawSecond() }
+    let before = try second.element(label: "View").frame
+    moving.dx = 10
+    moving.dy = 90
+    try await second.runUntilIdle()
+    replayed = 0
+    // A pure translation replays the ledger with its window rects shifted by it (`MA-H`).
+    for _ in 0..<16 { let f = drawSecond(); replayed += f.retainedPrepaintHits + f.retainedGrafts }
+    let moved = try second.element(label: "View").frame
+    #expect(abs(moved.origin.x.value - (before.origin.x.value - 50)) < 0.01
+            && abs(moved.origin.y.value - (before.origin.y.value + 50)) < 0.01, "the offset moved: \(before) -> \(moved)")
+    #expect(replayed > 0, "and the new key replays: \(replayed)")
+    try expectNativeAnchor(second)
+}
+
+/// T5b - the same for a context-menu record: a keyboard-opened menu in an `.equatable()` occurrence under a moved offset.
+private struct EqContext: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        Button("Target") {}.contextMenu { Button("Copy") {} }.frame(width: Pixels(80), height: Pixels(24))
+    }
+    static func == (l: EqContext, r: EqContext) -> Bool { true }
+}
+
+private struct EqContextHost: Component {
+    let model: AnchorModel
+    var content: some ElementGroup {
+        VStack { EqContext().equatable() }.offset(x: Pixels(model.dx), y: Pixels(model.dy))
+    }
+}
+
+@Test @MainActor func aContextMenuRecordInAnEquatableComponentFollowsAMovedOffset() async throws {
+    let model = AnchorModel()
+    let window = try harnessWindow { VStack(spacing: 0) { EqContextHost(model: model) } }
+    window.window.testingRetainedSubtrees = true
+    func draw() { window.window.setNeedsRedraw(); window.tick() }
+    for _ in 0..<6 { draw() }
+    model.dx = 10
+    model.dy = 90
+    try await window.runUntilIdle()
+    for _ in 0..<3 { draw() }
+    let target = try window.element(label: "Target")
+    #expect(try window.performAccessibilityAction(.showMenu, on: target))
+    let shown = try #require(window.platformWindow.presentedMenus.last)
+    #expect(abs(shown.at.x.value - target.frame.origin.x.value) < 1.01 && abs(shown.at.y.value - target.frame.bottom) < 1.01,
+            "\(shown.at) vs \(target.frame)")
+}
+
+/// T5c - the shifted replay equals a fresh frame: with retention off and on, the same offsets script presents the same point.
+@Test @MainActor func aShiftedReplayPresentsWhereAFreshFrameDoes() async throws {
+    func points(retained: Bool) async throws -> [Point<Pixels>] {
+        let model = AnchorModel()
+        let window = try harnessWindow { VStack(spacing: 0) { EqHost(model: model) } }
+        window.window.testingRetainedSubtrees = retained
+        func draw() { window.window.setNeedsRedraw(); window.tick() }
+        for _ in 0..<6 { draw() }
+        var out: [Point<Pixels>] = []
+        for (dx, dy) in [(Float(67), Float(41)), (74, 41), (88.5, 45.25), (60, 40)] {
+            model.dx = dx
+            model.dy = dy
+            try await window.runUntilIdle()
+            for _ in 0..<3 { draw() }
+            window.exitPointer()
+            let label = try window.element(label: "View")
+            try window.click(label)
+            let shown = try #require(window.platformWindow.presentedMenus.last)
+            #expect(abs(shown.at.x.value - label.frame.origin.x.value) < 1.01 && abs(shown.at.y.value - label.frame.bottom) < 1.01,
+                    "drawn: \(shown.at) vs \(label.frame)")
+            out.append(shown.at)
+            try window.dismissMenu()
+            window.exitPointer()
+        }
+        return out
+    }
+    let fresh = try await points(retained: false)
+    let retained = try await points(retained: true)
+    #expect(fresh.count == 4 && retained.count == 4)
+    for (a, b) in zip(fresh, retained) {
+        #expect(a.x.value == b.x.value && a.y.value == b.y.value, "retained \(b) equals fresh \(a)")
+    }
+}
+
+/// T5d - the shifted replay under an OUTER `.scaleEffect` (dyadic 1.5 and non-dyadic 1.3) with a moving fractional INNER `.offset`:
+/// the Menu's anchor and a `.contextMenu` record equal a fresh frame's (`MA-H`, the Float cast of the Double delta).
+private struct EqBoth: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        VStack(alignment: .leading, spacing: 4) {
+            Menu("View") { Button("Perspective") {} }
+            Button("Target") {}.contextMenu { Button("Copy") {} }.frame(width: Pixels(80), height: Pixels(24))
+        }
+    }
+    static func == (l: EqBoth, r: EqBoth) -> Bool { true }
+}
+
+private struct ScaledHost: Component {
+    let model: AnchorModel
+    let scale: Double
+    var content: some ElementGroup {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Pixels(100))
+            VStack { EqBoth().equatable() }
+                .offset(x: Pixels(model.dx), y: Pixels(model.dy))
+                .scaleEffect(scale, anchor: .topLeading)
+        }
+    }
+}
+
+@Test(arguments: [1.5, 1.3]) @MainActor func aShiftedReplayUnderAnOuterScalePresentsWhereAFreshFrameDoes(scale: Double) async throws {
+    func points(retained: Bool) async throws -> (menus: [Point<Pixels>], contexts: [Point<Pixels>], hits: Int) {
+        let model = AnchorModel()
+        let window = try harnessWindow { VStack(spacing: 0) { ScaledHost(model: model, scale: scale) } }
+        window.window.testingRetainedSubtrees = retained
+        var hits = 0
+        func draw() { window.window.setNeedsRedraw(); window.tick(); hits += window.lastFrameWork.retainedPrepaintHits }
+        for _ in 0..<6 { draw() }
+        var menus: [Point<Pixels>] = [], contexts: [Point<Pixels>] = []
+        for (dx, dy) in [(Float(67.25), Float(41.5)), (74.1, 41.5), (88.5, 45.3), (60.7, 40.15), (13.37, 91.9)] {
+            model.dx = dx
+            model.dy = dy
+            try await window.runUntilIdle()
+            for _ in 0..<3 { draw() }
+            window.exitPointer()
+            let label = try window.element(label: "View")
+            try window.click(label)
+            let shown = try #require(window.platformWindow.presentedMenus.last)
+            menus.append(shown.at)
+            try window.dismissMenu()
+            window.exitPointer()
+            let target = try window.element(label: "Target")
+            #expect(try window.performAccessibilityAction(.showMenu, on: target))
+            let ctx = try #require(window.platformWindow.presentedMenus.last)
+            contexts.append(ctx.at)
+            #expect(abs(ctx.at.x.value - target.frame.origin.x.value) < 1.01 && abs(ctx.at.y.value - target.frame.bottom) < 1.01,
+                    "context: \(ctx.at) vs \(target.frame)")
+            try window.dismissMenu()
+            window.exitPointer()
+        }
+        return (menus, contexts, hits)
+    }
+    let fresh = try await points(retained: false)
+    let retained = try await points(retained: true)
+    #expect(retained.hits > 0, "the retained run replays prepaints: \(retained.hits)")
+    #expect(fresh.menus.count == 5 && retained.menus.count == 5 && retained.contexts.count == 5)
+    // A dyadic scale is bit-exact; a non-dyadic one is within a few ulps (`MA-I`): a placement hint, not a pixel.
+    let tolerance: Float = scale == 1.5 ? 0 : 1e-3
+    func same(_ a: Point<Pixels>, _ b: Point<Pixels>) -> Bool {
+        abs(a.x.value - b.x.value) <= tolerance && abs(a.y.value - b.y.value) <= tolerance
+    }
+    for (a, b) in zip(fresh.menus, retained.menus) { #expect(same(a, b), "menu \(b) equals fresh \(a)") }
+    for (a, b) in zip(fresh.contexts, retained.contexts) { #expect(same(a, b), "context \(b) equals fresh \(a)") }
+}
+
+/// T6 - `.pickerStyle(.menu)`.
+@Test @MainActor func aPickerMenuUnderOffsetAnchorsToTheDrawnBox() throws {
+    let window = try harnessWindow {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Pixels(100))
+            VStack { PickerFixture() }.offset(x: Pixels(50), y: Pixels(35))
+        }
+    }
+    let label = try #require(window.elements(role: .popUpButton).first)
+    try window.click(label)
+    let shown = try #require(window.platformWindow.presentedMenus.last)
+    #expect(abs(shown.at.x.value - label.frame.origin.x.value) < 1.01, "\(shown.at) vs \(label.frame)")
+    #expect(abs(shown.at.y.value - label.frame.bottom) < 1.01, "\(shown.at) vs \(label.frame)")
+}
+
+private struct PickerFixture: Component {
+    @State var mode = 0
+    var content: some ElementGroup {
+        Picker("Mode", selection: $mode) {
+            Text("One").tag(0)
+            Text("Two").tag(1)
+        }
+        .pickerStyle(.menu)
+    }
+}
+
+/// T7 - a keyboard / accessibility opened context menu uses the drawn box; a pointer-opened one the press point.
+@Test @MainActor func aKeyboardOpenedContextMenuUnderOffsetAnchorsToTheDrawnBox() throws {
+    let window = try harnessWindow {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Pixels(100))
+            Button("Target") {}
+                .contextMenu { Button("Copy") {} }
+                .frame(width: Pixels(80), height: Pixels(24))
+                .offset(x: Pixels(70), y: Pixels(50))
+        }
+    }
+    let target = try window.element(label: "Target")
+    #expect(try window.performAccessibilityAction(.showMenu, on: target))
+    let shown = try #require(window.platformWindow.presentedMenus.last)
+    #expect(abs(shown.at.x.value - target.frame.origin.x.value) < 1.01, "\(shown.at) vs \(target.frame)")
+    #expect(abs(shown.at.y.value - target.frame.bottom) < 1.01, "\(shown.at) vs \(target.frame)")
+    try window.dismissMenu()
+    try window.rightClick(target)
+    let pressed = try #require(window.platformWindow.presentedMenus.last)
+    #expect(abs(pressed.at.x.value - target.frame.centerX) < 1.01 && abs(pressed.at.y.value - target.frame.centerY) < 1.01,
+            "pointer open stays at the press: \(pressed.at)")
+}
+
+/// T8 - a popover places from the drawn box: its panel moves with the offset.
+@Test @MainActor func aPopoverAndAnchoredOverlayUnderOffsetPlaceFromTheDrawnBox() throws {
+    @MainActor func panelOrigin(offset: Bool) throws -> Point<Pixels> {
+        let window = try harnessWindow {
+            HStack(spacing: 0) {
+                Color.clear.frame(width: Pixels(100))
+                VStack {
+                    Button("Open") {}
+                        .popover(isPresented: .constant(true)) {
+                            Text("Panel").frame(width: Pixels(60), height: Pixels(20))
+                        }
+                }
+                    .offset(x: Pixels(offset ? 40 : 0), y: Pixels(offset ? 30 : 0))
+            }
+        }
+        window.tick()
+        return try window.element(label: "Panel").frame.origin
+    }
+    let plain = try panelOrigin(offset: false)
+    let moved = try panelOrigin(offset: true)
+    #expect(abs((moved.x.value - plain.x.value) - 40) < 1.01, "x follows the offset: \(plain) -> \(moved)")
+    #expect(abs((moved.y.value - plain.y.value) - 30) < 1.01, "y follows the offset: \(plain) -> \(moved)")
+}
+
+/// T9 - the drawn menu (SDL's answer) opens at the drawn label.
+@Test @MainActor func aDrawnMenuOpensAtTheDrawnLabelUnderOffset() throws {
+    let window = try harnessWindow(size: sz(800, 300), options: .init(presentsMenusNatively: false)) { offsetMenuTree() }
+    let label = try window.element(label: "View")
+    try window.click(label)
+    let items = try window.elements { $0.role == .menuItem }
+    let first = try #require(items.first)
+    #expect(abs(first.frame.origin.x.value - label.frame.origin.x.value) < 8, "\(first.frame) vs \(label.frame)")
+    #expect(first.frame.origin.y.value >= label.frame.bottom - 1, "below the drawn label: \(first.frame) vs \(label.frame)")
+    #expect(first.frame.origin.y.value < label.frame.bottom + 12, "next to the drawn label: \(first.frame) vs \(label.frame)")
+}
+
+/// T10 - a legacy element's own `.offset` is in the anchor too (`MA-B`).
+@Test @MainActor func aLegacyElementsOwnEffectIsInTheAnchor() throws {
+    let window = try harnessWindow {
+        Column {
+            Menu("View") { Button("Perspective") {} }.offset(x: Pixels(55), y: Pixels(25))
+        }
+    }
+    try expectNativeAnchor(window)
+}
+
+/// T11 - the one function: no other site builds a presentation or context-menu bounds.
+@Test func everyPresentationBoundsSiteGoesThroughTheOneFunction() throws {
+    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Sources/MetalUI/Frame.swift")
+    let source = try String(contentsOf: url, encoding: .utf8)
+    func window(after marker: String, length: Int = 420) throws -> [Substring] {
+        var out: [Substring] = []
+        var from = source.startIndex
+        while let r = source.range(of: marker, range: from..<source.endIndex) {
+            out.append(source[r.lowerBound..<(source.index(r.lowerBound, offsetBy: length, limitedBy: source.endIndex) ?? source.endIndex)])
+            from = r.upperBound
+        }
+        return out
+    }
+    let anchors = try window(after: "func recordPresentationAnchor")
+    #expect(anchors.count == 1)
+    for body in anchors {
+        #expect(body.contains("presentationWindowBounds("), "recordPresentationAnchor routes through the function")
+        #expect(!body.contains("activeOffset"), "and does no offset arithmetic of its own")
+    }
+    // The record of a declaring element (the replay's shifted copy is `MA-H`'s own site, in `replayPrepaintLedger`).
+    let records = try window(after: "ContextMenuRecord(").filter { $0.contains("attachment: contextual") }
+    #expect(records.count == 1)
+    for body in records {
+        #expect(body.contains("presentationWindowBounds("), "ContextMenuRecord's bounds go through the function")
+        #expect(!body.contains("activeOffset"))
+    }
+}

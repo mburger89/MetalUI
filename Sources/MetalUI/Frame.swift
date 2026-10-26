@@ -1758,9 +1758,7 @@ public final class Frame {
             if contextual.menu != nil, keyboardHiddenDepth == 0 {
                 let record = ContextMenuRecord(
                     attachment: contextual, isEnabled: enabled,
-                    bounds: Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
-                                                 y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
-                                   size: bounds.size))
+                    bounds: presentationWindowBounds(bounds))
                 contextMenuRecords[id] = record
                 prepaintLog?.contextMenus.append((id, record))
             }
@@ -2099,12 +2097,24 @@ public final class Frame {
     /// a frame rendered without a window.
     var menuPresenter: MenuPresenter?
 
+    /// `bounds` (an element's, in the current scroll offset) as drawn, in window
+    /// points: the scroll translation, then the open render effects' composed
+    /// map as a bounding box, as an accessibility frame is made (`MA-B`,
+    /// divergence 107). With no effect open it is `scrolled(bounds)` bit for
+    /// bit. The one function every presentation anchor and context-menu record
+    /// goes through.
+    /// `ownEffects` is a legacy element's own `Decoration.renderEffects` when it records before its
+    /// registration opens them (`MA-G`).
+    func presentationWindowBounds(_ bounds: Bounds<Pixels>, ownEffects: [RenderEffectSpec] = []) -> Bounds<Pixels> {
+        effectBoundingBox(of: scrolled(bounds), ownEffects: ownEffects, bounds: bounds)
+    }
+
     /// Records `bounds` (this element's, in the current offset) as `id`'s
-    /// presentation anchor, in window points.
-    func recordPresentationAnchor(_ id: GlobalElementID, bounds: Bounds<Pixels>) {
-        let windowBounds = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
-                                                y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
-                                  size: bounds.size)
+    /// presentation anchor, in window points as drawn: render effects included
+    /// (`MA-A`, `MA-B`).
+    func recordPresentationAnchor(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  ownEffects: [RenderEffectSpec] = []) {
+        let windowBounds = presentationWindowBounds(bounds, ownEffects: ownEffects)
         presentationAnchors[id] = windowBounds
         prepaintLog?.anchors.append((id, windowBounds))
     }
@@ -4171,7 +4181,14 @@ extension Frame {
     func replayPrepaintLedger(_ l: PrepaintLedger, hitboxes moved: [Hitbox]? = nil,
                               elementBounds movedBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
                               accessibility: AXTranslation? = nil,
-                              geometry movedGeometry: [GeometryNoteRecord]? = nil) {
+                              geometry movedGeometry: [GeometryNoteRecord]? = nil,
+                              windowShift: (dx: Float, dy: Float)? = nil) {
+        // A pure translation of the effects around the occurrence moves each drawn window rect by it (`MA-H`).
+        func shifted(_ b: Bounds<Pixels>) -> Bounds<Pixels> {
+            guard let windowShift else { return b }
+            return Bounds(origin: Point(x: Pixels(b.origin.x.value + windowShift.dx), y: Pixels(b.origin.y.value + windowShift.dy)),
+                          size: b.size)
+        }
         let firstHitbox = hitboxes.count
         hitboxes.append(contentsOf: moved ?? l.hitboxes)
         if prepaintLog != nil {
@@ -4198,7 +4215,9 @@ extension Frame {
             accessibilityPressOnly[id] = action
             prepaintLog?.pressOnly.append((id, action))
         }
-        for (id, record) in l.contextMenus {
+        for (id, stored) in l.contextMenus {
+            let record = windowShift == nil ? stored
+                : ContextMenuRecord(attachment: stored.attachment, isEnabled: stored.isEnabled, bounds: shifted(stored.bounds))
             contextMenuRecords[id] = record
             prepaintLog?.contextMenus.append((id, record))
         }
@@ -4206,7 +4225,7 @@ extension Frame {
             elementBounds[id] = bounds
             prepaintLog?.elementBounds.append((id, bounds))
         }
-        for (id, bounds) in l.anchors { replayPresentationAnchor(id, windowBounds: bounds) }
+        for (id, bounds) in l.anchors { replayPresentationAnchor(id, windowBounds: shifted(bounds)) }
         // Each geometry note is made again, in order, so the store numbers it as a build would (`RG-A`).
         for note in movedGeometry ?? l.geometry {
             animationStore.lifecycle.noteGeometry(note.value, watch: note.watch, key: note.key, owner: note.owner)

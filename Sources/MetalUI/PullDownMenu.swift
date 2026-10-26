@@ -19,7 +19,9 @@ final class MenuPresenter {
     init(window: Window?) { self.window = window }
 
     /// Opens `content` as `id`'s pull-down, anchored at the bounds `id`
-    /// recorded in the last frame (`Window.lastPresentationAnchors`).
+    /// recorded in the last frame (`Window.lastPresentationAnchors`): its
+    /// drawn bounds in window points, render effects and scroll included
+    /// (`MA-B`).
     /// `initialHighlight` is the row an in-window panel opens highlighted
     /// and scrolled to — a menu picker's selection (`SV-Q`).
     func openPullDown(_ id: GlobalElementID, isEnabled: Bool, initialHighlight: Int? = nil,
@@ -61,7 +63,9 @@ extension Menu: Element, StyledElement {
         let presenter = pass.frame.menuPresenter
         let isEnabled = pass.frame.environmentTop.isEnabled
         let content = content
-        pass.frame.recordPresentationAnchor(id, bounds: bounds)
+        // The menu's own render effects open inside its button's registration,
+        // after this line, so they are passed in (`MA-G`).
+        pass.frame.recordPresentationAnchor(id, bounds: bounds, ownEffects: decoration.renderEffects)
         var composed = handlers
         composed.onClick = { [weak presenter] in
             presenter?.openPullDown(id, isEnabled: isEnabled, content: { MenuItems([content()]) })
@@ -81,7 +85,8 @@ extension Window {
     /// Presents `id`'s pull-down menu at its bottom-leading corner (`MN-H`
     /// item 1): natively there when the platform shows menus, else the drawn
     /// panel below it — the context menu's own path (`MN-C`, `MN-F`), its items
-    /// evaluated now, under `id`'s dispatch. Nothing without an anchor.
+    /// evaluated now, under `id`'s dispatch. The corner is of the label's drawn
+    /// bounds, render effects included (`MA-B`). Nothing without an anchor.
     func openPullDownMenu(_ id: GlobalElementID, isEnabled: Bool, initialHighlight: Int? = nil,
                           content: @escaping @MainActor () -> MenuItems) {
         guard let bounds = lastPresentationAnchors[id] else { return }

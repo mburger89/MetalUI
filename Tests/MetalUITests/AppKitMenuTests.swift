@@ -183,6 +183,20 @@ private let appName = ProcessInfo.processInfo.processName
     #expect(log.entries == ["after", "menu(7,4)"], "the chosen item, after the call returned")
 }
 
+/// **T12** (`MA-C`, XP-G29). The window-point a pull-down opens at - now the label's drawn corner, effects included - reaches
+/// `NSMenu.popUp` unchanged in the flipped host view: no clamp to the host, no second offset. Mutation: add the host's
+/// origin or flip the y.
+@MainActor
+@Test func anAppKitPopUpReceivesTheDrawnPointUnchanged() throws {
+    let (_, appKit, _, _) = try hostWindow()
+    var presented: [NSPoint] = []
+    appKit.menuPresenter = { _, point, _ in presented.append(point) }
+    for point in [pt(1000, 410), pt(10, 100), pt(223.5, 187)] {
+        #expect(appKit.presentMenu(c1Menu, at: point))
+    }
+    #expect(presented == [NSPoint(x: 1000, y: 410), NSPoint(x: 10, y: 100), NSPoint(x: 223.5, y: 187)])
+}
+
 /// **2.3** (`MN-C` item 4). A menu dismissed with no choice still reports, as
 /// `.menuAction(token, nil)`, so the window's session closes. Mutation: send
 /// nothing on dismissal.
