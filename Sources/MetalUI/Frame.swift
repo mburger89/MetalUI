@@ -4181,7 +4181,14 @@ extension Frame {
     func replayPrepaintLedger(_ l: PrepaintLedger, hitboxes moved: [Hitbox]? = nil,
                               elementBounds movedBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
                               accessibility: AXTranslation? = nil,
-                              geometry movedGeometry: [GeometryNoteRecord]? = nil) {
+                              geometry movedGeometry: [GeometryNoteRecord]? = nil,
+                              windowShift: (dx: Float, dy: Float)? = nil) {
+        // A pure translation of the effects around the occurrence moves each drawn window rect by it (`MA-H`).
+        func shifted(_ b: Bounds<Pixels>) -> Bounds<Pixels> {
+            guard let windowShift else { return b }
+            return Bounds(origin: Point(x: Pixels(b.origin.x.value + windowShift.dx), y: Pixels(b.origin.y.value + windowShift.dy)),
+                          size: b.size)
+        }
         let firstHitbox = hitboxes.count
         hitboxes.append(contentsOf: moved ?? l.hitboxes)
         if prepaintLog != nil {
@@ -4208,7 +4215,9 @@ extension Frame {
             accessibilityPressOnly[id] = action
             prepaintLog?.pressOnly.append((id, action))
         }
-        for (id, record) in l.contextMenus {
+        for (id, stored) in l.contextMenus {
+            let record = windowShift == nil ? stored
+                : ContextMenuRecord(attachment: stored.attachment, isEnabled: stored.isEnabled, bounds: shifted(stored.bounds))
             contextMenuRecords[id] = record
             prepaintLog?.contextMenus.append((id, record))
         }
@@ -4216,7 +4225,7 @@ extension Frame {
             elementBounds[id] = bounds
             prepaintLog?.elementBounds.append((id, bounds))
         }
-        for (id, bounds) in l.anchors { replayPresentationAnchor(id, windowBounds: bounds) }
+        for (id, bounds) in l.anchors { replayPresentationAnchor(id, windowBounds: shifted(bounds)) }
         // Each geometry note is made again, in order, so the store numbers it as a build would (`RG-A`).
         for note in movedGeometry ?? l.geometry {
             animationStore.lifecycle.noteGeometry(note.value, watch: note.watch, key: note.key, owner: note.owner)

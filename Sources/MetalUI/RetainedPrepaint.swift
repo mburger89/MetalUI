@@ -212,7 +212,8 @@ enum RetainedPrepaintMode {
     /// Replay the ledger; the occurrence's `component.prepaintGroup` does not run. With hitboxes: the ledger moved
     /// by the translation of the render effects around the occurrence (`RK-G`, `RK-S`), hitbox transforms rewritten.
     case replay(PrepaintLedger, moved: [Hitbox]?, elementBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
-                accessibility: AXTranslation? = nil, geometry: [GeometryNoteRecord]? = nil)
+                accessibility: AXTranslation? = nil, geometry: [GeometryNoteRecord]? = nil,
+                windowShift: (dx: Float, dy: Float)? = nil)
     /// Run prepaint, recording a ledger when a recorder is given.
     case run(PrepaintRecorder?)
 }
@@ -345,12 +346,7 @@ extension Frame {
                 // (`RZ-A`, `RZ-D`), with no delta; anything else is refused by name (`RZ-B`).
                 let delta: (dx: Double, dy: Double)?
                 switch key.extras.change(from: ledger.key.extras) {
-                case .translation(let dx, let dy):
-                    delta = (dx, dy)
-                    // The anchors and context-menu records are window-space rects the replay does not move: a moved
-                    // `.offset` would replay the old place (`MA-D`, was refused for `.affine` only).
-                    if !ledger.anchors.isEmpty { return refuseEffect("presentationAnchor", build: build, phase: phase) }
-                    if !ledger.contextMenus.isEmpty { return refuseEffect("contextMenus", build: build, phase: phase) }
+                case .translation(let dx, let dy): delta = (dx, dy)
                 case .affine:
                     delta = nil
                     // Window-space rects the replay does not recompute (`RZ-F`).
@@ -377,7 +373,10 @@ extension Frame {
                         }
                         memos.retained.prepaintHits += 1
                         memos.retained.skippedPrepaints += ledger.prepaints
-                        return .replay(ledger, moved: moved, elementBounds: nil, accessibility: accessibility, geometry: movedGeometry)
+                        // The anchors and context-menu records are drawn window rects (`MA-B`): a pure translation of the effects moves
+                        // each by exactly that amount (`MA-H`). An affine change refused them above.
+                        return .replay(ledger, moved: moved, elementBounds: nil, accessibility: accessibility, geometry: movedGeometry,
+                                       windowShift: delta.map { (Float($0.dx), Float($0.dy)) })
                     }
                     noteRun(phase, "translationRefused: hitboxes \(ledger.hitboxes.count)")
                     memos.retained.noteTranslationRefused(reason: "hitboxes")

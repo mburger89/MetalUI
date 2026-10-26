@@ -1,7 +1,7 @@
 # Menu anchor under render effects (XP-G29) - decisions
 
 Rulings for item XP-G29 of the gpui-gap priority list (MetalCreator report 2026-10-26, user screenshot; **not a plan task**). Prefix `MA-`.
-**Next unused: `MA-G`.** Spec: [`specs/2026-10-26-menu-anchor-design.md`](specs/2026-10-26-menu-anchor-design.md). Record: `../record/156-menu-anchor.md`.
+**Next unused: `MA-I`.** Spec: [`specs/2026-10-26-menu-anchor-design.md`](specs/2026-10-26-menu-anchor-design.md). Record: `../record/156-menu-anchor.md`.
 Branch `fix/menu-anchor` from `bc747b6b`. Amends `MN-H` item 1 and `MN-AD` (the anchor is the label's **drawn** frame). Divergence labels reserved 855-864: none taken.
 
 Sources of truth. Reproduction: `Tests/MetalUITestingTests/MenuAnchorReproTests.swift` (committed red at the design phase, see MA-A). SwiftUI: **not probed** (MA-E). gpui has no pull-down menu element; its `deferred`/`anchored`
@@ -55,3 +55,23 @@ divergence is recorded: the change moves MetalUI to the behaviour its documentat
 offset, overlay attachment over a `GPUSurface` and a split. **Rejected:** a separate pane-origin fix (no pane term is missing: `bounds` carries container origins from layout) and lifting the retained `presentationAnchor` refusal (MA-D stands).
 **Corrected in the spec:** T12 lives in the existing `Tests/MetalUITests/AppKitMenuTests.swift` (there is no `MetalUIAppKitTests` target); counts are 4449 + 13 = 4462. T11 (source scan) is weak evidence alone and is backed by M5 and M1; it stays.
 **Re-checked clean:** no public declaration, no platform requirement, no shader, no divergence label (855-864 untouched), no seam or C enum change; demo section env-gated so the fourteen images stay 0 px.
+
+## MA-G - a legacy `Menu` records its anchor before its own effects open (found at the implementation phase; amends MA-B)
+
+**Evidence.** MA-B said "own-effects of a legacy element are already open when its `prepaint` runs". They are not: `registerAndScope` opens `Decoration.renderEffects` inside the element's registration, and `Menu.prepaint` records its
+anchor *before* it calls `button.prepaint`. T10 (`aLegacyElementsOwnEffectIsInTheAnchor`, a legacy `Menu(...).offset(x: 55, y: 25)`) stayed red (55 / 25 points off) after the ambient-only fix. **Ruling.**
+`presentationWindowBounds(_:ownEffects:)` and `recordPresentationAnchor(_:bounds:ownEffects:)` take the element's own effects (default `[]`), exactly as `TextField`/`TextEditor` pass them to `effectBoundingBox`; `Menu` passes
+`decoration.renderEffects`. `PickerMenuButton` needs no argument (the `Picker`'s `MenuBox` opens its effects around the button's prepaint) and the `ContextMenuRecord` site is already inside `registerAndScope`. Proposal modifiers
+(`Popover`) have no own effect.
+
+## MA-H - a pure-translation replay shifts the stored window rects (found at the implementation phase; amends MA-D)
+
+**Evidence.** MA-D claimed "a changed effect changes the key (`RZ-B`), so a stale anchor cannot replay". Wrong for a translation: `retainedPrepaintDecisionInner` admits a pure-translation effect change (`.translation(dx, dy)`, `RK-G`, the
+report's own shape: a moving `.offset`) and replays the ledger, whose `anchors` and `contextMenus` were window rects recorded **without** the effect before this item (so replaying them was exact) and **with** it after. T5
+(`aMenuInAnEquatableComponentReplaysItsAnchor`, `.equatable()` Menu, model offset 60,40 to 10,90) was red with only the ambient fix: the retained replay popped the menu at the old place (278, 216) while the label was drawn at (228, 242).
+**First attempt, rejected.** Refusing `presentationAnchor`/`contextMenus` for a translation too (as the affine arm does, `RZ-F`) fixed T5 but reddened 22 existing pins (`aTranslatedReplayEqualsAFreshFrameAtEveryScale` x10 arms,
+`aPurePanStillTakesTheTranslationArm` x2 and their kin: `RPCard` carries a `.contextMenu`, and Z10's text says a pan "still replays the prepaint and counts no refusal"), and cost a redo plus the eight-build backoff per change. **Ruling.**
+`PrepaintMode.replay` gains `windowShift: (dx: Float, dy: Float)?`, the translation arm's own delta; `replayPrepaintLedger` adds it to every replayed anchor and context-menu record's origin. Exact algebra: the translation arm requires equal
+linear parts and the innermost composed translation moved by `(dx, dy)`, and a bounding box of `M x + t` moves by `Delta t` whatever `M` is. The affine arm and the layout/scroll shift arm (`movedPrepaintLedger`) keep their by-name refusals
+(a bounding box of an affine change is not a shift). The shifted rect equals a fresh frame's bit for bit where the sum is exact in Float (whole points, halves, quarters: T5c) and within one ulp elsewhere - an anchor is a placement hint,
+not a pixel. **Mutation** M4 removes the shift (T5, T5b, T5c red) and M4b drops the stored rects' replay entirely.

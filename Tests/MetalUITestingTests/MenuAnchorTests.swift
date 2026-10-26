@@ -170,7 +170,7 @@ private struct EqHost: Component {
     moving.dy = 90
     try await second.runUntilIdle()
     replayed = 0
-    // The refusal costs one redo and the window's backoff (`RK-`, eight builds); the new key replays after it.
+    // A pure translation replays the ledger with its window rects shifted by it (`MA-H`).
     for _ in 0..<16 { let f = drawSecond(); replayed += f.retainedPrepaintHits + f.retainedGrafts }
     let moved = try second.element(label: "View").frame
     #expect(abs(moved.origin.x.value - (before.origin.x.value - 50)) < 0.01
@@ -209,6 +209,40 @@ private struct EqContextHost: Component {
     let shown = try #require(window.platformWindow.presentedMenus.last)
     #expect(abs(shown.at.x.value - target.frame.origin.x.value) < 1.01 && abs(shown.at.y.value - target.frame.bottom) < 1.01,
             "\(shown.at) vs \(target.frame)")
+}
+
+/// T5c - the shifted replay equals a fresh frame: with retention off and on, the same offsets script presents the same point.
+@Test @MainActor func aShiftedReplayPresentsWhereAFreshFrameDoes() async throws {
+    func points(retained: Bool) async throws -> [Point<Pixels>] {
+        let model = AnchorModel()
+        let window = try harnessWindow { VStack(spacing: 0) { EqHost(model: model) } }
+        window.window.testingRetainedSubtrees = retained
+        func draw() { window.window.setNeedsRedraw(); window.tick() }
+        for _ in 0..<6 { draw() }
+        var out: [Point<Pixels>] = []
+        for (dx, dy) in [(Float(67), Float(41)), (74, 41), (88.5, 45.25), (60, 40)] {
+            model.dx = dx
+            model.dy = dy
+            try await window.runUntilIdle()
+            for _ in 0..<3 { draw() }
+            window.exitPointer()
+            let label = try window.element(label: "View")
+            try window.click(label)
+            let shown = try #require(window.platformWindow.presentedMenus.last)
+            #expect(abs(shown.at.x.value - label.frame.origin.x.value) < 1.01 && abs(shown.at.y.value - label.frame.bottom) < 1.01,
+                    "drawn: \(shown.at) vs \(label.frame)")
+            out.append(shown.at)
+            try window.dismissMenu()
+            window.exitPointer()
+        }
+        return out
+    }
+    let fresh = try await points(retained: false)
+    let retained = try await points(retained: true)
+    #expect(fresh.count == 4 && retained.count == 4)
+    for (a, b) in zip(fresh, retained) {
+        #expect(a.x.value == b.x.value && a.y.value == b.y.value, "retained \(b) equals fresh \(a)")
+    }
 }
 
 /// T6 - `.pickerStyle(.menu)`.
@@ -326,8 +360,9 @@ private struct PickerFixture: Component {
         #expect(body.contains("presentationWindowBounds("), "recordPresentationAnchor routes through the function")
         #expect(!body.contains("activeOffset"), "and does no offset arithmetic of its own")
     }
-    let records = try window(after: "ContextMenuRecord(")
-    #expect(!records.isEmpty)
+    // The record of a declaring element (the replay's shifted copy is `MA-H`'s own site, in `replayPrepaintLedger`).
+    let records = try window(after: "ContextMenuRecord(").filter { $0.contains("attachment: contextual") }
+    #expect(records.count == 1)
     for body in records {
         #expect(body.contains("presentationWindowBounds("), "ContextMenuRecord's bounds go through the function")
         #expect(!body.contains("activeOffset"))
