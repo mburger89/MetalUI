@@ -46,6 +46,8 @@ arithmetic in `recordPresentationAnchor` and `ContextMenuRecord`). Two further r
 | M6 `Menu.prepaint` no longer passes `ownEffects:` (filtered, MenuAnchor family) | 1: `aLegacyElementsOwnEffectIsInTheAnchor` |
 | T12 mutant: `AppKitWindow.presentMenu` adds 1 to the x it hands `menuPresenter` (filtered) | 1: `anAppKitPopUpReceivesTheDrawnPointUnchanged` |
 
+Branch checker's own mutations (filtered to `MenuAnchorTests|PullDown|TranslatedReplay|AppKitMenuTests`, 45 tests): B1 `presentationWindowBounds` drops `scrolled(...)` reddens `aMenuInAScrolledScrollViewUnderOffsetAnchorsToTheDrawnBox` and `aPullDownMenuInsideAScrolledScrollerOpensBelowItsScrolledFrame`; B2 `replayPrepaintLedger`'s shift drops `dy` reddens `aContextMenuRecordInAnEquatableComponentFollowsAMovedOffset`, `aMenuInAnEquatableComponentReplaysItsAnchor`, `aShiftedReplayPresentsWhereAFreshFrameDoes`. Checker re-took the clean-build native run (4464 tests, 5 sheet issues, 773 s) and the fourteen images (`compare.sh bc747b6b HEAD`, all scene identical, 0 px).
+
 M4 and M6 are filtered runs, not full-suite runs. **Open:** an outer `.scaleEffect` with a moving inner `.offset` is not pinned for replayed anchors (`windowShift` casts a `Double` delta to `Float`; T5c is bit-equal only where Float arithmetic is exact); if it fails, refuse `presentationAnchor` and `contextMenus` in the translation arm when the outer linear part is not identity.
 
 ## 5. Demo and counts
