@@ -289,6 +289,10 @@ extension Window {
     /// compares two windows' timelines pins both (`RK-AD`): the anchor is read from `Date()` per window.
     package var testingTimelineClockOffset: Double? {
         get { animationStore.timeline.clockOffset }
-        set { animationStore.timeline.clockOffset = newValue }
+        set {
+            animationStore.timeline.clockOffset = newValue
+            // The first frame (timestamp 0) read the wall clock and anchored every cursor on it (`RK-AE`).
+            animationStore.timeline.resetCursors()
+        }
     }
 }
