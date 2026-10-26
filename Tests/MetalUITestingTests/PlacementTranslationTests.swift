@@ -152,17 +152,17 @@ private struct EFRoot: Component {
     }
 }
 
-/// 12 - an occurrence whose layout origin **and** the render effect above it move in one frame is not replayed translated (the two
-/// translations are not combined, `FS-O`): the refusal is counted by the name `effectAndLayoutMoved`, the prepaint runs and the frame
-/// equals a retention-off window's at every step. Mutation: the counter line removed (the name is gone), and the paint-time ambient
-/// check kept as is.
+/// 12 - an occurrence whose layout origin **and** the render effect above it move in one frame is replayed combined (`FS-O`,
+/// `EL-B`; was `aShiftUnderAMovedRenderEffectIsRefusedByName`, which pinned the counted refusal `effectAndLayoutMoved`): the name is
+/// never emitted, nothing is redone, the prepaint of the cards replays and the frame equals a retention-off window's at every step.
+/// Mutation: the counter line restored (the name is back); the combined branch removed (no prepaint hit).
 @Test(.enabled(if: !rsVerifying, ptVerifyingNote)) @MainActor
-func aShiftUnderAMovedRenderEffectIsRefusedByName() async throws {
+func aShiftUnderAMovedRenderEffectIsReplayedCombined() async throws {
     let pair = try RPPair(size: sz(200, 400), scale: 2, warm: 4, accessibility: false, graft: false) { side in
         VStack(spacing: 0) { EFRoot(side: side) }
     }
     try pair.compare("warm")
-    var refusals: [String: Int] = [:], redos = 0
+    var refusals: [String: Int] = [:], redos = 0, prepaintHits = 0
     for step in 0..<3 {
         pair.on.resetFrameWork()
         for s in [pair.onSide, pair.offSide] { s.inputs.offset += 4 }
@@ -170,9 +170,11 @@ func aShiftUnderAMovedRenderEffectIsRefusedByName() async throws {
         pair.redraw()
         let f = pair.stepWork
         refusals.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +); redos += f.retainedRedos
+        prepaintHits += f.retainedPrepaintHits
         try pair.compare("step \(step)")
     }
-    #expect(refusals["effectAndLayoutMoved", default: 0] > 0, "named: \(refusals)")
+    #expect(refusals["effectAndLayoutMoved"] == nil, "the retired name is never emitted: \(refusals)")
+    #expect(prepaintHits >= 6 * 3, "the six cards replayed their prepaint at each step: \(prepaintHits), \(refusals)")
     #expect(redos == 0)
 }
 

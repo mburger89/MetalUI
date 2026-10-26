@@ -26,6 +26,17 @@ enum ELExtra: String, CaseIterable, CustomStringConvertible, Sendable {
     case rotate
     /// The frame outside the effect clips (`.clipped()`), the clip moving with the header.
     case clipped
+    /// A card whose text carries a geometry note on its global frame (`RL-E`).
+    case geometry
+    /// A card whose note holds a named space declared inside the card (`geometryNamedSpace`).
+    case namedSpace
+    /// A card whose button has a context menu (`contextMenus`).
+    case menu
+    /// A card with a closed popover declarer (`presentationAnchor`).
+    case popover
+    /// A card with a hit-only box inside an effect the card opens (no primitive passes the scope, so paint moves it and only the
+    /// prepaint can name it: `effectAndLayoutInner`).
+    case innerHit
     var description: String { rawValue }
 }
 
@@ -40,19 +51,51 @@ struct ELCard: Component, @MainActor Equatable {
             case .shadowInside:
                 RoundedRectangle(cornerRadius: Pixels(3)).fill(Color(red: 0.2, green: 0.3 + Double(k) * 0.08, blue: 0.8))
                     .frame(width: Pixels(20), height: Pixels(14)).shadow(color: .black, radius: Pixels(2), x: Pixels(0), y: Pixels(1))
+            case .popover:
+                RoundedRectangle(cornerRadius: Pixels(3)).fill(Color(red: 0.2, green: 0.3 + Double(k) * 0.08, blue: 0.8))
+                    .frame(width: Pixels(20), height: Pixels(14))
+                    .popover(isPresented: .constant(false)) { Text("p\(k)").frame(width: Pixels(40), height: Pixels(20)) }
             default:
                 RoundedRectangle(cornerRadius: Pixels(3)).fill(Color(red: 0.2, green: 0.3 + Double(k) * 0.08, blue: 0.8))
                     .frame(width: Pixels(20), height: Pixels(14))
             }
-            Text("card \(k)").frame(width: Pixels(50), height: Pixels(14))
-            if extra == .innerOffset {
+            switch extra {
+            case .geometry:
+                Text("card \(k)").frame(width: Pixels(50), height: Pixels(14))
+                    .onGeometryChange(for: String.self, of: { ELCard.global($0) }) { log.add("G\(k):\($0)") }
+            case .namedSpace:
+                HStack(spacing: 0) {
+                    Box().frame(width: Pixels(16), height: Pixels(4))
+                    Box().frame(width: Pixels(24), height: Pixels(4))
+                        .onGeometryChange(for: String.self, of: { ELCard.named($0) }) { log.add("N\(k):\($0)") }
+                }
+                .coordinateSpace(.named("elin")).frame(width: Pixels(50), height: Pixels(14))
+            default:
+                Text("card \(k)").frame(width: Pixels(50), height: Pixels(14))
+            }
+            switch extra {
+            case .innerOffset:
                 Button("e\(k)") { log.add("e\(k)") }.accessibilityLabel("e\(k)").frame(width: Pixels(30), height: Pixels(14))
                     .offset(x: Pixels(2), y: Pixels(1))
-            } else {
+            case .menu:
+                Button("e\(k)") { log.add("e\(k)") }.accessibilityLabel("e\(k)").frame(width: Pixels(30), height: Pixels(14))
+                    .contextMenu { Button("menu \(k)") { log.add("menu \(k)") } }
+            case .innerHit:
+                Box().frame(width: Pixels(30), height: Pixels(14)).onClick { log.add("h\(k)") }
+                    .offset(x: Pixels(2), y: Pixels(1))
+            default:
                 Button("e\(k)") { log.add("e\(k)") }.accessibilityLabel("e\(k)").frame(width: Pixels(30), height: Pixels(14))
             }
         }
         .frame(height: Pixels(18))
+    }
+    static func global(_ p: GeometryProxy) -> String {
+        let g = p.frame(in: .global)
+        return "\(g.origin.x.value),\(g.origin.y.value) \(g.size.width.value)x\(g.size.height.value)"
+    }
+    static func named(_ p: GeometryProxy) -> String {
+        let g = p.frame(in: .global), f = p.frame(in: .named("elin"))
+        return "\(g.origin.x.value),\(g.origin.y.value) in \(f.origin.x.value),\(f.origin.y.value)"
     }
     static func == (l: ELCard, r: ELCard) -> Bool { l.k == r.k && l.log === r.log && l.extra == r.extra }
 }
