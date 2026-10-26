@@ -384,14 +384,48 @@ extension Frame {
                     noteRun(phase, "translationRefused: \(refusal.reason)")
                     memos.retained.noteTranslationRefused(reason: refusal.reason)
                 }
-            } else if ledger.key.rects != key.rects, key.extras.translation(from: ledger.key.extras) != nil {
-                // The layout origin and a render effect above the occurrence both moved: the two translations are not combined
-                // (`FS-O`), so the prepaint runs (`RG-G`). A counter only; the decision is unchanged.
-                noteRun(phase, "translationRefused: effectAndLayoutMoved")
-                memos.retained.noteTranslationRefused(reason: "effectAndLayoutMoved")
+            } else if memos.translatesLayout, let combined = ledger.key.shiftAndEffects(to: key), let change = combined.effect {
+                // The layout origin (or scroll offset) **and** the render effects around the occurrence moved together (`EL-B`, FS-O,
+                // was a counted refusal `effectAndLayoutMoved`).
+                return combinedPrepaintMode(ledger, shift: combined.shift, change: change, key: key, build: build, phase: phase)
             }
         }
         return .run(phase.grafted ? nil : openPrepaintWindow())
+    }
+
+    /// The prepaint decision of an occurrence whose layout moved and whose outer effects changed together (`EL-B`..`EL-G`): the
+    /// ledger made over by `movedCombinedLedger` (the delta in the occurrence's own space, then the effect now in force), or run
+    /// with the refusal counted by name. The effect refusals of the zoom arm are inherited as they are; a presentation anchor or a
+    /// context-menu record refuses for a translation too (`EL-F`: its window shift would be the linear part times the delta).
+    private func combinedPrepaintMode(_ ledger: PrepaintLedger, shift: LayoutShift, change: EffectChange, key: PrepaintKey,
+                                      build: RetainedBuild, phase: RetainedPhase) -> RetainedPrepaintMode {
+        let memos = stateTable.contentMemos
+        if case .refused(let reason) = change {
+            phase.effectRefusalCounted = true   // the paint's own count of the same relation is not repeated (`EL-M`)
+            return refuseEffect(reason, build: build, phase: phase)
+        }
+        switch movedCombinedLedger(ledger, shift: shift, clip: key.ambient.clip) {
+        case .refused(let reason):
+            return refuseEffect(reason, build: build, phase: phase)
+        case .moved(let translation):
+            // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand (`FS-P`, `RZ-D`).
+            if let point = mousePosition, translation.hitboxes.contains(where: { $0.contains(point) }) {
+                noteRun(phase, "pointerInMovedLedger")
+                return .run(phase.grafted ? nil : openPrepaintWindow())
+            }
+            memos.ledgerMoves += 1
+            memos.retained.prepaintHits += 1
+            memos.retained.skippedPrepaints += ledger.prepaints
+            if !retainedVerifiesFromEnvironment {
+                // Rebased to the whole new key, effect numbers included, with the moved hitboxes, locals and notes: the next frame
+                // at this position is an exact hit (`EL-G`).
+                let rebased = ledger.rebased(to: key, translation)
+                phase.entry.record?.prepaint = rebased
+                return .replay(rebased, moved: nil)
+            }
+            return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds,
+                           accessibility: translation.accessibility, geometry: translation.geometry)
+        }
     }
 
     /// The prepaint of an occurrence under an effect change a replay cannot carry: counted by name, run (`RZ-B`).

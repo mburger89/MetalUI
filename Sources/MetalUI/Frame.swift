@@ -4206,7 +4206,8 @@ extension Frame {
         for (index, (id, node)) in (accessibility?.nodes ?? l.axNodes).enumerated() {
             axNodes[id] = node
             prepaintLog?.axNodes.append((id, node))
-            prepaintLog?.axNodeLocals.append(index < l.axNodeLocals.count ? l.axNodeLocals[index] : nil)
+            let locals = accessibility?.nodeLocals ?? l.axNodeLocals   // a combined move carries the moved ones (`EL-G`)
+            prepaintLog?.axNodeLocals.append(index < locals.count ? locals[index] : nil)
             prepaintLog?.allowedStateWrites += 1
             stateTable.withState(Self.axRetentionSlot(for: id), initial: node) { $0 = node }
             prepaintLog?.allowedStateWrites -= 1
@@ -4256,54 +4257,78 @@ extension Frame {
     /// With no `delta` (an affine change, `RZ-D`) the last arm, which applies a delta to an inner effect's inverse and is exact only
     /// under an identity linear part, refuses.
     func translatedHitboxes(of ledger: PrepaintLedger, by delta: (dx: Double, dy: Double)?) -> [Hitbox]? {
+        guard let rederivation = hitboxRederivation(of: ledger) else { return nil }
+        var out = ledger.hitboxes
+        for index in out.indices {
+            guard let hitbox = rederived(out[index], at: index, of: ledger, by: delta, using: rederivation) else { return nil }
+            out[index] = hitbox
+        }
+        return out
+    }
+
+    /// What `translatedHitboxes` reads once per ledger and `rederived(_:at:of:by:using:)` once per hitbox (`EL-B`: the combined
+    /// arm shares it, so the two cannot drift): the ambient effect as the ledger recorded it and the transform now in force.
+    struct HitboxRederivation {
+        var outer: Bounds<Pixels>
+        /// The innermost ambient effect's inverse as the ledger recorded it: a hitbox that carries it was registered at the ambient
+        /// depth, so the fresh frame's hitbox carries the **current** effect's inverse, whatever the linear part (`AT-F`).
+        var recorded: Affine2D
+        var current: Affine2D?
+        /// The ambient effect as the ledger saw it (composed, inverse, outer clip), the start of the step walk that re-derives a
+        /// hitbox registered inside an effect the occurrence opened (`RL-I`).
+        var recordedEffect: PrepaintEffect
+        var base: Int
+    }
+
+    func hitboxRederivation(of ledger: PrepaintLedger) -> HitboxRederivation? {
         guard let ambient = ledger.key.extras.effects.last else { return nil }
         let outer = Bounds(origin: Point(x: Pixels(Float(ambient[PrepaintExtras.effectOuterClip])),
                                          y: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 1]))),
                            size: Size(width: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 2])),
                                       height: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 3]))))
-        // The innermost ambient effect's inverse as the ledger recorded it: a hitbox that carries it was registered at the ambient
-        // depth, so the fresh frame's hitbox carries the **current** effect's inverse, whatever the linear part (`AT-F`).
         let flat = (0..<6).map { ambient[PrepaintExtras.effectHasInverse + 1 + $0] }
         let recorded = Affine2D(a: flat[0], b: flat[1], c: flat[2], d: flat[3], tx: flat[4], ty: flat[5])
-        let current = prepaintEffects.last?.inverse
-        // The ambient effect as the ledger saw it (composed, inverse, outer clip), the start of the step walk that re-derives a
-        // hitbox registered inside an effect the occurrence opened (`RL-I`).
         let composedFlat = (0..<6).map { ambient[$0] }
         let recordedComposed = Affine2D(a: composedFlat[0], b: composedFlat[1], c: composedFlat[2], d: composedFlat[3],
                                         tx: composedFlat[4], ty: composedFlat[5])
         let recordedEffect = PrepaintEffect(composed: recordedComposed,
                                             inverse: ambient[PrepaintExtras.effectHasInverse] == 1 ? recorded : nil,
                                             outerClip: outer, savedClipBase: 0)
-        let base = ledger.key.extras.effects.count
-        var out = ledger.hitboxes
-        for index in out.indices {
-            guard let transform = out[index].transform else { return nil }
-            if index < ledger.hitboxChains.count, let chain = ledger.hitboxChains[index], chain.steps.count > base {
-                // Registered inside an effect the occurrence opened: the walk of its recorded steps from the ambient as recorded must
-                // give the transform the hitbox carries (else a share patch rewrote it: refused), and from the ambient now gives the
-                // transform a fresh prepaint registers, at any scale (`RL-I`).
-                guard let was = Self.walkEffectSteps(from: recordedEffect, chain: chain, base: base),
-                      transform.inverse == was.inverse, transform.outerClip == was.outerClip,
-                      let now = prepaintEffects.last.flatMap({ Self.walkEffectSteps(from: $0, chain: chain, base: base) })
-                else { return nil }
-                out[index].transform = HitboxTransform(inverse: now.inverse, outerClip: now.outerClip)
-                continue
-            }
-            guard transform.outerClip == outer else { return nil }
-            guard let inverse = transform.inverse else { continue }
-            if inverse == recorded, let current {
-                out[index].transform = HitboxTransform(inverse: current, outerClip: transform.outerClip)
-                continue
-            }
-            // Registered inside an effect opened within the occurrence, no chain recorded: moved by the delta, exact only under an
-            // identity linear part.
-            guard let delta, inverse.a == 1, inverse.b == 0, inverse.c == 0, inverse.d == 1 else { return nil }
-            let tx = inverse.tx - delta.dx, ty = inverse.ty - delta.dy
-            guard tx + delta.dx == inverse.tx, ty + delta.dy == inverse.ty else { return nil }
-            out[index].transform = HitboxTransform(
-                inverse: Affine2D(a: inverse.a, b: inverse.b, c: inverse.c, d: inverse.d, tx: tx, ty: ty),
-                outerClip: transform.outerClip)
+        return HitboxRederivation(outer: outer, recorded: recorded, current: prepaintEffects.last?.inverse,
+                                  recordedEffect: recordedEffect, base: ledger.key.extras.effects.count)
+    }
+
+    /// One hitbox of `ledger` (at `index`) with its transform rewritten against the effects now in force, or `nil` when it cannot be
+    /// (`translatedHitboxes`' per-hitbox rule, unchanged).
+    func rederived(_ hitbox: Hitbox, at index: Int, of ledger: PrepaintLedger, by delta: (dx: Double, dy: Double)?,
+                   using r: HitboxRederivation) -> Hitbox? {
+        var out = hitbox
+        guard let transform = out.transform else { return nil }
+        if index < ledger.hitboxChains.count, let chain = ledger.hitboxChains[index], chain.steps.count > r.base {
+            // Registered inside an effect the occurrence opened: the walk of its recorded steps from the ambient as recorded must
+            // give the transform the hitbox carries (else a share patch rewrote it: refused), and from the ambient now gives the
+            // transform a fresh prepaint registers, at any scale (`RL-I`).
+            guard let was = Self.walkEffectSteps(from: r.recordedEffect, chain: chain, base: r.base),
+                  transform.inverse == was.inverse, transform.outerClip == was.outerClip,
+                  let now = prepaintEffects.last.flatMap({ Self.walkEffectSteps(from: $0, chain: chain, base: r.base) })
+            else { return nil }
+            out.transform = HitboxTransform(inverse: now.inverse, outerClip: now.outerClip)
+            return out
         }
+        guard transform.outerClip == r.outer else { return nil }
+        guard let inverse = transform.inverse else { return out }
+        if inverse == r.recorded, let current = r.current {
+            out.transform = HitboxTransform(inverse: current, outerClip: transform.outerClip)
+            return out
+        }
+        // Registered inside an effect opened within the occurrence, no chain recorded: moved by the delta, exact only under an
+        // identity linear part.
+        guard let delta, inverse.a == 1, inverse.b == 0, inverse.c == 0, inverse.d == 1 else { return nil }
+        let tx = inverse.tx - delta.dx, ty = inverse.ty - delta.dy
+        guard tx + delta.dx == inverse.tx, ty + delta.dy == inverse.ty else { return nil }
+        out.transform = HitboxTransform(
+            inverse: Affine2D(a: inverse.a, b: inverse.b, c: inverse.c, d: inverse.d, tx: tx, ty: ty),
+            outerClip: transform.outerClip)
         return out
     }
 }

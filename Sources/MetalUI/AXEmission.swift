@@ -74,4 +74,6 @@ struct AXLocalRects {
 struct AXTranslation {
     var emissions: [AXEmission]
     var nodes: [(GlobalElementID, AXNode)]
+    /// The nodes' recorded pre-effect rects after a combined layout and effect move (`EL-G`); `nil` keeps the ledger's.
+    var nodeLocals: [AXLocalRects?]? = nil
 }

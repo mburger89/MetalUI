@@ -187,7 +187,7 @@ func aPointerInsideACardIsReadAgainstTheMovedHitboxes() async throws {
 }
 
 /// T11 - the two arms the combined one is built on are unchanged: a header step alone (the effect equal) still names
-/// `hitboxUnderEffect` for the transformed hitboxes (`EL-I`) and a zoom step alone (rects equal) replays prepaint as before; both
+/// `accessibilityUnderEffect` (or `hitboxUnderEffect`) for the effect-made records (`EL-I`) and a zoom step alone (rects equal) replays prepaint as before; both
 /// equal the retention-off window. Mutation M-delegate: the new relation not delegating (accepting equal-effect keys itself).
 @Test(.enabled(if: !rsVerifying, elVerifyingNote)) @MainActor
 func theLayoutOnlyAndEffectOnlyArmsAreUnchanged() async throws {
@@ -196,7 +196,9 @@ func theLayoutOnlyAndEffectOnlyArmsAreUnchanged() async throws {
     await elStep(pair, header: 4)
     var f = try #require(pair.frames.last)
     try pair.compare("header only")
-    #expect(f.retainedTranslationRefusedReasons["hitboxUnderEffect", default: 0] > 0, "\(f.retainedTranslationRefusedReasons)")
+    // The accessibility records of the cards are checked first (an effect-made record), the hitbox rule is the same (`EL-I`).
+    let kept = ["hitboxUnderEffect", "accessibilityUnderEffect"].reduce(0) { $0 + f.retainedTranslationRefusedReasons[$1, default: 0] }
+    #expect(kept > 0, "\(f.retainedTranslationRefusedReasons)")
     #expect(f.retainedPrepaintHits == 0, "the layout arm still refuses a hitbox under an effect: \(f.retainedPrepaintHits)")
     await elStep(pair, zoom: 1.25)
     f = try #require(pair.frames.last)

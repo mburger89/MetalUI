@@ -149,3 +149,152 @@ extension Frame {
         return .moved(result)
     }
 }
+
+// MARK: - A layout move under a changed effect (`EL-B`..`EL-G`, FS-O)
+
+/// Whether `b` lies strictly inside `c` (the rule every moved clipped rect obeys: a rect touching the clip's edge may have been cut).
+private func lies(_ b: Bounds<Pixels>, strictlyInside c: Bounds<Pixels>) -> Bool {
+    b.origin.x.value > c.origin.x.value && b.origin.y.value > c.origin.y.value
+        && b.origin.x.value + b.size.width.value < c.origin.x.value + c.size.width.value
+        && b.origin.y.value + b.size.height.value < c.origin.y.value + c.size.height.value
+}
+
+extension Frame {
+    /// `ledger` made over for an occurrence whose layout origin moved by `shift` **and** whose outer render effects changed
+    /// (`EL-B`): every recorded rect is in the occurrence's own pre-effect space, so the whole-device-pixel delta is added there
+    /// first (hitbox `bounds`/`origin`/`unclipped`, the accessibility locals, a geometry note's `moved`, the element bounds) and the
+    /// effect now in force is applied second (the current inverse for a hitbox, the recomputed accessibility frames and geometry
+    /// proxies); a fresh frame computes `effect_now(local + delta)`. Presentation anchors, context-menu records and press-only
+    /// actions refuse by name (`EL-F`), and so does anything registered inside an effect the occurrence opened
+    /// (`effectAndLayoutInner`, `EL-D`: such an effect's map is anchored at the occurrence's own position). The effect change itself
+    /// (`.refused`) is the caller's to name.
+    func movedCombinedLedger(_ ledger: PrepaintLedger, shift: LayoutShift, clip: [Float]) -> TranslationOutcome<LedgerTranslation> {
+        if !ledger.pressOnly.isEmpty { return .refused("pressOnly") }
+        if !ledger.contextMenus.isEmpty { return .refused("contextMenus") }
+        if !ledger.anchors.isEmpty { return .refused("presentationAnchor") }
+        guard clip.count >= 4 else { return .refused("unkeyedClip") }
+        let entryDepth = ledger.key.ambient.depths.first ?? -1
+        let dx = shift.windowX, dy = shift.windowY
+        guard isExactSixteenth(dx), isExactSixteenth(dy) else { return .refused("inexactTranslation") }
+        let c = Bounds(origin: Point(x: Pixels(clip[0]), y: Pixels(clip[1])),
+                       size: Size(width: Pixels(clip[2]), height: Pixels(clip[3])))
+        var accessibility: AXTranslation?
+        if !ledger.axEmissions.isEmpty || !ledger.axNodes.isEmpty {
+            switch shiftedLocals(of: ledger, dx: dx, dy: dy, clip: c, entryDepth: entryDepth) {
+            case .refused(let reason): return .refused(reason)
+            case .moved(let shifted):
+                switch translatedAccessibility(of: shifted) {
+                case .failure(let refusal): return .refused(refusal.reason)
+                case .success(var translation):
+                    translation.nodeLocals = shifted.axNodeLocals
+                    accessibility = translation
+                }
+            }
+        }
+        var geometry: [GeometryNoteRecord]?
+        if !ledger.geometry.isEmpty {
+            switch movedCombinedGeometryNotes(ledger.geometry, ledger: ledger, dx: dx, dy: dy) {
+            case .refused(let reason): return .refused(reason)
+            case .moved(let notes): geometry = notes
+            }
+        }
+        guard let rederivation = hitboxRederivation(of: ledger) else { return .refused("hitboxes") }
+        var hitboxes: [Hitbox] = []
+        hitboxes.reserveCapacity(ledger.hitboxes.count)
+        for (index, hitbox) in ledger.hitboxes.enumerated() {
+            guard let transform = hitbox.transform else { return .refused("hitboxes") }
+            // Registered inside an effect the occurrence opened: a chain beyond the ambient, or an inverse that is not the ambient's
+            // (no chain recorded) is anchored at the occurrence's position.
+            if index < ledger.hitboxChains.count, let chain = ledger.hitboxChains[index], chain.steps.count > rederivation.base {
+                return .refused("effectAndLayoutInner")
+            }
+            if let inverse = transform.inverse, inverse != rederivation.recorded { return .refused("effectAndLayoutInner") }
+            let local: Hitbox
+            switch movedHitbox(hitbox, dx: dx, dy: dy, clip: c, entryDepth: entryDepth) {
+            case .refused(let reason): return .refused(reason)
+            case .moved(let moved): local = moved
+            }
+            guard let rederived = rederived(local, at: index, of: ledger, by: nil, using: rederivation) else { return .refused("hitboxes") }
+            hitboxes.append(rederived)
+        }
+        // Element bounds are layout rects: the layout shift only, not the scroll offset (`FS-P`).
+        let ex = shift.layoutX, ey = shift.layoutY
+        guard isExactSixteenth(ex), isExactSixteenth(ey) else { return .refused("inexactTranslation") }
+        var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
+        elementBounds.reserveCapacity(ledger.elementBounds.count)
+        for (id, b) in ledger.elementBounds {
+            guard isExactSixteenth(b.origin.x.value), isExactSixteenth(b.origin.y.value),
+                  isExactSixteenth(b.origin.x.value + ex), isExactSixteenth(b.origin.y.value + ey)
+            else { return .refused("inexactTranslation") }
+            elementBounds.append((id, Bounds(origin: Point(x: Pixels(b.origin.x.value + ex), y: Pixels(b.origin.y.value + ey)),
+                                             size: b.size)))
+        }
+        return .moved(LedgerTranslation(hitboxes: hitboxes, elementBounds: elementBounds, accessibility: accessibility,
+                                        geometry: geometry))
+    }
+
+    /// A copy of `ledger` whose accessibility records' recorded pre-effect rects (`AXLocalRects`) are moved by (`dx`, `dy`) (`EL-G`),
+    /// ready for `translatedAccessibility` to recompute the frames against the effect now in force. A frame the clip in force cut
+    /// follows the hitbox rule: cut by the ambient clip itself, it is cut again against it; cut by a clip derived inside the
+    /// occurrence, it moves only while strictly inside the ambient clip before and after. A record with no recorded rects refuses
+    /// `accessibilityUnrecorded`, one made inside an effect the occurrence opened `effectAndLayoutInner`.
+    func shiftedLocals(of ledger: PrepaintLedger, dx: Float, dy: Float, clip c: Bounds<Pixels>, entryDepth: Int)
+        -> TranslationOutcome<PrepaintLedger> {
+        let base = ledger.key.extras.effects.count
+        func exactly(_ b: Bounds<Pixels>) -> Bounds<Pixels>? {
+            let x = b.origin.x.value, y = b.origin.y.value
+            guard isExactSixteenth(x), isExactSixteenth(y), isExactSixteenth(x + dx), isExactSixteenth(y + dy) else { return nil }
+            return Bounds(origin: Point(x: Pixels(x + dx), y: Pixels(y + dy)), size: b.size)
+        }
+        let copy = ledger.rebased(to: ledger.key, LedgerTranslation(hitboxes: ledger.hitboxes, elementBounds: ledger.elementBounds,
+                                                                      accessibility: nil, geometry: nil))
+        for index in copy.axEmissions.indices {
+            guard var local = copy.axEmissions[index].local else { return .refused("accessibilityUnrecorded") }
+            if local.chain.steps.count > base { return .refused("effectAndLayoutInner") }
+            guard let frame = exactly(local.frame) else { return .refused("inexactTranslation") }
+            if copy.axEmissions[index].clipDepth == entryDepth {
+                local.clipped = Self.intersect(c, frame)
+            } else {
+                guard lies(local.clipped, strictlyInside: c), let clipped = exactly(local.clipped),
+                      lies(clipped, strictlyInside: c) else { return .refused("accessibilityClipped") }
+                local.clipped = clipped
+            }
+            local.frame = frame
+            copy.axEmissions[index].local = local
+        }
+        guard copy.axNodeLocals.count == copy.axNodes.count else { return .refused("accessibilityUnrecorded") }
+        for index in copy.axNodeLocals.indices {
+            guard var local = copy.axNodeLocals[index] else { return .refused("accessibilityUnrecorded") }
+            if local.chain.steps.count > base { return .refused("effectAndLayoutInner") }
+            // A node's rect is read from `frame` alone; `clipped` follows it so a rebased ledger holds one consistent pair.
+            guard let frame = exactly(local.frame), let clipped = exactly(local.clipped) else { return .refused("inexactTranslation") }
+            local.frame = frame; local.clipped = clipped
+            copy.axNodeLocals[index] = local
+        }
+        return .moved(copy)
+    }
+
+    /// `notes` made again for an occurrence moved by (`dx`, `dy`) under an effect that changed (`EL-E`): `moved` shifts by the
+    /// delta in the occurrence's own space, then the proxy is rebuilt against the composed effect in force and the transform runs
+    /// (`translatedGeometryNotes`' arithmetic). A note that holds a named space refuses `geometryNamedSpace` (it would need the
+    /// linear part times the delta plus the effect's own shift), one made inside an effect the occurrence opened
+    /// `effectAndLayoutInner`.
+    func movedCombinedGeometryNotes(_ notes: [GeometryNoteRecord], ledger: PrepaintLedger, dx: Float, dy: Float)
+        -> TranslationOutcome<[GeometryNoteRecord]> {
+        guard isExactSixteenth(dx), isExactSixteenth(dy) else { return .refused("inexactTranslation") }
+        guard let ambient = prepaintEffects.last else { return .refused("geometryUnrecorded") }
+        let base = ledger.key.extras.effects.count
+        var out: [GeometryNoteRecord] = []
+        out.reserveCapacity(notes.count)
+        for note in notes {
+            guard note.chain.steps.count == base else { return .refused("effectAndLayoutInner") }
+            guard note.namedSpaces.isEmpty else { return .refused("geometryNamedSpace") }
+            let o = note.moved.origin
+            guard isExactSixteenth(o.x.value), isExactSixteenth(o.y.value),
+                  isExactSixteenth(o.x.value + dx), isExactSixteenth(o.y.value + dy) else { return .refused("inexactTranslation") }
+            let moved = Bounds(origin: Point(x: Pixels(o.x.value + dx), y: Pixels(o.y.value + dy)), size: note.moved.size)
+            out.append(remade(note, moved: moved, composed: ambient.composed, namedSpaces: []))
+        }
+        return .moved(out)
+    }
+}
