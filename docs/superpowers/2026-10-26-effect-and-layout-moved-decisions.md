@@ -1,7 +1,7 @@
 # Retained replay when layout and the outer effect moved together (FS-O) - decisions
 
 Rulings for item FS-O of the gpui-gap priority list (user request 2026-10-02; carried by `RG-N`, `RZ-` "Carried", not a plan task). Prefix `EL-`.
-**Next unused: `EL-K`.** Spec: [`specs/2026-10-26-effect-and-layout-moved-design.md`](specs/2026-10-26-effect-and-layout-moved-design.md). Record: `../record/157-effect-and-layout-moved.md`.
+**Next unused: `EL-L`.** Spec: [`specs/2026-10-26-effect-and-layout-moved-design.md`](specs/2026-10-26-effect-and-layout-moved-design.md). Record: `../record/157-effect-and-layout-moved.md`.
 Branch `perf/effect-and-layout-moved` from `aad9faf4`. Amends `RG-N` and `FS-O` (the "not combined" clause). Divergence labels reserved 865-874: none taken.
 
 Sources of truth: `RetainedTranslation.swift`, `RetainedSubtree.swift` (`effectRelation`, the paint decision), `RetainedPrepaint.swift` (the prepaint decision), `Frame.swift` (`translatedHitboxes`, `translatedAccessibility`), `RetainedTranslationCarries.swift`. Predecessors: `FS-D`..`FS-P`, `RK-G`/`RK-S`, `RZ-A`..`RZ-T`, `RL-E`/`RL-H`/`RL-I`, `AT-A`/`AT-F`, `MA-H`/`MA-I`.
@@ -45,3 +45,7 @@ Sources of truth: `RetainedTranslation.swift`, `RetainedSubtree.swift` (`effectR
 ## EL-J - Counter retirement and expectations
 
 **Ruling.** `effectAndLayoutMoved` is retired (never emitted; T13), like `effectNotTranslation`; the pure-translation line in `retainedPrepaintDecision` goes with it and the silent affine + layout fall-through gets a name for every refusal. Demo expectation: a combined step costs element requests ~5-6 and prepaints ~5-6 for six panels against 115/117 off, **dated and re-taken at the Record phase**, never pinned (pins count work on the fixture). **Cost if wrong.** A test or doc citing the old name reddens; `RG-N` is amended in the record, not in `docs/record/` before the Record phase.
+
+## EL-K - Critic review: one gap fixed (the effect re-entry mutation), the rest checked and kept
+
+**Ruling.** The item asks for three mutations (drop the delta, drop the effect re-entry, wrong order); the table had no paint mutation for the second. Added M-effect-paint to T9 and a mutation map to section 4. Checked against source and kept: the paint decision's `memos.replaysPrepaint` is a switch, not a prepaint success, so lane A's paint pins hold with the prepaint still refusing (`RetainedSubtree.swift` line 722-734); `movedPrepaintLedger` refuses any `hitbox.transform != nil` as `hitboxUnderEffect` (`RetainedTranslation.swift` 349), which is why the combined arm needs its own hitbox loop and `EL-I` keeps the layout-only refusal (the combined arm accepts only a transform equal to the recorded ambient inverse; any other chain is `effectAndLayoutInner`); no SwiftUI claim, no shader, no `Backends/SDL`, no platform requirement, no C enum, no demo pixel move (the strip is outside the fourteen images). Rejected: merging the two lanes (disjoint files, B depends on A's relation). **Cost if wrong.** none new.
