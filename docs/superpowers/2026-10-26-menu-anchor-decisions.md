@@ -16,7 +16,7 @@ layout), which is why the report's popup landed at the pane-less spot (10, 100) 
 The same function feeds **four** consumers, so all four share the defect: `Menu` (`PullDownMenu.swift:64`), `.pickerStyle(.menu)` (`PickerMenu.swift:43`), `.popover` / `anchoredOverlay`
 (`Popover.swift:141`, read back by `AnchoredPresentation.swift:118` as `OpenPopover.anchor`), and, through a separate copy of the same arithmetic, `.contextMenu`'s keyboard / accessibility record
 (`ContextMenuRecord.bounds`, `Frame.swift` ~1759, which opens at the record's bottom-leading corner). A pointer-opened context menu uses the press point and is unaffected.
-**Reproduced red** with `MetalUITesting` (`aMenuUnderOffsetPresentsAtItsDrawnLabel`, the committed repro): `presentedMenus.last.at` is the layout origin, `element(label:).frame` (the transformed bounding box) is
+**Reproduced red (run at the design phase, native build: 2 issues, x and y both differ)** with `MetalUITesting` (`aMenuUnderOffsetPresentsAtItsDrawnLabel`, the committed repro): `presentedMenus.last.at` is the layout origin, `element(label:).frame` (the transformed bounding box) is
 `(+60, +40)` away. Not a pane or retained problem: no pane term was found missing, and a retained same-key replay stores window bounds (`replayPresentationAnchor`) and so replays whatever the build recorded.
 **Cost if wrong.** If the report's pane also lost an origin, T-pane (spec 4) goes red after the fix and a second ruling is owed; it is a test of the whole shape, not just the effect.
 
