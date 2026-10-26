@@ -1758,9 +1758,7 @@ public final class Frame {
             if contextual.menu != nil, keyboardHiddenDepth == 0 {
                 let record = ContextMenuRecord(
                     attachment: contextual, isEnabled: enabled,
-                    bounds: Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
-                                                 y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
-                                   size: bounds.size))
+                    bounds: presentationWindowBounds(bounds))
                 contextMenuRecords[id] = record
                 prepaintLog?.contextMenus.append((id, record))
             }
@@ -2099,12 +2097,24 @@ public final class Frame {
     /// a frame rendered without a window.
     var menuPresenter: MenuPresenter?
 
+    /// `bounds` (an element's, in the current scroll offset) as drawn, in window
+    /// points: the scroll translation, then the open render effects' composed
+    /// map as a bounding box, as an accessibility frame is made (`MA-B`,
+    /// divergence 107). With no effect open it is `scrolled(bounds)` bit for
+    /// bit. The one function every presentation anchor and context-menu record
+    /// goes through.
+    /// `ownEffects` is a legacy element's own `Decoration.renderEffects` when it records before its
+    /// registration opens them (`MA-G`).
+    func presentationWindowBounds(_ bounds: Bounds<Pixels>, ownEffects: [RenderEffectSpec] = []) -> Bounds<Pixels> {
+        effectBoundingBox(of: scrolled(bounds), ownEffects: ownEffects, bounds: bounds)
+    }
+
     /// Records `bounds` (this element's, in the current offset) as `id`'s
-    /// presentation anchor, in window points.
-    func recordPresentationAnchor(_ id: GlobalElementID, bounds: Bounds<Pixels>) {
-        let windowBounds = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
-                                                y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
-                                  size: bounds.size)
+    /// presentation anchor, in window points as drawn: render effects included
+    /// (`MA-A`, `MA-B`).
+    func recordPresentationAnchor(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  ownEffects: [RenderEffectSpec] = []) {
+        let windowBounds = presentationWindowBounds(bounds, ownEffects: ownEffects)
         presentationAnchors[id] = windowBounds
         prepaintLog?.anchors.append((id, windowBounds))
     }

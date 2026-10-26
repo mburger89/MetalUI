@@ -137,25 +137,78 @@ private struct EqMenu: Component, @MainActor Equatable {
     static func == (l: EqMenu, r: EqMenu) -> Bool { true }
 }
 
-@Test @MainActor func aMenuInAnEquatableComponentReplaysItsAnchor() async throws {
-    let model = AnchorModel()
-    let window = try harnessWindow {
+private struct EqHost: Component {
+    let model: AnchorModel
+    var content: some ElementGroup {
         HStack(spacing: 0) {
             Color.clear.frame(width: Pixels(100))
             VStack { EqMenu().equatable() }.offset(x: Pixels(model.dx), y: Pixels(model.dy))
         }
     }
+}
+
+@Test @MainActor func aMenuInAnEquatableComponentReplaysItsAnchor() async throws {
+    @MainActor func warmWindow(_ model: AnchorModel) throws -> (TestWindow, () -> FrameWork) {
+        let window = try harnessWindow { VStack(spacing: 0) { EqHost(model: model) } }
+        window.window.testingRetainedSubtrees = true
+        func draw() -> FrameWork { window.window.setNeedsRedraw(); window.tick(); return window.lastFrameWork }
+        return (window, draw)
+    }
+    // An unchanged key replays the prepaint, and the replayed anchor is the drawn one.
+    let model = AnchorModel()
+    let (window, draw) = try warmWindow(model)
+    var replayed = 0
+    for _ in 0..<6 { replayed += draw().retainedPrepaintHits }
+    #expect(replayed > 0, "the unchanged occurrence replays its prepaint: \(replayed)")
     try expectNativeAnchor(window)
-    var hits = 0
-    for _ in 0..<3 { window.tick(); hits += window.lastFrameWork.retainedPrepaintHits }
-    try expectNativeAnchor(window)
-    #expect(hits >= 0, "replay frames ran: \(hits)")
+    // A moved offset re-anchors, and the record made then replays the new anchor.
+    let moving = AnchorModel()
+    let (second, drawSecond) = try warmWindow(moving)
+    for _ in 0..<3 { _ = drawSecond() }
+    let before = try second.element(label: "View").frame
+    moving.dx = 10
+    moving.dy = 90
+    try await second.runUntilIdle()
+    replayed = 0
+    // The refusal costs one redo and the window's backoff (`RK-`, eight builds); the new key replays after it.
+    for _ in 0..<16 { let f = drawSecond(); replayed += f.retainedPrepaintHits + f.retainedGrafts }
+    let moved = try second.element(label: "View").frame
+    #expect(abs(moved.origin.x.value - (before.origin.x.value - 50)) < 0.01
+            && abs(moved.origin.y.value - (before.origin.y.value + 50)) < 0.01, "the offset moved: \(before) -> \(moved)")
+    #expect(replayed > 0, "and the new key replays: \(replayed)")
+    try expectNativeAnchor(second)
+}
+
+/// T5b - the same for a context-menu record: a keyboard-opened menu in an `.equatable()` occurrence under a moved offset.
+private struct EqContext: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        Button("Target") {}.contextMenu { Button("Copy") {} }.frame(width: Pixels(80), height: Pixels(24))
+    }
+    static func == (l: EqContext, r: EqContext) -> Bool { true }
+}
+
+private struct EqContextHost: Component {
+    let model: AnchorModel
+    var content: some ElementGroup {
+        VStack { EqContext().equatable() }.offset(x: Pixels(model.dx), y: Pixels(model.dy))
+    }
+}
+
+@Test @MainActor func aContextMenuRecordInAnEquatableComponentFollowsAMovedOffset() async throws {
+    let model = AnchorModel()
+    let window = try harnessWindow { VStack(spacing: 0) { EqContextHost(model: model) } }
+    window.window.testingRetainedSubtrees = true
+    func draw() { window.window.setNeedsRedraw(); window.tick() }
+    for _ in 0..<6 { draw() }
     model.dx = 10
     model.dy = 90
     try await window.runUntilIdle()
-    window.tick()
-    try expectNativeAnchor(window)
-    #expect(try window.element(label: "View").frame.origin.x.value < 140, "moved")
+    for _ in 0..<3 { draw() }
+    let target = try window.element(label: "Target")
+    #expect(try window.performAccessibilityAction(.showMenu, on: target))
+    let shown = try #require(window.platformWindow.presentedMenus.last)
+    #expect(abs(shown.at.x.value - target.frame.origin.x.value) < 1.01 && abs(shown.at.y.value - target.frame.bottom) < 1.01,
+            "\(shown.at) vs \(target.frame)")
 }
 
 /// T6 - `.pickerStyle(.menu)`.
@@ -233,7 +286,7 @@ private struct PickerFixture: Component {
 
 /// T9 - the drawn menu (SDL's answer) opens at the drawn label.
 @Test @MainActor func aDrawnMenuOpensAtTheDrawnLabelUnderOffset() throws {
-    let window = try harnessWindow(options: .init(presentsMenusNatively: false)) { offsetMenuTree() }
+    let window = try harnessWindow(size: sz(800, 300), options: .init(presentsMenusNatively: false)) { offsetMenuTree() }
     let label = try window.element(label: "View")
     try window.click(label)
     let items = try window.elements { $0.role == .menuItem }

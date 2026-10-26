@@ -345,7 +345,12 @@ extension Frame {
                 // (`RZ-A`, `RZ-D`), with no delta; anything else is refused by name (`RZ-B`).
                 let delta: (dx: Double, dy: Double)?
                 switch key.extras.change(from: ledger.key.extras) {
-                case .translation(let dx, let dy): delta = (dx, dy)
+                case .translation(let dx, let dy):
+                    delta = (dx, dy)
+                    // The anchors and context-menu records are window-space rects the replay does not move: a moved
+                    // `.offset` would replay the old place (`MA-D`, was refused for `.affine` only).
+                    if !ledger.anchors.isEmpty { return refuseEffect("presentationAnchor", build: build, phase: phase) }
+                    if !ledger.contextMenus.isEmpty { return refuseEffect("contextMenus", build: build, phase: phase) }
                 case .affine:
                     delta = nil
                     // Window-space rects the replay does not recompute (`RZ-F`).
