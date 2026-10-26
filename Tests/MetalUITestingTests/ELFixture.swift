@@ -69,31 +69,43 @@ struct ELPanels: Component {
     }
 }
 
+/// The effect stack: the panels under the rotation (one arm), the scale and the offset.
+struct ELEffects: Component {
+    let side: RPSide
+    var extra: ELExtra = .none
+    var content: some ElementGroup {
+        let scale = side.inputs.offset == 0 ? 1.0 : Double(side.inputs.offset)
+        let log = side.log
+        ZStack(alignment: .topLeading) {
+            if extra == .rotate {
+                ZStack(alignment: .topLeading) { ELPanels(log: log, extra: extra) }
+                    .rotationEffect(.degrees((scale - 1) * 20), anchor: .topLeading)
+                    .scaleEffect(scale, anchor: .topLeading).offset(x: Pixels(8), y: Pixels(6))
+            } else if extra == .flatten {
+                ZStack(alignment: .topLeading) { ELPanels(log: log, extra: extra) }
+                    .scaleEffect(x: scale, y: scale > 1.15 ? 1 : scale, anchor: .topLeading).offset(x: Pixels(8), y: Pixels(6))
+            } else {
+                ZStack(alignment: .topLeading) { ELPanels(log: log, extra: extra) }
+                    .scaleEffect(scale, anchor: .topLeading).offset(x: Pixels(8), y: Pixels(6))
+            }
+        }
+    }
+}
+
 struct ELRoot: Component {
     let side: RPSide
     var extra: ELExtra = .none
-    /// The header's height in points; defaults to the model's step.
     var content: some ElementGroup {
         let scale = side.inputs.offset == 0 ? 1.0 : Double(side.inputs.offset)
         let header = Pixels(10 + Float(side.model.n) + 0.25 * Float(side.model.tint))
-        let log = side.log
-        let width = extra == .outerClip ? Float(260 - 40 * (scale - 1)) : 260
+        let width = Pixels(extra == .outerClip ? Float(260 - 40 * (scale - 1)) : 260)
         VStack(alignment: .leading, spacing: 0) {
             Color(red: 0.5, green: 0.5, blue: 0.5).frame(width: Pixels(260), height: header)
-            ZStack(alignment: .topLeading) {
-                if extra == .rotate {
-                    ZStack(alignment: .topLeading) { ELPanels(log: log, extra: extra) }
-                        .rotationEffect(.degrees((scale - 1) * 20), anchor: .topLeading)
-                        .scaleEffect(scale, anchor: .topLeading).offset(x: Pixels(8), y: Pixels(6))
-                } else if extra == .flatten {
-                    ZStack(alignment: .topLeading) { ELPanels(log: log, extra: extra) }
-                        .scaleEffect(x: scale, y: scale > 1.15 ? 1 : scale, anchor: .topLeading).offset(x: Pixels(8), y: Pixels(6))
-                } else {
-                    ZStack(alignment: .topLeading) { ELPanels(log: log, extra: extra) }
-                        .scaleEffect(scale, anchor: .topLeading).offset(x: Pixels(8), y: Pixels(6))
-                }
+            if extra == .clipped {
+                ELEffects(side: side, extra: extra).frame(width: width, height: Pixels(300), alignment: .topLeading).clipped()
+            } else {
+                ELEffects(side: side, extra: extra).frame(width: width, height: Pixels(300), alignment: .topLeading)
             }
-            .frame(width: Pixels(width), height: Pixels(300), alignment: .topLeading)
         }
         .frame(width: Pixels(260), height: Pixels(400), alignment: .topLeading)
     }
@@ -116,3 +128,4 @@ struct ELRoot: Component {
     await rsSettle()
     pair.redraw()
 }
+

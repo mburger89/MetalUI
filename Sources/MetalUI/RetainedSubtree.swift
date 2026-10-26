@@ -211,6 +211,54 @@ struct AmbientKey: Equatable {
     var disablesAnimations: Bool
 }
 
+extension AmbientKey {
+    /// The outer render-effect scopes of this ambient against `old`'s, with every differing effect scope replaced by `old`'s (`EL-C`:
+    /// the one place that knows which parts of a scope an affine re-entry reproduces, read by `ReplayKey.effectRelation(from:)` and
+    /// by the combined relation). `nil` when a scope that is not an effect differs or the counts differ (unrelated).
+    func effectScopeDiff(against old: AmbientKey) -> (normalized: AmbientKey, moved: Bool, refusal: String?)? {
+        guard scopes.count == old.scopes.count else { return nil }
+        var refusal: String?
+        var moved = false
+        var normalized = self
+        for index in scopes.indices where scopes[index] != old.scopes[index] {
+            let new = scopes[index], was = old.scopes[index]
+            guard new.count >= 10, was.count >= 10, new[0] == Self.effectKind, was[0] == Self.effectKind else { return nil }
+            moved = true
+            normalized.scopes[index] = was
+            if new.count != was.count { refusal = refusal ?? "effectScopeChanged"; continue }
+            // Indices 0...3: kind, alpha, entry clip depth, flattens; 4...9 the six affine numbers; 10... the outer clip.
+            if new[3] != was[3] { refusal = refusal ?? "effectFlatteningChanged"; continue }
+            if new[1] != was[1] || new[2] != was[2] { refusal = refusal ?? "effectScopeChanged"; continue }
+            if Array(new[10...]) != Array(was[10...]) { refusal = refusal ?? "effectClipChanged"; continue }
+        }
+        return (normalized, moved, refusal)
+    }
+
+    /// Whether the scopes differ from `old`'s only in the translation words (8, 9) of effect scopes.
+    func scopesDifferOnlyByTranslation(from old: AmbientKey) -> Bool {
+        guard scopes.count == old.scopes.count else { return false }
+        var moved = false
+        var normalized = self
+        for index in scopes.indices where scopes[index] != old.scopes[index] {
+            let new = scopes[index], was = old.scopes[index]
+            guard new.count == was.count, new.count >= 10, new[0] == Self.effectKind else { return false }
+            var a = new, b = was
+            a[8] = 0; a[9] = 0; b[8] = 0; b[9] = 0
+            guard a == b else { return false }
+            moved = true
+            normalized.scopes[index] = was
+        }
+        return moved && normalized == old
+    }
+
+    /// `ReplayKey.effectRelation(from:)` on the ambient alone (`RZ-B`).
+    func effectRelation(from old: AmbientKey) -> EffectRelation {
+        guard let diff = effectScopeDiff(against: old), diff.moved, diff.normalized == old else { return .unrelated }
+        if let refusal = diff.refusal { return .refused(refusal) }
+        return scopesDifferOnlyByTranslation(from: old) ? .translation : .affine
+    }
+}
+
 struct ReplayKey: Equatable {
     var rects: [Float]
     var interior: Int
@@ -223,20 +271,8 @@ struct ReplayKey: Equatable {
     /// `RK-S`): the recorded leaves are those before any outer scope applies, so replaying them through the live
     /// scopes is arithmetic-for-arithmetic what a fresh paint does at the new translation.
     func differsOnlyByEffectTranslation(from old: ReplayKey) -> Bool {
-        guard rects == old.rects, interior == old.interior, nodeCount == old.nodeCount,
-              ambient.scopes.count == old.ambient.scopes.count else { return false }
-        var moved = false
-        var normalized = ambient
-        for index in ambient.scopes.indices where ambient.scopes[index] != old.ambient.scopes[index] {
-            let new = ambient.scopes[index], was = old.ambient.scopes[index]
-            guard new.count == was.count, new.count >= 10, new[0] == AmbientKey.effectKind else { return false }
-            var a = new, b = was
-            a[8] = 0; a[9] = 0; b[8] = 0; b[9] = 0
-            guard a == b else { return false }
-            moved = true
-            normalized.scopes[index] = was
-        }
-        return moved && normalized == old.ambient
+        guard rects == old.rects, interior == old.interior, nodeCount == old.nodeCount else { return false }
+        return ambient.scopesDifferOnlyByTranslation(from: old.ambient)
     }
 
     /// How this (the new) key's outer render-effect scopes stand against `old`'s (`RZ-B`): a pure translation (`RK-G`), an affine
@@ -246,25 +282,7 @@ struct ReplayKey: Equatable {
     /// (anything else differs: an ordinary miss, never counted here).
     func effectRelation(from old: ReplayKey) -> EffectRelation {
         guard rects == old.rects, interior == old.interior, nodeCount == old.nodeCount else { return .unrelated }
-        guard ambient.scopes.count == old.ambient.scopes.count else { return .unrelated }
-        var refusal: String?
-        var moved = false
-        var normalized = ambient
-        for index in ambient.scopes.indices where ambient.scopes[index] != old.ambient.scopes[index] {
-            let new = ambient.scopes[index], was = old.ambient.scopes[index]
-            guard new.count >= 10, was.count >= 10, new[0] == AmbientKey.effectKind, was[0] == AmbientKey.effectKind
-            else { return .unrelated }
-            moved = true
-            normalized.scopes[index] = was
-            if new.count != was.count { refusal = refusal ?? "effectScopeChanged"; continue }
-            // Indices 0...3: kind, alpha, entry clip depth, flattens; 4...9 the six affine numbers; 10... the outer clip.
-            if new[3] != was[3] { refusal = refusal ?? "effectFlatteningChanged"; continue }
-            if new[1] != was[1] || new[2] != was[2] { refusal = refusal ?? "effectScopeChanged"; continue }
-            if Array(new[10...]) != Array(was[10...]) { refusal = refusal ?? "effectClipChanged"; continue }
-        }
-        guard moved, normalized == old.ambient else { return .unrelated }
-        if let refusal { return .refused(refusal) }
-        return differsOnlyByEffectTranslation(from: old) ? .translation : .affine
+        return ambient.effectRelation(from: old.ambient)
     }
 
     /// Whether this key is `old` with only the affine numbers of outer render-effect scopes changed (`RZ-B`), a pure translation
@@ -490,6 +508,8 @@ final class RetainedPhase {
     var translatedScene: [RetainLog.SceneOp]?
     /// The attempt to move the record, kept between prepaint and paint (`FS-D`).
     var paintTranslationMemo: PaintTranslationMemo?
+    /// Whether this occurrence's prepaint already counted the refusal of a combined layout and effect move (`EL-C`), so the paint does not.
+    var effectRefusalCounted = false
     /// Whether the occurrence was grafted (`RK-B`): no element layout, so prepaint and paint can only replay.
     var grafted = false
     /// Whether its prepaint asked for the frame to be redone: paint then does nothing.
@@ -731,10 +751,20 @@ extension Frame {
             // The occurrence's origin or scroll offset moved and nothing else did (`FS-D`): replay at the new position when the
             // add is exact, else refused by name and a miss.
             var moved: PaintTranslation?
-            if valid, !effectTranslated, old.key != key, memos.replaysPrepaint, memos.translatesLayout, let shift = key.shift(from: old.key) {
-                switch paintTranslation(of: old, shift: shift, key: key, phase: phase) {
-                case .moved(let translation): moved = translation
-                case .refused: break
+            if valid, !effectTranslated, old.key != key, memos.replaysPrepaint, memos.translatesLayout,
+               let combined = key.shiftAndEffects(from: old.key) {
+                // `EL-B`: the delta is added in the occurrence's own space (the record's leaves are before every outer scope) and the
+                // live scopes then apply the effect, so a layout move with equal effects (`effect == nil`, the old arm) and one with
+                // an effect change are the same add; the effect numbers never enter it.
+                if case .refused(let reason)? = combined.effect {
+                    // A prepaint that ran counted what it saw (`phase.effectRefusalCounted`); one that replayed or saw nothing here
+                    // leaves the name to the paint (`EL-C`).
+                    if !phase.effectRefusalCounted { memos.retained.noteTranslationRefused(reason: reason) }
+                } else {
+                    switch paintTranslation(of: old, shift: combined.shift, key: key, phase: phase) {
+                    case .moved(let translation): moved = translation
+                    case .refused: break
+                    }
                 }
             }
             let translated = effectTranslated || moved != nil
@@ -748,7 +778,10 @@ extension Frame {
                     // The record is made over at the new position, so the frames that follow replay it as an exact hit
                     // (verify mode keeps the record it compares against).
                     if !retainedVerifiesFromEnvironment {
-                        old.key = key; old.scene = moved.scene; old.finalScene = moved.finalScene
+                        // The final stream moved only where this key holds no outer scope: `movedPaintRecord` may have answered a prepaint's
+                        // key (its ambient never holds the paint scopes), and a stream moved by the delta alone is the final stream of
+                        // no effect that scales (`EL-L`).
+                        old.key = key; old.scene = moved.scene; old.finalScene = key.ambient.scopes.isEmpty ? moved.finalScene : nil
                     }
                     // Verify mode compares the fresh run with the record as moved (`SB-W`).
                     if retainedVerifiesFromEnvironment, phase.replayed == nil {

@@ -93,6 +93,14 @@ enum RetainedShape {
     }
 }
 
+/// The layout move and the effect change of one occurrence found together (`EL-C`, FS-O): `effect == nil` is "the effect scopes are
+/// equal", today's layout arm (`shift(from:)`/`shift(to:)` answer it, unchanged); otherwise the shape moved **and** the outer render
+/// effects differ, the delta to be applied in the occurrence's own space and the live effect scopes to be re-entered second (`EL-B`).
+struct CombinedShift<Effect: Equatable>: Equatable {
+    var shift: LayoutShift
+    var effect: Effect?
+}
+
 extension ReplayKey {
     /// How far this (the new) key's occurrence moved from `old`'s, or `nil` when it did not or the two differ in anything
     /// but the origin and the scroll offset (`FS-D`: K1 and K2, independently or together).
@@ -104,6 +112,26 @@ extension ReplayKey {
         var normalized = ambient
         normalized.offset = old.ambient.offset
         return normalized == old.ambient ? shift : nil
+    }
+
+    /// The layout move and the change of the outer render effects found together (`EL-C`). With equal effect scopes this is
+    /// `shift(from:)`, so the layout arm cannot move; with scopes that differ only in effect scopes (the shape half is
+    /// `RetainedShape.shift`, untouched) `effect` is the relation of the scopes, a named refusal included. `nil` when nothing moved,
+    /// or anything but the origin, the scroll offset and effect scopes differs.
+    func shiftAndEffects(from old: ReplayKey) -> CombinedShift<EffectRelation>? {
+        if let shift = shift(from: old) { return CombinedShift(shift: shift, effect: nil) }
+        guard let shift = RetainedShape.shift(newRects: rects, newNodeCount: nodeCount, newShape: shapeInterior,
+                                              newOffset: ambient.offset, oldRects: old.rects,
+                                              oldNodeCount: old.nodeCount, oldShape: old.shapeInterior,
+                                              oldOffset: old.ambient.offset),
+              let diff = ambient.effectScopeDiff(against: old.ambient), diff.moved else { return nil }
+        var normalized = diff.normalized
+        normalized.offset = old.ambient.offset
+        guard normalized == old.ambient else { return nil }
+        if let refusal = diff.refusal { return CombinedShift(shift: shift, effect: .refused(refusal)) }
+        var base = ambient
+        base.offset = old.ambient.offset
+        return CombinedShift(shift: shift, effect: base.scopesDifferOnlyByTranslation(from: old.ambient) ? .translation : .affine)
     }
 }
 
@@ -128,6 +156,26 @@ extension PrepaintKey {
         normalized.offset = ambient.offset
         guard normalized == ambient, extras.equalIgnoringScrollOffset(new.extras) else { return nil }
         return shift
+    }
+
+    /// The layout move and the change of the render effects around the occurrence found together (`EL-C`): `shift(to:)` when the
+    /// effects are equal, else the shape's shift with `extras.change(from:)` classifying the effects (the scroller's offset, which K2
+    /// moves, set aside). `nil` when nothing moved or a part other than the effects (and the scroll offset) differs.
+    func shiftAndEffects(to new: PrepaintKey) -> CombinedShift<EffectChange>? {
+        if let shift = shift(to: new) { return CombinedShift(shift: shift, effect: nil) }
+        guard let shift = RetainedShape.shift(newRects: new.rects, newNodeCount: new.nodeCount, newShape: new.shapeInterior,
+                                              newOffset: new.ambient.offset, oldRects: rects, oldNodeCount: nodeCount,
+                                              oldShape: shapeInterior, oldOffset: ambient.offset) else { return nil }
+        var normalized = new.ambient
+        normalized.offset = ambient.offset
+        guard normalized == ambient, extras.scroller.count == new.extras.scroller.count else { return nil }
+        var was = extras, now = new.extras
+        if was.scroller.count > 7 { was.scroller[7] = 0; now.scroller[7] = 0 }
+        guard was.effects != now.effects else { return nil }
+        var restWas = was, restNow = now
+        restWas.effects = []; restNow.effects = []
+        guard restWas == restNow else { return nil }
+        return CombinedShift(shift: shift, effect: now.change(from: was))
     }
 }
 

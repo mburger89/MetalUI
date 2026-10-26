@@ -58,36 +58,36 @@ func aCombinedPaintMovesBeforeTheEffectNotAfter(zoom: Float) async throws {
 }
 
 /// T3 - what the combined paint cannot carry is refused by the name of its own gate and the frame still equals the retention-off
-/// window's: a fractional header step (`fractionalTranslation`), a card that opens an effect of its own (`innerScope`), a card that
-/// opens a shadow (`innerScope`), an effect whose flattening class changes (`effectFlatteningChanged`), a clip that moves with the
+/// window's: a fractional header step (1 point at display scale 1.5, `fractionalTranslation`), a card that opens an effect of its own (`innerScope`), a card that
+/// opens a shadow (`innerScope`), an effect whose flattening class changes (`effectScopeChanged`/`effectFlatteningChanged`), a clip that moves with the
 /// effect's frame (no relation: uncounted, equal). Never the retired umbrella name `effectAndLayoutMoved` for an affine change.
 /// **Red at aad9faf4**: the named arms are silent (no refusal counted at all). Mutation M-name: the umbrella name counted instead.
 struct ELRefusalArm: CustomStringConvertible, Sendable {
-    let extra: ELExtra, quarters: Int?, reason: String?
-    var description: String { "\(extra) \(reason ?? "-")" }
+    let extra: ELExtra, display: Float, header: Int
+    /// The names the gate may carry: the paint names a flattening crossing `effectScopeChanged` (the scope's vector differs in
+    /// length), the prepaint of lane B names it `effectFlatteningChanged` first and the paint then leaves it to that count.
+    let reasons: [String]
+    var description: String { "\(extra) \(reasons.first ?? "-")" }
     static let all: [ELRefusalArm] = [
-        ELRefusalArm(extra: .none, quarters: 2, reason: "fractionalTranslation"),
-        ELRefusalArm(extra: .innerOffset, quarters: nil, reason: "innerScope"),
-        ELRefusalArm(extra: .shadowInside, quarters: nil, reason: "innerScope"),
-        ELRefusalArm(extra: .flatten, quarters: nil, reason: "effectFlatteningChanged"),
+        ELRefusalArm(extra: .none, display: 1.5, header: 1, reasons: ["fractionalTranslation"]),
+        ELRefusalArm(extra: .innerOffset, display: 2, header: 4, reasons: ["innerScope"]),
+        ELRefusalArm(extra: .shadowInside, display: 2, header: 4, reasons: ["innerScope"]),
+        ELRefusalArm(extra: .flatten, display: 2, header: 4, reasons: ["effectScopeChanged", "effectFlatteningChanged"]),
     ]
 }
 
 @Test(.enabled(if: !rsVerifying, elVerifyingNote), arguments: ELRefusalArm.all) @MainActor
 func aCombinedPaintRefusalKeepsItsName(arm: ELRefusalArm) async throws {
-    let pair = try elPair(extra: arm.extra)
+    let pair = try elPair(extra: arm.extra, scale: arm.display)
     try pair.compare("warm")
-    var refusals: [String: Int] = [:], translated = 0
-    for (step, zoom) in [Float(1.1), 1.2].enumerated() {
-        // The header moves by whole points, plus the fractional arm's quarter points (0.5 device pixels at scale 2).
-        await elStep(pair, header: 4 * (step + 1), quarters: arm.quarters.map { $0 * (step + 1) }, zoom: zoom)
-        let f = try #require(pair.frames.last)
-        for (r, n) in f.retainedTranslationRefusedReasons { refusals[r, default: 0] += n }
-        translated += f.retainedTranslated
-        try pair.compare("step \(step) at \(arm)")
-    }
+    // One combined step: the fractional arm moves the header by 1 point (1.5 device pixels at display scale 1.5, as `FS-M`'s own
+    // pin) and the flattening arm crosses its class at 1.2, so the named gate is the first thing the step meets.
+    await elStep(pair, header: arm.header, zoom: 1.2)
+    let f = try #require(pair.frames.last)
+    let refusals = f.retainedTranslationRefusedReasons, translated = f.retainedTranslated
+    try pair.compare("step at \(arm)")
     #expect(refusals["effectAndLayoutMoved"] == nil, "the umbrella name is not the refusal: \(refusals)")
-    if let reason = arm.reason { #expect(refusals[reason, default: 0] > 0, "\(reason) is counted: \(refusals)") }
+    #expect(arm.reasons.contains { refusals[$0, default: 0] > 0 }, "one of \(arm.reasons) is counted: \(refusals)")
     #expect(translated == 0, "nothing is replayed through a refused gate: \(translated), \(refusals)")
 }
 
