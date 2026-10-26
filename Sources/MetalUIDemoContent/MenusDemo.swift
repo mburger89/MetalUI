@@ -12,6 +12,9 @@ import Foundation
 /// `main.swift` adds a Demo menu and a New Note item to the menu bar in this
 /// mode only.
 ///
+/// A split whose right half carries a `Menu` and a `Picker(.menu)` under `.offset` and `.scaleEffect(1.5)`
+/// (`MA-`, human check `MA1`): each pop-up opens under its label as drawn.
+///
 /// **The human looks** (`docs/verification/human-checks.md` group R): the
 /// native menu, right-click and control-click, the drawn menu under SDL, the
 /// menu bar, the popover's look and dismissal, the tooltip's delay.
@@ -24,7 +27,7 @@ import Foundation
 @MainActor
 public func menusDemoContent() -> some Element {
     menusRoot(header: menusHeader(), card: menusCard(), popover: menusPopover(), help: menusHelp(),
-              pullDown: menusPullDown(), shortcut: menusShortcutLine())
+              pullDown: menusPullDown(), shortcut: menusShortcutLine(), anchors: menusAnchorSplit())
 }
 
 /// The menus demo's commands (ruling `SG-A`, spec
@@ -60,6 +63,8 @@ public final class MenusDemoModel {
     public var showPopover = false
     /// The popover's field.
     public var note = ""
+    /// The anchor check's `Picker(.menu)` selection.
+    public var anchorMode = 0
 
     /// A fresh model.
     public init() {}
@@ -77,7 +82,7 @@ public func menusDemoPinned() -> Binding<Bool> {
 /// The root: the header, then the sections in a column.
 @MainActor
 private func menusRoot(header: some Element, card: some Element, popover: some Element, help: some Element,
-                       pullDown: some Element, shortcut: some Element) -> some Element {
+                       pullDown: some Element, shortcut: some Element, anchors: some Element) -> some Element {
     Column(gap: Pixels(20)) {
         header
         Row(gap: Pixels(32)) {
@@ -91,6 +96,7 @@ private func menusRoot(header: some Element, card: some Element, popover: some E
         .alignItems(.flexStart)
         help
         shortcut
+        anchors
         Text(menusDemoModel.status)
     }
     .alignItems(.flexStart)
@@ -183,5 +189,41 @@ private func menusPullDown() -> some Element {
         Button("Share") { menusDemoModel.status = "Chose Share" }
         Divider()
         Toggle("Pinned", isOn: menusDemoPinned())
+    }
+}
+
+/// The anchor check (`MA-`, record §156, human checks `MA1`-`MA3`): an `HStack` split whose right half holds a `Menu`
+/// under `.offset` and a `Picker(.menu)` under `.scaleEffect(1.5)`. Each pop-up must open at its label's drawn
+/// bottom-leading corner, not at the layout position. Its own function and component, as every section is.
+@MainActor
+private func menusAnchorSplit() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("Anchor check: each pop-up opens under its label as drawn")
+        menusAnchorHStack()
+    }
+    .alignItems(.flexStart)
+}
+
+@MainActor
+private func menusAnchorHStack() -> some ProposalElement {
+    HStack(spacing: 16) {
+        Text("Left pane")
+            .frame(width: 160, height: 120)
+        VStack(spacing: 12) {
+            Menu("View") {
+                Button("Front") { menusDemoModel.status = "Chose Front" }
+                Button("Back") { menusDemoModel.status = "Chose Back" }
+                Divider()
+                Button("Reset") { menusDemoModel.status = "Chose Reset" }
+            }
+            .offset(x: Pixels(40), y: Pixels(20))
+            Picker("Mode", selection: Binding(get: { menusDemoModel.anchorMode },
+                                              set: { menusDemoModel.anchorMode = $0 })) {
+                Text("One").tag(0)
+                Text("Two").tag(1)
+            }
+            .pickerStyle(.menu)
+            .scaleEffect(1.5, anchor: .topLeading)
+        }
     }
 }
