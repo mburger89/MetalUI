@@ -1,6 +1,6 @@
 # Menu anchor under render effects - design (XP-G29)
 
-Rulings: [`../2026-10-26-menu-anchor-decisions.md`](../2026-10-26-menu-anchor-decisions.md) (`MA-A`...`MA-F`). Branch `fix/menu-anchor` from `bc747b6b`. Root `Sources/MetalUI` and tests only.
+Rulings: [`../2026-10-26-menu-anchor-decisions.md`](../2026-10-26-menu-anchor-decisions.md) (`MA-A`...`MA-H`). **Status: built and verified, 2026-10-26 (record 156).** Built as 15 tests (T5b, T5c added by MA-H; T12 `anAppKitPopUpReceivesTheDrawnPointUnchanged`), `presentationWindowBounds(_:ownEffects:)` (MA-G) and a replay `windowShift` (MA-H); M4 became the windowShift removal. Branch `fix/menu-anchor` from `bc747b6b`. Root `Sources/MetalUI` and tests only.
 
 ## 1. Goal
 

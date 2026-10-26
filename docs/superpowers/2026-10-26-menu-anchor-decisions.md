@@ -26,7 +26,7 @@ The same function feeds **four** consumers, so all four share the defect: `Menu`
 exactly how accessibility frames and `noteGeometry`'s `globalFrame` are made (divergence 107; `GX-I`). `recordPresentationAnchor` and `ContextMenuRecord` both call it; a source-scan test pins that no other
 site builds a presentation or context-menu bounds. The menu opens at the box's bottom-leading corner (unchanged, `MN-H` item 1); a popover flips and clamps against the box (unchanged).
 With no effect open it returns `scrolled(bounds)` bit for bit, so every existing tree is value-identical. A rotation or non-uniform case anchors to the bounding box's bottom-leading corner, not the rotated edge (the same
-approximation every accessibility frame makes; a menu has no rotated geometry to follow). Own-effects of a legacy element are already open when its `prepaint` runs (`prepaintWithRenderEffect` wraps it); T-legacy pins it.
+approximation every accessibility frame makes; a menu has no rotated geometry to follow). **Amended by MA-G:** a legacy element's own effects are *not* open when its `prepaint` records; it passes them (`ownEffects:`), T10 pins it. The function is `presentationWindowBounds(_:ownEffects:)`.
 **Cost if wrong.** A bounding box of a rotated label can sit a few points off the visual corner; cheaper than a rotated-corner rule and consistent with VoiceOver's frame. Unchanged for scale-1 offsets, the whole report.
 
 ## MA-C - the platforms are untouched
@@ -39,7 +39,7 @@ existing injected `menuPresenter` (the point reaches `NSMenu.popUp` unchanged); 
 
 A presentation anchor stays a **refusal** for a translated replay (`RetainedPrepaint` `presentationAnchor`, `RetainedTranslation` `.refused("presentationAnchor")`, `RZ-`): after the fix the recorded value
 depends on the effect, which makes the refusal strictly more necessary, and it is not lifted. A same-key replay (`replayPresentationAnchor`) stores window bounds already and is correct; a changed effect
-changes the key (`RZ-B`), so a stale anchor cannot replay (T-retained pins both: `.equatable()` Menu under a moving `.offset` re-anchors; under an unchanged one it replays and the anchor is equal).
+changes the key (`RZ-B`), so a stale anchor cannot replay. **Amended by MA-H:** wrong for a pure translation (`RK-G`), which does replay a stale rect; the replay now shifts it by its own delta (T5, T5b, T5c). The affine and layout/scroll-shift refusals stand.
 **Carried:** lifting the refusal by re-deriving anchors through the effect chain (as `AT-A` does for accessibility), owner: a later retained milestone, only if a trace shows a miss named `presentationAnchor` costing frames.
 
 ## MA-E - SwiftUI

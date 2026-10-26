@@ -27,28 +27,38 @@ Not probed (`MA-E`): a `Menu`'s pop-up tracking loop needs a real window. The cl
 `aMenuInAPaneUnderOffsetAndScaleAnchorsToTheDrawnBox` (T2, both nestings), `aMenuUnderMetalCreatorsShapeAnchorsToTheDrawnBox` (T2b: the report's shape), `aMenuUnderRotationAnchorsToTheBoundingBoxCorner` (T3),
 `aMenuInAScrolledScrollViewUnderOffsetAnchorsToTheDrawnBox` (T4), `aMenuInAnEquatableComponentReplaysItsAnchor` (T5), `aContextMenuRecordInAnEquatableComponentFollowsAMovedOffset` (T5b), `aShiftedReplayPresentsWhereAFreshFrameDoes` (T5c),
 `aPickerMenuUnderOffsetAnchorsToTheDrawnBox` (T6), `aKeyboardOpenedContextMenuUnderOffsetAnchorsToTheDrawnBox` (T7), `aPopoverAndAnchoredOverlayUnderOffsetPlaceFromTheDrawnBox` (T8), `aDrawnMenuOpensAtTheDrawnLabelUnderOffset` (T9),
-`aLegacyElementsOwnEffectIsInTheAnchor` (T10), `everyPresentationBoundsSiteGoesThroughTheOneFunction` (T11, a source scan, weak alone). `Tests/MetalUITests/AppKitMenuTests.swift` gains `anAppKitPopUpReceivesTheDrawnPoint` (T12: the point reaches
+`aLegacyElementsOwnEffectIsInTheAnchor` (T10), `everyPresentationBoundsSiteGoesThroughTheOneFunction` (T11, a source scan, weak alone). `Tests/MetalUITests/AppKitMenuTests.swift` gains `anAppKitPopUpReceivesTheDrawnPointUnchanged` (T12: the point reaches
 `NSMenu.popUp` unchanged through the injected `menuPresenter`). The existing retained `presentationAnchor` refusal pins and every no-effect `MN-`/`SV-AK` test stay green unedited.
 
 ## 4. Red runs and mutations
 
 Red first: `ce901edb` (the repro, 2 issues, x and y both off by the offset), then `5c92d671` (T1-T11): **MenuAnchorTests 12 tests, 34 issues, every test red** (`presentedMenus.last.at` differs from the label's drawn frame; T11 finds `activeOffset`
 arithmetic in `recordPresentationAnchor` and `ContextMenuRecord`). Two further reds were found at the implementation phase and are the rulings `MA-G` (T10 stayed red after the ambient-only fix, 55 / 25 points off) and `MA-H` (T5 red:
-278, 216 against the label at 228, 242; a refuse-by-name attempt fixed T5 but reddened 22 existing pins and was rejected). **Mutations named in the spec** (M1 `presentationWindowBounds` returns `scrolled(bounds)`, M2 innermost map instead of
-`composed`, M3 `activeOffset` added twice, M4 the `windowShift` removed (T5, T5b, T5c red, `MA-H`), M4b the stored rects not replayed, M5 only the `ContextMenuRecord` site reverted): lane 1 recorded M4 and M4b in `MA-H`; **M1-M3 and M5 were not
-re-run at the Record phase and are owed** (no table is claimed here).
+278, 216 against the label at 228, 242; a refuse-by-name attempt fixed T5 but reddened 22 existing pins and was rejected). **Mutations named in the spec**, each on the full unfiltered suite (about 770 s, finished normally, only the five locked-screen sheet issues extra; baseline 4464 tests, 5 issues), reddened tests by name:
+
+| Mutation | Reddened |
+|---|---|
+| M1 `presentationWindowBounds` returns `scrolled(bounds)` (effects dropped) | 13: `aShiftedReplayPresentsWhereAFreshFrameDoes`, `aMenuInAPaneUnderOffsetAndScaleAnchorsToTheDrawnBox`, `aMenuInAnEquatableComponentReplaysItsAnchor`, `aMenuUnderMetalCreatorsShapeAnchorsToTheDrawnBox`, `aPopoverAndAnchoredOverlayUnderOffsetPlaceFromTheDrawnBox`, `aPickerMenuUnderOffsetAnchorsToTheDrawnBox`, `aMenuUnderRotationAnchorsToTheBoundingBoxCorner`, `aMenuUnderOffsetPresentsAtItsDrawnLabel`, `aMenuInAScrolledScrollViewUnderOffsetAnchorsToTheDrawnBox`, `aLegacyElementsOwnEffectIsInTheAnchor`, `aKeyboardOpenedContextMenuUnderOffsetAnchorsToTheDrawnBox`, `aDrawnMenuOpensAtTheDrawnLabelUnderOffset`, `aContextMenuRecordInAnEquatableComponentFollowsAMovedOffset` |
+| M2 `effectBoundingBox` uses the innermost effect's map, not the composed one | 2: `aMenuInAPaneUnderOffsetAndScaleAnchorsToTheDrawnBox`, `aMenuUnderRotationAnchorsToTheBoundingBoxCorner` |
+| M3 `activeOffset` applied twice in `presentationWindowBounds` | 2: `aMenuInAScrolledScrollViewUnderOffsetAnchorsToTheDrawnBox`, `aPullDownMenuInsideAScrolledScrollerOpensBelowItsScrolledFrame` (existing) |
+| M4 the `windowShift` of `replayPrepaintLedger` disabled (filtered, 27 tests of the MenuAnchor, TranslatedReplay and aPurePan families) | 3: `aMenuInAnEquatableComponentReplaysItsAnchor`, `aContextMenuRecordInAnEquatableComponentFollowsAMovedOffset`, `aShiftedReplayPresentsWhereAFreshFrameDoes` |
+| M5 only the `ContextMenuRecord` site reverted to scroll-only arithmetic | 3: `aKeyboardOpenedContextMenuUnderOffsetAnchorsToTheDrawnBox`, `aContextMenuRecordInAnEquatableComponentFollowsAMovedOffset`, `everyPresentationBoundsSiteGoesThroughTheOneFunction` |
+| M6 `Menu.prepaint` no longer passes `ownEffects:` (filtered, MenuAnchor family) | 1: `aLegacyElementsOwnEffectIsInTheAnchor` |
+| T12 mutant: `AppKitWindow.presentMenu` adds 1 to the x it hands `menuPresenter` (filtered) | 1: `anAppKitPopUpReceivesTheDrawnPointUnchanged` |
+
+M4 and M6 are filtered runs, not full-suite runs. **Open:** an outer `.scaleEffect` with a moving inner `.offset` is not pinned for replayed anchors (`windowShift` casts a `Double` delta to `Float`; T5c is bit-equal only where Float arithmetic is exact); if it fails, refuse `presentationAnchor` and `contextMenus` in the translation arm when the outer linear part is not identity.
 
 ## 5. Demo and counts
 
 `METALUI_MENUS_DEMO=1` gains an "Anchor check" strip in `Sources/MetalUIDemoContent/MenusDemo.swift`, its own function (`menusAnchorSplit()`, a `Menu("View")` under `.offset(x: 40, y: 20)` and a `Picker(.menu)` under
 `.scaleEffect(1.5, anchor: .topLeading)` in the right half of an `HStack` split); `MenusDemoModel.anchorMode` is its one new member. Env-gated, so the default demo and the fourteen images do not move.
 Counts (2026-10-26, `fix/menu-anchor` from `bc747b6b`): root **4464 tests** (4449 + 14 in `MenuAnchorTests` + 1 in `AppKitMenuTests`), 0 goldens, typecheck guards unmoved (273; T11 is a test). Native build 0 `error:` and 0 `warning:` but SwiftPM's deprecation
-notice; native unfiltered run `Test run with 4464 tests in 11 suites ... with 5 issues` on a **locked screen**, the five being exactly `AppKitPresentationTests`' sheet issues of `CI-AF` (`turn { nsWindow.attachedSheet != nil }` at lines 120, 139, 161, 183, 200) and nothing else;
+notice; native unfiltered run, re-taken after `swift package clean` at the Record phase (799 s), `Test run with 4464 tests in 11 suites ... with 5 issues` on a **locked screen**, the five being exactly `AppKitPresentationTests`' sheet issues of `CI-AF` (`turn { nsWindow.attachedSheet != nil }` at lines 120, 139, 161, 183, 200) and nothing else;
 `FR-J no-argument frame: succeeded=true`. The fourteen offscreen images are **0 px and scene-identical against `bc747b6b`** (`docs/probes/demo-pixels/compare.sh`, controls as recorded). `swift build --build-tests` on the default build system 0 `warning:`. `swift:6.4-noble` via `metalui-portable`
 (volume `metalui-root-build-menu-anchor`): root build complete, `--filter "MenuAnchorTests|MetalUITestingTests"` **592 tests in 8 suites passed**. Inventory and undocumented scripts print nothing (no public declaration); no divergence label taken
 (855-864); `Backends/SDL` and `MetalUIAppKit` untouched, so the SDL package run is not owed (`MA-C`). Not run: a real AppKit pop-up, the SDL drawn menu in a window, MetalCreator (group `MA`); Windows (CI only).
 
 ## 6. Carried
 
-Lifting the `presentationAnchor` refusal for the affine and layout-shift arms (`MA-D`; only if a trace shows a miss named `presentationAnchor` costing frames); a rotated-edge anchor (no consumer); a SwiftUI probe of `Menu` under `.offset` (`MA-E`);
+An outer-scale plus moving-offset replay arm (see section 4); lifting the `presentationAnchor` refusal for the affine and layout-shift arms (`MA-D`; only if a trace shows a miss named `presentationAnchor` costing frames); a rotated-edge anchor (no consumer); a SwiftUI probe of `Menu` under `.offset` (`MA-E`);
 the real AppKit pop-up, the SDL drawn menu and MetalCreator itself (group `MA`, `MA1`-`MA3`, not run: an agent cannot).
