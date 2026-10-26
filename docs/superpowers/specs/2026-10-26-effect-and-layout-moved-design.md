@@ -1,6 +1,6 @@
 # FS-O: retained replay when the layout moved and the outer effect changed together
 
-Status: design (Designer phase), branch `perf/effect-and-layout-moved` from `aad9faf4`. Rulings: `docs/superpowers/2026-10-26-effect-and-layout-moved-decisions.md` (`EL-`).
+Status: **built and verified** (record 157; lanes A and B ok, rulings EL-A..EL-N), branch `perf/effect-and-layout-moved` from `aad9faf4`. Rulings: `docs/superpowers/2026-10-26-effect-and-layout-moved-decisions.md` (`EL-`).
 Value-identical, **no public API, no divergence expected** (labels 865-874 reserved, none taken), no shader change, no `Backends/SDL` change.
 
 ## 1. The item and what is built today

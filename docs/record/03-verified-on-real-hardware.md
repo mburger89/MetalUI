@@ -2441,3 +2441,7 @@ No real window was compared with SwiftUI: `ImageRenderer` draws no glass, and th
 ## 2026-10-25: SDL precise scroll (record §155) — looks owed, group TP
 
 No real trackpad, Wayland, X11 or Windows session was available: the classifier, the expiry, the `Window` latch and dispatch rules are pinned with synthesized SDL wheel events, and what each desktop sends is a reading of SDL 3.4.16's source. **Owed, new here — `docs/verification/human-checks.md` group `TP`, none performed:** TP1 Wayland trackpad (and the real inter-event gaps that measure the 0.15 s interval), TP2 X11, TP3 Windows precision touchpad with inertia and a fast flick, TP4 a notched wheel on all three, TP5 a hi-res wheel (expected to read precise, divergence 845), TP6 macOS under the SDL trait, TP7 a notch right after a stream and the first-event misclassification rate, TP8 `scrollPrecision: .disabled`. Nothing was verified on hardware.
+
+## 2026-10-26: layout and outer effect moved together (record §157) — looks owed, group EL
+
+No real window was used: the combined replay is pinned by scene, hit-test, accessibility and geometry equality against a retention-off window, and by work counters. Whether the demo's "Growing header over a zoom" strip shows no jump or flash under a real display link is check EL1.
