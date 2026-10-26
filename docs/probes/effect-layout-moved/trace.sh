@@ -11,7 +11,11 @@
 #     T1 step 0: translated 0 hits 0 paints 98 skipped 0 refused [:]
 #     T1 step 1: translated 0 hits 0 paints 98 skipped 0 refused [:]
 #     T1 step 2: translated 0 hits 0 paints 98 skipped 0 refused [:]
-#   (the combined frame is a silent paint miss: no refusal is counted at all, EL-J)
+#   GREEN 2678062a (lane A, paint only; prepaint still runs in these frames, lane B owns it):
+#     T1 step 0: translated 6 hits 6 paints 14 skipped 84 refused [:]
+#     T1 step 1: translated 6 hits 6 paints 14 skipped 84 refused [:]
+#     T1 step 2: translated 6 hits 6 paints 14 skipped 84 refused [:]
+#   (the baseline combined frame is a silent paint miss: no refusal is counted at all, EL-J)
 set -e
 cd "${0:A:h}/../../.."
 METALUI_TRACE_RETAINED=1 swift test --build-system native --no-parallel \
