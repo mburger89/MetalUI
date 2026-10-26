@@ -1,7 +1,7 @@
 # Menu anchor under render effects (XP-G29) - decisions
 
 Rulings for item XP-G29 of the gpui-gap priority list (MetalCreator report 2026-10-26, user screenshot; **not a plan task**). Prefix `MA-`.
-**Next unused: `MA-F`.** Spec: [`specs/2026-10-26-menu-anchor-design.md`](specs/2026-10-26-menu-anchor-design.md). Record: `../record/156-menu-anchor.md`.
+**Next unused: `MA-G`.** Spec: [`specs/2026-10-26-menu-anchor-design.md`](specs/2026-10-26-menu-anchor-design.md). Record: `../record/156-menu-anchor.md`.
 Branch `fix/menu-anchor` from `bc747b6b`. Amends `MN-H` item 1 and `MN-AD` (the anchor is the label's **drawn** frame). Divergence labels reserved 855-864: none taken.
 
 Sources of truth. Reproduction: `Tests/MetalUITestingTests/MenuAnchorReproTests.swift` (committed red at the design phase, see MA-A). SwiftUI: **not probed** (MA-E). gpui has no pull-down menu element; its `deferred`/`anchored`
@@ -47,3 +47,11 @@ changes the key (`RZ-B`), so a stale anchor cannot replay (T-retained pins both:
 SwiftUI's menu pops from the label's displayed position (a `Menu` is an `NSPopUpButton`-class control whose layer follows `.offset`); that is MetalCreator's stated expectation and the only behaviour that does not detach
 the pop-up from its label. A probe needs a real window and a click on a pop-up that AppKit runs a tracking loop for; **not cheap, not run**. The claim is therefore classed `A` by expectation, not by probe, and no
 divergence is recorded: the change moves MetalUI to the behaviour its documentation (`MN-H`: "at its bottom-leading corner") already promised. Human check `MA1` includes the comparison on a real SwiftUI `Menu` under `.offset`.
+
+## MA-F - critic review: the report's 990-point gap is the offset, and the repro must be that shape
+
+**Checked.** MetalCreator's `cubeControls` offset is `cubeLayout.origin` (+ side + 6), a model value of hundreds of points, applied to a `VStack` laid out at the overlay's top-leading corner; the layout position (10, 100) and the drawn one
+(1000, 410) differ by exactly that offset, so MA-A's single missing term (the render effect) explains the report without a pane term. The committed repro used +60/+40, which proves the mechanism but not the report's shape: T2b adds the large
+offset, overlay attachment over a `GPUSurface` and a split. **Rejected:** a separate pane-origin fix (no pane term is missing: `bounds` carries container origins from layout) and lifting the retained `presentationAnchor` refusal (MA-D stands).
+**Corrected in the spec:** T12 lives in the existing `Tests/MetalUITests/AppKitMenuTests.swift` (there is no `MetalUIAppKitTests` target); counts are 4449 + 13 = 4462. T11 (source scan) is weak evidence alone and is backed by M5 and M1; it stays.
+**Re-checked clean:** no public declaration, no platform requirement, no shader, no divergence label (855-864 untouched), no seam or C enum change; demo section env-gated so the fourteen images stay 0 px.

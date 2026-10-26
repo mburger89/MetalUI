@@ -1,6 +1,6 @@
 # Menu anchor under render effects - design (XP-G29)
 
-Rulings: [`../2026-10-26-menu-anchor-decisions.md`](../2026-10-26-menu-anchor-decisions.md) (`MA-A`...`MA-E`). Branch `fix/menu-anchor` from `bc747b6b`. Root `Sources/MetalUI` and tests only.
+Rulings: [`../2026-10-26-menu-anchor-decisions.md`](../2026-10-26-menu-anchor-decisions.md) (`MA-A`...`MA-F`). Branch `fix/menu-anchor` from `bc747b6b`. Root `Sources/MetalUI` and tests only.
 
 ## 1. Goal
 
@@ -31,6 +31,7 @@ Expected point: `(frame.minX, frame.maxY)`.
 - T1 `aMenuUnderOffsetPresentsAtItsDrawnLabel` (exists, red). Mutation M1: `presentationWindowBounds` returns `scrolled(bounds)`. Reddens T1-T9.
 - T2 `aMenuInAPaneUnderOffsetAndScaleAnchorsToTheDrawnBox` (split with a 120-wide non-zero-origin pane, `.offset` then `.scaleEffect(1.5, anchor: .topLeading)`, and the reverse order). Mutation M2: use the innermost
   effect's `map` instead of `composed` (reddens the nested-order arm only).
+- T2b `aMenuUnderMetalCreatorsShapeAnchorsToTheDrawnBox`: MA-F's tree (offset of ~990 x 310 taken from a model, `.overlay(alignment: .topLeading)` over a `GPUSurface` in the right pane of a 1200-wide split whose left pane holds a list); asserts the point is within 1 of the label frame's bottom-leading corner and far from the layout origin. Reddens with M1.
 - T3 `aMenuUnderRotationAnchorsToTheBoundingBoxCorner` (`.rotationEffect(.degrees(30))`; MA-B's approximation, pinned).
 - T4 `aMenuInAScrolledScrollViewUnderOffsetAnchorsToTheDrawnBox` (scroll offset 50 plus `.offset`; guards against double-adding `activeOffset`). Mutation M3: add `activeOffset` twice.
 - T5 `aMenuInAnEquatableComponentReplaysItsAnchor` (unchanged key frame replays: assert a prepaint replay counter > 0 via `frameWork`, anchor equal; then change the `.offset` value: re-anchors, no stale replay).
@@ -43,13 +44,13 @@ Expected point: `(frame.minX, frame.maxY)`.
 - T10 `aLegacyElementsOwnEffectIsInTheAnchor` (legacy `Menu` with decoration `.offset`, MA-B).
 - T11 `everyPresentationBoundsSiteGoesThroughTheOneFunction` (source scan of `Sources/MetalUI` for `presentationAnchors[` / `contextMenuRecords[` writes and `ContextMenuRecord(`; green after, red on a copy that reintroduces
   `activeOffset` arithmetic).
-- T12 `anAppKitPopUpReceivesTheDrawnPoint` (`Tests/MetalUIAppKitTests`, injected `menuPresenter`, hosted window; skipped where AppKit tests cannot run; the unfiltered run is the evidence).
+- T12 `anAppKitPopUpReceivesTheDrawnPoint` (extend `Tests/MetalUITests/AppKitMenuTests.swift`, injected `menuPresenter`, hosted window; skipped where AppKit tests cannot run; the unfiltered run is the evidence).
 - T13 (existing, unchanged, must stay green) the retained `presentationAnchor` refusal pins (`RZ-`, `RW-K`) and every `MN-`/`SV-AK` menu test with no effect (value-identical).
-Counts expected: 4449 + 12 tests (T1 included), 0 guards beyond T11 (a test, not a typecheck guard).
+Counts expected: 4449 + 13 tests (T1 included), 0 guards beyond T11 (a test, not a typecheck guard).
 
 ## 5. Verification
 
-Per CLAUDE.md: native build/test (4461 expected), default-build-system 0 warnings, inventory/undocumented scripts print nothing (no public declaration), fourteen images 0 px, mutations M1-M5 each by name on the
+Per CLAUDE.md: native build/test (4462 expected), default-build-system 0 warnings, inventory/undocumented scripts print nothing (no public declaration), fourteen images 0 px, mutations M1-M5 each by name on the
 full suite. Not run: real AppKit popup, SDL window, MetalCreator (human checks `MA1`-`MA3`).
 
 ## 6. Deferred (named)
