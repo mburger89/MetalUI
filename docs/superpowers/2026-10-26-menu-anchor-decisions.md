@@ -4,7 +4,7 @@ Rulings for item XP-G29 of the gpui-gap priority list (MetalCreator report 2026-
 **Next unused: `MA-I`.** Spec: [`specs/2026-10-26-menu-anchor-design.md`](specs/2026-10-26-menu-anchor-design.md). Record: `../record/156-menu-anchor.md`.
 Branch `fix/menu-anchor` from `bc747b6b`. Amends `MN-H` item 1 and `MN-AD` (the anchor is the label's **drawn** frame). Divergence labels reserved 855-864: none taken.
 
-Sources of truth. Reproduction: `Tests/MetalUITestingTests/MenuAnchorReproTests.swift` (committed red at the design phase, see MA-A). SwiftUI: **not probed** (MA-E). gpui has no pull-down menu element; its `deferred`/`anchored`
+Sources of truth. Reproduction: `MenuAnchorReproTests.swift` (committed red at `ce901edb`, since absorbed into `Tests/MetalUITestingTests/MenuAnchorTests.swift` as T1; see MA-A). SwiftUI: **not probed** (MA-E). gpui has no pull-down menu element; its `deferred`/`anchored`
 placement uses the element's window bounds, which already include every transform, so it agrees with MA-B but is recalled, not verified here.
 
 ## MA-A - the defect: every presentation anchor is recorded without the open render effects

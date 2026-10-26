@@ -44,7 +44,7 @@ Expected point: `(frame.minX, frame.maxY)`.
 - T10 `aLegacyElementsOwnEffectIsInTheAnchor` (legacy `Menu` with decoration `.offset`, MA-B).
 - T11 `everyPresentationBoundsSiteGoesThroughTheOneFunction` (source scan of `Sources/MetalUI` for `presentationAnchors[` / `contextMenuRecords[` writes and `ContextMenuRecord(`; green after, red on a copy that reintroduces
   `activeOffset` arithmetic).
-- T12 `anAppKitPopUpReceivesTheDrawnPoint` (extend `Tests/MetalUITests/AppKitMenuTests.swift`, injected `menuPresenter`, hosted window; skipped where AppKit tests cannot run; the unfiltered run is the evidence).
+- T12 `anAppKitPopUpReceivesTheDrawnPointUnchanged` (extend `Tests/MetalUITests/AppKitMenuTests.swift`, injected `menuPresenter`, hosted window; skipped where AppKit tests cannot run; the unfiltered run is the evidence).
 - T13 (existing, unchanged, must stay green) the retained `presentationAnchor` refusal pins (`RZ-`, `RW-K`) and every `MN-`/`SV-AK` menu test with no effect (value-identical).
 Counts expected: 4449 + 13 tests (T1 included), 0 guards beyond T11 (a test, not a typecheck guard).
 
