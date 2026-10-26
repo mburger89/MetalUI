@@ -66,6 +66,10 @@ public final class RetainedSubtreeDemoModel {
     public var shiftHeader: Float = 10
     /// The zoom section's scale (`RZ-A`): one `.scaleEffect` over a row of `.equatable()` cards.
     public var zoom: Double = 1
+    /// The growing-header-over-a-zoom section's header height in points (`EL-B`, FS-O): it moves with the scale in one frame.
+    public var zoomShiftHeader: Float = 10
+    /// The growing-header-over-a-zoom section's scale (`EL-B`, FS-O).
+    public var zoomShiftScale: Double = 1
     /// The geometry card's deliveries (`RG-A`): how many times its `onGeometryChange` action ran, and the last size it read.
     /// Observed, written only from the action (which runs after a build, on a change).
     var geometryReports = 0
@@ -96,6 +100,8 @@ public final class RetainedSubtreeDemoModel {
         pan = 0
         shiftHeader = 10
         zoom = 1
+        zoomShiftHeader = 10
+        zoomShiftScale = 1
         geometryReports = 0
         geometryLast = ""
         dragging = nil
@@ -246,6 +252,7 @@ private func retainedDemoRoot(strip: some ElementGroup, canvas: some ElementGrou
         RetainedDemoShift()
         RetainedDemoGeometry()
         RetainedDemoZoom()
+        RetainedDemoZoomShift()
     }
     .padding(Edges(all: Pixels(24)))
     .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity), alignment: .topLeading)
@@ -429,5 +436,46 @@ private func retainedDemoZoomBody(_ model: RetainedSubtreeDemoModel) -> some Ele
         }
         .frame(width: Pixels(760), height: Pixels(80), alignment: .topLeading)
         .clipped()
+    }
+}
+
+/// The growing-header-over-a-zooming-panel-set section (`EL-B`, FS-O): ten `.equatable()` cards under one `.scaleEffect`, below a
+/// header the "+4" button grows, so a press with the slider moved layout and effect together. **Press "+4 and zoom"**: header and scale
+/// change in one frame and the cards replay their paint and prepaint (the strip's `translated` rises by ten, `grafted` rises, `redos`
+/// stays 0, the element requests are those of a still frame); with "Replay" off every card is built again. The refusal strip names
+/// what a combined move cannot carry (`effectAndLayoutInner`, `geometryNamedSpace`, `presentationAnchor`, `contextMenus`); the retired
+/// `effectAndLayoutMoved` never shows.
+struct RetainedDemoZoomShift: Component {
+    var content: some ElementGroup {
+        retainedDemoZoomShiftBody(retainedSubtreeDemoModel)
+    }
+}
+
+/// The section's body, its own function (the Windows 1 MB stack rule).
+@MainActor @ElementBuilder
+private func retainedDemoZoomShiftBody(_ model: RetainedSubtreeDemoModel) -> some ElementGroup {
+    VStack(spacing: 4) {
+        HStack(spacing: 12) {
+            Text("Growing header over a zoom").font(size: 12)
+            Button("+4 and zoom") {
+                model.zoomShiftHeader = min(model.zoomShiftHeader + 4, 60)
+                model.zoomShiftScale = min(model.zoomShiftScale + 0.125, 2)
+            }
+            Button("Reset") { model.zoomShiftHeader = 10; model.zoomShiftScale = 1 }
+            Text("translated \(model.counters.translated)").font(size: 12)
+            Text("grafted \(model.grafts.count)").font(size: 12)
+            Text("redos \(model.counters.redos)").font(size: 12)
+            Text("refused \(model.translationRefusals.isEmpty ? "none" : model.translationRefusals)").font(size: 12)
+        }
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(width: Pixels(760), height: Pixels(model.zoomShiftHeader))
+            ZStack(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) { retainedDemoZoomRow(model) }
+                    .scaleEffect(model.zoomShiftScale, anchor: .topLeading)
+                    .offset(x: Pixels(8), y: Pixels(4))
+            }
+            .frame(width: Pixels(760), height: Pixels(100), alignment: .topLeading)
+            .clipped()
+        }
     }
 }

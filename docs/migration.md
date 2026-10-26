@@ -515,6 +515,11 @@ eight rects, then one bounding rect until the clear. **`Backends/SDL` internal C
 reasons no longer count `geometryChange`); it replays its prepaint and paint, is never grafted (`graftRefusals["geometryGraft"]`) and refuses a translated replay by name (`geometryTranslated`); its action
 fires exactly when a fresh window's would. A shifted subtree restored by the layout memo now counts a `layoutSubtreeHit` where it counted a miss (a custom `ProposalLayout` subtree never does), and
 `SubtreePlacementTests` 2.3's moved-origin case reads 1 hit. A shift under a moved render effect counts `retainedTranslationRefusedReasons["effectAndLayoutMoved"]` where it counted nothing.
+
+### Layout and outer effect moved together (`EL-`, record §157)
+
+No API change. `retainedTranslationRefusedReasons["effectAndLayoutMoved"]` is retired (never emitted): a layout or scroll shift under a changed outer effect now replays and grafts, and a hitbox, accessibility record or geometry note made inside an effect the occurrence opened counts the new name `effectAndLayoutInner`. A test that read the old key reads 0.
+
 ### Accessibility under an effect-translated replay (`AT-`, record §129)
 
 No API change, no conformer change, no `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement. **Behaviour, counters read differently:** an `.equatable()` occurrence under a

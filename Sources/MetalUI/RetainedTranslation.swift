@@ -93,6 +93,14 @@ enum RetainedShape {
     }
 }
 
+/// The layout move and the effect change of one occurrence found together (`EL-C`, FS-O): `effect == nil` is "the effect scopes are
+/// equal", today's layout arm (`shift(from:)`/`shift(to:)` answer it, unchanged); otherwise the shape moved **and** the outer render
+/// effects differ, the delta to be applied in the occurrence's own space and the live effect scopes to be re-entered second (`EL-B`).
+struct CombinedShift<Effect: Equatable>: Equatable {
+    var shift: LayoutShift
+    var effect: Effect?
+}
+
 extension ReplayKey {
     /// How far this (the new) key's occurrence moved from `old`'s, or `nil` when it did not or the two differ in anything
     /// but the origin and the scroll offset (`FS-D`: K1 and K2, independently or together).
@@ -104,6 +112,26 @@ extension ReplayKey {
         var normalized = ambient
         normalized.offset = old.ambient.offset
         return normalized == old.ambient ? shift : nil
+    }
+
+    /// The layout move and the change of the outer render effects found together (`EL-C`). With equal effect scopes this is
+    /// `shift(from:)`, so the layout arm cannot move; with scopes that differ only in effect scopes (the shape half is
+    /// `RetainedShape.shift`, untouched) `effect` is the relation of the scopes, a named refusal included. `nil` when nothing moved,
+    /// or anything but the origin, the scroll offset and effect scopes differs.
+    func shiftAndEffects(from old: ReplayKey) -> CombinedShift<EffectRelation>? {
+        if let shift = shift(from: old) { return CombinedShift(shift: shift, effect: nil) }
+        guard let shift = RetainedShape.shift(newRects: rects, newNodeCount: nodeCount, newShape: shapeInterior,
+                                              newOffset: ambient.offset, oldRects: old.rects,
+                                              oldNodeCount: old.nodeCount, oldShape: old.shapeInterior,
+                                              oldOffset: old.ambient.offset),
+              let diff = ambient.effectScopeDiff(against: old.ambient), diff.moved else { return nil }
+        var normalized = diff.normalized
+        normalized.offset = old.ambient.offset
+        guard normalized == old.ambient else { return nil }
+        if let refusal = diff.refusal { return CombinedShift(shift: shift, effect: .refused(refusal)) }
+        var base = ambient
+        base.offset = old.ambient.offset
+        return CombinedShift(shift: shift, effect: base.scopesDifferOnlyByTranslation(from: old.ambient) ? .translation : .affine)
     }
 }
 
@@ -128,6 +156,26 @@ extension PrepaintKey {
         normalized.offset = ambient.offset
         guard normalized == ambient, extras.equalIgnoringScrollOffset(new.extras) else { return nil }
         return shift
+    }
+
+    /// The layout move and the change of the render effects around the occurrence found together (`EL-C`): `shift(to:)` when the
+    /// effects are equal, else the shape's shift with `extras.change(from:)` classifying the effects (the scroller's offset, which K2
+    /// moves, set aside). `nil` when nothing moved or a part other than the effects (and the scroll offset) differs.
+    func shiftAndEffects(to new: PrepaintKey) -> CombinedShift<EffectChange>? {
+        if let shift = shift(to: new) { return CombinedShift(shift: shift, effect: nil) }
+        guard let shift = RetainedShape.shift(newRects: new.rects, newNodeCount: new.nodeCount, newShape: new.shapeInterior,
+                                              newOffset: new.ambient.offset, oldRects: rects, oldNodeCount: nodeCount,
+                                              oldShape: shapeInterior, oldOffset: ambient.offset) else { return nil }
+        var normalized = new.ambient
+        normalized.offset = ambient.offset
+        guard normalized == ambient, extras.scroller.count == new.extras.scroller.count else { return nil }
+        var was = extras, now = new.extras
+        if was.scroller.count > 7 { was.scroller[7] = 0; now.scroller[7] = 0 }
+        guard was.effects != now.effects else { return nil }
+        var restWas = was, restNow = now
+        restWas.effects = []; restNow.effects = []
+        guard restWas == restNow else { return nil }
+        return CombinedShift(shift: shift, effect: now.change(from: was))
     }
 }
 
@@ -280,7 +328,7 @@ extension PrepaintLedger {
         copy.axEmissions = moved.accessibility?.emissions ?? axEmissions
         copy.focus = focus
         copy.axNodes = moved.accessibility?.nodes ?? axNodes
-        copy.axNodeLocals = axNodeLocals
+        copy.axNodeLocals = moved.accessibility?.nodeLocals ?? axNodeLocals
         copy.pressOnly = pressOnly
         copy.contextMenus = contextMenus
         copy.elementBounds = moved.elementBounds
@@ -309,6 +357,46 @@ extension Hitbox {
 }
 
 extension Frame {
+    /// One hitbox moved by (`dx`, `dy`) in its own (pre-effect) space (`FS-F`, shared with the combined move, `EL-B`): the refusals of
+    /// the layout arm (content shape, scroll, a handler whose closure holds a position, an inexact number, a clip the move may
+    /// change) by name, the cut by the ambient clip itself recomputed. The transform is not looked at.
+    func movedHitbox(_ hitbox: Hitbox, dx: Float, dy: Float, clip c: Bounds<Pixels>, entryDepth: Int) -> TranslationOutcome<Hitbox> {
+        func inside(_ b: Bounds<Pixels>) -> Bool {
+            b.origin.x.value > c.origin.x.value && b.origin.y.value > c.origin.y.value
+                && b.origin.x.value + b.size.width.value < c.origin.x.value + c.size.width.value
+                && b.origin.y.value + b.size.height.value < c.origin.y.value + c.size.height.value
+        }
+        if hitbox.shape != nil { return .refused("hitboxShape") }
+        if hitbox.scroll != nil { return .refused("hitboxScrolls") }
+        let h = hitbox.handlers
+        if h.textInput != nil || h.valueTrack != nil || h.dropDestination != nil || h.contextual != nil {
+            return .refused("hitboxHandlers")
+        }
+        let b = hitbox.bounds
+        guard isExactSixteenth(hitbox.origin.x.value), isExactSixteenth(hitbox.origin.y.value),
+              isExactSixteenth(hitbox.origin.x.value + dx), isExactSixteenth(hitbox.origin.y.value + dy)
+        else { return .refused("inexactTranslation") }
+        if hitbox.clipDepth == entryDepth, let u = hitbox.unclipped {
+            // Cut by the ambient clip itself: the cut of the moved rect is recomputed, as `insertHitbox` computes it.
+            guard isExactSixteenth(u.origin.x.value), isExactSixteenth(u.origin.y.value),
+                  isExactSixteenth(u.origin.x.value + dx), isExactSixteenth(u.origin.y.value + dy)
+            else { return .refused("inexactTranslation") }
+            let movedU = Bounds(origin: Point(x: Pixels(u.origin.x.value + dx), y: Pixels(u.origin.y.value + dy)), size: u.size)
+            return .moved(hitbox.moved(dx: dx, dy: dy, bounds: Frame.intersect(c, movedU), unclipped: movedU))
+        }
+        // Cut by a clip derived inside the occurrence (or unknown): it moves with the occurrence only if it did not touch
+        // the ambient clip before and does not after.
+        let moved = Bounds(origin: Point(x: Pixels(b.origin.x.value + dx), y: Pixels(b.origin.y.value + dy)), size: b.size)
+        guard inside(b), inside(moved) else { return .refused("hitboxClipped") }
+        guard isExactSixteenth(b.origin.x.value), isExactSixteenth(b.origin.y.value),
+              isExactSixteenth(moved.origin.x.value), isExactSixteenth(moved.origin.y.value)
+        else { return .refused("inexactTranslation") }
+        let movedU = hitbox.unclipped.map {
+            Bounds(origin: Point(x: Pixels($0.origin.x.value + dx), y: Pixels($0.origin.y.value + dy)), size: $0.size)
+        }
+        return .moved(hitbox.moved(dx: dx, dy: dy, bounds: moved, unclipped: movedU))
+    }
+
     /// `ledger`'s registrations moved by `shift` (`FS-F`), or the name of the gate that refused: accessibility emissions and
     /// nodes (their frames are computed boxes), press-only actions, context menus and presentation anchors refuse; so does a
     /// hitbox that sits under a render effect, carries a content shape, scrolls, tracks a value, edits text or takes a drop
@@ -323,11 +411,6 @@ extension Frame {
         guard isExactSixteenth(dx), isExactSixteenth(dy) else { return .refused("inexactTranslation") }
         let c = Bounds(origin: Point(x: Pixels(clip[0]), y: Pixels(clip[1])),
                        size: Size(width: Pixels(clip[2]), height: Pixels(clip[3])))
-        func inside(_ b: Bounds<Pixels>) -> Bool {
-            b.origin.x.value > c.origin.x.value && b.origin.y.value > c.origin.y.value
-                && b.origin.x.value + b.size.width.value < c.origin.x.value + c.size.width.value
-                && b.origin.y.value + b.size.height.value < c.origin.y.value + c.size.height.value
-        }
         // Accessibility records are recomputed (`RL-H`, was `AT-C`'s refusal) and geometry notes made again (`RL-E`, was `RG-C`'s).
         var accessibility: AXTranslation?
         if !ledger.axEmissions.isEmpty || !ledger.axNodes.isEmpty {
@@ -347,36 +430,10 @@ extension Frame {
         hitboxes.reserveCapacity(ledger.hitboxes.count)
         for hitbox in ledger.hitboxes {
             if hitbox.transform != nil { return .refused("hitboxUnderEffect") }
-            if hitbox.shape != nil { return .refused("hitboxShape") }
-            if hitbox.scroll != nil { return .refused("hitboxScrolls") }
-            let h = hitbox.handlers
-            if h.textInput != nil || h.valueTrack != nil || h.dropDestination != nil || h.contextual != nil {
-                return .refused("hitboxHandlers")
+            switch movedHitbox(hitbox, dx: dx, dy: dy, clip: c, entryDepth: entryDepth) {
+            case .refused(let reason): return .refused(reason)
+            case .moved(let moved): hitboxes.append(moved)
             }
-            let b = hitbox.bounds
-            guard isExactSixteenth(hitbox.origin.x.value), isExactSixteenth(hitbox.origin.y.value),
-                  isExactSixteenth(hitbox.origin.x.value + dx), isExactSixteenth(hitbox.origin.y.value + dy)
-            else { return .refused("inexactTranslation") }
-            if hitbox.clipDepth == entryDepth, let u = hitbox.unclipped {
-                // Cut by the ambient clip itself: the cut of the moved rect is recomputed, as `insertHitbox` computes it.
-                guard isExactSixteenth(u.origin.x.value), isExactSixteenth(u.origin.y.value),
-                      isExactSixteenth(u.origin.x.value + dx), isExactSixteenth(u.origin.y.value + dy)
-                else { return .refused("inexactTranslation") }
-                let movedU = Bounds(origin: Point(x: Pixels(u.origin.x.value + dx), y: Pixels(u.origin.y.value + dy)), size: u.size)
-                hitboxes.append(hitbox.moved(dx: dx, dy: dy, bounds: Frame.intersect(c, movedU), unclipped: movedU))
-                continue
-            }
-            // Cut by a clip derived inside the occurrence (or unknown): it moves with the occurrence only if it did not touch
-            // the ambient clip before and does not after.
-            let moved = Bounds(origin: Point(x: Pixels(b.origin.x.value + dx), y: Pixels(b.origin.y.value + dy)), size: b.size)
-            guard inside(b), inside(moved) else { return .refused("hitboxClipped") }
-            guard isExactSixteenth(b.origin.x.value), isExactSixteenth(b.origin.y.value),
-                  isExactSixteenth(moved.origin.x.value), isExactSixteenth(moved.origin.y.value)
-            else { return .refused("inexactTranslation") }
-            let movedU = hitbox.unclipped.map {
-                Bounds(origin: Point(x: Pixels($0.origin.x.value + dx), y: Pixels($0.origin.y.value + dy)), size: $0.size)
-            }
-            hitboxes.append(hitbox.moved(dx: dx, dy: dy, bounds: moved, unclipped: movedU))
         }
         // Element bounds are layout rects: the layout shift only, not the scroll offset.
         let ex = shift.layoutX, ey = shift.layoutY
