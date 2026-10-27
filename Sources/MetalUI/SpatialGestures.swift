@@ -97,11 +97,20 @@ public struct SpatialTapGesture: Gesture {
         /// **MetalUI-only**: SwiftUI's value has `location` alone (divergence
         /// 235).
         public var modifiers: EventModifiers
+        /// The platform's click count of **the last press** of the sequence
+        /// (`NSEvent.clickCount` on AppKit, SDL's `clicks`), the same source
+        /// as `DragGesture.Value.clickCount`; it honours the user's
+        /// double-click speed. A `count: 1` tap on a double-click's second
+        /// click reports 2; a value built without one reports 1.
+        /// **MetalUI-only**: SwiftUI's value has `location` alone (divergence
+        /// 235).
+        public var clickCount: Int
 
-        /// A tap value; `modifiers` defaults to none.
-        public init(location: Point<Pixels>, modifiers: EventModifiers = []) {
+        /// A tap value; `modifiers` defaults to none and `clickCount` to 1.
+        public init(location: Point<Pixels>, modifiers: EventModifiers = [], clickCount: Int = 1) {
             self.location = location
             self.modifiers = modifiers
+            self.clickCount = clickCount
         }
     }
 

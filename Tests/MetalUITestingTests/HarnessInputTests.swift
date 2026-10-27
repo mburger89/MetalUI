@@ -63,6 +63,18 @@ private struct HarnessCounter: Component {
     #expect(log.entries == ["double"])
 }
 
+/// IF-O — a double click reaches a `count: 1` `SpatialTapGesture` twice, the second value carrying
+/// click count 2. Mutation: hard-code `clickCount: 1` where the value is built.
+@Test @MainActor func aDoubleClickReachesASpatialTapWithClickCountTwoOnTheSecond() throws {
+    let log = HarnessLog()
+    let window = try harnessWindow {
+        Box().frame(width: Pixels(40), height: Pixels(40)).background(.accent)
+            .gesture(SpatialTapGesture().onEnded { log.add("tap \($0.clickCount)") })
+    }
+    window.doubleClick(at: pt(200, 150))
+    #expect(log.entries == ["tap 1", "tap 2"], "\(log.entries)")
+}
+
 /// 1.7 — a right click never runs `onClick` (`MN-B`, divergence 110); a left
 /// click on the same box does (the control). Mutation: `rightClick` sends
 /// `.mouseDown`/`.mouseUp`.

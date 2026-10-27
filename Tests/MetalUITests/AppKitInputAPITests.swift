@@ -3,6 +3,7 @@ import Foundation
 import Metal
 import AppKit
 import MetalUICore
+@testable import MetalUI
 import MetalUIRender
 @testable import MetalUIPlatform
 @testable import MetalUIAppKit
@@ -385,4 +386,33 @@ private let frameEdges: [(PlatformResizeEdge, NSCursor.FrameResizePosition)] = [
     status = (false, true)
     center.post(name: NSWindow.didResignKeyNotification, object: nsWindow)
     #expect(log.events.isEmpty, "resigning sends no modifiers")
+}
+
+// MARK: - IF-O: a spatial tap's click count from real NSEvents
+
+/// **IF-O**. Real `NSEvent`s with `clickCount` 1 then 2 through the host view reach a `Window` whose
+/// content has a `count: 1` `SpatialTapGesture`; its values carry 1 then 2.
+/// Mutation: hard-code `clickCount: 1` where `SpatialTapGesture.Value` is built, or in `MouseEvent` at
+/// `AppKitPlatform.swift`'s conversion.
+@MainActor
+@Test func appKitClickCountsReachASpatialTapValue() throws {
+    let (_, appKit, nsWindow, _) = try hostWindow()
+    defer { nsWindow.close() }
+    var counts: [Int] = []
+    let window = Window(platformWindow: appKit, startsDisplayLink: false, textSystem: nil) {
+        Box().frame(width: px(400), height: px(200))
+            .gesture(SpatialTapGesture().onEnded { counts.append($0.clickCount) })
+    }
+    for _ in 0..<6 where window.needsRedraw || window.framesDrawn == 0 { window.drawFrameIfNeeded() }
+    func event(_ type: NSEvent.EventType, clickCount: Int) throws -> NSEvent {
+        try #require(NSEvent.mouseEvent(with: type, location: NSPoint(x: 100, y: 100), modifierFlags: [],
+                                        timestamp: 0, windowNumber: nsWindow.windowNumber, context: nil,
+                                        eventNumber: 0, clickCount: clickCount, pressure: 1))
+    }
+    for n in 1...2 {
+        appKit.hostView.mouseDown(with: try event(.leftMouseDown, clickCount: n))
+        appKit.hostView.mouseUp(with: try event(.leftMouseUp, clickCount: n))
+    }
+    #expect(counts == [1, 2], "\(counts)")
+    withExtendedLifetime(window) {}
 }
