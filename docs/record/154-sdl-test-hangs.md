@@ -58,7 +58,7 @@ Root native suite, 0 `error:`, `FR-J` line: see the counts bullet in `CLAUDE.md`
 - **The 18-minute parallel whole-suite hang** of record 150 near `SDLImageCursorTests`: not reproduced (two parallel runs, 10.8 s and 10.0 s); carried (`TL-G`); owner: the next SDL-window change; the next recurrence ends at the deadline with a `sample`.
 - **No deadline inside `waitBlocking`/`Submitted.await`** (`TL-F`, `GB-F` parity); re-open only on a library hang the deadline names.
 - **`.timeLimit`** (`TL-C`): re-run the probe on a toolchain bump (owner: the next toolchain bump).
-- **Windows** (`TL-I`): constructor compiled out; owner: the first Windows SDL-test job.
+- **Windows** (`TL-I`, built since record 158): constructor compiled out; owner: the first Windows SDL-test job.
 - **M2 by name** (section 4) and the Linux image re-take.
 - A production opt-out of SDL's signal handlers for apps: not asked.
 

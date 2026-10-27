@@ -64,6 +64,8 @@ recurrence now ends at the deadline with a sampled stack. **Cost if wrong.** A w
 
 ## TL-I — Windows is carried
 
+**Amended by `WG-A` (record 158): the premise below is stale, Windows CI runs the `Backends/SDL` tests, and the Windows half is built.**
+
 **Ruling.** The target compiles to nothing under `_WIN32` (no `getppid`, no pthread by default). **Cost if wrong.** A Windows hung SDL test sleeps as before;
 `Backends/SDL` tests are not run by Windows CI today (CLAUDE.md), owner: the first Windows SDL-test job.
 

@@ -49,6 +49,9 @@ public final class SDLGPUDevice: @unchecked Sendable {
     private static let stateLock = NSLock()
     private static let makeLock = NSLock()
     nonisolated(unsafe) private static var failure = ""
+    private static let videoLock = NSLock()
+    /// Test seam (WG-H): called first thing in `make`, before any lock and before the video init.
+    nonisolated(unsafe) static var testingMakeEntered: (@Sendable () -> Void)?
     /// Test hook: how many times each owned `SDL_GPUDevice *` (by address) was destroyed.
     nonisolated(unsafe) static var destroyedByHandle: [UInt: Int] = [:]
 
@@ -96,22 +99,33 @@ public final class SDLGPUDevice: @unchecked Sendable {
     /// SDL's `SDL_Init` documentation says `SDL_INIT_VIDEO` "should be
     /// initialized on the main thread" and `SDL_InitSubSystem` should "only be
     /// called on the main thread"; `SDL_CreateGPUDevice` states no thread rule.
-    /// `make` takes one lock, so concurrent calls are safe, and on macOS it runs
-    /// the video init on the main thread itself (the caller must not block the
-    /// main thread waiting for `make`). On Linux and Windows it initialises video
+    /// `make` takes one lock around device creation, so concurrent calls are safe, and on macOS it runs
+    /// the video init on the main thread itself, outside that lock (WG-H), so a main-thread call
+    /// never waits on a thread that is waiting for the main queue (a caller still must not block the
+    /// main thread waiting for an off-thread `make`). On Linux and Windows it initialises video
     /// on the calling thread. **Recommended:** initialise video on the main thread
     /// first (an app's `SDLPlatform` does; a headless tool calls `make` once on the
     /// main thread before starting workers), so a later `make` off the main thread
     /// only retains the subsystem. An engine-owned device made off the main thread
     /// beside a window renderer's device works (D7: macOS and Linux lavapipe).
     public static func make(debug: Bool = false, preferring driver: String? = nil) -> SDLGPUDevice? {
+        testingMakeEntered?()
+        // Vulkan loads its library through the video subsystem; Metal and D3D12
+        // need nothing. Initialising the subsystem (reference counted, never
+        // SDL_Quit: ruling RS-D) is harmless where it is not needed. **Never
+        // under `makeLock`** (WG-H): on macOS this hops to the main queue, and a
+        // main-thread `make` waiting for the lock a hopping thread holds is a
+        // deadlock (record 150's parallel hang). The main queue serialises the
+        // macOS init; elsewhere `videoLock` does.
+        let video: Bool
+        #if os(macOS)
+        video = onMainThreadIfCocoa { SDL_InitSubSystem(SDL_INIT_VIDEO) }
+        #else
+        videoLock.lock(); video = SDL_InitSubSystem(SDL_INIT_VIDEO); videoLock.unlock()
+        #endif
         // Two threads creating a device at once raced inside Vulkan's loader in
         // the Linux image; one lock makes `make` safe against itself.
         makeLock.lock(); defer { makeLock.unlock() }
-        // Vulkan loads its library through the video subsystem; Metal and D3D12
-        // need nothing. Initialising the subsystem (reference counted, never
-        // SDL_Quit: ruling RS-D) is harmless where it is not needed.
-        let video = onMainThreadIfCocoa { SDL_InitSubSystem(SDL_INIT_VIDEO) }
         let videoFailure = video ? "" : "; SDL_InitSubSystem(VIDEO): \(String(cString: SDL_GetError()))"
         let formats = SDL_GPUShaderFormat(UInt32(SDL_GPU_SHADERFORMAT_SPIRV) | UInt32(SDL_GPU_SHADERFORMAT_DXIL)
                                           | UInt32(SDL_GPU_SHADERFORMAT_MSL))

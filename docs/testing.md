@@ -480,7 +480,7 @@ that creates an `SDLPlatform` on macOS arms `armMainRunLoopExitCheck()`.
 `SDL_NO_SIGNAL_HANDLERS=1` (an explicit value wins), so SIGTERM and Ctrl-C end a process that initialised SDL video; it
 starts a watcher that exits 70 within about half a second when the parent that started the run is gone; and a deadline
 that exits 71 naming `METALUI_TEST_DEADLINE_SECONDS` (default 600, `0` disables) and, on macOS, writes a `sample` of the
-blocked threads. Windows is carried. To stop a run, `kill <helper pid>`, never a name pattern; a blocked wait now ends
+blocked threads. Windows has the same guard (`WG-A`..`WG-L`, record 158): the parent is waited on by handle, the deadline exits 71 by `TerminateProcess`, there is no `sample`, and no SIGTERM twin (the CRT never raises it); it was written without a Windows run, so the first CI log is its evidence. To stop a run, `kill <helper pid>`, never a name pattern; a blocked wait now ends
 at the deadline instead of sleeping.
 
 ## What it cannot do
