@@ -37,7 +37,7 @@ struct SDLTestProcessGuardTests {
     /// **TL1.** The constructor set SDL's hint variable before `main`.
     /// Mutation: the constructor's `setenv` removed (TL1, TL2).
     @Test func theTestProcessRunsWithSDLsSignalHandlersOff() {
-        let value = getenv("SDL_NO_SIGNAL_HANDLERS").map { String(cString: $0) }
+        let value = ProcessInfo.processInfo.environment["SDL_NO_SIGNAL_HANDLERS"]
         #expect(value == "1")
     }
 
@@ -103,7 +103,8 @@ struct SDLTestProcessGuardTests {
     /// **TL8.** The constructor armed the deadline the environment names (default 600 s).
     /// Mutation: the constructor's `muitg_arm_deadline` call removed (TL1 cannot see it).
     @Test func theConstructorArmedTheDeadlineBeforeMain() {
-        let seconds = muitg_parse_deadline_seconds(getenv("METALUI_TEST_DEADLINE_SECONDS"))
+        let seconds = ProcessInfo.processInfo.environment["METALUI_TEST_DEADLINE_SECONDS"]
+            .map { $0.withCString(muitg_parse_deadline_seconds) } ?? muitg_parse_deadline_seconds(nil)
         #expect(muitg_constructor_armed_deadline_milliseconds() == Int32(seconds) * 1000)
     }
 
@@ -145,7 +146,7 @@ struct SDLTestProcessGuardTests {
     /// **TL7.** The probe's hold (TL-J): with `METALUI_TL_HOLD=1` it blocks the helper for two minutes on a
     /// semaphore, the state of a hung GPU wait, so `docs/probes/sdl-orphan-exit.sh` can kill the runner.
     /// Disabled otherwise.
-    @Test(.enabled(if: getenv("METALUI_TL_HOLD") != nil)) func theProbeHoldBlocksTheHelper() {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_TL_HOLD"] != nil)) func theProbeHoldBlocksTheHelper() {
         let never = DispatchSemaphore(value: 0)
         _ = never.wait(timeout: .now() + 120)
     }
