@@ -52,8 +52,7 @@ struct SDLTestProcessGuardTests {
             guard SDL_WasInit(SDL_INIT_VIDEO) != 0 else { exit(3) }
             _ = device
             kill(getpid(), SIGTERM)
-            let never = DispatchSemaphore(value: 0)
-            _ = never.wait(timeout: .now() + 20)
+            holdUntilKilled()
         }
     }
     #endif
@@ -178,3 +177,11 @@ private func startLivingChild() throws -> Process {
     return child
 }
 #endif
+
+
+/// Blocks the calling process for up to 20 s so a signal must be what ends it. Synchronous so
+/// the semaphore wait is not in an async context.
+private func holdUntilKilled() {
+    let never = DispatchSemaphore(value: 0)
+    _ = never.wait(timeout: .now() + 20)
+}

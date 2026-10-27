@@ -1,6 +1,7 @@
 # SDL test-process guard on Windows (item WG) — design
 
 Follow-up to item HG (record 154, rulings `TL-A`..`TL-K`). Rulings: [`../2026-10-27-test-guard-windows-decisions.md`](../2026-10-27-test-guard-windows-decisions.md) (prefix `WG-`).
+Status: **built and recorded in `docs/record/158-test-guard-windows.md`** (Windows half unrun, `WG-I`).
 Branch `fix/test-guard-windows` from `a2e5113b`. Class M, test-only, `Backends/SDL`, outside the census. **No root change, no public declaration, no divergence label (875-884 untouched), no SwiftUI or gpui claim** (a test process's lifetime).
 
 ## Why

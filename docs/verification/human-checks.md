@@ -1922,6 +1922,14 @@ a physical GPU, a desktop session and a console.*
 - [ ] **TL1.** macOS: in `Backends/SDL`, start `swift test` on a GPU test that blocks (a temporary test waiting on a semaphore), press Ctrl-C: the helper ends within a second and `pgrep -f swiftpm-testing-helper` shows none. **Observed:**
 - [ ] **TL2.** The same in the Linux image (`docker run` as in `docs/testing.md`), then `docker stop` the container mid-run: no helper outlives it. **Observed:**
 
+## WG. SDL test guard on Windows (item WG, user request 2026-10-02, not a plan task; record 158; provisional letter, in the manner of `RT`, `KF` and `IF`)
+
+*An agent cannot: the Windows half was written with no Windows machine (the UTM VM was unreachable, `WG-I`) and has never been compiled or run.*
+
+- [ ] **WG1.** The first green Windows CI run of the `windows` job shows TL1, TL3-TL8, WG1-WG3 passed in `MetalUISDLTests` and no exit 70 (a false orphan, `WG-J`). **Observed:**
+- [ ] **WG2.** In the UTM VM (or any Windows machine) run `powershell -File docs\probes\sdl-orphan-exit.ps1` and paste its output into the probe header (expect to fix its helper search to walk descendants first). **Observed:**
+- [ ] **WG3.** A hung test under a short deadline shows exit 71 and the `METALUI_TEST_DEADLINE_SECONDS` message in the log (a `waitBlocking` with no partner under `METALUI_TEST_DEADLINE_SECONDS=30`). **Observed:**
+
 ## Sign-off
 
 Name, date, machine (macOS version, display(s)), build commit:
