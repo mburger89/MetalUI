@@ -733,3 +733,28 @@ func aRedoStartsAnImplicitAnimationLikeAFreshFrame() async throws {
         try pair.compare("animation frame \(index)")
     }
 }
+
+/// 5c' — pinning the timeline clock after the first frame leaves no wall-clock date (`RK-AE`): the window's first draw
+/// (timestamp 0) reads `Date()` and anchors a periodic cursor on it, so a second boundary between two windows' first
+/// draws showed two ticks after `RK-AD`'s offset was set. Setting the offset forgets those cursors. Mutation: drop the
+/// `resetCursors()` call in `testingTimelineClockOffset`'s setter (the shown date stays the wall clock's).
+private final class TimelineDateSeen { var date = -1.0 }
+@MainActor private func timelineLabel(_ seen: TimelineDateSeen, _ date: Date) -> Text {
+    seen.date = date.timeIntervalSinceReferenceDate
+    return Text("tick")
+}
+
+@Test @MainActor
+func pinningTheTimelineClockAfterTheFirstFrameDropsTheWallClockDate() throws {
+    let seen = TimelineDateSeen()
+    let w = try TestWindow(size: sz(200, 60), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) {
+            TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 1)) { context in
+                timelineLabel(seen, context.date)
+            }
+        }
+    }
+    w.window.testingTimelineClockOffset = 0
+    w.window.setNeedsRedraw(); w.tick(); w.advance(by: 2.4)
+    #expect(seen.date >= 0 && seen.date < 1_000, "the timeline shows the simulated clock, not the wall clock: \(seen.date)")
+}

@@ -146,6 +146,14 @@ final class TimelineStore {
         return body()
     }
 
+    /// Forgets every cursor and the pending wake, so the next build anchors them on the clock now in force
+    /// (`RK-AE`): a cursor made before `clockOffset` was set holds a wall-clock date.
+    func resetCursors() {
+        cursors.removeAll()
+        pendingWake?.cancel()
+        pendingWake = nil
+    }
+
     /// Forgets the build in progress (`RK-M`): the occurrence counts a redo would count twice.
     func rollbackBuild() {
         occurrences.removeAll(keepingCapacity: true)
