@@ -36,7 +36,7 @@ let package = Package(
         // `MetalUI` for the lifecycle tests (ruling `LC-O`'s lane 2: an `App`
         // over `SDLPlatform`, spec tests 10.2 and 10.3).
         // Test-only process guard (rulings TL-B...TL-J): SDL's signal handlers off, an orphaned
-        // helper exits, a run past its deadline exits naming the variable. C, compiled out on Windows.
+        // helper exits, a run past its deadline exits naming the variable. C, with a Windows half (WG).
         .target(name: "SDLTestProcessGuard", path: "Tests/SDLTestProcessGuard"),
         .testTarget(name: "MetalUISDLTests", dependencies: ["SDLReplay", "ReplayFixture", "SDLTestProcessGuard",
                                                            .product(name: "MetalUISDL", package: "MetalUI"),
