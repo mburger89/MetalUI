@@ -248,33 +248,35 @@ private func roundTrip(on device: SDLGPUDevice) -> Bool {
 /// the main queue (the run is stopped by the test guard's deadline, exit 71, `sample` showing
 /// `SDLGPUDevice.make` at the lock on the main thread and `DispatchQueue.main.sync` on the worker).
 @Suite(.serialized) @MainActor struct SDLGPUMakeDeadlockTests {
-    @Test func aMainThreadMakeDuringAnOffThreadMakesHopDoesNotDeadlock() throws {
+    @Test func aMainThreadMakeDuringAnOffThreadMakesHopDoesNotDeadlock() async throws {
         #if os(macOS)
         guard SDLGPUDevice.make() != nil else { return }
         armMainRunLoopExitCheck()
         let entered = DispatchSemaphore(value: 0)
-        let finished = DispatchSemaphore(value: 0)
         let signalled = SignalOnce()
         SDLGPUDevice.testingMakeEntered = {
             if !Thread.isMainThread, signalled.take() { entered.signal() }
         }
         defer { SDLGPUDevice.testingMakeEntered = nil }
-        let thread = Thread { _ = SDLGPUDevice.make(); finished.signal() }
-        thread.stackSize = 4 << 20
-        thread.start()
-        entered.wait()
-        // The worker is inside `make` and needs the main queue; this is the main thread calling `make` now.
-        let device = SDLGPUDevice.make()
-        #expect(device != nil, "main-thread make answered: \(SDLGPUDevice.lastFailure)")
-        // Let the worker's hop run (the main queue is free once this returns to the run loop).
-        let deadline = Date().addingTimeInterval(20)
-        while finished.wait(timeout: .now()) == .timedOut, Date() < deadline {
-            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        let mainAnswered = MainAnswer()
+        // The main queue is serial: the worker's hop runs only once this test body suspends, hence the continuation.
+        let workerAnswered: Bool? = await withCheckedContinuation { (continuation: CheckedContinuation<Bool?, Never>) in
+            let once = Once(continuation)
+            let thread = Thread { once.resume(SDLGPUDevice.make() != nil) }
+            thread.stackSize = 4 << 20
+            thread.start()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 20) { once.resume(nil) }
+            entered.wait()
+            // The worker is inside `make` and heading for the main queue; this is the main thread calling `make` now.
+            mainAnswered.value = SDLGPUDevice.make() != nil
         }
-        #expect(finished.wait(timeout: .now()) == .success, "the off-thread make finished")
+        #expect(mainAnswered.value, "main-thread make answered: \(SDLGPUDevice.lastFailure)")
+        #expect(workerAnswered == true, "the off-thread make finished and answered")
         #endif
     }
 }
+
+private final class MainAnswer: @unchecked Sendable { nonisolated(unsafe) var value = false }
 
 private final class SignalOnce: @unchecked Sendable {
     private let lock = NSLock()

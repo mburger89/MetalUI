@@ -83,3 +83,15 @@ intermediary tripping `WG-B`. **Cost if wrong.** One red CI run, fixed by the op
 ## WG-L — rejected: a fixed 90-second deadline for the parallel re-attempt
 
 **Ruling.** Rejected as the design's first draft: the whole suite's healthy wall time is unmeasured and a deadline below it would fire on a slow, loaded Mac and be misread as the record-150 hang. The deadline is the measured unloaded unfiltered wall time x3, recorded with the load; a firing is read from its `sample`, not assumed. **Cost if wrong.** A false positive costs one misdiagnosis; the sample distinguishes a hang from slowness.
+
+## WG-H addendum — the record-150 hang reproduced, diagnosed and fixed (lane 2)
+
+**Evidence.** Probe `docs/probes/sdl-parallel-hang-repro.sh` (header holds the numbers). Baseline unfiltered `--no-parallel` wall 16 s, deadline 48 s (WG-L). Eight parallel whole-suite runs: three hung, each stopped by the guard
+at 48 s with a `sample` (TL-D); all three show one deadlock. The main thread, in a main-actor GPU test, waits for `SDLGPUDevice.makeLock` inside `make`; the holder is a detached thread of `SDLGPUDeviceInfoTests`
+(`anEngineDeviceMadeOffTheMainThreadWorksBesideAWindowDevice`, `videoInitOffTheMainThreadIsMeasured`) blocked in `DispatchQueue.main.sync` (`onMainThreadIfCocoa`), which needs the main thread. A product lock-order
+inversion, not a test-only artefact: any app thread calling `make` while the main thread also calls it can deadlock (the doc comment said the caller must not block the main thread; a main-thread `make` is the ordinary case).
+**Ruling.** `make` initialises video **before** `makeLock` and never holds the lock across the hop (macOS: the main queue serialises the init; elsewhere a `videoLock` does); `makeLock` still serialises `SDL_CreateGPUDevice`
+(the Vulkan-loader race, unchanged). Seam `SDLGPUDevice.testingMakeEntered` (internal) lets `aMainThreadMakeDuringAnOffThreadMakesHopDoesNotDeadlock` order the two calls deterministically (red before: guard exit 71 at the
+lock; green after; red with the init moved back under the lock). After: twelve parallel runs, none hung. Fix inside `Backends/SDL`, no root change, no public declaration. **TL-G is closed for this hang**: `--no-parallel`
+stays the documented rule because a second parallel failure, `sdlAFileDroppedOnTheAppIsAnOpenURL` (SDLAppShellTests.swift:170/176, once in 8 before the fix, 0 in 12 after), was seen and not diagnosed. **Cost if wrong.** A
+different lock cycle would still hang a parallel run; the guard's sample names it.
