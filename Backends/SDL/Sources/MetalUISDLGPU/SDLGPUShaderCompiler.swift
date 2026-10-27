@@ -320,8 +320,8 @@ public struct SDLGPUShaderCompiler: Sendable {
 
     private func compileHLSL(_ hlsl: String, entryPoint: String, defines: [SDLGPUShaderDefine], includeDirectory: String?,
                              dxil: Bool, stage: String) throws -> [UInt8] {
-        let names = defines.map { strdup($0.name) }
-        let values = defines.map { $0.value.map { strdup($0) } ?? nil }
+        let names = defines.map { duplicateCString($0.name) }
+        let values = defines.map { $0.value.map { duplicateCString($0) } ?? nil }
         defer { names.forEach { free($0) }; values.forEach { free($0) } }
         var error = [CChar](repeating: 0, count: 32768)
         var out: UnsafeMutablePointer<UInt8>?
@@ -458,7 +458,7 @@ public struct SDLGPUShaderCompiler: Sendable {
 
 /// Calls `body` with a C array of `strings` and its count (valid for the call).
 private func withCStrings<R>(_ strings: [String], _ body: (UnsafePointer<UnsafePointer<CChar>?>?, UInt32) -> R) -> R {
-    let copies = strings.map { strdup($0) }
+    let copies = strings.map { duplicateCString($0) }
     defer { copies.forEach { free($0) } }
     let pointers: [UnsafePointer<CChar>?] = copies.map { $0.map { UnsafePointer($0) } }
     return pointers.withUnsafeBufferPointer { body($0.baseAddress, UInt32($0.count)) }
@@ -467,5 +467,14 @@ private func withCStrings<R>(_ strings: [String], _ body: (UnsafePointer<UnsafeP
 /// The text of a C buffer up to its NUL.
 private func cText(_ buffer: [CChar]) -> String {
     String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+}
+
+/// `strdup`, spelled `_strdup` where the UCRT deprecates the POSIX name.
+private func duplicateCString(_ string: String) -> UnsafeMutablePointer<CChar>? {
+    #if os(Windows)
+    _strdup(string)
+    #else
+    strdup(string)
+    #endif
 }
 #endif

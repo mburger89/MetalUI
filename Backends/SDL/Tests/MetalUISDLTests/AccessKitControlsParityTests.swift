@@ -80,7 +80,8 @@ private func controlsDemoTree() -> AccessibilityTree {
     let snapshot = AccessKitSnapshot.translate(tree, title: "MetalUI — Controls", scale: 1, ids: ids)
     let byNumber = Dictionary(uniqueKeysWithValues: snapshot.nodes.map { ($0.id, $0) })
     func node(_ name: String) throws -> AccessKitSnapshot.Node {
-        try #require(byNumber[ids.number(for: nid(name))], "\(name) translated")
+        let found = byNumber[ids.number(for: nid(name))]
+        return try #require(found, "\(name) translated")
     }
     try #require(snapshot.nodes.count == tree.nodes.count + 1, "every node and the window")
 

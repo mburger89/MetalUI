@@ -78,7 +78,7 @@ struct SDLClipboardItemsTests {
         withExtendedLifetime(platform) {}
         defer { mui_clipboard_clear() }
         let mimes = ["application/x-com.acme.graph", packMime]
-        let names: [UnsafeMutablePointer<CChar>?] = mimes.map { strdup($0) }
+        let names: [UnsafeMutablePointer<CChar>?] = mimes.map { duplicateCString($0) }
         defer { names.forEach { free($0) } }
         let native: [UInt8] = Array("native".utf8)
         let garbage: [UInt8] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -112,4 +112,13 @@ struct SDLClipboardItemsTests {
         #expect(window.readClipboard(identifier: "com.acme.graph") == [4, 5])
         #expect(calls.count == 1, "reads do not export again")
     }
+}
+
+/// `strdup`, spelled `_strdup` where the UCRT deprecates the POSIX name.
+private func duplicateCString(_ string: String) -> UnsafeMutablePointer<CChar>? {
+    #if os(Windows)
+    _strdup(string)
+    #else
+    strdup(string)
+    #endif
 }
