@@ -28,6 +28,16 @@ int muitg_parse_deadline_seconds(const char *value) {
 
 /* The Windows half (WG-B...WG-G). Nothing here was compiled on Windows by the author (WG-I). */
 
+/* The UCRT marks `getenv` deprecated; read the Win32 block the constructor also writes (WG-F). Returns NULL
+   when unset, the value otherwise (a value longer than the buffer reads as empty, which the parser treats as
+   junk, the default). One static buffer: each result is used before the next call. */
+static const char *muitg_env(const char *name) {
+    static char buffer[128];
+    DWORD length = GetEnvironmentVariableA(name, buffer, (DWORD)sizeof buffer);
+    if (length == 0) return GetLastError() == ERROR_ENVVAR_NOT_FOUND ? NULL : "";
+    return length < sizeof buffer ? buffer : "";
+}
+
 muitg_pid_t muitg_parent_pid(void) {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshot == INVALID_HANDLE_VALUE) return 0;
@@ -175,13 +185,13 @@ int muitg_constructor_armed_deadline_milliseconds(void) {
 
 static void muitg_constructor_body(void) {
     /* WG-F: SDL's CRT signal(SIGINT) handler would turn Ctrl+C into an event nobody reads. */
-    if (getenv("SDL_NO_SIGNAL_HANDLERS") == NULL) {
+    if (muitg_env("SDL_NO_SIGNAL_HANDLERS") == NULL) {
         _putenv_s("SDL_NO_SIGNAL_HANDLERS", "1");
         SetEnvironmentVariableA("SDL_NO_SIGNAL_HANDLERS", "1");
     }
     muitg_pid_t parent = muitg_parent_pid();
     if (parent != 0) muitg_watch_parent(parent, 500, muitg_orphaned, NULL);
-    int seconds = muitg_parse_deadline_seconds(getenv("METALUI_TEST_DEADLINE_SECONDS"));
+    int seconds = muitg_parse_deadline_seconds(muitg_env("METALUI_TEST_DEADLINE_SECONDS"));
     muitg_deadline_seconds_in_force = seconds;
     if (seconds > 0) muitg_arm_deadline(seconds * 1000);
 }
