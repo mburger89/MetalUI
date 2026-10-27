@@ -240,3 +240,44 @@ private func roundTrip(on device: SDLGPUDevice) -> Bool {
         if answered != nil, failureBefore.isEmpty { #expect(SDLGPUDevice.lastFailure.isEmpty) }
     }
 }
+
+/// **WG-H** (item WG, record 150's parallel hang). `make` called on the main thread while another thread's `make`
+/// is on its way to the main queue must not deadlock: the off-thread call must not hold `makeLock` across its hop
+/// to the main queue. Deterministic: a seam signals when the off-thread call is inside `make`, the main thread
+/// then calls `make` itself. Red before the fix: the main thread waits for `makeLock` held by a thread waiting for
+/// the main queue (the run is stopped by the test guard's deadline, exit 71, `sample` showing
+/// `SDLGPUDevice.make` at the lock on the main thread and `DispatchQueue.main.sync` on the worker).
+@Suite(.serialized) @MainActor struct SDLGPUMakeDeadlockTests {
+    @Test func aMainThreadMakeDuringAnOffThreadMakesHopDoesNotDeadlock() throws {
+        #if os(macOS)
+        guard SDLGPUDevice.make() != nil else { return }
+        armMainRunLoopExitCheck()
+        let entered = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        let signalled = SignalOnce()
+        SDLGPUDevice.testingMakeEntered = {
+            if !Thread.isMainThread, signalled.take() { entered.signal() }
+        }
+        defer { SDLGPUDevice.testingMakeEntered = nil }
+        let thread = Thread { _ = SDLGPUDevice.make(); finished.signal() }
+        thread.stackSize = 4 << 20
+        thread.start()
+        entered.wait()
+        // The worker is inside `make` and needs the main queue; this is the main thread calling `make` now.
+        let device = SDLGPUDevice.make()
+        #expect(device != nil, "main-thread make answered: \(SDLGPUDevice.lastFailure)")
+        // Let the worker's hop run (the main queue is free once this returns to the run loop).
+        let deadline = Date().addingTimeInterval(20)
+        while finished.wait(timeout: .now()) == .timedOut, Date() < deadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        #expect(finished.wait(timeout: .now()) == .success, "the off-thread make finished")
+        #endif
+    }
+}
+
+private final class SignalOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    func take() -> Bool { lock.lock(); defer { lock.unlock() }; if done { return false }; done = true; return true }
+}
