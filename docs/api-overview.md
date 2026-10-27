@@ -471,7 +471,7 @@ declaration order (D 645). Not built: `updating` on a composed gesture, the `Ges
 [`superpowers/2026-10-10-input-followups-decisions.md`](superpowers/2026-10-10-input-followups-decisions.md);
 probe `probes/swiftui-input-followups.swift`). MetalUI-only by ruling, where SwiftUI's
 values and callbacks have nothing (D 235, 236): `SpatialTapGesture.Value.modifiers` (the
-last press's keys) and `DragGesture.Value.clickCount` (the press's, 1 by default);
+last press's keys), `SpatialTapGesture.Value.clickCount` (its platform click count) and `DragGesture.Value.clickCount` (the press's, 1 by default);
 `onCancelled(_:)` on `DragGesture`, `MagnifyGesture` and `RotateGesture`, run once for a
 leaf that had reported when its arena is dropped (SwiftUI resets `@GestureState` and calls
 no `onEnded`; MetalUI resets it too, `GS-C`).

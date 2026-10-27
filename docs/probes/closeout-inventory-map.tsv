@@ -187,7 +187,7 @@ F	window-size	M	-	-	-	-	OV-G OV-O	EnvironmentValues.windowSize: the window's con
 F	input-apis-gestures-metalui	M	-	-	-	-	CI-F CI-G CI-R	MouseButton, DragGesture(minimumDistance:coordinateSpace:button:)/.button/.coordinateSpace, DragGesture.Value.init(startLocation:location:modifiers:), the located contextMenu(menuItems:) overload on both vocabularies: drags with the secondary/middle/other buttons in their own arena, modifiers per drag event, the right-click menu handed its press point (SwiftUI has none of them)
 F	input-apis-drag-modifiers	D	-	-	-	140	CI-G	DragGesture.Value.modifiers: the modifier keys held at the event that produced the value; SwiftUI's Value has none (census, 140)
 F	window-drag	A	swiftui-window-drag.swift	W2	aHandleOverAGestureViewportDragsTheWindowAndCancelsTheViewport	275 276 277	WD-B WD-C WD-D WD-F WD-J	WindowDragGesture (Value, init): SwiftUI's spelling, attached with .gesture/.highPriorityGesture/.simultaneousGesture; an arena leaf ready at the slop that cuts its neighbours and asks the platform to move the window; the three window-drag divergences
-F	input-followups-values	D	-	-	-	235	IF-B IF-C	SpatialTapGesture.Value.modifiers and init, DragGesture.Value.clickCount and its init: the last press's modifiers on a spatial tap, the press's platform click count on a drag value; SwiftUI's values have neither (235)
+F	input-followups-values	D	-	-	-	235	IF-B IF-C IF-O	SpatialTapGesture.Value.modifiers, clickCount and init, DragGesture.Value.clickCount and its init: the last press's modifiers and platform click count on a spatial tap, the press's platform click count on a drag value; SwiftUI's values have neither (235)
 F	input-followups-cancel	D	-	-	-	236	IF-E IF-F	onCancelled(_:) on DragGesture, MagnifyGesture and RotateGesture: runs once when a leaf that had reported is dropped without onEnded; SwiftUI has no callback and resets @GestureState instead (236)
 F	input-followups-modkeys	M	-	-	-	-	IF-D	onModifierKeysChanged(mask:initial:_:) and ModifierKeysScope: SwiftUI's signature and defaults, MetalUI's own contract (the window owns the modifiers, a transparent scope noted in prepaint, the action in the lifecycle drain); SwiftUI's timing is unprobed (human check IF1)
 F	input-apis-pointer-style	A	swiftui-input-apis.swift	P11	theInnermostPointerStyleWinsAndNilDefers	-	CI-H CI-S CI-AH	PointerStyle (.default/.horizontalText/.verticalText/.rectSelection/.grabIdle/.grabActive/.link/.zoomIn/.zoomOut/.columnResize/.rowResize/frameResize(position:directions:)), FrameResizePosition, FrameResizeDirection(.Set): SwiftUI's spellings and its innermost-wins (P11/P11c), nil defers (P12), an opaque target above covers (P13); a non-opaque style region per element through the one ranking, sent to the platform on a change
@@ -350,7 +350,7 @@ M	MetalUI	ModifiedElement.swift	.*	.*	.*	modifier-layer
 M	MetalUI	GestureState.swift	.*	.*	.*	gesture-state
 M	MetalUI	PhaseAnimator.swift	.*	.*	.*	phase-animator
 M	MetalUI	(Gesture|SpatialGestures).swift	.*	updating	.*	gesture-state
-M	MetalUI	SpatialGestures.swift	SpatialTapGesture.Value	(modifiers|init)	.*	input-followups-values
+M	MetalUI	SpatialGestures.swift	SpatialTapGesture.Value	(modifiers|clickCount|init)	.*	input-followups-values
 M	MetalUI	SpatialGestures.swift	(MagnifyGesture|RotateGesture)	onCancelled	.*	input-followups-cancel
 M	MetalUI	Gesture.swift	DragGesture	onCancelled	.*	input-followups-cancel
 M	MetalUI	Gesture.swift	DragGesture.Value	(clickCount|init)	.*clickCount.*	input-followups-values

@@ -21,7 +21,7 @@ Evidence:
 - gpui is **not read** for this item; where a ruling is MetalUI's own design
   (`IF-F`, `IF-G`, `IF-H`) it says so.
 
-Prefix **`IF-`**, lettered. **Next unused: `IF-O`.** (This line moves in the
+Prefix **`IF-`**, lettered. **Next unused: `IF-P`.** (This line moves in the
 commit that appends a ruling; read the last `## IF-` heading.)
 
 Branch `feat/input-followups` from `f2fe54a`. `docs/divergences.md`: this
@@ -482,3 +482,22 @@ that cover (the opaque target swallows it).
 needed): an app that read held modifiers inside `paint` through some other route would
 no longer repaint on a bare flags change; none exists in the tree (the platforms send
 the flags only to this event).
+
+## IF-O — SpatialTapGesture.Value.clickCount
+
+**Ruling.** `SpatialTapGesture.Value` gains `clickCount: Int` (init `clickCount: Int = 1`, so a value built
+without one reports 1): **the platform click count of the last press of the tap**, the press whose release ended it
+(`leaf.pressClickCount`, set in `GestureArena.press(at:clickCount:continuing:modifiers:)`; for a `count: 2` tap the
+second press's). The source is `NSEvent.clickCount` on AppKit and SDL's `clicks`, already carried by `MouseEvent`, the
+same as `DragGesture.Value.clickCount` (`IF-C` item 1) and parallel to `modifiers` (`IF-B`). No seam change. MetalUI-only,
+under divergence 235 (no new label).
+
+**Why.** A `count: 1` tap cannot otherwise tell a double-click's second click from a new click, and the alternatives are
+worse: a `count: 2` tap delays every single click by the tap-sequence window, and a tap declared on a child steals the
+press arena from the parent. The user's double-click speed is honoured because the platform decides the count.
+
+**Pins.** `aSpatialTapReportsThePlatformClickCountOfItsPress`, `aTapSequenceReportsTheLastPressClickCount`
+(`GestureFollowupTests`), `aDoubleClickReachesASpatialTapWithClickCountTwoOnTheSecond` (`HarnessInputTests`),
+`appKitClickCountsReachASpatialTapValue` (real `NSEvent`s through the host view), `anSDLDoubleClickGivesASpatialTapClickCountTwo`
+(`Backends/SDL`, pushed `MUI_EVENT_MOUSE_DOWN/UP` with `clicks`). Mutation: hard-code `clickCount: 1` where `Value` is built
+reddens the four root-side pins and the SDL pin; keeping the first press's count reddens the two arena pins and the drag pins.

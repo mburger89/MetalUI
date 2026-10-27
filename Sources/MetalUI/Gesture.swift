@@ -1197,7 +1197,8 @@ struct GestureArena {
                 if let callback = g.tapEnded { callbacks.append(.gesture(owner: leaf.owner, run: callback)) }
                 if let callback = g.spatialTapEnded, let location = leaf.tapLocation {
                     let value = SpatialTapGesture.Value(location: location,
-                                                        modifiers: leaf.pressModifiers)
+                                                        modifiers: leaf.pressModifiers,
+                                                        clickCount: leaf.pressClickCount)
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(value) }))
                 }
             case .longPress:

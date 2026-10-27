@@ -60,7 +60,7 @@ summary.
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
   `2026-10-09-test-harness-decisions.md`, next `HT-Y`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
-  `2026-10-10-input-followups-decisions.md`, next `IF-O`), `FI-` (`ForEach` identity:
+  `2026-10-10-input-followups-decisions.md`, next `IF-P`), `FI-` (`ForEach` identity:
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
   `2026-10-10-backdrop-blur-decisions.md`, next `BB-U`), `WD-` (window drag:
   `2026-10-12-window-drag-decisions.md`, next `WD-L`), `SL-` (text selection:
@@ -996,7 +996,7 @@ at **normal priority immediately before `SDL_Init`**, on every path (`.headless`
 (`AP-E`, `AP-F`). macOS and Windows accept it with no visible effect. Check `AP1`. Deferred: `SDL_APP_NAME`, a Windows AppUserModelID, per-window ids.
 
 **Input follow-ups (`IF-`, record §93).** `SpatialTapGesture.Value.modifiers` (the last
-press's) and `DragGesture.Value.clickCount` (the press's, never the move's) are MetalUI-only
+press's), `SpatialTapGesture.Value.clickCount` (its platform click count, `IF-O`) and `DragGesture.Value.clickCount` (the press's, never the move's) are MetalUI-only
 values (divergence 235); `onCancelled` on drag, magnify and rotate runs **once, only for a
 leaf that had reported**, from a dropped primary arena, a replaced stale button or pinch arena,
 a `.mouseMoved` while a button arena is live (a lost release), key loss and window close —

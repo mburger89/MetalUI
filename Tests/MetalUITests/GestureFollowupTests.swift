@@ -107,6 +107,43 @@ private func fWindow<Root: Element>(_ content: @escaping @MainActor () -> Root) 
     withExtendedLifetime(window) {}
 }
 
+// MARK: - IF-O: a spatial tap's click count
+
+/// **IF-O** (`IF-O`). A `count: 1` tap carries the platform click count of its press: a plain click
+/// reports 1, the second click of a double-click (pressed with count 2) reports 2.
+/// Mutation: hard-code `clickCount: 1` where `Value` is built.
+@MainActor
+@Test func aSpatialTapReportsThePlatformClickCountOfItsPress() throws {
+    let log = FLog()
+    let (window, platform) = try fWindow {
+        square().gesture(SpatialTapGesture().onEnded { log.entries.append("c\($0.clickCount)") })
+    }
+    platform.simulateInput(ldown(150, 150, count: 1))
+    platform.simulateInput(lup(150, 150, count: 1))
+    platform.simulateInput(ldown(150, 150, count: 2))
+    platform.simulateInput(lup(150, 150, count: 2))
+    #expect(log.entries == ["c1", "c2"], "\(log.entries)")
+    withExtendedLifetime(window) {}
+}
+
+/// **IF-O**. A `count: 2` tap reports the **second** press's count, not the first's.
+/// Mutation: keep the first press's count (set `pressClickCount` only when it is still 1).
+@MainActor
+@Test func aTapSequenceReportsTheLastPressClickCount() throws {
+    let log = FLog()
+    let (window, platform) = try fWindow {
+        square().gesture(SpatialTapGesture(count: 2).onEnded { log.entries.append("c\($0.clickCount)") })
+    }
+    platform.simulateInput(ldown(150, 150, count: 1))
+    platform.simulateInput(lup(150, 150, count: 1))
+    platform.simulateInput(ldown(150, 150, count: 2))
+    platform.simulateInput(lup(150, 150, count: 2))
+    #expect(log.entries == ["c2"], "\(log.entries)")
+    #expect(SpatialTapGesture.Value(location: Point(x: Pixels(1), y: Pixels(2))).clickCount == 1,
+            "a value built without a count reports 1")
+    withExtendedLifetime(window) {}
+}
+
 // MARK: - 1.3, 1.4: a drag's click count
 
 /// **1.3** (`IF-C` item 1). A drag pressed with click count 2 carries 2 in
