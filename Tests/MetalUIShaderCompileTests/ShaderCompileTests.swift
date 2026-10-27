@@ -195,7 +195,7 @@ private func scratch() throws -> URL {
         #expect(executable == "/fake/shadercross")
         calls.append(args)
         if let output = args.last, let index = args.firstIndex(of: "-o"), index + 1 == args.count - 1 {
-            FileManager.default.createFile(atPath: output, contents: Data("{ \"samplers\": 0 }".utf8))
+            _ = FileManager.default.createFile(atPath: output, contents: Data("{ \"samplers\": 0 }".utf8))
         }
         return 0
     }, log: { _ in })

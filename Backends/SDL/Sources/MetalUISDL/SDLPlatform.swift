@@ -804,7 +804,7 @@ public final class SDLWindow: PlatformWindow {
             payloads.append(representation.bytes)
         }
         guard !mimes.isEmpty else { return false }
-        let names: [UnsafeMutablePointer<CChar>?] = mimes.map { strdup($0) }
+        let names: [UnsafeMutablePointer<CChar>?] = mimes.map { duplicateCString($0) }
         defer { names.forEach { free($0) } }
         var sizes = payloads.map(\.count)
         var pointers = [UnsafePointer<UInt8>?](repeating: nil, count: payloads.count)
@@ -1559,6 +1559,15 @@ enum SDLChrome {
     }
 }
 
+
+/// `strdup`, spelled `_strdup` where the UCRT deprecates the POSIX name.
+private func duplicateCString(_ string: String) -> UnsafeMutablePointer<CChar>? {
+    #if os(Windows)
+    _strdup(string)
+    #else
+    strdup(string)
+    #endif
+}
 #else
 /// The scroll heuristic's spelling with the `SDL` trait off (ruling `TP-N`).
 public enum SDLScrollPrecision: Sendable, Hashable { case automatic, disabled }

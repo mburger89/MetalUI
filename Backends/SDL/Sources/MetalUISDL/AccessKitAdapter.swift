@@ -45,7 +45,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         }
         #elseif os(Windows)
         if let nativeWindow {
-            adapter = accesskit_windows_subclassing_adapter_new(unsafeBitCast(nativeWindow, to: HWND.self), Self.activation, me,
+            adapter = accesskit_windows_subclassing_adapter_new(HWND(OpaquePointer(nativeWindow)), Self.activation, me,
                                                                 Self.action, me)
         }
         #endif
