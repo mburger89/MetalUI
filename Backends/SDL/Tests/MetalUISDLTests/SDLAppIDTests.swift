@@ -25,7 +25,7 @@ private func lastID() -> String { String(cString: mui_app_id_last()) }
 /// overrides the hint in `SDL_GetHint`, so the pin only applies when none is exported.
 @MainActor
 private func expectSDLSawHint(_ id: String) {
-    guard getenv("SDL_APP_ID") == nil else { return }
+    guard ProcessInfo.processInfo.environment["SDL_APP_ID"] == nil else { return }
     #expect(String(cString: mui_app_id_hint_seen_at_init()) == id)
 }
 

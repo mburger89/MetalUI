@@ -125,7 +125,10 @@ var targets: [Target] = [
         .target(
             name: "CHarfBuzz",
             exclude: ["COPYING", "VENDORED.md"],
-            sources: ["src/harfbuzz.cc"]
+            sources: ["src/harfbuzz.cc"],
+            // The UCRT marks `getenv` deprecated (hb-face.cc, hb-font.cc,
+            // hb-shaper.cc); quieted on Windows by a define, the source untouched.
+            cxxSettings: [.define("_CRT_SECURE_NO_WARNINGS", .when(platforms: [.windows]))]
         ),
 
         // libunibreak 8.0, vendored (ruling LB-A; Sources/CUnibreak/VENDORED.md):
@@ -165,7 +168,10 @@ var targets: [Target] = [
             // No unsafeFlags: SwiftPM refuses them in any package depended on
             // by URL. The one warning the default build system raises in
             // FreeType is silenced in its ftoption.h instead (VENDORED.md).
-            cSettings: [.define("FT2_BUILD_LIBRARY")]
+            // The UCRT marks `getenv` deprecated (ftinit.c); a define, not an
+            // edit of the vendored source, quiets it on Windows only.
+            cSettings: [.define("FT2_BUILD_LIBRARY"),
+                        .define("_CRT_SECURE_NO_WARNINGS", .when(platforms: [.windows]))]
         ),
 
         // String -> MUIGlyphs + atlas coverage with no Apple framework
