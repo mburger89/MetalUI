@@ -1,7 +1,7 @@
 # SDL test-process guard on Windows (item WG) — decisions
 
 Rulings for item WG (user request 2026-10-02; follow-up to HG, record 154, rulings `TL-A`..`TL-K`; **not a plan task**). Prefix `WG-`.
-**Next unused: `WG-K`.** Spec: [`specs/2026-10-27-test-guard-windows-design.md`](specs/2026-10-27-test-guard-windows-design.md). Record: `../record/158-test-guard-windows.md`.
+**Next unused: `WG-M`.** Spec: [`specs/2026-10-27-test-guard-windows-design.md`](specs/2026-10-27-test-guard-windows-design.md). Record: `../record/158-test-guard-windows.md`.
 Branch `fix/test-guard-windows` from `a2e5113b`. Divergence labels reserved 875-884: **none taken**. Class M, `Backends/SDL` tests only.
 
 Sources of truth. No SwiftUI or gpui claim exists (a test process's lifetime): no SwiftUI probe is owed. Facts: this repository, `.github/workflows/sdl-gpu-linux.yml`,
@@ -75,3 +75,11 @@ phase, the implementer compiles and runs there first (ARM64, `-c core.symlinks=t
 
 **Ruling.** Not built. The POSIX watcher has never had one and `exit 70` is loud and named. Build `METALUI_TEST_PARENT_WATCH=0` (both platforms, one parse, one pin) only if a Windows CI run shows a launcher
 intermediary tripping `WG-B`. **Cost if wrong.** One red CI run, fixed by the opt-out in one commit.
+
+## WG-K — seam types, and lane order
+
+**Ruling.** `muitg_pid_t` is a C typedef (`unsigned long` on Windows imports as `UInt32`, `pid_t` as `Int32`): Swift tests take every PID from `muitg_parent_pid()` or a spawned child's own PID converted at one helper, never `getppid()` or `Int32` literals outside `#if !os(Windows)`, so the file compiles on both. Lane 2 depends on lane 1's guard source and runs after its commit, on that tree. **Cost if wrong.** A Windows-only compile error, red on CI at once.
+
+## WG-L — rejected: a fixed 90-second deadline for the parallel re-attempt
+
+**Ruling.** Rejected as the design's first draft: the whole suite's healthy wall time is unmeasured and a deadline below it would fire on a slow, loaded Mac and be misread as the record-150 hang. The deadline is the measured unloaded unfiltered wall time x3, recorded with the load; a firing is read from its `sample`, not assumed. **Cost if wrong.** A false positive costs one misdiagnosis; the sample distinguishes a hang from slowness.
