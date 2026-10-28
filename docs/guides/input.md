@@ -86,8 +86,9 @@ func inputDragPad(_ log: InputGestureLog) -> some Element {
 Attach `WindowDragGesture` (SwiftUI's macOS 15 spelling, offered on every platform) to the handle.
 After a 5-point move it asks the platform to move the window and ends, cutting the other
 gestures of that press (divergence 275). The headless window counts the requests (pin:
-`theInputGuideAWindowDragHandleAsksThePlatformOnce`). Only AppKit moves the window; SDL records
-the request and the system title bar drags itself (divergence 276). An `.opacity(0)` handle still
+`theInputGuideAWindowDragHandleAsksThePlatformOnce`). Only AppKit moves the window through the
+gesture; on SDL the handle is published as a hit-test region the platform drags from, so the request
+is never made (divergences 276, 425, 426). An `.opacity(0)` handle still
 captures; use `.hidden()` to remove one (divergence 277).
 
 ```swift
@@ -253,6 +254,9 @@ fraction of that size from the top-left, and one outside the unit square is clam
 bitmap, so building the `Image` again each frame still sends the platform one cursor (pin:
 `aBitmapRebuiltEveryFrameSendsOneCursor`). The test reads what the window sent through
 `TestWindow.pointerStyle` (pin: `theInputGuideAnImageCursorSendsItsBitmap`).
+
+`PointerStyle.shape(_:eoFill:size:hotSpot:fill:outline:)` draws a `Shape` as the cursor, MetalUI's own
+spelling of SwiftUI's visionOS one (divergence 735); it becomes the same image cursor.
 
 SDL has no hand or zoom cursor: `.grabIdle` shows its move cursor and `.zoomIn` its arrow, and no art is
 bundled. Where that is wrong for your app, draw a hand yourself and put it on the region with
@@ -424,6 +428,54 @@ func inputPasteRoot(_ model: InputPasteModel) -> some Element {
     }
 }
 ```
+
+## How do I tell a double click from a single one?
+
+`SpatialTapGesture.Value.clickCount` is the platform's click count for the press that ended the tap: 1
+for a plain click, 2 for the second click of a double-click, and for a `count: 2` tap the count of the
+last press (divergence 235; pin: `aSpatialTapReportsThePlatformClickCountOfItsPress`). `DragGesture.Value`
+carries it too. It is MetalUI-only, so SwiftUI code that reads it does not port back.
+
+```swift
+/// A tap target that shows the click count of its last tap.
+struct InputClickCountPad: Component {
+    @State var lastCount = 0
+
+    var content: some ElementGroup {
+        Text("Last click count: \(lastCount)")
+        Rectangle()
+            .frame(width: Pixels(160), height: Pixels(40))
+            .accessibilityIdentifier("click-pad")
+            .gesture(SpatialTapGesture().onEnded { lastCount = $0.clickCount })
+    }
+}
+
+@MainActor
+func inputClickCountRoot() -> some Element {
+    VStack { InputClickCountPad() }
+}
+```
+
+A test clicks the pad once and double-clicks it, and the label reads 1 and then 2 (pin:
+`theInputGuideAnInputTapReportsItsClickCount`).
+
+## How do I drag the window by its empty space?
+
+`Window.backgroundDragBehavior` is `.automatic` by default, which never drags. Set it to `.enabled` and an
+unclaimed primary press on the window's background asks the platform to move the window; a button, field
+or gesture that claims the press keeps it (divergence 736; pin: `anUnclaimedPrimaryPressOnTheBackgroundDragsWhenEnabled`).
+The band of a hidden title bar is unchanged.
+
+```swift
+/// Lets a press on empty space move the window.
+@MainActor
+func inputDragFromBackground(_ window: Window) {
+    window.backgroundDragBehavior = .enabled
+}
+```
+
+A test applies it to a window with one button: a press on empty space makes one title-bar request, and a
+press on the button makes none (pin: `theInputGuideTheBackgroundDragsOnlyWhereNothingClaimsThePress`).
 
 ## Divergences you will hit
 

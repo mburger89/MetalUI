@@ -260,7 +260,7 @@ cp -R .build/checkouts/MetalUI/Backends/SDL/Shaders/compiled dist/MetalUISDLShad
 (`Backends/SDL`, macOS and the Linux CI image). **Unverified**: a moved
 application opening its window (human check X1).
 
-### 4a. An app's own SDL_GPU shaders — compile command, lookup and marker rules verified on macOS and the Linux image; shadercross itself not built here
+### 4a. An app's own SDL_GPU shaders — compile command, lookup and marker rules verified on macOS and the Linux image; shadercross built at its pin on macOS arm64 and Linux aarch64, not on Windows
 
 An app that runs its own compute or graphics work through `MetalUISDLGPU` ships HLSL it compiled
 itself, found the way section 4's are (ruling `GA-F`, after `PX-P`). **Build** with one command, over a

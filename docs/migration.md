@@ -638,14 +638,6 @@ vocabularies, `Window.clipboard`/`Clipboard`; a file importing CoreTransferable 
 Behaviour: a key the Edit menu or the keyboard sends as primary C/X/V now reaches a clipboard handler on the focus
 chain before a `Button`'s shortcut or an app command bound to the same key (`CB-B`); with no handler nothing moves.
 
-## See also
-
-- [`api-overview.md`](api-overview.md) — the public surface by area.
-- [`testing.md`](testing.md) — testing an app's interface headless.
-- [`divergences.md`](divergences.md) — every remaining difference from SwiftUI.
-- [`verification/human-checks.md`](verification/human-checks.md) — the looks
-  that still need a human.
-
 ### Clipboard items and change notification (`CP-`, record 142)
 
 `PlatformWindow` gains **four defaultless requirements** (a conformer adds them or fails to compile):
@@ -657,3 +649,11 @@ chain before a `Button`'s shortcut or an app command bound to the same key (`CB-
 main actor whenever the clipboard may have changed (an own write, SDL's `SDL_EVENT_CLIPBOARD_UPDATE`, AppKit's
 `changeCount` seen on becoming key and at a press). The four `CB-E` requirements stay and mean item 0.
 `HeadlessPlatform.Options` gains `clipboardExportsLazily` (default `true`).
+
+## See also
+
+- [`api-overview.md`](api-overview.md) — the public surface by area.
+- [`testing.md`](testing.md) — testing an app's interface headless.
+- [`divergences.md`](divergences.md) — every remaining difference from SwiftUI.
+- [`verification/human-checks.md`](verification/human-checks.md) — the looks
+  that still need a human.
