@@ -217,6 +217,38 @@ one-window app sets only the window's. Closing one of two windows no longer ends
 `.onOpenURL` handler, never to a new window (divergence 176; the recipe is in
 [`packaging.md`](../packaging.md)).
 
+## How do I colour a popover's panel?
+
+`.presentationBackground(_:)` inside a popover's content fills the popover's panel with a colour, a colour
+token, a `Material`, a gradient, or content of your own through `presentationBackground(alignment:content:)`.
+Only `.popover` reads it, and the innermost report wins. Written on the declarer or elsewhere in the main
+tree it does nothing, and `anchoredOverlay`, the drawn alert and the drawn menu have no panel to fill
+(the rulings are `BG-A` to `BG-F`).
+
+```swift
+/// A button whose popover panel is filled red.
+struct ShellTintedPopover: Component {
+    @State var shown = false
+
+    var content: some ElementGroup {
+        Button("Tint") { shown.toggle() }
+            .popover(isPresented: $shown) {
+                Text("Details")
+                    .frame(width: Pixels(120), height: Pixels(40))
+                    .presentationBackground(Color.red)
+            }
+    }
+}
+
+@MainActor
+func shellTintedPopoverRoot() -> some Element {
+    VStack { ShellTintedPopover() }
+}
+```
+
+A test opens the popover and finds a red rect in the scene that the closed window does not have (pin:
+`theShellGuideAPresentationBackgroundFillsThePopoverPanel`).
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.

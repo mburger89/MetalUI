@@ -126,7 +126,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-27, master cf1b4968): root 4485 tests, 0 goldens, 273 typecheck guards.** A count is stale the moment a test lands: re-measure (`swift package clean`, native build, unfiltered `--no-parallel` run, `--build-system native` for the guards). The dated history of every earlier count, with its branch and lane readings, is frozen verbatim in `docs/record/159-counts-history-2026-10-27.md`; new milestones put their count in their own record, and this line is replaced, not appended to.
+- **Counts (2026-10-27, master cf1b4968): root 4489 tests, 0 goldens, 273 typecheck guards** (master cf1b4968's 4485 plus the four guide mirror tests of `GuideMirrorsPresentationExtras.swift`). A count is stale the moment a test lands: re-measure (`swift package clean`, native build, unfiltered `--no-parallel` run, `--build-system native` for the guards). The dated history of every earlier count, with its branch and lane readings, is frozen verbatim in `docs/record/159-counts-history-2026-10-27.md`; new milestones put their count in their own record, and this line is replaced, not appended to.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.

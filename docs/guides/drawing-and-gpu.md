@@ -427,6 +427,34 @@ struct DrawingGauge: Component {
 }
 ```
 
+## How do I draw Liquid Glass?
+
+`.glassEffect(_:in:)` draws a glass behind a view in a shape (a capsule by default), as SwiftUI's does, with
+`Glass.regular`, `.clear`, `.identity`, `tint(_:)` and `interactive()`. Glass is one backdrop record, so a
+standalone glass costs one. Inside a `GlassEffectContainer(spacing:)` the members within the spacing of each
+other draw as one merged blob, four members to a blob (divergences 825, 826; pin: `aContainerSubtreeRefusesRetentionByName`).
+`glassEffectID` accepts an identity and does not morph yet.
+
+```swift
+/// Three glass circles that merge inside a container, and one capsule that stands alone.
+@MainActor
+func drawingGlassRoot() -> some Element {
+    VStack(spacing: Pixels(8)) {
+        GlassEffectContainer(spacing: Pixels(40)) {
+            HStack(spacing: Pixels(10)) {
+                Color.clear.frame(width: Pixels(60), height: Pixels(60)).glassEffect(in: Circle())
+                Color.clear.frame(width: Pixels(60), height: Pixels(60)).glassEffect(in: Circle())
+                Color.clear.frame(width: Pixels(60), height: Pixels(60)).glassEffect(in: Circle())
+            }
+        }
+        Color.clear.frame(width: Pixels(80), height: Pixels(40)).glassEffect(.regular.tint(Color.blue.opacity(0.2)))
+    }
+}
+```
+
+The scene holds two backdrop records, the blob of three members and the standalone glass (pin:
+`theDrawingGuideAContainerMergesItsMembersIntoOneBlob`).
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
