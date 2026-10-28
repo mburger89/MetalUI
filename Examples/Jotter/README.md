@@ -77,5 +77,5 @@ builds this package and runs its tests; CI runs them on macOS and in the Linux i
 - **Autosave or a document model.** Persistence is the two file dialogs and nothing else, so it behaves the same
   on AppKit and SDL and there is nothing to sandbox. A real notes app would keep a library file.
 - **A live Markdown preview.** `Text` parses Markdown only in a string literal; a `String` value is shown as typed.
-- **Lazy containers.** The list is `List`, windowed; a `LazyVStack` is not used.
+- **Lazy containers.** The list is `List`, windowed; `LazyVStack`/`LazyVGrid` (MetalUI has them) are not used.
 - **Packaging.** `docs/packaging.md` has the recipe (`.app` bundle, `.desktop` file, icons); use bundle id `com.example.Jotter`.

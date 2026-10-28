@@ -324,7 +324,7 @@ Control elsewhere) and reads what the window put on its private clipboard: `wind
 `window.setClipboard(text:)` put there what another application copied, replacing everything the clipboard held.
 `window.platformWindow.clipboard` is the text view of the `public.utf8-plain-text` representation, and
 `platformWindow.clipboardCommandRequests` lists the `ClipboardCommands` the window sent. The headless clipboard is
-per window and never touches the machine's; an AppKit test of its own passes a private named `NSPasteboard`.
+per window and never touches the machine's (`window.setClipboard(items:)` and `clipboardItems` cover several items, for `PasteButton`); an AppKit test of its own passes a private named `NSPasteboard`.
 
 ## The clock and `runUntilIdle`
 
@@ -494,11 +494,10 @@ Each is a ruled deferral (`HT-Q`):
 - **Shaping counters** are not in `FrameWork` (the cache is CoreText's).
 - **Virtual time inside `.task`**: Swift's clocks are not the harness's;
   inject one.
-- **An IME composition helper**: `send(.textComposition(…))` works.
 - **Key-window switching** between several windows:
   `setControlActiveState(_:)` per window covers what an element observes.
-- **An in-window menu bar** (SDL draws none); `menuBar` reads the seam
-  regardless.
+- **A drawn menu bar by default**: `HeadlessPlatform.showsMenuBarNatively` is `true` (AppKit's answer), so
+  the window draws none and `menuBar` reads the seam; set it `false` to drive the bar SDL draws through the tree.
 
 ## Replacing an app's own platform fake
 

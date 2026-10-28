@@ -74,6 +74,12 @@ same declarations; your code does not branch.
   inside the band is not delivered (divergences 276, 425, 426). `performWindowDrag()` still answers
   `false`; a handle moves the window through its region, not through the gesture. Double-click zoom
   on the band is not promised on Linux (human check CW6).
+- A trackpad or hi-res wheel reads as a precise scroll: SDL forwards no device class, so MetalUI
+  infers one from fractional deltas and ends the stream 0.15 s after the last event; set
+  `SDLPlatform.Options.scrollPrecision` to `.disabled` for plain wheel events (divergences 845, 846).
+- `SingleInstance.claim(id:forwarding:configuration:)` elects one running copy per user and forwards a
+  second launch's arguments to it as an open-document event; `SDLPlatform.Options.applicationID` is the
+  Wayland `app_id` / X11 `WM_CLASS` a `.desktop` file matches.
 - A drop onto the window targets the deepest destination whatever its type (divergence 102).
 
 ```swift
@@ -223,6 +229,10 @@ submit. A batch is its own submission: it is not part of a window's frame.
 receives, not owned and never destroyed, so a buffer a batch filled is one the surface can draw.
 SDL orders only the start of one submission before the next, so await the batch's fence before the
 frame that reads its output. Keep the borrowed wrapper no longer than the window.
+
+Shaders can also be compiled at run time: `SDLGPUShaderCompiler.shared(libraryPath:)` loads
+libSDL3_shadercross when the app ships it and throws `compilerUnavailable` when it is absent
+([`packaging.md`](../packaging.md)).
 
 Apps with their own SDL3 binding can ignore the layer: `SDLGPUDrawContext` still hands out `device`,
 `commandBuffer` and `target` as raw pointers.

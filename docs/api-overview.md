@@ -1,8 +1,8 @@
 # MetalUI public API — an overview
 
 A map of the public surface by area: what each area holds, how it relates to
-SwiftUI, and where to read more. Every public declaration (2977 of them, in
-fifteen modules) belongs to one of 156 inventory families; the mechanical map
+SwiftUI, and where to read more. Every public declaration (3836 of them, in
+sixteen modules) belongs to one of 213 inventory families; the mechanical map
 is `probes/closeout-inventory-map.tsv`, checked by
 `probes/closeout-inventory-check.sh` (it prints nothing when every
 declaration is classified), and the human-readable table with each family's

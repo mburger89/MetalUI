@@ -86,8 +86,9 @@ func inputDragPad(_ log: InputGestureLog) -> some Element {
 Attach `WindowDragGesture` (SwiftUI's macOS 15 spelling, offered on every platform) to the handle.
 After a 5-point move it asks the platform to move the window and ends, cutting the other
 gestures of that press (divergence 275). The headless window counts the requests (pin:
-`theInputGuideAWindowDragHandleAsksThePlatformOnce`). Only AppKit moves the window; SDL records
-the request and the system title bar drags itself (divergence 276). An `.opacity(0)` handle still
+`theInputGuideAWindowDragHandleAsksThePlatformOnce`). Only AppKit moves the window through the
+gesture; on SDL the handle is published as a hit-test region the platform drags from, so the request
+is never made (divergences 276, 425, 426). An `.opacity(0)` handle still
 captures; use `.hidden()` to remove one (divergence 277).
 
 ```swift
@@ -253,6 +254,9 @@ fraction of that size from the top-left, and one outside the unit square is clam
 bitmap, so building the `Image` again each frame still sends the platform one cursor (pin:
 `aBitmapRebuiltEveryFrameSendsOneCursor`). The test reads what the window sent through
 `TestWindow.pointerStyle` (pin: `theInputGuideAnImageCursorSendsItsBitmap`).
+
+`PointerStyle.shape(_:eoFill:size:hotSpot:fill:outline:)` draws a `Shape` as the cursor, MetalUI's own
+spelling of SwiftUI's visionOS one (divergence 735); it becomes the same image cursor.
 
 SDL has no hand or zoom cursor: `.grabIdle` shows its move cursor and `.zoomIn` its arrow, and no art is
 bundled. Where that is wrong for your app, draw a hand yourself and put it on the region with
