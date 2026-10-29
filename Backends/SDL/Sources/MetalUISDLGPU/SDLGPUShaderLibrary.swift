@@ -45,6 +45,10 @@ public struct SDLGPUShaderBlob: Sendable {
 /// A directory of blobs built by `MetalUICompileShaders` (the `compile-shaders`
 /// command plugin; rulings `GA-F`, `BS-B`): `NAME.comp.{spv,msl,dxil,json}`,
 /// `NAME.vert.…`, `NAME.frag.…` and, unless the build omitted it, `SOURCE.sha256`.
+/// The directory comes from the `compile-shaders` command plugin (checked in or
+/// shipped beside the executable) or from the `CompileShadersOnBuild` build-tool
+/// plugin, which puts it in the target's resource bundle (``locate(directoryName:resourceBundle:sourceTree:)``,
+/// ruling `BT-H`).
 public struct SDLGPUShaderLibrary: Sendable {
     /// The directory the blobs are read from.
     public let directory: URL
@@ -103,6 +107,51 @@ public struct SDLGPUShaderLibrary: Sendable {
         }
         throw SDLGPUShaderError(description: "no app shader directory holds SOURCE.sha256 or a reflection file; tried "
             + candidates.map(\.path).joined(separator: ", "))
+    }
+
+    /// A candidate directory computed only when the search reaches it.
+    typealias LazyCandidate = () -> URL?
+
+    /// The first of `candidates`, evaluated in order and only until one opens, that
+    /// opens; none throws an error naming every directory **evaluated** (a
+    /// bundle never reached is not named; ruling `BT-H`).
+    static func locate(lazily candidates: [LazyCandidate]) throws -> SDLGPUShaderLibrary {
+        var tried: [String] = []
+        for candidate in candidates {
+            guard let url = candidate() else { continue }
+            if let library = try? SDLGPUShaderLibrary(directory: url) { return library }
+            tried.append(url.path)
+        }
+        throw SDLGPUShaderError(description: "no app shader directory holds SOURCE.sha256 or a reflection file; tried "
+            + tried.joined(separator: ", "))
+    }
+
+    /// The candidates of ``locate(directoryName:resourceBundle:sourceTree:)``: beside the
+    /// executable, the bundle's `directoryName` resource (else its `resourceURL` joined with
+    /// the name), `sourceTree`. The bundle is read only when the first fails.
+    static func lazyCandidates(directoryName: String, resourceBundle: @escaping () -> Bundle?, sourceTree: URL?,
+                               executableDirectory: URL) -> [LazyCandidate] {
+        [{ executableDirectory.appendingPathComponent(directoryName) },
+         { guard let bundle = resourceBundle() else { return nil }
+           return bundle.url(forResource: directoryName, withExtension: nil)
+               ?? bundle.resourceURL?.appendingPathComponent(directoryName) },
+         { sourceTree }]
+    }
+
+    /// Finds the app's shaders when a build-tool plugin put them in a resource bundle
+    /// (ruling `BT-H`): `directoryName` **beside the executable first** (an explicit
+    /// placement wins), then the bundle's, then `sourceTree`. Call it as
+    /// `SDLGPUShaderLibrary.locate(resourceBundle: .module)`. `resourceBundle` is evaluated
+    /// **only when the first candidate fails**, because SwiftPM's generated `Bundle.module`
+    /// traps when its bundle is missing. None found throws an error naming every directory tried.
+    public static func locate(directoryName: String = "MetalUIAppShaders", resourceBundle: @autoclosure () -> Bundle?,
+                              sourceTree: URL? = nil) throws -> SDLGPUShaderLibrary {
+        let executable = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments.first ?? ".")
+        let bundle = resourceBundle
+        return try withoutActuallyEscaping(bundle) { escapable in
+            try locate(lazily: lazyCandidates(directoryName: directoryName, resourceBundle: escapable, sourceTree: sourceTree,
+                                              executableDirectory: executable.deletingLastPathComponent()))
+        }
     }
 
     /// Finds the app's shaders (ruling `GA-F`): `directoryName` (default

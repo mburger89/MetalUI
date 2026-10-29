@@ -52,6 +52,10 @@ loader path for the child (`DYLD_LIBRARY_PATH`/`LD_LIBRARY_PATH`; Windows finds 
 
 ## BS-D — a build-tool plugin is carried
 
+**Superseded (2026-10-28) by `BT-D`...`BT-H`** (`2026-10-28-build-tool-shaders-decisions.md`, record 161): measured again, reason 1 is answered by a
+`Bundle.module` lookup candidate (`BT-H`), reason 2 by a marker-verified fallback that fails the build when the HLSL changed and names both fixes
+(`BT-F`), and reason 3 by the user's decision to publish nothing, so the plugin uses a local shadercross only. The text below is the 2026-10-21 ruling.
+
 **Ruling.** Not built now. Reasons from the measurements: its outputs land in the plugin work directory and a resource bundle
 (3), so `locate` would need a third candidate and the app a `Bundle` lookup; a build-tool plugin that needs an external
 shadercross **fails every `swift build` of every consumer that lacks it** unless it degrades silently, which hides a stale

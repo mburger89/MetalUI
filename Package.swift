@@ -49,6 +49,7 @@ var products: [Product] = [
         // the `SDL` trait: compiling a shader needs shadercross, not SDL.
         .executable(name: "MetalUICompileShaders", targets: ["MetalUICompileShaders"]),
         .plugin(name: "CompileShaders", targets: ["CompileShaders"]),
+        .plugin(name: "CompileShadersOnBuild", targets: ["CompileShadersOnBuild"]),
         // Run-time HLSL compute compile with no SDL (item XP-G27, rulings HX-A, HX-C): optional;
         // `MetalUI` does not depend on it, so an app that never compiles links none of it.
         .library(name: "MetalUIShaderRuntime", targets: ["MetalUIShaderRuntime"]),
@@ -311,6 +312,9 @@ var targets: [Target] = [
                     permissions: [.writeToPackageDirectory(reason: "Writes the compiled shader blobs into the package")]),
                 dependencies: ["MetalUICompileShaders"],
                 path: "Plugins/CompileShaders"),
+        // App shaders on plain `swift build` (ruling BT-D, item BS-D): a build-tool plugin over the same tool.
+        .plugin(name: "CompileShadersOnBuild", capability: .buildTool(), dependencies: ["MetalUICompileShaders"],
+                path: "Plugins/CompileShadersOnBuild"),
 
         // The scaffolder (ruling SC-A): Foundation only, `package` access — a
         // tool, not framework API. `MetalUICLI` is the `metalui` executable.

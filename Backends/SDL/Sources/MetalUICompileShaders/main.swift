@@ -10,7 +10,11 @@ if arguments.contains("--help") || arguments.contains("-h") {
     exit(0)
 }
 do {
-    try ShaderCompiler.run(try CompileArguments.parse(arguments), environment: ProcessInfo.processInfo.environment)
+    let parsed = try CompileArguments.parse(arguments)
+    switch parsed.mode {
+    case .compile: try ShaderCompiler.run(parsed, environment: ProcessInfo.processInfo.environment)
+    case .onBuild: try ShaderCompiler.runOnBuild(parsed, environment: ProcessInfo.processInfo.environment)
+    }
 } catch let error as CompileUsageError {
     FileHandle.standardError.write(Data("error: \(error)\n".utf8))
     exit(2)

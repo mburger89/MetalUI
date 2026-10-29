@@ -351,9 +351,34 @@ cp -R shaders/compiled dist/MetalUIAppShaders
 `SDLGPUShaderLibrary.locate(directoryName:sourceTree:)` looks in `MetalUIAppShaders` beside the
 executable first, then in the `sourceTree` URL the app passes (a source build; the library reads no
 `#filePath` for the app) and fails naming both directories when neither holds a `SOURCE.sha256` or a
-reflection file. A build-tool plugin that compiles on every `swift build` is **not offered** (ruling
-`BS-D`): its outputs land in the plugin work directory and a resource bundle, not beside the executable,
-and a missing shadercross would fail every consumer's build.
+reflection file.
+
+**On plain `swift build` (`CompileShadersOnBuild`, rulings `BT-A`...`BT-M`, item `BS-D`).** An app target opts in and keeps its
+HLSL in `Sources/App/Shaders/NAME.<vert|frag|comp>.hlsl`, optionally with checked-in blobs in `Sources/App/Shaders/compiled/`:
+
+```text
+.executableTarget(name: "App",
+                  dependencies: [.product(name: "MetalUISDLGPU", package: "MetalUI")],
+                  plugins: [.plugin(name: "CompileShadersOnBuild", package: "MetalUI")])
+let shaders = try SDLGPUShaderLibrary.locate(resourceBundle: .module)
+```
+
+| shadercross (`METALUI_SHADERCROSS`, else `PATH`) | `Shaders/compiled/` | Result |
+|---|---|---|
+| found | any | compiles all four formats and the marker into the target's resource bundle (`MetalUIAppShaders`); warns when a checked-in marker is stale |
+| variable names a missing file | any | the build fails |
+| not found | marker matches, each source has `.json` and `.spv` | copies those blobs and the marker |
+| not found | stale or missing marker, a missing blob, no directory | the build fails naming the problems, the pin and both fixes |
+
+No published shadercross is assumed (`BS-H`): install one at the pin of 4a, or run `compile-shaders` where one is installed and commit
+`Shaders/compiled`. A shadercross replaced at the same path does not rerun the step (`swift package clean`). `locate(resourceBundle:)` looks
+beside the executable first, then in the bundle (evaluated only then, since `Bundle.module` traps when its bundle is missing), then in `sourceTree`;
+to ship, copy `MetalUIAppShaders` beside the executable or ship the resource bundle as `MetalUI_MetalUIRender.bundle` is shipped. A target
+applying the plugin with no source gets a warning and no command. Windows is unmeasured (human check `BT1`).
+
+**Verified** (macOS, 2026-10-28): a fixture package depending on this checkout by path, on both build systems, with a stub and the real shadercross
+at the pin, with and without one on the path, a stale source refused, an unchanged rebuild running nothing
+(`theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage`, env-gated). **Unverified:** Windows, a dependency by URL, a shipped `.app` (`BT1`...`BT3`).
 
 **Verified** (macOS, 2026-10-21): the plugin from a fixture package depending on this checkout **by
 path**, refused without `--allow-writing-to-package-directory` and writing blobs and the marker with it
