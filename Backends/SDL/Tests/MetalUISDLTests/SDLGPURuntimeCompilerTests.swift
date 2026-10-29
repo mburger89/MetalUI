@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MetalUISDLGPU
+import MetalUIShaderRuntime
 @testable import MetalUISDLGPU
 
 // Run-time HLSL compute compile (item XP-G25, rulings RC-B..RC-S; spec 5 tests 13-17). These
@@ -212,5 +213,30 @@ func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
         #expect(String(describing: SDLGPUShaderCompileError.compilerUnavailable(tried: ["a: b"])).contains("a: b"))
         let again = String(describing: SDLGPUShaderCompileError.libraryAlreadyLoaded(loaded: "/x", requested: "/y"))
         #expect(again.contains("/x") && again.contains("/y"))
+    }
+
+    /// **8** (`HX-F`, item XP-G27). Every `RuntimeShaderCompileError` case maps to the same-named
+    /// `SDLGPUShaderCompileError` case with equal payloads. Mutation: map `malformedReflection` to `invalidInput`.
+    @Test func theRuntimeTypesConvertOneToOneIntoTheSDLOnes() {
+        let pairs: [(RuntimeShaderCompileError, SDLGPUShaderCompileError)] = [
+            (.compilerUnavailable(tried: ["a: no such file", "b: failed"]), .compilerUnavailable(tried: ["a: no such file", "b: failed"])),
+            (.libraryAlreadyLoaded(loaded: "/x", requested: "/y"), .libraryAlreadyLoaded(loaded: "/x", requested: "/y")),
+            (.invalidInput("empty"), .invalidInput("empty")),
+            (.unsupportedTarget("opengl"), .unsupportedTarget("opengl")),
+            (.compileFailed(stage: "HLSL to SPIR-V", diagnostics: "error: x"), .compileFailed(stage: "HLSL to SPIR-V", diagnostics: "error: x")),
+            (.malformedReflection("threadcount_x"), .malformedReflection("threadcount_x")),
+        ]
+        for (runtime, expected) in pairs {
+            let mapped = SDLGPUShaderCompileError(runtime)
+            #expect(String(describing: mapped) == String(describing: expected), "\(runtime)")
+            #expect(String(describing: mapped) == String(describing: runtime), "same text: \(runtime)")
+            switch (mapped, expected) {
+            case (.compilerUnavailable(let a), .compilerUnavailable(let b)): #expect(a == b)
+            case (.libraryAlreadyLoaded(let a1, let a2), .libraryAlreadyLoaded(let b1, let b2)): #expect(a1 == b1 && a2 == b2)
+            case (.invalidInput, .invalidInput), (.unsupportedTarget, .unsupportedTarget), (.malformedReflection, .malformedReflection): break
+            case (.compileFailed(let a1, let a2), .compileFailed(let b1, let b2)): #expect(a1 == b1 && a2 == b2)
+            default: Issue.record("\(runtime) mapped to a different case: \(mapped)")
+            }
+        }
     }
 }

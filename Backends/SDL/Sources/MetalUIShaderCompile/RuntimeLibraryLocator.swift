@@ -116,10 +116,15 @@ package enum RuntimeLibraryLocator {
     /// The dependents to load by full path before the library itself (`RC-N`): the pin's
     /// install has no rpath, so a full-path load alone fails. `listing` is the directory's
     /// file names. `dxcompiler` and `spirv-cross` are required (a missing one throws naming
-    /// it), `dxil` is optional; unrelated files are ignored.
-    package static func preloadSet(directory: String, listing: [String], windows: Bool, macOS: Bool) throws -> [String] {
+    /// it), `dxil` is optional; unrelated files are ignored. With `includingSDL` an optional first group
+    /// `sdl3` (stem exactly `sdl3`, never `SDL3_shadercross`; shortest name first) precedes them, for a
+    /// process that holds no SDL3 of its own (`HX-D`); the default keeps the set byte for byte.
+    package static func preloadSet(directory: String, listing: [String], windows: Bool, macOS: Bool,
+                                   includingSDL: Bool = false) throws -> [String] {
         var result: [String] = []
-        for (group, required) in [("dxcompiler", true), ("spirv-cross", true), ("dxil", false)] {
+        var groups: [(String, Bool)] = [("dxcompiler", true), ("spirv-cross", true), ("dxil", false)]
+        if includingSDL { groups.insert(("sdl3", false), at: 0) }
+        for (group, required) in groups {
             let matches = listing.filter { name in
                 guard isLibraryFile(name, windows: windows, macOS: macOS) else { return false }
                 let found = stem(name, windows: windows)

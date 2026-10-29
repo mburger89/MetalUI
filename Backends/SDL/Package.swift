@@ -44,6 +44,8 @@ let package = Package(
                                                            // The app's SDL_GPU layer (ruling GA-B): the tests import
                                                            // it alone, the way an app does.
                                                            .product(name: "MetalUISDLGPU", package: "MetalUI"),
+                                                           // The error type the compiler forwards (ruling HX-F, test 8).
+                                                           .product(name: "MetalUIShaderRuntime", package: "MetalUI"),
                                                            .product(name: "MetalUI", package: "MetalUI"),
                                                            .product(name: "MetalUIScene", package: "MetalUI"),
                                                            .product(name: "MetalUIPortableText", package: "MetalUI")]),

@@ -186,3 +186,36 @@ private let dylib = "libSDL3_shadercross.dylib"
     let notices = try String(contentsOf: root.appendingPathComponent("THIRD-PARTY-NOTICES.md"), encoding: .utf8)
     #expect(notices.contains("Microsoft's release"))
 }
+
+// Item XP-G27 (rulings HX-D, HX-I tests 4 and 5): the optional SDL3 group of the preload set.
+
+/// **Test 4** (`HX-D`). Mutations: match `hasPrefix("sdl3")` (red: shadercross itself is preloaded); put the group last.
+@Test func theSDLGroupIsPreloadedFirstOnlyWhenAsked() throws {
+    let cases: [(listing: [String], windows: Bool, macOS: Bool, sdl: [String], dependents: [String])] = [
+        (["libSDL3.0.dylib", "libSDL3.dylib", "libSDL3_shadercross.dylib", "libSDL3_test.a", "libdxcompiler.dylib",
+          "libspirv-cross-c-shared.0.dylib"], false, true, ["libSDL3.dylib", "libSDL3.0.dylib"],
+         ["libdxcompiler.dylib", "libspirv-cross-c-shared.0.dylib"]),
+        (["libSDL3.so.0", "libSDL3.so", "libSDL3_shadercross.so.0", "libSDL3_image.so.0", "libdxcompiler.so",
+          "libspirv-cross-c-shared.so.0"], false, false, ["libSDL3.so", "libSDL3.so.0"],
+         ["libdxcompiler.so", "libspirv-cross-c-shared.so.0"]),
+        (["SDL3.dll", "SDL3_shadercross.dll", "SDL3_image.dll", "dxcompiler.dll", "spirv-cross-c-shared.dll"], true, false,
+         ["SDL3.dll"], ["dxcompiler.dll", "spirv-cross-c-shared.dll"]),
+    ]
+    for c in cases {
+        let with = try Locator.preloadSet(directory: "/d", listing: c.listing, windows: c.windows, macOS: c.macOS, includingSDL: true)
+        #expect(with == (c.sdl + c.dependents).map { "/d/" + $0 }, "\(with)")
+        let without = try Locator.preloadSet(directory: "/d", listing: c.listing, windows: c.windows, macOS: c.macOS)
+        #expect(without == c.dependents.map { "/d/" + $0 }, "the default set is unchanged: \(without)")
+        #expect(without == (try Locator.preloadSet(directory: "/d", listing: c.listing, windows: c.windows, macOS: c.macOS, includingSDL: false)))
+    }
+}
+
+/// **Test 5** (`HX-D`). Mutation: make the SDL3 group required.
+@Test func aDirectoryWithoutSDLStillLoadsTheDependentsSet() throws {
+    let listing = ["libdxcompiler.dylib", "libspirv-cross-c-shared.0.dylib", "libdxil.dylib"]
+    let with = try Locator.preloadSet(directory: "/d", listing: listing, windows: false, macOS: true, includingSDL: true)
+    #expect(with == ["/d/libdxcompiler.dylib", "/d/libspirv-cross-c-shared.0.dylib", "/d/libdxil.dylib"])
+    #expect(throws: ComputeValidationError.self) {
+        _ = try Locator.preloadSet(directory: "/d", listing: ["libSDL3.0.dylib"], windows: false, macOS: true, includingSDL: true)
+    }
+}

@@ -49,6 +49,9 @@ var products: [Product] = [
         // the `SDL` trait: compiling a shader needs shadercross, not SDL.
         .executable(name: "MetalUICompileShaders", targets: ["MetalUICompileShaders"]),
         .plugin(name: "CompileShaders", targets: ["CompileShaders"]),
+        // Run-time HLSL compute compile with no SDL (item XP-G27, rulings HX-A, HX-C): optional;
+        // `MetalUI` does not depend on it, so an app that never compiles links none of it.
+        .library(name: "MetalUIShaderRuntime", targets: ["MetalUIShaderRuntime"]),
 
 ]
 
@@ -263,7 +266,7 @@ var targets: [Target] = [
         // The SDL3 link is declared here, not only in CSDL's module map: that
         // `link` applies only where Swift imports CSDL, and nothing does.
         .target(name: "SDLBridge",
-                dependencies: [.target(name: "CSDL", condition: .when(traits: ["SDL"]))],
+                dependencies: ["CShaderCross", .target(name: "CSDL", condition: .when(traits: ["SDL"]))],
                 path: "Backends/SDL/Sources/SDLBridge",
                 cSettings: [.define("METALUI_SDL", .when(traits: ["SDL"]))],
                 linkerSettings: [.linkedLibrary("SDL3", .when(traits: ["SDL"]))]),
@@ -281,6 +284,7 @@ var targets: [Target] = [
         // imports `CSDL`).
         .target(name: "MetalUISDLGPU",
                 dependencies: ["MetalUISDL", "SDLBridge", "MetalUIPlatform", "MetalUICore", "MetalUIShaderCompile",
+                               "MetalUIShaderRuntime",
                                .target(name: "CSDL", condition: .when(traits: ["SDL"]))],
                 path: "Backends/SDL/Sources/MetalUISDLGPU",
                 linkerSettings: [.linkedLibrary("SDL3", .when(traits: ["SDL"]))]),
@@ -292,6 +296,13 @@ var targets: [Target] = [
         .executableTarget(name: "MetalUICompileShaders", dependencies: ["MetalUIShaderCompile"],
                           path: "Backends/SDL/Sources/MetalUICompileShaders"),
         .testTarget(name: "MetalUIShaderCompileTests", dependencies: ["MetalUIShaderCompile"]),
+        // The run-time compiler loader (XP-G25, XP-G27; rulings HX-C, HX-G): one portable C target and
+        // its Swift wrapper, on every platform and outside the `SDL` trait. glibc below 2.34 keeps
+        // `dlopen` in libdl.
+        .target(name: "CShaderCross", linkerSettings: [.linkedLibrary("dl", .when(platforms: [.linux]))]),
+        .target(name: "MetalUIShaderRuntime", dependencies: ["CShaderCross", "MetalUIShaderCompile"]),
+        .testTarget(name: "MetalUIShaderRuntimeTests",
+                    dependencies: ["MetalUIShaderRuntime", "MetalUIShaderCompile", "MetalUITestSupport"]),
         // `swift package compile-shaders` (ruling BS-B): a command plugin over the tool.
         .plugin(name: "CompileShaders",
                 capability: .command(

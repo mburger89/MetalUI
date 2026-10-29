@@ -511,6 +511,11 @@ command buffer. Every wrapper has `.raw` and the product re-exports `CSDL`. Ship
 `docs/packaging.md` section 4a; the guide is [`guides/drawing-and-gpu.md`](guides/drawing-and-gpu.md). Human checks:
 group GA, unrun.
 
+**Run-time compile without SDL** (`HX-`, item XP-G27, record 160). Class M, product `MetalUIShaderRuntime` (a root `Sources/` target, so in the census): `RuntimeShaderCompiler`
+(`shared(libraryPath:)`, `isAvailable`, `compileCompute(hlsl:entryPoint:defines:includeDirectory:target:)`, `selfTest(target:)`), `RuntimeShaderTarget`, `RuntimeShaderDefine`,
+`ComputeShaderReflection`, `CompiledComputeShader`, `RuntimeShaderSelfTestReport`, `RuntimeShaderCompileError`: the loader `SDLGPUShaderCompiler` uses, available in the macOS default
+build with no SDL3 linked (`docs/packaging.md` 4b; one load per process shared by both APIs). `MetalUI` does not depend on it.
+
 **SDL GPU gaps** (`GB-`, item S11, record §137; class M, `Backends/SDL`, outside the census). Graphics, rulings `GB-B`
 to `GB-E`: `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:)` and `setScissor(x:y:width:height:)`
 (`@discardableResult -> Bool`, top-left target pixels, a bad size answers `false`, the scissor clamps to the target),
