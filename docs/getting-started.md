@@ -206,6 +206,8 @@ The generated README gives each platform these steps (`PX-J` item 3). The
 generated `Packaging/linux/<id>.desktop` and `Packaging/windows/MyApp.rc` are
 `docs/packaging.md`'s Linux and Windows sections.
 
+App HLSL shaders can compile on plain `swift build` with the `CompileShadersOnBuild` plugin (opt-in per target, `docs/packaging.md` 4a); the starter does not apply it.
+
 ## Call `app.run()` from top-level code
 
 The generated `main.swift` calls `app.run()` from **synchronous top-level

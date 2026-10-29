@@ -1,7 +1,7 @@
 # App shaders on `swift build` (BS-D) - decisions
 
 Rulings for item `BS-D` (carried by record 138, "go ahead with BS-D" 2026-10-28; **not a plan task**), the build-tool plugin MetalCreator asked for as
-part of XP-G20. Prefix `BT-`. **Next unused: `BT-N`.**
+part of XP-G20. Prefix `BT-`. **Next unused: `BT-O`.**
 Spec: [`specs/2026-10-28-build-tool-shaders-design.md`](specs/2026-10-28-build-tool-shaders-design.md). Record: `../record/161-build-tool-shaders.md` (Record phase).
 Branch `feat/build-tool-shaders` from master `abc2bf46`. Continues `BS-B`, `BS-C`, `BS-E`, `BS-I` (record 138); **supersedes `BS-D`** (amended there).
 Divergence labels reserved 895-904: **none taken** (`BT-A`). **Nothing is published** (`BS-H`; the user chose "no publish": no release, tag,
@@ -199,3 +199,8 @@ Env-gated, `METALUI_RUN_BUILD_PLUGIN_TEST=1` (counts while skipped, as `METALUI_
 A plan-time decision in the plugin (duplicates the locator and the marker, `BT-F`); a silent fallback to unverified blobs (`BS-D`'s reason 2); a
 `binaryTarget` shadercross (`BS-H`, user decision); per-file outputs (`BT-G`); making the starter opt in (`BT-I`); `--disable-sandbox` (not needed,
 `BT-B` 4); copying the outputs beside the executable (a build-tool plugin cannot write there, `BS-B` 3, and `BT-H` reaches the bundle instead).
+
+## BT-N - implementation notes (build)
+
+**Ruling.** (1) `ShadercrossLocator.notFoundMessage` is the one prefix the build arm uses to tell "nothing found" from a named missing file (`BT-F` 2). (2) `runOnBuild` takes injected `fileExists`, `runner`, `log` and `warn`, so the pure tests run both arms with no shadercross. (3) The env-gated test's fixture manifest declares `platforms: [.macOS(.v14)]`: the plugin product inherits the root's macOS 14 and SwiftPM refuses a lower consumer, as for every product of this package. (4) The plugin lists `compiled/` regular files by `FileManager`, as it lists the sources. Measured 2026-10-28, macOS, both build systems, with a stub and the real shadercross at the pin (the designer's install), with and without `METALUI_SHADERCROSS` set in the test's own environment.
+**Cost if wrong.** None.

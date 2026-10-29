@@ -1968,3 +1968,11 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **HX1.** A signed `.app` with the hardened runtime and library validation, built without the `SDL` trait, shipping the five dylibs of `docs/packaging.md` 4b in `Contents/Frameworks`: `RuntimeShaderCompiler.selfTest()` loads and compiles (or note which signing step it needs). **Observed:**
 - [ ] **HX2.** Windows, default build: `SDL3.dll` beside `SDL3_shadercross.dll` is loaded by `LoadLibraryW` after `SetDllDirectoryW`, `GetModuleHandleW(L"SDL3.dll")` is the module shadercross bound, and a broken kernel's diagnostics arrive. **Observed:**
 - [ ] **HX3.** Linux tarball with no system libSDL3: `libSDL3.so.0` beside shadercross is preloaded `RTLD_LOCAL`, `dlsym(handle, "SDL_GetError")` finds shadercross's instance, a compile succeeds. **Observed:**
+
+## BT. App shaders on `swift build` - `CompileShadersOnBuild` (item BS-D, record 161; provisional letter)
+
+*An agent cannot: a Windows machine and a URL dependency are not in the agent's environment.*
+
+- [ ] **BT1.** A Windows consumer build applying the plugin, both arms (shadercross on `PATH` spelled `Path`, and none with matching checked-in blobs): the PATH spelling, DLLs, CRLF (`eol=lf`) and the `.resources` layout.
+- [ ] **BT2.** A dependency on MetalUI **by URL** applying the plugin builds and finds the bundle.
+- [ ] **BT3.** A shipped macOS `.app` finds `MetalUIAppShaders` in its resource bundle through `locate(resourceBundle: .module)`.

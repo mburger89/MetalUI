@@ -5,6 +5,9 @@ package enum ShadercrossLocator {
     /// The variable `BS-C` names.
     package static let environmentVariable = "METALUI_SHADERCROSS"
 
+    /// The start of the error a search that found nothing throws (`BT-F`: the build arm tells it from a missing named file).
+    package static let notFoundMessage = "shadercross not found"
+
     /// The executable: `flag`, else `METALUI_SHADERCROSS`, else a `PATH` search for
     /// `shadercross` (`shadercross.exe` on Windows). A flag or variable that names a
     /// missing file is an error, never a fall-through; none found names all three places.
@@ -24,7 +27,7 @@ package enum ShadercrossLocator {
             let candidate = ShaderCompilePlan.join(String(directory), name)
             if fileExists(candidate) { return candidate }
         }
-        throw ShaderCompileError("shadercross not found: pass --shadercross PATH, set \(environmentVariable), or put it on PATH")
+        throw ShaderCompileError("\(notFoundMessage): pass --shadercross PATH, set \(environmentVariable), or put it on PATH")
     }
 
     /// `environment` with the archive's `lib` directory (beside `bin`) first on the

@@ -316,3 +316,115 @@ func theCompileShadersPluginRunsOnAFixturePackage() throws {
     }
     #endif
 }
+
+// MARK: - The build-tool plugin on a fixture package (env-gated, BT-L 13)
+
+#if os(macOS) || os(Linux)
+/// The `MetalUIAppShaders` directory SwiftPM copied into the fixture target's resource bundle (not the plugin work directory's).
+private func bundledShaders(in scratchPath: URL) -> URL? {
+    guard let walker = FileManager.default.enumerator(at: scratchPath, includingPropertiesForKeys: nil) else { return nil }
+    for case let url as URL in walker where url.lastPathComponent == "MetalUIAppShaders" && !url.path.contains("/plugins/") {
+        return url
+    }
+    return nil
+}
+#endif
+
+/// **Test 13** (`BT-L`). A temporary package depending on this checkout by path, one target applying
+/// `CompileShadersOnBuild` with `Shaders/tri.vert.hlsl` and a checked-in `Shaders/compiled`, on `swift build`
+/// and `swift build --build-system native`: (a) a stub shadercross by `METALUI_SHADERCROSS` compiles into the
+/// bundle; (e) a real one (only when the test's own `METALUI_SHADERCROSS` names one) gives the checked-in blobs;
+/// (b) no shadercross and a matching marker copies the checked-in files; (d) an unchanged rebuild runs nothing
+/// (native on Linux gets one extra build, `BT-B` 3); (c) an edited `.hlsl` fails naming the pin and both fixes.
+/// Off unless `METALUI_RUN_BUILD_PLUGIN_TEST=1` (a cold build of the tool, minutes; counts while skipped).
+/// Mutations: the plugin passes no `--environment-shadercross` (a reddens); per-file outputs (the bundle lookup reddens).
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_BUILD_PLUGIN_TEST"] == "1"))
+func theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage() throws {
+    #if os(macOS) || os(Linux)
+    let root = try scratch()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let manager = FileManager.default
+    let package = root.appendingPathComponent("Fixture")
+    let shaders = package.appendingPathComponent("Sources/Fixture/Shaders"), compiled = shaders.appendingPathComponent("compiled")
+    try manager.createDirectory(at: compiled, withIntermediateDirectories: true)
+    try Data("""
+        // swift-tools-version: 6.1
+        import PackageDescription
+        let package = Package(name: "Fixture", platforms: [.macOS(.v14)],
+            dependencies: [.package(name: "MetalUI", path: "\(checkout.path)")],
+            targets: [.executableTarget(name: "Fixture", path: "Sources/Fixture",
+                                        plugins: [.plugin(name: "CompileShadersOnBuild", package: "MetalUI")])])
+        """.utf8).write(to: package.appendingPathComponent("Package.swift"))
+    try Data("print(\"fixture\")\n".utf8).write(to: package.appendingPathComponent("Sources/Fixture/main.swift"))
+    let source = shaders.appendingPathComponent("tri.vert.hlsl")
+    try manager.copyItem(at: appShaders.appendingPathComponent("tri.vert.hlsl"), to: source)
+    let original = try Data(contentsOf: source)
+    let blobNames = ["tri.vert.spv", "tri.vert.msl", "tri.vert.dxil", "tri.vert.json"]
+    for name in blobNames { try manager.copyItem(at: appShaders.appendingPathComponent("compiled/\(name)"), to: compiled.appendingPathComponent(name)) }
+    try Data(SourceMarker.contents(of: [(name: "tri.vert.hlsl", bytes: [UInt8](original))]).utf8)
+        .write(to: compiled.appendingPathComponent("SOURCE.sha256"))
+    let stub = root.appendingPathComponent("shadercross-stub")
+    try Data("""
+        #!/bin/sh
+        while [ $# -gt 0 ]; do if [ "$1" = "-o" ]; then out="$2"; fi; shift; done
+        printf '{ "samplers": 0 }' > "$out"
+        """.utf8).write(to: stub)
+    try manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stub.path)
+
+    let base = ProcessInfo.processInfo.environment
+    let real = base["METALUI_SHADERCROSS"].flatMap { manager.isExecutableFile(atPath: $0) ? $0 : nil }
+    var withoutShadercross = base
+    withoutShadercross["METALUI_SHADERCROSS"] = nil
+    withoutShadercross["PATH"] = (base["PATH"] ?? "").split(separator: ":")
+        .filter { !manager.fileExists(atPath: $0 + "/shadercross") }.joined(separator: ":")
+
+    for system in [[String](), ["--build-system", "native"]] {
+        let label = system.isEmpty ? "swiftbuild" : "native"
+        let scratchPath = package.appendingPathComponent(".build-\(label)")
+        func build(_ environment: [String: String]) throws -> (status: Int32, output: String) {
+            try shell("swift", ["build", "--scratch-path", scratchPath.path] + system, in: package, environment: environment)
+        }
+        func blob(_ name: String) -> Data? {
+            bundledShaders(in: scratchPath).flatMap { try? Data(contentsOf: $0.appendingPathComponent(name)) }
+        }
+        // (a) a stub compiles.
+        var stubbed = withoutShadercross
+        stubbed["METALUI_SHADERCROSS"] = stub.path
+        let a = try build(stubbed)
+        print("BT 13a \(label): status=\(a.status)\n\(a.output.suffix(600))")
+        #expect(a.status == 0, "\(label) a: \(a.output)")
+        for name in blobNames { #expect(blob(name) == Data("{ \"samplers\": 0 }".utf8), "\(label) a \(name)") }
+        #expect(blob("SOURCE.sha256") != nil, "\(label) a marker")
+        // (e) a real shadercross reproduces the checked-in blobs.
+        if let real {
+            var realEnvironment = withoutShadercross
+            realEnvironment["METALUI_SHADERCROSS"] = real
+            let e = try build(realEnvironment)
+            #expect(e.status == 0, "\(label) e: \(e.output)")
+            for name in blobNames {
+                #expect(blob(name) == (try Data(contentsOf: appShaders.appendingPathComponent("compiled/\(name)"))), "\(label) e \(name)")
+            }
+        }
+        // (b) no shadercross, matching marker: the checked-in files.
+        let b = try build(withoutShadercross)
+        print("BT 13b \(label): status=\(b.status)\n\(b.output.suffix(600))")
+        #expect(b.status == 0, "\(label) b: \(b.output)")
+        for name in blobNames {
+            #expect(blob(name) == (try Data(contentsOf: compiled.appendingPathComponent(name))), "\(label) b \(name)")
+        }
+        // (d) an unchanged rebuild runs nothing.
+        var last = b
+        for _ in 0..<(system.isEmpty ? 1 : 2) { last = try build(withoutShadercross) }
+        #expect(last.status == 0 && !last.output.contains("Verified") && !last.output.contains("Compiled"), "\(label) d: \(last.output)")
+        // (c) an edited source fails naming the pin and both fixes.
+        try (original + Data("\n// edited\n".utf8)).write(to: source)
+        let c = try build(withoutShadercross)
+        print("BT 13c \(label): status=\(c.status)\n\(c.output.suffix(1200))")
+        #expect(c.status != 0, "\(label) c accepted a stale blob")
+        for needle in [ShadercrossPin.commit, "compile-shaders", "METALUI_SHADERCROSS", "tri.vert.hlsl changed"] {
+            #expect(c.output.contains(needle), "\(label) c names \(needle): \(c.output)")
+        }
+        try original.write(to: source)
+    }
+    #endif
+}

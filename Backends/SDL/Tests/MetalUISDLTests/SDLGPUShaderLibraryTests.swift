@@ -81,6 +81,58 @@ private func markAsShaderDirectory(_ directory: URL) throws {
         }
     }
 
+    /// **BT-L 11.** Beside the executable, then the target's resource bundle, then the source tree
+    /// (ruling `BT-H`); none is an error naming every directory it evaluated. Mutation: swap candidates 1 and 2.
+    @Test func theShaderLibraryLooksBesideTheExecutableThenTheBundleThenTheSourceTree() throws {
+        let root = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let adjacent = root.appendingPathComponent("bin/MetalUIAppShaders")
+        let bundleRoot = root.appendingPathComponent("res.bundle")
+        let inBundle = bundleRoot.appendingPathComponent("MetalUIAppShaders")
+        let tree = root.appendingPathComponent("tree/compiled")
+        try FileManager.default.createDirectory(at: bundleRoot, withIntermediateDirectories: true)
+        let bundle = try #require(Bundle(path: bundleRoot.path))
+        func candidates() -> [SDLGPUShaderLibrary.LazyCandidate] {
+            SDLGPUShaderLibrary.lazyCandidates(directoryName: "MetalUIAppShaders", resourceBundle: { bundle }, sourceTree: tree,
+                                               executableDirectory: root.appendingPathComponent("bin"))
+        }
+        try markAsShaderDirectory(adjacent)
+        try markAsShaderDirectory(inBundle)
+        try markAsShaderDirectory(tree)
+        #expect(try SDLGPUShaderLibrary.locate(lazily: candidates()).directory.path == adjacent.path)
+        try FileManager.default.removeItem(at: adjacent)
+        #expect(try SDLGPUShaderLibrary.locate(lazily: candidates()).directory.standardizedFileURL.path
+                == inBundle.standardizedFileURL.path)
+        try FileManager.default.removeItem(at: inBundle)
+        #expect(try SDLGPUShaderLibrary.locate(lazily: candidates()).directory.path == tree.path)
+        try FileManager.default.removeItem(at: tree)
+        do {
+            _ = try SDLGPUShaderLibrary.locate(lazily: candidates())
+            Issue.record("found nothing")
+        } catch {
+            let description = String(describing: error)
+            #expect(description.contains(adjacent.path) && description.contains("res.bundle") && description.contains(tree.path), "\(description)")
+        }
+    }
+
+    /// **BT-L 12.** `Bundle.module` traps when missing, so the bundle is read only after the
+    /// executable candidate fails. Mutation: evaluate the autoclosure eagerly.
+    @Test func theResourceBundleIsNotEvaluatedWhenTheExecutableCandidateOpens() throws {
+        let root = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let adjacent = root.appendingPathComponent("bin/MetalUIAppShaders")
+        try markAsShaderDirectory(adjacent)
+        var evaluated = 0
+        let candidates = SDLGPUShaderLibrary.lazyCandidates(
+            directoryName: "MetalUIAppShaders", resourceBundle: { evaluated += 1; return nil }, sourceTree: nil,
+            executableDirectory: root.appendingPathComponent("bin"))
+        _ = try SDLGPUShaderLibrary.locate(lazily: candidates)
+        #expect(evaluated == 0)
+        try FileManager.default.removeItem(at: adjacent)
+        #expect(throws: SDLGPUShaderError.self) { try SDLGPUShaderLibrary.locate(lazily: candidates) }
+        #expect(evaluated == 1)
+    }
+
     /// **C7.** The checked-in blobs belong to their source: every source's
     /// SHA-256 equals its `SOURCE.sha256` line, so a source edit without a
     /// rebuild is red on any machine (no shadercross needed). Mutation: add one
