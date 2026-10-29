@@ -133,6 +133,21 @@ private func markAsShaderDirectory(_ directory: URL) throws {
         #expect(evaluated == 1)
     }
 
+    /// **BT-L 12b.** The public `locate(resourceBundle:)` keeps its autoclosure lazy: a shader
+    /// directory beside the executable is found without evaluating the bundle (`Bundle.module`
+    /// traps when missing). Mutation: evaluate the autoclosure eagerly in the public function.
+    @Test func thePublicLocateDoesNotEvaluateItsBundleWhenTheExecutableCandidateOpens() throws {
+        let executable = try #require(Bundle.main.executableURL)
+        let name = "BTShaders-\(UUID().uuidString)"
+        let adjacent = executable.deletingLastPathComponent().appendingPathComponent(name)
+        try markAsShaderDirectory(adjacent)
+        defer { try? FileManager.default.removeItem(at: adjacent) }
+        var evaluated = 0
+        let library = try SDLGPUShaderLibrary.locate(directoryName: name, resourceBundle: { evaluated += 1; return nil }())
+        #expect(library.directory.lastPathComponent == name)
+        #expect(evaluated == 0)
+    }
+
     /// **C7.** The checked-in blobs belong to their source: every source's
     /// SHA-256 equals its `SOURCE.sha256` line, so a source edit without a
     /// rebuild is red on any machine (no shadercross needed). Mutation: add one
