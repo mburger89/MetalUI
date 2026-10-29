@@ -232,7 +232,8 @@ frame that reads its output. Keep the borrowed wrapper no longer than the window
 
 Shaders can also be compiled at run time: `SDLGPUShaderCompiler.shared(libraryPath:)` loads
 libSDL3_shadercross when the app ships it and throws `compilerUnavailable` when it is absent
-([`packaging.md`](../packaging.md)).
+([`packaging.md`](../packaging.md)). A macOS app built without the `SDL` trait uses the same loader
+through the `MetalUIShaderRuntime` product's `RuntimeShaderCompiler`.
 
 Apps with their own SDL3 binding can ignore the layer: `SDLGPUDrawContext` still hands out `device`,
 `commandBuffer` and `target` as raw pointers.
