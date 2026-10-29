@@ -416,6 +416,19 @@ archive and shipped by the app (`THIRD-PARTY-NOTICES.md`); this repository holds
 built against the fork and was **not** run against Microsoft's DXC here. What could differ is the `IDxcCompiler3` interface and flags it was built for,
 and `dxil.dll` signing (Microsoft's release is believed to ship a signing `dxil.dll`; unmeasured). Human check `SX1`.
 
+**Without the `SDL` trait (the macOS default build; item XP-G27, rulings `HX-A`...`HX-K`, record 160).** Add the product
+`MetalUIShaderRuntime` and call `RuntimeShaderCompiler` (`shared(libraryPath:)`, `compileCompute(hlsl:entryPoint:defines:includeDirectory:target:)`,
+`selfTest(target:)`): the same loader as `SDLGPUShaderCompiler` (one implementation, one load per process, `HX-C`, `HX-E`), and the app **need not link SDL3**.
+Ship the four files above **plus `libSDL3.0.dylib`** (Homebrew's 3.4.18 arm64 is 2,520,816 bytes, zlib; about 35 MB in all) in the same directory
+(`Contents/Frameworks`): when the process holds no SDL3, the loader preloads the SDL3 file it finds beside shadercross first, by full path, `RTLD_LOCAL`, and reads
+`SDL_GetError`, `SDL_ClearError` and `SDL_free` through shadercross's own handle, so they are always the instance shadercross calls (`HX-D`). When the process
+already holds SDL3 (the `SDL` trait, an app linking SDL3) nothing is preloaded: a second SDL3 duplicates SDL's Objective-C classes (measured, `HX-B` arm T).
+A Homebrew-built shadercross names SDL3 by absolute path (`/opt/homebrew/opt/sdl3/lib/libSDL3.0.dylib`) and its other dependents by `@rpath` with no `LC_RPATH`;
+the preload by full path satisfies all of them, so **no `install_name_tool` step is needed** (measured, `HX-B` arms R and P). Code signing: sign every dylib with
+the app's team (`codesign --deep` alone is not enough for a hardened runtime with library validation), or add `com.apple.security.cs.disable-library-validation`;
+**unmeasured**, human check `HX1`. Windows (`SDL3.dll` read through `GetModuleHandleW` after a `SetDllDirectoryW` load) is compiled by CI only, human check `HX2`;
+Linux without a system SDL3 is human check `HX3`.
+
 **Self test.** `SDLGPUShaderCompiler.selfTest(for:)` (lane B, `RC-J`) is the call for an app's `--self-test`: it loads the compiler, compiles a
 four-line kernel, compiles a broken one and requires DXC's diagnostics, and with a device runs one dispatch and reads it back; it
 **throws `compilerUnavailable`** where the library is missing, so a packaging mistake fails the check naming the paths tried.

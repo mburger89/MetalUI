@@ -609,6 +609,7 @@ F	glass-effect	D	swiftui-liquid-glass.swift	A4	theGlassSpellingsCompileAndTheNon
 F	glass-container	D	swiftui-liquid-glass.swift	A8	theGlassSpellingsCompileAndTheNonSDKOnesDoNot	826	LG-G LG-H LG-I LG-R LG-U	GlassEffectContainer(spacing:) and glassEffectUnion(id:namespace:): a transparent scope whose members register in prepaint and merge by a smooth minimum when spacing > 2 x gap (W9, W10), four members to a blob, the blobs emitted before the container's content, a union id merging regardless of distance (SwiftUI measured one circle, W12-W14), the subtree refusing retention by the taint glassContainer; spacing is Pixels? (LG-R)
 F	glass-id-transition	D	swiftui-liquid-glass.swift	A12	theGlassSpellingsCompileAndTheNonSDKOnesDoNot	828	LG-K	glassEffectID(_:in:), glassEffectTransition(_:) and GlassEffectTransition: SwiftUI's spellings (A10, A12, A19); the id is carried and read by nothing, no morph, the transitions are the opacity transition (.identity snaps)
 F	namespace	A	swiftui-liquid-glass.swift	A10	aNamespaceIdIsStableAcrossFramesAndDistinctPerDeclaration	-	LG-K	@Namespace and Namespace.ID: SwiftUI's property wrapper, a Hashable Sendable id stable across frames and distinct per declaration, carried by an ordinary state slot (no eighth reserved name)
+F	runtime-shader-compile	M	-	-	-	-	HX-A HX-C HX-D HX-E HX-G	RuntimeShaderCompiler, RuntimeShaderTarget, RuntimeShaderDefine, ComputeShaderReflection, CompiledComputeShader, RuntimeShaderSelfTestReport and RuntimeShaderCompileError (product MetalUIShaderRuntime): run-time HLSL compute compile to SPIR-V, MSL or DXIL with reflection, with no SDL trait; SwiftUI and gpui have no run-time shader compiler; shadercross's own SDL3 is preloaded only when the process has none, one load per process shared with SDLGPUShaderCompiler
 M	MetalUI	PresentationBackground.swift	.*	.*	.*	presentation-background
 M	MetalUI	WindowInteractionBehavior.swift	Window	backgroundDragBehavior	.*	window-background-drag
 M	MetalUI	WindowInteractionBehavior.swift	(-|WindowInteractionBehavior)	.*	.*	window-interaction-behavior
@@ -620,3 +621,4 @@ M	MetalUI	Glass.swift	ElementGroup	(glassEffectTransition|glassEffectID)	.*	glas
 M	MetalUI	Glass.swift	ElementGroup	glassEffectUnion	.*	glass-container
 M	MetalUI	GlassContainer.swift	.*	.*	.*	glass-container
 M	MetalUI	Namespace.swift	.*	.*	.*	namespace
+M	MetalUIShaderRuntime	.*	.*	.*	.*	runtime-shader-compile

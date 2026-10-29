@@ -37,7 +37,7 @@ Microsoft's release". **No compatibility is claimed**: shadercross at the pin wa
 that could differ (the `IDxcCompiler3` interface and its flags, and `dxil.dll` signing, which Microsoft's release is believed to ship: unmeasured), and points to a human check (`SX1`). **Cost if wrong.** A reader trusts an unmeasured pairing; the
 sentence "unmeasured" is the guard. **Measurement owed:** build shadercross at the pin against the release's `dxcompiler.dll` on Windows and run probe arm A-E.
 
-## SX-E - XP-G27 carried: a portable run-time compile needs libSDL3 in the process, which the macOS default build does not link
+## SX-E - **superseded by `HX-A`...`HX-J` (record 160, built 2026-10-28)** - XP-G27 carried: a portable run-time compile needs libSDL3 in the process, which the macOS default build does not link
 
 **Evidence (code, `RC-D`, `RC-N`; no new build was made).** `SDLShaderCross.c` loads shadercross with `SDL_LoadObject` and every failure text is `SDL_GetError()`; `RC-D`'s measured rule is that the app's SDL3 and
 shadercross's SDL3 must be **one instance** or the compiler's text is lost (the self test checks it). shadercross itself is an SDL3 library: its own errors, its allocations (`mui_sc_free` is `SDL_free`) and

@@ -63,7 +63,7 @@ from the SDL3 release and the fetched `accesskit-c-0.23.0` directory.
 
 ## Optional run-time shader compiler (not vendored, not published)
 
-Only an app that calls `SDLGPUShaderCompiler` (`MetalUISDLGPU`, item XP-G25, record 151) ships these; MetalUI loads the
+Only an app that calls `SDLGPUShaderCompiler` (`MetalUISDLGPU`, item XP-G25, record 151) or `RuntimeShaderCompiler` (`MetalUIShaderRuntime`, item XP-G27, record 160) ships these; MetalUI loads the
 library at run time with `SDL_LoadObject` and links none of it, so an app that never compiles HLSL in the running process
 ships none of it and owes none of these notices. The files come from a build of `libsdl-org/SDL_shadercross` at commit
 `1ff05bec573988a98ef9e0260b4da44f512b8367` (`docs/packaging.md` 4a and 4b); MetalUI publishes no binary of it (`BS-H`).
@@ -80,6 +80,9 @@ Licences read in the checkout at that commit (2026-10-22):
 The DXC fork is **not Apache-2.0**: its licence requires the copyright notice and the licence text to travel with a binary
 distribution, so ship `LICENSE.TXT` and `ThirdPartyNotices.txt` beside `libdxcompiler`. Gap: none of these texts is in this
 repository (nothing is vendored); take them from the checkout of the pin.
+
+**A macOS app without the `SDL` trait** (`RuntimeShaderCompiler`, `HX-H`) also ships `libSDL3.0.dylib` beside shadercross, because the process links no SDL3 of its own:
+SDL3 is zlib-licensed, so ship its `LICENSE.txt` from the SDL release. `MetalUIShaderRuntime` itself links no third-party code and loads at run time only what the app ships.
 
 ## What the repository does not ship
 

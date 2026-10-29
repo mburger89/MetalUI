@@ -1960,3 +1960,11 @@ Name, date, machine (macOS version, display(s)), build commit:
 ## EL. Layout and outer effect moved together - the growing header over a zoom (item FS-O, record 157; provisional letter)
 
 - [ ] **EL1.** `METALUI_RETAINED_DEMO=1 swift run MetalUIDemo`, real window, the strip "Growing header over a zoom": press "+4 and zoom" repeatedly. The ten cards move down and grow with no jump or flash, `translated` and `grafted` rise by about ten a press, `redos` stays 0 and `refused` stays "none". With "Replay" off the same presses build every card and the picture is identical. **Observed:**
+
+## HX. Run-time compile without the `SDL` trait - `MetalUIShaderRuntime` (item XP-G27, record 160; provisional letter)
+
+*An agent cannot: a hardened-runtime signed `.app`, a Windows desktop and a Linux machine without SDL3 are not in the agent's environment. The macOS default-build arm is measured (`HX-B`, `HX-I`).*
+
+- [ ] **HX1.** A signed `.app` with the hardened runtime and library validation, built without the `SDL` trait, shipping the five dylibs of `docs/packaging.md` 4b in `Contents/Frameworks`: `RuntimeShaderCompiler.selfTest()` loads and compiles (or note which signing step it needs). **Observed:**
+- [ ] **HX2.** Windows, default build: `SDL3.dll` beside `SDL3_shadercross.dll` is loaded by `LoadLibraryW` after `SetDllDirectoryW`, `GetModuleHandleW(L"SDL3.dll")` is the module shadercross bound, and a broken kernel's diagnostics arrive. **Observed:**
+- [ ] **HX3.** Linux tarball with no system libSDL3: `libSDL3.so.0` beside shadercross is preloaded `RTLD_LOCAL`, `dlsym(handle, "SDL_GetError")` finds shadercross's instance, a compile succeeds. **Observed:**

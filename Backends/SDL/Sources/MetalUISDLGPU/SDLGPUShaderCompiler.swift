@@ -1,8 +1,8 @@
 // Compiled only under the `SDL` trait (ruling PX-H item 2; GA-B).
 #if SDL
 import Foundation
-import SDLBridge
 import MetalUIShaderCompile
+import MetalUIShaderRuntime
 
 /// Why a run-time shader compile or a blob from bytes was refused (rulings `RC-B`...`RC-J`).
 public enum SDLGPUShaderCompileError: Error, CustomStringConvertible, Sendable {
@@ -32,6 +32,17 @@ public enum SDLGPUShaderCompileError: Error, CustomStringConvertible, Sendable {
             return "the shader compiler is already loaded from \(loaded); \(requested) was requested"
         case .invalidInput(let text), .unsupportedTarget(let text), .malformedReflection(let text): return text
         case .compileFailed(let stage, let diagnostics): return "\(stage) failed: \(diagnostics)"
+        }
+    }
+
+    init(_ error: RuntimeShaderCompileError) {
+        switch error {
+        case .compilerUnavailable(let tried): self = .compilerUnavailable(tried: tried)
+        case .libraryAlreadyLoaded(let loaded, let requested): self = .libraryAlreadyLoaded(loaded: loaded, requested: requested)
+        case .invalidInput(let text): self = .invalidInput(text)
+        case .unsupportedTarget(let text): self = .unsupportedTarget(text)
+        case .compileFailed(let stage, let diagnostics): self = .compileFailed(stage: stage, diagnostics: diagnostics)
+        case .malformedReflection(let text): self = .malformedReflection(text)
         }
     }
 
@@ -116,14 +127,9 @@ public struct SDLGPUShaderCompilerReport: Sendable {
 /// bytes (`RC-M`); this type never traps on a bad kernel. Compute only (`RC-G`).
 public struct SDLGPUShaderCompiler: Sendable {
     /// What was loaded: the path of the shadercross library.
-    public let libraryPath: String
-    let handle: Handle
-
-    /// The C handle, shared by copies; never freed (the library is never unloaded, `RC-B`).
-    final class Handle: @unchecked Sendable {
-        let pointer: OpaquePointer
-        init(_ pointer: OpaquePointer) { self.pointer = pointer }
-    }
+    public var libraryPath: String { runtime.libraryPath }
+    /// The one implementation and the one process load (`HX-C`, `HX-E`).
+    let runtime: RuntimeShaderCompiler
 
     // MARK: Loading
 
@@ -142,43 +148,13 @@ public struct SDLGPUShaderCompiler: Sendable {
     /// (`RC-N`), and returns the first that loads; touches no process cache and does not count in
     /// `mui_sc_loads` unless `counted` (`RC-O`).
     static func load(candidates attempts: [LibraryAttempt], counted: Bool = false) throws -> SDLGPUShaderCompiler {
-        let candidates = attempts.map(\.raw)
-        let order: [String]
-        do { order = try RuntimeLibraryLocator.loadOrder(candidates) }
-        catch let error as ComputeValidationError { throw SDLGPUShaderCompileError(error) }
-        var failures: [String: String] = [:]
-        for path in order {
-            var preload: [String] = []
-            if path.contains("/") || path.contains("\\") {
-                let directory = (path as NSString).deletingLastPathComponent
-                let listing = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
-                do { preload = try RuntimeLibraryLocator.preloadSet(directory: directory, listing: listing, windows: isWindows, macOS: isMacOS) }
-                catch let error as ComputeValidationError {
-                    failures[path] = "failed dependents: " + String(describing: error).replacingOccurrences(of: "\n", with: "; ")
-                    continue
-                }
-            }
-            var error = [CChar](repeating: 0, count: 4096)
-            let pointer: OpaquePointer? = withCStrings(preload) { names, count in
-                path.withCString { mui_sc_load($0, names, count, counted, &error, error.count) }
-            }
-            if let pointer { return SDLGPUShaderCompiler(libraryPath: path, handle: Handle(pointer)) }
-            let text = cText(error)
-            failures[path] = text.isEmpty ? "the loader gave no message" : text
-        }
-        throw SDLGPUShaderCompileError.compilerUnavailable(tried: RuntimeLibraryLocator.describe(candidates, loadFailures: failures))
+        do {
+            return SDLGPUShaderCompiler(runtime: try RuntimeShaderCompiler.load(candidates: attempts.map(\.raw), counted: counted))
+        } catch let error as RuntimeShaderCompileError { throw SDLGPUShaderCompileError(error) }
     }
 
-    #if os(Windows)
-    static let isWindows = true
-    #else
-    static let isWindows = false
-    #endif
-    #if os(macOS)
-    static let isMacOS = true
-    #else
-    static let isMacOS = false
-    #endif
+    static var isWindows: Bool { RuntimeShaderCompiler.isWindows }
+    static var isMacOS: Bool { RuntimeShaderCompiler.isMacOS }
 
     /// One place the library may be (the lookup's `Attempt`, wrapped because `MetalUIShaderCompile`'s
     /// types are `package`: the tests of the `MetalUISDL` package see only this).
@@ -198,74 +174,42 @@ public struct SDLGPUShaderCompiler: Sendable {
     static func libraryAttempts(explicit: String?, environment: [String: String], executableDirectory: String?,
                                 windows: Bool, macOS: Bool, fileExists: (String) -> Bool,
                                 directoryExists: (String) -> Bool) -> [LibraryAttempt] {
-        RuntimeLibraryLocator.attempts(explicit: explicit, environment: environment, executableDirectory: executableDirectory,
-                                       windows: windows, macOS: macOS, fileExists: fileExists,
-                                       directoryExists: directoryExists).map { LibraryAttempt(raw: $0) }
+        RuntimeShaderCompiler.libraryAttempts(
+            explicit: explicit, environment: environment, executableDirectory: executableDirectory,
+            windows: windows, macOS: macOS, fileExists: fileExists, directoryExists: directoryExists)
+            .map { LibraryAttempt(raw: $0) }
     }
 
-    // MARK: Process cache (the seam is internal, not public: `RC-O`)
+    // MARK: Process cache (the seam is internal, not public: `RC-O`; one cache for both APIs, `HX-E`)
 
-    /// Where the process's compiler is resolved. The default is the real environment and loads once;
-    /// a test swaps in one whose lookup finds nothing (`withProcessCache`).
+    /// Where the process's compiler is resolved: a thin wrapper over the runtime's cache.
     final class ProcessCache: @unchecked Sendable {
-        private let lock = NSLock()
-        private var loaded: SDLGPUShaderCompiler?
-        private let attempts: @Sendable (String?) -> [LibraryAttempt]
+        let runtime: RuntimeShaderCompiler.ProcessCache
 
         /// A cache whose lookup is `attempts` (given the explicit path, if any).
-        init(attempts: @escaping @Sendable (String?) -> [LibraryAttempt]) { self.attempts = attempts }
-
-        /// The real lookup: the environment, the executable's directory, the loader path.
-        static let standard = ProcessCache { explicit in
-            let executable = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments.first ?? ".")
-            return SDLGPUShaderCompiler.libraryAttempts(
-                explicit: explicit, environment: ProcessInfo.processInfo.environment,
-                executableDirectory: executable.deletingLastPathComponent().path,
-                windows: SDLGPUShaderCompiler.isWindows, macOS: SDLGPUShaderCompiler.isMacOS,
-                fileExists: { FileManager.default.fileExists(atPath: $0) },
-                directoryExists: { var isDirectory: ObjCBool = false
-                    return FileManager.default.fileExists(atPath: $0, isDirectory: &isDirectory) && isDirectory.boolValue })
+        init(attempts: @escaping @Sendable (String?) -> [LibraryAttempt]) {
+            runtime = RuntimeShaderCompiler.ProcessCache(attempts: { attempts($0).map(\.raw) })
         }
 
-        nonisolated(unsafe) private static var swapped: ProcessCache?
-        private static let swapLock = NSLock()
-        static var current: ProcessCache {
-            swapLock.lock(); defer { swapLock.unlock() }
-            return swapped ?? standard
-        }
-        static func swap(to cache: ProcessCache?) -> ProcessCache? {
-            swapLock.lock(); defer { swapLock.unlock() }
-            let previous = swapped
-            swapped = cache
-            return previous
-        }
+        static var current: ProcessCache { ProcessCache(wrapping: RuntimeShaderCompiler.ProcessCache.current) }
+        private init(wrapping cache: RuntimeShaderCompiler.ProcessCache) { runtime = cache }
 
         func resolve(explicit: String?) throws -> SDLGPUShaderCompiler {
-            lock.lock(); defer { lock.unlock() }
-            if let loaded {
-                if let explicit, !explicit.isEmpty, explicit != loaded.libraryPath {
-                    throw SDLGPUShaderCompileError.libraryAlreadyLoaded(loaded: loaded.libraryPath, requested: explicit)
-                }
-                return loaded
-            }
-            let compiler = try SDLGPUShaderCompiler.load(candidates: attempts(explicit), counted: true)
-            loaded = compiler
-            return compiler
+            do { return SDLGPUShaderCompiler(runtime: try runtime.resolve(explicit: explicit)) }
+            catch let error as RuntimeShaderCompileError { throw SDLGPUShaderCompileError(error) }
         }
     }
 
     /// Runs `body` with `cache` as the process cache (a test's seam; callers are serialized).
     static func withProcessCache<R>(_ cache: ProcessCache, _ body: () async throws -> R,
-                                            isolation: isolated (any Actor)? = #isolation) async rethrows -> R {
-        let previous = ProcessCache.swap(to: cache)
-        defer { _ = ProcessCache.swap(to: previous) }
-        return try await body()
+                                    isolation: isolated (any Actor)? = #isolation) async rethrows -> R {
+        try await RuntimeShaderCompiler.withProcessCache(cache.runtime, body)
     }
 
     // MARK: Compiling
 
     /// The text a refusal with an empty message carries (and ``selfTest(for:)`` looks for).
-    static let emptyDiagnostics = "the compiler gave no message (it may hold a different SDL instance than this app; RC-D)"
+    static var emptyDiagnostics: String { RuntimeShaderCompiler.emptyDiagnostics }
 
     /// Compiles HLSL compute source to `target` with its reflection (`RC-F`): SPIR-V is
     /// `SDL_ShaderCross_CompileSPIRVFromHLSL`, MSL its transpile (entry `main0`), DXIL the direct
@@ -276,37 +220,26 @@ public struct SDLGPUShaderCompiler: Sendable {
     public func compileCompute(name: String, hlsl: String, entryPoint: String = "main",
                                defines: [SDLGPUShaderDefine] = [], includeDirectory: String? = nil,
                                target: SDLGPUShaderTarget) throws -> SDLGPUShaderBlob {
+        let compiled: CompiledComputeShader
         do {
-            try ComputeBlobValidation.validateSource(hlsl)
-            try ComputeBlobValidation.validateEntryPoint(entryPoint)
-            try ComputeBlobValidation.validateDefines(defines.map { (name: $0.name, value: $0.value) })
-        } catch let error as ComputeValidationError { throw SDLGPUShaderCompileError(error) }
-        if let includeDirectory, includeDirectory.utf8.contains(0) {
-            throw SDLGPUShaderCompileError.invalidInput("includeDirectory holds a NUL byte")
-        }
-        let spirv = try compileHLSL(hlsl, entryPoint: entryPoint, defines: defines, includeDirectory: includeDirectory,
-                                    dxil: false, stage: "HLSL to SPIR-V")
-        do { try ComputeBlobValidation.validateBytes(spirv, format: .spirv, entryPoint: entryPoint) }
-        catch let error as ComputeValidationError { throw SDLGPUShaderCompileError(error) }
-        let reflection = try reflect(spirv)
-        let bytes: [UInt8]
-        let outputEntry: String
+            compiled = try runtime.compileCompute(
+                hlsl: hlsl, entryPoint: entryPoint, defines: try defines.map { try RuntimeShaderDefine($0.name, $0.value) },
+                includeDirectory: includeDirectory, target: target.runtime)
+        } catch let error as RuntimeShaderCompileError { throw SDLGPUShaderCompileError(error) }
+        let reflection = compiled.reflection
         let format: SDLGPUShaderBlob.Format
-        switch target {
-        case .spirv: (bytes, outputEntry, format) = (spirv, entryPoint, .spirv)
-        case .msl: (bytes, outputEntry, format) = (try transpileMSL(spirv, entryPoint: entryPoint), "main0", .msl)
-        case .dxil:
-            (bytes, outputEntry, format) = (try compileHLSL(hlsl, entryPoint: entryPoint, defines: defines,
-                                                            includeDirectory: includeDirectory, dxil: true, stage: "HLSL to DXIL"),
-                                            entryPoint, .dxil)
+        switch compiled.target {
+        case .spirv: format = .spirv
+        case .msl: format = .msl
+        case .dxil: format = .dxil
         }
         return try SDLGPUShaderBlob(
-            name: name, stage: .compute, bytes: bytes, format: format, entryPoint: outputEntry,
+            name: name, stage: .compute, bytes: compiled.bytes, format: format, entryPoint: compiled.entryPoint,
             samplers: reflection.samplers, readOnlyStorageTextures: reflection.readOnlyStorageTextures,
             readOnlyStorageBuffers: reflection.readOnlyStorageBuffers,
             readWriteStorageTextures: reflection.readWriteStorageTextures,
             readWriteStorageBuffers: reflection.readWriteStorageBuffers, uniformBuffers: reflection.uniformBuffers,
-            threadCount: reflection.threadCount)
+            threadCount: (reflection.threadCountX, reflection.threadCountY, reflection.threadCountZ))
     }
 
     /// ``compileCompute(name:hlsl:entryPoint:defines:includeDirectory:target:)`` for `device`'s driver
@@ -316,71 +249,6 @@ public struct SDLGPUShaderCompiler: Sendable {
                                for device: SDLGPUDevice) throws -> SDLGPUShaderBlob {
         try compileCompute(name: name, hlsl: hlsl, entryPoint: entryPoint, defines: defines,
                            includeDirectory: includeDirectory, target: try SDLGPUShaderTarget(driver: device.driver))
-    }
-
-    private func compileHLSL(_ hlsl: String, entryPoint: String, defines: [SDLGPUShaderDefine], includeDirectory: String?,
-                             dxil: Bool, stage: String) throws -> [UInt8] {
-        let names = defines.map { duplicateCString($0.name) }
-        let values = defines.map { $0.value.map { duplicateCString($0) } ?? nil }
-        defer { names.forEach { free($0) }; values.forEach { free($0) } }
-        var error = [CChar](repeating: 0, count: 32768)
-        var out: UnsafeMutablePointer<UInt8>?
-        var size = 0
-        let status: Int32 = hlsl.withCString { source in
-            entryPoint.withCString { entry in
-                names.map { UnsafePointer($0) }.withUnsafeBufferPointer { namePointers in
-                    values.map { $0.map { UnsafePointer($0) } }.withUnsafeBufferPointer { valuePointers in
-                        let call = { (include: UnsafePointer<CChar>?) -> Int32 in
-                            mui_sc_compile_hlsl(handle.pointer, dxil ? 1 : 0, source, entry, include,
-                                                namePointers.baseAddress, valuePointers.baseAddress, UInt32(defines.count),
-                                                &out, &size, &error, error.count)
-                        }
-                        if let includeDirectory { return includeDirectory.withCString { call($0) } }
-                        return call(nil)
-                    }
-                }
-            }
-        }
-        guard status == 0, let out else { throw failure(stage, error) }
-        defer { mui_sc_free(out) }
-        return Array(UnsafeBufferPointer(start: out, count: size))
-    }
-
-    private func transpileMSL(_ spirv: [UInt8], entryPoint: String) throws -> [UInt8] {
-        var error = [CChar](repeating: 0, count: 32768)
-        var out: UnsafeMutablePointer<UInt8>?
-        var size = 0
-        let status: Int32 = spirv.withUnsafeBufferPointer { code in
-            entryPoint.withCString { entry in
-                mui_sc_msl(handle.pointer, code.baseAddress, code.count, entry, &out, &size, &error, error.count)
-            }
-        }
-        guard status == 0, let out else { throw failure("SPIR-V to MSL", error) }
-        defer { mui_sc_free(out) }
-        return Array(UnsafeBufferPointer(start: out, count: size))
-    }
-
-    private func reflect(_ spirv: [UInt8]) throws -> ComputeReflection {
-        var error = [CChar](repeating: 0, count: 8192)
-        var raw = MuiShaderCrossReflection()
-        let status: Int32 = spirv.withUnsafeBufferPointer { code in
-            mui_sc_reflect(handle.pointer, code.baseAddress, code.count, &raw, &error, error.count)
-        }
-        guard status == 0 else { throw failure("SPIR-V reflection", error) }
-        let reflection = ComputeReflection(
-            samplers: Int(raw.samplers), readOnlyStorageTextures: Int(raw.readonly_storage_textures),
-            readOnlyStorageBuffers: Int(raw.readonly_storage_buffers),
-            readWriteStorageTextures: Int(raw.readwrite_storage_textures),
-            readWriteStorageBuffers: Int(raw.readwrite_storage_buffers), uniformBuffers: Int(raw.uniform_buffers),
-            threadCount: (Int(raw.threadcount_x), Int(raw.threadcount_y), Int(raw.threadcount_z)))
-        do { try ComputeBlobValidation.validate(reflection) }
-        catch let error as ComputeValidationError { throw SDLGPUShaderCompileError(error) }
-        return reflection
-    }
-
-    private func failure(_ stage: String, _ buffer: [CChar]) -> SDLGPUShaderCompileError {
-        let text = cText(buffer)
-        return .compileFailed(stage: stage, diagnostics: text.isEmpty ? Self.emptyDiagnostics : text)
     }
 
     // MARK: Self test
@@ -394,24 +262,12 @@ public struct SDLGPUShaderCompiler: Sendable {
         let started = Date()
         var notes: [String] = ["library \(libraryPath)"]
         let target = try device.map { try SDLGPUShaderTarget(driver: $0.driver) } ?? .spirv
-        let kernel = """
-            StructuredBuffer<uint> src : register(t0, space0);
-            RWStructuredBuffer<uint> dst : register(u0, space1);
-            cbuffer P : register(b0, space2) { uint n; };
-            [numthreads(64, 1, 1)] void main(uint3 id : SV_DispatchThreadID) { if (id.x < n) dst[id.x] = src[id.x] * 2u; }
-            """
-        let blob = try compileCompute(name: "selftest", hlsl: kernel, target: target)
-        notes.append("compiled \(blob.bytes.count) bytes to \(target)")
-        do {
-            _ = try compileCompute(name: "selftest-broken", hlsl: "[numthreads(1,1,1)] void main( { }", target: .spirv)
-            throw SDLGPUShaderCompileError.compileFailed(stage: "self test", diagnostics: "a deliberately broken kernel compiled")
-        } catch SDLGPUShaderCompileError.compileFailed(let stage, let diagnostics) where stage != "self test" {
-            if diagnostics == Self.emptyDiagnostics {
-                throw SDLGPUShaderCompileError.compileFailed(
-                    stage: stage, diagnostics: "a broken kernel gave no message: \(Self.emptyDiagnostics)")
-            }
-            notes.append("a broken kernel's diagnostics: \(diagnostics.prefix(80))")
-        }
+        // The compile and broken-kernel arms are the runtime's one (`HX-F`); the dispatch arm below stays here.
+        let runtimeReport: RuntimeShaderSelfTestReport
+        do { runtimeReport = try runtime.selfTest(target: target.runtime) }
+        catch let error as RuntimeShaderCompileError { throw SDLGPUShaderCompileError(error) }
+        notes.append(contentsOf: runtimeReport.notes.dropFirst())
+        let blob = try compileCompute(name: "selftest", hlsl: RuntimeShaderCompiler.selfTestKernel, target: target)
         if let device {
             let pipeline = try device.compileComputePipeline(blob)
             let words = 64
@@ -456,25 +312,14 @@ public struct SDLGPUShaderCompiler: Sendable {
     }
 }
 
-/// Calls `body` with a C array of `strings` and its count (valid for the call).
-private func withCStrings<R>(_ strings: [String], _ body: (UnsafePointer<UnsafePointer<CChar>?>?, UInt32) -> R) -> R {
-    let copies = strings.map { duplicateCString($0) }
-    defer { copies.forEach { free($0) } }
-    let pointers: [UnsafePointer<CChar>?] = copies.map { $0.map { UnsafePointer($0) } }
-    return pointers.withUnsafeBufferPointer { body($0.baseAddress, UInt32($0.count)) }
-}
-
-/// The text of a C buffer up to its NUL.
-private func cText(_ buffer: [CChar]) -> String {
-    String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
-}
-
-/// `strdup`, spelled `_strdup` where the UCRT deprecates the POSIX name.
-private func duplicateCString(_ string: String) -> UnsafeMutablePointer<CChar>? {
-    #if os(Windows)
-    _strdup(string)
-    #else
-    strdup(string)
-    #endif
+extension SDLGPUShaderTarget {
+    /// The runtime compiler's spelling of this target.
+    var runtime: RuntimeShaderTarget {
+        switch self {
+        case .spirv: return .spirv
+        case .msl: return .msl
+        case .dxil: return .dxil
+        }
+    }
 }
 #endif
