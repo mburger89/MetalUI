@@ -143,6 +143,29 @@ extension RuntimeShaderTests {
         #expect(try RuntimeShaderCompiler.shared(libraryPath: first.libraryPath).libraryPath == first.libraryPath)
     }
 
+    /// **13b.** Sixteen threads resolving through a **fresh** process cache load once: the first-load race, which
+    /// 13 cannot see (the compiler is loaded before its tasks start). Mutation: `ProcessCache.resolve` drops its lock.
+    @Test(.enabled(if: RuntimeShaderSupport.available, needsCompiler))
+    func sixteenThreadsOnAFreshCacheLoadOnce() async throws {
+        let environment = RuntimeShaderSupport.environment
+        let cache = RuntimeShaderCompiler.ProcessCache(attempts: { explicit in
+            RuntimeShaderCompiler.libraryAttempts(
+                explicit: explicit, environment: environment, executableDirectory: nil,
+                windows: RuntimeShaderCompiler.isWindows, macOS: RuntimeShaderCompiler.isMacOS,
+                fileExists: { FileManager.default.fileExists(atPath: $0) },
+                directoryExists: { var d: ObjCBool = false
+                    return FileManager.default.fileExists(atPath: $0, isDirectory: &d) && d.boolValue })
+        })
+        let before = RuntimeShaderCompiler.loadCount
+        let paths = LockedBox<[String]>([])
+        DispatchQueue.concurrentPerform(iterations: 16) { _ in
+            if let compiler = try? cache.resolve(explicit: nil) { paths.mutate { $0.append(compiler.libraryPath) } }
+        }
+        #expect(paths.value.count == 16, "every resolve answered: \(paths.value.count)")
+        #expect(Set(paths.value).count == 1)
+        #expect(RuntimeShaderCompiler.loadCount - before == 1, "counted loads: \(RuntimeShaderCompiler.loadCount - before)")
+    }
+
     /// **14.** Eight threads compile different kernels to their own serial bytes (`RC-S`). Mutation: one static
     /// output buffer in `CShaderCross.c`.
     @Test(.enabled(if: RuntimeShaderSupport.available, needsCompiler))
@@ -233,4 +256,13 @@ extension RuntimeShaderTests {
         #expect(kernel.entryPoint == "main0")
     }
     #endif
+}
+
+/// A value behind a lock, for a concurrent test's collected results.
+final class LockedBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value { lock.lock(); defer { lock.unlock() }; return stored }
+    func mutate(_ body: (inout Value) -> Void) { lock.lock(); defer { lock.unlock() }; body(&stored) }
 }
