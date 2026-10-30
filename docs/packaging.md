@@ -155,7 +155,7 @@ the default build system.
 `Backends/SDL/linux/Dockerfile` builds SDL 3.4.16 with the **X11 and Wayland video
 drivers** (and libdecor for Wayland decorations), plus offscreen and dummy; the
 image's `libSDL3.so.0` therefore runs on a real desktop. An app's tarball or
-AppImage ships that one file (from `/usr/lib` in the image). The X11, Wayland and
+AppImage ships that one file (found with `ldconfig -p | grep libSDL3.so.0` in the image). The X11, Wayland and
 libdecor libraries are **not** linked: SDL `dlopen`s them from the user's system,
 so a machine without Wayland runs the X11 driver and the reverse. The build fails
 if cmake cannot enable either driver, and `scripts/check-video-drivers.c` fails the
