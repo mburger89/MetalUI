@@ -792,10 +792,14 @@ package enum ScaffoldCommand: Equatable {
     /// `note` is printed to standard error: why the dependency was left
     /// unpinned (SC-I).
     case new(ScaffoldOptions, parentDirectory: String, note: String? = nil)
+    /// `metalui bundle` (`BU-A`).
+    case bundle(BundleOptions)
+    case bundleHelp
 }
 
 package let scaffoldUsage = """
     usage: metalui new <Name> [options]
+           metalui bundle --product <Product> --bundle-id <id> [options]   (macOS; --help for its options)
 
     Creates <Name>/ — a SwiftPM package with an executable that opens a MetalUI
     window, and a script that bundles it as a macOS .app.
@@ -910,6 +914,12 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
     var remaining = arguments[...]
     guard let verb = remaining.popFirst() else { throw ScaffoldError.usage(scaffoldUsage) }
     if verb == "-h" || verb == "--help" || verb == "help" { return .help }
+    if verb == "bundle" {
+        switch try parseBundleCommand(Array(remaining), workingDirectory: workingDirectory) {
+        case .help: return .bundleHelp
+        case let .bundle(options): return .bundle(options)
+        }
+    }
     guard verb == "new" else { throw ScaffoldError.usage("unknown command '\(verb)'\n\n" + scaffoldUsage) }
 
     var name: String?
@@ -983,7 +993,7 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
                 parentDirectory: parent, note: note)
 }
 
-private func absolute(_ path: String, in workingDirectory: String) -> String {
+func absolute(_ path: String, in workingDirectory: String) -> String {
     let expanded = (path as NSString).expandingTildeInPath
     // Absolute: `/…`, a Windows root or UNC path `\…`, or a drive, `C:/…` or
     // `C:\…` — Foundation on Windows reports paths with forward slashes.
@@ -1011,12 +1021,18 @@ package func validateCheckout(_ path: String) throws {
 /// checkout this executable was built from (SC-I).
 package func runScaffold(_ arguments: [String], workingDirectory: String,
                          pinLookup: (String) -> PinLookup = { lookUpPin(of: $0, in: scaffolderCheckout, git: runGit) },
+                         processRunner: BundleProcessRunner = runProcess,
                          output: (String) -> Void, error: (String) -> Void) -> Int32 {
     do {
         switch try parseScaffoldCommand(arguments, workingDirectory: workingDirectory, pinLookup: pinLookup) {
         case .help:
             output(scaffoldUsage)
             return 0
+        case .bundleHelp:
+            output(bundleUsage)
+            return 0
+        case let .bundle(options):
+            return runBundle(options, run: processRunner, output: output, error: error)
         case let .new(options, parent, note):
             if case let .local(path) = options.source { try validateCheckout(path) }
             let files = try scaffoldFiles(options)
