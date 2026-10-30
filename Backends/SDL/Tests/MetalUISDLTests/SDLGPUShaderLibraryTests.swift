@@ -286,6 +286,56 @@ private func writeMarker(_ lines: [(String, [UInt8])], to directory: URL) throws
         do { _ = try SDLGPUShaderLibrary.locate(from: candidates); Issue.record("found nothing") }
         catch { #expect(String(describing: error).contains("SOURCE.sha256"), "\(error)") }
     }
+
+    /// **Test 17** (`BT-R`). A directory holding `INCLUDES.sha256` opens like any other (it is no unknown entry),
+    /// and with sources given a header-only edit, a header with no line, and a line with no header are each a
+    /// named error; the header check reaches below `sources` (recursively) but not its `compiled/`; a directory
+    /// with no `INCLUDES.sha256` compares no headers. Mutations: skip the include check in
+    /// `init(directory:verifyingSources:)`; read only the top level; stop returning early when `SOURCE.sha256` is absent.
+    @Test func anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders() throws {
+        let root = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = try buildProduct(["spv", "json"], in: root)
+        let sources = root.appendingPathComponent("src")
+        try FileManager.default.createDirectory(at: sources.appendingPathComponent("lib"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sources.appendingPathComponent("compiled"), withIntermediateDirectories: true)
+        let a = Array("float4 a;".utf8), h = Array("#define X 1".utf8), u = Array("// util".utf8)
+        try Data(a).write(to: sources.appendingPathComponent("a.frag.hlsl"))
+        try Data(h).write(to: sources.appendingPathComponent("common.hlsli"))
+        try Data(u).write(to: sources.appendingPathComponent("lib/util.hlsl"))
+        try Data(Array("blob".utf8)).write(to: sources.appendingPathComponent("compiled/ignored.hlsli"))
+        try writeMarker([("a.frag.hlsl", a)], to: directory)
+        func writeIncludes(_ entries: [(String, [UInt8])]) throws {
+            let text = entries.sorted { $0.0 < $1.0 }.map { "\(SHA256Digest.hex(of: $0.1))  \($0.0)\n" }.joined()
+            try Data(text.utf8).write(to: directory.appendingPathComponent("INCLUDES.sha256"))
+        }
+        func refusal(_ expected: String) throws {
+            do { _ = try SDLGPUShaderLibrary(directory: directory, verifyingSources: sources); Issue.record("accepted: \(expected)") }
+            catch { #expect(String(describing: error).contains(expected), "\(error)") }
+        }
+        // No INCLUDES.sha256: headers are not compared.
+        _ = try SDLGPUShaderLibrary(directory: directory, verifyingSources: sources)
+        try writeIncludes([("common.hlsli", h), ("lib/util.hlsl", u)])
+        _ = try SDLGPUShaderLibrary(directory: directory, verifyingSources: sources)
+        _ = try SDLGPUShaderLibrary(directory: directory)
+        // A header-only edit, the stage source unchanged (SOURCE.sha256 still matches).
+        try Data(Array("#define X 2".utf8)).write(to: sources.appendingPathComponent("common.hlsli"))
+        try refusal("common.hlsli changed since INCLUDES.sha256")
+        try Data(h).write(to: sources.appendingPathComponent("common.hlsli"))
+        // A nested header edit.
+        try Data(Array("// util edited".utf8)).write(to: sources.appendingPathComponent("lib/util.hlsl"))
+        try refusal("lib/util.hlsl changed since INCLUDES.sha256")
+        try Data(u).write(to: sources.appendingPathComponent("lib/util.hlsl"))
+        // A new header, and a line without its header.
+        try Data(Array("x".utf8)).write(to: sources.appendingPathComponent("new.hlsli"))
+        try refusal("new.hlsli has no line in INCLUDES.sha256")
+        try FileManager.default.removeItem(at: sources.appendingPathComponent("new.hlsli"))
+        try writeIncludes([("common.hlsli", h), ("lib/util.hlsl", u), ("gone.hlsli", h)])
+        try refusal("INCLUDES.sha256 lists gone.hlsli")
+        // The check runs without a SOURCE.sha256 too.
+        try FileManager.default.removeItem(at: directory.appendingPathComponent("SOURCE.sha256"))
+        try refusal("INCLUDES.sha256 lists gone.hlsli")
+    }
 }
 
 /// SHA-256 (FIPS 180-4), for C7: Foundation has none off Apple platforms.

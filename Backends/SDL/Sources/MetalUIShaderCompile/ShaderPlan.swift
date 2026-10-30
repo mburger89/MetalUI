@@ -80,12 +80,14 @@ package enum ShaderCompilePlan {
 
     /// The argument vectors (without the executable) for one source, in order:
     /// SPIR-V from the HLSL always, then MSL, DXIL and JSON when requested, each
-    /// from the `.spv`.
+    /// from the `.spv`. The HLSL step passes `-I <sourceDirectory>`: shadercross at the pin
+    /// does **not** resolve `#include "x.hlsli"` relative to the source file (measured,
+    /// ruling `BT-S`), only against `-I` directories and, incidentally, its working directory.
     package static func commands(for source: ShaderSource, sourceDirectory: String, outDirectory: String,
                                  formats: Set<ShaderFormat>) -> [[String]] {
         let spirv = join(outDirectory, "\(source.stem).spv")
         var commands = [[join(sourceDirectory, source.fileName), "-s", "HLSL", "-d", ShaderFormat.spv.shadercrossName,
-                         "-t", source.stage.rawValue, "-o", spirv]]
+                         "-t", source.stage.rawValue, "-I", sourceDirectory, "-o", spirv]]
         for format in [ShaderFormat.msl, .dxil, .json] where formats.contains(format) {
             commands.append([spirv, "-s", ShaderFormat.spv.shadercrossName, "-d", format.shadercrossName,
                              "-t", source.stage.rawValue, "-o", join(outDirectory, "\(source.stem).\(format.rawValue)")])

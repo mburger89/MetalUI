@@ -1,5 +1,6 @@
 /// `SOURCE.sha256`: one `<sha256>  <file>` line per source, sorted bytewise by
-/// name, LF (the python script's output, ruling `BS-I`).
+/// name, LF (the python script's output, ruling `BS-I`). `INCLUDES.sha256` has the same
+/// format over the include sources, named by `/`-separated relative path (ruling `BT-P`).
 package enum SourceMarker {
     /// The marker text for `sources`.
     package static func contents(of sources: [(name: String, bytes: [UInt8])]) -> String {
@@ -8,8 +9,10 @@ package enum SourceMarker {
     }
 
     /// What is wrong between `marker` and `sources`, each a named message; empty
-    /// when every source's hash equals its line and no line stands alone (`BS-E`).
-    package static func problems(marker: String, sources: [(name: String, bytes: [UInt8])]) -> [String] {
+    /// when every source's hash equals its line and no line stands alone (`BS-E`). `markerName` and
+    /// `noun` only spell the messages (`INCLUDES.sha256`, `include sources`, `BT-P`).
+    package static func problems(marker: String, sources: [(name: String, bytes: [UInt8])],
+                                 markerName: String = "SOURCE.sha256", noun: String = "sources") -> [String] {
         var lines: [String: String] = [:]
         for line in marker.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" }) {
             let parts = line.components(separatedBy: "  ")
@@ -18,16 +21,16 @@ package enum SourceMarker {
         var problems: [String] = []
         for source in sources.sorted(by: { $0.name < $1.name }) {
             guard let recorded = lines[source.name] else {
-                problems.append("\(source.name) has no line in SOURCE.sha256")
+                problems.append("\(source.name) has no line in \(markerName)")
                 continue
             }
             if SHA256.hexDigest(of: source.bytes) != recorded {
-                problems.append("\(source.name) changed since SOURCE.sha256 was written")
+                problems.append("\(source.name) changed since \(markerName) was written")
             }
         }
         let names = Set(sources.map(\.name))
         for name in lines.keys.sorted() where !names.contains(name) {
-            problems.append("SOURCE.sha256 lists \(name), which is not among the sources")
+            problems.append("\(markerName) lists \(name), which is not among the \(noun)")
         }
         return problems
     }
