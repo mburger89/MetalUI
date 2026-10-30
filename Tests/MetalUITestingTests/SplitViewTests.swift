@@ -197,3 +197,20 @@ import Testing
     }
     #expect(columns(window) == [150, 249], "\(columns(window))")
 }
+
+/// HS-D — a drag stops when the pane on the far side would pass its own maximum, and the pane beyond
+/// that one does not move: B (max 150) cannot take A's 100 points, so A stops at 100 and C stays 148
+/// (the solver's re-clamp alone would hand the excess to C). Mutation: `dragged` drops
+/// `total - maximums[b]` from the lower bound.
+@Test @MainActor func aDragStopsWhereTheFarNeighbourReachesItsMaximum() throws {
+    let window = try harnessWindow {
+        HSplitView {
+            Color.red.frame(minWidth: 50, idealWidth: 150, maxWidth: 400)
+            Color.green.frame(minWidth: 50, idealWidth: 100, maxWidth: 150)
+            Color.blue
+        }
+    }
+    #expect(columns(window) == [150, 100, 148], "\(columns(window))")
+    window.drag(from: pt(150.5, 150), to: pt(20.5, 150))
+    #expect(columns(window) == [100, 150, 148], "\(columns(window))")
+}
