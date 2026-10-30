@@ -154,7 +154,9 @@ compiler reports "argument type 'SDLPlatform' does not conform to expected type
    paths: a distribution's `libsdl3-dev` where it ships 3.4 or later (Ubuntu
    24.04 ships only SDL2), or SDL built from source and installed with
    `-DCMAKE_INSTALL_PREFIX=/usr`, as MetalUI's CI image does
-   (`Backends/SDL/linux/Dockerfile`). Anywhere else, pass
+   (`Backends/SDL/linux/Dockerfile`; `VD-A`: that SDL is built with its **X11 and
+   Wayland drivers** beside offscreen and dummy, so a `libSDL3.so.0` taken from
+   the image opens a window on a real desktop). Anywhere else, pass
    `-Xcc -I<prefix>/include -Xlinker -L<prefix>/lib` to every `swift build` and
    `swift run`: the Swift importer ignores `CPATH`, and gold does not search
    `/usr/local/lib`.
@@ -184,6 +186,17 @@ compiler reports "argument type 'SDLPlatform' does not conform to expected type
 To ship the built app, copy `.build/checkouts/MetalUI/Backends/SDL/Shaders/compiled`
 beside the executable as `MetalUISDLShaders`: the backend looks there first,
 then in the source tree it was built from (`PX-P`; `docs/packaging.md`).
+
+**Shipping on Linux** (`VD-E`): bundle `libSDL3.so.0` from the image beside the
+executable (or in its `lib/`, with an `$ORIGIN` rpath). SDL loads the X11, Wayland
+and libdecor client libraries with `dlopen` at run time, so the bundle does not
+depend on them and the user's own `libX11`/`libwayland-client` are used. A
+desktop session picks its driver itself (`SDL_VIDEO_DRIVER` unset); **an app never
+falls back to offscreen**. A headless run (CI, a container with no display) must
+say so: `SDL_VIDEO_DRIVER=offscreen` (the image sets it), with
+`SDLPlatform(options: .headless)` for hidden windows and offscreen renderers.
+With the variable unset and no display, `SDL_Init` fails with "No available video
+device" (measured, `VD-C`).
 
 ### Windows
 

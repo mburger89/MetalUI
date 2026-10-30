@@ -409,7 +409,8 @@ display. The launch is public API, `SDLPlatform(options: .headless)`
 (`IC-J`): `Options.headless` hides every window (it is never shown) and renders
 each into an offscreen target instead of a swapchain, so frames build and the
 lifecycle drain runs on a runner with no presented frame. The video driver stays
-the environment's: on Linux `SDL_VIDEO_DRIVER=offscreen` (Xvfb also works), on
+the environment's: on Linux `SDL_VIDEO_DRIVER=offscreen` (Xvfb also works; with the
+variable unset and no display `SDL_Init` fails, `VD-C`; the CI image sets it), on
 Windows Mesa llvmpipe or WARP.
 
 ```text

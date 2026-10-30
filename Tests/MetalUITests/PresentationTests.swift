@@ -59,7 +59,7 @@ let psOwner = GlobalElementID.child(of: psRoot, at: 0, name: nil)
 /// `public.json` at the seam: `.json`'s transitive conformance, sorted (`SV-E`).
 let psJSONType = PlatformFileType(identifier: "public.json",
                                   conformsTo: ["public.data", "public.item", "public.text"],
-                                  filenameExtensions: ["json"])
+                                  filenameExtensions: ["json"], localizedDescription: "JSON")
 
 @MainActor func psDeliver(_ platform: FakePlatformWindow, _ token: Int,
                           _ outcome: FileDialogResultEvent.Outcome) {

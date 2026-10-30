@@ -1977,3 +1977,11 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **BT2.** A dependency on MetalUI **by URL** applying the plugin builds and finds the bundle.
 - [ ] **BT3.** A shipped macOS `.app` finds `MetalUIAppShaders` in its resource bundle through `locate(resourceBundle: .module)`.
 - [ ] **BT4.** (record 162, XP-G32) On Windows and Linux, a header-only edit (a `.hlsli` under `Shaders/`) reruns the build command: with shadercross it recompiles, without it the copy path refuses naming the changed `INCLUDES.sha256` entry; and `-I` finds a nested include under the host's path spelling. **Observed:**
+
+## VD. SDL desktop video and dialog filter names (items XP-G33, XP-G34, record 163; provisional letter)
+
+*An agent cannot: a real Wayland compositor, a hardware-GL X server and a GTK portal are not in the agent's environment (only Xvfb was measured, `VD-C`).*
+
+- [ ] **VD1.** A Linux tarball or AppImage bundling the image's `libSDL3.so.0` opens a window and draws on a real X11 desktop with `SDL_VIDEO_DRIVER` unset. **Observed:**
+- [ ] **VD2.** The same package opens a window on a real Wayland session (libdecor decorations, resize, close) with `SDL_VIDEO_DRIVER` unset. **Observed:**
+- [ ] **VD3.** An open and a save dialog on Linux (GTK portal, and zenity if that is the fallback) with a typed filter: the label reads `JSON (*.json)` or `MetalCreator graph (*.mcgraph;*.mcg)`, never a raw identifier, and a type with no description reads `*.mcgraph`. **Observed:**

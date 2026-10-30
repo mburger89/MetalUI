@@ -125,7 +125,7 @@ func sdlDialogInTheLinuxImageAnswersItsRecordedOutcome() throws {
 }
 
 /// **1.13** (`SV-E`, divergence 129). One filter per type with extensions,
-/// named by the identifier, its extensions joined by `;`; a type without
+/// its extensions joined by `;`; a type without
 /// extensions contributes none, and a list with none passes `NULL` (every
 /// file).
 ///
@@ -136,10 +136,30 @@ func sdlDialogInTheLinuxImageAnswersItsRecordedOutcome() throws {
                                 filenameExtensions: ["txt", "text"])
     let data = PlatformFileType(identifier: "public.data")
     let filters = SDLWindow.dialogFilters([json, data, text])
-    #expect(filters.map(\.name) == ["public.json", "public.plain-text"])
+    #expect(filters.map(\.name) == ["*.json", "*.txt;*.text"])
     #expect(filters.map(\.pattern) == ["json", "txt;text"])
     #expect(SDLWindow.dialogFilters([data]).isEmpty)
     #expect(SDLWindow.dialogFilters([]).isEmpty)
+}
+
+/// **1.13b** (`VD-G`). The filter's name is `"<description> (*.a;*.b)"` when the
+/// type has a description and the bare globs when not — never the identifier
+/// (`com.metalcreator.mcgraph` showed raw on Linux). An empty description
+/// counts as none; the pattern is unchanged.
+///
+/// Mutation **M1.13b**: name the filter by `type.identifier`; drop the globs
+/// from a described name; test `description != nil` alone (empty shows " (...)").
+@Test func sdlFilterNamesUseTheDescriptionAndNeverTheIdentifier() {
+    let json = PlatformFileType(identifier: "public.json", conformsTo: ["public.text"],
+                                filenameExtensions: ["json"], localizedDescription: "JSON")
+    let graph = PlatformFileType(identifier: "com.metalcreator.mcgraph", filenameExtensions: ["mcgraph", "mcg"],
+                                 localizedDescription: "MetalCreator graph")
+    let bare = PlatformFileType(identifier: "com.metalcreator.mcgraph", filenameExtensions: ["mcgraph"])
+    let empty = PlatformFileType(identifier: "com.example.e", filenameExtensions: ["e"], localizedDescription: "")
+    let filters = SDLWindow.dialogFilters([json, graph, bare, empty])
+    #expect(filters.map(\.name) == ["JSON (*.json)", "MetalCreator graph (*.mcgraph;*.mcg)", "*.mcgraph", "*.e"])
+    #expect(filters.map(\.pattern) == ["json", "mcgraph;mcg", "mcgraph", "e"])
+    #expect(!filters.contains { $0.name.contains("com.") })
 }
 
 /// **1.14** (`SV-J` item 2). SDL declines every alert — `Window` draws its own.

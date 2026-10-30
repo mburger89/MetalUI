@@ -94,7 +94,7 @@ private func turn(until done: () -> Bool) -> Bool {
 /// `public.text` and its parents, extension `json`.
 private let jsonType = PlatformFileType(identifier: "public.json",
                                         conformsTo: ["public.text", "public.data", "public.item"],
-                                        filenameExtensions: ["json"])
+                                        filenameExtensions: ["json"], localizedDescription: "JSON")
 
 @MainActor private func fileResults(_ log: Log) -> [FileDialogResultEvent] {
     log.events.compactMap { if case .fileDialogResult(let r) = $0 { r } else { nil } }
