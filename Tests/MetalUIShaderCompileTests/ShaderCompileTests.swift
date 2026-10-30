@@ -466,7 +466,10 @@ func theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage() throws {
             #expect(c.output.contains(needle), "\(label) c names \(needle): \(c.output)")
         }
         try original.write(to: source)
-        // (f) a header-only edit reruns the command (an input, `BT-O`) and the copy path refuses it by name.
+        // (f) a header-only edit reruns the command (an input, `BT-O`) and the copy path refuses it by name. The restored
+        // source made the last build rerun, so first settle with one good build: the edit below must be the only change.
+        let settled = try build(withoutShadercross)
+        #expect(settled.status == 0, "\(label) f settle: \(settled.output)")
         try Data("// common v2\n".utf8).write(to: header)
         let f = try build(withoutShadercross)
         print("BT 13f \(label): status=\(f.status)\n\(f.output.suffix(1200))")
