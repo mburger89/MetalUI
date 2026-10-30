@@ -69,6 +69,13 @@ extension App {
         }
     }
 
+    /// Brings the application to the foreground (ruling `WA-A`, MetalUI-only: AppKit's
+    /// `NSApplication.activate`), so a window raised with ``Window/makeKeyAndOrderFront()`` is seen over the
+    /// application the user is in. Call it from a response to the user (a notification click), never unprompted.
+    public func activate() {
+        platform.activate()
+    }
+
     /// Asks to end the application exactly as ⌘Q does (``onTerminateRequest``,
     /// else every window in turn) and, once approved — now or by a later
     /// reply — closes every window and ends the platform's event loop.

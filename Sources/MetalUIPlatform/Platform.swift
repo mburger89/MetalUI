@@ -305,6 +305,15 @@ public protocol PlatformWindow: AnyObject {
     /// `func setPointerStyle(_ style: PlatformPointerStyle) {}`.
     func setPointerStyle(_ style: PlatformPointerStyle)
 
+    /// Brings this window in front of the application's other windows and makes it the key window,
+    /// restoring it first if it is minimised (ruling `WA-A`). `Window.makeKeyAndOrderFront()` calls it.
+    /// AppKit: `deminiaturize(_:)` when miniaturised, then `makeKeyAndOrderFront(_:)`; SDL: `SDL_RaiseWindow`
+    /// (which restores a minimised window). It does not activate the application (``Platform/activate()``).
+    ///
+    /// **No default implementation** (`WA-A`): a conformer that forgets it fails to compile.
+    /// **Migration**: a conformer outside this repository adds `func orderFrontAndMakeKey() {}`.
+    func orderFrontAndMakeKey()
+
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)
 
@@ -514,6 +523,12 @@ public protocol Platform: AnyObject {
     /// `NSApp.terminate(nil)`, whose `applicationShouldTerminate(_:)` then
     /// answers `.terminateNow` unasked; SDL stops its loop.
     func terminate()
+
+    /// Brings the application to the foreground (ruling `WA-A`), as a user clicking its Dock icon would:
+    /// AppKit calls `NSRunningApplication.current.activate(options:)` (`activate(ignoringOtherApps:)`);
+    /// SDL has no application-level call and raises its key (else lowest-id) window. `App.activate()` calls it.
+    /// **No default implementation**; **migration**: add `func activate() {}`.
+    func activate()
 
     /// Receives documents and URLs the system asks the application to open
     /// (ruling `AS-G` item 4), as absolute URL strings, one call per batch.

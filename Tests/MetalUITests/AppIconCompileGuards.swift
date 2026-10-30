@@ -24,6 +24,7 @@ private func conformer(member: String) -> String {
         var onTerminateRequest: (() -> CloseRequestReply)?
         func replyToTerminateRequest(_ shouldTerminate: Bool) {}
         func terminate() {}
+        func activate() {}
         var onOpenURLs: (([String]) -> Void)?
         func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
             throw PlatformError.windowCreationFailed

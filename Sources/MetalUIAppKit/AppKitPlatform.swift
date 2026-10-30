@@ -1069,6 +1069,12 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// `NSCursor` for every `cursorUpdate(with:)`, and it is set at once while
     /// the pointer is inside the view. Pinned by
     /// `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`.
+    /// `deminiaturize(_:)` when miniaturised, then `makeKeyAndOrderFront(_:)` (`WA-A`).
+    func orderFrontAndMakeKey() {
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.makeKeyAndOrderFront(nil)
+    }
+
     func setPointerStyle(_ style: PlatformPointerStyle) {
         let cursor: NSCursor
         if case .image(let image) = style {
@@ -1343,6 +1349,12 @@ public final class AppKitPlatform: Platform {
     /// answers `.terminateNow` without asking ``onTerminateRequest``.
     public func terminate() {
         applicationDelegate.terminate()
+    }
+
+    /// `NSApp.activate(ignoringOtherApps: true)` — the call `run()` makes, so an app raised by a
+    /// notification click comes forward over the app the user is in (`WA-A`).
+    public func activate() {
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     /// `application(_:open:)`'s URLs as absolute strings, parked until set

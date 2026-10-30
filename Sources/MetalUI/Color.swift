@@ -67,8 +67,10 @@ public struct Color: Hashable, Sendable {
         self.init(provider: .srgb(Self.canonical(r), Self.canonical(g), Self.canonical(b), Self.canonical(a)))
     }
 
-    /// The `0xRRGGBB` literal.
-    init(hex: UInt32) {
+    /// An opaque colour from a `0xRRGGBB` literal in gamma-encoded sRGB, such as `Color(hex: 0x1E90FF)`
+    /// (ruling `WA-B`, MetalUI-only: SwiftUI has no such initialiser). The bits above 24 are ignored. For
+    /// an alpha, use ``opacity(_:)`` on the result, or `Color(Hsla.rgb(0x1E90FF, alpha: 0.5))`.
+    public init(hex: UInt32) {
         self.init(srgb: Float((hex >> 16) & 0xFF) / 255, Float((hex >> 8) & 0xFF) / 255,
                   Float(hex & 0xFF) / 255, 1)
     }
