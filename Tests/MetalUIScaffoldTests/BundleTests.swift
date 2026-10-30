@@ -196,6 +196,7 @@ private func scratch() throws -> URL {
 }
 
 @Test func theExecutorBuildsInReleaseThenLaysTheBundleOutAndSigns() throws {
+    #if os(macOS) // a fake `bin/<product>` is executable only where POSIX modes are (BU-)
     let root = try scratch()
     defer { try? FileManager.default.removeItem(at: root) }
     let (_, runner, log) = try fakeBuild(into: root)
@@ -213,9 +214,11 @@ private func scratch() throws -> URL {
     let info = try #require(NSDictionary(contentsOfFile: app + "/Contents/Info.plist"))
     #expect(info["CFBundleIdentifier"] as? String == "com.example.Flow")
     #expect(info["LSMinimumSystemVersion"] as? String == "14.0", "no manifest: the fallback")
+    #endif
 }
 
 @Test func anExistingBundleIsReplacedNotMerged() throws {
+    #if os(macOS) // a fake `bin/<product>` is executable only where POSIX modes are (BU-)
     let root = try scratch()
     defer { try? FileManager.default.removeItem(at: root) }
     let (_, runner, _) = try fakeBuild(into: root)
@@ -225,9 +228,11 @@ private func scratch() throws -> URL {
     try Data("old".utf8).write(to: stale)
     _ = try performBundle(opts, run: runner)
     #expect(!FileManager.default.fileExists(atPath: stale.path))
+    #endif
 }
 
 @Test func aPngIconRunsTheConversionAndShipsTheIcns() throws {
+    #if os(macOS) // a fake `bin/<product>` is executable only where POSIX modes are (BU-)
     let root = try scratch()
     defer { try? FileManager.default.removeItem(at: root) }
     let (_, runner, log) = try fakeBuild(into: root)
@@ -239,6 +244,7 @@ private func scratch() throws -> URL {
     #expect(log.invocations.contains { $0.executable == "iconutil" })
     #expect(try String(contentsOfFile: app + "/Contents/Resources/Flow.icns", encoding: .utf8) == "icns")
     #expect(!FileManager.default.fileExists(atPath: root.path + "/out/Flow.iconset"), "scratch iconset removed")
+    #endif
 }
 
 @Test func aMissingIconFileFailsBeforeAnythingIsBuilt() throws {
@@ -252,6 +258,7 @@ private func scratch() throws -> URL {
 }
 
 @Test func aFailingBuildOrSignatureIsReportedWithItsStep() throws {
+    #if os(macOS) // a fake `bin/<product>` is executable only where POSIX modes are (BU-)
     let root = try scratch()
     defer { try? FileManager.default.removeItem(at: root) }
     let opts = options().with { $0.output = root.path + "/out"; $0.packagePath = root.path }
@@ -260,6 +267,7 @@ private func scratch() throws -> URL {
     #expect(throws: BundleCommandError.failed(step: "swift build", status: 3)) { try performBundle(opts, run: buildFails) }
     log.failing = "codesign"
     #expect(throws: BundleCommandError.failed(step: "codesign", status: 3)) { try performBundle(opts, run: buildFails) }
+    #endif
 }
 
 @Test func aBuildThatProducedNoExecutableIsReported() throws {
@@ -271,6 +279,7 @@ private func scratch() throws -> URL {
 }
 
 @Test func theManifestsPlatformSetsTheMinimumSystemVersion() throws {
+    #if os(macOS) // a fake `bin/<product>` is executable only where POSIX modes are (BU-)
     let root = try scratch()
     defer { try? FileManager.default.removeItem(at: root) }
     try Data("platforms: [.macOS(.v13)]".utf8).write(to: root.appendingPathComponent("Package.swift"))
@@ -278,6 +287,7 @@ private func scratch() throws -> URL {
     let opts = options().with { $0.output = root.path + "/out"; $0.packagePath = root.path }
     let app = try performBundle(opts, run: runner)
     #expect(NSDictionary(contentsOfFile: app + "/Contents/Info.plist")?["LSMinimumSystemVersion"] as? String == "13.0")
+    #endif
 }
 
 // MARK: - Platform and the top-level entry
