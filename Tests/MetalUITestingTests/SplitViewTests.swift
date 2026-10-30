@@ -249,3 +249,18 @@ import Testing
     window.drag(from: pt(100.5, 150), to: pt(300.5, 150))
     #expect(columns(window) == [120, 80, 198], "\(columns(window))")
 }
+
+/// HS-D — the near neighbour's minimum is a drag limit: A (min 80) stops at 80 and C does not shrink to
+/// make up the difference. Mutation: `dragged` drops `minimums[a]` from the lower bound.
+@Test @MainActor func aDragStopsWhereThePaneBeingDraggedReachesItsMinimum() throws {
+    let window = try harnessWindow {
+        HSplitView {
+            Color.red.frame(minWidth: 80, idealWidth: 100, maxWidth: 400)
+            Color.green.frame(minWidth: 50, idealWidth: 100, maxWidth: 300)
+            Color.blue
+        }
+    }
+    #expect(columns(window) == [100, 100, 198], "\(columns(window))")
+    window.drag(from: pt(100.5, 150), to: pt(0.5, 150))
+    #expect(columns(window) == [80, 120, 198], "\(columns(window))")
+}
