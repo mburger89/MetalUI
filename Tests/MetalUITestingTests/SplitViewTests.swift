@@ -184,3 +184,16 @@ import Testing
     window.resize(to: sz(400, 400))
     #expect(rows(window) == [100, 208, 90], "\(rows(window))")
 }
+
+/// HS-C — with no pane unbounded the surplus is shared by the bounded ones, equally while each has
+/// room: A (ideal 100, max 150) and B (ideal 100, max 300) in 399 points: 199 spare, A takes 50 to its
+/// maximum, B the other 149. Mutation: the bounded pass is skipped, leaving the surplus unplaced.
+@Test @MainActor func withNoUnboundedPaneTheBoundedOnesShareTheSurplus() throws {
+    let window = try harnessWindow {
+        HSplitView {
+            Color.red.frame(minWidth: 50, idealWidth: 100, maxWidth: 150)
+            Color.blue.frame(minWidth: 50, idealWidth: 100, maxWidth: 300)
+        }
+    }
+    #expect(columns(window) == [150, 249], "\(columns(window))")
+}
