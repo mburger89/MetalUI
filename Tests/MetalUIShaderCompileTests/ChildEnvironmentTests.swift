@@ -56,7 +56,10 @@ private let checkout = URL(fileURLWithPath: #filePath)
 /// `processRunner` merges the child environment.
 /// Mutations: edit the region in `Plugin.swift` only; drop `environment: forwarded`; drop the merge in `processRunner`.
 @Test func theBuildPluginForwardsTheSameEnvironmentTheToolListsHere() throws {
-    func text(_ path: String) throws -> String { try String(contentsOf: checkout.appendingPathComponent(path), encoding: .utf8) }
+    // A Windows checkout has CRLF line ends; the pins below spell `\n`.
+    func text(_ path: String) throws -> String {
+        try String(contentsOf: checkout.appendingPathComponent(path), encoding: .utf8).replacingOccurrences(of: "\r\n", with: "\n")
+    }
     func region(_ text: String, _ path: String) throws -> String {
         let begin = try #require(text.range(of: "// BEGIN environment-forwarding"), "\(path) has no region")
         let end = try #require(text.range(of: "// END environment-forwarding"), "\(path) has no region end")
