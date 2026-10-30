@@ -313,9 +313,9 @@ public struct TextField: Element, StyledElement {
                 ownEffects: decoration.renderEffects, bounds: bounds),
             onChange: onChange, onSubmit: submit,
             selectionSink: selectionWriter)
-        if handlers.axNode.isEmpty {
-            handlers.axNode = AXNode(role: .textField, label: placeholder.isEmpty ? nil : placeholder, value: text)
-        }
+        // `DA-C`: fills what was not declared, so an identifier or hint written on the field
+        // does not cost it its role and text.
+        handlers.axNode.fillControl(role: .textField, label: placeholder.isEmpty ? nil : placeholder, value: text)
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
     }
 

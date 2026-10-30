@@ -341,9 +341,9 @@ public struct TextEditor: Element, StyledElement {
             text: text, caretOffsets: [], originX: originX, caretRect: caretArea,
             onChange: onChange, onSubmit: nil, selectionSink: selectionWriter, lines: textLines, originY: originY,
             lineHeight: g.lineHeight, maxScrollY: g.maxScrollY)
-        if handlers.axNode.isEmpty {
-            handlers.axNode = AXNode(role: .textArea, label: placeholder.isEmpty ? nil : placeholder, value: text)
-        }
+        // `DA-C`: fills what was not declared, so an identifier or hint written on the field
+        // does not cost it its role and text.
+        handlers.axNode.fillControl(role: .textArea, label: placeholder.isEmpty ? nil : placeholder, value: text)
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
     }
 
