@@ -253,8 +253,29 @@ private struct FDOpener: Component {
     #expect(ContentType.plainText.platformFileType
             == PlatformFileType(identifier: "public.plain-text",
                                 conformsTo: ["public.data", "public.item", "public.text"],
-                                filenameExtensions: ["txt"]))
+                                filenameExtensions: ["txt"], localizedDescription: "Plain text"))
     let custom = ContentType("com.example.keymap", conformingTo: [.json], filenameExtensions: ["keymap", "km"])
     #expect(custom.platformFileType.conformsTo == ["public.data", "public.item", "public.json", "public.text"])
     #expect(custom.platformFileType.filenameExtensions == ["keymap", "km"])
+}
+
+/// **2.20** (`VD-F`). A `ContentType`'s `localizedDescription` reaches the
+/// seam: English for each built-in, `nil` for a custom type declared without
+/// one, the given text for one declared with it; and it is no part of
+/// equality or hashing (a label must not split a set).
+///
+/// Mutation **M2.20**: drop the field from `platformFileType`; give `json`
+/// no description; add the field to `==`.
+@Test func aContentTypesDescriptionReachesTheSeamAndStaysOutOfEquality() {
+    #expect(ContentType.json.platformFileType.localizedDescription == "JSON")
+    #expect(ContentType.plainText.platformFileType.localizedDescription == "Plain text")
+    #expect(ContentType.utf8PlainText.localizedDescription == "Plain text (UTF-8)")
+    for type in [ContentType.item, .data, .text, .url, .fileURL] {
+        #expect(type.localizedDescription?.isEmpty == false, "\(type.identifier)")
+    }
+    let bare = ContentType("com.example.keymap", filenameExtensions: ["km"])
+    let named = ContentType("com.example.keymap", filenameExtensions: ["km"], localizedDescription: "Keymap")
+    #expect(bare.localizedDescription == nil && bare.platformFileType.localizedDescription == nil)
+    #expect(named.platformFileType.localizedDescription == "Keymap")
+    #expect(bare == named && Set([bare, named]).count == 1)
 }

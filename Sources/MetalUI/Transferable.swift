@@ -16,6 +16,20 @@ import MetalUIPlatform
 /// otherwise, since ``init(_:conformingTo:)`` defaults its parents to
 /// `[.data]`.
 public struct ContentType: Hashable, Sendable, CustomStringConvertible {
+    // Equality and hashing ignore `localizedDescription` (ruling `VD-F`): a
+    // type is its identifier, conformance and extensions, as UTType's is its
+    // identifier; a label must not split a dictionary key.
+    public static func == (lhs: ContentType, rhs: ContentType) -> Bool {
+        lhs.identifier == rhs.identifier && lhs.conformance == rhs.conformance
+            && lhs.filenameExtensions == rhs.filenameExtensions
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(identifier)
+        hasher.combine(conformance)
+        hasher.combine(filenameExtensions)
+    }
+
     /// The identifier, e.g. `public.utf8-plain-text`.
     public let identifier: String
     /// Every identifier this type conforms to, transitively; never contains
@@ -25,15 +39,23 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
     /// first (ruling `SV-E`); empty for a type with none of its own. Never
     /// inherited: `.utf8PlainText` has none although `.plainText` has `txt`.
     let filenameExtensions: [String]
+    /// A human-readable name for this type, in English for the built-ins
+    /// (ruling `VD-F`) — UTType's `localizedDescription`, settable here
+    /// because MetalUI has no system type registry to read it from. `nil` for
+    /// a custom type declared without one. A file dialog off Apple shows it
+    /// as the filter's name (`VD-G`); it takes no part in `==` or hashing.
+    public let localizedDescription: String?
 
     /// A type named `identifier` conforming to `parents` and, transitively,
     /// to everything they conform to, named on disk by `filenameExtensions`
     /// (without a dot, preferred first; ruling `SV-E`) — UTType's
     /// `filenameExtension`/`preferredFilenameExtension` reduced to a list. A
     /// file dialog filters by them where the platform has no type system
-    /// (SDL, divergence 129).
+    /// (SDL, divergence 129). `localizedDescription` names the type to a
+    /// person (ruling `VD-F`); `nil` has a file dialog show its extensions
+    /// alone.
     public init(_ identifier: String, conformingTo parents: [ContentType] = [.data],
-                filenameExtensions: [String] = []) {
+                filenameExtensions: [String] = [], localizedDescription: String? = nil) {
         self.identifier = identifier
         var all = Set<String>()
         for parent in parents {
@@ -43,12 +65,14 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
         all.remove(identifier)
         self.conformance = all
         self.filenameExtensions = filenameExtensions
+        self.localizedDescription = localizedDescription
     }
 
-    private init(root identifier: String) {
+    private init(root identifier: String, localizedDescription: String) {
         self.identifier = identifier
         self.conformance = []
         self.filenameExtensions = []
+        self.localizedDescription = localizedDescription
     }
 
     /// The first of this type's filename extensions, or `nil` when it has none
@@ -64,25 +88,27 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
     public var description: String { identifier }
 
     /// `public.item`: the root; conforms to nothing.
-    public static let item = ContentType(root: "public.item")
+    public static let item = ContentType(root: "public.item", localizedDescription: "Item")
     /// `public.data`: bytes. Conforms to ``item``.
-    public static let data = ContentType("public.data", conformingTo: [.item])
+    public static let data = ContentType("public.data", conformingTo: [.item], localizedDescription: "Data")
     /// `public.text`. Conforms to ``data``.
-    public static let text = ContentType("public.text", conformingTo: [.data])
+    public static let text = ContentType("public.text", conformingTo: [.data], localizedDescription: "Text")
     /// `public.plain-text`, named `txt`. Conforms to ``text``.
     public static let plainText = ContentType("public.plain-text", conformingTo: [.text],
-                                              filenameExtensions: ["txt"])
+                                              filenameExtensions: ["txt"], localizedDescription: "Plain text")
     /// `public.utf8-plain-text`, what a `String` drags as. Conforms to ``plainText``.
-    public static let utf8PlainText = ContentType("public.utf8-plain-text", conformingTo: [.plainText])
+    public static let utf8PlainText = ContentType("public.utf8-plain-text", conformingTo: [.plainText],
+                                                  localizedDescription: "Plain text (UTF-8)")
     /// `public.url`. Conforms to ``data``.
-    public static let url = ContentType("public.url", conformingTo: [.data])
+    public static let url = ContentType("public.url", conformingTo: [.data], localizedDescription: "URL")
     /// `public.file-url`. Conforms to ``url``.
-    public static let fileURL = ContentType("public.file-url", conformingTo: [.url])
+    public static let fileURL = ContentType("public.file-url", conformingTo: [.url], localizedDescription: "File URL")
     /// `public.json`, named `json` — what the file dialogs of an app saving
     /// JSON offer (ruling `SV-E`). Conforms to ``text``, as UTType's does. A
     /// file importing both MetalUI and UniformTypeIdentifiers spells
     /// `ContentType.json` where `.json` is ambiguous.
-    public static let json = ContentType("public.json", conformingTo: [.text], filenameExtensions: ["json"])
+    public static let json = ContentType("public.json", conformingTo: [.text], filenameExtensions: ["json"],
+                                       localizedDescription: "JSON")
 
     /// The seam's spelling of this type (ruling `DN-B` item 4), its
     /// conformance in a stable order.
@@ -94,7 +120,8 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
     /// conformance in a stable (sorted) order and its extensions as declared.
     var platformFileType: PlatformFileType {
         PlatformFileType(identifier: identifier, conformsTo: conformance.sorted(),
-                         filenameExtensions: filenameExtensions)
+                         filenameExtensions: filenameExtensions,
+                         localizedDescription: localizedDescription)
     }
 }
 
