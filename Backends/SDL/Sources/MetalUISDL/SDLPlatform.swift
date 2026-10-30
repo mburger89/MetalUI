@@ -919,15 +919,25 @@ public final class SDLWindow: PlatformWindow {
         return mui_dialog_request_show(request, rawHandle)
     }
 
-    /// SDL's filters for `types` (ruling `SV-E`, divergence 129): one per type
-    /// that has filename extensions — named by its identifier, its extensions
-    /// joined by `;` — and none for a type without (`public.data`), so a list
-    /// with no extension anywhere filters nothing (SDL is passed `NULL`). Off
-    /// Apple a type is matched by extension only.
+    /// SDL's filters for `types` (rulings `SV-E`, `VD-G`, divergence 129): one
+    /// per type that has filename extensions and none for a type without
+    /// (`public.data`), so a list with no extension anywhere filters nothing
+    /// (SDL is passed `NULL`). The pattern joins the extensions by `;`. The
+    /// name — which SDL and the desktop's dialog show verbatim — is
+    /// `"<description> (*.a;*.b)"` when the type has a description and
+    /// `"*.a;*.b"` when not, never the identifier. Off Apple a type is
+    /// matched by extension only.
     nonisolated static func dialogFilters(_ types: [PlatformFileType]) -> [(name: String, pattern: String)] {
         types.compactMap { type in
-            type.filenameExtensions.isEmpty
-                ? nil : (type.identifier, type.filenameExtensions.joined(separator: ";"))
+            guard !type.filenameExtensions.isEmpty else { return nil }
+            let globs = type.filenameExtensions.map { "*.\($0)" }.joined(separator: ";")
+            let name: String
+            if let description = type.localizedDescription, !description.isEmpty {
+                name = "\(description) (\(globs))"
+            } else {
+                name = globs
+            }
+            return (name, type.filenameExtensions.joined(separator: ";"))
         }
     }
 

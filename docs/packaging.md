@@ -150,6 +150,21 @@ before `AI-N` the generated accessor was the only lookup, and under
 absolute build directory, then called `fatalError`, so packaging had to use
 the default build system.
 
+## Linux: SDL in the image, and the library an app bundles (`VD-A`..`VD-E`)
+
+`Backends/SDL/linux/Dockerfile` builds SDL 3.4.16 with the **X11 and Wayland video
+drivers** (and libdecor for Wayland decorations), plus offscreen and dummy; the
+image's `libSDL3.so.0` therefore runs on a real desktop. An app's tarball or
+AppImage ships that one file (found with `ldconfig -p | grep libSDL3.so.0` in the image). The X11, Wayland and
+libdecor libraries are **not** linked: SDL `dlopen`s them from the user's system,
+so a machine without Wayland runs the X11 driver and the reverse. The build fails
+if cmake cannot enable either driver, and `scripts/check-video-drivers.c` fails the
+image build unless `SDL_GetVideoDriver` lists `x11`, `wayland`, `offscreen` and
+`dummy`. The image sets `SDL_VIDEO_DRIVER=offscreen` so CI is headless; a packaged
+app must not set it. Ship `THIRD-PARTY-NOTICES.md`'s SDL3 licence with it. Unverified: a real
+Wayland compositor, a real X server with hardware GL (an Xvfb X11 session was
+measured, `VD-C`).
+
 ## Linux: a `.desktop` file and the hicolor icon theme
 
 Desktop shells find an application's icon through its **desktop entry**,

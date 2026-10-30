@@ -25,13 +25,19 @@ public struct PlatformFileType: Sendable, Equatable {
     /// The filename extensions naming this type, without a dot, preferred
     /// first; empty when the type has none of its own (`public.data`).
     public var filenameExtensions: [String]
+    /// A human-readable name for the type, e.g. `JSON`; `nil` when the type
+    /// has none. A platform with no type system shows it as the filter's name
+    /// (ruling `VD-G`).
+    public var localizedDescription: String?
 
     /// A file type named `identifier`, conforming to `conformsTo`, named by
-    /// `filenameExtensions`.
-    public init(identifier: String, conformsTo: [String] = [], filenameExtensions: [String] = []) {
+    /// `filenameExtensions`, described to a person by `localizedDescription`.
+    public init(identifier: String, conformsTo: [String] = [], filenameExtensions: [String] = [],
+                localizedDescription: String? = nil) {
         self.identifier = identifier
         self.conformsTo = conformsTo
         self.filenameExtensions = filenameExtensions
+        self.localizedDescription = localizedDescription
     }
 }
 

@@ -565,7 +565,7 @@ M	MetalUISystemFonts	SystemFonts.swift	SystemFonts	designFamilies	.*	design-fami
 M	MetalUISystemFonts	.*	.*	.*	.*	portable-text
 M	MetalUIDemoContent	DemoIcon.swift	.*	.*	.*	app-icon
 M	MetalUIDemoContent	.*	.*	.*	.*	demo-content
-M	MetalUI	Transferable.swift	ContentType	(json|preferredFilenameExtension)	.*	content-type-extensions
+M	MetalUI	Transferable.swift	ContentType	(json|preferredFilenameExtension|localizedDescription)	.*	content-type-extensions
 M	MetalUI	Transferable.swift	.*	.*	.*	transferable
 M	MetalUI	DragAndDrop.swift	.*	.*	.*	drag-and-drop
 M	MetalUI	ContextMenu.swift	(StyledElement|ProposalElementGroup)	contextMenu	.*Point<Pixels>[?].*	input-apis-gestures-metalui
