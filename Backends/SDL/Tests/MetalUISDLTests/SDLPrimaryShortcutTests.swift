@@ -42,6 +42,7 @@ private final class ShortcutSDLPlatform: Platform {
     }
     func replyToTerminateRequest(_ shouldTerminate: Bool) { base.replyToTerminateRequest(shouldTerminate) }
     func terminate() { base.terminate() }
+    func activate() { base.activate() }
     var onOpenURLs: (([String]) -> Void)? {
         get { base.onOpenURLs }
         set { base.onOpenURLs = newValue }

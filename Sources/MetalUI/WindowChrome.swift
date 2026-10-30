@@ -44,6 +44,14 @@ extension Window {
         _ = platformWindow.performWindowAction(.minimize)
     }
 
+    /// Brings the window in front of the application's other windows and makes it the key window,
+    /// restoring it first if it is minimised (ruling `WA-A`, MetalUI-only: SwiftUI has `openWindow` and
+    /// `NSWindow.makeKeyAndOrderFront(_:)`). It does not activate the application: call
+    /// ``App/activate()`` for that, as a notification click does.
+    public func makeKeyAndOrderFront() {
+        platformWindow.orderFrontAndMakeKey()
+    }
+
     /// Maximises the window, or restores it when it is zoomed (ruling `CW-C`, MetalUI-only): AppKit's
     /// `zoom(_:)`, SDL's maximise and restore.
     public func toggleZoom() {

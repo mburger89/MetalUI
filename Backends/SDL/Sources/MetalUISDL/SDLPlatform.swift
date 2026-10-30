@@ -283,6 +283,14 @@ public final class SDLPlatform: Platform {
     /// Stops the loop asking nobody (``stop()``).
     public func terminate() { stop() }
 
+    /// SDL has no application-level activation: raises the key window, else the lowest-id one
+    /// (`SDL_RaiseWindow`, restoring a minimised window); with no window, nothing (`WA-A`).
+    public func activate() {
+        guard let id = focusedID.flatMap({ windows[$0] != nil ? $0 : nil }) ?? windows.keys.min(),
+              let window = windows[id] else { return }
+        window.orderFrontAndMakeKey()
+    }
+
     /// URL strings opened before ``onOpenURLs`` was set, batch by batch.
     private var parkedURLs: [[String]] = []
 
@@ -636,6 +644,15 @@ public final class SDLWindow: PlatformWindow {
     /// and both zooms the default one: SDL has no hand or zoom cursor, a
     /// documented platform constraint (human check Y6). A cursor SDL cannot
     /// create (the offscreen driver) leaves the current one.
+    /// `mui_window_raise`: `SDL_RestoreWindow` when minimised, then `SDL_RaiseWindow` (`WA-A`).
+    public func orderFrontAndMakeKey() {
+        orderFrontCalls += 1
+        _ = mui_window_raise(rawHandle)
+    }
+
+    /// How many times ``orderFrontAndMakeKey()`` was called — recorded so a test sees it without a window manager.
+    public private(set) var orderFrontCalls = 0
+
     public func setPointerStyle(_ style: PlatformPointerStyle) {
         pointerStyles.append(style)
         if case .image(let image) = style {

@@ -1985,3 +1985,12 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **VD1.** A Linux tarball or AppImage bundling the image's `libSDL3.so.0` opens a window and draws on a real X11 desktop with `SDL_VIDEO_DRIVER` unset. **Observed:**
 - [ ] **VD2.** The same package opens a window on a real Wayland session (libdecor decorations, resize, close) with `SDL_VIDEO_DRIVER` unset. **Observed:**
 - [ ] **VD3.** An open and a save dialog on Linux (GTK portal, and zenity if that is the fallback) with a typed filter: the label reads `JSON (*.json)` or `MetalCreator graph (*.mcgraph;*.mcg)`, never a raw identifier, and a type with no description reads `*.mcgraph`. **Observed:**
+
+## WA. Window and application activation - `Window.makeKeyAndOrderFront()`, `App.activate()` (item MF-activate, MetalFlow notification click; decisions `docs/superpowers/2026-10-30-window-activation-decisions.md`; provisional letter)
+
+*An agent cannot: which window is in front, key, or de-miniaturised is a look at the window server; the headless platform only counts the call.*
+
+- [ ] **WA1.** With another application frontmost, trigger a response that calls `app.activate()` then `window.makeKeyAndOrderFront()` (a notification click, or a menu item from a timer-less button that fires after you switch away, as the demo or MetalFlow does). The MetalUI window comes to the front, is key (its title bar is active, typing reaches it), and the other application goes behind. **Observed:**
+- [ ] **WA2.** Minimise the window to the Dock, then trigger the same call: the window de-miniaturises and comes forward, key. **Observed:**
+- [ ] **WA3.** With two MetalUI windows, call `makeKeyAndOrderFront()` on the rear one: it comes in front of the other and becomes key. **Observed:**
+- [ ] **WA4.** (Linux/Windows, SDL) The same call raises the window and restores a minimised one; the window manager may only flash the taskbar entry when it denies focus stealing. **Observed:**

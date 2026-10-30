@@ -50,7 +50,7 @@ private let platformMembers: [(name: String, spelling: String)] = [
 
 /// A `PlatformWindow` conformer with every requirement that existed before
 /// this branch, plus `members`.
-func windowConformer(_ members: [String]) -> String {
+func windowConformer(_ members: [String], includingOrderFront: Bool = true) -> String {
     """
     import MetalUICore
     import MetalUIScene
@@ -96,6 +96,7 @@ func windowConformer(_ members: [String]) -> String {
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
         func setPointerStyle(_ style: PlatformPointerStyle) {}
+    \(includingOrderFront ? "    func orderFrontAndMakeKey() {}" : "")
     \(members.map { "    " + $0 }.joined(separator: "\n"))
     }
     """
@@ -103,7 +104,7 @@ func windowConformer(_ members: [String]) -> String {
 
 /// A `Platform` conformer with every requirement that existed before this
 /// branch, plus `members`.
-private func platformConformer(_ members: [String]) -> String {
+private func platformConformer(_ members: [String], includingActivate: Bool = true) -> String {
     """
     import MetalUICore
     import MetalUIScene
@@ -116,6 +117,7 @@ private func platformConformer(_ members: [String]) -> String {
         func run() {}
         func setApplicationIcon(_: [ImageTexture]) {}
         func setMenuBar(_: PlatformMenuBar) -> Bool { false }
+    \(includingActivate ? "    func activate() {}" : "")
     \(members.map { "    " + $0 }.joined(separator: "\n"))
     }
     """
@@ -163,4 +165,26 @@ func aPlatformWithoutEachAppShellRequirementDoesNotCompile() throws {
         #expect(without.messages.contains(member.name),
                 "the refusal must name \(member.name):\n\(without.output)")
     }
+}
+
+/// **1.3** (`WA-A`). `PlatformWindow.orderFrontAndMakeKey()` and `Platform.activate()` have no default: a
+/// conformer with each, in the migration note's spelling, compiles (the positive control), and one without
+/// fails naming it.
+///
+/// Mutation: a protocol-extension default `func orderFrontAndMakeKey() {}` or `func activate() {}` (that
+/// arm compiles).
+@Test(.enabled(if: canTypecheck(module: "MetalUIPlatform"), platformSkipReason))
+func aConformerWithoutTheActivationRequirementsDoesNotCompile() throws {
+    let allWindow = try typecheckFile(windowConformer(windowMembers.map(\.spelling) + chromeMembers.map(\.spelling)),
+                                      importing: "MetalUIPlatform")
+    let noWindow = try typecheckFile(windowConformer(windowMembers.map(\.spelling) + chromeMembers.map(\.spelling),
+                                                     includingOrderFront: false), importing: "MetalUIPlatform")
+    let allPlatform = try typecheckFile(platformConformer(platformMembers.map(\.spelling)), importing: "MetalUIPlatform")
+    let noPlatform = try typecheckFile(platformConformer(platformMembers.map(\.spelling), includingActivate: false),
+                                       importing: "MetalUIPlatform")
+    print("WA-A requirements: window with=\(allWindow.succeeded) without=\(noWindow.succeeded); "
+        + "platform with=\(allPlatform.succeeded) without=\(noPlatform.succeeded)")
+    try #require(allWindow.succeeded && allPlatform.succeeded, "the controls must compile:\n\(allWindow.output)\n\(allPlatform.output)")
+    #expect(!noWindow.succeeded && noWindow.messages.contains("orderFrontAndMakeKey"), "\(noWindow.output)")
+    #expect(!noPlatform.succeeded && noPlatform.messages.contains("activate"), "\(noPlatform.output)")
 }
