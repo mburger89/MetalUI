@@ -1985,4 +1985,3 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **VD1.** A Linux tarball or AppImage bundling the image's `libSDL3.so.0` opens a window and draws on a real X11 desktop with `SDL_VIDEO_DRIVER` unset. **Observed:**
 - [ ] **VD2.** The same package opens a window on a real Wayland session (libdecor decorations, resize, close) with `SDL_VIDEO_DRIVER` unset. **Observed:**
 - [ ] **VD3.** An open and a save dialog on Linux (GTK portal, and zenity if that is the fallback) with a typed filter: the label reads `JSON (*.json)` or `MetalCreator graph (*.mcgraph;*.mcg)`, never a raw identifier, and a type with no description reads `*.mcgraph`. **Observed:**
-- [ ] **VD4.** Re-run the unfiltered root suite with the screen unlocked (or on master) and record whether the five `AppKitPresentationTests` sheet tests of record 163 section 5 pass. **Observed:**
