@@ -27,6 +27,11 @@ import PackagePlugin
             return manager.fileExists(atPath: compiled.appendingPathComponent(name).path, isDirectory: &isDirectory) && !isDirectory.boolValue
         }
         let environment = ProcessInfo.processInfo.environment
+        #if os(Windows)
+        let isWindows = true
+        #else
+        let isWindows = false
+        #endif
         let shadercross = environment["METALUI_SHADERCROSS"] ?? ""
         // Windows spells the variable `Path`; elsewhere it is `PATH`.
         let path = environment.first { $0.key.caseInsensitiveCompare("PATH") == .orderedSame }?.value ?? ""
@@ -34,11 +39,14 @@ import PackagePlugin
         var display = shaders.path
         if display.hasPrefix(packagePath + "/") { display = String(display.dropFirst(packagePath.count + 1)) }
         let out = context.pluginWorkDirectoryURL.appendingPathComponent("MetalUIAppShaders")
+        // The build system may run the command with an almost empty environment; forward what the tool needs (BT-V).
+        let forwarded = ForwardedEnvironment.select(from: environment, windows: isWindows)
         return [.buildCommand(
             displayName: "Compiling or verifying \(sources.count) app shader(s) for \(target.name)",
             executable: try context.tool(named: "MetalUICompileShaders").url,
             arguments: ["--on-build", "--source", shaders.path, "--checked-in", compiled.path, "--out", out.path,
                         "--environment-shadercross", shadercross, "--environment-path", path, "--display-source", display],
+            environment: forwarded,
             inputFiles: sources.map { shaders.appendingPathComponent($0) } + includes.map { shaders.appendingPathComponent($0) } + blobs.map { compiled.appendingPathComponent($0) },
             outputFiles: [out])]
     }
@@ -99,3 +107,35 @@ enum IncludeSelection {
     }
 }
 // END include-selection
+
+// BEGIN environment-forwarding
+// Identical, byte for byte, in Plugins/CompileShadersOnBuild/Plugin.swift (a plugin cannot import a package
+// target); pinned by `theBuildPluginForwardsTheSameEnvironmentTheToolListsHere` (ruling BT-V).
+
+/// The environment variables the build-tool plugin forwards to `MetalUICompileShaders`: the build system may run a
+/// build command with an (almost) empty environment, and on Windows Foundation's `Process` cannot start Winsock
+/// without `SystemRoot` (the tool crashed in `CFSocket`), nor find a temporary directory without `TEMP` (ruling `BT-V`).
+enum ForwardedEnvironment {
+    /// What the tool and shadercross need everywhere: the shadercross lookup, its libraries, and `PATH` (`Path` on Windows).
+    static let common = ["METALUI_SHADERCROSS", "METALUI_SHADERCROSS_LIB", "PATH"]
+    /// Windows' system variables (Winsock, temporary files, shadercross's DLL and `.exe` resolution).
+    static let windows = ["SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "ProgramData", "ComSpec", "PATHEXT"]
+    /// Elsewhere: a home, a temporary directory and the loader paths.
+    static let other = ["HOME", "TMPDIR", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"]
+
+    /// The names to forward on this platform, in order.
+    static func keys(windows isWindows: Bool) -> [String] { common + (isWindows ? windows : other) }
+
+    /// The entries of `environment` whose name equals a forwarded key, matched case-insensitively and kept under their own
+    /// spelling (Windows has `Path`, `SystemRoot`), each only when present. A key never matches twice.
+    static func select(from environment: [String: String], windows isWindows: Bool) -> [String: String] {
+        var result: [String: String] = [:]
+        for key in keys(windows: isWindows) {
+            for (name, value) in environment where name.caseInsensitiveCompare(key) == .orderedSame {
+                result[name] = value
+            }
+        }
+        return result
+    }
+}
+// END environment-forwarding

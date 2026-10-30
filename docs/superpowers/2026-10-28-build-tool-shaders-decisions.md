@@ -1,7 +1,7 @@
 # App shaders on `swift build` (BS-D) - decisions
 
 Rulings for item `BS-D` (carried by record 138, "go ahead with BS-D" 2026-10-28; **not a plan task**), the build-tool plugin MetalCreator asked for as
-part of XP-G20. Prefix `BT-`. **Next unused: `BT-V`.**
+part of XP-G20. Prefix `BT-`. **Next unused: `BT-Z`.**
 Spec: [`specs/2026-10-28-build-tool-shaders-design.md`](specs/2026-10-28-build-tool-shaders-design.md). Record: `../record/161-build-tool-shaders.md` (Record phase).
 Branch `feat/build-tool-shaders` from master `abc2bf46`. Continues `BS-B`, `BS-C`, `BS-E`, `BS-I` (record 138); **supersedes `BS-D`** (amended there).
 Divergence labels reserved 895-904: **none taken** (`BT-A`). **Nothing is published** (`BS-H`; the user chose "no publish": no release, tag,
@@ -307,3 +307,45 @@ command and the copy path refuses it by name; with a real shadercross it recompi
 | plan drops `-I` | `theCommandPlanIsHlslToSpirvThenTheDerivations`; with `METALUI_SHADERCROSS` also `anEnvGatedRunResolvesHeadersThroughTheSourceDirectory` (`'common.hlsli' file not found`) |
 | `Backends/SDL`: the `INCLUDES.sha256` check skipped | `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders` |
 | `Backends/SDL`: the check only when a `SOURCE.sha256` exists | `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders` |
+
+## BT-V - the plugin forwards an explicit environment (item XP-G35)
+
+**Found** (MetalCreator's Windows CI, swift 6.4.0, default build system): `MetalUICompileShaders.exe` with `METALUI_SHADERCROSS` set crashed in
+`ShaderCompiler.processRunner` (`process.run()`): `*** Could not create wakeup socket pair for CFSocket!!!`, `c000001d`. `.buildCommand` passed no `environment:`,
+so swift-build runs the tool with an (almost) empty environment; without `SystemRoot` Winsock cannot start and Foundation's `Process` traps in the parent. The
+tool also handed that stripped environment to shadercross and read `METALUI_SHADERCROSS_LIB` from it. **Unmeasured here** (no Windows; CI only): the diagnosis is
+read from the source and the trace, and BT-X is the instrument.
+
+**Ruling.** `createBuildCommands` passes `environment: ForwardedEnvironment.select(from: <the plugin's own environment>, windows:)`
+(`buildCommand(displayName:executable:arguments:environment:inputFiles:outputFiles:)`, the SwiftPM 6.4 signature, built on macOS). The list is one function,
+`ForwardedEnvironment.keys(windows:)`, in the `environment-forwarding` region of `Backends/SDL/Sources/MetalUIShaderCompile/ChildEnvironment.swift`, copied byte for byte
+into `Plugin.swift`: `METALUI_SHADERCROSS`, `METALUI_SHADERCROSS_LIB`, `PATH` everywhere; on Windows also `SystemRoot`, `WINDIR`, `TEMP`, `TMP`, `USERPROFILE`, `LOCALAPPDATA`,
+`ProgramData`, `ComSpec`, `PATHEXT`; elsewhere `HOME`, `TMPDIR`, `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`. Each only when present, matched case-insensitively and forwarded under its
+own spelling (`Path`).
+**Caching.** The build command's `environment` is part of the command, not an input file: the plugin runs on every build (its output is a function of the sources it lists),
+and forwarding changes no input, so a rebuild with unchanged sources and an unchanged environment runs nothing, as before (measured on macOS by the fixture's
+(d) arm, which still reads "no `Verified`/`Compiled`"). A *changed* forwarded value (a different `METALUI_SHADERCROSS`) already reran the command because the plugin passes it
+as an argument (`BT-F`); `METALUI_SHADERCROSS_LIB` and the Windows keys are not arguments, so changing them alone is not seen until the command reruns for another reason.
+**Cost if wrong.** A missing key fails one build with the old crash; add it to the list.
+
+## BT-W - the tool repairs its own environment on Windows (defence in depth)
+
+**Ruling.** `Backends/SDL/Sources/MetalUICompileShaders/main.swift`, under `#if os(Windows)` and before any `Process` or socket use, sets `SystemRoot` and `WINDIR` from
+`GetWindowsDirectoryW` (`SetEnvironmentVariableW`) when `GetEnvironmentVariableW` finds none. `ShaderCompiler.processRunner` passes the child
+`ChildEnvironment.merged(environment, process: ProcessInfo.processInfo.environment, windows: runsOnWindows)`: the four of `SystemRoot`, `WINDIR`, `TEMP`, `TMP` the given
+environment lacks (any case) come from the tool's own, a value present is kept, nothing else is added; non-Windows returns the environment unchanged. The merge is pure (`windows:` as in this module).
+The `WinSDK` calls are unbuilt here; `theBuildPluginForwardsTheSameEnvironmentTheToolListsHere` pins their order before the first Foundation use as text.
+**Cost if wrong.** A Windows-only compile error shows on CI at once (BT-X builds the tool there).
+
+## BT-X - CI builds a plugin consumer with the default build system
+
+**Ruling.** `.github/fixtures/build-plugin` (a `Package.swift.in` with `@CHECKOUT@`, one target with `Shaders/tri.vert.hlsl`, and `shadercross-stub.c`: finds `-o <path>`,
+writes `{}` for `.json` and a line otherwise, exit 0). The Windows job (`sdl-gpu-linux.yml`, "Build and replay (Windows x64, D3D12)", before its build) and the Linux job (the
+image) copy it, substitute the checkout, compile the stub with `clang`, set `METALUI_SHADERCROSS` and run **plain `swift build`**, then require a non-empty `tri.vert.spv` under `.build`.
+Red on arrival: the Windows step is the CFSocket crash until BT-V/BT-W. Measured on macOS: the same steps build the fixture (a `platforms: [.macOS(.v14)]` line was needed there).
+**Cost if wrong.** A runner without `clang` on `PATH` fails the step (the Swift toolchain ships it).
+
+## BT-Y - docs
+
+**Ruling.** `docs/packaging.md` 4a lists the forwarded environment and the stripped-environment cause; `docs/rules/sdl.md` carries the rule.
+**Cost if wrong.** Text.

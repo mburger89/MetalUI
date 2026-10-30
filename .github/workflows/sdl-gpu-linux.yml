@@ -167,6 +167,18 @@ jobs:
             git config --global --add safe.directory "*"
             METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1 swift test --filter aCrossPlatformPackage --scratch-path /tmp/root
           '
+      - name: The build-tool plugin under the default build system (XP-G35, BT-X)
+        # The same consumer fixture as the Windows job: plain `swift build`, a stub shadercross, the compile arm.
+        run: |
+          docker run --rm -v "$PWD":/work metalui-portable bash -ec '
+            fx=/tmp/plugin-fixture
+            cp -R /work/.github/fixtures/build-plugin $fx
+            sed "s|@CHECKOUT@|/work|" $fx/Package.swift.in > $fx/Package.swift
+            clang -O1 -o $fx/shadercross-stub $fx/shadercross-stub.c
+            cd $fx
+            METALUI_SHADERCROSS=$fx/shadercross-stub swift build
+            test -s "$(find .build -name tri.vert.spv | head -n 1)"
+          '
       - name: The sample app builds and its tests pass (Examples/Jotter, SDL trait; ruling EX-E)
         # A package of its own, a path dependency on this checkout with the SDL and AccessKit
         # traits its manifest turns on for Linux; the image's offscreen video driver is enough
@@ -235,6 +247,23 @@ jobs:
           Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt"
       - name: Adapters
         run: Get-CimInstance Win32_VideoController | Format-Table Name, DriverVersion
+      - name: The build-tool plugin under the default build system (XP-G35, BT-X)
+        # A consumer fixture applying CompileShadersOnBuild, built by plain `swift build` (swift-build runs
+        # the tool with a stripped environment) with a stub shadercross, so the compile arm runs.
+        run: |
+          $fx = "$env:RUNNER_TEMP\plugin-fixture"
+          Copy-Item .github\fixtures\build-plugin $fx -Recurse
+          $checkout = $env:GITHUB_WORKSPACE -replace '\\', '/'
+          (Get-Content "$fx\Package.swift.in" -Raw).Replace('@CHECKOUT@', $checkout) | Set-Content "$fx\Package.swift" -NoNewline
+          clang -O1 -o "$fx\shadercross-stub.exe" "$fx\shadercross-stub.c"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $env:METALUI_SHADERCROSS = "$fx\shadercross-stub.exe"
+          Push-Location $fx
+          swift build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $blob = Get-ChildItem .build -Recurse -Filter tri.vert.spv | Where-Object { $_.Length -gt 0 } | Select-Object -First 1
+          if (-not $blob) { Write-Error "the plugin's tri.vert.spv is missing or empty"; exit 1 }
+          "plugin output: $($blob.FullName)"
       - name: Build, test and replay
         # No pkg-config on Windows: hand SwiftPM SDL's include and library paths.
         working-directory: Backends/SDL

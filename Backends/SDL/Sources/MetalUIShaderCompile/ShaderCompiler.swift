@@ -18,7 +18,8 @@ package enum ShaderCompiler {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
-        process.environment = environment
+        // Windows: a child missing SystemRoot/WINDIR/TEMP/TMP gets the tool's own (ruling BT-W).
+        process.environment = ChildEnvironment.merged(environment, process: ProcessInfo.processInfo.environment, windows: runsOnWindows)
         try process.run()
         process.waitUntilExit()
         return process.terminationStatus

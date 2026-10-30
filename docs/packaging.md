@@ -396,6 +396,13 @@ orphan; with shadercross a mismatch is the usual stale warning. `SDLGPUShaderLib
 it finds in the directory the same way (and compares no headers when there is none). Commit `compiled/` again after a header edit
 (`compile-shaders`), as after a stage edit.
 
+**The environment the plugin forwards (`BT-V`...`BT-W`, item XP-G35).** A build system may run a build command with an (almost) empty environment; on Windows,
+Foundation's `Process` then cannot start Winsock (no `SystemRoot`) and `MetalUICompileShaders` crashed in `CFSocket` before it reached shadercross. The plugin passes an explicit
+`environment:` with, when present (matched case-insensitively, forwarded under their own spelling): `METALUI_SHADERCROSS`, `METALUI_SHADERCROSS_LIB`, `PATH` (`Path`); on Windows
+also `SystemRoot`, `WINDIR`, `TEMP`, `TMP`, `USERPROFILE`, `LOCALAPPDATA`, `ProgramData`, `ComSpec`, `PATHEXT`; elsewhere `HOME`, `TMPDIR`, `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`. Any
+other variable your shadercross needs is not forwarded. The tool itself sets `SystemRoot` and `WINDIR` on Windows when absent and gives its shadercross child `SystemRoot`,
+`WINDIR`, `TEMP`, `TMP` from its own environment when missing. CI builds a stub-shadercross consumer fixture (`.github/fixtures/build-plugin`) with plain `swift build` on Windows and Linux (`BT-X`).
+
 To apply the plugin only where the toolchain exists, gate it in the consumer's `Package.swift` with a host condition:
 
 ```text
