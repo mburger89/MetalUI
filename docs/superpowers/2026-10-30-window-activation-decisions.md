@@ -25,7 +25,18 @@ Why: MetalFlow shows macOS notifications; clicking one must bring the existing w
 
 ## Mutations (run on this branch; each reverted)
 
-See the table below, filled in as measured.
+Each applied to the committed source, the named tests run under `--build-system native`, then restored (`git checkout`).
+
+| mutation | reddened |
+|---|---|
+| `Window.makeKeyAndOrderFront()` body emptied | `makeKeyAndOrderFrontReachesThePlatformWindow`, `makeKeyAndOrderFrontRestoresAMinimisedWindow` |
+| `App.activate()` body emptied | `appActivateReachesThePlatform` |
+| `HeadlessPlatformWindow.orderFrontAndMakeKey()` stops clearing `isMiniaturized` | `makeKeyAndOrderFrontRestoresAMinimisedWindow` only |
+| `public` dropped from `Color.init(hex:)` | `theActivationApiAndColorHexAreSpellableFromOutside` (fixture error at `Color(hex:)`) |
+| `extension Platform { public func activate() {} }` | `aConformerWithoutTheActivationRequirementsDoesNotCompile` (platform arm) |
+| `extension PlatformWindow { public func orderFrontAndMakeKey() {} }` | the same guard (window arm) |
+
+Not mutated: `public` dropped from `Window.makeKeyAndOrderFront()`/`App.activate()` (the same guard's fixture would redden); the AppKit and SDL bodies (no window server / window manager, see Carried).
 
 ## Carried
 
