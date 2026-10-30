@@ -1065,16 +1065,16 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// How many image cursors are cached; read by `appKitCachesAnImageCursorPerImageAndBoundsTheCache`.
     var imageCursorCacheCount: Int { imageCursors.count }
 
-    /// Shows `style` (ruling `CI-H` item 8): the host view keeps the mapped
-    /// `NSCursor` for every `cursorUpdate(with:)`, and it is set at once while
-    /// the pointer is inside the view. Pinned by
-    /// `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`.
     /// `deminiaturize(_:)` when miniaturised, then `makeKeyAndOrderFront(_:)` (`WA-A`).
     func orderFrontAndMakeKey() {
         if window.isMiniaturized { window.deminiaturize(nil) }
         window.makeKeyAndOrderFront(nil)
     }
 
+    /// Shows `style` (ruling `CI-H` item 8): the host view keeps the mapped
+    /// `NSCursor` for every `cursorUpdate(with:)`, and it is set at once while
+    /// the pointer is inside the view. Pinned by
+    /// `appKitSetPointerStyleSetsTheCursorAndCursorUpdateKeepsIt`.
     func setPointerStyle(_ style: PlatformPointerStyle) {
         let cursor: NSCursor
         if case .image(let image) = style {
