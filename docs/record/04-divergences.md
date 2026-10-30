@@ -2754,3 +2754,8 @@ inside it (`BG-I`; pin `theBackgroundRegionIsTheWindowCarvedByEveryBlocker`). No
 **New: 206** (`HSplitView`/`VSplitView`: pane distribution, divider look and hit area are MetalUI's own and unprobed against `NSSplitView`; `HS-A`, `HS-B`, `HS-C`, `HS-F`;
 pins `panesStartAtTheirIdealWidthsAndTheFlexiblePaneTakesTheRest`, `windowResizeGivesTheSpaceToTheFlexiblePane`, `aVSplitViewIsTheSameOnTheVerticalAxis`). The mechanism and
 the mutations are in `docs/superpowers/2026-10-30-split-view-decisions.md`.
+
+## 2026-10-30: padding spellings (`DX-`, record §166)
+
+**New: 208** (SwiftUI's system-default padding spellings and `leading`/`trailing`: `padding(_ edges: Edge.Set, _ length: Pixels)`, `padding(_: EdgeInsets)` and the rest take an explicit length; the default-amount spellings `padding()` and `padding(.horizontal)` do not compile, they are not guessed;
+`DX-B`; pins `theSystemDefaultPaddingSpellingsStayAbsent`, `leadingPaddingPushesTheContentRightOnAStack`). Label 207 was never published and is unused. The mechanism and the mutations are in `docs/superpowers/2026-10-30-dashboard-text-timeline-decisions.md`.
