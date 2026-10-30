@@ -225,7 +225,7 @@ enum AccessibilityTreeBuilder {
                 rowCount: declared.logicalCount,
                 rowIndex: declared.logicalIndex,
                 hint: node.hint,
-                identifier: node.identifier,
+                identifier: node.identifier ?? declared.declarations.derivedIdentifier,
                 customActions: node.customActions,
                 isSelectable: publishedRole == .row && selectableRows.contains(id))
             if !node.customTargets.isEmpty { result.customActions[id] = node.customTargets }
@@ -420,6 +420,11 @@ enum AccessibilityTreeBuilder {
                 }
                 if foldable {
                     takeLabelAndValue(from: descendants, into: id, state: &state)
+                    // A radio button (a `Picker` option) takes the first identifier
+                    // its content declared when it has none (`SE-A`).
+                    if role(of: state[id]!) == .radioButton, state[id]!.identifier == nil {
+                        state[id]!.identifier = descendants.compactMap { state[$0]!.identifier }.first
+                    }
                     placed[id] = []
                     continue
                 }
