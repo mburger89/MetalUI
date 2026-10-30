@@ -1976,3 +1976,4 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **BT1.** A Windows consumer build applying the plugin, both arms (shadercross on `PATH` spelled `Path`, and none with matching checked-in blobs): the PATH spelling, DLLs, CRLF (`eol=lf`) and the `.resources` layout.
 - [ ] **BT2.** A dependency on MetalUI **by URL** applying the plugin builds and finds the bundle.
 - [ ] **BT3.** A shipped macOS `.app` finds `MetalUIAppShaders` in its resource bundle through `locate(resourceBundle: .module)`.
+- [ ] **BT4.** (record 162, XP-G32) On Windows and Linux, a header-only edit (a `.hlsli` under `Shaders/`) reruns the build command: with shadercross it recompiles, without it the copy path refuses naming the changed `INCLUDES.sha256` entry; and `-I` finds a nested include under the host's path spelling. **Observed:**
