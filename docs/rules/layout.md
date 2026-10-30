@@ -143,3 +143,5 @@ edges). A root is placed centred at its own answer (`CN-J`).
   never stored). A byte-identical re-inline reddens nothing — don't.
 - `SA-N`'s "probed, and the kernel disagrees" list is empty. Do not re-add a
   row without a probe run.
+
+**`HSplitView`/`VSplitView` (`HS-`, record §165, divergence 206).** One engine on two axes. A split view's pane sizes are written only by its divider drag handler (a `DragGesture` whose press-time snapshot plus the total translation is clamped on the two neighbours, never accumulated); `SplitLayout` is not `Hashable`, so it taints its ancestors for the layout memo. Autosave is per split view (`splitViewAutosaveName`), not environment-propagated, and written at drag end only.
