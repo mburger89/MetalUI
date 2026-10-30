@@ -279,5 +279,31 @@ the copy path (matching, header-only edit, missing, extra, vanished, orphan, hea
 removing the marker in both runs; the plugin region identity and `inputFiles`; the checked-in fixture having no headers. `Backends/SDL`: test 17,
 `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders`. Env-gated (counts while skipped): `anEnvGatedRunResolvesHeadersThroughTheSourceDirectory`
 (`METALUI_SHADERCROSS`) and arms (f)/(g) of `theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage` (the source includes `common.hlsli`; editing only the header reruns the
-command and the copy path refuses it by name; with a real shadercross it recompiles and warns). The mutation table is in the commit message and the report of this item.
+command and the copy path refuses it by name; with a real shadercross it recompiles and warns). Mutations below.
 **Cost if wrong.** A test rename.
+
+**Mutations** (2026-10-30, each applied, `swift test --build-system native --no-parallel --filter MetalUIShaderCompileTests` (root) or `--filter SDLGPUShader` (`Backends/SDL`), restored with `git checkout`; the spelling is the line named):
+
+| Mutant | Reddened |
+|---|---|
+| `isIncludeSource`: the `.hlsli` arm returns `false` | `includeSourcesAreHeadersAndNonStageHlslBySpelling`, `theWalkListsIncludeSourcesRecursivelyAndSorted`, `theOnBuildCopyRunVerifiesHeadersOnDisk`, `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist`, `theBuildPluginSelectsIncludeSourcesExactlyAsTheToolDoes` |
+| walk never recurses | `theWalkListsIncludeSourcesRecursivelyAndSorted`, `theOnBuildCopyRunVerifiesHeadersOnDisk`, `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist`, the region test; in `Backends/SDL` `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders` |
+| walk skips every directory named `compiled` | `theWalkListsIncludeSourcesRecursivelyAndSorted`, the region test |
+| a symlink to a directory is listed (the `isDirectory` guard dropped) | `theWalkListsIncludeSourcesRecursivelyAndSorted` (first run: **survived** until `linkdir.hlsli` was added to its fixture), the region test |
+| a nested `x.vert.hlsl` counts as a stage | `includeSourcesAreHeadersAndNonStageHlslBySpelling`, `theWalkListsIncludeSourcesRecursivelyAndSorted`, the region test |
+| bare `.hlsli` accepted | `includeSourcesAreHeadersAndNonStageHlslBySpelling`, the region test |
+| `SourceMarker.problems` ignores `markerName` | `theIncludesMarkerHasTheSourceMarkersFormatAndNamesItselfInProblems`, `theCopyPathChecksTheIncludesMarker` |
+| copy arm ignores the include problems | `theCopyPathChecksTheIncludesMarker`, `theOnBuildCopyRunVerifiesHeadersOnDisk` |
+| no `INCLUDES.sha256` requirement when headers exist | `theCopyPathChecksTheIncludesMarker` |
+| copy list lacks `INCLUDES.sha256` | `theCopyPathChecksTheIncludesMarker`, `theOnBuildCopyRunVerifiesHeadersOnDisk` |
+| no orphan problem | `theCopyPathChecksTheIncludesMarker` |
+| compile arm ignores include problems | `withShadercrossAHeaderEditOnlyWarns` |
+| `runOnBuild` reads no includes | `theOnBuildCopyRunVerifiesHeadersOnDisk` |
+| tool writes `INCLUDES.sha256` with no headers | `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist` |
+| tool never removes a stale one | `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist` |
+| tool never writes it | `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist` |
+| plugin: includes dropped from `inputFiles` | `theBuildPluginSelectsIncludeSourcesExactlyAsTheToolDoes`; the env-gated fixture arm (f) (**survived on its first run**: the restored source after arm (c) had rerun the command by itself; a settling build was added before the header edit, then the mutant reddens `f.status != 0` and the by-name check on both build systems) |
+| plugin: region edited in `Plugin.swift` only | `theBuildPluginSelectsIncludeSourcesExactlyAsTheToolDoes` |
+| plan drops `-I` | `theCommandPlanIsHlslToSpirvThenTheDerivations`; with `METALUI_SHADERCROSS` also `anEnvGatedRunResolvesHeadersThroughTheSourceDirectory` (`'common.hlsli' file not found`) |
+| `Backends/SDL`: the `INCLUDES.sha256` check skipped | `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders` |
+| `Backends/SDL`: the check only when a `SOURCE.sha256` exists | `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders` |
