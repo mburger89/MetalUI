@@ -105,11 +105,17 @@ public final class TestWindow {
     /// Fires one display-link tick at ``now``: the window draws if anything
     /// changed or an animation runs.
     public func tick() {
+        window.testingFireDueTimelineWake(atTimestamp: now)
         platformWindow.simulateTick(timestamp: now)
     }
 
     /// Moves the clock on by `seconds` and fires one tick there — a long
-    /// press matures, an animation advances.
+    /// press matures, an animation advances, and a `TimelineView` whose next
+    /// entry has come due is re-evaluated, with no `setNeedsRedraw()` first
+    /// (`DX-A`): the window's timeline clock is the simulated one from its
+    /// first frame (its dates are the window's creation date plus ``now``), and
+    /// a periodic timeline's wake is held until a tick finds it due instead of
+    /// sleeping on the wall clock.
     public func advance(by seconds: Double) {
         now += seconds
         tick()

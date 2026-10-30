@@ -618,7 +618,7 @@ private func componentHeight(_ points: Pixels) -> Size<Dimension> {
 /// The `Style` a padding wrapper carries: the same one `StyledElement.padding`
 /// gives a `ModifierLayer` (`Box.swift`), so the two paths share one box
 /// model — an `auto`-sized node whose only `Style` field is `padding`.
-private func paddingWrapperStyle(_ points: Pixels) -> Style {
+func paddingWrapperStyle(_ points: Pixels) -> Style {
     var style = Style()
     style.padding = Edges(all: .pixels(points))
     return style

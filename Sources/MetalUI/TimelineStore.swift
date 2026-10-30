@@ -68,6 +68,32 @@ final class TimelineStore {
 
     init() {}
 
+    /// The one wake a simulated clock holds, until ``fireDueSimulatedWake(atTimestamp:)`` finds it due (`DX-A`).
+    private var simulatedWake: (date: Date, fire: @MainActor () -> Void)?
+
+    /// Puts this store on a simulated clock (`DX-A`, the test harness): a date is `anchor` plus the frame
+    /// timestamp, and the wake is held here instead of sleeping on the wall clock, to be fired by
+    /// ``fireDueSimulatedWake(atTimestamp:)``. Cursors made before are forgotten (`RK-AE`).
+    func useSimulatedClock(anchor: Date) {
+        scheduler = { [weak self] date, fire in
+            self?.simulatedWake = (date, fire)
+            return { [weak self] in self?.simulatedWake = nil }
+        }
+        clockOffset = anchor.timeIntervalSinceReferenceDate
+        resetCursors()
+        simulatedWake = nil
+    }
+
+    /// Fires the held simulated wake if its date is not after `timestamp`'s date: the window's `@State`
+    /// write path, from outside every phase. Answers whether it fired.
+    @discardableResult
+    func fireDueSimulatedWake(atTimestamp timestamp: Double) -> Bool {
+        guard let wake = simulatedWake, wake.date <= date(at: timestamp) else { return false }
+        simulatedWake = nil
+        wake.fire()
+        return true
+    }
+
     /// The date the pending wake fires at, or `nil` — test observability.
     var scheduledWake: Date? { pendingWake?.date }
 

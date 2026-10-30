@@ -51,6 +51,7 @@ F	lazy-stacks	A	swiftui-lazy-containers.swift	A1	aLazyVStackOutsideAScrollerPlac
 F	lazy-grids	A	swiftui-lazy-containers.swift	C8	aLazyVGridPlacesTracksAndCellsByTheGridAlignment	635 636 637 638	LZ-A LZ-K LZ-L LZ-M LZ-W LZ-X LZ-Y LZ-Z	GridItem/LazyVGrid/LazyHGrid(columns:alignment:spacing:content:): SwiftUI's lazy grids and GridItem(.fixed/.flexible/.adaptive, spacing:, alignment:) without pinnedViews (not offered, LZ-N); tracks resolved by GridTrackSolver from the offered width (fixed exact, flexible min-first with no giveback, adaptive floor-packed), the grid alignment placing the tracks and defaulting the cell alignment (LZ-W); lines are rows windowed like LazyVStack's; a multi-view element is one cell (635); the column count is built from the previous frame's width and corrected within a frame (638)
 F	proposal-frame	A	swiftui-frame-semantics.swift	D1	aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum	38	FR-A FR-M CN-F SA-J	ProposalFrame/.frame on proposal content: fixed and flexible frames, ideal on an unspecified axis; a negative fixed size traps (38)
 F	native-frame-alias	M	-	-	-	-	SA-K	nativeFrame(...): an undeprecated alias of .frame, kept because deprecating it breaks the 0-warning baseline (record §09)
+F	padding-spellings	D	-	-	-	208	DX-B	SwiftUI's padding(_ length:), padding(_:_:) over Edge.Set, padding(_: EdgeInsets), Edge.Set and EdgeInsets on Text, ProposalText, stacks and the rest; the system-default amount spellings stay absent (208)
 F	proposal-padding	A	swiftui-engine-replacement-stage2.swift	N1	aNativePaddingPlacesItsChildAtTheChildsOwnSize	-	LR-AU SA-N	Padding/.padding on proposal content: insets the proposal, places the child at its own size
 F	proposal-background	A	swiftui-outer-modifier-order.swift	A1	nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent	-	OM-C	Background/.background(token) on proposal content: fills the box it is written on, beneath its content
 F	fixed-size	A	swiftui-engine-replacement-stage2.swift	F7	aFixedSizeTextKeepsItsOneLineWidthInANarrowStack	-	CN-B	FixedSize/.fixedSize: withholds the selected axes from the child's proposal
@@ -298,6 +299,8 @@ M	MetalUI	ButtonStyle.swift	.*	.*	.*	button
 M	MetalUI	ClipShape.swift	ElementGroup	background	.*	shape-background
 M	MetalUI	ClipShape.swift	StyledElement	clipShape	.*	legacy-clip
 M	MetalUI	ClipShape.swift	.*	.*	.*	clip-shape
+M	MetalUI	PaddingSpellings.swift	Component	padding	.*	component
+M	MetalUI	PaddingSpellings.swift	.*	.*	.*	padding-spellings
 M	MetalUI	Component.swift	.*	.*	.*	component
 M	MetalUI	ProposalNodeID.swift	Component	.*	.*	component
 M	MetalUI	ProposalNodeID.swift	.*	.*	.*	element-protocols
