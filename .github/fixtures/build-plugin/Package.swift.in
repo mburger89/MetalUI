@@ -1,0 +1,8 @@
+// swift-tools-version: 6.1
+// XP-G35 / BT-X: a consumer of the CompileShadersOnBuild plugin, built with the DEFAULT build system
+// by CI on Windows and Linux. `@CHECKOUT@` is replaced by the workflow with the checkout's path.
+import PackageDescription
+let package = Package(name: "Fixture", platforms: [.macOS(.v14)],
+    dependencies: [.package(name: "MetalUI", path: "@CHECKOUT@")],
+    targets: [.executableTarget(name: "Fixture", path: "Sources/Fixture",
+                                plugins: [.plugin(name: "CompileShadersOnBuild", package: "MetalUI")])])
