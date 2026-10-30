@@ -337,6 +337,12 @@ observation; call `try await runUntilIdle()` to draw its frame on every
 platform (the observation hop is asynchronous off macOS). `setNeedsRedraw()`
 then `tick()` draws exactly one frame, deliberately.
 
+A `TimelineView` runs on the same clock (`DX-A`): the window's timeline dates are
+its creation date plus `now`, and a periodic timeline's wake is held until a tick
+finds it due, so `advance(by:)` alone re-evaluates it (a schedule written
+`.periodic(from: .now, by: 1)` in the content closure's tree builder shows its
+next entry one second of `now` later). Nothing sleeps on the wall clock.
+
 `try await runUntilIdle()` lets main-actor work run — a `.task`'s
 continuation, an observation hop — drawing whenever the window is dirty,
 **without moving the clock**, and throws `.notIdle` after 64 rounds of a
