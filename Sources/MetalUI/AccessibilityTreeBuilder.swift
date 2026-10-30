@@ -366,12 +366,7 @@ enum AccessibilityTreeBuilder {
             }
             let kids = state[id]!.declarations.childBehavior == .ignore ? [] : (children[id] ?? [])
             let node = state[id]!
-            // `DA-A`: an identifier never replaces a descendant's own. A container whose
-            // identifier would be handed down over a descendant that declared one stays a
-            // group carrying it instead, its descendants untouched.
-            let keepsItsIdentifier = node.identifier != nil && node.distributes(hasChildren: !kids.isEmpty)
-                && declaresIdentifier(below: kids, children: children, state: state)
-            if !keepsItsIdentifier, node.distributes(hasChildren: !kids.isEmpty) {
+            if node.distributes(hasChildren: !kids.isEmpty) {
                 let handed = Inherited(label: node.label, value: node.value, hint: node.hint,
                                        identifier: node.identifier,
                                        traits: node.traits.intersection([.isHeader, .isSelected]),
@@ -386,21 +381,6 @@ enum AccessibilityTreeBuilder {
             }
         }
         return result
-    }
-
-    /// Whether any kept node below `ids` publishes an identifier of its own: declared, or
-    /// derived (`SE-A`). An `.ignore` element's children publish nothing, so are not looked
-    /// into. Called only on a container that has an identifier to hand down (`DA-A`).
-    private static func declaresIdentifier(below ids: [GlobalElementID],
-                                           children: [GlobalElementID: [GlobalElementID]],
-                                           state: [GlobalElementID: Resolving]) -> Bool {
-        var stack = ids
-        while let next = stack.popLast() {
-            guard let node = state[next] else { continue }
-            if node.identifier != nil || node.declarations.derivedIdentifier != nil { return true }
-            if node.declarations.childBehavior != .ignore { stack.append(contentsOf: children[next] ?? []) }
-        }
-        return false
     }
 
     /// Step C: a button whose descendants are all non-interactive publishes no

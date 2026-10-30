@@ -1,23 +1,16 @@
 # Dashboard accessibility identifiers - decisions
 
-Rulings for three identifier bugs MetalFlow's Dashboard found. Prefix `DA-`. Branch `fix/mfd-ax`. Code: `Sources/MetalUI/AccessibilityTreeBuilder.swift` (`distribute`,
-`declaresIdentifier(below:)`), `Sources/MetalUI/AXNode.swift` (`fillControl`), `TextField.swift`, `TextEditor.swift`; tests `Tests/MetalUITestingTests/IdentifierPropagationTests.swift`; probe
-`docs/probes/swiftui-accessibility-identifier-nesting.swift` (header carries the recorded output). **Next unused: `DA-D`.** Divergence 207.
+Rulings for three identifier bugs MetalFlow's Dashboard found. Prefix `DA-`. Branch `fix/mfd-ax`. Code: `Sources/MetalUI/AccessibilityTreeBuilder.swift` (unchanged), `Sources/MetalUI/AXNode.swift` (`fillControl`), `TextField.swift`, `TextEditor.swift`; tests `Tests/MetalUITestingTests/IdentifierPropagationTests.swift`; probe
+`docs/probes/swiftui-accessibility-identifier-nesting.swift` (header carries the recorded output). **Next unused: `DA-D`.** No divergence label taken.
 
-## DA-A - a container identifier never replaces a descendant's own
+## DA-A - refuted: SwiftUI overwrites a descendant's identifier; use `.contain`
 
-**Evidence (probed).** SwiftUI on macOS does overwrite: `VStack { Text(a).id(a); Button(b).id(b) }.accessibilityIdentifier(screen)` publishes both children as `id=screen` (X1, X3), and
-the container has no element at all. Only `.accessibilityElement(children: .contain)` gives a group with the children's own ids (X2). So `IX-W` item 2 ("distributed exactly as a label is", N5)
-was faithful, and the app's report is SwiftUI's behaviour, which MetalFlow's tests cannot live with.
-**Ruling.** In step A (`distribute`), a plain container that would hand its identifier down is **not** distributed through when any kept node below it publishes an identifier of its own (declared,
-or `derivedIdentifier`; an `.ignore` element's children do not count). It stays a node, a group carrying the identifier, and its descendants are published beneath it unchanged; nothing is
-handed down, so a sibling without an identifier does not inherit it either (it is findable inside the identified group). Label, value and hint the container declared are then also not distributed
-(it keeps them, as `.contain` does). With no descendant identifier, distribution is as before (N5). The depth is the whole subtree, because a plain stack is flat but an element with a node
-(`.contain`, a button) is not.
-**Pins.** `aContainerIdentifierNeverReplacesADescendantsOwn`, `theContainerIdentifierStaysFindableAsAGroupHoldingItsDescendants`, `aSiblingWithoutItsOwnIsContainedNotRelabelled`,
-`withoutDescendantIdentifiersTheContainerIdentifierStillDistributes`.
-**Cost if wrong.** An app that relied on one identifier reaching every text of a container now finds the container instead, only when a descendant also declares one.
-**Divergence 207** (SwiftUI overwrites, MetalUI keeps).
+**Evidence (probed).** `docs/probes/swiftui-accessibility-identifier-nesting.swift`: `VStack { Text(a).id(a); Button(b).id(b) }.accessibilityIdentifier(screen)` publishes both children
+as `id=screen` (X1, X3) and the container has no element; with `.accessibilityElement(children: .contain)` the container is a group `id=screen` whose children keep `a` and `b` (X2).
+**Ruling.** An earlier DA-A made a plain container yield to descendants' own identifiers. **Withdrawn**: SwiftUI is the design authority, so `IX-W` item 2 / N5 distribution stands exactly as on
+the base, the source change and divergence 207 were reverted (207 never merged, so it is unused). An app wanting a findable container with identified children writes `.accessibilityElement(children: .contain)`.
+**Pins.** `aContainedContainerIsAGroupWhoseChildrenKeepTheirIdentifiers` (X2; MetalUI's `.contain` already behaves like SwiftUI, no source change) and
+`withoutContainTheContainerIdentifierOverwritesTheChildrenAsInSwiftUI` (X1/X3).
 
 ## DA-B - modifier order: not reproduced as an identifier loss
 
@@ -47,16 +40,15 @@ Each applied to the declaration named, against `IdentifierPropagationTests`.
 
 | # | Mutation | Reddened |
 |---|---|---|
-| DA-M1 | `keepsItsIdentifier = false` (old distribution) | `aContainerIdentifierNeverReplacesADescendantsOwn`, `theContainerIdentifierStaysFindableAsAGroupHoldingItsDescendants`, `aSiblingWithoutItsOwnIsContainedNotRelabelled` |
-| DA-M3 | subtree check looks at direct kids only | `theContainerIdentifierStaysFindableAsAGroupHoldingItsDescendants` (nested `.contain` arm; a first version of the fixture, with only plain stacks, did not redden: plain stacks are flat) |
-| DA-M4 | always a group, the descendant check replaced by `true` | `withoutDescendantIdentifiersTheContainerIdentifierStillDistributes`, `disabledThenIdentifierEqualsIdentifierThenDisabled` |
-| DA-M6 | `TextField.prepaint` back to the `isEmpty` gate | `anIdentifiedTextFieldPublishesItsTextAsValue` |
-| DA-M7 | `TextEditor.prepaint` back to the `isEmpty` gate | `anIdentifiedTextFieldPublishesItsTextAsValue` |
+| DA-M8 | `ProposalElementGroup.accessibilityElement(children:)` no longer writes `childBehavior` (the `AccessibilityModifier` chained overload is a second site, not mutated) | `aContainedContainerIsAGroupWhoseChildrenKeepTheirIdentifiers` (an earlier mutation of `StyledElement.accessibilityElement` reddened nothing: a stack takes the proposal overload) |
+| DA-M9 | distribution skips nodes that already have an identifier | `withoutContainTheContainerIdentifierOverwritesTheChildrenAsInSwiftUI` |
+| DA-M6 / DA-M7 | `isEmpty` gate restored in `TextField` / `TextEditor` | `anIdentifiedTextFieldPublishesItsTextAsValue` (one test covers both) |
+
+Withdrawn-rule history: the old DA-M1, M3, M4 belonged to the withdrawn container rule and are dropped.
 
 ## Carried
 
-- Rule for `docs/rules/input-focus.md`: an `accessibilityIdentifier` on a plain container distributes to its descendants only when none of them publishes an identifier of its own; otherwise the
-  container is a group carrying it and descendants keep theirs (`DA-A`, divergence 207); a control that fills its own node (`TextField`, `TextEditor`) uses `AXNode.fillControl` so a
-  declaration never costs it its role or text (`DA-C`).
+- Rule for `docs/rules/input-focus.md`: an `accessibilityIdentifier` on a plain container is distributed over its descendants, overwriting theirs, as SwiftUI does (N5, X1); to identify a container and keep the
+  children's identifiers write `.accessibilityElement(children: .contain)` (X2). A control that fills its own node (`TextField`, `TextEditor`) uses `AXNode.fillControl` so a declaration never costs it its role or text (`DA-C`).
 - DA-B asks MetalFlow for the failing expression; the outer-wrapper-outside-a-disabled-scope enabled flag is open.
 - `List`'s `axNode.isEmpty` gate has the same shape as DA-C's cause; `SecureField` must expose no value if added.

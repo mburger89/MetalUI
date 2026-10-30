@@ -6,88 +6,51 @@ import Testing
 // container's stays findable, and a wrapper modifier written between the element and
 // `.accessibilityIdentifier` does not lose it. Plain imports, as an app spells them.
 
-private struct ScreenWithOwnIDs: Component {
+private struct Screen: Component {
+    let contain: Bool
     var content: some ElementGroup {
-        VStack {
-            Text("a").accessibilityIdentifier("a")
-            Button("b") {}.accessibilityIdentifier("b")
-        }
-        .accessibilityIdentifier("screen")
-    }
-}
-
-private struct MixedScreen: Component {
-    var content: some ElementGroup {
-        VStack {
-            Text("a").accessibilityIdentifier("a")
-            Text("c")
-        }
-        .accessibilityIdentifier("screen")
-    }
-}
-
-private struct PlainScreen: Component {
-    var content: some ElementGroup {
-        VStack {
-            Text("a")
-            Text("c")
-        }
-        .accessibilityIdentifier("screen")
-    }
-}
-
-private struct NestedScreen: Component {
-    var content: some ElementGroup {
-        VStack {
+        if contain {
             VStack {
                 Text("a").accessibilityIdentifier("a")
+                Button("b") {}.accessibilityIdentifier("b")
             }
             .accessibilityElement(children: .contain)
-            Text("c")
+            .accessibilityIdentifier("screen")
+        } else {
+            VStack {
+                Text("a").accessibilityIdentifier("a")
+                Button("b") {}.accessibilityIdentifier("b")
+            }
+            .accessibilityIdentifier("screen")
         }
-        .accessibilityIdentifier("outer")
     }
 }
 
-/// DA-A 1. Descendants keep their own identifiers under an identified container. Mutation
-/// DA-M1 (distribution overwrites a descendant's own identifier, the old rule) reddens it.
-@Test @MainActor func aContainerIdentifierNeverReplacesADescendantsOwn() throws {
-    let window = try harnessWindow { VStack { ScreenWithOwnIDs() } }
-    #expect(try window.element(identifier: "a").role == AccessibilityRole.staticText)
-    #expect(try window.element(identifier: "b").role == AccessibilityRole.button)
-    #expect(try window.element(identifier: "b").label == "b")
-}
-
-/// DA-A 2. The container's own identifier stays findable, on a group holding both.
-/// Mutation DA-M1 reddens it.
-@Test @MainActor func theContainerIdentifierStaysFindableAsAGroupHoldingItsDescendants() throws {
-    let window = try harnessWindow { VStack { ScreenWithOwnIDs() } }
+/// DA-A (refuted rule, aligned behaviour). Probe `swiftui-accessibility-identifier-nesting.swift`
+/// X2: with `.accessibilityElement(children: .contain)` the container is one group with the
+/// identifier and its children keep their own. Mutation DA-M8 (`ProposalElementGroup.accessibilityElement(children:)`
+/// no longer writes `childBehavior`) reddens it.
+@Test @MainActor func aContainedContainerIsAGroupWhoseChildrenKeepTheirIdentifiers() throws {
+    let window = try harnessWindow { VStack { Screen(contain: true) } }
     let screen = try window.element(identifier: "screen")
     #expect(screen.role == AccessibilityRole.group)
-    #expect(screen.children == [try window.element(identifier: "a").id, try window.element(identifier: "b").id])
-    let nested = try harnessWindow { VStack { NestedScreen() } }
-    #expect(try nested.element(identifier: "outer").role == AccessibilityRole.group)   // exactly one
-    #expect(try nested.element(identifier: "a").role == AccessibilityRole.staticText)
+    let a = try window.element(identifier: "a")
+    let b = try window.element(identifier: "b")
+    #expect(screen.children == [a.id, b.id])
+    #expect(a.role == AccessibilityRole.staticText)
+    #expect(b.role == AccessibilityRole.button)
 }
 
-/// DA-A 3. One own identifier anywhere below makes the container a group: the sibling
-/// without one does not inherit (it is inside the identified group). Mutation DA-M3
-/// (subtree check looks at direct children only) reddens test 2's nested arm.
-@Test @MainActor func aSiblingWithoutItsOwnIsContainedNotRelabelled() throws {
-    let window = try harnessWindow { VStack { MixedScreen() } }
-    let screen = try window.element(identifier: "screen")
-    #expect(screen.role == AccessibilityRole.group)
-    #expect(screen.children.count == 2)
-    #expect(try window.element(identifier: "a").value == "a")
-}
-
-/// DA-A 4. SwiftUI's own reading is kept where no descendant declares one (probe N5): the
-/// identifier distributes to each text. Mutation DA-M4 (always a group) reddens it.
-@Test @MainActor func withoutDescendantIdentifiersTheContainerIdentifierStillDistributes() throws {
-    let window = try harnessWindow { VStack { PlainScreen() } }
-    let texts = try window.elements(role: .staticText)
-    #expect(texts.count == 2)
-    #expect(texts.allSatisfy { $0.identifier == "screen" })
+/// DA-A. Probe X1, X3: without `.contain` SwiftUI overwrites, so does MetalUI (`IX-W` item 2,
+/// N5): both children read "screen" and no element is "a" or "b". Mutation DA-M9
+/// (distribution skips nodes that have an identifier) reddens it.
+@Test @MainActor func withoutContainTheContainerIdentifierOverwritesTheChildrenAsInSwiftUI() throws {
+    let window = try harnessWindow { VStack { Screen(contain: false) } }
+    let identified = try window.elements(where: { $0.identifier == "screen" })
+    #expect(identified.count == 2)
+    #expect(Set(identified.map(\.role)) == [AccessibilityRole.staticText, AccessibilityRole.button])
+    #expect(throws: (any Error).self) { try window.element(identifier: "a") }
+    #expect(throws: (any Error).self) { try window.element(identifier: "b") }
 }
 
 /// The wrappers written between an element and `.accessibilityIdentifier`.
