@@ -1,7 +1,7 @@
 # App shaders on `swift build` (BS-D) - decisions
 
 Rulings for item `BS-D` (carried by record 138, "go ahead with BS-D" 2026-10-28; **not a plan task**), the build-tool plugin MetalCreator asked for as
-part of XP-G20. Prefix `BT-`. **Next unused: `BT-U`.**
+part of XP-G20. Prefix `BT-`. **Next unused: `BT-V`.**
 Spec: [`specs/2026-10-28-build-tool-shaders-design.md`](specs/2026-10-28-build-tool-shaders-design.md). Record: `../record/161-build-tool-shaders.md` (Record phase).
 Branch `feat/build-tool-shaders` from master `abc2bf46`. Continues `BS-B`, `BS-C`, `BS-E`, `BS-I` (record 138); **supersedes `BS-D`** (amended there).
 Divergence labels reserved 895-904: **none taken** (`BT-A`). **Nothing is published** (`BS-H`; the user chose "no publish": no release, tag,
