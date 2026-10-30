@@ -66,6 +66,15 @@ package enum ShaderCompiler {
             }
             try Data(SourceMarker.contents(of: listed).utf8)
                 .write(to: URL(fileURLWithPath: ShaderCompilePlan.join(outDirectory, "SOURCE.sha256")))
+            // `INCLUDES.sha256` only when include sources exist (BT-P); with none, a stale one is removed
+            // so a package without headers is byte-identical to before.
+            let includes = try IncludeSources.read(in: sourceDirectory)
+            let includesPath = ShaderCompilePlan.join(outDirectory, IncludeSources.markerName)
+            if includes.isEmpty {
+                try? FileManager.default.removeItem(atPath: includesPath)
+            } else {
+                try Data(SourceMarker.contents(of: includes).utf8).write(to: URL(fileURLWithPath: includesPath))
+            }
         }
         let kinds = ShaderFormat.allCases.filter { $0 == .spv || arguments.formats.contains($0) }.map(\.shadercrossName)
         log("Compiled \(sources.count) shader(s) to \(kinds.joined(separator: ", ")): \(outDirectory)")

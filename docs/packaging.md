@@ -370,6 +370,30 @@ let shaders = try SDLGPUShaderLibrary.locate(resourceBundle: .module)
 | not found | marker matches, each source has `.json` and `.spv` | copies those blobs and the marker |
 | not found | stale or missing marker, a missing blob, no directory | the build fails naming the problems, the pin and both fixes |
 
+**Headers in `Shaders/` (`BT-O`...`BT-T`, item XP-G32).** A stage source may `#include "common.hlsli"` from its own directory. Every regular
+file below `Shaders/` ending `.hlsli`, or ending `.hlsl` but not a top-level `NAME.<vert|frag|comp>.hlsl`, **except the `compiled/` subtree**, is an
+*include source*: the plugin lists it among the build command's inputs (so editing a header reruns the command) and the tool writes
+`INCLUDES.sha256` beside `SOURCE.sha256`, the same `<sha256>  <file>` lines over the `/`-separated relative paths, sorted bytewise, **only when
+include sources exist** (a package with none writes exactly what it wrote before, and a stale `INCLUDES.sha256` is removed). `SOURCE.sha256` still
+covers stage sources only. Without shadercross the copy path now also requires `Shaders/compiled/INCLUDES.sha256` to match when include
+sources exist (a changed, new or vanished header is a named problem), and an `INCLUDES.sha256` checked in while there are none is a named
+orphan; with shadercross a mismatch is the usual stale warning. `SDLGPUShaderLibrary(directory:verifyingSources:)` checks an `INCLUDES.sha256`
+it finds in the directory the same way (and compares no headers when there is none). Commit `compiled/` again after a header edit
+(`compile-shaders`), as after a stage edit.
+
+To apply the plugin only where the toolchain exists, gate it in the consumer's `Package.swift` with a host condition:
+
+```text
+#if os(Linux) || os(Windows)
+let shaderPlugins: [Target.PluginUsage] = [.plugin(name: "CompileShadersOnBuild", package: "MetalUI")]
+#else
+let shaderPlugins: [Target.PluginUsage] = []
+#endif
+```
+
+`#if os(...)` in a manifest is evaluated **on the host that builds the manifest**, not on the build's target: a cross-compile from macOS to
+Linux or Windows skips the plugin, and a macOS host never applies it.
+
 No published shadercross is assumed (`BS-H`): install one at the pin of 4a, or run `compile-shaders` where one is installed and commit
 `Shaders/compiled`. A shadercross replaced at the same path does not rerun the step (`swift package clean`). `locate(resourceBundle:)` looks
 beside the executable first, then in the bundle (evaluated only then, since `Bundle.module` traps when its bundle is missing), then in `sourceTree`;

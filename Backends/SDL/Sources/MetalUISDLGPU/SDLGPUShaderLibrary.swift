@@ -44,7 +44,8 @@ public struct SDLGPUShaderBlob: Sendable {
 
 /// A directory of blobs built by `MetalUICompileShaders` (the `compile-shaders`
 /// command plugin; rulings `GA-F`, `BS-B`): `NAME.comp.{spv,msl,dxil,json}`,
-/// `NAME.vert.…`, `NAME.frag.…` and, unless the build omitted it, `SOURCE.sha256`.
+/// `NAME.vert.…`, `NAME.frag.…` and, unless the build omitted it, `SOURCE.sha256` (plus `INCLUDES.sha256`
+/// when the sources have include files, ruling `BT-P`; a directory holding it opens like any other).
 /// The directory comes from the `compile-shaders` command plugin (checked in or
 /// shipped beside the executable) or from the `CompileShadersOnBuild` build-tool
 /// plugin, which puts it in the target's resource bundle (``locate(directoryName:resourceBundle:sourceTree:)``,
@@ -76,20 +77,34 @@ public struct SDLGPUShaderLibrary: Sendable {
     /// `SOURCE.sha256`**, checks it against `sources` (ruling `BS-E`, `GA-Q`'s
     /// staleness detector): every `NAME.<vert|frag|comp>.hlsl` there must hash to
     /// its line, have one, and no line may stand without its source, each a named
-    /// error. Without a marker nothing is compared.
+    /// error. **When it holds an `INCLUDES.sha256`** (the tool writes one beside the blobs
+    /// only when the sources include `.hlsli` or other non-stage `.hlsl` files, ruling `BT-P`),
+    /// the same check runs over those include sources, recursively below `sources` except its
+    /// `compiled` directory (ruling `BT-R`). Without a marker nothing is compared: a directory
+    /// with a `SOURCE.sha256` but no `INCLUDES.sha256` is not checked for headers.
     public init(directory: URL, verifyingSources sources: URL) throws {
         try self.init(directory: directory)
+        let manager = FileManager.default
         let markerURL = directory.appendingPathComponent("SOURCE.sha256")
-        guard let marker = try? String(contentsOf: markerURL, encoding: .utf8) else { return }
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: sources.path) else {
-            throw SDLGPUShaderError(description: "cannot read the shader sources in \(sources.path)")
+        if let marker = try? String(contentsOf: markerURL, encoding: .utf8) {
+            guard let names = try? manager.contentsOfDirectory(atPath: sources.path) else {
+                throw SDLGPUShaderError(description: "cannot read the shader sources in \(sources.path)")
+            }
+            let listed = try names.filter { ShaderSource(fileName: $0) != nil }.map { name in
+                (name: name, bytes: [UInt8](try Data(contentsOf: sources.appendingPathComponent(name))))
+            }
+            let problems = SourceMarker.problems(marker: marker, sources: listed)
+            guard problems.isEmpty else {
+                throw SDLGPUShaderError(description: "\(markerURL.path) is stale: " + problems.joined(separator: "; "))
+            }
         }
-        let listed = try names.filter { ShaderSource(fileName: $0) != nil }.map { name in
-            (name: name, bytes: [UInt8](try Data(contentsOf: sources.appendingPathComponent(name))))
-        }
-        let problems = SourceMarker.problems(marker: marker, sources: listed)
-        guard problems.isEmpty else {
-            throw SDLGPUShaderError(description: "\(markerURL.path) is stale: " + problems.joined(separator: "; "))
+        let includesURL = directory.appendingPathComponent(IncludeSources.markerName)
+        if let marker = try? String(contentsOf: includesURL, encoding: .utf8) {
+            let problems = SourceMarker.problems(marker: marker, sources: try IncludeSources.read(in: sources.path),
+                                                 markerName: IncludeSources.markerName, noun: "include sources")
+            guard problems.isEmpty else {
+                throw SDLGPUShaderError(description: "\(includesURL.path) is stale: " + problems.joined(separator: "; "))
+            }
         }
     }
 

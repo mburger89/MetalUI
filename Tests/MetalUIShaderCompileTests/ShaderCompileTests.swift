@@ -48,17 +48,17 @@ private let appShaders = checkout.appendingPathComponent("Backends/SDL/Tests/App
 private let allFormats = Set(ShaderFormat.allCases)
 
 /// **Test 2.** The exact argument vectors, in order SPIR-V, MSL, DXIL, JSON.
-/// Mutation: swap `-s`/`-d` of a derivation; derive from the HLSL.
+/// Mutation: swap `-s`/`-d` of a derivation; derive from the HLSL; drop the HLSL step's `-I` (`BT-S`).
 @Test func theCommandPlanIsHlslToSpirvThenTheDerivations() throws {
     let vertex = try #require(ShaderSource(fileName: "tri.vert.hlsl"))
     #expect(ShaderCompilePlan.commands(for: vertex, sourceDirectory: "/s", outDirectory: "/o", formats: allFormats) == [
-        ["/s/tri.vert.hlsl", "-s", "HLSL", "-d", "SPIRV", "-t", "vertex", "-o", "/o/tri.vert.spv"],
+        ["/s/tri.vert.hlsl", "-s", "HLSL", "-d", "SPIRV", "-t", "vertex", "-I", "/s", "-o", "/o/tri.vert.spv"],
         ["/o/tri.vert.spv", "-s", "SPIRV", "-d", "MSL", "-t", "vertex", "-o", "/o/tri.vert.msl"],
         ["/o/tri.vert.spv", "-s", "SPIRV", "-d", "DXIL", "-t", "vertex", "-o", "/o/tri.vert.dxil"],
         ["/o/tri.vert.spv", "-s", "SPIRV", "-d", "JSON", "-t", "vertex", "-o", "/o/tri.vert.json"]])
     let compute = try #require(ShaderSource(fileName: "append.comp.hlsl"))
     #expect(ShaderCompilePlan.commands(for: compute, sourceDirectory: "src/", outDirectory: "out/", formats: allFormats) == [
-        ["src/append.comp.hlsl", "-s", "HLSL", "-d", "SPIRV", "-t", "compute", "-o", "out/append.comp.spv"],
+        ["src/append.comp.hlsl", "-s", "HLSL", "-d", "SPIRV", "-t", "compute", "-I", "src/", "-o", "out/append.comp.spv"],
         ["out/append.comp.spv", "-s", "SPIRV", "-d", "MSL", "-t", "compute", "-o", "out/append.comp.msl"],
         ["out/append.comp.spv", "-s", "SPIRV", "-d", "DXIL", "-t", "compute", "-o", "out/append.comp.dxil"],
         ["out/append.comp.spv", "-s", "SPIRV", "-d", "JSON", "-t", "compute", "-o", "out/append.comp.json"]])
@@ -245,6 +245,36 @@ func anEnvGatedRunCompilesAFixture() throws {
         #expect(built != nil && built == checkedIn, "\(stem) reflection")
     }
     #expect(try String(contentsOf: out.appendingPathComponent("SOURCE.sha256"), encoding: .utf8).split(separator: "\n").count == 2)
+    // No headers: no INCLUDES.sha256, and `-I` moved no byte (BT-P, BT-S).
+    #expect(!FileManager.default.fileExists(atPath: out.appendingPathComponent("INCLUDES.sha256").path))
+    for name in ["tri.vert.spv", "tri.frag.spv"] {
+        #expect(try Data(contentsOf: out.appendingPathComponent(name)) == Data(contentsOf: appShaders.appendingPathComponent("compiled/\(name)")), "\(name)")
+    }
+}
+
+/// **Test 10b** (`BT-S`). With a real shadercross, `#include "common.hlsli"` and a nested `#include "lib/inner.hlsli"` resolve
+/// through the plan's `-I <source directory>` although the test's working directory is the package root, `INCLUDES.sha256` lists both
+/// headers, and editing a header alone changes the SPIR-V. Off unless `METALUI_SHADERCROSS=/path`; counts while skipped.
+/// Mutation: drop `-I` from the plan (the compile fails: `'common.hlsli' file not found`).
+@Test(.enabled(if: realShadercross != nil))
+func anEnvGatedRunResolvesHeadersThroughTheSourceDirectory() throws {
+    let root = try scratch()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let source = root.appendingPathComponent("src"), out = root.appendingPathComponent("out")
+    try FileManager.default.createDirectory(at: source.appendingPathComponent("lib"), withIntermediateDirectories: true)
+    try Data("float4 tint() { return float4(1, 0, 0, 1); }\n#include \"lib/inner.hlsli\"\n".utf8).write(to: source.appendingPathComponent("common.hlsli"))
+    try Data("float4 inner() { return float4(0, 1, 0, 1); }\n".utf8).write(to: source.appendingPathComponent("lib/inner.hlsli"))
+    try Data("#include \"common.hlsli\"\nfloat4 main() : SV_Target0 { return tint() + inner(); }\n".utf8)
+        .write(to: source.appendingPathComponent("t.frag.hlsl"))
+    let arguments = try CompileArguments.parse(["--source", source.path, "--out", out.path, "--formats", "spv"])
+    try ShaderCompiler.run(arguments, environment: ProcessInfo.processInfo.environment, log: { _ in })
+    let first = try Data(contentsOf: out.appendingPathComponent("t.frag.spv"))
+    #expect(first.count > 20 && first[0] == 0x03 && first[1] == 0x02 && first[2] == 0x23 && first[3] == 0x07)
+    let includes = try String(contentsOf: out.appendingPathComponent("INCLUDES.sha256"), encoding: .utf8)
+    #expect(includes.split(separator: "\n").map { $0.components(separatedBy: "  ")[1] } == ["common.hlsli", "lib/inner.hlsli"], "\(includes)")
+    try Data("float4 inner() { return float4(0, 0, 1, 1); }\n".utf8).write(to: source.appendingPathComponent("lib/inner.hlsli"))
+    try ShaderCompiler.run(arguments, environment: ProcessInfo.processInfo.environment, log: { _ in })
+    #expect(try Data(contentsOf: out.appendingPathComponent("t.frag.spv")) != first, "a header-only edit must change the output")
 }
 
 // MARK: - The command plugin on a fixture package (env-gated)
@@ -335,7 +365,10 @@ private func bundledShaders(in scratchPath: URL) -> URL? {
 /// and `swift build --build-system native`: (a) a stub shadercross by `METALUI_SHADERCROSS` compiles into the
 /// bundle; (e) a real one (only when the test's own `METALUI_SHADERCROSS` names one) gives the checked-in blobs;
 /// (b) no shadercross and a matching marker copies the checked-in files; (d) an unchanged rebuild runs nothing
-/// (native on Linux gets one extra build, `BT-B` 3); (c) an edited `.hlsl` fails naming the pin and both fixes.
+/// (native on Linux gets one extra build, `BT-B` 3); (c) an edited `.hlsl` fails naming the pin and both fixes;
+/// the source `#include`s `common.hlsli` (`BT-O`...`BT-Q`): (f) editing only the header reruns the command and the copy path
+/// refuses it by name, (g) with a real shadercross it recompiles with a stale-marker warning.
+/// Mutation: the plugin omits the include sources from `inputFiles` (f reddens).
 /// Off unless `METALUI_RUN_BUILD_PLUGIN_TEST=1` (a cold build of the tool, minutes; counts while skipped).
 /// Mutations: the plugin passes no `--environment-shadercross` (a reddens); per-file outputs (the bundle lookup reddens).
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_BUILD_PLUGIN_TEST"] == "1"))
@@ -357,12 +390,17 @@ func theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage() throws {
         """.utf8).write(to: package.appendingPathComponent("Package.swift"))
     try Data("print(\"fixture\")\n".utf8).write(to: package.appendingPathComponent("Sources/Fixture/main.swift"))
     let source = shaders.appendingPathComponent("tri.vert.hlsl")
-    try manager.copyItem(at: appShaders.appendingPathComponent("tri.vert.hlsl"), to: source)
+    // The source includes a header (`BT-O`): comment-only, so the blobs equal the checked-in ones.
+    let header = shaders.appendingPathComponent("common.hlsli"), headerOriginal = Data("// common v1\n".utf8)
+    try headerOriginal.write(to: header)
+    try (Data("#include \"common.hlsli\"\n".utf8) + Data(contentsOf: appShaders.appendingPathComponent("tri.vert.hlsl"))).write(to: source)
     let original = try Data(contentsOf: source)
     let blobNames = ["tri.vert.spv", "tri.vert.msl", "tri.vert.dxil", "tri.vert.json"]
     for name in blobNames { try manager.copyItem(at: appShaders.appendingPathComponent("compiled/\(name)"), to: compiled.appendingPathComponent(name)) }
     try Data(SourceMarker.contents(of: [(name: "tri.vert.hlsl", bytes: [UInt8](original))]).utf8)
         .write(to: compiled.appendingPathComponent("SOURCE.sha256"))
+    try Data(SourceMarker.contents(of: [(name: "common.hlsli", bytes: [UInt8](headerOriginal))]).utf8)
+        .write(to: compiled.appendingPathComponent("INCLUDES.sha256"))
     let stub = root.appendingPathComponent("shadercross-stub")
     try Data("""
         #!/bin/sh
@@ -395,6 +433,8 @@ func theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage() throws {
         #expect(a.status == 0, "\(label) a: \(a.output)")
         for name in blobNames { #expect(blob(name) == Data("{ \"samplers\": 0 }".utf8), "\(label) a \(name)") }
         #expect(blob("SOURCE.sha256") != nil, "\(label) a marker")
+        #expect(blob("INCLUDES.sha256") == Data(SourceMarker.contents(of: [(name: "common.hlsli", bytes: [UInt8](headerOriginal))]).utf8),
+                "\(label) a includes marker")
         // (e) a real shadercross reproduces the checked-in blobs.
         if let real {
             var realEnvironment = withoutShadercross
@@ -412,6 +452,7 @@ func theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage() throws {
         for name in blobNames {
             #expect(blob(name) == (try Data(contentsOf: compiled.appendingPathComponent(name))), "\(label) b \(name)")
         }
+        #expect(blob("INCLUDES.sha256") == (try Data(contentsOf: compiled.appendingPathComponent("INCLUDES.sha256"))), "\(label) b includes marker")
         // (d) an unchanged rebuild runs nothing.
         var last = b
         for _ in 0..<(system.isEmpty ? 1 : 2) { last = try build(withoutShadercross) }
@@ -425,6 +466,25 @@ func theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage() throws {
             #expect(c.output.contains(needle), "\(label) c names \(needle): \(c.output)")
         }
         try original.write(to: source)
+        // (f) a header-only edit reruns the command (an input, `BT-O`) and the copy path refuses it by name. The restored
+        // source made the last build rerun, so first settle with one good build: the edit below must be the only change.
+        let settled = try build(withoutShadercross)
+        #expect(settled.status == 0, "\(label) f settle: \(settled.output)")
+        try Data("// common v2\n".utf8).write(to: header)
+        let f = try build(withoutShadercross)
+        print("BT 13f \(label): status=\(f.status)\n\(f.output.suffix(1200))")
+        #expect(f.status != 0, "\(label) f accepted a stale header (the command did not rerun)")
+        #expect(f.output.contains("common.hlsli changed since INCLUDES.sha256 was written"), "\(label) f: \(f.output)")
+        // (g) with a real shadercross the same edit recompiles, warning that the checked-in marker is stale.
+        if let real {
+            var realEnvironment = withoutShadercross
+            realEnvironment["METALUI_SHADERCROSS"] = real
+            let g = try build(realEnvironment)
+            #expect(g.status == 0 && g.output.contains("Compiled"), "\(label) g: \(g.output)")
+            #expect(g.output.contains("common.hlsli changed since INCLUDES.sha256"), "\(label) g warns: \(g.output)")
+            #expect(blob("INCLUDES.sha256") == Data(SourceMarker.contents(of: [(name: "common.hlsli", bytes: [UInt8]("// common v2\n".utf8))]).utf8))
+        }
+        try headerOriginal.write(to: header)
     }
     #endif
 }

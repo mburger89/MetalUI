@@ -1,7 +1,7 @@
 # App shaders on `swift build` (BS-D) - decisions
 
 Rulings for item `BS-D` (carried by record 138, "go ahead with BS-D" 2026-10-28; **not a plan task**), the build-tool plugin MetalCreator asked for as
-part of XP-G20. Prefix `BT-`. **Next unused: `BT-O`.**
+part of XP-G20. Prefix `BT-`. **Next unused: `BT-V`.**
 Spec: [`specs/2026-10-28-build-tool-shaders-design.md`](specs/2026-10-28-build-tool-shaders-design.md). Record: `../record/161-build-tool-shaders.md` (Record phase).
 Branch `feat/build-tool-shaders` from master `abc2bf46`. Continues `BS-B`, `BS-C`, `BS-E`, `BS-I` (record 138); **supersedes `BS-D`** (amended there).
 Divergence labels reserved 895-904: **none taken** (`BT-A`). **Nothing is published** (`BS-H`; the user chose "no publish": no release, tag,
@@ -204,3 +204,106 @@ A plan-time decision in the plugin (duplicates the locator and the marker, `BT-F
 
 **Ruling.** (1) `ShadercrossLocator.notFoundMessage` is the one prefix the build arm uses to tell "nothing found" from a named missing file (`BT-F` 2). (2) `runOnBuild` takes injected `fileExists`, `runner`, `log` and `warn`, so the pure tests run both arms with no shadercross. (3) The env-gated test's fixture manifest declares `platforms: [.macOS(.v14)]`: the plugin product inherits the root's macOS 14 and SwiftPM refuses a lower consumer, as for every product of this package. (4) The plugin lists `compiled/` regular files by `FileManager`, as it lists the sources. Measured 2026-10-28, macOS, both build systems, with a stub and the real shadercross at the pin (the designer's install), with and without `METALUI_SHADERCROSS` set in the test's own environment.
 **Cost if wrong.** None.
+
+## BT-O - include sources are inputs (item XP-G32)
+
+**Ruling.** MetalCreator's viewport shaders `NAME.vert.hlsl`/`NAME.frag.hlsl` all `#include "common.hlsli"` from `Shaders/`. Every regular file below
+`<target>/Shaders/`, **except the top-level `compiled/` subtree**, whose name ends `.hlsli`, or ends `.hlsl` and is not a top-level `NAME.<vert|frag|comp>.hlsl`,
+is an *include source*: the plugin adds it to the command's `inputFiles` (sorted bytewise, relative `/` paths, so editing a header reruns the command; the
+plan-time list is the only trigger, since `inputFiles` is how SwiftPM decides). **Detail the ruling left open:** a stage-named file **below** the top level
+(`lib/x.vert.hlsl`) is never compiled (the tool lists the top level only), so it is an include source; a symlink to a regular file counts, a symlink to a directory is
+not entered (no cycle) and a broken link, a directory named `x.hlsli` and a `compiled/` below the top are handled (the first two skipped, the last entered). The one
+selection is `IncludeSelection` in `MetalUIShaderCompile/IncludeSources.swift`; the plugin cannot import a package target, so **the marked region
+`// BEGIN include-selection ... // END include-selection` is copied byte for byte into `Plugin.swift`** (internal access, because a plugin has no package name) and
+`theBuildPluginSelectsIncludeSourcesExactlyAsTheToolDoes` fails on any difference and on `inputFiles` losing its include list. A pure walk test (`theWalkListsIncludeSourcesRecursivelyAndSorted`) pins the filter.
+**Cost if wrong.** A header placed under `compiled/` is not an input (documented).
+
+## BT-P - `INCLUDES.sha256`
+
+**Ruling.** A sibling of `SOURCE.sha256`, **the same format and the same `SourceMarker` code** (`contents(of:)` over relative paths, bytewise sort, LF;
+`SourceMarker.problems` gained `markerName` and `noun` parameters that only spell its messages, defaults unchanged). Written by the one tool, in both the
+`--on-build` compile arm and the command plugin's `ShaderCompiler.run`, **only when include sources exist**; with none, nothing is written and a stale one in `--out`
+is removed, so a package without headers produces exactly the files it produced before (measured: `MetalUICompileShaders` over `Backends/SDL/Tests/AppShaders` with the
+real shadercross at the pin wrote 41 files, `diff -r` identical to the checked-in `compiled/`, and `anEnvGatedRunCompilesAFixture` asserts the `.spv` bytes and no `INCLUDES.sha256`).
+`SOURCE.sha256` keeps meaning stage sources only.
+**Cost if wrong.** None.
+
+## BT-Q - the copy path
+
+**Ruling.** Without shadercross `BuildDecision.decide` (new defaulted parameters `includes`, `includesMarker`) requires `SOURCE.sha256` to match **and**, when include
+sources exist, `INCLUDES.sha256` present and matching; a missing marker (`compiled/INCLUDES.sha256 does not exist`), a changed header (`common.hlsli changed since
+INCLUDES.sha256 was written`), a header with no line and a line with no header (`INCLUDES.sha256 lists X, which is not among the include sources`) are each named in the
+failure text, with the pin and both fixes as before. `INCLUDES.sha256` joins the copied files. **An `INCLUDES.sha256` checked in while no include sources exist is a named
+orphan problem.** With shadercross the same problems are only the stale-checked-in warning, and a missing include marker is silent as a missing `SOURCE.sha256` is.
+**Cost if wrong.** A checked-in directory made before its sources gained headers must be regenerated (the failure text says how).
+
+## BT-R - run time
+
+**Ruling.** `SDLGPUShaderLibrary` never listed `compiled/`'s entries, so a directory holding `INCLUDES.sha256` already opened and nothing treats it as unknown (pinned
+by `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders`). `init(directory:verifyingSources:)` now **also** checks an `INCLUDES.sha256` it finds against the include
+sources below `sources` (about ten lines over the same `IncludeSources.read`): a header-only edit, a new header and a vanished one are named errors; the check runs
+whether or not a `SOURCE.sha256` is present. **Chosen limit:** a directory with a `SOURCE.sha256` but **no** `INCLUDES.sha256` compares no headers (as a missing
+marker compares nothing, `BS-E`); making it strict would break a caller whose sources directory holds unrelated non-stage `.hlsl` files. **Cost if wrong.** One more
+`verifyingSources` refusal for a stale marker.
+
+## BT-S - include resolution: measured, **BT-S's premise refuted**
+
+**Measured 2026-10-30**, shadercross built at the pin `1ff05bec...` (the recipe of `docs/packaging.md` 4a, macOS arm64, install under the gitignored
+`.scratch-shadercross/install`; `DYLD_LIBRARY_PATH` its `lib`, as the tool sets it). `shadercross --help` at the pin lists `-I | --include <value>  HLSL include directory.
+Only used with HLSL source.` and `-D<name>[=<value>]`. A source `t.frag.hlsl` with `#include "common.hlsli"` and `#include "sub/inner.hlsli"` beside it:
+
+| Invocation | Result |
+|---|---|
+| absolute source path, cwd `/` | **fails**: `hlsl.hlsl:1:10: fatal error: 'common.hlsli' file not found`, exit 1, a 0-byte `.spv` left behind |
+| relative source path, cwd the source directory | compiles (352 bytes SPIR-V) |
+| absolute source path, cwd `/`, `-I <source dir>` | compiles, the nested `sub/inner.hlsli` found too |
+| the same with a trailing slash on `-I` | compiles |
+
+So shadercross does **not** resolve an include relative to the source file; it resolves against `-I` directories and, incidentally, its working directory. The tool passes the
+source as an absolute path and does not set the child's working directory, so **`ShaderCompilePlan.commands` now passes `-I <sourceDirectory>` on the HLSL to SPIR-V
+step** (not on the derivations, which read a `.spv`). `theCommandPlanIsHlslToSpirvThenTheDerivations` pins the exact vectors; `anEnvGatedRunResolvesHeadersThroughTheSourceDirectory`
+(real shadercross, test cwd the package root) compiles a nested include and reddens without `-I`. The flag moves no byte of a headerless build (41 files identical, above).
+**Cost if wrong.** None.
+
+## BT-T - docs
+
+**Ruling.** `docs/packaging.md` 4a gains a "Headers in `Shaders/`" paragraph (headers are inputs, `INCLUDES.sha256`, the copy path, the run-time check) and the consumer
+pattern of gating the plugin with `#if os(Linux) || os(Windows)` in `Package.swift`, with the caveat that the condition is evaluated on **the host building the manifest**,
+so a cross-compile from macOS skips it. The tool's usage text is unchanged (no flag was added).
+**Cost if wrong.** Text.
+
+## BT-U - tests
+
+**Ruling.** New, always run, in `Tests/MetalUIShaderCompileTests/IncludeSourcesTests.swift` (14-22): the spelling table; the walk; the marker format and messages;
+the copy path (matching, header-only edit, missing, extra, vanished, orphan, headerless unchanged); the compile arm's warning; the on-disk copy run; the tool writing and
+removing the marker in both runs; the plugin region identity and `inputFiles`; the checked-in fixture having no headers. `Backends/SDL`: test 17,
+`anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders`. Env-gated (counts while skipped): `anEnvGatedRunResolvesHeadersThroughTheSourceDirectory`
+(`METALUI_SHADERCROSS`) and arms (f)/(g) of `theBuildToolPluginCompilesVerifiesAndRefusesOnAFixturePackage` (the source includes `common.hlsli`; editing only the header reruns the
+command and the copy path refuses it by name; with a real shadercross it recompiles and warns). Mutations below.
+**Cost if wrong.** A test rename.
+
+**Mutations** (2026-10-30, each applied, `swift test --build-system native --no-parallel --filter MetalUIShaderCompileTests` (root) or `--filter SDLGPUShader` (`Backends/SDL`), restored with `git checkout`; the spelling is the line named):
+
+| Mutant | Reddened |
+|---|---|
+| `isIncludeSource`: the `.hlsli` arm returns `false` | `includeSourcesAreHeadersAndNonStageHlslBySpelling`, `theWalkListsIncludeSourcesRecursivelyAndSorted`, `theOnBuildCopyRunVerifiesHeadersOnDisk`, `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist`, `theBuildPluginSelectsIncludeSourcesExactlyAsTheToolDoes` |
+| walk never recurses | `theWalkListsIncludeSourcesRecursivelyAndSorted`, `theOnBuildCopyRunVerifiesHeadersOnDisk`, `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist`, the region test; in `Backends/SDL` `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders` |
+| walk skips every directory named `compiled` | `theWalkListsIncludeSourcesRecursivelyAndSorted`, the region test |
+| a symlink to a directory is listed (the `isDirectory` guard dropped) | `theWalkListsIncludeSourcesRecursivelyAndSorted` (first run: **survived** until `linkdir.hlsli` was added to its fixture), the region test |
+| a nested `x.vert.hlsl` counts as a stage | `includeSourcesAreHeadersAndNonStageHlslBySpelling`, `theWalkListsIncludeSourcesRecursivelyAndSorted`, the region test |
+| bare `.hlsli` accepted | `includeSourcesAreHeadersAndNonStageHlslBySpelling`, the region test |
+| `SourceMarker.problems` ignores `markerName` | `theIncludesMarkerHasTheSourceMarkersFormatAndNamesItselfInProblems`, `theCopyPathChecksTheIncludesMarker` |
+| copy arm ignores the include problems | `theCopyPathChecksTheIncludesMarker`, `theOnBuildCopyRunVerifiesHeadersOnDisk` |
+| no `INCLUDES.sha256` requirement when headers exist | `theCopyPathChecksTheIncludesMarker` |
+| copy list lacks `INCLUDES.sha256` | `theCopyPathChecksTheIncludesMarker`, `theOnBuildCopyRunVerifiesHeadersOnDisk` |
+| no orphan problem | `theCopyPathChecksTheIncludesMarker` |
+| compile arm ignores include problems | `withShadercrossAHeaderEditOnlyWarns` |
+| `runOnBuild` reads no includes | `theOnBuildCopyRunVerifiesHeadersOnDisk` |
+| tool writes `INCLUDES.sha256` with no headers | `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist` |
+| tool never removes a stale one | `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist` |
+| tool never writes it | `theToolWritesTheIncludesMarkerOnlyWhenHeadersExist` |
+| plugin: includes dropped from `inputFiles` | `theBuildPluginSelectsIncludeSourcesExactlyAsTheToolDoes`; the env-gated fixture arm (f) (**survived on its first run**: the restored source after arm (c) had rerun the command by itself; a settling build was added before the header edit, then the mutant reddens `f.status != 0` and the by-name check on both build systems) |
+| plugin: region edited in `Plugin.swift` only | `theBuildPluginSelectsIncludeSourcesExactlyAsTheToolDoes` |
+| plan drops `-I` | `theCommandPlanIsHlslToSpirvThenTheDerivations`; with `METALUI_SHADERCROSS` also `anEnvGatedRunResolvesHeadersThroughTheSourceDirectory` (`'common.hlsli' file not found`) |
+| `Backends/SDL`: the `INCLUDES.sha256` check skipped | `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders` |
+| `Backends/SDL`: the check only when a `SOURCE.sha256` exists | `anIncludesMarkerIsAcceptedAndCheckedAgainstTheHeaders` |

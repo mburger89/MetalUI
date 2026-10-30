@@ -1,6 +1,6 @@
 # 161. App shaders on plain `swift build` (BS-D)
 
-Item `BS-D` (carried by record 138; user request "go ahead with BS-D" 2026-10-28, the user chose **no publish**; **not a plan task**), on `feat/build-tool-shaders` from master `abc2bf46`. Rulings `BT-A`..`BT-N` in `docs/superpowers/2026-10-28-build-tool-shaders-decisions.md`, next `BT-O`; spec `docs/superpowers/specs/2026-10-28-build-tool-shaders-design.md`. Class `M`, no divergence (895-904 untouched), no census row, nothing published (`BS-H`). **Supersedes `BS-D`** (its three reasons are answered in section 1).
+Item `BS-D` (carried by record 138; user request "go ahead with BS-D" 2026-10-28, the user chose **no publish**; **not a plan task**), on `feat/build-tool-shaders` from master `abc2bf46`. Rulings `BT-A`..`BT-N` in `docs/superpowers/2026-10-28-build-tool-shaders-decisions.md`, next `BT-V` (record 162 built `BT-O`..`BT-U`); spec `docs/superpowers/specs/2026-10-28-build-tool-shaders-design.md`. Class `M`, no divergence (895-904 untouched), no census row, nothing published (`BS-H`). **Supersedes `BS-D`** (its three reasons are answered in section 1).
 
 ## 1. What was built
 

@@ -27,7 +27,9 @@ extension ShaderCompiler {
             (name: source.fileName,
              bytes: [UInt8](try Data(contentsOf: URL(fileURLWithPath: ShaderCompilePlan.join(sourceDirectory, source.fileName)))))
         }
+        let includes = try IncludeSources.read(in: sourceDirectory)
         let checkedIn = try? manager.contentsOfDirectory(atPath: checkedInDirectory)
+        let includesMarker = try? String(contentsOfFile: ShaderCompilePlan.join(checkedInDirectory, IncludeSources.markerName), encoding: .utf8)
         let marker = try? String(contentsOfFile: ShaderCompilePlan.join(checkedInDirectory, "SOURCE.sha256"), encoding: .utf8)
         let seen = [ShadercrossLocator.environmentVariable: arguments.environmentShadercross ?? "", "PATH": arguments.environmentPath ?? ""]
         let located: Result<String, ShaderCompileError>?
@@ -36,7 +38,8 @@ extension ShaderCompiler {
         } catch let error as ShaderCompileError {
             located = error.description.hasPrefix(ShadercrossLocator.notFoundMessage) ? nil : .failure(error)
         }
-        switch BuildDecision.decide(located: located, sources: sources, checkedIn: checkedIn, marker: marker, displaySource: display) {
+        switch BuildDecision.decide(located: located, sources: sources, includes: includes, includesMarker: includesMarker,
+                                  checkedIn: checkedIn, marker: marker, displaySource: display) {
         case .compile(let shadercross, let stale):
             if !stale.isEmpty {
                 warn("warning: \(display)/compiled is stale (\(stale.joined(separator: "; "))); this build compiled fresh blobs, "
@@ -51,7 +54,9 @@ extension ShaderCompiler {
                 try manager.copyItem(atPath: ShaderCompilePlan.join(checkedInDirectory, file),
                                      toPath: ShaderCompilePlan.join(outDirectory, file))
             }
-            log("Verified \(sources.count) checked-in shader(s) against SOURCE.sha256 (no shadercross): \(outDirectory)")
+            log("Verified \(sources.count) checked-in shader(s) against SOURCE.sha256"
+                + (includes.isEmpty ? "" : " and \(includes.count) include(s) against \(IncludeSources.markerName)")
+                + " (no shadercross): \(outDirectory)")
         case .fail(let lines):
             throw ShaderCompileError(lines.joined(separator: "\nerror: "))
         }
