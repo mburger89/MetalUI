@@ -151,14 +151,18 @@ import Testing
     #expect(columns(other) == [100, 178, 120], "a different name does not restore")
 }
 
-/// HS-D — a press on the divider that does not move writes no sizes (and nothing to the store).
-/// Mutation: `dragChanged` writes sizes for a zero translation.
+/// HS-D — a press on the divider that does not move saves nothing to the store, also after an earlier drag
+/// left sizes in state. Mutation: `dragEnded` saves whatever the translation (`moved` always true).
 @Test @MainActor func aClickOnTheDividerChangesNothing() throws {
     let store = MemoryStore()
     let window = try harnessWindow { threePanes(store: store, name: "main") }
     window.click(at: pt(100.5, 150))
     #expect(columns(window) == [100, 178, 120])
     #expect(store.writes == 0)
+    window.drag(from: pt(100.5, 150), to: pt(130.5, 150))
+    window.click(at: pt(130.5, 150))
+    #expect(columns(window) == [130, 148, 120])
+    #expect(store.writes == 1, "a click after a drag saves nothing more")
 }
 
 /// HS-H — `VSplitView` is the same algorithm on the vertical axis: heights start at the ideals, a drag
@@ -213,4 +217,35 @@ import Testing
     #expect(columns(window) == [150, 100, 148], "\(columns(window))")
     window.drag(from: pt(150.5, 150), to: pt(20.5, 150))
     #expect(columns(window) == [100, 150, 148], "\(columns(window))")
+}
+
+/// HS-D — the near neighbour's maximum is a drag limit of its own: A (max 150) stops at 150 and the
+/// pane beyond B, C, does not grow (the solver's re-clamp alone would hand A's excess to C).
+/// Mutation: `dragged` drops `maximums[a]` from the upper bound.
+@Test @MainActor func aDragStopsWhereThePaneBeingDraggedReachesItsMaximum() throws {
+    let window = try harnessWindow {
+        HSplitView {
+            Color.red.frame(minWidth: 50, idealWidth: 100, maxWidth: 150)
+            Color.green.frame(minWidth: 50, idealWidth: 150, maxWidth: 300)
+            Color.blue
+        }
+    }
+    #expect(columns(window) == [100, 150, 148], "\(columns(window))")
+    window.drag(from: pt(100.5, 150), to: pt(200.5, 150))
+    #expect(columns(window) == [150, 100, 148], "\(columns(window))")
+}
+
+/// HS-D — the far neighbour's minimum is a drag limit: B (min 80) stops at 80 and C does not shrink.
+/// Mutation: `dragged` drops `total - minimums[b]` from the upper bound.
+@Test @MainActor func aDragStopsWhereTheFarNeighbourReachesItsMinimum() throws {
+    let window = try harnessWindow {
+        HSplitView {
+            Color.red.frame(minWidth: 50, idealWidth: 100, maxWidth: 400)
+            Color.green.frame(minWidth: 80, idealWidth: 100, maxWidth: 300)
+            Color.blue
+        }
+    }
+    #expect(columns(window) == [100, 100, 198], "\(columns(window))")
+    window.drag(from: pt(100.5, 150), to: pt(300.5, 150))
+    #expect(columns(window) == [120, 80, 198], "\(columns(window))")
 }
