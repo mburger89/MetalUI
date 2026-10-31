@@ -105,38 +105,39 @@ func decorationsChainAfterTheRemainingForwardingScopes() throws {
     #expect(result.succeeded, "\(result.output)")
 }
 
-/// **ES-F / ES-G** `.coordinateSpace` and `.animation(_:value:)` / `.transaction` do NOT chain: a decoration
-/// forwarded inside them was measured wrong (record 168: an `.offset` after the space moved a child in it by the
-/// offset, where SwiftUI's G3 reads the child unmoved; a `.background` after `.animation(_:value:)` animated, where
-/// SwiftUI's T3b snaps). The decoration before each compiles (the controls).
+/// **ES-H** (lifting `ES-F`, `ES-G`) What an app writes after `.coordinateSpace`, `.animation(_:value:)` and
+/// `.transaction`: `.offset`, `.padding`, `.background`, `.accessibilityIdentifier` and `.onClick`, one of each as a
+/// window root, and `.id` after each still typed `IdentifiedGroup` (`ES-C`, unannotated first - MES-4). The decoration
+/// configures the scope's own layer, outside the space or the transaction (record 169's pins).
 ///
-/// Mutation **MES-5**: add `extension CoordinateSpaceScope: StyledElement` (that negative compiles); **MES-6**: the
-/// same for `TransactionScope` (both of its negatives compile).
+/// Mutation **MES-5**: delete `extension CoordinateSpaceScope: StyledElement` (refused for `offset`/`background`/
+/// `accessibilityIdentifier`/`onClick` at its lines); **MES-6**: the same for `TransactionScope`; **MES-8**: delete
+/// `CoordinateSpaceScope.id(_:) -> IdentifiedGroup<Self>` (the `IdentifiedGroup` assignment is refused).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aDecorationAfterACoordinateSpaceOrATransactionStillDoesNotCompile() throws {
-    let control = try typecheckFile("""
+func decorationsChainAfterACoordinateSpaceAndATransaction() throws {
+    let result = try typecheckFile("""
         @MainActor func tree(_ v: Int) -> some Element {
             Column {
-                Box {}.offset(x: 7).coordinateSpace(.named("s"))
-                Box {}.background(Color(.surface)).animation(.default, value: v)
-                Box {}.background(Color(.surface)).transaction { $0.animation = nil }
+                Text("x").coordinateSpace(.named("s")).offset(x: 7, y: 9).background(Color(.surface)).accessibilityIdentifier("s")
+                Box {}.coordinateSpace(.named("s")).padding(4).onClick {}
+                Text("x").animation(.default, value: v).background(Color(.surface)).accessibilityIdentifier("a")
+                Box {}.animation(.default, value: v).onClick {}.padding(2)
+                Text("x").transaction { $0.animation = nil }.background(Color(.surface)).onClick {}
             }
         }
+        @MainActor func roots(_ v: Int) -> (some Element, some Element, some Element) {
+            (Text("r").coordinateSpace(.named("s")).offset(x: 7).accessibilityIdentifier("r"),
+             Text("r").animation(.default, value: v).background(Color(.surface)),
+             Text("r").transaction { $0.animation = nil }.onClick {})
+        }
+        @MainActor func ids(_ v: Int) {
+            // Unannotated first: an annotation would pick the `ElementGroup` overload with or without the member.
+            let s = Text("x").coordinateSpace(.named("s")).id("k")
+            let a = Text("x").animation(.default, value: v).id("k")
+            let _: IdentifiedGroup<CoordinateSpaceScope<Text>> = s
+            let _: IdentifiedGroup<TransactionScope<Text>> = a
+        }
         """, importing: "MetalUI")
-    func negative(_ line: String) throws -> TypecheckResult {
-        try typecheckFile("""
-            @MainActor func tree(_ v: Int) -> some Element {
-                Column { \(line) }
-            }
-            """, importing: "MetalUI")
-    }
-    let space = try negative(#"Box {}.coordinateSpace(.named("s")).offset(x: 7)"#)
-    let animation = try negative("Box {}.animation(.default, value: v).background(Color(.surface))")
-    let transaction = try negative("Box {}.transaction { $0.animation = nil }.background(Color(.surface))")
-    print("ES-F/G negatives: control succeeded=\(control.succeeded); space=\(space.succeeded) "
-          + "animation=\(animation.succeeded) transaction=\(transaction.succeeded)")
-    try #require(control.succeeded, "\(control.output)")
-    #expect(!space.succeeded && space.messages.contains("offset"), "\(space.output)")
-    #expect(!animation.succeeded && animation.messages.contains("background"), "\(animation.output)")
-    #expect(!transaction.succeeded && transaction.messages.contains("background"), "\(transaction.output)")
+    print("ES-H app spellings: succeeded=\(result.succeeded) messages=[\(result.messages)]")
+    #expect(result.succeeded, "\(result.output)")
 }
