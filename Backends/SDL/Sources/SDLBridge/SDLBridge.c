@@ -1701,7 +1701,7 @@ bool mui_push_raw_mouse_event(uint32_t sdl_type, uint32_t window_id, uint8_t but
 
 struct MUIDialogRequest {
     int32_t token;
-    bool is_save, allow_many;
+    bool is_save, allow_many, is_folder;
     char *default_location;
     SDL_DialogFileFilter *filters;
     int nfilters;
@@ -1727,6 +1727,8 @@ MUIDialogRequest *mui_dialog_request_new(int32_t token, bool is_save, bool allow
     r->default_location = default_location ? SDL_strdup(default_location) : NULL;
     return r;
 }
+
+void mui_dialog_request_choose_folders(MUIDialogRequest *r) { r->is_folder = true; }
 
 bool mui_dialog_request_add_filter(MUIDialogRequest *r, const char *name, const char *pattern) {
     SDL_DialogFileFilter *grown = SDL_realloc(r->filters, sizeof *grown * (size_t)(r->nfilters + 1));
@@ -1793,7 +1795,9 @@ static void SDLCALL dialog_callback(void *userdata, const char *const *filelist,
 bool mui_dialog_request_show(MUIDialogRequest *r, void *window) {
     r->window_id = window ? SDL_GetWindowID((SDL_Window *)window) : 0;
     const SDL_DialogFileFilter *filters = r->nfilters > 0 ? r->filters : NULL;
-    if (r->is_save)
+    if (r->is_folder && !r->is_save)
+        SDL_ShowOpenFolderDialog(dialog_callback, r, (SDL_Window *)window, r->default_location, r->allow_many);
+    else if (r->is_save)
         SDL_ShowSaveFileDialog(dialog_callback, r, (SDL_Window *)window, filters, r->nfilters, r->default_location);
     else
         SDL_ShowOpenFileDialog(dialog_callback, r, (SDL_Window *)window, filters, r->nfilters, r->default_location,

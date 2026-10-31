@@ -64,8 +64,10 @@ public struct FileDialogs {
     }
 
     /// Shows an open dialog offering `allowedContentTypes` (empty: every file)
-    /// and returns the chosen files' URLs — files only, several when
-    /// `allowsMultipleSelection` — or `[]` when the user cancels.
+    /// and returns the chosen URLs — several when `allowsMultipleSelection` —
+    /// or `[]` when the user cancels. Files, unless the list holds a directory
+    /// type: `[.folder]` chooses folders only (directory URLs), a folder beside
+    /// a file type both on AppKit (ruling `SV-AM`).
     ///
     /// - Throws: `FileDialogError` (`.noWindow`, `.unavailable`, `.busy`,
     ///   `.platform`), or `CancellationError` when the awaiting task is
@@ -75,7 +77,8 @@ public struct FileDialogs {
         guard let window else { throw FileDialogError.noWindow }
         switch try await window.runFileDialog(kind: .open(allowsMultipleSelection: allowsMultipleSelection),
                                               types: allowedContentTypes) {
-        case .chosen(let paths): return paths.map { URL(fileURLWithPath: $0) }
+        case .chosen(let paths):
+            return chosenURLs(paths, directoriesOnly: ContentType.choosesDirectoriesOnly(allowedContentTypes))
         case .cancelled: return []
         case .failed(let message): throw FileDialogError.platform(message)
         }
@@ -150,8 +153,12 @@ extension ElementGroup {
     /// (ruling `SV-C`; probe arms `D1`–`D5`), with MetalUI's `ContentType` in
     /// place of `UTType`.
     ///
-    /// Files only, filtered by `allowedContentTypes` (empty: every file; on
-    /// Linux and Windows by filename extension alone, divergence 129). Shown
+    /// Files, filtered by `allowedContentTypes` (empty: every file; on Linux
+    /// and Windows by filename extension alone, divergence 129) — or folders:
+    /// a directory type in the list (`.folder`, `.directory`) chooses
+    /// directories, alone it chooses **only** directories and completes with
+    /// directory URLs; beside a file type both on AppKit, files only on Linux
+    /// and Windows (ruling `SV-AM`, divergence 209). Shown
     /// after the frame in which `isPresented` turned `true` — a sheet on the
     /// window on AppKit — and not again while it is up. When it ends,
     /// `isPresented` is written `false` first, then: a choice calls
@@ -164,11 +171,12 @@ extension ElementGroup {
     public func fileImporter(isPresented: Binding<Bool>, allowedContentTypes: [ContentType],
                              allowsMultipleSelection: Bool,
                              onCompletion: @escaping (Result<[URL], Error>) -> Void) -> PresentationScope<Self> {
-        PresentationScope(content: self, isPresented: isPresented, request: .fileDialog(
+        let directoriesOnly = ContentType.choosesDirectoriesOnly(allowedContentTypes)
+        return PresentationScope(content: self, isPresented: isPresented, request: .fileDialog(
             kind: .open(allowsMultipleSelection: allowsMultipleSelection), types: allowedContentTypes,
             title: nil, prompt: nil, complete: { outcome in
                 switch outcome {
-                case .chosen(let paths): onCompletion(.success(paths.map { URL(fileURLWithPath: $0) }))
+                case .chosen(let paths): onCompletion(.success(chosenURLs(paths, directoriesOnly: directoriesOnly)))
                 case .cancelled: break
                 case .failed(let error): onCompletion(.failure(error))
                 }
@@ -237,6 +245,14 @@ extension ElementGroup {
                 }
             }))
     }
+}
+
+/// The chosen paths as file URLs (ruling `SV-AM`): directory URLs when the
+/// dialog chose directories only — the platform answered with directories, so
+/// the URL says so without asking the file system — else as Foundation reads
+/// each path.
+func chosenURLs(_ paths: [String], directoriesOnly: Bool) -> [URL] {
+    paths.map { directoriesOnly ? URL(fileURLWithPath: $0, isDirectory: true) : URL(fileURLWithPath: $0) }
 }
 
 /// The exporter's byte rule (`SV-C` item 4): the representation conforming to
