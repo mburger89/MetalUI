@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-Z`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-AA`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -778,3 +778,65 @@ spelling's table at `e719fb0a` is superseded):
 
 **Cost if wrong.** A test that wanted `runUntilIdle()` to fail on a closed dirty window has no such
 signal; `platformWindow.isClosed` says it directly.
+
+## HT-Z — Work only the clock can finish never dirties the window (2026-10-31)
+
+**Ruling.** Report: MetalFlow — `runUntilIdle()` threw `.notIdle(rounds: 64)` straight after
+`window.scroll` over a `ScrollView` in a `VStack`; `advance(by: 5)` first made it settle. The
+documented contract ("a running animation does not count: it needs the clock", `HT-E` item 3,
+`HT-S` item 1) was false for three clock-driven effects. Record §173.
+1. **The scroll indicator's fade is a live animation.** Measured with a per-round trace (a throwaway
+   test, not kept): after a −2000 wheel, every tick at `now == 0` drew a frame and left
+   `needsRedraw == true` with `hasActiveAnimations == false`; the same tree under
+   `.scrollIndicators(.hidden)` was clean from the first round; `advance(by: 1.1)` cleaned it.
+   `ScrollChrome.paintIndicator` asked for its fade frames with `requestAnotherFrame()`, which
+   `Window` honours with `setNeedsRedraw()` — the fade's age is `PaintPass.timestamp −
+   lastScrollTime`, and a frozen clock never ages it. It now raises `noteActiveAnimation()`, as the
+   framework's rule for live animation says (CLAUDE.md "Always"; `identity-state.md`): the link
+   keeps drawing (`drawFrameIfNeeded`'s guard reads `hasActiveAnimations`), a frame per tick as
+   before, ending on the frame the alpha reaches 0, and `needsRedraw` stays `false`. There is no
+   framework scroll momentum: momentum is the platform's event stream (`ScrollLatch`), so nothing
+   else was clock-driven in a scroll.
+2. **A pending gesture or tooltip timer keeps the link without dirtying.** The same trace shape,
+   measured: a held `onLongPressGesture(minimumDuration: 0.5)` and a hovered `.help` each threw
+   `.notIdle(64)`: `Window` ended every frame with `setNeedsRedraw()` while
+   `gestureArena?.needsTicks` or `tooltipTracker.isPending` (`IX-C` item 4, `MN-P` item 2). Both are
+   replaced by `Window.awaitsATimer` (internal), read live by `drawFrameIfNeeded`'s guard
+   (`needsRedraw || hasActiveAnimations || awaitsATimer`): each tick still reaches
+   `advanceGestures`/`advanceTooltip` ahead of the frame and still draws one frame while pending
+   (`aPendingGestureKeepsFramesComingOnlyWhilePending`'s `[1, 1, 1, 1, 0, 0, 0]` and
+   `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending`'s `[1, 1, 1, 0, 0]` unchanged), and a
+   matured timer dirties through its callbacks as before.
+3. **No new API.** The existing contract is now true, so `runUntilIdle()` is unchanged and no
+   `settleScroll()`/`runUntilIdle(advancingClock:)` is added: a test that wants the fade finished
+   moves the clock (`advance(by: 1)`, the fade being 0.6 s opaque and 0.4 s of ramp), which is the
+   harness's existing spelling for time.
+
+**Reasoning.** The harness could not tell the clock's dirt from a change: `needsRedraw` is one
+`Bool`, set the same way by both. Teaching it "clock-only" would have kept the window lying about
+being dirty; making the window honest fixes the real display link too (`Window.aFrameBuildIsPending`
+no longer reads a fade or a held press as a pending build, so an empty `withAnimation` during one
+parks nothing — the harm `aFrameBuildIsPending`'s doc comment measured for an animation). The draws
+are unchanged, so the display link pauses on the same frames on AppKit and SDL.
+
+**Mutations** (branch `fix/settle-scroll-momentum`, at `49bbee6a`; `ClockOnlySettleTests` is
+`Tests/MetalUITestingTests/ClockOnlySettleTests.swift`):
+- `ScrollChrome.paintIndicator`: `pass.frame.noteActiveAnimation()` → `pass.requestAnotherFrame()` →
+  reddens `runUntilIdleReturnsAfterAScrollWhileTheIndicatorIsStillFading` (`.notIdle`),
+  `theIndicatorRequestsFramesWhileFadingAndStopsWhenDone`,
+  `theIndicatorStillFadesAndTheWindowReturnsIdleAfterWakingFromAPausedLink`,
+  `aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame`,
+  `visibleIndicatorsPaintAsAutomaticAndNeverAsHidden`,
+  `aProposalScrollViewsIndicatorFadesOnTheSameRampAndIsClippedLikeTheContent`.
+  `aHiddenIndicatorsScrollWasAlwaysIdle` stays green: the separating arm.
+- `if gestureArena?.needsTicks == true { setNeedsRedraw() }` restored at the end of the frame →
+  reddens `runUntilIdleReturnsWhileALongPressIsHeldShortOfItsDuration` only.
+- `if tooltipTracker.isPending { setNeedsRedraw() }` restored → reddens
+  `runUntilIdleReturnsWhileATooltipIsPending` only.
+- The guard without `|| awaitsATimer` → reddens `aPendingGestureKeepsFramesComingOnlyWhilePending`,
+  `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending` (the link would pause mid-press; the harness's
+  own tests stay green because its `tick()` fires regardless of the pause).
+
+**Cost if wrong.** A caller that read `needsRedraw` to learn a fade or a held press was in progress
+reads `hasActiveAnimations` (the fade) and has no public reading for a pending timer; none was found
+outside the tests updated here.

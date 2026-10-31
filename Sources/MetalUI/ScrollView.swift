@@ -53,7 +53,7 @@ public struct ScrollState: Sendable {
     /// another one. With `-.infinity`, any finite `timestamp` gives
     /// `age == +.infinity`, the ramp gives `max(0, -.infinity) == 0` rather
     /// than NaN, and `ScrollChrome.paintIndicator`'s `guard alpha > 0` returns before
-    /// `requestAnotherFrame()`. The init's parameter default is the one
+    /// `noteActiveAnimation()` (`HT-Z` item 1). The init's parameter default is the one
     /// `ScrollState()` actually reaches, so it carries the same value.
     /// Pinned by `aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame`.
     public var lastScrollTime: Double = -.infinity

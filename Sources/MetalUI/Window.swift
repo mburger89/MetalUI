@@ -1467,8 +1467,20 @@ public final class Window {
         }
     }
 
-    /// Builds and draws one frame if the window is dirty or an animation is
-    /// running; otherwise pauses the display link.
+    /// Whether a gesture's or tooltip's timer is pending (ruling `HT-Z` item
+    /// 2): the display link keeps ticking — each tick reaches
+    /// `advanceGestures`/`advanceTooltip` ahead of the frame — and a frame is
+    /// drawn per tick as before (`aPendingGestureKeepsFramesComingOnlyWhilePending`,
+    /// `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending`), but
+    /// `needsRedraw` stays `false`: only the clock can move a timer, so it is
+    /// not a change, and a frozen clock's window is idle (`TestWindow.runUntilIdle()`).
+    /// Read live, not latched at the end of a frame: a timer that starts after
+    /// the frame (a hover's tooltip, set in `updateHover`) counts at the next tick.
+    var awaitsATimer: Bool { gestureArena?.needsTicks == true || tooltipTracker.isPending }
+
+    /// Builds and draws one frame if the window is dirty, an animation is
+    /// running or a gesture's or tooltip's timer is pending (`HT-Z` item 2);
+    /// otherwise pauses the display link.
     public func drawFrameIfNeeded() {
         if shell.isClosed { return }   // a closed window draws nothing more (AS-B item 4)
         lastDrawBuildCount = 0
@@ -1478,7 +1490,7 @@ public final class Window {
         // and it goes false on the frame a duration curve lands exactly on its
         // target, so the pause happens on the frame AFTER the last animation
         // ends rather than one frame later or never.
-        guard needsRedraw || hasActiveAnimations else {
+        guard needsRedraw || hasActiveAnimations || awaitsATimer else {
             // Nothing to do: let the display idle rather than spinning.
             platformWindow.setDisplayLinkPaused(true)
             pausesEntered += 1
@@ -2000,16 +2012,12 @@ public final class Window {
         // last input event stops arriving, because `needsRedraw` above already
         // went false for this pass and nothing else would flip it back.
         if frame.wantsAnotherFrame { setNeedsRedraw() }
-        // A pending long press or tap sequence needs the next tick to reach
-        // `advanceGestures` (plan task 12 part 1, `IX-C` item 4) — only while
-        // one is pending, so a held press that has already ended, or failed,
-        // lets the link pause (pinned by
-        // `aPendingGestureKeepsFramesComingOnlyWhilePending`).
-        if gestureArena?.needsTicks == true { setNeedsRedraw() }
-        // A pending tooltip's timer needs the next tick to reach
-        // `advanceTooltip` — only while pending (`MN-P` item 2, `IX-C` item
-        // 4's footing; pinned by `thePendingTooltipKeepsTheLinkAwakeOnlyWhilePending`).
-        if tooltipTracker.isPending { setNeedsRedraw() }
+        // A pending long press, tap sequence or tooltip needs the next tick to
+        // reach `advanceGestures`/`advanceTooltip` (`IX-C` item 4, `MN-P` item
+        // 2): `awaitsATimer`, read by the guard at the top of
+        // `drawFrameIfNeeded`, keeps the link running for it **without marking
+        // the window dirty** (ruling `HT-Z` item 2) — a timer is clock-driven,
+        // so a frozen clock's window is idle, not dirty forever.
 
         // The animation half of the same idea, and deliberately NOT the same
         // mechanism. `wantsAnotherFrame` marks the window dirty; this records

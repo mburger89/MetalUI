@@ -32,7 +32,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
-  `2026-10-09-test-harness-decisions.md`, next `HT-Z`), `OV-` (overlays and coordinates:
+  `2026-10-09-test-harness-decisions.md`, next `HT-AA`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-P`), `FI-` (`ForEach` identity:
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:

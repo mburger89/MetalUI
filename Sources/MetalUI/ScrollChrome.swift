@@ -145,17 +145,23 @@ struct ScrollChrome {
     /// the viewport/content ratio, opaque for 0.6s after a scroll and then
     /// ramped linearly to invisible over the next 0.4s.
     ///
-    /// **A hand-rolled ramp, not an easing curve.** `PaintPass.timestamp` and
-    /// `requestAnotherFrame()` are borrowed M4 primitives — inputs to
-    /// animation, not an animation system — so this is the one place in either
-    /// scroller that computes a value that changes over time, and it does so
-    /// with a `let` and an `if`.
+    /// **A hand-rolled ramp, not an easing curve.** `PaintPass.timestamp` is a
+    /// borrowed M4 primitive — an input to animation, not an animation system —
+    /// so this is the one place in either scroller that computes a value that
+    /// changes over time, and it does so with a `let` and an `if`.
+    ///
+    /// **The fade is a live animation, so it raises `noteActiveAnimation()`,
+    /// never `requestAnotherFrame()`** (ruling `HT-Z` item 1, CLAUDE.md
+    /// "Always"): it keeps the display link drawing without marking the window
+    /// dirty, because nothing changed — only the clock moves it. Dirtying, as
+    /// it did until `HT-Z`, made a frozen clock's window dirty forever, so
+    /// `TestWindow.runUntilIdle()` threw `.notIdle` after every scroll.
     @MainActor
     func paintIndicator(_ id: GlobalElementID, bounds: Bounds<Pixels>, offset: Double,
                         contentNode: LayoutNodeID, pass: inout PaintPass) {
         // Checked first and unconditionally: `.hidden` must cost nothing at
         // all, not paint a suppressed-alpha rect, and must never reach
-        // `requestAnotherFrame()` below — a hidden indicator that kept
+        // `noteActiveAnimation()` below — a hidden indicator that kept
         // asking would hold the display link awake forever, exactly the
         // failure `guard alpha > 0` exists to prevent for a faded one.
         //
@@ -169,7 +175,7 @@ struct ScrollChrome {
         let viewport = extent(bounds.size)
         let scrollable = max(0, content - viewport)
         // Nothing to scroll: no thumb, and — just as important for spec
-        // §4.4 — no `requestAnotherFrame()` either. A scroller whose content
+        // §4.4 — no `noteActiveAnimation()` either. A scroller whose content
         // fits must cost exactly as little as a `Box`.
         guard scrollable > 0 else { return }
 
@@ -184,7 +190,7 @@ struct ScrollChrome {
         // `if age < 1.0` here would read as a second guard but can never be
         // false when reached (`alpha > 0` above already implies it), so it
         // stayed as a comment instead of a condition that cannot fail.
-        pass.requestAnotherFrame()
+        pass.frame.noteActiveAnimation()   // `HT-Z` item 1: a fade, not a change
 
         let thumb = max(20, viewport * (viewport / content))
         let travel = (offset / scrollable) * (viewport - thumb)

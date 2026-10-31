@@ -328,7 +328,7 @@ final class ProbeModel {
     // `startsDisplayLink: true` plus one simulated tick, matching
     // `ScrollIndicatorTests`' own idiom. With no tick ever simulated,
     // `Window.lastTick` is 0, so a `ScrollState` scrolled at instant 0 would
-    // read age 0 and keep `Frame.wantsAnotherFrame` true. A never-scrolled one
+    // read age 0 and keep `Frame.hasActiveAnimations` true. A never-scrolled one
     // no longer does: `lastScrollTime` defaults to `-.infinity` since review
     // item B-11. The tick is harmless either way, and none of this is this
     // test's own subject.
