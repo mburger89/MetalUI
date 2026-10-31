@@ -101,9 +101,8 @@ public enum Edge: Sendable, Hashable, CaseIterable {
 /// ## Not supported (absent, so they do not compile)
 ///
 /// `.blurReplace` (guard `theUnsupportedTransitionsDoNotCompile`),
-/// `.modifier(active:identity:)`, the `Transition` protocol and custom
-/// transitions, `AnyTransition.animation(_:)` (a per-transition animation),
-/// `matchedGeometryEffect`, `contentTransition`, a default transition on
+/// `.modifier(active:identity:)`, `AnyTransition.animation(_:)` (a per-transition animation),
+/// `contentTransition`, a default transition on
 /// unannotated content (divergence 98), a transition on a changed `.id(_:)`
 /// outside a loop, `.id(_:)` written **outside** `.transition` on the inserted
 /// content (`content.transition(.opacity).id("x")` — the `.id` numbers the
@@ -122,6 +121,7 @@ public struct AnyTransition: Sendable {
         case push(Edge)
         case asymmetric(insertion: Kind, removal: Kind)
         case combined(Kind, Kind)
+        case custom(CustomTransition)
     }
 
     let kind: Kind
@@ -177,6 +177,8 @@ public struct AnyTransition: Sendable {
 enum TransitionAtom: Equatable {
     /// Alpha multiplied by `1 − activeness`.
     case opacity
+    /// Alpha multiplied by `1 + (target − 1) × activeness`: a custom transition's opacity (`MG-F`).
+    case alpha(Double)
     /// Displaced by `(sizeX × width + x, sizeY × height + y) × activeness`.
     case translate(sizeX: Double, sizeY: Double, x: Double, y: Double)
     /// Scaled by `1 + (scale − 1) × activeness` about `anchor` of the rect.
@@ -203,6 +205,8 @@ extension AnyTransition.Kind {
             return insertion ? insertionKind.atoms(insertion: true) : removalKind.atoms(insertion: false)
         case .combined(let first, let second):
             return first.atoms(insertion: insertion) + second.atoms(insertion: insertion)
+        case .custom(let custom):
+            return custom.atoms(insertion: insertion)
         }
     }
 }
@@ -247,6 +251,8 @@ struct RenderEffect: Equatable {
             switch atom {
             case .opacity:
                 alpha *= Float(min(max(1 - a, 0), 1))
+            case .alpha(let target):
+                alpha *= Float(min(max(1 + (target - 1) * a, 0), 1))
             case .translate(let sizeX, let sizeY, let x, let y):
                 tx += Float((sizeX * Double(rect.size.width) + x * Double(scaleFactor)) * a)
                 ty += Float((sizeY * Double(rect.size.height) + y * Double(scaleFactor)) * a)

@@ -405,10 +405,16 @@ extension Frame {
     /// when it has no entry clip of its own and the enclosing one cuts
     /// (`GX-Y`). A degenerate map (a zero scale) paints nothing.
     func paintWithRenderEffect(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> Void) {
-        effectScopesPushed += 1
         let map = effect.affine(in: scrolled(bounds))
-        guard map.determinant != 0, map.determinant.isFinite else { return }
-        let device = map.scaledToDevice(scaleFactor)
+        guard map.determinant != 0, map.determinant.isFinite else { effectScopesPushed += 1; return }
+        paintWithDeviceMap(map.scaledToDevice(scaleFactor), body)
+    }
+
+    /// Paint inside a map already in device pixels (`GX-G`): ``paintWithRenderEffect(_:bounds:_:)`` after it has
+    /// resolved its effect, and `matchedGeometryEffect`'s flight (`MG-A`), which computes its own.
+    func paintWithDeviceMap(_ device: Affine2D, _ body: () -> Void) {
+        effectScopesPushed += 1
+        guard device.determinant != 0, device.determinant.isFinite else { return }
         let flattens = device.isUniformPositiveScaleTranslation
         // A flattening scope opened where no clip was pushed since the
         // enclosing flattening scope's entry has no entry clip in its own
