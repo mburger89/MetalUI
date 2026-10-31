@@ -295,3 +295,23 @@ private func hsla(_ color: Color) -> Hsla { color.resolved(theme: .light, scheme
     #expect(inside.size.width.value == text.width.value + 60, "the scope's .large reaches the style: \(inside.size)")
     #expect(outside.size.width.value == text.width.value + 20, "outside the scope: the default")
 }
+
+/// **13.** A body built from a stale pointer owner is corrected by one more frame (`BY-D`): with the button active
+/// and the pointer over it, a frame stamped with no owner (what the previous frame's hitboxes said before the layout
+/// moved) asks for another frame, and one stamped with the owner does not. Mutation `BY-M13` (the correction
+/// removed) reddens the first arm; the second is the separating arm.
+@Test @MainActor func aStalePointerOwnerAsksForOneCorrectionFrame() throws {
+    let first = try controlRender(controlRoot { Button("Go") {}.buttonStyle(PaddedStyle()) })
+    let id = controlID([0, 0])
+    let centre = controlCentre(try controlBounds(first, id))
+    func wantsAnotherFrame(owner: GlobalElementID?) -> Bool {
+        var root = controlRoot { Button("Go") {}.buttonStyle(PaddedStyle()) }
+        let frame = Frame(contentSize: Size(width: controlPx(400), height: controlPx(200)), scaleFactor: 1,
+                          mousePosition: centre, activeElement: id, recordsElementBounds: true)
+        frame.pointerOwner = owner
+        frame.render(&root)
+        return frame.wantsAnotherFrame
+    }
+    #expect(wantsAnotherFrame(owner: nil), "a stale owner: the body was built unpressed and paint is pressed")
+    #expect(!wantsAnotherFrame(owner: id), "a current owner: no correction frame")
+}
