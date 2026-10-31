@@ -354,6 +354,21 @@ write's frame can still be on its way, so wait on what you assert (the drawn
 result, not only the model) in a bounded loop
 (`for _ in 0..<64 where !done { try await window.runUntilIdle() }`).
 
+Work off the main actor — a detached task, another actor's method — is
+invisible to `runUntilIdle()`: its four quiet yields can come before that work
+hops back. Wait for its effect with `try await runUntil { … }`, which draws
+whenever the window is dirty and returns once the condition holds (read after
+the round's frame), throwing `.timedOut(after:)` past `timeout` (10 s by
+default; real time, a failure bound only, `HT-Y`):
+
+```swift
+try window.respondToAlert(button: "Save")   // the save runs off the main actor
+try await window.runUntil { window.testApp.platform.terminateReplies == [true] }
+```
+
+A closed window is clean to both: once an approved close or termination has
+closed it, it draws nothing more, and a frame it was owed is not waited for.
+
 `resize(to:)`, `setScaleFactor(_:)`, `setAppearance(_:)`,
 `setControlActiveState(_:)`, `setReduceMotion(_:)`, `close()` and
 `requestClose()` simulate what the system does to a window;

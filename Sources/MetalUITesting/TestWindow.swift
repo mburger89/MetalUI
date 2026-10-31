@@ -10,7 +10,7 @@ import MetalUIScene
 /// the frame a display link would draw next (ruling `HT-E`); ``send(_:)``
 /// delivers one raw event and draws nothing. The clock starts at 0 and moves
 /// only by ``advance(by:)`` and ``advanceFrames(_:)``; nothing reads a wall
-/// clock. The window is one `Window` for its life, so every frame after the
+/// clock but ``runUntil(timeout:_:)``'s failure bound (`HT-Y`). The window is one `Window` for its life, so every frame after the
 /// first is **warm** — state, shaping, rasters and textures persist — and
 /// ``lastFrameWork`` counts what each frame did (`HT-I`).
 ///
@@ -142,11 +142,20 @@ public final class TestWindow {
     /// running animation does not count: it needs the clock), and throws
     /// ``TestHarnessError/notIdle(rounds:)`` after 64 rounds. A task awaiting
     /// real time (`Task.sleep`) does not finish here: inject a clock.
+    ///
+    /// **A closed window is clean** (ruling `HT-Y` item 1): it draws nothing
+    /// more (`AS-B` item 4), so a dirty flag left on it — by an approved
+    /// termination or close that landed mid-settle — is no work to wait for,
+    /// and the quiet yields still let what was queued behind the close run.
+    ///
+    /// It cannot see work off the main actor (a detached task, another
+    /// actor): four quiet yields can come before that work hops back. To wait
+    /// for such work, wait for its effect with ``runUntil(timeout:_:)``.
     public func runUntilIdle() async throws {
         var quiet = 0
         for _ in 0..<Self.idleRoundLimit {
             await Task.yield()
-            if window.needsRedraw {
+            if isDirtyAndOpen {
                 quiet = 0
                 tick()
             } else {
@@ -155,6 +164,37 @@ public final class TestWindow {
             }
         }
         throw TestHarnessError.notIdle(rounds: Self.idleRoundLimit)
+    }
+
+    /// Whether a tick would draw something a test waits for: the window is
+    /// dirty and still open (`HT-Y` item 1).
+    private var isDirtyAndOpen: Bool { window.needsRedraw && !platformWindow.isClosed }
+
+    /// Lets main-actor work run, drawing a frame whenever the window is dirty,
+    /// **until `condition` holds** — for work ``runUntilIdle()`` cannot see,
+    /// such as a detached task or another actor's that writes back later
+    /// (ruling `HT-Y` item 2). Each round draws first (when the window is
+    /// dirty and open), then reads `condition`, so a condition about the
+    /// window reads the frame its last write drew; then it yields. It never
+    /// moves ``now``.
+    ///
+    /// `timeout` is the only wall-clock read in the harness and only bounds a
+    /// failure: past it, ``TestHarnessError/timedOut(after:)`` is thrown. A
+    /// slow machine waits longer; it does not fail sooner.
+    ///
+    /// ```swift
+    /// try window.respondToAlert(button: "Save")   // the save runs off the main actor
+    /// try await window.runUntil { window.testApp.platform.terminateReplies == [true] }
+    /// ```
+    public func runUntil(timeout: Duration = .seconds(10), _ condition: () throws -> Bool) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while true {
+            if isDirtyAndOpen { tick() }
+            if try condition() { return }
+            if clock.now >= deadline { throw TestHarnessError.timedOut(after: timeout) }
+            await Task.yield()
+        }
     }
 
     /// Delivers one raw event through the platform window and draws nothing;
