@@ -1,3 +1,4 @@
+import Foundation
 import MetalUI
 import MetalUIScene
 
@@ -109,6 +110,8 @@ public final class TestApp {
                     return
                 }
                 recorder.attach(to: window)
+                // Before the first build, so its timeline cursors anchor on the simulated clock (`DX-A`).
+                window.testingSimulateTimelineClock(anchor: Date())
             }
             platformWindow.headlessRenderer.onFramePresented = { renderer in recorder.closeFrame(renderer) }
         }
@@ -124,6 +127,7 @@ public final class TestApp {
         // window, wire it now and draw once more.
         if !recorder.isAttached {
             recorder.attach(to: window)
+            window.testingSimulateTimelineClock(anchor: Date())
             window.setNeedsRedraw()
             platformWindow.simulateTick(timestamp: 0)
         }

@@ -315,6 +315,15 @@ public struct AXNode: Equatable {
     /// `Frame.axNode(for:)` is never checked with this — `Frame.registerHandlers` calls
     /// it only on the declared `handlers.axNode`, before emission.
     public var isEmpty: Bool { self == AXNode() }
+
+    /// A control's own node under what its author declared (`DA-C`): `role` while still
+    /// `.generic`, `label` and `value` while `nil`. Declarations (identifier, hint, child
+    /// behaviour) are kept and never make the control lose its role or text.
+    mutating func fillControl(role: AXRole, label: String?, value: String?) {
+        if self.role == .generic { self.role = role }
+        if self.label == nil { self.label = label }
+        if self.value == nil { self.value = value }
+    }
 }
 
 /// The declarations `AXNode` keeps behind one pointer (plan task 12 part 2,

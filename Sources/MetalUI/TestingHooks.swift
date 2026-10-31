@@ -1,3 +1,4 @@
+import Foundation
 import MetalUIPlatform
 
 // The test harness's read-back (ruling `HT-C` item 2): `package` members, in a
@@ -294,5 +295,19 @@ extension Window {
             // The first frame (timestamp 0) read the wall clock and anchored every cursor on it (`RK-AE`).
             animationStore.timeline.resetCursors()
         }
+    }
+}
+
+extension Window {
+    /// Puts the window's `TimelineView` clock on the harness's simulated one (`DX-A`): dates are `anchor` plus the
+    /// frame timestamp, and a periodic timeline's wake waits for ``testingFireDueTimelineWake(atTimestamp:)`` instead
+    /// of sleeping on the wall clock.
+    package func testingSimulateTimelineClock(anchor: Date) {
+        animationStore.timeline.useSimulatedClock(anchor: anchor)
+    }
+
+    /// Fires the timeline wake if the simulated clock has reached it (`DX-A`).
+    package func testingFireDueTimelineWake(atTimestamp timestamp: Double) {
+        animationStore.timeline.fireDueSimulatedWake(atTimestamp: timestamp)
     }
 }
