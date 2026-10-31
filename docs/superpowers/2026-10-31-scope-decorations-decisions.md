@@ -1,7 +1,7 @@
 # Scope decorations - decisions
 
 Rulings for modifiers written after a transparent scope (`.lineLimit`, `.disabled`, `.onAppear`, `.alert`, `.toolbar`, `.navigationTitle`...). Prefix `ES-`.
-Branch `fix/scope-decorations` from master `63cc5af1`; `ES-D`…`ES-G` on `fix/remaining-scope-decorations` from master `c686d1ef` (record 168); `ES-H`, `ES-I` on `fix/lift-es-f-g` from master `d2797c5d` (record 169). **Next unused: `ES-J`.**
+Branch `fix/scope-decorations` from master `63cc5af1`; `ES-D`…`ES-G` on `fix/remaining-scope-decorations` from master `c686d1ef` (record 168); `ES-H`, `ES-I` on `fix/lift-es-f-g` from master `d2797c5d` (record 169); `ES-J` on `fix/lift-es-b` stacked on it at `7462b8cd` (record 172). **Next unused: `ES-K`.**
 Why: MetalFlow wrote `Text("x").lineLimit(1).accessibilityIdentifier("x")` and `Button(...).disabled(true).accessibilityIdentifier("b")`; neither compiled, because the scope was an `ElementGroup`, not a `StyledElement`
 (divergence 120). In SwiftUI any modifier follows any other.
 
@@ -22,7 +22,7 @@ modifier". A window-preference scope as a window's root now sets the window titl
 **Cost if wrong.** A modifier that reads the scope's value and was written after it (say `.lineLimit(1)` then a text modifier that reads the limit) now sees it, where SwiftUI's outer modifier would not; none exists today
 because the scope's values are read by the content's own phases, which is what the scope is for.
 
-## ES-B - `.onGeometryChange` does not chain
+## ES-B - `.onGeometryChange` does not chain (lifted by `ES-J`)
 
 **Ruling.** `GeometryChangeScope` gets no `StyledElement` (or `Element`) conformance. It measures the union of its content's nodes, and `.padding`, `.background` or `.offset` forwarded onto the content would be inside
 that measurement; SwiftUI's modifier after `.onGeometryChange` is outside the measured size. Forwarding would be observably wrong, so the scope keeps divergence 120 (narrowed to it alone). Write the decoration first.
@@ -95,9 +95,28 @@ content's layout and paint), `layered` (an existential, since its type names the
 entries (`requestProposalGroupLayout`) route a decorated scope to the untyped layer path; a decoration needs `Content: StyledElement`, which no proposal content is, so the arm is unreachable today.
 **Unobservable.** An undecorated `.coordinateSpace` at a window root: the root's frame is the window's, so the named space equals `.global` there; dropping that push reddens nothing (mutation 20).
 
+## ES-J - a decoration after `.onGeometryChange` is a layer outside the measurement; divergence 120 retired
+
+**Ruling.** `GeometryChangeScope` takes `ES-H`'s mechanism unchanged: `StyledElement where Content: StyledElement` over a `.padding(0)` `ModifierLayer` of its own, a decorated scope running as
+`ModifiedElement<Self>` over itself without the layer, `Element where Content: Element` (the element's own node noted, keyed `$geometry<depth>` under the element's id, which owns the action;
+`ScopeLayerState` states), the typed entry routing a decorated scope to the untyped layer path, and ES-C's `id(_:) -> IdentifiedGroup<Self>`. The layer's effects are open when the bare scope notes, and the
+size noted is the union of the content's nodes, so a decoration after the scope is outside the measurement: it does not change the size, and an `.offset` after it moves the reported global frame (SwiftUI's
+**G4a**, `docs/probes/swiftui-key-focus.swift`: `.offset(x: 10)` written after `.onGeometryChange` reads `x:0` then `x:10`). **Assumption, not probed:** no arm separates a `.padding` or `.background`
+after `.onGeometryChange` from one before; that a modifier after it is outside the measured size is SwiftUI's structure (the modifier wraps the view whose geometry is read) and `ES-B`'s own premise.
+**What `ES-B` had wrong.** It refused forwarding because a forwarded `.padding` would be inside the measurement; `.padding` is an `ElementGroup` wrapper and was outside under forwarding too. What forwarding
+does get wrong is the render effect: forwarded onto the content, an `.offset` opens inside the content's own `registerAndScope`, after the scope has noted, so the global frame did not move where G4a moves
+it (mutation 26).
+**Measured** (`GeometryScopeDecorationTests`): a 50 x 50 tile reporting `frame(in: .global)`, one per window: with `.offset(x: 10)` after the scope it reads 10 right of the plain tile, with the offset before
+(the control) it reads exactly the plain frame, both 50 x 50; `.padding(8).background(...)` after reports 50 x 50 where `.padding(8)` before reports 66 x 66; as a window root the undecorated scope reports
+its element and `.offset(x: 10)` after it moves the report by 10.
+**Retires** divergence 120: no transparent scope refuses a decoration after it any more (177 live, next label 209; 120 is never reused).
+**Pins.** `anOffsetAfterOnGeometryChangeMovesTheReportedFrame`, `aDecorationAfterOnGeometryChangeDoesNotChangeTheReportedSize`, `onGeometryChangeAtTheRootReportsAndTakesAnOffsetAfterIt` (`MetalUITests`),
+`anIdentifierAndAClickAfterOnGeometryChangeLand` (`MetalUITestingTests`), `decorationsChainAfterOnGeometryChange` (replacing `aDecorationAfterOnGeometryChangeStillDoesNotCompile`) and
+`onGeometryChangeAndTimelineViewCompileOnBothVocabularies` (its divergence-120 negative now a positive line).
+
 ## Mutations
 
-Applied to the declaration named, against `ScopeDecorationTests` (after `swift build --build-system native --build-tests`). Rows 16-25 (`ES-H`, `ES-I`) on `fix/lift-es-f-g` at `e7da6af7`, one at a time and reverted with `git checkout` (the source committed); behaviour rows filtered to `LayeredScopeDecorationTests`, `ScopeDecorationTests`, `RemainingScopeDecorationTests`, `CoordinateSpaceTests`, `TransactionTests` (59 tests); guard rows rebuilt the `MetalUI` module only. Rows 7-15 (`ES-D`…`ES-G`) on `fix/remaining-scope-decorations` at `477280cc` plus the
+Applied to the declaration named, against `ScopeDecorationTests` (after `swift build --build-system native --build-tests`). Rows 16-25 (`ES-H`, `ES-I`) on `fix/lift-es-f-g` at `e7da6af7`, one at a time and reverted with `git checkout` (the source committed); behaviour rows filtered to `LayeredScopeDecorationTests`, `ScopeDecorationTests`, `RemainingScopeDecorationTests`, `CoordinateSpaceTests`, `TransactionTests` (59 tests); guard rows rebuilt the `MetalUI` module only. Rows 26-30 (`ES-J`) on `fix/lift-es-b` at `6a28c54c`, the same way; behaviour rows filtered to `GeometryScopeDecorationTests`, `ScopeDecorationTests`, `GeometryChangeTests`, `RetainedGeometryTests` (48 tests). Rows 7-15 (`ES-D`…`ES-G`) on `fix/remaining-scope-decorations` at `477280cc` plus the
 row-8 fix, in the worktree, one at a time and reverted; guard rows rebuilt the `MetalUI` module only and ran the built test binary; behaviour rows filtered to `ScopeDecorationTests`, `RemainingScopeDecorationTests`,
 `ModifierKeysTests`, `TransitionTests`, `GlassTests` (69 tests).
 
@@ -128,15 +147,21 @@ row-8 fix, in the worktree, one at a time and reverted; guard rows rebuilt the `
 | 23 | MES-6: the same for `TransactionScope` | `decorationsChainAfterACoordinateSpaceAndATransaction` (`background` refused) |
 | 24 | MES-8: `CoordinateSpaceScope.id(_:) -> IdentifiedGroup<Self>` deleted | `decorationsChainAfterACoordinateSpaceAndATransaction` (`cannot convert CoordinateSpaceScope<Text> to IdentifiedGroup<…>`) |
 | 25 | `TransactionScope.id(_:) -> IdentifiedGroup<Self>` deleted | `decorationsChainAfterACoordinateSpaceAndATransaction` (`cannot convert TransactionScope<Text> to IdentifiedGroup<…>`) |
+| 26 | MES-9: `GeometryChangeScope: StyledElement`'s four accessors forward to `content` (the naive ES-A shape) | `anOffsetAfterOnGeometryChangeMovesTheReportedFrame`, `onGeometryChangeAtTheRootReportsAndTakesAnOffsetAfterIt` (the after offset is not in the report). `aDecorationAfterOnGeometryChangeDoesNotChangeTheReportedSize` stays green: its padding is a wrapper outside the scope in both spellings |
+| 27 | `GeometryChangeScope`'s `handlers` setter drops the write | `anIdentifierAndAClickAfterOnGeometryChangeLand` (no element "g") |
+| 28 | the `noteGeometry` call dropped from `GeometryChangeScope.prepaint(_:bounds:layout:pass:)`'s undecorated arm | `onGeometryChangeAtTheRootReportsAndTakesAnOffsetAfterIt` (the plain root reports nothing) |
+| 29 | MES-10: `extension GeometryChangeScope: StyledElement` made a plain extension | `decorationsChainAfterOnGeometryChange`, `onGeometryChangeAndTimelineViewCompileOnBothVocabularies` (`padding` refused) |
+| 30 | MES-11: `GeometryChangeScope.id(_:) -> IdentifiedGroup<Self>` deleted | `decorationsChainAfterOnGeometryChange` (`cannot convert GeometryChangeScope<Text> to IdentifiedGroup<…>`) |
 
 ## Carried
 
-- **Shard rule:** in `docs/rules/identity-state.md` (`ES-` paragraph), updated for `ES-D`…`ES-G` and `ES-H`.
+- **Shard rule:** in `docs/rules/identity-state.md` (`ES-` paragraph), updated for `ES-D`…`ES-G`, `ES-H` and `ES-J`.
+- `aDecorationAfterOnGeometryChangeDoesNotChangeTheReportedSize` is reddened by no mutation of this branch (row 26): it would redden a layer that noted its own node instead of the content's.
 - `WindowPreferences.swift` scopes (`navigationTitle`, `navigationDocument`, `onOpenURL`) are `EnvironmentScope`s and chain with it; `onOpenURL` on the `Element` path owns its handler by the element's id, not by the
   group position (no test distinguishes them: the owner is only a dispatch key). The same holds for `ModifierKeysScope`'s owner on its `Element` path (`ES-D`).
 - Every single-content modifier scope is now ruled: forwarding `EnvironmentScope`, `LifecycleScope` (`.task` included), `PresentationScope`, `ToolbarScope` (`ES-A`), `ModifierKeysScope`, `GlassTagScope` (`ES-D`),
-  `TransitionGroup` (`ES-E`); layering `CoordinateSpaceScope`, `TransactionScope` (`ES-H`); refusing `GeometryChangeScope` (`ES-B`). Containers (`ScrollViewReader`, `GlassEffectContainer`, `IdentifiedGroup`) are
+  `TransitionGroup` (`ES-E`); layering `CoordinateSpaceScope`, `TransactionScope` (`ES-H`), `GeometryChangeScope` (`ES-J`). None refuses. Containers (`ScrollViewReader`, `GlassEffectContainer`, `IdentifiedGroup`) are
   out of scope. A new scope decides which it is, by measuring a decoration after it against the same decoration before it.
-- `ES-F` and `ES-G` are lifted by `ES-H`'s own layer, not by either idea this item named (building the space inside the content's `registerAndScope` could not tell an offset before the scope from one after it: both land in one `Decoration`). The same layer would lift `ES-B` (`.onGeometryChange` measuring its content without the layer's padding or offset); not attempted, so divergence 120 stays.
+- `ES-F` and `ES-G` are lifted by `ES-H`'s own layer, not by either idea this item named (building the space inside the content's `registerAndScope` could not tell an offset before the scope from one after it: both land in one `Decoration`). `ES-J` lifted `ES-B` the same way and retired divergence 120.
 - A decorated `CoordinateSpaceScope`/`TransactionScope` copies itself into a `ModifiedElement` and back once per phase (`withLayer`) and stores the layer's layout as an existential: cost paid only by decorated scopes, not measured.
 - The `style` and `elementID` forwards have no observable pin (mutations 5 and 6), for the new scopes as for the first four.
