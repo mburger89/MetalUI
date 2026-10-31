@@ -16,7 +16,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AJ`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AC`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
-  `2026-10-04-platform-services-decisions.md`, next `SV-AM`), `PE-` (controls in
+  `2026-10-04-platform-services-decisions.md`, next `SV-AO`), `PE-` (controls in
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
