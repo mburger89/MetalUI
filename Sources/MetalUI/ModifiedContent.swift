@@ -672,3 +672,15 @@ extension LayoutModifier: ModifierLayerKind {
         }
     }
 }
+
+// MARK: - A decoration layer outside a scope (`ES-H`)
+
+/// What a scope that keeps a decoration outside itself (`CoordinateSpaceScope`, `TransactionScope`; ruling
+/// `ES-H`) carries between phases on the `Element` path: `plain` while no decoration was written after the scope,
+/// and otherwise `layered`, the state of the one legacy layer (`ModifiedElement<Scope>`, a `.padding(0)` layer
+/// carrying the decoration) that wraps the undecorated scope. `layered` is an existential because its type names
+/// the scope itself, which a stored property of the scope's own state cannot spell.
+public struct ScopeLayerState<Plain> {
+    var plain: Plain?
+    var layered: Any?
+}
