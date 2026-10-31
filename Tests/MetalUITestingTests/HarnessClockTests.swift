@@ -55,10 +55,13 @@ import Testing
 /// `runUntilIdle()` and its write is drawn: the box is 50 wide after, 10
 /// before. Mutation: `runUntilIdle` without `Task.yield()`.
 ///
-/// Waits on the drawn frame, bounded, rather than on one call: off Darwin the
-/// executor may run the test's four quiet yields before the task's second resumes
-/// (seen serially on Linux and Windows CI, and on a one-CPU Linux container, 2 in
-/// 25), and the write's observation hop can land after the yields that saw it.
+/// Waits on the drawn frame with `runUntil` (ruling `TK-C`), not on a count of
+/// `runUntilIdle()` calls: off Darwin the executor may run the test's four quiet
+/// yields before the task's second resumes (seen serially on Linux and Windows
+/// CI, and on a one-CPU Linux container, 2 in 25), and the write's observation
+/// hop can land after the yields that saw it. A fixed number of calls is a bet on
+/// how many turns the executor takes; `runUntil` waits for the effect and fails
+/// only past its real-time bound.
 @Test @MainActor func aTaskCompletesUnderRunUntilIdle() async throws {
     let loader = HarnessLoader()
     let window = try harnessWindow {
@@ -69,7 +72,7 @@ import Testing
     }
     #expect(rects(window, height: 10).map { $0.bounds.size.width } == [10], "the task has not finished")
     func drawn() -> [Float] { rects(window, height: 10).map { $0.bounds.size.width } }
-    for _ in 0..<64 where loader.value != 42 || drawn() != [50] { try await window.runUntilIdle() }
+    try await window.runUntil { loader.value == 42 && drawn() == [50] }
     #expect(loader.value == 42)
     #expect(drawn() == [50], "its write was drawn")
 }

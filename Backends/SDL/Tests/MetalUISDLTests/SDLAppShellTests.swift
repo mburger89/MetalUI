@@ -161,8 +161,21 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
         if case .drop(let drop) = event { dropped.append("\(drop)".components(separatedBy: "(").first ?? "") }
         return true
     }
+    // SDL's Cocoa driver reports the process's own command-line arguments as
+    // window-0 `DROP_FILE`s plus a `DROP_COMPLETE` (AppKit's `openFile:` at
+    // launch) the first time a pump runs the Cocoa loop: under `swift test
+    // --filter SDLAppShell` they read `file:///SDLAppShell` and the test
+    // binary's path, and whether a given pump or test sees them depends on
+    // scheduling (ruling `TK-D`). They are not this test's drops, so only the
+    // URLs the test pushed are recorded; a stray batch is neither an open nor
+    // a failure.
+    let ours: Set<String> = ["file:///tmp/a%20b.mcgraph", "metalcreator://doc/1", "file:///tmp/c", "file:///tmp/d"]
     var opened: [[String]] = []
-    platform.onOpenURLs = { opened.append($0) }
+    let record: ([String]) -> Void = { batch in
+        let mine = batch.filter(ours.contains)
+        if !mine.isEmpty { opened.append(mine) }
+    }
+    platform.onOpenURLs = record
     pushDrop(mui_sdl_event_drop_file, 0, "/tmp/a b.mcgraph")
     pushDrop(mui_sdl_event_drop_file, 0, "metalcreator://doc/1")
     pushDrop(mui_sdl_event_drop_complete, 0)
@@ -181,7 +194,10 @@ private func pushDrop(_ type: UInt32, _ window: UInt32, _ data: String? = nil,
     pushDrop(mui_sdl_event_drop_complete, 0)
     parking.pumpEvents()
     var late: [[String]] = []
-    parking.onOpenURLs = { late.append($0) }
+    parking.onOpenURLs = { batch in
+        let mine = batch.filter(ours.contains)
+        if !mine.isEmpty { late.append(mine) }
+    }
     #expect(late == [["file:///tmp/d"]], "parked until a handler is set: \(late)")
 }
 
