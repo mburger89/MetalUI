@@ -30,7 +30,10 @@ its own `waitUntil` instead) do not call `runUntilIdle()` after the last answer,
   unchanged (four quiet yields, 64 rounds). `Window.needsRedraw` is unchanged.
 - `TestWindow.runUntil(timeout: Duration = .seconds(10), _ condition: () throws -> Bool) async throws`: draw if dirty and open,
   read the condition, check the deadline, yield. `TestHarnessError.timedOut(after: Duration)` past the deadline. The deadline is a
-  `ContinuousClock` reading, the harness's one wall-clock read, a failure bound only (amends `HT-E` item 4).
+  `ContinuousClock` reading, the harness's one wall-clock read, a failure bound only (amends `HT-E` item 4). Once the condition
+  holds it settles with `runUntilIdle()` (`HT-Y` item 3, after Linux CI on PR #158 read `runUntilWaitsForLateWorkAndDrawsIt`'s box
+  undrawn: there a write's invalidation is an observation hop queued a turn after the write, so the condition held before the
+  window was dirty; reproduced on macOS by a write made on another thread, `runUntilDrawsAWriteWhoseInvalidationHops`).
 - Docs: `HT-Y` in `docs/superpowers/2026-10-09-test-harness-decisions.md` (next `HT-Z`), prefix row, `docs/rules/tooling.md`,
   `docs/testing.md` (the clock section), `docs/api-overview.md`, a `docs/migration.md` row. The public-API inventory's regex row for
   `MetalUITesting` already classifies both new declarations (`closeout-inventory-check.sh` and `closeout-undocumented.sh` print
@@ -53,10 +56,13 @@ try await window.runUntil { platform.terminateReplies.count == 1 }
 `runUntilIdleReturnsWhenAnApprovedTerminationClosesTheWindowMidSettle` (the MetalFlow shape, deterministic: a main-actor task two
 turns into the settle writes the model and approves a `.later` termination; the separating arm reads `needsRedraw` still `true`),
 `runUntilIdleTreatsAClosedDirtyWindowAsIdle`, `runUntilWaitsForLateWorkAndDrawsIt` (a write 1000 turns away: `runUntilIdle()`
-returns before it, `runUntil` returns with it drawn), `runUntilThrowsTimedOutWhenTheConditionNeverHolds`.
+returns before it, `runUntil` returns with it drawn), `runUntilDrawsAWriteWhoseInvalidationHops` (the Linux shape on macOS),
+`runUntilDrawsWhileItWaitsForADrawnCondition`, `runUntilReturnsWhenAnApprovedTerminationClosesTheWindow`,
+`runUntilThrowsTimedOutWhenTheConditionNeverHolds`. "Condition read before the draw" is a green mutant after item 3, recorded as
+not observable.
 
 ## Counts
 
 Native build (incremental, not after `swift package clean`), `swift test --build-system native --no-parallel --skip AppKitPresentationTests`
-(the screen lock was not read, so the presentation tests were skipped as in records 167 and 168): **4613 tests passed** (4609 + the 4
-new), `FR-J no-argument frame: succeeded=true`. Guards 285, unchanged (no guard added; not re-tallied by grep).
+(the screen lock was not read, so the presentation tests were skipped as in records 167 and 168): **4616 tests passed** (4609 + the 7
+new; re-taken after `HT-Y` item 3, the first run before it read 4613; `MetalUITestingTests` alone 669), `FR-J no-argument frame: succeeded=true`. Guards 285, unchanged (no guard added; not re-tallied by grep).

@@ -1,3 +1,4 @@
+import Dispatch
 import MetalUI
 import MetalUIScene
 import MetalUITesting
@@ -13,6 +14,14 @@ import Testing
 
 /// A main-actor model the trees below read.
 @Observable @MainActor final class SettleModel {
+    var width: Float = 10
+}
+
+/// A model written off the main thread: its observation callback runs on the
+/// writing thread, so the window's invalidation hops to the main actor a turn
+/// later (`Window.markDirtyFromObservation`'s off-main arm) — on every platform,
+/// the shape Linux gives a main-actor write too.
+@Observable final class OffMainSettleModel: @unchecked Sendable {
     var width: Float = 10
 }
 
@@ -65,9 +74,8 @@ import Testing
 /// `HT-Y` item 2 — `runUntil` waits for work `runUntilIdle()` cannot: a write
 /// 1000 turns away lands after `runUntilIdle()` has returned (separating arm),
 /// and `runUntil` returns with it written **and drawn** (the box 50 wide).
-/// Mutations: `runUntil` without `await Task.yield()` (times out: the task
-/// never runs); without the draw (the box is still 10); the condition read
-/// before the draw (returns with the write undrawn: 10).
+/// Mutation: `runUntil` without `await Task.yield()` (times out: the task
+/// never runs).
 @Test @MainActor func runUntilWaitsForLateWorkAndDrawsIt() async throws {
     let model = SettleModel()
     let window = try harnessWindow {
@@ -79,6 +87,67 @@ import Testing
     #expect(model.width == 10, "runUntilIdle returned before the late write")
     try await window.runUntil { model.width == 50 }
     #expect(drawn() == [50], "the write was drawn before runUntil returned")
+}
+
+/// `HT-Y` item 3 — a condition about the model can hold before the window
+/// knows it is dirty: the write is made on another thread (the main actor
+/// waits for it), so the window's invalidation is a hop queued behind
+/// `runUntil`'s next turn. `runUntil` settles after the condition holds and
+/// returns with the write drawn. Linux CI's failure of the test above, on
+/// macOS. Mutation: `runUntil` without its closing `runUntilIdle()` (10).
+@Test @MainActor func runUntilDrawsAWriteWhoseInvalidationHops() async throws {
+    let model = OffMainSettleModel()
+    let window = try harnessWindow {
+        VStack(spacing: 0) { Box().frame(width: Pixels(model.width), height: Pixels(10)).background(.accent) }
+    }
+    func drawn() -> [Float] { rects(window, height: 10).map { $0.bounds.size.width } }
+    later(after: 3) {
+        // `async` plus a wait, not `sync`: `sync` runs the block on the calling (main) thread.
+        let written = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            model.width = 50
+            written.signal()
+        }
+        written.wait()
+    }
+    try await window.runUntil { model.width == 50 }
+    #expect(drawn() == [50], "the hopped invalidation's frame was drawn before runUntil returned")
+}
+
+/// `HT-Y` item 2 — a condition about the drawn window: the loop draws while it
+/// waits, so a write's frame satisfies it. Mutation: `runUntil` without its
+/// per-round draw (times out: only the closing settle draws, and it is never
+/// reached). The order "draw, then read" is not separately observable: reading
+/// first finds the frame one round later.
+@Test @MainActor func runUntilDrawsWhileItWaitsForADrawnCondition() async throws {
+    let model = SettleModel()
+    let window = try harnessWindow {
+        VStack(spacing: 0) { Box().frame(width: Pixels(model.width), height: Pixels(10)).background(.accent) }
+    }
+    func drawn() -> [Float] { rects(window, height: 10).map { $0.bounds.size.width } }
+    later(after: 10) { model.width = 50 }
+    try await window.runUntil(timeout: .seconds(2)) { drawn() == [50] }
+    #expect(model.width == 50)
+}
+
+/// `HT-Y` items 1 and 3 — `runUntil`'s closing settle returns for a window an
+/// approved termination closed with a frame owed. Mutation: `isDirtyAndOpen`
+/// without `&& !platformWindow.isClosed` (the settle throws `.notIdle`).
+@Test @MainActor func runUntilReturnsWhenAnApprovedTerminationClosesTheWindow() async throws {
+    let model = SettleModel()
+    let window = try harnessWindow {
+        VStack(spacing: 0) { Box().frame(width: Pixels(model.width), height: Pixels(10)).background(.accent) }
+    }
+    let app = window.testApp.app
+    app.onTerminateRequest = { .later }
+    #expect(window.testApp.platform.simulateTerminateRequest() == .later)
+    later(after: 5) {
+        model.width = 50
+        app.replyToTerminateRequest(true)
+    }
+    try await window.runUntil { window.testApp.platform.terminateReplies == [true] }
+    #expect(window.platformWindow.isClosed)
+    #expect(window.window.needsRedraw, "the frame is owed and never drawn")
 }
 
 /// `HT-Y` item 2 — a condition that never holds throws `.timedOut(after:)`

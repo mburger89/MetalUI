@@ -748,13 +748,33 @@ window does not refill; treating the closed window as having no frame to draw is
 A round-bounded `runUntil` would reintroduce the load dependence (the off-actor work takes an
 unknown number of yields); a real-time bound is the only one a busy machine cannot trip early.
 
-**Mutations** (branch `fix/run-until-idle-load`, on `e719fb0a`'s spelling, `HarnessSettleTests`):
-`isDirtyAndOpen` without `&& !platformWindow.isClosed` → reddens
-`runUntilIdleReturnsWhenAnApprovedTerminationClosesTheWindowMidSettle` and
-`runUntilIdleTreatsAClosedDirtyWindowAsIdle`; `runUntil` without `await Task.yield()` → reddens
-`runUntilWaitsForLateWorkAndDrawsIt` (times out at 10 s); `runUntil` without its draw, and with the
-condition read before the draw → each reddens `runUntilWaitsForLateWorkAndDrawsIt`; the deadline arm
-`return` instead of `throw` → reddens `runUntilThrowsTimedOutWhenTheConditionNeverHolds`.
+3. **`runUntil` settles with `runUntilIdle()` once the condition holds** (added after Linux CI,
+   PR #158, job "Root package (Linux)", Swift 6.4 noble: `runUntilWaitsForLateWorkAndDrawsIt` read
+   the box 10 wide, not 50). A condition about the model can hold before the window knows it is
+   dirty: when the write's invalidation is an observation hop (`Window.markDirtyFromObservation`'s
+   off-main arm, which Linux takes for a main-actor write too, "the observation hop is asynchronous
+   off macOS"), the hop is queued behind `runUntil`'s next turn, so "draw, then read the condition"
+   returned with the frame undrawn. Reproduced on macOS by writing from another thread while the main
+   actor waits (`runUntilDrawsAWriteWhoseInvalidationHops`): red 3 of 3 on the item-2 spelling, green
+   after. The settle is bounded by its own 64 rounds, not by `timeout`; a closed window is clean to
+   it (item 1), so `runUntil` still returns when an approved termination closes the window.
+
+**Mutations** (branch `fix/run-until-idle-load`; the item-3 spelling, `HarnessSettleTests`; the item-2
+spelling's table at `e719fb0a` is superseded):
+- `isDirtyAndOpen` without `&& !platformWindow.isClosed` → reddens
+  `runUntilIdleReturnsWhenAnApprovedTerminationClosesTheWindowMidSettle`,
+  `runUntilIdleTreatsAClosedDirtyWindowAsIdle`, `runUntilReturnsWhenAnApprovedTerminationClosesTheWindow`.
+- `runUntil` without `await Task.yield()` → reddens `runUntilWaitsForLateWorkAndDrawsIt`,
+  `runUntilDrawsAWriteWhoseInvalidationHops`, `runUntilDrawsWhileItWaitsForADrawnCondition`,
+  `runUntilReturnsWhenAnApprovedTerminationClosesTheWindow` (each times out).
+- `runUntil` without its per-round draw → reddens `runUntilDrawsWhileItWaitsForADrawnCondition`
+  (only a condition about the drawn window can see it now: the closing settle draws a model write).
+- `runUntil` without its closing `runUntilIdle()` → reddens `runUntilDrawsAWriteWhoseInvalidationHops`.
+- The deadline arm `return` instead of `throw` → reddens `runUntilThrowsTimedOutWhenTheConditionNeverHolds`.
+- **The condition read before the draw stays green: not observable.** With the closing settle, reading
+  first only finds a drawn condition one round later and a model condition's frame is drawn by the
+  settle; the item-2 table's row for it (reddening `runUntilWaitsForLateWorkAndDrawsIt`) no longer
+  holds. The order is kept as the cheaper one.
 
 **Cost if wrong.** A test that wanted `runUntilIdle()` to fail on a closed dirty window has no such
 signal; `platformWindow.isClosed` says it directly.

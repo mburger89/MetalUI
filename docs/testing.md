@@ -359,8 +359,9 @@ result, not only the model) in a bounded loop
 Work off the main actor — a detached task, another actor's method — is
 invisible to `runUntilIdle()`: its four quiet yields can come before that work
 hops back. Wait for its effect with `try await runUntil { … }`, which draws
-whenever the window is dirty and returns once the condition holds (read after
-the round's frame), throwing `.timedOut(after:)` past `timeout` (10 s by
+whenever the window is dirty and, once the condition holds, settles with
+`runUntilIdle()` so the write's frame is drawn even when its invalidation
+arrives a turn later; it throws `.timedOut(after:)` past `timeout` (10 s by
 default; real time, a failure bound only, `HT-Y`):
 
 ```swift

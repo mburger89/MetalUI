@@ -171,16 +171,21 @@ public final class TestWindow {
     private var isDirtyAndOpen: Bool { window.needsRedraw && !platformWindow.isClosed }
 
     /// Lets main-actor work run, drawing a frame whenever the window is dirty,
-    /// **until `condition` holds** — for work ``runUntilIdle()`` cannot see,
-    /// such as a detached task or another actor's that writes back later
-    /// (ruling `HT-Y` item 2). Each round draws first (when the window is
-    /// dirty and open), then reads `condition`, so a condition about the
-    /// window reads the frame its last write drew; then it yields. It never
-    /// moves ``now``.
+    /// **until `condition` holds**, then settles with ``runUntilIdle()`` — for
+    /// work ``runUntilIdle()`` cannot see, such as a detached task or another
+    /// actor's that writes back later (ruling `HT-Y` items 2 and 3). Each round
+    /// draws (when the window is dirty and open), reads `condition`, then
+    /// yields; it never moves ``now``. The closing settle draws the frame of a
+    /// write whose invalidation arrives a turn after the write — an
+    /// observation hop, as off Apple platforms or for a write made off the
+    /// main thread — so a test reads the drawn result on return.
     ///
-    /// `timeout` is the only wall-clock read in the harness and only bounds a
-    /// failure: past it, ``TestHarnessError/timedOut(after:)`` is thrown. A
-    /// slow machine waits longer; it does not fail sooner.
+    /// `timeout` bounds the wait for `condition`, in real time — the harness's
+    /// only wall-clock read, and only a failure bound: past it,
+    /// ``TestHarnessError/timedOut(after:)`` is thrown, so a slow machine
+    /// waits longer and never fails sooner. The closing settle is bounded by
+    /// its own 64 rounds (``TestHarnessError/notIdle(rounds:)``); a closed
+    /// window is clean to it.
     ///
     /// ```swift
     /// try window.respondToAlert(button: "Save")   // the save runs off the main actor
@@ -191,10 +196,11 @@ public final class TestWindow {
         let deadline = clock.now.advanced(by: timeout)
         while true {
             if isDirtyAndOpen { tick() }
-            if try condition() { return }
+            if try condition() { break }
             if clock.now >= deadline { throw TestHarnessError.timedOut(after: timeout) }
             await Task.yield()
         }
+        try await runUntilIdle()
     }
 
     /// Delivers one raw event through the platform window and draws nothing;
