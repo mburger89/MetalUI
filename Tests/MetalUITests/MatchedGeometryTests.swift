@@ -447,6 +447,23 @@ private struct HeroStage: Component, @MainActor Equatable {
     static func == (l: HeroStage, r: HeroStage) -> Bool { l.flag == r.flag && l.id == r.id }
 }
 
+/// A still pair in one occurrence: a source and a follower, both live, the follower drawn at the source's frame.
+private struct StillPair: Component, @MainActor Equatable {
+    let tag: Int
+    var content: some ElementGroup {
+        Column {
+            Stack(alignment: .topLeading) {
+                Box().frame(width: Pixels(100), height: Pixels(40))
+                tileA().matchedGeometryEffect(id: "pair", in: otherSpace)
+            }
+            Stack(alignment: .bottomTrailing) {
+                Box().frame(width: Pixels(100), height: Pixels(40))
+                tileB().matchedGeometryEffect(id: "pair", in: otherSpace, isSource: false)
+            }
+        }
+    }
+}
+
 /// **T-P.** Inside `.equatable()` occurrences, with a still sibling that the retained machinery skips while
 /// another flies: the flight runs, the still one is not mistaken for a leaver, and landing leaves nothing in
 /// flight. The `METALUI_VERIFY_RETAINED=1` oracle covers every frame (run the suite under it). Mutation
@@ -457,10 +474,27 @@ private struct HeroStage: Component, @MainActor Equatable {
         Row {
             HeroStage(flag: model.flag, id: "left").equatable()
             HeroStage(flag: false, id: "still").equatable()
+            StillPair(tag: 1).equatable()
         }
     }
+    var grafts = 0
+    var reasons: [String: Int] = [:]
+    window.testingOnFrameAdopted { work in
+        grafts += work.retained.grafts
+        for (k, v) in work.retained.ineligibleReasons { reasons[k, default: 0] += v }
+    }
+    func pairRects() -> [R] {
+        // The pair's tiles are the only 100 × 60 (follower) and 50 × 30 (source) accents sharing an origin.
+        let rects = window.lastScene.rects.filter { isAccent($0.background) }.map(R.init)
+        return rects.filter { r in rects.filter { $0.x == r.x && $0.y == r.y }.count == 2 }
+    }
     platform.simulateTick(timestamp: 100)
+    let first = pairRects()
     platform.simulateTick(timestamp: 100.05)
+    platform.simulateTick(timestamp: 100.06)
+    platform.simulateTick(timestamp: 100.07)
+    try #require(first.count == 2, "set up: the follower is drawn on the source's frame, \(first)")
+    #expect(pairRects() == first, "and stays there while its occurrence is retained: \(pairRects()) vs \(first)")
     try #require(window.animationStore.matched.liveCount == 0, "set up: nothing flies at rest")
     withAnimation(.linear(duration: 1)) { model.flag = true }
     platform.simulateTick(timestamp: 100.1)
@@ -469,4 +503,6 @@ private struct HeroStage: Component, @MainActor Equatable {
     platform.simulateTick(timestamp: 101.3)
     platform.simulateTick(timestamp: 101.4)
     #expect(window.animationStore.matched.liveCount == 0 && !window.hasActiveAnimations, "landed")
+    #expect(reasons["matchedGeometry", default: 0] > 0 && grafts == 0,
+            "an occurrence with a matched group is refused a graft by name: grafts \(grafts), reasons \(reasons)")
 }
