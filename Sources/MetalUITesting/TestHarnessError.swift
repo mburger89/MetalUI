@@ -23,6 +23,9 @@ public enum TestHarnessError: Error, CustomStringConvertible, Equatable {
     case disabledMenuItem([String])
     /// ``TestWindow/runUntilIdle()`` was still drawing after this many rounds.
     case notIdle(rounds: Int)
+    /// ``TestWindow/runUntil(timeout:_:)``'s condition did not hold within
+    /// this much real time (ruling `HT-Y` item 2).
+    case timedOut(after: Duration)
 
     /// A sentence naming what failed.
     public var description: String {
@@ -45,6 +48,8 @@ public enum TestHarnessError: Error, CustomStringConvertible, Equatable {
             "the menu item at \(path.joined(separator: " > ")) is disabled"
         case .notIdle(let rounds):
             "the window was still drawing after \(rounds) rounds"
+        case .timedOut(let after):
+            "the condition did not hold within \(after)"
         }
     }
 }
