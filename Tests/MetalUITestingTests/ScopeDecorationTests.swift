@@ -174,3 +174,36 @@ private let longText = "A long line of text that cannot fit in one hundred and t
     try window.click(window.element(identifier: "t"))
     #expect(log.entries == ["t"], "\(log.entries)")
 }
+
+/// ES-H. An identifier and a click written after `.coordinateSpace`, `.animation(_:value:)` and `.transaction`
+/// configure each scope's own layer: each is found by its identifier and clicks, in a stack and as the window's
+/// root. Mutation: the scopes' `handlers` setter drops the write (no element is found).
+@Test @MainActor func identifiersAndClicksAfterACoordinateSpaceAndATransactionLand() throws {
+    let log = HarnessLog()
+    let window = try harnessWindow {
+        VStack {
+            Box {}.frame(width: Pixels(60), height: Pixels(30)).coordinateSpace(.named("s"))
+                .accessibilityIdentifier("s").onClick { log.add("s") }
+            Box {}.frame(width: Pixels(60), height: Pixels(30)).animation(.default, value: 1)
+                .accessibilityIdentifier("a").onClick { log.add("a") }
+            Box {}.frame(width: Pixels(60), height: Pixels(30)).transaction { $0.animation = nil }
+                .accessibilityIdentifier("t").onClick { log.add("t") }
+        }
+    }
+    try window.click(window.element(identifier: "s"))
+    try window.click(window.element(identifier: "a"))
+    try window.click(window.element(identifier: "t"))
+    #expect(log.entries == ["s", "a", "t"], "\(log.entries)")
+
+    let root = try harnessWindow {
+        Box {}.frame(width: Pixels(60), height: Pixels(30)).coordinateSpace(.named("s"))
+            .accessibilityIdentifier("r").onClick { log.add("r") }
+    }
+    try root.click(root.element(identifier: "r"))
+    let rootA = try harnessWindow {
+        Box {}.frame(width: Pixels(60), height: Pixels(30)).animation(.default, value: 1)
+            .accessibilityIdentifier("ra").onClick { log.add("ra") }
+    }
+    try rootA.click(rootA.element(identifier: "ra"))
+    #expect(log.entries.suffix(2) == ["r", "ra"], "\(log.entries)")
+}

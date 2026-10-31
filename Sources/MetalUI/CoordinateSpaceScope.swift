@@ -89,70 +89,205 @@ extension Frame {
     }
 }
 
-/// A `CoordinateSpaceScope`'s layout: its content's and the content's nodes.
+/// A `CoordinateSpaceScope`'s layout: its content's and the content's nodes —
+/// or, for a scope with a decoration written after it (ruling `ES-H`), the
+/// layout of the one legacy layer that wraps the undecorated scope.
 public struct CoordinateSpaceScopeLayout<ContentLayout> {
-    var content: ContentLayout
+    var content: ContentLayout?
     var nodes: [LayoutNodeID]
+    var layered: Any?
 }
 
 /// `content` declaring a named coordinate space — what `coordinateSpace(_:)`
 /// returns (ruling `OV-E` item 1).
 ///
 /// **Transparent** like `GeometryChangeScope`: `parent` and `cursor` are
-/// forwarded, no node, no identity level, no `StateTable` slot. **A
-/// `Self`-returning decoration written after this scope does not compile**
-/// (divergence 120, `KF-V` item 1, ruling `ES-F`): write it first. Forwarding
-/// it was measured wrong: an `.offset(x: 7, y: 9)` forwarded onto the content
-/// opens inside the space, so a child reads (7, 9) in it, where SwiftUI's
-/// offset after `.coordinateSpace` moves the space with the view and the child
-/// reads (0, 0) (probe arm G3).
+/// forwarded, no node, no identity level, no `StateTable` slot.
+///
+/// **A `Self`-returning decoration written after it sits outside the space**
+/// (ruling `ES-H`, lifting `ES-F`): over a `StyledElement` the scope is a
+/// `StyledElement` whose accessors read and write one legacy layer of its own
+/// (`outer`, a `.padding(0)` layer), created by the first decoration written
+/// after it. A decorated scope lays out, prepaints and paints as
+/// `ModifiedElement<Self>` over the undecorated scope — exactly
+/// `.coordinateSpace(...).padding(0).offset(...)` — so the layer's render
+/// effects are open when the space is built and an `.offset(x: 7, y: 9)` after
+/// the scope moves the space with the view: a child reads (0, 0) in it, as
+/// SwiftUI's G3. Forwarding the decoration onto the content instead put it
+/// inside the space (the child read (7, 9), record 168). The layer is one node
+/// and one identity level, present whenever a decoration is written after the
+/// scope (a static property of the expression, so it never appears at run time).
 public struct CoordinateSpaceScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let name: AnyHashable
+    /// The legacy layer a decoration written after the scope configures; `nil`
+    /// until one is (ruling `ES-H`).
+    var outer: ModifierLayer?
 
     init(content: Content, name: AnyHashable) {
         self.content = content
         self.name = name
+        self.outer = nil
     }
 
-    /// Lays the content out with the caller's parent and cursor.
+    /// `body` run on the decorated form, `ModifiedElement<Self>` over this scope
+    /// without its layer, and what it changed written back (a layer stores its
+    /// animated style in layout, which later phases read).
+    private mutating func withLayer<R>(_ body: (inout ModifiedElement<Self>) -> R) -> R {
+        var bare = self
+        bare.outer = nil
+        var layered = ModifiedElement(content: bare, layer: outer ?? ModifierLayer(style: Style()))
+        defer {
+            content = layered.content.content
+            outer = layered.outermost
+        }
+        return body(&layered)
+    }
+
+    /// Lays the content out with the caller's parent and cursor; a decorated
+    /// scope lays out as its layer over the undecorated scope (`ES-H`).
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], CoordinateSpaceScopeLayout<Content.GroupLayout>) {
+        if outer != nil {
+            let (nodes, layout) = withLayer { $0.requestGroupLayout(under: parent, at: &cursor, pass: &pass) }
+            return (nodes, CoordinateSpaceScopeLayout(content: nil, nodes: nodes, layered: layout))
+        }
         let (nodes, layout) = content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
-        return (nodes, CoordinateSpaceScopeLayout(content: layout, nodes: nodes))
+        return (nodes, CoordinateSpaceScopeLayout(content: layout, nodes: nodes, layered: nil))
     }
 
     /// Prepaints the content with this space the innermost named space
-    /// (`OV-E` item 2); content that registered nothing declares nothing.
+    /// (`OV-E` item 2); content that registered nothing declares nothing. A
+    /// decorated scope's layer registers first, so its effects are open when the
+    /// space is built (`ES-H`).
     public mutating func prepaintGroup(layout: inout CoordinateSpaceScopeLayout<Content.GroupLayout>,
                                        pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        if var layered = layout.layered as? SingleElementLayout<ModifiedElement<Self>> {
+            defer { layout.layered = layered }
+            return withLayer { $0.prepaintGroup(layout: &layered, pass: &pass) }
+        }
         guard let space = pass.frame.localSpace(of: layout.nodes, name: name) else {
-            return content.prepaintGroup(layout: &layout.content, pass: &pass)
+            return content.prepaintGroup(layout: &layout.content!, pass: &pass)
         }
         return pass.frame.withNamedSpace(space) {
-            content.prepaintGroup(layout: &layout.content, pass: &pass)
+            content.prepaintGroup(layout: &layout.content!, pass: &pass)
         }
     }
 
-    /// Paints the content unchanged.
+    /// Paints the content unchanged; a decorated scope's layer paints around it.
     public mutating func paintGroup(layout: inout CoordinateSpaceScopeLayout<Content.GroupLayout>,
                                     prepaint: inout Content.GroupPrepaint,
                                     pass: inout PaintPass) {
-        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        if var layered = layout.layered as? SingleElementLayout<ModifiedElement<Self>> {
+            defer { layout.layered = layered }
+            withLayer { $0.paintGroup(layout: &layered, prepaint: &prepaint, pass: &pass) }
+            return
+        }
+        content.paintGroup(layout: &layout.content!, prepaint: &prepaint, pass: &pass)
     }
 }
 
 extension CoordinateSpaceScope: ProposalElementGroup where Content: ProposalElementGroup {
     /// The typed entry: a line-for-line copy of the untyped one, pinned on its
-    /// own (test A8).
+    /// own (test A8). A decoration can be written after the scope only over a
+    /// `StyledElement`, which is never proposal content, so a decorated scope
+    /// takes the untyped entry's layer path (`ES-H`).
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], CoordinateSpaceScopeLayout<Content.GroupLayout>) {
+        if outer != nil {
+            let (nodes, layout) = requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+            return (nodes.map(ProposalNodeID.init), layout)
+        }
         let (nodes, layout) = content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
-        return (nodes, CoordinateSpaceScopeLayout(content: layout, nodes: nodes.map(\.layoutNodeID)))
+        return (nodes, CoordinateSpaceScopeLayout(content: layout, nodes: nodes.map(\.layoutNodeID), layered: nil))
+    }
+}
+
+// MARK: - Decorations after the scope sit outside the space (`ES-H`)
+
+/// `ES-H`: the scope over an element is an element (a window root, `Deferred` content, a `List` row) — the space
+/// built from the element's own bounds around its content's prepaint — and over a `StyledElement` a
+/// `StyledElement` whose accessors configure the scope's own layer, outside the space. A decorated scope on this
+/// path is its layer as an element over the undecorated scope as that layer's content.
+extension CoordinateSpaceScope: Element where Content: Element {
+    public typealias LayoutState = ScopeLayerState<Content.LayoutState>
+    public typealias PrepaintState = ScopeLayerState<Content.PrepaintState>
+
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, ScopeLayerState<Content.LayoutState>) {
+        if outer != nil {
+            let (node, layout) = withLayer { $0.requestLayout(id, pass: &pass) }
+            return (node, ScopeLayerState(plain: nil, layered: layout))
+        }
+        let (node, state) = content.requestLayout(id, pass: &pass)
+        return (node, ScopeLayerState(plain: state, layered: nil))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout ScopeLayerState<Content.LayoutState>,
+                                  pass: inout PrepaintPass) -> ScopeLayerState<Content.PrepaintState> {
+        if var layered = layout.layered as? ModifiedElement<Self>.Layout {
+            defer { layout.layered = layered }
+            let inner = withLayer { $0.prepaint(id, bounds: bounds, layout: &layered, pass: &pass) }
+            return ScopeLayerState(plain: nil, layered: inner)
+        }
+        let space = pass.frame.localSpace(of: bounds, name: name)
+        let state = pass.frame.withNamedSpace(space) {
+            content.prepaint(id, bounds: bounds, layout: &layout.plain!, pass: &pass)
+        }
+        return ScopeLayerState(plain: state, layered: nil)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout ScopeLayerState<Content.LayoutState>,
+                               prepaint: inout ScopeLayerState<Content.PrepaintState>, pass: inout PaintPass) {
+        if var layered = layout.layered as? ModifiedElement<Self>.Layout,
+           var inner = prepaint.layered as? Content.GroupPrepaint {
+            defer { layout.layered = layered; prepaint.layered = inner }
+            withLayer { $0.paint(id, bounds: bounds, layout: &layered, prepaint: &inner, pass: &pass) }
+            return
+        }
+        content.paint(id, bounds: bounds, layout: &layout.plain!, prepaint: &prepaint.plain!, pass: &pass)
+    }
+}
+
+extension CoordinateSpaceScope: StyledElement where Content: StyledElement {
+    public var style: Style {
+        get { outer?.style ?? Style() }
+        set { configureLayer { $0.style = newValue } }
+    }
+    public var decoration: Decoration {
+        get { outer?.decoration ?? Decoration() }
+        set { configureLayer { $0.decoration = newValue } }
+    }
+    public var elementID: ElementID? {
+        get { outer?.elementID }
+        set { configureLayer { $0.elementID = newValue } }
+    }
+    public var handlers: Handlers {
+        get { outer?.handlers ?? Handlers() }
+        set { configureLayer { $0.handlers = newValue } }
+    }
+}
+
+extension CoordinateSpaceScope {
+    /// Writes the scope's own layer, creating it (a `.padding(0)` layer) on the
+    /// first decoration written after the scope (`ES-H`).
+    mutating func configureLayer(_ change: (inout ModifierLayer) -> Void) {
+        var layer = outer ?? ModifierLayer(style: Style())
+        change(&layer)
+        outer = layer
+    }
+
+    /// Names the scope **together with** its content and layer (ruling `ES-C`,
+    /// carried by `ES-H`): this member wins over `StyledElement`'s own
+    /// `id(_:) -> Self`, which would name the layer only.
+    public func id(_ name: String) -> IdentifiedGroup<Self> {
+        IdentifiedGroup(content: self, name: ElementID(name))
     }
 }
 
