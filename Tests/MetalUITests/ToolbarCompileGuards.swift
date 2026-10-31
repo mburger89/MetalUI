@@ -171,33 +171,20 @@ func setToolbarHasNoDefault() throws {
     #expect(without.messages.contains("setToolbar"), "refused FOR setToolbar:\n\(without.output)")
 }
 
-/// **3.17** (`MD-S` item 3, divergence 120 amended). A `.toolbar` cannot be a
-/// window's root — `ToolbarScope` is an `ElementGroup`, not an `Element` —
-/// and inside a container it compiles (the spelling divergence 120 names).
+/// **3.17** (`MD-S` item 3; the window-root restriction retired by `ES-A`). A `.toolbar` on
+/// an element is itself an `Element`, so it can be a window's root, and a decoration may
+/// follow it.
 ///
-/// Mutation **M3.17**: `ToolbarScope` given a conditional `Element`
-/// conformance (the negative compiles).
+/// Mutation **M3.17** (`ES-A`): delete `extension ToolbarScope: Element` (the root is refused for `Element`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), metalUISkipReason))
-func aToolbarOnAWindowRootNeedsAContainer() throws {
-    let positive = try typecheckFile("""
+func aToolbarOnAnElementCanBeAWindowRootAndTakeDecorations() throws {
+    let root = try typecheckFile("""
         @MainActor func open(_ app: App) throws {
             _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
-                Column { Text("x").toolbar { ToolbarItem { Button("b") {} } } }
+                Text("x").toolbar { ToolbarItem { Button("b") {} } }.padding(4)
             }
         }
         """, importing: "MetalUI")
-    let negative = try typecheckFile("""
-        @MainActor func open(_ app: App) throws {
-            _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
-                Text("x").toolbar { ToolbarItem { Button("b") {} } }
-            }
-        }
-        """, importing: "MetalUI")
-    print("""
-        MD-S window root: positive succeeded=\(positive.succeeded); negative \
-        succeeded=\(negative.succeeded) messages=[\(negative.messages)]
-        """)
-    try #require(positive.succeeded && !negative.succeeded,
-                 "inside a container must compile and as the root must not:\n\(positive.output)\n\(negative.output)")
-    #expect(negative.messages.contains("Element"), "refused for Element conformance:\n\(negative.output)")
+    print("MD-S window root: succeeded=\(root.succeeded) messages=[\(root.messages)]")
+    #expect(root.succeeded, "\(root.output)")
 }

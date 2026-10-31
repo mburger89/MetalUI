@@ -120,8 +120,9 @@ extension Frame {
 ///
 /// **Transparent** like `LifecycleScope`: `parent` and `cursor` are forwarded,
 /// no node, no `StateTable` slot. **A `Self`-returning decoration written
-/// after this scope does not compile** (divergence 120, `KF-V` item 1): write
-/// it first.
+/// after this scope does not compile** (`KF-V` item 1, `ES-B`; the one scope
+/// divergence 120 still covers): it measures its content, and a decoration
+/// forwarded inside it would change what it measures. Write it first.
 public struct GeometryChangeScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let watch: GeometryWatch

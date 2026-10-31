@@ -90,78 +90,46 @@ func aNonEquatableOnChangeValueDoesNotCompile() throws {
             "the negative must be refused for Equatable:\n\(negative.output)")
 }
 
-/// **9.3** (`LC-B` item 4, divergence 120). A legacy `Self`-returning
-/// decoration written after a lifecycle modifier does not compile —
-/// `Text("a").onAppear {}.onClick {}`; written first it does (the positive
-/// control).
+/// **9.3** (`LC-B` item 4, divergence 120 retired for this scope by `ES-A`). A legacy
+/// `Self`-returning decoration written after a lifecycle modifier compiles, on both
+/// sides of the modifier: `Text("a").onAppear {}.onClick {}`.
 ///
-/// Mutation **MG9.3**: move `.onClick` before `.onAppear` in the negative
-/// fixture (it compiles).
+/// Mutation **MG9.3** (`ES-A`): delete `extension LifecycleScope: StyledElement` (the
+/// "after" fixture is refused for `onClick`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aLegacyDecorationAfterALifecycleModifierDoesNotCompile() throws {
-    let positive = try typecheckFile("""
+func aLegacyDecorationAfterALifecycleModifierCompiles() throws {
+    let before = try typecheckFile("""
         @MainActor func tree() -> some Element {
             Column { Text("a").onClick {}.onAppear {} }
         }
         """, importing: "MetalUI")
-    let negative = try typecheckFile("""
+    let after = try typecheckFile("""
         @MainActor func tree() -> some Element {
-            Column { Text("a").onAppear {}.onClick {} }
+            Column { Text("a").onAppear {}.onClick {}.padding(4).accessibilityIdentifier("a") }
         }
         """, importing: "MetalUI")
     print("""
-        LC-B decoration order: positive succeeded=\(positive.succeeded); negative \
-        succeeded=\(negative.succeeded) messages=[\(negative.messages)]
+        LC-B decoration order: before succeeded=\(before.succeeded); after \
+        succeeded=\(after.succeeded) messages=[\(after.messages)]
         """)
-    try #require(positive.succeeded && !negative.succeeded,
-                 """
-                 a decoration before the modifier must compile and one after it must not, \
-                 or this guard cannot fail:
-                 positive:
-                 \(positive.output)
-                 negative:
-                 \(negative.output)
-                 """)
-    #expect(negative.messages.contains("onClick"),
-            "the negative must be refused for onClick:\n\(negative.output)")
+    #expect(before.succeeded, "\(before.output)")
+    #expect(after.succeeded, "a decoration after the modifier must compile (ES-A):\n\(after.output)")
 }
 
-/// **9.4** (`LC-B` item 4, divergence 120, `LC-S` item 7). A lifecycle
-/// modifier cannot be a window's root: `App.openWindow` takes an `Element`
-/// and `LifecycleScope` is an `ElementGroup`. Wrapping the root in a container
-/// compiles (the positive control, the spelling divergence 120 names).
+/// **9.4** (`LC-B` item 4, `LC-S` item 7; the window-root restriction retired for
+/// this scope by `ES-A`). A lifecycle modifier on an element is itself an `Element`, so it
+/// can be a window's root.
 ///
-/// Mutation **MG9.4**: wrap the negative fixture's root in `Column { }` (it
-/// compiles).
+/// Mutation **MG9.4** (`ES-A`): delete `extension LifecycleScope: Element` (the root is refused for `Element`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aLifecycleModifierOnAWindowRootNeedsAContainer() throws {
-    let positive = try typecheckFile("""
-        @MainActor func open(_ app: App) throws {
-            _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
-                Column { Text("a").onAppear {} }
-            }
-        }
-        """, importing: "MetalUI")
-    let negative = try typecheckFile("""
+func aLifecycleModifierCanBeAWindowRoot() throws {
+    let root = try typecheckFile("""
         @MainActor func open(_ app: App) throws {
             _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
                 Text("a").onAppear {}
             }
         }
         """, importing: "MetalUI")
-    print("""
-        LC-B window root: positive succeeded=\(positive.succeeded); negative \
-        succeeded=\(negative.succeeded) messages=[\(negative.messages)]
-        """)
-    try #require(positive.succeeded && !negative.succeeded,
-                 """
-                 a lifecycle modifier inside a container root must compile and one as the root \
-                 must not, or this guard cannot fail:
-                 positive:
-                 \(positive.output)
-                 negative:
-                 \(negative.output)
-                 """)
-    #expect(negative.messages.contains("Element"),
-            "the negative must be refused for Element conformance:\n\(negative.output)")
+    print("LC-B window root: succeeded=\(root.succeeded) messages=[\(root.messages)]")
+    #expect(root.succeeded, "\(root.output)")
 }

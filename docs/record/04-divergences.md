@@ -2759,3 +2759,10 @@ the mutations are in `docs/superpowers/2026-10-30-split-view-decisions.md`.
 
 **New: 208** (SwiftUI's system-default padding spellings and `leading`/`trailing`: `padding(_ edges: Edge.Set, _ length: Pixels)`, `padding(_: EdgeInsets)` and the rest take an explicit length; the default-amount spellings `padding()` and `padding(.horizontal)` do not compile, they are not guessed;
 `DX-B`; pins `theSystemDefaultPaddingSpellingsStayAbsent`, `leadingPaddingPushesTheContentRightOnAStack`). Label 207 was never published and is unused. The mechanism and the mutations are in `docs/superpowers/2026-10-30-dashboard-text-timeline-decisions.md`.
+
+## 2026-10-31: 120 narrowed (scope decorations, `ES-`)
+
+**Amended: 120** (178 live, unchanged; next label unchanged). A scope over an `Element` is now an `Element`, and over a `StyledElement` a `StyledElement` forwarding `style`, `decoration`, `elementID`
+and `handlers` to its content: `Text("x").lineLimit(1).accessibilityIdentifier("x")`, `.disabled(true).accessibilityIdentifier(…)`, `.onAppear {}.onClick {}` and the rest now compile, and the scopes can be a
+window's root (`AS-N`'s and `MD-S`'s restriction ends). The row survives for `.onGeometryChange` alone (`ES-B`). Mechanism, mutations and the carried items are in
+`docs/superpowers/2026-10-31-scope-decorations-decisions.md`.

@@ -48,8 +48,9 @@ public struct LifecycleScopeLayout<ContentLayout> {
 /// zero-sized or clipped-out element is present; an empty `ForEach` is not;
 /// a `List` row out of its window is not (`LC-C`, `LC-P` item 1).
 ///
-/// **A `Self`-returning decoration written after this scope does not compile**
-/// (`Text("a").onAppear {}.onClick {}`; divergence 120): write it first.
+/// **A `Self`-returning decoration written after this scope over a `StyledElement`
+/// compiles and lands on the content** (`Text("a").onAppear {}.onClick {}`, ruling
+/// `ES-A`, divergence 120 retired); over other groups it still does not.
 public struct LifecycleScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let write: LifecycleWrite?
@@ -123,7 +124,12 @@ extension Frame {
     /// `noteNamed`). The owner, which the action is dispatched to, is the
     /// position.
     func noteLifecycle(_ write: LifecycleWrite?, order: Int, under parent: GlobalElementID?, at cursor: Int) {
-        let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
+        noteLifecycle(write, order: order, owner: GlobalElementID.child(of: parent, at: cursor, name: nil))
+    }
+
+    /// The same, with the owner given: the `Element` path of a decorated
+    /// scope (`ES-A`) owns its entry by the element's own id.
+    func noteLifecycle(_ write: LifecycleWrite?, order: Int, owner: GlobalElementID) {
         let scope = GlobalElementID.child(of: owner, at: 0, name: ElementID("$lifecycle\(lifecycleDepth)"))
         animationStore.lifecycle.note(write, scope: scope, owner: owner, order: order)
     }
@@ -726,5 +732,61 @@ extension ElementGroup {
             value: value, isEqual: { ($0 as? V) == value },
             action: { _, _ in action() },
             initial: initial))
+    }
+}
+
+/// ES-A: the scope is an element when its content is, forwarding every
+/// requirement to the content, so a decoration written after it lands on the
+/// content inside the scope.
+extension LifecycleScope: Element where Content: Element {
+    public typealias LayoutState = Content.LayoutState
+    public typealias PrepaintState = Content.PrepaintState
+
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Content.LayoutState) {
+        let order = pass.frame.reserveLifecycleOrder()
+        let result = pass.frame.withLifecycleScope { content.requestLayout(id, pass: &pass) }
+        pass.frame.noteLifecycle(write, order: order, owner: id)
+        return result
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Content.LayoutState, pass: inout PrepaintPass) -> Content.PrepaintState {
+        content.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Content.LayoutState, prepaint: inout Content.PrepaintState,
+                               pass: inout PaintPass) {
+        content.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+extension LifecycleScope: StyledElement where Content: StyledElement {
+    public var style: Style {
+        get { content.style }
+        set { content.style = newValue }
+    }
+    public var decoration: Decoration {
+        get { content.decoration }
+        set { content.decoration = newValue }
+    }
+    public var elementID: ElementID? {
+        get { content.elementID }
+        set { content.elementID = newValue }
+    }
+    public var handlers: Handlers {
+        get { content.handlers }
+        set { content.handlers = newValue }
+    }
+}
+
+extension LifecycleScope {
+    /// Names the scope **together with** its content, not the content inside it (ruling `ES-C`).
+    /// A `StyledElement` keeps its own `id(_:) -> Self`; forwarding that through the scope would name the
+    /// content under the scope's position-keyed entry, so a changed id would no longer be a new element
+    /// to it. This member is the `ElementGroup` spelling, and it wins over the protocol extension's.
+    public func id(_ name: String) -> IdentifiedGroup<Self> {
+        IdentifiedGroup(content: self, name: ElementID(name))
     }
 }
