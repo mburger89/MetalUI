@@ -58,6 +58,10 @@ public final class ServicesDemoModel {
     public var outcome = "No file chosen yet."
     /// Whether the importer is shown.
     public var importing = false
+    /// Whether the folder importer (`[.folder]`, human check FO1/FO3) is shown.
+    public var importingFolder = false
+    /// Whether the folder-or-JSON importer (`[.folder, .json]`, FO2/FO3) is shown.
+    public var importingFolderOrJSON = false
     /// Whether the exporter is shown.
     public var exporting = false
     /// Whether the delete alert is shown.
@@ -76,6 +80,8 @@ public final class ServicesDemoModel {
     public func reset() {
         outcome = "No file chosen yet."
         importing = false
+        importingFolder = false
+        importingFolderOrJSON = false
         exporting = false
         confirmingDelete = false
         hovered = [false, false, false]
@@ -130,6 +136,7 @@ func servicesDialogsSection() -> some ElementGroup { ServicesPart { servicesDial
 
 @MainActor
 func servicesDialogsSectionBody() -> some Element {
+    Column(gap: Pixels(12)) {
     Row(gap: Pixels(12)) {
         Button("Import…") { servicesDemoModel.importing = true }
             .fileImporter(isPresented: Binding(get: { servicesDemoModel.importing },
@@ -153,6 +160,27 @@ func servicesDialogsSectionBody() -> some Element {
                           },
                           onCancellation: { servicesDemoModel.outcome = "Export cancelled" })
         ServicesAsyncOpen()
+    }
+    Row(gap: Pixels(12)) {
+        Button("Import folder…") { servicesDemoModel.importingFolder = true }
+            .fileImporter(isPresented: Binding(get: { servicesDemoModel.importingFolder },
+                                               set: { servicesDemoModel.importingFolder = $0 }),
+                          allowedContentTypes: [.folder], allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls): servicesDemoModel.outcome = "Imported folder \(urls.map(\.lastPathComponent))"
+                case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
+                }
+            }
+        Button("Import folder or JSON…") { servicesDemoModel.importingFolderOrJSON = true }
+            .fileImporter(isPresented: Binding(get: { servicesDemoModel.importingFolderOrJSON },
+                                               set: { servicesDemoModel.importingFolderOrJSON = $0 }),
+                          allowedContentTypes: [.folder, .json], allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls): servicesDemoModel.outcome = "Imported \(urls.map(\.lastPathComponent))"
+                case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
+                }
+            }
+    }
     }
 }
 
