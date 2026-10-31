@@ -4,9 +4,9 @@ import Foundation
 // `docs/superpowers/specs/2026-10-08-app-shell-design.md` §1.2). Each is an
 // `EnvironmentScope` — layout- and identity-transparent, proposal content
 // keeping its type — whose write changes no value and reports to the frame
-// after its content builds. Like `.preferredColorScheme`, a legacy decoration
-// directly after one does not compile (`EV-B`), and none can be a window's
-// root: write it inside the root's first container (divergence 120, `AS-N`).
+// after its content builds. Since `ES-A` a legacy decoration after one lands on
+// its content and one over an element can be a window's root, setting the
+// window title (`AS-N`'s restriction and divergence 120 retired).
 
 extension ElementGroup {
     /// The window's title while this content is present — SwiftUI's

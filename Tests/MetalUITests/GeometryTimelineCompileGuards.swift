@@ -21,9 +21,9 @@ private let skipReason: Comment =
 /// `@Sendable` transform would refuse it) and an explicit `@Sendable`
 /// transform over a `Sendable` `T` (SwiftUI's spelling); the `KF-T` arms —
 /// `TimelineView<PeriodicTimelineSchedule, ProposalText>.Context` and a custom
-/// schedule spelling `mode: Mode`. Two must-not-compile arms: a
-/// non-`Equatable` `T`, and `.padding(4)` written AFTER `.onGeometryChange` on
-/// a `Box` (divergence 120).
+/// schedule spelling `mode: Mode`; `.padding(4)` written AFTER `.onGeometryChange`
+/// on a `Box` (a must-not-compile arm until `ES-J` retired divergence 120). One
+/// must-not-compile arm: a non-`Equatable` `T`.
 ///
 /// Mutation **MG-B1**: mark the transform `@Sendable` in both
 /// `onGeometryChange` overloads (the non-`Sendable` capture fails, so the
@@ -48,6 +48,7 @@ func onGeometryChangeAndTimelineViewCompileOnBothVocabularies() throws {
                         _ = (old, new)
                     }
                 Box {}.padding(4).onGeometryChange(for: Float.self, of: { _ in v.scale }) { _ in }
+                Box {}.onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }.padding(4)
                 TimelineView(.animation) { context in ProposalText("\\(context.date)") }
             }
         }
@@ -75,28 +76,19 @@ func onGeometryChangeAndTimelineViewCompileOnBothVocabularies() throws {
             Column { Text("a").onGeometryChange(for: Token.self, of: { _ in Token(n: 1) }) { _ in } }
         }
         """, importing: "MetalUI")
-    let decorationAfter = try typecheckFile("""
-        @MainActor func tree() -> some Element {
-            Column { Box {}.onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }.padding(4) }
-        }
-        """, importing: "MetalUI")
     print("""
         KF geometry/timeline spellings: positive succeeded=\(positive.succeeded) messages=[\(positive.messages)]; \
-        non-Equatable succeeded=\(nonEquatable.succeeded) messages=[\(nonEquatable.messages)]; \
-        decoration after succeeded=\(decorationAfter.succeeded) messages=[\(decorationAfter.messages)]
+        non-Equatable succeeded=\(nonEquatable.succeeded) messages=[\(nonEquatable.messages)]
         """)
-    try #require(positive.succeeded && !nonEquatable.succeeded && !decorationAfter.succeeded,
+    try #require(positive.succeeded && !nonEquatable.succeeded,
                  """
-                 every spelling must compile and both separating arms must not, or this guard cannot fail:
+                 every spelling must compile and the separating arm must not, or this guard cannot fail:
                  positive:
                  \(positive.output)
                  non-Equatable:
                  \(nonEquatable.output)
-                 decoration after:
-                 \(decorationAfter.output)
                  """)
     #expect(nonEquatable.messages.contains("Equatable"), "\(nonEquatable.output)")
-    #expect(decorationAfter.messages.contains("padding"), "\(decorationAfter.output)")
 }
 
 /// **Guard B-G2** (`KF-L`, `PE-B`). A `TimelineView` inside an `HStack` keeps

@@ -42,26 +42,34 @@ func decorationsChainAfterTransparentScopes() throws {
     #expect(result.succeeded, "\(result.output)")
 }
 
-/// **ES-A.2** `.onGeometryChange` is the one scope that does NOT chain: it measures its content,
-/// and a decoration forwarded inside it would change what it measures (a `.padding(4)` after
-/// SwiftUI's `.onGeometryChange` is outside the measured size). Before it compiles (the control).
+/// **ES-J** (lifting `ES-B`, formerly ES-A.2's negative) What an app writes after `.onGeometryChange`: `.padding`,
+/// `.offset`, `.background`, `.accessibilityIdentifier` and `.onClick`, one as a window root, and `.id` still typed
+/// `IdentifiedGroup` (`ES-C`; unannotated first, MES-4). The decoration configures the scope's own layer, outside
+/// the measurement (record 172's pins).
 ///
-/// Mutation **MES-2**: add `extension GeometryChangeScope: StyledElement` (the negative compiles).
+/// Mutation **MES-10**: make `extension GeometryChangeScope: StyledElement` a plain extension (refused);
+/// **MES-11**: delete `GeometryChangeScope.id(_:) -> IdentifiedGroup<Self>` (the `IdentifiedGroup` assignment is
+/// refused).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aDecorationAfterOnGeometryChangeStillDoesNotCompile() throws {
-    let control = try typecheckFile("""
+func decorationsChainAfterOnGeometryChange() throws {
+    let result = try typecheckFile("""
         @MainActor func tree() -> some Element {
-            Column { Box {}.padding(4).onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in } }
+            Column {
+                Box {}.onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }.padding(4)
+                Text("x").onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }
+                    .offset(x: 10).background(Color(.surface)).accessibilityIdentifier("g").onClick {}
+            }
+        }
+        @MainActor func root() -> some Element {
+            Text("r").onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }.accessibilityIdentifier("r")
+        }
+        @MainActor func ids() {
+            let g = Text("x").onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }.id("k")
+            let _: IdentifiedGroup<GeometryChangeScope<Text>> = g
         }
         """, importing: "MetalUI")
-    let negative = try typecheckFile("""
-        @MainActor func tree() -> some Element {
-            Column { Box {}.onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }.padding(4) }
-        }
-        """, importing: "MetalUI")
-    print("ES-A geometry: control succeeded=\(control.succeeded); negative succeeded=\(negative.succeeded) messages=[\(negative.messages)]")
-    try #require(control.succeeded && !negative.succeeded, "\(control.output)\n\(negative.output)")
-    #expect(negative.messages.contains("padding"), "\(negative.output)")
+    print("ES-J app spellings: succeeded=\(result.succeeded) messages=[\(result.messages)]")
+    #expect(result.succeeded, "\(result.output)")
 }
 
 /// **ES-D / ES-E** What an app writes after the remaining scopes that forward: `.onModifierKeysChanged`,
