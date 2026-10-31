@@ -1994,3 +1994,11 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **WA2.** Minimise the window to the Dock, then trigger the same call: the window de-miniaturises and comes forward, key. **Observed:**
 - [ ] **WA3.** With two MetalUI windows, call `makeKeyAndOrderFront()` on the rear one: it comes in front of the other and becomes key. **Observed:**
 - [ ] **WA4.** (Linux/Windows, SDL) The same call raises the window and restores a minimised one; the window manager may only flash the taskbar entry when it denies focus stealing. **Observed:**
+
+## FO. Folder importer - `.fileImporter(…allowedContentTypes: [.folder])` (MetalFlow "Add repo"; ruling `SV-AM`, record 170; provisional letter)
+
+*An agent cannot: `NSOpenPanel` does not initialise under a locked screen, and SDL's folder dialog needs a desktop portal; only the configuration (`openPanelConfiguration`, `dialogMode`) and the harness flow were measured.*
+
+- [ ] **FO1.** macOS: a `.fileImporter` over `[.folder]` opens a sheet in which ordinary folders are enabled and files greyed out; choosing a git repository folder (and pressing Open while inside it) completes with that folder's URL. **Observed:**
+- [ ] **FO2.** macOS: over `[.folder, .json]` both a folder and a `.json` file can be chosen. **Observed:**
+- [ ] **FO3.** Linux (GTK portal or zenity) and Windows: over `[.folder]` the platform's folder picker opens and returns the folder; over `[.folder, .json]` the file dialog opens (files only, divergence 209). **Observed:**

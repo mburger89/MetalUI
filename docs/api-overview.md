@@ -844,7 +844,13 @@ cancel; `FileDialogError` `.noWindow`, `.unavailable`, `.busy`, `.platform`;
 a cancelled task dismisses), `@MainActor`, holding its window weakly — read
 `@Environment(\.fileDialogs)` (get-only outside MetalUI, stamped by the window)
 or `Window.fileDialogs` from a menu command. `ContentType(_:conformingTo:filenameExtensions:)`,
-`preferredFilenameExtension` and `ContentType.json` (D, 129).
+`preferredFilenameExtension` and `ContentType.json` (D, 129). **Folders**
+(`SV-AM`, record 170): `ContentType.folder` and `.directory` (UTType's);
+`allowedContentTypes: [.folder]` chooses a folder and completes with a
+directory URL; beside a file type it chooses both on AppKit, files only on
+Linux and Windows (D, 209). The seam reads it as
+`PlatformFileDialog.canChooseDirectories`/`canChooseFiles` (M), which a
+`MetalUITesting` test reads off `presentedFileDialog`.
 
 **Alerts** (`SV-I`, `SV-X`, `SV-Y`; probes `swiftui-platform-services.swift`
 `A1`–`A9`, `C1` and `swiftui-alert-presenting.swift` `R0`–`R4`, `K0`–`K3`; A):

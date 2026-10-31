@@ -69,7 +69,14 @@ pushed by every linear container and read only by layout (a new container owes
 a `withStackAxis`, `SV-AK` item 2); `.pickerStyle(.menu)` opens a native menu or
 the **scrolling** drawn one, options recorded without layout, widths cached on
 the window (`SV-AK` items 3–6). A demo section's alert builds in a `Component`
-at layout, never in the tree's own function (`SV-AK` item 7).
+at layout, never in the tree's own function (`SV-AK` item 7). **An open
+dialog chooses folders when a directory type (`.folder`, `.directory`) is
+allowed**, derived on the seam (`PlatformFileDialog.canChooseDirectories`/
+`canChooseFiles`, nothing stored); directory types alone choose no files and
+complete with directory URLs; AppKit's panel is configured by the pure
+`openPanelConfiguration(_:)`, SDL picks `SDL_ShowOpenFolderDialog` in
+`dialogMode(_:)`, and a mixed list is files only off Apple (`SV-AM`,
+divergence 209).
 
 **Field chrome, environment objects, toolbar (`MD-`, record §79).** `TextField`
 draws SwiftUI's bordered field by default (24 tall, `.surface` fill,
