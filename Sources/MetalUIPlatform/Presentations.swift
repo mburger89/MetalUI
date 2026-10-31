@@ -39,6 +39,13 @@ public struct PlatformFileType: Sendable, Equatable {
         self.filenameExtensions = filenameExtensions
         self.localizedDescription = localizedDescription
     }
+
+    /// Whether this is a directory type — `public.directory` or a type
+    /// conforming to it, such as `public.folder` (ruling `SV-AM`). An open
+    /// dialog allowing one chooses directories.
+    public var isDirectory: Bool {
+        identifier == "public.directory" || conformsTo.contains("public.directory")
+    }
 }
 
 /// A request to show an open or save dialog (ruling `SV-B`), answered by
@@ -46,8 +53,10 @@ public struct PlatformFileType: Sendable, Equatable {
 public struct PlatformFileDialog: Sendable, Equatable {
     /// Which dialog.
     public enum Kind: Sendable, Equatable {
-        /// Choose existing files — one, or several when
-        /// `allowsMultipleSelection` (files only, never folders: `SV-F`).
+        /// Choose existing files or directories — one, or several when
+        /// `allowsMultipleSelection`. Which of the two follows `allowedTypes`
+        /// (`canChooseFiles`, `canChooseDirectories`; ruling `SV-AM`, which
+        /// amends `SV-F`'s files only).
         case open(allowsMultipleSelection: Bool)
         /// Choose where to save, the name field holding `defaultFilename`.
         case save(defaultFilename: String?)
@@ -73,6 +82,26 @@ public struct PlatformFileDialog: Sendable, Equatable {
         self.allowedTypes = allowedTypes
         self.title = title
         self.prompt = prompt
+    }
+
+    /// Whether the dialog chooses directories (ruling `SV-AM`): an open
+    /// dialog with a directory type among `allowedTypes`
+    /// (`PlatformFileType.isDirectory`, e.g. `public.folder`) — NSOpenPanel's
+    /// `canChooseDirectories`. Never a save dialog; never an empty list or
+    /// `public.item`, which allow every *file*.
+    public var canChooseDirectories: Bool {
+        guard case .open = kind else { return false }
+        return allowedTypes.contains(where: \.isDirectory)
+    }
+
+    /// Whether the dialog chooses files (ruling `SV-AM`): a save dialog, or an
+    /// open dialog whose `allowedTypes` are empty or hold a type that is not a
+    /// directory type — `false` only for an open dialog over directory types
+    /// alone (`[.folder]`), whose chosen paths are directories.
+    /// NSOpenPanel's `canChooseFiles`.
+    public var canChooseFiles: Bool {
+        guard case .open = kind else { return true }
+        return allowedTypes.isEmpty || allowedTypes.contains(where: { !$0.isDirectory })
     }
 }
 

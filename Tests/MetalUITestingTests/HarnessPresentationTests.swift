@@ -95,6 +95,7 @@ import Testing
     try window.click(window.element(label: "Import"))
     let dialog = try #require(window.presentedFileDialog)
     #expect(dialog.kind == .open(allowsMultipleSelection: false))
+    #expect(dialog.canChooseFiles && !dialog.canChooseDirectories, "a file importer chooses files only (SV-AM)")
     try window.respondToFileDialog(choosing: ["/tmp/a.json"])
     #expect(m.log == ["chose /tmp/a.json"])
     #expect(!m.shown)
@@ -114,6 +115,39 @@ import Testing
     #expect(m.log.isEmpty, "a cancel calls no completion")
     #expect(window.presentedFileDialog == nil)
     #expect(throws: TestHarnessError.nothingPresented("file dialog")) { try window.cancelFileDialog() }
+}
+
+/// 2.11b (`SV-AM`, record 170) — MetalFlow's "Add repo": a
+/// `.fileImporter` over `[.folder]` is read at the seam as a folder dialog
+/// (`public.folder` in `allowedTypes`, `canChooseDirectories`, no files) and
+/// answered with a real directory's path, which reaches the handler as a
+/// directory URL. Mutation: `canChooseFiles` always `true` (the dialog reads
+/// as a file dialog).
+@Test @MainActor func aFolderImporterIsAnsweredWithADirectory() throws {
+    let m = PresentModel()
+    var chosen: URL?
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            Button("Add repo") { m.shown = true }
+                .fileImporter(isPresented: m.binding, allowedContentTypes: [.folder]) { result in
+                    if case .success(let url) = result { chosen = url }
+                }
+        }
+    }
+    let repo = FileManager.default.temporaryDirectory
+        .appendingPathComponent("metalui-harness-repo-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: repo) }
+    try window.click(window.element(label: "Add repo"))
+    let dialog = try #require(window.presentedFileDialog)
+    #expect(dialog.allowedTypes.map(\.identifier) == ["public.folder"])
+    #expect(dialog.canChooseDirectories && !dialog.canChooseFiles)
+    try window.respondToFileDialog(choosing: [repo.path])
+    let url = try #require(chosen)
+    #expect(url.path == repo.path)
+    #expect(url.hasDirectoryPath)
+    #expect(!m.shown)
+    #expect(window.presentedFileDialog == nil)
 }
 
 /// A root with a toolbar of one button, `Add`, and a body.

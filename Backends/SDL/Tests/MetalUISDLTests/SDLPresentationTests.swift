@@ -162,6 +162,30 @@ func sdlDialogInTheLinuxImageAnswersItsRecordedOutcome() throws {
     #expect(!filters.contains { $0.name.contains("com.") })
 }
 
+/// **1.13c** (`SV-AM`, divergence 209). An open dialog over directory types
+/// alone (`public.folder`) is SDL's folder dialog, `allow_many` carried; a
+/// folder type beside a file type, an empty list and a file type are the file
+/// dialog (SDL3 has none choosing both); a save dialog stays a save dialog.
+///
+/// Mutation **M1.13c**: `dialogMode` answers `.openFiles` for every open
+/// dialog (the pre-`SV-AM` spelling).
+@Test func sdlFolderTypesAloneShowTheFolderDialog() {
+    let folder = PlatformFileType(identifier: "public.folder", conformsTo: ["public.directory", "public.item"],
+                                  localizedDescription: "Folder")
+    let json = PlatformFileType(identifier: "public.json", conformsTo: ["public.data", "public.item", "public.text"],
+                                filenameExtensions: ["json"])
+    func open(_ types: [PlatformFileType], many: Bool = false) -> PlatformFileDialog {
+        PlatformFileDialog(token: 1, kind: .open(allowsMultipleSelection: many), allowedTypes: types)
+    }
+    #expect(SDLWindow.dialogMode(open([folder])) == .openFolders(allowMany: false))
+    #expect(SDLWindow.dialogMode(open([folder], many: true)) == .openFolders(allowMany: true))
+    #expect(SDLWindow.dialogMode(open([folder, json])) == .openFiles(allowMany: false))
+    #expect(SDLWindow.dialogMode(open([])) == .openFiles(allowMany: false))
+    #expect(SDLWindow.dialogMode(open([json], many: true)) == .openFiles(allowMany: true))
+    #expect(SDLWindow.dialogMode(PlatformFileDialog(token: 2, kind: .save(defaultFilename: "a"), allowedTypes: [folder]))
+            == .save(defaultFilename: "a"))
+}
+
 /// **1.14** (`SV-J` item 2). SDL declines every alert — `Window` draws its own.
 ///
 /// Mutation **M1.14**: answer `true`.

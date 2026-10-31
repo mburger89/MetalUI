@@ -40,8 +40,9 @@ final class AppKitPresentation {
 }
 
 extension AppKitWindow {
-    /// Shows `dialog` as an `NSOpenPanel` (files only, `allowsMultipleSelection`
-    /// as asked) or an `NSSavePanel` (the name field `defaultFilename`, its
+    /// Shows `dialog` as an `NSOpenPanel` (files, directories or both as
+    /// ``openPanelConfiguration(_:)`` reads them, `allowsMultipleSelection` as
+    /// asked) or an `NSSavePanel` (the name field `defaultFilename`, its
     /// extension hidden, `title`/`prompt` from the seam) **sheet** on this
     /// window, filtered by `allowedContentTypes` (ruling `SV-F`, `SV-E`'s
     /// mapping), and answers `true`; the outcome — the chosen URLs' paths,
@@ -53,16 +54,18 @@ extension AppKitWindow {
         switch dialog.kind {
         case .open(let allowsMultipleSelection):
             let open = NSOpenPanel()
-            open.canChooseFiles = true
-            open.canChooseDirectories = false
+            let configuration = Self.openPanelConfiguration(dialog)
+            open.canChooseFiles = configuration.canChooseFiles
+            open.canChooseDirectories = configuration.canChooseDirectories
             open.allowsMultipleSelection = allowsMultipleSelection
+            open.allowedContentTypes = configuration.allowedContentTypes
             panel = open
         case .save(let defaultFilename):
             panel = NSSavePanel()
             if let defaultFilename { panel.nameFieldStringValue = defaultFilename }
             panel.isExtensionHidden = true
+            panel.allowedContentTypes = Self.contentTypes(dialog.allowedTypes)
         }
-        panel.allowedContentTypes = Self.contentTypes(dialog.allowedTypes)
         if let title = dialog.title { panel.title = title }
         if let prompt = dialog.prompt { panel.prompt = prompt }
         let presentation = AppKitPresentation(.fileDialog(panel))
@@ -78,6 +81,20 @@ extension AppKitWindow {
             }
         }
         return true
+    }
+
+    /// What an open panel for `dialog` may choose (ruling `SV-AM`, amending
+    /// `SV-F`'s files only): `canChooseFiles`/`canChooseDirectories` are the
+    /// seam's — directories when a directory type (`public.folder`) is
+    /// allowed, files unless directory types are all that is — and
+    /// `allowedContentTypes` is ``contentTypes(_:)`` of the list, the folder
+    /// type kept in it: a folder conforms to `public.folder`, so the panel
+    /// enables it, and every directory stays navigable. Factored from
+    /// ``presentFileDialog(_:)`` so a test reads it without an `NSOpenPanel`,
+    /// whose initialiser does not return under a locked screen.
+    nonisolated static func openPanelConfiguration(_ dialog: PlatformFileDialog)
+        -> (canChooseFiles: Bool, canChooseDirectories: Bool, allowedContentTypes: [UTType]) {
+        (dialog.canChooseFiles, dialog.canChooseDirectories, contentTypes(dialog.allowedTypes))
     }
 
     /// The chosen files' paths: every URL of an open panel, the one of a save
