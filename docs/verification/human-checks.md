@@ -2004,3 +2004,17 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **FO1.** macOS (click **Import folder…** in the Services demo): a `.fileImporter` over `[.folder]` opens a sheet in which ordinary folders are enabled and files greyed out; choosing a git repository folder (and pressing Open while inside it) completes with that folder's URL. **Observed:**
 - [ ] **FO2.** macOS (click **Import folder or JSON…**): over `[.folder, .json]` both a folder and a `.json` file can be chosen. **Observed:**
 - [ ] **FO3.** Linux (GTK portal or zenity) and Windows (SDL demo; **Import folder…**, then **Import folder or JSON…**): over `[.folder]` the platform's folder picker opens and returns the folder; over `[.folder, .json]` the file dialog opens (files only, divergence 209). **Observed:**
+
+## BY. Button, toggle and picker styles - custom styles, `.borderedProminent`, `.link`, `.switch`, `.button` (round 3 item R3-1; decisions `docs/superpowers/2026-10-31-styles-decisions.md`, record 174; provisional letter)
+
+*An agent cannot: every look here is MetalUI's (SwiftUI's chrome for these styles was not probed and the offscreen capture draws no text), and a pressed look, a knob and a focus ring are looks. Run `METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo` (or a scratch window) with the styles below.*
+
+- [ ] **BY1.** `Button("Save") {}.buttonStyle(.borderedProminent)`: an accent-filled rounded rectangle at the bordered button's size, the label white; it dims under the 12 % wash while pressed and returns on release, and it greys (separator colour) when the window is not key. **Observed:**
+- [ ] **BY2.** `Button("Docs") {}.buttonStyle(.link)`: the label alone in the accent colour; it fades to 60 % while pressed. Hovering shows no pointing-hand cursor (carried). **Observed:**
+- [ ] **BY3.** A custom `ButtonStyle` whose body is `configuration.label.padding(10).background(configuration.isPressed ? .gray : .accent)`: it fills grey exactly while the mouse is down and over the button, goes back to accent when dragged out, grey again when dragged back in, and the action runs once on release inside only. Tab focuses it (a 2-point ring around the padded body) and Space runs the action. **Observed:**
+- [ ] **BY4.** A `PrimitiveButtonStyle` using `configuration.label.onClick { configuration.trigger() }` runs the action on a click; one that never calls `trigger()` does nothing on a click. With VoiceOver, the primitive-styled button is reachable and VoiceOver's press runs the action (BY-C's documented limit: only if the body declares a clickable element). **Observed:**
+- [ ] **BY5.** `.toggleStyle(.switch)`: a 38x22 capsule, accent when on and a neutral grey with a border when off, a white knob at the left (off) or right (on) that jumps rather than slides (divergence 885); the label follows. A click, Space and VoiceOver's press each flip it. **Observed:**
+- [ ] **BY6.** `.toggleStyle(.button)`: a bordered button that fills with the accent colour and a white label while on, bordered grey off; no pressed look. **Observed:**
+- [ ] **BY7.** `.pickerStyle(.inline)` looks like the radio-group column. **Observed:**
+- [ ] **BY8.** `.buttonStyle(_:)` / `.toggleStyle(_:)` written on a `Column`/`Row` reach every control inside; a nearer style on one control wins. **Observed:**
+

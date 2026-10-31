@@ -2794,3 +2794,10 @@ No transparent scope refuses a decoration after it any more. Mechanism and mutat
 chooses both on AppKit but files only on SDL, which has no dialog choosing both — `SDLWindow.dialogMode` shows the file dialog for any list holding a file type. `SV-AM` item 5; pin
 `sdlFolderTypesAloneShowTheFolderDialog` (1.13c, `Backends/SDL`); the AppKit side is unprobed (human checks `FO1`–`FO3`). Mechanism and mutations: `docs/superpowers/2026-10-04-platform-services-decisions.md`
 `SV-AM`, `SV-AN`.
+
+## 2026-10-31: button, toggle and picker styles (`BY-`, record §174)
+
+**New: 885** (179 live; next label 210 unchanged — 885 is from the range 885–894 reserved by `BY`, 886–894 unused). The `.switch` toggle style's
+knob is painted at the leading (off) or trailing (on) end from the current value and snaps; SwiftUI's slides (unmeasured: the offscreen capture is blind to
+motion). The track's fill changes as a checkbox's does. `BY-I`; pin `switchIsACapsuleTrackWithAKnobAtTheOnEnd`; human check `BY5`. Mechanism and mutations:
+`docs/superpowers/2026-10-31-styles-decisions.md`, `docs/record/174-styles.md`.

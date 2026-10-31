@@ -45,9 +45,9 @@ one or two sentences, not a summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **178 live, next label 210** (207 never published and unused; 209 used by `SV-AM`; 120 and 255 retired and 745–754 unused by LH; 735–737 used and 738–744 unused by BG; 705–714 unused by DT; 625–634 unused by C14-i; 635–638 used and 639–644 unused by L1; 645, 646 used and 647–654 unused by G1; 655–664 unused by E1; 665–674 unused by S11; 675–684 unused by S12; 685–694 unused by XP-G21; 695–704 reserved by C14-j; 715–717 used and 718–724 unused by CP; 455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **179 live, next label 210** (885–894 reserved by BY: 885 used, 886–894 unused; 207 never published and unused; 209 used by `SV-AM`; 120 and 255 retired and 745–754 unused by LH; 735–737 used and 738–744 unused by BG; 705–714 unused by DT; 625–634 unused by C14-i; 635–638 used and 639–644 unused by L1; 645, 646 used and 647–654 unused by G1; 655–664 unused by E1; 665–674 unused by S11; 675–684 unused by S12; 685–694 unused by XP-G21; 695–704 reserved by C14-j; 715–717 used and 718–724 unused by CP; 455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, EL, BG, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK, SI, RO, FS, RG, AT, RL, AP, EX, GB, GS, BS, LZ, RZ, DT, CP, BG, LG, TL, TP, HX, BT, WA and FO, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, EL, BG, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK, SI, RO, FS, RG, AT, RL, AP, EX, GB, GS, BS, LZ, RZ, DT, CP, BG, LG, TL, TP, HX, BT, WA, FO and BY, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -229,7 +229,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (178 live, next label 210). A new
+- **Divergences**: `docs/divergences.md` (179 live, next label 210). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

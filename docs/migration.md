@@ -80,11 +80,11 @@ each in SwiftUI's vocabulary:
 (`.gridCellColumns`, `.gridCellAnchor`, `.gridColumnAlignment`,
 `.gridCellUnsizedAxes`) are spelled on legacy content too (`PE-F` item 1).
 
-**Style modifiers go on the control.** `.buttonStyle`, `.pickerStyle` and
-`.keyboardShortcut` return the control itself, not an environment value: write
-them on the control, before any wrapper — `Button("x") {}.buttonStyle(.plain).padding(8)`,
-not `….padding(8).buttonStyle(.plain)` (which does not compile), and not on a
-container (`PE-R`).
+**Style modifiers.** `.buttonStyle(_:)` and `.toggleStyle(_:)` are environment modifiers, as in SwiftUI (`BY-A`,
+`BY-H`): write them on a container (`Column { … }.buttonStyle(.plain)`) or on the control, before or after a wrapper.
+`.pickerStyle(_:)` and `.keyboardShortcut` still return the control itself: write them on the control, before any
+wrapper — `Picker(…) {}.pickerStyle(.radioGroup).padding(8)`, not `….padding(8).pickerStyle(.radioGroup)` (which
+does not compile, `PE-R`).
 
 ### Containers
 
@@ -251,11 +251,13 @@ public-API removals the records list. **Source** changes stop compiling;
 | an exhaustive `switch` over `LayoutModifier` (once more, Liquid Glass) | add a `.glassEffect(Glass, any Shape)` arm (or `default:`): a glass behind the content, one layer, painted as a backdrop record with a glass tail through `Frame.fillGlass` (or registered with the enclosing `GlassEffectContainer`) | `LG-A`, `LG-I` |
 | `MUIBackdrop` (`MetalUIShaderTypes`) readers and a **renderer** outside the package | the record is **256 bytes** (was 96): the nine original fields did not move, a glass tail follows (`glassFlags`, `lensDepth`, `band`, `rimStrength`, `blendK`, `press`, `pressLift`, `glassReserved`, `member0`…`member3`). `MUIBackdrop(bounds:contentMask:maskCornerRadii:cornerRadii:tint:order:shape:sigma:opacity:)` still builds a material (tail zero, `glassFlags == 0` takes the material arithmetic). A renderer that cannot blur draws `MUIBackdrop.flatTintRects` (one flat rect per blob member) in place of `flatTintRect` | `LG-B`, `LG-L`, `LG-S` |
 | `ReplayFixture` readers (the `Backends/SDL` library product) | `ReplayFixture.version` is **5** (`backdropStride` 256); version 4's 96-byte records widen with a zero tail on decode, so a v4 fixture replays as materials | `LG-O`, `LG-T` |
-| a `ButtonStyle` shown in an exhaustive `switch` over its (internal) kind | none outside the package: `ButtonStyle` is a struct with statics; `.glass` and `.glassProminent` join `.plain`/`.borderless`/`.bordered`/`.automatic` | `LG-M` |
+| a `ButtonStyle` shown in an exhaustive `switch` over its (internal) kind | none outside the package: `.glass` and `.glassProminent` join `.plain`/`.borderless`/`.bordered`/`.automatic` (since `BY-A` as `GlassButtonStyle`/`GlassProminentButtonStyle`) | `LG-M` |
 | `ReplayFixture` (the `Backends/SDL` library product) readers and exhaustive `switch`es over `FixtureRun.Kind` | add a `.backdrop` arm (`rawValue` 3); `ReplayFixture.version` is **4** (a seventh stride, `backdropStride` 96, and a backdrop byte table after the transforms); versions 2 and 3 still load without backdrops, 1 stays refused; fixtures recorded at version 4 do not load in an older reader. `FixtureRun(scene:)` records a `.backdrop` run and still traps on `.surface` | `BB-J`, `BB-T` item 6 |
 | a `WindowRenderer` conformer outside the package | no new requirement. A renderer that cannot blur draws each `.backdrop` run's records as `MUIBackdrop.flatTintRect` (the flat tint `c · o · T`, today's pixels); one that does follows `BackdropBlurReference` within three levels and `Scene.backdropRegion(_:target:)` | `BB-I`, `BB-S`, `BB-T` |
 | a `WindowRenderer` conformer outside the package implementing `finishFrame(scene:atlas:)` | implement `finishFrame(scene:atlas:surfaces:)` (no default); a renderer with no surface support may ignore `surfaces` and composites nothing for surface runs. **Callers** of `finishFrame(scene:atlas:)` compile unchanged (it forwards `surfaces: []`) | `MV-F` item 1, `MV-K` item 3 |
 | a `Platform` conformer outside the package | implement `setApplicationIcon(_ images: [ImageTexture])` (an empty body is honest where the platform has no runtime icon) — no default | `AI-B` |
+| code that names the type `ButtonStyle` (`let styles: [ButtonStyle] = [.plain, .bordered]`, `func f(_ s: ButtonStyle)`) | `ButtonStyle` is SwiftUI's protocol now and the built-ins are `PrimitiveButtonStyle`s: write `[any PrimitiveButtonStyle]` or a generic `S: PrimitiveButtonStyle`; every `.buttonStyle(.plain)` call site compiles unchanged. `.buttonStyle` written after a wrapper now compiles (an environment write) | `BY-A` |
+| `PasteButton.buttonStyle(_:)` taking the closed `ButtonStyle` | it takes a `PrimitiveButtonStyle` or a `ButtonStyle` | `BY-A` |
 | an exhaustive `switch` over `LayoutModifier` | add `.rotationEffect`, `.scaleEffect`, `.offset` and `.shadow` arms (or `default:`) — paths, shadows and transforms | `GX-H`, `GX-J` |
 | a `Platform` conformer outside the package with `func setMenuBar(_: PlatformMenuBar) {}` | `func setMenuBar(_: PlatformMenuBar) -> Bool { false }` — `false` when the platform shows no bar itself (MetalUI then draws one in every window of an app declaring `commands`), `true` when it does; still no default, and the `Void` spelling no longer conforms | `SG-A` item 1 |
 | an exhaustive `switch` over `ColorToken` | add a `.shadow` arm (black at 0.33 in both themes). A custom `Theme(background:…scrim:)` compiles unchanged: `shadow:` is a trailing defaulted parameter | `GX-J`, `GX-Q` |
