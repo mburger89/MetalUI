@@ -911,8 +911,9 @@ public final class SDLWindow: PlatformWindow {
 
     // MARK: Platform services (rulings `SV-G`, `SV-J`, `SV-M`)
 
-    /// Calls `SDL_ShowOpenFileDialog` (`allow_many` as asked) or
-    /// `SDL_ShowSaveFileDialog` (`default_location` = the default name) with
+    /// Calls `SDL_ShowOpenFileDialog` (`allow_many` as asked),
+    /// `SDL_ShowOpenFolderDialog` for directory types alone
+    /// (``dialogMode(_:)``, ruling `SV-AM`) or `SDL_ShowSaveFileDialog` (`default_location` = the default name) with
     /// this window as parent, filtered by ``dialogFilters(_:)``, and answers
     /// `true` (ruling `SV-G` item 1): every outcome — chosen, cancelled, or
     /// failed with `SDL_GetError()`'s text — arrives through SDL's callback,
@@ -922,18 +923,46 @@ public final class SDLWindow: PlatformWindow {
     /// and are not shown. `false` only for a token outside `Int32`.
     public func presentFileDialog(_ dialog: PlatformFileDialog) -> Bool {
         guard let token = Int32(exactly: dialog.token) else { return false }
-        let isSave: Bool, allowMany: Bool, location: String?
-        switch dialog.kind {
-        case .open(let allowsMultipleSelection):
-            (isSave, allowMany, location) = (false, allowsMultipleSelection, nil)
+        let request: OpaquePointer?
+        switch Self.dialogMode(dialog) {
+        case .openFiles(let allowMany):
+            request = mui_dialog_request_new(token, false, allowMany, nil)
+        case .openFolders(let allowMany):
+            request = mui_dialog_request_new(token, false, allowMany, nil)
+            if let request { mui_dialog_request_choose_folders(request) }
         case .save(let defaultFilename):
-            (isSave, allowMany, location) = (true, false, defaultFilename)
+            request = mui_dialog_request_new(token, true, false, defaultFilename)
         }
-        guard let request = mui_dialog_request_new(token, isSave, allowMany, location) else { return false }
+        guard let request else { return false }
         for filter in Self.dialogFilters(dialog.allowedTypes) {
             _ = mui_dialog_request_add_filter(request, filter.name, filter.pattern)
         }
         return mui_dialog_request_show(request, rawHandle)
+    }
+
+    /// Which SDL dialog shows `dialog` (ruling `SV-AM`).
+    enum DialogMode: Equatable {
+        /// `SDL_ShowOpenFileDialog`.
+        case openFiles(allowMany: Bool)
+        /// `SDL_ShowOpenFolderDialog` — no filters.
+        case openFolders(allowMany: Bool)
+        /// `SDL_ShowSaveFileDialog`, `default_location` the name.
+        case save(defaultFilename: String?)
+    }
+
+    /// The SDL dialog for `dialog` (ruling `SV-AM`): an open dialog over
+    /// directory types alone (`canChooseFiles` false, `[.folder]`) is
+    /// `SDL_ShowOpenFolderDialog`; every other open dialog is the file
+    /// dialog — SDL3 has none choosing both, so a folder type beside a file
+    /// type chooses files only here (divergence 209).
+    nonisolated static func dialogMode(_ dialog: PlatformFileDialog) -> DialogMode {
+        switch dialog.kind {
+        case .open(let allowsMultipleSelection):
+            return dialog.canChooseFiles ? .openFiles(allowMany: allowsMultipleSelection)
+                                         : .openFolders(allowMany: allowsMultipleSelection)
+        case .save(let defaultFilename):
+            return .save(defaultFilename: defaultFilename)
+        }
     }
 
     /// SDL's filters for `types` (rulings `SV-E`, `VD-G`, divergence 129): one

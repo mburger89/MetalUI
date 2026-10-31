@@ -2773,3 +2773,10 @@ window's root (`AS-N`'s and `MD-S`'s restriction ends). The row survives for `.o
 (`ES-F`) and `.animation(_:value:)`/`.transaction` (`ES-G`) were measured with a temporary conformance and refused, so the row now names them beside `.onGeometryChange`: an `.offset(x: 7, y: 9)` forwarded inside a
 named space read the leaf at (7, 9) in it where SwiftUI's G3 reads (0, 0), and a `.background` forwarded inside `.animation(_:value:)` painted the mid colour half-way where SwiftUI's T3b snaps. Before this record
 none of the six took a decoration after it; the row did not name them. Mechanism and mutations: `docs/superpowers/2026-10-31-scope-decorations-decisions.md`.
+
+## 2026-10-31: folder importer (`SV-AM`, record §170)
+
+**New: 209** (179 live, next label 210). `.fileImporter` over `[.folder]` chooses folders on every platform (AppKit `canChooseDirectories`, SDL `SDL_ShowOpenFolderDialog`); a folder type **beside a file type**
+chooses both on AppKit but files only on SDL, which has no dialog choosing both — `SDLWindow.dialogMode` shows the file dialog for any list holding a file type. `SV-AM` item 5; pin
+`sdlFolderTypesAloneShowTheFolderDialog` (1.13c, `Backends/SDL`); the AppKit side is unprobed (human checks `FO1`–`FO3`). Mechanism and mutations: `docs/superpowers/2026-10-04-platform-services-decisions.md`
+`SV-AM`, `SV-AN`.

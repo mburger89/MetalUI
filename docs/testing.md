@@ -297,7 +297,9 @@ answered as the platform would:
 
 - `presentedAlert` then `respondToAlert(button:)` or `respondToAlert(buttonAt:)`;
 - `presentedFileDialog` then `respondToFileDialog(choosing:)` or
-  `cancelFileDialog()`;
+  `cancelFileDialog()` — a folder importer (`allowedContentTypes: [.folder]`)
+  reads `canChooseDirectories == true`, `canChooseFiles == false`, and a
+  directory path chosen reaches the completion as a directory URL (`SV-AM`);
 - `presentedMenu` (a context menu, a menu picker) then
   `chooseMenuItem("More", "A")` or `dismissMenu()`;
 - `toolbar` then `performToolbarItem(_:action:)`;

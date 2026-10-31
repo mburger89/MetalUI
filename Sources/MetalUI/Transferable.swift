@@ -110,6 +110,29 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
     public static let json = ContentType("public.json", conformingTo: [.text], filenameExtensions: ["json"],
                                        localizedDescription: "JSON")
 
+    /// `public.directory`: a file-system directory, a folder or a package —
+    /// UTType's `.directory` (ruling `SV-AM`). Conforms to ``item`` only, not
+    /// to ``data``. An open dialog allowing it, or a type conforming to it,
+    /// chooses directories.
+    public static let directory = ContentType("public.directory", conformingTo: [.item],
+                                              localizedDescription: "Directory")
+    /// `public.folder`: a directory a person sees as a folder (not a
+    /// package) — UTType's `.folder` (ruling `SV-AM`). Conforms to
+    /// ``directory``. `.fileImporter(isPresented:allowedContentTypes: [.folder])`
+    /// chooses a folder and completes with its URL; listed beside a file type
+    /// it allows both on AppKit (on Linux and Windows a mixed list chooses
+    /// files only, divergence 209).
+    public static let folder = ContentType("public.folder", conformingTo: [.directory],
+                                           localizedDescription: "Folder")
+
+    /// Whether every one of `types` is a directory type (conforms to
+    /// ``directory``) and there is at least one — an open dialog over them
+    /// chooses directories only, so its chosen paths are directory URLs
+    /// (ruling `SV-AM`). Mirrors `PlatformFileDialog.canChooseFiles`.
+    static func choosesDirectoriesOnly(_ types: [ContentType]) -> Bool {
+        !types.isEmpty && types.allSatisfy { $0.conforms(to: .directory) }
+    }
+
     /// The seam's spelling of this type (ruling `DN-B` item 4), its
     /// conformance in a stable order.
     var pasteboardType: PasteboardType {
