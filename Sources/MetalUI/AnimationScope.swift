@@ -39,6 +39,12 @@ public struct TransactionScopeLayout<ContentLayout> {
 /// `AnimationStore`, keyed by the position the scope sits at
 /// (`.child(of: parent, at: cursor)`) and the transaction-stack depth — never
 /// in `StateTable` (1.12).
+///
+/// **A `Self`-returning decoration written after this scope does not compile**
+/// (divergence 120, ruling `ES-G`): write it first, or use an `ElementGroup`
+/// wrapper. Forwarding it was measured wrong: a `.background` forwarded onto the
+/// content is inside the scope's transaction and animates, where SwiftUI's
+/// modifier written after `.animation(_:value:)` is outside it and snaps (T3b).
 public struct TransactionScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let write: TransactionWrite

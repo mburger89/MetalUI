@@ -41,9 +41,11 @@ public struct ModifierKeysScopeLayout<ContentLayout> {
 /// initial:_:)` returns (ruling `IF-D`).
 ///
 /// **Transparent** like `GeometryChangeScope`: `parent` and `cursor` are
-/// forwarded, no node, no `StateTable` slot. **A `Self`-returning decoration
-/// written after this scope does not compile** (divergence 120): write it
-/// first.
+/// forwarded, no node, no `StateTable` slot. **Over a `StyledElement` it is a
+/// `StyledElement`** (ruling `ES-D`): a `Self`-returning decoration written
+/// after it lands on the content inside it, which the scope cannot see (it
+/// reads none of its content's geometry); over other groups it still does not
+/// compile.
 public struct ModifierKeysScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let watch: ModifierKeysWatch
@@ -125,5 +127,77 @@ extension ElementGroup {
                                                            _ new: EventModifiers) -> Void)
         -> ModifierKeysScope<Self> {
         ModifierKeysScope(content: self, watch: ModifierKeysWatch(mask: mask, initial: initial, action: action))
+    }
+}
+
+// MARK: - Decorations chain through the scope (`ES-D`)
+
+/// What a `ModifierKeysScope` over an `Element` carries on the `Element` path: its store key and owner (the
+/// element's own id) and its content's layout.
+public struct ModifierKeysScopeElementState<ContentState> {
+    var content: ContentState
+    var key: GlobalElementID
+    var owner: GlobalElementID
+}
+
+/// `ES-D`: the scope over an element is an element (a window root, `Deferred` content, a `List` row), owning
+/// its entry by the element's own id, and over a `StyledElement` a `StyledElement` forwarding to its content,
+/// so a decoration written after it lands on the content inside it. The scope reads none of its content's
+/// geometry or decoration, so where the decoration sits is unobservable to it. The group entry points above
+/// are unchanged.
+extension ModifierKeysScope: Element where Content: Element {
+    public typealias LayoutState = ModifierKeysScopeElementState<Content.LayoutState>
+    public typealias PrepaintState = Content.PrepaintState
+
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, ModifierKeysScopeElementState<Content.LayoutState>) {
+        let store = pass.frame.animationStore.lifecycle
+        let depth = store.modifierDepth
+        let (node, state) = store.withModifierKeysScope { content.requestLayout(id, pass: &pass) }
+        let key = GlobalElementID.child(of: id, at: 0, name: ElementID("$modkeys\(depth)"))
+        return (node, ModifierKeysScopeElementState(content: state, key: key, owner: id))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout ModifierKeysScopeElementState<Content.LayoutState>,
+                                  pass: inout PrepaintPass) -> Content.PrepaintState {
+        pass.frame.prepaintLog?.modifiers.append(ModifierNoteRecord(watch: watch, key: layout.key, owner: layout.owner))   // `RL-B`
+        pass.frame.animationStore.lifecycle.noteModifierKeys(watch: watch, key: layout.key, owner: layout.owner)
+        return content.prepaint(id, bounds: bounds, layout: &layout.content, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout ModifierKeysScopeElementState<Content.LayoutState>,
+                               prepaint: inout Content.PrepaintState, pass: inout PaintPass) {
+        content.paint(id, bounds: bounds, layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+extension ModifierKeysScope: StyledElement where Content: StyledElement {
+    public var style: Style {
+        get { content.style }
+        set { content.style = newValue }
+    }
+    public var decoration: Decoration {
+        get { content.decoration }
+        set { content.decoration = newValue }
+    }
+    public var elementID: ElementID? {
+        get { content.elementID }
+        set { content.elementID = newValue }
+    }
+    public var handlers: Handlers {
+        get { content.handlers }
+        set { content.handlers = newValue }
+    }
+}
+
+extension ModifierKeysScope {
+    /// Names the scope **together with** its content, not the content inside it (ruling `ES-C`, carried to
+    /// this scope by `ES-D`). A `StyledElement` keeps its own `id(_:) -> Self`; forwarding that through the
+    /// scope would name the content inside it. This member is the `ElementGroup` spelling, and it wins over the
+    /// protocol extension's.
+    public func id(_ name: String) -> IdentifiedGroup<Self> {
+        IdentifiedGroup(content: self, name: ElementID(name))
     }
 }

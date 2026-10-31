@@ -124,3 +124,53 @@ private let longText = "A long line of text that cannot fit in one hundred and t
         #expect(log.entries == (disabled ? [] : ["go"]), "disabled=\(disabled): \(log.entries)")
     }
 }
+
+// MARK: - ES-D, ES-E: the remaining scopes that forward
+
+/// ES-D. `.onModifierKeysChanged {}` followed by `.accessibilityIdentifier` and `.onClick`: the element is found,
+/// the click lands, and the scope still reports a modifier change. Mutation: the `ModifierKeysScope` `handlers`
+/// setter drops the write (the identifier is lost).
+@Test @MainActor func aModifierKeysScopeTakesAnIdentifierAndAClickAfterIt() throws {
+    let log = HarnessLog()
+    let window = try harnessWindow {
+        VStack {
+            Box {}.frame(width: Pixels(60), height: Pixels(30))
+                .onModifierKeysChanged(mask: .shift) { _, new in log.add(new.contains(.shift) ? "shift" : "none") }
+                .accessibilityIdentifier("m").onClick { log.add("click") }
+        }
+    }
+    window.pressModifiers([.shift])
+    window.tick()
+    #expect(log.entries.contains("shift"), "\(log.entries)")
+    try window.click(window.element(identifier: "m"))
+    #expect(log.entries.last == "click", "\(log.entries)")
+}
+
+/// ES-D. A modifier-keys scope over an element is an element, so it can be a window's root, and it still reports
+/// a change there (the `Element` path, which no container's group walk takes). Mutation: drop the
+/// `noteModifierKeys` call in `ModifierKeysScope.prepaint(_:bounds:layout:pass:)` (nothing is reported).
+@Test @MainActor func aModifierKeysScopeAtTheRootStillReports() throws {
+    let log = HarnessLog()
+    let window = try harnessWindow {
+        Box {}.frame(width: Pixels(60), height: Pixels(30))
+            .onModifierKeysChanged(mask: .shift) { _, new in log.add(new.contains(.shift) ? "shift" : "none") }
+            .accessibilityIdentifier("root")
+    }
+    _ = try window.element(identifier: "root")
+    window.pressModifiers([.shift])
+    window.tick()
+    #expect(log.entries == ["shift"], "\(log.entries)")
+}
+
+/// ES-E. A decoration and a handler after `.transition` land on the content: found by identifier, clickable.
+@Test @MainActor func aTransitionTakesAnIdentifierAndAClickAfterIt() throws {
+    let log = HarnessLog()
+    let window = try harnessWindow {
+        VStack {
+            Box {}.frame(width: Pixels(60), height: Pixels(30)).transition(.opacity)
+                .accessibilityIdentifier("t").onClick { log.add("t") }
+        }
+    }
+    try window.click(window.element(identifier: "t"))
+    #expect(log.entries == ["t"], "\(log.entries)")
+}

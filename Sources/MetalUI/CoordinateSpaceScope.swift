@@ -101,7 +101,11 @@ public struct CoordinateSpaceScopeLayout<ContentLayout> {
 /// **Transparent** like `GeometryChangeScope`: `parent` and `cursor` are
 /// forwarded, no node, no identity level, no `StateTable` slot. **A
 /// `Self`-returning decoration written after this scope does not compile**
-/// (divergence 120's footing, `KF-V` item 1): write it first.
+/// (divergence 120, `KF-V` item 1, ruling `ES-F`): write it first. Forwarding
+/// it was measured wrong: an `.offset(x: 7, y: 9)` forwarded onto the content
+/// opens inside the space, so a child reads (7, 9) in it, where SwiftUI's
+/// offset after `.coordinateSpace` moves the space with the view and the child
+/// reads (0, 0) (probe arm G3).
 public struct CoordinateSpaceScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let name: AnyHashable
