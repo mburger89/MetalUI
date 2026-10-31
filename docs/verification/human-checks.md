@@ -1999,6 +1999,8 @@ Name, date, machine (macOS version, display(s)), build commit:
 
 *An agent cannot: `NSOpenPanel` does not initialise under a locked screen, and SDL's folder dialog needs a desktop portal; only the configuration (`openPanelConfiguration`, `dialogMode`) and the harness flow were measured.*
 
-- [ ] **FO1.** macOS: a `.fileImporter` over `[.folder]` opens a sheet in which ordinary folders are enabled and files greyed out; choosing a git repository folder (and pressing Open while inside it) completes with that folder's URL. **Observed:**
-- [ ] **FO2.** macOS: over `[.folder, .json]` both a folder and a `.json` file can be chosen. **Observed:**
-- [ ] **FO3.** Linux (GTK portal or zenity) and Windows: over `[.folder]` the platform's folder picker opens and returns the folder; over `[.folder, .json]` the file dialog opens (files only, divergence 209). **Observed:**
+*Run:* macOS `METALUI_SERVICES_DEMO=1 swift run MetalUIDemo`; Linux/Windows the SDL demo, from `Backends/SDL`: `METALUI_SERVICES_DEMO=1 swift run $(python3 scripts/fetch-accesskit.py --print-flags) MetalUISDLDemo` (run `python3 scripts/fetch-accesskit.py` once first). The Dialogs section has **Import folder…** (`[.folder]`) and **Import folder or JSON…** (`[.folder, .json]`); the outcome line reads "Imported folder [name]" or "Imported [name]" on success.
+
+- [ ] **FO1.** macOS (click **Import folder…** in the Services demo): a `.fileImporter` over `[.folder]` opens a sheet in which ordinary folders are enabled and files greyed out; choosing a git repository folder (and pressing Open while inside it) completes with that folder's URL. **Observed:**
+- [ ] **FO2.** macOS (click **Import folder or JSON…**): over `[.folder, .json]` both a folder and a `.json` file can be chosen. **Observed:**
+- [ ] **FO3.** Linux (GTK portal or zenity) and Windows (SDL demo; **Import folder…**, then **Import folder or JSON…**): over `[.folder]` the platform's folder picker opens and returns the folder; over `[.folder, .json]` the file dialog opens (files only, divergence 209). **Observed:**
