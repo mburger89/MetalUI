@@ -207,3 +207,24 @@ private let longText = "A long line of text that cannot fit in one hundred and t
     try rootA.click(rootA.element(identifier: "ra"))
     #expect(log.entries.suffix(2) == ["r", "ra"], "\(log.entries)")
 }
+
+/// ES-J. An identifier and a click written after `.onGeometryChange` configure the scope's own layer: found and
+/// clicked, in a stack and as the window's root. Mutation: the scope's `handlers` setter drops the write.
+@Test @MainActor func anIdentifierAndAClickAfterOnGeometryChangeLand() throws {
+    let log = HarnessLog()
+    let window = try harnessWindow {
+        VStack {
+            Box {}.frame(width: Pixels(60), height: Pixels(30))
+                .onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }
+                .accessibilityIdentifier("g").onClick { log.add("g") }
+        }
+    }
+    try window.click(window.element(identifier: "g"))
+    let root = try harnessWindow {
+        Box {}.frame(width: Pixels(60), height: Pixels(30))
+            .onGeometryChange(for: Float.self, of: { $0.size.width.value }) { _ in }
+            .accessibilityIdentifier("r").onClick { log.add("r") }
+    }
+    try root.click(root.element(identifier: "r"))
+    #expect(log.entries == ["g", "r"], "\(log.entries)")
+}
