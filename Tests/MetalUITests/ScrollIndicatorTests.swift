@@ -268,16 +268,18 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
                              isMomentum: false))
 }
 
-/// While fading, the ScrollView asks for another frame; once faded, it stops.
+/// While fading, the ScrollView keeps frames coming as a live animation
+/// (`hasActiveAnimations`, never dirtying the window — ruling `HT-Z` item 1);
+/// once faded, it stops.
 ///
 /// The second half is what keeps an idle window idle — spec §4.4's "no frames
 /// built and display link paused while idle" is an M4 exit criterion and this
 /// must not break it early.
 ///
 /// Driven through a real `Window`, not a bare `Frame`, because the idle
-/// guarantee is a property of `Window.drawFrameIfNeeded` honouring
-/// `frame.wantsAnotherFrame` (Task 8) — a bare `Frame` has no "stays idle"
-/// concept to fail.
+/// guarantee is a property of `Window.drawFrameIfNeeded` honouring the
+/// frame's `noteActiveAnimation()` (`HT-Z` item 1; `wantsAnotherFrame` before
+/// it) — a bare `Frame` has no "stays idle" concept to fail.
 @Test @MainActor
 func theIndicatorRequestsFramesWhileFadingAndStopsWhenDone() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
@@ -301,6 +303,7 @@ func theIndicatorRequestsFramesWhileFadingAndStopsWhenDone() throws {
     // `aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame`.
     platformWindow.simulateTick(timestamp: 100)
     #expect(!window.needsRedraw, "an idle, never-scrolled ScrollView must not keep the window dirty")
+    #expect(!window.hasActiveAnimations, "nor animate")
 
     // This stamps lastScrollTime from the window's CURRENT lastTick (100).
     platformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -20))
@@ -308,20 +311,22 @@ func theIndicatorRequestsFramesWhileFadingAndStopsWhenDone() throws {
 
     // age 0.2 < 0.6: fully opaque, must keep requesting.
     platformWindow.simulateTick(timestamp: 100.2)
-    #expect(window.needsRedraw, "age 0.2 is inside the fully-opaque window and must request another frame")
+    #expect(window.hasActiveAnimations, "age 0.2 is inside the fully-opaque window and must keep frames coming")
+    #expect(!window.needsRedraw, "as an animation, not a change (`HT-Z` item 1): a frozen clock's window is idle")
 
     // age 0.8: inside the 0.6...1.0 ramp, still visible (alpha > 0), must
     // still be requesting.
     platformWindow.simulateTick(timestamp: 100.8)
-    #expect(window.needsRedraw, "age 0.8 is inside the fade ramp and must still request another frame")
+    #expect(window.hasActiveAnimations, "age 0.8 is inside the fade ramp and must still keep frames coming")
+    #expect(!window.needsRedraw, "still without dirtying the window")
 
     // age 1.1: fully faded. This render must be the LAST one this scroll
     // causes — the idle-guarantee half.
     let framesBeforeFadeCompletes = window.framesDrawn
     platformWindow.simulateTick(timestamp: 101.1)
     #expect(window.framesDrawn == framesBeforeFadeCompletes + 1,
-            "this tick was still dirty going in (from the 100.8 request) and must have drawn once")
-    #expect(!window.needsRedraw,
+            "this tick was still animating going in (from the 100.8 frame) and must have drawn once")
+    #expect(!window.needsRedraw && !window.hasActiveAnimations,
             "age 1.1 > 1.0: fully faded, and this render must not have asked for another frame")
     // Not just invisible — ABSENT. A fully transparent thumb that still
     // reached `pass.fill` would still cost a draw call every idle frame
@@ -465,19 +470,20 @@ func theIndicatorStillFadesAndTheWindowReturnsIdleAfterWakingFromAPausedLink() t
     // opaque window measured from the EVENT's timestamp (11), not the stale
     // tick (5) — from the latter this would already read age 6.3.
     platformWindow.simulateTick(timestamp: 111.3)
-    #expect(window.needsRedraw, "age 0.3 from the event's own timestamp is inside the opaque window")
+    #expect(window.hasActiveAnimations, "age 0.3 from the event's own timestamp is inside the opaque window")
 
     // age 0.8: inside the fade ramp, still visible, must still be requesting.
     platformWindow.simulateTick(timestamp: 111.8)
-    #expect(window.needsRedraw, "age 0.8 is inside the fade ramp and must still request another frame")
+    #expect(window.hasActiveAnimations, "age 0.8 is inside the fade ramp and must still keep frames coming")
 
     // age 1.1: fully faded. This render must be the LAST one this scroll
     // causes.
     let framesBeforeFadeCompletes = window.framesDrawn
     platformWindow.simulateTick(timestamp: 112.1)
     #expect(window.framesDrawn == framesBeforeFadeCompletes + 1,
-            "this tick was still dirty going in and must have drawn once")
-    #expect(!window.needsRedraw, "age 1.1 > 1.0: fully faded, and this render must not ask for another frame")
+            "this tick was still animating going in and must have drawn once")
+    #expect(!window.needsRedraw && !window.hasActiveAnimations,
+            "age 1.1 > 1.0: fully faded, and this render must not ask for another frame")
     #expect(window.lastScene.rects.isEmpty, "a fully faded indicator must emit no primitive at all")
 
     // And it stays idle.
@@ -538,7 +544,7 @@ func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame() th
     try #require(window.framesDrawn == framesBefore + 1, "set up: the pre-tick first frame must actually draw")
     #expect(window.lastScene.rects.isEmpty,
             "a never-scrolled ScrollView must not paint its indicator on the window's first frame")
-    #expect(!window.needsRedraw,
+    #expect(!window.needsRedraw && !window.hasActiveAnimations,
             "and must not request another frame from it: nothing has scrolled, so there is nothing to fade")
 
     // The control: a real scroll at the same instant does paint.
@@ -549,7 +555,7 @@ func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame() th
                             "control: the same fixture, scrolled at the same instant, must paint the thumb — or it cannot scroll and the first half proves nothing")
     #expect(abs(Double(rect.background.a) - 0.35) < 0.001,
             "control: age 0 after a real scroll is the token's full 0.35")
-    #expect(window.needsRedraw, "control: a thumb that just appeared must request the frames that fade it")
+    #expect(window.hasActiveAnimations, "control: a thumb that just appeared must request the frames that fade it")
 
     // The `ProposalScrollView` arm, in its own window so the two cannot share
     // a `ScrollState`. Its content is five 40pt rectangles in a zero-spacing
@@ -574,7 +580,7 @@ func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame() th
                  "set up: the pre-tick first frame must actually draw")
     #expect(proposalWindow.lastScene.rects.count == 5,
             "the five content rectangles and no thumb: a never-scrolled ProposalScrollView must not paint its indicator on the window's first frame either")
-    #expect(!proposalWindow.needsRedraw,
+    #expect(!proposalWindow.needsRedraw && !proposalWindow.hasActiveAnimations,
             "and must not request another frame from it")
 
     proposalPlatformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -20))
@@ -585,7 +591,7 @@ func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame() th
     #expect(proposalWindow.lastScene.rects.count == 6, "five rectangles plus the thumb")
     #expect(abs(Double(proposalRect.background.a) - 0.35) < 0.001,
             "control: age 0 after a real scroll is the token's full 0.35 here too")
-    #expect(proposalWindow.needsRedraw, "control: a thumb that just appeared must request the frames that fade it")
+    #expect(proposalWindow.hasActiveAnimations, "control: a thumb that just appeared must request the frames that fade it")
 }
 
 // MARK: - 6. The fade is a RAMP, and it uses the scroll-indicator token
@@ -874,8 +880,9 @@ func hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake() throws {
     // shape (age 0.05, well inside the 0.6s opaque window) would still be
     // requesting frames — see `theIndicatorRequestsFramesWhileFadingAndStopsWhenDone`
     // above. Here the window must already be clean, because `.hidden`
-    // returns before `requestAnotherFrame()` is ever called.
-    #expect(!window.needsRedraw, "`.hidden` must not request another frame even while an `.automatic` indicator would still be fading")
+    // returns before `noteActiveAnimation()` is ever called (`HT-Z` item 1).
+    #expect(!window.needsRedraw && !window.hasActiveAnimations,
+            "`.hidden` must not request another frame even while an `.automatic` indicator would still be fading")
 
     // And it stays clean: the (already paused, or about to pause) link
     // never ticks it back to life.
@@ -906,7 +913,7 @@ func visibleIndicatorsPaintAsAutomaticAndNeverAsHidden() throws {
         let (frame, _) = fullyRendered(&view, width: 120, height: 100,
                                        stateTable: scrolledState(offset: 20, lastScrollTime: 100),
                                        timestamp: 100)
-        return (frame.scene.rects.count, frame.wantsAnotherFrame, frame.scene.rects.map {
+        return (frame.scene.rects.count, frame.hasActiveAnimations, frame.scene.rects.map {
             [$0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height]
         })
     }

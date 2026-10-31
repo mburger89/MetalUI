@@ -358,12 +358,12 @@ public final class Frame {
     /// left in flight), which is precisely what lets the display link pause on
     /// the frame *after* the last animation ends rather than one frame later.
     ///
-    /// **Distinct from `wantsAnotherFrame` above, and after this task nothing
-    /// raises both.** `wantsAnotherFrame` means "mark the window DIRTY next
-    /// frame" and its callers are `ScrollView`'s scroll-indicator fade, which
-    /// predates the `Animation` type and drives itself by dirtying, and — since
-    /// plan task 10's `DD-F` — a `List` whose window went stale, once; neither
-    /// raises `noteActiveAnimation()`. This means
+    /// **Distinct from `wantsAnotherFrame` above, and nothing raises both.**
+    /// `wantsAnotherFrame` means "mark the window DIRTY next frame" and its
+    /// callers are one-shot corrections — a `List` or lazy stack whose window
+    /// went stale (`DD-F`), a scroll resolution — never a time-driven effect.
+    /// `ScrollView`'s scroll-indicator fade dirtied through it until ruling
+    /// `HT-Z` item 1 moved it here: a fade is clock-driven. This means
     /// "an `Animation` is interpolating", and it keeps the loop running
     /// *without* dirtying the window — so a window mid-fade reports
     /// `needsRedraw == false`, which is true: nobody changed anything.
