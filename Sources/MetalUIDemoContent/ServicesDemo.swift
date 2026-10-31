@@ -137,50 +137,50 @@ func servicesDialogsSection() -> some ElementGroup { ServicesPart { servicesDial
 @MainActor
 func servicesDialogsSectionBody() -> some Element {
     Column(gap: Pixels(12)) {
-    Row(gap: Pixels(12)) {
-        Button("Import…") { servicesDemoModel.importing = true }
-            .fileImporter(isPresented: Binding(get: { servicesDemoModel.importing },
-                                               set: { servicesDemoModel.importing = $0 }),
-                          allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
-                switch result {
-                case .success(let urls): servicesDemoModel.outcome = "Imported \(urls.map(\.lastPathComponent))"
-                case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
+        Row(gap: Pixels(12)) {
+            Button("Import…") { servicesDemoModel.importing = true }
+                .fileImporter(isPresented: Binding(get: { servicesDemoModel.importing },
+                                                   set: { servicesDemoModel.importing = $0 }),
+                              allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
+                    switch result {
+                    case .success(let urls): servicesDemoModel.outcome = "Imported \(urls.map(\.lastPathComponent))"
+                    case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
+                    }
                 }
-            }
-        Button("Export…") { servicesDemoModel.exporting = true }
-            .fileExporter(isPresented: Binding(get: { servicesDemoModel.exporting },
-                                               set: { servicesDemoModel.exporting = $0 }),
-                          item: Data("{\"keymap\": []}\n".utf8), contentTypes: [.json],
-                          defaultFilename: "keymap",
-                          onCompletion: { result in
-                              switch result {
-                              case .success(let url): servicesDemoModel.outcome = "Exported \(url.lastPathComponent)"
-                              case .failure(let error): servicesDemoModel.outcome = "Export failed: \(error)"
-                              }
-                          },
-                          onCancellation: { servicesDemoModel.outcome = "Export cancelled" })
-        ServicesAsyncOpen()
-    }
-    Row(gap: Pixels(12)) {
-        Button("Import folder…") { servicesDemoModel.importingFolder = true }
-            .fileImporter(isPresented: Binding(get: { servicesDemoModel.importingFolder },
-                                               set: { servicesDemoModel.importingFolder = $0 }),
-                          allowedContentTypes: [.folder], allowsMultipleSelection: false) { result in
-                switch result {
-                case .success(let urls): servicesDemoModel.outcome = "Imported folder \(urls.map(\.lastPathComponent))"
-                case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
+            Button("Export…") { servicesDemoModel.exporting = true }
+                .fileExporter(isPresented: Binding(get: { servicesDemoModel.exporting },
+                                                   set: { servicesDemoModel.exporting = $0 }),
+                              item: Data("{\"keymap\": []}\n".utf8), contentTypes: [.json],
+                              defaultFilename: "keymap",
+                              onCompletion: { result in
+                                  switch result {
+                                  case .success(let url): servicesDemoModel.outcome = "Exported \(url.lastPathComponent)"
+                                  case .failure(let error): servicesDemoModel.outcome = "Export failed: \(error)"
+                                  }
+                              },
+                              onCancellation: { servicesDemoModel.outcome = "Export cancelled" })
+            ServicesAsyncOpen()
+        }
+        Row(gap: Pixels(12)) {
+            Button("Import folder…") { servicesDemoModel.importingFolder = true }
+                .fileImporter(isPresented: Binding(get: { servicesDemoModel.importingFolder },
+                                                   set: { servicesDemoModel.importingFolder = $0 }),
+                              allowedContentTypes: [.folder], allowsMultipleSelection: false) { result in
+                    switch result {
+                    case .success(let urls): servicesDemoModel.outcome = "Imported folder \(urls.map(\.lastPathComponent))"
+                    case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
+                    }
                 }
-            }
-        Button("Import folder or JSON…") { servicesDemoModel.importingFolderOrJSON = true }
-            .fileImporter(isPresented: Binding(get: { servicesDemoModel.importingFolderOrJSON },
-                                               set: { servicesDemoModel.importingFolderOrJSON = $0 }),
-                          allowedContentTypes: [.folder, .json], allowsMultipleSelection: false) { result in
-                switch result {
-                case .success(let urls): servicesDemoModel.outcome = "Imported \(urls.map(\.lastPathComponent))"
-                case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
+            Button("Import folder or JSON…") { servicesDemoModel.importingFolderOrJSON = true }
+                .fileImporter(isPresented: Binding(get: { servicesDemoModel.importingFolderOrJSON },
+                                                   set: { servicesDemoModel.importingFolderOrJSON = $0 }),
+                              allowedContentTypes: [.folder, .json], allowsMultipleSelection: false) { result in
+                    switch result {
+                    case .success(let urls): servicesDemoModel.outcome = "Imported \(urls.map(\.lastPathComponent))"
+                    case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
+                    }
                 }
-            }
-    }
+        }
     }
 }
 
