@@ -158,3 +158,5 @@ insertion needs the conditional evaluated last frame; removal draws a ghost;
 no default transition (divergence 98). Reduce Motion changes only
 transitions (to a cross-fade). **Tests never sleep: drive
 `simulateTick(timestamp:)`.**
+
+**Decorations after transparent scopes (`ES-`, record §167).** `EnvironmentScope`, `LifecycleScope`, `PresentationScope` and `ToolbarScope` are an `Element` over an `Element` and a `StyledElement` over a `StyledElement`, forwarding every requirement to their content, so a decoration written after one lands inside it and any modifier order compiles (`ES-A`); each declares its own `id(_:) -> IdentifiedGroup<Self>` so `.id` still wraps the scope (`ES-C`). `GeometryChangeScope` measures its content and must not forward (`ES-B`, divergence 120); a new scope decides which of the two it is.
