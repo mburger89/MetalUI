@@ -63,3 +63,80 @@ func aDecorationAfterOnGeometryChangeStillDoesNotCompile() throws {
     try #require(control.succeeded && !negative.succeeded, "\(control.output)\n\(negative.output)")
     #expect(negative.messages.contains("padding"), "\(negative.output)")
 }
+
+/// **ES-D / ES-E** What an app writes after the remaining scopes that forward: `.onModifierKeysChanged`,
+/// `.glassEffectID`, `.glassEffectUnion` (`ES-D`) and `.transition` (`ES-E`), each followed by `.padding`,
+/// `.background`, `.accessibilityIdentifier` and `.onClick`, one of each as a window root (`some Element`), and
+/// `.id` after each still typed `IdentifiedGroup` (`ES-C` carried).
+///
+/// Mutation **MES-3**: delete `extension ModifierKeysScope: StyledElement` (refused at its lines only); likewise
+/// `GlassTagScope`'s and `TransitionGroup`'s. Mutation **MES-4**: delete one scope's `id(_:) -> IdentifiedGroup<Self>`
+/// (the `IdentifiedGroup` assignment of the unannotated `.id` result is refused: `.id` then returns the scope itself; with the
+/// annotation on the call instead, the mutant stayed green - the annotation picks the `ElementGroup` overload).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func decorationsChainAfterTheRemainingForwardingScopes() throws {
+    let result = try typecheckFile("""
+        @MainActor func tree(_ ns: Namespace.ID) -> some Element {
+            Column {
+                Text("x").onModifierKeysChanged { _, _ in }.padding(4).background(Color(.surface)).accessibilityIdentifier("m")
+                Text("x").onModifierKeysChanged(mask: .command) { _, _ in }.onClick {}
+                Text("x").glassEffectID("a", in: ns).padding(4).accessibilityIdentifier("g")
+                Text("x").glassEffectUnion(id: "u", namespace: ns).background(Color(.surface)).onClick {}
+                Text("x").transition(.opacity).padding(4).background(Color(.surface)).accessibilityIdentifier("t")
+                Text("x").transition(.opacity).onClick {}
+            }
+        }
+        @MainActor func roots(_ ns: Namespace.ID) -> (some Element, some Element, some Element) {
+            (Text("r").onModifierKeysChanged { _, _ in }.accessibilityIdentifier("r"),
+             Text("r").glassEffectUnion(id: "u", namespace: ns),
+             Text("r").transition(.opacity).accessibilityIdentifier("r"))
+        }
+        @MainActor func ids(_ ns: Namespace.ID) {
+            // Unannotated first: an annotation would pick the `ElementGroup` overload with or without the member.
+            let m = Text("x").onModifierKeysChanged { _, _ in }.id("k")
+            let g = Text("x").glassEffectID("a", in: ns).id("k")
+            let t = Text("x").transition(.opacity).id("k")
+            let _: IdentifiedGroup<ModifierKeysScope<Text>> = m
+            let _: IdentifiedGroup<GlassTagScope<Text>> = g
+            let _: IdentifiedGroup<TransitionGroup<Text>> = t
+        }
+        """, importing: "MetalUI")
+    print("ES-D/E app spellings: succeeded=\(result.succeeded) messages=[\(result.messages)]")
+    #expect(result.succeeded, "\(result.output)")
+}
+
+/// **ES-F / ES-G** `.coordinateSpace` and `.animation(_:value:)` / `.transaction` do NOT chain: a decoration
+/// forwarded inside them was measured wrong (record 168: an `.offset` after the space moved a child in it by the
+/// offset, where SwiftUI's G3 reads the child unmoved; a `.background` after `.animation(_:value:)` animated, where
+/// SwiftUI's T3b snaps). The decoration before each compiles (the controls).
+///
+/// Mutation **MES-5**: add `extension CoordinateSpaceScope: StyledElement` (that negative compiles); **MES-6**: the
+/// same for `TransactionScope` (both of its negatives compile).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aDecorationAfterACoordinateSpaceOrATransactionStillDoesNotCompile() throws {
+    let control = try typecheckFile("""
+        @MainActor func tree(_ v: Int) -> some Element {
+            Column {
+                Box {}.offset(x: 7).coordinateSpace(.named("s"))
+                Box {}.background(Color(.surface)).animation(.default, value: v)
+                Box {}.background(Color(.surface)).transaction { $0.animation = nil }
+            }
+        }
+        """, importing: "MetalUI")
+    func negative(_ line: String) throws -> TypecheckResult {
+        try typecheckFile("""
+            @MainActor func tree(_ v: Int) -> some Element {
+                Column { \(line) }
+            }
+            """, importing: "MetalUI")
+    }
+    let space = try negative(#"Box {}.coordinateSpace(.named("s")).offset(x: 7)"#)
+    let animation = try negative("Box {}.animation(.default, value: v).background(Color(.surface))")
+    let transaction = try negative("Box {}.transaction { $0.animation = nil }.background(Color(.surface))")
+    print("ES-F/G negatives: control succeeded=\(control.succeeded); space=\(space.succeeded) "
+          + "animation=\(animation.succeeded) transaction=\(transaction.succeeded)")
+    try #require(control.succeeded, "\(control.output)")
+    #expect(!space.succeeded && space.messages.contains("offset"), "\(space.output)")
+    #expect(!animation.succeeded && animation.messages.contains("background"), "\(animation.output)")
+    #expect(!transaction.succeeded && transaction.messages.contains("background"), "\(transaction.output)")
+}

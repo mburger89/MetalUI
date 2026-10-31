@@ -204,7 +204,8 @@ extension GlassEffectContainer: ProposalElementGroup where Content: ProposalElem
 }
 
 /// What `glassEffectID(_:in:)` and `glassEffectUnion(id:namespace:)` return: `content` with a tag open around its
-/// prepaint, read by the glass effects inside (`LG-H`, `LG-K`). Transparent like ``GlassEffectContainer``.
+/// prepaint, read by the glass effects inside (`LG-H`, `LG-K`). Transparent like ``GlassEffectContainer``. Over a
+/// `StyledElement` it is a `StyledElement` forwarding to its content (ruling `ES-D`).
 public struct GlassTagScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let tag: GlassTag
@@ -243,5 +244,65 @@ extension GlassTagScope: ProposalElementGroup where Content: ProposalElementGrou
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], Content.GroupLayout) {
         content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
+    }
+}
+
+// MARK: - Decorations chain through the tag (`ES-D`)
+
+/// `ES-D`: the tag over an element is an element (the tag pushed around its content's prepaint), and over a
+/// `StyledElement` a `StyledElement` forwarding to its content. A decoration written after the tag lands inside
+/// it, which no reader can see: only the typed `glassEffect` registers with a container and reads the tag, and a
+/// legacy decoration (`.glassEffect` on `StyledElement` among them) never registers (`LG-U`). The group entry
+/// points above are unchanged.
+extension GlassTagScope: Element where Content: Element {
+    public typealias LayoutState = Content.LayoutState
+    public typealias PrepaintState = Content.PrepaintState
+
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Content.LayoutState) {
+        content.requestLayout(id, pass: &pass)
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Content.LayoutState, pass: inout PrepaintPass) -> Content.PrepaintState {
+        let frame = pass.frame
+        frame.glassTags.append(tag)
+        defer { frame.glassTags.removeLast() }
+        return content.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Content.LayoutState, prepaint: inout Content.PrepaintState,
+                               pass: inout PaintPass) {
+        content.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+extension GlassTagScope: StyledElement where Content: StyledElement {
+    public var style: Style {
+        get { content.style }
+        set { content.style = newValue }
+    }
+    public var decoration: Decoration {
+        get { content.decoration }
+        set { content.decoration = newValue }
+    }
+    public var elementID: ElementID? {
+        get { content.elementID }
+        set { content.elementID = newValue }
+    }
+    public var handlers: Handlers {
+        get { content.handlers }
+        set { content.handlers = newValue }
+    }
+}
+
+extension GlassTagScope {
+    /// Names the scope **together with** its content, not the content inside it (ruling `ES-C`, carried to
+    /// this scope by `ES-D`). A `StyledElement` keeps its own `id(_:) -> Self`; forwarding that through the
+    /// scope would name the content inside it. This member is the `ElementGroup` spelling, and it wins over the
+    /// protocol extension's.
+    public func id(_ name: String) -> IdentifiedGroup<Self> {
+        IdentifiedGroup(content: self, name: ElementID(name))
     }
 }
