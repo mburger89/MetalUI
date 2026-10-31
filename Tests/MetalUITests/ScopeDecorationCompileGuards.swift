@@ -71,7 +71,8 @@ func aDecorationAfterOnGeometryChangeStillDoesNotCompile() throws {
 ///
 /// Mutation **MES-3**: delete `extension ModifierKeysScope: StyledElement` (refused at its lines only); likewise
 /// `GlassTagScope`'s and `TransitionGroup`'s. Mutation **MES-4**: delete one scope's `id(_:) -> IdentifiedGroup<Self>`
-/// (the `IdentifiedGroup` annotation is refused: `.id` then returns the scope itself).
+/// (the `IdentifiedGroup` assignment of the unannotated `.id` result is refused: `.id` then returns the scope itself; with the
+/// annotation on the call instead, the mutant stayed green - the annotation picks the `ElementGroup` overload).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func decorationsChainAfterTheRemainingForwardingScopes() throws {
     let result = try typecheckFile("""
@@ -91,9 +92,13 @@ func decorationsChainAfterTheRemainingForwardingScopes() throws {
              Text("r").transition(.opacity).accessibilityIdentifier("r"))
         }
         @MainActor func ids(_ ns: Namespace.ID) {
-            let _: IdentifiedGroup<ModifierKeysScope<Text>> = Text("x").onModifierKeysChanged { _, _ in }.id("k")
-            let _: IdentifiedGroup<GlassTagScope<Text>> = Text("x").glassEffectID("a", in: ns).id("k")
-            let _: IdentifiedGroup<TransitionGroup<Text>> = Text("x").transition(.opacity).id("k")
+            // Unannotated first: an annotation would pick the `ElementGroup` overload with or without the member.
+            let m = Text("x").onModifierKeysChanged { _, _ in }.id("k")
+            let g = Text("x").glassEffectID("a", in: ns).id("k")
+            let t = Text("x").transition(.opacity).id("k")
+            let _: IdentifiedGroup<ModifierKeysScope<Text>> = m
+            let _: IdentifiedGroup<GlassTagScope<Text>> = g
+            let _: IdentifiedGroup<TransitionGroup<Text>> = t
         }
         """, importing: "MetalUI")
     print("ES-D/E app spellings: succeeded=\(result.succeeded) messages=[\(result.messages)]")

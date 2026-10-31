@@ -1,7 +1,7 @@
 # Scope decorations - decisions
 
 Rulings for modifiers written after a transparent scope (`.lineLimit`, `.disabled`, `.onAppear`, `.alert`, `.toolbar`, `.navigationTitle`...). Prefix `ES-`.
-Branch `fix/scope-decorations` from master `63cc5af1`. **Next unused: `ES-D`.**
+Branch `fix/scope-decorations` from master `63cc5af1`; `ES-D`…`ES-G` on `fix/remaining-scope-decorations` from master `c686d1ef` (record 168). **Next unused: `ES-H`.**
 Why: MetalFlow wrote `Text("x").lineLimit(1).accessibilityIdentifier("x")` and `Button(...).disabled(true).accessibilityIdentifier("b")`; neither compiled, because the scope was an `ElementGroup`, not a `StyledElement`
 (divergence 120). In SwiftUI any modifier follows any other.
 
@@ -36,9 +36,44 @@ on the concrete type, which outranks the protocol extension's, so `.id` wraps th
 semantics needs the same member; the full suite found only `id` (and `.task`'s old negative guard).
 **Pins.** the two tests above. Mutation: delete the member in `LifecycleScope` (both reddened).
 
+## ES-D - `.onModifierKeysChanged`, `.glassEffectID` and `.glassEffectUnion` chain
+
+**Ruling.** `ModifierKeysScope` and `GlassTagScope` take ES-A's two conditional conformances and ES-C's `id(_:) -> IdentifiedGroup<Self>`. Neither reads its content's geometry or decoration: the modifier-keys scope
+notes the held modifiers in prepaint, and the glass tag is read only by the typed `glassEffect`'s registration with a container, which a legacy decoration (`.glassEffect` on `StyledElement` among them) never makes
+(`LG-U`). So where a forwarded decoration sits is unobservable to the scope. On the `Element` path the modifier-keys scope owns its store entry by the element's own id (`$modkeys<depth>` under it, as ES-A's
+lifecycle owner), and the tag is pushed around the content's prepaint.
+**Pins.** `decorationsChainAfterTheRemainingForwardingScopes` (plain-import guard: decorations, roots, `.id` typed `IdentifiedGroup`), `aModifierKeysScopeTakesAnIdentifierAndAClickAfterIt`,
+`aModifierKeysScopeAtTheRootStillReports` (`MetalUITestingTests`), `aGlassUnionTagKeepsTaggingWithADecorationAfterIt` (a union over a legacy `Box` holding a container joins two circles 120 apart, in a column and as
+the frame's root; untagged they stay two).
+
+## ES-E - `.transition` chains
+
+**Ruling.** `TransitionGroup` takes the same conformances and `id` member. Measured: a background written after `.transition(.opacity)` on an `if`'s tile reads alpha ½ half-way through a `linear(1)` insertion and 1
+settled, the same as the background written before; SwiftUI's transition is a trait of the whole view, so both orders fade together there too. The decoration lands inside the group, so the group stays the
+outermost group of the inserted content and keeps its claim. A wrapper written after it (`.frame`, the padding layer, `.id`) still wraps the scope; whether a group under a wrapper claims is `AN-AH` item 4's rule, unchanged and not re-measured here. On the `Element`
+path (a window root, `Deferred` content, a `List` row) no conditional inserts the element, so the transition is inert and the content is forwarded unchanged.
+**Pins.** the guard above, `aBackgroundAfterATransitionTransitionsWithTheContent` (with the before control), `aTransitionAtTheRootIsInertAndKeepsItsDecoration`, `aTransitionTakesAnIdentifierAndAClickAfterIt`.
+
+## ES-F - `.coordinateSpace` does not chain
+
+**Ruling.** `CoordinateSpaceScope` gets no conformance, as ES-B. Measured with a temporary conformance (the ES-A shape, the space built from the element's node around its content's prepaint): a legacy `Box` holding a
+40 x 20 leaf, `.coordinateSpace(.named("outer")).offset(x: 7, y: 9)`, reports the leaf at (7, 9) in the space - the same as the offset written *before* the scope - where SwiftUI's offset after `.coordinateSpace`
+moves the space with the view and the leaf reads (0, 0) (probe arm G3, pinned for the typed spelling by `aNamedSpaceMovesWithAnOffsetOnItsContainer`). The forwarded render effect opens inside the content's
+`registerAndScope`, after the space was built from the unmoved node. Divergence 120 names the scope.
+**Pin.** `aDecorationAfterACoordinateSpaceOrATransactionStillDoesNotCompile` (its `space` negative, with the before control).
+
+## ES-G - `.animation(_:value:)` and `.transaction` do not chain
+
+**Ruling.** `TransactionScope` gets no conformance. Measured with a temporary conformance (the transaction pushed around the content's layout and paint): `Box().animation(linear(1), value: flag).background(c)`
+changing `flag` and `c` together paints the mid colour (l 0.767 between surface and accent) half-way, as the background written before does; SwiftUI's modifier written after `.animation(_:value:)` is outside it and
+snaps (probe arm T3b). A forwarded decoration is always inside the scope's transaction. Divergence 120 names both modifiers.
+**Pin.** the same guard's `animation` and `transaction` negatives.
+
 ## Mutations
 
-Applied to the declaration named, against `ScopeDecorationTests` (after `swift build --build-system native --build-tests`).
+Applied to the declaration named, against `ScopeDecorationTests` (after `swift build --build-system native --build-tests`). Rows 7-15 (`ES-D`…`ES-G`) on `fix/remaining-scope-decorations` at `477280cc` plus the
+row-8 fix, in the worktree, one at a time and reverted; guard rows rebuilt the `MetalUI` module only and ran the built test binary; behaviour rows filtered to `ScopeDecorationTests`, `RemainingScopeDecorationTests`,
+`ModifierKeysTests`, `TransitionTests`, `GlassTests` (69 tests).
 
 | # | Mutation | Reddened |
 |---|---|---|
@@ -48,14 +83,23 @@ Applied to the declaration named, against `ScopeDecorationTests` (after `swift b
 | 4 | the conformance deleted (any of the four scopes) | the test target does not compile; per scope the guard `decorationsChainAfterTransparentScopes` is refused for `onClick`/`padding` |
 | 5 | the `style` setter dropped | **nothing** - every `Style`-writing modifier is refused by name under the proposal layout authority (`LR-FO`), so a forwarded `style` write is unobservable from a window; forwarded for completeness |
 | 6 | the `elementID` setter dropped | **nothing** - no `StyledElement` method writes `elementID` (`.id` is an `ElementGroup` wrapper); forwarded for completeness |
+| 7 | MES-3: `extension ModifierKeysScope: StyledElement` deleted | `decorationsChainAfterTheRemainingForwardingScopes` (refused for `padding`/`accessibilityIdentifier` on `ModifierKeysScope` only) |
+| 8 | MES-4: `ModifierKeysScope.id(_:) -> IdentifiedGroup<Self>` deleted | `decorationsChainAfterTheRemainingForwardingScopes` (`cannot convert ModifierKeysScope<Text> to IdentifiedGroup<…>`). **The first spelling of the arm (`let _: IdentifiedGroup<…> = X.id("k")`) reddened nothing**: the annotation picks the `ElementGroup` overload with or without the member; the arm now assigns the unannotated result |
+| 9 | MES-5: `CoordinateSpaceScope: Element, StyledElement` added (forwarding) | `aDecorationAfterACoordinateSpaceOrATransactionStillDoesNotCompile` (1 issue, the `space` negative) |
+| 10 | MES-6: the same for `TransactionScope` | `aDecorationAfterACoordinateSpaceOrATransactionStillDoesNotCompile` (2 issues, the `animation` and `transaction` negatives) |
+| 11 | `ModifierKeysScope: StyledElement`'s `handlers` setter drops the write | `aModifierKeysScopeTakesAnIdentifierAndAClickAfterIt`, `aModifierKeysScopeAtTheRootStillReports` (each loses its identifier) |
+| 12 | `noteModifierKeys` dropped from `ModifierKeysScope.prepaint(_:bounds:layout:pass:)` | `aModifierKeysScopeAtTheRootStillReports` |
+| 13 | `TransitionGroup: StyledElement`'s `decoration` setter drops the write | `aBackgroundAfterATransitionTransitionsWithTheContent`, `aTransitionAtTheRootIsInertAndKeepsItsDecoration` |
+| 14 | `TransitionGroup: StyledElement`'s `handlers` setter drops the write | `aTransitionTakesAnIdentifierAndAClickAfterIt` |
+| 15 | the `glassTags` push dropped from `GlassTagScope.prepaint(_:bounds:layout:pass:)` | `aGlassUnionTagKeepsTaggingWithADecorationAfterIt` (its root arm) |
 
 ## Carried
 
-- **Shard rule (for the area shard when the integration lands):** a transparent scope (`EnvironmentScope`, `LifecycleScope`, `PresentationScope`, `ToolbarScope`) is an `Element` over an `Element` and a `StyledElement`
-  over a `StyledElement`, forwarding every requirement to its content, so a decoration written after it lands inside it (`ES-A`); a scope that measures its content (`GeometryChangeScope`) must not (`ES-B`), and a new
-  scope decides which of the two it is.
+- **Shard rule:** in `docs/rules/identity-state.md` (`ES-` paragraph), updated for `ES-D`…`ES-G`.
 - `WindowPreferences.swift` scopes (`navigationTitle`, `navigationDocument`, `onOpenURL`) are `EnvironmentScope`s and chain with it; `onOpenURL` on the `Element` path owns its handler by the element's id, not by the
-  group position (no test distinguishes them: the owner is only a dispatch key).
-- Other `-> …Scope` modifiers outside the four (`AnimationScope`, `CoordinateSpaceScope`, `TaskModifier`, `ModifierKeysChange`, `TransitionGroup`...) were not converted: none is named by divergence 120 and the report
-  did not hit them. The same two extensions apply to each that forwards cleanly; `.task` and `.coordinateSpace` would need the geometry question (`ES-B`) answered first.
-- The `style` and `elementID` forwards have no observable pin (mutations 5 and 6).
+  group position (no test distinguishes them: the owner is only a dispatch key). The same holds for `ModifierKeysScope`'s owner on its `Element` path (`ES-D`).
+- Every single-content modifier scope is now ruled: forwarding `EnvironmentScope`, `LifecycleScope` (`.task` included), `PresentationScope`, `ToolbarScope` (`ES-A`), `ModifierKeysScope`, `GlassTagScope` (`ES-D`),
+  `TransitionGroup` (`ES-E`); refusing `GeometryChangeScope` (`ES-B`), `CoordinateSpaceScope` (`ES-F`), `TransactionScope` (`ES-G`). Containers (`ScrollViewReader`, `GlassEffectContainer`, `IdentifiedGroup`) are
+  out of scope. A new scope decides which it is, by measuring a decoration after it against the same decoration before it.
+- `ES-F` could be lifted if the space were built inside the content's own render effects (inside `registerAndScope`), and `ES-G` if a forwarded decoration could be read outside the transaction; neither is attempted.
+- The `style` and `elementID` forwards have no observable pin (mutations 5 and 6), for the new scopes as for the first four.
