@@ -32,7 +32,7 @@ product for test targets only (`MetalUI` never links it): `TestApp`/`TestWindow`
 `App.openWindow` and `Window` over `HeadlessPlatform`/`HeadlessPlatformWindow`/
 `HeadlessWindowRenderer`, which implement every platform requirement honestly (options default to
 AppKit's answers). Input is XCUITest's names with AppKit's key routing; a **simulated clock**
-(`tick`, `advance(by:)`, `runUntilIdle()` — four quiet yields, bounded at 64 rounds); **an action
+(`tick`, `advance(by:)`, `runUntilIdle()` — four quiet yields, bounded at 64 rounds, a closed window counting as clean; `runUntil(timeout:_:)` waits for work off the main actor by its effect, the real-time bound only a failure bound, `HT-Y`); **an action
 draws one frame, `tick` draws the next**, and a test's model is a plain class plus
 `setNeedsRedraw()` or `@Observable` with `runUntilIdle()` (the observation hop is asynchronous off
 macOS); queries read the accessibility tree (`element(label:)` also matches a static text's string)

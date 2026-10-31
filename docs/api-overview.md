@@ -1058,7 +1058,7 @@ blob, a real blur on a `Path` (`LG-Q`).
 `HT-A`…, [`superpowers/2026-10-09-test-harness-decisions.md`](superpowers/2026-10-09-test-harness-decisions.md)):
 `TestApp` and `TestWindow` run the real `App` and `Window` over
 `HeadlessPlatform`/`HeadlessPlatformWindow`/`HeadlessWindowRenderer`, with a
-simulated clock (`tick`, `advance(by:)`, `advanceFrames`, `runUntilIdle`),
+simulated clock (`tick`, `advance(by:)`, `advanceFrames`, `runUntilIdle`, `runUntil`),
 input by point and by element in XCUITest's names (`click`, `typeText`,
 `scroll`, `drag`, …), accessibility queries (`element(label:)`,
 `element(identifier:)`, `elements(role:)`, `TestElement`), laid-out frames
