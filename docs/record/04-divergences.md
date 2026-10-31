@@ -2773,3 +2773,10 @@ window's root (`AS-N`'s and `MD-S`'s restriction ends). The row survives for `.o
 (`ES-F`) and `.animation(_:value:)`/`.transaction` (`ES-G`) were measured with a temporary conformance and refused, so the row now names them beside `.onGeometryChange`: an `.offset(x: 7, y: 9)` forwarded inside a
 named space read the leaf at (7, 9) in it where SwiftUI's G3 reads (0, 0), and a `.background` forwarded inside `.animation(_:value:)` painted the mid colour half-way where SwiftUI's T3b snaps. Before this record
 none of the six took a decoration after it; the row did not name them. Mechanism and mutations: `docs/superpowers/2026-10-31-scope-decorations-decisions.md`.
+
+## 2026-10-31: 120 narrowed to `.onGeometryChange` (`ES-H`, record §169)
+
+**Amended: 120** (178 live, unchanged; next label unchanged). `.coordinateSpace` and `.animation(_:value:)`/`.transaction` now take a decoration after them (`ES-F` and `ES-G` lifted): the decoration configures a
+`.padding(0)` layer of the scope's own that wraps the scope, so it sits outside the named space (the leaf reads (0, 0) with an `.offset(x: 7, y: 9)` after the space, SwiftUI's G3) and outside the transaction (a
+`.background` after `.animation(linear(1), value:)` is accent half-way while the tile's own background inside is mid-way, SwiftUI's T3b). The row names `.onGeometryChange` alone (`ES-B`). Mechanism and
+mutations: `docs/superpowers/2026-10-31-scope-decorations-decisions.md`.
