@@ -158,7 +158,7 @@ inside `sharingRegistrationsWithEffects`. A Return with the platform's shortcut 
 `TextEditor` editing key (`KF-Z`). `.onGeometryChange` is a transparent `GeometryChangeScope` (no
 node, `$geometry<depth>` a `LifecycleStore` key, never a `StateTable` slot): the value is noted in
 prepaint and the action runs in the lifecycle drain, so the first presented frame carries what it
-wrote (`KF-J`, divergence 120). `TimelineView(.animation)` calls `noteActiveAnimation()`, never
+wrote (`KF-J`); a decoration after it is a layer of its own outside the measurement (`ES-J`, divergence 120 retired). `TimelineView(.animation)` calls `noteActiveAnimation()`, never
 `requestAnotherFrame()`; other schedules wake the window once through `TimelineStore`
 (`$timeline<depth>`, `AnimationStore`; `KF-K`). **`for` over an opaque-returning helper in a
 builder is a Swift 6.4 defect, not fixable in the builder** (`KF-M`, guard C1): use `ForEach` or a

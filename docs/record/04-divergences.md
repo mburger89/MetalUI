@@ -2780,3 +2780,10 @@ none of the six took a decoration after it; the row did not name them. Mechanism
 `.padding(0)` layer of the scope's own that wraps the scope, so it sits outside the named space (the leaf reads (0, 0) with an `.offset(x: 7, y: 9)` after the space, SwiftUI's G3) and outside the transaction (a
 `.background` after `.animation(linear(1), value:)` is accent half-way while the tile's own background inside is mid-way, SwiftUI's T3b). The row names `.onGeometryChange` alone (`ES-B`). Mechanism and
 mutations: `docs/superpowers/2026-10-31-scope-decorations-decisions.md`.
+
+## 2026-10-31: 120 retired (`ES-J`, record §172)
+
+**Retired: 120** (177 live; next label 209 unchanged; 120 is never reused). `.onGeometryChange`, the last scope the row named, now takes a decoration after it: the decoration configures a `.padding(0)`
+layer of the scope's own (`ES-H`'s mechanism), outside the measurement — the reported size is the content's alone (`.padding(8).background(…)` after reports 50 x 50, the padding before 66 x 66) and an
+`.offset(x: 10)` after it moves the reported global frame by 10, SwiftUI's G4a (`docs/probes/swiftui-key-focus.swift`). Forwarding it onto the content (the `ES-A` shape) left the global frame unmoved.
+No transparent scope refuses a decoration after it any more. Mechanism and mutations: `docs/superpowers/2026-10-31-scope-decorations-decisions.md`.

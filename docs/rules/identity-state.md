@@ -99,9 +99,9 @@ untouched (`FI-C`); a floating-point id keeps the name dedupe because a NaN is u
 
 **Lifecycle (`LC-`, record §76).** `.onAppear`/`.onDisappear`/
 `.onChange(of:initial:_:)` are one transparent `LifecycleScope` on every
-`ElementGroup` (no node, no id level, no `Element` hook, `Handlers` unchanged;
-a legacy decoration after it, or it as a window root, does not compile —
-divergence 120). **Presence is membership in a build, keyed in the
+`ElementGroup` (no node, no id level, `Handlers` unchanged; since `ES-A` a
+legacy decoration after it lands on its content and it can be a window root —
+divergence 120 retired by `ES-J`). **Presence is membership in a build, keyed in the
 window-owned `LifecycleStore` (`AnimationStore`'s), never a `StateTable` slot**
 (`$lifecycle<depth>` is a store key, no `noteNamed`; the seven slots unmoved);
 a modifier on a group fires once while it has content. **Actions run after
@@ -159,4 +159,4 @@ no default transition (divergence 98). Reduce Motion changes only
 transitions (to a cross-fade). **Tests never sleep: drive
 `simulateTick(timestamp:)`.**
 
-**Decorations after transparent scopes (`ES-`, records §167, §168, §169).** `EnvironmentScope`, `LifecycleScope`, `PresentationScope`, `ToolbarScope` (`ES-A`), `ModifierKeysScope`, `GlassTagScope` (`ES-D`) and `TransitionGroup` (`ES-E`) are an `Element` over an `Element` and a `StyledElement` over a `StyledElement`, forwarding every requirement to their content, so a decoration written after one lands inside it and any modifier order compiles; each declares its own `id(_:) -> IdentifiedGroup<Self>` so `.id` still wraps the scope (`ES-C`). `CoordinateSpaceScope` and `TransactionScope` must not forward (a forwarded decoration was measured inside the space or the transaction): their accessors configure a `.padding(0)` `ModifierLayer` of their own, and a scope holding one runs as `ModifiedElement<Self>` over itself without it, so the decoration sits outside, SwiftUI's order (`ES-H`). `GeometryChangeScope` (`ES-B`) takes neither (divergence 120). A new scope decides which it is by measuring a decoration after it against the same one before it.
+**Decorations after transparent scopes (`ES-`, records §167, §168, §169, §172).** `EnvironmentScope`, `LifecycleScope`, `PresentationScope`, `ToolbarScope` (`ES-A`), `ModifierKeysScope`, `GlassTagScope` (`ES-D`) and `TransitionGroup` (`ES-E`) are an `Element` over an `Element` and a `StyledElement` over a `StyledElement`, forwarding every requirement to their content, so a decoration written after one lands inside it and any modifier order compiles; each declares its own `id(_:) -> IdentifiedGroup<Self>` so `.id` still wraps the scope (`ES-C`). `CoordinateSpaceScope`, `TransactionScope` and `GeometryChangeScope` must not forward (a forwarded decoration was measured inside the space, the transaction or the measurement): their accessors configure a `.padding(0)` `ModifierLayer` of their own, and a scope holding one runs as `ModifiedElement<Self>` over itself without it, so the decoration sits outside, SwiftUI's order (`ES-H`, `ES-J`; divergence 120 retired). A new scope decides which it is by measuring a decoration after it against the same one before it.

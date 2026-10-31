@@ -532,8 +532,8 @@ extension ElementGroup {
     ///
     /// Every `.toolbar` in the window's main tree contributes, merged in build
     /// pre-order (`NT1`); one in a popover or a `Deferred` presentation is
-    /// ignored (`PO`). Items are a closed set (divergence 135). **Not a window
-    /// root** (`MD-S`, divergence 120): `openWindow(…) { Column { content.toolbar { … } } }`.
+    /// ignored (`PO`). Items are a closed set (divergence 135). Over an element
+    /// it can be a window's root (`ES-A`; `MD-S`'s restriction and divergence 120 retired).
     @MainActor
     public func toolbar<C: ToolbarContent>(@ToolbarContentBuilder content: () -> C) -> ToolbarScope<Self> {
         ToolbarScope(content: self, declaration: .items(content()))

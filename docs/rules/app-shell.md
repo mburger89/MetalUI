@@ -50,7 +50,7 @@ cannot follow a legacy `.popover` (divergence 115).
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one
 transparent `PresentationScope` (no node, no id level; the record lives in the
 window's registry keyed `$presentation<depth>`, never a `StateTable` slot; a
-legacy decoration after it does not compile, divergence 120); they present
+legacy decoration after it lands on its content, `ES-A`; divergence 120 retired); they present
 after the frame, one in flight per window (`FileDialogs` async calls share the
 slot, `.busy`), and answers come back as queued `InputEvent`s that the window
 claims first (`SV-B`, `SV-K`, `SV-AH`). AppKit shows sheets (`NSOpenPanel`,
