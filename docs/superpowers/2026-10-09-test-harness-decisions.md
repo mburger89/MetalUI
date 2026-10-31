@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-Y`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-Z`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -713,3 +713,68 @@ made three things true, each pinned.
 
 **Cost if wrong.** A third platform answer for `setMenuBar` adds nothing: the
 option is one Boolean.
+
+## HT-Y — A closed window is idle; `runUntil(timeout:_:)` waits for an effect (2026-10-31)
+
+**Ruling.** Report: MetalFlow's three quit tests (`quitWithDirtyDraftSaveThenQuits`,
+`dirtyDraftAndRunningRunsAsksBothInOrder`, `closingTheWindowWithRunningRunAsksAndSuspends`) threw
+`.notIdle(rounds: 64)` a few times a day, only under machine load. Record §171.
+1. **`runUntilIdle()` counts a closed window as clean.** Measured in a copy of MetalFlow at its
+   pre-`49144ee` tests against this branch with a per-round trace: every failing run printed
+   `..c!c!c!…` — two quiet yields, then 62 rounds where the window was dirty, the tick drew nothing
+   and the window was closed. Each test answers its last alert with work that hops off the main
+   actor (a detached save, an actor's `suspend`) and then approves the termination or close;
+   `App.replyToTerminateRequest(true)` closes every window (`endEverything`), and a closed window
+   draws nothing more (`AS-B` item 4, `drawFrameIfNeeded`'s first line), so the model's last writes
+   left `needsRedraw` `true` for good. Load decided only whether the hop landed inside the four
+   quiet yields (4 of 10 runs failed under 24 `yes` processes on 12 cores, 1 of 14 alone) or
+   after them. With the fix, 0 of 15 under the same load. `needsRedraw` itself is
+   unchanged (a closed window's flag is honest: the frame is owed, never drawn); the harness
+   decides what idle means. The quiet yields still run, so main-actor work queued behind the
+   close completes. The 64-round bound and the four quiet yields (`HT-S` item 1) stand.
+2. **`runUntil(timeout: Duration = .seconds(10), _ condition: () throws -> Bool) async throws`**:
+   each round draws one tick if the window is dirty and open, then reads `condition` (returns when
+   it holds, so a condition about the window reads the frame its last write drew), then checks the
+   deadline, then `await Task.yield()`. It never moves `now`. Past `timeout` it throws the new
+   **`TestHarnessError.timedOut(after: Duration)`**. `timeout` is a `ContinuousClock` reading and the
+   harness's only wall-clock read (amending `HT-E` item 4): it bounds a failure only, so a slow
+   machine waits longer and never fails sooner. This is the harness spelling of what MetalFlow wrote
+   by hand (`waitUntil`, 200 000 yields, drawing nothing): work off the main actor is invisible to
+   `runUntilIdle()` by construction (`HT-E` item 3), so a test waits on the effect it asserts.
+
+**Reasoning.** A raised round cap would not have helped: the closed window's flag never clears, so
+any cap is reached. gpui's `run_until_parked` parks on an empty foreground queue, which a closed
+window does not refill; treating the closed window as having no frame to draw is the same answer.
+A round-bounded `runUntil` would reintroduce the load dependence (the off-actor work takes an
+unknown number of yields); a real-time bound is the only one a busy machine cannot trip early.
+
+3. **`runUntil` settles with `runUntilIdle()` once the condition holds** (added after Linux CI,
+   PR #158, job "Root package (Linux)", Swift 6.4 noble: `runUntilWaitsForLateWorkAndDrawsIt` read
+   the box 10 wide, not 50). A condition about the model can hold before the window knows it is
+   dirty: when the write's invalidation is an observation hop (`Window.markDirtyFromObservation`'s
+   off-main arm, which Linux takes for a main-actor write too, "the observation hop is asynchronous
+   off macOS"), the hop is queued behind `runUntil`'s next turn, so "draw, then read the condition"
+   returned with the frame undrawn. Reproduced on macOS by writing from another thread while the main
+   actor waits (`runUntilDrawsAWriteWhoseInvalidationHops`): red 3 of 3 on the item-2 spelling, green
+   after. The settle is bounded by its own 64 rounds, not by `timeout`; a closed window is clean to
+   it (item 1), so `runUntil` still returns when an approved termination closes the window.
+
+**Mutations** (branch `fix/run-until-idle-load`; the item-3 spelling, `HarnessSettleTests`; the item-2
+spelling's table at `e719fb0a` is superseded):
+- `isDirtyAndOpen` without `&& !platformWindow.isClosed` → reddens
+  `runUntilIdleReturnsWhenAnApprovedTerminationClosesTheWindowMidSettle`,
+  `runUntilIdleTreatsAClosedDirtyWindowAsIdle`, `runUntilReturnsWhenAnApprovedTerminationClosesTheWindow`.
+- `runUntil` without `await Task.yield()` → reddens `runUntilWaitsForLateWorkAndDrawsIt`,
+  `runUntilDrawsAWriteWhoseInvalidationHops`, `runUntilDrawsWhileItWaitsForADrawnCondition`,
+  `runUntilReturnsWhenAnApprovedTerminationClosesTheWindow` (each times out).
+- `runUntil` without its per-round draw → reddens `runUntilDrawsWhileItWaitsForADrawnCondition`
+  (only a condition about the drawn window can see it now: the closing settle draws a model write).
+- `runUntil` without its closing `runUntilIdle()` → reddens `runUntilDrawsAWriteWhoseInvalidationHops`.
+- The deadline arm `return` instead of `throw` → reddens `runUntilThrowsTimedOutWhenTheConditionNeverHolds`.
+- **The condition read before the draw stays green: not observable.** With the closing settle, reading
+  first only finds a drawn condition one round later and a model condition's frame is drawn by the
+  settle; the item-2 table's row for it (reddening `runUntilWaitsForLateWorkAndDrawsIt`) no longer
+  holds. The order is kept as the cheaper one.
+
+**Cost if wrong.** A test that wanted `runUntilIdle()` to fail on a closed dirty window has no such
+signal; `platformWindow.isClosed` says it directly.
