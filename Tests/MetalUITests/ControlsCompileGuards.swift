@@ -68,8 +68,8 @@ func theControlsSwiftUISpellingsCompileFromOutsideTheModule() throws {
 /// **G1.2 → 5.G13 — `.pickerStyle(.menu)` compiles** (`SV-P` item 1,
 /// divergence 81 narrowed). It replaces `aMenuPickerStyleIsNotOffered` (`DD-V`
 /// item 4), which reddened when `.menu` landed — its flip. The menu style
-/// typechecks from a plain `import MetalUI`; `.inline`, still not offered, is
-/// the separating arm that proves the fixture can fail.
+/// typechecks from a plain `import MetalUI`; `.bogus`, a style that does not exist (`.inline` was this
+/// arm until `BY-J` offered it), is the separating arm that proves the fixture can fail.
 ///
 /// Mutation that must redden it (MG3.13): remove `public static let menu`
 /// from `PickerStyle`.
@@ -87,12 +87,12 @@ func aMenuPickerStyleCompiles() throws {
     }
     let menu = try typecheckFile(source("menu"), importing: "MetalUI")
     print("CONTROLS GUARD 5.G13 menu: succeeded=\(menu.succeeded)\n\(menu.messages)")
-    let control = try typecheckFile(source("inline"), importing: "MetalUI")
+    let control = try typecheckFile(source("bogus"), importing: "MetalUI")
     print("CONTROLS GUARD 5.G13 control: succeeded=\(control.succeeded)\n\(control.messages)")
 
     try #require(menu.succeeded != control.succeeded,
                  "the two arms must disagree, or the guard measures nothing:\n\(menu.output)\n\(control.output)")
     #expect(menu.succeeded, "`.menu` is offered:\n\(menu.output)")
-    #expect(!control.succeeded && control.messages.contains("inline"),
-            "`.inline` is not offered:\n\(control.output)")
+    #expect(!control.succeeded && control.messages.contains("bogus"),
+            "`.bogus` names no style:\n\(control.output)")
 }
