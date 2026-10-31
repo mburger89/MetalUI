@@ -356,6 +356,19 @@ write's frame can still be on its way, so wait on what you assert (the drawn
 result, not only the model) in a bounded loop
 (`for _ in 0..<64 where !done { try await window.runUntilIdle() }`).
 
+Work only the clock can finish does not keep the window busy (`HT-Z`): a
+scroll indicator's fade, an animation, a long press held short of its
+duration, a tooltip's delay. Each keeps the display link drawing without
+marking the window dirty, so `runUntilIdle()` returns with it still pending
+(after a wheel, the scroll is drawn and the thumb still showing); move the
+clock to finish it:
+
+```swift
+window.scroll(at: point, byDeltaX: 0, deltaY: -2000)
+try await window.runUntilIdle()     // the scroll is drawn; the thumb is still fading
+window.advance(by: 1)               // the fade (0.6 s opaque, 0.4 s ramp) has ended
+```
+
 Work off the main actor — a detached task, another actor's method — is
 invisible to `runUntilIdle()`: its four quiet yields can come before that work
 hops back. Wait for its effect with `try await runUntil { … }`, which draws

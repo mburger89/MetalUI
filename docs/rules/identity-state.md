@@ -150,7 +150,11 @@ in `animated(_:_:for:pass:)` (layout) and `animatedBackground`/`animatedColor`
 `everyBackgroundPaintingSiteAnimatesItsColour`. Proposal `LayoutModifier`s
 animate through the window-owned `AnimationStore`. "Live" is
 `Frame.noteActiveAnimation()` → `hasActiveAnimations`, **not**
-`wantsAnotherFrame` — never raise both. In-flight values are clamped;
+`wantsAnotherFrame` — never raise both. **Clock-driven work never marks the
+window dirty** (`HT-Z`): a time-driven fade (the scroll indicator) is
+`noteActiveAnimation()`, a pending gesture or tooltip timer is
+`Window.awaitsATimer`; `wantsAnotherFrame`/`setNeedsRedraw()` are for a
+change, or a one-shot correction. In-flight values are clamped;
 declared values never. Structure snaps, values interpolate (`LR-AS`); a new
 read of `Style` in the lowering owes an animated arm. Interpolation is
 per-component RGB. Transitions: only the outermost group transitions;
