@@ -40,7 +40,7 @@ func theGlassSpellingsCompileAndTheNonSDKOnesDoNot() throws {
             let _: Bool = glasses[0] == glasses[1]
             let transitions: [GlassEffectTransition] = [.matchedGeometry, .materialize, .identity]
             _ = transitions
-            let styles: [ButtonStyle] = [.glass, .glassProminent]
+            let styles: [any PrimitiveButtonStyle] = [.glass, .glassProminent]
             _ = Button("Go") {}.buttonStyle(styles[0])
             _ = Button("Go") {}.buttonStyle(.glassProminent)
             _ = Box().glassEffect(.regular, in: RoundedRectangle(cornerRadius: Pixels(8)))

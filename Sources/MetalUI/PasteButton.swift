@@ -44,7 +44,7 @@ public struct PasteButton: Element, StyledElement {
     public var elementID: ElementID?
     public var handlers: Handlers = Handlers()
     let spec: Spec
-    private var buttonStyleValue: ButtonStyle = .automatic
+    private var ownStyle: ResolvedButtonStyle?
     private var inner: Button<Text>
 
     /// A button that pastes the clipboard's items as `T`s (SwiftUI's `PasteButton(payloadType:onPaste:)`):
@@ -76,9 +76,16 @@ public struct PasteButton: Element, StyledElement {
 
     /// Sets the button's look, as `Button.buttonStyle(_:)` does (`.plain` and `.borderless` drop the
     /// chrome).
-    public func buttonStyle(_ style: ButtonStyle) -> Self {
+    public func buttonStyle<S: PrimitiveButtonStyle>(_ style: S) -> Self {
         var copy = self
-        copy.buttonStyleValue = style
+        copy.ownStyle = ResolvedButtonStyle(style)
+        return copy
+    }
+
+    /// `buttonStyle(_:)` for a custom ``ButtonStyle``.
+    public func buttonStyle<S: ButtonStyle>(_ style: S) -> Self {
+        var copy = self
+        copy.ownStyle = ResolvedButtonStyle(style)
         return copy
     }
 
@@ -103,7 +110,7 @@ public struct PasteButton: Element, StyledElement {
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Box<Pair<Text, Box<EmptyGroup>>>.Layout) {
+        -> (LayoutNodeID, Button<Text>.Layout) {
         let frame = pass.frame
         frame.taintRetention("pasteButton")   // the build channel's journal (`CP-H`)
         let spec = self.spec
@@ -118,7 +125,8 @@ public struct PasteButton: Element, StyledElement {
                 }
                 if !items.isEmpty { action(items) }
             }
-        }.buttonStyle(buttonStyleValue)
+        }
+        button.ownStyle = ownStyle
         button.style = style
         button.decoration = decoration
         button.elementID = elementID
@@ -128,16 +136,16 @@ public struct PasteButton: Element, StyledElement {
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<Pair<Text, Box<EmptyGroup>>>.Layout,
-                                  pass: inout PrepaintPass) -> Pair<Text, Box<EmptyGroup>>.Prepaint {
+                                  layout: inout Button<Text>.Layout,
+                                  pass: inout PrepaintPass) -> Button<Text>.PrepaintState {
         let frame = pass.frame, spec = self.spec
         frame.notePasteButton()
         return Self.gated(frame, spec) { inner.prepaint(id, bounds: bounds, layout: &layout, pass: &pass) }
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<Pair<Text, Box<EmptyGroup>>>.Layout,
-                               prepaint: inout Pair<Text, Box<EmptyGroup>>.Prepaint,
+                               layout: inout Button<Text>.Layout,
+                               prepaint: inout Button<Text>.PrepaintState,
                                pass: inout PaintPass) {
         let frame = pass.frame, spec = self.spec
         frame.taintRetention("pasteButton")

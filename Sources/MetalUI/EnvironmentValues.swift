@@ -322,6 +322,12 @@ public struct EnvironmentValues {
 
     private var custom: [ObjectIdentifier: CustomValue] = [:]
 
+    /// Writes a custom key with the reading the caller made of it (`BY-A`): a value whose comparability is not its own
+    /// (a style holding a closure) names the reading of what it wraps.
+    mutating func setCustom<K: EnvironmentKey>(_ key: K.Type, _ value: K.Value, reading: EnvironmentReading) {
+        custom[ObjectIdentifier(key)] = CustomValue(value: value, reading: reading)
+    }
+
     /// A custom key's value, or its `defaultValue` when no writer set it.
     public subscript<K: EnvironmentKey>(key: K.Type) -> K.Value {
         get {
