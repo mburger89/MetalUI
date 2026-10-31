@@ -656,6 +656,18 @@ main actor whenever the clipboard may have changed (an own write, SDL's `SDL_EVE
 `changeCount` seen on becoming key and at a press). The four `CB-E` requirements stay and mean item 0.
 `HeadlessPlatform.Options` gains `clipboardExportsLazily` (default `true`).
 
+### Matched geometry and custom transitions (`MG-`, record 175)
+
+Additive: `matchedGeometryEffect(id:in:properties:anchor:isSource:)`, `MatchedGeometryProperties`, the `Transition`
+protocol, `TransitionPhase`, `TransitionContent`, `AnyTransition(_:)` and `.transition(_:)` over a `Transition`. **Porting
+SwiftUI code:** a `matchedGeometryEffect` swap works as written, but a leaver you gave `.transition(.identity)` hands its
+frame over to nothing (SwiftUI's rule, probe S2); the move is a paint map (hit testing keeps the laid-out frame, 895; a
+size change stretches the content, 896; the leaver does not move, 897). A SwiftUI `Transition`'s `body` returns a view;
+here it returns `TransitionContent` built with `content.opacity(_:)`, `.scaleEffect(_:anchor:)` and `.offset(x:y:)`, the
+only effects a transition has (898): rewrite `content.scaleEffect(phase.isIdentity ? 1 : 0.5)` as is, and drop any other
+modifier (a blur, a rotation, a background). `contentTransition`, `.blurReplace` and `.modifier(active:identity:)` do not
+compile (`MG-H`).
+
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.

@@ -9,6 +9,7 @@ import MetalUILayout
 /// shares — SwiftUI's `MatchedGeometryProperties`.
 public struct MatchedGeometryProperties: OptionSet, Sendable {
     public let rawValue: Int
+    /// The set with this raw value (`OptionSet`'s requirement).
     public init(rawValue: Int) { self.rawValue = rawValue }
 
     /// The position: the point at the effect's `anchor` (the centre by default).

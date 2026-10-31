@@ -160,7 +160,10 @@ read of `Style` in the lowering owes an animated arm. Interpolation is
 per-component RGB. Transitions: only the outermost group transitions;
 insertion needs the conditional evaluated last frame; removal draws a ghost;
 no default transition (divergence 98). Reduce Motion changes only
-transitions (to a cross-fade). **Tests never sleep: drive
+transitions (to a cross-fade). **`matchedGeometryEffect` is a paint map, not a relayout** (`MG-A`): a window-owned
+`MatchedGeometryStore` (never a `StateTable` slot), a newcomer takes a *source* leaver's drawn frame under the transaction at it, none from an explicit
+`.transition(.identity)` leaver; hit testing keeps the laid-out frame; an occurrence with a matched group is graft-refused as `matchedGeometry`. A custom
+`Transition` returns a `TransitionContent` (opacity/scale/offset), never a view (`MG-F`). **Tests never sleep: drive
 `simulateTick(timestamp:)`.**
 
 **Decorations after transparent scopes (`ES-`, records §167, §168, §169, §172).** `EnvironmentScope`, `LifecycleScope`, `PresentationScope`, `ToolbarScope` (`ES-A`), `ModifierKeysScope`, `GlassTagScope` (`ES-D`) and `TransitionGroup` (`ES-E`) are an `Element` over an `Element` and a `StyledElement` over a `StyledElement`, forwarding every requirement to their content, so a decoration written after one lands inside it and any modifier order compiles; each declares its own `id(_:) -> IdentifiedGroup<Self>` so `.id` still wraps the scope (`ES-C`). `CoordinateSpaceScope`, `TransactionScope` and `GeometryChangeScope` must not forward (a forwarded decoration was measured inside the space, the transaction or the measurement): their accessors configure a `.padding(0)` `ModifierLayer` of their own, and a scope holding one runs as `ModifiedElement<Self>` over itself without it, so the decoration sits outside, SwiftUI's order (`ES-H`, `ES-J`; divergence 120 retired). A new scope decides which it is by measuring a decoration after it against the same one before it.

@@ -1001,7 +1001,13 @@ through one wake at their next date.
 `.transaction(_:)`, `.animation(_:value:)`, `Binding.animation(_:)`,
 `AnyTransition` (`identity`, `opacity`, `move(edge:)`, `slide`, `offset`,
 `scale`, `push(from:)`, `asymmetric`, `combined`), `Edge`, `.transition(_:)`
-(96–99).
+(96–99). **Matched geometry and custom transitions (`MG-`, record §175, divergences 895–898)**:
+`matchedGeometryEffect(id:in:properties:anchor:isSource:)` with `MatchedGeometryProperties` (`.position`, `.size`,
+`.frame`) over the existing `@Namespace`: a newcomer starts at a source leaver's frame under the transaction, a
+follower is drawn at the source's frame, paint only; the `Transition` protocol (`body(content:phase:)` over
+`TransitionContent`'s `opacity`, `scaleEffect`, `offset`; `TransitionPhase`), `AnyTransition(_:)` and
+`.transition(_:)` over it. Not offered: `contentTransition`, `.blurReplace`, `.modifier(active:identity:)`, the
+`glassEffectID` morph (`MG-H`).
 
 ## Controls and looks — A / D / M
 

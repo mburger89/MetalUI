@@ -2018,3 +2018,13 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **BY7.** `.pickerStyle(.inline)` looks like the radio-group column. **Observed:**
 - [ ] **BY8.** `.buttonStyle(_:)` / `.toggleStyle(_:)` written on a `Column`/`Row` reach every control inside; a nearer style on one control wins. **Observed:**
 
+## MG. Matched geometry and custom transitions - the looks of the morph (item R3-2; rulings `MG-A`…`MG-G`, record 175; provisional letter)
+
+*An agent cannot: the headless suite pins the rectangles frame by frame; whether the motion reads as a morph, and how a stretched glyph or a rounded corner looks mid-flight, is a look. Run an app with the swap below.*
+
+- [ ] **MG1.** A card `A` (a rounded accent rectangle with a label) in the top-left and a larger card `B` in the bottom-right, one `if selected { B } else { A }` with `.matchedGeometryEffect(id: "card", in: ns)` on both, toggled by a button inside `withAnimation(.easeInOut(duration: 0.4))`: the new card grows out of the old one's frame and settles, with no jump on the first or the last frame. **Observed:**
+- [ ] **MG2.** The same with a label wider in `B` than in `A`: the label is stretched on the way (divergence 896) and snaps to its natural proportions when the flight lands, with no visible pop at the landing. If the stretch reads badly, record how. **Observed:**
+- [ ] **MG3.** Toggle again mid-flight: the view turns round from where it was drawn, with no jump. **Observed:**
+- [ ] **MG4.** Click the flying card early in the flight: the click lands on the card's final frame, not where it is drawn (divergence 895). Record whether this is noticeable. **Observed:**
+- [ ] **MG5.** A custom `Transition` (scale 0.5 and fade) on an `if`: it grows in and shrinks out about its centre, reads as the built-in `.scale` combined with `.opacity`. **Observed:**
+- [ ] **MG6.** With Reduce Motion on in System Settings, the custom transition is a plain fade and the matched swap still flies (Reduce Motion is not applied to the flight: unprobed). **Observed:**

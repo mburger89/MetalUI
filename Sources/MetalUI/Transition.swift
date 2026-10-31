@@ -50,6 +50,7 @@ public enum Edge: Sendable, Hashable, CaseIterable {
 /// | `.push(from:)` | fades in from `edge` | fades out to the opposite edge | X10 |
 /// | `.asymmetric(insertion:removal:)` | its `insertion` | its `removal` | X6 |
 /// | `a.combined(with: b)` | both | both | X8 |
+/// | `AnyTransition(_:)` over a custom ``Transition`` | its `.willAppear` state moving to `.identity` | `.identity` to its `.didDisappear` state | TP1, TP2 |
 ///
 /// **Where it applies.** Only to the outermost group of content an `if` (its
 /// content, or an `if`/`else`/`switch` branch), a `ForEach` element or a `for`
@@ -102,7 +103,7 @@ public enum Edge: Sendable, Hashable, CaseIterable {
 ///
 /// `.blurReplace` (guard `theUnsupportedTransitionsDoNotCompile`),
 /// `.modifier(active:identity:)`, `AnyTransition.animation(_:)` (a per-transition animation),
-/// `contentTransition`, a default transition on
+/// `contentTransition` (all carried, `MG-H`), a default transition on
 /// unannotated content (divergence 98), a transition on a changed `.id(_:)`
 /// outside a loop, `.id(_:)` written **outside** `.transition` on the inserted
 /// content (`content.transition(.opacity).id("x")` — the `.id` numbers the
