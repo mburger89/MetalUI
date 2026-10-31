@@ -23,7 +23,7 @@ private let skipReason: Comment =
 /// Mutation **MG3.19**: add `public static let blurReplace = AnyTransition.opacity`
 /// (the negative compiles). Round 3 (`MG-F`, `MG-H`) added the positive controls `Transition`,
 /// `matchedGeometryEffect` and `AnyTransition(_:)` over a custom transition, and the negatives
-/// `TransitionContent()` and `contentTransition`. Mutation **M-F2**: make `TransitionContent.init` public
+/// `TransitionContent()` and `contentTransition`. Mutation **M-Q**: make `TransitionContent.init` public
 /// (the content negative compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theUnsupportedTransitionsDoNotCompile() throws {
