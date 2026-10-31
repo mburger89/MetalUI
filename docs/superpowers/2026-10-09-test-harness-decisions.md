@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-Y`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-Z`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -713,3 +713,48 @@ made three things true, each pinned.
 
 **Cost if wrong.** A third platform answer for `setMenuBar` adds nothing: the
 option is one Boolean.
+
+## HT-Y — A closed window is idle; `runUntil(timeout:_:)` waits for an effect (2026-10-31)
+
+**Ruling.** Report: MetalFlow's three quit tests (`quitWithDirtyDraftSaveThenQuits`,
+`dirtyDraftAndRunningRunsAsksBothInOrder`, `closingTheWindowWithRunningRunAsksAndSuspends`) threw
+`.notIdle(rounds: 64)` a few times a day, only under machine load. Record §171.
+1. **`runUntilIdle()` counts a closed window as clean.** Measured in a copy of MetalFlow at its
+   pre-`49144ee` tests against this branch with a per-round trace: every failing run printed
+   `..c!c!c!…` — two quiet yields, then 62 rounds where the window was dirty, the tick drew nothing
+   and the window was closed. Each test answers its last alert with work that hops off the main
+   actor (a detached save, an actor's `suspend`) and then approves the termination or close;
+   `App.replyToTerminateRequest(true)` closes every window (`endEverything`), and a closed window
+   draws nothing more (`AS-B` item 4, `drawFrameIfNeeded`'s first line), so the model's last writes
+   left `needsRedraw` `true` for good. Load decided only whether the hop landed inside the four
+   quiet yields (4 of 10 runs failed under 24 `yes` processes on 12 cores, 1 of 14 alone) or
+   after them. With the fix, 0 of 15 under the same load. `needsRedraw` itself is
+   unchanged (a closed window's flag is honest: the frame is owed, never drawn); the harness
+   decides what idle means. The quiet yields still run, so main-actor work queued behind the
+   close completes. The 64-round bound and the four quiet yields (`HT-S` item 1) stand.
+2. **`runUntil(timeout: Duration = .seconds(10), _ condition: () throws -> Bool) async throws`**:
+   each round draws one tick if the window is dirty and open, then reads `condition` (returns when
+   it holds, so a condition about the window reads the frame its last write drew), then checks the
+   deadline, then `await Task.yield()`. It never moves `now`. Past `timeout` it throws the new
+   **`TestHarnessError.timedOut(after: Duration)`**. `timeout` is a `ContinuousClock` reading and the
+   harness's only wall-clock read (amending `HT-E` item 4): it bounds a failure only, so a slow
+   machine waits longer and never fails sooner. This is the harness spelling of what MetalFlow wrote
+   by hand (`waitUntil`, 200 000 yields, drawing nothing): work off the main actor is invisible to
+   `runUntilIdle()` by construction (`HT-E` item 3), so a test waits on the effect it asserts.
+
+**Reasoning.** A raised round cap would not have helped: the closed window's flag never clears, so
+any cap is reached. gpui's `run_until_parked` parks on an empty foreground queue, which a closed
+window does not refill; treating the closed window as having no frame to draw is the same answer.
+A round-bounded `runUntil` would reintroduce the load dependence (the off-actor work takes an
+unknown number of yields); a real-time bound is the only one a busy machine cannot trip early.
+
+**Mutations** (branch `fix/run-until-idle-load`, on `e719fb0a`'s spelling, `HarnessSettleTests`):
+`isDirtyAndOpen` without `&& !platformWindow.isClosed` → reddens
+`runUntilIdleReturnsWhenAnApprovedTerminationClosesTheWindowMidSettle` and
+`runUntilIdleTreatsAClosedDirtyWindowAsIdle`; `runUntil` without `await Task.yield()` → reddens
+`runUntilWaitsForLateWorkAndDrawsIt` (times out at 10 s); `runUntil` without its draw, and with the
+condition read before the draw → each reddens `runUntilWaitsForLateWorkAndDrawsIt`; the deadline arm
+`return` instead of `throw` → reddens `runUntilThrowsTimedOutWhenTheConditionNeverHolds`.
+
+**Cost if wrong.** A test that wanted `runUntilIdle()` to fail on a closed dirty window has no such
+signal; `platformWindow.isClosed` says it directly.
