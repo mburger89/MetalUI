@@ -337,10 +337,14 @@ typedef struct MUIDialogRequest MUIDialogRequest;
 // `default_location` (copied, may be NULL): a save dialog's suggested name.
 MUIDialogRequest *mui_dialog_request_new(int32_t token, bool is_save, bool allow_many,
                                          const char *default_location);
+// Makes an open request choose folders: mui_dialog_request_show then calls
+// SDL_ShowOpenFolderDialog, which takes no filters (ruling SV-AM).
+void mui_dialog_request_choose_folders(MUIDialogRequest *request);
 // One SDL_DialogFileFilter: `name` and `pattern` (extensions joined by ';'),
 // both copied.
 bool mui_dialog_request_add_filter(MUIDialogRequest *request, const char *name, const char *pattern);
-// Calls SDL_ShowOpenFileDialog or SDL_ShowSaveFileDialog with `window` (an
+// Calls SDL_ShowOpenFileDialog, SDL_ShowOpenFolderDialog (a folder request)
+// or SDL_ShowSaveFileDialog with `window` (an
 // SDL_Window *, may be NULL) as parent; NULL filters when none were added.
 // Answers true: the outcome always arrives through the callback.
 bool mui_dialog_request_show(MUIDialogRequest *request, void *window);

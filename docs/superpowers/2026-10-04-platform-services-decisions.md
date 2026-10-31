@@ -1390,3 +1390,87 @@ cache's sweep). This table lists only mutations that reddened.
 
 **Cost if wrong.** None to the code; a row a later change makes unable to fail
 is caught only by re-running it.
+
+---
+
+## SV-AM — `.fileImporter` chooses folders: `ContentType.folder`/`.directory`, the seam's `canChooseDirectories` (amends `SV-F`, `SV-E`; record 170)
+
+User request 2026-10-31 (MetalFlow's "Add repo" picks a git repository
+folder). `SV-F`'s "files only, never folders" is amended.
+
+1. **Types.** `ContentType.directory` (`public.directory`, conforming to
+   `.item` only) and `ContentType.folder` (`public.folder`, conforming to
+   `.directory`) — UTType's identifiers and conformance (F1 compares against
+   `UTType.folder`/`.directory`: neither conforms to `public.data`). Both
+   exist because `.folder`'s conformance needs `.directory` as a parent and
+   UTType offers both; a directory type is one that **is or conforms to
+   `public.directory`**.
+2. **The seam derives, it stores nothing.** `PlatformFileType.isDirectory`,
+   `PlatformFileDialog.canChooseDirectories` (an open dialog with a directory
+   type among `allowedTypes`) and `canChooseFiles` (a save dialog, or an open
+   dialog whose list is empty or holds a non-directory type) are computed
+   properties — no stored property or case crosses a module boundary, no
+   conformer changes, the headless platform and every fake stay honest
+   unchanged (`HT-X`), and a test reads a folder dialog off
+   `presentedFileDialog`. `[]`, `.item` and `.data` stay files only (the
+   pre-`SV-AM` default): whether SwiftUI's `[.item]` lets a folder be chosen
+   is unprobed.
+3. **AppKit.** `AppKitWindow.openPanelConfiguration(_:)` (pure, factored so a
+   test reads it without `NSOpenPanel.init`, which does not return under a
+   locked screen) gives `canChooseFiles`/`canChooseDirectories` from the seam
+   and `allowedContentTypes` from `contentTypes(_:)` with the folder type
+   **kept** (`[UTType.folder]`): a folder conforms to `public.folder`, so the
+   panel enables it, and directories stay navigable. **Assumed, not measured**
+   (the screen was locked; no SwiftUI probe arm): that `NSOpenPanel` with
+   `canChooseFiles = false`, `canChooseDirectories = true`,
+   `allowedContentTypes = [.folder]` enables ordinary folders and returns the
+   chosen folder — human check `FO1`. The save panel is untouched.
+4. **Directory URLs.** A dialog over directory types alone completes with
+   `URL(fileURLWithPath:isDirectory: true)` (`.fileImporter` and
+   `FileDialogs.openFiles`), so the URL is a directory URL without a
+   file-system read (NSOpenPanel's own URLs are). A mixed list keeps
+   Foundation's per-path reading.
+5. **SDL.** An open dialog with `canChooseFiles == false` shows
+   `SDL_ShowOpenFolderDialog` (`allow_many` carried, no filters; the bridge's
+   `mui_dialog_request_choose_folders`); `SDLWindow.dialogMode(_:)` decides.
+   SDL3 has no dialog choosing both, so **a folder type beside a file type
+   chooses files only off Apple — divergence 209**.
+6. **Not built:** SwiftUI's `fileDialogConfirmationLabel(_:)` and
+   `fileDialogMessage(_:)` (macOS 14, environment-style: they configure every
+   file dialog presented within). They would need an environment read at the
+   `PresentationScope`'s layout and a `message` stored on `PlatformFileDialog`
+   (a new stored property crossing a module boundary and an NSSavePanel
+   `message` on AppKit, nothing on SDL); deferred as a documented absence
+   with `fileDialogDefaultDirectory` and the other customisation modifiers.
+
+**Cost if wrong.** Item 3's assumption: a folder the panel greys out (a look,
+`FO1`); the remedy is `allowedContentTypes = []` for a directories-only panel,
+inside `openPanelConfiguration` only.
+
+---
+
+## SV-AN — `SV-AM`'s mutation table (measured)
+
+Branch `feat/file-importer-folders` (from master `d2797c5d`), each mutation
+applied alone to the spelling quoted, root runs `swift test --build-system
+native --no-parallel --filter 'older|irector|ileDialog|mporter|penFiles|Panel|resent|xporter'
+--skip AppKitPresentationTests` (212 tests), the SDL one from `Backends/SDL`
+with `--filter SDLPresentationTests`. Every mutation reddened.
+
+| id | mutation (spelling) | reddened |
+|---|---|---|
+| MF1 | `ContentType.folder` `conformingTo: [.directory]` → `[.item]` | `folderAndDirectoryConformAsUTTypesDo`, `theSeamReadsADirectoryTypeAsChoosingDirectories`, `theOpenPanelChoosesFoldersForAFolderType`, `aFolderImporterCompletesWithADirectoryURL`, `openFilesOverAFolderTypeReturnsDirectoryURLs`, `aFolderImporterIsAnsweredWithADirectory` |
+| MF2a | `PlatformFileType.isDirectory`: `identifier == "public.directory" \|\| conformsTo.contains("public.directory")` → `identifier == "public.directory"` | `theSeamReadsADirectoryTypeAsChoosingDirectories`, `theOpenPanelChoosesFoldersForAFolderType`, `aFolderImporterCompletesWithADirectoryURL`, `openFilesOverAFolderTypeReturnsDirectoryURLs`, `aFolderImporterIsAnsweredWithADirectory` |
+| MF2b | `canChooseFiles`: `return allowedTypes.isEmpty \|\| …` → `return true` | the same five |
+| MF2c | `canChooseDirectories`: `return allowedTypes.contains(where: \.isDirectory)` → `return false` | the same five |
+| MF3 | `openPanelConfiguration` → `(true, false, contentTypes(dialog.allowedTypes))` (`SV-F`'s constants) | `theOpenPanelChoosesFoldersForAFolderType` |
+| MF4 | `chosenURLs`: `directoriesOnly ? URL(fileURLWithPath: $0, isDirectory: true) : URL(fileURLWithPath: $0)` → `URL(fileURLWithPath: $0)` | `aFolderImporterCompletesWithADirectoryURL`, `openFilesOverAFolderTypeReturnsDirectoryURLs` |
+| M1.13c | `SDLWindow.dialogMode` open arm → `.openFiles(allowMany: allowsMultipleSelection)` | `sdlFolderTypesAloneShowTheFolderDialog` |
+
+MF4 leaves the harness test `aFolderImporterIsAnsweredWithADirectory` green
+**by design**: it chooses a real directory, which Foundation's stat already
+reads as one; F4/F5 choose a missing path so the URL cannot come from the file
+system. Not mutated: the `presentFileDialog` lines applying the configuration
+to a live `NSOpenPanel` (no panel under a locked screen — human check `FO1`)
+and the C bridge's `SDL_ShowOpenFolderDialog` branch (no SDL dialog runs on
+macOS — `FO3`).

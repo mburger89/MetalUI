@@ -2787,3 +2787,10 @@ mutations: `docs/superpowers/2026-10-31-scope-decorations-decisions.md`.
 layer of the scope's own (`ES-H`'s mechanism), outside the measurement — the reported size is the content's alone (`.padding(8).background(…)` after reports 50 x 50, the padding before 66 x 66) and an
 `.offset(x: 10)` after it moves the reported global frame by 10, SwiftUI's G4a (`docs/probes/swiftui-key-focus.swift`). Forwarding it onto the content (the `ES-A` shape) left the global frame unmoved.
 No transparent scope refuses a decoration after it any more. Mechanism and mutations: `docs/superpowers/2026-10-31-scope-decorations-decisions.md`.
+
+## 2026-10-31: folder importer (`SV-AM`, record §170)
+
+**New: 209** (178 live after 120 was retired by record §172; next label 210). `.fileImporter` over `[.folder]` chooses folders on every platform (AppKit `canChooseDirectories`, SDL `SDL_ShowOpenFolderDialog`); a folder type **beside a file type**
+chooses both on AppKit but files only on SDL, which has no dialog choosing both — `SDLWindow.dialogMode` shows the file dialog for any list holding a file type. `SV-AM` item 5; pin
+`sdlFolderTypesAloneShowTheFolderDialog` (1.13c, `Backends/SDL`); the AppKit side is unprobed (human checks `FO1`–`FO3`). Mechanism and mutations: `docs/superpowers/2026-10-04-platform-services-decisions.md`
+`SV-AM`, `SV-AN`.
