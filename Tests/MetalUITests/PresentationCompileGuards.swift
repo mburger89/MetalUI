@@ -188,39 +188,19 @@ func thePresentationSpellingsTypecheckFromAnExternalModule() throws {
     #expect(result.succeeded, "every presentation spelling must compile:\n\(result.output)")
 }
 
-/// **2.G8** (`SV-K` item 1, divergence 120). A legacy `Self`-returning
-/// decoration written after a presentation modifier does not compile — the
-/// scope is an `ElementGroup` — and written before it does (the control).
+/// **2.G8** (`SV-K` item 1; divergence 120 retired for this scope by `ES-A`). A legacy
+/// `Self`-returning decoration written after a presentation modifier compiles.
 ///
-/// Mutation **MG2.8**: move `.onClick` before `.alert` in the negative fixture
-/// (it compiles).
+/// Mutation **MG2.8** (`ES-A`): delete `extension PresentationScope: StyledElement` (refused for `onClick`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aLegacyDecorationAfterAPresentationModifierDoesNotCompile() throws {
-    let positive = try typecheckFile("""
+func aLegacyDecorationAfterAPresentationModifierCompiles() throws {
+    let after = try typecheckFile("""
         @MainActor func tree(_ shown: Binding<Bool>) -> some Element {
-            Column { Text("a").onClick {}.alert("A", isPresented: shown) {} }
+            Column { Text("a").alert("A", isPresented: shown) {}.onClick {}.padding(4) }
         }
         """, importing: "MetalUI")
-    let negative = try typecheckFile("""
-        @MainActor func tree(_ shown: Binding<Bool>) -> some Element {
-            Column { Text("a").alert("A", isPresented: shown) {}.onClick {} }
-        }
-        """, importing: "MetalUI")
-    print("""
-        SV-K decoration order: positive succeeded=\(positive.succeeded); negative \
-        succeeded=\(negative.succeeded) messages=[\(negative.messages)]
-        """)
-    try #require(positive.succeeded && !negative.succeeded,
-                 """
-                 a decoration before the modifier must compile and one after it must not, \
-                 or this guard cannot fail:
-                 positive:
-                 \(positive.output)
-                 negative:
-                 \(negative.output)
-                 """)
-    #expect(negative.messages.contains("onClick"),
-            "the negative must be refused for onClick:\n\(negative.output)")
+    print("SV-K decoration order: after succeeded=\(after.succeeded) messages=[\(after.messages)]")
+    #expect(after.succeeded, "\(after.output)")
 }
 
 /// **2.G9** (`SV-D` item 4). `EnvironmentValues.fileDialogs` is read-only

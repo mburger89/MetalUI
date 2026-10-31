@@ -57,9 +57,12 @@ public struct EnvironmentScopeLayout<ContentLayout> {
 /// legacy element, proposal content, a `Component`, a builder group. Not as a
 /// window root, `Deferred` content or a `List` row, each of which requires an
 /// `Element` — write the scope outside instead. Over **legacy** content, not
-/// directly before `.padding` or a handler modifier: `.theme(.dark).padding(4)`
-/// and `.theme(.dark).onClick {}` do not compile; write
-/// `.padding(4).theme(.dark)`. Over **proposal** content the proposal
+/// directly before `.padding` or a handler modifier... **no longer true over an
+/// `Element`** (ruling `ES-A`): a scope over a `StyledElement` is a `StyledElement`
+/// forwarding to its content, so `Text("x").lineLimit(1).background(c).onClick {}`
+/// compiles and the decoration lands on the content inside the scope. Over other
+/// groups (a `Component`, a builder group) a `Self`-returning decoration after
+/// the scope still does not compile. Over **proposal** content the proposal
 /// `.padding(_:)` does compile after a scope; whether it sits inside or outside
 /// the scope is not measured (ruling EV-X).
 ///
@@ -111,6 +114,12 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
     /// `.child(of: parent, at: cursor)` (`cursor` as it was on entry).
     func reportingPreference<R>(_ frame: Frame, under parent: GlobalElementID?, at cursor: Int,
                                 _ body: () -> R) -> R {
+        reportingPreference(frame, owner: GlobalElementID.child(of: parent, at: cursor, name: nil), body)
+    }
+
+    /// The same, with the `.onOpenURL` owner given: the scope's position on
+    /// the group path, the scope's own id on the `Element` path (`ES-B`).
+    func reportingPreference<R>(_ frame: Frame, owner: GlobalElementID, _ body: () -> R) -> R {
         switch write {
         case .preferredColorScheme(let value):
             return frame.withColorSchemePreference(value, body)
@@ -123,7 +132,6 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
             if frame.collectedNavigationDocument == nil { frame.collectedNavigationDocument = url }
             return result
         case .onOpenURL(let action):
-            let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
             let result = body()
             frame.openURLHandlers.append(OpenURLHandler(owner: owner, action: action))
             return result
@@ -226,9 +234,11 @@ extension ElementGroup {
     /// which reads the resulting `isEnabled` (rulings EV-E, EV-F, EV-T): no
     /// hitbox, so a click reaches an enabled ancestor or what lies under the
     /// target; no focus, action handlers, raw `onKey` or `keyContext`; and the
-    /// `.disabled` trait on a declared accessibility node. A modifier written
+    /// `.disabled` trait on a declared accessibility node. A wrapper written
     /// AFTER the scope sits outside it: `X().disabled(true).frame(width: 40,
-    /// height: 40).onClick {}` fires (ruling EV-X, probe O2).
+    /// height: 40).onClick {}` fires (ruling EV-X, probe O2). A `Self`-returning
+    /// modifier written directly after it lands inside it (`ES-A`):
+    /// `X().disabled(true).onClick {}` does not fire, as in SwiftUI.
     public func disabled(_ disabled: Bool) -> EnvironmentScope<Self> {
         transformEnvironment(\.isEnabled) { $0 = $0 && !disabled }
     }
@@ -278,5 +288,87 @@ extension ElementGroup {
     /// `.environment(\.colorScheme, …)`.
     public func preferredColorScheme(_ colorScheme: ColorScheme?) -> EnvironmentScope<Self> {
         EnvironmentScope(content: self, write: .preferredColorScheme(colorScheme))
+    }
+}
+
+// MARK: - Decorations chain through a scope (ES-A)
+
+/// What an `EnvironmentScope` over an `Element` carries between phases on the
+/// `Element` path: the values layout computed and its content's own state.
+public struct EnvironmentScopeElementState<ContentState> {
+    var values: EnvironmentValues
+    var content: ContentState
+}
+
+/// A scope over an element is an element, so a modifier written after it
+/// compiles as in SwiftUI (`Text("x").lineLimit(1).padding(6)`, ruling `ES-A`).
+///
+/// **Every requirement forwards to the content**, so `.padding`, `.background`,
+/// `.accessibilityIdentifier` and `.onClick` after a scope land on the content,
+/// *inside* the scope. That is observably SwiftUI's order for every modifier
+/// that reads none of the scope's value, and for `.disabled(true).onClick {}`
+/// it matches too (the disabled environment covers the handler). The `Element`
+/// phases are the scope's own work (push the values layout stored, report a
+/// window preference) around the content's; the group entry points above are
+/// unchanged, so a scope in a container keeps its transparency to layout and
+/// identity (`EV-B`).
+extension EnvironmentScope: Element where Content: Element {
+    public typealias LayoutState = EnvironmentScopeElementState<Content.LayoutState>
+    public typealias PrepaintState = Content.PrepaintState
+
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, EnvironmentScopeElementState<Content.LayoutState>) {
+        let values = pass.frame.scopedValues(applying: write)
+        let (node, state) = reportingPreference(pass.frame, owner: id) {
+            pass.frame.withEnvironment(values) {
+                content.requestLayout(id, pass: &pass)
+            }
+        }
+        return (node, EnvironmentScopeElementState(values: values, content: state))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout EnvironmentScopeElementState<Content.LayoutState>,
+                                  pass: inout PrepaintPass) -> Content.PrepaintState {
+        pass.frame.withEnvironment(layout.values) {
+            content.prepaint(id, bounds: bounds, layout: &layout.content, pass: &pass)
+        }
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout EnvironmentScopeElementState<Content.LayoutState>,
+                               prepaint: inout Content.PrepaintState, pass: inout PaintPass) {
+        pass.frame.withEnvironment(layout.values) {
+            content.paint(id, bounds: bounds, layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        }
+    }
+}
+
+extension EnvironmentScope: StyledElement where Content: StyledElement {
+    public var style: Style {
+        get { content.style }
+        set { content.style = newValue }
+    }
+    public var decoration: Decoration {
+        get { content.decoration }
+        set { content.decoration = newValue }
+    }
+    public var elementID: ElementID? {
+        get { content.elementID }
+        set { content.elementID = newValue }
+    }
+    public var handlers: Handlers {
+        get { content.handlers }
+        set { content.handlers = newValue }
+    }
+}
+
+extension EnvironmentScope {
+    /// Names the scope **together with** its content, not the content inside it (ruling `ES-C`).
+    /// A `StyledElement` keeps its own `id(_:) -> Self`; forwarding that through the scope would name the
+    /// content under the scope's position-keyed entry, so a changed id would no longer be a new element
+    /// to it. This member is the `ElementGroup` spelling, and it wins over the protocol extension's.
+    public func id(_ name: String) -> IdentifiedGroup<Self> {
+        IdentifiedGroup(content: self, name: ElementID(name))
     }
 }

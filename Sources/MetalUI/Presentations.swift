@@ -27,8 +27,9 @@ import MetalUIPlatform
 /// `true`, until the first is answered (`SV-K` item 3). A headless
 /// `renderFrame` presents nothing.
 ///
-/// **A `Self`-returning decoration written after this scope does not compile**
-/// (`Text("a").alert(…) {}.onClick {}`; divergence 120): write it first.
+/// **A `Self`-returning decoration written after this scope over a `StyledElement`
+/// compiles and lands on the content** (`Text("a").alert(…) {}.onClick {}`, ruling
+/// `ES-A`, divergence 120 retired); over other groups it still does not.
 public struct PresentationScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let isPresented: Binding<Bool>
@@ -138,7 +139,12 @@ extension Frame {
     /// occurrence for one element value placed twice.
     func notePresentation(isPresented: Binding<Bool>, request: PresentationRequest,
                           under parent: GlobalElementID?, at cursor: Int) {
-        let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
+        notePresentation(isPresented: isPresented, request: request,
+                         owner: GlobalElementID.child(of: parent, at: cursor, name: nil))
+    }
+
+    /// The same, with the owner given (the `Element` path, `ES-A`).
+    func notePresentation(isPresented: Binding<Bool>, request: PresentationRequest, owner: GlobalElementID) {
         let scope = GlobalElementID.child(of: owner, at: 0, name: ElementID("$presentation\(presentationDepth)"))
         let occurrence = presentationOccurrences[scope, default: 0]
         presentationOccurrences[scope] = occurrence + 1
@@ -316,5 +322,60 @@ extension Window {
     func chooseAlertButton(_ index: Int?) {
         guard let alert = drawnAlert else { return }
         handleAlertResult(AlertResultEvent(token: alert.token, button: index))
+    }
+}
+
+/// ES-A: the scope is an element when its content is, forwarding every
+/// requirement to the content, so a decoration written after it lands on the
+/// content inside the scope.
+extension PresentationScope: Element where Content: Element {
+    public typealias LayoutState = Content.LayoutState
+    public typealias PrepaintState = Content.PrepaintState
+
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Content.LayoutState) {
+        let result = pass.frame.withPresentationScope { content.requestLayout(id, pass: &pass) }
+        pass.frame.notePresentation(isPresented: isPresented, request: request, owner: id)
+        return result
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Content.LayoutState, pass: inout PrepaintPass) -> Content.PrepaintState {
+        content.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Content.LayoutState, prepaint: inout Content.PrepaintState,
+                               pass: inout PaintPass) {
+        content.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+extension PresentationScope: StyledElement where Content: StyledElement {
+    public var style: Style {
+        get { content.style }
+        set { content.style = newValue }
+    }
+    public var decoration: Decoration {
+        get { content.decoration }
+        set { content.decoration = newValue }
+    }
+    public var elementID: ElementID? {
+        get { content.elementID }
+        set { content.elementID = newValue }
+    }
+    public var handlers: Handlers {
+        get { content.handlers }
+        set { content.handlers = newValue }
+    }
+}
+
+extension PresentationScope {
+    /// Names the scope **together with** its content, not the content inside it (ruling `ES-C`).
+    /// A `StyledElement` keeps its own `id(_:) -> Self`; forwarding that through the scope would name the
+    /// content under the scope's position-keyed entry, so a changed id would no longer be a new element
+    /// to it. This member is the `ElementGroup` spelling, and it wins over the protocol extension's.
+    public func id(_ name: String) -> IdentifiedGroup<Self> {
+        IdentifiedGroup(content: self, name: ElementID(name))
     }
 }

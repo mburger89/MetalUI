@@ -252,3 +252,18 @@ private struct CountingLeaf: Element {
     #expect(scoped.last == scopedID)
     #expect(window.stateTable.peek(slot, as: Int.self) == 1, "a changed title keeps the state below it")
 }
+
+/// **`ES-A`** (`AS-N` retired). A window-preference scope on an element is itself an `Element` and
+/// can be a window's root: its title reaches the platform window through the `Element` path, and a
+/// decoration after it still applies. Mutation: drop the `reportingPreference` call in
+/// `EnvironmentScope.requestLayout(_:pass:)` (the title stays `Window.title`).
+@MainActor
+@Test func aNavigationTitleOnTheRootElementSetsTheWindowTitle() throws {
+    let (app, platform) = try shellApp()
+    _ = try app.openWindow(title: "Window", size: Size(width: px(64), height: px(64)),
+                           startsDisplayLink: false) {
+        Box().frame(width: px(10), height: px(10)).navigationTitle("root").padding(px(2))
+    }
+    let fake = try #require(platform.openedWindows.last)
+    #expect(fake.title == "root", "\(fake.title)")
+}

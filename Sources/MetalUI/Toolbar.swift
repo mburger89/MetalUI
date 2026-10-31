@@ -468,9 +468,10 @@ struct ToolbarRecord {
 /// probe `NT1`); a scope inside a popover or a `Deferred` presentation root is
 /// ignored (`PO`), and a scope whose content is empty contributes nothing.
 ///
-/// **Not an `Element`**, so it cannot be a window's root: write it on an
-/// element inside the root's first container (`MD-S`, divergence 120). A
-/// `Self`-returning decoration written after it does not compile either.
+/// **An `Element` when its content is** (ruling `ES-A`; `MD-S`'s window-root
+/// restriction and divergence 120 retired): it can be a window's root, and a
+/// `Self`-returning decoration after it lands on the content. Over other groups
+/// neither compiles.
 public struct ToolbarScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let declaration: ToolbarDeclaration
@@ -558,7 +559,11 @@ extension Frame {
     /// scope's (`SV-K` item 2). Evaluated under the scope's `isEnabled`.
     func noteToolbar(_ declaration: ToolbarDeclaration, under parent: GlobalElementID?, at cursor: Int,
                      insertingAt mark: Int) {
-        let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
+        noteToolbar(declaration, owner: GlobalElementID.child(of: parent, at: cursor, name: nil), insertingAt: mark)
+    }
+
+    /// The same, with the owner given (the `Element` path, `ES-A`).
+    func noteToolbar(_ declaration: ToolbarDeclaration, owner: GlobalElementID, insertingAt mark: Int) {
         let record = ToolbarRecord(owner: owner, entries: declaration.entries(isEnabled: environmentTop.isEnabled))
         toolbarRecords.insert(record, at: min(mark, toolbarRecords.count))
     }
@@ -664,5 +669,61 @@ extension Window {
         sentToolbar = toolbar
         let shown = setToolbarOnPlatform(toolbar)
         toolbarIsDrawn = toolbar != nil && !shown
+    }
+}
+
+/// ES-A: the scope is an element when its content is, forwarding every
+/// requirement to the content, so a decoration written after it lands on the
+/// content inside the scope.
+extension ToolbarScope: Element where Content: Element {
+    public typealias LayoutState = Content.LayoutState
+    public typealias PrepaintState = Content.PrepaintState
+
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Content.LayoutState) {
+        let mark = pass.frame.toolbarRecords.count
+        let result = content.requestLayout(id, pass: &pass)
+        pass.frame.noteToolbar(declaration, owner: id, insertingAt: mark)
+        return result
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Content.LayoutState, pass: inout PrepaintPass) -> Content.PrepaintState {
+        content.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Content.LayoutState, prepaint: inout Content.PrepaintState,
+                               pass: inout PaintPass) {
+        content.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+extension ToolbarScope: StyledElement where Content: StyledElement {
+    public var style: Style {
+        get { content.style }
+        set { content.style = newValue }
+    }
+    public var decoration: Decoration {
+        get { content.decoration }
+        set { content.decoration = newValue }
+    }
+    public var elementID: ElementID? {
+        get { content.elementID }
+        set { content.elementID = newValue }
+    }
+    public var handlers: Handlers {
+        get { content.handlers }
+        set { content.handlers = newValue }
+    }
+}
+
+extension ToolbarScope {
+    /// Names the scope **together with** its content, not the content inside it (ruling `ES-C`).
+    /// A `StyledElement` keeps its own `id(_:) -> Self`; forwarding that through the scope would name the
+    /// content under the scope's position-keyed entry, so a changed id would no longer be a new element
+    /// to it. This member is the `ElementGroup` spelling, and it wins over the protocol extension's.
+    public func id(_ name: String) -> IdentifiedGroup<Self> {
+        IdentifiedGroup(content: self, name: ElementID(name))
     }
 }

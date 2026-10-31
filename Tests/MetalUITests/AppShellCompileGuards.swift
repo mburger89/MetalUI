@@ -23,7 +23,11 @@ private let positiveFixture = """
                 Text("x").navigationTitle("T").navigationDocument(url).onOpenURL { _ in }
                 HStack { ProposalText("y") }.navigationTitle(name)
                 Box().navigationTitle("x")
+                Box().navigationTitle("x").padding(4)
             }
+        }
+        _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
+            Box().navigationTitle("x")
         }
         window.title = "Renamed"
         let _: String = window.title
@@ -79,24 +83,12 @@ private let negatives: [(name: String, fixture: String, mentions: String)] = [
     ("WindowStyle.plain", """
         let style: WindowStyle = .plain
         """, "plain"),
-    ("decoration after a window-preference scope (EV-B)", """
-        @MainActor func tree() -> some Element {
-            Column { Box().navigationTitle("x").padding(4) }
-        }
-        """, "padding"),
-    ("window-preference scope as a window root (AS-N)", """
-        @MainActor func open(_ app: App) throws {
-            _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
-                Box().navigationTitle("x")
-            }
-        }
-        """, "Element"),
 ]
 
 /// **2.1** (`AS-B`…`AS-G`, `AS-N`). Every app-shell spelling compiles from an
 /// external module; each negative — writing `titleBarInsets`, a `Text`
-/// title, `WindowStyle.plain`, a legacy decoration after the scope, the scope
-/// as a window root — does not. Mutation: make `titleBarInsets`' setter
+/// title, `WindowStyle.plain`, (the decoration-after and window-root negatives
+/// were retired by `ES-A`: both compile now) — does not. Mutation: make `titleBarInsets`' setter
 /// public (that negative compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func anOutsideModuleCanSpellTheAppShellAPI() throws {

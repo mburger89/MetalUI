@@ -55,40 +55,19 @@ func theTaskSpellingsTypecheckFromAnExternalModule() throws {
     #expect(result.succeeded, "every task spelling must compile:\n\(result.output)")
 }
 
-/// **3.G2** (`PX-F` item 2, divergence 120). A legacy `Self`-returning
-/// decoration written after a `.task` does not compile —
-/// `Text("a").task {}.onClick {}`; written first it does (the positive
-/// control).
+/// **3.G2** (`PX-F` item 2; divergence 120 retired for this scope by `ES-A`). A legacy `Self`-returning
+/// decoration written after a `.task` compiles, and `.id` after it still wraps the scope (`ES-C`).
 ///
-/// Mutation **MG3.2**: a temporary `onClick` forwarding extension on
-/// `LifecycleScope` (the negative compiles).
+/// Mutation **MG3.2** (`ES-A`): delete `extension LifecycleScope: StyledElement` (refused for `onClick`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aLegacyDecorationAfterATaskModifierDoesNotCompile() throws {
-    let positive = try typecheckFile("""
+func aLegacyDecorationAfterATaskModifierCompiles() throws {
+    let after = try typecheckFile("""
         @MainActor func tree() -> some Element {
-            Column { Text("a").onClick {}.task {} }
+            Column { Text("a").task {}.onClick {}.padding(4).id("a") }
         }
         """, importing: "MetalUI")
-    let negative = try typecheckFile("""
-        @MainActor func tree() -> some Element {
-            Column { Text("a").task {}.onClick {} }
-        }
-        """, importing: "MetalUI")
-    print("""
-        PX-F decoration order: positive succeeded=\(positive.succeeded); negative \
-        succeeded=\(negative.succeeded) messages=[\(negative.messages)]
-        """)
-    try #require(positive.succeeded && !negative.succeeded,
-                 """
-                 a decoration before the task must compile and one after it must not, \
-                 or this guard cannot fail:
-                 positive:
-                 \(positive.output)
-                 negative:
-                 \(negative.output)
-                 """)
-    #expect(negative.messages.contains("onClick"),
-            "the negative must be refused for onClick:\n\(negative.output)")
+    print("PX-F decoration order: after succeeded=\(after.succeeded) messages=[\(after.messages)]")
+    #expect(after.succeeded, "\(after.output)")
 }
 
 /// **3.G3** (`PX-F` item 5). A non-`Equatable` `task(id:)` value does not
