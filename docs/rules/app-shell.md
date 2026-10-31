@@ -163,3 +163,5 @@ more than one item adds the private `ClipboardItemPack` mime** (a malformed pack
 AppKit and headless, at write on SDL (a pure-C callback cannot call Swift, `CB-H`), `copyable`/`cuttable` lazy, `Clipboard.write` eager, `CB-I` exact there (divergence 716). **Four
 more defaultless `PlatformWindow` requirements** (`writeClipboard(items:)`, `clipboardItems()`, `readClipboard(item:identifier:)`, `setClipboardChangeHandler(_:)`; every
 conformer, the headless platform and every fake implements them, migration note). `Handlers` stays nineteen; the stage order and the text-field path are untouched.
+
+**Window activation (`WA-`, record §165).** `PlatformWindow.orderFrontAndMakeKey()` and `Platform.activate()` have no default (two verbs: order one window front, activate the application); `Window.makeKeyAndOrderFront()` and `App.activate()` call them and do not change `controlActiveState` themselves (the platform reports it back). SDL cannot activate an application, so `SDLPlatform.activate()` is the nearest honest answer; AppKit's bodies are checked by human group WA only. `Color(hex:)` is public.

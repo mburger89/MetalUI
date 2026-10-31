@@ -1065,6 +1065,12 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// How many image cursors are cached; read by `appKitCachesAnImageCursorPerImageAndBoundsTheCache`.
     var imageCursorCacheCount: Int { imageCursors.count }
 
+    /// `deminiaturize(_:)` when miniaturised, then `makeKeyAndOrderFront(_:)` (`WA-A`).
+    func orderFrontAndMakeKey() {
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.makeKeyAndOrderFront(nil)
+    }
+
     /// Shows `style` (ruling `CI-H` item 8): the host view keeps the mapped
     /// `NSCursor` for every `cursorUpdate(with:)`, and it is set at once while
     /// the pointer is inside the view. Pinned by
@@ -1343,6 +1349,12 @@ public final class AppKitPlatform: Platform {
     /// answers `.terminateNow` without asking ``onTerminateRequest``.
     public func terminate() {
         applicationDelegate.terminate()
+    }
+
+    /// `NSApp.activate(ignoringOtherApps: true)` — the call `run()` makes, so an app raised by a
+    /// notification click comes forward over the app the user is in (`WA-A`).
+    public func activate() {
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     /// `application(_:open:)`'s URLs as absolute strings, parked until set

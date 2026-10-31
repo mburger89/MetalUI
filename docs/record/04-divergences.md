@@ -2748,3 +2748,9 @@ look is its own (`BG-K`; pin `aShapeCursorIsAnImageCursorOfTheShapeRasterizedAtT
 a control never drags (SwiftUI's answer unmeasured, check `BG4`; pin `anUnclaimedPrimaryPressOnTheBackgroundDragsWhenEnabled`); **737** on SDL the background drag region takes hover, wheel and pointer-style events
 inside it (`BG-I`; pin `theBackgroundRegionIsTheWindowCarvedByEveryBlocker`). Not a divergence label: a `Material` popover panel has no drop shadow (`BG-P`, a renderer constraint, check `BG1`).
 `OV-C`'s deferral is closed by `BG-A`…`BG-F`.
+
+## 2026-10-30: split views (`HS-`)
+
+**New: 206** (`HSplitView`/`VSplitView`: pane distribution, divider look and hit area are MetalUI's own and unprobed against `NSSplitView`; `HS-A`, `HS-B`, `HS-C`, `HS-F`;
+pins `panesStartAtTheirIdealWidthsAndTheFlexiblePaneTakesTheRest`, `windowResizeGivesTheSpaceToTheFlexiblePane`, `aVSplitViewIsTheSameOnTheVerticalAxis`). The mechanism and
+the mutations are in `docs/superpowers/2026-10-30-split-view-decisions.md`.

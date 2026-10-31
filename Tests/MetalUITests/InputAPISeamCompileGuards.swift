@@ -88,6 +88,7 @@ private func conformer(member: String) -> String {
         func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }
         var hasNativeWindowControls: Bool { true }
         var isZoomed: Bool { false }
+        func orderFrontAndMakeKey() {}
         var contentSize: Size<Pixels> { Size(width: Pixels(1), height: Pixels(1)) }
         var scaleFactor: Float { 1 }
         var renderer: any WindowRenderer { fatalError("never drawn") }

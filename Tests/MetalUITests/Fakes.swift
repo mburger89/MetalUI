@@ -249,6 +249,10 @@ final class FakePlatformWindow: PlatformWindow {
     private(set) var pointerStyles: [PlatformPointerStyle] = []
     func setPointerStyle(_ style: PlatformPointerStyle) { pointerStyles.append(style) }
 
+    /// Counts the call (`WA-A`).
+    var orderFrontCalls = 0
+    func orderFrontAndMakeKey() { orderFrontCalls += 1 }
+
     /// Change the key state and notify, the getter already reporting it.
     ///
     /// **Fires on every call, a no-op included** — `AppKitWindow` and
@@ -672,6 +676,8 @@ final class FakePlatform: Platform {
 
     func replyToTerminateRequest(_ shouldTerminate: Bool) { terminateReplies.append(shouldTerminate) }
     func terminate() { terminateCalls += 1 }
+    var activateCalls = 0
+    func activate() { activateCalls += 1 }
 
     /// A termination request the way ⌘Q or `SDL_EVENT_QUIT` makes one: the
     /// handler's answer, `.now` with none.

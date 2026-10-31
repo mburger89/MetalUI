@@ -55,6 +55,7 @@ private final class ShellRecordingPlatform: Platform {
         terminateCalls += 1
         base.terminate()
     }
+    func activate() { base.activate() }
     var onOpenURLs: (([String]) -> Void)? {
         get { base.onOpenURLs }
         set { base.onOpenURLs = newValue }

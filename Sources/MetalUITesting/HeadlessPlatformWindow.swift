@@ -334,6 +334,24 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// Records the style.
     public func setPointerStyle(_ style: PlatformPointerStyle) { pointerStyles.append(style) }
 
+    /// Counts the call and does what a platform that honoured it does (`WA-A`, `HT-X` 1): a minimised
+    /// window is restored (``isMiniaturized`` becomes `false`), and the window is key and frontmost.
+    public func orderFrontAndMakeKey() {
+        orderFrontCalls += 1
+        isMiniaturized = false
+        isFrontmost = true
+        isKey = true
+    }
+
+    /// How many times ``orderFrontAndMakeKey()`` was called.
+    public private(set) var orderFrontCalls = 0
+    /// Whether the window is minimised; a test may set it. ``orderFrontAndMakeKey()`` clears it.
+    public var isMiniaturized = false
+    /// Whether ``orderFrontAndMakeKey()`` made the window frontmost.
+    public private(set) var isFrontmost = false
+    /// Whether ``orderFrontAndMakeKey()`` made the window the key window.
+    public private(set) var isKey = false
+
     /// Records the call.
     public func setDisplayLinkPaused(_ paused: Bool) { displayLinkPauses.append(paused) }
 
@@ -380,10 +398,11 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     }
 
     /// Records the action and answers `true`; a zoom toggles ``isZoomed`` as a platform that honoured it
-    /// does (a minimise changes nothing a headless window shows).
+    /// does; a minimise sets ``isMiniaturized``.
     public func performWindowAction(_ action: PlatformWindowAction) -> Bool {
         windowActions.append(action)
         if action == .toggleZoom { isZoomed.toggle() }
+        if action == .minimize { isMiniaturized = true }
         return true
     }
 

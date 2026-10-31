@@ -75,6 +75,7 @@ private func conformer(pair: String) -> String {
         func setToolbar(_: PlatformToolbar?) -> Bool { false }
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         func setPointerStyle(_ style: PlatformPointerStyle) {}
+        func orderFrontAndMakeKey() {}
         // Colour scheme (`CR-M`), defaultless too, so every arm here carries
         // it; `ColorSchemeCompileGuards` pins it.
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}

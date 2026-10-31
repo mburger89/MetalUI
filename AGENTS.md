@@ -45,9 +45,9 @@ one or two sentences, not a summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **176 live, next label 206** (255 retired and 745–754 unused by LH; 735–737 used and 738–744 unused by BG; 705–714 unused by DT; 625–634 unused by C14-i; 635–638 used and 639–644 unused by L1; 645, 646 used and 647–654 unused by G1; 655–664 unused by E1; 665–674 unused by S11; 675–684 unused by S12; 685–694 unused by XP-G21; 695–704 reserved by C14-j; 715–717 used and 718–724 unused by CP; 455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
+  live SwiftUI difference — **177 live, next label 207** (255 retired and 745–754 unused by LH; 735–737 used and 738–744 unused by BG; 705–714 unused by DT; 625–634 unused by C14-i; 635–638 used and 639–644 unused by L1; 645, 646 used and 647–654 unused by G1; 655–664 unused by E1; 665–674 unused by S11; 675–684 unused by S12; 685–694 unused by XP-G21; 695–704 reserved by C14-j; 715–717 used and 718–724 unused by CP; 455, 456 used by S3; 465 used and 466–474 unused by S4+S8; 425, 426 used and 427–434 unused by S1; 435 used and 436–444 unused by S2; 345–354 reserved by C14: 346 used, 345 refuted, 347–354 unused; 196–204 unused by C12, 215–224 unused by item 8, 226–234 unused by C15, 237–244 unused by C16, 256–264 unused by C20, 250–254 unused by C21, 267–274 unused by C25, 278–284 unused by C22, 285–294 unused by C24, 295–296 used and 297–304 unused by C23, 305–314 unused by C26, 315 used and 316–324 unused by C27, 325–326 used and 327–334 unused by C28, 189–194 unused by C9); retired labels are
   never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
-  (groups A–Y, EL, BG, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK, SI, RO, FS, RG, AT, RL, AP, EX, GB, GS, BS, LZ, RZ, DT, CP, BG, LG, TL, TP, HX and BT, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
+  (groups A–Y, EL, BG, VL, RT, WS, AS, CL, KF, PF, SG, HT, OV, IF, BB, WD, SL, GC, GT, RF, MT, IM, GD, IV, GA, SB, HP, IB, CW, CB, IC, RK, SI, RO, FS, RG, AT, RL, AP, EX, GB, GS, BS, LZ, RZ, DT, CP, BG, LG, TL, TP, HX, BT and WA, **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
   public declaration; `closeout-inventory-map.tsv` classifies each (A
   SwiftUI-aligned / D divergence / M MetalUI-only / X deprecated / R absent).
@@ -67,7 +67,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-10-30, `fix/windows-plugin-env` with master 5b5ae68a): root 4534 tests, 0 goldens, 277 typecheck guards** (4533 measured before the master merge plus `VD-`'s one, record 164; the guard figure is unchanged). A count is stale the moment a test lands: re-measure (`swift package clean`, native build, unfiltered `--no-parallel` run, `--build-system native` for the guards). The dated history of every earlier count, with its branch and lane readings, is frozen verbatim in `docs/record/159-counts-history-2026-10-27.md`; new milestones put their count in their own record, and this line is replaced, not appended to.
+- **Counts (2026-10-30, `feat/metalflow-gaps` on master 65e300a0, four lanes `HS-`, `WA-`, `BU-`, `SE-`): root 4585 tests, 0 goldens, 279 typecheck guards** (4576 passed with `AppKitPresentationTests` skipped, plus its 9 tests; master's own unfiltered run reads 4534, so the branch adds 51. Guards: the previous 277 plus `WA-`'s two, **not re-tallied by grep** (no reliable grep reproduces 277), but `FR-J no-argument frame: succeeded=true` printed, so they ran. The unfiltered native run on this Mac **hung inside `NSOpenPanel.init`** (`appKitSecondDialogWhileASheetIsUpAnswersFalse`) after sheet failures, where master's finished with the five known ones; record 165 §3). A count is stale the moment a test lands: re-measure (`swift package clean`, native build, unfiltered `--no-parallel` run, `--build-system native` for the guards). The dated history of every earlier count, with its branch and lane readings, is frozen verbatim in `docs/record/159-counts-history-2026-10-27.md`; new milestones put their count in their own record, and this line is replaced, not appended to.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -139,12 +139,12 @@ these violations show.
 - **`PlatformWindow`'s defaultless requirements** — `onAccessibilityRequest`,
   `publishAccessibilityTree(_:)`, `controlActiveState`/
   `onControlActiveStateChange`, `accessibilityReduceMotion`/
-  `onAccessibilityReduceMotionChange`, `accessibilityReduceTransparency`/`onAccessibilityReduceTransparencyChange` (`MT-D`), `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`), and `performWindowDrag() -> Bool` (`WD-E`), and the clipboard's four — `writeClipboard(_ representations:) -> Bool`, `clipboardTypeIdentifiers()`, `readClipboard(identifier:)`, `setClipboardCommands(_:)` (`CB-E`) — have no
+  `onAccessibilityReduceMotionChange`, `accessibilityReduceTransparency`/`onAccessibilityReduceTransparencyChange` (`MT-D`), `beginExternalDrag(_:at:)`, `presentMenu(_:at:) -> Bool`, `setPreferredColorScheme(_:)` (`CR-M`), `presentFileDialog(_:) -> Bool`, `presentAlert(_:) -> Bool`, `dismissPresentation(token:)`, `setContentSizeLimits(minimum:maximum:)` (`SV-B`), `setToolbar(_:) -> Bool` (`MD-J`), `setPointerStyle(_:)` (`CI-J`), and the app shell's seven — `onCloseRequest`, `close()`, `setDocumentEdited(_:)`, `setRepresentedFilePath(_:)`, `setTitleBarStyle(_:) -> Bool`, `titleBarInsets`, `performTitleBarPress(clickCount:) -> Bool` (`AS-H`, `AS-J`), and `performWindowDrag() -> Bool` (`WD-E`), `orderFrontAndMakeKey()` (`WA-A`), and the clipboard's four — `writeClipboard(_ representations:) -> Bool`, `clipboardTypeIdentifiers()`, `readClipboard(identifier:)`, `setClipboardCommands(_:)` (`CB-E`) — have no
   default so a conformer that forgets one fails to compile. Both conformers,
   the headless `HeadlessPlatform*` of `MetalUITesting` (**a new requirement owes it an honest
   answer in the same change**, `HT-X` 1) and every test fake implement all of them. **`Platform` (not a window) has
-  six: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:) -> Bool`** (`MN-I`, `SG-A`: `true` when the platform shows the bar) **and the app shell's
-  `onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURLs`** (`AS-H`), beside it for the same reason,
+  seven: `setApplicationIcon(_:)`** (`AI-B`), **`setMenuBar(_:) -> Bool`** (`MN-I`, `SG-A`: `true` when the platform shows the bar) **and the app shell's
+  `onTerminateRequest`, `replyToTerminateRequest(_:)`, `terminate()`, `onOpenURLs`** (`AS-H`) **and `activate()`** (`WA-A`), beside it for the same reason,
   and so does **`WindowRenderer.finishFrame(scene:atlas:surfaces:)`** (`MV-F`
   item 1; the two-argument spelling forwards `surfaces: []`). **`TextSystem` has
   three** since rich text (styled measure, styled layout, decoration metrics,
@@ -229,7 +229,7 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 
 ## Reference tables
 
-- **Divergences**: `docs/divergences.md` (176 live, next label 206). A new
+- **Divergences**: `docs/divergences.md` (177 live, next label 207). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
 - **Declared but inert**: record §05 (plan task 15's section is the final

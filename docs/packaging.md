@@ -49,6 +49,29 @@ done
 notices file.) SDL3's and
 AccessKit's licence texts are not in this repo.
 
+## macOS: `metalui bundle` (`BU-A`)
+
+One command does everything the rest of this section does by hand (macOS only;
+`docs/superpowers/2026-10-30-bundle-command-decisions.md`):
+
+```sh
+swift run --package-path <MetalUI checkout> metalui bundle --product MyApp \
+    --bundle-id com.example.MyApp [--icon icon-1024.png|MyApp.icns] [--version 1.0] \
+    [--output <dir>] [--package-path <dir>]
+```
+
+It runs `swift build -c release --product MyApp` in the package (default: the
+current directory), lays out `<output>/MyApp.app` (default output
+`.build/bundle`; an existing bundle there is replaced), copies the executable
+into `Contents/MacOS`, every `*.bundle` of the release bin directory (including
+`MetalUI_MetalUIRender.bundle`) into `Contents/Resources`, writes `Info.plist`
+(`LSMinimumSystemVersion` read from the package's `.macOS(...)` platform), turns
+an `.icns` icon into `CFBundleIconFile` as is and a `.png` into an `.icns` with
+`sips` and `iconutil` (the iconset below), signs ad hoc
+(`codesign --force --sign - --deep`) and prints the bundle path. On Linux and
+Windows it prints an error and exits 1. The sections below are the same recipe
+by hand, and the explanation of why each step is there.
+
 ## macOS: an `.app` bundle with an `.icns`
 
 A SwiftPM executable is a bare Mach-O file; Finder shows it with the generic

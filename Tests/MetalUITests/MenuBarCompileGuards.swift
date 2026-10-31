@@ -30,6 +30,7 @@ private func conformer(member: String) -> String {
         var onTerminateRequest: (() -> CloseRequestReply)?
         func replyToTerminateRequest(_ shouldTerminate: Bool) {}
         func terminate() {}
+        func activate() {}
         var onOpenURLs: (([String]) -> Void)?
     \(member)
     }

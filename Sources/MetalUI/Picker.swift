@@ -58,6 +58,15 @@ public struct PickerStyle: Sendable, Hashable {
 /// as a sibling static text), each option a `.radioButton` labelled by its
 /// content, value `"1"` and the `.selected` trait on the chosen one.
 ///
+/// **Option identifiers** (`SE-A`): an option publishes, in order, the first
+/// `.accessibilityIdentifier` declared inside its content (put it on the
+/// content, before `.tag`, e.g. `Text("A").accessibilityIdentifier("a").tag(x)`),
+/// else `"<picker identifier>.<tag>"` where the tag is rendered with
+/// `String(describing:)` (an enum case is its name) and the picker identifier is
+/// the one declared directly on the `Picker` (`Picker(...){}.accessibilityIdentifier("mode")`
+/// gives `"mode.alpha"`), else none. Pressing or clicking the option element
+/// writes its tag.
+///
 /// **Structure.** An internal legacy `Box` row: `Text(title)` at 0, then the
 /// options `Box` at 1, whose content is an `OptionRow` group over the caller's
 /// content — each option's chrome `Box` numbering from 0 under the options
@@ -152,6 +161,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         scope.kind = pickerStyle.kind
         scope.accent = controlAccent(environment)
         scope.tags.removeAll()
+        scope.identifier = handlers.axNode.declarations.identifier
         PickerScope.stack.append(scope)
         defer { PickerScope.stack.removeLast() }
         let (node, inner) = box.requestLayout(id, pass: &pass)
@@ -246,6 +256,9 @@ final class PickerScope {
     /// otherwise (`controlAccent(_:)`, `IX-H` item 1). A segmented picker's
     /// selected segment is `.surface` in every window — it has no accent.
     var accent: ColorToken = .accent
+    /// The picker's own `.accessibilityIdentifier`, when it declared one: the
+    /// prefix of each option's derived identifier (`SE-A`).
+    var identifier: String?
     /// This frame's options' tags, in declaration order.
     var tags: [AnyHashable] = []
     /// A menu picker's options as recorded this frame — tag and title — in
@@ -454,6 +467,9 @@ public struct TaggedElement<Content: Element>: Element {
         chrome.handlers.onClick = { scope.write(tag) }
         chrome.handlers.axNode = AXNode(role: .radioButton, value: selected ? "1" : "0",
                                         traits: selected ? [.selected] : [])
+        if let pickerIdentifier = scope.identifier {
+            chrome.handlers.axNode.declarations.derivedIdentifier = "\(pickerIdentifier).\(tag.base)"
+        }
         return chrome
     }
 

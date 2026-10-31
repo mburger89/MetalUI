@@ -79,6 +79,12 @@ public final class HeadlessPlatform: Platform {
     /// Counts the call: a headless platform has no loop to end.
     public func terminate() { terminateCalls += 1 }
 
+    /// Counts the call: a headless platform has no foreground to enter (`WA-A`).
+    public func activate() { activateCalls += 1 }
+
+    /// How many times ``activate()`` was called.
+    public private(set) var activateCalls = 0
+
     /// Installed by the app. URLs that arrived before it are delivered, each
     /// batch once, on assignment — the platforms' parking (`AS-G` item 4).
     public var onOpenURLs: (([String]) -> Void)? {

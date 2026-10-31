@@ -331,6 +331,10 @@ struct AXDeclarations: Equatable {
     var hint: String?
     /// `accessibilityIdentifier(_:)` (`IX-W` item 2).
     var identifier: String?
+    /// A fallback identifier a control derives for a node it publishes (a `Picker`
+    /// segment's `<picker>.<tag>`, `SE-A`): used only when neither the node, a
+    /// folded descendant nor a distributing ancestor supplied one.
+    var derivedIdentifier: String?
     /// `accessibilityAddTraits(_:)`/`accessibilityRemoveTraits(_:)` (`IX-X`):
     /// a later write of the same trait to the other set moves it.
     var addedTraits: AccessibilityTraits = []
