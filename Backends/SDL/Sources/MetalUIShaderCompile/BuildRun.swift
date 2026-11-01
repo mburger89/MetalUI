@@ -50,6 +50,12 @@ extension ShaderCompiler {
             compile.mode = .compile
             try run(compile, environment: environment, windows: windows, fileExists: fileExists, runner: runner, log: log)
         case .copy(let files):
+            // The checked-in blobs were compiled elsewhere; their sources are here, so the same check applies (UB-C).
+            for source in shaderSources {
+                if let json = try? String(contentsOfFile: ShaderCompilePlan.join(checkedInDirectory, "\(source.stem).json"), encoding: .utf8) {
+                    try checkSlots(of: source, in: sourceDirectory, reflection: json)
+                }
+            }
             for file in files {
                 try manager.copyItem(atPath: ShaderCompilePlan.join(checkedInDirectory, file),
                                      toPath: ShaderCompilePlan.join(outDirectory, file))
