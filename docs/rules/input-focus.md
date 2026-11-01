@@ -154,6 +154,15 @@ no hand or zoom cursor (`MOVE`/arrow, `CI-H` item 8), no rotate, no pinch on
 Windows and no wheel phase. Both new regions sit inside the disabled,
 `allowsHitTesting` and `hidden()` gates. `CoordinateSpace.named` is built (`OV-D`, below); the image
 cursor is built (`IC-`, below), and `shape(_:eoFill:size:)` is carried (`IC-G`).
+**Pointer extras (`PH-`, record 188).** `columnResize(directions:)`/`rowResize(directions:)` lower to the plain resize for both
+directions, a one-way seam case (`columnResizeOneWay`, `rowResizeOneWay`) for one (`leading` is the left, unmirrored, as
+`frameResize`) and the arrow for the empty set. **`pointerVisibility(_:)` rides `PointerAttachment`** (no `Handlers` member): `.automatic`
+attaches nothing, the innermost of `.hidden`/`.visible` wins, the style and the visibility resolve independently in the one walk
+(`pointerUnderPointer`, the cover eligible when opaque, hovering, or carrying a style *or* a visibility), a press holds the pressed
+chain's pair, a drawn alert or menu shows the pointer, and a hidden pointer resolves to the seam's `PlatformPointerStyle.hidden`,
+sent on a change and followed by one `.arrow` when the pointer leaves the window. A new pointer-region field counts in
+`pointerStyleRegionCount`, or a frame with only that region resolves nothing. No new `PlatformWindow` requirement: a seam case, so an
+outside exhaustive `switch` owes three arms (`docs/migration.md`).
 
 **Key and focus scoping (`KF-`, record §88).** `onKeyPress` (SwiftUI's five spellings,
 `KeyPress`, `FocusInteractions`) runs **after the Keymap and before a focused field's editing

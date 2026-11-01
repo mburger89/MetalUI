@@ -453,7 +453,10 @@ ranking (A; SDL has a pinch on macOS, Wayland and X11, and no rotate);
 space (D 139); `PointerStyle` and `.pointerStyle(_:)` (macOS 15's spelling:
 `.default`, the I-beams, `.rectSelection` — the crosshair — the grab hands,
 `.link`, the zooms, the resizes; innermost wins, sent to the platform only on a
-change; a paint-only view does not cover it, D 141). `PointerStyle.shape(_:eoFill:size:hotSpot:fill:outline:)`
+change; a paint-only view does not cover it, D 141). `PointerStyle.columnResize(directions:)` and `rowResize(directions:)` (A: `HorizontalDirection.Set` / `VerticalDirection.Set`, one
+direction a one-way arrow, none the arrow; on SDL the nearest edge cursor) and `.pointerVisibility(_:)` (A: `.hidden` hides the
+pointer over the view, `.automatic` defers to an outer one, independent of the style; a transparent cursor on AppKit,
+`SDL_HideCursor` on SDL; `PH-`). Hover effects are not on macOS (`PH-A`). `PointerStyle.shape(_:eoFill:size:hotSpot:fill:outline:)`
 (M, D 735: SwiftUI has `shape(_:eoFill:size:)` on visionOS only) draws a `Shape` as a cursor, black with a 1-point
 white outline, rasterized at the display scale and sent as an image cursor (`BG-K`...`BG-M`). MetalUI-only by ruling,
 where SwiftUI has nothing: `.onScrollWheel { (event: ScrollEvent) -> Bool }`

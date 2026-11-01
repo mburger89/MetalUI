@@ -2119,3 +2119,15 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 *An agent cannot: window capture was denied in the authoring session, so the native look is unsampled (`SD-A`).*
 
 - [ ] **SD1.** In the dark appearance, a segmented `Picker` (`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo`) shows its selected segment as a visibly *lighter* pill than the track, the unselected segments flush with the track, next to a SwiftUI/AppKit segmented control in the same appearance (lighter-pill-on-darker-track, as AppKit draws it). In light it is a white pill on the grey track, as before. **Observed:**
+
+## PH. Pointer extras - one-way resize cursors and a hidden pointer (round 3 item R3-10 part 2; decisions `docs/superpowers/2026-11-01-pointer-extras-decisions.md`, record 188; provisional letter)
+
+*An agent cannot: only a person at a real pointer sees which cursor is drawn and whether it disappears. Use a scratch window with a column of boxes, one per style: `.pointerStyle(.columnResize(directions: .leading))`, `.trailing`, `.all`, `.rowResize(directions: .up)`, `.down`, and `.pointerVisibility(.hidden)`; on macOS 15 or later, then macOS 14 if available, then Linux and Windows.*
+
+- [ ] **PH1.** macOS 15+: over the `.leading` box the cursor is the column-resize cursor with an arrow to the left only; `.trailing` right only; `.all` both. `.up`/`.down` the same for rows. **Observed:**
+- [ ] **PH2.** An empty direction set (`columnResize(directions: [])`) shows the ordinary arrow. **Observed:**
+- [ ] **PH3.** Over the `.pointerVisibility(.hidden)` box the pointer disappears; moving out of the box shows it again at once; moving the pointer out of the window while hidden and back in over the box hides it again. It must never stay invisible after leaving the window or switching apps with cmd-tab. Crossing from the box into the title bar shows the system arrow (the transparent cursor is the host view's own, `PH-G`). **Observed:**
+- [ ] **PH4.** An inner `.visible` box inside a `.hidden` one shows the pointer; an inner `.automatic` one hides it; with `.pointerStyle(.link)` on the same box the hand shows as soon as the pointer is made visible again. **Observed:**
+- [ ] **PH5.** While hidden, drag from the hidden box out of the window and release outside: the pointer is visible again after the release (and stayed hidden during the drag if the box has a drag gesture). **Observed:**
+- [ ] **PH6.** Linux and Windows (SDL): `.leading`/`.trailing` show the west/east edge-resize cursor, `.up`/`.down` the north/south one (SDL has no one-arrow divider cursor; the two-arrow forms for `.all`); `.hidden` hides the pointer over the box and `SDL_ShowCursor` brings it back on leaving the box. **Observed:**
+- [ ] **PH7.** macOS 14 (if available): the one-way forms show the left/right/up/down resize cursors, the two-way forms the left-right and up-down ones. **Observed:**
