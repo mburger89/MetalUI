@@ -2809,3 +2809,10 @@ before its position (probe `swiftui-matched-geometry.swift` S3, a bitmap, not re
 pin `aLeaverRemovedByAnIdentityTransitionHandsNothingOver`. **898**: a custom `Transition`'s `body` returns a `TransitionContent` (opacity, scale, offset), not a view; pin `aCustomTransitionInsertsFromItsWillAppearState`.
 **Not offered, moved:** `matchedGeometryEffect` and custom transitions left the "Not offered" table; `contentTransition`, `.blurReplace`, `.modifier(active:identity:)`, `AnyTransition.animation(_:)` stay (`MG-H`).
 **828** is edited, not retired: `matchedGeometryEffect` exists, `glassEffectID` still registers none. Mechanism and mutations: `docs/superpowers/2026-10-31-matched-geometry-decisions.md`.
+## 2026-10-31: dialog extras (`SV-AO`, record §179)
+
+**New: 935** (179 live; next label 210; 935 used and 936-944 unused by `SV-AO`). SDL's file dialogs have no message field, so `.fileDialogMessage` is shown as the dialog's title (else the seam's `title`)
+and `.fileDialogConfirmationLabel` is passed as SDL's accept label through `SDL_ShowFileDialogWithProperties`, which each desktop's dialog may ignore; on macOS they are `NSSavePanel.message` and
+`.prompt` (probe `swiftui-dialog-extras.swift` `F1`, `F3`, `F4`). `SV-AO` item 2; pin `sdlDialogLabelsAreThePromptAndTheMessageOrTitle` (1.12b, `Backends/SDL`); the effect on Linux and Windows is
+unmeasured (human check `DX3`). Two "Not offered" rows left: `confirmationDialog`'s `titleVisibility:` and a non-`Text` alert button label are built; a `TextField` in an alert stays carried.
+

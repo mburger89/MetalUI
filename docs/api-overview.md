@@ -853,22 +853,36 @@ or `Window.fileDialogs` from a menu command. `ContentType(_:conformingTo:filenam
 directory URL; beside a file type it chooses both on AppKit, files only on
 Linux and Windows (D, 209). The seam reads it as
 `PlatformFileDialog.canChooseDirectories`/`canChooseFiles` (M), which a
-`MetalUITesting` test reads off `presentedFileDialog`.
+`MetalUITesting` test reads off `presentedFileDialog`. **Label and message**
+(`SV-AO`, record 179; probe `swiftui-dialog-extras.swift` `F1`–`F4`; D 935):
+`.fileDialogConfirmationLabel(_:)` and `.fileDialogMessage(_:)` (`Text` and
+`StringProtocol` spellings, on `ElementGroup`, an environment write) set the
+confirming button's title and the panel's explanatory text of every importer or
+exporter **above** which they are written (inside the presenter they reach
+nothing, as in SwiftUI); the label replaces an exporter's own "Export".
+`PlatformFileDialog.message` (M) is the new seam field beside `prompt`. AppKit
+sets `NSSavePanel.prompt`/`message`; SDL shows the message as the dialog's
+title and passes the label as its accept label. The async `FileDialogs` calls
+read neither.
 
 **Alerts** (`SV-I`, `SV-X`, `SV-Y`; probes `swiftui-platform-services.swift`
 `A1`–`A9`, `C1` and `swiftui-alert-presenting.swift` `R0`–`R4`, `K0`–`K3`; A):
 `.alert(_:isPresented:actions:)`, `.alert(_:isPresented:actions:message:)`,
 `.alert(_:isPresented:presenting:actions:)` and with `message:`,
-`.confirmationDialog(_:isPresented:actions:)` and with `message:`; actions are
-the closed `AlertActions` — `Button` with a `Text` label, `role: .cancel` or
-`.destructive` — through `@AlertActionsBuilder` (`if`, `if`/`else`, `for`;
+`.confirmationDialog(_:isPresented:titleVisibility:actions:)` and with `message:`
+(`Visibility`, `SV-AO`: accepted, and the title shows for all three, as on
+AppKit); actions are the closed `AlertActions` — `Button`, `role: .cancel` or
+`.destructive`, its title the first `Text` in its label (a `Row` of a shape and a
+`Text`; a label with no `Text` is left out, and none left shows one "OK") — through `@AlertActionsBuilder` (`if`, `if`/`else`, `for`;
 `AlertActionItems`). SwiftUI's buttons: the cancel button last and on Escape,
-a synthesized "Cancel" beside a lone destructive, one "OK" for none, Return on
-the first plain button only when none is destructive; `presenting: nil` still
+a synthesized "Cancel" beside a lone destructive (in a **confirmation dialog**
+beside any actions without a cancel button, and then no default), one "OK" for
+none, Return on the first plain button only when none is destructive;
+`presenting: nil` still
 presents the title and "OK". Any button writes `isPresented = false`, then runs
 its action. An `NSAlert` sheet on AppKit; drawn in the window where the platform
-declines (SDL). Not offered: `titleVisibility:`, alert text fields, a
-non-`Text` button label.
+declines (SDL). Not offered: alert text fields (`TextField`/`SecureField` in the
+actions; carried, `SV-AO` item 5).
 
 **Window toolbar** (`MD-I`, `MD-J`, `MD-S`, `MD-X`; probes `swiftui-toolbar.swift`
 `TB1`, `UP`, `SR` and `swiftui-toolbar-nested.swift` `NT1`, `PO`; D 135, 120):

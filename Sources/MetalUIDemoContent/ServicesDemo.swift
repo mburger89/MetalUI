@@ -171,6 +171,8 @@ func servicesDialogsSectionBody() -> some Element {
                     case .failure(let error): servicesDemoModel.outcome = "Import failed: \(error)"
                     }
                 }
+                .fileDialogConfirmationLabel("Use folder")
+                .fileDialogMessage("Pick the repository folder to add.")
             Button("Import folder or JSON…") { servicesDemoModel.importingFolderOrJSON = true }
                 .fileImporter(isPresented: Binding(get: { servicesDemoModel.importingFolderOrJSON },
                                                    set: { servicesDemoModel.importingFolderOrJSON = $0 }),
