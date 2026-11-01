@@ -43,7 +43,7 @@ extension AppKitWindow {
     /// Shows `dialog` as an `NSOpenPanel` (files, directories or both as
     /// ``openPanelConfiguration(_:)`` reads them, `allowsMultipleSelection` as
     /// asked) or an `NSSavePanel` (the name field `defaultFilename`, its
-    /// extension hidden, `title`/`prompt` from the seam) **sheet** on this
+    /// extension hidden, `title`/`prompt`/`message` from the seam) **sheet** on this
     /// window, filtered by `allowedContentTypes` (ruling `SV-F`, `SV-E`'s
     /// mapping), and answers `true`; the outcome — the chosen URLs' paths,
     /// or a cancel — is queued as `.fileDialogResult`. `false` while a sheet
@@ -66,8 +66,10 @@ extension AppKitWindow {
             panel.isExtensionHidden = true
             panel.allowedContentTypes = Self.contentTypes(dialog.allowedTypes)
         }
-        if let title = dialog.title { panel.title = title }
-        if let prompt = dialog.prompt { panel.prompt = prompt }
+        let texts = Self.panelTexts(dialog)
+        if let title = texts.title { panel.title = title }
+        if let prompt = texts.prompt { panel.prompt = prompt }
+        if let message = texts.message { panel.message = message }
         let presentation = AppKitPresentation(.fileDialog(panel))
         presentations[dialog.token] = presentation
         let token = dialog.token
@@ -81,6 +83,15 @@ extension AppKitWindow {
             }
         }
         return true
+    }
+
+    /// The texts a panel for `dialog` shows (ruling `SV-AO`): the window `title`,
+    /// the confirming button's `prompt` and the explanatory `message`, each
+    /// `nil` for AppKit's own. Factored from ``presentFileDialog(_:)`` so a test
+    /// reads it without an `NSSavePanel`.
+    nonisolated static func panelTexts(_ dialog: PlatformFileDialog)
+        -> (title: String?, prompt: String?, message: String?) {
+        (dialog.title, dialog.prompt, dialog.message)
     }
 
     /// What an open panel for `dialog` may choose (ruling `SV-AM`, amending

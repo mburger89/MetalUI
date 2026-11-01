@@ -129,6 +129,11 @@ struct PresentationRecord {
     /// The binding's value when the scope was laid out.
     let isShown: Bool
     let request: PresentationRequest
+    /// The environment's `fileDialogConfirmationLabel` and `fileDialogMessage`
+    /// at the scope's position (`SV-AO` item 1): read in layout, applied when a
+    /// file dialog is presented.
+    let fileDialogLabel: String?
+    let fileDialogMessage: String?
 }
 
 extension Frame {
@@ -150,7 +155,9 @@ extension Frame {
         presentationOccurrences[scope] = occurrence + 1
         presentationRecords.append(PresentationRecord(
             key: PresentationRecord.Key(scope: scope, occurrence: occurrence), owner: owner,
-            isPresented: isPresented, isShown: isPresented.wrappedValue, request: request))
+            isPresented: isPresented, isShown: isPresented.wrappedValue, request: request,
+            fileDialogLabel: environmentTop.fileDialogConfirmationLabel,
+            fileDialogMessage: environmentTop.fileDialogMessage))
     }
 }
 
@@ -241,7 +248,8 @@ extension Window {
         switch record.request {
         case .fileDialog(let kind, let types, let title, let prompt, let complete):
             let dialog = PlatformFileDialog(token: token, kind: kind, allowedTypes: types.map(\.platformFileType),
-                                            title: title, prompt: prompt)
+                                            title: title, prompt: record.fileDialogLabel ?? prompt,
+                                            message: record.fileDialogMessage)
             if presentFileDialogOnPlatform(dialog) {
                 presentations.inFlight = .scope(key: record.key, token: token, record: record, alert: nil)
             } else {

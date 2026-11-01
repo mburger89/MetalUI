@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AM`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AQ`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -1435,7 +1435,7 @@ folder). `SV-F`'s "files only, never folders" is amended.
    `mui_dialog_request_choose_folders`); `SDLWindow.dialogMode(_:)` decides.
    SDL3 has no dialog choosing both, so **a folder type beside a file type
    chooses files only off Apple — divergence 209**.
-6. **Not built:** SwiftUI's `fileDialogConfirmationLabel(_:)` and
+6. **Built since by `SV-AO`** (record 179; was: not built). SwiftUI's `fileDialogConfirmationLabel(_:)` and
    `fileDialogMessage(_:)` (macOS 14, environment-style: they configure every
    file dialog presented within). They would need an environment read at the
    `PresentationScope`'s layout and a `message` stored on `PlatformFileDialog`
@@ -1474,3 +1474,109 @@ system. Not mutated: the `presentFileDialog` lines applying the configuration
 to a live `NSOpenPanel` (no panel under a locked screen — human check `FO1`)
 and the C bridge's `SDL_ShowOpenFolderDialog` branch (no SDL dialog runs on
 macOS — `FO3`).
+
+---
+
+## SV-AO — Dialog and alert extras: the file dialog's label and message, `titleVisibility`, non-`Text` alert buttons (amends `SV-AM` item 6, `SV-I` items 1–2, `SV-AD` item 3; record 179)
+
+Round-3 item R3-6. Evidence: `docs/probes/swiftui-dialog-extras.swift` (arms `F0`–`F4`
+file dialogs, `C1`–`C12` confirmation dialogs, `L1`–`L11` button labels, `T1`–`T3` text
+fields; macOS 27.0, screen locked, run twice, 109 lines byte-identical, the reading in its
+header). Pins: `DialogExtrasTests.swift`, `HarnessPresentationTests` 2.11c,
+`PresentationCompileGuards` 2.G6/2.G10, `SDLPresentationTests` 1.12b/1.12c.
+
+1. **`.fileDialogConfirmationLabel(_:)` and `.fileDialogMessage(_:)`** (`Text` and
+   `StringProtocol` spellings, on `ElementGroup`, returning `EnvironmentScope`). Two
+   internal custom environment keys (`String?`, so the retained key sees a change,
+   `EE-F`); `Frame.notePresentation` reads them from `environmentTop` **at the
+   presenting scope's own position** and stores them on the `PresentationRecord`; `present`
+   puts the label in the existing `PlatformFileDialog.prompt` (replacing an exporter's own
+   "Export", `F3`) and the message in a new stored `PlatformFileDialog.message` (a stored
+   property on a public type crossing a module boundary: `swift package clean`). **A
+   writer outside (after) the presenter reaches it; one on the content inside does not**
+   (`F1`, `F2`: SwiftUI's importer reads the view it is attached to); the nearest writer
+   wins as every environment value (`EV-A`). `FileDialogs` async calls read nothing — a
+   call has no environment position; carried.
+2. **AppKit** sets `NSSavePanel.title`/`prompt`/`message` from the pure
+   `AppKitWindow.panelTexts(_:)`. **SDL** has no message field: `SDLWindow.dialogLabels(_:)`
+   gives the bridge the accept label (`prompt`) and the title (`message` when set — the
+   only text its dialogs show — else `title`), and `mui_dialog_request_show` calls
+   `SDL_ShowFileDialogWithProperties` only when either is set (the other requests keep the
+   `SDL_Show…Dialog` wrappers byte for byte). **Divergence 935.** Each desktop's dialog may
+   ignore either property (SDL: "each platform may or may not support any"); the effect on
+   Linux and Windows is unmeasured (human check `DX3`). `HeadlessPlatformWindow` records
+   the whole `PlatformFileDialog`, so the harness reads both through `presentedFileDialog`
+   (`HT-X` 1: no edit to it was needed).
+3. **`confirmationDialog(_:isPresented:titleVisibility:actions:)`** and its `message:` form
+   take SwiftUI's `Visibility` (`.automatic`, `.visible`, `.hidden`; new public enum,
+   default `.automatic`, so both existing spellings keep compiling). **It changes nothing
+   shown:** `NSAlert` shows the title for all three, with and without a message (`C1`–`C8`),
+   and so does the drawn alert (not an inert-by-omission: the measured behaviour). Probing
+   found a second, real difference: **a confirmation dialog synthesizes its "Cancel" whenever
+   no cancel button is declared** (an alert only beside a destructive one, `A2` vs `C10`),
+   **and then no button is the default** (`C10`, `C12`; Return needs a declared cancel
+   beside the plain button, `C11`); no actions is the lone "OK" (`C9`). `AlertButtons.resolve(_:confirmation:)`
+   carries it; `SV-I` item 3's table for `.alert` is unchanged (`A1`–`A5`, `K0`–`K3`).
+4. **A `Button` whose label is not a plain `Text` is an alert/confirmation action**
+   (`Button: AlertActions`, no `where Label == Text`). Its title is **the first `Text` in
+   the label, depth first** (`L1`, `L2`, `L4`–`L6`, `L11`); a button whose label holds no
+   `Text` is **left out** (`L3`, `L8`–`L10`), and when none is left the alert shows the lone
+   "OK" that runs nothing; a left-out cancel button is not a cancel button (`L9`).
+   MetalUI has no `Label` view; the SwiftUI `Label` arms map to a `Row` of a shape and a
+   `Text`. The walk is `Mirror` over the label's stored properties (a `Text` label, the
+   common case, is cast directly), recursion capped at 24 levels; a `ForEach`'s rows are
+   made by a closure and are not visited. `ProposalText` counts as text.
+5. **Carried: a `TextField` or `SecureField` in an alert's actions.** SwiftUI's sheet shows
+   each as an accessory view in declaration order, the typed text writing the binding live,
+   in a confirmation dialog too (`T1`–`T3`). AppKit could do it (`NSAlert.accessoryView`),
+   but SDL's alert is drawn by the window (`SV-J`) with no text input, so an AppKit-only
+   half would make one alert two different controls per platform, and the seam would need
+   `textFields` on `PlatformAlert` plus values on `AlertResultEvent`. It stays in the
+   "Not offered" table, now narrowed to the field: a call putting one in the actions does not
+   compile (guard 2.G6). Remedy when built: a drawn text control in `AlertPanel` first.
+6. **Unmeasured:** the AppKit panel's `prompt`/`message` on screen (the screen was locked;
+   human checks `DX1`, `DX2`), and the SDL properties form on Linux and Windows (`DX3`);
+   the C branch is built on macOS and its Linux image path pinned by 1.12c.
+
+**Cost if wrong.** Item 2's SDL mapping: a desktop dialog ignoring both properties shows
+neither, as before. Item 3's Cancel rule: a probe-measured fact; a platform that differs
+would be the drawn alert, which follows the same resolver. Item 4's `Mirror` walk: a label
+whose first text is built by a closure shows the next one, or the button is left out.
+
+---
+
+## SV-AP — `SV-AO`'s mutation table (measured)
+
+Branch `feat/dialog-extras` (from master `28a819e9`), each mutation applied alone to the
+spelling quoted on commit `a9671a26`, root runs `swift test --build-system native --no-parallel
+--skip AppKitPresentationTests --filter` over the sixteen tests of `DialogExtrasTests`,
+`HarnessPresentationTests` 2.11c, `AlertTests` 2.20/2.25 and the two guards; the SDL ones from
+`Backends/SDL` with `--filter 'Dialog|Alert'`. Every mutation reddened.
+
+| id | mutation (spelling) | reddened |
+|---|---|---|
+| MF1 | `PlatformFileDialog.init`: `self.message = message` → `self.message = nil` | `aFileDialogsLabelAndMessageAreReadAtTheHarness`, `aFileImporterReadsItsLabelAndMessageFromTheEnvironmentAboveIt`, `anExporterTakesTheEnvironmentsLabelOverItsExportPrompt`, `theAppKitPanelTextsAreTheSeams`, `theHeadlessHarnessShowsTheLabelAndMessageOfThePresentedDialog`, `theSeamCarriesTheFileDialogsMessage` |
+| MF2a | `notePresentation`: `environmentTop.fileDialog…` → `rootEnvironment.fileDialog…` | `aFileDialogsLabelAndMessageAreReadAtTheHarness`, `aFileImporterReadsItsLabelAndMessageFromTheEnvironmentAboveIt`, `anExporterTakesTheEnvironmentsLabelOverItsExportPrompt` |
+| MF2b | `present`: `prompt: record.fileDialogLabel ?? prompt` → `prompt: prompt` | `aFileDialogsLabelAndMessageAreReadAtTheHarness`, `aFileImporterReadsItsLabelAndMessageFromTheEnvironmentAboveIt`, `anExporterTakesTheEnvironmentsLabelOverItsExportPrompt` |
+| MF2c | `present`: `message: record.fileDialogMessage` → `message: nil` | `aFileDialogsLabelAndMessageAreReadAtTheHarness`, `aFileImporterReadsItsLabelAndMessageFromTheEnvironmentAboveIt`, `anExporterTakesTheEnvironmentsLabelOverItsExportPrompt` |
+| MF3 | `present`: `record.fileDialogLabel ?? prompt` → `prompt ?? record.fileDialogLabel` | `anExporterTakesTheEnvironmentsLabelOverItsExportPrompt` |
+| MF5 | `AppKitWindow.panelTexts` → `(dialog.title, dialog.prompt, nil)` | `theAppKitPanelTextsAreTheSeams` |
+| MC1 | `confirmationDialog(…message:)`: the title → `titleVisibility == .hidden ? "" : title` | `titleVisibilityIsAcceptedAndNeverHidesTheTitle` |
+| MC2a | `resolve`: `synthesizesCancel = cancelIndex == nil && (hasDestructive \|\| confirmation)` → `… && hasDestructive` | `aConfirmationDialogSynthesizesItsCancelButton`, `aConfirmationDialogTakesAButtonsTitleFromItsLabelToo`, `theConfirmationDialogModifierShowsTheSynthesizedCancel` |
+| MC2b | `resolve`: `defaultIndex = hasDestructive \|\| (confirmation && cancelIndex == nil) ? nil : …` → `hasDestructive ? nil : …` | `aConfirmationDialogSynthesizesItsCancelButton`, `aConfirmationDialogTakesAButtonsTitleFromItsLabelToo`, `theConfirmationDialogModifierShowsTheSynthesizedCancel` |
+| ML1a | `firstText`: `Mirror(…).children` → `.children.reversed()` | `aButtonsTitleIsTheFirstTextInItsLabel` |
+| ML1b | `firstText`: `guard depth < 24` → `guard depth < 1` (no nesting) | `aButtonsTitleIsTheFirstTextInItsLabel`, `aConfirmationDialogTakesAButtonsTitleFromItsLabelToo` |
+| ML2a | `Button._alertButtons`: a textless label → title `""` | `aButtonWithNoTextIsLeftOutOfAnAlert` |
+| ML2b | `Button._alertButtons`: a textless label → a declared "OK" button with the role | `aButtonWithNoTextIsLeftOutOfAnAlert` |
+| M1.12b-a | `SDLWindow.dialogLabels` title → `dialog.title` (message ignored) | `sdlDialogLabelsAreThePromptAndTheMessageOrTitle` |
+| M1.12b-b | `SDLWindow.dialogLabels` accept → `dialog.title` | `sdlDialogLabelsAreThePromptAndTheMessageOrTitle` |
+
+Not mutated by running: **MG2.6a** (restore `where Label == Text` on `Button: AlertActions`) and **MG2.10**
+(drop `titleVisibility:` from the message spelling) — each makes `DialogExtrasTests` stop compiling, so the
+whole target is red, not a named test. Not mutated: the `panel.message = …` line applying the texts to a
+live `NSSavePanel` (no panel under a locked screen, human checks `DX1`, `DX2`), and the C bridge's
+`SDL_ShowFileDialogWithProperties` branch (no SDL dialog runs on macOS; 1.12c pins the Linux image's
+answer, `DX3`). `MG2.6b` (make `TextField` an `AlertActions`) was not run: the guard's field arm is the
+carried item's only pin.
+
+**Cost if wrong.** None to the code.

@@ -667,6 +667,18 @@ here it returns `TransitionContent` built with `content.opacity(_:)`, `.scaleEff
 only effects a transition has (898): rewrite `content.scaleEffect(phase.isIdentity ? 1 : 0.5)` as is, and drop any other
 modifier (a blur, a rotation, a background). `contentTransition`, `.blurReplace` and `.modifier(active:identity:)` do not
 compile (`MG-H`).
+### Dialog and alert extras (`SV-AO`, record 179)
+
+`PlatformFileDialog` gains a **stored `message: String?`** (an `init` parameter defaulting to `nil`, so existing calls
+compile; a conformer or fake that built a `PlatformFileDialog` by member-wise copying needs no change, one that
+switches on every field adds it). New API (additive): `.fileDialogConfirmationLabel(_:)`, `.fileDialogMessage(_:)`
+(`Text` and string spellings) and `Visibility` (`confirmationDialog(…titleVisibility:…)` gains it as a defaulted
+parameter). **Two behaviours change**: a `confirmationDialog` whose actions name no cancel button now shows a
+synthesized "Cancel" and no default button (as SwiftUI/AppKit do; an `.alert` is unchanged), and a `Button` with a
+non-`Text` label in an alert's actions is now accepted (its first `Text` is the title; one with no `Text` is left out)
+instead of failing to compile. A platform conformer shows `message` where its dialog has a field for it
+(`NSSavePanel.message`); SDL passes the `prompt` as its accept label and the `message` as its title. Rebuild
+dependents with `swift package clean` (a stored property on a public type crossing a module boundary).
 
 ## See also
 

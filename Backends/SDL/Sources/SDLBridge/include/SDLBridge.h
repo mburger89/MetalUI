@@ -340,6 +340,11 @@ MUIDialogRequest *mui_dialog_request_new(int32_t token, bool is_save, bool allow
 // Makes an open request choose folders: mui_dialog_request_show then calls
 // SDL_ShowOpenFolderDialog, which takes no filters (ruling SV-AM).
 void mui_dialog_request_choose_folders(MUIDialogRequest *request);
+// Gives the request a dialog title and an accept-button label (either may be
+// NULL; both copied; ruling SV-AO). With either set, mui_dialog_request_show
+// calls SDL_ShowFileDialogWithProperties, the only form that takes them; a
+// platform's dialog may ignore either.
+void mui_dialog_request_set_labels(MUIDialogRequest *request, const char *title, const char *accept);
 // One SDL_DialogFileFilter: `name` and `pattern` (extensions joined by ';'),
 // both copied.
 bool mui_dialog_request_add_filter(MUIDialogRequest *request, const char *name, const char *pattern);

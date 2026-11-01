@@ -2028,3 +2028,12 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **MG4.** Click the flying card early in the flight: the click lands on the card's final frame, not where it is drawn (divergence 895). Record whether this is noticeable. **Observed:**
 - [ ] **MG5.** A custom `Transition` (scale 0.5 and fade) on an `if`: it grows in and shrinks out about its centre, reads as the built-in `.scale` combined with `.opacity`. **Observed:**
 - [ ] **MG6.** With Reduce Motion on in System Settings, the custom transition is a plain fade and the matched swap still flies (Reduce Motion is not applied to the flight: unprobed). **Observed:**
+## DX. Dialog extras - `.fileDialogConfirmationLabel`/`.fileDialogMessage` and non-`Text` alert buttons (round-3 item R3-6; ruling `SV-AO`, record 179; provisional letter)
+
+*An agent cannot: `NSOpenPanel` does not initialise under a locked screen, and SDL's dialogs need a desktop portal; only the seam (`PlatformFileDialog.prompt`/`message`, `AppKitWindow.panelTexts`, `SDLWindow.dialogLabels`) and the harness flow were measured.*
+
+*Run:* macOS `METALUI_SERVICES_DEMO=1 swift run MetalUIDemo`; Linux/Windows the SDL demo as in group FO. The **Import folder…** button now carries `.fileDialogConfirmationLabel("Use folder")` and `.fileDialogMessage("Pick the repository folder to add.")`; **Import folder or JSON…** carries neither (the control).
+
+- [ ] **DX1.** macOS (click **Import folder…**): the sheet's confirming button reads "Use folder" (not "Open") and the line "Pick the repository folder to add." shows in the panel above the file list; **Import folder or JSON…** still reads "Open" with no message. **Observed:**
+- [ ] **DX2.** macOS (click **Export…**): the exporter's confirming button still reads "Export" (no label written above it). **Observed:**
+- [ ] **DX3.** Linux (GTK portal or zenity) and Windows (SDL demo, **Import folder…**): the dialog's title bar reads "Pick the repository folder to add." (divergence 935), and the accept button reads "Use folder" where the desktop's dialog honours SDL's accept label (it may not; note which). **Observed:**

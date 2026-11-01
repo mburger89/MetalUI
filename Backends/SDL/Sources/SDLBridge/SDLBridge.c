@@ -1703,6 +1703,7 @@ struct MUIDialogRequest {
     int32_t token;
     bool is_save, allow_many, is_folder;
     char *default_location;
+    char *title, *accept;    // SV-AO: NULL unless the request set them
     SDL_DialogFileFilter *filters;
     int nfilters;
     uint32_t window_id;
@@ -1730,6 +1731,13 @@ MUIDialogRequest *mui_dialog_request_new(int32_t token, bool is_save, bool allow
 
 void mui_dialog_request_choose_folders(MUIDialogRequest *r) { r->is_folder = true; }
 
+void mui_dialog_request_set_labels(MUIDialogRequest *r, const char *title, const char *accept) {
+    SDL_free(r->title);
+    SDL_free(r->accept);
+    r->title = title ? SDL_strdup(title) : NULL;
+    r->accept = accept ? SDL_strdup(accept) : NULL;
+}
+
 bool mui_dialog_request_add_filter(MUIDialogRequest *r, const char *name, const char *pattern) {
     SDL_DialogFileFilter *grown = SDL_realloc(r->filters, sizeof *grown * (size_t)(r->nfilters + 1));
     if (!grown) return false;
@@ -1747,6 +1755,8 @@ static void free_request(MUIDialogRequest *r) {
     }
     SDL_free(r->filters);
     SDL_free(r->default_location);
+    SDL_free(r->title);
+    SDL_free(r->accept);
     SDL_free(r);
 }
 
@@ -1795,6 +1805,25 @@ static void SDLCALL dialog_callback(void *userdata, const char *const *filelist,
 bool mui_dialog_request_show(MUIDialogRequest *r, void *window) {
     r->window_id = window ? SDL_GetWindowID((SDL_Window *)window) : 0;
     const SDL_DialogFileFilter *filters = r->nfilters > 0 ? r->filters : NULL;
+    if (r->title || r->accept) {
+        // SV-AO: a title or an accept label is only a property of the
+        // properties form, which SDL_ShowOpenFileDialog and its siblings wrap.
+        SDL_PropertiesID props = SDL_CreateProperties();
+        SDL_FileDialogType type = r->is_save ? SDL_FILEDIALOG_SAVEFILE
+            : (r->is_folder ? SDL_FILEDIALOG_OPENFOLDER : SDL_FILEDIALOG_OPENFILE);
+        if (filters && type != SDL_FILEDIALOG_OPENFOLDER) {
+            SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, (void *)filters);
+            SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, r->nfilters);
+        }
+        SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, window);
+        if (r->default_location) SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, r->default_location);
+        SDL_SetBooleanProperty(props, SDL_PROP_FILE_DIALOG_MANY_BOOLEAN, r->allow_many && !r->is_save);
+        if (r->title) SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, r->title);
+        if (r->accept) SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_ACCEPT_STRING, r->accept);
+        SDL_ShowFileDialogWithProperties(type, dialog_callback, r, props);
+        SDL_DestroyProperties(props);
+        return true;
+    }
     if (r->is_folder && !r->is_save)
         SDL_ShowOpenFolderDialog(dialog_callback, r, (SDL_Window *)window, r->default_location, r->allow_many);
     else if (r->is_save)

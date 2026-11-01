@@ -77,6 +77,13 @@ complete with directory URLs; AppKit's panel is configured by the pure
 `openPanelConfiguration(_:)`, SDL picks `SDL_ShowOpenFolderDialog` in
 `dialogMode(_:)`, and a mixed list is files only off Apple (`SV-AM`,
 divergence 209).
+**A file dialog's label and message are environment values read at the presenting scope**
+(`.fileDialogConfirmationLabel`/`.fileDialogMessage` written *after* the presenter; inside it they reach
+nothing, `Frame.notePresentation`), the label going into `PlatformFileDialog.prompt` and the message into
+`.message`; SDL shows the message as the title (divergence 935, `SV-AO`). **A confirmation dialog synthesizes
+its Cancel whenever none is declared and then has no default** (`AlertButtons.resolve(_:confirmation:)`;
+`titleVisibility` is accepted and inert); **a `Button`'s alert title is the first `Text` in its label, a
+textless one is left out**; a `TextField` in alert actions is carried (`SV-AO` item 5).
 
 **Field chrome, environment objects, toolbar (`MD-`, record §79).** `TextField`
 draws SwiftUI's bordered field by default (24 tall, `.surface` fill,

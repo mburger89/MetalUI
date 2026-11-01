@@ -52,6 +52,11 @@ buttons, with `role: .destructive` and `role: .cancel`. Any button writes `isPre
 first, then runs its action. An `NSAlert` sheet on AppKit; where the platform declines (SDL) the
 window draws the alert itself and holds it modal. Both are read and answered by the headless
 harness (pins: `anAlertIsReadAndAnsweredByButtonTitle`, `aDeclinedAlertIsDrawnAndPressedThroughTheTree`).
+A button's title is the first `Text` in its label, so a `Row { icon; Text("Delete") }` works (pin: `aButtonsTitleIsTheFirstTextInItsLabel`). A
+`confirmationDialog` adds its own "Cancel" when you declare none (pin: `aConfirmationDialogSynthesizesItsCancelButton`).
+To word a file dialog's confirming button or give it an explanation, write `.fileDialogConfirmationLabel("Use folder")` and
+`.fileDialogMessage("Pick the repository")` **after** the `.fileImporter(…)` (pin: `aFileImporterReadsItsLabelAndMessageFromTheEnvironmentAboveIt`);
+on Linux and Windows the message becomes the dialog's title.
 
 ```swift
 /// A destructive action behind a confirmation.

@@ -71,17 +71,24 @@ public struct PlatformFileDialog: Sendable, Equatable {
     /// The dialog's title, where the platform shows one; `nil` for its own.
     public var title: String?
     /// The confirming button's title, where the platform takes one; `nil` for
-    /// its own ("Open", "Save").
+    /// its own ("Open", "Save"). What `.fileDialogConfirmationLabel(_:)` sets
+    /// (ruling `SV-AO`).
     public var prompt: String?
+    /// The explanatory text the panel shows, where the platform takes one;
+    /// `nil` for none. What `.fileDialogMessage(_:)` sets (ruling `SV-AO`):
+    /// `NSSavePanel.message` on AppKit; SDL has no such field and shows it in
+    /// the dialog's title (divergence 935).
+    public var message: String?
 
     /// A request `token` for a dialog of `kind` offering `allowedTypes`.
     public init(token: Int, kind: Kind, allowedTypes: [PlatformFileType] = [],
-                title: String? = nil, prompt: String? = nil) {
+                title: String? = nil, prompt: String? = nil, message: String? = nil) {
         self.token = token
         self.kind = kind
         self.allowedTypes = allowedTypes
         self.title = title
         self.prompt = prompt
+        self.message = message
     }
 
     /// Whether the dialog chooses directories (ruling `SV-AM`): an open
