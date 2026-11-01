@@ -84,16 +84,16 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     private var pickerStyle: PickerStyle = .automatic
     private var scope: PickerScope
     private var title: String
-    private var box: Box<Pair<Text, Box<OptionRow<Content>>>>
+    private var box: Box<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>
 
     /// The menu style's structure (`SV-P` item 2): the title, then the
     /// pull-down button — built in `requestLayout` from `box`'s content.
-    typealias MenuBox = Box<Pair<Text, PickerMenuButton<Content>>>
+    typealias MenuBox = Box<Pair<OptionalGroup<Text>, PickerMenuButton<Content>>>
 
     public struct Layout {
         var inner: Inner
         enum Inner {
-            case options(Box<Pair<Text, Box<OptionRow<Content>>>>.Layout)
+            case options(Box<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>.Layout)
             case menu(MenuBox, MenuBox.Layout)
         }
     }
@@ -101,8 +101,8 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     public struct PrepaintState {
         var inner: Inner
         enum Inner {
-            case options(Pair<Text, Box<OptionRow<Content>>>.Prepaint)
-            case menu(Pair<Text, PickerMenuButton<Content>>.Prepaint)
+            case options(Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>.Prepaint)
+            case menu(Pair<OptionalGroup<Text>, PickerMenuButton<Content>>.Prepaint)
         }
     }
 
@@ -123,7 +123,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         self.scope = PickerScope(
             matches: { tag in (tag.base as? SelectionValue).map { $0 == selection.wrappedValue } ?? false },
             write: { tag in if let value = tag.base as? SelectionValue { selection.wrappedValue = value } })
-        self.box = Box(style: style, content: Pair(Text(title), Box(content: OptionRow(content: content(),
+        self.box = Box(style: style, content: Pair(OptionalGroup(Text(title)), Box(content: OptionRow(content: content(),
                                                                                       equalWidth: true))))
     }
 
@@ -162,6 +162,8 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         let environment = pass.frame.environmentTop
         // The focus ring (`IX-H` item 2), unless the caller declared one.
         if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(environment) }
+        // `labelsHidden()` (`LB-A`): no title row, so no gap; the slot stays reserved.
+        box.content.first.wrapped = environment.labelsHidden ? nil : Text(title)
         scope.kind = pickerStyle.kind
         scope.accent = controlAccent(environment)
         scope.tags.removeAll()
@@ -180,8 +182,9 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         scope.kind = .menu
         scope.options.removeAll(keepingCapacity: true)
         scope.tags.removeAll()
+        let labelHidden = pass.frame.environmentTop.labelsHidden   // `LB-A`
         var menuBox = MenuBox(style: style, decoration: decoration,
-                              content: Pair(Text(title),
+                              content: Pair(OptionalGroup(labelHidden ? nil : Text(title)),
                                             PickerMenuButton(content: box.content.second.content.content,
                                                              scope: scope, title: title, pickerID: id)))
         PickerScope.stack.append(scope)
@@ -210,6 +213,8 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
             return true
         }
         if composed.axNode.role == .generic { composed.axNode.role = .radioGroup }
+        // The title row is not laid out when hidden: the label moves onto the group (`LB-A` item 3).
+        if pass.frame.environmentTop.labelsHidden, composed.axNode.label == nil { composed.axNode.label = title }
         box.handlers = composed
         let prepaint = box.prepaint(id, bounds: bounds, layout: &optionsLayout, pass: &pass)
         layout.inner = .options(optionsLayout)

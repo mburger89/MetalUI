@@ -1075,6 +1075,10 @@ bar; indeterminate when the value is `nil`), the `_ title:` and label /
 current-value-label spellings, `.progressViewStyle(.automatic/.linear/.circular)`
 on the view or a container (`LK-E`, `LK-F`, `LK-V`). Three accessibility roles
 join `AccessibilityRole` (`.progressIndicator`, `.busyIndicator`, `.colorWell`; `LK-G`) — M.
+
+**`labelsHidden()`** (any element group; D, divergences 1025–1026; `LB-A`, record §189, probe `swiftui-labels-hidden.swift`): a labelled
+control's separate label — every `Picker` style, the checkbox and switch `Toggle`, `Stepper`, `ColorPicker`, `ProgressView`'s title — is removed from
+layout with its gap and stays the accessibility label; an empty title keeps the gap (`ColorPicker("")` now too).
 **Phases** (`GS-H`…`GS-K`, record §135, A): `phaseAnimator(_:trigger:content:animation:)`,
 `phaseAnimator(_:content:animation:)` and `PhaseAnimator`, in both vocabularies. A transparent scope (no node, no identity
 level) whose record lives in `AnimationStore` as `$phase<depth>`; the first phase is built with no animation call, then

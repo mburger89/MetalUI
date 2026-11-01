@@ -76,7 +76,7 @@ private let buttonID = controlID([0, 0, 1])
 @Test func aMenuPickerIsATitleAndAPullDownShowingTheSelection() throws {
     let model = MPChoice(1)
     let (window, platform) = try mpWindow(model)
-    let title = try #require(window.lastElementBounds[controlID([0, 0, 0])], "the title")
+    let title = try #require(window.lastElementBounds[controlID([0, 0, 0, 0])], "the title")
     let button = try #require(window.lastElementBounds[buttonID], "the pull-down button")
     let titleWidth = try controlTextSize("Flavor").width.value
     #expect(abs(title.size.width.value - titleWidth) <= 1, "the title's own width")

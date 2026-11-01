@@ -8,8 +8,9 @@ import MetalUILayout
 /// **One node, `Toggle`'s shape** (`LK-P`): one `Box` — a row, gap 8, cross
 /// axis centred — over the label and a **48×24 well** (probe `C0`, `V12`:
 /// `79 = 23 + 8 + 48` for "Tint"), so it is one child of any container and
-/// takes every `StyledElement` modifier. An empty title draws the well alone,
-/// 48×24, no gap (`labelsHidden()`'s answer).
+/// takes every `StyledElement` modifier. `labelsHidden()` draws the well alone,
+/// 48×24, no gap (probe `C0`, `LB-A`); an **empty title does not** — it keeps the 8-point gap (probe
+/// `swiftui-labels-hidden.swift` `C3`: the well starts at x = 8), which corrects `LK-C` item 2.
 ///
 /// **The well** is a rounded bezel (radius 5, `.surface` fill, 1-point
 /// `.separator` border) showing the selection inset 4 points (radius 3), with
@@ -39,7 +40,6 @@ public struct ColorPicker<Label: ElementGroup>: Element, StyledElement {
     public var handlers: Handlers = Handlers()
     let selection: Binding<Color>
     let supportsOpacity: Bool
-    /// `nil` for an empty title: the well alone, no gap.
     let label: Label?
     /// Whether the panel is open — the well's popover binding.
     @State private var isPresented = false
@@ -59,7 +59,7 @@ public struct ColorPicker<Label: ElementGroup>: Element, StyledElement {
         var style = Style()
         style.flexDirection = .row
         style.alignItems = .center
-        style.gap = Axes(both: .pixels(Pixels(label == nil ? 0 : ColorWell.gap)))
+        style.gap = Axes(both: .pixels(Pixels(ColorWell.gap)))
         self.style = style
         self.selection = selection
         self.supportsOpacity = supportsOpacity
@@ -74,9 +74,14 @@ public struct ColorPicker<Label: ElementGroup>: Element, StyledElement {
                                   blue: Double(resolved.blue), opacity: Double(resolved.opacity))
         let presented = $isPresented
         let selection = selection, supportsOpacity = supportsOpacity
-        let well = ColorWell(color: selection.wrappedValue, axValue: ColorMath.axComponents(seed),
+        // `labelsHidden()` (`LB-A`): no label and no gap; the label is the well's accessibility label.
+        let hidden = environment.labelsHidden
+        var well = ColorWell(color: selection.wrappedValue, axValue: ColorMath.axComponents(seed),
                              open: { presented.wrappedValue = true })
-        var box = Body(style: style, content: Pair(OptionalGroup(label), well.popover(isPresented: presented) {
+        if hidden, let label { well.axLabel = labelPlainText(label) }
+        var rowStyle = style
+        if hidden { rowStyle.gap = Axes(both: .pixels(Pixels(0))) }
+        var box = Body(style: rowStyle, content: Pair(OptionalGroup(hidden ? nil : label), well.popover(isPresented: presented) {
             ColorPickerPanel(selection: selection, supportsOpacity: supportsOpacity, seed: seed)
         }))
         box.decoration = decoration
@@ -119,10 +124,10 @@ public struct ColorPicker<Label: ElementGroup>: Element, StyledElement {
 extension ColorPicker where Label == Text {
     /// A colour picker labelled by `titleKey` — SwiftUI's
     /// `ColorPicker(_:selection:supportsOpacity:)` (`LK-C` item 1). An empty
-    /// title draws the well alone.
+    /// title keeps the gap (`LB-A` item 2); `labelsHidden()` draws the well alone.
     public init(_ titleKey: String, selection: Binding<Color>, supportsOpacity: Bool = true) {
         self.init(selection: selection, supportsOpacity: supportsOpacity,
-                  label: titleKey.isEmpty ? nil : Text(titleKey))
+                  label: Text(titleKey))
     }
 }
 
@@ -137,6 +142,8 @@ struct ColorWell: Element, StyledElement {
     let color: Color
     /// `rgb R G B A` (`C1`).
     let axValue: String
+    /// The label, when `labelsHidden()` took it off the row (`LB-A`).
+    var axLabel: String?
     /// Opens the panel, from input.
     let open: @MainActor () -> Void
 
@@ -179,6 +186,7 @@ struct ColorWell: Element, StyledElement {
         }
         composed.axNode.colorWellHint = true
         if composed.axNode.value == nil { composed.axNode.value = axValue }
+        if composed.axNode.label == nil, let axLabel { composed.axNode.label = axLabel }
         pass.registerAndScope(composed, decoration, at: bounds, for: id) { }
     }
 

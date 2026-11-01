@@ -133,7 +133,7 @@ extension Toggle: MenuContent where Label == Text {
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         let binding = isOn
         let on = binding.wrappedValue
-        return _MenuNodes([MenuNode(kind: .toggle, title: box.content.second.string, isEnabled: context.isEnabled,
+        return _MenuNodes([MenuNode(kind: .toggle, title: label.string, isEnabled: context.isEnabled,
                                     isOn: on, run: { binding.wrappedValue = !on })])
     }
 }

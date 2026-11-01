@@ -76,3 +76,5 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   lettered prefix (`LR-3`, `DN-3`, `AI-3`) is a typo.
 
 **X11 window icon (`WI-`, record §183).** Class `M`, no divergence (975-984 untouched), nothing published; decisions `2026-11-01-x11-window-icon-decisions.md`, next `WI-F`. SDL writes `_NET_WM_ICON` from the primary surface alone, so `mui_window_set_icon` writes every size itself under the x11 driver (`WI-B`, `WI-C`); an empty xprop for an icon over about 250 px is xprop's printer, read raw (`WI-A`).
+
+**`labelsHidden()` (`LB-`, record §189).** Class `A`, divergences 1025-1026 (reserved 1025-1034); decisions `2026-11-01-labels-hidden-decisions.md`, next `LB-D`. A hidden label is removed from layout (its `OptionalGroup` slot stays reserved) and an empty title keeps the gap (`LB-A`, probe `swiftui-labels-hidden.swift`).

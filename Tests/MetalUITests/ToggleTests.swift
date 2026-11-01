@@ -37,7 +37,7 @@ private func toggleWindow(_ model: Switch, disabled: Bool = false,
     let frame = try controlRender(controlRoot { Toggle("Wi-Fi", isOn: .constant(false)) })
     let toggle = try controlBounds(frame, controlID([0, 0]))
     let indicator = try controlBounds(frame, controlID([0, 0, 0]))
-    let label = try controlBounds(frame, controlID([0, 0, 1]))
+    let label = try controlBounds(frame, controlID([0, 0, 1, 0]))
     #expect(indicator.size.width.value == 14 && indicator.size.height.value == 14, "a 14×14 box")
     #expect(label.origin.x.value - indicator.origin.x.value == 21, "14 + 7 before the label")
     #expect(toggle.size.width.value == 14 + 7 + text.width.value,

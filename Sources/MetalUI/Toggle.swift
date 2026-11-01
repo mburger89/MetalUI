@@ -31,14 +31,17 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
     public var elementID: ElementID?
     public var handlers: Handlers = Handlers()
     var isOn: Binding<Bool>
-    var box: Box<Pair<Box<EmptyGroup>, Label>>
+    var box: Box<Pair<Box<EmptyGroup>, OptionalGroup<Label>>>
+    /// The label as written; `box` holds it only while labels are shown (`LB-A`).
+    let label: Label
     /// This toggle's own style (`.toggleStyle(_:)` directly on a `Toggle`), nearer than the environment's.
     var ownStyle: ResolvedToggleStyle?
 
     /// A checkbox bound to `isOn`, labelled by `label`; a click, Space when
     /// focused or an accessibility press flips it. SwiftUI's
     /// `Toggle(isOn:label:)` (`DD-S`).
-    public init(isOn: Binding<Bool>, @ElementBuilder label: () -> Label) {
+    public init(isOn: Binding<Bool>, @ElementBuilder label labelContent: () -> Label) {
+        let label = labelContent()
         var style = Style()
         style.flexDirection = .row
         style.alignItems = .center
@@ -46,7 +49,8 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
         self.style = style
         self.decoration = Decoration()
         self.isOn = isOn
-        self.box = Box(style: style, content: Pair(Box(), label()))
+        self.label = label
+        self.box = Box(style: style, content: Pair(Box(), OptionalGroup(label)))
     }
 
     /// The switch's track and knob metrics (`BY-I`; MetalUI's, unmeasured).
@@ -58,7 +62,7 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
     public struct Layout {
         enum Inner {
             /// A built-in look, with the environment its label is drawn in (`.button` while on: white), if any.
-            case builtIn(Box<Pair<Box<EmptyGroup>, Label>>.Layout, EnvironmentValues?, ToggleLook)
+            case builtIn(Box<Pair<Box<EmptyGroup>, OptionalGroup<Label>>>.Layout, EnvironmentValues?, ToggleLook)
             /// A custom style's body: the erased element.
             case custom(AnyElement)
         }
@@ -68,14 +72,20 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
     /// What `prepaint` hands `paint`.
     public struct PrepaintState {
         enum Inner {
-            case builtIn(Pair<Box<EmptyGroup>, Label>.Prepaint)
+            case builtIn(Pair<Box<EmptyGroup>, OptionalGroup<Label>>.Prepaint)
             case custom
         }
         var inner: Inner
     }
 
+    /// Whether `labelsHidden()` removes the label in `look` (`LB-A` item 1): not the button look, whose label is the
+    /// whole control.
+    static func hidesLabel(_ look: ToggleLook, _ environment: EnvironmentValues) -> Bool {
+        look != .button && environment.labelsHidden
+    }
+
     /// The handlers a toggle registers (`DD-S`): a click, Space, and the check box's accessibility role and value.
-    func composedHandlers() -> Handlers {
+    func composedHandlers(labelHidden: Bool = false) -> Handlers {
         let binding = isOn
         let on = binding.wrappedValue
         var composed = handlers
@@ -91,6 +101,8 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
         }
         if composed.axNode.role == .generic { composed.axNode.role = .checkBox }
         if composed.axNode.value == nil { composed.axNode.value = on ? "1" : "0" }
+        // A hidden label is still the accessibility label (`LB-A` item 3).
+        if labelHidden, composed.axNode.label == nil { composed.axNode.label = labelPlainText(label) }
         return composed
     }
 
@@ -146,6 +158,9 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
                 labelEnvironment = values
             }
         }
+        // `labelsHidden()` (`LB-A`): the checkbox and the switch take no label and no gap; the slot stays
+        // reserved, so the label's identity is the same hidden or shown. The button look has no separate label.
+        box.content.second.wrapped = Self.hidesLabel(look, environment) ? nil : label
         box.style = rowStyle
         box.decoration = decorated
         // The focus ring (`IX-H` item 2), unless the caller declared one.
@@ -161,7 +176,7 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
                                                              environment: EnvironmentValues,
                                                              pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         StateBinder.bind(custom, in: pass.frame, id: id)   // `@State`/`@Environment` on the style struct (`BY-K`)
-        let configuration = ToggleStyleConfiguration(label: StyleLabel(box.content.second), isOn: isOn)
+        let configuration = ToggleStyleConfiguration(label: StyleLabel(label), isOn: isOn)
         var decorated = decoration
         if decorated.focusBorder == nil { decorated.focusBorder = controlRing(environment) }
         var rowStyle = style
@@ -177,7 +192,7 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
                                   layout: inout Layout, pass: inout PrepaintPass) -> PrepaintState {
         switch layout.inner {
         case .builtIn(var builtIn, let labelEnvironment, let look):
-            box.handlers = composedHandlers()
+            box.handlers = composedHandlers(labelHidden: Self.hidesLabel(look, pass.frame.environmentTop))
             let result = Button<Label>.enteringLabel(labelEnvironment, pass.frame) {
                 box.prepaint(id, bounds: bounds, layout: &builtIn, pass: &pass)
             }
