@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import MetalUICore
 import MetalUIScene
@@ -170,6 +171,58 @@ private func ids(_ textures: [ImageTexture]) -> [ObjectIdentifier] { textures.ma
     #expect(later.iconResult == nil, "a window opened after [] got \(String(describing: later.iconResult))")
     #expect(mui_window_set_icon_null_calls() == nullCalls)
 }
+
+#if !os(Windows)   // the property's `long` is Int32 there, and X11 does not exist
+/// W1 — `mui_x11_icon_property` is X11's `_NET_WM_ICON` for the whole surface (ruling `WI-B`): per
+/// image, width, height, then width × height ARGB32 values (alpha high byte), the primary first,
+/// the alternates after, in the order SDL lists them. `square(2)` is (2, 40, 200, 255) per texel,
+/// so ARGB 0xFF0228C8. Mutations MW1 (RGBA order), MW2 (alternates skipped: 6 longs, not 17).
+@MainActor
+@Test func theX11IconPropertyListsEveryImageAsWidthHeightArgb() throws {
+    armed()
+    let surface = try #require(SDLIcon.makeSurface([square(2), square(3)]))
+    defer { mui_surface_destroy(surface) }
+    let total = mui_x11_icon_property(surface, 1000, nil)
+    try #require(total == 2 + 4 + 2 + 9, "measured \(total) longs")
+    var property = [Int](repeating: -1, count: Int(total))
+    #expect(mui_x11_icon_property(surface, 1000, &property) == total)
+    let two = 0xFF02_28C8, three = 0xFF03_28C8
+    #expect(property == [2, 2] + Array(repeating: two, count: 4) + [3, 3] + Array(repeating: three, count: 9))
+}
+
+/// W2 — an image whose record would pass the request budget is left out, never cut: with room
+/// for the 2 × 2 record (6 longs) and not for both (17), only it is listed; with room for
+/// neither, nothing. Without this a request over the server's limit is a BadLength, which
+/// Xlib's default handler answers by exiting the process. Mutation MW3 (budget ignored).
+@MainActor
+@Test func theX11IconPropertyDropsAnImageThatDoesNotFitTheRequest() throws {
+    armed()
+    let surface = try #require(SDLIcon.makeSurface([square(2), square(3)]))
+    defer { mui_surface_destroy(surface) }
+    #expect(mui_x11_icon_property(surface, 16, nil) == 6)
+    var property = [Int](repeating: -1, count: 6)
+    #expect(mui_x11_icon_property(surface, 16, &property) == 6)
+    #expect(property[0] == 2 && property[1] == 2)
+    #expect(mui_x11_icon_property(surface, 5, nil) == 0)
+}
+
+/// W3 — the property is written only under SDL's X11 driver: any other (macOS's Cocoa, CI's
+/// offscreen) leaves the write counter alone through `setApplicationIcon`, and X11 (a run with
+/// `SDL_VIDEO_DRIVER=x11`) writes once per window for a two-size icon and not at all for one
+/// size, which SDL writes whole. Mutation MW4 (the driver check removed: the counter moves
+/// on offscreen, or the single-size icon is written twice on X11).
+@MainActor
+@Test func theX11PropertyIsWrittenOnlyOnX11ForMoreThanOneSize() throws {
+    let platform = try iconPlatform()
+    _ = try openWindow(platform, "icon W3")
+    let x11 = getenv("SDL_VIDEO_DRIVER").map { String(cString: $0) == "x11" } ?? false
+    let before = mui_x11_icon_write_count()
+    platform.setApplicationIcon([square(16)])
+    #expect(mui_x11_icon_write_count() == before)
+    platform.setApplicationIcon([square(16), square(32)])
+    #expect(mui_x11_icon_write_count() == before + (x11 ? 1 : 0))
+}
+#endif
 
 #if os(macOS)
 import AppKit
