@@ -1,4 +1,6 @@
-# 183 - shape styles and the tint (`SS-A`..`SS-G`)
+# 185 - shape styles and the tint (`SS-A`..`SS-G`)
+
+**Renumbered 183→185 on the 2026-11-01 rebase onto `423088fb`**: `183-x11-window-icon.md` (PR #175) was published first and `184` is held by the open glyph-atlas PR #177 (the precedent: record §38 and §48 headers).
 
 2026-11-01, branch `feat/shape-styles` from master `3a2c5715`; round-3 item R3-9. Rulings:
 `docs/superpowers/2026-11-01-shape-styles-decisions.md`. Rule: `docs/rules/drawing.md` ("Shape styles and the tint").

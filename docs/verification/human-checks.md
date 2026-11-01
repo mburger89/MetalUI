@@ -2075,7 +2075,7 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **WI1.** On GNOME on Xorg, an app with `app.icon = [16, 32, 256 px bitmaps of one picture]`: alt-tab and the dock show the picture sharp (the 256 px record, not a scaled-up 16 px one); `xprop -f _NET_WM_ICON 32c -id <win> _NET_WM_ICON | head -c 100` starts `16, 16,` and holds `32, 32,` and `256, 256,` further on. **Observed:**
 - [ ] **WI2.** The same with a single 256x256 bitmap (MetalCreator): the icon shows in alt-tab and the dock. **Observed:**
 - [ ] **WI3.** On GNOME on Wayland (`SDL_VIDEO_DRIVER=wayland`), the same three-size app: the window shows the icon (SDL's `xdg-toplevel-icon-v1` path, untouched by `WI-B`; unverified before this check). **Observed:**
-## SS. Shape styles and the tint - what `.tint(_:)` looks like on every control (round 3 item R3-9; decisions `docs/superpowers/2026-11-01-shape-styles-decisions.md`, record 183; provisional letter)
+## SS. Shape styles and the tint - what `.tint(_:)` looks like on every control (round 3 item R3-9; decisions `docs/superpowers/2026-11-01-shape-styles-decisions.md`, record 185; provisional letter)
 
 *An agent cannot: a tinted control's look, the key-to-inactive change and a material or gradient stroke are looks. Run a scratch window (or add the views to `METALUI_CONTROLS_DEMO=1`) with the views below, in a light and a dark window.*
 
