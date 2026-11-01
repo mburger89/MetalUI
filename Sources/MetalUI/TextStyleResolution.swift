@@ -59,7 +59,10 @@ func resolveTextStyle(_ own: TextStyleRequest, in environment: EnvironmentValues
     case .defaultFont: font = defaultFont(for: environment.controlSize)
     case .inherit: font = environment.font ?? defaultFont(for: environment.controlSize)
     }
-    let descriptor = font.descriptor(weight: own.weight ?? environment.fontWeight,
+    // A view-level `bold()` (`TM-F`) is the last resort: an own weight, an environment weight or a
+    // weight the font names beat it (probe `W`: `.light` stays light under `.bold()`, either order).
+    let bold: Font.Weight? = environment.isBold && font.weightOverride == nil ? .bold : nil
+    let descriptor = font.descriptor(weight: own.weight ?? environment.fontWeight ?? bold,
                                      italic: own.italic || environment.italic, monospaced: own.monospaced)
     return ResolvedTextStyle(
         descriptor: descriptor,

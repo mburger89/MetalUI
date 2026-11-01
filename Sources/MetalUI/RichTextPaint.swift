@@ -56,31 +56,50 @@ extension PaintPass {
             return (start + line.visibleMinX, start + line.visibleMaxX)
         }
         // A pending underline: its colour, x extent, centre and thickness.
-        var pending: (line: Int, color: Color, minX: Double, maxX: Double, centre: Double, thickness: Double)?
+        var pending: (line: Int, color: Color, pattern: Text.LineStyle.Pattern, minX: Double, maxX: Double,
+                      centre: Double, thickness: Double)?
+        /// One decoration band over `[low, high]`: a single rect for a solid line, the pattern's segments
+        /// otherwise, their cycle starting at the line's own start (`TM-D`).
+        func band(_ pattern: Text.LineStyle.Pattern, line: Int, from low: Double, to high: Double, centre: Double,
+                  thickness: Double, color: Color) {
+            let resolved = resolve(color)
+            guard pattern != .solid else {
+                fill(rect(minX: low, maxX: high, minY: centre - thickness / 2, height: thickness), color: resolved)
+                return
+            }
+            for piece in linePatternSegments(pattern, unit: linePatternUnit(thickness: thickness),
+                                             origin: x + lines[line].offsetX, from: low, to: high) {
+                fill(rect(minX: piece.min, maxX: piece.max, minY: centre - thickness / 2, height: thickness),
+                     color: resolved)
+            }
+        }
         func flushUnderline() {
             guard let line = pending else { return }
             pending = nil
             let extent = visible(line.line)
             let low = Swift.max(line.minX, extent.min), high = Swift.min(line.maxX, extent.max)
             guard high > low else { return }
-            fill(rect(minX: low, maxX: high, minY: line.centre - line.thickness / 2, height: line.thickness),
-                 color: resolve(line.color))
+            band(line.pattern, line: line.line, from: low, to: high, centre: line.centre,
+                 thickness: line.thickness, color: line.color)
         }
         for segment in layout.segments {
             guard let color = paints[segment.run].underline else {
                 flushUnderline()
                 continue
             }
+            let pattern = paints[segment.run].underlinePattern
             let face = decoration(segment.run)
             let centre = segment.baseline - face.underlinePosition
-            if let current = pending, current.line == segment.line, current.color == color {
+            if let current = pending, current.line == segment.line, current.color == color,
+               current.pattern == pattern {
                 // Joined at the lowest position and the greatest thickness (`C9m`).
-                pending = (current.line, color, Swift.min(current.minX, segment.minX),
+                pending = (current.line, color, pattern, Swift.min(current.minX, segment.minX),
                            Swift.max(current.maxX, segment.maxX), Swift.max(current.centre, centre),
                            Swift.max(current.thickness, face.underlineThickness))
             } else {
                 flushUnderline()
-                pending = (segment.line, color, segment.minX, segment.maxX, centre, face.underlineThickness)
+                pending = (segment.line, color, pattern, segment.minX, segment.maxX, centre,
+                           face.underlineThickness)
             }
         }
         flushUnderline()
@@ -91,9 +110,8 @@ extension PaintPass {
             let low = Swift.max(segment.minX, extent.min), high = Swift.min(segment.maxX, extent.max)
             guard high > low else { continue }
             let centre = segment.baseline - face.strikethroughPosition
-            fill(rect(minX: low, maxX: high, minY: centre - face.underlineThickness / 2,
-                      height: face.underlineThickness),
-                 color: resolve(color))
+            band(paints[segment.run].strikethroughPattern, line: segment.line, from: low, to: high, centre: centre,
+                 thickness: face.underlineThickness, color: color)
         }
     }
 }

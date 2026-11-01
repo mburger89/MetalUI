@@ -29,6 +29,56 @@ extension ElementGroup {
         environment(\.italic, isActive)
     }
 
+    /// The bold weight over whichever font each text below resolves — SwiftUI's
+    /// `View.bold(_:)` (ruling `TM-F`). **A weight a text, an outer or inner
+    /// `fontWeight` or the font itself names wins over it** (probe `W`: a `.light`
+    /// font stays light under `.bold()`, in either order); `false` removes an outer
+    /// `bold()`.
+    public func bold(_ isActive: Bool = true) -> EnvironmentScope<Self> {
+        environment(\.isBold, isActive)
+    }
+
+    /// Underlines every text below that sets no underline of its own — SwiftUI's
+    /// `View.underline(_:pattern:color:)` (ruling `TM-A`). `false` is an explicit "none"
+    /// an outer `underline()` does not reach; a `Text`'s own underline, of any
+    /// pattern or colour, replaces this one whole (probe `W`).
+    public func underline(_ isActive: Bool = true, pattern: Text.LineStyle.Pattern = .solid,
+                          color: Color? = nil) -> EnvironmentScope<Self> {
+        environment(\.textUnderline, isActive ? Text.LineStyle(pattern: pattern, color: color) : .none)
+    }
+
+    /// Strikes through every text below that sets no strikethrough of its own, as
+    /// ``underline(_:pattern:color:)`` (ruling `TM-A`).
+    public func strikethrough(_ isActive: Bool = true, pattern: Text.LineStyle.Pattern = .solid,
+                              color: Color? = nil) -> EnvironmentScope<Self> {
+        environment(\.textStrikethrough, isActive ? Text.LineStyle(pattern: pattern, color: color) : .none)
+    }
+
+    /// `kerning` points after every grapheme of every text below that sets none of
+    /// its own, ligatures kept — SwiftUI's `View.kerning(_:)` (ruling `TM-A`). The
+    /// nearest writer wins, `0` included (probe `W`).
+    public func kerning(_ kerning: Double) -> EnvironmentScope<Self> {
+        environment(\.textKerning, kerning)
+    }
+
+    /// `tracking` points after every grapheme of every text below that sets none of
+    /// its own, optional ligatures off — SwiftUI's `View.tracking(_:)` (ruling `TM-A`).
+    public func tracking(_ tracking: Double) -> EnvironmentScope<Self> {
+        environment(\.textTracking, tracking)
+    }
+
+    /// Raises the glyphs of every text below that sets no offset of its own
+    /// `baselineOffset` points — SwiftUI's `View.baselineOffset(_:)` (ruling `TM-A`).
+    public func baselineOffset(_ baselineOffset: Double) -> EnvironmentScope<Self> {
+        environment(\.textBaselineOffset, baselineOffset)
+    }
+
+    /// The system face's `.monospaced` design over every text below that sets none of
+    /// its own — SwiftUI's `View.monospaced(_:)` (ruling `TM-A`). A custom font ignores it.
+    public func monospaced(_ isActive: Bool = true) -> EnvironmentScope<Self> {
+        environment(\.textMonospaced, isActive)
+    }
+
     /// The glyph colour of every text below that names none (TE-D; probes
     /// C2, C6) — a `Color`, not a `ShapeStyle` (`CR-E`; a leading-dot
     /// `.secondary` is `Color.secondary`, divergence 119, `CR-U`).
@@ -148,12 +198,26 @@ extension Text {
     /// run's foreground, `RT-J` item 4). Drawn as a filled rect at the face's
     /// own position and thickness (`RT-J` item 2, divergence 152).
     public struct LineStyle: Hashable, Sendable {
-        /// A line's dash pattern. **Only `.solid` is offered** (`C10d`:
-        /// SwiftUI's dashes are real; MetalUI draws none — a documented
-        /// absence, not a silent solid).
+        /// A line's dash pattern — SwiftUI's `Text.LineStyle.Pattern` (ruling `TM-B`).
+        /// Lengths are multiples of the line's thickness and the phase is the line's
+        /// own (probe `text-line-patterns.swift`, `TM-C`, `TM-D`).
         public struct Pattern: Hashable, Sendable {
+            /// The five shapes SwiftUI offers.
+            enum Kind: UInt8, Hashable, Sendable {
+                case solid, dot, dash, dashDot, dashDotDot
+            }
+            let kind: Kind
+
             /// One unbroken line.
-            public static let solid = Pattern()
+            public static let solid = Pattern(kind: .solid)
+            /// Dots: 3 thicknesses on, 3 off.
+            public static let dot = Pattern(kind: .dot)
+            /// Dashes: 10 thicknesses on, 5 off.
+            public static let dash = Pattern(kind: .dash)
+            /// A dash and a dot: 10 on, 3 off, 3 on, 3 off.
+            public static let dashDot = Pattern(kind: .dashDot)
+            /// A dash and two dots: 10 on, 3 off, then (3 on, 3 off) twice.
+            public static let dashDotDot = Pattern(kind: .dashDotDot)
         }
 
         /// The line's pattern.
