@@ -100,49 +100,116 @@ public struct Path: Shape, Equatable, Sendable {
     }
 
     /// A circular arc about `center` — a line (or a move) to its start, then
-    /// cubics of at most 90°. `clockwise` reads in y-up terms (PA3).
+    /// cubics of at most 90°. `clockwise` reads in y-up terms (PA3). With a
+    /// `transform` the arc, and the line to its start, are mapped by it (probe
+    /// AR5, AR6).
     public nonisolated mutating func addArc(center: Point<Pixels>, radius: Pixels, startAngle: Angle, endAngle: Angle,
-                                clockwise: Bool) {
-        storage.addArc(center: Self.point(center), radius: Double(radius.value), startAngle: startAngle.radians,
-                       endAngle: endAngle.radians, clockwise: clockwise)
+                                clockwise: Bool, transform: Transform2D = .identity) {
+        if transform.isIdentity {
+            storage.addArc(center: Self.point(center), radius: Double(radius.value), startAngle: startAngle.radians,
+                           endAngle: endAngle.radians, clockwise: clockwise)
+            return
+        }
+        var arc = PathGeometry()
+        arc.addArc(center: Self.point(center), radius: Double(radius.value), startAngle: startAngle.radians,
+                   endAngle: endAngle.radians, clockwise: clockwise)
+        storage.append(arc, transformedBy: transform.affine, joining: true)
+    }
+
+    /// A circular arc about `center` from `startAngle` through `delta` — SwiftUI's
+    /// `addRelativeArc(center:radius:startAngle:delta:transform:)`: a line (or a
+    /// move) to its start, then cubics of at most 90°. A positive `delta`
+    /// sweeps the positive angle direction (visually clockwise in y-down
+    /// space), a negative one the other way, and a sweep past a turn keeps
+    /// going (probe AR1, AR2, AR4, X5, X6; ruling `PG-D`). A zero `delta` is
+    /// just the line to the start (X7).
+    public nonisolated mutating func addRelativeArc(center: Point<Pixels>, radius: Pixels, startAngle: Angle,
+                                        delta: Angle, transform: Transform2D = .identity) {
+        if transform.isIdentity {
+            storage.addRelativeArc(center: Self.point(center), radius: Double(radius.value),
+                                   startAngle: startAngle.radians, delta: delta.radians)
+            return
+        }
+        var arc = PathGeometry()
+        arc.addRelativeArc(center: Self.point(center), radius: Double(radius.value),
+                           startAngle: startAngle.radians, delta: delta.radians)
+        storage.append(arc, transformedBy: transform.affine, joining: true)
     }
 
     /// The arc of `radius` tangent to the lines from the current point to
-    /// `tangent1End` and from there to `tangent2End`.
-    public nonisolated mutating func addArc(tangent1End: Point<Pixels>, tangent2End: Point<Pixels>, radius: Pixels) {
-        storage.addArc(tangent1End: Self.point(tangent1End), tangent2End: Self.point(tangent2End),
+    /// `tangent1End` and from there to `tangent2End`. With a `transform` the
+    /// whole construction is mapped by it (an invertible one; a singular one
+    /// draws the arc as if there were no current point).
+    public nonisolated mutating func addArc(tangent1End: Point<Pixels>, tangent2End: Point<Pixels>, radius: Pixels,
+                                transform: Transform2D = .identity) {
+        if transform.isIdentity {
+            storage.addArc(tangent1End: Self.point(tangent1End), tangent2End: Self.point(tangent2End),
+                           radius: Double(radius.value))
+            return
+        }
+        var arc = PathGeometry()
+        let inverse = transform.affine.inverted
+        if let current = storage.currentPoint, let inverse {
+            arc.move(to: inverse.apply(current))
+            arc.addArc(tangent1End: Self.point(tangent1End), tangent2End: Self.point(tangent2End),
                        radius: Double(radius.value))
+            storage.append(arc.droppingLeadingMove(), transformedBy: transform.affine)
+        } else {
+            arc.addArc(tangent1End: Self.point(tangent1End), tangent2End: Self.point(tangent2End),
+                       radius: Double(radius.value))
+            storage.append(arc, transformedBy: transform.affine)
+        }
     }
 
     /// A closed rectangle subpath, clockwise on screen.
-    public nonisolated mutating func addRect(_ rect: Bounds<Pixels>) {
-        storage.addRect(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
-                        width: Double(rect.size.width.value), height: Double(rect.size.height.value))
+    public nonisolated mutating func addRect(_ rect: Bounds<Pixels>, transform: Transform2D = .identity) {
+        addTransformed(transform) {
+            $0.addRect(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
+                       width: Double(rect.size.width.value), height: Double(rect.size.height.value))
+        }
     }
 
     /// A closed rectangle subpath for each of `rects`.
-    public nonisolated mutating func addRects(_ rects: [Bounds<Pixels>]) {
-        for rect in rects { addRect(rect) }
+    public nonisolated mutating func addRects(_ rects: [Bounds<Pixels>], transform: Transform2D = .identity) {
+        for rect in rects { addRect(rect, transform: transform) }
     }
 
     /// A closed rounded-rectangle subpath with `cornerSize` corners, each
     /// clamped to half its side. `.continuous` is drawn circular
     /// (divergence 90).
     public nonisolated mutating func addRoundedRect(in rect: Bounds<Pixels>, cornerSize: Size<Pixels>,
-                                        style: RoundedCornerStyle = .continuous) {
-        storage.addRoundedRect(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
-                               width: Double(rect.size.width.value), height: Double(rect.size.height.value),
-                               rx: Double(cornerSize.width.value), ry: Double(cornerSize.height.value))
+                                        style: RoundedCornerStyle = .continuous,
+                                        transform: Transform2D = .identity) {
+        addTransformed(transform) {
+            $0.addRoundedRect(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
+                              width: Double(rect.size.width.value), height: Double(rect.size.height.value),
+                              rx: Double(cornerSize.width.value), ry: Double(cornerSize.height.value))
+        }
     }
 
     /// The closed ellipse inscribed in `rect`.
-    public nonisolated mutating func addEllipse(in rect: Bounds<Pixels>) {
-        storage.addEllipse(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
-                           width: Double(rect.size.width.value), height: Double(rect.size.height.value))
+    public nonisolated mutating func addEllipse(in rect: Bounds<Pixels>, transform: Transform2D = .identity) {
+        addTransformed(transform) {
+            $0.addEllipse(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
+                          width: Double(rect.size.width.value), height: Double(rect.size.height.value))
+        }
     }
 
-    /// Every subpath of `path`.
-    public nonisolated mutating func addPath(_ path: Path) { storage.append(path.storage) }
+    /// Every subpath of `path`, mapped by `transform` (probe AR9's shape).
+    public nonisolated mutating func addPath(_ path: Path, transform: Transform2D = .identity) {
+        if transform.isIdentity { storage.append(path.storage) } else {
+            storage.append(path.storage, transformedBy: transform.affine)
+        }
+    }
+
+    /// Adds the subpaths `build` makes in a fresh geometry, mapped by
+    /// `transform` (a shape's own `move` starts a subpath, as it does untransformed).
+    nonisolated private mutating func addTransformed(_ transform: Transform2D, _ build: (inout PathGeometry) -> Void) {
+        if transform.isIdentity { build(&storage); return }
+        var shape = PathGeometry()
+        build(&shape)
+        storage.append(shape, transformedBy: transform.affine)
+    }
 
     /// Closes the current subpath with a line back to its start.
     public nonisolated mutating func closeSubpath() { storage.closeSubpath() }
@@ -200,6 +267,39 @@ public struct Path: Shape, Equatable, Sendable {
         Path(storage: storage.applying(.translation(Double(dx.value), Double(dy.value))))
     }
 
+    /// This path with every point mapped by `transform` — SwiftUI's
+    /// `applying(_:)` (probe AR7). Exact for curves: an affine map of a Bézier's
+    /// control points is the map of the curve.
+    public nonisolated func applying(_ transform: Transform2D) -> Path {
+        Path(storage: storage.applying(transform.affine))
+    }
+
+    /// The part of this path between `startFraction` and `endFraction` of its
+    /// **arc length** — SwiftUI's `trimmedPath(from:to:)` (ruling `PG-A`).
+    ///
+    /// The fractions measure true arc length along the curves, not Bézier
+    /// parameter or element count (probe TR2, TR3), and run across every
+    /// subpath laid end to end (TR4); a closed subpath's closing edge counts
+    /// (TR6b). They clamp to `0…1`; `startFraction >= endFraction` gives an
+    /// empty path (TR5c, TR5d). A subpath inside the range whole keeps its
+    /// `closeSubpath`; one cut by an end becomes an open subpath whose curves
+    /// stay curves.
+    public nonisolated func trimmedPath(from startFraction: Double, to endFraction: Double) -> Path {
+        Path(storage: storage.trimmed(from: startFraction, to: endFraction))
+    }
+
+    /// The outline of this path stroked with `style` — SwiftUI's
+    /// `strokedPath(_:)` (ruling `PG-B`): closed polygons that fill nonzero to
+    /// exactly the stroke `stroke(style:)` draws, so the result can be filled,
+    /// hit-tested with ``contains(_:eoFill:)`` or measured with
+    /// ``boundingRect``. Curves, round joins and round caps are polylines
+    /// within a hundredth of a unit of the true outline, where SwiftUI's carry
+    /// curves; a width ≤ 0 gives an empty path where SwiftUI's is degenerate
+    /// (divergence 946).
+    public nonisolated func strokedPath(_ style: StrokeStyle) -> Path {
+        Path(storage: storage.stroked(style.parameters, tolerance: Self.hitTolerance))
+    }
+
     // MARK: Shape
 
     /// The path itself, whatever the rect — its coordinates are its own (PA1).
@@ -230,12 +330,15 @@ extension Path {
             let tl = Double(radii.topLeft.value), tr = Double(radii.topRight.value)
             let br = Double(radii.bottomRight.value), bl = Double(radii.bottomLeft.value)
             let x1 = x + w, y1 = y + h
-            storage.move(to: PathPoint(x + tl, y))
-            storage.addLine(to: PathPoint(x1 - tr, y))
-            if tr > 0 {
-                storage.addCurve(to: PathPoint(x1, y + tr), control1: PathPoint(x1 - tr + tr * k, y),
-                                 control2: PathPoint(x1, y + tr - tr * k))
+            if tl == 0 && tr == 0 && br == 0 && bl == 0 {
+                // A plain rectangle starts top-left and runs right (probe TS: `Rectangle`).
+                storage.addRect(x: x, y: y, width: w, height: h)
+                return
             }
+            // SwiftUI starts a rounded rectangle on the right edge, midway between where the
+            // top-right corner ends and the bottom-right one begins, and runs down (probe TS,
+            // UR1: start y = (tr + (h − br)) / 2).
+            storage.move(to: PathPoint(x1, y + (tr + (h - br)) / 2))
             storage.addLine(to: PathPoint(x1, y1 - br))
             if br > 0 {
                 storage.addCurve(to: PathPoint(x1 - br, y1), control1: PathPoint(x1, y1 - br + br * k),
@@ -250,6 +353,11 @@ extension Path {
             if tl > 0 {
                 storage.addCurve(to: PathPoint(x + tl, y), control1: PathPoint(x, y + tl - tl * k),
                                  control2: PathPoint(x + tl - tl * k, y))
+            }
+            storage.addLine(to: PathPoint(x1 - tr, y))
+            if tr > 0 {
+                storage.addCurve(to: PathPoint(x1, y + tr), control1: PathPoint(x1 - tr + tr * k, y),
+                                 control2: PathPoint(x1, y + tr - tr * k))
             }
             storage.closeSubpath()
         }

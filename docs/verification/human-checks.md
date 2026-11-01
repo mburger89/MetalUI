@@ -2055,3 +2055,15 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **SP5.** Resize the window while a header is pinned: the header stays at the top edge with no gap or flash, and no row beneath it shows through. **Observed:**
 - [ ] **SP6.** On Linux or Windows (the SDL demo with `METALUI_LAZY_DEMO=1`): SP1-SP4 look the same. **Observed:**
 
+## PG. Path operations - `trim` animation, uneven corners, trimmed and stroked outlines (round 3 item R3-8; decisions `docs/superpowers/2026-10-31-path-ops-decisions.md`, record 181; provisional letter)
+
+*An agent cannot: motion, the look of a growing stroke and the look of an uneven corner are looks, and the offscreen capture is blind to animation. Run a scratch window (or add the views to `METALUI_CANVAS_DEMO=1`) with the views below.*
+
+- [ ] **PG1.** `Circle().trim(from: 0, to: progress).stroke(.accent, style: StrokeStyle(lineWidth: 6, lineCap: .round))` with a button that does `withAnimation(.linear(duration: 2)) { progress = 1 }` (and back to 0): the ring is drawn clockwise from the rightmost point (3 o'clock), growing smoothly to a full circle in two seconds with no jump at either end, and shrinking back the same way. **Observed:**
+- [ ] **PG2.** The same ring with `.easeInOut` and a second tap mid-flight: it reverses from where it is, without a jump. **Observed:**
+- [ ] **PG3.** `RoundedRectangle(cornerRadius: 16).trim(from: 0, to: p)` stroked, animated: the stroke starts at the midpoint of the right edge and runs down, round the bottom, up the left, along the top and back. `Rectangle().trim` starts at the top-left corner running right. **Observed:**
+- [ ] **PG4.** `trim(from: s, to: s + 0.25)` animated with `s` from 0 to 0.75: a quarter-length dash chases round the ring (it does not wrap past the end; at `s` > 0.75 it shortens). **Observed:**
+- [ ] **PG5.** `UnevenRoundedRectangle(topLeadingRadius: 30, bottomLeadingRadius: 10, bottomTrailingRadius: 20, topTrailingRadius: 0)` filled, 120x80: the top-left corner is the largest quarter circle, the top-right is square. `.strokeBorder(.red, lineWidth: 3)` hugs the same corners with no gap. As a `.clipShape(...)` over an image it clips the same. **Observed:**
+- [ ] **PG6.** `UnevenRoundedRectangle(topLeadingRadius: 45)` in a 100x60 frame, filled and stroked: the top-left corner is one big arc, 45 points, not shrunk to 30 as a plain rounded rectangle would. **Observed:**
+- [ ] **PG7.** `path.strokedPath(StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round)).fill(.accent)` on a zig-zag looks like `path.stroke(.accent, style: ...)` of the same style, joins and caps included; filled with a gradient it fills the band. **Observed:**
+- [ ] **PG8.** A dashed `RoundedRectangle(cornerRadius: 12).stroke(style: StrokeStyle(lineWidth: 2, dash: [6, 4]))`: the pattern begins at the midpoint of the right edge (not at a corner). **Observed:**

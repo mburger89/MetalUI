@@ -4,6 +4,8 @@ Sharded from `CLAUDE.md` on 2026-10-29; paragraphs are verbatim. "(above)"/"(bel
 old single-file order: find a prefix with `grep -n '<PREFIX>-' docs/rules/*.md`. Detail, pinning tests and
 history for each paragraph: record §69 (same heading), §19, §01; newer ones cite their own record.
 
+**Path operations** (`PG-`, record 181). `trimmedPath`/`trim` measure true arc length across all subpaths, a closed subpath's closing edge included (Simpson on the exact speed, no libm; the Linux/Windows portable tests pin it to the bit, `PG-A`, `PG-C`); a built-in shape's outline starts where SwiftUI's does (`Path(ShapeGeometry)`, `PG-H`), so a dash or a trim begins there. A shape that animates a paint-time number conforms to the internal `PaintAnimatedShape` and is painted through `shapeForPaint` (`PG-F`). `UnevenRoundedRectangle` is the SDF while every fitted radius is at most half the shorter side and a `Path` (never a clip) past it (`PG-G`).
+
 **Shapes, images, renderer.** **A new drawable capability lands in both
 `Sources/MetalUIRender/Shaders/shaders.metal` and
 `Backends/SDL/Shaders/replay.hlsl` identically, checked through the SDL

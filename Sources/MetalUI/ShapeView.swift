@@ -327,6 +327,7 @@ public struct ShapeView<S: Shape>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout S.LayoutState, prepaint: inout Void,
                                pass: inout PaintPass) {
+        let shape = shapeForPaint(self.shape, id, pass: pass)
         let geometry = shape.geometry(in: bounds)
         for layer in layers {
             switch layer {
