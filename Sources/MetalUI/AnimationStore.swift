@@ -43,6 +43,9 @@ final class AnimationStore {
     /// stub the frame calls at three points; lane 3 fills it.
     let transitions = TransitionStore()
 
+    /// `matchedGeometryEffect`'s records and flights (round 3 item R3-2, `MG-A`), beside the transitions.
+    let matched = MatchedGeometryStore()
+
     /// The window's CPU rasters — paths and shadows (ruling `GX-K`), owned
     /// here so a `Window`'s frames share one and a headless frame gets its own.
     let rasters = RasterCache()
@@ -169,9 +172,10 @@ final class AnimationStore {
     struct Checkpoint {
         let entries: [GlobalElementID: Any]
         let transitions: TransitionStore.Checkpoint
+        let matched: MatchedGeometryStore.Checkpoint
     }
 
-    func checkpoint() -> Checkpoint { Checkpoint(entries: entries, transitions: transitions.checkpoint()) }
+    func checkpoint() -> Checkpoint { Checkpoint(entries: entries, transitions: transitions.checkpoint(), matched: matched.checkpoint()) }
 
     /// Puts every channel a build mutates before adoption back to `saved` (`RK-M`): called by the window when a
     /// frame is abandoned for a redo, before the rebuild, so the rebuild is a build of the frame that never ran.
@@ -182,6 +186,7 @@ final class AnimationStore {
         lifecycle.rollbackBuild()
         timeline.rollbackBuild()
         transitions.rollbackBuild(saved.transitions)
+        matched.rollbackBuild(saved.matched)
     }
 
     /// Called by `Frame.render` before layout.

@@ -95,7 +95,7 @@ struct BuildAudit: Equatable {
     var timeVarying = 0, presentations = 0, hiddenNodes = 0
     var scrollKeys = 0, elementBounds = 0, presentationRecords = 0, toolbarRecords = 0, openURLs = 0
     var navigation = 0, colorScheme = 0, limits = 0, anotherFrame = 0, unlowerable = 0
-    var lifecycle = 0, timeline = 0, transitions = 0, surfaces = 0, hasScrollRequests = 0
+    var lifecycle = 0, timeline = 0, transitions = 0, matched = 0, surfaces = 0, hasScrollRequests = 0
 
     func movedChannel(to other: BuildAudit) -> String? {
         if timeVarying != other.timeVarying { return "timeVarying" }
@@ -112,6 +112,7 @@ struct BuildAudit: Equatable {
         if lifecycle != other.lifecycle { return "lifecycle" }
         if timeline != other.timeline { return "timeline" }
         if transitions != other.transitions { return "transitionGroup" }
+        if matched != other.matched { return "matchedGeometry" }
         if surfaces != other.surfaces { return "surface" }
         return nil
     }
@@ -196,6 +197,7 @@ extension Frame {
         a.lifecycle = animationStore.lifecycle.buildActivity
         a.timeline = animationStore.timeline.buildActivity
         a.transitions = animationStore.transitions.buildActivity
+        a.matched = animationStore.matched.buildActivity
         a.surfaces = surfaceRegistry.buildActivity
         return a
     }

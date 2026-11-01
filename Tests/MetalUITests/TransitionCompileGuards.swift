@@ -21,7 +21,10 @@ private let skipReason: Comment =
 /// nothing.
 ///
 /// Mutation **MG3.19**: add `public static let blurReplace = AnyTransition.opacity`
-/// (the negative compiles).
+/// (the negative compiles). Round 3 (`MG-F`, `MG-H`) added the positive controls `Transition`,
+/// `matchedGeometryEffect` and `AnyTransition(_:)` over a custom transition, and the negatives
+/// `TransitionContent()` and `contentTransition`. Mutation **M-Q**: make `TransitionContent.init` public
+/// (the content negative compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theUnsupportedTransitionsDoNotCompile() throws {
     let supported = try typecheckFile("""
@@ -33,9 +36,30 @@ func theUnsupportedTransitionsDoNotCompile() throws {
         @MainActor func tree(_ flag: Bool) -> some Element {
             Column { if flag { Box().transition(.opacity) } }
         }
+        struct Pop: Transition {
+            func body(content: TransitionContent, phase: TransitionPhase) -> TransitionContent {
+                content.scaleEffect(phase.isIdentity ? 1 : 0.5).opacity(phase.isIdentity ? 1 : 0).offset(x: Pixels(2))
+            }
+        }
+        @MainActor func custom(_ flag: Bool, _ namespace: Namespace.ID) -> some Element {
+            Column {
+                if flag { Box().matchedGeometryEffect(id: "a", in: namespace, properties: .position, anchor: .topLeading, isSource: false).transition(Pop()) }
+            }
+        }
+        @MainActor func wrapped() -> AnyTransition { AnyTransition(Pop()) }
         """, importing: "MetalUI")
     let blur = try typecheckFile("""
         @MainActor func probe() -> AnyTransition { .blurReplace }
+        """, importing: "MetalUI")
+
+    // `TransitionContent` is MetalUI's record of a custom transition's effects: nothing outside the module
+    // constructs one (`MG-F`), or a `body` could return a content it never derived from its argument.
+    let content = try typecheckFile("""
+        func probe() -> TransitionContent { TransitionContent() }
+        """, importing: "MetalUI")
+    // `contentTransition` and the modifier-based transition are carried (`MG-H`), not inert declarations.
+    let carried = try typecheckFile("""
+        @MainActor func probe() -> some Element { Box().contentTransition(.opacity) }
         """, importing: "MetalUI")
 
     print("""
@@ -53,6 +77,10 @@ func theUnsupportedTransitionsDoNotCompile() throws {
                  blurReplace:
                  \(blur.output)
                  """)
+    #expect(!content.succeeded && content.messages.contains("TransitionContent"),
+            "a plain import cannot construct a TransitionContent:\n\(content.output)")
+    #expect(!carried.succeeded && carried.messages.contains("contentTransition"),
+            "contentTransition is absent, not inert:\n\(carried.output)")
     #expect(blur.messages.contains("blurReplace"),
             "the negative must be refused FOR blurReplace:\n\(blur.output)")
 }

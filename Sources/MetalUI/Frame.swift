@@ -3786,6 +3786,7 @@ public final class Frame {
 
         computeRootLayout(root: root, toolbarStrip: strip?.node, menuBar: bar?.node, windowControls: controls?.node)
         animationStore.transitions.afterLayout(self)  // plan task 13's transition seam (AN-AE)
+        animationStore.matched.afterLayout(self, transitions: animationStore.transitions)  // MG-A
         let rootBounds = bounds(of: root)
         recordElementBounds(rootID, rootBounds)
         let stripBounds = strip.map { bounds(of: $0.node) }
@@ -3896,6 +3897,7 @@ public final class Frame {
         textSystem.endFrame()
         applyScrollResolutions()
         animationStore.transitions.endFrame()
+        animationStore.matched.endFrame()
         animationStore.endFrame()  // drops every entry this frame did not touch (AN-AB)
         animationStore.rasters.endFrame()  // drops every raster this frame did not draw (GX-K)
         animationStore.layoutMemo.endFrame()  // drops every layout answer unused for two frames (IV-E)

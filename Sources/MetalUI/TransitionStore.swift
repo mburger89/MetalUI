@@ -183,6 +183,14 @@ final class TransitionStore {
         ghosts.map { ($0.key, $0.key.parent!) }
     }
 
+    /// Whether the group recorded at `key` last frame carries a transition that removes it at once — an
+    /// explicit `.identity` (or any transition with nothing to play on removal): `matchedGeometryEffect`'s
+    /// leaver hands its frame over only when SwiftUI would keep it on screen (probe S2, `MG-B`).
+    func removalWasAnnotatedInstant(_ key: GlobalElementID) -> Bool {
+        guard let record = previousRecords[key] else { return false }
+        return record.transition.atoms(insertion: false, reduceMotion: record.reduceMotion).isEmpty
+    }
+
     /// The store key of the group at `cursor` under `parent` — the position it
     /// sits at, `.animation(_:value:)`'s keying (`AN-Y`), so it collides with
     /// no id its content mints.

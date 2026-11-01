@@ -2801,3 +2801,11 @@ chooses both on AppKit but files only on SDL, which has no dialog choosing both 
 knob is painted at the leading (off) or trailing (on) end from the current value and snaps; SwiftUI's slides (unmeasured: the offscreen capture is blind to
 motion). The track's fill changes as a checkbox's does. `BY-I`; pin `switchIsACapsuleTrackWithAKnobAtTheOnEnd`; human check `BY5`. Mechanism and mutations:
 `docs/superpowers/2026-10-31-styles-decisions.md`, `docs/record/174-styles.md`.
+## 2026-10-31: matched geometry and custom transitions (`MG-A`…`MG-H`, record §175)
+
+**New: 895–898** (182 live; next label 210 unchanged; 899–904 reserved by MG and unused). **895**: a view under `matchedGeometryEffect` is hit-tested, focused and published to accessibility at its laid-out frame while it flies or
+follows (SwiftUI's follow the animated frame); pin `aFlyingViewIsHitAtItsFinalFrame`. **896**: a handed-over size is a paint map, so the content is stretched, not relaid out; SwiftUI's mid-flight size was also read to reach its final value
+before its position (probe `swiftui-matched-geometry.swift` S3, a bitmap, not reproduced); pin `aNewcomerFliesFromTheLeaversFrameToItsOwn`. **897**: only the newcomer moves; SwiftUI's outgoing view also moves to the newcomer's frame (S1, S12);
+pin `aLeaverRemovedByAnIdentityTransitionHandsNothingOver`. **898**: a custom `Transition`'s `body` returns a `TransitionContent` (opacity, scale, offset), not a view; pin `aCustomTransitionInsertsFromItsWillAppearState`.
+**Not offered, moved:** `matchedGeometryEffect` and custom transitions left the "Not offered" table; `contentTransition`, `.blurReplace`, `.modifier(active:identity:)`, `AnyTransition.animation(_:)` stay (`MG-H`).
+**828** is edited, not retired: `matchedGeometryEffect` exists, `glassEffectID` still registers none. Mechanism and mutations: `docs/superpowers/2026-10-31-matched-geometry-decisions.md`.
