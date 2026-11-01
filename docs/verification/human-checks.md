@@ -2067,3 +2067,11 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **PG6.** `UnevenRoundedRectangle(topLeadingRadius: 45)` in a 100x60 frame, filled and stroked: the top-left corner is one big arc, 45 points, not shrunk to 30 as a plain rounded rectangle would. **Observed:**
 - [ ] **PG7.** `path.strokedPath(StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round)).fill(.accent)` on a zig-zag looks like `path.stroke(.accent, style: ...)` of the same style, joins and caps included; filled with a gradient it fills the band. **Observed:**
 - [ ] **PG8.** A dashed `RoundedRectangle(cornerRadius: 12).stroke(style: StrokeStyle(lineWidth: 2, dash: [6, 4]))`: the pattern begins at the midpoint of the right edge (not at a corner). **Observed:**
+
+## WI. The X11 window icon (item XP-G36, record 183; decisions `docs/superpowers/2026-11-01-x11-window-icon-decisions.md`; provisional letter)
+
+*An agent cannot: a real desktop shell choosing among the sizes, and Wayland. The `_NET_WM_ICON` contents are checked by CI under Xvfb (`IconCheck`, `WI-E`). Read the property raw: `xprop -f _NET_WM_ICON 32c -id <win> _NET_WM_ICON` (xprop's default printer is silent for a 256 px icon, `WI-A`).*
+
+- [ ] **WI1.** On GNOME on Xorg, an app with `app.icon = [16, 32, 256 px bitmaps of one picture]`: alt-tab and the dock show the picture sharp (the 256 px record, not a scaled-up 16 px one); `xprop -f _NET_WM_ICON 32c -id <win> _NET_WM_ICON | head -c 100` starts `16, 16,` and holds `32, 32,` and `256, 256,` further on. **Observed:**
+- [ ] **WI2.** The same with a single 256x256 bitmap (MetalCreator): the icon shows in alt-tab and the dock. **Observed:**
+- [ ] **WI3.** On GNOME on Wayland (`SDL_VIDEO_DRIVER=wayland`), the same three-size app: the window shows the icon (SDL's `xdg-toplevel-icon-v1` path, untouched by `WI-B`; unverified before this check). **Observed:**
