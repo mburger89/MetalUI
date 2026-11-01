@@ -4160,6 +4160,9 @@ struct PrepaintAudit: Equatable {
     var timeVarying = 0, popovers = 0, spaces = 0, scrollResolutions = 0, scrollAdjustments = 0
     var unresolvedRequests = 0, accessibilityRetry = 0, portals = 0, namedSnapshots = 0, surfaces = 0
     var hitboxNamedSpaces = 0
+    /// Scroll targets noted by prepaint (`SP-B`): a retained window holding a `ForEach` under a position
+    /// scroller's `scrollTargetLayout()` would not note them when replayed.
+    var scrollTargets = 0
 
     /// The first channel that moved from `self` to `other`, or `nil`.
     func movedChannel(to other: PrepaintAudit) -> String? {
@@ -4173,6 +4176,7 @@ struct PrepaintAudit: Equatable {
         if portals != other.portals { return "portal" }
         if namedSnapshots != other.namedSnapshots || hitboxNamedSpaces != other.hitboxNamedSpaces { return "namedSpace" }
         if surfaces != other.surfaces { return "surface" }
+        if scrollTargets != other.scrollTargets { return "scrollTarget" }
         return nil
     }
 }
@@ -4232,7 +4236,7 @@ extension Frame {
                       unresolvedRequests: unresolvedScrollRequestCount,
                       accessibilityRetry: wantsAccessibilityRetry ? 1 : 0, portals: portalCount,
                       namedSnapshots: namedSpaceSnapshots, surfaces: surfaceRequests.count,
-                      hitboxNamedSpaces: hitboxNamedSpaces.count)
+                      hitboxNamedSpaces: hitboxNamedSpaces.count, scrollTargets: scrollTargetNotes.count)
     }
 
     var regionTallies: RegionTallies {

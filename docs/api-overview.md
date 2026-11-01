@@ -105,7 +105,7 @@ the window's top layer — a portal for modals, popovers and tooltips
   MetalUI's scoped, paint-only colour tokens (M). An `@Observable` object is
   provided with `.environment(model)` and read with `@Environment(Model.self)`
   (or `… var model: Model?`), keyed by its static type; a missing one traps
-  (134, `MD-H`). `@Bindable` and `ObservableObject` are not offered.
+  (134, `MD-H`). `ObservableObject` is not offered. **`@Bindable`** (A; `SP-D`, record §177) is SwiftUI's: `$model.property` is a `Binding` over an `@Observable` class, observed through the frame build; `Bindable(model)` also works as a local.
 - **`Component.equatable()`** (`where Self: Equatable`, returns `EquatableComponent<Self>`; A, item C14,
   record §104, `IV-B`) — SwiftUI's `View.equatable()`: the component's `content` getter is not run again
   while its value is `==` to the last evaluation's, its own `@State` is unwritten and the `@Observable`
@@ -131,8 +131,8 @@ controls, `Text`, `Box`, a `Component` — through `ProposalContentBuilder`
 `.gridCellAnchor`, `.gridColumnAlignment`, `.gridCellUnsizedAxes` (61–68, 88). **`LazyVStack`/`LazyHStack`/`LazyVGrid`/`LazyHGrid`/`GridItem`**
 (A; `LZ-`, record §134): SwiftUI's spellings, windowed against the enclosing `ScrollView`/`ProposalScrollView` (the viewport's lines plus two each side,
 divergence 637; the whole content outside a scroller), children of a `ForEach` or static, variable extents through `List`'s own `RowExtentIndex`, an adaptive
-`GridItem` resolved by `GridTrackSolver` (635–638); `pinnedViews:` and `Section` are not built (`LZ-N`). `METALUI_LAZY_DEMO=1`; human checks group LZ, unrun.
-`ProposalScrollView`, `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)`,
+`GridItem` resolved by `GridTrackSolver` (635–638); **`pinnedViews: PinnedScrollableViews` over `Section`** on `LazyVStack`/`LazyHStack` (A; `SP-G`…`SP-J`, record §177, divergence 915): a section's header/footer stays at the viewport's edge while the section is current, the stack stays windowed, a `ForEach` of sections is read as units; grids and a `List` take neither. `METALUI_LAZY_DEMO=1`; human checks group LZ, unrun.
+`ProposalScrollView`, `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)` (animated under `withAnimation`, `SP-F`), **`.scrollPosition(id:anchor:)`** with **`.scrollTargetLayout()`** (A; `SP-A`…`SP-C`, divergence 916: the topmost `ForEach` target is written to the binding from the wheel, writing it scrolls; two-axis scrolling is carried, `SP-K`),
 `UnitPoint`, `.scrollIndicators`. `ProposalLayout` +
 `ProposalLayoutContainer` — SwiftUI's `Layout` without a cache (`SA-A`), over
 `MeasurementSubviews`/`PlacementSubviews` and `ProposedSize`.

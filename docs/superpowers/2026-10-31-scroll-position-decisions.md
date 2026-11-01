@@ -79,7 +79,7 @@ for them. **Pins.** `aPinnedHeaderStaysAtTheTopWhileItsSectionIsCurrent`, `aPinn
 ## SP-H - `Section` is transparent; a `ForEach` of sections is read as units
 
 **Ruling.** `Section<Header, Content, Footer>` is a `ProposalElementGroup` over three `ProposalElementGroup`s taking their cursor indices in order (a `Pair` of three): no node, no identity of its own. Inits:
-`Section(content:header:footer:)` (trailing closures), `Section(header:footer:content:)` (values), and the header-only, footer-only and content-only forms. In a lazy stack a `Section` flattens into its parts' unit
+`Section(content:header:footer:)` written `Section { } header: { } footer: { }`, and the header-only, footer-only and content-only forms; the deprecated value forms (`Section(header: Text("x")) { }`) are not offered (a legacy `Text` is not proposal content). In a lazy stack a `Section` flattens into its parts' unit
 sources tagged with their role (`LazyRoleSource`); a **`ForEach` whose elements are sections** (the common spelling) is read by `LazySectionForEachSource`: the content closure runs once per element each frame to count
 the units (O(sections), never O(rows)), a unit is identified by `LazySectionedUnitID` (section id, part, the part's own id - row ids repeat across sections), realised under the element's named scope with the part's
 cursor, and `scrollTo` knows a header by its section's id and a row by its own id. Not for `List`; no title-string inits (`Section("Title") { }`): not built.

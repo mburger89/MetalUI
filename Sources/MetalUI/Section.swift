@@ -50,21 +50,15 @@ public struct Section<Header: ProposalElementGroup, Content: ProposalElementGrou
     var content: Content
     var footer: Footer
 
-    /// A section of `content` with a header and a footer: SwiftUI's `Section(content:header:footer:)`.
+    /// A section of `content` with a header and a footer: SwiftUI's `Section(content:header:footer:)`, written
+    /// `Section { rows } header: { ... } footer: { ... }`. (The value forms `Section(header: Text("x"))`, deprecated
+    /// in SwiftUI, are not offered: a legacy `Text` is not proposal content; write the closure.)
     public init(@ProposalContentBuilder content: () -> Content,
                 @ProposalContentBuilder header: () -> Header,
                 @ProposalContentBuilder footer: () -> Footer) {
         self.header = header()
         self.content = content()
         self.footer = footer()
-    }
-
-    /// A section of `content` under a header and over a footer given as values: SwiftUI's
-    /// `Section(header:footer:content:)`.
-    public init(header: Header, footer: Footer, @ProposalContentBuilder content: () -> Content) {
-        self.header = header
-        self.content = content()
-        self.footer = footer
     }
 
     /// The layout phase's result: each part's own.
@@ -117,10 +111,6 @@ extension Section where Footer == EmptyGroup {
         self.init(content: content, header: header, footer: { EmptyGroup() })
     }
 
-    /// A section under a header given as a value: SwiftUI's `Section(header:content:)`.
-    public init(header: Header, @ProposalContentBuilder content: () -> Content) {
-        self.init(header: header, footer: EmptyGroup(), content: content)
-    }
 }
 
 extension Section where Header == EmptyGroup {
@@ -130,16 +120,12 @@ extension Section where Header == EmptyGroup {
         self.init(content: content, header: { EmptyGroup() }, footer: footer)
     }
 
-    /// A section over a footer given as a value: SwiftUI's `Section(footer:content:)`.
-    public init(footer: Footer, @ProposalContentBuilder content: () -> Content) {
-        self.init(header: EmptyGroup(), footer: footer, content: content)
-    }
 }
 
 extension Section where Header == EmptyGroup, Footer == EmptyGroup {
     /// A section of `content` alone: SwiftUI's `Section(content:)`.
     public init(@ProposalContentBuilder content: () -> Content) {
-        self.init(header: EmptyGroup(), footer: EmptyGroup(), content: content)
+        self.init(content: content, header: { EmptyGroup() }, footer: { EmptyGroup() })
     }
 }
 

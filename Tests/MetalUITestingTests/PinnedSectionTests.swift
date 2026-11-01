@@ -49,8 +49,8 @@ import Testing
 
 /// **SP-G.** `pinnedViews: [.sectionHeaders]` holds header 0 at the viewport's top while the viewport's top is in
 /// section 0 (offsets 1000 and 2020, the latter inside its footer), where the unpinned control has no header
-/// 0 on screen at all; at 2040 section 1 is current and its header sits at 0 with header 0 gone (the probe's
-/// O1: no push-off, the header leaves with its section).
+/// 0 on screen at all; at 2040 section 1 is current and its header sits at 0 with header 0 gone (probe V1/V0 for the
+/// pin against the control, O for the absence of a push-off: the header leaves with its section).
 /// Mutation: `max(natural, edge)` -> `natural` in `placeSubviews` (header 0 absent or off screen).
 @Test @MainActor func aPinnedHeaderStaysAtTheTopWhileItsSectionIsCurrent() throws {
     let pinned = try sectionsWindow(pinned: .sectionHeaders)

@@ -67,7 +67,7 @@ private func rowTop(_ element: TestElement) -> Float {
     return (top.0, top.1)
 }
 
-/// **SP-A / SP-C.** A wheel to offset 300 writes row 15 (the first target reaching the leading edge: row 14
+/// **SP-A / SP-C (probe P1, unmeasurable headless).** A wheel to offset 300 writes row 15 (the first target reaching the leading edge: row 14
 /// ends at 300); 310 and 330 write 15 and 16 (a partly visible row still leads). Exactly one write per change,
 /// from the wheel: the settling frames after it write nothing.
 /// Mutation: the topmost rule `end > reference` -> `start > reference` (310 writes 16).
@@ -288,7 +288,7 @@ private final class FireCount: @unchecked Sendable { var count = 0 }
     var count = 1
 }
 
-/// **SP-D.** `$model.property` is a binding to the property: it reads and writes through, and the write is
+/// **SP-D (probe B1, B2).** `$model.property` is a binding to the property: it reads and writes through, and the write is
 /// observed by a tracking block that read the same property. Mutation: the subscript's getter returns a copy
 /// taken at creation (the first expectation fails).
 @Test @MainActor func aBindableProjectsBindingsThatReadAndWriteThroughTheObject() {
