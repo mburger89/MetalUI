@@ -2100,3 +2100,15 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **GL5.** Leave the window sweeping for a minute: memory (Activity Monitor) does not climb past about 25 MB above its start (a 4096 x 4096 atlas is 16 MB), and the window stays responsive. **Observed:**
 - [ ] **GL6.** On Linux or Windows (the SDL demo with a zoom sweep): GL1-GL3 look the same. **Observed:**
 
+## TM. Text dash patterns and view-level text modifiers - how a dashed line and an inherited modifier look (round 3 item R3-10 part 1; decisions `docs/superpowers/2026-11-01-text-view-modifiers-decisions.md`, record 186; provisional letter)
+
+*An agent cannot: the look of a dashed line at real sizes and the feel of an inherited modifier are looks. Run a scratch window (or add the views below to `METALUI_RICH_TEXT_DEMO=1`), on macOS at scale 2 and on a Linux or Windows SDL window. Compare against the same views in a SwiftUI app side by side where you can.*
+
+- [ ] **TM1.** `VStack(alignment: .leading) { Text("Solid").underline(); Text("Dot").underline(pattern: .dot); Text("Dash").underline(pattern: .dash); Text("DashDot").underline(pattern: .dashDot); Text("DashDotDot").underline(pattern: .dashDotDot) }.font(.system(size: 28))`: five distinct lines; the dash is long with short gaps, the dot is square dots as long as the line is thick times three, the mixed ones repeat dash-dot and dash-dot-dot; each cycle starts at the left edge of the line. **Observed:**
+- [ ] **TM2.** The same five with `strikethrough` in a 13 pt font: the dashes read as dashes (not a dotted blur) at scale 1 and 2; the line stays crisp. **Observed:**
+- [ ] **TM3.** A long `Text` wrapped over three lines with `.underline(pattern: .dash)`: every line starts with a full dash at its left edge (a centred paragraph: at its own left edge, not the box's). **Observed:**
+- [ ] **TM4.** `Text("plain ") + Text("dashed").underline(pattern: .dash)` (a deprecation warning is expected): the first dash under "dashed" is cut short where it joins the line's cycle, then the dashes continue evenly. Two neighbouring runs with the same pattern in different colours show one even rhythm across the colour change. **Observed:**
+- [ ] **TM5.** `VStack { Text("A"); Text("B").kerning(0) ; Button("C") {} }.kerning(6).underline(pattern: .dot).bold()`: A, B and the button label are spaced and dotted; bold only where the font has no weight of its own. `Text("D").kerning(1)` inside is spaced by 1 (the Text's own wins). **Observed:**
+- [ ] **TM6.** Under `.font(.system(size: 13, weight: .light))` and `.bold()` the text stays light; under `.fontWeight(.light)` and an inner `.bold()` it stays light (SwiftUI's order-independent result). **Observed:**
+- [ ] **TM7.** Change an ancestor's `.kerning` with a slider while a retained card (`.equatable()`) holds the text: the card's text re-spaces on every step with no stale frame. **Observed:**
+- [ ] **TM8.** On Linux or Windows, TM1-TM3 look the same as on macOS. **Observed:**
