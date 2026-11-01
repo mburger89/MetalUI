@@ -39,7 +39,10 @@ property on `EnvironmentValues`/`EnvironmentFingerprint`: `swift package clean`.
 count 26 -> 27 (`RetainedAmbientMissTests`), `RetainedSubtreeInternalTests`'s field table, and `ReduceTransparencyTests`' scan forced the stroke
 fallback to read the flat tint through `ShapeStyleStorage.representativeColor` rather than `material.color`.
 
-COUNTS_PLACEHOLDER
+**Counts** (2026-11-01, `feat/shape-styles` after `swift package clean`, a `--build-system native --build-tests` build and an unfiltered
+`--no-parallel` run): **4804 tests in 13 suites passed, 0 issues**; `FR-J no-argument frame: succeeded=true` printed; guard G-SS1 printed
+`positive: succeeded=true`, `negatives: badResolved=false forged=false notAStyle=false`. The first unfiltered run (before the two fixes above)
+read 4804 tests and 2 issues. `Backends/SDL` builds (`swift build $(python3 scripts/fetch-accesskit.py --print-flags)`).
 
 ## 6. Mutations
 
