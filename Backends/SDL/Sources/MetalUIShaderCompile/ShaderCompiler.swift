@@ -25,6 +25,17 @@ package enum ShaderCompiler {
         return process.terminationStatus
     }
 
+    /// The declared-versus-reflected register check (rulings `UB-B`, `UB-C`) for one source: throws, naming the
+    /// shader, the registers and the fix, when the compiler dropped a declared slot. A reflection that is not JSON is
+    /// left to the consumers that read it.
+    package static func checkSlots(of source: ShaderSource, in sourceDirectory: String, reflection json: String) throws {
+        guard let counts = ShaderSlotCheck.Counts(json: json),
+              let text = try? String(contentsOfFile: ShaderCompilePlan.join(sourceDirectory, source.fileName), encoding: .utf8)
+        else { return }
+        let problems = ShaderSlotCheck.problems(name: source.fileName, stage: source.stage, source: text, counts: counts)
+        if !problems.isEmpty { throw ShaderCompileError(problems.joined(separator: "\nerror: ")) }
+    }
+
     /// Compiles every source in `arguments.source` into `arguments.out`, then writes
     /// `SOURCE.sha256` unless `--no-marker`. A failing command stops the run, naming it.
     package static func run(_ arguments: CompileArguments, environment: [String: String],
@@ -57,6 +68,7 @@ package enum ShaderCompiler {
             }
             if arguments.formats.contains(.json),
                let json = try? String(contentsOfFile: ShaderCompilePlan.join(outDirectory, "\(source.stem).json"), encoding: .utf8) {
+                try checkSlots(of: source, in: sourceDirectory, reflection: json)
                 log("\(source.stem) \(json.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
         }

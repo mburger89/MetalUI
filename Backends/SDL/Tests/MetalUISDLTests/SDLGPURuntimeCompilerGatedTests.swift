@@ -91,6 +91,32 @@ extension SDLGPURuntimeCompilerTests {
         #expect(msl.readWriteStorageBuffers == 1 && msl.threadCount.x == 64)
     }
 
+    /// **XP-G36 (`UB-D`).** A kernel declaring `b0` and `b1` but reading only `b1` reflects one uniform buffer; the compile
+    /// throws naming both registers instead of returning a blob whose slot 0 would be the wrong buffer. The control
+    /// reading both compiles. Mutation: delete the slot check in `RuntimeShaderCompiler.compileCompute`.
+    @Test(.enabled(if: RuntimeCompilerSupport.available, needsCompiler))
+    func aKernelWhoseDeclaredUniformBufferIsDroppedIsRefused() throws {
+        let compiler = try SDLGPUShaderCompiler.shared()
+        func kernel(readsFirst: Bool) -> String {
+            """
+            RWStructuredBuffer<uint> dst : register(u0, space1);
+            cbuffer First : register(b0, space2) { uint a; };
+            cbuffer Second : register(b1, space2) { uint b; };
+            [numthreads(64, 1, 1)]
+            void main(uint3 id : SV_DispatchThreadID) { dst[id.x] = b\(readsFirst ? " + a" : ""); }
+            """
+        }
+        _ = try compiler.compileCompute(name: "both", hlsl: kernel(readsFirst: true), target: .spirv)
+        do {
+            _ = try compiler.compileCompute(name: "dropped", hlsl: kernel(readsFirst: false), target: .spirv)
+            Issue.record("a kernel with an unread b0 compiled")
+        } catch let error as SDLGPUShaderCompileError {
+            guard case .compileFailed(let stage, let diagnostics) = error else { Issue.record("\(error)"); return }
+            #expect(stage == "register slot check")
+            #expect(diagnostics.contains("b0 `First`") && diagnostics.contains("b1 `Second`") && diagnostics.contains("reflects 1"), "\(diagnostics)")
+        }
+    }
+
     /// **19.** The run-time compile of the checked-in app shader gives the build tool's bytes
     /// (`METALUI_SHADERCROSS_AT_PIN=1`: the library is the pin the blobs were built with; SPIR-V,
     /// MSL and DXIL), otherwise the entry points and reflection only.

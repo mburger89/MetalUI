@@ -191,6 +191,17 @@ public struct RuntimeShaderCompiler: Sendable {
         do { try ComputeBlobValidation.validateBytes(spirv, format: .spirv, entryPoint: entryPoint) }
         catch let error as ComputeValidationError { throw RuntimeShaderCompileError(error) }
         let reflection = try reflect(spirv)
+        // A declared register the compiler dropped shifts every later slot (XP-G36, UB-D): refuse, naming it.
+        let counts = ShaderSlotCheck.Counts(
+            samplers: reflection.samplers, readOnlyStorageTextures: reflection.readOnlyStorageTextures,
+            readOnlyStorageBuffers: reflection.readOnlyStorageBuffers,
+            readWriteStorageTextures: reflection.readWriteStorageTextures,
+            readWriteStorageBuffers: reflection.readWriteStorageBuffers, uniformBuffers: reflection.uniformBuffers)
+        let slotProblems = ShaderSlotCheck.problems(name: "compute shader (entry point \(entryPoint))", stage: .compute,
+                                                    source: hlsl, counts: counts)
+        if !slotProblems.isEmpty {
+            throw RuntimeShaderCompileError.compileFailed(stage: "register slot check", diagnostics: slotProblems.joined(separator: "\n"))
+        }
         switch target {
         case .spirv:
             return CompiledComputeShader(target: .spirv, bytes: spirv, entryPoint: entryPoint, reflection: reflection)
