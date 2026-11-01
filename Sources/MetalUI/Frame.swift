@@ -1867,7 +1867,7 @@ public final class Frame {
             let region = Self.hitRegion(bounds, inset: handlers.contentShapeInset)
             _ = insertHitbox(region, id: id, opaque: false, handlers: only, origin: bounds.origin,
                              shape: handlers.contentShape?.geometry(in: region))
-            if pointer.style != nil { pointerStyleRegionCount += 1 }
+            if pointer.style != nil || pointer.visibility != nil { pointerStyleRegionCount += 1 }
         }
         // A key region and a click-focusable press region (rulings `KF-E` item
         // 2, `KF-F` item 3): ONE non-opaque region carrying only the keyboard

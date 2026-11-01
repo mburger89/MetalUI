@@ -11,10 +11,12 @@ import MetalUITestSupport
 private let platformSkipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUIPlatform not found — guard skipped"
 
-/// The twelve `PlatformPointerStyle` cases that existed before the image cursor, as one `case` list.
+/// The twelve `PlatformPointerStyle` cases that existed before the image cursor, plus the three `PH-A`/`PH-F` added
+/// after it (`columnResizeOneWay`, `rowResizeOneWay`, `hidden`), as one `case` list.
 private let oldCases = """
     .arrow, .iBeam, .verticalIBeam, .crosshair, .openHand, .closedHand, .pointingHand,
-             .columnResize, .rowResize, .zoomIn, .zoomOut, .frameResize
+             .columnResize, .rowResize, .zoomIn, .zoomOut, .frameResize,
+             .columnResizeOneWay, .rowResizeOneWay, .hidden
     """
 
 /// A `switch` over `PlatformPointerStyle` naming the old cases, plus `extra`.

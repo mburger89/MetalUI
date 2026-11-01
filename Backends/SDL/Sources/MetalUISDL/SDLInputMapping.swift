@@ -94,6 +94,11 @@ enum SDLCursorTable {
         case .pointingHand: .pointer
         case .columnResize: .ewResize
         case .rowResize: .nsResize
+        // A one-arrow divider is the single-edge resize cursor on its side (`PH-D`): `w`/`e`, `n`/`s`.
+        case .columnResizeOneWay(let towardTrailing): towardTrailing ? .eResize : .wResize
+        case .rowResizeOneWay(let towardDown): towardDown ? .sResize : .nResize
+        // Hidden is not a system cursor (`PH-G`); `SDLPlatform` hides it and never asks here.
+        case .hidden: .default
         case .frameResize(let edge, _, _):
             switch edge {
             case .top: .nResize

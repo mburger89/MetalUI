@@ -655,6 +655,14 @@ public final class SDLWindow: PlatformWindow {
 
     public func setPointerStyle(_ style: PlatformPointerStyle) {
         pointerStyles.append(style)
+        // Hidden is `SDL_HideCursor`; any other style shows the pointer first (`PH-G`). SDL's visibility
+        // is process-global and idempotent, so there is nothing to balance. A driver that refuses
+        // (the offscreen one may) leaves it as it was.
+        if style == .hidden {
+            _ = mui_set_cursor_visible(false)
+            return
+        }
+        _ = mui_set_cursor_visible(true)
         if case .image(let image) = style {
             platform?.showImageCursor(image)   // `IC-E`; a window with no platform has no table
             return

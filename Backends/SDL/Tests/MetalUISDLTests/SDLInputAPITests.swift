@@ -302,6 +302,30 @@ private func describe(_ event: InputEvent) -> String {
     #expect(window.pointerStyles == [.crosshair, .openHand, .arrow])
 }
 
+/// **1.17b** (`PH-D`, `PH-G`). The one-way resizes map to SDL's single-edge
+/// resize cursors on their side (`w`/`e`, `n`/`s`: SDL has no one-arrow divider
+/// cursor), and `.hidden` hides SDL's cursor (`SDL_HideCursor`, process-wide)
+/// while any later style shows it again. The visibility is read back from SDL
+/// (`SDL_CursorVisible`); a driver that refuses to hide ends the test early at
+/// the premise. Mutations: swap `w`/`e`; never show after a hide.
+@MainActor
+@Test func sdlOneWayResizesMapToEdgeCursorsAndHiddenHidesTheCursor() throws {
+    #expect(SDLCursorTable.systemCursor(for: .columnResizeOneWay(towardTrailing: false)) == .wResize)
+    #expect(SDLCursorTable.systemCursor(for: .columnResizeOneWay(towardTrailing: true)) == .eResize)
+    #expect(SDLCursorTable.systemCursor(for: .rowResizeOneWay(towardDown: false)) == .nResize)
+    #expect(SDLCursorTable.systemCursor(for: .rowResizeOneWay(towardDown: true)) == .sResize)
+    let (_, window) = try inputWindow()
+    defer { _ = mui_set_cursor_visible(true) }
+    window.setPointerStyle(.hidden)
+    #expect(window.pointerStyles.last == .hidden)
+    try #require(!mui_cursor_visible(), "premise: this driver hides the cursor")
+    window.setPointerStyle(.crosshair)
+    #expect(mui_cursor_visible(), "a later style shows the pointer again")
+    window.setPointerStyle(.hidden)
+    window.setPointerStyle(.arrow)
+    #expect(mui_cursor_visible())
+}
+
 // MARK: - 1.18: the bridge's kinds
 
 /// **1.18** (`CI-E` item 4, `CI-K` item 1). The bridge's event kinds before
