@@ -64,6 +64,15 @@ a generic one: `RT-D`, `RT-T`). `+` is deprecated and traps on a decorated opera
 its field to `resolveRichText`, `ProposalText` and a values test (`RT-S`); the rich
 `Text`-level fields stay boxed (`TextRichBox`, the 1 MB stack, `RT-R` 4).
 
+**View-level text modifiers and dash patterns (`TM-`, record 186).** `bold`, `underline`, `strikethrough`, `kerning`, `tracking`, `baselineOffset` and
+`monospaced` are also `ElementGroup` environment writes (`EnvironmentValues.textRichBox` + `isBold`): resolution is `run ?? Text ?? environment`, the
+nearest writer wins, an own `LineStyle` replaces the environment's whole, and **a new text modifier owes a field to `TextRichFields`, a row in
+`resolveRichText`, the `ElementGroup` writer, `ProposalText` and a values test, and a fingerprint row if it adds an environment key** (`TM-A`, `TM-G`).
+`plainTextForm` takes the environment's fields: any set makes a text styled (`RT-F` item 3). A pattern is a cycle of multiples of the unit
+`max(1, ceil(thickness))` (dot 3/3, dash 10/5, dashDot 10/3/3/3, dashDotDot 10/3/3/3/3/3), cut on the CPU in `drawStyledText` from **the line's own start**
+and carried across runs; neighbours join only on one colour and pattern. No shader change (`TM-C`..`TM-E`). View-level `bold()` is a weight of last
+resort (`TM-F`). `TextField`/`TextEditor` stay plain (`TM-H`).
+
 **Text over a GPU surface (`GT-`, record §99).** A `Text` overlay over a `GPUSurface` costs
 1 leaf measure, 2 seam measures and 1 `placeGlyphs` per label per frame, linear in N, no raster or
 upload (`GT-A`; re-take with `theOverlayCostIsLinearAndCounted`), so the

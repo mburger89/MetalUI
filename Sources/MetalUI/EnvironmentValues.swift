@@ -284,6 +284,45 @@ public struct EnvironmentValues {
     /// `.italic(_:)` over whichever font a text below resolves (TE-B item 3).
     var italic: Bool = false
 
+    /// `.bold(_:)` over whichever font a text below resolves (`TM-F`): bold where the text names no
+    /// weight of its own and the font names none — a `.light` font stays light (probe `W`).
+    var isBold: Bool = false
+
+    /// The view-level text modifiers written above (`TM-A`): underline, strikethrough, kerning, tracking,
+    /// baseline offset, monospaced — the layer under a `Text`'s own and a run's own fields. One reference,
+    /// `nil` while none is written (`RT-R` item 4's reason: the value is copied through every scope).
+    var textRichBox: TextRichBox?
+
+    /// ``textRichBox``'s fields; writing an empty set stores `nil`.
+    var textRich: TextRichFields {
+        get { textRichBox?.fields ?? TextRichFields() }
+        set { textRichBox = TextRichBox.boxing(newValue) }
+    }
+    var textUnderline: Text.LineStyle? {
+        get { textRich.underline }
+        set { textRich.underline = newValue }
+    }
+    var textStrikethrough: Text.LineStyle? {
+        get { textRich.strikethrough }
+        set { textRich.strikethrough = newValue }
+    }
+    var textKerning: Double? {
+        get { textRich.kerning }
+        set { textRich.kerning = newValue }
+    }
+    var textTracking: Double? {
+        get { textRich.tracking }
+        set { textRich.tracking = newValue }
+    }
+    var textBaselineOffset: Double? {
+        get { textRich.baselineOffset }
+        set { textRich.baselineOffset = newValue }
+    }
+    var textMonospaced: Bool? {
+        get { textRich.monospaced }
+        set { textRich.monospaced = newValue }
+    }
+
     /// The line-limit pair (ruling TE-H): `lineLimit(n)` writes `(nil, n)`,
     /// `lineLimit(n, reservesSpace: true)` `(n, n)`, a range its bounds.
     var textLineLimit = TextLineLimit()
@@ -398,6 +437,8 @@ struct EnvironmentFingerprint: Equatable {
     var tint: Color?
     var fontWeight: Font.Weight?
     var italic: Bool
+    var isBold: Bool
+    var textRich: TextRichFields
     var textLineLimit: TextLineLimit
     var fieldStyle: TextFieldStyle
     var editorStyle: TextEditorStyle
@@ -437,6 +478,8 @@ extension EnvironmentFingerprint {
         if tint != other.tint { out.append("tint") }
         if fontWeight != other.fontWeight { out.append("fontWeight") }
         if italic != other.italic { out.append("italic") }
+        if isBold != other.isBold { out.append("isBold") }
+        if textRich != other.textRich { out.append("textRich") }
         if textLineLimit != other.textLineLimit { out.append("textLineLimit") }
         if fieldStyle != other.fieldStyle { out.append("fieldStyle") }
         if editorStyle != other.editorStyle { out.append("editorStyle") }
@@ -464,7 +507,8 @@ extension EnvironmentValues {
             titleBarInsets: titleBarInsets, windowSize: windowSize, colorScheme: colorScheme,
             controlSize: controlSize, font: font, lineLimit: lineLimit, truncationMode: truncationMode,
             multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStyle, tint: tint,
-            fontWeight: fontWeight, italic: italic, textLineLimit: textLineLimit,
+            fontWeight: fontWeight, italic: italic, isBold: isBold, textRich: textRich,
+            textLineLimit: textLineLimit,
             fieldStyle: fieldStyles.field, editorStyle: fieldStyles.editor, theme: theme,
             hasTextSystem: textSystemBox != nil,
             objects: objects.mapValues { ObjectIdentifier($0) },

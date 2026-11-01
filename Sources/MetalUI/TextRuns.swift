@@ -235,9 +235,9 @@ func requireTextOperand(_ text: Text, _ side: String) {
 /// The string and request the plain calls take, when `content` is plain or
 /// one run setting only font, weight, italic or colour and no rich
 /// `Text`-level field is set (`RT-F` item 3); `nil`: the styled path.
-func plainTextForm(_ content: TextContent, own: TextStyleRequest,
-                   rich: TextRichFields) -> (string: String, request: TextStyleRequest)? {
-    guard rich.isEmpty else { return nil }
+func plainTextForm(_ content: TextContent, own: TextStyleRequest, rich: TextRichFields,
+                   viewLevel: TextRichFields) -> (string: String, request: TextStyleRequest)? {
+    guard rich.isEmpty, viewLevel.isEmpty else { return nil }
     switch content {
     case .plain(let string):
         return (string, own)
@@ -262,6 +262,9 @@ struct TextRunPaint: Hashable, Sendable {
     /// else the run's foreground, `RT-J` item 4).
     var underline: Color?
     var strikethrough: Color?
+    /// The dash patterns of the two lines (`TM-B`); meaningful only while the line is set.
+    var underlinePattern: Text.LineStyle.Pattern = .solid
+    var strikethroughPattern: Text.LineStyle.Pattern = .solid
 }
 
 /// A styled `Text` resolved against its environment and text system: the
@@ -286,6 +289,9 @@ func resolveRichText(_ content: TextContent, own: TextStyleRequest, rich: TextRi
     case .plain(let string): [TextRunRequest(string: string)]
     case .runs(let runs): runs
     }
+    // The view-level layer (`TM-A`): the modifiers written above this `Text`, under the run's and the
+    // `Text`'s own fields (probe `W`: the inner writer wins).
+    let view = environment.textRich
     var styledRuns: [StyledTextRun] = []
     var paints: [TextRunPaint] = []
     var string = ""
@@ -295,17 +301,20 @@ func resolveRichText(_ content: TextContent, own: TextStyleRequest, rich: TextRi
         let request = TextStyleRequest(
             font: run.font ?? own.font, weight: run.weight ?? own.weight, italic: run.italic ?? own.italic,
             foreground: run.foreground ?? own.foreground ?? (run.link != nil ? .accentColor : nil),
-            monospaced: run.monospaced ?? rich.monospaced ?? false)
+            monospaced: run.monospaced ?? rich.monospaced ?? view.monospaced ?? false)
         let resolved = resolveTextStyle(request, in: environment)
         let style = TextRunStyle(font: system.resolveFont(resolved.descriptor),
-                                 kerning: run.kerning ?? rich.kerning ?? 0,
-                                 tracking: run.tracking ?? rich.tracking ?? 0,
-                                 baselineOffset: run.baselineOffset ?? rich.baselineOffset ?? 0)
-        let underline = (run.underline ?? rich.underline).flatMap { $0.isActive ? ($0.color ?? resolved.foreground) : nil }
-        let strike = (run.strikethrough ?? rich.strikethrough)
-            .flatMap { $0.isActive ? ($0.color ?? resolved.foreground) : nil }
+                                 kerning: run.kerning ?? rich.kerning ?? view.kerning ?? 0,
+                                 tracking: run.tracking ?? rich.tracking ?? view.tracking ?? 0,
+                                 baselineOffset: run.baselineOffset ?? rich.baselineOffset ?? view.baselineOffset ?? 0)
+        let underlineStyle = (run.underline ?? rich.underline ?? view.underline).flatMap { $0.isActive ? $0 : nil }
+        let strikeStyle = (run.strikethrough ?? rich.strikethrough ?? view.strikethrough)
+            .flatMap { $0.isActive ? $0 : nil }
         let paint = TextRunPaint(foreground: resolved.foreground, background: run.background,
-                                 underline: underline, strikethrough: strike)
+                                 underline: underlineStyle.map { $0.color ?? resolved.foreground },
+                                 strikethrough: strikeStyle.map { $0.color ?? resolved.foreground },
+                                 underlinePattern: underlineStyle?.pattern ?? .solid,
+                                 strikethroughPattern: strikeStyle?.pattern ?? .solid)
         string += run.string
         if let last = styledRuns.last, last.length == 0 {
             // An empty first run gives way to the first run with text.

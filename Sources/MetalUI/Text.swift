@@ -196,7 +196,7 @@ public struct Text: Element, StyledElement {
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         let system = pass.textSystem
-        guard let plain = plainTextForm(content, own: styleRequest, rich: rich) else {
+        guard let plain = plainTextForm(content, own: styleRequest, rich: rich, viewLevel: pass.environment.textRich) else {
             // The styled path (RT-F item 3): every run resolved once here, the
             // `StyledText` and the paint records captured by value; `paint`
             // resolves again through the same function (RT-E item 2).
@@ -346,7 +346,7 @@ public struct Text: Element, StyledElement {
         // The same memoized request `requestLayout` made — a dictionary hit,
         // not a second `CTFont` creation.
         let system = pass.textSystem
-        let plain = plainTextForm(content, own: styleRequest, rich: rich)
+        let plain = plainTextForm(content, own: styleRequest, rich: rich, viewLevel: pass.environment.textRich)
         // **The width layout MEASURED at, not the rounded box it stored** —
         // the fix for what CLAUDE.md carried as divergence 8, and the reason
         // this reads `pass.measuredWidth(of:)` rather than `bounds`.

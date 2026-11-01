@@ -14,11 +14,10 @@ private let skipReason: Comment =
 /// compose on `Text` and return `Text`: bold, underline with a colour and
 /// SwiftUI's full `underline(_:pattern:color:)` spelling, kerning, tracking,
 /// baseline offset, monospaced, `Font.monospaced()`, `+` (inside a deprecated
-/// function); and three spellings do **not** compile — a `+` whose operand is
-/// an environment scope (`lineLimit` on `Text` is a view modifier), a dashed
-/// pattern, and `Text.LineStyle.Pattern.dash` (only `.solid` is offered,
-/// `C10d`). Red before: none of it existed. Mutations: **MG2.24a** declare a
-/// `dash` pattern (the two dash arms), **MG2.24b** a `+` taking an
+/// function); and one spelling does **not** compile — a `+` whose operand is
+/// an environment scope (`lineLimit` on `Text` is a view modifier). The dashed
+/// patterns compile since `TM-B` (`theLinePatternsAreSwiftUIs`). Red before: none
+/// of it existed. Mutations: **MG2.24b** a `+` taking an
 /// `EnvironmentScope<Text>` (the `lineLimit` arm), **MG2.24c** drop
 /// `pattern:` from `underline` (the compiling arm).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
@@ -51,12 +50,6 @@ func theTextModifiersComposeAsSwiftUIs() throws {
             @available(*, deprecated, message: "the guard's own use of the deprecated +")
             @MainActor public func probe() -> Text { Text("a").lineLimit(1) + Text("b") }
             """, "'EnvironmentScope<Text>' to expected argument type 'Text'"),
-        ("underline(pattern: .dash)", """
-            @MainActor public func probe() -> Text { Text("a").underline(pattern: .dash) }
-            """, "dash"),
-        ("Text.LineStyle.Pattern.dash", """
-            public func probe() -> Text.LineStyle.Pattern { Text.LineStyle.Pattern.dash }
-            """, "dash"),
     ]
     for (name, source, mention) in refusals {
         let result = try typecheckFile(source, importing: "MetalUI")
@@ -80,4 +73,35 @@ func theConcatenationOperatorIsDeprecated() throws {
     #expect(result.succeeded, "the concatenation compiles:\n\(result.output)")
     #expect(result.messages.components(separatedBy: message).count - 1 == 1,
             "one deprecation warning with SwiftUI's message:\n\(result.output)")
+}
+
+/// **TM-1** (rulings `TM-A`, `TM-B`, `TM-F`). SwiftUI's declarations compile from a plain import:
+/// all five `Text.LineStyle.Pattern`s, `underline`/`strikethrough` with a pattern on `Text`,
+/// `ProposalText` and over a container (`View`'s), and the view-level `bold`, `italic`, `kerning`,
+/// `tracking`, `baselineOffset`, `monospaced` over a container and over a `Button`. Red before:
+/// `.dash` and the container spellings did not exist. Mutations: **MG-TM1a** make `Pattern.dot`
+/// `internal` (the pattern arm), **MG-TM1b** drop `pattern:` from the container `underline` (the
+/// container arm).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func theLinePatternsAndViewLevelTextModifiersAreSwiftUIs() throws {
+    let compiles = try typecheckFile("""
+        @MainActor public func modifiers() {
+            let patterns: [Text.LineStyle.Pattern] = [.solid, .dot, .dash, .dashDot, .dashDotDot]
+            let style: Text.LineStyle = Text.LineStyle(pattern: .dashDot, color: .red)
+            let text: Text = Text("a").underline(true, pattern: .dash, color: .red)
+                .strikethrough(pattern: .dot)
+            let proposal: ProposalText = ProposalText("a").underline(pattern: .dashDotDot)
+                .strikethrough(true, pattern: .dash, color: nil)
+            _ = (patterns, style, text, proposal)
+            _ = Column { Text("a") }
+                .bold().bold(false).italic().italic(false)
+                .underline().underline(false).underline(true, pattern: .dash, color: .red)
+                .strikethrough().strikethrough(true, pattern: .dot)
+                .kerning(1).tracking(1).baselineOffset(2).monospaced().monospaced(false)
+            _ = Button("b") {}.kerning(2).bold().underline(pattern: .dashDot)
+        }
+        """, importing: "MetalUI")
+    print("TM GUARD 1 compiles: succeeded=\(compiles.succeeded) messages=[\(compiles.messages)]")
+    #expect(compiles.succeeded && !compiles.messages.contains("warning"),
+            "SwiftUI's spellings must compile with no warning:\n\(compiles.output)")
 }

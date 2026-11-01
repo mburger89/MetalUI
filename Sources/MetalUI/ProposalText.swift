@@ -98,7 +98,7 @@ public struct ProposalText: ProposalElement {
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let system = pass.textSystem
-        guard let plain = plainTextForm(content, own: styleRequest, rich: rich) else {
+        guard let plain = plainTextForm(content, own: styleRequest, rich: rich, viewLevel: pass.environment.textRich) else {
             // The styled path, as `Text`'s (RT-F item 3).
             let resolved = resolveRichText(content, own: styleRequest, rich: rich, in: pass.environment,
                                            system: system)
@@ -138,7 +138,7 @@ public struct ProposalText: ProposalElement {
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {
         let system = pass.textSystem
         let width = max(pass.measuredWidth(of: layout.node), smallestWrapWidth)
-        guard let plain = plainTextForm(content, own: styleRequest, rich: rich) else {
+        guard let plain = plainTextForm(content, own: styleRequest, rich: rich, viewLevel: pass.environment.textRich) else {
             pass.drawStyledText(resolveRichText(content, own: styleRequest, rich: rich, in: pass.environment,
                                                 system: system),
                                 origin: bounds.origin, width: width, height: Double(bounds.size.height.value))

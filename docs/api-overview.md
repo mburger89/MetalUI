@@ -222,8 +222,16 @@ Interpolation inserts values verbatim in the format's style (151, 156) and
 keeps an interpolated `Text`'s or `AttributedString`'s runs; `Text + Text` is
 deprecated as in SwiftUI (155: a decorated operand traps). `Text` modifiers:
 `bold()`, `underline`/`strikethrough(_:pattern:color:)` with `Text.LineStyle`
-(`.solid` only), `kerning`, `tracking`, `baselineOffset`, `monospaced`, and
-`Font.monospaced()` (157, 158). `Text(AttributedString)` reads
+(all five patterns, `TM-B`), `kerning`, `tracking`, `baselineOffset`, `monospaced`, and
+`Font.monospaced()` (157, 158). **The same eight are view modifiers** (`TM-A`; also `italic`):
+over any container they are environment writes that a `Text`, a `Button` label or any
+text below reads, under the `Text`'s own value (a `Text`'s `kerning(2)` inside a
+`.kerning(5)` is 2; the nearest writer wins; an own underline replaces the environment's
+whole; a view-level `bold()` gives way to any weight the text, an environment `fontWeight` or
+the font names). A dash pattern's segments are rects cut on the CPU from a cycle of
+multiples of the line's thickness, the cycle starting at each line's own start (`TM-C`,
+`TM-D`, `TM-E`; probe `text-line-patterns.swift`). `TextField`/`TextEditor` stay plain: the
+view-level underline, kerning and the rest do not reach them (`TM-H`). `Text(AttributedString)` reads
 `AttributeScopes.MetalUIAttributes` (SwiftUI's key names over MetalUI's types,
 per-key dynamic-member subscripts) and Foundation's `link`; on Apple platforms
 also `inlinePresentationIntent`. Links are styled in the accent and inert
