@@ -2087,3 +2087,14 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **SS6.** `Rectangle().fill(.tint)`, `Text("x").foregroundStyle(.tint)` and a link run under `.tint(.pink)` are pink; `Rectangle().fill(Color.accent)` stays the theme blue. **Observed:**
 - [ ] **SS7.** `Rectangle().fill(AnyShapeStyle(LinearGradient(...)))`, a stroked and a `strokeBorder` gradient, and a `Material` fill over a busy backdrop look like their concrete spellings (a material stroke is the flat tint, divergence 975). **Observed:**
 - [ ] **SS8.** Open a menu and an alert under `.tint(.green)` on the window: their highlight and default button stay the theme blue (divergence 977). **Observed:**
+## GL. Glyph atlas reclaim - a zoom sweep keeps its text (item MF-atlas, MetalFlow; rulings `GL-A`…`GL-J`, record 184; provisional letter)
+
+*An agent cannot: only a real window shows text that is wrong or missing after the atlas has been rebuilt, grown and re-uploaded on the GPU. Use MetalFlow (or a scratch window whose `Text` is `.font(size: 14 * zoom)` with a zoom slider or +/- keys in 1% steps), on a Retina display (scale 2).*
+
+- [ ] **GL1.** Sweep the zoom from 25% to 150% and back, in 1% steps and then quickly (hold the key), twice over: every node card keeps its text at every step, and the readout (`150%`) is always whole, never `15 %`. No card goes blank at any size. **Observed:**
+- [ ] **GL2.** While sweeping, no flicker of wrong glyphs (a letter replaced by another) or of blank text between steps; a frame in which the atlas is rebuilt may take a few milliseconds longer but shows complete text. **Observed:**
+- [ ] **GL3.** Drag a node (a retained, equatable card) immediately after a long sweep: its text is intact and moves with the card. Repeat after switching the zoom to a size never used. **Observed:**
+- [ ] **GL4.** Remove a node with a transition while the atlas is being rebuilt (sweep, delete): the card either fades out or disappears; it never shows another card's text. **Observed:**
+- [ ] **GL5.** Leave the window sweeping for a minute: memory (Activity Monitor) does not climb past about 25 MB above its start (a 4096 x 4096 atlas is 16 MB), and the window stays responsive. **Observed:**
+- [ ] **GL6.** On Linux or Windows (the SDL demo with a zoom sweep): GL1-GL3 look the same. **Observed:**
+

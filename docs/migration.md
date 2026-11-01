@@ -703,6 +703,18 @@ pattern starts there** (matching SwiftUI) and `trim` begins there; the filled an
 (within the rasterizer's rounding); (2) a custom `Shape` overriding `path(in:)` is unaffected. `UnevenRoundedRectangle`
 with a radius past half the shorter side draws as a path and cannot be a `clipShape` (divergence 91).
 
+## The glyph atlas reclaims space (record 184)
+
+- **Removed: `GlyphAtlas.evictUnusedSince(_:)`.** It had no caller in the framework, and evicting never freed atlas pixels. A third-party renderer
+  or text sink that called it has nothing to call: the window rebuilds the atlas itself (`GlyphAtlas.reclaim()`, between frames).
+- **`GlyphAtlas.width` / `height` are no longer constants.** They change when the atlas grows or is rebuilt at another size; read them again for every
+  frame, and treat a new extent as a new texture to be uploaded in full (both bundled renderers do; `Renderer.upload`'s and `mui_renderer_finish`'s
+  size comparison). A renderer that cached the extent at creation must stop.
+- **A rect is only valid within one `GlyphAtlas.layoutGeneration`.** Code that keeps an `AtlasSlot` or a `MUIGlyph` past a frame (a cache of sprites)
+  must key on, or drop at a change of, `layoutGeneration`.
+- **`GlyphAtlas(width:height:)` is unchanged and never grows**; pass `maximumExtent:` to opt in. A full atlas still answers `nil`, now also counted in
+  `droppedGlyphs`.
+
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.

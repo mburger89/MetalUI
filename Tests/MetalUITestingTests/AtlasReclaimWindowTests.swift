@@ -130,27 +130,30 @@ private func glyphBytes(_ glyphs: [MUIGlyph]) -> [UInt8] {
 /// now sit at other rects. A record keyed without `GlyphAtlas.layoutGeneration` replays the old rects; keyed
 /// with it the cards miss and repaint, and the frame equals a fresh window's. Mutation: drop
 /// `atlasGeneration` from `retainedAmbientKey()` (the glyph arrays differ).
-@Test(.enabled(if: !rsVerifyingForAtlas, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the hit count is not its to read"))
-@MainActor func aRetainedOccurrenceMissesAfterTheAtlasIsRebuilt() throws {
+/// Under `METALUI_VERIFY_RETAINED=1` the hit counts are not this test's to read (a hit is painted as a miss and compared),
+/// so only the frame equality runs - which is the verify mode's own claim as well.
+@Test @MainActor func aRetainedOccurrenceMissesAfterTheAtlasIsRebuilt() throws {
     let model = ZoomModel()
     model.banner = "QWERTYUIOPASDFGHJKL"
     let window = try zoomWindow(model)
     for _ in 0..<6 { redraw(window) }
-    #expect(window.lastFrameWork.retainedHits > 0, "the cards must be replaying before the rebuild")
+    if !rsVerifyingForAtlas { #expect(window.lastFrameWork.retainedHits > 0, "the cards must be replaying before the rebuild") }
 
     model.banner = ""
     window.window.glyphAtlas.reclaim()        // between frames, as the window's own policy would
     redraw(window)
     #expect(window.window.glyphAtlas.layoutGeneration == 1)
-    #expect(window.lastFrameWork.retainedMisses > 0, "a record from before the rebuild must not replay")
-    #expect(window.lastFrameWork.retainedRedos == 0, "the miss is decided before prepaint, not by redoing the frame")
+    if !rsVerifyingForAtlas {
+        #expect(window.lastFrameWork.retainedMisses > 0, "a record from before the rebuild must not replay")
+        #expect(window.lastFrameWork.retainedRedos == 0, "the miss is decided before prepaint, not by redoing the frame")
+    }
 
     let fresh = try freshBlocks(zoom: 1.0, text: sample)
     #expect(glyphBytes(window.scene.glyphs) == glyphBytes(fresh.glyphs), "the rebuilt window's glyph sprites differ from a fresh window's")
     #expect(blocks(window) == fresh.blocks)
     redraw(window)
     redraw(window)
-    #expect(window.lastFrameWork.retainedHits > 0, "the cards replay again once recorded against the new atlas")
+    if !rsVerifyingForAtlas { #expect(window.lastFrameWork.retainedHits > 0, "the cards replay again once recorded against the new atlas") }
     #expect(glyphBytes(window.scene.glyphs) == glyphBytes(fresh.glyphs))
 }
 

@@ -30,8 +30,15 @@ measure and paint. A finite height proposal caps lines (`textLines`). Never
 key a cache on a family or PostScript name — use `FontKey` (its `==` uses the
 stored hash as early reject only). `FontResolver.resolve` traps on
 non-finite/non-positive sizes. `fonts`/`resolvedFonts` are never swept — move
-both or neither. The glyph atlas is grow-only; `evictUnusedSince` has no
-caller and would strand pixels. Baseline alignment works in a horizontal
+both or neither. **The glyph atlas reclaims space (`GL-A`..`GL-J`)**: inside a frame it only
+*grows* (`GlyphAtlas.packed` doubles it up to `maximumExtent`, every slot keeps
+its (x, y)); it is *rebuilt* only by `Window.reclaimAtlasIfNeeded()` at the top of
+a draw (`reclaim()` traps mid-frame, `theGlyphAtlasIsReclaimedOnlyAtTheTopOfADraw`).
+**Anything that keeps a glyph's rect past the frame must key on
+`GlyphAtlas.layoutGeneration` or be dropped when it changes** (`AmbientKey`,
+`BuildKey`, the raster key, transition captures, drag snapshots): a new holder
+owes the same. Past the cap a glyph is dropped and `droppedGlyphs` counts it; a
+new `GlyphAtlas(width:height:)` never grows unless given a `maximumExtent`. Baseline alignment works in a horizontal
 stack only.
 
 **Rich text (`RT-`, record §83).** Styled runs in one `Text` cross the seam as
