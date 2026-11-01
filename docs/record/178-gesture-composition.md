@@ -51,7 +51,7 @@ Written before the implementation: the first `swift build --build-tests` failed 
 | M16 | resetting each composite's state box at arena formation | **green, and the line was removed** (a composite settles on end, failure and cancel, and its flush is queued in the same batch as the callbacks that dirty it, so nothing stale can reach a later press); `GE-C` no longer claims it |
 
 Mutations M1-M15 ran as one sequence over the committed source `d3d5aac2` (`swift test --no-parallel --skip AppKitPresentationTests --filter GestureCompositionTests`, default build system), each file
-restored from a backup copy; M13 was re-run after its test was strengthened. GUARD_MUTATION_TEXT
+restored from a backup copy; M13 was re-run after its test was strengthened. Guard `anOutsideTypeCanConformToGestureThroughABody`: `Gesture.sequenced(before:)` made internal -> positive arm fails (`'sequenced' is inaccessible`), both arms false, the guard's separating `#require` reddens (native build, then restored). `GestureStateGesture` made internal does not build (a public method returns it), so that spelling is not a mutation.
 
 
 ## Counts
