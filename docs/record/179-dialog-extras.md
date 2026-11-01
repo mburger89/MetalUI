@@ -51,7 +51,7 @@ guard) and `Backends/SDL` 1.12b/1.12c. Red first: the test files did not compile
 After `swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native
 --no-parallel --skip AppKitPresentationTests` (the screen was locked, as in records 165-170): **4647 tests** in the first
 full run, one red (`aBehaviourWordHasAPinOnItsLine`: the presentations guide's new sentence cited no pin, fixed and re-run
-alone green), so **4647 passed** after the fix (master's 4635 + 11 `DialogExtrasTests` + `HarnessPresentationTests` 2.11c;
+alone green), so a second full run printed **`Test run with 4647 tests in 12 suites passed`** (master's 4635 + 11 `DialogExtrasTests` + `HarnessPresentationTests` 2.11c;
 the two flipped guards keep their count), `FR-J no-argument frame: succeeded=true` printed (285 guards, the two flipped
 ones included: `SV-AO non-text button: succeeded=true`, `titleVisibility: ... offered succeeded=true`).
 `Backends/SDL` `swift test $(python3 scripts/fetch-accesskit.py --print-flags) --filter 'Dialog|Alert'`: 8 tests passed
