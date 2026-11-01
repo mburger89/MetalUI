@@ -103,10 +103,12 @@ public struct ProgressView<Label: ElementGroup, CurrentValueLabel: ElementGroup>
         style.alignItems = isBar ? .flexStart : .center
         style.gap = Axes(both: .pixels(Pixels(isBar ? 0 : 4)))
         let indicator = ProgressIndicator(kind: kind, fraction: fraction, controlSize: environment.controlSize,
-                                          title: title)
+                                          title: title ?? (environment.labelsHidden ? labelPlainText(label) : nil))
+        // `labelsHidden()` (`LB-A`): the title goes (probe `G2`: 64 -> 48 tall); the current-value label is unmeasured and stays.
+        let shown: Label? = environment.labelsHidden ? nil : label
         let caption: CaptionLabel = currentValueLabel.foregroundStyle(Color.secondary).font(.caption)
-        var box = Body(style: style, content: Pair(isBar ? OptionalGroup(label) : OptionalGroup(nil),
-                                                    Pair(indicator, Pair(isBar ? OptionalGroup(nil) : OptionalGroup(label),
+        var box = Body(style: style, content: Pair(isBar ? OptionalGroup(shown) : OptionalGroup(nil),
+                                                    Pair(indicator, Pair(isBar ? OptionalGroup(nil) : OptionalGroup(shown),
                                                                          OptionalGroup(isBar ? caption : nil)))))
         box.decoration = decoration
         return box

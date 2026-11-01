@@ -62,7 +62,7 @@ private func colour(_ color: Color) -> Hsla { color.resolved(theme: .light, sche
     for on in [false, true] {
         let frame = try controlRender(controlRoot { Toggle("Wi-Fi", isOn: .constant(on)).toggleStyle(.switch) })
         let track = try controlBounds(frame, controlID([0, 0, 0]))
-        let label = try controlBounds(frame, controlID([0, 0, 1]))
+        let label = try controlBounds(frame, controlID([0, 0, 1, 0]))
         #expect(track.size.width.value == 38 && track.size.height.value == 22, "a 38×22 track: \(track.size)")
         #expect(label.origin.x.value - track.origin.x.value == 38 + 7, "the label 7 after the track")
         // The off track's border is its own clear-filled rect; the fills are the track and the knob.

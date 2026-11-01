@@ -2131,3 +2131,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **PH5.** While hidden, drag from the hidden box out of the window and release outside: the pointer is visible again after the release (and stayed hidden during the drag if the box has a drag gesture). **Observed:**
 - [ ] **PH6.** Linux and Windows (SDL): `.leading`/`.trailing` show the west/east edge-resize cursor, `.up`/`.down` the north/south one (SDL has no one-arrow divider cursor; the two-arrow forms for `.all`); `.hidden` hides the pointer over the box and `SDL_ShowCursor` brings it back on leaving the box. **Observed:**
 - [ ] **PH7.** macOS 14 (if available): the one-way forms show the left/right/up/down resize cursors, the two-way forms the left-right and up-down ones. **Observed:**
+
+
+## LB. `labelsHidden()` - hidden control labels take no space (round 3, MetalFlow request; ruling `LB-A`, record 189; decisions `docs/superpowers/2026-11-01-labels-hidden-decisions.md`; provisional letter)
+
+*An agent cannot: alignment against a caption above is a look, and VoiceOver's reading of a hidden label needs the real screen reader. Run a scratch window with the views below (or MetalFlow's inspector).*
+
+- [ ] **LB1.** `VStack(alignment: .leading) { Text("Caption"); Picker("", selection: $v) { ... }.pickerStyle(.menu).labelsHidden() }`: the pop-up button's left edge lines up with the caption's, with no 8-point indent; the same picker without `.labelsHidden()` is indented by 8. **Observed:**
+- [ ] **LB2.** The same for `.segmented` and `.radioGroup` pickers, a `Toggle("T", isOn:)` (checkbox and `.switch`), a `Stepper("S", value:)`, a `ColorPicker("C", selection:)` and a `ProgressView("P", value: 0.5)`: each control's own view starts at the caption's left edge; the label's text is not drawn anywhere. **Observed:**
+- [ ] **LB3.** With VoiceOver on, focus each hidden-label control from LB1/LB2: it reads its title ("Title, pop-up button", "T, checkbox"). **Observed:**
+- [ ] **LB4.** An ancestor flips `.labelsHidden()` from a button while the views are on screen (inside an `.equatable()` card): the labels disappear and return at once, the controls move to and from the leading edge. **Observed:**

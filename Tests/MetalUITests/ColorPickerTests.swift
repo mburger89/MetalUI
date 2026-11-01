@@ -88,13 +88,16 @@ func pickerOpen(_ window: Window, _ platform: FakePlatformWindow,
             "\(text.width.value) + 8 + 48 by 24: \(picker.size)")
 }
 
-/// **1.17.** An empty title draws the well alone, 48×24 — no label and no gap
-/// (`labelsHidden()`'s answer, `LK-C` item 2). Mutation: keep the spacing with
-/// no label.
-@Test @MainActor func aColorPickerWithAnEmptyTitleIsTheWellAlone() throws {
-    let frame = try controlRender(controlRoot { ColorPicker("", selection: .constant(.red)) })
-    let picker = try controlBounds(frame, controlID([0, 0]))
-    #expect(picker.size.width.value == 48 && picker.size.height.value == 24, "\(picker.size)")
+/// **1.17.** An empty title keeps the label's 8-point gap, 56 wide (probe `swiftui-labels-hidden.swift` `C3`: the well
+/// starts at x = 8; corrects `LK-C` item 2), and `labelsHidden()` is what draws the well alone, 48×24 (`C2`, `LB-A`).
+/// Mutation: `init(_:selection:)` passing nil for an empty title (reddens the first), `labelsHidden` not zeroing the gap
+/// (the second).
+@Test @MainActor func aColorPickerWithAnEmptyTitleKeepsTheGapAndLabelsHiddenDrawsTheWellAlone() throws {
+    let empty = try controlBounds(try controlRender(controlRoot { ColorPicker("", selection: .constant(.red)) }), controlID([0, 0]))
+    #expect(empty.size.width.value == 56 && empty.size.height.value == 24, "\(empty.size)")
+    let hidden = try controlBounds(try controlRender(controlRoot { ColorPicker("", selection: .constant(.red)).labelsHidden() }),
+                                   controlID([0, 0]))
+    #expect(hidden.size.width.value == 48 && hidden.size.height.value == 24, "\(hidden.size)")
 }
 
 /// The label's and the well's bounds inside `root`, both recorded.

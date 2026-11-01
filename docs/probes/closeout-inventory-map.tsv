@@ -96,6 +96,7 @@ F	legacy-keyboard	M	-	-	-	21 22 26 94	EV-F IX-K TI-J	onKey/focusable/onAction/ke
 F	on-click	M	-	-	-	27	IX-B AB-G	onClick (and proposal onTap/OnTapModifier): Button semantics (press and release on one element), pressable through accessibility (27)
 F	focus-border	M	-	-	-	-	OM-V IX-H	focusBorder/focusBackground: the opt-in focus ring and focus fill
 F	button	A	swiftui-interaction.swift	B2	aButtonRunsItsActionOncePerClickAndNotOnAPressReleasedOutside	76 80	DD-R IX-E IX-F	Button/ButtonRole/ButtonStyle/.keyboardShortcut on a Button: actions, roles (ButtonRole binds a key, draws nothing), styles, pressed look
+F	labels-hidden	D	swiftui-labels-hidden.swift	P3	aHiddenLabelTakesNoSpace	1025 1026	LB-A	labelsHidden() on every element group: a built-in control's separate label (every Picker style, the checkbox and switch Toggle, Stepper, ColorPicker, ProgressView's title) is removed from layout with its gap and kept as the accessibility label; an empty title keeps the gap (P2, C3); a non-Text closure label keeps no accessibility label (1025); the .button toggle look, a custom ToggleStyle and ProgressView's current-value label are not reached (1026)
 F	styles	D	-	-	-	885	BY-A BY-B BY-C BY-D BY-E BY-F BY-G BY-H BY-I BY-J BY-K	ButtonStyle/PrimitiveButtonStyle/ToggleStyle as open protocols with their configurations, StyleLabel (MetalUI-only), the built-in style structs and statics (.borderedProminent, .link, .switch, .button, .checkbox), .buttonStyle/.toggleStyle through the environment, PickerStyle.inline (the radio group): SwiftUI's shapes with MetalUI's unmeasured looks; the switch knob snaps (885)
 F	controls	A	swiftui-controls-and-selection.swift	SA1	anUnsteppedAdjustmentMovesTenPercentOfTheSpan	80 82	DD-S DD-W DD-X	Toggle/Slider/Stepper on Binding: values, steps, clamping, keys once focused (80); the partial accessibility fold (82)
 F	picker	A	swiftui-controls-and-selection.swift	PA1	pressingAnOptionWritesItsTag	80 81 82	DD-V DD-AA	Picker/PickerStyle/.tag/TaggedElement: options found through tags; automatic is segmented, not a menu (81)
@@ -314,6 +315,7 @@ M	MetalUI	ButtonStyle.swift	-	ButtonRole	.*	button
 M	MetalUI	ButtonStyle.swift	ButtonRole	.*	.*	button
 M	MetalUI	ButtonStyle.swift	.*	.*	.*	styles
 M	MetalUI	ToggleStyle.swift	.*	.*	.*	styles
+M	MetalUI	LabelsHidden.swift	ElementGroup	labelsHidden	.*	labels-hidden
 M	MetalUI	Toggle.swift	Toggle	toggleStyle	.*	styles
 M	MetalUI	Picker.swift	PickerStyle	inline	.*	styles
 M	MetalUI	ClipShape.swift	ElementGroup	background	.*	shape-background

@@ -36,7 +36,7 @@ public struct Stepper: Element, StyledElement {
     typealias Up = Box<Plus>
     typealias Down = Box<Mark>
     typealias Control = Box<Pair<Up, Down>>
-    typealias Body = Box<Pair<Text, Control>>
+    typealias Body = Box<Pair<OptionalGroup<Text>, Control>>
 
     public var style: Style
     public var decoration: Decoration = Decoration()
@@ -46,6 +46,7 @@ public struct Stepper: Element, StyledElement {
     private let decrement: (@MainActor () -> Void)?
     private let valueText: (@MainActor () -> String)?
     private var box: Body
+    private let title: String
 
     /// A stepper over `bounds` (SwiftUI's `Stepper(_:value:in:step:)`).
     public init<V: Strideable>(_ title: String, value: Binding<V>, in bounds: ClosedRange<V>,
@@ -91,7 +92,8 @@ public struct Stepper: Element, StyledElement {
         self.increment = increment
         self.decrement = decrement
         self.valueText = valueText
-        self.box = Body(style: style, content: Pair(Text(title), Self.control()))
+        self.title = title
+        self.box = Body(style: style, content: Pair(OptionalGroup(Text(title)), Self.control()))
     }
 
     private static func sized(_ width: Float, _ height: Float) -> Style {
@@ -125,17 +127,19 @@ public struct Stepper: Element, StyledElement {
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Box<Pair<Text, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout) {
+        -> (LayoutNodeID, Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout) {
         box.style = style
         box.decoration = decoration
+        // `labelsHidden()` (`LB-A`): the title row and its gap go; the slot stays reserved.
+        box.content.first.wrapped = pass.frame.environmentTop.labelsHidden ? nil : Text(title)
         // The focus ring (`IX-H` item 2), unless the caller declared one.
         if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(pass.frame.environmentTop) }
         return box.requestLayout(id, pass: &pass)
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<Pair<Text, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
-                                  pass: inout PrepaintPass) -> Pair<Text, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint {
+                                  layout: inout Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
+                                  pass: inout PrepaintPass) -> Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint {
         let increment = self.increment, decrement = self.decrement
         func run(_ direction: ControlKeys.Direction) {
             (direction == .forward ? increment : decrement)?()
@@ -161,13 +165,14 @@ public struct Stepper: Element, StyledElement {
         }
         if composed.axNode.role == .generic { composed.axNode.role = .incrementor }
         if composed.axNode.value == nil { composed.axNode.value = valueText?() }
+        if pass.frame.environmentTop.labelsHidden, composed.axNode.label == nil { composed.axNode.label = title }
         box.handlers = composed
         return box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<Pair<Text, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
-                               prepaint: inout Pair<Text, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint,
+                               layout: inout Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
+                               prepaint: inout Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint,
                                pass: inout PaintPass) {
         // The disabled look (`IX-G` item 2): the whole subtree in one 0.5 scope.
         pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {

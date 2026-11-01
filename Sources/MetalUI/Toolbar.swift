@@ -178,7 +178,7 @@ extension Toggle: ToolbarItemContent where Label == Text {
     @_spi(ToolbarInternals) public func _toolbarControls(in context: _ToolbarItemContext) -> _ToolbarControls {
         let binding = isOn
         return _ToolbarControls([ToolbarControlNode(
-            control: .toggle(title: box.content.second.string, isOn: binding.wrappedValue),
+            control: .toggle(title: label.string, isOn: binding.wrappedValue),
             isEnabled: context.isEnabled, help: handlers.contextual?.help,
             run: { action in
                 guard case .toggle(let on) = action else { return false }
