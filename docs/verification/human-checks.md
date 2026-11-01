@@ -2087,6 +2087,8 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **SS6.** `Rectangle().fill(.tint)`, `Text("x").foregroundStyle(.tint)` and a link run under `.tint(.pink)` are pink; `Rectangle().fill(Color.accent)` stays the theme blue. **Observed:**
 - [ ] **SS7.** `Rectangle().fill(AnyShapeStyle(LinearGradient(...)))`, a stroked and a `strokeBorder` gradient, and a `Material` fill over a busy backdrop look like their concrete spellings (a material stroke is the flat tint, divergence 975). **Observed:**
 - [ ] **SS8.** Open a menu and an alert under `.tint(.green)` on the window: their highlight and default button stay the theme blue (divergence 977). **Observed:**
+
+
 ## GL. Glyph atlas reclaim - a zoom sweep keeps its text (item MF-atlas, MetalFlow; rulings `GL-A`…`GL-J`, record 184; provisional letter)
 
 *An agent cannot: only a real window shows text that is wrong or missing after the atlas has been rebuilt, grown and re-uploaded on the GPU. Use MetalFlow (or a scratch window whose `Text` is `.font(size: 14 * zoom)` with a zoom slider or +/- keys in 1% steps), on a Retina display (scale 2).*
