@@ -1,7 +1,7 @@
 # Scope decorations - decisions
 
 Rulings for modifiers written after a transparent scope (`.lineLimit`, `.disabled`, `.onAppear`, `.alert`, `.toolbar`, `.navigationTitle`...). Prefix `ES-`.
-Branch `fix/scope-decorations` from master `63cc5af1`; `ES-D`…`ES-G` on `fix/remaining-scope-decorations` from master `c686d1ef` (record 168); `ES-H`, `ES-I` on `fix/lift-es-f-g` from master `d2797c5d` (record 169); `ES-J` on `fix/lift-es-b` stacked on it at `7462b8cd` (record 172). **Next unused: `ES-K`.**
+Branch `fix/scope-decorations` from master `63cc5af1`; `ES-D`…`ES-G` on `fix/remaining-scope-decorations` from master `c686d1ef` (record 168); `ES-H`, `ES-I` on `fix/lift-es-f-g` from master `d2797c5d` (record 169); `ES-J` on `fix/lift-es-b` stacked on it at `7462b8cd` (record 172); `ES-K` on `test/scope-pins` from master `519a1ebe` (record 180). **Next unused: `ES-L`.**
 Why: MetalFlow wrote `Text("x").lineLimit(1).accessibilityIdentifier("x")` and `Button(...).disabled(true).accessibilityIdentifier("b")`; neither compiled, because the scope was an `ElementGroup`, not a `StyledElement`
 (divergence 120). In SwiftUI any modifier follows any other.
 
@@ -101,8 +101,9 @@ entries (`requestProposalGroupLayout`) route a decorated scope to the untyped la
 `ModifiedElement<Self>` over itself without the layer, `Element where Content: Element` (the element's own node noted, keyed `$geometry<depth>` under the element's id, which owns the action;
 `ScopeLayerState` states), the typed entry routing a decorated scope to the untyped layer path, and ES-C's `id(_:) -> IdentifiedGroup<Self>`. The layer's effects are open when the bare scope notes, and the
 size noted is the union of the content's nodes, so a decoration after the scope is outside the measurement: it does not change the size, and an `.offset` after it moves the reported global frame (SwiftUI's
-**G4a**, `docs/probes/swiftui-key-focus.swift`: `.offset(x: 10)` written after `.onGeometryChange` reads `x:0` then `x:10`). **Assumption, not probed:** no arm separates a `.padding` or `.background`
-after `.onGeometryChange` from one before; that a modifier after it is outside the measured size is SwiftUI's structure (the modifier wraps the view whose geometry is read) and `ES-B`'s own premise.
+**G4a**, `docs/probes/swiftui-key-focus.swift`: `.offset(x: 10)` written after `.onGeometryChange` reads `x:0` then `x:10`). **Probed since (`ES-K`, 2026-10-31):** `docs/probes/swiftui-geometry-decorations.swift` D1-D6 separates the other half. A `.padding(8)`, `.background` or `.frame(100 x 100)` written after `.onGeometryChange` leaves the reported size at 50 x 50, where the same
+`.padding`/`.frame` written before reports 66 x 66 / 100 x 100; a `.padding(8)` after moves the reported global frame in by 8, before it does not. SwiftUI agrees with MetalUI's structure: a modifier after it is outside the measurement.
+(`ES-J` first recorded this as an assumption with no arm; the sentence is replaced, not deleted: the claim was right.)
 **What `ES-B` had wrong.** It refused forwarding because a forwarded `.padding` would be inside the measurement; `.padding` is an `ElementGroup` wrapper and was outside under forwarding too. What forwarding
 does get wrong is the render effect: forwarded onto the content, an `.offset` opens inside the content's own `registerAndScope`, after the scope has noted, so the global frame did not move where G4a moves
 it (mutation 26).
@@ -113,6 +114,32 @@ its element and `.offset(x: 10)` after it moves the report by 10.
 **Pins.** `anOffsetAfterOnGeometryChangeMovesTheReportedFrame`, `aDecorationAfterOnGeometryChangeDoesNotChangeTheReportedSize`, `onGeometryChangeAtTheRootReportsAndTakesAnOffsetAfterIt` (`MetalUITests`),
 `anIdentifierAndAClickAfterOnGeometryChangeLand` (`MetalUITestingTests`), `decorationsChainAfterOnGeometryChange` (replacing `aDecorationAfterOnGeometryChangeStillDoesNotCompile`) and
 `onGeometryChangeAndTimelineViewCompileOnBothVocabularies` (its divergence-120 negative now a positive line).
+
+## ES-K - the owed pins: the `style`/`elementID` forwards, the `.onOpenURL` owner, and a defect the owner pin found
+
+**Ruling 1 (ES-J probe).** SwiftUI separates `.padding`/`.background`/`.frame` after `.onGeometryChange` exactly as `ES-J` assumed (see `ES-J`, "Probed since"); no fix, no divergence (955-964 stay unused). Pinned by
+`aPaddingAndAFrameAfterOnGeometryChangeAreOutsideTheMeasurement` (`MetalUITests`: the size stays 50 x 50 under a padding and a frame after; the padding after moves the frame in by 8 when nothing centres it; the
+padding before reads 66 x 66). **No scope mutation reddens it** (rows 26-30 were re-run against it, 26 is MES-9 below): `.padding`/`.frame` are `ElementGroup` wrappers outside the scope whichever mechanism the scope uses,
+so the arm pins SwiftUI's measured numbers, not a mechanism. Declared as such, not as a gap.
+
+**Ruling 2 (`style`/`elementID` are observable).** `ES-A`'s mutations 5 and 6 reddened nothing only because the old pins reached the setters through modifiers. `StyledElement.style` and `.elementID` are public
+requirements and `ElementID(_:)` is public, so a scope used in a stack can be written through the protocol, and the forward reaches layout and the identity path:
+`style` - a `Style` with a 60 x 30 `size` written through the scope sizes the content (0 x 0 unwritten); `elementID` - `ElementID("k")` written through the scope names its content (`TestWindow.frame(ofID:)` finds
+it; unwritten, `noElement`). The layered scopes (`ES-H`, `ES-J`) keep both on their own layer; one test writes both and finds the layer 60 x 30 under "k". All ten scopes are pinned. Nothing is ruled unpinnable.
+**Pins.** `aStyleWrittenThroughAForwardingScopeReachesTheContent`, `anIdentifierWrittenThroughAForwardingScopeNamesTheContent`, `aStyleAndAnIdentifierWrittenThroughALayeredScopeReachTheLayer`
+(`MetalUITestingTests/ScopeForwardTests.swift`, plain-import API plus `package` `Style` fields; each records one issue per scope so a mutation of several setters names them).
+
+**Ruling 3 (`.onOpenURL` owner by id).** The `Element` path of `EnvironmentScope` owns the handler by the scope's own id; a group owns it by position. They are equal wherever the id is unnamed (a window root is positional
+whatever its name; a `List` row's content is entered through its group), so only an element entered **named** separates them, and that is reachable through an `AnyElement` placed in a stack. Pinned by
+`anOnOpenURLOnAnErasedElementIsOwnedByTheScopesOwnId` (`MetalUITests/OpenURLTests.swift`; the grouped twin reads `.positional(0)` as the control). `ModifierKeysScope`'s owner is a store key, not a dispatch key, and is
+left as `ES-D` ruled it.
+
+**Ruling 4 (defect found by 3, fixed).** The pin for 3 first read `.positional(0)` for the erased scope: the scopes' `elementID` getter lives in the `StyledElement` extension (`where Content: StyledElement`), which cannot
+satisfy the `Element` requirement of the wider `Element where Content: Element` conformance, so the witness was `Element`'s default `nil`. A named element lost its name (identity by position, no `frame(ofID:)`) when a
+scope was written after it and it was entered as an element. The seven forwarding scopes (`EnvironmentScope`, `LifecycleScope`, `PresentationScope`, `ToolbarScope`, `ModifierKeysScope`, `GlassTagScope`,
+`TransitionGroup`) now answer `content.elementID` in their `Element` extension. **Not changed:** the layered three (`CoordinateSpaceScope`, `TransactionScope`, `GeometryChangeScope`) still answer `nil` as an
+element; the layer's id would have to be chosen there (`outer?.elementID ?? content.elementID`), and nothing needs it yet. **Carried.** Pin: `aNamedElementKeepsItsNameThroughAScopeWhenErased`
+(a control with no scope plus one arm per scope).
 
 ## Mutations
 
@@ -126,8 +153,8 @@ row-8 fix, in the worktree, one at a time and reverted; guard rows rebuilt the `
 | 2 | the `decoration` setter dropped | `aBackgroundWrittenAfterAScopeIsPainted` |
 | 3 | `EnvironmentScope.prepaint(_:bounds:layout:pass:)` without the `withEnvironment` push | `aScopeOnTheRootElementStillScopesItsEnvironment` |
 | 4 | the conformance deleted (any of the four scopes) | the test target does not compile; per scope the guard `decorationsChainAfterTransparentScopes` is refused for `onClick`/`padding` |
-| 5 | the `style` setter dropped | **nothing** - every `Style`-writing modifier is refused by name under the proposal layout authority (`LR-FO`), so a forwarded `style` write is unobservable from a window; forwarded for completeness |
-| 6 | the `elementID` setter dropped | **nothing** - no `StyledElement` method writes `elementID` (`.id` is an `ElementGroup` wrapper); forwarded for completeness |
+| 5 | the `style` setter dropped | **nothing when this row was taken (2026-10-31, first draft) - corrected by `ES-K` (rows 31-35): `aStyleWrittenThroughAForwardingScopeReachesTheContent` reddens it per scope.** The reasoning "every `Style`-writing modifier is refused by name (`LR-FO`)" looked at modifiers only; `StyledElement.style` is a public requirement, and `Style`'s `package` fields are writable from the package's tests |
+| 6 | the `elementID` setter dropped | **nothing when this row was taken - corrected by `ES-K` (rows 31-35): `anIdentifierWrittenThroughAForwardingScopeNamesTheContent` reddens it per scope.** `StyledElement.elementID` is a public requirement and `ElementID(_:)` is public; the harness reads names through `TestWindow.frame(ofID:)` |
 | 7 | MES-3: `extension ModifierKeysScope: StyledElement` deleted | `decorationsChainAfterTheRemainingForwardingScopes` (refused for `padding`/`accessibilityIdentifier` on `ModifierKeysScope` only) |
 | 8 | MES-4: `ModifierKeysScope.id(_:) -> IdentifiedGroup<Self>` deleted | `decorationsChainAfterTheRemainingForwardingScopes` (`cannot convert ModifierKeysScope<Text> to IdentifiedGroup<…>`). **The first spelling of the arm (`let _: IdentifiedGroup<…> = X.id("k")`) reddened nothing**: the annotation picks the `ElementGroup` overload with or without the member; the arm now assigns the unannotated result |
 | 9 | MES-5: `CoordinateSpaceScope: Element, StyledElement` added (forwarding) | `aDecorationAfterACoordinateSpaceOrATransactionStillDoesNotCompile` (1 issue, the `space` negative) |
@@ -153,15 +180,24 @@ row-8 fix, in the worktree, one at a time and reverted; guard rows rebuilt the `
 | 29 | MES-10: `extension GeometryChangeScope: StyledElement` made a plain extension | `decorationsChainAfterOnGeometryChange`, `onGeometryChangeAndTimelineViewCompileOnBothVocabularies` (`padding` refused) |
 | 30 | MES-11: `GeometryChangeScope.id(_:) -> IdentifiedGroup<Self>` deleted | `decorationsChainAfterOnGeometryChange` (`cannot convert GeometryChangeScope<Text> to IdentifiedGroup<…>`) |
 
+| 31 | `ES-K`: the `style` setter dropped in all seven forwarding scopes at once (one build; each arm records its own scope) | `aStyleWrittenThroughAForwardingScopeReachesTheContent`: one issue per scope, `EnvironmentScope`, `LifecycleScope`, `PresentationScope`, `ToolbarScope`, `ModifierKeysScope`, `GlassTagScope`, `TransitionGroup` (7 of 7) |
+| 32 | the `elementID` setter dropped in the same seven | `anIdentifierWrittenThroughAForwardingScopeNamesTheContent`: 7 issues, each `no element matches id "k"` |
+| 33 | the layered scopes' `style` and `elementID` setters dropped (`TransactionScope`, `CoordinateSpaceScope`, `GeometryChangeScope`) | `aStyleAndAnIdentifierWrittenThroughALayeredScopeReachTheLayer`: 6 issues (3 id arms, 3 style arms). Their `style` setter alone: 3 (the style arms) |
+| 34 | the `elementID` getter deleted from the seven `Element` extensions | `aNamedElementKeepsItsNameThroughAScopeWhenErased`: 7 issues, one per scope; the control arm stays green |
+| 35 | `EnvironmentScope`'s `Element` path owns `.onOpenURL` by `child(of: id.parent, at: 0, name: nil)` instead of `id` | `anOnOpenURLOnAnErasedElementIsOwnedByTheScopesOwnId` (with the getter of row 34 in place) |
+| 36 | MES-9 (row 26) re-run | `anOffsetAfterOnGeometryChangeMovesTheReportedFrame`, `onGeometryChangeAtTheRootReportsAndTakesAnOffsetAfterIt`; `aPaddingAndAFrameAfterOnGeometryChangeAreOutsideTheMeasurement` stays green (Ruling 1) |
+
+Rows 31-36 (`ES-K`) on `test/scope-pins` after commit `6127499d`, one build each, reverted with `git checkout -- Sources`; behaviour rows filtered to the named test file.
+
 ## Carried
 
 - **Shard rule:** in `docs/rules/identity-state.md` (`ES-` paragraph), updated for `ES-D`…`ES-G`, `ES-H` and `ES-J`.
 - `aDecorationAfterOnGeometryChangeDoesNotChangeTheReportedSize` is reddened by no mutation of this branch (row 26): it would redden a layer that noted its own node instead of the content's.
 - `WindowPreferences.swift` scopes (`navigationTitle`, `navigationDocument`, `onOpenURL`) are `EnvironmentScope`s and chain with it; `onOpenURL` on the `Element` path owns its handler by the element's id, not by the
-  group position (no test distinguishes them: the owner is only a dispatch key). The same holds for `ModifierKeysScope`'s owner on its `Element` path (`ES-D`).
+  group position (**pinned since by `ES-K`**: `anOnOpenURLOnAnErasedElementIsOwnedByTheScopesOwnId`; the first draft said no test could tell them apart). The same holds for `ModifierKeysScope`'s owner on its `Element` path (`ES-D`), which `ES-K` did not separately pin (its owner is a store key, not a dispatch key).
 - Every single-content modifier scope is now ruled: forwarding `EnvironmentScope`, `LifecycleScope` (`.task` included), `PresentationScope`, `ToolbarScope` (`ES-A`), `ModifierKeysScope`, `GlassTagScope` (`ES-D`),
   `TransitionGroup` (`ES-E`); layering `CoordinateSpaceScope`, `TransactionScope` (`ES-H`), `GeometryChangeScope` (`ES-J`). None refuses. Containers (`ScrollViewReader`, `GlassEffectContainer`, `IdentifiedGroup`) are
   out of scope. A new scope decides which it is, by measuring a decoration after it against the same decoration before it.
 - `ES-F` and `ES-G` are lifted by `ES-H`'s own layer, not by either idea this item named (building the space inside the content's `registerAndScope` could not tell an offset before the scope from one after it: both land in one `Decoration`). `ES-J` lifted `ES-B` the same way and retired divergence 120.
 - A decorated `CoordinateSpaceScope`/`TransactionScope` copies itself into a `ModifiedElement` and back once per phase (`withLayer`) and stores the layer's layout as an existential: cost paid only by decorated scopes, not measured.
-- The `style` and `elementID` forwards have no observable pin (mutations 5 and 6), for the new scopes as for the first four.
+- The `style` and `elementID` forwards are pinned by `ES-K` (mutations 5 and 6 corrected above), for all ten scopes.

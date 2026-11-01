@@ -106,9 +106,10 @@ private func origin(_ b: Bounds<Pixels>?) -> (Float, Float)? {
 /// `.onGeometryChange` leaves the reported size at 50 x 50 (D1, D3) and the padding moves the reported global frame
 /// in by 8 (D6); written before it, the same padding reports 66 x 66 and the same frame 100 x 100 (D1b, D3b) at the
 /// unmoved origin (D6b). One tile per window beside a plain twin: the padded after tile (pinned top-leading, so that no
-/// stack centres the padding away) reads the plain frame + 8, the sized after tile the plain size. Mutation: forward the decoration onto the content (**MES-9**, the naive
-/// shape) - the padding is an `ElementGroup` wrapper either way, so only the origin arm can tell, and it does not
-/// redden here; the arms pin SwiftUI's measured numbers, not a mechanism.
+/// stack centres the padding away) reads the plain frame + 8, the sized after tile the plain size. No scope mutation of
+/// rows 26-30 reddens it (MES-9, forwarding onto the content, leaves it green): `.padding` and `.frame` are
+/// `ElementGroup` wrappers outside the scope under every mechanism, so this arm pins SwiftUI's measured numbers
+/// (a later move of either to a `StyledElement` method would be caught here), not a mechanism (`ES-K`).
 @MainActor @Test func aPaddingAndAFrameAfterOnGeometryChangeAreOutsideTheMeasurement() throws {
     let log = GeoLog()
     let w1 = try geoWindow { topLeading { tile(log, "padded").padding(px(8)) } }
