@@ -39,7 +39,14 @@ enum AlertButtons {
     /// - Return (`isDefault`): the first role-less declared button, **only when
     ///   no declared button is destructive** (`SV-X`: `A2`/`K0`, `K3`; never
     ///   `A1`, `A5`/`K1`).
-    static func resolve(_ declared: [Declared]) -> [Resolved] {
+    ///
+    /// A **confirmation dialog** (`confirmation: true`, ruling `SV-AO` item 3,
+    /// `C9`–`C12`, `L7`) differs in two measured ways: with any action declared
+    /// and no cancel button among them a "Cancel" is synthesized last whether or
+    /// not a button is destructive (`C10`), and a synthesized Cancel leaves no
+    /// default — Return needs a *declared* cancel button beside the plain one
+    /// (`C11`).
+    static func resolve(_ declared: [Declared], confirmation: Bool = false) -> [Resolved] {
         guard !declared.isEmpty else {
             return [Resolved(platform: PlatformAlertButton(title: "OK"), action: nil, declaredIndex: nil)]
         }
@@ -47,14 +54,16 @@ enum AlertButtons {
         let indexed = Array(declared.enumerated())
         let ordered = indexed.filter { !isCancel($0.element.role) } + indexed.filter { isCancel($0.element.role) }
         let hasDestructive = declared.contains { $0.role == .destructive }
-        let defaultIndex = hasDestructive ? nil : declared.firstIndex { $0.role == nil }
         let cancelIndex = declared.firstIndex { isCancel($0.role) }
+        let synthesizesCancel = cancelIndex == nil && (hasDestructive || confirmation)
+        let defaultIndex = hasDestructive || (confirmation && cancelIndex == nil)
+            ? nil : declared.firstIndex { $0.role == nil }
         var resolved = ordered.map { index, button in
             Resolved(platform: PlatformAlertButton(title: button.title, isDestructive: button.role == .destructive,
                                                    isDefault: index == defaultIndex, isCancel: index == cancelIndex),
                      action: button.action, declaredIndex: index)
         }
-        if hasDestructive, cancelIndex == nil {
+        if synthesizesCancel {
             resolved.append(Resolved(platform: PlatformAlertButton(title: "Cancel", isCancel: true),
                                      action: nil, declaredIndex: nil))
         }
@@ -69,14 +78,20 @@ enum AlertButtons {
     init(_ declared: [AlertButtons.Declared]) { self.declared = declared }
 }
 
-/// The actions an alert or confirmation dialog shows: `Button`s whose label is
-/// a `Text` — with `role: .cancel` or `.destructive` — and `if`, `if`/`else`
-/// and `for` through `@AlertActionsBuilder` (ruling `SV-I` item 2).
+/// The actions an alert or confirmation dialog shows: `Button`s — with
+/// `role: .cancel` or `.destructive` — and `if`, `if`/`else` and `for` through
+/// `@AlertActionsBuilder` (ruling `SV-I` item 2).
+///
+/// A button's title is **the first `Text` in its label**, depth first (a row
+/// of a shape and a `Text`, a column of two: the first); a button whose label
+/// holds no `Text` is left out, and when none is left the alert shows one "OK"
+/// that runs nothing (ruling `SV-AO` item 4; probe `swiftui-dialog-extras.swift`
+/// `L1`–`L11`).
 ///
 /// **Closed**: its one requirement is SPI, so a type outside MetalUI cannot
 /// conform (guard `anOutsideTypeCannotConformToAlertActions`). Not offered: a
-/// `Button` whose label is not a `Text` (SwiftUI accepts any view; guard
-/// `aNonTextButtonIsNotAnAlertAction`) and a `TextField`.
+/// `TextField` or `SecureField` (SwiftUI's alert shows them as an accessory
+/// view; carried, `SV-AO` item 5; guard `aNonTextButtonIsAnAlertActionButATextFieldIsNot`).
 public protocol AlertActions {
     /// The buttons this content declares. SPI: see the protocol's doc.
     @_spi(AlertInternals) @MainActor func _alertButtons() -> _AlertButtons
@@ -112,15 +127,51 @@ public enum AlertActionsBuilder {
     public static func buildArray(_ items: [AlertActionItems]) -> AlertActionItems { AlertActionItems(items) }
 }
 
-/// A button action: its label's string as the title, its role (now read:
-/// `.cancel` and `.destructive` place and key it, `SV-I` item 3) and its action
-/// (or a caller's `onClick`, which replaces it, as on the button itself).
-extension Button: AlertActions where Label == Text {
+/// A button action: its label's first `Text` as the title (`SV-AO` item 4), its
+/// role (`.cancel` and `.destructive` place and key it, `SV-I` item 3) and its
+/// action (or a caller's `onClick`, which replaces it, as on the button
+/// itself). A label with no `Text` declares nothing.
+extension Button: AlertActions {
     /// This content's buttons. SPI: see `AlertActions`.
     @_spi(AlertInternals) public func _alertButtons() -> _AlertButtons {
-        _AlertButtons([AlertButtons.Declared(title: box.content.first.string, role: role,
-                                             action: handlers.onClick ?? action)])
+        guard let title = AlertButtons.title(ofLabel: box.content.first) else { return _AlertButtons([]) }
+        return _AlertButtons([AlertButtons.Declared(title: title, role: role, action: handlers.onClick ?? action)])
     }
+}
+
+extension AlertButtons {
+    /// The first `Text` (or `ProposalText`) in `label`, depth first, in
+    /// declaration order — SwiftUI's title for a button whose label is a
+    /// `Label`, a stack, a styled `Text` (`L1`–`L6`, `L11`); `nil` when the
+    /// label holds none (`L3`, `L9`, `L10`). A `Text` label (the common case) is
+    /// read directly; anything else is walked by reflection over its stored
+    /// properties — containers, modifiers and pairs hold their content there, a
+    /// `ForEach`'s rows (made by a closure) are not visited.
+    @MainActor static func title(ofLabel label: some Any) -> String? {
+        if let text = label as? Text { return text.string }
+        return firstText(in: label, depth: 0)
+    }
+
+    @MainActor private static func firstText(in value: Any, depth: Int) -> String? {
+        if let text = value as? Text { return text.string }
+        if let text = value as? ProposalText { return text.string }
+        guard depth < 24 else { return nil }
+        for child in Mirror(reflecting: value).children {
+            if let found = firstText(in: child.value, depth: depth + 1) { return found }
+        }
+        return nil
+    }
+}
+
+/// Whether something shows — SwiftUI's `Visibility`. `confirmationDialog`'s
+/// `titleVisibility:` takes it (ruling `SV-AO` item 3).
+public enum Visibility: Hashable, CaseIterable, Sendable {
+    /// The platform decides.
+    case automatic
+    /// Shown.
+    case visible
+    /// Not shown.
+    case hidden
 }
 
 // MARK: - The modifiers
@@ -184,21 +235,36 @@ extension ElementGroup {
         }
     }
 
-    /// A confirmation dialog — SwiftUI's `confirmationDialog(_:isPresented:actions:)`,
-    /// presented exactly as `alert(_:isPresented:actions:)` is (`C1` = `A1`, an
-    /// `NSAlert` sheet). `titleVisibility:` is not offered (only `.visible` was
-    /// measured).
+    /// A confirmation dialog — SwiftUI's
+    /// `confirmationDialog(_:isPresented:titleVisibility:actions:)`, presented
+    /// as `alert(_:isPresented:actions:)` is (`C1` = `A1`, an `NSAlert` sheet)
+    /// with two differences (ruling `SV-AO` item 3, `AlertButtons.resolve`): a
+    /// "Cancel" is synthesized whenever no cancel button is declared, and
+    /// then no button is the default.
+    ///
+    /// `titleVisibility:` is accepted and changes nothing: AppKit's `NSAlert`
+    /// shows the title for `.automatic`, `.visible` and `.hidden` alike, with or
+    /// without a message (probe `C1`–`C8`), and so does the drawn alert.
     public func confirmationDialog<A: AlertActions>(_ title: String, isPresented: Binding<Bool>,
+                                                    titleVisibility: Visibility = .automatic,
                                                     @AlertActionsBuilder actions: () -> A) -> PresentationScope<Self> {
-        alert(title, isPresented: isPresented, actions: actions)
+        let declared = actions()._alertButtons().declared
+        return alertScope(isPresented) {
+            AlertContent(title: title, message: nil, buttons: AlertButtons.resolve(declared, confirmation: true))
+        }
     }
 
-    /// `confirmationDialog(_:isPresented:actions:)` with a message (SwiftUI's
-    /// `confirmationDialog(_:isPresented:actions:message:)`).
+    /// `confirmationDialog(_:isPresented:titleVisibility:actions:)` with a message
+    /// (SwiftUI's `confirmationDialog(_:isPresented:titleVisibility:actions:message:)`).
     public func confirmationDialog<A: AlertActions>(_ title: String, isPresented: Binding<Bool>,
+                                                    titleVisibility: Visibility = .automatic,
                                                     @AlertActionsBuilder actions: () -> A,
                                                     message: () -> Text) -> PresentationScope<Self> {
-        alert(title, isPresented: isPresented, actions: actions, message: message)
+        let declared = actions()._alertButtons().declared
+        let text = message().string
+        return alertScope(isPresented) {
+            AlertContent(title: title, message: text, buttons: AlertButtons.resolve(declared, confirmation: true))
+        }
     }
 
     private func alertScope(_ isPresented: Binding<Bool>,

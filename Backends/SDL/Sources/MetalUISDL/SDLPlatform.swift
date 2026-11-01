@@ -919,8 +919,11 @@ public final class SDLWindow: PlatformWindow {
     /// failed with `SDL_GetError()`'s text — arrives through SDL's callback,
     /// on whatever thread SDL calls it from, hopped onto the main thread by
     /// the bridge as `MUI_EVENT_DIALOG` and delivered as `.fileDialogResult`.
-    /// The seam's `title`/`prompt` are not SDL3 parameters of these calls
-    /// and are not shown. `false` only for a token outside `Int32`.
+    /// The seam's texts reach SDL3's properties form when ``dialogLabels(_:)``
+    /// yields any (ruling `SV-AO`): the `prompt` as the accept button's label,
+    /// the `message` — SDL has no message field — or else the `title` as the
+    /// dialog's title; each platform's dialog may ignore either (divergence
+    /// 935). `false` only for a token outside `Int32`.
     public func presentFileDialog(_ dialog: PlatformFileDialog) -> Bool {
         guard let token = Int32(exactly: dialog.token) else { return false }
         let request: OpaquePointer?
@@ -934,6 +937,10 @@ public final class SDLWindow: PlatformWindow {
             request = mui_dialog_request_new(token, true, false, defaultFilename)
         }
         guard let request else { return false }
+        let labels = Self.dialogLabels(dialog)
+        if labels.title != nil || labels.accept != nil {
+            mui_dialog_request_set_labels(request, labels.title, labels.accept)
+        }
         for filter in Self.dialogFilters(dialog.allowedTypes) {
             _ = mui_dialog_request_add_filter(request, filter.name, filter.pattern)
         }
@@ -963,6 +970,15 @@ public final class SDLWindow: PlatformWindow {
         case .save(let defaultFilename):
             return .save(defaultFilename: defaultFilename)
         }
+    }
+
+    /// The texts SDL's dialog takes from `dialog` (ruling `SV-AO`): the accept
+    /// button's label is the seam's `prompt`; the title is the `message` when
+    /// there is one — SDL has no message field, and the title is the only text
+    /// its dialogs show — else the seam's `title`. Each `nil` for the
+    /// platform's own.
+    nonisolated static func dialogLabels(_ dialog: PlatformFileDialog) -> (title: String?, accept: String?) {
+        (dialog.message ?? dialog.title, dialog.prompt)
     }
 
     /// SDL's filters for `types` (rulings `SV-E`, `VD-G`, divergence 129): one

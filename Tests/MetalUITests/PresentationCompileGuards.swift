@@ -42,40 +42,45 @@ func anOutsideTypeCannotConformToAlertActions() throws {
     #expect(control.succeeded, "a Button action must compile outside the module:\n\(control.output)")
 }
 
-/// **2.G6** (`SV-AD` item 3, a "Not offered" row). A `Button` whose label is
-/// not a `Text` is not an alert action; one with a `Text` label is (the
-/// control).
+/// **2.G6** (`SV-AD` item 3, amended by `SV-AO` item 4). A `Button` whose
+/// label is not a `Text` **is** an alert action now (its title is the label's
+/// first `Text`); a `TextField` still is not (carried, `SV-AO` item 5), so a
+/// call putting one in the actions does not compile (the negative), and the
+/// control with only buttons does.
 ///
-/// Mutation **MG2.6**: widen the conformance to every `Button` (the negative
-/// compiles).
+/// Mutations **MG2.6a**: restrict the conformance back to `Label == Text` (the
+/// non-Text arm fails to compile); **MG2.6b**: make `TextField` an
+/// `AlertActions` (the negative compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func aNonTextButtonIsNotAnAlertAction() throws {
-    let negative = try typecheckFile("""
-        @MainActor func bad(_ shown: Binding<Bool>) -> some ElementGroup {
-            Box().alert("A", isPresented: shown) {
-                Button(action: {}) { Box().frame(width: Pixels(10), height: Pixels(10)) }
-            }
-        }
-        """, importing: "MetalUI")
-    let control = try typecheckFile("""
+func aNonTextButtonIsAnAlertActionButATextFieldIsNot() throws {
+    let nonText = try typecheckFile("""
         @MainActor func good(_ shown: Binding<Bool>) -> some ElementGroup {
             Box().alert("A", isPresented: shown) {
+                Button(action: {}) { Box().frame(width: Pixels(10), height: Pixels(10)) }
                 Button(action: {}) { Text("Delete") }
             }
         }
         """, importing: "MetalUI")
+    let field = try typecheckFile("""
+        @MainActor func bad(_ shown: Binding<Bool>, _ text: Binding<String>) -> some ElementGroup {
+            Box().alert("A", isPresented: shown) {
+                TextField("Name", text: text)
+                Button("OK") {}
+            }
+        }
+        """, importing: "MetalUI")
     print("""
-        SV-I non-text: negative succeeded=\(negative.succeeded) messages=[\(negative.messages)]; \
-        control succeeded=\(control.succeeded)
+        SV-AO non-text button: succeeded=\(nonText.succeeded) messages=[\(nonText.messages)]; \
+        text field succeeded=\(field.succeeded) messages=[\(field.messages)]
         """)
-    try #require(control.succeeded && !negative.succeeded,
+    try #require(nonText.succeeded && !field.succeeded,
                  """
-                 a Text-labelled button must compile and a Box-labelled one must not, or this \
+                 a non-Text-labelled button must compile and a TextField must not, or this \
                  guard cannot fail:
-                 control:
-                 \(control.output)
-                 negative:
-                 \(negative.output)
+                 non-text:
+                 \(nonText.output)
+                 field:
+                 \(field.output)
                  """)
 }
 
@@ -226,29 +231,33 @@ func fileDialogsIsReadOnlyOutsideMetalUI() throws {
                  "the read must compile and the write must not:\nread:\n\(read.output)\nwrite:\n\(write.output)")
 }
 
-/// **2.G10** (`SV-I` item 1, a "Not offered" row). `confirmationDialog`'s
-/// `titleVisibility:` is not offered; the same call without it compiles (the
-/// control).
+/// **2.G10** (`SV-I` item 1, amended by `SV-AO` item 3). `confirmationDialog`'s
+/// `titleVisibility:` is offered with SwiftUI's `Visibility`, on both the
+/// actions-only and the message spellings; the call without it compiles too.
 ///
-/// Mutation **MG2.10**: add the parameter (the negative compiles).
+/// Mutation **MG2.10**: remove the parameter from the message spelling (the
+/// second arm fails).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func titleVisibilityIsNotOffered() throws {
+func titleVisibilityIsOffered() throws {
     let control = try typecheckFile("""
         @MainActor func tree(_ shown: Binding<Bool>) -> some ElementGroup {
             Box().confirmationDialog("A", isPresented: shown) { Button("OK") {} }
         }
         """, importing: "MetalUI")
-    let negative = try typecheckFile("""
+    let offered = try typecheckFile("""
         @MainActor func tree(_ shown: Binding<Bool>) -> some ElementGroup {
             Box().confirmationDialog("A", isPresented: shown, titleVisibility: .visible) { Button("OK") {} }
+                .confirmationDialog("B", isPresented: shown, titleVisibility: Visibility.hidden) {
+                    Button("OK") {}
+                } message: { Text("m") }
         }
         """, importing: "MetalUI")
     print("""
-        SV-I titleVisibility: control succeeded=\(control.succeeded); negative \
-        succeeded=\(negative.succeeded) messages=[\(negative.messages)]
+        SV-AO titleVisibility: control succeeded=\(control.succeeded); offered \
+        succeeded=\(offered.succeeded) messages=[\(offered.messages)]
         """)
-    try #require(control.succeeded && !negative.succeeded,
-                 "the control must compile and titleVisibility: must not:\n\(control.output)\n\(negative.output)")
+    try #require(control.succeeded && offered.succeeded,
+                 "both must compile:\n\(control.output)\n\(offered.output)")
 }
 
 /// **2.G11** (`SV-N` item 1). `onHover` and `onContinuousHover` typecheck from

@@ -145,6 +145,68 @@ extension Window {
     }
 }
 
+// MARK: - The label and message (`SV-AO`)
+
+/// The environment keys behind `.fileDialogConfirmationLabel(_:)` and
+/// `.fileDialogMessage(_:)` (ruling `SV-AO` item 1). Internal custom keys
+/// (SwiftUI has public ones): the strings compare, so a retained subtree's key
+/// sees a change (`EE-F`).
+private enum FileDialogConfirmationLabelKey: EnvironmentKey { static let defaultValue: String? = nil }
+private enum FileDialogMessageKey: EnvironmentKey { static let defaultValue: String? = nil }
+
+extension EnvironmentValues {
+    /// The confirming button's title a file dialog presented below shows (`nil`:
+    /// the platform's own), written by `.fileDialogConfirmationLabel(_:)`.
+    var fileDialogConfirmationLabel: String? {
+        get { self[FileDialogConfirmationLabelKey.self] }
+        set { self[FileDialogConfirmationLabelKey.self] = newValue }
+    }
+
+    /// The explanatory text a file dialog presented below shows (`nil`: none),
+    /// written by `.fileDialogMessage(_:)`.
+    var fileDialogMessage: String? {
+        get { self[FileDialogMessageKey.self] }
+        set { self[FileDialogMessageKey.self] = newValue }
+    }
+}
+
+extension ElementGroup {
+    /// The title of the confirming button of the file dialogs presented by
+    /// `.fileImporter`/`.fileExporter` **above** this content — SwiftUI's
+    /// `fileDialogConfirmationLabel(_:)` (ruling `SV-AO`; probe
+    /// `swiftui-dialog-extras.swift` `F1`–`F4`). An environment write, the
+    /// nearest writer wins; read at the presenting scope's own position, so
+    /// written on the content **inside** the presenter it reaches nothing
+    /// (`F2`) — write it after the `.fileImporter(…)`. It replaces an
+    /// exporter's own "Export" prompt (`F3`). AppKit sets `NSSavePanel.prompt`;
+    /// SDL passes it as the dialog's accept label where the desktop's dialog
+    /// takes one (divergence 935).
+    public func fileDialogConfirmationLabel(_ label: Text) -> EnvironmentScope<Self> {
+        environment(\.fileDialogConfirmationLabel, label.string)
+    }
+
+    /// `fileDialogConfirmationLabel(_:)` with a plain string (SwiftUI's
+    /// `StringProtocol` spelling).
+    public func fileDialogConfirmationLabel<S: StringProtocol>(_ label: S) -> EnvironmentScope<Self> {
+        environment(\.fileDialogConfirmationLabel, String(label))
+    }
+
+    /// The explanatory text of the file dialogs presented by
+    /// `.fileImporter`/`.fileExporter` above this content — SwiftUI's
+    /// `fileDialogMessage(_:)` (ruling `SV-AO`; probe `F1`–`F4`), read exactly
+    /// as `fileDialogConfirmationLabel(_:)` is. AppKit sets
+    /// `NSSavePanel.message`. SDL has no such field: the text is shown as the
+    /// dialog's title (divergence 935).
+    public func fileDialogMessage(_ message: Text) -> EnvironmentScope<Self> {
+        environment(\.fileDialogMessage, message.string)
+    }
+
+    /// `fileDialogMessage(_:)` with a plain string.
+    public func fileDialogMessage<S: StringProtocol>(_ message: S) -> EnvironmentScope<Self> {
+        environment(\.fileDialogMessage, String(message))
+    }
+}
+
 // MARK: - The modifiers (`SV-C`)
 
 extension ElementGroup {

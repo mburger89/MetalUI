@@ -150,6 +150,27 @@ import Testing
     #expect(window.presentedFileDialog == nil)
 }
 
+/// 2.11c (`SV-AO`, record 179; `HT-X` 1) - the harness shows the confirming
+/// label and the message a `.fileDialogConfirmationLabel`/`.fileDialogMessage`
+/// above an importer set, on the proposal vocabulary through plain imports.
+/// Mutation: the presenting code drops the environment's message.
+@Test @MainActor func aFileDialogsLabelAndMessageAreReadAtTheHarness() throws {
+    let m = PresentModel()
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            Button("Add repo") { m.shown = true }
+                .fileImporter(isPresented: m.binding, allowedContentTypes: [.folder]) { _ in }
+                .fileDialogConfirmationLabel(Text("Use folder"))
+                .fileDialogMessage("Pick the repository folder")
+        }
+    }
+    try window.click(window.element(label: "Add repo"))
+    let dialog = try #require(window.presentedFileDialog)
+    #expect(dialog.prompt == "Use folder")
+    #expect(dialog.message == "Pick the repository folder")
+    try window.cancelFileDialog()
+}
+
 /// A root with a toolbar of one button, `Add`, and a body.
 @MainActor private func toolbarTree(_ m: PresentModel) -> some Element {
     VStack(spacing: 0) {

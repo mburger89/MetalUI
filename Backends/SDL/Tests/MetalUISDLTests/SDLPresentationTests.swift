@@ -124,6 +124,45 @@ func sdlDialogInTheLinuxImageAnswersItsRecordedOutcome() throws {
     }
 }
 
+/// **1.12b** (`SV-AO` item 1, divergence 935). The texts SDL's dialog takes:
+/// the accept label is the seam's `prompt`, the title is the `message` when
+/// there is one (SDL has no message field) else the seam's `title`.
+///
+/// Mutations **M1.12b-a**: the title ignores the message; **M1.12b-b**: the
+/// accept label reads `title`.
+@Test func sdlDialogLabelsAreThePromptAndTheMessageOrTitle() {
+    let both = SDLWindow.dialogLabels(PlatformFileDialog(token: 1, kind: .open(allowsMultipleSelection: false),
+                                                         title: "Export", prompt: "Keep", message: "Where to keep it"))
+    #expect(both.title == "Where to keep it" && both.accept == "Keep")
+    let titled = SDLWindow.dialogLabels(PlatformFileDialog(token: 1, kind: .save(defaultFilename: nil), title: "Export"))
+    #expect(titled.title == "Export" && titled.accept == nil)
+    let none = SDLWindow.dialogLabels(PlatformFileDialog(token: 1, kind: .open(allowsMultipleSelection: false)))
+    #expect(none.title == nil && none.accept == nil)
+}
+
+/// **1.12c** (`SV-AO`). As 1.12, with a label and a message set, so SDL's
+/// properties form (`SDL_ShowFileDialogWithProperties`) is the call: it
+/// answers a failure here too, within the bound.
+///
+/// Mutation **M1.12c**: `mui_dialog_request_show`'s properties branch never
+/// calls SDL (no event arrives).
+@MainActor
+@Test(.enabled(if: realDialogCannotShow, "only where no real dialog can show (the offscreen driver, no zenity, no bus)"))
+func sdlDialogWithLabelsInTheLinuxImageAnswersItsRecordedOutcome() throws {
+    let (platform, window) = try presentationWindow()
+    var events: [InputEvent] = []
+    window.onInput = { events.append($0); return true }
+    #expect(window.presentFileDialog(PlatformFileDialog(token: 45, kind: .open(allowsMultipleSelection: false),
+                                                        prompt: "Use folder", message: "Pick a folder")))
+    #expect(pump(platform, limit: 250) { !fileResults(events).isEmpty }, "no answer within the bound")
+    let results = fileResults(events)
+    try #require(results.count == 1, "\(results)")
+    guard case .failed = results[0].outcome else {
+        Issue.record("expected a failure here, got \(results[0].outcome)")
+        return
+    }
+}
+
 /// **1.13** (`SV-E`, divergence 129). One filter per type with extensions,
 /// its extensions joined by `;`; a type without
 /// extensions contributes none, and a list with none passes `NULL` (every
