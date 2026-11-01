@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import Metal
 import AppKit
+import CoreGraphics
 import UniformTypeIdentifiers
 import MetalUICore
 import MetalUIRender
@@ -17,6 +18,28 @@ import MetalUIRender
 // queued answer are waited for by **bounded run-loop turns**
 // (`RunLoop.main.run(until:)` of a few milliseconds, at most `turnLimit`
 // times) — a turn, not a sleep. Every test ends every sheet it began.
+
+/// Whether this process can show a real sheet (ruling `TK-A`), read from
+/// `CGSessionCopyCurrentDictionary` — no AppKit object, so it runs before
+/// anything that blocks. The dictionary is `nil` with no window-server session
+/// (ssh, a launchd daemon), `kCGSSessionOnConsoleKey` is false for a session
+/// switched away, and `CGSSessionScreenIsLocked` is true on a locked screen.
+/// Measured on a locked Mac: the nine tests pass when run alone, but in an
+/// unfiltered run `NSOpenPanel.init` blocks about 60 s per call on its remote
+/// view service and the sheet never attaches (five failures, 61 s each). The
+/// lock is the one condition the hang was seen under, not a proof of cause (the
+/// accumulated state that triggers it was not found), so a locked screen skips.
+/// macOS CI's runner is a logged-in console session with an unlocked screen,
+/// so both flags read true there and every test runs.
+private func sessionFlag(_ key: String) -> Bool {
+    (CGSessionCopyCurrentDictionary() as? [String: Any])?[key] as? Bool ?? false
+}
+
+/// A real `NSWindow` can be made at all: a window-server session on the console.
+private let canOpenWindows = sessionFlag("kCGSSessionOnConsoleKey")
+
+/// A panel or alert sheet can be shown: windows can open and the screen is not locked.
+private let canShowSheets = canOpenWindows && !sessionFlag("CGSSessionScreenIsLocked")
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 
@@ -111,7 +134,8 @@ private let jsonType = PlatformFileType(identifier: "public.json",
 /// Mutation **M1.1**: `allowsMultipleSelection` not copied (and, separately,
 /// `canChooseDirectories = true`).
 @MainActor
-@Test func appKitOpenDialogIsASheetWithTheDeclaredTypes() throws {
+@Test(.enabled(if: canShowSheets, "needs an unlocked window-server session: NSOpenPanel.init blocks without one (TK-A)"))
+func appKitOpenDialogIsASheetWithTheDeclaredTypes() throws {
     let (_, appKit, nsWindow, _) = try hostWindow()
     defer { tearDown(nsWindow) }
     let shown = appKit.presentFileDialog(PlatformFileDialog(token: 1, kind: .open(allowsMultipleSelection: true),
@@ -130,7 +154,8 @@ private let jsonType = PlatformFileType(identifier: "public.json",
 ///
 /// Mutation **M1.2**: the name not copied.
 @MainActor
-@Test func appKitSaveDialogCarriesTheNameTypesAndExportPrompt() throws {
+@Test(.enabled(if: canShowSheets, "needs an unlocked window-server session: NSOpenPanel.init blocks without one (TK-A)"))
+func appKitSaveDialogCarriesTheNameTypesAndExportPrompt() throws {
     let (_, appKit, nsWindow, _) = try hostWindow()
     defer { tearDown(nsWindow) }
     #expect(appKit.presentFileDialog(PlatformFileDialog(token: 2, kind: .save(defaultFilename: "keymap"),
@@ -153,7 +178,8 @@ private let jsonType = PlatformFileType(identifier: "public.json",
 /// Mutation **M1.3**: deliver synchronously inside the completion handler (the
 /// count during the call is 1).
 @MainActor
-@Test func appKitCancelledDialogArrivesAsQueuedInput() throws {
+@Test(.enabled(if: canShowSheets, "needs an unlocked window-server session: NSOpenPanel.init blocks without one (TK-A)"))
+func appKitCancelledDialogArrivesAsQueuedInput() throws {
     let (_, appKit, nsWindow, log) = try hostWindow()
     defer { tearDown(nsWindow) }
     #expect(appKit.presentFileDialog(PlatformFileDialog(token: 3, kind: .open(allowsMultipleSelection: false),
@@ -175,7 +201,8 @@ private let jsonType = PlatformFileType(identifier: "public.json",
 /// Mutation **M1.4**: not suppressing the `.abort` answer (a `.cancelled`
 /// arrives).
 @MainActor
-@Test func appKitDismissPresentationEndsTheSheetAndAnswersNothing() throws {
+@Test(.enabled(if: canShowSheets, "needs an unlocked window-server session: NSOpenPanel.init blocks without one (TK-A)"))
+func appKitDismissPresentationEndsTheSheetAndAnswersNothing() throws {
     let (_, appKit, nsWindow, log) = try hostWindow()
     defer { tearDown(nsWindow) }
     #expect(appKit.presentFileDialog(PlatformFileDialog(token: 4, kind: .open(allowsMultipleSelection: false),
@@ -192,7 +219,8 @@ private let jsonType = PlatformFileType(identifier: "public.json",
 ///
 /// Mutation **M1.5**: drop the attached-sheet check.
 @MainActor
-@Test func appKitSecondDialogWhileASheetIsUpAnswersFalse() throws {
+@Test(.enabled(if: canShowSheets, "needs an unlocked window-server session: NSOpenPanel.init blocks without one (TK-A)"))
+func appKitSecondDialogWhileASheetIsUpAnswersFalse() throws {
     let (_, appKit, nsWindow, _) = try hostWindow()
     defer { tearDown(nsWindow) }
     #expect(appKit.presentFileDialog(PlatformFileDialog(token: 5, kind: .open(allowsMultipleSelection: false),
@@ -217,7 +245,8 @@ private func button(_ title: String, destructive: Bool = false, isDefault: Bool 
 /// Mutation **M1.6**: leave NSAlert's own first-button Return (the `A1` shape
 /// gains `"\r"` on Delete).
 @MainActor
-@Test func appKitAlertIsASheetWithSwiftUIsKeysAndOrder() throws {
+@Test(.enabled(if: canShowSheets, "needs an unlocked window-server session: NSOpenPanel.init blocks without one (TK-A)"))
+func appKitAlertIsASheetWithSwiftUIsKeysAndOrder() throws {
     let shapes: [(name: String, buttons: [PlatformAlertButton], keys: [String], destructive: [Bool])] = [
         ("K3", [button("Save", isDefault: true), button("Cancel", cancel: true)],
          ["\r", "\u{1b}"], [false, false]),
@@ -247,7 +276,8 @@ private func button(_ title: String, destructive: Bool = false, isDefault: Bool 
 ///
 /// Mutation **M1.7**: report the response code (1001) instead of the index.
 @MainActor
-@Test func appKitAlertButtonReportsItsIndexAfterTheSheetEnds() throws {
+@Test(.enabled(if: canShowSheets, "needs an unlocked window-server session: NSOpenPanel.init blocks without one (TK-A)"))
+func appKitAlertButtonReportsItsIndexAfterTheSheetEnds() throws {
     let (_, appKit, nsWindow, log) = try hostWindow()
     defer { tearDown(nsWindow) }
     #expect(appKit.presentAlert(PlatformAlert(token: 20, title: "Save?", message: nil,
@@ -268,7 +298,8 @@ private func button(_ title: String, destructive: Bool = false, isDefault: Bool 
 ///
 /// Mutation **M1.8**: skip the resize into the limits.
 @MainActor
-@Test func appKitContentSizeLimitsReachTheWindowAndClampIt() throws {
+@Test(.enabled(if: canOpenWindows, "needs a window-server session on the console (TK-A)"))
+func appKitContentSizeLimitsReachTheWindowAndClampIt() throws {
     let (_, appKit, nsWindow, log) = try hostWindow(width: 300, height: 200)
     defer { tearDown(nsWindow) }
     appKit.setContentSizeLimits(minimum: Size(width: px(400), height: px(300)),
@@ -287,7 +318,8 @@ private func button(_ title: String, destructive: Bool = false, isDefault: Bool 
 ///
 /// Mutation **M1.9**: drop the override.
 @MainActor
-@Test func appKitMouseExitedDeliversPointerExited() throws {
+@Test(.enabled(if: canOpenWindows, "needs a window-server session on the console (TK-A)"))
+func appKitMouseExitedDeliversPointerExited() throws {
     let (_, appKit, nsWindow, log) = try hostWindow()
     defer { tearDown(nsWindow) }
     let event = try #require(NSEvent.enterExitEvent(with: .mouseExited, location: .zero, modifierFlags: [],

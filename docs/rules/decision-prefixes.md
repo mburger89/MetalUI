@@ -31,7 +31,8 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-08-key-focus-decisions.md`, next `KF-AB`), `PF-` (shadow cache, `compositingGroup()`:
   `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
-  `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `HT-` (test harness, `MetalUITesting`:
+  `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `TK-` (test hygiene: sheet-test skip, Linux flake, SDL launch drops:
+  `2026-10-31-test-hygiene-decisions.md`, next `TK-E`), `HT-` (test harness, `MetalUITesting`:
   `2026-10-09-test-harness-decisions.md`, next `HT-AA`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-P`), `FI-` (`ForEach` identity:

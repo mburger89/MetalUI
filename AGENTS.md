@@ -71,6 +71,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
+- **The unfiltered run no longer needs `--skip AppKitPresentationTests`** (`TK-A`): its sheet tests skip with a stated reason when the session is locked or has no console (`CGSessionCopyCurrentDictionary`, evaluated before `NSOpenPanel.init`, which otherwise blocks ~60 s per call), and run on unlocked macOS CI. A new panel/alert test carries the same `.enabled(if:)`.
 - **`--no-parallel` always**: CoreText font registration and `malloc_logger`
   tests race under a parallel run. **Adding an AppKit test? Run the whole
   suite unfiltered** (`--filter` is a different program).
