@@ -37,3 +37,9 @@ frame, both 50 x 50; padding(8) and a background after report 50 x 50, padding(8
 ## Mutations
 
 Rows 26–30 of the decisions doc's table.
+
+## Correction, 2026-10-31 (record 180, `ES-K`)
+
+The "assumption, not probed" about `.padding`/`.background` after `.onGeometryChange` is settled: `docs/probes/swiftui-geometry-decorations.swift` D1-D6 measured it and SwiftUI agrees (a padding, background or frame
+after reports the unchanged 50 x 50; before it, 66 x 66 / 100 x 100; a padding after moves the global frame in by 8). No divergence. The "no observable pin" note on the `style`/`elementID` forwards is also withdrawn (see
+records 168 and 180).

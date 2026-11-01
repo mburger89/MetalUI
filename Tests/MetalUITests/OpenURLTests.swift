@@ -222,3 +222,26 @@ private struct BuiltCounter: Component {
     platform.simulateOpenURLs(["file:///tmp/2"])
     #expect(log.entries == ["window", "app"])
 }
+
+/// **ES-K** (the `Element` path of `EnvironmentScope`, ruling `ES-A`; the carried note that "no test distinguishes"
+/// the owners). An `.onOpenURL` on a scope entered as an *element* - here erased in an `AnyElement`, which a
+/// container enters as a group member named by the element's own id - is owned by the scope's **own id**, the
+/// `.named("r")` component its name gave it, where the same scope in a `Column` is owned by its position,
+/// `.positional(0)` (`AS-G` item 2: the control that the two spellings differ). The owner is the dispatch key
+/// `StateDispatch` routes the handler's `@State` writes by. Mutation: the `Element` path's
+/// `reportingPreference(pass.frame, owner: id)` takes the group position
+/// (`GlobalElementID.child(of: parent, at: 0, name: nil)`, here `.positional(0)`) instead.
+@MainActor
+@Test func anOnOpenURLOnAnErasedElementIsOwnedByTheScopesOwnId() throws {
+    let (app, _) = try shellApp()
+    let erased = try app.openWindow(title: "E", size: Size(width: px(64), height: px(64)), startsDisplayLink: false) {
+        Column { AnyElement(Box().frame(width: px(4), height: px(4)).id("r").onOpenURL { _ in }) }
+    }
+    let grouped = try app.openWindow(title: "G", size: Size(width: px(64), height: px(64)), startsDisplayLink: false) {
+        Column { Box().frame(width: px(4), height: px(4)).id("r").onOpenURL { _ in } }
+    }
+    let groupOwner = try #require(grouped.openURLHandlerOwners.first, "the grouped scope registered a handler")
+    #expect(groupOwner.component == .positional(0), "control: a group owns by position: \(groupOwner.component)")
+    let owner = try #require(erased.openURLHandlerOwners.first, "the erased scope registered a handler")
+    #expect(owner.component == .named(ElementID("r")), "the element path owns by the scope's own id: \(owner.component)")
+}

@@ -92,3 +92,43 @@ private func origin(_ b: Bounds<Pixels>?) -> (Float, Float)? {
     #expect(m.size == p.size, "\(p) \(m)")
     withExtendedLifetime((plain, moved)) {}
 }
+
+/// Pins `content` to the window's top-leading corner (the probe's `HStack { content; Spacer() }` in a `VStack`).
+@MainActor private func topLeading<C: ElementGroup>(@ElementBuilder _ content: () -> C) -> some Element {
+    VStack(spacing: 0) {
+        HStack(spacing: 0) { content(); Spacer() }
+        Spacer()
+    }
+}
+
+/// **ES-J, measured in SwiftUI** (probe `docs/probes/swiftui-geometry-decorations.swift` D1-D6, recorded 2026-10-31;
+/// it settles the "assumption, not probed" `ES-J` recorded). A `.padding(8)` or a `.frame(100 x 100)` written after
+/// `.onGeometryChange` leaves the reported size at 50 x 50 (D1, D3) and the padding moves the reported global frame
+/// in by 8 (D6); written before it, the same padding reports 66 x 66 and the same frame 100 x 100 (D1b, D3b) at the
+/// unmoved origin (D6b). One tile per window beside a plain twin: the padded after tile (pinned top-leading, so that no
+/// stack centres the padding away) reads the plain frame + 8, the sized after tile the plain size. No scope mutation of
+/// rows 26-30 reddens it (MES-9, forwarding onto the content, leaves it green): `.padding` and `.frame` are
+/// `ElementGroup` wrappers outside the scope under every mechanism, so this arm pins SwiftUI's measured numbers
+/// (a later move of either to a `StyledElement` method would be caught here), not a mechanism (`ES-K`).
+@MainActor @Test func aPaddingAndAFrameAfterOnGeometryChangeAreOutsideTheMeasurement() throws {
+    let log = GeoLog()
+    let w1 = try geoWindow { topLeading { tile(log, "padded").padding(px(8)) } }
+    let w2 = try geoWindow { topLeading { tile(log, "plain") } }
+    let w3 = try geoWindow { topLeading { tile(log, "framed").frame(width: px(100), height: px(100)) } }
+    let w4 = try geoWindow {
+        topLeading {
+            Box().frame(width: px(50), height: px(50)).padding(px(8))
+                .onGeometryChange(for: Bounds<Pixels>.self, of: { $0.frame(in: .global) }) { log.frames["before"] = $0 }
+        }
+    }
+    let plain = try #require(log.frames["plain"])
+    let padded = try #require(log.frames["padded"])
+    let framed = try #require(log.frames["framed"])
+    let before = try #require(log.frames["before"])
+    try #require(before.size.width.value == 66, "control (D1b): the padding before is measured: \(log.frames)")
+    #expect(padded.size == plain.size && padded.size.width.value == 50, "D1: \(log.frames)")
+    #expect(abs(padded.origin.x.value - (plain.origin.x.value + 8)) < 0.01
+            && abs(padded.origin.y.value - (plain.origin.y.value + 8)) < 0.01, "D6: the padding moves the frame in: \(log.frames)")
+    #expect(framed.size == plain.size, "D3: the frame after is not measured: \(log.frames)")
+    withExtendedLifetime((w1, w2, w3, w4)) {}
+}

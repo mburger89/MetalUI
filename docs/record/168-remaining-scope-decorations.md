@@ -34,3 +34,9 @@ and re-run alone, green. Both closeout scripts print nothing.
 ## Mutations
 
 Rows 7-15 of the decisions doc's table; every one reddened its named test once row 8's arm was respelled (its first spelling reddened nothing).
+
+## Correction, 2026-10-31 (record 180, `ES-K`)
+
+Mutations 5 and 6 (the `style` and `elementID` forwards) were recorded as reddening nothing and "unobservable". That was wrong: `StyledElement.style` and `.elementID` are public requirements, and writing them through a scope in a stack
+sizes and names its content. They are pinned for all ten scopes (`ScopeForwardTests`), and rows 5 and 6 of the decisions doc are corrected in place. The same work found that a scope entered as an element lost its content's
+name (`Element`'s default `nil` answered), fixed for the seven forwarding scopes.
