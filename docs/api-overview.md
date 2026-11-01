@@ -338,7 +338,20 @@ macOS 27 light/dark values (117), `black`/`white`/`clear` fixed, `primary`/
 `secondary`/`accentColor` through the theme (116). `Color.Resolved` and
 `resolve(in:)` give clamped sRGB components. A literal is drawn like a token:
 sRGB numbers on a Display P3 layer (1). No `.displayP3`, no asset catalog, no
-`ShapeStyle` (`.foregroundStyle(.secondary)` is `Color.secondary`, 119).
+hierarchical style (`.foregroundStyle(.secondary)` is `Color.secondary`, 119).
+
+**Shape styles and the tint (A / D; 975–977).** `ShapeStyle` is SwiftUI's protocol:
+`Color`, `LinearGradient`, `RadialGradient`, `Material`, `TintShapeStyle` (`.tint`)
+and `AnyShapeStyle` conform; a third party writes `func f(_ s: some ShapeStyle)`
+and conforms by returning an existing style from `resolve(in:)` (`SS-A`, `SS-B`).
+`fill`, `stroke`, `strokeBorder`, `background(_:)`, `background(_:in:)`, `border`
+and `foregroundStyle` keep their `Color`/gradient/`Material` overloads and take
+`some ShapeStyle` beside them (`SS-C`). `.tint(_:)` (a `Color?` or a style; the
+nearest wins, `nil` clears) tints `Color.accentColor` and every built-in control's
+accent — `.borderedProminent`, `Toggle`, `Slider`, `ProgressView`, a radio
+`Picker`, a `List` selection, focus rings, links — while `Color.accent` stays the
+theme's token (`SS-D`). `accentColor(_:)` is the deprecated alias. No
+`HierarchicalShapeStyle` (carried, `SS-G`).
 
 **Theme-backed and dynamic (M).** `Color(.surface)` / `Color.surface` (the
 nine tokens as statics, bit-exact), `Color(_ hsla:)`, `Color(light:dark:)`
