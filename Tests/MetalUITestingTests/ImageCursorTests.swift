@@ -118,3 +118,19 @@ private func bitmap(side: Int, seed: UInt8 = 1) -> ImageBitmap {
                                      hotSpot: .center)
     #expect(plain == dressed)
 }
+
+/// 7 - the headless platform answers a hidden pointer honestly (`PH-F`, `PH-I`): `pointerVisibility(.hidden)` is
+/// the last style `TestWindow` records, the arrow after the pointer leaves, a one-way resize its own seam case.
+/// Mutation: resolve `.hidden` to `.default` in `Window.updatePointerStyle`.
+@Test @MainActor func theHeadlessPlatformRecordsAHiddenPointerAndAOneWayResize() throws {
+    let window = try harnessWindow {
+        HStack(spacing: 0) {
+            Box().frame(width: Pixels(50), height: Pixels(50)).onClick {}.pointerVisibility(.hidden)
+            Box().frame(width: Pixels(50), height: Pixels(50)).pointerStyle(.columnResize(directions: .leading))
+        }
+    }
+    window.hover(at: pt(175, 150))
+    #expect(window.pointerStyle == .hidden, "\(String(describing: window.pointerStyle))")
+    window.hover(at: pt(225, 150))
+    #expect(window.pointerStyle == .columnResizeOneWay(towardTrailing: false), "\(String(describing: window.pointerStyle))")
+}

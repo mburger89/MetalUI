@@ -282,6 +282,40 @@ private let frameEdges: [(PlatformResizeEdge, NSCursor.FrameResizePosition)] = [
             == NSCursor.frameResize(position: .right, directions: .inward))
 }
 
+/// **1.8b** (`PH-A`, `PH-G`; probe `D2`, `D3`, `D7`, `D8`). The one-way resizes
+/// map to `NSCursor.columnResize(directions:)` / `rowResize(directions:)` with the
+/// side the seam names (leading is the left), pairwise distinct from each other
+/// and from the two-way cursors; the hidden cursor is a 1x1 bitmap whose only
+/// pixel is fully transparent, and `AppKitWindow.setPointerStyle(.hidden)`
+/// hands it to the host view. Mutations: swap `.left`/`.right`; make the hidden
+/// cursor opaque.
+@MainActor
+@Test func appKitMapsTheOneWayResizesAndTheHiddenCursor() throws {
+    guard #available(macOS 15, *) else { return }
+    let cursors: [(PlatformPointerStyle, NSCursor)] = [
+        (.columnResizeOneWay(towardTrailing: false), .columnResize(directions: .left)),
+        (.columnResizeOneWay(towardTrailing: true), .columnResize(directions: .right)),
+        (.rowResizeOneWay(towardDown: false), .rowResize(directions: .up)),
+        (.rowResizeOneWay(towardDown: true), .rowResize(directions: .down)),
+    ]
+    let all = cursors.map(\.1) + [.columnResize, .rowResize]
+    for (i, a) in all.enumerated() { for b in all[(i + 1)...] { try #require(a != b, "premise: distinct") } }
+    for (style, cursor) in cursors { #expect(AppKitCursor.cursor(for: style) == cursor, "\(style)") }
+
+    let hidden = AppKitCursor.cursor(for: .hidden)
+    #expect(hidden !== NSCursor.arrow && hidden.image.size == NSSize(width: 1, height: 1))
+    let rep = try #require(hidden.image.representations.first as? NSBitmapImageRep)
+    let alpha = try #require(rep.colorAt(x: 0, y: 0)?.alphaComponent)
+    #expect(alpha == 0, "the hidden cursor draws nothing")
+
+    let (_, appKit, nsWindow, _) = try hostWindow()
+    defer { nsWindow.close(); NSCursor.arrow.set() }
+    appKit.setPointerStyle(.hidden)
+    #expect(appKit.hostView.pointerCursor === AppKitCursor.hiddenCursor)
+    appKit.setPointerStyle(.arrow)
+    #expect(appKit.hostView.pointerCursor === NSCursor.arrow, "the next style shows the pointer again")
+}
+
 /// A `.cursorUpdate` event for `window`, as the tracking area delivers it.
 @MainActor private func cursorUpdateEvent(in window: NSWindow) throws -> NSEvent {
     try #require(NSEvent.enterExitEvent(with: .cursorUpdate, location: .zero, modifierFlags: [],

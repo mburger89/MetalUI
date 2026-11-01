@@ -7,7 +7,8 @@ import MetalUIScene
 /// probe `swiftui-input-apis.swift` read SwiftUI's `pointerStyle(_:)` setting
 /// them (`P1`–`P10`, `P15`–`P19`).
 ///
-/// **On macOS 14** the cursors macOS 15 added — `columnResize`, `rowResize`,
+/// **On macOS 14** the cursors macOS 15 added — `columnResize`, `rowResize` (and their one-way
+/// forms, `PH-A`),
 /// `zoomIn`, `zoomOut` and `frameResize(position:directions:)` — do not exist,
 /// and each falls back (ruling `CI-X` item 2): column and row resizes and the
 /// four edges to `resizeLeftRight`/`resizeUpDown` (or the one-way
@@ -30,6 +31,14 @@ enum AppKitCursor {
         case .rowResize:
             if #available(macOS 15, *) { return .rowResize }
             return .resizeUpDown
+        case .columnResizeOneWay(let towardTrailing):
+            // Leading is the left (the layout direction is not mirrored, as `frameResize`'s edges, `CI-P`).
+            if #available(macOS 15, *) { return .columnResize(directions: towardTrailing ? .right : .left) }
+            return towardTrailing ? .resizeRight : .resizeLeft
+        case .rowResizeOneWay(let towardDown):
+            if #available(macOS 15, *) { return .rowResize(directions: towardDown ? .down : .up) }
+            return towardDown ? .resizeDown : .resizeUp
+        case .hidden: return hiddenCursor
         case .zoomIn:
             if #available(macOS 15, *) { return .zoomIn }
             return .arrow
@@ -45,6 +54,20 @@ enum AppKitCursor {
             return legacyFrameResize(edge: edge, inward: inward, outward: outward)
         }
     }
+
+    /// The cursor that draws nothing: a 1x1 fully transparent bitmap (`pointerVisibility(.hidden)`,
+    /// `PH-G`). SwiftUI hides with the counted `NSCursor.hide()`/`unhide()` (probe `V2`); a cursor
+    /// that is set and replaced needs no balancing, so a window closing, a pointer leaving or an
+    /// app deactivating while hidden cannot leave the pointer invisible for good.
+    nonisolated(unsafe) static let hiddenCursor: NSCursor = {
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1, pixelsHigh: 1, bitsPerSample: 8,
+                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                   colorSpaceName: .deviceRGB, bytesPerRow: 4, bitsPerPixel: 32)!
+        if let data = rep.bitmapData { for i in 0..<4 { data[i] = 0 } }
+        let image = NSImage(size: NSSize(width: 1, height: 1))
+        image.addRepresentation(rep)
+        return NSCursor(image: image, hotSpot: .zero)
+    }()
 
     /// An `NSCursor` from an image cursor (ruling `IC-D`): an `NSImage` of the
     /// **point size** holding one `NSBitmapImageRep` of the texture's bytes as

@@ -295,6 +295,11 @@ enum {
 // created once per kind and kept for the process. False when the kind is out
 // of range or SDL cannot create it (the offscreen driver may not).
 bool mui_set_system_cursor(int32_t cursor);
+// SDL_ShowCursor / SDL_HideCursor (PH-G): SDL's visibility is process-global and
+// idempotent. False when SDL refuses (a driver without cursors).
+bool mui_set_cursor_visible(bool visible);
+// SDL_CursorVisible: whether SDL currently shows the pointer.
+bool mui_cursor_visible(void);
 // ---- Image cursors (rulings IC-E, IC-O) ------------------------------------
 // SDL_CreateColorCursor over a straight-alpha RGBA32 `surface` (built with
 // mui_icon_surface_create, alternates added with mui_icon_surface_add_alternate;

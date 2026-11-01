@@ -454,6 +454,10 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
         ModifierCase(name: "onScrollWheel(perform:)",
                      apply: { $0.onScrollWheel { _ in true } },
                      effect: { _, _, _, h in h.pointer = true }),
+        // `pointerVisibility(_:)` rides the same box (`PH-F`).
+        ModifierCase(name: "pointerVisibility(_:)",
+                     apply: { $0.pointerVisibility(.hidden) },
+                     effect: { _, _, _, h in h.pointer = true }),
 
         // MARK: Focus
         ModifierCase(name: "focusable()",
@@ -599,8 +603,8 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
     // + 2 for the input APIs (`pointerStyle(_:)`, `onScrollWheel(perform:)`,
     // `CI-Q`) = **59**. + 7 for key and focus scoping (the five `onKeyPress`
     // spellings, `focusable(_:interactions:)`, `hoverKeyRegion(_:)`, `KF-I`) =
-    // **66**.
-    #expect(cases.count == 66)
+    // **66**. + 1 for `pointerVisibility(_:)` (`PH-F`) = **67**.
+    #expect(cases.count == 67)
 
     for c in cases {
         var expectedStyle = Style()

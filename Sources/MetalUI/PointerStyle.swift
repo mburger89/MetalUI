@@ -20,11 +20,19 @@ import MetalUIPlatform
 /// that needs it, a 1x bitmap and, for 2x displays, a 2x bitmap with
 /// `Image(scale: 2)`; no art is bundled. `shape(_:eoFill:size:hotSpot:fill:outline:)` draws a `Shape`
 /// as a cursor (SwiftUI offers `shape` on visionOS only; ruling `BG-K`, divergence 735).
-/// `columnResize(directions:)` and `rowResize(directions:)` are not offered (`CI-A`).
+/// `columnResize(directions:)` and `rowResize(directions:)` show a one-way arrow
+/// for one direction (`PH-A`); on SDL, which has no one-arrow divider cursor, the
+/// nearest is its single-edge resize cursor (`PH-D`).
 public struct PointerStyle: Sendable, Hashable {
     enum Kind: Sendable, Hashable {
         case arrow, horizontalText, verticalText, rectSelection, grabIdle, grabActive, link
         case zoomIn, zoomOut, columnResize, rowResize
+        /// A column or row resize that moves one way only (`PH-A`). `columnResize(directions: .all)`
+        /// and the empty set are `columnResize` and the arrow, never these.
+        case columnResizeOneWay(trailing: Bool)
+        case rowResizeOneWay(down: Bool)
+        /// The pointer is hidden (`pointerVisibility(.hidden)`, `PH-F`); never a public style.
+        case hidden
         case frameResize(FrameResizePosition, FrameResizeDirection.Set)
         case image(PlatformCursorImage)
         /// A shape rasterized by the window at send time (`BG-K`...`BG-M`).
@@ -58,6 +66,34 @@ public struct PointerStyle: Sendable, Hashable {
     public static let columnResize = PointerStyle(.columnResize)
     /// An up-down resize, for a row divider.
     public static let rowResize = PointerStyle(.rowResize)
+
+    /// The column-resize pointer for a divider that can move only in
+    /// `directions` — SwiftUI's `columnResize(directions:)` (`PH-A`, probe
+    /// `swiftui-pointer-extras.swift` `D1`–`D4`). Both directions (`.all`) is
+    /// `columnResize`; one direction shows an arrow towards that side
+    /// (`leading` is the left in a left-to-right layout, `D2`); **the empty set
+    /// is the arrow** (`D4`), as `PointerStyle.default`.
+    public static func columnResize(directions: HorizontalDirection.Set) -> PointerStyle {
+        switch (directions.contains(.leading), directions.contains(.trailing)) {
+        case (true, true): .columnResize
+        case (true, false): PointerStyle(.columnResizeOneWay(trailing: false))
+        case (false, true): PointerStyle(.columnResizeOneWay(trailing: true))
+        case (false, false): .default
+        }
+    }
+
+    /// The row-resize pointer for a divider that can move only in
+    /// `directions` — SwiftUI's `rowResize(directions:)` (`PH-A`, `D6`–`D9`).
+    /// `.all` is `rowResize`; one direction an arrow up or down; **the empty
+    /// set is the arrow**.
+    public static func rowResize(directions: VerticalDirection.Set) -> PointerStyle {
+        switch (directions.contains(.up), directions.contains(.down)) {
+        case (true, true): .rowResize
+        case (true, false): PointerStyle(.rowResizeOneWay(down: false))
+        case (false, true): PointerStyle(.rowResizeOneWay(down: true))
+        case (false, false): .default
+        }
+    }
 
     /// A pointer drawn from `image`'s bitmap — SwiftUI's
     /// `PointerStyle.image(_:hotSpot:)` (ruling `IC-B`).
@@ -106,6 +142,9 @@ public struct PointerStyle: Sendable, Hashable {
         case .zoomOut: .zoomOut
         case .columnResize: .columnResize
         case .rowResize: .rowResize
+        case .columnResizeOneWay(let trailing): .columnResizeOneWay(towardTrailing: trailing)
+        case .rowResizeOneWay(let down): .rowResizeOneWay(towardDown: down)
+        case .hidden: .hidden
         case .frameResize(let position, let directions):
             .frameResize(edge: position.platformEdge,
                          inward: directions.contains(.inward), outward: directions.contains(.outward))
@@ -113,6 +152,60 @@ public struct PointerStyle: Sendable, Hashable {
         // A shape is resolved by the window, which owns the cache and knows the scale (`BG-M`); a caller
         // outside the window sees the arrow.
         case .shape: .arrow
+        }
+    }
+}
+
+/// A horizontal direction, in the layout direction — SwiftUI's
+/// `HorizontalDirection`. `columnResize(directions:)` takes a set of them.
+public enum HorizontalDirection: Int8, CaseIterable, Sendable, Hashable, Codable {
+    /// Towards the leading edge (left in a left-to-right layout).
+    case leading
+    /// Towards the trailing edge (right in a left-to-right layout).
+    case trailing
+
+    /// A set of horizontal directions — SwiftUI's `HorizontalDirection.Set`.
+    public struct Set: OptionSet, Sendable, Hashable {
+        /// The set's bits.
+        public let rawValue: Int8
+        /// The set with these bits.
+        public init(rawValue: Int8) { self.rawValue = rawValue }
+        /// Leading only.
+        public static let leading = Set(rawValue: 1 << 0)
+        /// Trailing only.
+        public static let trailing = Set(rawValue: 1 << 1)
+        /// Both directions.
+        public static let all: Set = [.leading, .trailing]
+        /// The set holding `direction` alone.
+        public init(_ direction: HorizontalDirection) {
+            self = direction == .leading ? .leading : .trailing
+        }
+    }
+}
+
+/// A vertical direction — SwiftUI's `VerticalDirection`. `rowResize(directions:)`
+/// takes a set of them.
+public enum VerticalDirection: Int8, CaseIterable, Sendable, Hashable, Codable {
+    /// Towards the top.
+    case up
+    /// Towards the bottom.
+    case down
+
+    /// A set of vertical directions — SwiftUI's `VerticalDirection.Set`.
+    public struct Set: OptionSet, Sendable, Hashable {
+        /// The set's bits.
+        public let rawValue: Int8
+        /// The set with these bits.
+        public init(rawValue: Int8) { self.rawValue = rawValue }
+        /// Up only.
+        public static let up = Set(rawValue: 1 << 0)
+        /// Down only.
+        public static let down = Set(rawValue: 1 << 1)
+        /// Both directions.
+        public static let all: Set = [.up, .down]
+        /// The set holding `direction` alone.
+        public init(_ direction: VerticalDirection) {
+            self = direction == .up ? .up : .down
         }
     }
 }
@@ -183,16 +276,20 @@ public enum FrameResizeDirection: Sendable, Hashable {
 final class PointerAttachment {
     let scrollWheel: (@MainActor (ScrollEvent) -> Bool)?
     let style: PointerStyle?
+    /// `.hidden` or `.visible` from `pointerVisibility(_:)`; `nil` for none and for `.automatic`
+    /// (`PH-F`: automatic defers to an outer declaration).
+    let visibility: Visibility?
 
-    init(scrollWheel: (@MainActor (ScrollEvent) -> Bool)?, style: PointerStyle?) {
+    init(scrollWheel: (@MainActor (ScrollEvent) -> Bool)?, style: PointerStyle?, visibility: Visibility? = nil) {
         self.scrollWheel = scrollWheel
         self.style = style
+        self.visibility = visibility
     }
 
     /// `existing` with its wheel handler replaced by `action`.
     static func wheel(_ action: @escaping @MainActor (ScrollEvent) -> Bool,
                       over existing: PointerAttachment?) -> PointerAttachment {
-        PointerAttachment(scrollWheel: action, style: existing?.style)
+        PointerAttachment(scrollWheel: action, style: existing?.style, visibility: existing?.visibility)
     }
 
     /// `existing` with `style` unless it already carries one (the inner
@@ -200,7 +297,14 @@ final class PointerAttachment {
     /// (`nil` attaches nothing, `CI-H` item 2).
     static func style(_ style: PointerStyle?, over existing: PointerAttachment?) -> PointerAttachment? {
         guard let style, existing?.style == nil else { return existing }
-        return PointerAttachment(scrollWheel: existing?.scrollWheel, style: style)
+        return PointerAttachment(scrollWheel: existing?.scrollWheel, style: style, visibility: existing?.visibility)
+    }
+
+    /// `existing` with `visibility` unless it already carries one (the inner wins, as a style does);
+    /// `existing` itself for `.automatic`, which attaches nothing (`PH-F`).
+    static func visibility(_ visibility: Visibility, over existing: PointerAttachment?) -> PointerAttachment? {
+        guard visibility != .automatic, existing?.visibility == nil else { return existing }
+        return PointerAttachment(scrollWheel: existing?.scrollWheel, style: existing?.style, visibility: visibility)
     }
 }
 
@@ -240,6 +344,30 @@ extension StyledElement {
         copy.handlers.pointer = PointerAttachment.style(style, over: handlers.pointer)
         return copy
     }
+
+    /// Shows or hides the pointer while it is over this element — SwiftUI's
+    /// `pointerVisibility(_:)` (macOS 15; `PH-F`, probe
+    /// `swiftui-pointer-extras.swift` `V1`–`V9`).
+    ///
+    /// `.hidden` hides the pointer, `.visible` shows it even where an outer
+    /// view hides it, and `.automatic` is the system's choice: it **attaches
+    /// nothing**, so an outer declaration applies (`V6`). The innermost
+    /// declaration wins (`V5`), the element's region follows `pointerStyle`'s
+    /// rules exactly — non-opaque, covered by an opaque target above (`V9`),
+    /// withdrawn by `.disabled(true)`, `.allowsHitTesting(false)` and
+    /// `.hidden()`, held by a press — and visibility is independent of the
+    /// style: a hidden pointer keeps its `pointerStyle` for when it shows again
+    /// (`V7`). SwiftUI hides with `NSCursor.hide()` on entering and unhides on
+    /// leaving; MetalUI sends the platform a hidden pointer (`PlatformPointerStyle.hidden`):
+    /// a transparent cursor on AppKit, `SDL_HideCursor` on SDL (`PH-G`), and
+    /// shows the pointer again when it leaves the window.
+    ///
+    /// Returns `Self` — no identity level, no `StateTable` entry.
+    public func pointerVisibility(_ visibility: Visibility) -> Self {
+        var copy = self
+        copy.handlers.pointer = PointerAttachment.visibility(visibility, over: handlers.pointer)
+        return copy
+    }
 }
 
 extension ProposalElementGroup {
@@ -249,6 +377,12 @@ extension ProposalElementGroup {
     /// registers no region and an outer style applies.
     public func pointerStyle(_ style: PointerStyle?) -> PointerStyleModifier<Self> {
         PointerStyleModifier(content: self, attachment: PointerAttachment.style(style, over: nil))
+    }
+
+    /// `StyledElement.pointerVisibility(_:)` on the proposal path: wraps once in
+    /// a `PointerStyleModifier` (`PH-F`). `.automatic` attaches nothing.
+    public func pointerVisibility(_ visibility: Visibility) -> PointerStyleModifier<Self> {
+        PointerStyleModifier(content: self, attachment: PointerAttachment.visibility(visibility, over: nil))
     }
 }
 
@@ -324,48 +458,62 @@ extension Window {
     /// cursor is process-global and survives leaving the window.
     func updatePointerStyle(at point: Point<Pixels>?, releasing: Bool = false) {
         guard let point else {
+            // A hidden pointer is shown again when it leaves (`PH-F`, probe `V2`: SwiftUI unhides on leaving).
+            if resolvedPointerStyle?.kind == .hidden { sendPointerStyle(.arrow) }
             resolvedPointerStyle = nil
             return
         }
-        let style: PointerStyle
+        var found = ResolvedPointer()
         if hoverIsSuppressed || lastPointerStyleRegionCount == 0 {
-            style = .default
+            // `.default`, visible
         } else if !releasing, let target = pointerStylePressTarget {
-            style = pressedPointerStyle(target) ?? .default
+            found = pressedPointer(target)
         } else {
-            style = pointerStyleUnderPointer(point) ?? .default
+            found = pointerUnderPointer(point)
         }
+        // Visibility is independent of the style; a hidden pointer is the one resolved value `.hidden`
+        // (`PH-F`), so a change of either is a change.
+        let style = found.visibility == .hidden ? PointerStyle(.hidden) : (found.style ?? .default)
         guard style != resolvedPointerStyle else { return }
         resolvedPointerStyle = style
         sendPointerStyle(resolvedPlatformStyle(style))
     }
 
-    /// The innermost style region at `point` its cover reaches (`CI-H` item 4).
-    private func pointerStyleUnderPointer(_ point: Point<Pixels>) -> PointerStyle? {
+    /// What the pointer regions at a point say: the innermost style and the innermost visibility.
+    struct ResolvedPointer {
+        var style: PointerStyle?
+        var visibility: Visibility?
+    }
+
+    /// The innermost style and visibility regions at `point` their cover reaches (`CI-H` item 4, `PH-F`).
+    private func pointerUnderPointer(_ point: Point<Pixels>) -> ResolvedPointer {
         guard let cover = topmostHitbox(in: lastHitboxes, at: point, where: {
             $0.opaque || $0.handlers.hover != nil || $0.handlers.pointer?.style != nil
-        }) else { return nil }
+                || $0.handlers.pointer?.visibility != nil
+        }) else { return ResolvedPointer() }
         let top = lastHitboxes[cover]
-        var found: PointerStyle?
+        var found = ResolvedPointer()
         for region in lastHitboxes {
             pointerStyleVisits += 1
-            guard let style = region.handlers.pointer?.style else { continue }
+            guard let pointer = region.handlers.pointer, pointer.style != nil || pointer.visibility != nil else { continue }
             if region.layer == top.layer, region.contains(point), top.id.isOrDescends(from: region.id) {
-                found = style
+                if let style = pointer.style { found.style = style }
+                if let visibility = pointer.visibility { found.visibility = visibility }
             }
         }
         return found
     }
 
-    /// The innermost style region on the pressed target's layer whose id the
+    /// The innermost style and visibility on the pressed target's layer whose id the
     /// target is or descends from, wherever the pointer is (`CI-H` item 6).
-    private func pressedPointerStyle(_ target: (id: GlobalElementID, layer: Int)) -> PointerStyle? {
-        var found: PointerStyle?
+    private func pressedPointer(_ target: (id: GlobalElementID, layer: Int)) -> ResolvedPointer {
+        var found = ResolvedPointer()
         for region in lastHitboxes {
             pointerStyleVisits += 1
-            guard let style = region.handlers.pointer?.style else { continue }
+            guard let pointer = region.handlers.pointer, pointer.style != nil || pointer.visibility != nil else { continue }
             if region.layer == target.layer, target.id.isOrDescends(from: region.id) {
-                found = style
+                if let style = pointer.style { found.style = style }
+                if let visibility = pointer.visibility { found.visibility = visibility }
             }
         }
         return found

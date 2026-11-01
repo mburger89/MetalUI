@@ -13,7 +13,9 @@ import MetalUIScene
 /// `PointerStyle.image(_:hotSpot:)` lowers to it, so an outside `PlatformWindow`
 /// conformer's exhaustive `switch` in `setPointerStyle(_:)` owes `.image` or
 /// `default:` — a migration note (`docs/migration.md`). `.shape(…)` is still
-/// not offered (`CI-A`, `IC-G`).
+/// not offered (`CI-A`, `IC-G`). **`PH-A` and `PH-F` add three more** (`columnResizeOneWay`,
+/// `rowResizeOneWay`, `hidden`): the same owing, a `default:` shows the arrow or leaves the pointer
+/// visible.
 public enum PlatformPointerStyle: Sendable, Hashable {
     /// The arrow: SwiftUI's `.default`.
     case arrow
@@ -33,6 +35,16 @@ public enum PlatformPointerStyle: Sendable, Hashable {
     case columnResize
     /// The up-down resize: `.rowResize`.
     case rowResize
+    /// A divider that moves one way only (`columnResize(directions:)` with one
+    /// direction, `PH-A`): the left-right resize with one arrow, towards the
+    /// trailing side when `towardTrailing`, else the leading side.
+    case columnResizeOneWay(towardTrailing: Bool)
+    /// `rowResize(directions:)` with one direction: the up-down resize with one
+    /// arrow, down when `towardDown`, else up.
+    case rowResizeOneWay(towardDown: Bool)
+    /// No pointer is drawn: `pointerVisibility(.hidden)` (`PH-F`). A platform
+    /// shows the pointer again on the next style it is sent.
+    case hidden
     /// The magnifying glass with a plus: `.zoomIn`.
     case zoomIn
     /// The magnifying glass with a minus: `.zoomOut`.

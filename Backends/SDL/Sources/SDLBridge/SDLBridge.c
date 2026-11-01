@@ -1680,6 +1680,14 @@ bool mui_set_system_cursor(int32_t cursor) {
     return SDL_SetCursor(system_cursors[cursor]);
 }
 
+bool mui_set_cursor_visible(bool visible) {
+    return visible ? SDL_ShowCursor() : SDL_HideCursor();
+}
+
+bool mui_cursor_visible(void) {
+    return SDL_CursorVisible();
+}
+
 bool mui_push_raw_mouse_event(uint32_t sdl_type, uint32_t window_id, uint8_t button, uint32_t state,
                               float x, float y) {
     SDL_Event e;
