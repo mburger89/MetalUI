@@ -35,6 +35,8 @@ private func conformer(pair: String) -> String {
         var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
         func performTitleBarPress(clickCount: Int) -> Bool { false }
         func performWindowDrag() -> Bool { false }
+        func setSubtitle(_ subtitle: String) {}
+        func setDismissEnabled(_ enabled: Bool) {}
         func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }
         func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }
         var hasNativeWindowControls: Bool { true }

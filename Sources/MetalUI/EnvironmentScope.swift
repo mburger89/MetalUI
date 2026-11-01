@@ -22,6 +22,11 @@ enum EnvironmentWrite {
     /// reports to the frame **after** its content builds (post-order).
     case navigationTitle(String)
     case navigationDocument(URL)
+    /// `.navigationSubtitle(_:)` and `.windowDismissBehavior(_:)` (ruling `AE-C`): the same, except that the
+    /// subtitle is reported **before** its content builds (pre-order, probe `N9`, `N12`, `N13`) and the
+    /// dismiss behavior after it (post-order, probe `D2`…`D4`).
+    case navigationSubtitle(String)
+    case windowDismissBehavior(WindowInteractionBehavior)
     case onOpenURL(@MainActor (URL) -> Void)
     /// `.presentationBackground(...)` (rulings `BG-B`): changes no value; reports after its content builds,
     /// into the slot an enclosing presentation's bracket opened.
@@ -126,6 +131,13 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
         case .navigationTitle(let title):
             let result = body()
             if frame.collectedNavigationTitle == nil { frame.collectedNavigationTitle = title }
+            return result
+        case .navigationSubtitle(let subtitle):
+            if frame.collectedNavigationSubtitle == nil { frame.collectedNavigationSubtitle = subtitle }
+            return body()
+        case .windowDismissBehavior(let behavior):
+            let result = body()
+            if frame.collectedDismissBehavior == nil { frame.collectedDismissBehavior = behavior }
             return result
         case .navigationDocument(let url):
             let result = body()

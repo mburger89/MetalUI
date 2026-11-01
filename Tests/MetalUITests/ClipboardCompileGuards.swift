@@ -44,6 +44,8 @@ private func conformer(clipboard members: String) -> String {
         var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
         func performTitleBarPress(clickCount: Int) -> Bool { false }
         func performWindowDrag() -> Bool { false }
+        func setSubtitle(_ subtitle: String) {}
+        func setDismissEnabled(_ enabled: Bool) {}
         // Window chrome's four (`CW-`).
         func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }
         func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }

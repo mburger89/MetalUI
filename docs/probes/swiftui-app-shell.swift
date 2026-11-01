@@ -9,7 +9,7 @@
 // build per arm, chosen by a -D flag; defaults cleared first (a WindowGroup
 // autosaves its frame, see swiftui-window-sizing.swift):
 //
-//   for arm in N0 N1 N2 N5 N3 N4 H0 H1 D0 D1 T0 T1 T2 T3 O0 O1 O2 O3 O4 O5; do
+//   for arm in N0 N1 N2 N5 N3 N4 N6 N7 N8 N9 N10 N11 N12 N13 H0 H1 D0 D1 D2 D3 D4 D5 D6 T0 T1 T2 T3 O0 O1 O2 O3 O4 O5; do
 //     xcrun swiftc -parse-as-library -D $arm docs/probes/swiftui-app-shell.swift -o /tmp/as-$arm
 //     defaults delete as-$arm 2>/dev/null; /tmp/as-$arm -ApplePersistenceIgnoreState YES
 //   done
@@ -202,6 +202,27 @@
 //   window takes it and no window opens (O4, O5). Every handler in the
 //   receiving window runs once (O1, O5); their order varies between runs.
 
+//
+// ADDED 2026-11-01 (item R3-10 part 3, rulings `AE-`), macOS 27.0.1, Apple Swift 6.4, screen unlocked, one run each from cleared
+// defaults, exit 0 (arms N6-N13 and D2-D6; build and run as above). Fields trimmed to those that differ from N0/D1:
+//   N6  .navigationTitle(Text("Plain **bold** `code`").bold().foregroundStyle(.red))  title="Plain bold code"
+//   N7  .navigationTitle("Lit **bold** `code` [link](https://x.y)")                    title="Lit bold code link"
+//   N8  .navigationTitle("Title").navigationSubtitle("Sub")                            title="Title" subtitle="Sub"
+//   N9  .navigationSubtitle("Inner sub") then .navigationSubtitle("Outer sub") (outer) subtitle="Outer sub"   (pre-order)
+//   N10 .navigationTitle($m.title), then the model writes it                           "Doc A" -> "Edited by app"
+//   N11 .navigationSubtitle(Text("Sub **b**"))                                         subtitle="Sub b"
+//   N12 two sibling subtitles Left, Right                                              subtitle="Left"
+//   N13 inner "Inner" inside a VStack carrying "Outer"                                 subtitle="Outer"
+//   D2  inner .enabled inside outer .disabled   closable=true  closeButton enabled:true  performClose -> visible windows=0
+//   D3  inner .disabled inside outer .enabled   closable=false closeButton enabled:false performClose -> visible windows=1
+//   D4  siblings .disabled, .enabled            closable=false enabled:false                          visible windows=1
+//   D5  .automatic                              closable=true                                         visible windows=0
+//   D6  .disabled + an onTapGesture content     closable=false enabled:false                          visible windows=1
+// - N6/N7: a Text title and a literal (a LocalizedStringKey) reach NSWindow.title as PLAIN text: Markdown parsed, styles dropped.
+// - Subtitle precedence is PRE-order (outer beats inner, first sibling wins) — the opposite of the title's post-order (N2, N5).
+// - Dismiss precedence is post-order like the title (D2, D3, D4); .automatic = .enabled (D5); delegate windowShouldClose stays true.
+// - N10: SwiftUI follows a Binding title's value; the title-bar rename field is not observable here (carried).
+
 import AppKit
 import SwiftUI
 
@@ -321,8 +342,35 @@ struct Content: View {
         GeometryProbe().navigationDocument(URL(fileURLWithPath: "/tmp/probe-doc.mcgraph"))
         #elseif N4
         GeometryProbe().navigationDocument(URL(fileURLWithPath: "/tmp/probe-doc.mcgraph")).navigationTitle("Custom")
+        #elseif N6
+        GeometryProbe().navigationTitle(Text("Plain **bold** `code`").bold().foregroundStyle(.red))
+        #elseif N7
+        GeometryProbe().navigationTitle("Lit **bold** `code` [link](https://x.y)")
+        #elseif N8
+        GeometryProbe().navigationTitle("Title").navigationSubtitle("Sub")
+        #elseif N9
+        GeometryProbe().navigationTitle("T").navigationSubtitle("Inner sub")
+            .navigationSubtitle("Outer sub")
+        #elseif N10
+        GeometryProbe().navigationTitle($m.title)
+        #elseif N12
+        HStack { GeometryProbe().navigationSubtitle("Left"); GeometryProbe().navigationSubtitle("Right") }
+        #elseif N13
+        VStack { GeometryProbe().navigationSubtitle("Inner") }.navigationSubtitle("Outer")
+        #elseif N11
+        GeometryProbe().navigationTitle("T").navigationSubtitle(Text("Sub **b**"))
         #elseif H1
         GeometryProbe().ignoresSafeArea()
+        #elseif D2
+        VStack { GeometryProbe().windowDismissBehavior(.enabled) }.windowDismissBehavior(.disabled)
+        #elseif D3
+        VStack { GeometryProbe().windowDismissBehavior(.disabled) }.windowDismissBehavior(.enabled)
+        #elseif D4
+        HStack { GeometryProbe().windowDismissBehavior(.disabled); GeometryProbe().windowDismissBehavior(.enabled) }
+        #elseif D5
+        GeometryProbe().windowDismissBehavior(.automatic)
+        #elseif D6
+        GeometryProbe().windowDismissBehavior(.disabled).onTapGesture { }
         #elseif D0
         GeometryProbe().windowDismissBehavior(.disabled)
         #elseif T1
@@ -358,7 +406,10 @@ struct Content: View {
         #if N1
         m.title = "Doc B"
         after(0.5) { describe("after title -> Doc B"); exit(0) }
-        #elseif D0 || D1
+        #elseif N10
+        m.title = "Edited by app"
+        after(0.5) { describe("after binding -> Edited by app"); exit(0) }
+        #elseif D0 || D1 || D2 || D3 || D4 || D5 || D6
         let w = mainWindows().first!
         let should = w.delegate?.windowShouldClose?(w)
         print("  delegate=\(w.delegate.map { String(describing: type(of: $0)) } ?? "nil") windowShouldClose -> \(should.map(String.init) ?? "nil (not implemented)")")
@@ -404,6 +455,32 @@ struct ProbeApp: App {
         print("=== H0 .windowStyle(.hiddenTitleBar)")
         #elseif H1
         print("=== H1 .windowStyle(.hiddenTitleBar), content .ignoresSafeArea()")
+        #elseif N6
+        print("=== N6 .navigationTitle(Text(\"Plain **bold** `code`\").bold().foregroundStyle(.red))")
+        #elseif N7
+        print("=== N7 .navigationTitle(string literal with Markdown)")
+        #elseif N8
+        print("=== N8 .navigationTitle(\"Title\").navigationSubtitle(\"Sub\")")
+        #elseif N9
+        print("=== N9 nested .navigationSubtitle: Inner inside Outer")
+        #elseif N10
+        print("=== N10 .navigationTitle(Binding<String>), then the model writes it")
+        #elseif N12
+        print("=== N12 sibling .navigationSubtitle: Left then Right in one HStack")
+        #elseif N13
+        print("=== N13 .navigationSubtitle(\"Inner\") inside a VStack with .navigationSubtitle(\"Outer\")")
+        #elseif N11
+        print("=== N11 .navigationSubtitle(Text with Markdown)")
+        #elseif D2
+        print("=== D2 nested: inner .enabled inside outer .disabled")
+        #elseif D3
+        print("=== D3 nested: inner .disabled inside outer .enabled")
+        #elseif D4
+        print("=== D4 siblings: .disabled then .enabled")
+        #elseif D5
+        print("=== D5 .windowDismissBehavior(.automatic)")
+        #elseif D6
+        print("=== D6 .disabled with an onTapGesture content")
         #elseif D0
         print("=== D0 .windowDismissBehavior(.disabled)")
         #elseif D1

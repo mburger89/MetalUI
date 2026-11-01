@@ -2141,3 +2141,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **LB2.** The same for `.segmented` and `.radioGroup` pickers, a `Toggle("T", isOn:)` (checkbox and `.switch`), a `Stepper("S", value:)`, a `ColorPicker("C", selection:)` and a `ProgressView("P", value: 0.5)`: each control's own view starts at the caption's left edge; the label's text is not drawn anywhere. **Observed:**
 - [ ] **LB3.** With VoiceOver on, focus each hidden-label control from LB1/LB2: it reads its title ("Title, pop-up button", "T, checkbox"). **Observed:**
 - [ ] **LB4.** An ancestor flips `.labelsHidden()` from a button while the views are on screen (inside an `.equatable()` card): the labels disappear and return at once, the controls move to and from the leading edge. **Observed:**
+
+## AE. App-shell extras - subtitle, a disabled close button, plain-text titles (round 3 item R3-10 part 3; decisions `docs/superpowers/2026-11-01-app-shell-extras-decisions.md`, record 190; provisional letter)
+
+*An agent cannot: the look of a title bar's subtitle and of a greyed close button is a look, and SDL's behaviour needs a real Linux or Windows window.*
+
+- [ ] **AE1.** macOS: a window whose content has `.navigationTitle("Doc").navigationSubtitle("3 items")` shows "Doc" with "3 items" beneath it in the title bar; changing the subtitle in state follows; removing the modifier clears the line. **Observed:**
+- [ ] **AE2.** macOS: `.navigationTitle(Text("**Bold** title").bold())` and `.navigationTitle("**Bold** title")` both show `Bold title` (no asterisks, no bold). **Observed:**
+- [ ] **AE3.** macOS: `.windowDismissBehavior(.disabled)` greys the red close button, ⌘W and File > Close do nothing, and the window still closes on ⌘Q; removing the modifier restores the button. **Observed:**
+- [ ] **AE4.** Linux or Windows (SDL): a window with `.windowDismissBehavior(.disabled)` ignores the system title bar's close button (it stays drawn, divergence 1036), the drawn buttons under `.hiddenTitleBar` close nothing, and a quit still closes it; `.navigationSubtitle` shows nothing (divergence 1035). **Observed:**
+

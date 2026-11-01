@@ -24,6 +24,10 @@ private let positiveFixture = """
                 HStack { ProposalText("y") }.navigationTitle(name)
                 Box().navigationTitle("x")
                 Box().navigationTitle("x").padding(4)
+                Box().navigationTitle(Text("x").bold()).navigationSubtitle(Text("y"))
+                Box().navigationTitle("lit \\(name)").navigationSubtitle("sub").navigationSubtitle(name)
+                Box().navigationTitle(LocalizedStringKey("k")).navigationSubtitle(LocalizedStringKey("k"))
+                Box().windowDismissBehavior(.disabled).windowDismissBehavior(.enabled).windowDismissBehavior(.automatic)
             }
         }
         _ = try app.openWindow(title: "w", size: Size(width: Pixels(100), height: Pixels(100))) {
@@ -75,9 +79,14 @@ private let negatives: [(name: String, fixture: String, mentions: String)] = [
             values.titleBarInsets = Edges(all: Pixels(1))
         }
         """, "titleBarInsets"),
-    ("navigationTitle(Text)", """
+    ("navigationTitle(Binding)", """
         @MainActor func tree() -> some Element {
-            Column { Box().navigationTitle(Text("x")) }
+            Column { Box().navigationTitle(Binding.constant("x")) }
+        }
+        """, "navigationTitle"),
+    ("navigationTitle(builder)", """
+        @MainActor func tree() -> some Element {
+            Column { Box().navigationTitle { Text("x") } }
         }
         """, "navigationTitle"),
     ("WindowStyle.plain", """
