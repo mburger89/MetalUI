@@ -179,7 +179,7 @@ jobs:
             METALUI_SHADERCROSS=$fx/shadercross-stub swift build
             test -s "$(find .build -name tri.vert.spv | head -n 1)"
           '
-      - name: The X11 window icon reaches _NET_WM_ICON (XP-G36, WI-E)
+      - name: The X11 window icon reaches _NET_WM_ICON (XP-G37, WI-E)
         # A real SDL window on Xvfb with SDL_VIDEO_DRIVER=x11 (the image defaults to offscreen):
         # IconCheck sets app.icon, then check.sh reads the property back with xprop and walks its
         # width, height, pixels records. One 256 icon, three sizes, and three sizes set after the

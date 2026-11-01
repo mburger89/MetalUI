@@ -1,6 +1,6 @@
 # X11 window icon - decisions
 
-Rulings for the X11 window icon (item XP-G36, MetalCreator 2026-11-01, **not a plan task**). Record: `../record/183-x11-window-icon.md`.
+Rulings for the X11 window icon (item XP-G37, MetalCreator 2026-11-01, **not a plan task**). Record: `../record/183-x11-window-icon.md`.
 Prefix **`WI-`**, lettered. **Next unused: `WI-F`.** (This line moves in the commit that appends a ruling; read the last `## WI-` heading.)
 
 Branch `fix/x11-window-icon` from master `71e46462`. Class `M`: no public declaration, no divergence (975-984 untouched), nothing published.

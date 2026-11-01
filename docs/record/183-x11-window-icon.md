@@ -1,6 +1,6 @@
 # 183 - the X11 window icon (`WI-A`..`WI-E`)
 
-2026-11-01, branch `fix/x11-window-icon` from master `71e46462`; item XP-G36 (MetalCreator; the number is shared with record 182's
+2026-11-01, branch `fix/x11-window-icon` from master `71e46462`; item XP-G37 (MetalCreator; the number is shared with record 182's
 uniform slots, which landed first). Rulings: `docs/superpowers/2026-11-01-x11-window-icon-decisions.md`.
 
 ## 1. The report and what was measured

@@ -2068,7 +2068,7 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **PG7.** `path.strokedPath(StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round)).fill(.accent)` on a zig-zag looks like `path.stroke(.accent, style: ...)` of the same style, joins and caps included; filled with a gradient it fills the band. **Observed:**
 - [ ] **PG8.** A dashed `RoundedRectangle(cornerRadius: 12).stroke(style: StrokeStyle(lineWidth: 2, dash: [6, 4]))`: the pattern begins at the midpoint of the right edge (not at a corner). **Observed:**
 
-## WI. The X11 window icon (item XP-G36, record 183; decisions `docs/superpowers/2026-11-01-x11-window-icon-decisions.md`; provisional letter)
+## WI. The X11 window icon (item XP-G37, record 183; decisions `docs/superpowers/2026-11-01-x11-window-icon-decisions.md`; provisional letter)
 
 *An agent cannot: a real desktop shell choosing among the sizes, and Wayland. The `_NET_WM_ICON` contents are checked by CI under Xvfb (`IconCheck`, `WI-E`). Read the property raw: `xprop -f _NET_WM_ICON 32c -id <win> _NET_WM_ICON` (xprop's default printer is silent for a 256 px icon, `WI-A`).*
 
