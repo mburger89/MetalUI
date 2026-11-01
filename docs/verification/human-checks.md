@@ -2112,3 +2112,8 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **TM6.** Under `.font(.system(size: 13, weight: .light))` and `.bold()` the text stays light; under `.fontWeight(.light)` and an inner `.bold()` it stays light (SwiftUI's order-independent result). **Observed:**
 - [ ] **TM7.** Change an ancestor's `.kerning` with a slider while a retained card (`.equatable()`) holds the text: the card's text re-spaces on every step with no stale frame. **Observed:**
 - [ ] **TM8.** On Linux or Windows, TM1-TM3 look the same as on macOS. **Observed:**
+## SD. Segmented picker selected fill in dark (record 187; rulings `SD-A`, `SD-B`; decisions `docs/superpowers/2026-11-01-segmented-dark-decisions.md`; provisional letter)
+
+*An agent cannot: window capture was denied in the authoring session, so the native look is unsampled (`SD-A`).*
+
+- [ ] **SD1.** In the dark appearance, a segmented `Picker` (`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo`) shows its selected segment as a visibly *lighter* pill than the track, the unselected segments flush with the track, next to a SwiftUI/AppKit segmented control in the same appearance (lighter-pill-on-darker-track, as AppKit draws it). In light it is a white pill on the grey track, as before. **Observed:**
