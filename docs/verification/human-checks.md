@@ -2131,6 +2131,8 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **PH5.** While hidden, drag from the hidden box out of the window and release outside: the pointer is visible again after the release (and stayed hidden during the drag if the box has a drag gesture). **Observed:**
 - [ ] **PH6.** Linux and Windows (SDL): `.leading`/`.trailing` show the west/east edge-resize cursor, `.up`/`.down` the north/south one (SDL has no one-arrow divider cursor; the two-arrow forms for `.all`); `.hidden` hides the pointer over the box and `SDL_ShowCursor` brings it back on leaving the box. **Observed:**
 - [ ] **PH7.** macOS 14 (if available): the one-way forms show the left/right/up/down resize cursors, the two-way forms the left-right and up-down ones. **Observed:**
+
+
 ## LB. `labelsHidden()` - hidden control labels take no space (round 3, MetalFlow request; ruling `LB-A`, record 189; decisions `docs/superpowers/2026-11-01-labels-hidden-decisions.md`; provisional letter)
 
 *An agent cannot: alignment against a caption above is a look, and VoiceOver's reading of a hidden label needs the real screen reader. Run a scratch window with the views below (or MetalFlow's inspector).*
