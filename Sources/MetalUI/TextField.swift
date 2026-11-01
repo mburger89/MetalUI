@@ -368,7 +368,7 @@ public struct TextField: Element, StyledElement {
                           size: Size(width: bounds.size.width, height: outer.size.height))
         pass.clipped(to: clip, offsetBy: Point(x: Pixels(0), y: Pixels(0))) {
             if !g.selection.isEmpty {
-                var selectionColor = pass.theme[.accent]
+                var selectionColor = pass.resolve(.accentColor)
                 selectionColor.a *= 0.3
                 pass.fill(rect(g.offsets[g.selection.lowerBound], g.offsets[g.selection.upperBound],
                                y: g.lineY, height: g.lineHeight), color: selectionColor)

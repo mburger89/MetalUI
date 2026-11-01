@@ -272,6 +272,11 @@ public struct EnvironmentValues {
     /// `.foregroundStyle(_:)`/`.foregroundColor(_:)`.
     var foregroundStyle: Color?
 
+    /// The tint `.tint(_:)` wrote (`SS-D`): what `Color.accentColor` resolves to and what the
+    /// built-in controls paint their accent in. `nil`: the theme's accent. Internal, as SwiftUI's has no
+    /// public key; read it through ``Color/accentColor``.
+    var tint: Color?
+
     /// `.fontWeight(_:)` over whichever font a text below resolves (TE-B
     /// item 3). Internal, as SwiftUI's is.
     var fontWeight: Font.Weight?
@@ -390,6 +395,7 @@ struct EnvironmentFingerprint: Equatable {
     var truncationMode: Text.TruncationMode
     var multilineTextAlignment: TextAlignment
     var foregroundStyle: Color?
+    var tint: Color?
     var fontWeight: Font.Weight?
     var italic: Bool
     var textLineLimit: TextLineLimit
@@ -428,6 +434,7 @@ extension EnvironmentFingerprint {
         if truncationMode != other.truncationMode { out.append("truncationMode") }
         if multilineTextAlignment != other.multilineTextAlignment { out.append("multilineTextAlignment") }
         if foregroundStyle != other.foregroundStyle { out.append("foregroundStyle") }
+        if tint != other.tint { out.append("tint") }
         if fontWeight != other.fontWeight { out.append("fontWeight") }
         if italic != other.italic { out.append("italic") }
         if textLineLimit != other.textLineLimit { out.append("textLineLimit") }
@@ -456,7 +463,7 @@ extension EnvironmentValues {
             accessibilityReduceTransparency: accessibilityReduceTransparency,
             titleBarInsets: titleBarInsets, windowSize: windowSize, colorScheme: colorScheme,
             controlSize: controlSize, font: font, lineLimit: lineLimit, truncationMode: truncationMode,
-            multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStyle,
+            multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStyle, tint: tint,
             fontWeight: fontWeight, italic: italic, textLineLimit: textLineLimit,
             fieldStyle: fieldStyles.field, editorStyle: fieldStyles.editor, theme: theme,
             hasTextSystem: textSystemBox != nil,

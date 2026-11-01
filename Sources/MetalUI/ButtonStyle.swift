@@ -178,7 +178,7 @@ enum ButtonLook: Equatable, Sendable {
     var glass: Glass? {
         switch self {
         case .glass: .regular.interactive()
-        case .glassProminent: .regular.tint(Color.accent).interactive()
+        case .glassProminent: .regular.tint(Color.accentColor).interactive()
         default: nil
         }
     }
@@ -187,7 +187,7 @@ enum ButtonLook: Equatable, Sendable {
     var labelColor: Color? {
         switch self {
         case .borderedProminent: .white
-        case .link: .accent
+        case .link: .accentColor
         default: nil
         }
     }

@@ -71,7 +71,7 @@ public struct TextMeasurer {
         let system = self.system
         // The theme and scheme at the reading point, captured beside the font (`DT-J`): `drawText` resolves
         // the foreground through the one function paint uses, `Color.resolved(theme:scheme:)`.
-        let colors = ColorContext(theme: environment.theme, scheme: environment.colorScheme)
+        let colors = ColorContext(theme: environment.theme, scheme: environment.colorScheme, tint: environment.tint)
         guard let plain = plainTextForm(content, own: own, rich: rich) else {
             return ResolvedText(system: system, colors: colors,
                                 form: .rich(resolveRichText(content, own: own, rich: rich, in: environment,

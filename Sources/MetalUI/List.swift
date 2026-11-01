@@ -541,7 +541,7 @@ where Data.Element: Identifiable {
                     // `animatedBackground` and mints exactly one `$anim-color`
                     // slot per selected realised row (`DD-AC` item 1); the hint
                     // records `isSelected` and writes no `$ax` (`DD-U` item 4).
-                    rowBox.decoration.background = .accent
+                    rowBox.decoration.background = pass.frame.environmentTop.tint ?? Color(.accent)
                     rowBox.handlers.axNode.selectionHint = true
                 }
                 rowBox.handlers.onClick = Self.rowClick(list: id, row: datum.id, data: data,

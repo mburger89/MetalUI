@@ -137,7 +137,7 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
             rowStyle.gap = Axes(both: .pixels(Pixels(0)))
             rowStyle.justifyContent = .center
             indicator.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(metrics.height))))
-            if decorated.background == nil { decorated.background = Color(on ? controlAccent(environment) : .surfaceSecondary) }
+            if decorated.background == nil { decorated.background = on ? controlAccent(environment) : Color(.surfaceSecondary) }
             if decorated.cornerRadius == Pixels(0) { decorated.cornerRadius = Pixels(5) }
             if decorated.border == nil && !on { decorated.border = BorderStyle(.separator, width: Pixels(1)) }
             if on {

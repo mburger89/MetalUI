@@ -259,7 +259,7 @@ final class PickerScope {
     /// The selected radio's fill: `.accent` in the key window, `.separator`
     /// otherwise (`controlAccent(_:)`, `IX-H` item 1). A segmented picker's
     /// selected segment is `.surface` in every window — it has no accent.
-    var accent: ColorToken = .accent
+    var accent: Color = Color(.accent)
     /// The picker's own `.accessibilityIdentifier`, when it declared one: the
     /// prefix of each option's derived identifier (`SE-A`).
     var identifier: String?

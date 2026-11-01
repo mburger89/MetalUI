@@ -199,6 +199,12 @@ public struct ShapeView<S: Shape>: Element {
         case gradientFill(GradientFill, FillStyle?)
         /// A centred gradient stroke (`LK-J`).
         case gradientStroke(GradientFill, StrokeStyle)
+        /// A fill by a `some ShapeStyle`, resolved against the environment at paint (`SS-C`).
+        case styleFill(AnyShapeStyle, FillStyle?)
+        /// A centred stroke by a `some ShapeStyle` (`SS-C`).
+        case styleStroke(AnyShapeStyle, StrokeStyle)
+        /// An inside stroke by a `some ShapeStyle` (`SS-C`).
+        case styleStrokeBorder(AnyShapeStyle, StrokeStyle)
     }
 
     var layers: [Layer]
@@ -345,6 +351,12 @@ public struct ShapeView<S: Shape>: Element {
                 paintGradientFill(fill, geometry, style: style, pass: pass)
             case let .gradientStroke(fill, style):
                 paintGradientStroke(fill, geometry, style: style, pass: pass)
+            case let .styleFill(erased, style):
+                paintStyleFill(erased, geometry, style: style, pass: pass)
+            case let .styleStroke(erased, style):
+                paintStyleStroke(erased, shape, geometry, bounds: bounds, style: style, outset: true, pass: pass)
+            case let .styleStrokeBorder(erased, style):
+                paintStyleStroke(erased, shape, geometry, bounds: bounds, style: style, outset: false, pass: pass)
             }
         }
     }

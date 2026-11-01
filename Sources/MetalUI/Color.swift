@@ -47,6 +47,8 @@ public struct Color: Hashable, Sendable {
         indirect case dynamic(light: Color, dark: Color)
         /// An app palette key (`CR-N`): the theme's override, else the key's default.
         case palette(PaletteKey)
+        /// The environment's tint, else the theme's accent (`SS-D`): `Color.accentColor`.
+        case accentColor
     }
 
     var provider: Provider
@@ -183,7 +185,7 @@ public struct Color: Hashable, Sendable {
     /// pixels it drew before); a dynamic colour picks by `scheme`; a palette
     /// colour resolves the theme's override or its key's default, trapping
     /// on a cycle (`CR-N` item 5). The opacity multiplier applies last.
-    func resolved(theme: Theme, scheme: ColorScheme, depth: Int = 0) -> Hsla {
+    func resolved(theme: Theme, scheme: ColorScheme, tint: Color? = nil, depth: Int = 0) -> Hsla {
         var base: Hsla
         switch provider {
         case let .srgb(r, g, b, a):
@@ -191,10 +193,13 @@ public struct Color: Hashable, Sendable {
         case let .token(token):
             base = theme[token]
         case let .dynamic(light, dark):
-            base = (scheme == .dark ? dark : light).resolved(theme: theme, scheme: scheme, depth: depth)
+            base = (scheme == .dark ? dark : light).resolved(theme: theme, scheme: scheme, tint: tint, depth: depth)
         case let .palette(key):
             if depth >= 16 { fatalError("ThemeColorKey cycle through \(key.name)") }
-            base = theme.paletteColor(key).resolved(theme: theme, scheme: scheme, depth: depth + 1)
+            base = theme.paletteColor(key).resolved(theme: theme, scheme: scheme, tint: tint, depth: depth + 1)
+        case .accentColor:
+            // The tint resolves with no tint of its own, so `.tint(.accentColor)` is the theme accent (`SS-D`).
+            base = tint?.resolved(theme: theme, scheme: scheme, tint: nil, depth: depth + 1) ?? theme[.accent]
         }
         if opacityFactor != 1 { base.a *= Self.clamped(opacityFactor) }
         return base
@@ -220,7 +225,7 @@ public struct Color: Hashable, Sendable {
     /// The theme itself stays paint-only (`EV-G`); a colour resolves wherever
     /// an environment is in hand.
     public func resolve(in environment: EnvironmentValues) -> Resolved {
-        let rgba = resolved(theme: environment.theme, scheme: environment.colorScheme).toRgba()
+        let rgba = resolved(theme: environment.theme, scheme: environment.colorScheme, tint: environment.tint).toRgba()
         return Resolved(red: rgba.r, green: rgba.g, blue: rgba.b, opacity: rgba.a)
     }
 
@@ -266,9 +271,10 @@ public struct Color: Hashable, Sendable {
     /// primary alpha ratio, 0.588 light and 0.648 dark (divergence 116).
     public static let secondary = Color(light: Color(ColorToken.textPrimary).opacity(0.588),
                                         dark: Color(ColorToken.textPrimary).opacity(0.648))
-    /// The accent colour: the theme's `accent` (divergence 116 — SwiftUI's
-    /// is the user's system accent).
-    public static let accentColor = Color(ColorToken.accent)
+    /// The accent colour: the tint a `.tint(_:)` above wrote, else the theme's
+    /// `accent` (divergence 116 — SwiftUI's is the user's system accent; `SS-D`).
+    /// ``accent`` is the theme's token and ignores the tint.
+    public static let accentColor = Color(provider: .accentColor)
 
     // MARK: Token statics (CR-E item 2)
 
@@ -329,8 +335,16 @@ public protocol ThemeColorKey {
 struct ColorContext {
     var theme: Theme
     var scheme: ColorScheme
+    /// The environment's tint, read by `Color.accentColor` (`SS-D`).
+    var tint: Color?
 
-    func resolve(_ color: Color) -> Hsla { color.resolved(theme: theme, scheme: scheme) }
+    init(theme: Theme, scheme: ColorScheme, tint: Color? = nil) {
+        self.theme = theme
+        self.scheme = scheme
+        self.tint = tint
+    }
+
+    func resolve(_ color: Color) -> Hsla { color.resolved(theme: theme, scheme: scheme, tint: tint) }
 }
 
 extension Frame {
@@ -339,11 +353,11 @@ extension Frame {
     var colorScheme: ColorScheme { environmentTop.colorScheme }
 
     /// The resolution context at the current position.
-    var colorContext: ColorContext { ColorContext(theme: environmentTop.theme, scheme: environmentTop.colorScheme) }
+    var colorContext: ColorContext { ColorContext(theme: environmentTop.theme, scheme: environmentTop.colorScheme, tint: environmentTop.tint) }
 
     /// `color` resolved against the current position's theme and scheme —
     /// `PaintPass.resolve(_:)`'s implementation (`CR-H` item 1).
     func resolve(_ color: Color) -> Hsla {
-        color.resolved(theme: environmentTop.theme, scheme: environmentTop.colorScheme)
+        color.resolved(theme: environmentTop.theme, scheme: environmentTop.colorScheme, tint: environmentTop.tint)
     }
 }
