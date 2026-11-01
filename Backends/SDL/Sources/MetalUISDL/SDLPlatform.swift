@@ -1452,10 +1452,10 @@ public final class SDLWindow: PlatformWindow {
             onResize?(contentSize, scaleFactor)
         case Int(MUI_EVENT_MOUSE_DOWN):
             _ = onInput?(.mouseDown(MouseEvent(position: position, modifiers: modifiers,
-                                               clickCount: Int(event.clicks))))
+                                               clickCount: Int(event.clicks), timestamp: event.timestamp)))
         case Int(MUI_EVENT_MOUSE_UP):
             _ = onInput?(.mouseUp(MouseEvent(position: position, modifiers: modifiers,
-                                             clickCount: Int(event.clicks))))
+                                             clickCount: Int(event.clicks), timestamp: event.timestamp)))
         case Int(MUI_EVENT_RIGHT_DOWN):   // the secondary button (ruling MN-B item 3)
             _ = onInput?(.rightMouseDown(MouseEvent(position: position, modifiers: modifiers,
                                                     clickCount: Int(event.clicks), buttonNumber: 1)))
@@ -1482,7 +1482,8 @@ public final class SDLWindow: PlatformWindow {
             _ = onInput?(.mouseMoved(MouseEvent(position: position, modifiers: modifiers)))
         case Int(MUI_EVENT_MOUSE_DRAG):
             endDropSessionOnMotion()
-            _ = onInput?(.mouseDragged(MouseEvent(position: position, modifiers: modifiers)))
+            _ = onInput?(.mouseDragged(MouseEvent(position: position, modifiers: modifiers,
+                                                  timestamp: event.timestamp)))
         case Int(MUI_EVENT_MOUSE_LEAVE):   // the pointer left the window (ruling SV-N item 7)
             _ = onInput?(.pointerExited)
         case Int(MUI_EVENT_DROP_BEGIN), Int(MUI_EVENT_DROP_POSITION), Int(MUI_EVENT_DROP_FILE),

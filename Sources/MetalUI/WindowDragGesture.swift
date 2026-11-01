@@ -25,7 +25,9 @@ import MetalUICore
 /// descendant attached *before* it outranks it, as in SwiftUI.
 ///
 /// The gesture has no value and no callbacks (`Value` has no members).
-public struct WindowDragGesture: Gesture {
+public struct WindowDragGesture: Gesture, PrimitiveGesture {
+    /// A recognizer MetalUI provides has no body.
+    public typealias Body = Never
     /// A window drag reports no value; SwiftUI's `Value` has no members.
     public struct Value: Equatable, Sendable {
         init() {}
@@ -34,7 +36,7 @@ public struct WindowDragGesture: Gesture {
     /// A gesture that moves the window.
     public init() {}
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
+    func _recognizers() -> _GestureRecognizers {
         _GestureRecognizers(.leaf(GestureLeaf(kind: .windowDrag)))
     }
 }

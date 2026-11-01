@@ -192,7 +192,7 @@ final class MetalHostView: NSView {
     /// event's own for the other buttons.
     private func mouseEvent(_ event: NSEvent, button: Int = 0) -> MouseEvent {
         MouseEvent(position: point(event), modifiers: modifiers(event), clickCount: event.clickCount,
-                   buttonNumber: button)
+                   buttonNumber: button, timestamp: event.timestamp)
     }
 
     /// A control-press is a secondary press on AppKit alone (rulings `MN-B`,
@@ -369,14 +369,14 @@ final class MetalHostView: NSView {
     override func mouseDragged(with event: NSEvent) {
         if controlClickInFlight {   // a control-press's drag is a secondary drag (CI-E item 3)
             _ = onInput?(.rightMouseDragged(MouseEvent(position: point(event), modifiers: modifiers(event),
-                                                       buttonNumber: 1)))
+                                                       buttonNumber: 1, timestamp: event.timestamp)))
             return
         }
         lastDragEvent = event   // an NSDraggingSession starts from it (DN-K item 2)
         isDispatchingDrag = true
         defer { isDispatchingDrag = false }
         _ = onInput?(.mouseDragged(MouseEvent(position: point(event),
-                                              modifiers: modifiers(event))))
+                                              modifiers: modifiers(event), timestamp: event.timestamp)))
     }
 
     private func keyEvent(_ event: NSEvent) -> KeyEvent {

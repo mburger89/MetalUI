@@ -98,6 +98,10 @@ enum ChromeRegions {
             return false
         case .exclusive(let children), .simultaneous(let children):
             return children.allSatisfy(isOnlyWindowDrag)
+        case .sequence(let first, let second):
+            return isOnlyWindowDrag(first) && isOnlyWindowDrag(second)
+        case .hooked(let inner, _):
+            return isOnlyWindowDrag(inner)
         }
     }
 }
