@@ -12,10 +12,10 @@ private let skipReason: Comment =
 
 /// **3.2** (`WD-B`). An outside module can attach `WindowDragGesture()` with
 /// `.gesture(_:)`, `.highPriorityGesture(_:)` and `.simultaneousGesture(_:)` on
-/// both vocabularies and name its `Value`; it cannot give it callbacks
-/// (`onChanged`, `onEnded`) nor make a `Value` (no members, SwiftUI's).
-/// Mutation: a public `onChanged` on `WindowDragGesture` (negative arm B
-/// compiles).
+/// both vocabularies and name its `Value`; it cannot make a `Value` (no members,
+/// SwiftUI's). Since `GE-E` the generic `onChanged`/`onEnded` compile on it (callbacks that never run: a window
+/// drag reports nothing), so the callbacks arm is now a positive control of that fact, not a negative.
+/// Mutation: a public `init` on `WindowDragGesture.Value` (the value arm compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aPlainImporterCanAttachWindowDragGestureButCannotGiveItCallbacks() throws {
     let positive = try typecheckFile("""
@@ -43,6 +43,6 @@ func aPlainImporterCanAttachWindowDragGestureButCannotGiveItCallbacks() throws {
         """, importing: "MetalUI")
     print("WD GUARD 3.2 value: succeeded=\(value.succeeded)\n\(value.messages)")
     try #require(positive.succeeded, "the control must compile, or this guard cannot fail:\n\(positive.output)")
-    #expect(!callbacks.succeeded, "no onChanged: \(callbacks.output)")
+    #expect(callbacks.succeeded, "the generic onChanged compiles on every Gesture (GE-E): \(callbacks.output)")
     #expect(!value.succeeded, "no outside Value: \(value.output)")
 }

@@ -45,7 +45,8 @@ func anOutsideTypeCannotDescribeRecognizersItself() throws {
 /// **GE.1 — a third-party module can declare a custom `Gesture` with a `body`** (ruling `GE-A`), name its value,
 /// compose it with the combinators and attach it, on a `StyledElement` and on the proposal path; every
 /// `sequenced`/`onChanged`/`onEnded`/`updating` spelling compiles from a plain import. The negative arm is a
-/// conformance with no `body` and no `Value`, which cannot compile.
+/// conformance whose `body` is not a gesture, which cannot compile (a conformance with no `body` at all compiles and
+/// traps when evaluated, as SwiftUI's does).
 ///
 /// Mutation that must redden it: remove `Gesture.body`'s requirement, or make `GestureStateGesture` internal.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
@@ -87,14 +88,14 @@ func anOutsideTypeCanConformToGestureThroughABody() throws {
     print("GESTURE GUARD GE.1 positive: succeeded=\(positive.succeeded)\n\(positive.messages)")
 
     let negative = try typecheckFile("""
-        struct NoBody: Gesture {}
+        struct WrongBody: Gesture { typealias Body = Int }
         """, importing: "MetalUI")
     print("GESTURE GUARD GE.1 negative: succeeded=\(negative.succeeded)\n\(negative.messages)")
 
     try #require(positive.succeeded != negative.succeeded,
                  "the two arms must disagree, or the guard measures nothing:\n\(positive.output)\n\(negative.output)")
     #expect(positive.succeeded, "a custom gesture with a body must compile outside the module:\n\(positive.output)")
-    #expect(!negative.succeeded, "a gesture with no body and no recognizers cannot conform:\n\(negative.output)")
+    #expect(!negative.succeeded, "a Body that is not a gesture cannot conform:\n\(negative.output)")
 }
 
 /// **G1.2 — every lane-1 spelling of spec §4 compiles from a plain import**,

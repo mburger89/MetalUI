@@ -49,6 +49,8 @@ public protocol Gesture {
 }
 
 extension Gesture where Body == Never {
+    // Public by necessity (a public type's witness of a public requirement): like SwiftUI's, a type that forgets
+    // its `body` still compiles and traps when evaluated (`GE-A`).
     /// A recognizer MetalUI provides has no body.
     public var body: Never { fatalError("\(Self.self) is a primitive gesture and has no body") }
 }

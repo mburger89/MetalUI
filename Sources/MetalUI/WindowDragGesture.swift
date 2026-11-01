@@ -24,7 +24,8 @@ import MetalUICore
 /// bar's, not the region's (`WD-F`). A drag gesture on the same element or a
 /// descendant attached *before* it outranks it, as in SwiftUI.
 ///
-/// The gesture has no value and no callbacks (`Value` has no members).
+/// The gesture has no value (`Value` has no members). `onChanged`/`onEnded`/`updating` are the generic ones every
+/// `Gesture` has since `GE-E`: they compile here and **never run**, as `TapGesture.updating` does (`GS-B`).
 public struct WindowDragGesture: Gesture, PrimitiveGesture {
     /// A recognizer MetalUI provides has no body.
     public typealias Body = Never

@@ -40,6 +40,13 @@ one ranking plus the target's ancestors **in its own hit layer** — a
 `Deferred` presentation's press does not reach a declaring ancestor's gesture
 (`IX-Q`). Callbacks run under `StateDispatch`.
 
+**Gesture composition (`GE-`, record 178).** `sequenced(before:)` gates the second member behind the first (`ArenaLeaf.isGated`): it records and acts on nothing until the first ended, a failed
+first fails the sequence, and a drag in the second starts at the **first pointer event after the gate** (the gate-opening move or release is replayed to it). A custom `Gesture` is a `body`; a MetalUI
+recognizer is an internal `PrimitiveGesture` and `_recognizers()` is not a protocol requirement. A composite is `.hooked(node, CompositeHooks)` and reports once per event (the arena's `flush`
+after the event's leaf callbacks), resetting its `updating` states before `onEnded`; a **new composite gesture builds its node hooked, taps its members, and must settle (reset) on end, failure and cancel**.
+`DragGesture.Value.velocity` is a 3:1 blend of the last two sampled intervals over **event timestamps** (`MouseEvent.timestamp`; tests stamp `now`, never sleep); a nil stamp falls back to the last tick.
+`GestureMask` is not built (`GE-H`).
+
 **Drag and drop** (`DN-`, record §68): MetalUI's own synchronous
 `Transferable`/`ContentType`. A draggable is a **non-opaque** gesture-arena
 member that begins on the first move. The destination is found by the one

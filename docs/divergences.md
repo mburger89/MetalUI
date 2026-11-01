@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **184 live divergences**, each measured (a probe
+place it knowingly does not: **185 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -212,6 +212,7 @@ scheduled).
 | 897 | the leaver of a matched swap | the outgoing view is moved to the newcomer's frame as it fades out (probe S1, S12) | only the **newcomer** moves: a leaver's ghost (it has a removal transition) fades where it was, and a leaver with none vanishes (divergence 98) | `MG-E` | `aLeaverRemovedByAnIdentityTransitionHandsNothingOver` | none |
 | 898 | custom `Transition`s | `body(content:phase:)` returns any `View` and `Transition` is not `Sendable`; `properties` (`TransitionProperties`) says whether it needs the content in a layer | `body(content: TransitionContent, phase:)` returns a `TransitionContent` recording **`opacity`, `scaleEffect` and `offset` only** (a transition is a paint effect here), the protocol is `Sendable`, `body` is called once per phase per resolution, and there is no `properties` | `MG-F` | `aCustomTransitionInsertsFromItsWillAppearState` | none |
 | 935 | the file dialog's `fileDialogMessage` and confirming label on SDL (Linux, Windows) | (no SwiftUI off Apple) on macOS the message is the panel's explanatory text and the label its confirming button's title (probe `swiftui-dialog-extras.swift` `F1`, `F3`, `F4`) | SDL's file dialogs have no message field: the message is shown as the **dialog's title** (else the seam's `title`), and the label is SDL's accept-button label, both through `SDL_ShowFileDialogWithProperties`, which each desktop's dialog may ignore; a request with neither keeps the old wrappers | `SV-AO` item 2 | `sdlDialogLabelsAreThePromptAndTheMessageOrTitle` (1.12b, `Backends/SDL`) | none (an SDL3 limit; effect unmeasured, human check `DX3`) |
+| 925 | the number of `updating` runs of an `exclusively(before:)` composite while its first member is undecided | SwiftUI ran the body a second time with the same `.first(true)` at the first pointer move after the press (probe `swiftui-gesture-composition.swift` `X2`; one arm, cause unexplained; `X2b`, with no move, shows none) | MetalUI reports a composite only when a member reports, so the same press-move-release runs it once | `GE-G` | `anExclusiveCompositeReportsTheWinningMembersValue` | none |
 
 ## Retired
 
@@ -274,7 +275,7 @@ stated.
 | `@Bindable` | not built: a property wrapper of its own; `Binding(get:set:)` over an environment object's property works | `MD-H` item 6 (owner: the gpui-gap list) |
 | `ObservableObject`, `@EnvironmentObject`, `.environmentObject(_:)` | not offered: Combine; an `@Observable` object is provided with `.environment(_:)` and read with `@Environment(Type.self)` | `MD-H` item 6 |
 | Windows' open-on-release context-menu convention | MetalUI opens a context menu on the press on every platform | `MN-E` item 3 |
-| `.sequenced`, `GestureMask`, a custom gesture `body`, location taps; `updating` on a composed gesture and the `GestureStateGesture` type | not built (`@GestureState` and `updating` on the concrete gestures are built since §135) | `IX-B`, `GS-B`, `GS-N` |
+| `GestureMask`, `.gesture(_:including:)` and the two priority modifiers' `including:` | not built: the mask must filter members at other depths and its same-depth, `onClick` and draggable semantics are unprobed (carried); `sequenced(before:)`, a custom gesture `body`, `updating`/`onChanged`/`onEnded` on a composed gesture and `GestureStateGesture` are built since `GE-` | `GE-H` (was `IX-B`, `GS-B`, `GS-N`) |
 | gradients, SF Symbols, colour glyphs | renderer constraints (`Path` and `StrokeStyle` are built since paths, shadows and transforms, `GX-B`…`GX-E`) | shapes spec §9 (`specs/2026-09-28-shapes-and-rendering-design.md`) |
 | `ShapeStyle` as a protocol, `HierarchicalShapeStyle`, materials, `AnyShapeStyle`; `.tint(_:)`, `.accentColor(_:)` | not built: every colour-taking site takes a concrete `Color` (divergence 119); controls read the theme's `.accent` | `CR-A`, colour spec §10 (`specs/2026-10-03-colour-design.md`) |
 | `Color.RGBColorSpace.displayP3`; `Color("Name", bundle:)` asset-catalog colours; `Color(nsColor:)`, `Color(cgColor:)`; `Color.Resolved`'s initialiser and linear accessors, `Color(_ resolved:)` | not built: P3 needs a colour-managed pipeline (divergence 1); no catalog compiler off Apple — an app palette is a `ThemeColorKey` (`CR-N`); the rest AppKit interop or unneeded | `CR-A`, `CR-N` |
@@ -299,7 +300,7 @@ stated.
 | an I-beam over a `TextField`/`TextEditor` and a pointing hand over a link by default | not built: MetalUI's controls declare no pointer style (text input must not move); whether SwiftUI shows them was not probed (`CI-U` item 2) — declare `.pointerStyle(.horizontalText)` on the field | `CI-A`, `CI-U` item 2 |
 | `onModifierKeysChanged(mask:initial:_:)` | not built: a key-state observer of its own; a drag reads its modifiers from `DragGesture.Value.modifiers` (divergence 140), a wheel from `ScrollEvent.modifiers` | `CI-A` |
 | `CoordinateSpace.named(_:)`, `.coordinateSpace(_:)`, `NamedCoordinateSpace` | not built: only `.local` and `.global`; adding `.named` adds an enum case, so an outside exhaustive switch over `CoordinateSpace` owes a case then (`CI-AC`) | `CI-A`, `CI-AC` |
-| `time`, `velocity`, `predictedEndLocation`/`predictedEndTranslation` on `DragGesture.Value`, `MagnifyGesture.Value`, `RotateGesture.Value` | not built: no `Date` in gesture values and no velocity estimator | `CI-A` |
+| `time`, `velocity`, `predictedEndLocation`/`predictedEndTranslation` on `MagnifyGesture.Value`, `RotateGesture.Value` | not built: no velocity estimator for a pinch (`DragGesture.Value` has them since `GE-D`, `GE-F`) | `CI-A`, `GE-F` |
 | `GestureInputKinds`, `inputKinds:` | not built: every gesture takes every pointing device | `CI-A` |
 | `Text.LineStyle` patterns other than `.solid` (`.dot`, `.dash`, `.dashDot`, `.dashDotDot`) | not offered: `pattern: .dash` does not compile (SwiftUI draws them, `C10d`); a dash emitter and probe are owed first | `RT-A`, `RT-E` item 3 |
 | view-level `bold()`, `underline()`, `strikethrough()`, `kerning()`, `tracking()`, `baselineOffset()`, `monospaced()` on any element | not offered: these are `Text` (and `ProposalText`) modifiers only; additive later as environment keys | `RT-A` |

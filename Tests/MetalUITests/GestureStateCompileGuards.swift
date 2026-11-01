@@ -47,7 +47,7 @@ func theEightGestureStateSpellingsCompileForAnOutsideModule() throws {
 }
 
 /// **GS.2 — `updating` chains with `onChanged`/`onEnded`, returning the receiver's own type, on the four recognizers**
-/// (`GS-B`). The negative arm calls it on a composition. Mutation: remove `LongPressGesture.updating`.
+/// (`GS-B`). The negative arm passes a body of the wrong shape (composed gestures take `updating` since `GE-E`). Mutation: remove `LongPressGesture.updating`.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func updatingChainsOnTheConcreteGestures() throws {
     try separate("GS.2", positive: """
@@ -69,7 +69,7 @@ func updatingChainsOnTheConcreteGestures() throws {
         @MainActor public struct Bad: Component {
             @GestureState var n = 0
             public var content: some ElementGroup {
-                Box().gesture(DragGesture().simultaneously(with: TapGesture()).updating($n) { _, _, _ in })
+                Box().gesture(DragGesture().updating($n) { _, _ in })
             }
         }
         """)

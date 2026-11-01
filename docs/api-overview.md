@@ -456,6 +456,15 @@ cursor, so an app that wants one supplies the bitmap (`IC-H`; `guides/input.md`)
 is carried (`IC-G`). At the seam (M): `PlatformPointerStyle.image` and `PlatformCursorImage`
 (`texture`, `scale`, `hotSpotX`/`hotSpotY`, `pixelWidth`/`pixelHeight`, `pointWidth`/`pointHeight`).
 
+**Gesture composition** (`GE-`, record 178;
+[`superpowers/2026-10-31-gesture-composition-decisions.md`](superpowers/2026-10-31-gesture-composition-decisions.md);
+probe `probes/swiftui-gesture-composition.swift`; class A, one D, 925). `Gesture.sequenced(before:)` returns
+`SequenceGesture<First, Second>` (`Value`: `.first(_)` / `.second(_, _?)`); a custom gesture is a struct with
+`var body: some Gesture` (`Gesture.Body`, `body`, `Never: Gesture`); `onChanged(_:)`, `onEnded(_:)` and
+`updating(_:body:)` work on every gesture, composites and custom ones included (`_ChangedGesture`, `_EndedGesture`,
+`GestureStateGesture`). `DragGesture.Value` gains `time` (a `Date`), `velocity`, `predictedEndLocation` and
+`predictedEndTranslation` (A), fed by `MouseEvent.timestamp` (M). Not built: `GestureMask`/`including:` (`GE-H`).
+
 **`@GestureState`** (`GS-`, record §135;
 [`superpowers/2026-10-21-gesture-state-decisions.md`](superpowers/2026-10-21-gesture-state-decisions.md);
 probe `probes/swiftui-gesture-state.swift`; class A, one D, 645). `GestureState<Value>` (property wrapper, `@MainActor`):
