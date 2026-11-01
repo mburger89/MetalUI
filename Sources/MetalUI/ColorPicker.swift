@@ -74,14 +74,12 @@ public struct ColorPicker<Label: ElementGroup>: Element, StyledElement {
                                   blue: Double(resolved.blue), opacity: Double(resolved.opacity))
         let presented = $isPresented
         let selection = selection, supportsOpacity = supportsOpacity
-        // `labelsHidden()` (`LB-A`): no label and no gap; the label is the well's accessibility label.
+        // `labelsHidden()` (`LB-A`): no label (and so no gap: a flex gap lies between nodes); the label is the well's accessibility label.
         let hidden = environment.labelsHidden
         var well = ColorWell(color: selection.wrappedValue, axValue: ColorMath.axComponents(seed),
                              open: { presented.wrappedValue = true })
         if hidden, let label { well.axLabel = labelPlainText(label) }
-        var rowStyle = style
-        if hidden { rowStyle.gap = Axes(both: .pixels(Pixels(0))) }
-        var box = Body(style: rowStyle, content: Pair(OptionalGroup(hidden ? nil : label), well.popover(isPresented: presented) {
+        var box = Body(style: style, content: Pair(OptionalGroup(hidden ? nil : label), well.popover(isPresented: presented) {
             ColorPickerPanel(selection: selection, supportsOpacity: supportsOpacity, seed: seed)
         }))
         box.decoration = decoration
