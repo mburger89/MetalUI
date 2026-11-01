@@ -74,31 +74,21 @@ public final class Window {
     /// re-upload a whole texture on every frame, with the whole suite green.
     /// See `Frame.glyphAtlas`.
     ///
-    /// **Nothing evicts from it, and a caller would make things WORSE rather
-    /// than better** — which is a mechanism a reader can check, not a milestone
-    /// to wait for. `GlyphAtlas.evictUnusedSince` exists, works and is guarded;
-    /// calling it here every frame would make the atlas fill *faster*, because
-    /// the shelf packer never revisits a closed shelf: an evicted glyph's
-    /// pixels stay resident and unreachable, and the next frame that wants it
-    /// packs a **second** copy further down. Eviction is a net gain only once
-    /// something reclaims the space — a repacker, or a whole-atlas rebuild —
-    /// and that is a task, not a call site.
+    /// **It reclaims space, and where it may not is the whole design** (`GL-A`
+    /// to `GL-F`, record 184). Inside a frame the atlas only ever *grows*, and
+    /// growth moves no slot, so a rect emitted earlier in the frame stays true.
+    /// A *rebuild* moves every slot, so it runs here and only here, between
+    /// frames, before the first build of ``draw()``: `reclaimAtlasIfNeeded()`.
+    /// Every holder of a slot from before it either keys on
+    /// `GlyphAtlas.layoutGeneration` (retained records, raster keys) or is
+    /// dropped (transition captures, a drag snapshot).
     ///
-    /// **Read the consequence with it, because the two are one fact.** The
-    /// atlas is therefore **grow-only**, and when it is full `Frame.draw`
-    /// **silently drops** the glyphs that will not fit: a window showing an
-    /// unbounded stream of *distinct* glyphs loses text with no error
-    /// anywhere. CLAUDE.md's inert table carries the same story.
-    ///
-    /// **Internal rather than private**, for `lastScene`'s reason: a window that
-    /// built a *fresh* atlas per frame would produce identical pixels on every
-    /// frame the suite renders, so nothing observable from outside distinguishes
-    /// it. `currentGeneration` does, and
-    /// `aWindowKeepsOneAtlasAcrossFrames` reads it.
-    private(set) var glyphAtlas = GlyphAtlas(width: Window.atlasExtent,
-                                             height: Window.atlasExtent)
+    /// The old reading of this field - that calling `evictUnusedSince` would
+    /// make the atlas fill faster because the packer never revisits a closed
+    /// shelf - is why that method is gone rather than called.
+    var glyphAtlas = Window.makeGlyphAtlas()
 
-    /// The atlas is square and this is its side, in **device pixels**.
+    /// The atlas's side at the start, in **device pixels**.
     ///
     /// 1024 holds on the order of two thousand 13pt glyphs at 2x — every
     /// distinct character of a UI's chrome across four subpixel variants, with
@@ -108,6 +98,56 @@ public final class Window {
     /// gets an atlas of exactly the production size, so a test cannot pass
     /// against a packer that only fits in a larger one.
     static let atlasExtent = 1024
+
+    /// The side the atlas never grows beyond (`GL-C`): 4096, which is 16 MB of
+    /// R8 and a texture size every Metal GPU family and every SDL_GPU backend
+    /// (Vulkan's guaranteed minimum for `maxImageDimension2D`, D3D12, Metal)
+    /// accepts. Past it, glyphs are dropped and counted.
+    static let atlasMaximumExtent = 4096
+
+    /// A production-sized atlas: ``atlasExtent`` square, growable to
+    /// ``atlasMaximumExtent``. One place, so `Frame`'s default and the window's
+    /// own agree.
+    static func makeGlyphAtlas(maximumExtent: Int = Window.atlasMaximumExtent) -> GlyphAtlas {
+        GlyphAtlas(width: atlasExtent, height: atlasExtent, maximumExtent: maximumExtent)
+    }
+
+    /// The `GlyphAtlas.layoutGeneration` this window's atlas-dependent state was
+    /// last made valid for (`GL-D`).
+    var atlasLayoutGenerationSeen = 0
+
+    /// `GlyphAtlas.droppedGlyphs` at the last debug line (`GL-E`).
+    private var atlasDropsLogged = 0
+
+    /// Rebuilds the atlas if it wants it, and drops what held a slot from
+    /// before any rebuild (`GL-A`, `GL-D`). **Called at the top of ``draw()``,
+    /// before the first build and outside every phase**; writes no
+    /// `StateTable` entry and calls no `requestAnotherFrame()`. One integer
+    /// comparison when the atlas is not nearly full.
+    func reclaimAtlasIfNeeded() {
+        if glyphAtlas.wantsReclaim { glyphAtlas.reclaim() }
+        let generation = glyphAtlas.layoutGeneration
+        guard generation != atlasLayoutGenerationSeen else { return }
+        atlasLayoutGenerationSeen = generation
+        // A ghost and a drag preview replay captured sprites by rect and cannot
+        // be re-rasterized (they hold no key): they are forgotten, once, on the
+        // frame the atlas was emptied (`GL-D` item 3).
+        animationStore.transitions.forgetCapturedPrimitives()
+        dragSession?.snapshot = []
+    }
+
+    /// After a frame: asks for one more when this one dropped glyphs a rebuild
+    /// can place (`GL-A`), and says once, in a debug build, that glyphs were
+    /// dropped (`GL-E`).
+    private func noteAtlasPressureAfterFrame() {
+        if glyphAtlas.reclaimRequested { setNeedsRedraw() }
+        #if DEBUG
+        if glyphAtlas.droppedGlyphs > atlasDropsLogged, atlasDropsLogged == 0 {
+            fputs("MetalUI: the glyph atlas is at its \(glyphAtlas.maximumExtent)x\(glyphAtlas.maximumExtent) cap and a glyph was dropped (GlyphAtlas.droppedGlyphs)\n", stderr)
+        }
+        #endif
+        atlasDropsLogged = glyphAtlas.droppedGlyphs
+    }
 
     /// The active theme (spec §7.9).
     ///
@@ -1587,6 +1627,7 @@ public final class Window {
             return
         }
         let resizesBeforeBuild = resizeCount
+        reclaimAtlasIfNeeded()   // GL-A: between frames, before anything holds a rect
 
         // The build-and-adopt half (ruling `CR-Q`): an ordinary frame, every
         // window-owned store updated from it.
@@ -1719,6 +1760,7 @@ public final class Window {
             return
         }
         framesDrawn += 1
+        noteAtlasPressureAfterFrame()
     }
 
     /// Runs every lifecycle event the builds so far produced (ruling `LC-E`),

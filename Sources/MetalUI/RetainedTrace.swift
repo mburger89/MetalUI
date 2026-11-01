@@ -239,6 +239,7 @@ extension AmbientKey {
         }
         if snappingTransaction != other.snappingTransaction { out.append("snappingTransaction") }
         if disablesAnimations != other.disablesAnimations { out.append("disablesAnimations") }
+        if atlasGeneration != other.atlasGeneration { out.append("atlasGeneration") }
         return out
     }
 }

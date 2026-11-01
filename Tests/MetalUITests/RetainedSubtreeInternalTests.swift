@@ -208,10 +208,11 @@ private func sourceFiles(under directory: URL) -> [URL] {
 }
 
 /// 1.19 — replay re-inserts glyph sprites whose atlas slots were stamped in a past frame, which is only
-/// sound while nothing evicts (`SB-I`). **Nothing calls `GlyphAtlas.evictUnusedSince(_:)` outside its
-/// definition**; the day something does, a replayed glyph may point at a dropped slot and this test names
-/// the caller. Mutation: a caller added in `Sources/`.
-@Test func theGlyphAtlasHasNoEvictionCaller() throws {
+/// sound while nothing moves a slot (`SB-I`, amended by `GL-D`). **Only `Window.reclaimAtlasIfNeeded` calls
+/// `GlyphAtlas.reclaim()`**, at the top of a draw, and the retained ambient key carries
+/// `GlyphAtlas.layoutGeneration`; the day another caller appears, a replayed glyph may point at a slot it
+/// does not know to miss on, and this test names the caller. Mutation: a caller added in `Sources/`.
+@Test func theGlyphAtlasIsReclaimedOnlyAtTheTopOfADraw() throws {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent()
     var callers: [String] = []
@@ -221,13 +222,13 @@ private func sourceFiles(under directory: URL) -> [URL] {
             for (number, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                 let trimmed = line.drop(while: { $0 == " " })
                 if trimmed.hasPrefix("//") || trimmed.hasPrefix("///") { continue }
-                if line.contains("evictUnusedSince("), !line.contains("func evictUnusedSince(") {
+                if line.contains(".reclaim()"), !file.path.hasSuffix("MetalUI/Window.swift") {
                     callers.append("\(file.path):\(number + 1)")
                 }
             }
         }
     }
-    #expect(callers == [], "GlyphAtlas.evictUnusedSince has a caller: replayed glyphs may name evicted slots (SB-I)")
+    #expect(callers == [], "GlyphAtlas.reclaim() has a caller beside Window.reclaimAtlasIfNeeded: replayed glyphs may name slots it moved (SB-I, GL-D)")
 }
 
 // MARK: 1.7 — an observed read in paint

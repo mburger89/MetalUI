@@ -148,13 +148,78 @@ public struct PackedGlyph: Hashable, Sendable {
 /// size have nearly uniform height, so a row-at-a-time packer wastes very
 /// little and its state is three integers. It never revisits a closed shelf.
 ///
+/// **Space is recovered in two ways, and neither moves a glyph that a frame in
+/// flight already holds a rect for** (`GL-A`, `GL-B`):
+///
+/// - **Growth, inside a frame.** When a glyph does not fit and the atlas is
+///   below ``maximumExtent``, ``packed(for:rasterize:)`` doubles the atlas.
+///   Every existing slot keeps its pixel coordinates (only the row stride of
+///   ``pixels`` changes), so a rect emitted earlier in the same frame, and a
+///   retained record from an earlier frame, stay correct. A renderer sees a new
+///   ``width`` or ``height`` and uploads the whole of it.
+/// - **A rebuild, between frames.** ``reclaim()`` empties the packer and the
+///   pixels and bumps ``layoutGeneration``; every glyph is rasterized again on
+///   demand, in paint order. ``wantsReclaim`` says when. It may only run when
+///   no frame is being built, and every holder of a slot from before it must
+///   miss: a retained record keys on ``layoutGeneration``.
+///
+/// Past ``maximumExtent`` a glyph that does not fit is dropped and
+/// ``droppedGlyphs`` counts it.
+///
 /// The bitmap lives in ``pixels`` and never touches Metal (spec §3.1); a
 /// renderer uploads ``dirtyRects`` of it to an `MTLTexture`.
 public final class GlyphAtlas {
-    /// The atlas width in pixels.
-    public let width: Int
-    /// The atlas height in pixels.
-    public let height: Int
+    /// The atlas width in pixels. Changes only when the atlas grows or is
+    /// rebuilt at another size; read it again for every frame.
+    public private(set) var width: Int
+    /// The atlas height in pixels. See ``width``.
+    public private(set) var height: Int
+
+    /// The side, in pixels, the atlas never grows beyond (`GL-C`). An atlas
+    /// made without one is exactly as large as it was made and never grows, so
+    /// every user that predates growth keeps its packer geometry.
+    public let maximumExtent: Int
+
+    /// The width and height the atlas was made with: what ``reclaim()`` never
+    /// shrinks below.
+    public let initialWidth: Int
+    /// See ``initialWidth``.
+    public let initialHeight: Int
+
+    /// Advances every time ``reclaim()`` empties the atlas, starting at 0.
+    ///
+    /// **This is the key a holder of a slot checks** (`GL-D`): a retained paint
+    /// record, a transition ghost, a drag snapshot and a raster key all carry
+    /// atlas rects, and a rect from generation N names a different glyph, or
+    /// none, in generation N+1. Growth does not advance it (growth moves
+    /// nothing). Distinct from ``currentGeneration``, which counts frames.
+    public private(set) var layoutGeneration = 0
+
+    /// How many times the atlas has doubled (`GL-B`).
+    public private(set) var growCount = 0
+
+    /// How many times ``reclaim()`` has run (`GL-A`).
+    public private(set) var reclaimCount = 0
+
+    /// How many ``packed(for:rasterize:)`` requests were refused for want of
+    /// room, after growth was exhausted (`GL-E`). Counts requests, not distinct
+    /// glyphs: a glyph that does not fit is asked for again by every frame that
+    /// draws it. Zero for as long as nothing is dropped; never reset.
+    public private(set) var droppedGlyphs = 0
+
+    /// Whether a refusal happened while older glyphs held room a rebuild would
+    /// free (`GL-A`): the frame that dropped is missing glyphs, and the next one
+    /// need not be. Cleared by ``reclaim()``. A window that sees it set after a
+    /// frame asks for one more frame; it is false for a refusal that nothing
+    /// could have avoided, so that request cannot repeat forever.
+    public private(set) var reclaimRequested = false
+
+    /// Pixels packed since the last rebuild (zero-area glyphs add none).
+    private var packedArea = 0
+    /// Pixels of the glyphs used since the last ``beginFrame()``, counted once each.
+    private var frameLiveArea = 0
+    /// Pixels of the glyphs refused since the last ``beginFrame()``.
+    private var frameDroppedArea = 0
 
     /// R8 coverage, row-major, `width` bytes per row, row 0 at the top.
     public private(set) var pixels: [UInt8]
@@ -199,8 +264,7 @@ public final class GlyphAtlas {
     /// than in a second dictionary keyed on the same `GlyphKey`.** A cache hit
     /// is the per-glyph, per-frame path — every glyph of every visible `Text`
     /// on every built frame — and a second dictionary cost it a second full
-    /// hash of a `String`-bearing key, only so that ``evictUnusedSince(_:)``,
-    /// which has no production caller, could read it. This is a private
+    /// hash of a `String`-bearing key, only so that ``wantsReclaim`` could read it. This is a private
     /// wrapper rather than a field on ``PackedGlyph`` or ``AtlasSlot`` because
     /// both of those are public and compared in tests against packer geometry
     /// and bearings alone.
@@ -209,24 +273,24 @@ public final class GlyphAtlas {
         var generation: Int
     }
 
-    /// ``evictUnusedSince(_:)`` reads ``Placement/generation`` and nothing
-    /// else to decide what to drop. Pinned structurally by
+    /// ``Placement/generation`` is the only per-glyph state the rebuild policy
+    /// reads (through ``frameLiveArea``). Pinned structurally by
     /// `theGenerationLivesInTheOneDictionaryThatHoldsTheGlyph`.
     private var placed: [GlyphKey: Placement] = [:]
 
     /// True for the duration of one frame's scene construction — the same shape
-    /// as `LayoutTree.isLayingOut`. ``evictUnusedSince(_:)`` traps while this is
-    /// true: evicting a slot the frame in flight may still hold an `AtlasSlot`
+    /// as `LayoutTree.isLayingOut`. ``reclaim()`` traps while this is
+    /// true: emptying a slot the frame in flight may still hold an `AtlasSlot`
     /// for produces a wrong glyph or a blank, on that one frame, intermittently
     /// (spec §3.5) — the hardest failure in this milestone to reproduce, and
     /// nothing in this repo can see a wrong glyph at all (spec §4.2). This flag
-    /// and the precondition on ``evictUnusedSince(_:)`` are the whole defence.
+    /// and the precondition on ``reclaim()`` are the whole defence.
     public private(set) var isBuildingFrame = false
 
     /// Advances by one on every ``beginFrame()``, starting at 1 for the first
     /// frame. 0 is deliberately never a live generation: a glyph packed before
     /// the atlas's first ``beginFrame()`` is stamped 0, which is older than any
-    /// generation ``evictUnusedSince(_:)`` is handed once a frame has run. There
+    /// frame's. There
     /// is no "never stamped" state to reason about — every entry in `placed`
     /// carries its generation from the moment it is inserted.
     public private(set) var currentGeneration = 0
@@ -239,15 +303,21 @@ public final class GlyphAtlas {
     private var cursorX = 0
 
     /// An empty atlas of `width` by `height` pixels; both must be positive.
-    public init(width: Int, height: Int) {
+    ///
+    /// `maximumExtent` is the largest side it may grow to (`GL-C`); the default,
+    /// and anything smaller than the starting size, means it never grows.
+    public init(width: Int, height: Int, maximumExtent: Int? = nil) {
         precondition(width > 0 && height > 0, "an atlas must have a positive extent")
         self.width = width
         self.height = height
+        self.initialWidth = width
+        self.initialHeight = height
+        self.maximumExtent = max(maximumExtent ?? 0, width, height)
         self.pixels = [UInt8](repeating: 0, count: width * height)
     }
 
     /// The slot holding `key`'s bitmap, rasterizing and packing it on first
-    /// request, or `nil` if the atlas has no room for it.
+    /// request, or `nil` if the atlas has no room for it and cannot grow.
     ///
     /// Sugar over ``packed(for:rasterize:)`` for a caller that needs only the
     /// atlas rectangle — the tests that assert packer geometry, which is why
@@ -270,9 +340,10 @@ public final class GlyphAtlas {
     /// `left`/`top` off the returned ``GlyphImage`` would have them on the
     /// first frame and not on the second.
     ///
-    /// A `nil` return is **not cached**: the atlas being full is a state that
-    /// eviction is meant to relieve, so a key refused today must be free to
-    /// succeed tomorrow.
+    /// If the atlas is full it first grows (below ``maximumExtent``, `GL-B`); a
+    /// `nil` return means it could not, is counted in ``droppedGlyphs`` and is
+    /// **not cached**: a rebuild may relieve it, so a key refused today must be
+    /// free to succeed tomorrow.
     public func packed(for key: GlyphKey, rasterize: () -> GlyphImage) -> PackedGlyph? {
         // `index(forKey:)` plus an in-place `values[idx]` edit, the pattern
         // `ShapingCache.shaped(_:font:wrappingAt:)` documents: it hashes the key
@@ -280,7 +351,14 @@ public final class GlyphAtlas {
         // re-stamp and the read. A `placed[key]` read followed by a
         // `placed[key] = …` write would hash it twice.
         if let idx = placed.index(forKey: key) {
-            placed.values[idx].generation = currentGeneration
+            // Stamped once per frame: the first use also counts the glyph's
+            // pixels as live, which is what ``wantsReclaim`` reads. A later use
+            // in the same frame touches nothing.
+            if placed.values[idx].generation != currentGeneration {
+                placed.values[idx].generation = currentGeneration
+                let slot = placed.values[idx].glyph.slot
+                frameLiveArea &+= slot.width &* slot.height
+            }
             return placed.values[idx].glyph
         }
 
@@ -297,17 +375,125 @@ public final class GlyphAtlas {
             return empty
         }
 
-        guard let slot = place(width: image.width, height: image.height) else { return nil }
+        guard let slot = place(width: image.width, height: image.height) ?? growAndPlace(width: image.width,
+                                                                                         height: image.height)
+        else {
+            // Past the cap (`GL-E`). Not cached: a rebuild may make room.
+            droppedGlyphs &+= 1
+            frameDroppedArea &+= image.width &* image.height
+            // Room a rebuild would free exists only if older frames hold some.
+            if packedArea > frameLiveArea { reclaimRequested = true }
+            return nil
+        }
         blit(image, into: slot)
+        packedArea &+= slot.width &* slot.height
+        frameLiveArea &+= slot.width &* slot.height
         let entry = PackedGlyph(slot: slot, left: image.left, top: image.top)
         placed[key] = Placement(glyph: entry, generation: currentGeneration)
         return entry
     }
 
+    /// Doubles the atlas until `width x height` fits or ``maximumExtent`` stops
+    /// it (`GL-B`). Every slot keeps its coordinates, so nothing already handed
+    /// out moves.
+    private func growAndPlace(width w: Int, height h: Int) -> AtlasSlot? {
+        while width < maximumExtent || height < maximumExtent {
+            resize(toWidth: min(width * 2, maximumExtent), height: min(height * 2, maximumExtent))
+            growCount += 1
+            if let slot = place(width: w, height: h) { return slot }
+        }
+        return nil
+    }
+
+    /// Re-lays ``pixels`` out at a new extent, each row at the same (x, y). The
+    /// whole atlas is dirty afterwards, because a renderer's texture of the old
+    /// size is replaced, not extended.
+    private func resize(toWidth newWidth: Int, height newHeight: Int) {
+        var next = [UInt8](repeating: 0, count: newWidth * newHeight)
+        let copyWidth = min(width, newWidth)
+        let copyHeight = min(height, newHeight)
+        next.withUnsafeMutableBufferPointer { destination in
+            pixels.withUnsafeBufferPointer { source in
+                for row in 0..<copyHeight {
+                    (destination.baseAddress! + row * newWidth)
+                        .update(from: source.baseAddress! + row * width, count: copyWidth)
+                }
+            }
+        }
+        pixels = next
+        width = newWidth
+        height = newHeight
+        markEverythingDirty()
+    }
+
+    private func markEverythingDirty() {
+        dirtyRects = [(0, 0, width, height)]
+        dirtyRectsCollapsed = true
+    }
+
+    /// Whether a rebuild at the next frame boundary would free room worth the
+    /// cost of rasterizing the working set again (`GL-A`).
+    ///
+    /// True when a refusal asked for one (``reclaimRequested``), or when the
+    /// packer has used three quarters of its rows **and** at least a quarter of
+    /// what it packed was not touched by the last frame. An atlas full of
+    /// glyphs the last frame used has nothing to give back; growing, not
+    /// rebuilding, is what that one needs. **One integer comparison when the
+    /// atlas is not nearly full.**
+    public var wantsReclaim: Bool {
+        if reclaimRequested { return true }
+        guard (shelfY + shelfHeight) &* 4 >= height &* 3 else { return false }
+        return (packedArea &- frameLiveArea) &* 4 >= packedArea
+    }
+
+    /// Empties the atlas and sizes it for the working set (`GL-A`, `GL-B`).
+    ///
+    /// **Only between frames** (`precondition(!isBuildingFrame)`): the packer
+    /// and the pixels are reset, so any rect handed out earlier names a
+    /// different glyph, or none. ``layoutGeneration`` advances so that whoever
+    /// kept one can tell. Every glyph is rasterized again, lazily, by the next
+    /// frame that draws it, in paint order - so a rebuilt atlas holds exactly
+    /// what a fresh one would after that frame.
+    ///
+    /// The new size is the smallest power-of-two multiple of the starting size,
+    /// not above ``maximumExtent``, whose area is three times what the last
+    /// frame used plus what it was refused. An atlas that grew for one busy
+    /// frame is therefore small again after a rebuild, and one whose working
+    /// set is large does not shrink and then grow again every frame.
+    public func reclaim() {
+        precondition(!isBuildingFrame,
+                     "reclaim called while a frame is being built - the frame in flight holds rects into the atlas it would empty")
+        let needed = (frameLiveArea &+ frameDroppedArea) &* 3
+        var newWidth = initialWidth
+        var newHeight = initialHeight
+        while newWidth * newHeight < needed, newWidth < maximumExtent || newHeight < maximumExtent {
+            newWidth = min(newWidth * 2, maximumExtent)
+            newHeight = min(newHeight * 2, maximumExtent)
+        }
+        placed.removeAll(keepingCapacity: true)
+        shelfY = 0
+        shelfHeight = 0
+        cursorX = 0
+        packedArea = 0
+        frameLiveArea = 0
+        frameDroppedArea = 0
+        reclaimRequested = false
+        if newWidth == width, newHeight == height {
+            pixels.withUnsafeMutableBufferPointer { $0.update(repeating: 0) }
+        } else {
+            width = newWidth
+            height = newHeight
+            pixels = [UInt8](repeating: 0, count: newWidth * newHeight)
+        }
+        markEverythingDirty()
+        layoutGeneration += 1
+        reclaimCount += 1
+    }
+
     /// Begins constructing one frame's scene. Every ``packed(for:rasterize:)``
     /// call made before the matching ``endFrame()`` is stamped with the
     /// generation this call establishes, which is what
-    /// ``evictUnusedSince(_:)`` later uses to tell "used this frame" from
+    /// ``wantsReclaim`` later uses to tell "used this frame" from
     /// "not touched since."
     ///
     /// `precondition(!isBuildingFrame)` guards re-entry — the same shape as
@@ -318,36 +504,14 @@ public final class GlyphAtlas {
         precondition(!isBuildingFrame, "beginFrame called while a frame is already being built")
         isBuildingFrame = true
         currentGeneration += 1
+        frameLiveArea = 0
+        frameDroppedArea = 0
     }
 
     /// Ends the frame ``beginFrame()`` began. After this, and only after this,
-    /// ``evictUnusedSince(_:)`` may run.
+    /// ``reclaim()`` may run.
     public func endFrame() {
         isBuildingFrame = false
-    }
-
-    /// Drops every slot whose most recent ``packed(for:rasterize:)`` call
-    /// predates `generation`, so the next request for that key rasterizes and
-    /// packs it again rather than reusing a stale entry.
-    ///
-    /// **May only run between frames — `precondition(!isBuildingFrame)`
-    /// enforces it.** The hazard it guards: a glyph the current frame's scene
-    /// still references, evicted mid-construction, paints as a wrong glyph or
-    /// a blank on that one frame, intermittently — the hardest failure in this
-    /// milestone to reproduce (spec §3.5), and nothing in this repo can see a
-    /// wrong glyph at all (spec §4.2).
-    ///
-    /// This frees dictionary entries, not atlas pixels — the shelf packer
-    /// "never revisits a closed shelf" (see the type doc), so an evicted key's
-    /// bitmap stays resident and unreachable until the atlas is replaced
-    /// wholesale. Reclaiming that space belongs to whichever task adds a
-    /// repacker; it is not this one.
-    public func evictUnusedSince(_ generation: Int) {
-        precondition(!isBuildingFrame,
-                     "evictUnusedSince called while a frame is being built — the frame in flight may still hold an AtlasSlot for the entry this would evict")
-        // A whole-dictionary rebuild rather than removals inside a loop over
-        // `placed`: nothing is mutated while it is being iterated.
-        placed = placed.filter { $0.value.generation >= generation }
     }
 
     /// Forgets the dirty region, after a consumer has uploaded it.

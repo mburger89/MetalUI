@@ -209,6 +209,10 @@ struct AmbientKey: Equatable {
     var environment: EnvironmentFingerprint
     var snappingTransaction: Bool
     var disablesAnimations: Bool
+    /// `GlyphAtlas.layoutGeneration` the frame paints against (`GL-D`): a record holds glyph sprites by atlas
+    /// rect, and a rebuilt atlas names other glyphs at those rects. Part of `==` and of nothing else - no
+    /// relation (`effectRelation`, translation) normalises it away.
+    var atlasGeneration = 0
 }
 
 extension AmbientKey {
@@ -609,7 +613,8 @@ extension Frame {
             scopes: scopeVectors,
             environment: environmentTop.retainedFingerprint,
             snappingTransaction: transactionTop.animation == nil,
-            disablesAnimations: transactionTop.disablesAnimations)
+            disablesAnimations: transactionTop.disablesAnimations,
+            atlasGeneration: glyphAtlas.layoutGeneration)
     }
 
     func retainedKey(_ phase: RetainedPhase) -> ReplayKey {

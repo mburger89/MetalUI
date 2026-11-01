@@ -302,3 +302,41 @@ private func transformedScene(atlas: GlyphAtlas) throws -> Scene {
         #expect(error?.description.contains("names a missing transform") == true, "\(String(describing: error))")
     }
 }
+
+/// **`GL-B`, SDL side** - an atlas that grew between frames is a bigger texture: the renderer sees the new
+/// extent, re-creates the atlas texture, moves every byte of it (not the dirty rects), and draws the replay
+/// path's pixels. Mutation: in `mui_renderer_finish`, drop `r->atlas_width != aw || r->atlas_height != ah` from
+/// `atlas_new` (the glyphs beyond the old extent sample the old, smaller texture; the bytes moved are the rects').
+@MainActor
+@Test func aGrownAtlasIsRecreatedAndFullyUploaded() throws {
+    let atlas = GlyphAtlas(width: 64, height: 64, maximumExtent: 512)
+    let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)
+    let first = try scene("Hi", atlas: atlas)
+    try #require(atlas.width == 64, "the first frame must fit the starting atlas")
+    try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: first, atlas: atlas))
+    #expect(renderer.lastAtlasBytes == 64 * 64)
+
+    let second = try scene("Quiz jumps over the lazy dog, new glyphs for a bigger atlas", atlas: atlas)
+    try #require(atlas.width > 64 && atlas.growCount >= 1 && atlas.droppedGlyphs == 0, "the second frame must grow the atlas")
+    try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: second, atlas: atlas))
+    #expect(renderer.lastAtlasBytes == atlas.width * atlas.height, "a new extent takes the whole atlas")
+    #expect(try renderer.readPixels(width: width, height: height) == (try replayPixels(second, atlas: atlas)))
+}
+
+/// **`GL-A`, SDL side** - a rebuilt atlas (same extent, every pixel changed) is uploaded in full: the glyphs
+/// moved, so a dirty-rect upload of the new ones would leave the old texture's glyphs under the new rects.
+/// Mutation: `GlyphAtlas.reclaim()` marks no rect dirty (the bytes moved are 0 or the new glyphs' rects only,
+/// and the pixels differ from the replay path's).
+@MainActor
+@Test func aRebuiltAtlasIsUploadedInFull() throws {
+    let atlas = GlyphAtlas(width: 256, height: 256)
+    let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)
+    let first = try scene("First frame", atlas: atlas)
+    try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: first, atlas: atlas))
+
+    atlas.reclaim()
+    let second = try scene("Quiz jumps: other glyphs first", atlas: atlas)
+    try #require(renderer.beginFrame() != nil && renderer.finishFrame(scene: second, atlas: atlas))
+    #expect(renderer.lastAtlasBytes == 256 * 256, "a rebuild dirties the whole atlas")
+    #expect(try renderer.readPixels(width: width, height: height) == (try replayPixels(second, atlas: atlas)))
+}

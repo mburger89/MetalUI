@@ -2646,8 +2646,7 @@ public final class Frame {
          stateTable: StateTable = StateTable(),
          shapingCache: ShapingCache = ShapingCache(),
          textSystem: (any TextSystem)? = nil,
-         glyphAtlas: GlyphAtlas = GlyphAtlas(width: Window.atlasExtent,
-                                             height: Window.atlasExtent),
+         glyphAtlas: GlyphAtlas = Window.makeGlyphAtlas(),
          theme: Theme = .light,
          lightTheme: Theme = .light,
          darkTheme: Theme = .dark,
@@ -3196,9 +3195,10 @@ public final class Frame {
     ///
     /// Two returns without an error, and they are different situations:
     ///
-    /// - **The atlas is full** (`nil`). Nothing this frame can do about it: the
-    ///   packer never revisits a closed shelf, so there is no smaller correct
-    ///   answer than dropping the glyph. It is silent because a `throw` here
+    /// - **The atlas is full and at its cap** (`nil`, `GL-E`). The atlas has
+    ///   already grown as far as it may (a miss that fits after growth is not
+    ///   `nil`), so there is no smaller correct answer than dropping the glyph;
+    ///   `GlyphAtlas.droppedGlyphs` counts it. It is not a `throw` because that
     ///   would take down a frame that is otherwise entirely drawable.
     /// - **The glyph has no ink** (a zero-area slot — a space, and the
     ///   commonest glyph in a paragraph). Emitting it would add an instance
@@ -3911,10 +3911,10 @@ public final class Frame {
 
         // The atlas's frame brackets go around the paint phase and nothing
         // else, because scene construction is the whole of what they protect:
-        // `GlyphAtlas.evictUnusedSince` traps while a frame is being built, so
+        // `GlyphAtlas.reclaim` traps while a frame is being built, so
         // that a glyph this scene still holds an `AtlasSlot` for cannot be
-        // dropped underneath it (spec §3.5). They also stamp every slot handed
-        // out here with this frame's generation, which is what eviction reads.
+        // moved underneath it (spec §3.5, `GL-A`). They also stamp every slot handed
+        // out here with this frame's generation, which is what the reclaim policy reads.
         //
         // **Not a `defer`, and the reason is a mechanism rather than taste.**
         // The only way `paint` fails to reach `endFrame` is a Swift trap, and a
