@@ -589,6 +589,17 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         window.representedURL = path.map { URL(fileURLWithPath: $0) }
     }
 
+    /// `NSWindow.subtitle` (ruling `AE-D`, probe `N8`).
+    func setSubtitle(_ subtitle: String) {
+        window.subtitle = subtitle
+    }
+
+    /// Adds or removes `.closable` (ruling `AE-D`, probe `D0`): the close button is disabled and
+    /// `performClose(_:)` closes nothing while it is absent. `close()` is untouched.
+    func setDismissEnabled(_ enabled: Bool) {
+        if enabled { window.styleMask.insert(.closable) } else { window.styleMask.remove(.closable) }
+    }
+
     /// The style last applied, so the insets and the band observation know it.
     private var titleBarStyle: PlatformTitleBarStyle = .standard
 

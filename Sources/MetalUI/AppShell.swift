@@ -110,7 +110,7 @@ extension App {
     /// pending on it; any other refusal cancels. All closed → the end.
     private func walkWindows(fromPlatform: Bool) -> CloseRequestReply {
         for window in windows where !window.shell.isClosed {
-            if window.answerCloseRequest() {
+            if window.answerCloseRequest(userInitiated: false) {
                 window.close()
                 continue
             }

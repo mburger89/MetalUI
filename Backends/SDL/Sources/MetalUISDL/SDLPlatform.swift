@@ -1213,6 +1213,20 @@ public final class SDLWindow: PlatformWindow {
     /// marker on Linux or Windows writes it into its title.
     public func setDocumentEdited(_ edited: Bool) { documentEditedCalls.append(edited) }
 
+    /// Every `setSubtitle(_:)` argument, in order (`AE-D`).
+    public private(set) var subtitleCalls: [String] = []
+
+    /// Records the subtitle and changes nothing (ruling `AE-D`): SDL3 has no subtitle, and the title is
+    /// never altered behind the app's back (the edited marker's rule, `AS-D` item 5).
+    public func setSubtitle(_ subtitle: String) { subtitleCalls.append(subtitle) }
+
+    /// Every `setDismissEnabled(_:)` argument, in order (`AE-D`).
+    public private(set) var dismissEnabledCalls: [Bool] = []
+
+    /// Records the value and changes nothing (ruling `AE-D`): the system title bar's close button cannot be
+    /// disabled through SDL3. `Window` refuses the request it raises (`onCloseRequest` answers `false`).
+    public func setDismissEnabled(_ enabled: Bool) { dismissEnabledCalls.append(enabled) }
+
     /// Every `setRepresentedFilePath(_:)` argument, in order.
     public private(set) var representedPaths: [String?] = []
 

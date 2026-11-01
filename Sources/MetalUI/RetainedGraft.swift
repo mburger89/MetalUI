@@ -195,6 +195,7 @@ extension Frame {
         a.toolbarRecords = toolbarRecords.count
         a.openURLs = openURLHandlers.count
         a.navigation = (collectedNavigationTitle == nil ? 0 : 1) + (collectedNavigationDocument == nil ? 0 : 1)
+            + (collectedNavigationSubtitle == nil ? 0 : 1) + (collectedDismissBehavior == nil ? 0 : 1)
         a.colorScheme = collectedColorSchemePreference == nil ? 0 : 1
         a.limits = (contentMinimum == nil ? 0 : 1) + (contentMaximum == nil ? 0 : 1)
         a.anotherFrame = (wantsAnotherFrame ? 1 : 0) + (hasActiveAnimations ? 1 : 0)

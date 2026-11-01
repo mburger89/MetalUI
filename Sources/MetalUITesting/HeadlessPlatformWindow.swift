@@ -384,6 +384,16 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         return false
     }
 
+    /// Every `setSubtitle(_:)` argument, in order (`AE-D`).
+    public private(set) var subtitleWrites: [String] = []
+    /// Records the subtitle and changes nothing: a headless window has no title bar to show it.
+    public func setSubtitle(_ subtitle: String) { subtitleWrites.append(subtitle) }
+
+    /// Every `setDismissEnabled(_:)` argument, in order (`AE-D`).
+    public private(set) var dismissEnabledCalls: [Bool] = []
+    /// Records the value and changes nothing: a headless window has no close button to disable.
+    public func setDismissEnabled(_ enabled: Bool) { dismissEnabledCalls.append(enabled) }
+
     /// Records the request and answers `Options.performsWindowDrag`.
     public func performWindowDrag() -> Bool {
         windowDrags += 1

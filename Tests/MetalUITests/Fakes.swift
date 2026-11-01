@@ -505,6 +505,12 @@ final class FakePlatformWindow: PlatformWindow {
         return performsWindowDrag
     }
 
+    /// Every `setSubtitle` and `setDismissEnabled` argument, in order (`AE-D`).
+    private(set) var subtitleCalls: [String] = []
+    private(set) var dismissEnabledCalls: [Bool] = []
+    func setSubtitle(_ subtitle: String) { subtitleCalls.append(subtitle) }
+    func setDismissEnabled(_ enabled: Bool) { dismissEnabledCalls.append(enabled) }
+
     /// Every `setWindowDragRegions` list, in order (`CW-F`).
     private(set) var windowDragRegionLists: [[Bounds<Pixels>]] = []
     /// What `setWindowDragRegions` answers; `false`, AppKit's answer, by default.
