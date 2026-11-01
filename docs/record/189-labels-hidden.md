@@ -39,8 +39,7 @@ the options. Updated: `ColorPickerTests` 1.17 (now the gap and the hidden well),
 (`ToggleStyleTests`) for the title's extra id level.
 
 **Counts** (2026-11-01, `feat/labels-hidden` after `swift package clean`, `--build-system native --build-tests` and an unfiltered `--no-parallel` run):
-first run **4826 tests in 13 suites, 4 issues** (the four updated tests above); after their updates the same tests pass (44 of them re-run filtered);
-the final unfiltered count is in the PR. `FR-J no-argument frame: succeeded=true` printed.
+first run **4826 tests in 13 suites, 4 issues** (the four updated tests above, since fixed); final run after `swift package clean`: **4826 tests in 13 suites, 5 issues**, all five `AppKitPresentationTests` sheet tests (`attachedSheet` never appeared after 61 s: the session's console state changed between runs, none touches a control; they passed in the first run). `FR-J no-argument frame: succeeded=true` printed.
 
 ## 6. Mutations
 
