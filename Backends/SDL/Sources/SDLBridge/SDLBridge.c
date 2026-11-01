@@ -2338,9 +2338,112 @@ bool mui_icon_surface_add_alternate(void *primary, void *image) {
 
 static uint32_t window_set_icon_null_calls = 0;
 
+// ---- X11: every size in _NET_WM_ICON (ruling WI-B) -------------------------
+// SDL 3.4.16's X11_SetWindowIcon writes only the primary surface: the alternates are
+// kept for display-scale pickers (Cocoa, Wayland) and X11 window managers never see
+// them. _NET_WM_ICON is a list of (width, height, width*height ARGB) records and a window
+// manager picks the size it needs, so after SDL_SetWindowIcon the whole list is written
+// here over the same property. SDL dlopens libX11 and so does this (SDL_LoadObject; the
+// image links no X, ruling VD-A), the Display and Window coming from SDL's window
+// properties. Nothing here runs unless SDL's video driver is "x11".
+
+/// The records of `surface` and its alternates as the `long`s a format-32 X property
+/// holds (Xlib's convention: one `long` per CARDINAL, the ARGB32 value zero-extended,
+/// exactly what SDL writes for one image), in `SDL_GetSurfaceImages` order (the primary,
+/// the smallest, first). An image whose record would pass `max_longs` in total is left
+/// out. `out` NULL only measures. Returns the longs used; 0 for no image.
+int64_t mui_x11_icon_property(void *surface, int64_t max_longs, long *out) {
+    int count = 0;
+    SDL_Surface **images = SDL_GetSurfaceImages((SDL_Surface *)surface, &count);
+    if (!images) return 0;
+    int64_t used = 0;
+    for (int i = 0; i < count; i++) {
+        int64_t record = 2 + (int64_t)images[i]->w * (int64_t)images[i]->h;
+        if (used + record > max_longs) continue;
+        if (out) {
+            SDL_Surface *argb = SDL_ConvertSurface(images[i], SDL_PIXELFORMAT_ARGB8888);
+            if (!argb) continue;
+            long *dst = out + used;
+            *dst++ = argb->w;
+            *dst++ = argb->h;
+            for (int y = 0; y < argb->h; y++) {
+                const Uint32 *src = (const Uint32 *)((const Uint8 *)argb->pixels + (size_t)y * (size_t)argb->pitch);
+                for (int x = 0; x < argb->w; x++) *dst++ = (long)*src++;
+            }
+            SDL_DestroySurface(argb);
+        }
+        used += record;
+    }
+    SDL_free(images);
+    return used;
+}
+
+typedef unsigned long (*mui_XInternAtom_t)(void *display, const char *name, int only_if_exists);
+typedef int (*mui_XChangeProperty_t)(void *display, unsigned long window, unsigned long property, unsigned long type,
+                                     int format, int mode, const unsigned char *data, int nelements);
+typedef int (*mui_XFlush_t)(void *display);
+typedef long (*mui_XMaxRequestSize_t)(void *display);
+
+static uint32_t x11_icon_writes = 0;
+
+/// How many times mui_x11_set_net_wm_icon wrote the property: a test reads it before and after.
+uint32_t mui_x11_icon_write_count(void) { return x11_icon_writes; }
+
+/// Writes `surface` and its alternates to the window's `_NET_WM_ICON` when SDL's video
+/// driver is X11 and there is more than one image (a single one SDL already wrote
+/// whole). `false`, nothing written, on any other driver, a missing libX11 or Display,
+/// or an icon that does not fit one request (the images that fit are written).
+bool mui_x11_set_net_wm_icon(void *window, void *surface) {
+    const char *driver = SDL_GetCurrentVideoDriver();
+    if (!driver || strcmp(driver, "x11") != 0) return false;
+    int count = 0;
+    SDL_Surface **images = SDL_GetSurfaceImages((SDL_Surface *)surface, &count);
+    if (!images) return false;
+    SDL_free(images);
+    if (count < 2) return false;
+    SDL_PropertiesID props = SDL_GetWindowProperties((SDL_Window *)window);
+    void *display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
+    unsigned long xwindow = (unsigned long)SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
+    if (!display || !xwindow) return false;
+
+    static SDL_SharedObject *x11 = NULL;   // kept loaded: the process's Display lives on it
+    if (!x11) x11 = SDL_LoadObject("libX11.so.6");
+    if (!x11) return false;
+    mui_XInternAtom_t intern = (mui_XInternAtom_t)SDL_LoadFunction(x11, "XInternAtom");
+    mui_XChangeProperty_t change = (mui_XChangeProperty_t)SDL_LoadFunction(x11, "XChangeProperty");
+    mui_XFlush_t flush = (mui_XFlush_t)SDL_LoadFunction(x11, "XFlush");
+    mui_XMaxRequestSize_t extended = (mui_XMaxRequestSize_t)SDL_LoadFunction(x11, "XExtendedMaxRequestSize");
+    mui_XMaxRequestSize_t plain = (mui_XMaxRequestSize_t)SDL_LoadFunction(x11, "XMaxRequestSize");
+    if (!intern || !change || !flush || !plain) return false;
+    // A request longer than the server accepts is a BadLength the default handler answers
+    // by exiting the process; stay under it (a request is 4-byte units, 6 of them header).
+    long limit = extended ? extended(display) : 0;
+    if (limit <= 0) limit = plain(display);
+    int64_t max_longs = (int64_t)limit - 6;
+    if (max_longs > 0x7fffffff) max_longs = 0x7fffffff;
+    if (max_longs < 2) return false;
+
+    int64_t total = mui_x11_icon_property(surface, max_longs, NULL);
+    if (total <= 0) return false;
+    long *data = (long *)SDL_malloc((size_t)total * sizeof(long));
+    if (!data) return false;
+    int64_t written = mui_x11_icon_property(surface, max_longs, data);
+    bool ok = written == total;
+    if (ok) {
+        // XA_CARDINAL is 6, PropModeReplace 0 (X.h, Xatom.h: protocol constants).
+        change(display, xwindow, intern(display, "_NET_WM_ICON", 0), 6, 32, 0, (const unsigned char *)data, (int)written);
+        flush(display);
+        x11_icon_writes++;
+    }
+    SDL_free(data);
+    return ok;
+}
+
 bool mui_window_set_icon(void *window, void *surface) {
     if (!surface) { window_set_icon_null_calls++; return SDL_SetError("icon: NULL surface"); }
-    return SDL_SetWindowIcon((SDL_Window *)window, (SDL_Surface *)surface);
+    bool ok = SDL_SetWindowIcon((SDL_Window *)window, (SDL_Surface *)surface);
+    if (ok) mui_x11_set_net_wm_icon(window, surface);
+    return ok;
 }
 
 uint32_t mui_window_set_icon_null_calls(void) { return window_set_icon_null_calls; }

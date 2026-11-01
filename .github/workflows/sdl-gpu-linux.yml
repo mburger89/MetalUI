@@ -179,6 +179,28 @@ jobs:
             METALUI_SHADERCROSS=$fx/shadercross-stub swift build
             test -s "$(find .build -name tri.vert.spv | head -n 1)"
           '
+      - name: The X11 window icon reaches _NET_WM_ICON (XP-G37, WI-E)
+        # A real SDL window on Xvfb with SDL_VIDEO_DRIVER=x11 (the image defaults to offscreen):
+        # IconCheck sets app.icon, then check.sh reads the property back with xprop and walks its
+        # width, height, pixels records. One 256 icon, three sizes, and three sizes set after the
+        # window opened. xprop's own pretty-printer prints nothing for an icon over about 250
+        # pixels (WI-A), so check.sh asks for the raw values.
+        run: |
+          docker run --rm -v "$PWD":/work -w /work/Backends/SDL metalui-portable bash -ec '
+            swift build --scratch-path /tmp/build --product IconCheck
+            bin=$(swift build --scratch-path /tmp/build --show-bin-path)
+            Xvfb :99 -screen 0 1280x1024x24 >/dev/null 2>&1 &
+            xvfb=$!
+            timeout 30 sh -c "until xdpyinfo -display :99 >/dev/null 2>&1; do sleep 0.2; done"
+            export DISPLAY=:99 SDL_VIDEO_DRIVER=x11
+            check=/work/.github/fixtures/x11-icon/check.sh
+            status=0
+            "$bin/IconCheck" 256 "$check 256x256" || status=1
+            "$bin/IconCheck" 16,32,256 "$check \"16x16 32x32 256x256\"" || status=1
+            "$bin/IconCheck" 16,32,256 "$check \"16x16 32x32 256x256\"" after || status=1
+            kill $xvfb
+            exit $status
+          '
       - name: The sample app builds and its tests pass (Examples/Jotter, SDL trait; ruling EX-E)
         # A package of its own, a path dependency on this checkout with the SDL and AccessKit
         # traits its manifest turns on for Linux; the image's offscreen video driver is enough

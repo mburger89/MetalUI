@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       git cmake ninja-build pkg-config libvulkan1 mesa-vulkan-drivers vulkan-tools \
       libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
       libxkbcommon-dev libwayland-dev wayland-protocols libegl-dev libdecor-0-dev \
+      xvfb x11-utils \
     && rm -rf /var/lib/apt/lists/*
 ARG SDL_TAG=release-3.4.16
 RUN git clone --depth 1 --branch ${SDL_TAG} https://github.com/libsdl-org/SDL.git /tmp/SDL \

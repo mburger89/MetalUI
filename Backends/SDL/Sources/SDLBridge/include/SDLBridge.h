@@ -504,6 +504,11 @@ bool mui_icon_surface_add_alternate(void *primary, void *image);
 // SDL_SetWindowIcon. A NULL surface is refused (false) without calling SDL,
 // and counted in mui_window_set_icon_null_calls.
 bool mui_window_set_icon(void *window, void *surface);
+// X11 only (ruling WI-B): SDL writes _NET_WM_ICON from the primary surface alone; these
+// write every size. mui_window_set_icon calls the setter itself.
+int64_t mui_x11_icon_property(void *surface, int64_t max_longs, long *out);
+bool mui_x11_set_net_wm_icon(void *window, void *surface);
+uint32_t mui_x11_icon_write_count(void);
 // How many times mui_window_set_icon was handed NULL — always 0 (ruling AI-F
 // item 5: NULL is never passed). For tests.
 uint32_t mui_window_set_icon_null_calls(void);
