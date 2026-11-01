@@ -136,14 +136,22 @@ private struct LoggedSequence: Component {
 // MARK: - 2: a failed first member fails the sequence (S3, S5)
 
 /// **2.1** (`S3`, `S5`). A release before the long press, or a move past its `maximumDistance`, fails the whole
-/// sequence: the drag that follows reports nothing, and `onEnded` never runs. Mutation: leave the second member
-/// gated-open after the first fails.
+/// sequence: the drag that follows reports nothing, and `onEnded` never runs. Mutation: do not fail the second member's leaves when the first fails (the arena then outlives the press and the next
+/// press is read as a continuing one).
 @Test @MainActor func aFailedFirstGestureFailsTheSequence() throws {
     let early = GCLog()
     let w1 = try chipWindow { LoggedSequence(log: early, dragMinimum: 0) }
     w1.send(down()); w1.tick(); w1.advance(by: 0.1)
     w1.send(up()); w1.tick(); w1.advance(by: 0.5)
     #expect(early.entries == ["changed first(true)"], "\(early.entries)")
+    // The failed sequence leaves nothing alive: the next press on the chip is a fresh press, not the second press of a
+    // tap sequence (which would fail the long press), so a whole sequence still runs.
+    w1.send(down()); w1.tick(); w1.advance(by: 0.5)
+    w1.send(up()); w1.tick()
+    #expect(early.entries.suffix(3) == [
+        "changed first(true)", "changed second(true, nil)",
+        "ended second(true, start=(100.0,100.0) loc=(100.0,100.0))",
+    ], "\(early.entries)")
 
     let far = GCLog()
     let w2 = try chipWindow { LoggedSequence(log: far, dragMinimum: 0) }

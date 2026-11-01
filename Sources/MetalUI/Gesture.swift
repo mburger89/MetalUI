@@ -1219,7 +1219,6 @@ struct GestureArena {
             let built = build(inner, owner: owner, region: region, namedSpaces: namedSpaces, gates: gates,
                               sequences: &sequences, composites: &composites)
             built.hooks = hooks
-            hooks.reset?()   // a stale run on the same attachment must not leak into this press
             composites.append(built)
             return built
         }
