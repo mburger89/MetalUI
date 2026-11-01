@@ -687,6 +687,20 @@ non-`Text` label in an alert's actions is now accepted (its first `Text` is the 
 instead of failing to compile. A platform conformer shows `message` where its dialog has a field for it
 (`NSSavePanel.message`); SDL passes the `prompt` as its accept label and the `message` as its title. Rebuild
 dependents with `swift package clean` (a stored property on a public type crossing a module boundary).
+### Path operations (`PG-`, record 181)
+
+Additive, with two behaviour changes. New API: `Path.trimmedPath(from:to:)` (arc length across all subpaths, closing edge
+counted), `strokedPath(_:)`, `applying(_:)`, `addRelativeArc(center:radius:startAngle:delta:transform:)`, a trailing
+`transform: Transform2D = .identity` on `addRect`, `addRects`, `addRoundedRect`, `addEllipse`, `addPath` and both
+`addArc`s (a call that passes no `transform` is unchanged), `Shape.trim(from:to:)` (`TrimmedShape`, animatable under
+`withAnimation`), `UnevenRoundedRectangle`, `RectangleCornerRadii`, and `Transform2D` (the type SwiftUI spells
+`CGAffineTransform`; convert with the six components). A file that already declares its own `Transform2D`,
+`TrimmedShape`, `RectangleCornerRadii` or `UnevenRoundedRectangle` now collides; rename it or delete it for the
+framework's. **Behaviour:** (1) a built-in shape's outline now starts where SwiftUI's does (a rounded rectangle,
+capsule, circle or ellipse on the right edge, a rectangle top-left), not at the top edge, so a **dashed stroke's
+pattern starts there** (matching SwiftUI) and `trim` begins there; the filled and solid-stroked pixels are unchanged
+(within the rasterizer's rounding); (2) a custom `Shape` overriding `path(in:)` is unaffected. `UnevenRoundedRectangle`
+with a radius past half the shorter side draws as a path and cannot be a `clipShape` (divergence 91).
 
 ## See also
 

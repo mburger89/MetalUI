@@ -239,7 +239,7 @@ extension Shape {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout ShapeLayout, prepaint: inout Void,
                                pass: inout PaintPass) {
-        paintShapeFill(geometry(in: bounds), color: nil, pass: pass)
+        paintShapeFill(shapeForPaint(self, id, pass: pass).geometry(in: bounds), color: nil, pass: pass)
     }
 }
 

@@ -296,15 +296,19 @@ with `nil` an unsupported type, `.unknown` not a picture.
 **Paths** (rulings `GX-B`…`GX-E`, `GX-K`): `Path` — SwiftUI's initialisers and
 mutators (`move`, `addLine`, `addLines`, `addQuadCurve`, `addCurve`, both
 `addArc`s, `addRect`, `addRects`, `addRoundedRect`, `addEllipse`, `addPath`,
-`closeSubpath`, `contains(_:eoFill:)`, `offsetBy`, `boundingRect`) over
+`closeSubpath`, `contains(_:eoFill:)`, `offsetBy`, `boundingRect`, and since R3-8 `addRelativeArc`, `applying(_:)`,
+`trimmedPath(from:to:)` by arc length, `strokedPath(_:)` and a `transform:` parameter on the add-methods, over
+`Transform2D`, divergence 945) over
 `Point`/`Bounds`; a `Shape` and a view drawing its own coordinates from its
 layout origin; rasterized on the CPU in device pixels after every effect (crisp
 under `scaleEffect`), drawn as an image, cached by value. `FillStyle`
 (nonzero, even-odd, antialiased), `StrokeStyle` (width, `LineCap`,
 `LineJoin`, miter limit, dashes). A plain-width stroke of a built-in keeps the
 renderer's exact band. `clipShape` of a path traps (91); a stroke width snaps
-(97). Not offered: `applying`/`transform:`, `addRelativeArc`,
-`trimmedPath`/`trim`, `strokedPath`.
+(97). `Shape.trim(from:to:)` (`TrimmedShape`, animatable under `withAnimation`, `PG-F`) and
+`UnevenRoundedRectangle(cornerRadii:style:)`/`RectangleCornerRadii` (the SDF when its radii fit, a path past
+half the shorter side, `PG-G`); SwiftUI's start points for every built-in (`PG-H`). Not offered: SVG strings,
+`ContainerRelativeShape`.
 
 **Shadows** (`GX-J`, `GX-Q`): `.shadow(color:radius:x:y:)` on both
 vocabularies (a `LayoutModifier` case; on a `StyledElement` it returns `Self`),
