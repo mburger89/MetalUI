@@ -49,7 +49,7 @@ or `monospaced` collides (`docs/migration.md`). A stored property on `Environmen
 (4), the `TM-1` plain-import guard in `RichTextCompileGuards.swift`; updated: the fingerprint field count 27 -> 29 and its table
 (`RetainedAmbientMissTests`, `RetainedSubtreeInternalTests`).
 
-**Counts** (2026-11-01, `feat/text-view-modifiers` on master `b83efde2`, `--build-system native --build-tests` then an unfiltered `--no-parallel` run): **4635 tests in 12 suites passed, 0 issues**;
+**Counts** (2026-11-01, `feat/text-view-modifiers` on master `b83efde2`, `--build-system native --build-tests` then an unfiltered `--no-parallel` run): **4836 tests in 14 suites passed, 0 issues** (re-run by the orchestrator; the agent first reported 4635 in 12, a misread log);
 `FR-J no-argument frame: succeeded=true` printed (the run's log kept only its tail, so `TM GUARD 1 compiles: succeeded=true` was read from a filtered native run of the guard). The guard was mutated in the native build: `Pattern.dot` made `internal` reddens
 `theLinePatternsAndViewLevelTextModifiersAreSwiftUIs` (`'dot' is inaccessible due to 'internal' protection level`). The count is this tree's own tally (the baseline master figure was not re-taken).
 
