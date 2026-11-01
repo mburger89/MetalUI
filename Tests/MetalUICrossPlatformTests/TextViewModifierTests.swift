@@ -117,10 +117,10 @@ private struct Plus: Joining {
 
 /// **TM-3** (probe `T`, `TM-C`). The unit is the thickness rounded up to a whole point, at least one:
 /// the probe's eleven sizes (CoreText 0.527 … 4.219 against SwiftUI 1 … 5). **Mutation:** `.up` to
-/// `.toNearestOrEven` (0.527 → 1 still, 1.172 → 1: reddens), drop the `max(1,`.
+/// `.toNearestOrEven` (0.527 → 1 still, 1.172 → 1: reddens), drop the `max(1,` (the zero and 0.00005 rows).
 @Test func theUnitIsTheThicknessRoundedUp() {
     let probe: [(Double, Double)] = [(0.527, 1), (0.762, 1), (0.996, 1), (1.0, 1), (1.172, 2), (1.641, 2), (2.109, 3),
-                                     (2.812, 3), (4.219, 5), (0.01, 1)]
+                                     (2.812, 3), (4.219, 5), (0.01, 1), (0, 1), (0.00005, 1)]
     for (thickness, unit) in probe {
         #expect(linePatternUnit(thickness: thickness) == unit, note("thickness \(thickness)"))
     }
