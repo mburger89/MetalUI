@@ -269,7 +269,8 @@ enum LazyLinePlanner {
                         pass.frame.scrollRequestQueue.carry(
                             ScrollRequest(scope: request.scope,
                                           key: AnyHashable(LazyReveal(container: id, key: key)),
-                                          anchor: request.anchor))
+                                          anchor: request.anchor,
+                                          animation: pass.frame.scrollRequestAnimation(request.index)))
                     }
                 } else if let realised = realisedBounds(unit) {
                     target = realised

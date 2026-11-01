@@ -66,6 +66,14 @@ struct ScrollChrome {
     /// Whether two stored scroll states are the same value (`RW-H`): the compared write's `unchanged:`.
     static func sameScrollState(_ a: ScrollState, _ b: ScrollState) -> Bool {
         a.offset == b.offset && a.viewportExtent == b.viewportExtent && a.lastScrollTime == b.lastScrollTime
+            && a.glide == b.glide
+    }
+
+    /// The offset a phase of the frame stamped `now` sees (`SP-F`): the stored one, or the animated value of
+    /// a `scrollTo` made under `withAnimation`. The glide's first frame is the frame after the one that
+    /// resolved the request, so a landed glide equals the stored target.
+    static func currentOffset(_ state: ScrollState, now: Double) -> Double {
+        state.glide?.value(at: now).offset ?? state.offset
     }
 
     // Two overloads, one per pass type, rather than one function taking a
@@ -110,8 +118,15 @@ struct ScrollChrome {
         let viewport = extent(bounds.size)
         let content = extent(pass.bounds(of: contentNode).size)
         var resolved: Double = 0
+        let now = pass.frame.timestamp
+        var gliding = false
         // A compared write (`RW-H`): a settled scroller re-stores what is there, which bumps no version and taints nothing.
         pass.withState(id, initial: ScrollState(), unchanged: Self.sameScrollState) {
+            if let glide = $0.glide {   // `SP-F`: the animated value is the stored one, and a landed glide ends
+                let step = glide.value(at: now)
+                $0.offset = step.offset
+                if step.finished { $0.glide = nil } else { gliding = true }
+            }
             $0.offset = Self.clamp(offset: $0.offset, content: content, viewport: viewport)
             resolved = $0.offset
             // The half `ScrollState.viewportExtent`'s own doc names: this is
@@ -119,6 +134,7 @@ struct ScrollChrome {
             // read a viewport extent at all.
             $0.viewportExtent = viewport
         }
+        if gliding { pass.frame.noteActiveAnimation() }   // keeps the display link running, never dirties
         return resolved
     }
 
@@ -137,7 +153,7 @@ struct ScrollChrome {
                         contentNode: LayoutNodeID, pass: PaintPass) -> Double {
         let viewport = extent(bounds.size)
         let content = extent(pass.bounds(of: contentNode).size)
-        let stored = pass.readState(id, initial: ScrollState()).offset   // `RW-H`
+        let stored = Self.currentOffset(pass.readState(id, initial: ScrollState()), now: pass.frame.timestamp)   // `RW-H`
         return Self.clamp(offset: stored, content: content, viewport: viewport)
     }
 
@@ -257,6 +273,9 @@ struct ScrollerFrame {
     /// The content's extent on the scrolling axis — what a `scrollTo`
     /// resolution clamps against (`DD-G` item 2, T7).
     var contentExtent: Double
+    /// Whether this scroller carries a `scrollPosition(id:)` binding, so targets inside it note their extents
+    /// (`SP-B`).
+    var tracksPosition = false
 
     /// The viewport's extent on the scrolling axis.
     var viewportExtent: Double {

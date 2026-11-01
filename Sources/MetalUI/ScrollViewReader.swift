@@ -117,8 +117,14 @@ public struct ScrollViewProxy {
     /// - **Call it from input** (a handler), never from a phase. The request
     ///   is resolved by the next frame and shows one frame after that; an id
     ///   that frame does not find does nothing, and the request is dropped.
+    /// - **Under `withAnimation`** the scroll glides to its target along that animation instead of jumping
+    ///   (`SP-F`): `withAnimation(.linear(duration: 0.3)) { proxy.scrollTo(row, anchor: .top) }`. The glide
+    ///   runs on the frame clock, keeps the display link awake while it moves
+    ///   (`noteActiveAnimation`), and ends early when the user scrolls. Called outside `withAnimation` it
+    ///   jumps, as before.
     public func scrollTo<ID: Hashable>(_ id: ID, anchor: UnitPoint? = nil) {
-        queue?.enqueue(ScrollRequest(scope: scope, key: AnyHashable(id), anchor: anchor))
+        queue?.enqueue(ScrollRequest(scope: scope, key: AnyHashable(id), anchor: anchor,
+                                     animation: Animation.pendingTransaction))
     }
 }
 
@@ -127,6 +133,8 @@ struct ScrollRequest {
     var scope: GlobalElementID
     var key: AnyHashable
     var anchor: UnitPoint?
+    /// The `withAnimation` transaction the call ran under, if any (`SP-F`).
+    var animation: Animation? = nil
 }
 
 /// The window's pending `scrollTo` requests (`DD-G` item 3). `Window` owns one
@@ -135,6 +143,9 @@ struct ScrollRequest {
 @MainActor
 final class ScrollRequestQueue {
     private(set) var pending: [ScrollRequest] = []
+    /// The window's `scrollPosition(id:)` bookkeeping (`SP-C`): owned here because this object already is
+    /// the window-lifetime channel between input and the frame's scrollers.
+    let positions = ScrollPositionRegistry()
     /// Called on every enqueue — `Window` dirties itself here.
     var onEnqueue: (() -> Void)?
 

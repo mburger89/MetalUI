@@ -180,7 +180,7 @@ public final class Frame {
 
     /// Each resolved request's scroller and the offset it moves to, in
     /// resolution order — applied after paint (`applyScrollResolutions`).
-    private var scrollResolutions: [(scroller: GlobalElementID, offset: Double)] = []
+    private var scrollResolutions: [(scroller: GlobalElementID, offset: Double, animation: Animation?)] = []
 
     /// Notes `id`'s typed key. Callers check `notesScrollKeys` first.
     func noteScrollKey(_ id: GlobalElementID, _ key: AnyHashable) {
@@ -236,6 +236,52 @@ public final class Frame {
         scrollAnchorAdjustments.append((scroller, delta))
     }
 
+    // MARK: - `scrollPosition(id:)` (item R3-4, `SP-A`...`SP-E`)
+
+    /// Position-tracking scrollers open around the layout being built, and `scrollTargetLayout()` wrappers.
+    var positionTrackingDepth = 0
+    var scrollTargetDepth = 0
+
+    /// Whether a `ForEach` or lazy unit built now is a scroll target (`SP-B`): a one-compare gate, so a tree
+    /// with no position binding pays nothing.
+    var notesScrollTargets: Bool { positionTrackingDepth > 0 && scrollTargetDepth > 0 }
+
+    /// The targets prepaint noted this frame, in prepaint order; each scroller slices out its own.
+    private(set) var scrollTargetNotes: [ScrollTargetNote] = []
+
+    /// The values this frame's position scrollers read from their bindings and did not already know, applied
+    /// to the registry once the frame ends (so an abandoned frame leaves the registry as it was).
+    var pendingPositionKnown: [GlobalElementID: AnyHashable?] = [:]
+
+    /// Notes one target's extent in the innermost scroller (`SP-B`). Layout-space bounds; the scroller's
+    /// content origin is taken off, so the figures are content coordinates along its axis.
+    func noteScrollTarget(_ key: AnyHashable, bounds: Bounds<Pixels>) {
+        guard let scroller = activeScrollerFrame, scroller.tracksPosition else { return }
+        let vertical = scroller.axis == .vertical
+        let origin = Double(vertical ? scroller.contentOrigin.y.value : scroller.contentOrigin.x.value)
+        let start = Double(vertical ? bounds.origin.y.value : bounds.origin.x.value) - origin
+        let extent = Double(vertical ? bounds.size.height.value : bounds.size.width.value)
+        scrollTargetNotes.append(ScrollTargetNote(scroller: scroller.scrollerID, key: key, start: start,
+                                                  end: start + extent))
+    }
+
+    /// The number of notes so far: a scroller's mark before its content prepaints.
+    var scrollTargetNoteCount: Int { scrollTargetNotes.count }
+
+    /// Adds a request to THIS frame's set, resolved by this frame's prepaint like a `scrollTo` taken from the
+    /// queue (`SP-A`): a position scroller's layout injects the `scrollTo` its binding's new value means.
+    /// Frame-local, so a frame abandoned for a redo injects it again.
+    func injectScrollRequest(_ request: ScrollRequest) {
+        scrollRequests.append(request)
+        scrollRequestResolved.append(false)
+        unresolvedScrollRequestCount += 1
+        notesScrollKeys = true
+    }
+
+    /// The `withAnimation` the request was made under (`SP-F`), so a refinement carried onto the next frame
+    /// keeps it.
+    func scrollRequestAnimation(_ index: Int) -> Animation? { scrollRequests[index].animation }
+
     /// Whether request `index` has already found its target (first match wins).
     func isScrollRequestResolved(_ index: Int) -> Bool { scrollRequestResolved[index] }
 
@@ -250,7 +296,7 @@ public final class Frame {
         guard let scroller = activeScrollerFrame else { return }
         let offset = Self.scrollOffset(bringing: target, into: scroller,
                                        anchor: scrollRequests[index].anchor)
-        scrollResolutions.append((scroller.scrollerID, offset))
+        scrollResolutions.append((scroller.scrollerID, offset, scrollRequests[index].animation))
     }
 
     /// Matches every unresolved request against `id` and its ancestors — the
@@ -324,7 +370,13 @@ public final class Frame {
     private func applyScrollResolutions() {
         for resolution in scrollResolutions {
             stateTable.withState(resolution.scroller, initial: ScrollState()) {
-                $0.offset = resolution.offset
+                if let animation = resolution.animation, resolution.offset != $0.offset {
+                    // `SP-F`: glide from where the scroller is to the target; the next frame's clock starts it.
+                    $0.glide = ScrollGlide(from: $0.offset, to: resolution.offset, start: timestamp, animation: animation)
+                } else {
+                    $0.glide = nil
+                }
+                if $0.glide == nil { $0.offset = resolution.offset }
             }
         }
         // `VL-G` item 2: after the absolute writes, so a resolution and an
@@ -335,6 +387,14 @@ public final class Frame {
                 $0.offset += adjustment.delta
             }
         }
+        // `SP-C`: the registry learns what the position bindings now hold, and reports scrollers a `scrollTo`
+        // moved (a scroll no wheel made) - after the passes, never inside one.
+        let positions = scrollRequestQueue.positions
+        for (scroller, value) in pendingPositionKnown { positions.setKnown(value, for: scroller) }
+        pendingPositionKnown = [:]
+        var moved: [GlobalElementID: Double] = [:]
+        for resolution in scrollResolutions { moved[resolution.scroller] = resolution.offset }
+        positions.finishFrame(moved: moved)
         if !scrollResolutions.isEmpty || !scrollAnchorAdjustments.isEmpty { requestAnotherFrame() }
         scrollResolutions = []
         scrollAnchorAdjustments = []

@@ -86,6 +86,10 @@ protocol LazyUnitSource {
     /// `LazyStaticUnitID`), for `scrollTo` and the index.
     func lazyUnitID(_ unit: Int) -> AnyHashable
 
+    /// The id `scrollTo` and a position binding know the unit by (`SP-B`): its own id unless a source nests
+    /// units whose own ids repeat (a `ForEach` of sections).
+    func lazyScrollID(_ unit: Int) -> AnyHashable
+
     /// Called once per frame before any of this source's units is realised, with the source's one
     /// structural slot (`LZ-H`: `noteWindowedParent`).
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass)
@@ -94,6 +98,10 @@ protocol LazyUnitSource {
     /// the source's cursor index would be realised in a `VStack`.
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
                          cursorBase: Int, pass: inout LayoutPass) -> LazyUnitBox
+}
+
+extension LazyUnitSource {
+    func lazyScrollID(_ unit: Int) -> AnyHashable { lazyUnitID(unit) }
 }
 
 /// A content group that can list its units (conformers: `ForEach` over proposal content, `Pair`,
@@ -169,6 +177,11 @@ extension Pair: LazyFlattenable where First: ProposalElementGroup, Second: Propo
 
 extension ForEach: LazyFlattenable where Content: ProposalElementGroup {
     func lazyFlatten(into sources: inout [any LazyUnitSource]) -> Bool {
+        if Content.self is any LazySectionContent.Type {   // `SP-H`: a `ForEach` of `Section`s
+            guard let source = LazySectionForEachSource(forEach: self) else { return false }
+            sources.append(source)
+            return true
+        }
         sources.append(LazyForEachSource(forEach: self))
         return true
     }
@@ -340,7 +353,7 @@ struct LazyUnitTable {
     /// The raw id of global unit `unit` (a `ForEach` element's id), for `scrollTo`.
     func rawID(_ unit: Int) -> AnyHashable {
         let (segment, local) = locate(unit)
-        return sources[segment].lazyUnitID(local)
+        return sources[segment].lazyScrollID(local)
     }
 
     /// Realises global unit `unit` under `parent`.

@@ -2340,12 +2340,16 @@ public final class Window {
     private func scroll(_ region: Hitbox, by event: ScrollEvent) {
         guard let axis = region.scroll else { return }
         let componentDelta = axis == .horizontal ? event.delta.x : event.delta.y
+        var moved = 0.0
+        defer { scrollRequests.positions.didScroll(region.id, offset: moved) }   // `SP-C`: from input
         stateTable.withState(region.id, initial: ScrollState()) {
+            $0.glide = nil   // the user's wheel ends an animated `scrollTo` where it stands (`SP-F`)
             // Natural scrolling: a positive scrollingDelta means content moves
             // in the positive direction (the user's fingers moved that way),
             // so the offset — how far the content has scrolled away from its
             // start — decreases.
             $0.offset -= Double(componentDelta.value)
+            moved = $0.offset
             // Stamped from the EVENT's own timestamp, not `lastTick`. The
             // display link pauses while the window is clean (spec §4.4), so
             // after an idle period `lastTick` is however many seconds stale —

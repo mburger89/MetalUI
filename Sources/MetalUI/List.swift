@@ -991,7 +991,8 @@ extension List {
                         pass.frame.scrollRequestQueue.carry(
                             ScrollRequest(scope: request.scope,
                                           key: AnyHashable(ListLeadReveal(list: id, row: key, refined: true)),
-                                          anchor: request.anchor))
+                                          anchor: request.anchor,
+                                          animation: pass.frame.scrollRequestAnimation(request.index)))
                     }
                 } else if builtWindow.contains(position), position - builtWindow.lowerBound < rows.count {
                     target = pass.bounds(of: rows[position - builtWindow.lowerBound].node)
