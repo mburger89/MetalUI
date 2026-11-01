@@ -171,7 +171,7 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
         }
         if look == .borderedProminent {
             // The accent fill and no border (`BY-G`); a caller's own fill survives.
-            if decorated.background == Color(Self.chromeBackground) { decorated.background = Color(controlAccent(environment)) }
+            if decorated.background == Color(Self.chromeBackground) { decorated.background = controlAccent(environment) }
             if decorated.border == Self.chromeBorder { decorated.border = nil }
         }
         if let glassStyle {

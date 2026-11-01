@@ -341,20 +341,20 @@ struct ProgressIndicator: Element, StyledElement {
     }
 
     /// The determinate bar: the track and the fraction filled in the accent.
-    private static func paintBar(_ bounds: Bounds<Pixels>, fraction: Double, accent: ColorToken,
+    private static func paintBar(_ bounds: Bounds<Pixels>, fraction: Double, accent: Color,
                                  pass: inout PaintPass) {
         let t = track(bounds)
         let radius = Corners(all: Pixels(Float(t.h / 2)))
         pass.fill(rect(t.x, t.y, t.w, t.h), color: pass.theme[.separator], cornerRadii: radius)
         let filled = t.w * min(max(fraction, 0), 1)
         if filled > 0 {
-            pass.fill(rect(t.x, t.y, filled, t.h), color: pass.theme[accent], cornerRadii: radius)
+            pass.fill(rect(t.x, t.y, filled, t.h), color: pass.resolve(accent), cornerRadii: radius)
         }
     }
 
     /// The indeterminate bar: a 30%-wide segment across the track and back
     /// every 1.6 s (`LK-F` item 2).
-    private static func paintSweep(_ bounds: Bounds<Pixels>, time: Double, accent: ColorToken,
+    private static func paintSweep(_ bounds: Bounds<Pixels>, time: Double, accent: Color,
                                    pass: inout PaintPass) {
         let t = track(bounds)
         let radius = Corners(all: Pixels(Float(t.h / 2)))
@@ -364,13 +364,13 @@ struct ProgressIndicator: Element, StyledElement {
         if phase < 0 { phase += 1 }
         let travel = phase < 0.5 ? phase * 2 : 2 - phase * 2
         let segment = t.w * 0.3
-        pass.fill(rect(t.x + travel * (t.w - segment), t.y, segment, t.h), color: pass.theme[accent],
+        pass.fill(rect(t.x + travel * (t.w - segment), t.y, segment, t.h), color: pass.resolve(accent),
                   cornerRadii: radius)
     }
 
     /// The determinate ring: a track circle and the fraction's arc clockwise
     /// from 12 o'clock, stroked (the look is unprobed, human check 3).
-    private static func paintRing(_ bounds: Bounds<Pixels>, fraction: Double, accent: ColorToken,
+    private static func paintRing(_ bounds: Bounds<Pixels>, fraction: Double, accent: Color,
                                   pass: inout PaintPass) {
         let side = Double(min(bounds.size.width.value, bounds.size.height.value))
         guard side > 0 else { return }
@@ -391,7 +391,7 @@ struct ProgressIndicator: Element, StyledElement {
         let clamped = min(max(fraction, 0), 1)
         if clamped > 0 {
             pass.drawPath(arc(clamped), stroke: StrokeStyle(lineWidth: Pixels(Float(width)), lineCap: .round),
-                          color: pass.theme[accent])
+                          color: pass.resolve(accent))
         }
     }
 }

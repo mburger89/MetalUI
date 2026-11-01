@@ -14,8 +14,11 @@ import MetalUICore
 /// never measured, the probe's process is never active — is treated as not
 /// key). Every offscreen harness and fake window reads `.key`, so no existing
 /// pixel moves.
-func controlAccent(_ environment: EnvironmentValues) -> ColorToken {
-    environment.controlActiveState == .key ? .accent : .separator
+///
+/// **Since the shape styles it is a `Color`** (`SS-D`): the nearest `.tint(_:)`, else the theme's `.accent` token
+/// itself, so an untinted control paints the colour it always did. Every control reads this one function.
+func controlAccent(_ environment: EnvironmentValues) -> Color {
+    environment.controlActiveState == .key ? (environment.tint ?? Color(.accent)) : Color(.separator)
 }
 
 /// The focus ring a built-in control draws while focused (`IX-H` item 2): a

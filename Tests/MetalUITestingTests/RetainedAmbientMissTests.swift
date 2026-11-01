@@ -86,7 +86,7 @@ struct RetainedAmbientMissTests {
     /// makes a new field owe a row in `EnvironmentFingerprint.differences`. **Mutation:** drop one row (reddens that field's arm).
     @Test func everyEnvironmentFingerprintFieldIsNamedWhenItDiffersAlone() throws {
         let base = EnvironmentValues().retainedFingerprint
-        try #require(Mirror(reflecting: base).children.count == 26, "a new EnvironmentFingerprint field owes a row in differences(from:) and here")
+        try #require(Mirror(reflecting: base).children.count == 27, "a new EnvironmentFingerprint field owes a row in differences(from:) and here")
         var cases: [(String, (inout EnvironmentFingerprint) -> Void)] = [
             ("isEnabled", { $0.isEnabled.toggle() }), ("layoutDirection", { $0.layoutDirection = $0.layoutDirection == .leftToRight ? .rightToLeft : .leftToRight }),
             ("locale", { $0.locale = Locale(identifier: "xx_YY") }), ("dynamicTypeSize", { $0.dynamicTypeSize = .xxxLarge }),
@@ -97,14 +97,14 @@ struct RetainedAmbientMissTests {
             ("windowSize", { $0.windowSize = Size(width: Pixels(7), height: Pixels(7)) }), ("colorScheme", { $0.colorScheme = $0.colorScheme == .light ? .dark : .light }),
             ("controlSize", { $0.controlSize = .large }), ("font", { $0.font = .title }), ("lineLimit", { $0.lineLimit = 3 }),
             ("truncationMode", { $0.truncationMode = .head }), ("multilineTextAlignment", { $0.multilineTextAlignment = .trailing }),
-            ("foregroundStyle", { $0.foregroundStyle = Color(red: 1, green: 0, blue: 0) }), ("fontWeight", { $0.fontWeight = .heavy }),
+            ("foregroundStyle", { $0.foregroundStyle = Color(red: 1, green: 0, blue: 0) }), ("tint", { $0.tint = Color(red: 0, green: 1, blue: 0) }), ("fontWeight", { $0.fontWeight = .heavy }),
             ("italic", { $0.italic.toggle() }), ("textLineLimit", { $0.textLineLimit = TextLineLimit(min: nil, max: 4) }),
             ("fieldStyle", { $0.fieldStyle = .plain }), ("editorStyle", { $0.editorStyle = .plain }),
             ("theme", { $0.theme = Theme.dark }), ("hasTextSystem", { $0.hasTextSystem.toggle() }),
         ]
         cases.append(("objects", { $0.objects[ObjectIdentifier(AMEnvBox.self)] = ObjectIdentifier(AMEnvBox.self) }))
         cases.append(("custom", { $0.custom[ObjectIdentifier(AMEnvBox.self)] = EnvironmentReading.value(7) }))
-        try #require(cases.count == 26)
+        try #require(cases.count == 27)
         for (name, change) in cases {
             var other = base; change(&other)
             #expect(base != other, "\(name): the change changes the fingerprint")

@@ -2075,3 +2075,15 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **WI1.** On GNOME on Xorg, an app with `app.icon = [16, 32, 256 px bitmaps of one picture]`: alt-tab and the dock show the picture sharp (the 256 px record, not a scaled-up 16 px one); `xprop -f _NET_WM_ICON 32c -id <win> _NET_WM_ICON | head -c 100` starts `16, 16,` and holds `32, 32,` and `256, 256,` further on. **Observed:**
 - [ ] **WI2.** The same with a single 256x256 bitmap (MetalCreator): the icon shows in alt-tab and the dock. **Observed:**
 - [ ] **WI3.** On GNOME on Wayland (`SDL_VIDEO_DRIVER=wayland`), the same three-size app: the window shows the icon (SDL's `xdg-toplevel-icon-v1` path, untouched by `WI-B`; unverified before this check). **Observed:**
+## SS. Shape styles and the tint - what `.tint(_:)` looks like on every control (round 3 item R3-9; decisions `docs/superpowers/2026-11-01-shape-styles-decisions.md`, record 185; provisional letter)
+
+*An agent cannot: a tinted control's look, the key-to-inactive change and a material or gradient stroke are looks. Run a scratch window (or add the views to `METALUI_CONTROLS_DEMO=1`) with the views below, in a light and a dark window.*
+
+- [ ] **SS1.** `VStack { Button("Go") {}.buttonStyle(.borderedProminent); Toggle("T", isOn: $on).toggleStyle(.switch); Toggle("T", isOn: $on).toggleStyle(.checkbox); Slider(value: $v); ProgressView(value: 0.6) }.tint(.green)`: the prominent button fills green with a white label, the switch and checkbox are green when on, the slider's filled track and the progress bar are green, and nothing is the blue accent. **Observed:**
+- [ ] **SS2.** A `ProgressView(value: 0.6)` styled as a ring and an indeterminate spinner/bar under `.tint(.orange)`: the ring's arc and the sweeping bar are orange. **Observed:**
+- [ ] **SS3.** A radio `Picker` and a `List(selection:)` under `.tint(.purple)`: the selected radio dot and the selected row are purple. A focused control's ring is purple. **Observed:**
+- [ ] **SS4.** Click into another window: the tinted controls turn to the separator grey (`.inactive`), not the tint, and return when the window is key again. **Observed:**
+- [ ] **SS5.** Nested tints: `.tint(.red)` outside, a `Slider` with `.tint(.blue)` inside, a second `Slider` with `.tint(nil)`: blue, then the theme accent. **Observed:**
+- [ ] **SS6.** `Rectangle().fill(.tint)`, `Text("x").foregroundStyle(.tint)` and a link run under `.tint(.pink)` are pink; `Rectangle().fill(Color.accent)` stays the theme blue. **Observed:**
+- [ ] **SS7.** `Rectangle().fill(AnyShapeStyle(LinearGradient(...)))`, a stroked and a `strokeBorder` gradient, and a `Material` fill over a busy backdrop look like their concrete spellings (a material stroke is the flat tint, divergence 975). **Observed:**
+- [ ] **SS8.** Open a menu and an alert under `.tint(.green)` on the window: their highlight and default button stay the theme blue (divergence 977). **Observed:**

@@ -184,7 +184,7 @@ private let environmentFields: [String: String] = [
     "accessibilityReduceMotion": "fingerprint", "accessibilityReduceTransparency": "fingerprint",
     "titleBarInsets": "fingerprint", "windowSize": "fingerprint", "colorScheme": "fingerprint",
     "controlSize": "fingerprint", "font": "fingerprint",
-    "truncationMode": "fingerprint", "multilineTextAlignment": "fingerprint", "foregroundStyle": "fingerprint",
+    "truncationMode": "fingerprint", "multilineTextAlignment": "fingerprint", "foregroundStyle": "fingerprint", "tint": "fingerprint",
     "fontWeight": "fingerprint", "italic": "fingerprint", "textLineLimit": "fingerprint",
     "fieldStyles": "fingerprint (both styles)", "theme": "fingerprint", "textSystemBox": "fingerprint (presence)",
     "objects": "fingerprint (identities)", "custom": "fingerprint (readings), an uncomparable one a refusal",

@@ -46,7 +46,7 @@ extension GPUSurfaceContext {
                              height: size.height, style: style)
         let placed = system.placeGlyphs(string, font: font, wrappingAt: wrapWidth, options: laid.options,
                                         origin: (x: originX, y: originY), scaleFactor: scaleFactor)
-        let hsla = (color ?? style.foreground).resolved(theme: text.colors.theme, scheme: text.colors.scheme)
+        let hsla = (color ?? style.foreground).resolved(theme: text.colors.theme, scheme: text.colors.scheme, tint: text.colors.tint)
         let whole = Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
                            size: Size(width: ScaledPixels(Float(pixelSize.width.value)),
                                       height: ScaledPixels(Float(pixelSize.height.value))))

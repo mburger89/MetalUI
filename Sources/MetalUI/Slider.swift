@@ -215,7 +215,7 @@ public struct Slider: Element, StyledElement {
         }
     }
 
-    private func paintTrack(bounds: Bounds<Pixels>, fraction: Double, accent: ColorToken,
+    private func paintTrack(bounds: Bounds<Pixels>, fraction: Double, accent: Color,
                             pass: inout PaintPass) {
         let x = Double(bounds.origin.x.value), y = Double(bounds.origin.y.value)
         let w = Double(bounds.size.width.value), h = Double(bounds.size.height.value)
@@ -233,7 +233,7 @@ public struct Slider: Element, StyledElement {
                   cornerRadii: radius)
         let filled = thumbX + thumb / 2 - trackStart
         if filled > 0 {
-            pass.fill(rect(trackStart, centreY - 2, filled, 4), color: pass.theme[accent], cornerRadii: radius)
+            pass.fill(rect(trackStart, centreY - 2, filled, 4), color: pass.resolve(accent), cornerRadii: radius)
         }
         pass.fill(rect(thumbX, centreY - Self.height / 2, thumb, Self.height), color: pass.theme[.surface],
                   cornerRadii: Corners(all: Pixels(Float(Self.height / 2))),

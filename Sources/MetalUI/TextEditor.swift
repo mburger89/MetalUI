@@ -386,7 +386,7 @@ public struct TextEditor: Element, StyledElement {
                                                    origin: (x: g.contentX, y: top), scaleFactor: pass.scaleFactor),
                                 color: color)
             }
-            var selectionColor = pass.theme[.accent]
+            var selectionColor = pass.resolve(.accentColor)
             selectionColor.a *= 0.3
             for (index, line) in g.displayLines.lines.enumerated() {
                 let y = top + Double(index) * g.lineHeight
