@@ -25,7 +25,9 @@ let package = Package(
         // The documented headless smoke test, a plain import (rulings IC-M, IC-P).
         .executable(name: "HeadlessLaunchCheck", targets: ["HeadlessLaunchCheck"]),
         // The second process of the single-instance tests (item S7, ruling SN-K).
-        .executable(name: "SingleInstanceCheck", targets: ["SingleInstanceCheck"])
+        .executable(name: "SingleInstanceCheck", targets: ["SingleInstanceCheck"]),
+        // The X11 window icon read back from outside the process (ruling WI-E).
+        .executable(name: "IconCheck", targets: ["IconCheck"])
     ],
     dependencies: [.package(name: "MetalUI", path: "../..", traits: ["SDL", "AccessKit"])],
     targets: [
@@ -86,6 +88,13 @@ let package = Package(
         // `SDLSingleInstanceTests` launches it.
         .executableTarget(name: "SingleInstanceCheck", dependencies: [
             .product(name: "MetalUISDL", package: "MetalUI")]),
+        // `app.icon` on a real window, then a shell command (CI: xprop under Xvfb, ruling WI-E).
+        .executableTarget(name: "IconCheck", dependencies: [
+            .product(name: "MetalUISDL", package: "MetalUI"),
+            .product(name: "MetalUIPlatform", package: "MetalUI"),
+            .product(name: "MetalUICore", package: "MetalUI"),
+            .product(name: "MetalUI", package: "MetalUI"),
+            .product(name: "MetalUIPortableText", package: "MetalUI")]),
         .testTarget(name: "ReplayFixtureTests", dependencies: ["ReplayFixture",
                                                                .product(name: "MetalUIScene", package: "MetalUI")])
     ]
