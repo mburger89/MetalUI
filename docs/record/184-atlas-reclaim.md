@@ -65,7 +65,7 @@ Each mutation was applied to the single spelling named, one at a time, and rever
 
 2026-11-01, on `fix/atlas-reclaim` after `swift package clean`: `swift build --build-system native --build-tests`, then an unfiltered
 `swift test --build-system native --no-parallel`: **root 4800 tests passed in 12 suites** (`FR-J no-argument frame: succeeded=true` printed). The new
-tests are 13 in `AtlasReclaimTests` (replacing the 9 `AtlasEvictionTests`), 8 in `AtlasReclaimWindowTests`, 1 each in `AtlasGenerationKeyTests` and
+tests are 13 in `AtlasReclaimTests` (replacing `AtlasEvictionTests`), 7 in `AtlasReclaimWindowTests`, 1 each in `AtlasGenerationKeyTests` and
 `GlyphABITests`, the renamed `theGlyphAtlasIsReclaimedOnlyAtTheTopOfADraw`, and 1 field added to `everyReplayKeyFieldIsNamedWhenItDiffersAlone`
 (`AmbientKey` is nine fields). Guards: not re-tallied by grep (none added). The retained test also passes under `METALUI_VERIFY_RETAINED=1`
 (its hit counts are skipped there). `Backends/SDL`, `swift test $(python3 scripts/fetch-accesskit.py --print-flags) --filter 'SDLWindowRendererTests|SDLDrawTextTests|SDLSurfaceTests|ReplayFixtureTests|SDLGPUContractTests'`:
