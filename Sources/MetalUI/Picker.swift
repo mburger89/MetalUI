@@ -250,6 +250,13 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
 /// state, so the stack is not pushed around those phases.
 @MainActor
 final class PickerScope {
+    /// The selected segment's fill (`SD-A`, `SD-B`): `.surface` in a light scheme (white on the
+    /// grey track, unchanged); in a dark scheme `.textPrimary` at 0.18 over the track, so the pill
+    /// is lighter than the track the way AppKit's is. `.surface` is darker than
+    /// `.surfaceSecondary` in the dark theme, which made the selected segment read as less
+    /// selected. Chosen by scheme from existing tokens, so a custom `Theme` needs no new token.
+    static let selectedSegmentFill = Color(light: .surface, dark: Color.textPrimary.opacity(0.18))
+
     static var stack: [PickerScope?] = []
     static var current: PickerScope? { stack.last ?? nil }
 
@@ -454,7 +461,7 @@ public struct TaggedElement<Content: Element>: Element {
             row.padding.right = .pixels(Pixels(12))
             lead.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(24))))
             chrome = Box(style: row,
-                         decoration: Decoration(background: selected ? .surface : nil, cornerRadius: Pixels(5)),
+                         decoration: Decoration(background: selected ? PickerScope.selectedSegmentFill : nil, cornerRadius: Pixels(5)),
                          content: Pair(Box(style: lead), content))
         case .menu:
             // Unreachable: a menu option records itself before any chrome.
