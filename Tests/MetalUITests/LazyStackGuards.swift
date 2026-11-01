@@ -1,7 +1,7 @@
 import Testing
 import MetalUITestSupport
 
-// Lazy containers, lane 1, guards G.1 and G.2 (rulings `LZ-A`, `LZ-N`; spec section 5).
+// Lazy containers, lane 1, guards G.1 and G.2 (rulings `LZ-A`, `LZ-N` until record 177, `SP-G`; spec section 5).
 // Whole-file Swift 6 (`typecheckFile`, ruling SA-P) against a PLAIN import: a `@testable` test cannot
 // prove what an external module can spell. **A guard skips silently when
 // `.build/<triple>/debug/Modules` is absent** (CLAUDE.md, "Guards"); grep the log for `LZ-A spellings`
@@ -10,19 +10,26 @@ import MetalUITestSupport
 private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found - guard skipped"
 
-/// **G.1** (`LZ-A`, `LZ-N`). SwiftUI's lazy stack spellings typecheck from an external module
-/// (the control arm: `alignment:`, `spacing:` and a trailing builder on both stacks), and
-/// `pinnedViews:` does not: it is not offered. Mutation **MG.1**: add a `pinnedViews:` parameter to
-/// `LazyVStack.init` (the second arm now compiles and the first message check fails).
+/// **G.1** (`LZ-A`, `SP-G`). SwiftUI's lazy stack spellings typecheck from an external module
+/// (the control arm: `alignment:`, `spacing:`, `pinnedViews:` and a trailing builder on both stacks, with a
+/// `Section` written with its trailing closures), and an argument SwiftUI's stacks do not take is still rejected - `pinnedViews:`
+/// was not offered until record 177 (`SP-G`, which retired `LZ-N`'s absence). Mutation **MG.1**: remove the
+/// `pinnedViews:` parameter from `LazyVStack.init` (the first arm stops compiling).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func lazyInitHasNoPinnedViewsParameter() throws {
+func lazyInitTakesPinnedViewsAndNoOtherExtraArgument() throws {
     let spellings = try typecheckFile("""
         @MainActor func tree() -> some Element {
             ProposalScrollView {
-                LazyVStack(alignment: .leading, spacing: Pixels(4)) {
-                    ForEach(0..<3) { index in Text("\\(index)") }
+                LazyVStack(alignment: .leading, spacing: Pixels(4), pinnedViews: [.sectionHeaders, .sectionFooters]) {
+                    ForEach(0..<3) { index in
+                        Section {
+                            Text("\\(index)")
+                        } header: { Text("h") } footer: { Text("f") }
+                    }
                 }
-                LazyHStack(alignment: .top) { Text("a"); Text("b") }
+                LazyHStack(alignment: .top, pinnedViews: .sectionHeaders) {
+                    Section { Text("a"); Text("b") } header: { Text("h") }
+                }
                 LazyVStack { Text("c") }
             }
         }
@@ -30,14 +37,14 @@ func lazyInitHasNoPinnedViewsParameter() throws {
     print("LZ-A spellings: succeeded=\(spellings.succeeded) messages=[\(spellings.messages)]")
     #expect(spellings.succeeded, "the lazy stack spellings must compile:\n\(spellings.output)")
 
-    let pinned = try typecheckFile("""
+    let unknown = try typecheckFile("""
         @MainActor func tree() -> some Element {
-            LazyVStack(pinnedViews: []) { Text("a") }
+            LazyVStack(pinned: []) { Text("a") }
         }
         """, importing: "MetalUI")
-    #expect(!pinned.succeeded, "pinnedViews: is not offered (LZ-N):\n\(pinned.output)")
-    #expect(pinned.messages.contains("extra arguments at positions #1, #2 in call"),
-            "rejected, but not for the extra argument:\n\(pinned.output)")
+    #expect(!unknown.succeeded, "an unknown argument is rejected:\n\(unknown.output)")
+    #expect(unknown.messages.contains("extra arguments at positions #1, #2 in call"),
+            "rejected, but not for the extra argument:\n\(unknown.output)")
 }
 
 /// **G.2** (`LZ-B`, `LZ-C`). The lazy core's seam is unreachable outside the module: the unit source

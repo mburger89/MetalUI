@@ -81,6 +81,8 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
     struct Member {
         var content: Content
         var layout: Content.GroupLayout
+        /// The element's id and layout nodes, kept only when a position scroller tracks it (`SP-B`).
+        var target: (key: AnyHashable, nodes: [LayoutNodeID])?
     }
 
     /// The production both entries share: the slot, the per-frame dedupe (by
@@ -90,6 +92,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
     /// the caller's own `noteLoop`.
     private func produceElements<Node>(
         under parent: GlobalElementID?, at cursor: inout Int, pass: inout LayoutPass,
+        layoutNode: (Node) -> LayoutNodeID,
         register: (inout Content, GlobalElementID, inout LayoutPass) -> ([Node], Content.GroupLayout)
     ) -> (slot: GlobalElementID, extent: Int, nodes: [Node], layout: Layout) {
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
@@ -111,6 +114,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
         // `DD-K`: typed keys only while a `scrollTo` is pending — one flag read
         // per `ForEach` otherwise.
         let notesKeys = pass.frame.notesScrollKeys
+        let notesTargets = pass.frame.notesScrollTargets   // `SP-B`
         for element in data {
             let key = element[keyPath: idKeyPath]
             let name = String(describing: key)
@@ -130,17 +134,33 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
             var built = content(element)
             let (childNodes, childLayout) = register(&built, scope, &pass)
             nodes.append(contentsOf: childNodes)
-            members.append(Member(content: built, layout: childLayout))
+            members.append(Member(content: built, layout: childLayout,
+                                  target: notesTargets ? (AnyHashable(key), childNodes.map(layoutNode)) : nil))
         }
         pass.frame.forEachIdentityWork.elements += offset  // `FI-B`, counted per element
         if needsKey { pass.frame.forEachIdentityWork.keyed += offset }
         return (slot, offset, nodes, Layout(members: members))
     }
 
+    /// The union of `nodes`' bounds, `nil` for an element that registered none.
+    static func union(of nodes: [LayoutNodeID], pass: PrepaintPass) -> Bounds<Pixels>? {
+        guard let first = nodes.first else { return nil }
+        var minX = pass.bounds(of: first).origin.x.value, minY = pass.bounds(of: first).origin.y.value
+        var maxX = minX, maxY = minY
+        for node in nodes {
+            let b = pass.bounds(of: node)
+            minX = min(minX, b.origin.x.value); minY = min(minY, b.origin.y.value)
+            maxX = max(maxX, b.origin.x.value + b.size.width.value)
+            maxY = max(maxY, b.origin.y.value + b.size.height.value)
+        }
+        return Bounds(origin: Point(x: Pixels(minX), y: Pixels(minY)),
+                      size: Size(width: Pixels(maxX - minX), height: Pixels(maxY - minY)))
+    }
+
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
-        let produced = produceElements(under: parent, at: &cursor, pass: &pass) { built, scope, pass in
+        let produced = produceElements(under: parent, at: &cursor, pass: &pass, layoutNode: { $0 }) { built, scope, pass in
             var inner = 0
             return built.requestGroupLayout(under: scope, at: &inner, pass: &pass)
         }
@@ -155,6 +175,9 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
         prepaints.reserveCapacity(layout.members.count)
         for index in layout.members.indices {
             var member = layout.members[index]
+            if let target = member.target, let bounds = Self.union(of: target.nodes, pass: pass) {
+                pass.frame.noteScrollTarget(target.key, bounds: bounds)   // `SP-B`
+            }
             prepaints.append(member.content.prepaintGroup(layout: &member.layout, pass: &pass))
             layout.members[index] = member
         }
@@ -194,7 +217,7 @@ extension ForEach: ProposalElementGroup where Content: ProposalElementGroup {
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass) -> ([ProposalNodeID], Layout) {
-        let produced = produceElements(under: parent, at: &cursor, pass: &pass) { built, scope, pass in
+        let produced = produceElements(under: parent, at: &cursor, pass: &pass, layoutNode: \.layoutNodeID) { built, scope, pass in
             var inner = 0
             return built.requestProposalGroupLayout(under: scope, at: &inner, pass: &pass)
         }

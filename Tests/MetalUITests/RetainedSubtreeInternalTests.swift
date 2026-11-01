@@ -44,7 +44,11 @@ private let frameChannels: [String: Channel] = [
     // Scroll requests and keys (layout, or prepaint).
     "scrollRequestQueue": .buildOnly, "scrollRequests": .buildOnly, "scrollRequestResolved": .buildOnly,
     "unresolvedScrollRequestCount": .prepaintOnly, "notesScrollKeys": .buildOnly, "scrollKeys": .buildOnly,
-    "scrollResolutions": .prepaintOnly, "scrollAnchorAdjustments": .prepaintOnly, "forEachIdentityWork": .buildOnly, "listIdentityWork": .buildOnly, "lazyWork": .buildOnly,
+    "scrollResolutions": .prepaintOnly, "scrollAnchorAdjustments": .prepaintOnly,
+    // `scrollPosition(id:)` (`SP-B`): depths opened in layout, the notes prepaint takes (audited by count, `PrepaintAudit.scrollTargets`),
+    // and the values a position scroller read, applied to the registry once the frame ends.
+    "positionTrackingDepth": .buildOnly, "scrollTargetDepth": .buildOnly, "scrollTargetNotes": .prepaintOnly,
+    "pendingPositionKnown": .buildOnly, "forEachIdentityWork": .buildOnly, "listIdentityWork": .buildOnly, "lazyWork": .buildOnly,
     // Animation and lifecycle.
     "wantsAnotherFrame": .ledger, "hasActiveAnimations": .ledger, "timeVaryingNotes": .ledger,
     "transactionTop": .keyed, "transactionDepth": .keyed, "lifecycleDepth": .buildOnly,

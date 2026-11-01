@@ -620,6 +620,13 @@ Nothing breaking. `LazyVStack`, `LazyHStack`, `LazyVGrid`, `LazyHGrid` and `Grid
 `WindowRenderer` or `TextSystem` requirement, no `Handlers` member and no `LayoutTree` kind is added. `FrameWork` gains three public counters
 (`lazyUnitsRealized`, `lazyLinesRealized`, `lazyUnbounded`) with defaults in its initialiser, so existing calls are unchanged. A third-party `PlatformWindow` conformer needs nothing.
 
+### Scroll extras and `@Bindable` (`SP-`, record §177)
+
+Nothing breaking. New public declarations: `Section`, `PinnedScrollableViews`, `Bindable`, `ScrollTargetLayout` (and `ElementGroup.scrollTargetLayout(isEnabled:)`), `ScrollView.scrollPosition(id:anchor:)` and
+`ProposalScrollView.scrollPosition(id:anchor:)`; `LazyVStack.init` and `LazyHStack.init` gain a defaulted `pinnedViews:` parameter (between `spacing:` and `content:`, as in SwiftUI), so existing calls compile unchanged.
+`ScrollState` gains an internal stored property (`swift package clean` once). No `PlatformWindow`, `Platform`, `WindowRenderer` or `TextSystem` requirement, no `Handlers` member and no `LayoutTree` kind changes. A `scrollTo` made
+under `withAnimation` now glides where it jumped before. A third-party `PlatformWindow` conformer needs nothing.
+
 ### SDL GPU gaps (`GB-`, record §137)
 
 Source compatible for code that builds against `Backends/SDL` (a source-distributed class M layer, `GB-K`), with one

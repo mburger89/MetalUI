@@ -2044,4 +2044,14 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **GE1.** An element with `LongPressGesture(minimumDuration: 0.5).sequenced(before: DragGesture())`: hold 0.6 s without moving, then drag: it follows from where the pointer was at the first move after the hold (no jump), and a release before 0.5 s does nothing. **Observed:**
 - [ ] **GE2.** Drag an element and release it mid-flick: `value.predictedEndLocation` lands where a quarter second more of that motion would (a ball thrown to it looks natural); a drag that stops before release predicts about its own end. **Observed:**
 - [ ] **GE3.** On Linux/Windows (SDL) the same flick predicts a comparable distance for the same hand speed (SDL event times are seconds from `mui_now`). **Observed:**
+## SP. Scroll extras and `@Bindable` - pinned section headers, `scrollPosition(id:)`, an animated `scrollTo` (item R3-4, round-3 batch; decisions `docs/superpowers/2026-10-31-scroll-position-decisions.md`, record 177; provisional letter)
+
+Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (bottom row): 40 sections of 100 rows under a header, the title row naming the topmost row, three buttons and a header-title field.
+
+- [ ] **SP1.** Scroll the section with the trackpad or wheel: the current section's header stays at the top of the scroller while its rows pass under it (the header is painted above them and a click on it is not taken by a row), and when the section ends its header leaves with it - the next header slides in over it, it is not pushed up. **Observed:**
+- [ ] **SP2.** The title row shows `top row N` and follows the scroll: N is the first row reaching the top edge (a half-visible row counts), changing as rows pass and not flickering at rest; the demo stays smooth through a fast flick over thousands of rows. **Observed:**
+- [ ] **SP3.** Press **Row 2500**, **Row 120** and **Row 0**: the list glides to the row (about 0.4 s, eased) rather than jumping, ends with the row at the top, and the title row then reads the same number; a wheel during the glide stops it where it is. **Observed:**
+- [ ] **SP4.** Type in **Header title**: every visible header (and the pinned one) renames at once - the `@Bindable` text binding writes the observable and the frame redraws. **Observed:**
+- [ ] **SP5.** Resize the window while a header is pinned: the header stays at the top edge with no gap or flash, and no row beneath it shows through. **Observed:**
+- [ ] **SP6.** On Linux or Windows (the SDL demo with `METALUI_LAZY_DEMO=1`): SP1-SP4 look the same. **Observed:**
 

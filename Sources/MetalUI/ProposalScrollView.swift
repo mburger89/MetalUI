@@ -17,6 +17,8 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     public var cornerRadius: Pixels = Pixels(0)
     /// Whether the scroll indicator is drawn (`DD-H`).
     public var indicatorVisibility: ScrollIndicatorVisibility = .automatic
+    /// The `scrollPosition(id:anchor:)` binding, if any (`SP-A`).
+    var position: ScrollPositionBinding?
 
     /// A scroller over proposal `content` along `axis`; `elementID` names it
     /// for its scroll state.
@@ -61,9 +63,11 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         var lastViewportExtent: Double = 0
         // A read, not a write (`RW-H`): the version moves only when an input or the prepaint clamp changes the entry.
         let scrollState = pass.readState(id, initial: ScrollState())
-        rawOffset = scrollState.offset
+        rawOffset = ScrollChrome.currentOffset(scrollState, now: pass.frame.timestamp)   // `SP-F`
         lastViewportExtent = scrollState.viewportExtent
         var cursor = 0
+        position?.beginLayout(id, pass: &pass)   // `SP-A`
+        defer { position?.endLayout(pass: &pass) }
         let (children, contentLayout) = pass.withScrollContext(
             ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
         ) {
@@ -114,14 +118,17 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,
                                      viewport: bounds, offset: offset,
-                                     contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size))
+                                     contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size),
+                                     tracksPosition: position != nil)
         var result: Content.GroupPrepaint!
+        let noteMark = pass.frame.scrollTargetNoteCount
         pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                      cornerRadii: Corners(all: cornerRadius)) {
             pass.inScroller(scroller) {
                 result = content.prepaintGroup(layout: &layout.content, pass: &pass)
             }
         }
+        position?.finishPrepaint(id, scroller: scroller, since: noteMark, pass: pass)   // `SP-C`
         return result
     }
 

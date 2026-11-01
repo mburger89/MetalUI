@@ -66,11 +66,31 @@ public struct ScrollState: Sendable {
     /// earlier. Zero until the first `prepaint` ever runs for this element.
     public var viewportExtent: Double = 0
 
+    /// An animated `scrollTo` in flight (`SP-F`): `nil` at rest. Evaluated by `ScrollChrome.currentOffset`
+    /// in all three phases against the frame's one timestamp, so layout, prepaint and paint agree.
+    var glide: ScrollGlide?
+
     /// A scroll state; every field defaults to an unscrolled, unmeasured view.
     public init(offset: Double = 0, lastScrollTime: Double = -.infinity, viewportExtent: Double = 0) {
         self.offset = offset
         self.lastScrollTime = lastScrollTime
         self.viewportExtent = viewportExtent
+    }
+}
+
+/// A `scrollTo` made under `withAnimation`, running (`SP-F`, `AN-` family): the offset moves from `from` to `to`
+/// along `animation` from `start`, on the frame clock (`Frame.timestamp`), with no per-frame state write but
+/// the prepaint's compared one.
+struct ScrollGlide: Sendable, Equatable {
+    var from: Double
+    var to: Double
+    var start: Double
+    var animation: Animation
+
+    /// The offset `elapsed` seconds in, and whether the glide has landed.
+    func value(at now: Double) -> (offset: Double, finished: Bool) {
+        let result = animation.value(at: max(0, now - start), from: from, to: to, initialVelocity: 0)
+        return (result.isFinished ? to : result.value, result.isFinished)
     }
 }
 
@@ -187,6 +207,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// unless `scrollIndicators(_:)` sets it.
     public var indicatorVisibility: ScrollIndicatorVisibility = .automatic
 
+    /// The `scrollPosition(id:anchor:)` binding, if any (`SP-A`).
+    var position: ScrollPositionBinding?
+
     /// A scroller over `content` along `axis`; `elementID` names it for its
     /// scroll state. Its viewport fills its proposal on the scrolling axis
     /// (`LR-BB`).
@@ -248,10 +271,12 @@ public struct ScrollView<Content: ElementGroup>: Element {
         var lastViewportExtent: Double = 0
         // A read, not a write (`RW-H`): the version moves only when an input or the prepaint clamp changes the entry.
         let scrollState = pass.readState(id, initial: ScrollState())
-        rawOffset = scrollState.offset
+        rawOffset = ScrollChrome.currentOffset(scrollState, now: pass.frame.timestamp)
         lastViewportExtent = scrollState.viewportExtent
 
         var cursor = 0
+        position?.beginLayout(id, pass: &pass)   // `SP-A`: injects a write's `scrollTo`, opens target tracking
+        defer { position?.endLayout(pass: &pass) }
         // Pushed before the subtree is built and popped after, via `defer`
         // inside `withScrollContext` — the same shape as `clipped(to:offsetBy:)`,
         // so a sibling declared after this `ScrollView` (rather than inside
@@ -374,14 +399,17 @@ public struct ScrollView<Content: ElementGroup>: Element {
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,
                                      viewport: bounds, offset: offset,
-                                     contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size))
+                                     contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size),
+                                     tracksPosition: position != nil)
         var result: Content.GroupPrepaint!
+        let noteMark = pass.frame.scrollTargetNoteCount
         pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
                     cornerRadii: Corners(all: cornerRadius)) {
             pass.inScroller(scroller) {
                 result = content.prepaintGroup(layout: &layout.inner, pass: &pass)
             }
         }
+        position?.finishPrepaint(id, scroller: scroller, since: noteMark, pass: pass)   // `SP-C`
         return result
     }
 
