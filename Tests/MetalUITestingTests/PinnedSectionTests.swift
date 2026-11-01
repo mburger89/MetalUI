@@ -105,8 +105,10 @@ import Testing
     #expect(labels.contains("H0") && labels.contains("F0"), "the pinned views are in the tree")
 }
 
-/// **SP-G.** The pinned header is above the rows it covers: a click at (100, 10), over header 0 and the row
-/// at its natural place under it, reaches the header. Mutation: pinned boxes prepainted in unit order.
+/// **SP-G.** The pinned header is above the rows it covers, whether or not the window holds its unit. At offset 700
+/// header 0 is outside the window and a click at (100, 10) reaches it; at offset 30 header 0 is in the window
+/// (unit 0, natural place -30) and pinned at 0 over row 1, which sits at -10 ... 10, and a click at (100, 5)
+/// reaches the header, not the row. Mutation: pinned boxes prepainted in unit order (the second click reaches row 1).
 @Test @MainActor func aPinnedHeaderIsAboveTheRowsUnderIt() throws {
     let log = HarnessLog()
     let window = try harnessWindow(size: sz(200, 200)) {
@@ -117,17 +119,72 @@ import Testing
                         ProposalText("r\(r)").frame(height: Pixels(20)).onTapGesture { log.add("row \(r)") }
                     }
                 } header: {
-                    ProposalText("H0").frame(height: Pixels(30)).onTapGesture { log.add("header") }
+                    ProposalText("H0").frame(height: Pixels(20)).onTapGesture { log.add("header") }
                 }
             }
         }
     }
     settle(window)
-    window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: -700)
+    window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: -30)
+    settle(window)
+    window.click(at: pt(100, 5))
+    #expect(log.entries == ["header"], "header in the window: \(log.entries)")
+    window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: -670)
     settle(window)
     window.click(at: pt(100, 10))
-    #expect(log.entries == ["header"], "\(log.entries)")
+    #expect(log.entries == ["header", "header"], "header outside the window: \(log.entries)")
 }
+
+/// **SP-H.** Sections written directly in the stack (no `ForEach`) pin too, headers and footers: two sections of
+/// 100 rows; at offset 1000 header 0 is at 0 and footer 0 at 180; at 2020 footer 1 takes the trailing edge and
+/// header 0 still leads. Mutation: the footer role not recognised in `LazyUnitTable.sectionSpans` or
+/// `LazySectionForEachSource.spans` (footer 0 absent).
+@Test @MainActor func sectionsWrittenDirectlyInTheStackPinToo() throws {
+    let window = try harnessWindow(size: sz(200, 200)) {
+        ProposalScrollView {
+            LazyVStack(spacing: Pixels(0), pinnedViews: [.sectionHeaders, .sectionFooters]) {
+                Section {
+                    ForEach(0..<100) { r in ProposalText("a\(r)").frame(height: Pixels(20)) }
+                } header: { ProposalText("H0").frame(height: Pixels(20)) }
+                footer: { ProposalText("F0").frame(height: Pixels(20)) }
+                Section {
+                    ForEach(0..<100) { r in ProposalText("b\(r)").frame(height: Pixels(20)) }
+                } header: { ProposalText("H1").frame(height: Pixels(20)) }
+                footer: { ProposalText("F1").frame(height: Pixels(20)) }
+            }
+        }
+    }
+    settle(window)
+    scrollTo(window, offset: 1000)
+    #expect(top(window, "H0", extent: 20) == 0 && top(window, "F0", extent: 20) == 180,
+            "H0 \(String(describing: top(window, "H0", extent: 20))) F0 \(String(describing: top(window, "F0", extent: 20)))")
+    scrollTo(window, offset: 1020)
+    #expect(top(window, "H0", extent: 20) == 0 && top(window, "F1", extent: 20) == 180,
+            "H0 \(String(describing: top(window, "H0", extent: 20))) F1 \(String(describing: top(window, "F1", extent: 20)))")
+}
+
+/// **SP-J, divergence 915.** A lazy stack made eager by an `if` member lays its sections out in sequence and
+/// pins nothing: header 0 is where the scroll left it, -200 at offset 200, though `pinnedViews` is set.
+/// Mutation: pins computed for an unbounded plan (`plan.mode == .bounded` dropped; header 0 reads 0).
+@Test @MainActor func anEagerLazyStackLaysItsSectionsOutInSequenceAndPinsNothing() throws {
+    let window = try harnessWindow(size: sz(200, 200)) {
+        ProposalScrollView {
+            LazyVStack(spacing: Pixels(0), pinnedViews: .sectionHeaders) {
+                ForEach(0..<3) { s in
+                    Section {
+                        ForEach(0..<20) { r in ProposalText("r\(s)-\(r)").frame(height: Pixels(20)) }
+                    } header: { ProposalText("H\(s)").frame(height: Pixels(20)) }
+                }
+                if s3 { ProposalText("tail").frame(height: Pixels(20)) }
+            }
+        }
+    }
+    settle(window)
+    #expect(window.lastFrameWork.lazyUnbounded == 1, "the stack is eager")
+    scrollTo(window, offset: 200)
+    #expect(top(window, "H0", extent: 20) == -200, "H0 at \(String(describing: top(window, "H0", extent: 20)))")
+}
+private let s3 = true
 
 /// **SP-G.** A horizontal lazy stack pins along its axis: columns of 20 under headers of 30, the viewport
 /// scrolled by 1000, header 0 is at the left edge. Mutation: `axis` ignored (header 0 absent).

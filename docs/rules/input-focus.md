@@ -22,7 +22,7 @@ built-ins are `PrimitiveButtonStyle`/`ToggleStyle` structs `Button`/`Toggle` dra
 
 **`ScrollViewReader`/`scrollTo`** (`DD-G`…`DD-K`): one identity slot; a proxy
 reaches only its own subtree; keys compared by value (`AnyHashable`); resolved
-next frame against the first match; only the nearest scroller moves.
+next frame against the first match; only the nearest scroller moves. `scrollTo` under `withAnimation` glides: `ScrollState.glide` is read by every phase through `ScrollChrome.currentOffset` on the frame's timestamp and keeps the link with `noteActiveAnimation`; a wheel ends it (`SP-F`).
 
 **Hit testing.** One hitbox list, one ranking: `topmostHitbox(in:at:where:)`
 (`topmostOpaqueHitbox` is its specialization; drag-and-drop uses it too) —

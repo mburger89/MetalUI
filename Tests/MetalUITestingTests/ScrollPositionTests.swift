@@ -206,7 +206,8 @@ private func rowTop(_ element: TestElement) -> Float {
     func keep(_ proxy: ScrollViewProxy) -> Bool { self.proxy = proxy; return true }
 }
 
-/// **SP-F.** `withAnimation(.linear(duration: 1)) { proxy.scrollTo(100, anchor: .top) }` glides: after a
+/// **SP-F.** `withAnimation(.linear(duration: 1)) { proxy.scrollTo(100, anchor: .top) }` over a lazy stack (a layout that
+/// read a stale offset would realise the wrong window) glides: after a
 /// quarter, a half and three quarters of the second the offset is a quarter, a half and three quarters of 2000
 /// (to the nearest row), and it lands exactly. The display link stays awake (`noteActiveAnimation`) until it
 /// lands. The control, the same call outside `withAnimation`, jumps at once.
@@ -219,7 +220,7 @@ private func rowTop(_ element: TestElement) -> Float {
                 ScrollViewReader { proxy in
                     let _ = holder.keep(proxy)
                     ProposalScrollView {
-                        VStack(spacing: Pixels(0)) {
+                        LazyVStack(spacing: Pixels(0)) {
                             ForEach(0..<200) { index in ProposalText("row \(index)").frame(height: Pixels(20)) }
                         }
                     }
@@ -354,4 +355,47 @@ private struct EqRow: Component, @MainActor Equatable {
     #expect(box.id == 15, "\(String(describing: box.id))")
     write(box, 50, in: window)
     #expect(abs(rowTop(try window.element(label: "row 50"))) < 0.5)
+}
+
+/// **SP-B, divergence 916.** A static child is not a scroll target: with a 20-point static header over the rows, a
+/// wheel of 10 leaves the header covering the top and the binding reads the first `ForEach` element, "r0", not
+/// the header. Mutation: the lazy stack notes `LazyStaticUnitID` units as targets (the key is not a `String`, so
+/// the binding stays nil or reads the static unit).
+@Test @MainActor func aStaticChildOfAScrollTargetLayoutIsNotATarget() throws {
+    final class StringBox { var id: String?; init() {} }
+    let box = StringBox()
+    let binding = Binding<String?>(get: { box.id }, set: { box.id = $0 })
+    let window = try harnessWindow(size: sz(200, 200)) {
+        ProposalScrollView {
+            LazyVStack(spacing: Pixels(0)) {
+                ProposalText("static").frame(height: Pixels(20))
+                ForEach((0..<200).map { "r\($0)" }, id: \.self) { name in ProposalText(name).frame(height: Pixels(20)) }
+            }.scrollTargetLayout()
+        }.scrollPosition(id: binding)
+    }
+    settle(window)
+    window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: -10)
+    settle(window)   // the prelude above the first target is covered by the frame built around the offset
+    #expect(box.id == "r0", "\(String(describing: box.id))")
+}
+
+/// **SP-F, SP-C.** A binding write under `withAnimation` glides, and the binding is reported where the glide lands,
+/// not on the way: `box.id = 100` inside `withAnimation(.linear(duration: 1))` leaves row 100 at the top after the
+/// second, the offset half-way at half a second, and the position scroller writes nothing while it moves.
+/// Mutation: the injected request carries no animation (the half-way sample is already 2000).
+@Test @MainActor func aBindingWrittenUnderWithAnimationGlidesAndReportsAtTheLanding() throws {
+    let box = IDBox()
+    let window = try lazyRows(box)
+    settle(window)
+    // A `@State` source dirties the window inside the body, which is what parks the transaction for the next build.
+    withAnimation(.linear(duration: 1)) { box.id = 100; window.window.setNeedsRedraw() }
+    window.tick()
+    window.advance(by: 0.5)
+    let half = try topRow(window)
+    #expect(abs(half.index * 20 - Int(half.y) - 1000) <= 60, "half-way: \(half)")
+    #expect(box.writes == 0, "nothing is written on the way")
+    window.advance(by: 0.75)
+    window.advance(by: 0.25)
+    #expect(abs(rowTop(try window.element(label: "row 100"))) < 0.5)
+    #expect(box.id == 100)
 }

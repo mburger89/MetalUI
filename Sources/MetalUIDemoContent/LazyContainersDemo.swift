@@ -1,7 +1,8 @@
 import MetalUI
+import Observation
 
 /// The lazy containers demo (item L1, `LZ-Q`; spec section 6), reached with
-/// `METALUI_LAZY_DEMO=1 swift run MetalUIDemo`: four sections, each a lazy container of 10 000
+/// `METALUI_LAZY_DEMO=1 swift run MetalUIDemo`: four sections (and a fifth, below), each a lazy container of 10 000
 /// children in a scroller, each showing how many of its children are on screen right now (counted by
 /// `onAppear`/`onDisappear`, so it includes the two lines of overscan, divergence 637).
 ///
@@ -9,7 +10,10 @@ import MetalUI
 /// 2. a `LazyVGrid` with `GridItem(.adaptive(minimum: 60))`, which re-flows as the window resizes (the
 ///    column count follows the width of the last frame, `LZ-L`);
 /// 3. a `LazyHStack` carousel scrolling sideways;
-/// 4. a `LazyHGrid` of two fixed rows.
+/// 4. a `LazyHGrid` of two fixed rows;
+/// 5. (R3-4, group SP of the human checks) a `LazyVStack` of 40 sections with `pinnedViews`, the topmost row
+///    bound with `scrollPosition(id:)`, three buttons that scroll by writing the binding under `withAnimation`,
+///    and a `@Bindable` text field that renames the headers.
 ///
 /// **The human looks** (`docs/verification/human-checks.md` group LZ, LZ1-LZ5): the counters never exceed the
 /// viewport plus overscan while the scrollers move, a fast scroll of the variable rows does not jump or
@@ -21,18 +25,19 @@ import MetalUI
 @MainActor
 public func lazyContainersDemoContent() -> some Element {
     lazyDemoComposer(LazyDemoStackSection(), LazyDemoGridSection(), LazyDemoCarouselSection(),
-                     LazyDemoHGridSection())
+                     LazyDemoHGridSection(), LazyDemoPinnedSection())
 }
 
 /// Two rows of two sections under a title.
 @MainActor
-func lazyDemoComposer<A: ElementGroup, B: ElementGroup, C: ElementGroup, D: ElementGroup>(
-    _ a: A, _ b: B, _ c: C, _ d: D) -> some Element {
+func lazyDemoComposer<A: ElementGroup, B: ElementGroup, C: ElementGroup, D: ElementGroup, E: ElementGroup>(
+    _ a: A, _ b: B, _ c: C, _ d: D, _ e: E) -> some Element {
     VStack(alignment: .leading, spacing: Pixels(12)) {
         ProposalText("Lazy containers: 10 000 children each, realised near the viewport")
             .font(size: 20)
         HStack(spacing: Pixels(12)) { a; b }
         HStack(spacing: Pixels(12)) { c; d }
+        HStack(spacing: Pixels(12)) { e }
     }
     .padding(Edges(all: Pixels(16)))
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -138,5 +143,57 @@ struct LazyDemoHGridSection: Component {
             }
             .frame(maxWidth: .infinity, minHeight: Pixels(110), maxHeight: .infinity)
         }
+    }
+}
+
+/// The section titles of section 5, edited through `@Bindable` (`SP-D`).
+@Observable
+@MainActor
+final class LazyDemoPinnedModel {
+    var title = "Group"
+}
+
+/// Section 5: pinned section headers, `scrollPosition(id:)`, an animated write and `@Bindable`.
+struct LazyDemoPinnedSection: Component {
+    @State private var topRow: Int?
+    @State private var model = LazyDemoPinnedModel()
+    var content: some ProposalElementGroup {
+        lazyDemoFrame("LazyVStack pinnedViews, 40 sections of 100 rows; top row \(topRow.map(String.init) ?? "-")",
+                      live: 0) {
+            HStack(spacing: Pixels(8)) {
+                Button("Row 120") { withAnimation(.easeInOut(duration: 0.4)) { topRow = 120 } }
+                Button("Row 2500") { withAnimation(.easeInOut(duration: 0.4)) { topRow = 2500 } }
+                Button("Row 0") { withAnimation(.easeInOut(duration: 0.4)) { topRow = 0 } }
+                LazyDemoTitleField(model: model)
+            }
+            ProposalScrollView {
+                LazyVStack(alignment: .leading, spacing: Pixels(0), pinnedViews: [.sectionHeaders]) {
+                    ForEach(0..<40) { section in
+                        Section {
+                            ForEach(0..<100) { row in
+                                ProposalText("Row \(section * 100 + row)")
+                                    .frame(maxWidth: .infinity, minHeight: Pixels(24), alignment: .leading)
+                            }
+                        } header: {
+                            ProposalText("\(model.title) \(section)")
+                                .frame(maxWidth: .infinity, minHeight: Pixels(28), alignment: .leading)
+                                .background(.surfaceSecondary)
+                        }
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollPosition(id: $topRow)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.surface)
+        }
+    }
+}
+
+/// The `@Bindable` field of section 5.
+struct LazyDemoTitleField: Component {
+    @Bindable var model: LazyDemoPinnedModel
+    var content: some ElementGroup {
+        TextField("Header title", text: $model.title).frame(width: Pixels(160))
     }
 }

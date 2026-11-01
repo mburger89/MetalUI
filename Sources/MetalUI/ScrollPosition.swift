@@ -49,9 +49,11 @@ final class ScrollPositionRegistry {
         var anchor: UnitPoint?
         var write: @MainActor (AnyHashable?) -> Void
         var read: @MainActor () -> AnyHashable?
-        /// A wheel moved the scroller to somewhere this frame's targets do not cover: the frame that realises
-        /// the new window reports it once, after paint.
+        /// A wheel or a `scrollTo` moved the scroller to somewhere this frame's targets may not cover: the frame
+        /// that realises the new window reports it once, after paint (`SP-C`).
         var needsReport = false
+        /// An animated `scrollTo` is still running: it reports where it lands, not on the way.
+        var gliding = false
     }
 
     private(set) var entries: [GlobalElementID: Entry] = [:]
@@ -79,13 +81,15 @@ final class ScrollPositionRegistry {
     /// the viewport's end; otherwise the target holding the anchor's point. `nil` when `offset` is outside what
     /// the targets cover (a lazy container's unrealised range) or there are none.
     static func target(in targets: [ScrollTargetNote], offset: Double, viewport: Double, content: Double,
-                       anchor: UnitPoint?, axis: ScrollAxis) -> AnyHashable? {
+                       anchor: UnitPoint?, axis: ScrollAxis, fresh: Bool = false) -> AnyHashable? {
         guard let first = targets.min(by: { $0.start < $1.start }),
               let last = targets.max(by: { $0.end < $1.end }) else { return nil }
         let fraction = (axis == .vertical ? anchor?.y : anchor?.x) ?? 0
         let reference = offset + fraction * viewport
         // The ends of the content are always covered (a header above the first target, a footer below the last).
-        let low = offset <= 0.5 ? -Double.infinity : first.start - 0.5
+        // `fresh`: the targets are those the frame built around this very offset (a lazy window starts above the
+        // leading edge), so whatever lies before the first one is a static prelude and the first one leads.
+        let low = offset <= 0.5 || fresh ? -Double.infinity : first.start - 0.5
         let high = offset >= content - viewport - 0.5 ? Double.infinity : last.end + 0.5
         guard reference >= low, reference <= high else { return nil }
         let ordered = targets.sorted { ($0.start, $1.end) < ($1.start, $0.end) }   // earlier first, outer before inner
@@ -111,31 +115,29 @@ final class ScrollPositionRegistry {
         }
     }
 
-    /// After a frame (`Frame.applyScrollResolutions`): reports the scrollers a `scrollTo` moved and the ones a
-    /// wheel left unreported, then forgets scrollers this frame did not prepaint.
+    /// After a frame (`Frame.applyScrollResolutions`): reports the scrollers a wheel left unreported and the ones a
+    /// `scrollTo` moved last frame, now that a frame has been built around their offsets, and flags the ones
+    /// this frame's `scrollTo` moved for the next. Scrollers this frame did not prepaint are kept (`SP-C`).
     func finishFrame(moved: [GlobalElementID: Double]) {
-        for (scroller, offset) in moved {
-            guard var entry = entries[scroller], touched.contains(scroller) else { continue }
-            entry.offset = min(max(0, offset), max(0, entry.content - entry.viewport))
-            entries[scroller] = entry
+        for scroller in Array(entries.keys) where touched.contains(scroller) {
+            guard var entry = entries[scroller], entry.needsReport, !entry.gliding else { continue }
             if let id = Self.target(in: entry.targets, offset: entry.offset, viewport: entry.viewport,
-                                    content: entry.content, anchor: entry.anchor, axis: entry.axis) {
-                report(id, for: scroller, entry)
-            }
-        }
-        for scroller in entries.keys where touched.contains(scroller) {
-            guard var entry = entries[scroller], entry.needsReport else { continue }
-            if let id = Self.target(in: entry.targets, offset: entry.offset, viewport: entry.viewport,
-                                    content: entry.content, anchor: entry.anchor, axis: entry.axis) {
+                                    content: entry.content, anchor: entry.anchor, axis: entry.axis, fresh: true) {
                 entry.needsReport = false
                 entries[scroller] = entry
                 report(id, for: scroller, entry)
             }
         }
+        for (scroller, offset) in moved {
+            guard var entry = entries[scroller] else { continue }
+            entry.offset = min(max(0, offset), max(0, entry.content - entry.viewport))
+            entry.needsReport = true
+            entries[scroller] = entry
+        }
         // A scroller replayed by a retained subtree is not prepainted, so an untouched one is not proof it is
         // gone: forget them only when the table has grown past any real window.
         if entries.count > 256 {
-            for scroller in entries.keys where !touched.contains(scroller) {
+            for scroller in Array(entries.keys) where !touched.contains(scroller) {
                 entries[scroller] = nil
                 known[scroller] = nil
             }
@@ -260,7 +262,8 @@ extension ScrollPositionBinding {
         if known == nil || known! != current {
             if let current {
                 pass.frame.injectScrollRequest(
-                    ScrollRequest(scope: id, key: current, anchor: anchor ?? .topLeading))
+                    ScrollRequest(scope: id, key: current, anchor: anchor ?? .topLeading,
+                                  animation: pass.transaction ?? Animation.pendingTransaction))
             }
             pass.frame.pendingPositionKnown[id] = current
         }
@@ -280,6 +283,8 @@ extension ScrollPositionBinding {
         pass.frame.scrollRequestQueue.positions.update(id, ScrollPositionRegistry.Entry(
             targets: Array(notes), axis: scroller.axis, offset: scroller.offset,
             viewport: scroller.viewportExtent, content: scroller.contentExtent, anchor: anchor,
-            write: write, read: read))
+            write: write, read: read,
+            needsReport: false,
+            gliding: pass.readState(id, initial: ScrollState()).glide != nil))
     }
 }

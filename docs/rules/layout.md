@@ -75,8 +75,8 @@ over non-`Hashable` `ProposalLayout`s (`LazyStackLayout`, `LazyGridLayout`) that
 the anchor holds across measurements (`VL-G`), and outside a scroller everything is realised. A scrolled-out child keeps `@State` the `List` way (`TB-AH`); accessibility exposes
 realised children only and no list position (`LZ-J`). A stack's cross size is the proposal else the **first** child's (the "widest realised child" premise was refuted). Grid tracks
 come from `GridTrackSolver` (`MetalUILayout`, `package`, pure); `GridItem.alignment` is `ProposalAlignment?` (nil takes the grid's); an adaptive item's count is decided at build time
-from the previous frame's width and corrected by one more frame (divergence 638, `LZ-L`, `LZ-Y`); a `ForEach` element producing several views is one cell (635). `pinnedViews:`/`Section`
-are not built (`LZ-N`). A new framework state write in these files is classified in `everyStateWriteSiteIsClassified`. Pins count work (`lazyUnitsRealized`, `lazyLinesRealized`). Demo `METALUI_LAZY_DEMO=1`.
+from the previous frame's width and corrected by one more frame (divergence 638, `LZ-L`, `LZ-Y`); a `ForEach` element producing several views is one cell (635). `pinnedViews:` over `Section` pins the current section's header/footer **by the stack's own placement** (a real node at its pinned place, painted last, extra units realised outside the window) in a
+windowed stack only; a `ForEach` of sections is read as units, O(sections) per frame, grids are carried (`SP-G`…`SP-J`, divergence 915). `scrollPosition(id:)` targets are `ForEach` elements under `scrollTargetLayout()`, noted from prepaint and written to the binding from the wheel or after the frame, never from a phase (`SP-A`…`SP-C`). A new framework state write in these files is classified in `everyStateWriteSiteIsClassified`. Pins count work (`lazyUnitsRealized`, `lazyLinesRealized`). Demo `METALUI_LAZY_DEMO=1`.
 
 **Layout and build allocations (`PA-`, record §119).** Value-identical, no public API, no divergence (labels 495–504 untouched). Hot
 loops of the kernel and build do not allocate per node: `roundedRect(_:)` is the scalar `roundLayout` forwards to, `graft` reserves

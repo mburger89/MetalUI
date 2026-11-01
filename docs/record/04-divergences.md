@@ -2816,3 +2816,10 @@ and `.fileDialogConfirmationLabel` is passed as SDL's accept label through `SDL_
 `.prompt` (probe `swiftui-dialog-extras.swift` `F1`, `F3`, `F4`). `SV-AO` item 2; pin `sdlDialogLabelsAreThePromptAndTheMessageOrTitle` (1.12b, `Backends/SDL`); the effect on Linux and Windows is
 unmeasured (human check `DX3`). Two "Not offered" rows left: `confirmationDialog`'s `titleVisibility:` and a non-`Text` alert button label are built; a `TextField` in an alert stays carried.
 
+## 2026-10-31: pinned section views and scroll targets (`SP-J`, `SP-B`, record §177)
+
+**New: 915, 916** (180 live; next label 210; 917-924 reserved by SP and unused). 915: `LazyVStack`/`LazyHStack` `pinnedViews:` pins only in a windowed stack - an `if`/`switch`/`for` member (636), no scroller along the
+axis or a `Deferred` lays the sections out in sequence (the pin is the windowed stack's own placement, so an eager stack has no window to place against); pin `anEagerLazyStackLaysItsSectionsOutInSequenceAndPinsNothing`.
+916: a scroll target is a `ForEach` element under `scrollTargetLayout()`, not any direct child; pin `aStaticChildOfAScrollTargetLayoutIsNotATarget`. The probe (`swiftui-scroll-position.swift`) measured the pins of
+section 0 and the absence of a push-off at a section's end (which MetalUI follows, `SP-G`), and could not measure `scrollPosition(id:)` or an animated `scrollTo` headless (`SP-A`, `SP-F`): those rest on SwiftUI's
+documentation and claim no divergence. Mechanisms and mutations: `docs/superpowers/2026-10-31-scroll-position-decisions.md`.

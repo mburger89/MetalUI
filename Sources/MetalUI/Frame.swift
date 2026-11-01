@@ -372,7 +372,13 @@ public final class Frame {
             stateTable.withState(resolution.scroller, initial: ScrollState()) {
                 if let animation = resolution.animation, resolution.offset != $0.offset {
                     // `SP-F`: glide from where the scroller is to the target; the next frame's clock starts it.
-                    $0.glide = ScrollGlide(from: $0.offset, to: resolution.offset, start: timestamp, animation: animation)
+                    // A refinement of the same target (a lazy container's second resolution, `VL-P`) leaves the
+                    // glide running instead of restarting its clock.
+                    if let running = $0.glide, running.to == resolution.offset, running.animation == animation {
+                        // keep it
+                    } else {
+                        $0.glide = ScrollGlide(from: $0.offset, to: resolution.offset, start: timestamp, animation: animation)
+                    }
                 } else {
                     $0.glide = nil
                 }

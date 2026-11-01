@@ -14,7 +14,111 @@
 // swiftui-lazy-containers.swift H0). A marker that is not attached to a window is printed `gone`. Every pinned arm has
 // an UNPINNED CONTROL (same content, no `pinnedViews`) that must differ.
 //
-// RECORDED: see RESULT below.
+// RECORDED 2026-10-31 by the R3-4 session (scroll extras and @Bindable), macOS 27.2, Apple Swift 6.4.2
+// (swiftlang-6.4.2.1.9), screen state not controlled (it may have been locked). Run several times, exit 0, identical stdout in the V, W, H, O, X, A and B arms.
+//
+// THE READING (each line names the arm; the figures are in WHOLE STDOUT below).
+// 1. PINNED HEADERS. With pinnedViews [.sectionHeaders, .sectionFooters] header 0 sits at the viewport's leading
+//    edge at offsets 100 and 230 (V1: 0), where the unpinned control reads the scrolled place (V0: -100, -230):
+//    the pair separates pinned from unpinned. A LazyHStack does the same on its axis (H1 100: 0 against H0 -100).
+// 2. NO PUSH-OFF. A pinned header is not pushed by its section's end or by the next header: header 0 stays at 0
+//    through offset 229 of a 230-point section (O: 0 ... 0 at 190, 200, 210, 220, 225, 229) while header 1
+//    slides under or over it (130, 40, 30, 20, 10, 5, 1), and at 230 it is gone. The next header overlaps it
+//    for the last 30 points. (MetalUI's ruling SP-G follows this reading.)
+// 3. WINDOWED. 3 sections of 2000 rows, offset 30000: 20 of 6000 rows built and header 0 pinned (W1).
+// 4. UNPROVEN HERE (kept visible, as swiftui-lazy-containers.swift kept H0). The markers of a pinned view read a
+//    stale place once its section is no longer the first (V1 offset 300: headers -330 -330, where the pinned
+//    header 1 must read 0): the AppKit view backing a pinned header is not moved with the pin, so V1 proves
+//    header 0 only, and the footers of later sections read off screen (V1 footers 210, 220, 205). Pinned footers
+//    of the FIRST section are shown at the trailing edge (V1 offset 0: footer 0 at 170 where the control has no
+//    footer on screen); the rest is ruled by symmetry with the header (SP-G).
+// 5. scrollPosition(id:anchor:), P and X arms: UNMEASURABLE HEADLESS. A programmatic scroll of the clip view
+//    (and a synthesized wheel event) left the binding nil and the body never re-ran (P0 ... P4), and a button
+//    writing the binding scrolled nothing (X: clip y 0, row 50 would be 1000) - the broken instrument of
+//    swiftui-lifecycle.swift ("scrollTo is a broken instrument headless"), here for the position binding. No
+//    claim about which id SwiftUI reports at a partly visible row or what the anchor selects is made; MetalUI's
+//    SP-A is documentation-based and marked so.
+// 6. withAnimation { proxy.scrollTo }, A arms: UNMEASURABLE HEADLESS for the same reason (A1 and the plain
+//    control A0 both leave the clip view at 0). SP-F is ruled from SwiftUI's documented behaviour.
+// 7. @Bindable, B arms: Bindable(model).name is a Binding<String> that writes through to the observable
+//    (B1 "b"), and += composes (B2 2).
+// 8. ScrollView([.horizontal, .vertical]) is not probed: MetalUI's ScrollAxis is a closed enum and two-axis
+//    scrolling is carried (SP-K).
+//
+// WHOLE STDOUT (lines starting with // are this comment; run time about 40 seconds):
+//
+//   === V: LazyVStack in a 200x200 ScrollView; 3 sections of header 30 + 10 rows of 20 + footer 30 = 260 each (780)
+//       per offset: (leading edge of every attached marker, a/b when two instances; gone = none)
+//   V1 pinnedViews [.sectionHeaders, .sectionFooters]
+//      offset 0: headers 0 gone gone | footers 170 gone gone
+//      offset 100: headers 0 160 gone | footers 130 210 gone
+//      offset 230: headers 0 30 gone | footers 0 220 gone
+//      offset 245: headers 0 15 gone | footers -15 205 gone
+//      offset 250: headers 0 10 gone | footers -20 220 gone
+//      offset 260: headers -290 0 gone | footers -30 210 gone
+//      offset 300: headers -330 -330 gone | footers -70 190 gone
+//      offset 500: headers -530 -530 20 | footers -270 -10 210
+//      offset 580: headers -610 -610 -610 | footers -350 -90 170
+//   V0 control, no pinnedViews
+//      offset 0: headers 0 gone gone | footers gone gone gone
+//      offset 100: headers -100 160 gone | footers 130 gone gone
+//      offset 230: headers -230 30 gone | footers 0 gone gone
+//      offset 245: headers -245 15 gone | footers -15 gone gone
+//      offset 250: headers -250 10 gone | footers -20 gone gone
+//      offset 260: headers -260 0 gone | footers -30 gone gone
+//      offset 300: headers -300 -40 gone | footers -70 190 gone
+//      offset 500: headers -500 -240 20 | footers -270 -10 gone
+//      offset 580: headers -580 -320 -60 | footers -350 -90 170
+//   === W: windowing with pinned headers: 3 sections of 2000 rows, pinnedViews [.sectionHeaders], scrolled to 30000
+//   W1 rows built 20 of 6000; header 0 0 header 1 gone header 2 gone
+//   === H: LazyHStack, horizontal ScrollView, 3 sections of header 30 + 10 columns of 20 + footer 30
+//   H1 pinnedViews [.sectionHeaders]
+//      offset 0: headers 0 gone gone
+//      offset 100: headers 0 160 gone
+//      offset 300: headers -330 -330 gone
+//   H0 control
+//      offset 0: headers 0 gone gone
+//      offset 100: headers -100 160 gone
+//      offset 300: headers -300 -40 gone
+//   === O: where does a pinned header go at the end of its section? 3 sections of header 30 + 10 rows of 20 (230 each), headers only pinned
+//      offset 0: headers 0 gone gone
+//      offset 100: headers 0 130 gone
+//      offset 190: headers 0 40 gone
+//      offset 200: headers 0 30 gone
+//      offset 210: headers 0 20 gone
+//      offset 220: headers 0 10 gone
+//      offset 225: headers 0 5 gone
+//      offset 229: headers 0 1 gone
+//      offset 230: headers -260 0 gone
+//      offset 231: headers -261 -1 gone
+//      offset 240: headers -270 -10 gone
+//   === P: scrollPosition(id:anchor:) with scrollTargetLayout (LazyVStack of 100 rows of 20 in 200x200)
+//   P1 no anchor: at 300 body ran with ids [] (initial ["nil"])
+//   P1 no anchor: at 310 body ran with ids [] (initial ["nil"])
+//   P1 no anchor: at 330 body ran with ids [] (initial ["nil"])
+//   P2 anchor .top: at 300 body ran with ids [] (initial ["nil"])
+//   P2 anchor .top: at 310 body ran with ids [] (initial ["nil"])
+//   P2 anchor .top: at 330 body ran with ids [] (initial ["nil"])
+//   P3 anchor .bottom: at 300 body ran with ids [] (initial ["nil"])
+//   P3 anchor .bottom: at 310 body ran with ids [] (initial ["nil"])
+//   P3 anchor .bottom: at 330 body ran with ids [] (initial ["nil"])
+//   P4 anchor .center: at 300 body ran with ids [] (initial ["nil"])
+//   P4 anchor .center: at 310 body ran with ids [] (initial ["nil"])
+//   P4 anchor .center: at 330 body ran with ids [] (initial ["nil"])
+//   P0 control, no scrollTargetLayout: at 300 body ran with ids [] (initial ["nil"])
+//   P0 control, no scrollTargetLayout: at 310 body ran with ids [] (initial ["nil"])
+//   P0 control, no scrollTargetLayout: at 330 body ran with ids [] (initial ["nil"])
+//   === X: writing the binding scrolls (P5)
+//   P5 before: clip y 0
+//   P5 after write id = 50 (button pressed: true): clip y 0 (row 50 top = 1000 if the binding scrolls to it)
+//   === A: withAnimation { proxy.scrollTo(50, anchor: .top) }
+//   A1 animated (linear 1s) pressed true: clip y samples every 0.2s ["0", "0", "0", "0", "0", "0"]
+//   A0 control, plain pressed true: clip y samples every 0.2s ["0", "0", "0", "0", "0", "0"]
+//   === B: @Bindable
+//   B1 Bindable(m).name type Binding<String> wrote through: b
+//   B2 count after += 1: 2
+//   DONE
+//
 import SwiftUI
 import AppKit
 import Observation
