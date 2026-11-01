@@ -786,6 +786,10 @@ whose "Final spellings" table is the short form).
 - **Title and document** (`AS-D`): `Window.title` (M, settable);
   `.navigationTitle(_:)` (A; inner beats outer, the first sibling wins, in the
   first presented frame; probe `swiftui-app-shell.swift` `N1`–`N5`) and
+  `.navigationTitle(Text)`/`(LocalizedStringKey)` (A; the plain string, `AE-A`),
+  `.navigationSubtitle(_:)` (A; `NSWindow.subtitle`, outer beats inner, SDL shows
+  none, `AE-B`), `.windowDismissBehavior(_:)` (A; `.disabled` disables the close
+  button and the user's close, `AE-D`) and
   `.navigationDocument(_ url: URL)` (A; the proxy icon, never the title) in
   the tree win while present; `Window.representedURL` and
   `Window.isDocumentEdited` (M; AppKit's edited dot). SDL records the edited

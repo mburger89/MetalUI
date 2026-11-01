@@ -2119,3 +2119,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 *An agent cannot: window capture was denied in the authoring session, so the native look is unsampled (`SD-A`).*
 
 - [ ] **SD1.** In the dark appearance, a segmented `Picker` (`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo`) shows its selected segment as a visibly *lighter* pill than the track, the unselected segments flush with the track, next to a SwiftUI/AppKit segmented control in the same appearance (lighter-pill-on-darker-track, as AppKit draws it). In light it is a white pill on the grey track, as before. **Observed:**
+
+## AE. App-shell extras - subtitle, a disabled close button, plain-text titles (round 3 item R3-10 part 3; decisions `docs/superpowers/2026-11-01-app-shell-extras-decisions.md`, record 190; provisional letter)
+
+*An agent cannot: the look of a title bar's subtitle and of a greyed close button is a look, and SDL's behaviour needs a real Linux or Windows window.*
+
+- [ ] **AE1.** macOS: a window whose content has `.navigationTitle("Doc").navigationSubtitle("3 items")` shows "Doc" with "3 items" beneath it in the title bar; changing the subtitle in state follows; removing the modifier clears the line. **Observed:**
+- [ ] **AE2.** macOS: `.navigationTitle(Text("**Bold** title").bold())` and `.navigationTitle("**Bold** title")` both show `Bold title` (no asterisks, no bold). **Observed:**
+- [ ] **AE3.** macOS: `.windowDismissBehavior(.disabled)` greys the red close button, ⌘W and File > Close do nothing, and the window still closes on ⌘Q; removing the modifier restores the button. **Observed:**
+- [ ] **AE4.** Linux or Windows (SDL): a window with `.windowDismissBehavior(.disabled)` ignores the system title bar's close button (it stays drawn, divergence 1036), the drawn buttons under `.hiddenTitleBar` close nothing, and a quit still closes it; `.navigationSubtitle` shows nothing (divergence 1035). **Observed:**
+

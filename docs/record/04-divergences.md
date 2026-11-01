@@ -2823,3 +2823,12 @@ axis or a `Deferred` lays the sections out in sequence (the pin is the windowed 
 916: a scroll target is a `ForEach` element under `scrollTargetLayout()`, not any direct child; pin `aStaticChildOfAScrollTargetLayoutIsNotATarget`. The probe (`swiftui-scroll-position.swift`) measured the pins of
 section 0 and the absence of a push-off at a section's end (which MetalUI follows, `SP-G`), and could not measure `scrollPosition(id:)` or an animated `scrollTo` headless (`SP-A`, `SP-F`): those rest on SwiftUI's
 documentation and claim no divergence. Mechanisms and mutations: `docs/superpowers/2026-10-31-scroll-position-decisions.md`.
+
+## 2026-11-01: app-shell extras (`AE-B`, `AE-D`, record §190)
+
+**New: 1035, 1036** (195 live; next label 210; 1037-1044 reserved by AE and unused). 1035: SDL3 has no window subtitle, so `navigationSubtitle(_:)` is recorded by
+the platform and nothing is shown (AppKit: `NSWindow.subtitle`, probe `swiftui-app-shell.swift` `N8`); pin `theSubtitleIsPreOrderAndSentOnChangeOnly`. 1036: SDL3 cannot disable the
+system title bar's close button, so under `windowDismissBehavior(.disabled)` the button stays drawn and `Window` refuses the request it raises (AppKit removes `.closable`, probe
+`D0`); `close()` and the quit walk still close; pins `dismissDisabledRefusesTheUsersCloseAndFollowsPostOrderPrecedence`, `aDisabledWindowStillClosesForQuitAndForClose`. Two "Not offered"
+rows rewritten: the title row keeps only `Binding<String>` (carried) and the unbuilt `windowMinimizeBehavior`/`windowResizeBehavior`; the "not built" window-behavior row is deleted (`WindowDragGesture`
+and `Window.backgroundDragBehavior` were already built, `WD-`, `BG-G`). Divergences 275, 425, 426 and 736 unchanged.

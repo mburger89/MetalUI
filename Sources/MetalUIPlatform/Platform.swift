@@ -407,6 +407,26 @@ public protocol PlatformWindow: AnyObject {
     /// its option.
     func performWindowDrag() -> Bool
 
+    // **Migration** (`AE-D`, `docs/migration.md`): a conformer outside this repository adds
+    // `func setSubtitle(_ subtitle: String) {}` and `func setDismissEnabled(_ enabled: Bool) {}`.
+    // **No default for either** (`HT-X` 1's rule): a conformer that forgets one fails to compile
+    // rather than silently showing no subtitle or leaving a window the app asked to keep open closable.
+
+    /// Sets the window's subtitle, `""` for none (ruling `AE-D`; SwiftUI's `navigationSubtitle(_:)`, which on
+    /// macOS is the line under the title in the title bar, `N8`). `Window` calls it only when the effective
+    /// subtitle changes. AppKit sets `NSWindow.subtitle`. SDL has no subtitle and records the call: the title is
+    /// never altered behind the app's back (`AS-D` item 5's rule for the edited marker).
+    func setSubtitle(_ subtitle: String)
+
+    /// Allows or forbids the user dismissing the window (ruling `AE-D`; SwiftUI's
+    /// `windowDismissBehavior(.disabled)`, probe `D0`): `false` removes `.closable` from AppKit's style mask,
+    /// which disables the close button, greys ⌘W's Close item and makes `performClose(_:)` close nothing.
+    /// `Window` calls it only on change and, whatever the platform does, itself refuses the user's close
+    /// (`onCloseRequest` answers `false`) while it is `false`; it never gates ``close()`` or the termination
+    /// walk. SDL records the call: its system title bar's close button cannot be disabled, and the request the
+    /// button raises is refused by `Window` (the drawn buttons' close does nothing).
+    func setDismissEnabled(_ enabled: Bool)
+
     // **Migration** (`CW-F`, `docs/migration.md`): a conformer outside this repository adds
     // `func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }`,
     // `func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }`,
