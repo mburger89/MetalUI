@@ -471,6 +471,41 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
             "\(mismatches) pixels differ — the second renderer uploaded less than the whole atlas")
 }
 
+/// **`GL-B`, Metal side** - an atlas that grew between uploads is a bigger texture: the renderer re-creates it at
+/// the new extent and copies the whole atlas, so a glyph packed before the growth still samples its own pixels
+/// at its unchanged rect, and one packed after it, beyond the old extent, samples its own. Mutation: in
+/// `Renderer.upload`, drop the `existing!.width != atlas.width || existing!.height != atlas.height` clause (the
+/// texture stays small and the second glyph reads outside it).
+@Test @MainActor func aGrownAtlasReplacesTheTextureAndKeepsEarlierGlyphs() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    let atlas = GlyphAtlas(width: 32, height: 32, maximumExtent: 128)
+    func key(_ glyph: UInt16) -> GlyphKey {
+        GlyphKey(font: FontResolver.resolve(family: nil, size: 13).key, glyph: glyph, size: 13,
+                 subpixelVariant: 0, scaleFactor: 1)
+    }
+    func image(_ value: UInt8) -> GlyphImage { GlyphImage(width: 24, height: 24, bytes: [UInt8](repeating: value, count: 576)) }
+    let first = try #require(atlas.slot(for: key(1), rasterize: { image(90) }))
+    renderer.upload(atlas)
+    #expect(renderer.atlasTexture?.width == 32)
+
+    let second = try #require(atlas.slot(for: key(2), rasterize: { image(200) }))
+    try #require(atlas.width > 32, "the second glyph must have grown the atlas")
+    renderer.upload(atlas)
+    #expect(renderer.atlasTexture?.width == atlas.width && renderer.atlasTexture?.height == atlas.height)
+
+    let side = 64
+    var scene = Scene()
+    scene.insert(sprite(first, at: (x: 4, y: 4), color: .white))
+    scene.insert(sprite(second, at: (x: 36, y: 4), color: .white))
+    scene.finalize()
+    let pixels = try renderer.renderOffscreen(
+        scene, size: Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side))))
+    #expect(alpha(pixels, 10, 10, width: side) == 90, "a glyph packed before the growth keeps its rect and pixels")
+    #expect(alpha(pixels, 42, 10, width: side) == 200, "a glyph packed after it samples beyond the old extent")
+}
+
 /// A rect and a glyph in one scene, in one render pass, through two pipelines.
 /// The pipelines share an encoder, so binding state set by one leaking into the
 /// other is a real failure mode — and it is asymmetric: the glyph pipeline binds

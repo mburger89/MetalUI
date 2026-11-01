@@ -114,7 +114,7 @@ private func replayKey() -> ReplayKey {
 func everyReplayKeyFieldIsNamedWhenItDiffersAlone() throws {
     let base = replayKey()
     try #require(Mirror(reflecting: base).children.count == 5, "a new ReplayKey field owes a row in describeDifference and here")
-    try #require(Mirror(reflecting: base.ambient).children.count == 8, "a new AmbientKey field owes a row in describeDifference and here")
+    try #require(Mirror(reflecting: base.ambient).children.count == 9, "a new AmbientKey field owes a row in describeDifference and here")
     var cases: [(String, (inout ReplayKey) -> Void)] = [
         ("key.rects", { $0.rects = [9] }), ("key.interior", { $0.interior += 1 }), ("key.shapeInterior", { $0.shapeInterior += 1 }),
         ("key.nodeCount", { $0.nodeCount += 1 }),
@@ -123,6 +123,7 @@ func everyReplayKeyFieldIsNamedWhenItDiffersAlone() throws {
         ("key.ambient.scopes", { $0.ambient.scopes = [[1]] }),
         ("key.ambient.snappingTransaction", { $0.ambient.snappingTransaction = true }),
         ("key.ambient.disablesAnimations", { $0.ambient.disablesAnimations = true }),
+        ("key.ambient.atlasGeneration", { $0.ambient.atlasGeneration += 1 }),   // `GL-D`
     ]
     cases.append(("key.ambient.environment.isEnabled", { $0.ambient.environment.isEnabled.toggle() }))
     for (name, change) in cases {

@@ -175,7 +175,7 @@ extension Frame {
                 key.add(r.shapeKind)
                 if colours { key.add(r.background); key.add(r.borderColor) }
             case let .glyph(g):
-                key.add(11); key.add(g.bounds); key.add(g.atlasBounds); mask(g.contentMask, g.maskCornerRadii)
+                key.add(11); key.add(g.bounds); key.add(g.atlasBounds); key.add(glyphAtlas.layoutGeneration); mask(g.contentMask, g.maskCornerRadii)
                 key.add(g.color.a)
                 if colours { key.add(g.color) }
             case let .image(i, texture):

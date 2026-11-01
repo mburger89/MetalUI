@@ -87,6 +87,10 @@ struct BuildKey: Equatable {
     var stackAxis: ProposalStackAxis?
     var collectsAccessibility: Bool
     var depths: [Int]
+    /// `GlyphAtlas.layoutGeneration` (`GL-D`). A graft does not paint, but it stands for a build whose paint the
+    /// prepaint key (which carries the generation) will refuse after a rebuild: a graft the prepaint then refuses is
+    /// a redo of the whole frame (`RK-C`), so it is refused here, one decision earlier and at no cost.
+    var atlasGeneration = 0
 }
 
 /// The counts of the channels a build can write that the journal does not replay (`RK-F`): any that moves between
@@ -176,7 +180,8 @@ extension Frame {
                  snapping: transactionTop.animation == nil, disablesAnimations: transactionTop.disablesAnimations,
                  stackAxis: stackAxis, collectsAccessibility: collectsAccessibility,
                  depths: [lifecycleDepth, presentationDepth, transactionDepth, animationStore.keyframeDepth,
-                          activeScrollContext == nil ? 0 : 1])
+                          activeScrollContext == nil ? 0 : 1],
+                 atlasGeneration: glyphAtlas.layoutGeneration)
     }
 
     func buildAudit() -> BuildAudit {

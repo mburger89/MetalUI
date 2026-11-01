@@ -372,6 +372,20 @@ final class TransitionStore {
         capturedThisFrame = saved.captured
     }
 
+    /// Forgets every captured sprite - the last frame's and each ghost's - because
+    /// the glyph atlas was emptied and a captured glyph names a rect in the
+    /// atlas it was painted against (`GL-D` item 3). A group captured so stops
+    /// ghosting (its removal starts no ghost, a ghost in flight draws nothing)
+    /// until its next paint captures it again; insertions and progress stay.
+    func forgetCapturedPrimitives() {
+        for key in Array(records.keys) { records[key]?.captures = [] }
+        for key in Array(previousRecords.keys) { previousRecords[key]?.captures = [] }
+        ghosts = ghosts.map { entry in
+            (entry.key, Ghost(start: entry.ghost.start, animation: entry.ghost.animation, from: entry.ghost.from,
+                              atoms: entry.ghost.atoms, rect: entry.ghost.rect, captures: []))
+        }
+    }
+
     /// Called once per frame at its end, before the `AnimationStore` drops
     /// untouched entries: this frame's notes and records become the last
     /// completed frame's.
