@@ -86,7 +86,9 @@ public struct MouseButton: Sendable, Hashable {
 /// release that ends it** (MetalUI's choice: within the slop the press and the
 /// release differ by under 5 points; probe `T1`/`T4` pressed and released at
 /// one point) in `coordinateSpace`.
-public struct SpatialTapGesture: Gesture {
+public struct SpatialTapGesture: Gesture, PrimitiveGesture {
+    /// A recognizer MetalUI provides has no body.
+    public typealias Body = Never
     /// Where the tap ended.
     public struct Value: Equatable, Sendable {
         /// The release point, in the gesture's coordinate space.
@@ -140,7 +142,7 @@ public struct SpatialTapGesture: Gesture {
         self
     }
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
+    func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .tap(count: count, spatial: coordinateSpace))
         leaf.spatialTapEnded = ended
         return _GestureRecognizers(.leaf(leaf))
@@ -165,7 +167,9 @@ public struct SpatialTapGesture: Gesture {
 /// reaches `.onScrollWheel` with its modifiers. SDL delivers a pinch on macOS,
 /// X11 and Wayland, none on Windows (`CI-K`). `time` and `velocity` are not
 /// offered (`CI-A`).
-public struct MagnifyGesture: Gesture {
+public struct MagnifyGesture: Gesture, PrimitiveGesture {
+    /// A recognizer MetalUI provides has no body.
+    public typealias Body = Never
     /// A pinch's state.
     public struct Value: Equatable, Sendable {
         /// `1 + Σ` of the pinch's deltas.
@@ -225,7 +229,7 @@ public struct MagnifyGesture: Gesture {
         return copy
     }
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
+    func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .magnify(minimumScaleDelta: minimumScaleDelta))
         leaf.magnifyChanged = composeChanged(changed, updates)
         leaf.finished = composeFinished(updates)
@@ -243,7 +247,9 @@ public struct MagnifyGesture: Gesture {
 /// AppKit's `NSEvent.rotation`, negated once at the seam (probe `Q1`). Its
 /// minimum, values and `onEnded` rule are `MagnifyGesture`'s. **SDL has no
 /// rotate event**: on SDL it never fires (`CI-K` item 3).
-public struct RotateGesture: Gesture {
+public struct RotateGesture: Gesture, PrimitiveGesture {
+    /// A recognizer MetalUI provides has no body.
+    public typealias Body = Never
     /// A rotation's state.
     public struct Value: Equatable, Sendable {
         /// The cumulative rotation, clockwise-positive.
@@ -302,7 +308,7 @@ public struct RotateGesture: Gesture {
         return copy
     }
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
+    func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .rotate(minimumAngleDelta: minimumAngleDelta.degrees))
         leaf.rotateChanged = composeChanged(changed, updates)
         leaf.finished = composeFinished(updates)

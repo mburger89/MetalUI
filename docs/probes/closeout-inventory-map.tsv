@@ -122,6 +122,10 @@ F	image-orientation	A	swiftui-image-orientation.swift	O1	orientationRawValuesAre
 F	image-oriented-draw	A	swiftui-image-orientation.swift	O9	orientedPixelsEqualSwiftUIsForAllEight	435	IB-F IB-G IB-K	Image(decorative:scale:orientation:) and Image(_:scale:orientation:label:): a bitmap drawn turned by an Image.Orientation, laid out at the oriented size; orientation has no default (IB-K) so the unoriented inits stay unambiguous
 F	image-bitmap-oriented	M	-	-	-	-	IB-F	ImageBitmap.oriented(_:): the bitmap turned by an orientation, one cached texture per orientation; SwiftUI has no CGImage-level orientation transform
 F	gestures	A	swiftui-interaction.swift	H2	anOuterHighPriorityGestureBeatsTheInnerOneAndAButton	-	IX-B IX-C IX-D IX-Q	Gesture/TapGesture/LongPressGesture/DragGesture/composition and .gesture/.simultaneousGesture/.highPriorityGesture/.onTapGesture/.onLongPressGesture: one arena per press
+F	gesture-composition	A	swiftui-gesture-composition.swift	S1	aLongPressThenDragReportsFirstThenSecondWithTheDragStartingAtTheFirstEventAfter	925	GE-A GE-B GE-C	Gesture.sequenced(before:), SequenceGesture and its Value (.first/.second), the Gesture protocol's Body/body (a custom gesture): SwiftUI's spellings; the value sequence, the drag starting at the first event after the long press, a failed first member failing the sequence (probes S1..S7b, C1..C5)
+F	gesture-composition-wrappers	A	swiftui-gesture-composition.swift	S6	updatingOnASequenceRunsForEachValueAndResetsAtTheEnd	925	GE-C GE-E	onChanged/onEnded/updating(_:body:) on every Gesture (a composite, a custom gesture) and the wrappers they return, _ChangedGesture, _EndedGesture, GestureStateGesture (probes S6, X1, X2, C2, C3)
+F	gesture-drag-velocity	A	swiftui-gesture-composition.swift	D1	aSteadyDragReportsItsVelocityAndAQuarterSecondPrediction	-	GE-D GE-F	DragGesture.Value.time, velocity, predictedEndLocation, predictedEndTranslation and the init that takes time and velocity: derived from the event timestamps (probes D0..D15)
+F	mouse-event-timestamp	M	-	-	-	-	GE-D	MouseEvent.timestamp: the platform's event time, nil for an event built without one; SwiftUI has no event type
 F	keyboard-shortcut	A	swiftui-interaction.swift	B4e	aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch	-	IX-F	KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order
 F	key-press	A	swiftui-key-focus.swift	K2v	onKeyPressRunsOutermostFirstAlongTheFocusChain	-	KF-B KF-C KF-Q KF-X	KeyPress/onKeyPress: SwiftUI's family (keys, characters, phases; .handled/.ignored) along the focus chain outermost first, after the Keymap and before a focused field's editing keys; a typed character on a focused field is offered first (KF-Q); a keystroke an app command binds runs the command (KF-X)
 F	focus-interactions	A	swiftui-key-focus.swift	FC3	aPressFocusesAnEditInteractionFocusable	94	KF-F	FocusInteractions/focusable(_:interactions:): .edit focuses on a primary press as SwiftUI does (FC3); .activate and .automatic focus by Tab only (94)
@@ -386,6 +390,11 @@ M	MetalUI	Gesture.swift	DragGesture	init	.*coordinateSpace.*	input-apis-gestures
 M	MetalUI	Gesture.swift	DragGesture.Value	modifiers	.*	input-apis-drag-modifiers
 M	MetalUI	Gesture.swift	DragGesture.Value	init	.*modifiers.*	input-apis-gestures-metalui
 M	MetalUI	GestureModifiers.swift	(StyledElement|ProposalElementGroup)	onTapGesture	.*coordinateSpace.*	input-apis-gestures
+M	MetalUI	Gesture.swift	DragGesture.Value	(time|velocity|predictedEndLocation|predictedEndTranslation)	.*	gesture-drag-velocity
+M	MetalUI	Gesture.swift	DragGesture.Value	init	.*velocity.*	gesture-drag-velocity
+M	MetalUI	Gesture.swift	(-|SequenceGesture|Gesture|Never)	(SequenceGesture|sequenced|first|second|Value|init)	.*	gesture-composition
+M	MetalUI	Gesture.swift	(-|_ChangedGesture|_EndedGesture|GestureStateGesture|Gesture|Never)	(_ChangedGesture|_EndedGesture|GestureStateGesture|onChanged|onEnded|updating|Value|Body|body)	.*	gesture-composition-wrappers
+M	MetalUI	Gesture.swift	.*	Body	.*	gesture-composition
 M	MetalUI	Gesture.swift	.*	.*	.*	gestures
 M	MetalUI	GestureModifiers.swift	.*	.*	.*	gestures
 M	MetalUI	Grid.swift	LayoutPass	.*	.*	kernel-registrars
@@ -564,6 +573,7 @@ M	MetalUIPlatform	AccessibilityTree.swift	AccessibilityRole	(popUpButton|alert)	
 M	MetalUIPlatform	InputEvent.swift	InputEvent	(rightMouseDragged|otherMouseDown|otherMouseDragged|otherMouseUp|magnify|rotate)	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	(-|InputPhase|MagnifyEvent|RotateEvent)	(InputPhase|MagnifyEvent|RotateEvent|none|mayBegin|began|changed|ended|cancelled|position|magnification|rotation|phase|modifiers|timestamp|init)	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	MouseEvent	buttonNumber	.*	input-apis-seam
+M	MetalUIPlatform	InputEvent.swift	MouseEvent	timestamp	.*	mouse-event-timestamp
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	(phase|momentumPhase|isPrecise|location)	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	ScrollEvent	init	.*isPrecise.*	input-apis-seam
 M	MetalUIPlatform	PointerStyle.swift	PlatformCursorImage	.*	.*	image-cursor-seam

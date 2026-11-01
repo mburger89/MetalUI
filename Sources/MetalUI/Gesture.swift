@@ -1,3 +1,4 @@
+import Foundation
 import MetalUICore
 import MetalUILayout
 
@@ -8,41 +9,73 @@ import MetalUILayout
 // MARK: - The closed protocol
 
 /// A gesture: something an element can recognize from a press or a pinch —
-/// SwiftUI's `Gesture`, spelled as SwiftUI spells it for the recognizers
-/// MetalUI offers (`TapGesture`, `SpatialTapGesture`, `LongPressGesture`,
-/// `DragGesture`, and — in a pinch arena, `CI-D` — `MagnifyGesture` and
-/// `RotateGesture`) and their two combinators (`exclusively(before:)`,
-/// `simultaneously(with:)`).
+/// SwiftUI's `Gesture`, spelled as SwiftUI spells it. The recognizers are
+/// `TapGesture`, `SpatialTapGesture`, `LongPressGesture`, `DragGesture`, and — in
+/// a pinch arena, `CI-D` — `MagnifyGesture` and `RotateGesture`; the combinators
+/// are `exclusively(before:)`, `simultaneously(with:)` and `sequenced(before:)`.
 ///
-/// **An outside module cannot conform** (ruling `IX-B`): the one requirement
-/// is SPI (`@_spi(MetalUIGesture)`), and so is the type it returns, so a plain
-/// importer can neither see the requirement nor name its result — pinned by
-/// the plain-import guard `anOutsideTypeCannotConformToGesture`. SwiftUI lets a
-/// caller compose a custom gesture through `body`; MetalUI does not (owner
-/// **none**, additive: opening the protocol later breaks no caller).
+/// **A custom gesture is a struct with a `body`** (ruling `GE-A`, SwiftUI's
+/// shape): `var body: some Gesture { LongPressGesture().sequenced(before: DragGesture()) }`.
+/// Its `Value` is its body's, so name the body's type (`var body: SequenceGesture<…>`)
+/// when a caller needs the value spelled. The recognizer requirement stays SPI
+/// (`@_spi(MetalUIGesture)`): an outside module cannot conform by describing
+/// recognizers itself, only by composing the ones offered here — pinned by the
+/// plain-import guards `anOutsideTypeCanConformToGestureThroughABody` and
+/// `anOutsideTypeCannotDescribeRecognizersItself`.
 ///
-/// **Not offered** (owner none, `IX-B`, `CI-A`): `sequenced(before:)`,
-/// `GestureMask`/`including:`, `updating` on a composed gesture, the
+/// **Not offered** (owner none, `IX-B`, `CI-A`, `GE-A`): `GestureMask`/`including:`
+/// (carried, `GE-H`), `AnyGesture` and `Gesture.map`, the
 /// `isEnabled:`/`name:` attachment overloads, `CoordinateSpace.named(_:)` and
-/// `.coordinateSpace(_:)` (`.local` and `.global` only), `time`/`velocity`/
-/// `predictedEnd*` on gesture values, `GestureInputKinds`/`inputKinds:`, and
-/// `TapGesture().modifiers(_:)`. `@GestureState` and `updating(_:body:)` are built
-/// (`GS-A`…`GS-G`, record §135): the state resets when the gesture ends, fails or
-/// is cancelled. `onCancelled(_:)` on `DragGesture`, `MagnifyGesture` and
-/// `RotateGesture` (`IF-A`, `IF-E`) stays for a caller who wants the event.
+/// `.coordinateSpace(_:)` (`.local` and `.global` only), `GestureInputKinds`/
+/// `inputKinds:`, `TapGesture().modifiers(_:)`, and a composite's `onCancelled`.
+/// `@GestureState` and `updating(_:body:)` are built (`GS-A`…`GS-G`, record §135),
+/// on the recognizers and — since `GE-` — on every gesture through
+/// ``GestureStateGesture``. `onCancelled(_:)` on `DragGesture`, `MagnifyGesture`
+/// and `RotateGesture` (`IF-A`, `IF-E`) stays for a caller who wants the event.
 public protocol Gesture {
     /// The value the gesture reports — `Void` for a tap, `Bool` for a long
-    /// press, `DragGesture.Value` for a drag.
-    associatedtype Value
+    /// press, `DragGesture.Value` for a drag, a composite's own enum or struct
+    /// for `sequenced`, `exclusively` and `simultaneously`.
+    associatedtype Value = Body.Value
 
-    /// The recognizer description the arena runs. SPI: see the type's doc.
-    @_spi(MetalUIGesture) func _recognizers() -> _GestureRecognizers
+    /// The gesture a custom gesture is made of; `Never` for a recognizer
+    /// MetalUI provides.
+    associatedtype Body: Gesture
+
+    /// A custom gesture's composition. Recognizers MetalUI provides have
+    /// `Body == Never` and never evaluate it.
+    var body: Body { get }
+
 }
 
-/// What a `Gesture` hands the arena: a tree of recognizers and the callbacks
-/// they run. SPI, with an internal initialiser, so only this module can make
-/// one (`IX-B`).
-@_spi(MetalUIGesture) public struct _GestureRecognizers {
+extension Gesture where Body == Never {
+    // Public by necessity (a public type's witness of a public requirement): like SwiftUI's, a type that forgets
+    // its `body` still compiles and traps when evaluated (`GE-A`).
+    /// A recognizer MetalUI provides has no body.
+    public var body: Never { fatalError("\(Self.self) is a primitive gesture and has no body") }
+}
+
+/// A gesture MetalUI recognizes itself: the arena's description of it (internal — an outside module can only
+/// compose, by a `body`, ruling `GE-A`).
+protocol PrimitiveGesture: Gesture {
+    func _recognizers() -> _GestureRecognizers
+}
+
+/// The arena's description of `gesture`: a primitive's own, else its `body`'s, recursively (`GE-A`).
+func recognizerNode<G: Gesture>(of gesture: G) -> GestureNode {
+    if let primitive = gesture as? any PrimitiveGesture { return primitive._recognizers().node }
+    return recognizerNode(of: gesture.body)
+}
+
+extension Never: Gesture {
+    /// `Never` is the body of every primitive gesture.
+    public typealias Value = Never
+    /// `Never` is the body of every primitive gesture.
+    public typealias Body = Never
+}
+
+/// What a primitive `Gesture` hands the arena: a tree of recognizers and the callbacks they run.
+struct _GestureRecognizers {
     let node: GestureNode
     init(_ node: GestureNode) { self.node = node }
 }
@@ -55,6 +88,55 @@ indirect enum GestureNode {
     case exclusive([GestureNode])
     /// `simultaneously(with:)`: members recognize independently (`H16b`).
     case simultaneous([GestureNode])
+    /// `sequenced(before:)` (ruling `GE-B`): the second member is gated until the first has ended.
+    case sequence(GestureNode, GestureNode)
+    /// A composite node with the typed machinery that assembles and reports its value (`GE-C`).
+    case hooked(GestureNode, CompositeHooks)
+}
+
+/// What a composite gesture hangs on its node (ruling `GE-C`): the taps a parent or a wrapper
+/// (`onChanged`, `onEnded`, `updating`) listens with, the reset hooks, and the three closures the arena
+/// calls — `flush` once at the end of each event's resolution (a composite reports once per event),
+/// `ended` when the node ends, `reset` when it ends, fails or is cancelled. Values travel as `Any`;
+/// the typed gesture that made the node casts them back.
+final class CompositeHooks: @unchecked Sendable {
+    var changedTaps: [@MainActor (Any) -> Void] = []
+    var endedTaps: [@MainActor (Any) -> Void] = []
+    var finishes: [@MainActor () -> Void] = []
+    var flush: (@MainActor () -> Void)?
+    var ended: (@MainActor () -> Void)?
+    var reset: (@MainActor () -> Void)?
+}
+
+extension GestureNode {
+    /// Lets `changed` and `ended` hear this node's values. A leaf's typed callbacks are wrapped in place (the
+    /// tap runs after the leaf's own, in declaration order, `GS-E`); a composite node adds to its hooks.
+    mutating func tap(changed: (@MainActor (Any) -> Void)?, ended: (@MainActor (Any) -> Void)?) {
+        switch self {
+        case .leaf(var leaf):
+            leaf.tap(changed: changed, ended: ended)
+            self = .leaf(leaf)
+        case .hooked(_, let hooks):
+            if let changed { hooks.changedTaps.append(changed) }
+            if let ended { hooks.endedTaps.append(ended) }
+        case .exclusive, .simultaneous, .sequence:
+            break   // every composite is built hooked
+        }
+    }
+
+    /// Adds a reset to run when the node ends, fails or is cancelled (`GS-C`).
+    mutating func addFinish(_ finish: @escaping @MainActor () -> Void) {
+        switch self {
+        case .leaf(var leaf):
+            let old = leaf.finished
+            leaf.finished = { old?(); finish() }
+            self = .leaf(leaf)
+        case .hooked(_, let hooks):
+            hooks.finishes.append(finish)
+        case .exclusive, .simultaneous, .sequence:
+            break
+        }
+    }
 }
 
 /// One recognizer and the callbacks it runs.
@@ -103,6 +185,36 @@ struct GestureLeaf {
     var finished: (@MainActor () -> Void)?
 
     init(kind: Kind) { self.kind = kind }
+
+    /// Wraps the callbacks this kind reports so `changed` and `ended` also hear its value (`GE-C`). A kind that
+    /// reports no value (a draggable, a window drag) is left alone; a tap has no change.
+    mutating func tap(changed: (@MainActor (Any) -> Void)?, ended: (@MainActor (Any) -> Void)?) {
+        switch kind {
+        case .tap(_, let spatial):
+            guard let ended else { return }
+            if spatial == nil {
+                let old = tapEnded
+                tapEnded = { old?(); ended(()) }
+            } else {
+                let old = spatialTapEnded
+                spatialTapEnded = { old?($0); ended($0) }
+            }
+        case .longPress:
+            if let changed { let old = longPressChanged; longPressChanged = { old?($0); changed($0) } }
+            if let ended { let old = longPressEnded; longPressEnded = { old?($0); ended($0) } }
+        case .drag:
+            if let changed { let old = dragChanged; dragChanged = { old?($0); changed($0) } }
+            if let ended { let old = dragEnded; dragEnded = { old?($0); ended($0) } }
+        case .magnify:
+            if let changed { let old = magnifyChanged; magnifyChanged = { old?($0); changed($0) } }
+            if let ended { let old = magnifyEnded; magnifyEnded = { old?($0); ended($0) } }
+        case .rotate:
+            if let changed { let old = rotateChanged; rotateChanged = { old?($0); changed($0) } }
+            if let ended { let old = rotateEnded; rotateEnded = { old?($0); ended($0) } }
+        case .draggable, .windowDrag:
+            break
+        }
+    }
 }
 
 // MARK: - The three recognizers
@@ -115,7 +227,9 @@ struct GestureLeaf {
 /// `onEnded(_:)` returns a `TapGesture` with the callback stored, not SwiftUI's
 /// `_EndedGesture` wrapper (`IX-B`): the spelling is SwiftUI's; only a caller
 /// naming the wrapper type sees a difference.
-public struct TapGesture: Gesture {
+public struct TapGesture: Gesture, PrimitiveGesture {
+    /// A recognizer MetalUI provides has no body.
+    public typealias Body = Never
     /// A tap reports no value.
     public typealias Value = Void
 
@@ -142,7 +256,7 @@ public struct TapGesture: Gesture {
         self
     }
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
+    func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .tap(count: count, spatial: nil))
         leaf.tapEnded = ended
         return _GestureRecognizers(.leaf(leaf))
@@ -155,7 +269,9 @@ public struct TapGesture: Gesture {
 /// moves `maximumDistance` or more. `onChanged(_:)` reports `true` when the
 /// press begins (MetalUI's choice: SwiftUI's `onChanged` for a long press is
 /// unmeasured).
-public struct LongPressGesture: Gesture {
+public struct LongPressGesture: Gesture, PrimitiveGesture {
+    /// A recognizer MetalUI provides has no body.
+    public typealias Body = Never
     /// Whether the press is still held at the minimum duration.
     public typealias Value = Bool
 
@@ -199,7 +315,7 @@ public struct LongPressGesture: Gesture {
         return copy
     }
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
+    func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .longPress(minimumDuration: minimumDuration,
                                                 maximumDistance: maximumDistance.value))
         leaf.longPressEnded = ended
@@ -226,7 +342,9 @@ public struct LongPressGesture: Gesture {
 /// primary-only behaviour keeps `MN-B`. With a secondary drag on the pressed
 /// chain a context menu opens on the release, at the press point, and only if
 /// no such drag reached its minimum (`CI-F` item 4).
-public struct DragGesture: Gesture {
+public struct DragGesture: Gesture, PrimitiveGesture {
+    /// A recognizer MetalUI provides has no body.
+    public typealias Body = Never
     /// A drag's state: where it started and is, in the gesture's coordinate
     /// space, and the modifier keys of the event that produced it.
     public struct Value: Equatable, Sendable {
@@ -248,21 +366,44 @@ public struct DragGesture: Gesture {
         /// for a value built without one (ruling `IF-C`). **MetalUI-only**:
         /// SwiftUI's value has none (divergence 235).
         public var clickCount: Int
+        /// When the event that produced this value occurred, as the platform stamped it (`Date(timeIntervalSinceReferenceDate:)`
+        /// of the event's timestamp, which is how SwiftUI reads it, probe `D0`): deterministic from the events,
+        /// never the wall clock (probes `D2`, `D3`). The reference date for a value built without one.
+        public var time: Date
+        /// The pointer's velocity in points per second, y down, in the gesture's coordinate space: three parts
+        /// of the previous interval's speed to one of this interval's (probe `D6`, `D7`, `D11`, ruling `GE-F`);
+        /// zero for the first event and for a value built without one.
+        public var velocity: Size<Pixels>
+
+        /// Where the drag would end if it kept `velocity` for a quarter of a second — `location` plus that
+        /// travel (probe `D1`, `D4`, `D5`, ruling `GE-F`).
+        public var predictedEndLocation: Point<Pixels> {
+            Point(x: location.x + velocity.width / 4, y: location.y + velocity.height / 4)
+        }
+
+        /// `translation` plus a quarter of a second of `velocity` (probe `D1`).
+        public var predictedEndTranslation: Size<Pixels> {
+            Size(width: translation.width + velocity.width / 4, height: translation.height + velocity.height / 4)
+        }
 
         /// A drag value with no modifiers; `translation` is derived.
         public init(startLocation: Point<Pixels>, location: Point<Pixels>) {
             self.init(startLocation: startLocation, location: location, modifiers: [], clickCount: 1)
         }
 
-        /// A drag value; `translation` is derived. `clickCount` defaults to 1.
+        /// A drag value; `translation` is derived. `clickCount` defaults to 1; `time` to the reference date and
+        /// `velocity` to zero.
         public init(startLocation: Point<Pixels>, location: Point<Pixels>, modifiers: EventModifiers,
-                    clickCount: Int = 1) {
+                    clickCount: Int = 1, time: Date = Date(timeIntervalSinceReferenceDate: 0),
+                    velocity: Size<Pixels> = Size(width: Pixels(0), height: Pixels(0))) {
             self.startLocation = startLocation
             self.location = location
             self.translation = Size(width: location.x - startLocation.x,
                                     height: location.y - startLocation.y)
             self.modifiers = modifiers
             self.clickCount = clickCount
+            self.time = time
+            self.velocity = velocity
         }
     }
 
@@ -326,7 +467,7 @@ public struct DragGesture: Gesture {
         return copy
     }
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
+    func _recognizers() -> _GestureRecognizers {
         var leaf = GestureLeaf(kind: .drag(minimumDistance: minimumDistance.value,
                                            coordinateSpace: coordinateSpace, button: button))
         leaf.dragChanged = composeChanged(changed, updates)
@@ -339,9 +480,21 @@ public struct DragGesture: Gesture {
 
 // MARK: - Composition
 
+/// A composite's running state between its members' taps and the arena's flush (`GE-C`): the latest
+/// value to report (`dirty` when the event changed it) and what is needed to build the end value.
+final class CompositeState<Latest, End>: @unchecked Sendable {
+    var latest: Latest?
+    var dirty = false
+    var end: End?
+    var aux: [Any] = []
+    func reset() { latest = nil; dirty = false; end = nil; aux = [] }
+}
+
 /// `first.exclusively(before: second)`: `first` is tried first; `second` may
-/// end only if `first` failed (`H15a`).
-public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture {
+/// end only if `first` failed (`H15a`). Its value is the member that reported
+/// last (`.first` while the first is undecided and has reported), and `onEnded`
+/// the winner's (probe `X2`, `X2b`, ruling `GE-C`).
+public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture, PrimitiveGesture {
     /// Which of the two gestures ended, with its value.
     public enum Value {
         case first(First.Value)
@@ -359,14 +512,32 @@ public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture {
         self.second = second
     }
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
-        _GestureRecognizers(.exclusive([first._recognizers().node, second._recognizers().node]))
+    func _recognizers() -> _GestureRecognizers {
+        let hooks = CompositeHooks()
+        let state = CompositeState<Value, Value>()
+        var f = recognizerNode(of: first)
+        var s = recognizerNode(of: second)
+        f.tap(changed: { state.latest = .first($0 as! First.Value); state.dirty = true },
+              ended: { state.end = .first($0 as! First.Value) })
+        s.tap(changed: { state.latest = .second($0 as! Second.Value); state.dirty = true },
+              ended: { state.end = .second($0 as! Second.Value) })
+        hooks.flush = {
+            guard state.dirty, let value = state.latest else { return }
+            state.dirty = false
+            for tap in hooks.changedTaps { tap(value) }
+        }
+        hooks.ended = {
+            if let value = state.end ?? state.latest { for tap in hooks.endedTaps { tap(value) } }
+        }
+        hooks.reset = { state.reset() }
+        return _GestureRecognizers(.hooked(.exclusive([f, s]), hooks))
     }
 }
 
 /// `first.simultaneously(with: second)`: both recognize independently (`H16a`,
-/// `H16b`).
-public struct SimultaneousGesture<First: Gesture, Second: Gesture>: Gesture {
+/// `H16b`). Its value holds each member's latest, reported **once per event**
+/// (probe `X1`); `onEnded` runs once, when the composite ends.
+public struct SimultaneousGesture<First: Gesture, Second: Gesture>: Gesture, PrimitiveGesture {
     /// Both gestures' values; a member that has not reported is `nil`.
     public struct Value {
         /// The first gesture's value, if it reported one.
@@ -386,9 +557,102 @@ public struct SimultaneousGesture<First: Gesture, Second: Gesture>: Gesture {
         self.second = second
     }
 
-    @_spi(MetalUIGesture) public func _recognizers() -> _GestureRecognizers {
-        _GestureRecognizers(.simultaneous([first._recognizers().node, second._recognizers().node]))
+    func _recognizers() -> _GestureRecognizers {
+        let hooks = CompositeHooks()
+        let state = CompositeState<Value, Value>()
+        var f = recognizerNode(of: first)
+        var s = recognizerNode(of: second)
+        let slots = SimultaneousSlots<First.Value, Second.Value>()
+        f.tap(changed: { slots.first = $0 as? First.Value; state.dirty = true },
+              ended: { slots.first = $0 as? First.Value })
+        s.tap(changed: { slots.second = $0 as? Second.Value; state.dirty = true },
+              ended: { slots.second = $0 as? Second.Value })
+        hooks.flush = {
+            guard state.dirty else { return }
+            state.dirty = false
+            let value = Value(first: slots.first, second: slots.second)
+            for tap in hooks.changedTaps { tap(value) }
+        }
+        hooks.ended = {
+            let value = Value(first: slots.first, second: slots.second)
+            for tap in hooks.endedTaps { tap(value) }
+        }
+        hooks.reset = { state.reset(); slots.first = nil; slots.second = nil }
+        return _GestureRecognizers(.hooked(.simultaneous([f, s]), hooks))
     }
+}
+
+final class SimultaneousSlots<First, Second>: @unchecked Sendable {
+    var first: First?
+    var second: Second?
+}
+
+/// `first.sequenced(before: second)` (ruling `GE-B`, probes `S1`…`S7b`): `second` is recognized only after
+/// `first` has ended, and starts from **the first pointer event after that** — a drag's start location is that
+/// event's, not the press's. If `first` fails, so does the sequence. Reports `.first(_)` while the first member
+/// runs and `.second(firstValue, secondValue?)` once it has ended (`secondValue` is `nil` until the second member
+/// reports); `onEnded` is the last `.second` when the second member ends.
+public struct SequenceGesture<First: Gesture, Second: Gesture>: Gesture, PrimitiveGesture {
+    /// A composite MetalUI provides has no body.
+    public typealias Body = Never
+
+    /// What the sequence has reported.
+    public enum Value {
+        /// The first gesture is running; its latest value.
+        case first(First.Value)
+        /// The first gesture ended with its value; the second gesture's latest, once it has reported.
+        case second(First.Value, Second.Value?)
+    }
+
+    /// The gesture that must end first.
+    public var first: First
+    /// The gesture recognized after `first` ends.
+    public var second: Second
+
+    /// The gesture `first.sequenced(before: second)` builds.
+    public init(_ first: First, _ second: Second) {
+        self.first = first
+        self.second = second
+    }
+
+    func _recognizers() -> _GestureRecognizers {
+        let hooks = CompositeHooks()
+        let state = CompositeState<Value, Value>()
+        let memory = SequenceMemory<First.Value, Second.Value>()
+        var f = recognizerNode(of: first)
+        var s = recognizerNode(of: second)
+        f.tap(changed: { state.latest = .first($0 as! First.Value); state.dirty = true },
+              ended: {
+                  let value = $0 as! First.Value
+                  memory.firstFinal = value
+                  state.latest = .second(value, nil)
+                  state.dirty = true
+              })
+        s.tap(changed: {
+                  let value = $0 as! Second.Value
+                  memory.secondLast = value
+                  if let held = memory.firstFinal { state.latest = .second(held, value); state.dirty = true }
+              },
+              ended: { memory.secondEnd = ($0 as! Second.Value) })
+        hooks.flush = {
+            guard state.dirty, let value = state.latest else { return }
+            state.dirty = false
+            for tap in hooks.changedTaps { tap(value) }
+        }
+        hooks.ended = {
+            guard let held = memory.firstFinal else { return }
+            let value = Value.second(held, memory.secondEnd ?? memory.secondLast)
+            for tap in hooks.endedTaps { tap(value) }
+        }
+        hooks.reset = { state.reset(); memory.firstFinal = nil; memory.secondLast = nil; memory.secondEnd = nil }
+        return _GestureRecognizers(.hooked(.sequence(f, s), hooks))
+    }
+}
+
+final class SequenceMemory<First, Second>: @unchecked Sendable {
+    var firstFinal: First?
+    var secondLast: Second?
+    var secondEnd: Second?
 }
 
 extension Gesture {
@@ -400,6 +664,87 @@ extension Gesture {
     /// A gesture that recognizes `self` and `other` independently.
     public func simultaneously<Other: Gesture>(with other: Other) -> SimultaneousGesture<Self, Other> {
         SimultaneousGesture(self, other)
+    }
+
+    /// A gesture that recognizes `self`, then `other` once `self` has ended — SwiftUI's
+    /// `sequenced(before:)`, e.g. a long press then a drag.
+    public func sequenced<Other: Gesture>(before other: Other) -> SequenceGesture<Self, Other> {
+        SequenceGesture(self, other)
+    }
+
+    /// Runs `action` with the gesture's value when it changes — SwiftUI's `onChanged(_:)`, on every
+    /// gesture including a custom one and a composite. A recognizer's own `onChanged` is the same call.
+    public func onChanged(_ action: @escaping @MainActor (Value) -> Void) -> _ChangedGesture<Self> {
+        _ChangedGesture(base: self, action: action)
+    }
+
+    /// Runs `action` with the gesture's value when it ends — SwiftUI's `onEnded(_:)`, on every gesture
+    /// including a custom one and a composite.
+    public func onEnded(_ action: @escaping @MainActor (Value) -> Void) -> _EndedGesture<Self> {
+        _EndedGesture(base: self, action: action)
+    }
+
+    /// Writes `state` with `body` on every value the gesture reports and returns it to its initial value
+    /// when the gesture ends, fails or is cancelled — SwiftUI's `updating(_:body:)`, on every gesture
+    /// including a composite (probes `S6`, `X1`, `X2`; ruling `GE-E`).
+    @MainActor public func updating<State>(
+        _ state: GestureState<State>,
+        body: @escaping @MainActor (Value, inout State, inout Transaction) -> Void
+    ) -> GestureStateGesture<Self, State> {
+        GestureStateGesture(base: self, update: GestureUpdate(state, afterChanged: false, body: body))
+    }
+}
+
+/// What `onChanged(_:)` returns on a gesture without its own: the base, with the action listening to its value.
+public struct _ChangedGesture<Base: Gesture>: Gesture, PrimitiveGesture {
+    /// The base gesture's value.
+    public typealias Value = Base.Value
+    /// A wrapper has no body of its own.
+    public typealias Body = Never
+    var base: Base
+    var action: @MainActor (Base.Value) -> Void
+
+    func _recognizers() -> _GestureRecognizers {
+        var node = recognizerNode(of: base)
+        let action = action
+        node.tap(changed: { action($0 as! Base.Value) }, ended: nil)
+        return _GestureRecognizers(node)
+    }
+}
+
+/// What `onEnded(_:)` returns on a gesture without its own: the base, with the action listening for its end.
+public struct _EndedGesture<Base: Gesture>: Gesture, PrimitiveGesture {
+    /// The base gesture's value.
+    public typealias Value = Base.Value
+    /// A wrapper has no body of its own.
+    public typealias Body = Never
+    var base: Base
+    var action: @MainActor (Base.Value) -> Void
+
+    func _recognizers() -> _GestureRecognizers {
+        var node = recognizerNode(of: base)
+        let action = action
+        node.tap(changed: nil, ended: { action($0 as! Base.Value) })
+        return _GestureRecognizers(node)
+    }
+}
+
+/// What `updating(_:body:)` returns on a gesture without its own: the base, writing a `GestureState` on
+/// every value it reports and resetting it when it ends, fails or is cancelled (`GS-C`, `GE-E`).
+public struct GestureStateGesture<Base: Gesture, State>: Gesture, PrimitiveGesture {
+    /// The base gesture's value.
+    public typealias Value = Base.Value
+    /// A wrapper has no body of its own.
+    public typealias Body = Never
+    var base: Base
+    var update: GestureUpdate<Base.Value>
+
+    func _recognizers() -> _GestureRecognizers {
+        var node = recognizerNode(of: base)
+        let update = update
+        node.tap(changed: { update.run($0 as! Base.Value) }, ended: nil)
+        node.addFinish(update.finish)
+        return _GestureRecognizers(node)
     }
 }
 
@@ -422,7 +767,7 @@ struct GestureAttachment {
 
     init<G: Gesture>(_ gesture: G, priority: Priority) {
         self.priority = priority
-        self.node = gesture._recognizers().node
+        self.node = recognizerNode(of: gesture)
     }
 
     /// An attachment of `node` directly — a draggable's (`DN-D`), which no
@@ -521,6 +866,53 @@ final class ArenaLeaf {
     var pinchStart = Point<Pixels>(x: Pixels(0), y: Pixels(0))
     var pinchAnchor = UnitPoint.zero
     var pendingPinch = false
+    /// The `sequenced(before:)` first members this leaf waits on (`GE-B`): it recognizes nothing until every one
+    /// has ended. Nested sequences add one each.
+    var gates: [ArenaNode] = []
+    /// A drag behind a gate: its start is the first pointer event after the gate opened (probe `S5b`).
+    var awaitsFirstEvent = false
+    /// A drag whose first event was the release: it ends with no change before it (probe `S4`).
+    var endOnRelease = false
+    /// A drag's last three (location in its space, event time) samples, for the velocity (`GE-F`).
+    var samples: [(location: Point<Pixels>, time: Double)] = []
+
+    /// Whether a first member of a sequence this leaf follows has not ended.
+    var isGated: Bool { gates.contains { $0.status != .ended } }
+
+    /// Records the pointer at `time`: an event at the instant of the last sample replaces it (probes `D14`, `D15`).
+    func sample(_ location: Point<Pixels>, at time: Double) {
+        if let last = samples.last, time <= last.time {
+            samples[samples.count - 1] = (location, last.time)
+        } else {
+            samples.append((location, time))
+            if samples.count > 3 { samples.removeFirst() }
+        }
+    }
+
+    /// Three parts of the previous interval's speed to one of the latest (`GE-F`, probes `D6`, `D7`, `D11`);
+    /// the one interval's alone with two samples, zero with fewer.
+    var velocity: Size<Pixels> {
+        func speed(_ a: Int, _ b: Int) -> (x: Float, y: Float) {
+            let dt = Float(samples[b].time - samples[a].time)
+            return ((samples[b].location.x - samples[a].location.x).value / dt,
+                    (samples[b].location.y - samples[a].location.y).value / dt)
+        }
+        switch samples.count {
+        case 0, 1: return Size(width: Pixels(0), height: Pixels(0))
+        case 2: let v = speed(0, 1); return Size(width: Pixels(v.x), height: Pixels(v.y))
+        default:
+            let old = speed(samples.count - 3, samples.count - 2), new = speed(samples.count - 2, samples.count - 1)
+            return Size(width: Pixels(0.75 * old.x + 0.25 * new.x), height: Pixels(0.75 * old.y + 0.25 * new.y))
+        }
+    }
+
+    /// The drag value for an event at `point` in `space`.
+    func dragValue(in space: CoordinateSpace, at point: Point<Pixels>, modifiers: Modifiers,
+                   time: Double) -> DragGesture.Value {
+        DragGesture.Value(startLocation: self.point(pressPoint, in: space), location: self.point(point, in: space),
+                          modifiers: modifiers, clickCount: pressClickCount,
+                          time: Date(timeIntervalSinceReferenceDate: time), velocity: velocity)
+    }
 
     /// The named spaces in force at the region's registration, taken at the
     /// arena's formation (`OV-H`).
@@ -633,15 +1025,27 @@ final class ArenaNode {
         case leaf(ArenaLeaf)
         case exclusive([ArenaNode])
         case simultaneous([ArenaNode])
+        /// `sequenced(before:)`: the second member waits for the first (`GE-B`).
+        case sequence(ArenaNode, ArenaNode)
     }
 
     let kind: Kind
+    /// The typed machinery of a composite gesture (`GE-C`), or `nil`.
+    var hooks: CompositeHooks?
+    /// A sequence whose second member has been released from its gate.
+    var gateOpened = false
+    /// A composite that has ended, failed or been cancelled and told its hooks.
+    var settled = false
     init(_ kind: Kind) { self.kind = kind }
+
+    /// The owner of the first leaf below, who runs a composite's callbacks.
+    var owner: GlobalElementID? { leaves.first?.owner }
 
     var leaves: [ArenaLeaf] {
         switch kind {
         case .leaf(let leaf): return [leaf]
         case .exclusive(let children), .simultaneous(let children): return children.flatMap(\.leaves)
+        case .sequence(let first, let second): return first.leaves + second.leaves
         }
     }
 
@@ -660,6 +1064,13 @@ final class ArenaNode {
             let statuses = children.map(\.status)
             if statuses.allSatisfy({ $0 == .failed }) { return .failed }
             return statuses.contains(.possible) ? .possible : .ended
+        case .sequence(let first, let second):
+            // The sequence fails with its first member and ends with its second (`GE-B`).
+            switch first.status {
+            case .failed: return .failed
+            case .possible: return .possible
+            case .ended: return second.status
+            }
         }
     }
 }
@@ -716,6 +1127,19 @@ struct GestureArena {
     private var finishIndices: [Int] = []
     /// The pinch kinds begun and not yet ended (pinch mode, `CI-D` item 4).
     private var activePinchKinds: Set<ArenaLeaf.PinchKind> = []
+    /// The sequences and composites of the arena, children before parents (`GE-B`, `GE-C`).
+    private var sequences: [ArenaNode] = []
+    private var composites: [ArenaNode] = []
+    /// The last pointer position and event time the arena saw.
+    private var lastPoint = Point<Pixels>(x: Pixels(0), y: Pixels(0))
+    private var lastTime = 0.0
+    /// The move or release being resolved, replayed to a sequence's second member when its gate opens (`S7`).
+    private var currentEvent: ReplayableEvent?
+
+    private enum ReplayableEvent {
+        case move(Point<Pixels>, Modifiers, Double)
+        case release(Point<Pixels>, Int, Modifiers, (handler: @MainActor () -> Void, modifiers: Modifiers)?, Double)
+    }
 
     /// The arena for a press on `target`, with `ancestors` — each a hitbox of
     /// a proper ancestor of the target's id, in the target's hit layer (`IX-Q`),
@@ -731,13 +1155,16 @@ struct GestureArena {
           mode: ArenaMode = .press, namedSpaces: [GlobalElementID: [NamedSpace]] = [:]) {
         struct Member { let node: ArenaNode; let priority: GestureAttachment.Priority; let depth: Int; let index: Int }
         var members: [Member] = []
+        var builtSequences: [ArenaNode] = []
+        var builtComposites: [ArenaNode] = []
         // A non-opaque draggable region ranking above the target joins as the
         // innermost member (`DN-E` item 2): depth −1, inside the target itself.
         let above = draggableAbove.map { [($0, -1)] } ?? []
         for (hitbox, depth) in above + [(target, 0)] + ancestors.map({ ($0.hitbox, $0.depth) }) {
             for (index, attachment) in hitbox.handlers.gestures.enumerated() {
                 members.append(Member(node: Self.build(attachment.node, owner: hitbox.id, region: hitbox,
-                                                       namedSpaces: namedSpaces[hitbox.id] ?? []),
+                                                       namedSpaces: namedSpaces[hitbox.id] ?? [], gates: [],
+                                                       sequences: &builtSequences, composites: &builtComposites),
                                       priority: attachment.priority, depth: depth, index: index))
             }
         }
@@ -748,6 +1175,8 @@ struct GestureArena {
             exclusive.append(ArenaNode(.leaf(ArenaLeaf(.click, owner: target.id, region: target))))
         }
         exclusive += members.filter { $0.priority == .normal }.sorted { outermostFirst($1, $0) }.map(\.node)
+        sequences = builtSequences
+        composites = builtComposites
         targetID = target.id
         self.mode = mode
         exclusiveRoot = ArenaNode(.exclusive(exclusive))
@@ -763,18 +1192,37 @@ struct GestureArena {
     }
 
     private static func build(_ node: GestureNode, owner: GlobalElementID, region: Hitbox,
-                              namedSpaces: [NamedSpace]) -> ArenaNode {
+                              namedSpaces: [NamedSpace], gates: [ArenaNode],
+                              sequences: inout [ArenaNode], composites: inout [ArenaNode]) -> ArenaNode {
         switch node {
         case .leaf(let leaf):
-            return ArenaNode(.leaf(ArenaLeaf(.gesture(leaf), owner: owner, region: region, namedSpaces: namedSpaces)))
+            let built = ArenaLeaf(.gesture(leaf), owner: owner, region: region, namedSpaces: namedSpaces)
+            built.gates = gates
+            return ArenaNode(.leaf(built))
         case .exclusive(let children):
             return ArenaNode(.exclusive(children.map {
-                build($0, owner: owner, region: region, namedSpaces: namedSpaces)
+                build($0, owner: owner, region: region, namedSpaces: namedSpaces, gates: gates,
+                      sequences: &sequences, composites: &composites)
             }))
         case .simultaneous(let children):
             return ArenaNode(.simultaneous(children.map {
-                build($0, owner: owner, region: region, namedSpaces: namedSpaces)
+                build($0, owner: owner, region: region, namedSpaces: namedSpaces, gates: gates,
+                      sequences: &sequences, composites: &composites)
             }))
+        case .sequence(let first, let second):
+            let a = build(first, owner: owner, region: region, namedSpaces: namedSpaces, gates: gates,
+                          sequences: &sequences, composites: &composites)
+            let b = build(second, owner: owner, region: region, namedSpaces: namedSpaces, gates: gates + [a],
+                          sequences: &sequences, composites: &composites)
+            let built = ArenaNode(.sequence(a, b))
+            sequences.append(built)
+            return built
+        case .hooked(let inner, let hooks):
+            let built = build(inner, owner: owner, region: region, namedSpaces: namedSpaces, gates: gates,
+                              sequences: &sequences, composites: &composites)
+            built.hooks = hooks
+            composites.append(built)
+            return built
         }
     }
 
@@ -793,7 +1241,7 @@ struct GestureArena {
     /// true (`IX-C` item 4).
     var needsTicks: Bool {
         leaves.contains { leaf in
-            guard leaf.status == .possible, case .gesture(let g) = leaf.recognizer else { return false }
+            guard leaf.status == .possible, !leaf.isGated, case .gesture(let g) = leaf.recognizer else { return false }
             switch g.kind {
             case .tap: return leaf.awaitingStamp || leaf.stamp != nil
             case .longPress: return !leaf.ready
@@ -810,20 +1258,29 @@ struct GestureArena {
         press(at: point, clickCount: clickCount, continuing: continuing, modifiers: [])
     }
 
+    /// The event time: the event's own stamp, else the last the arena saw (`GE-D`).
+    private func stamped(_ timestamp: Double?) -> Double { timestamp ?? lastTime }
+
     /// A press. `continuing` is the second press of a tap sequence on the same
     /// target: taps re-arm, anything else still undecided fails — and a drag
     /// that had reported a change first runs its `onCancelled`, ahead of
     /// whatever the resolution then produces, as `abandon()` does (`GC-B`).
     /// `modifiers` are the press's, for a `minimumDistance: 0` drag's first
-    /// change (`CI-G`).
+    /// change (`CI-G`). `timestamp` is the event's, for a drag's `time` and
+    /// `velocity` (`GE-D`).
     mutating func press(at point: Point<Pixels>, clickCount: Int, continuing: Bool,
-                        modifiers: Modifiers) -> [GestureCallback] {
+                        modifiers: Modifiers, timestamp: Double? = nil) -> [GestureCallback] {
+        let time = stamped(timestamp)
         isPressing = true
+        lastPoint = point
+        lastTime = time
         if !continuing { baseClickCount = clickCount }
         var cancels: [GestureCallback] = []
         for leaf in leaves where leaf.status == .possible {
             leaf.pressModifiers = modifiers
             leaf.pressClickCount = clickCount
+            // A member behind a sequence's first waits for its gate (`GE-B`).
+            if leaf.isGated { leaf.pressPoint = point; continue }
             switch leaf.recognizer {
             case .click:
                 if continuing { fail(leaf) }
@@ -849,11 +1306,11 @@ struct GestureArena {
                         continue
                     }
                     leaf.pressPoint = point
+                    leaf.samples = []
+                    leaf.sample(leaf.point(point, in: space), at: time)
                     if minimum <= 0 {
                         leaf.started = true
-                        leaf.pendingChange = DragGesture.Value(startLocation: leaf.point(point, in: space),
-                                                               location: leaf.point(point, in: space),
-                                                               modifiers: modifiers, clickCount: clickCount)
+                        leaf.pendingChange = leaf.dragValue(in: space, at: point, modifiers: modifiers, time: time)
                     }
                 case .draggable, .windowDrag:
                     leaf.pressPoint = point
@@ -870,37 +1327,50 @@ struct GestureArena {
         move(to: point, modifiers: [])
     }
 
-    /// A move while pressed, with the modifiers its event carried (`CI-G`).
-    mutating func move(to point: Point<Pixels>, modifiers: Modifiers) -> [GestureCallback] {
+    /// A move while pressed, with the modifiers its event carried (`CI-G`) and its timestamp (`GE-D`).
+    mutating func move(to point: Point<Pixels>, modifiers: Modifiers, timestamp: Double? = nil) -> [GestureCallback] {
         guard isPressing else { return [] }
-        for leaf in leaves where leaf.status == .possible {
-            guard case .gesture(let g) = leaf.recognizer else { continue }
-            let distance = Self.distance(point, leaf.pressPoint)
-            switch g.kind {
-            case .tap:
-                if !leaf.ready && distance >= tapSlop { fail(leaf) }
-            case .longPress(_, let maximum):
-                if distance >= maximum { fail(leaf) }
-            case .drag(let minimum, let space, _):
-                if !leaf.started && distance >= minimum { leaf.started = true }
-                if leaf.started {
-                    leaf.pendingChange = DragGesture.Value(startLocation: leaf.point(leaf.pressPoint, in: space),
-                                                           location: leaf.point(point, in: space),
-                                                           modifiers: modifiers, clickCount: leaf.pressClickCount)
-                }
-            case .draggable:
-                // The first move of more than zero points (`DN-D` item 1,
-                // `P17`/`P17z`): no slop, unlike a tap's.
-                if distance > 0 { leaf.ready = true }
-            case .windowDrag:
-                // One threshold for a press (`WD-C`): under `tapSlop` it can
-                // still be a tap or a click, from it on a window drag.
-                if distance >= tapSlop { leaf.ready = true }
-            case .magnify, .rotate:
-                break
-            }
+        let time = stamped(timestamp)
+        lastPoint = point
+        lastTime = time
+        currentEvent = .move(point, modifiers, time)
+        for leaf in leaves where leaf.status == .possible && !leaf.isGated {
+            applyMove(leaf, to: point, modifiers: modifiers, time: time)
         }
         return resolve()
+    }
+
+    private mutating func applyMove(_ leaf: ArenaLeaf, to point: Point<Pixels>, modifiers: Modifiers, time: Double) {
+        guard case .gesture(let g) = leaf.recognizer else { return }
+        if leaf.awaitsFirstEvent {
+            // The drag behind a gate starts at its first event (probe `S5b`).
+            leaf.awaitsFirstEvent = false
+            leaf.pressPoint = point
+            leaf.samples = []
+        }
+        let distance = Self.distance(point, leaf.pressPoint)
+        switch g.kind {
+        case .tap:
+            if !leaf.ready && distance >= tapSlop { fail(leaf) }
+        case .longPress(_, let maximum):
+            if distance >= maximum { fail(leaf) }
+        case .drag(let minimum, let space, _):
+            leaf.sample(leaf.point(point, in: space), at: time)
+            if !leaf.started && distance >= minimum { leaf.started = true }
+            if leaf.started {
+                leaf.pendingChange = leaf.dragValue(in: space, at: point, modifiers: modifiers, time: time)
+            }
+        case .draggable:
+            // The first move of more than zero points (`DN-D` item 1,
+            // `P17`/`P17z`): no slop, unlike a tap's.
+            if distance > 0 { leaf.ready = true }
+        case .windowDrag:
+            // One threshold for a press (`WD-C`): under `tapSlop` it can
+            // still be a tap or a click, from it on a window drag.
+            if distance >= tapSlop { leaf.ready = true }
+        case .magnify, .rotate:
+            break
+        }
     }
 
     /// `release(at:clickCount:modifiers:click:)` with no modifiers.
@@ -909,62 +1379,85 @@ struct GestureArena {
         release(at: point, clickCount: clickCount, modifiers: [], click: click)
     }
 
-    /// The release, with its event's modifiers (a drag's `onEnded`, `CI-G`).
+    /// The release, with its event's modifiers (a drag's `onEnded`, `CI-G`) and timestamp (`GE-D`).
     /// `click` is what the window's press-and-release test resolved for the
     /// target's `onClick` — `nil` when it failed.
     mutating func release(at point: Point<Pixels>, clickCount: Int, modifiers: Modifiers,
-                          click: (handler: @MainActor () -> Void, modifiers: Modifiers)?) -> [GestureCallback] {
+                          click: (handler: @MainActor () -> Void, modifiers: Modifiers)?,
+                          timestamp: Double? = nil) -> [GestureCallback] {
+        let time = stamped(timestamp)
         isPressing = false
+        lastPoint = point
+        lastTime = time
+        currentEvent = .release(point, clickCount, modifiers, click, time)
         for leaf in leaves {
             leaf.owesPressing = false
             if leaf.pressingReported { reportPressing(leaf, false) }
         }
-        for leaf in leaves where leaf.status == .possible {
-            switch leaf.recognizer {
-            case .click:
-                if let click { leaf.click = click; leaf.ready = true } else { fail(leaf) }
-            case .gesture(let g):
-                switch g.kind {
-                case .tap(let count, let spatial):
-                    guard !leaf.ready else { continue }
-                    if Self.distance(point, leaf.pressPoint) >= tapSlop || !leaf.region.contains(point) {
-                        fail(leaf)
-                        continue
-                    }
-                    let taps = clickCount - baseClickCount + 1
-                    if taps == count {
-                        leaf.ready = true
-                        // The release that ends the tap (`CI-B` item 1).
-                        if let spatial { leaf.tapLocation = leaf.point(point, in: spatial) }
-                    } else if taps < count {
-                        leaf.awaitingStamp = true
-                    } else {
-                        fail(leaf)
-                    }
-                case .longPress:
-                    if !leaf.ready { fail(leaf) }
-                case .drag(_, let space, _):
-                    // A change still withheld at the release is never
-                    // reported: a drag that did not activate during the press
-                    // is cancelled with no callback (`IX-D` item 3, MetalUI's
-                    // choice for the corner `X4` leaves unmeasured).
-                    leaf.pendingChange = nil
-                    if !leaf.started {
-                        fail(leaf)
-                    } else {
-                        leaf.endValue = DragGesture.Value(startLocation: leaf.point(leaf.pressPoint, in: space),
-                                                          location: leaf.point(point, in: space),
-                                                          modifiers: modifiers, clickCount: leaf.pressClickCount)
-                        leaf.ready = true
-                    }
-                case .draggable, .windowDrag:
-                    fail(leaf)
-                case .magnify, .rotate:
-                    break
-                }
-            }
+        for leaf in leaves where leaf.status == .possible && !leaf.isGated {
+            applyRelease(leaf, at: point, clickCount: clickCount, modifiers: modifiers, click: click, time: time)
         }
         return resolve()
+    }
+
+    private mutating func applyRelease(_ leaf: ArenaLeaf, at point: Point<Pixels>, clickCount: Int,
+                                       modifiers: Modifiers,
+                                       click: (handler: @MainActor () -> Void, modifiers: Modifiers)?,
+                                       time: Double) {
+        let firstEvent = leaf.awaitsFirstEvent
+        if firstEvent {
+            leaf.awaitsFirstEvent = false
+            leaf.pressPoint = point
+            leaf.samples = []
+        }
+        switch leaf.recognizer {
+        case .click:
+            if let click { leaf.click = click; leaf.ready = true } else { fail(leaf) }
+        case .gesture(let g):
+            switch g.kind {
+            case .tap(let count, let spatial):
+                guard !leaf.ready else { return }
+                if Self.distance(point, leaf.pressPoint) >= tapSlop || !leaf.region.contains(point) {
+                    fail(leaf)
+                    return
+                }
+                let taps = clickCount - baseClickCount + 1
+                if taps == count {
+                    leaf.ready = true
+                    // The release that ends the tap (`CI-B` item 1).
+                    if let spatial { leaf.tapLocation = leaf.point(point, in: spatial) }
+                } else if taps < count {
+                    leaf.awaitingStamp = true
+                } else {
+                    fail(leaf)
+                }
+            case .longPress:
+                if !leaf.ready { fail(leaf) }
+            case .drag(let minimum, let space, _):
+                // A change still withheld at the release is never
+                // reported: a drag that did not activate during the press
+                // is cancelled with no callback (`IX-D` item 3, MetalUI's
+                // choice for the corner `X4` leaves unmeasured).
+                leaf.pendingChange = nil
+                leaf.sample(leaf.point(point, in: space), at: time)
+                if firstEvent && minimum <= 0 {
+                    // The release was the drag's first event after a gate: it ends with no change before it
+                    // (probe `S4`).
+                    leaf.started = true
+                    leaf.endOnRelease = true
+                }
+                if !leaf.started {
+                    fail(leaf)
+                } else {
+                    leaf.endValue = leaf.dragValue(in: space, at: point, modifiers: modifiers, time: time)
+                    leaf.ready = true
+                }
+            case .draggable, .windowDrag:
+                fail(leaf)
+            case .magnify, .rotate:
+                break
+            }
+        }
     }
 
     /// Whether `event` — a `.magnify` or `.rotate` — is of a pinch kind this
@@ -1030,7 +1523,8 @@ struct GestureArena {
     /// A display-link tick at `time`: stamps what is waiting for one, then
     /// expires a tap sequence and matures a long press (`IX-C` items 2–4).
     mutating func tick(_ time: Double) -> [GestureCallback] {
-        for leaf in leaves where leaf.status == .possible {
+        lastTime = max(lastTime, time)
+        for leaf in leaves where leaf.status == .possible && !leaf.isGated {
             guard case .gesture(let g) = leaf.recognizer else { continue }
             if leaf.awaitingStamp {
                 leaf.stamp = time
@@ -1075,6 +1569,8 @@ struct GestureArena {
             if let callback = cancelCallback(leaf) { out.append(callback) }
             if leaf.activated || leaf.owesFinish { fail(leaf) }
         }
+        // A composite that failed or is dropped owes its resets too.
+        settleComposites(flushing: false, dropping: includingReady)
         // The finish hooks `fail` queued are owed here: the arena is about to be dropped and nothing resolves
         // again (`GS-C`). The other queued callbacks keep their old fate.
         for index in finishIndices { out.append(callbacks[index]) }
@@ -1137,11 +1633,84 @@ struct GestureArena {
         var changed = true
         while changed {
             changed = cancelBehindEndedMembers()
+            changed = openGates() || changed
             for root in simultaneousRoots { changed = visit(root, ahead: []) || changed }
             changed = visit(exclusiveRoot, ahead: []) || changed
         }
+        settleComposites(flushing: true, dropping: false)
+        currentEvent = nil
         defer { callbacks = []; finishIndices = [] }
         return callbacks
+    }
+
+    /// Releases the second member of every sequence whose first has ended (`GE-B`): its leaves start afresh from
+    /// the pointer, and the event being resolved — a release that ended a tap — is replayed to them as their first
+    /// (probe `S7`). Returns whether any gate opened.
+    private mutating func openGates() -> Bool {
+        var opened = false
+        for node in sequences where !node.gateOpened {
+            guard case .sequence(let first, let second) = node.kind, first.status == .ended else { continue }
+            node.gateOpened = true
+            opened = true
+            let fresh = second.leaves.filter { $0.status == .possible }
+            for leaf in fresh { rebase(leaf) }
+            switch currentEvent {
+            case .move(let point, let modifiers, let time)?:
+                for leaf in fresh where leaf.status == .possible && !leaf.isGated {
+                    applyMove(leaf, to: point, modifiers: modifiers, time: time)
+                }
+            case .release(let point, let count, let modifiers, let click, let time)?:
+                for leaf in fresh where leaf.status == .possible && !leaf.isGated {
+                    applyRelease(leaf, at: point, clickCount: count, modifiers: modifiers, click: click, time: time)
+                }
+            case nil:
+                break
+            }
+        }
+        return opened
+    }
+
+    /// Starts a second member's recognition from the pointer where it is now.
+    private func rebase(_ leaf: ArenaLeaf) {
+        guard case .gesture(let g) = leaf.recognizer else { return }
+        leaf.pressPoint = lastPoint
+        switch g.kind {
+        case .longPress:
+            leaf.awaitingStamp = true
+            leaf.stamp = nil
+            leaf.owesPressing = isPressing
+        case .tap:
+            leaf.awaitingStamp = false
+            leaf.stamp = nil
+        case .drag:
+            leaf.awaitsFirstEvent = true
+            leaf.samples = []
+        default:
+            break
+        }
+    }
+
+    /// Hands each composite node what it owes (`GE-C`): once an event's leaf callbacks are queued, a flush so it
+    /// reports its latest value once; and, for a node that ended, failed or (with `dropping`) is being dropped,
+    /// its updating resets, its `ended` if it ended, and its state reset — in that order, so `onEnded` reads a
+    /// reset state (`GS-C`).
+    private mutating func settleComposites(flushing: Bool, dropping: Bool) {
+        for node in composites where !node.settled {
+            guard let hooks = node.hooks, let owner = node.owner else { continue }
+            if flushing && !callbacks.isEmpty, let flush = hooks.flush {
+                callbacks.append(.gesture(owner: owner, run: flush))
+            }
+            let status = node.status
+            guard status != .possible || dropping else { continue }
+            node.settled = true
+            var run: [@MainActor () -> Void] = hooks.finishes
+            if status == .ended, let ended = hooks.ended { run.append(ended) }
+            if let reset = hooks.reset { run.append(reset) }
+            for body in run {
+                if status != .ended { finishIndices.append(callbacks.count) }
+                callbacks.append(.gesture(owner: owner, run: body))
+            }
+        }
     }
 
     /// Visits `node`'s leaves, each with the exclusive members ahead of it;
@@ -1149,7 +1718,7 @@ struct GestureArena {
     private mutating func visit(_ node: ArenaNode, ahead: [ArenaNode]) -> Bool {
         switch node.kind {
         case .leaf(let leaf):
-            guard leaf.status == .possible, !isBlocked(leaf, ahead: ahead) else { return false }
+            guard leaf.status == .possible, !leaf.isGated, !isBlocked(leaf, ahead: ahead) else { return false }
             return act(leaf)
         case .exclusive(let children):
             var changed = false
@@ -1160,6 +1729,10 @@ struct GestureArena {
         case .simultaneous(let children):
             var changed = false
             for child in children { changed = visit(child, ahead: ahead) || changed }
+            return changed
+        case .sequence(let first, let second):
+            var changed = visit(first, ahead: ahead)
+            if first.status == .ended { changed = visit(second, ahead: ahead) || changed }
             return changed
         }
     }
@@ -1208,7 +1781,7 @@ struct GestureArena {
                     callbacks.append(.gesture(owner: leaf.owner, run: { callback(true) }))
                 }
             case .drag:
-                guard leaf.activated, let value = leaf.endValue else {
+                guard leaf.activated || leaf.endOnRelease, let value = leaf.endValue else {
                     fail(leaf)
                     return true
                 }
@@ -1363,6 +1936,11 @@ struct GestureArena {
                 children.forEach(walk)
             case .simultaneous(let children):
                 children.forEach(walk)
+            case .sequence(let first, let second):
+                // A failed first member fails the sequence (`GE-B`, probe `S3`, `S5`).
+                if first.status == .failed { cancelled += second.leaves.filter { $0.status == .possible } }
+                walk(first)
+                walk(second)
             }
         }
         walk(exclusiveRoot)

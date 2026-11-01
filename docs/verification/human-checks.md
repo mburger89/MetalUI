@@ -2037,3 +2037,11 @@ Name, date, machine (macOS version, display(s)), build commit:
 - [ ] **DX1.** macOS (click **Import folder…**): the sheet's confirming button reads "Use folder" (not "Open") and the line "Pick the repository folder to add." shows in the panel above the file list; **Import folder or JSON…** still reads "Open" with no message. **Observed:**
 - [ ] **DX2.** macOS (click **Export…**): the exporter's confirming button still reads "Export" (no label written above it). **Observed:**
 - [ ] **DX3.** Linux (GTK portal or zenity) and Windows (SDL demo, **Import folder…**): the dialog's title bar reads "Pick the repository folder to add." (divergence 935), and the accept button reads "Use folder" where the desktop's dialog honours SDL's accept label (it may not; note which). **Observed:**
+## GE. Gesture composition - long press then drag, flick velocity (item R3-5, record 178; decisions `docs/superpowers/2026-10-31-gesture-composition-decisions.md`; provisional letter)
+
+*An agent cannot: the headless suite stamps events itself; real pointer timing, the feel of a flick and a long-press-then-drag on a trackpad are looks.*
+
+- [ ] **GE1.** An element with `LongPressGesture(minimumDuration: 0.5).sequenced(before: DragGesture())`: hold 0.6 s without moving, then drag: it follows from where the pointer was at the first move after the hold (no jump), and a release before 0.5 s does nothing. **Observed:**
+- [ ] **GE2.** Drag an element and release it mid-flick: `value.predictedEndLocation` lands where a quarter second more of that motion would (a ball thrown to it looks natural); a drag that stops before release predicts about its own end. **Observed:**
+- [ ] **GE3.** On Linux/Windows (SDL) the same flick predicts a comparable distance for the same hand speed (SDL event times are seconds from `mui_now`). **Observed:**
+

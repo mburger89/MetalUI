@@ -2727,6 +2727,9 @@ public final class Window {
     /// them until the drop (SDL, `DN-M`) — or `nil` when none is in progress.
     var externalDropItems: [DropItem]??
 
+    /// The display link's last tick time, the stamp of a pointer event that carries none (`GE-D`).
+    private var lastGestureTime = 0.0
+
     /// Feeds a pointer event to the gesture arena and runs what it decided;
     /// returns whether a `mouseUp` ran a callback (`IX-D` item 6 — a press or a
     /// drag is never claimed, so `Window.onInput` still sees them as before).
@@ -2755,7 +2758,7 @@ public final class Window {
                 // (cancelling what reported) and a fresh one forms (`GC-C`).
                 if !arena.isPressing, let key, lastHitboxes[key.target].id == arena.targetID {
                     callbacks = arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: true,
-                                            modifiers: mouse.modifiers)
+                                            modifiers: mouse.modifiers, timestamp: mouse.timestamp ?? lastGestureTime)
                     gestureArena = arena
                     runGestureCallbacks(callbacks)
                     return false
@@ -2765,14 +2768,15 @@ public final class Window {
             gestureArena = nil
             if let key, var arena = makeGestureArena(key, at: mouse.position) {
                 callbacks += arena.press(at: mouse.position, clickCount: mouse.clickCount, continuing: false,
-                                         modifiers: mouse.modifiers)
+                                         modifiers: mouse.modifiers, timestamp: mouse.timestamp ?? lastGestureTime)
                 gestureArena = arena
             }
             runGestureCallbacks(callbacks)
             return false
         case .mouseDragged(let mouse):
             guard var arena = gestureArena else { return false }
-            let callbacks = arena.move(to: mouse.position, modifiers: mouse.modifiers)
+            let callbacks = arena.move(to: mouse.position, modifiers: mouse.modifiers,
+                                       timestamp: mouse.timestamp ?? lastGestureTime)
             gestureArena = arena
             runGestureCallbacks(callbacks)
             return false
@@ -2782,7 +2786,8 @@ public final class Window {
             }
             let callbacks = arena.release(at: mouse.position, clickCount: mouse.clickCount,
                                           modifiers: mouse.modifiers,
-                                          click: completedClick(mouse, pressedBefore: pressed))
+                                          click: completedClick(mouse, pressedBefore: pressed),
+                                          timestamp: mouse.timestamp ?? lastGestureTime)
             gestureArena = arena.isAlive ? arena : nil
             runGestureCallbacks(callbacks)
             return !callbacks.isEmpty
@@ -3057,6 +3062,7 @@ public final class Window {
     /// Advances the arena's timers to a display-link tick and runs what
     /// matured (`IX-C` item 4). Called from the display link, before the frame.
     func advanceGestures(to time: Double) {
+        lastGestureTime = time
         guard var arena = gestureArena else { return }
         let callbacks = arena.tick(time)
         gestureArena = arena.isAlive ? arena : nil

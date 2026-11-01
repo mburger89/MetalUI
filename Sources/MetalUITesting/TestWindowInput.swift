@@ -232,7 +232,7 @@ extension TestWindow {
     func mouse(_ point: Point<Pixels>, _ modifierFlags: EventModifiers, clickCount: Int = 1,
                buttonNumber: Int = 0) -> MouseEvent {
         MouseEvent(position: point, modifiers: heldModifiers.union(modifierFlags),
-                   clickCount: clickCount, buttonNumber: buttonNumber)
+                   clickCount: clickCount, buttonNumber: buttonNumber, timestamp: now)
     }
 
     /// A real pointer travels: a move to `point` when it is not already there.

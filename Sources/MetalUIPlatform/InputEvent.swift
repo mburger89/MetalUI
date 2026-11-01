@@ -63,11 +63,15 @@ public struct MouseEvent: Sendable {
     /// secondary cases of `InputEvent` carry 0 and 1 by construction on every
     /// platform; `Window` reads it only on the `other…` cases.
     public var buttonNumber: Int
+    /// When the event occurred, on `ScrollEvent.timestamp`'s clock (`NSEvent.timestamp` on AppKit, SDL's event
+    /// time), or `nil` for an event built without one (ruling `GE-D`): `Window` then uses the display link's last
+    /// tick. A drag's `time`, `velocity` and `predictedEnd*` are derived from it.
+    public var timestamp: Double?
     /// A mouse event at `position`.
     public init(position: Point<Pixels>, modifiers: Modifiers = [], clickCount: Int = 1,
-                buttonNumber: Int = 0) {
+                buttonNumber: Int = 0, timestamp: Double? = nil) {
         self.position = position; self.modifiers = modifiers; self.clickCount = clickCount
-        self.buttonNumber = buttonNumber
+        self.buttonNumber = buttonNumber; self.timestamp = timestamp
     }
 }
 
