@@ -461,6 +461,14 @@ MSL, DXIL, reflection JSON, marker), `anEnvGatedRunCompilesAFixture` with `METAL
 a dependency **by URL** reaching the plugin (BS3), Windows lookup and DLLs (BS4), a
 moved shipped app finding its directory (GA3).
 
+**Register slots must survive the compiler (`UB-`, XP-G36).** SDL_GPU binds uniform buffers, samplers and storage by *count* from slot 0, and
+the HLSL compiler drops a resource the shader never reads. A source declaring `b0`..`b3` (`Draw`, `Shade`, `Clip`, `Zebra`) that never reads `Draw`
+reflects three uniform buffers, and the pushes meant for slots 1..3 land on 0..2, silently. The compile tool, the build plugin (also on its
+checked-in-blobs path) and the run-time compile now fail with `<file>: the source declares 4 uniform buffer(s) in space3 (b0 `Draw`, ...) but the
+compiled shader reflects 3`: read every declared resource (even trivially) or delete the unread one and renumber so the registers stay contiguous
+from 0. Samplers (`s`), textures and read-only storage (`t`) and read-write storage (`u`) are checked the same way. A comment containing
+`metalui-allow-register-mismatch` opts one source out.
+
 ### 4b. Compiling HLSL compute shaders in the running app (optional) — Linux aarch64 and macOS measured, Windows unmeasured
 
 `SDLGPUShaderCompiler` (`MetalUISDLGPU`, item XP-G25, rulings `RC-B`...`RC-V`, record 151) turns HLSL text into a compute
