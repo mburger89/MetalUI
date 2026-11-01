@@ -143,7 +143,7 @@ public final class Window {
         if glyphAtlas.reclaimRequested { setNeedsRedraw() }
         #if DEBUG
         if glyphAtlas.droppedGlyphs > atlasDropsLogged, atlasDropsLogged == 0 {
-            fputs("MetalUI: the glyph atlas is at its \(glyphAtlas.maximumExtent)x\(glyphAtlas.maximumExtent) cap and a glyph was dropped (GlyphAtlas.droppedGlyphs)\n", stderr)
+            FileHandle.standardError.write(Data("MetalUI: the glyph atlas is at its \(glyphAtlas.maximumExtent)x\(glyphAtlas.maximumExtent) cap and a glyph was dropped (GlyphAtlas.droppedGlyphs)\n".utf8))
         }
         #endif
         atlasDropsLogged = glyphAtlas.droppedGlyphs
