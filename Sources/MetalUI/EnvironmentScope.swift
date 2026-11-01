@@ -316,6 +316,10 @@ extension EnvironmentScope: Element where Content: Element {
     public typealias LayoutState = EnvironmentScopeElementState<Content.LayoutState>
     public typealias PrepaintState = Content.PrepaintState
 
+    /// The content's name, so a scope entered as an element (erased in an `AnyElement`, say) is named as its
+    /// content is (`ES-K`): without it `Element`'s default `nil` hid the name from `GlobalElementID.child`.
+    public var elementID: ElementID? { content.elementID }
+
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, EnvironmentScopeElementState<Content.LayoutState>) {
         let values = pass.frame.scopedValues(applying: write)
