@@ -166,7 +166,7 @@ private func bounds(_ g: PathGeometry) -> (minX: Double, minY: Double, maxX: Dou
 /// **PG-A 3** (TR2, SEPARATING ARM). Fractions are arc length, not element
 /// count: on a 10-long line then a 90-long one, 0…0.5 ends 40 into the second
 /// (10, 40) — per-element would end at its midpoint. Mutation **PGM3**:
-/// fractions applied per segment (`to × segmentLength`, restarted each).
+/// each segment measured from 0 (the running offset not advanced).
 @Test func fractionsAreArcLengthNotPerElement() {
     var g = PathGeometry()
     g.move(to: p(0, 0)); g.addLine(to: p(10, 0)); g.addLine(to: p(10, 90))
@@ -254,8 +254,10 @@ private func bounds(_ g: PathGeometry) -> (minX: Double, minY: Double, maxX: Dou
 /// **PG-A 9** (`GX-B`). Bit-identical everywhere: the trimmed quarter circle's
 /// end point and its length are pinned to the bit, as `sinCos` is, so a
 /// libm call or a fused multiply-add anywhere in the measure reddens this on
-/// the platform that differs. Mutation **PGM9**: `.squareRoot()` of the chord
-/// length replaced by an `x * x.squareRoot().reciprocal`-style spelling.
+/// the platform that differs. Mutations **PGM2** and **PGM4** redden it; a sub-ulp
+/// reassociation (PGM9: the speed's sqrt of a halved argument times √2; PGM9b:
+/// Simpson's `/ 6 * h` order) **survives** — the pin catches algorithmic drift,
+/// while bit-identity itself rests on the target importing nothing (no libm, no FMA).
 @Test func trimmedPathIsBitIdenticalEverywhere() throws {
     let g = quarterCircle()
     let end = try #require(g.trimmed(from: 0, to: 0.37).currentPoint)

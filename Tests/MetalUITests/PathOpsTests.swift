@@ -216,7 +216,7 @@ private let linear1 = Animation.linear(duration: 1)
 /// ends at (100, 100); an `addEllipse`, `addRoundedRect` and `addPath` take it
 /// too, and the arc's connecting line is drawn from the untransformed current
 /// point. Mutation **PGM21**: the transform parameter ignored by one method
-/// (each of the six reddens its own line).
+/// (each of the eight mutated methods reddens its own expectation line).
 @Test @MainActor func addMethodsTakeATransform() {
     var rect = Path()
     rect.addRect(gxRect(0, 0, 10, 20), transform: Transform2D(translationX: 1, y: 2))

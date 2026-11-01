@@ -21,7 +21,7 @@ private let metalUISkipReason: Comment =
 /// styled `fill`/`stroke`/`strokeBorder` on a shape and on a `ShapeView`,
 /// `.shadow` on both vocabularies, `ColorToken.shadow`, `ShapeGeometry.path`,
 /// and an exhaustive `switch` over `LayoutModifier` naming `.shadow`.
-/// **Negative**: `trimmedPath(from:to:)` is not offered (spec §9).
+/// **Negative**: `Path.subtracting(_:)` (boolean path operations) is not offered (spec §9; `trimmedPath` was built by `PG-A`).
 ///
 /// Mutation once red (**MG3.1**): `StrokeStyle.init` made `internal`.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), metalUISkipReason))
@@ -95,31 +95,31 @@ func thePathAndShadowSpellingsCompileFromAPlainImport() throws {
         }
         """, importing: "MetalUI")
     let trimmed = try typecheckFile("""
-        let p = Path().trimmedPath(from: 0, to: 0.5)
+        let p = Path().subtracting(Path())
         """, importing: "MetalUI")
 
     print("""
         GX-C spellings: succeeded=\(spellings.succeeded) messages=[\(spellings.messages)]; \
-        trimmedPath succeeded=\(trimmed.succeeded) messages=[\(trimmed.messages)]
+        subtracting succeeded=\(trimmed.succeeded) messages=[\(trimmed.messages)]
         """)
 
     try #require(spellings.succeeded && !trimmed.succeeded,
                  """
-                 the spellings must compile and trimmedPath must not, or this \
+                 the spellings must compile and subtracting must not, or this \
                  guard cannot fail:
                  spellings:
                  \(spellings.output)
-                 trimmedPath:
+                 subtracting:
                  \(trimmed.output)
                  """)
-    #expect(trimmed.messages.contains("trimmedPath"), "refused FOR trimmedPath:\n\(trimmed.output)")
+    #expect(trimmed.messages.contains("subtracting"), "refused FOR subtracting:\n\(trimmed.output)")
 }
 
 /// **G3.2** (`GX-D`). An outside shape can write SwiftUI's `path(in:)` alone
 /// (no `geometry(in:)`) and sit in a stack, take `.fill`/`.stroke(style:)`,
 /// and — through a generic helper — every `Shape` answers `path(in:)`, a
-/// built-in included. **Negative**: `Path.applying(_:)` is not offered
-/// (spec §9: `transform:` parameters are deferred).
+/// built-in included. **Negative**: `Path.forEach(_:)` (element enumeration) is not offered (`Path.applying(_:)` was built by `PG-E`)
+/// (carried by `PG-` with SVG strings).
 ///
 /// Mutation once red (**MG3.2**): `path(in:)` removed from the protocol and
 /// its default (SwiftUI's requirement absent).
@@ -156,24 +156,24 @@ func anOutsideShapeCanWritePathInAlone() throws {
         }
         """, importing: "MetalUI")
     let applying = try typecheckFile("""
-        let p = Path().applying(0)
+        let p = Path().forEach { _ in }
         """, importing: "MetalUI")
 
     print("""
         GX-D path(in:): succeeded=\(positive.succeeded) messages=[\(positive.messages)]; \
-        applying succeeded=\(applying.succeeded) messages=[\(applying.messages)]
+        forEach succeeded=\(applying.succeeded) messages=[\(applying.messages)]
         """)
 
     try #require(positive.succeeded && !applying.succeeded,
                  """
-                 the positive must compile and applying must not, or this guard \
+                 the positive must compile and forEach must not, or this guard \
                  cannot fail:
                  positive:
                  \(positive.output)
-                 applying:
+                 forEach:
                  \(applying.output)
                  """)
-    #expect(applying.messages.contains("applying"), "refused FOR applying:\n\(applying.output)")
+    #expect(applying.messages.contains("forEach"), "refused FOR forEach:\n\(applying.output)")
 }
 
 /// **G3.3** (`GX-Q`). A `Theme` written before the shadow token existed —
