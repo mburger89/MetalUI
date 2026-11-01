@@ -75,13 +75,13 @@ func ixBounds(_ r: MUIRect) -> Bounds<Pixels> {
 /// padding) reddens it.
 @Test @MainActor func plainAndBorderlessButtonsAreTheirLabelsSize() throws {
     let text = try controlTextSize("Go")
-    for style in [ButtonStyle.plain, .borderless] {
+    for style: any PrimitiveButtonStyle in [.plain, .borderless] {
         let frame = try controlRender(controlRoot { Button("Go") {}.buttonStyle(style) })
         let button = try controlBounds(frame, controlID([0, 0]))
         #expect(button.size == text, "\(style): the label's size, \(button.size) vs \(text)")
         #expect(frame.finalizedScene().rects.isEmpty, "\(style) draws no chrome rect")
     }
-    for style in [ButtonStyle.bordered, .automatic] {
+    for style: any PrimitiveButtonStyle in [.bordered, .automatic] {
         let frame = try controlRender(controlRoot { Button("Go") {}.buttonStyle(style) })
         let button = try controlBounds(frame, controlID([0, 0]))
         #expect(button.size.width.value == text.width.value + 24, "\(style): textW + 24")

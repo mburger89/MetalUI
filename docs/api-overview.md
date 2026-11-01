@@ -177,9 +177,12 @@ vocabulary: [`migration.md`](migration.md).
 
 ## Controls — A
 
-`Button` (`ButtonRole`, `ButtonStyle`, `.buttonStyle`, `.keyboardShortcut`;
-76, 80), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
-(81, 82), `List(_:selection:rowHeight:row:)` and the content-sized
+`Button` (`ButtonRole`, `.keyboardShortcut`; 76, 80), the open style protocols
+`ButtonStyle`/`PrimitiveButtonStyle`/`ToggleStyle` with their configurations, `StyleLabel` (M) and the
+built-ins (`.automatic`, `.bordered`, `.borderedProminent`, `.borderless`, `.plain`, `.link`, `.glass`, `.glassProminent`;
+`.automatic`, `.checkbox`, `.switch`, `.button`), applied by `.buttonStyle(_:)`/`.toggleStyle(_:)` through the environment
+(`BY-A`–`BY-K`, 885), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
+(81, 82; `.inline` is the radio group, `BY-J`), `List(_:selection:rowHeight:row:)` and the content-sized
 `List(_:selection:estimatedRowHeight:rowContent:)` (M; `VL-A`), `TextField` and
 `TextEditor` (the `Binding<String>` initialisers A; the controlled
 initialisers, submit, undo and paging M). Each composes in both vocabularies
@@ -1051,7 +1054,7 @@ content and on `StyledElement` (A/D; **no `isEnabled:`, the SDK has none**), `Gl
 `tint(_:)`, `interactive(_:)`; `Equatable`, `Sendable`, not `Hashable`, no initialiser), `GlassEffectContainer(spacing: Pixels?, content:)`
 (shapes closer than `spacing / 2` merge by a smooth minimum, four members to a blob, 826), `glassEffectID(_:in:)`,
 `glassEffectUnion(id:namespace:)`, `GlassEffectTransition` with `glassEffectTransition(_:)` (an opacity transition, no morph, 828),
-`@Namespace`/`Namespace.ID` and `ButtonStyle.glass`/`.glassProminent`. A glass is one backdrop record behind its content on both
+`@Namespace`/`Namespace.ID` and `.buttonStyle(.glass)`/`.glassProminent` (`GlassButtonStyle`, `GlassProminentButtonStyle`). A glass is one backdrop record behind its content on both
 renderers: the blurred backdrop under the fitted tint, a lens read from a sharp copy of the backdrop at the edge and a specular rim (the
 look's lens and rim are MetalUI's own, 825); a `Path` shape, a CPU-rasterized `.shadow`/`.blur`/`.compositingGroup()` and a renderer that
 cannot blur draw the flat tint (829), Reduce Transparency an opaque grey, `.interactive()` lifts the tint on a pressed control only (827). The

@@ -16,7 +16,7 @@ private let skipReason: Comment =
 /// three `keyboardShortcut` overloads, a `KeyEquivalent` literal and every named
 /// key, `KeyboardShortcut`'s two statics and `EventModifiers`. **Three negative
 /// arms**, each its own fixture so a failure names which one leaked:
-/// `.buttonStyle(.link)` (not offered, `IX-E` item 2), a `keyboardShortcut` on
+/// `.buttonStyle(.bogus)` (no such style; `.link` is offered since `BY-G`), a `keyboardShortcut` on
 /// a `Text` (offered on `Button` only, `IX-F` item 1) and
 /// `EventModifiers.function` (narrower than SwiftUI's, `IX-F` item 1).
 ///
@@ -27,7 +27,8 @@ func theButtonSpellingsCompileFromAPlainImport() throws {
     let positive = try typecheckFile("""
         @MainActor public func spellings() {
             let roles: [ButtonRole?] = [.destructive, .cancel, .confirm, .close, nil]
-            let styles: [ButtonStyle] = [.automatic, .bordered, .borderless, .plain]
+            let styles: [any PrimitiveButtonStyle] = [.automatic, .bordered, .borderless, .plain,
+                                                       .borderedProminent, .link]
             let keys: [KeyEquivalent] = [.return, .escape, .space, .tab, .delete, .deleteForward, .upArrow,
                                          .downArrow, .leftArrow, .rightArrow, .home, .end, .pageUp,
                                          .pageDown, .clear, "k", KeyEquivalent("j")]
@@ -51,7 +52,7 @@ func theButtonSpellingsCompileFromAPlainImport() throws {
         """, importing: "MetalUI")
     print("BUTTON GUARD G2.1 positive: succeeded=\(positive.succeeded)\n\(positive.messages)")
     let link = try typecheckFile("""
-        @MainActor public func link() { _ = Button("Go") { }.buttonStyle(.link) }
+        @MainActor public func link() { _ = Button("Go") { }.buttonStyle(.bogus) }
         """, importing: "MetalUI")
     let onText = try typecheckFile("""
         @MainActor public func onText() { _ = Text("x").keyboardShortcut("k") }
@@ -71,7 +72,7 @@ func theButtonSpellingsCompileFromAPlainImport() throws {
                  \(function.output)
                  """)
     #expect(positive.succeeded, "every button spelling must compile from a plain import:\n\(positive.output)")
-    #expect(!link.succeeded, ".buttonStyle(.link) is not offered:\n\(link.output)")
+    #expect(!link.succeeded, ".buttonStyle(.bogus) names no style:\n\(link.output)")
     #expect(!onText.succeeded, "keyboardShortcut is offered on Button only:\n\(onText.output)")
     #expect(!function.succeeded, "EventModifiers has no .function:\n\(function.output)")
 }

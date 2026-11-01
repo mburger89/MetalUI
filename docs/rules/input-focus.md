@@ -12,6 +12,13 @@ declines, the `.disabled` gate in `Frame.registerHandlers`. Accents and focus
 rings read `controlActiveState` (`ControlLook.swift`). `Button` has `role:`,
 `.buttonStyle` (`.plain`/`.borderless` drop chrome by value), a pressed wash
 and `.keyboardShortcut` (fires even when hidden; gated by `isEnabled` only).
+**Styles are open protocols applied through the environment** (`BY-`, record 174): `ButtonStyle`,
+`PrimitiveButtonStyle` (the style owns the click via `trigger()`, `Button` registers no `onClick`) and `ToggleStyle`
+are built at layout into one erased `Box` that keeps the control's handlers, focus ring and disabled scope; a custom
+button's `isPressed` is read from `Frame.pointerOwner` (the previous frame's hitboxes) and corrected by one frame; the
+built-ins are `PrimitiveButtonStyle`/`ToggleStyle` structs `Button`/`Toggle` draw themselves, a new built-in look goes in
+`ButtonLook`/`ToggleLook`, and a new style writer uses a **custom environment key** (`setCustom`, never a new
+`EnvironmentValues` field).
 
 **`ScrollViewReader`/`scrollTo`** (`DD-G`…`DD-K`): one identity slot; a proxy
 reaches only its own subtree; keys compared by value (`AnyHashable`); resolved

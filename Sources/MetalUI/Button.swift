@@ -36,7 +36,8 @@ import MetalUIPlatform
 /// 4's "its label's font does not"; probe F8, Z3).
 ///
 /// **Plan task 12 part 1, lane 2** (`IX-E`–`IX-H`): a role (stored, read by
-/// nothing), `.buttonStyle(_:)` (`.plain`/`.borderless` are the label alone),
+/// nothing), `.buttonStyle(_:)` (`.plain`/`.borderless` are the label alone; any ``ButtonStyle`` or
+/// ``PrimitiveButtonStyle``, inherited through the environment, `BY-A`),
 /// a pressed look (`isActive && isHovered`), `.keyboardShortcut`, the disabled
 /// look (one 0.5 opacity scope) and a 2-point focus ring in the key accent. No
 /// hover look.
@@ -50,9 +51,12 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
     public var handlers: Handlers = Handlers()
     var action: @MainActor () -> Void
     var box: Box<Pair<Label, Box<EmptyGroup>>>
-    /// The role (`IX-E` item 1): stored and read by nothing.
+    /// The label, which a custom style takes into its body (`BY-A`).
+    var label: Label { box.content.first }
+    /// The role (`IX-E` item 1): stored, and handed to a style's configuration.
     private(set) var role: ButtonRole?
-    private var buttonStyleValue: ButtonStyle = .automatic
+    /// This button's own style (`.buttonStyle(_:)` directly on a `Button`), nearer than the environment's.
+    var ownStyle: ResolvedButtonStyle?
     var shortcut: KeyboardShortcut?
 
     /// A button that runs `action` when pressed (a click, Space or Return when
@@ -88,11 +92,67 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
     static var chromeCornerRadius: Pixels { Pixels(5) }
     static var chromeBorder: BorderStyle { BorderStyle(.separator, width: Pixels(1)) }
 
+    /// What `requestLayout` hands the later phases: the built-in chrome's box layout, or a custom style's erased
+    /// body (`BY-A`).
+    public struct Layout {
+        enum Inner {
+            /// The built-in chrome, with the environment its label is drawn in (`BY-G`: white or accent), if any.
+            case chrome(Box<Pair<Label, Box<EmptyGroup>>>.Layout, EnvironmentValues?, ButtonLook)
+            /// A custom style's body: the erased element, its node, whether `isPressed` was true at layout, and
+            /// whether the style reads `isPressed` at all.
+            case custom(AnyElement, LayoutNodeID, pressed: Bool, readsPressed: Bool)
+        }
+        var inner: Inner
+    }
+
+    /// What `prepaint` hands `paint`.
+    public struct PrepaintState {
+        enum Inner {
+            case chrome(Pair<Label, Box<EmptyGroup>>.Prepaint)
+            case custom
+        }
+        var inner: Inner
+    }
+
+    /// The handlers a button registers: the caller's, with the click, the activation keys and the shortcut the
+    /// button adds (`DD-R` item 2, `IX-F`). A primitive style registers its own click (`BY-B`).
+    func composedHandlers(primitive: Bool) -> Handlers {
+        var composed = handlers
+        let activate = composed.onClick ?? action
+        if !primitive { composed.onClick = activate }
+        composed.isFocusable = true
+        let callerKey = handlers.onKey
+        composed.onKey = { event in
+            if let callerKey, callerKey(event) { return true }
+            guard ControlKeys.activatesButton(event) else { return false }
+            activate()
+            return true
+        }
+        // The shortcut runs whatever a click runs (`IX-F`); it rides the focus
+        // registry, behind the one disabled gate.
+        composed.keyboardShortcut = shortcut.map { ShortcutTarget($0, action: activate) }
+        return composed
+    }
+
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Box<Pair<Label, Box<EmptyGroup>>>.Layout) {
+        -> (LayoutNodeID, Layout) {
         let environment = pass.environment
-        let bordered = buttonStyleValue.isBordered
-        let glassStyle = buttonStyleValue.glass
+        let resolved = ownStyle ?? environment.buttonStyle
+        switch resolved.storage {
+        case .look(let look):
+            return requestChromeLayout(id, look: look, environment: environment, pass: &pass)
+        case .button(let custom):
+            return requestCustomLayout(id, style: custom, environment: environment, pass: &pass)
+        case .primitive(let custom):
+            return requestCustomLayout(id, primitive: custom, environment: environment, pass: &pass)
+        }
+    }
+
+    private mutating func requestChromeLayout(_ id: GlobalElementID, look: ButtonLook,
+                                              environment: EnvironmentValues, pass: inout LayoutPass)
+        -> (LayoutNodeID, Layout) {
+        let bordered = look.isBordered
+        let glassStyle = look.glass
         let metrics = Self.metrics(environment.controlSize)
         var chrome = style
         var decorated = decoration
@@ -107,8 +167,11 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
             // strut 1 in every style. A chrome field a caller has not replaced
             // is dropped; a caller's own fill or border survives.
             strut.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(0))))
-            if decorated.background == Color(Self.chromeBackground) { decorated.background = nil }
-            if decorated.cornerRadius == Self.chromeCornerRadius { decorated.cornerRadius = Pixels(0) }
+            dropChrome(&decorated)
+        }
+        if look == .borderedProminent {
+            // The accent fill and no border (`BY-G`); a caller's own fill survives.
+            if decorated.background == Color(Self.chromeBackground) { decorated.background = Color(controlAccent(environment)) }
             if decorated.border == Self.chromeBorder { decorated.border = nil }
         }
         if let glassStyle {
@@ -124,56 +187,123 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
         box.style = chrome
         box.decoration = decorated
         box.content.second = Box(style: strut)
-        return box.requestLayout(id, pass: &pass)
+        // The label's forced colour (`.borderedProminent` white, `.link` accent), unless a Text names its own.
+        var labelEnvironment: EnvironmentValues?
+        if let color = look.labelColor {
+            var values = pass.frame.environmentSnapshot()
+            values.foregroundStyle = color
+            labelEnvironment = values
+        }
+        let (node, layout) = Self.enteringLabel(labelEnvironment, pass.frame) { box.requestLayout(id, pass: &pass) }
+        return (node, Layout(inner: .chrome(layout, labelEnvironment, look)))
+    }
+
+    /// Drops the chrome fields a caller has not replaced (`IX-E` item 2).
+    private func dropChrome(_ decorated: inout Decoration) {
+        if decorated.background == Color(Self.chromeBackground) { decorated.background = nil }
+        if decorated.cornerRadius == Self.chromeCornerRadius { decorated.cornerRadius = Pixels(0) }
+        if decorated.border == Self.chromeBorder { decorated.border = nil }
+    }
+
+    static func enteringLabel<R>(_ values: EnvironmentValues?, _ frame: Frame, _ body: () -> R) -> R {
+        guard let values else { return body() }
+        return frame.withEnvironment(values, body)
+    }
+
+    private mutating func requestCustomLayout<S: ButtonStyle>(_ id: GlobalElementID, style custom: S,
+                                                             environment: EnvironmentValues,
+                                                             pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        let pressed = pass.frame.activeElement == id && pass.frame.pointerOwner == id   // `BY-D`
+        StateBinder.bind(custom, in: pass.frame, id: id)   // `@State`/`@Environment` on the style struct (`BY-K`)
+        let configuration = ButtonStyleConfiguration(role: role, label: StyleLabel(label), isPressed: pressed)
+        return layOutCustom(id, body: custom.makeBody(configuration: configuration), primitive: false,
+                            pressed: pressed, environment: environment, pass: &pass)
+    }
+
+    private mutating func requestCustomLayout<S: PrimitiveButtonStyle>(_ id: GlobalElementID, primitive custom: S,
+                                                                      environment: EnvironmentValues,
+                                                                      pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        let trigger = handlers.onClick ?? action
+        StateBinder.bind(custom, in: pass.frame, id: id)   // `BY-K`
+        let configuration = PrimitiveButtonStyleConfiguration(role: role, label: StyleLabel(label), action: trigger)
+        return layOutCustom(id, body: custom.makeBody(configuration: configuration), primitive: true,
+                            pressed: false, environment: environment, pass: &pass)
+    }
+
+    /// The custom path (`BY-A`): the style's body inside one `Box` that carries the button's handlers, focus ring
+    /// and decoration, erased and laid out under the button's own id.
+    private func layOutCustom<Body: ElementGroup>(_ id: GlobalElementID, body: Body, primitive: Bool, pressed: Bool,
+                                                  environment: EnvironmentValues, pass: inout LayoutPass)
+        -> (LayoutNodeID, Layout) {
+        var decorated = decoration
+        dropChrome(&decorated)
+        if decorated.focusBorder == nil { decorated.focusBorder = controlRing(environment) }
+        var outer = Box(style: style, decoration: decorated, content: body)
+        outer.handlers = composedHandlers(primitive: primitive)
+        var element = AnyElement(outer)
+        let node = element.requestLayout(id, pass: &pass)
+        return (node, Layout(inner: .custom(element, node, pressed: pressed, readsPressed: !primitive)))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<Pair<Label, Box<EmptyGroup>>>.Layout,
-                                  pass: inout PrepaintPass) -> Pair<Label, Box<EmptyGroup>>.Prepaint {
-        var composed = handlers
-        let activate = composed.onClick ?? action
-        composed.onClick = activate
-        composed.isFocusable = true
-        let callerKey = handlers.onKey
-        composed.onKey = { event in
-            if let callerKey, callerKey(event) { return true }
-            guard ControlKeys.activatesButton(event) else { return false }
-            activate()
-            return true
+                                  layout: inout Layout, pass: inout PrepaintPass) -> PrepaintState {
+        switch layout.inner {
+        case .chrome(var chromeLayout, let labelEnvironment, let look):
+            box.handlers = composedHandlers(primitive: false)
+            let result = Self.enteringLabel(labelEnvironment, pass.frame) {
+                box.prepaint(id, bounds: bounds, layout: &chromeLayout, pass: &pass)
+            }
+            layout.inner = .chrome(chromeLayout, labelEnvironment, look)
+            return PrepaintState(inner: .chrome(result))
+        case .custom(var element, let node, let pressed, let readsPressed):
+            element.prepaint(id, bounds: bounds, pass: &pass)
+            layout.inner = .custom(element, node, pressed: pressed, readsPressed: readsPressed)
+            return PrepaintState(inner: .custom)
         }
-        // The shortcut runs whatever a click runs (`IX-F`); it rides the focus
-        // registry, behind the one disabled gate.
-        composed.keyboardShortcut = shortcut.map { ShortcutTarget($0, action: activate) }
-        box.handlers = composed
-        return box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<Pair<Label, Box<EmptyGroup>>>.Layout,
-                               prepaint: inout Pair<Label, Box<EmptyGroup>>.Prepaint,
+                               layout: inout Layout, prepaint: inout PrepaintState,
                                pass: inout PaintPass) {
         // Pressed is SwiftUI's rule (B0–B3): pressed and over the button —
         // `isActive && isHovered`, both paint-only (`IX-E` item 3). The looks
         // are MetalUI's (PX21/PX22 blind): a `.textPrimary` wash at 12 % over
         // the bordered chrome; the label at 60 % for `.plain`/`.borderless`.
         let pressed = pass.isActive(id) && pass.isHovered(id)
-        let bordered = buttonStyleValue.isBordered
-        // A glass button lifts its own tint while pressed (`LG-J`) and neither dims nor washes.
-        let isGlass = buttonStyleValue.isGlass
-        let radius = box.decoration.cornerRadius
-        pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
-            if pressed && !bordered && !isGlass {
-                pass.opacity(0.6) {
-                    box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        switch layout.inner {
+        case .chrome(var chromeLayout, let labelEnvironment, let look):
+            guard case .chrome(var chromePrepaint) = prepaint.inner else { return }
+            let bordered = look.isBordered
+            // A glass button lifts its own tint while pressed (`LG-J`) and neither dims nor washes.
+            let isGlass = look.isGlass
+            let radius = box.decoration.cornerRadius
+            pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
+                if pressed && !bordered && !isGlass {
+                    pass.opacity(0.6) {
+                        Self.enteringLabel(labelEnvironment, pass.frame) {
+                            box.paint(id, bounds: bounds, layout: &chromeLayout, prepaint: &chromePrepaint, pass: &pass)
+                        }
+                    }
+                } else {
+                    Self.enteringLabel(labelEnvironment, pass.frame) {
+                        box.paint(id, bounds: bounds, layout: &chromeLayout, prepaint: &chromePrepaint, pass: &pass)
+                    }
                 }
-            } else {
-                box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
-            }
-            if pressed && bordered {
-                pass.opacity(0.12) {
-                    pass.fill(bounds, color: pass.theme[.textPrimary], cornerRadii: Corners(all: radius))
+                if pressed && bordered {
+                    pass.opacity(0.12) {
+                        pass.fill(bounds, color: pass.theme[.textPrimary], cornerRadii: Corners(all: radius))
+                    }
                 }
             }
+            layout.inner = .chrome(chromeLayout, labelEnvironment, look)
+        case .custom(var element, let node, let atLayout, let readsPressed):
+            pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
+                element.paint(id, bounds: bounds, pass: &pass)
+            }
+            layout.inner = .custom(element, node, pressed: atLayout, readsPressed: readsPressed)
+            // The body read `isPressed` from the previous frame's hitboxes (`BY-D`); when paint's resolved answer
+            // differs (the layout under the pointer moved), one more frame brings the body up to date.
+            if readsPressed && pressed != atLayout { pass.requestAnotherFrame() }
         }
     }
 }
@@ -188,16 +318,22 @@ extension Button {
         self.role = role
     }
 
-    /// This button drawn in `style` — SwiftUI's `.buttonStyle(_:)` over a
-    /// closed set (`IX-E` item 2). `.plain` and `.borderless` draw the label at
-    /// its own size (BT1) and drop the chrome's fill, border and corner radius
-    /// **where they are still the chrome's own** — decided at layout, so a
-    /// caller's `.background` written before or after `.buttonStyle` survives
-    /// (a caller who writes the chrome's own `.surfaceSecondary` explicitly
-    /// cannot be told from the chrome, and loses it under `.plain`).
-    public func buttonStyle(_ style: ButtonStyle) -> Self {
+    /// This button drawn in `style` — SwiftUI's `.buttonStyle(_:)` (`IX-E` item 2, opened by `BY-A`). The nearest
+    /// writer: it outranks a style inherited through the environment. `.plain` and `.borderless` draw the label at
+    /// its own size (BT1) and drop the chrome's fill, border and corner radius **where they are still the chrome's
+    /// own** — decided at layout, so a caller's `.background` written before or after `.buttonStyle` survives (a
+    /// caller who writes the chrome's own `.surfaceSecondary` explicitly cannot be told from the chrome, and loses
+    /// it under `.plain`).
+    public func buttonStyle<S: PrimitiveButtonStyle>(_ style: S) -> Self {
         var copy = self
-        copy.buttonStyleValue = style
+        copy.ownStyle = ResolvedButtonStyle(style)
+        return copy
+    }
+
+    /// `buttonStyle(_:)` for a custom ``ButtonStyle``.
+    public func buttonStyle<S: ButtonStyle>(_ style: S) -> Self {
+        var copy = self
+        copy.ownStyle = ResolvedButtonStyle(style)
         return copy
     }
 

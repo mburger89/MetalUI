@@ -89,6 +89,9 @@ private let frameChannels: [String: Channel] = [
     "namedSpaceSnapshots": .prepaintOnly, "accessibilitySuppressionExceptions": .prepaintOnly,
     "focusRegistry": .prepaintOnly, "focusedElement": .keyed, "focusedElementProducedThisFrame": .prepaintOnly,
     "hoveredHitbox": .keyed, "stackAxes": .buildOnly,
+    // `BY-D`: the previous frame's pointer owner, stamped by `Window` before the build; read by a custom button
+    // style's body at layout and nothing else, and a press under a retained subtree already refuses a replay (`SB-X`).
+    "pointerOwner": .keyed,
     // Layout results.
     "lowering": .buildOnly, "hiddenNodes": .buildOnly, "elementBounds": .prepaintOnly, "unlowerableFields": .buildOnly,
     // Surfaces.

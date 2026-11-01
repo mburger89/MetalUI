@@ -9,7 +9,7 @@ import MetalUIPlatform
 /// **`.automatic` is segmented** — divergence 81, narrowed by `SV-P` item 1:
 /// SwiftUI's automatic picker on macOS is a pop-up menu (PK0 = PK1 `.menu`;
 /// PA0 `AXPopUpButton`). `.menu` is offered since platform services (`SV-P`);
-/// `.inline` is not. Pinned by `aMenuPickerStyleCompiles` (which replaced
+/// `.inline` is offered since `BY-J`. Pinned by `aMenuPickerStyleCompiles` (which replaced
 /// `aMenuPickerStyleIsNotOffered`) and `theAutomaticPickerStaysSegmented`.
 public struct PickerStyle: Sendable, Hashable {
     enum Kind: Sendable, Hashable { case segmented, radioGroup, menu }
@@ -29,6 +29,10 @@ public struct PickerStyle: Sendable, Hashable {
     /// is not a `Text` is titled by its tag (divergence 128). Published as a
     /// `.popUpButton` (`SV-S`).
     public static let menu = PickerStyle(kind: .menu)
+    /// SwiftUI's `.inline` (`BY-J`): every option shown in place. On macOS SwiftUI draws it as the radio group, and
+    /// so does MetalUI — the same look as ``radioGroup``, byte for byte. The style stays a closed struct
+    /// (`PickerStyle`'s protocol is carried, `BY-J`).
+    public static let inline = PickerStyle(kind: .radioGroup)
 }
 
 /// SwiftUI's `Picker(_:selection:content:)` (ruling `DD-V`): a title and a set

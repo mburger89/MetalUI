@@ -165,11 +165,9 @@ private let formSource = """
 /// Two separating arms: (1) the same body inside `ProposalFrame { }` — a native
 /// wrapper that keeps `@ElementBuilder` (`PE-E`) — fails naming
 /// `ProposalElementGroup`; (2) `PE-R`: a style modifier is written on the
-/// control, so `Button("x") {}.padding(8).buttonStyle(.plain)` — a wrapper,
-/// then the style — fails. (Spelled `.padding(8)`, not the spec's
-/// `.padding(Edges(all: 8))`: measured before this lane, that spelling fails
-/// twice — `Edges<Int>` is not `Pixels`, then no `buttonStyle` — and the arm
-/// should fail for the one reason it is about.)
+/// control, so `Button("x") {}.padding(8).keyboardShortcut("k")` — a wrapper,
+/// then a `Button`-only modifier — fails. (Re-spelled by `BY-A`: `.buttonStyle` was this arm's modifier, but it is
+/// an environment modifier on every group now, as in SwiftUI, so it compiles after a wrapper.)
 ///
 /// Red before: fails (legacy content in every container). Mutation M1.3
 /// (`GridRow` back to `@ElementBuilder`) reddens it.
@@ -184,7 +182,7 @@ func aSwiftUIVocabularyFormTypechecksWithAPlainImport() throws {
     show("1.3 control ProposalFrame", wrapper)
     let style = try typecheckFile("""
         @MainActor public func styled() {
-            _ = HStack { Button("x") {}.padding(8).buttonStyle(.plain) }
+            _ = HStack { Button("x") {}.padding(8).keyboardShortcut("k") }
         }
         """, importing: "MetalUI")
     show("1.3 control PE-R wrapper-then-style", style)
@@ -196,7 +194,7 @@ func aSwiftUIVocabularyFormTypechecksWithAPlainImport() throws {
     #expect(wrapper.messages.contains("ProposalElementGroup"),
             "rejected, but not for the proposal marker:\n\(wrapper.output)")
     #expect(!style.succeeded, "PE-R: a style modifier after a wrapper must not compile:\n\(style.output)")
-    #expect(style.messages.contains("buttonStyle"),
+    #expect(style.messages.contains("keyboardShortcut"),
             "rejected, but not for the missing style modifier:\n\(style.output)")
 }
 

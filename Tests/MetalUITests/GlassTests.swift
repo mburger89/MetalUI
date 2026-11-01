@@ -317,8 +317,8 @@ private struct Wedge: Shape, Equatable {
 /// **32** (`LG-M`). The glass styles are not bordered; a glass button is a capsule glass, one backdrop record, and a
 /// prominent one is tinted. **Mutation:** `isBordered` true for `.glass`.
 @Test @MainActor func glassButtonStylesAreNotBordered() throws {
-    #expect(!ButtonStyle.glass.isBordered && !ButtonStyle.glassProminent.isBordered)
-    #expect(ButtonStyle.bordered.isBordered, "the separating arm")
+    #expect(!ButtonLook.glass.isBordered && !ButtonLook.glassProminent.isBordered)
+    #expect(ButtonLook.bordered.isBordered, "the separating arm")
     let scene = glassScene(VStack(spacing: 0) {
         Button("Go") {}.buttonStyle(.glass)
         Button("Done") {}.buttonStyle(.glassProminent)

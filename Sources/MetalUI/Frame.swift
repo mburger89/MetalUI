@@ -72,6 +72,14 @@ public final class Frame {
     /// outlives the frame that issued it.
     let activeElement: GlobalElementID?
 
+    /// The element whose opaque hitbox was topmost under the pointer in the **previous** frame's list, or `nil`
+    /// (`BY-D`). Hover is resolved only after prepaint, so a build-time reader cannot ask `isHovered`; a custom
+    /// button style's body is built at layout and reads `activeElement == id && pointerOwner == id` as its
+    /// `isPressed`. `Window` stamps it from its captured hitboxes at the current pointer position (exact while
+    /// the layout under the pointer did not move); the style's paint corrects a stale answer with one more frame.
+    /// Default `nil`: a bare `Frame` has no pointer.
+    var pointerOwner: GlobalElementID?
+
     /// Set by an element that needs another frame — an in-progress animation.
     ///
     /// **A borrowed M4 primitive** (spec §8 of the clipping/scroll design): the

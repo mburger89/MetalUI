@@ -1842,6 +1842,7 @@ public final class Window {
                               collectsAccessibility: accessibility.isActive,
                               recordsElementBounds: recordsElementBounds)
             frame.clipboardAccess = clipboardAccess   // CP-D
+            frame.pointerOwner = lastMousePosition.flatMap { topmostHitboxOwner(at: $0) }   // BY-D
             // The window's key state is stamped OVER `environment` (ruling EV-AB):
             // `environment.controlActiveState` is not the root's source, as its
             // `theme` and `displayScale` are not (the frame re-stamps those two).
@@ -3438,7 +3439,7 @@ public final class Window {
         return true
     }
 
-    private func topmostHitboxOwner(at point: Point<Pixels>) -> GlobalElementID? {
+    func topmostHitboxOwner(at point: Point<Pixels>) -> GlobalElementID? {
         topmostOpaqueHitbox(in: lastHitboxes, at: point).map { lastHitboxes[$0].id }
     }
 }
