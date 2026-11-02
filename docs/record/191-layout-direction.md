@@ -2,7 +2,7 @@
 
 Branch `feat/layout-direction` from master `d6d0bbc9`. Decisions: `docs/superpowers/2026-11-01-layout-direction-decisions.md` (next unused `LD-I`).
 Probe: `docs/probes/swiftui-layout-direction.swift` (header holds the recorded output; run twice, byte-identical). Divergence **25 retired**, **1045 added**
-(195 live before and after; 1045-1054 reserved by `LD`, 1046-1054 unused); human-check group **LD** (`docs/verification/human-checks.md`).
+(197 live before and after, on master after record 190; 1045-1054 reserved by `LD`, 1046-1054 unused); human-check group **LD** (`docs/verification/human-checks.md`).
 
 ## What landed
 
@@ -86,6 +86,7 @@ Reddened tests by name; a script applied one edit at a time (`git status` clean 
 
 Taken 2026-11-01 on this branch (`feat/layout-direction`, built on master `d6d0bbc9`), `swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native --no-parallel`, unfiltered:
 
+- **After rebasing onto master `4026f5ab` (after app-shell extras, record 190), from a `swift package clean`: `Test run with 4902 tests in 14 suites passed after 846.316 seconds`** (0 failures; guards 276 `@Test` functions / 518 call sites, `FR-J no-argument frame: succeeded=true`). The pre-rebase run on `d6d0bbc9` follows.
 - **Root: `Test run with 4898 tests in 14 suites passed after 357.057 seconds`** (0 failures; the CLAUDE.md counts line, 4817 in 13 suites at `b83efde2`, predates the tests master gained since (PH, LB, ...) and was not re-taken for master `d6d0bbc9`. This branch adds **38 `@Test` functions**: 18 in `Tests/MetalUILayoutTests/LayoutDirectionTests.swift`, 3 in `Tests/MetalUITests/LayoutDirectionTests.swift`, 17 in `Tests/MetalUITestingTests/LayoutDirectionWindowTests.swift`; E17 is flipped in place and `everyRegistrarParameterIsInItsSignature` gains an arm, 33 -> 34, neither a new test).
 - **Guards:** `FR-J no-argument frame: succeeded=true deprecations=2` (no guard added or removed: the 275 / 517 figures of the counts line stand).
 - `METALUI_VERIFY_LAYOUT_MEMO=1` and `METALUI_VERIFY_RETAINED=1`, each over `RetainedAmbientMissTests`, `LoweringCorpusTests`, `ModifierCompositionProofTests`, `RetainedGraftTests`, `LayoutMemoWindowTests` and the 127 LD-related tests: all passed (81 tests in 1 suite, and 127 tests).
