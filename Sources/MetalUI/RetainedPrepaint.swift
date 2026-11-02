@@ -95,7 +95,7 @@ struct GeometryNoteRecord {
     /// inside the occurrence, since an outer one refuses the ledger, `RL-O`).
     let size: Size<Pixels>
     let moved: Bounds<Pixels>
-    let composed: Affine2D?
+    let composed: Homography2D?
     let chain: AXEffectChain
     let namedSpaces: [NamedSpace]
 }

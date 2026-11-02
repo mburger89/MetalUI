@@ -134,6 +134,11 @@ struct RasterKey: Hashable {
     mutating func add(_ e: MUIEdges) { add(e.top); add(e.right); add(e.bottom); add(e.left) }
     mutating func add(_ c: MUIHsla) { add(c.h); add(c.s); add(c.l); add(c.a) }
     mutating func add(_ c: Hsla) { add(c.h); add(c.s); add(c.l); add(c.a) }
+    /// An affine map is its six numbers, as it always was; a projective one appends `g`, `h`, `i` (`PJ-A`).
+    mutating func add(_ m: Homography2D) {
+        add(m.a); add(m.b); add(m.c); add(m.d); add(m.tx); add(m.ty)
+        if !m.isAffine { add(m.g); add(m.h); add(m.i) }
+    }
     mutating func add(_ m: Affine2D) { add(m.a); add(m.b); add(m.c); add(m.d); add(m.tx); add(m.ty) }
     mutating func add(_ r: RasterRect) { add(r.x); add(r.y); add(r.width); add(r.height) }
 }
@@ -461,9 +466,11 @@ struct RasterPlacement {
             imageMask = t.outerMask
             imageRadii = t.outerMaskRadii
             clip = RasterMath.enclosing(t.outerMask).intersection(target)
-            if contentMask.size.width < PrimitiveTransform.unboundedThreshold {
-                localMask = (contentMask, radii, t.affine)
-                clip = clip.intersection(RasterMath.enclosing(t.affine.boundingBox(of: contentMask)))
+            // A projective record rasterises in its creation space and the shader cuts the content mask at
+            // draw time, so only an affine map has a local mask to raster under (`PJ-A`).
+            if contentMask.size.width < PrimitiveTransform.unboundedThreshold, let affine = t.affine {
+                localMask = (contentMask, radii, affine)
+                clip = clip.intersection(RasterMath.enclosing(affine.boundingBox(of: contentMask)))
             }
         } else {
             imageMask = contentMask

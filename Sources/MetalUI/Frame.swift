@@ -4099,6 +4099,13 @@ extension PrepaintExtras {
     static let effectHasInverse = 6, inverseTx = 11, inverseTy = 12, effectOuterClip = 13
     /// The saved clip base, and (`RZ-B`) whether the effect's own map flattens at paint.
     static let effectClipBase = 17, effectFlattens = 18
+    /// The composed map's bottom row, then the inverse's (`PJ-K`): `(0, 0, 1)` for an affine map.
+    static let composedBottom = 19, inverseBottom = 22
+
+    /// Whether an `effects` vector holds a projective map (`PJ-K`).
+    static func isProjective(_ v: [Double]) -> Bool {
+        v.count > inverseBottom + 2 && (v[composedBottom] != 0 || v[composedBottom + 1] != 0 || v[composedBottom + 2] != 1)
+    }
 
     /// The translation in points that turns `old`'s effects into these (`RK-G`, `RK-S`), or `nil` when the two differ in
     /// anything else. Only the innermost effect's composed map reaches a hitbox, so every effect's composed
@@ -4115,6 +4122,8 @@ extension PrepaintExtras {
             guard new.count == was.count else { return nil }
             let ex = new[Self.effectTx] - was[Self.effectTx], ey = new[Self.effectTy] - was[Self.effectTy]
             guard (ex == 0 && ey == 0) || (ex == dx && ey == dy) else { return nil }
+            // A pan composed onto a projective map is not a translation of its hitboxes (`PJ-K`).
+            guard ex == 0 && ey == 0 || !Self.isProjective(new) else { return nil }
             var a = new, b = was
             for index in [Self.effectTx, Self.effectTy, Self.inverseTx, Self.inverseTy] { a[index] = 0; b[index] = 0 }
             guard a == b else { return nil }
@@ -4159,6 +4168,8 @@ extension PrepaintExtras {
         var changed = false
         for (new, was) in zip(effects, old.effects) {
             guard new.count == was.count, new.count > Self.effectFlattens else { return .refused("effectScopeChanged") }
+            // Any change in a projective effect refuses by name, ahead of the clip and flattening words (`PJ-K`).
+            if new != was, Self.isProjective(new) || Self.isProjective(was) { return .refused("effectProjective") }
             if new[Self.effectFlattens] != was[Self.effectFlattens] { return .refused("effectFlatteningChanged") }
             if new[Self.effectHasInverse] != was[Self.effectHasInverse] { return .refused("effectInverseChanged") }
             for index in Self.effectOuterClip...Self.effectClipBase where new[index] != was[index] {
@@ -4211,7 +4222,7 @@ extension Frame {
         return nil
     }
 
-    private func flatAffine(_ a: Affine2D) -> [Double] { [a.a, a.b, a.c, a.d, a.tx, a.ty] }
+    private func flatAffine(_ a: Homography2D) -> [Double] { [a.a, a.b, a.c, a.d, a.tx, a.ty] }
 
     /// The prepaint-visible context at this point of prepaint.
     func prepaintExtras() -> PrepaintExtras {
@@ -4227,6 +4238,9 @@ extension Frame {
             // Whether the paint scope for this effect flattens (a uniform positive scale plus a translation, `GX-G`): an affine
             // change that crosses that class is a different paint scope kind and is refused by name (`RZ-B`).
             v.append(effect.map.isUniformPositiveScaleTranslation ? 1 : 0)
+            // Appended, so the indices above stand (`RZ-M`, `PJ-K`): the bottom rows of the composed and the inverse map.
+            v += [effect.composed.g, effect.composed.h, effect.composed.i]
+            if let inverse = effect.inverse { v += [inverse.g, inverse.h, inverse.i] } else { v += [0, 0, 1] }
             effects.append(v)
         }
         let scroller = activeScrollerFrame
@@ -4368,8 +4382,8 @@ extension Frame {
         var outer: Bounds<Pixels>
         /// The innermost ambient effect's inverse as the ledger recorded it: a hitbox that carries it was registered at the ambient
         /// depth, so the fresh frame's hitbox carries the **current** effect's inverse, whatever the linear part (`AT-F`).
-        var recorded: Affine2D
-        var current: Affine2D?
+        var recorded: Homography2D
+        var current: Homography2D?
         /// The ambient effect as the ledger saw it (composed, inverse, outer clip), the start of the step walk that re-derives a
         /// hitbox registered inside an effect the occurrence opened (`RL-I`).
         var recordedEffect: PrepaintEffect
@@ -4383,10 +4397,17 @@ extension Frame {
                            size: Size(width: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 2])),
                                       height: Pixels(Float(ambient[PrepaintExtras.effectOuterClip + 3]))))
         let flat = (0..<6).map { ambient[PrepaintExtras.effectHasInverse + 1 + $0] }
-        let recorded = Affine2D(a: flat[0], b: flat[1], c: flat[2], d: flat[3], tx: flat[4], ty: flat[5])
+        let hasBottom = ambient.count > PrepaintExtras.inverseBottom + 2
+        let recorded = Homography2D(a: flat[0], b: flat[1], c: flat[2], d: flat[3], tx: flat[4], ty: flat[5],
+                                    g: hasBottom ? ambient[PrepaintExtras.inverseBottom] : 0,
+                                    h: hasBottom ? ambient[PrepaintExtras.inverseBottom + 1] : 0,
+                                    i: hasBottom ? ambient[PrepaintExtras.inverseBottom + 2] : 1)
         let composedFlat = (0..<6).map { ambient[$0] }
-        let recordedComposed = Affine2D(a: composedFlat[0], b: composedFlat[1], c: composedFlat[2], d: composedFlat[3],
-                                        tx: composedFlat[4], ty: composedFlat[5])
+        let recordedComposed = Homography2D(a: composedFlat[0], b: composedFlat[1], c: composedFlat[2], d: composedFlat[3],
+                                            tx: composedFlat[4], ty: composedFlat[5],
+                                            g: hasBottom ? ambient[PrepaintExtras.composedBottom] : 0,
+                                            h: hasBottom ? ambient[PrepaintExtras.composedBottom + 1] : 0,
+                                            i: hasBottom ? ambient[PrepaintExtras.composedBottom + 2] : 1)
         let recordedEffect = PrepaintEffect(composed: recordedComposed,
                                             inverse: ambient[PrepaintExtras.effectHasInverse] == 1 ? recorded : nil,
                                             outerClip: outer, savedClipBase: 0)
@@ -4419,11 +4440,11 @@ extension Frame {
         }
         // Registered inside an effect opened within the occurrence, no chain recorded: moved by the delta, exact only under an
         // identity linear part.
-        guard let delta, inverse.a == 1, inverse.b == 0, inverse.c == 0, inverse.d == 1 else { return nil }
+        guard let delta, inverse.isAffine, inverse.a == 1, inverse.b == 0, inverse.c == 0, inverse.d == 1 else { return nil }
         let tx = inverse.tx - delta.dx, ty = inverse.ty - delta.dy
         guard tx + delta.dx == inverse.tx, ty + delta.dy == inverse.ty else { return nil }
         out.transform = HitboxTransform(
-            inverse: Affine2D(a: inverse.a, b: inverse.b, c: inverse.c, d: inverse.d, tx: tx, ty: ty),
+            inverse: Homography2D(a: inverse.a, b: inverse.b, c: inverse.c, d: inverse.d, tx: tx, ty: ty),
             outerClip: transform.outerClip)
         return out
     }

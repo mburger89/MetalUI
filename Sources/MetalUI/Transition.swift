@@ -220,7 +220,9 @@ extension AnyTransition.Kind {
 /// captured and emitted bytes do not move (test 2.26).
 struct RenderEffect: Equatable {
     var alpha: Float = 1
-    var affine = Affine2D.identity
+    /// The device-pixel map: affine for every transition and every flattening effect, projective only under a
+    /// 3D effect (`PJ-A`).
+    var homography = Homography2D.identity
 
     static let identity = RenderEffect()
 
@@ -230,7 +232,12 @@ struct RenderEffect: Equatable {
 
     init(alpha: Float = 1, affine: Affine2D) {
         self.alpha = alpha
-        self.affine = affine
+        self.homography = Homography2D(affine)
+    }
+
+    init(alpha: Float = 1, homography: Homography2D) {
+        self.alpha = alpha
+        self.homography = homography
     }
 
     /// A transition's `atoms` at `activeness` over `rect` (device pixels):
@@ -261,16 +268,21 @@ struct RenderEffect: Equatable {
                 break
             }
         }
-        affine = Affine2D(a: Double(scale), d: Double(scale), tx: Double(tx), ty: Double(ty))
+        homography = Homography2D(Affine2D(a: Double(scale), d: Double(scale), tx: Double(tx), ty: Double(ty)))
     }
 
     // The flattened map in `Float`, coefficient by coefficient — for a
     // transition exactly plan task 13's `scale * x + tx`.
-    private var sx: Float { Float(affine.a) }
-    private var sy: Float { Float(affine.d) }
+    private var sx: Float { Float(homography.a) }
+    private var sy: Float { Float(homography.d) }
+
+    /// The affine part, read only on a flattening path (a translation plus a uniform positive scale).
+    private var flatAffine: Affine2D {
+        Affine2D(a: homography.a, b: homography.b, c: homography.c, d: homography.d, tx: homography.tx, ty: homography.ty)
+    }
 
     func map(_ b: MUIBounds) -> MUIBounds {
-        MUIBounds(origin: MUIPoint(x: sx * b.origin.x + Float(affine.tx), y: sy * b.origin.y + Float(affine.ty)),
+        MUIBounds(origin: MUIPoint(x: sx * b.origin.x + Float(homography.tx), y: sy * b.origin.y + Float(homography.ty)),
                   size: MUISize(width: sx * b.size.width, height: sy * b.size.height))
     }
 
@@ -337,7 +349,7 @@ struct RenderEffect: Equatable {
                 // A path stays a vector until it reaches the scene (`GX-B`): the
                 // map composes onto its own, so it is rasterized at the scale it
                 // is drawn at.
-                path.local = affine.concatenating(path.local)
+                path.local = flatAffine.concatenating(path.local)
                 if p.innerMask {
                     path.contentMask = map(path.contentMask)
                     path.maskCornerRadii = map(path.maskCornerRadii)
@@ -347,7 +359,7 @@ struct RenderEffect: Equatable {
             case .shadow(var shadow):
                 // A shadow's offset and blur follow the composed map (`GX-J`;
                 // T10, T14): its leaf stays in creation space under `local`.
-                shadow.local = affine.concatenating(shadow.local)
+                shadow.local = flatAffine.concatenating(shadow.local)
                 if p.innerMask {
                     shadow.contentMask = map(shadow.contentMask)
                     shadow.maskCornerRadii = map(shadow.maskCornerRadii)
@@ -356,7 +368,7 @@ struct RenderEffect: Equatable {
                 p.kind = .shadow(shadow)
             case .gradient(var gradient):
                 // A gradient stays a vector, as a path does (`LK-J` item 4).
-                gradient.local = affine.concatenating(gradient.local)
+                gradient.local = flatAffine.concatenating(gradient.local)
                 if p.innerMask {
                     gradient.contentMask = map(gradient.contentMask)
                     gradient.maskCornerRadii = map(gradient.maskCornerRadii)
@@ -366,7 +378,7 @@ struct RenderEffect: Equatable {
             case .blur(var blur):
                 // A blur's reach follows the composed map, as a shadow's does
                 // (`LK-K`): its leaf stays in creation space under `local`.
-                blur.local = affine.concatenating(blur.local)
+                blur.local = flatAffine.concatenating(blur.local)
                 if p.innerMask {
                     blur.contentMask = map(blur.contentMask)
                     blur.maskCornerRadii = map(blur.maskCornerRadii)
@@ -393,13 +405,13 @@ struct RenderEffect: Equatable {
         guard var t = p.transform else {
             // A plain primitive under a non-flattening effect: its geometry is
             // already local (the scope split the clip at its entry, `GX-G`).
-            guard let outer, affine.determinant != 0 else { return nil }
-            p.transform = PrimitiveTransform(affine: affine, outerMask: outer.bounds,
+            guard let outer, homography.determinant != 0 else { return nil }
+            p.transform = PrimitiveTransform(homography: homography, outerMask: outer.bounds,
                                              outerMaskRadii: outer.radii, outerDepth: outer.depth)
             return p
         }
-        t.affine = affine.concatenating(t.affine)
-        guard t.affine.determinant != 0, t.affine.determinant.isFinite else { return nil }
+        t.homography = homography.concatenating(t.homography)
+        guard t.homography.determinant != 0, t.homography.determinant.isFinite else { return nil }
         if flattens {
             if p.outerMaskInner {
                 t.outerMask = map(t.outerMask)
@@ -410,7 +422,7 @@ struct RenderEffect: Equatable {
                 t.outerMask = outer.bounds
                 t.outerMaskRadii = outer.radii
             } else {
-                let box = affine.boundingBox(of: t.outerMask)
+                let box = homography.boundingBox(of: t.outerMask)
                 t.outerMask = box.intersection(outer.bounds)
                 t.outerMaskRadii = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
             }
@@ -435,18 +447,36 @@ struct OuterMask {
 /// stale scene index: the composed map (local device pixels → screen), the
 /// outer mask in screen space, and the clip depth that mask was read at.
 struct PrimitiveTransform {
-    var affine: Affine2D
+    /// The composed map; projective only under a 3D effect (`PJ-A`).
+    var homography: Homography2D
     var outerMask: MUIBounds
     var outerMaskRadii: MUICorners
     var outerDepth: Int
+
+    /// The map as an affine one, `nil` when it is projective: raster code that cannot honour a perspective asks
+    /// for this and handles `nil` (`PJ-A`).
+    var affine: Affine2D? { homography.affine }
+
+    init(homography: Homography2D, outerMask: MUIBounds, outerMaskRadii: MUICorners, outerDepth: Int) {
+        self.homography = homography
+        self.outerMask = outerMask
+        self.outerMaskRadii = outerMaskRadii
+        self.outerDepth = outerDepth
+    }
+
+    init(affine: Affine2D, outerMask: MUIBounds, outerMaskRadii: MUICorners, outerDepth: Int) {
+        self.init(homography: Homography2D(affine), outerMask: outerMask, outerMaskRadii: outerMaskRadii,
+                  outerDepth: outerDepth)
+    }
 
     /// A mask at least this wide (device pixels) is the unbounded local clip.
     static let unboundedThreshold: Float = 100_000
 
     /// The scene's record (`MUITransform`, `GX-F`).
     var record: MUITransform {
-        MUITransform(a: Float(affine.a), b: Float(affine.b), c: Float(affine.c), d: Float(affine.d),
-                     tx: Float(affine.tx), ty: Float(affine.ty), pixelScale: Float(affine.linearScale),
+        MUITransform(a: Float(homography.a), b: Float(homography.b), c: Float(homography.c), d: Float(homography.d),
+                     tx: Float(homography.tx), ty: Float(homography.ty),
+                     pixelScale: Float(abs(homography.determinant).squareRoot()),
                      _reserved: 0, outerMask: outerMask, outerMaskRadii: outerMaskRadii)
     }
 }
@@ -562,7 +592,7 @@ struct CapturedPrimitive {
     /// transform.
     var screenBounds: MUIBounds {
         guard let transform else { return bounds }
-        return transform.affine.boundingBox(of: bounds)
+        return transform.homography.boundingBox(of: bounds)
     }
 
     mutating func multiplyAlpha(_ alpha: Float) {

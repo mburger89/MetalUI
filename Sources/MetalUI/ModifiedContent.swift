@@ -552,7 +552,7 @@ extension LayoutModifier: ModifierLayerKind {
                 result = inside()
             }
             return result!
-        case .rotationEffect, .scaleEffect, .offset:
+        case .rotationEffect, .scaleEffect, .offset, .rotation3DEffect, .projectionEffect:
             // Hitboxes and accessibility records inside follow the effect (`GX-I`).
             return pass.withRenderEffect(renderEffect!, bounds: bounds, inside)
         case let .glassEffect(glass, shape):
@@ -598,7 +598,7 @@ extension LayoutModifier: ModifierLayerKind {
             let color = storedAnimatedColor(token, at: layerAnimationKey(id, "border.colour"), pass: pass)
             pass.fill(bounds, color: .transparent, cornerRadii: Corners(all: cornerRadius),
                       borderColor: color, borderWidths: Edges(all: width))
-        case .rotationEffect, .scaleEffect, .offset:
+        case .rotationEffect, .scaleEffect, .offset, .rotation3DEffect, .projectionEffect:
             pass.withRenderEffect(renderEffect!, bounds: bounds, inside)
         case let .shadow(token, radius, x, y):
             // The colour fades on a store track (`GX-J`, `AN-AB`'s colour
@@ -664,7 +664,7 @@ extension LayoutModifier: ModifierLayerKind {
             pass.frame.lowering.forward(child.layoutNodeID, to: node.layoutNodeID, priority: priority)
             return node
         case .background, .backgroundMaterial, .glassEffect, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
-             .rotationEffect, .scaleEffect, .offset, .shadow, .blur, .compositingGroup:
+             .rotationEffect, .scaleEffect, .offset, .rotation3DEffect, .projectionEffect, .shadow, .blur, .compositingGroup:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved
             // bounds during paint while preserving the layer's own identity level.

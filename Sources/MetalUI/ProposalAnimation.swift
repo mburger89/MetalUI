@@ -226,6 +226,15 @@ extension LayoutModifier {
             // Both factors and their anchor (N2, N2b).
             let v = numbers("scaleEffect", [x, y, anchor.x, anchor.y], any)
             self = .scaleEffect(x: v[0]!, y: v[1]!, anchor: UnitPoint(x: v[2]!, y: v[3]!))
+        case let .rotation3DEffect(angle, axis, anchor, anchorZ, perspective):
+            // Eight numbers: the angle, the axis, the anchor, `anchorZ` and `perspective` (`PJ-B`).
+            let v = numbers("rotation3DEffect", [angle.radians, axis.x, axis.y, axis.z, anchor.x, anchor.y, anchorZ,
+                                                 perspective], any)
+            self = .rotation3DEffect(Angle(radians: v[0]!), axis: (v[1]!, v[2]!, v[3]!),
+                                     anchor: UnitPoint(x: v[4]!, y: v[5]!), anchorZ: v[6]!, perspective: v[7]!)
+        case .projectionEffect:
+            // No animatable data: a projection snaps (`PJ-B`).
+            break
         case let .offset(x, y):
             // Both components (N3).
             let v = numbers("offset", [raw(x), raw(y)], any)

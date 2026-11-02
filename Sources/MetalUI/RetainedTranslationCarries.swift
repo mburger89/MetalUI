@@ -8,12 +8,12 @@ import MetalUIPlatform
 // the hitbox step walk is shared with `translatedAccessibility` (`Frame.walkEffectSteps`, in `Frame.swift`). Every number is moved
 // only when the move is exactly what a fresh prepaint computes (`isExactSixteenth`); anything else is refused by name.
 
-extension Affine2D {
-    /// Whether the linear part is made of multiples of 1/16 below 2^19, so a product with an exact-sixteenth translation and the sum
+extension Homography2D {
+    /// Whether the map is affine and its linear part is made of multiples of 1/16 below 2^19, so a product with an exact-sixteenth translation and the sum
     /// of such products are exact in `Double` whatever the order they are added in (`RL-E`: a named space's map moved by a delta is
     /// bit-equal to the one a fresh prepaint computes).
     fileprivate var hasDyadicLinearPart: Bool {
-        isExactSixteenth(Float(a)) && isExactSixteenth(Float(b)) && isExactSixteenth(Float(c)) && isExactSixteenth(Float(d))
+        isAffine && isExactSixteenth(Float(a)) && isExactSixteenth(Float(b)) && isExactSixteenth(Float(c)) && isExactSixteenth(Float(d))
             && Double(Float(a)) == a && Double(Float(b)) == b && Double(Float(c)) == c && Double(Float(d)) == d
     }
 }
@@ -55,7 +55,7 @@ extension Frame {
                 guard t.hasDyadicLinearPart, isExactSixteenth(Float(t.tx)), isExactSixteenth(Float(t.ty)) else {
                     return .refused("geometryNamedSpace")
                 }
-                let toWindow = Affine2D(a: t.a, b: t.b, c: t.c, d: t.d,
+                let toWindow = Homography2D(a: t.a, b: t.b, c: t.c, d: t.d,
                                         tx: t.tx + t.a * Double(dx) + t.c * Double(dy),
                                         ty: t.ty + t.b * Double(dx) + t.d * Double(dy))
                 spaces[index] = NamedSpace(name: spaces[index].name, toSpace: toWindow.inverted, toWindow: toWindow)
@@ -89,7 +89,7 @@ extension Frame {
                 guard t.hasDyadicLinearPart, (t.tx + ex) - ex == t.tx, (t.ty + ey) - ey == t.ty else {
                     return .refused("geometryNamedSpace")
                 }
-                let toWindow = Affine2D(a: t.a, b: t.b, c: t.c, d: t.d, tx: t.tx + ex, ty: t.ty + ey)
+                let toWindow = Homography2D(a: t.a, b: t.b, c: t.c, d: t.d, tx: t.tx + ex, ty: t.ty + ey)
                 spaces[index] = NamedSpace(name: spaces[index].name, toSpace: toWindow.inverted, toWindow: toWindow)
             }
             out.append(remade(note, moved: note.moved, composed: effect.composed, namedSpaces: spaces))
@@ -98,7 +98,7 @@ extension Frame {
     }
 
     /// `note` with its proxy rebuilt from the given operands and the user's transform run again: the arithmetic of `noteGeometry`.
-    private func remade(_ note: GeometryNoteRecord, moved: Bounds<Pixels>, composed: Affine2D?, namedSpaces: [NamedSpace])
+    private func remade(_ note: GeometryNoteRecord, moved: Bounds<Pixels>, composed: Homography2D?, namedSpaces: [NamedSpace])
         -> GeometryNoteRecord {
         let global = composed.map { $0.boundingBox(of: moved) } ?? moved
         let value = note.watch.transform(GeometryProxy(size: note.size, globalFrame: global, scrolledFrame: moved,

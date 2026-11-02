@@ -48,7 +48,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 @Test @MainActor func aMirroredEffectIsTheConjugateOfTheLeftToRightOne() {
     let rect = Bounds(origin: Point(x: px(80), y: px(0)), size: Size(width: px(20), height: px(10)))
     func mapped(_ effect: RenderEffectSpec, mirrored: Bool, _ x: Double, _ y: Double) -> (x: Double, y: Double) {
-        effect.affine(in: rect, mirrored: mirrored).apply(x, y)
+        effect.map(in: rect, mirrored: mirrored).apply(x, y)!
     }
     // Offset: +10 moves right left-to-right, left mirrored.
     let offset = RenderEffectSpec.offset(x: px(10), y: px(3))
@@ -67,7 +67,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     let rtl = mapped(rotation, mirrored: true, 70, 5)     // 30 left of the mirrored anchor x = 100
     #expect(abs(rtl.x - 100) < 1e-9 && abs(rtl.y - 35) < 1e-9, "right-to-left: \(rtl)")
     // Shadows and blurs have no map.
-    #expect(RenderEffectSpec.blur(radius: px(2)).affine(in: rect, mirrored: true).isIdentity)
+    #expect(RenderEffectSpec.blur(radius: px(2)).map(in: rect, mirrored: true).isIdentity)
 }
 
 /// **LD-D.** `resolveTextStyle` swaps `.leading` and `.trailing` under a right-to-left environment and leaves `.center`

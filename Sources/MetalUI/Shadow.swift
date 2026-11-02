@@ -163,7 +163,7 @@ extension Frame {
             key.add(q.innerMask ? 1 : 0)
             key.add(q.outerMaskInner ? 1 : 0)
             if let t = q.transform {
-                key.add(t.affine)
+                key.add(t.homography)
                 if q.outerMaskInner { key.add(t.outerMask); key.add(t.outerMaskRadii) } else { key.add(-2) }
             } else {
                 key.add(-1)
