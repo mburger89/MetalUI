@@ -53,7 +53,7 @@ private func looksBesideH1(text: some Element, lifecycle: some ElementGroup) -> 
 @MainActor
 private func looksRoot(columns: some Element, colour: some Element) -> some Element {
     Column(gap: Pixels(18)) {
-        Text("Looks — human checks H1, I1, J1, K1–K3, Q1–Q6, S1–S3, T1–T2").font(size: 20)
+        Text("Looks — human checks H1, I1, J1, K1–K3, Q1–Q6, S1–S3, T1–T2, LD1–LD5").font(size: 20)
         columns
         colour
     }
@@ -578,6 +578,7 @@ private func looksColourAndKeyframes() -> some Element {
     Column(gap: Pixels(18)) {
         keyframesSection()
         looksColourSection()
+        LooksLayoutDirection()
     }
     .alignItems(.flexStart)
 }

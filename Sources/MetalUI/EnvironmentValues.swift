@@ -90,8 +90,10 @@ public struct EnvironmentValues {
     /// itself.
     public var isEnabled: Bool = true
 
-    /// Carried and readable; nothing mirrors under `.rightToLeft` yet (ruling
-    /// EV-K).
+    /// The direction horizontal layout reads in. `.rightToLeft` mirrors layout as
+    /// SwiftUI's does (ruling `LD-A`, divergence 25 retired); a shape's own path,
+    /// gradient unit points, `trim` and `UnevenRoundedRectangle`'s corners are
+    /// not mirrored (divergence 1045).
     public var layoutDirection: LayoutDirection = .leftToRight
 
     /// `Locale(identifier: "")` in a bare value, as in SwiftUI (V0, V2);
