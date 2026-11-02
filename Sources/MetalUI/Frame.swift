@@ -3579,14 +3579,20 @@ public final class Frame {
                 }
                 if scope.capturing { scope.captures.append(contentsOf: group) }
                 if let shadow = scope.shadow {
-                    next.append(([shadowItem(of: group, shadow, entryDepth: scope.entryClipDepth)], nil))
+                    // A leaf under a projective effect casts no shadow: the CPU silhouette is flat (`PJ-G`, divergence 1066).
+                    let casting = group.filter { $0.transform?.homography.isAffine ?? true }
+                    if !casting.isEmpty {
+                        next.append(([shadowItem(of: casting, shadow, entryDepth: scope.entryClipDepth)], nil))
+                    }
                     next.append((group, emitted))
                     continue
                 }
                 if let blur = scope.blur {
                     // A GPU surface's pixels are on the GPU: it is drawn
                     // unblurred (`LK-K` item 5, divergence 167).
-                    if group.allSatisfy({ if case .surface = $0.kind { true } else { false } }) {
+                    // A leaf under a projective effect is drawn unblurred too (`PJ-G`, divergence 1066).
+                    if group.allSatisfy({ if case .surface = $0.kind { true } else { false } })
+                        || group.contains(where: { !($0.transform?.homography.isAffine ?? true) }) {
                         next.append((group, emitted))
                     } else {
                         next.append(([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)], nil))
@@ -3594,6 +3600,11 @@ public final class Frame {
                     continue
                 }
                 if !scope.effect.isIdentity {
+                    // A material or glass under a projective effect draws its flat tint (`PJ-G`, divergence 1067).
+                    if !scope.effect.homography.isAffine {
+                        if emitted == nil { group = group.flatMap { $0.degradingBackdrop() } }
+                        else { for i in group.indices { group[i].degradeBackdropToFlatTint() } }
+                    }
                     if let d = emitted {
                         var mapped: [CapturedPrimitive] = [], kept: [Int] = []
                         for i in group.indices {
@@ -3709,19 +3720,32 @@ public final class Frame {
             scene.insert(quad, surface: target, layer: primitive.layer, transform: transform)
         case .path(let paint):
             guard let (quad, texture) = pathImage(paint, transform: primitive.transform) else { return }
-            scene.insert(quad, texture: texture, layer: primitive.layer)
+            insertRaster(quad, texture: texture, primitive)
         case .shadow(let paint):
             guard let (quad, texture) = shadowImage(paint, transform: primitive.transform) else { return }
-            scene.insert(quad, texture: texture, layer: primitive.layer)
+            insertRaster(quad, texture: texture, primitive)
         case .gradient(let paint):
             guard let (quad, texture) = gradientImage(paint, transform: primitive.transform) else { return }
-            scene.insert(quad, texture: texture, layer: primitive.layer)
+            insertRaster(quad, texture: texture, primitive)
         case .blur(let paint):
             guard let (quad, texture) = blurImage(paint, transform: primitive.transform) else { return }
-            scene.insert(quad, texture: texture, layer: primitive.layer)
+            insertRaster(quad, texture: texture, primitive)
         case .backdrop(let record):
             scene.insert(record, layer: primitive.layer, transform: transform)
         }
+    }
+
+    /// A CPU raster's image: under an affine map it was rasterized in final device pixels and is drawn plain; under a
+    /// projective one it was rasterized in its creation space and is drawn with the projective record, filtered
+    /// linearly, so an animating flip does no CPU raster after its first frame (`PJ-G`, divergence 1065).
+    private func insertRaster(_ quad: MUIImage, texture: ImageTexture, _ primitive: CapturedPrimitive) {
+        guard let t = primitive.transform, !t.homography.isAffine else {
+            scene.insert(quad, texture: texture, layer: primitive.layer)
+            return
+        }
+        var projected = quad
+        projected.filter = ImageFilter.linear.rawValue
+        scene.insert(projected, texture: texture, layer: primitive.layer, transform: t.record)
     }
 
     /// Whether a backdrop leaf emitted now would reach a shadow, blur or

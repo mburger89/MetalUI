@@ -406,12 +406,15 @@ struct RenderEffect: Equatable {
             // A plain primitive under a non-flattening effect: its geometry is
             // already local (the scope split the clip at its entry, `GX-G`).
             guard let outer, homography.determinant != 0 else { return nil }
+            // A primitive with a corner on or behind the eye is dropped: the SDL rasteriser leaves depth clipping off (`PJ-C`).
+            guard homography.isAffine || homography.isInFront(of: p.bounds) else { return nil }
             p.transform = PrimitiveTransform(homography: homography, outerMask: outer.bounds,
                                              outerMaskRadii: outer.radii, outerDepth: outer.depth)
             return p
         }
         t.homography = homography.concatenating(t.homography)
         guard t.homography.determinant != 0, t.homography.determinant.isFinite else { return nil }
+        guard t.homography.isAffine || t.homography.isInFront(of: p.bounds) else { return nil }
         if flattens {
             if p.outerMaskInner {
                 t.outerMask = map(t.outerMask)
@@ -474,10 +477,14 @@ struct PrimitiveTransform {
 
     /// The scene's record (`MUITransform`, `GX-F`).
     var record: MUITransform {
-        MUITransform(a: Float(homography.a), b: Float(homography.b), c: Float(homography.c), d: Float(homography.d),
-                     tx: Float(homography.tx), ty: Float(homography.ty),
-                     pixelScale: Float(abs(homography.determinant).squareRoot()),
-                     _reserved: 0, outerMask: outerMask, outerMaskRadii: outerMaskRadii)
+        // A projective record carries its bottom row and 3x3 determinant in lane 4 (`PJ-A`); an affine one a zero tail.
+        let projective = !homography.isAffine
+        return MUITransform(a: Float(homography.a), b: Float(homography.b), c: Float(homography.c), d: Float(homography.d),
+                            tx: Float(homography.tx), ty: Float(homography.ty),
+                            pixelScale: Float(abs(homography.determinant).squareRoot()),
+                            _reserved: 0, outerMask: outerMask, outerMaskRadii: outerMaskRadii,
+                            g: projective ? Float(homography.g) : 0, h: projective ? Float(homography.h) : 0,
+                            i: projective ? Float(homography.i) : 0, det3: projective ? Float(homography.det3) : 0)
     }
 }
 

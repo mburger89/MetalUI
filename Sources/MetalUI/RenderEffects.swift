@@ -537,10 +537,6 @@ extension Frame {
     func paintWithDeviceMap(_ device: Homography2D, _ body: () -> Void) {
         effectScopesPushed += 1
         guard device.determinant != 0, device.determinant.isFinite else { return }
-        // PJ-STEP4: a projective record needs the 80-byte `MUITransform` and both shader backends, which this commit
-        // does not carry (the pinned shadercross is not installed here, see record 193): until they land a projective
-        // scope paints nothing, and hit testing, accessibility and geometry already follow the projected quad.
-        guard device.isAffine else { return }
         let flattens = device.isUniformPositiveScaleTranslation
         // A flattening scope opened where no clip was pushed since the
         // enclosing flattening scope's entry has no entry clip in its own

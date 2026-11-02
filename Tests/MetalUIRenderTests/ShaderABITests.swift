@@ -173,7 +173,8 @@ import MetalUIShaderTypes
 /// values per field: `tx`/`ty` are adjacent floats, so a probe reading one
 /// for the other reports a wrong number.
 @Test func metalAndSwiftAgreeOnTheTransformStruct() throws {
-    #expect(MemoryLayout<MUITransform>.size == 64 && MemoryLayout<MUITransform>.stride == 64)
+    #expect(MemoryLayout<MUITransform>.size == 80 && MemoryLayout<MUITransform>.stride == 80, "80 bytes, five float4 lanes (PJ-A)")
+    #expect(MemoryLayout<MUITransform>.offset(of: \MUITransform.g) == 64 && MemoryLayout<MUITransform>.offset(of: \MUITransform.det3) == 76, "lane 4 is (g, h, i, det3)")
     #expect(MemoryLayout<MUIGlyph>.size == 88)
     #expect(MemoryLayout<MUIGlyph>.offset(of: \MUIGlyph.transform) == 84)
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
@@ -183,10 +184,11 @@ import MetalUIShaderTypes
     let queue = try #require(device.makeCommandQueue())
     var transform = MUITransform(a: 1.5, b: 2.5, c: 3.5, d: 4.5, tx: 5.5, ty: 6.5, pixelScale: 7.5, _reserved: 8,
                                  outerMask: MUIBounds(origin: MUIPoint(x: 9, y: 10), size: MUISize(width: 11, height: 12)),
-                                 outerMaskRadii: MUICorners(topLeft: 13, topRight: 14, bottomRight: 15, bottomLeft: 16))
-    let slots = 16
+                                 outerMaskRadii: MUICorners(topLeft: 13, topRight: 14, bottomRight: 15, bottomLeft: 16),
+                                 g: 1.5, h: 2.5, i: 3.5, det3: 4.5)
+    let slots = 20
     let out = try #require(device.makeBuffer(length: slots * MemoryLayout<UInt32>.stride, options: .storageModeShared))
-    let input = try #require(device.makeBuffer(bytes: &transform, length: 64, options: .storageModeShared))
+    let input = try #require(device.makeBuffer(bytes: &transform, length: MemoryLayout<MUITransform>.stride, options: .storageModeShared))
     let commandBuffer = try #require(queue.makeCommandBuffer())
     let encoder = try #require(commandBuffer.makeComputeCommandEncoder())
     encoder.setComputePipelineState(pipeline)
@@ -200,5 +202,6 @@ import MetalUIShaderTypes
     #expect(commandBuffer.error == nil)
     let v = out.contents().bindMemory(to: UInt32.self, capacity: slots)
     // Each float field ×10 (x.5 → an exact integer), then `_reserved` as is.
-    #expect((0..<16).map { v[$0] } == [64, 15, 25, 35, 45, 55, 65, 75, 8, 90, 100, 110, 120, 130, 140, 160])
+    #expect((0..<20).map { v[$0] } == [80, 15, 25, 35, 45, 55, 65, 75, 8, 90, 100, 110, 120, 130, 140, 160, 15, 25, 35, 45],
+            "lane 4 reads (g, h, i, det3) in Metal as in Swift (PJ-A)")
 }

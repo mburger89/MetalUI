@@ -4,11 +4,13 @@
 // side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
 // `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
-// Layout (little-endian, no padding), version 5 (ruling LG-O: the 256-byte
+// Layout (little-endian, no padding), version 6 (ruling PJ-A: the 80-byte transform record with its
+// projective lane; version 5, LG-O: the 256-byte
 // backdrop record with the Liquid Glass tail; version 4, BB-J, backdrops at 96
 // bytes; version 3, GX-F, added transforms; version 2, TE-AF, images — versions
-// 2, 3 and 4 still load, as the same frame without what they lack; a version-4
-// record is widened with a zero tail, which is a material):
+// 2, 3, 4 and 5 still load, as the same frame without what they lack; a version-4
+// record is widened with a zero tail, which is a material, and a version-3-5 transform record with a zero
+// projective lane, which is "affine"):
 //   "MUIRPLY\0"  u32 version
 //   u32 width, height, rectStride, glyphStride, imageStride, transformStride,
 //       backdropStride                              (the last two: version 3, 4; 96 in 4, 256 from 5)
@@ -16,7 +18,7 @@
 //   u32 glyphByteCount, glyph bytes
 //   u32 imageByteCount, image bytes
 //   u32 textureCount, textureCount × (u32 width, height, width × height × 4 RGBA8 bytes)
-//   u32 transformByteCount, transform bytes (MUITransform records)   (version 3, 4)
+//   u32 transformByteCount, transform bytes (MUITransform records)   (version 3; 64 bytes a record until 5, 80 from 6)
 //   u32 backdropByteCount, backdrop bytes (MUIBackdrop records)      (version 4, 5)
 //   u32 runCount, runCount × (u32 kind, start, count)
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
@@ -66,10 +68,12 @@ public struct FixtureTexture: Equatable, Sendable {
 }
 
 public struct ReplayFixture: Equatable, Sendable {
-    public static let version: UInt32 = 5
+    public static let version: UInt32 = 6
     /// The oldest version ``init(decoding:)`` still reads (ruling `BB-J`):
     /// version 1 had no images and is re-recorded, never read.
     public static let oldestReadableVersion: UInt32 = 2
+    /// The transform record's stride in a version-3-to-5 file (ruling `PJ-A`): four `float4` lanes, no projective lane.
+    public static let version5TransformStride: UInt32 = 64
     /// The primitive ABI, read off the real structs. `replay.hlsl` hard-codes
     /// the layout these imply (rect 8 lanes, glyph 6, after the bridge pads
     /// 120 → 128 and 88 → 96), so a changed struct must fail loudly:
@@ -313,8 +317,10 @@ extension ReplayFixture {
         // Version 2 has no transform table, version 2 and 3 no backdrop table (BB-J).
         let transformStride = version >= 3 ? try u32() : Self.transformStride
         let backdropStride = version >= 4 ? try u32() : Self.backdropStride
+        // A version-3-to-5 table holds 64-byte records (widened below), a later one the current stride (`PJ-A`).
+        let expectedTransformStride = version < 6 ? Self.version5TransformStride : Self.transformStride
         guard rectStride == Self.rectStride, glyphStride == Self.glyphStride, imageStride == Self.imageStride,
-              transformStride == Self.transformStride else {
+              transformStride == expectedTransformStride || version < 3 else {
             throw .strideMismatch(rect: rectStride, glyph: glyphStride, image: imageStride)
         }
         // A version-4 table holds 96-byte records (widened below), a later one the current stride.
@@ -336,7 +342,21 @@ extension ReplayFixture {
             textures.append(FixtureTexture(width: textureWidth, height: textureHeight,
                                            pixels: try bytes(Int(textureWidth) * Int(textureHeight) * 4)))
         }
-        let transforms = version >= 3 ? try bytes(Int(try u32())) : []
+        var transforms = version >= 3 ? try bytes(Int(try u32())) : []
+        if version >= 3 && version < 6 {
+            // Each 64-byte record keeps its four lanes and gains a zero projective lane: no perspective (`PJ-A`).
+            let old = Int(Self.version5TransformStride), new = Int(Self.transformStride)
+            guard transforms.count % old == 0 else {
+                throw .invalid("transform bytes \(transforms.count) not a multiple of \(old)")
+            }
+            var widened: [UInt8] = []
+            widened.reserveCapacity(transforms.count / old * new)
+            for start in stride(from: 0, to: transforms.count, by: old) {
+                widened += transforms[start..<start + old]
+                widened += [UInt8](repeating: 0, count: new - old)
+            }
+            transforms = widened
+        }
         var backdrops = version >= 4 ? try bytes(Int(try u32())) : []
         if version == 4 {
             // Each 96-byte record keeps its six lanes and gains a zero glass tail (ruling `LG-O`).

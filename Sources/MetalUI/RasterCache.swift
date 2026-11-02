@@ -462,7 +462,13 @@ struct RasterPlacement {
     var localMask: (bounds: MUIBounds, radii: MUICorners, map: Affine2D)?
 
     init(contentMask: MUIBounds, radii: MUICorners, transform: PrimitiveTransform?, target: RasterRect) {
-        if let t = transform {
+        if let t = transform, !t.homography.isAffine {
+            // A projective record draws the image in its creation space; the shader cuts the local content mask and the
+            // outer mask at draw time, so the raster depends on neither the effect nor its animation (`PJ-G`).
+            imageMask = contentMask
+            imageRadii = radii
+            clip = RasterMath.enclosing(contentMask).intersection(target)
+        } else if let t = transform {
             imageMask = t.outerMask
             imageRadii = t.outerMaskRadii
             clip = RasterMath.enclosing(t.outerMask).intersection(target)

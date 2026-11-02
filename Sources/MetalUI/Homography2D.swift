@@ -79,6 +79,14 @@ struct Homography2D: Equatable, Sendable {
         return w(x0, y0) > 0 && w(x1, y0) > 0 && w(x0, y1) > 0 && w(x1, y1) > 0
     }
 
+    /// Whether every corner of the device-pixel rectangle lands in front of the eye with `w > 0`.
+    func isInFront(of bounds: MUIBounds) -> Bool {
+        if isAffine { return true }
+        let x0 = Double(bounds.origin.x), y0 = Double(bounds.origin.y)
+        let x1 = x0 + Double(bounds.size.width), y1 = y0 + Double(bounds.size.height)
+        return w(x0, y0) > 0 && w(x1, y0) > 0 && w(x0, y1) > 0 && w(x1, y1) > 0
+    }
+
     /// `self ∘ inner`: `inner` first, then `self`.
     func concatenating(_ inner: Homography2D) -> Homography2D {
         if let l = affine, let r = inner.affine { return Homography2D(l.concatenating(r)) }

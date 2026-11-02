@@ -119,8 +119,8 @@ typedef struct {
 #define MUIBackdropSigmaPoints 52.0
 #define MUIBackdropBlurMaxLevel 6
 
-// An affine per instance (ruling GX-F): 64 bytes, four `float4` lanes, so the
-// SDL bridge uploads the table as it is. A primitive names one by
+// An affine per instance (ruling GX-F) with an optional perspective row (`PJ-A`): 80 bytes,
+// five `float4` lanes, so the SDL bridge uploads the table as it is. A primitive names one by
 // 1 + its index in `Scene.transforms`: `MUIRect.shape` bits 8…31,
 // `MUIImage.filter` bits 8…31 (surfaces share the record), `MUIGlyph.transform`.
 // Index 0 means identity and is never stored, so bits 0…7 of `shape`/`filter`
@@ -134,6 +134,12 @@ typedef struct {
 // antialiasing threshold and sizes the vertex stage's one-pixel fringe.
 // `outerMask` is the clip in force where the transform began, in SCREEN
 // space, multiplied in at the fragment's screen position.
+//
+// Lane 4 is the projective row (`PJ-A`, 3D render effects): `(g, h, i, det3)`. `det3 == 0` means the
+// record is affine and every shader runs the code it always ran, byte for byte (an old scene's tail is
+// zero). Otherwise `w = g x + h y + i`, the screen position is `(a x + c y + tx, b x + d y + ty) / w`
+// and one local pixel is `sqrt(|det3| / w^3)` screen pixels at the point (`pixelScale` is then unused).
+// `_reserved` stays zero; `Scene` zeroes it.
 typedef struct {
     float a, b, c, d;
     float tx, ty;
@@ -141,6 +147,7 @@ typedef struct {
     MUIUInt _reserved;
     MUIBounds  outerMask;
     MUICorners outerMaskRadii;
+    float g, h, i, det3;
 } MUITransform;
 
 // One glyph sprite: a 1:1 blit of an R8 coverage bitmap, tinted.

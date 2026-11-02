@@ -35,7 +35,7 @@ void replay_destroy(ReplayGPU *gpu);
 bool replay_use_nearest_filter(ReplayGPU *gpu);
 // Synchronous diagnostic renderer. Copies caller bytes before returning.
 // Buffers are opaque: Swift supplies the existing MetalUI shader ABI.
-// `transforms` is the scene's MUITransform table (64 bytes a record, ruling
+// `transforms` is the scene's MUITransform table (80 bytes a record, rulings PJ-A and
 // GX-F); 0 bytes binds one zero record, which index 0 never reads.
 // `backdrops` is the scene's MUIBackdrop table (256 bytes a record, rulings BB-B, LG-B)
 // with one `regions` entry per record; a frame holding a backdrop run renders

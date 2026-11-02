@@ -267,6 +267,58 @@ private func transformedScene(atlas: GlyphAtlas) throws -> Scene {
     #expect(drawn == expected)
 }
 
+/// A rect, a glyph run and an image under projective records (ruling `PJ-A`, 3D render effects): `w = 1 + g x` with a
+/// different `g` per kind, so the three vertex and fragment branches each run. The rect's far edge is smaller than its near one.
+private func projectedScene(atlas: GlyphAtlas) throws -> Scene {
+    var scene = Scene()
+    let mask = bounds(0, 0, Float(width), Float(height))
+    func record(g: Float, ty: Float = 0) -> MUITransform {
+        MUITransform(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: ty, pixelScale: 1, _reserved: 0, outerMask: mask,
+                     outerMaskRadii: corners(0), g: g, h: 0, i: 1, det3: 1)
+    }
+    scene.insert(MUIRect(bounds: mask, contentMask: mask, maskCornerRadii: corners(0),
+                         background: color(0.6, 0.2, 0.15), borderColor: color(0, 0, 0),
+                         cornerRadii: corners(0), borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
+                         order: 0, shape: 0))
+    scene.insert(MUIRect(bounds: bounds(20, 40, 100, 60), contentMask: mask, maskCornerRadii: corners(0),
+                         background: color(0.3, 0.7, 0.5), borderColor: color(0.1, 0.8, 0.7),
+                         cornerRadii: corners(6), borderWidths: MUIEdges(top: 2, right: 2, bottom: 2, left: 2),
+                         order: 0, shape: 0), transform: record(g: 0.004))
+    var text = Scene()
+    let font = try PortableFont(data: [UInt8](Data(contentsOf: fontURL)), size: 15)
+    atlas.beginFrame()
+    try PortableText.emit("Tilted", font: font, origin: (120.5, 40.25), scaleFactor: 1,
+                          color: color(0.55, 0.1, 0.95), contentMask: mask, into: &text, atlas: atlas)
+    atlas.endFrame()
+    for glyph in text.glyphs { scene.insert(glyph, transform: record(g: 0.002)) }
+    scene.insert(MUIImage(bounds: bounds(120, 80, 60, 40), contentMask: mask, maskCornerRadii: corners(0),
+                          opacity: 1, texture: 0, filter: MUIUInt(MUIImageFilterLinear.rawValue), order: 0),
+                 texture: checker, transform: record(g: 0.003))
+    scene.finalize()
+    return scene
+}
+
+/// **`PJ-A`** — a projective frame draws in `SDLWindowRenderer` exactly as the replay path draws it, and the projection is
+/// really applied: the rect's near edge (x 20) is taller than its far edge (x 120), so a pixel just inside the far edge's
+/// untransformed top is the background, and the two paths agree byte for byte. Mutation: `TRANSFORM_STRIDE` 64 in
+/// `SDLBridge.c` (the table is read at the wrong stride and the frame differs or is refused).
+@MainActor
+@Test func aProjectedFrameIsTheReplayPathsFrame() throws {
+    let atlas = GlyphAtlas(width: 256, height: 256)
+    let frame = try projectedScene(atlas: atlas)
+    try #require(frame.transforms.count == 3, "rect, text, image")
+    try #require(frame.transforms.allSatisfy { $0.det3 != 0 }, "every record is projective")
+    let expected = try replayPixels(frame, atlas: atlas)
+    let renderer = try SDLWindowRenderer(offscreenWidth: width, height: height)
+    try #require(renderer.beginFrame() == 1)
+    try #require(renderer.finishFrame(scene: frame, atlas: atlas))
+    let drawn = try renderer.readPixels(width: width, height: height)
+    // The rect: local (20...120, 40...100); at x' = 119 / (1 + 0.004 * 119) = 80.6 the top edge is y' = 40 / 1.476 = 27.
+    #expect(rgba(drawn, 80, 30) != rgba(drawn, 5, 5), "the projected rect covers (80, 30) inside its far top edge")
+    #expect(rgba(drawn, 110, 95) == rgba(drawn, 5, 5), "and leaves (110, 95), covered by its unprojected bounds")
+    #expect(drawn == expected)
+}
+
 /// S1.3 (ruling GX-S item 7) — `replay_render` refuses a run whose record
 /// names a transform past the table, per kind and at the exact boundary:
 /// `transformedScene`'s rects name entry 1, its glyphs 2, its image 3, so

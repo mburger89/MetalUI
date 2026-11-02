@@ -434,6 +434,52 @@ func looksFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
        atlas: atlas)
 }
 
+/// Frame 15 (ruling `PJ-A`, 3D render effects): the projective record on every pipeline through `renderFrame`, the
+/// production path. A rounded fill and a turned word (a glyph run) under `rotation3DEffect` about y, a star path, a
+/// border and an image-backed shadow under one about x with a shorter eye distance, and a `projectionEffect` with a
+/// perspective term over a shadowed card. The path and the shadow are CPU rasters drawn with the projective record
+/// (divergence 1065). Fractional placement keeps the edges antialiased; the backends are judged as frame 7's are.
+@MainActor
+func projectionFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    func star(_ side: Double) -> Path {
+        Path { path in
+            let unit: [(Double, Double)] = [(0, -1), (0.5878, 0.809), (-0.9511, -0.309), (0.9511, -0.309),
+                                            (-0.5878, 0.809)]
+            let c = side / 2
+            path.move(to: Point(x: Pixels(Float(c + c * unit[0].0)), y: Pixels(Float(c + c * unit[0].1))))
+            for p in unit.dropFirst() {
+                path.addLine(to: Point(x: Pixels(Float(c + c * p.0)), y: Pixels(Float(c + c * p.1))))
+            }
+            path.closeSubpath()
+        }
+    }
+    var perspective = ProjectionTransform()
+    perspective.m13 = 0.004
+    return renderFrame({
+        VStack(spacing: Pixels(30)) {
+            HStack(spacing: Pixels(40)) {
+                RoundedRectangle(cornerRadius: Pixels(16)).fill(.accent)
+                    .frame(width: Pixels(130.25), height: Pixels(110.5))
+                    .rotation3DEffect(.degrees(50), axis: (x: 0, y: 1, z: 0))
+                Text("Flip").font(size: 40)
+                    .rotation3DEffect(.degrees(-40), axis: (x: 0, y: 1, z: 0), anchor: .leading, perspective: 0.8)
+                star(100).fill(.accent).frame(width: Pixels(100), height: Pixels(100))
+                    .rotation3DEffect(.degrees(35), axis: (x: 1, y: 0, z: 0), perspective: 0.8)
+            }
+            HStack(spacing: Pixels(40)) {
+                Color(.surface).frame(width: Pixels(90.5), height: Pixels(60.25))
+                    .shadow(color: .textPrimary, radius: Pixels(4), x: Pixels(3), y: Pixels(4))
+                    .projectionEffect(perspective)
+                Color(.accent).frame(width: Pixels(110), height: Pixels(70.75))
+                    .rotation3DEffect(.degrees(25), axis: (x: 0.3, y: 1, z: 0.2))
+            }
+        }
+    }, size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))), scaleFactor: 1, textSystem: system,
+       atlas: atlas)
+}
+
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
 /// scale 1, through `PortableTextSystem` over Noto Sans.
 @MainActor
@@ -571,22 +617,27 @@ func run() throws {
     let transformsAtlas = GlyphAtlas(width: 512, height: 512)
     // Frame 8's blurred text is PortableText's, into its own atlas (`LK-S`).
     let looksAtlas = GlyphAtlas(width: 512, height: 512)
+    // Frame 15's word is PortableText's, into its own atlas (`PJ-A`).
+    let projectionAtlas = GlyphAtlas(width: 512, height: 512)
     // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O) need the portable shaders: the adapted MSL has no backdrop stages.
     let portableShaders = portable
     let sizes = [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200)]
+                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380)]
     for (index, dimensions) in sizes.enumerated() {
         let (width, height) = dimensions
-        let backdrops = index >= 9
-        let glass = index >= 12
-        if backdrops && !portableShaders { print("frame \(index) (\(glass ? "liquid glass" : "backdrop blur")): skipped, needs --portable"); continue }
+        let projection3D = index == 15
+        let backdrops = index >= 9 && !projection3D
+        let glass = index >= 12 && !projection3D
+        if (backdrops || projection3D) && !portableShaders { print("frame \(index) (\(glass ? "liquid glass" : "backdrop blur")): skipped, needs --portable"); continue }
         let portable = index == 4
         let demo = index == 5
         let shapes = index == 6
         let transforms = index == 7
         let looks = index == 8
-        let frameAtlas = backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = glass
+        let frameAtlas = projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = projection3D
+            ? try projectionFrame(width: width, height: height, atlas: projectionAtlas)
+            : glass
             ? GlassParityFrames.scene(index: index)
             : backdrops
             ? backdropFrame(index: index, width: width, height: height)
@@ -609,7 +660,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
@@ -621,7 +672,7 @@ func run() throws {
         // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O, the glass frames of
         // `GlassParityFrames`): the blurred quad is judged at the backdrop tolerance
         // (`ReplayFixture.backdropMask()` covers backdrop bounds), every other pixel to one step.
-        try require(shapes || transforms || looks || backdrops ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
+        try require(shapes || transforms || looks || backdrops || projection3D ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
             try Data(frameFixture.encoded()).write(to: path)
