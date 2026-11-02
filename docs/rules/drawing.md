@@ -193,3 +193,5 @@ isolation check per call: a hot loop uses a plain loop or a nonisolated function
 (`PlacementBox`, `AnimationStore.borderKeyBuilds`/`numberTrackRebuilds`, `RasterCache.keyProbes`), pins count work. Carried:
 `Frame.swift` hot sites and `RetainedSubtree` (C14b-2), layout pre-sizing, `measureNative` hashing, `ForEach` (P2), path-raster
 clip key and R8 coverage (P3: pixels and shaders).
+
+**3D render effects (`PJ-`, record §193).** An effect's map is a `Homography2D` (3x3, `Double`, affine fast path in every operation so affine effects stay bit-identical); a reader that needs an affine asks `.affine` and handles `nil`, and `Affine2D` never gains `g h i`. A view with any corner at `w <= 0` draws nothing. **Paint of a projective scope is not built yet (`PJ-STEP4` in `paintWithDeviceMap`): the 80-byte `MUITransform`, `shaders.metal`/`replay.hlsl` and the SDL blobs land together, with the pinned shadercross.**

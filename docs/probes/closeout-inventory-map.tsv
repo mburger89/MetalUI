@@ -251,6 +251,7 @@ F	surface-text	M	-	-	-	-	DT-A DT-B DT-C DT-D DT-E DT-F DT-I	GPUSurfaceContext.dr
 
 # ---------------------------------------------------------------- MetalUI
 F	equatable-component	A	swiftui-incremental-invalidation.swift	ES	anOwnStateWriteBeatsAnEqualValue	346	IV-B IV-C IV-D IV-L	Component.equatable() (where Self: Equatable) -> EquatableComponent: the content getter is not re-run while the value is == to its last evaluation, its own @State is unwritten and the @Observable properties it read are unchanged (SwiftUI skips an equal view the same way, probes S2/S3, EqPod; an observed read O and own @State ES beat an equal ==); a component declaring @Environment or @FocusState is evaluated every frame and counted in FrameWork.contentRefusals, where SwiftUI re-runs an environment reader only when the environment changes (probe E-env, 346); opt-in only, no automatic skipping
+F	projection-effects	A	swiftui-projection-effects.swift	R1	rotation3DEffectMatchesTheMeasuredPerspective	1068	PJ-A PJ-B PJ-C PJ-E PJ-F PJ-H PJ-I PJ-J PJ-K	ProjectionTransform (nine Double fields, row vectors with a w column, invert/inverted/concatenating), and rotation3DEffect/projectionEffect/transformEffect in both vocabularies: layout unchanged, hit testing and geometry follow the projected quad, a corner behind the eye draws nothing, right-to-left conjugated; paint of a projective scope not built (record 193 section 5)
 M	MetalUI	WindowChrome.swift	Window	makeKeyAndOrderFront	.*	window-activation
 M	MetalUI	AppShell.swift	App	activate	.*	window-activation
 M	MetalUI	Color.swift	Color	init	.*hex.*	window-activation
@@ -474,6 +475,7 @@ M	MetalUI	NativeElements.swift	-	(Color)	.*	color-fill
 M	MetalUI	NativeElements.swift	(Color)	.*	.*	color-fill
 M	MetalUI	Angle.swift	.*	.*	.*	render-effects
 M	MetalUI	RenderEffects.swift	.*	.*	.*	render-effects
+M	MetalUI	ProjectionTransform.swift	.*	.*	.*	projection-effects
 M	MetalUI	Path.swift	.*	.*	.*	paths
 M	MetalUI	Transform2D.swift	.*	.*	.*	paths
 M	MetalUI	TrimmedShape.swift	.*	.*	.*	paths
