@@ -1145,27 +1145,31 @@ private func proposalTextMeasure<C: ElementGroup>(_ content: (Text) -> C, _ text
     #expect(english.broken == bare.broken)
 }
 
-/// **E17. PINNED WRONG ON PURPOSE** (ruling EV-K). Under `.rightToLeft`
-/// SwiftUI mirrors: probe H places a 10pt and a 20pt child at x **90** and
-/// **70** in a 100pt leading frame. MetalUI does not mirror yet and places them
-/// at 0 and 10, as left-to-right does. It flips in the change that implements
-/// mirroring (plan task 6).
+/// **E17, flipped by R3-10 item 4** (ruling `LD-A`; was pinned wrong on purpose under `EV-K`, divergence 25). Under
+/// `.rightToLeft` SwiftUI mirrors: probe H places a 10pt and a 20pt child at x **90** and **70** in a 100pt leading
+/// frame, and so does MetalUI (arm A1 of `docs/probes/swiftui-layout-direction.swift`). The separating arm is the same
+/// tree under `.leftToRight`, which keeps 0 and 10.
+/// Mutation (record 191): the `didSet` of `Frame.environmentTop` not setting `tree.registersRightToLeft`.
 @MainActor
-@Test func aRightToLeftLayoutDirectionDoesNotYetMirrorAnHStack() throws {
-    let f = frame(100, 10)
-    var root = ZStack {
-        HStack(spacing: px(0)) {
-            Rectangle(width: px(10), height: px(10))
-            Rectangle(width: px(20), height: px(10))
+@Test func aRightToLeftLayoutDirectionMirrorsAnHStack() throws {
+    func positions(_ direction: LayoutDirection) throws -> (ten: Float, twenty: Float) {
+        let f = frame(100, 10)
+        var root = ZStack {
+            HStack(spacing: px(0)) {
+                Rectangle(width: px(10), height: px(10))
+                Rectangle(width: px(20), height: px(10))
+            }
+            .frame(width: px(100), alignment: .leading)
+            .environment(\.layoutDirection, direction)
         }
-        .frame(width: px(100), alignment: .leading)
-        .environment(\.layoutDirection, .rightToLeft)
+        f.render(&root)
+        let rects = f.finalizedScene().rects
+        let ten = try #require(rects.first { $0.bounds.size.width == 10 })
+        let twenty = try #require(rects.first { $0.bounds.size.width == 20 })
+        return (ten.bounds.origin.x, twenty.bounds.origin.x)
     }
-    f.render(&root)
-
-    let rects = f.finalizedScene().rects
-    let ten = try #require(rects.first { $0.bounds.size.width == 10 })
-    let twenty = try #require(rects.first { $0.bounds.size.width == 20 })
-    #expect(ten.bounds.origin.x == 0)
-    #expect(twenty.bounds.origin.x == 10)
+    let leftToRight = try positions(.leftToRight)
+    #expect(leftToRight.ten == 0 && leftToRight.twenty == 10)
+    let rightToLeft = try positions(.rightToLeft)
+    #expect(rightToLeft.ten == 90 && rightToLeft.twenty == 70)
 }

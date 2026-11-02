@@ -258,8 +258,7 @@ public final class Frame {
     func noteScrollTarget(_ key: AnyHashable, bounds: Bounds<Pixels>) {
         guard let scroller = activeScrollerFrame, scroller.tracksPosition else { return }
         let vertical = scroller.axis == .vertical
-        let origin = Double(vertical ? scroller.contentOrigin.y.value : scroller.contentOrigin.x.value)
-        let start = Double(vertical ? bounds.origin.y.value : bounds.origin.x.value) - origin
+        let start = scroller.logicalStart(of: bounds)   // `LD-E`: from the leading edge
         let extent = Double(vertical ? bounds.size.height.value : bounds.size.width.value)
         scrollTargetNotes.append(ScrollTargetNote(scroller: scroller.scrollerID, key: key, start: start,
                                                   end: start + extent))
@@ -344,8 +343,7 @@ public final class Frame {
     static func scrollOffset(bringing target: Bounds<Pixels>, into scroller: ScrollerFrame,
                              anchor: UnitPoint?) -> Double {
         let vertical = scroller.axis == .vertical
-        let start = Double(vertical ? target.origin.y.value - scroller.contentOrigin.y.value
-                                    : target.origin.x.value - scroller.contentOrigin.x.value)
+        let start = scroller.logicalStart(of: target)   // `LD-E`: from the leading edge
         let length = Double(vertical ? target.size.height.value : target.size.width.value)
         let viewport = scroller.viewportExtent
         let offset: Double
@@ -664,7 +662,18 @@ public final class Frame {
     /// call stack is the stack, and an unbalanced push is not expressible
     /// (the discipline `clipStack` and `scrollContextStack` use). Read in place
     /// by `theme`; handed out as a copy only by `environmentSnapshot()`.
-    private(set) var environmentTop: EnvironmentValues
+    ///
+    /// **The kernel's registration mark follows it** (`LD-B`): a node registered while the top reads
+    /// right-to-left places its children mirrored, so `didSet` keeps
+    /// `tree.registersRightToLeft` equal to the top's direction across the root setter, every
+    /// `withEnvironment` push and its restoring pop. (`init` does not fire it: the root starts
+    /// left-to-right and a `Frame` has not yet registered anything.)
+    private(set) var environmentTop: EnvironmentValues {
+        didSet {
+            let rightToLeft = environmentTop.layoutDirection == .rightToLeft
+            if tree.registersRightToLeft != rightToLeft { tree.registersRightToLeft = rightToLeft }
+        }
+    }
 
     /// The readings of the `@Environment` properties a component binds, collected by `StateBinder.bind`
     /// while a memoized component is entering (`EE-A`); `nil` outside that window.
@@ -1449,7 +1458,9 @@ public final class Frame {
     /// used to be `insertHitbox`'s alone and this function's omission of it was
     /// a live routing defect. See `insertHitbox`.
     func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
-        _ = insertHitbox(bounds, id: id, opaque: true, scroll: axis)
+        let mirrored = axis == .horizontal && environmentTop.layoutDirection == .rightToLeft   // `LD-E`
+        let box = insertHitbox(bounds, id: id, opaque: true, scroll: axis)
+        if mirrored { hitboxes[box.index].scrollMirrored = true }
     }
 
     /// Hitboxes registered this frame, in prepaint order — **the one list**.
@@ -4224,7 +4235,7 @@ extension Frame {
             values = [s.axis == .vertical ? 1 : 0, Double(s.contentOrigin.x.value), Double(s.contentOrigin.y.value),
                       Double(s.viewport.origin.x.value), Double(s.viewport.origin.y.value),
                       Double(s.viewport.size.width.value), Double(s.viewport.size.height.value), s.offset,
-                      s.contentExtent]
+                      s.contentExtent, s.mirrored ? 1 : 0]   // `LD-E`: appended, so the indices above stand
         }
         return PrepaintExtras(effects: effects, hitTestingDisabled: hitTestingDisabledDepth,
                               keyboardHidden: keyboardHiddenDepth,

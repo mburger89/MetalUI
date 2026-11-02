@@ -149,7 +149,7 @@ Record §13; mechanisms in the cited rulings.
   from hitboxes and the focus registry and never reads `declared.actions`;
   `synthesizes` has no reader outside its initializer.
 - **Added:** `ElementGroup.LayerBase`/`_wrap(_:)` on a custom conformer (`MC-A`);
-  `EnvironmentValues.layoutDirection`, `.locale`, `.dynamicTypeSize`,
+  `EnvironmentValues.layoutDirection` (since record §191 it mirrors layout, `LD-A`; it was inert until then), `.locale`, `.dynamicTypeSize`,
   `.pixelLength` (`EV-I`, `EV-K`, `EV-J`); `@Environment` inside `AnyElement`
   and unbound; an in-module write to `theme`/`pixelLength` through the root
   (re-stamped, `EV-H`, `EV-U`); `.disabled` on a `ScrollView` (the scroll region
@@ -776,8 +776,8 @@ exist with no production reader):
 
 1. *Declared, deliberately limited*: `PlatformWindow.onInput`'s `-> Bool`;
    colour glyphs (wrong rather than absent, `TE-AO` item 2);
-   `locale`/`layoutDirection`/`dynamicTypeSize` (carried, scoped, read by no
-   text size, as on macOS); `controlSize` (reaches `Button`'s chrome and every
+   `locale`/`dynamicTypeSize` (carried, scoped, read by no
+   text size, as on macOS; `layoutDirection` mirrors layout since record §191, `LD-A`); `controlSize` (reaches `Button`'s chrome and every
    text's default font only, divergence 76); `displayScale` (no framework
    reader, no owner); `ButtonRole` (binds a key, draws nothing else);
    `AXNode.actions`/`AXActionKind` (deprecated, never read);

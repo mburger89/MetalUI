@@ -137,6 +137,10 @@ private let parameterArms: [ParameterArm] = {
         t.markNativeGridRow(first); t.markNativeGridRow(second)
         return t.newNativeGrid(children: first + second, verticalSpacing: Double(v)) })
     arms.append(arm("leaf.key") { t, v in keyed(t, v == 0 ? "x" : "y") })
+    // `LD-B`: the mark a node is registered under right-to-left is part of what it is.
+    arms.append(arm("direction.rightToLeft") { t, v in
+        t.registersRightToLeft = v == 1
+        return t.newNativeFrame(child: leaf(t), width: 50) })
     return arms
 }()
 
@@ -144,7 +148,7 @@ private let parameterArms: [ParameterArm] = {
 /// the node twice with one parameter at two values and reads the signature of the
 /// result; they must differ, and two builds at one value must agree (so the arm
 /// separates). Mutation: `frame.maxHeight` dropped from the `.frame` case of
-/// `nodeSignature` reddens `frame.maxHeight` only.
+/// `nodeSignature` reddens `frame.maxHeight` only; the `LD-B` tag line dropped reddens `direction.rightToLeft` only.
 @Test @MainActor func everyRegistrarParameterIsInItsSignature() throws {
     var failures: [String] = []
     for arm in parameterArms {
@@ -159,7 +163,7 @@ private let parameterArms: [ParameterArm] = {
         if zero != again { failures.append("\(arm.name): not deterministic") }
     }
     #expect(failures.isEmpty, "\(failures)")
-    #expect(parameterArms.count == 33)
+    #expect(parameterArms.count == 34)
 }
 
 /// 1.5b — a non-`Hashable` custom layout is unmatchable; a `Hashable` one is not.

@@ -110,7 +110,8 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        let chrome = self.chrome
+        var chrome = self.chrome
+        chrome.mirrored = axis == .horizontal && pass.frame.environmentTop.layoutDirection == .rightToLeft   // `LD-E`
         let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
                                            pass: pass)
         pass.registerScrollRegion(bounds, id: id, axis: axis)
@@ -119,10 +120,10 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,
                                      viewport: bounds, offset: offset,
                                      contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size),
-                                     tracksPosition: position != nil)
+                                     tracksPosition: position != nil, mirrored: chrome.mirrored)
         var result: Content.GroupPrepaint!
         let noteMark = pass.frame.scrollTargetNoteCount
-        pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
+        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset),
                      cornerRadii: Corners(all: cornerRadius)) {
             pass.inScroller(scroller) {
                 result = content.prepaintGroup(layout: &layout.content, pass: &pass)
@@ -135,10 +136,11 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
-        let chrome = self.chrome
+        var chrome = self.chrome
+        chrome.mirrored = axis == .horizontal && pass.frame.environmentTop.layoutDirection == .rightToLeft   // `LD-E`
         let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
                                            pass: pass)
-        pass.clipped(to: bounds, offsetBy: chrome.delta(-offset),
+        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset),
                      cornerRadii: Corners(all: cornerRadius)) {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         }

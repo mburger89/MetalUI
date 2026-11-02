@@ -34,6 +34,10 @@ struct ScrollChrome {
     var axis: ScrollAxis
     var cornerRadius: Pixels
     var indicatorVisibility: ScrollIndicatorVisibility
+    /// Whether the content is laid out right-to-left along this scroller's (horizontal) axis (`LD-E`): the
+    /// offset is then **logical**, the distance from the leading (right) edge, so a larger offset moves the
+    /// content to the right. Set by the scroller from the environment at its site; vertical never.
+    var mirrored = false
 
     /// `0 ... max(0, content - viewport)`.
     ///
@@ -62,6 +66,11 @@ struct ScrollChrome {
         axis == .vertical ? Point(x: Pixels(0), y: Pixels(Float(value)))
                           : Point(x: Pixels(Float(value)), y: Pixels(0))
     }
+
+    /// The translation a scroller applies for the logical `offset` (`LD-E`): `delta(-offset)`, and
+    /// `delta(+offset)` when mirrored, because the content starts at the right edge and a larger offset
+    /// reveals what is to its left.
+    func translation(offset: Double) -> Point<Pixels> { delta(mirrored ? offset : -offset) }
 
     /// Whether two stored scroll states are the same value (`RW-H`): the compared write's `unchanged:`.
     static func sameScrollState(_ a: ScrollState, _ b: ScrollState) -> Bool {
@@ -238,6 +247,10 @@ struct ScrollChrome {
     /// along the scroll axis.
     func indicatorBounds(bounds: Bounds<Pixels>, thumb: Double,
                          travel: Double) -> Bounds<Pixels> {
+        // `LD-E`: a mirrored horizontal indicator travels from the right edge.
+        let startX = mirrored
+            ? bounds.origin.x.value + bounds.size.width.value - Float(travel) - Float(thumb)
+            : bounds.origin.x.value + Float(travel)
         switch axis {
         case .vertical:
             return Bounds(
@@ -246,7 +259,7 @@ struct ScrollChrome {
                 size: Size(width: Pixels(3), height: Pixels(Float(thumb))))
         case .horizontal:
             return Bounds(
-                origin: Point(x: Pixels(bounds.origin.x.value + Float(travel)),
+                origin: Point(x: Pixels(startX),
                               y: Pixels(bounds.origin.y.value + bounds.size.height.value - 5)),
                 size: Size(width: Pixels(Float(thumb)), height: Pixels(3)))
         }
@@ -276,6 +289,20 @@ struct ScrollerFrame {
     /// Whether this scroller carries a `scrollPosition(id:)` binding, so targets inside it note their extents
     /// (`SP-B`).
     var tracksPosition = false
+    /// Whether the scroller lays its content out right-to-left (`LD-E`): `offset` is the distance from the
+    /// content's right edge and `logicalStart(of:)` measures from there.
+    var mirrored = false
+
+    /// A layout-space rect's start along the scroller's axis, from the content's **leading** edge: from
+    /// `contentOrigin` normally, from the content's right edge when mirrored (`LD-E`). What every
+    /// `scrollTo` target, position note and lazy window measures with.
+    func logicalStart(of rect: Bounds<Pixels>) -> Double {
+        if axis == .vertical { return Double(rect.origin.y.value - contentOrigin.y.value) }
+        if mirrored {
+            return Double(contentOrigin.x.value) + contentExtent - Double(rect.origin.x.value + rect.size.width.value)
+        }
+        return Double(rect.origin.x.value - contentOrigin.x.value)
+    }
 
     /// The viewport's extent on the scrolling axis.
     var viewportExtent: Double {

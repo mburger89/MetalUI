@@ -2390,7 +2390,9 @@ public final class Window {
             // in the positive direction (the user's fingers moved that way),
             // so the offset — how far the content has scrolled away from its
             // start — decreases.
-            $0.offset -= Double(componentDelta.value)
+            // `LD-E`: a right-to-left horizontal scroller's offset is logical (from the right edge), so
+            // content following the fingers to the right is an offset that grows.
+            $0.offset += region.scrollMirrored ? Double(componentDelta.value) : -Double(componentDelta.value)
             moved = $0.offset
             // Stamped from the EVENT's own timestamp, not `lastTick`. The
             // display link pauses while the window is clean (spec §4.4), so

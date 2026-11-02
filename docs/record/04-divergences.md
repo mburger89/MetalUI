@@ -2832,3 +2832,14 @@ system title bar's close button, so under `windowDismissBehavior(.disabled)` the
 `D0`); `close()` and the quit walk still close; pins `dismissDisabledRefusesTheUsersCloseAndFollowsPostOrderPrecedence`, `aDisabledWindowStillClosesForQuitAndForClose`. Two "Not offered"
 rows rewritten: the title row keeps only `Binding<String>` (carried) and the unbuilt `windowMinimizeBehavior`/`windowResizeBehavior`; the "not built" window-behavior row is deleted (`WindowDragGesture`
 and `Window.backgroundDragBehavior` were already built, `WD-`, `BG-G`). Divergences 275, 425, 426 and 736 unchanged.
+
+## 2026-11-01: right-to-left layout direction (`LD-A`...`LD-H`, record §191)
+
+**Retired: 25** (195 live before and after: -1 +1; next label 210 unchanged). Divergence 25 was "right-to-left mirrors stacks / carried and readable, no container mirrors" (`EV-K`);
+a node registered under a right-to-left environment now reflects each child's rect about its own bounds, so a stack, frame, `ZStack`, overlay, padding, `Grid`, lazy stack and custom layout mirror
+(probe `swiftui-layout-direction.swift` A1...L1), `offset(x:)`/`position(x:)` flip inside the writer, a horizontal scroller opens at the right edge, and multiline text alignment swaps. The pin
+`aRightToLeftLayoutDirectionDoesNotYetMirrorAnHStack` became `aRightToLeftLayoutDirectionMirrorsAnHStack`.
+**New: 1045** (1045-1054 reserved by `LD`, 1046-1054 unused). SwiftUI also mirrors a `Path`/`Shape` fill (`O1`: a shape filling its left 30 points fills 70...100), a gradient's `.leading`/`.trailing` unit
+points, `trim`, and `UnevenRoundedRectangle`'s leading/trailing corners; MetalUI's shapes are drawn from the rect the layout gave them and do not (`LD-G`). `Canvas` is not mirrored in SwiftUI either (`O2`),
+and an `Image` only under `flipsForRightToLeftLayoutDirection(true)` (`N1`, `N2`), which MetalUI does not offer. Pin `aRightToLeftShapeIsNotYetMirrored`. Mechanism, mutations and the carried list:
+`docs/superpowers/2026-11-01-layout-direction-decisions.md`, `docs/record/191-layout-direction.md`.

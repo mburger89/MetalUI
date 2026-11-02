@@ -99,8 +99,9 @@ the window's top layer — a portal for modals, popovers and tooltips
   `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
   (inert as on macOS), `accessibilityReduceMotion`, `accessibilityReduceTransparency` (SwiftUI's
   key, read-only outside; stamped from the platform; while true every `Material` draws an opaque
-  grey with no blur, divergence 315; C27, `MT-D`, `MT-F`); `layoutDirection` is
-  carried and mirrors nothing (25); `colorScheme`, readable while building
+  grey with no blur, divergence 315; C27, `MT-D`, `MT-F`); `layoutDirection`
+  mirrors layout under `.rightToLeft` (A; a shape's path, gradient unit points, `trim` and
+  `UnevenRoundedRectangle`'s corners stay unmirrored, 1045); `colorScheme`, readable while building
   ([Colour](#colour--a--d--m)). `Theme`/`ColorToken`/`.theme(_:)` are
   MetalUI's scoped, paint-only colour tokens (M). An `@Observable` object is
   provided with `.environment(model)` and read with `@Environment(Model.self)`
@@ -1147,7 +1148,7 @@ A complete app that uses only this surface, with its own tests over `MetalUITest
 ## Backends and infrastructure — M
 
 `MetalUICore` (geometry, units — `Pixels`, `Length`, `Dimension` — colours,
-`Appearance`, `ControlActiveState` (A), `LayoutDirection` (25)),
+`Appearance`, `ControlActiveState` (A), `LayoutDirection` (A; 1045)),
 `MetalUILayout` (the layout kernel: `LayoutTree`, `ProposalLayout`,
 `ProposedSize`, rounding — 77), `MetalUIPlatform` (`Platform`,
 `PlatformWindow`, `WindowRenderer`, input events, the accessibility tree; the
