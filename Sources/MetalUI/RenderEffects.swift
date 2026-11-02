@@ -27,7 +27,31 @@ enum RenderEffectSpec: Hashable, Sendable {
     /// space its primitives are emitted in (already moved by the scroll
     /// translation, `GX-P` item 4): `T(A) · L · T(−A)` with `A` the anchor of
     /// `rect`, or a plain translation.
-    func affine(in rect: Bounds<Pixels>) -> Affine2D {
+    ///
+    /// **`mirrored`** (`LD-C`, a right-to-left environment at the effect's site) conjugates the map by
+    /// the reflection about the rect's vertical centre line, which is what SwiftUI measured: an offset's
+    /// x negates, an anchor's x becomes `1 − x`, a rotation's angle negates (the sense reverses) and a
+    /// scale's factors stand.
+    func affine(in rect: Bounds<Pixels>, mirrored: Bool = false) -> Affine2D {
+        if mirrored { return mirroredSpec.unmirroredAffine(in: rect) }
+        return unmirroredAffine(in: rect)
+    }
+
+    /// The spec a right-to-left site reads as its left-to-right equivalent (`LD-C`).
+    private var mirroredSpec: RenderEffectSpec {
+        switch self {
+        case let .rotation(angle, anchor):
+            .rotation(Angle(radians: -angle.radians), anchor: UnitPoint(x: 1 - anchor.x, y: anchor.y))
+        case let .scale(x, y, anchor):
+            .scale(x: x, y: y, anchor: UnitPoint(x: 1 - anchor.x, y: anchor.y))
+        case let .offset(x, y):
+            .offset(x: Pixels(-x.value), y: y)
+        case .shadow, .blur, .compositingGroup:
+            self
+        }
+    }
+
+    private func unmirroredAffine(in rect: Bounds<Pixels>) -> Affine2D {
         func anchorPoint(_ u: UnitPoint) -> (Double, Double) {
             (Double(rect.origin.x.value) + u.x * Double(rect.size.width.value),
              Double(rect.origin.y.value) + u.y * Double(rect.size.height.value))
@@ -333,7 +357,8 @@ extension Frame {
         guard !prepaintEffects.isEmpty || !ownEffects.isEmpty else { return rect }
         var composed = prepaintEffects.last?.composed ?? .identity
         let scrolledBounds = scrolled(bounds)
-        for effect in ownEffects.reversed() { composed = composed.concatenating(effect.affine(in: scrolledBounds)) }
+        let mirrored = environmentTop.layoutDirection == .rightToLeft
+        for effect in ownEffects.reversed() { composed = composed.concatenating(effect.affine(in: scrolledBounds, mirrored: mirrored)) }
         return composed.boundingBox(of: rect)
     }
 
@@ -345,7 +370,7 @@ extension Frame {
     func prepaintWithRenderEffect<R>(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> R) -> R {
         effectScopesPushed += 1
         let rect = scrolled(bounds)
-        let map = effect.affine(in: rect)
+        let map = effect.affine(in: rect, mirrored: environmentTop.layoutDirection == .rightToLeft)
         let outerClip: Bounds<Pixels>
         if let top = prepaintEffects.last {
             // The clip at this entry is in the enclosing effect's local space:
@@ -405,7 +430,7 @@ extension Frame {
     /// when it has no entry clip of its own and the enclosing one cuts
     /// (`GX-Y`). A degenerate map (a zero scale) paints nothing.
     func paintWithRenderEffect(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> Void) {
-        let map = effect.affine(in: scrolled(bounds))
+        let map = effect.affine(in: scrolled(bounds), mirrored: environmentTop.layoutDirection == .rightToLeft)
         guard map.determinant != 0, map.determinant.isFinite else { effectScopesPushed += 1; return }
         paintWithDeviceMap(map.scaledToDevice(scaleFactor), body)
     }

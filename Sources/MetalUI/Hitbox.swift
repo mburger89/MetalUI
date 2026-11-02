@@ -147,6 +147,10 @@ struct Hitbox {
     var unclipped: Bounds<Pixels>? = nil
     var clipDepth = 0
 
+    /// Whether a horizontal scroller lays its content out right-to-left (`LD-E`): its wheel moves the
+    /// logical offset the other way (`Window.scroll`). `false` for everything else.
+    var scrollMirrored = false
+
     /// Whether `point` lands in this hitbox — **the single region test** (ruling
     /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
     /// ancestor membership and `Window.applyScroll`'s wheel chain all call it,
@@ -267,7 +271,7 @@ extension Hitbox {
             if value.displayStyle == .optional, value.children.isEmpty { continue }
             members.append(label)
         }
-        return "\(id)|\(bounds)|\(layer)|\(opaque)|\(String(describing: scroll))|\(origin)|"
+        return "\(id)|\(bounds)|\(layer)|\(opaque)|\(String(describing: scroll))|\(scrollMirrored)|\(origin)|"
             + "\(String(describing: shape))|\(String(describing: transform))|\(contextualEnabled)|"
             + members.joined(separator: ",")
     }

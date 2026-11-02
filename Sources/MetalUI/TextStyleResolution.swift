@@ -69,7 +69,7 @@ func resolveTextStyle(_ own: TextStyleRequest, in environment: EnvironmentValues
         foreground: own.foreground ?? environment.foregroundStyle ?? .textPrimary,
         lineLimit: environment.textLineLimit,
         truncation: environment.truncationMode.seam,
-        alignment: environment.multilineTextAlignment.seam)
+        alignment: environment.multilineTextAlignment.seam(in: environment.layoutDirection))
 }
 
 extension Text.TruncationMode {
@@ -83,6 +83,16 @@ extension Text.TruncationMode {
 }
 
 extension TextAlignment {
+    /// The line alignment under `direction` (`LD-D`): `.leading` and `.trailing` swap in a right-to-left
+    /// environment, `.center` stands. Glyphs themselves are never mirrored.
+    func seam(in direction: LayoutDirection) -> TextLineAlignment {
+        switch (self, direction) {
+        case (.leading, .rightToLeft): .trailing
+        case (.trailing, .rightToLeft): .leading
+        default: seam
+        }
+    }
+
     var seam: TextLineAlignment {
         switch self {
         case .leading: .leading

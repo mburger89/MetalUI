@@ -75,6 +75,19 @@ public final class LayoutTree {
         placementRoots.insert(slot(id))
     }
 
+    /// The nodes that place their children mirrored (`LD-A`, `LD-B`): those registered while
+    /// `registersRightToLeft` was set. A node placing a child under this mark reflects the child's rect
+    /// about the middle of the node's own bounds (`mirroredChildRect`). Written by `appendNode`, cleared
+    /// by `reset(generation:)`, carried by a segment and its graft, read once per placed node. A stored
+    /// property on a public class read across a module boundary: `swift package clean` after changing
+    /// it (CN-R).
+    private var rightToLeftNodes: Set<Int> = []
+
+    /// Set by `Frame` while the environment in effect reads right-to-left (`LD-B`): every node
+    /// registered while it is set places its children mirrored. Never part of a graft (a graft copies
+    /// the segment's own marks, not the current flag). **`package`**: not API.
+    package var registersRightToLeft = false
+
     /// The axis of the linear stack that marked each spacer, by node index
     /// (ruling CN-C). A marked spacer answers 0 on that stack's CROSS axis.
     /// Written at registration by `newNativeLinearStack`'s walk
@@ -195,6 +208,7 @@ public final class LayoutTree {
         childLists.append(children)
         layouts.append(LayoutRect(x: 0, y: 0, width: 0, height: 0))
         measuredWidths.append(0)
+        if registersRightToLeft { rightToLeftNodes.insert(childLists.count - 1) }
         return LayoutNodeID(generation: generation, index: childLists.count - 1)
     }
 
@@ -784,6 +798,7 @@ public final class LayoutTree {
         gridCellColumnAlignments.removeAll(keepingCapacity: true)
         gridCellUnsizedAxes.removeAll(keepingCapacity: true)
         placementRoots.removeAll(keepingCapacity: true)
+        rightToLeftNodes.removeAll(keepingCapacity: true)
     }
 
     /// The storage index for `id`, after checking it belongs to this tree.
@@ -1027,11 +1042,18 @@ public final class LayoutTree {
                 if run.footprintDepth > 0 { run.footprintLog.placements.append(recording) }
             }
         }
+        // `LD-A`: a node registered under a right-to-left environment reflects each child's rect about the
+        // middle of its own bounds. One `isEmpty` per placed node in a left-to-right tree.
+        let flip = !rightToLeftNodes.isEmpty && rightToLeftNodes.contains(id.index)
+        func place(_ child: LayoutNodeID, _ rect: LayoutRect, _ childProposal: ProposedSize) {
+            placeNative(child, in: flip ? Self.mirroredChildRect(rect, within: bounds) : rect,
+                        proposal: childProposal, run: run)
+        }
         switch nativeNode(id) {
         case .leaf, .spacer:
             return
         case .custom(let layout):
-            placeCustom(id, layout: layout, in: bounds, proposal: proposal, run: run)
+            placeCustom(id, layout: layout, in: bounds, proposal: proposal, flip: flip, run: run)
         case .overlay(let alignment):
             // CN-E (amended, critic round 1): every child is placed at a
             // proposal equal to the ZStack's OWN size B — its stored bounds,
@@ -1049,35 +1071,35 @@ public final class LayoutTree {
                 SizeD(width: max($0.width, $1.width), height: max($0.height, $1.height))
             }
             for (child, answer) in zip(nodes, answers) {
-                placeNative(child,
-                            in: LayoutRect(x: bounds.x + (union.width - answer.width) * alignment.horizontalFactor,
-                                           y: bounds.y + (union.height - answer.height) * alignment.verticalFactor,
-                                           width: answer.width, height: answer.height),
-                            proposal: own, run: run)
+                place(child,
+                      LayoutRect(x: bounds.x + (union.width - answer.width) * alignment.horizontalFactor,
+                                 y: bounds.y + (union.height - answer.height) * alignment.verticalFactor,
+                                 width: answer.width, height: answer.height),
+                      own)
             }
         case .overlayAttachment(let alignment):
             let primary = children(id)[0]
             let overlay = children(id)[1]
             let primaryMeasurement = measureNative(primary, proposal: proposal, run: run)
-            placeNative(primary, in: bounds, proposal: proposal, run: run)
+            place(primary, bounds, proposal)
             let overlayProposal = ProposedSize(width: primaryMeasurement.size.width,
                                                height: primaryMeasurement.size.height)
             let overlayMeasurement = measureNative(overlay, proposal: overlayProposal, run: run)
-            placeNative(overlay,
-                        in: LayoutRect(x: bounds.x + (bounds.width - overlayMeasurement.size.width) * alignment.horizontalFactor,
-                                       y: bounds.y + (bounds.height - overlayMeasurement.size.height) * alignment.verticalFactor,
-                                       width: overlayMeasurement.size.width, height: overlayMeasurement.size.height),
-                        proposal: overlayProposal, run: run)
+            place(overlay,
+                  LayoutRect(x: bounds.x + (bounds.width - overlayMeasurement.size.width) * alignment.horizontalFactor,
+                             y: bounds.y + (bounds.height - overlayMeasurement.size.height) * alignment.verticalFactor,
+                             width: overlayMeasurement.size.width, height: overlayMeasurement.size.height),
+                  overlayProposal)
         case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth, let minHeight, let idealHeight, let maxHeight, let alignment):
             let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth),
                                              height: framedProposal(proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight))
             let child = children(id)[0]
             let measurement = measureNative(child, proposal: childProposal, run: run)
-            placeNative(child,
-                        in: LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
-                                       y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
-                                       width: measurement.size.width, height: measurement.size.height),
-                        proposal: childProposal, run: run)
+            place(child,
+                  LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
+                             y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
+                             width: measurement.size.width, height: measurement.size.height),
+                  childProposal)
         case .padding(let insets):
             // `SA-N` item 4 (ruling `LR-AU`; stage-2 probe revision 4, group N):
             // SwiftUI places a padded child at the padding's origin plus the
@@ -1090,42 +1112,42 @@ public final class LayoutTree {
             let childProposal = paddingProposal(proposal, insets: insets)
             let child = children(id)[0]
             let measurement = measureNative(child, proposal: childProposal, run: run)
-            placeNative(child,
-                        in: LayoutRect(x: bounds.x + insets.left,
-                                       y: bounds.y + insets.top,
-                                       width: measurement.size.width,
-                                       height: measurement.size.height),
-                        proposal: childProposal, run: run)
+            place(child,
+                  LayoutRect(x: bounds.x + insets.left,
+                             y: bounds.y + insets.top,
+                             width: measurement.size.width,
+                             height: measurement.size.height),
+                  childProposal)
         case .fixedSize(let horizontal, let vertical):
             let childProposal = fixedSizeProposal(proposal, horizontal: horizontal,
                                                   vertical: vertical)
             let child = children(id)[0]
             let measurement = measureNative(child, proposal: childProposal, run: run)
-            placeNative(child,
-                        in: LayoutRect(x: bounds.x, y: bounds.y,
-                                       width: measurement.size.width, height: measurement.size.height),
-                        proposal: childProposal, run: run)
+            place(child,
+                  LayoutRect(x: bounds.x, y: bounds.y,
+                             width: measurement.size.width, height: measurement.size.height),
+                  childProposal)
         case .aspectRatio(let ratio, let contentMode):
             let child = children(id)[0]
             let childProposal = aspectRatioProposal(proposal, ratio: ratio, child: child,
                                                     contentMode: contentMode, run: run)
             let measurement = measureNative(child, proposal: childProposal, run: run)
-            placeNative(child,
-                        in: LayoutRect(x: bounds.x, y: bounds.y,
-                                       width: measurement.size.width, height: measurement.size.height),
-                        proposal: childProposal, run: run)
+            place(child,
+                  LayoutRect(x: bounds.x, y: bounds.y,
+                             width: measurement.size.width, height: measurement.size.height),
+                  childProposal)
         case .layoutPriority:
             let child = children(id)[0]
             _ = measureNative(child, proposal: proposal, run: run)
-            placeNative(child, in: bounds, proposal: proposal, run: run)
+            place(child, bounds, proposal)
         case .scrollViewport(let axis):
             let child = children(id)[0]
             let childProposal = scrollContentProposal(for: axis, parent: proposal)
             let measurement = measureNative(child, proposal: childProposal, run: run)
-            placeNative(child,
-                        in: LayoutRect(x: bounds.x, y: bounds.y,
-                                       width: measurement.size.width, height: measurement.size.height),
-                        proposal: childProposal, run: run)
+            place(child,
+                  LayoutRect(x: bounds.x, y: bounds.y,
+                             width: measurement.size.width, height: measurement.size.height),
+                  childProposal)
         case .linearStack(let axis, let spacing, let alignment, let baseline):
             // CN-E: at a nil cross proposal the stack reports its first-pass
             // answers (measurement) but places after re-running the
@@ -1165,11 +1187,18 @@ public final class LayoutTree {
                                              width: answer.width, height: answer.height)
                     cursor += answer.height + (index < gaps.count ? gaps[index] : 0)
                 }
-                placeNative(child, in: childBounds, proposal: solution.proposals[index], run: run)
+                place(child, childBounds, solution.proposals[index])
             }
         case .grid:
-            placeGrid(id, in: bounds, proposal: proposal, run: run)
+            placeGrid(id, in: bounds, proposal: proposal, flip: flip, run: run)
         }
+    }
+
+    /// `rect` reflected about the vertical axis through the middle of `bounds` (`LD-A`): the one
+    /// mapping every mirrored placement goes through. `x' = 2·b.x + b.width − x − width`.
+    private static func mirroredChildRect(_ rect: LayoutRect, within bounds: LayoutRect) -> LayoutRect {
+        LayoutRect(x: 2 * bounds.x + bounds.width - rect.x - rect.width, y: rect.y,
+                   width: rect.width, height: rect.height)
     }
 
     /// Places a `ProposalLayout` node's children (ruling SA-E).
@@ -1180,7 +1209,7 @@ public final class LayoutTree {
     /// position by the anchor's factors times that answer; an unrecorded child
     /// is measured at the parent's proposal and centred in `bounds` (probe I2).
     private func placeCustom(_ id: LayoutNodeID, layout: any ProposalLayout,
-                             in bounds: LayoutRect, proposal: ProposedSize,
+                             in bounds: LayoutRect, proposal: ProposedSize, flip: Bool,
                              run: NativeLayoutRun) {
         let nodes = children(id)
         let records = NativePlacementRecords(count: nodes.count)
@@ -1196,17 +1225,17 @@ public final class LayoutTree {
         for (index, child) in nodes.enumerated() {
             if let record = records.records[index] {
                 let size = measureNative(child, proposal: record.proposal, run: run).size
-                placeNative(child,
-                            in: LayoutRect(x: record.position.x - record.anchor.horizontalFactor * size.width,
-                                           y: record.position.y - record.anchor.verticalFactor * size.height,
-                                           width: size.width, height: size.height),
+                let rect = LayoutRect(x: record.position.x - record.anchor.horizontalFactor * size.width,
+                                      y: record.position.y - record.anchor.verticalFactor * size.height,
+                                      width: size.width, height: size.height)
+                placeNative(child, in: flip ? Self.mirroredChildRect(rect, within: bounds) : rect,
                             proposal: record.proposal, run: run)
             } else {
                 let size = measureNative(child, proposal: proposal, run: run).size
-                placeNative(child,
-                            in: LayoutRect(x: bounds.x + (bounds.width - size.width) * 0.5,
-                                           y: bounds.y + (bounds.height - size.height) * 0.5,
-                                           width: size.width, height: size.height),
+                let rect = LayoutRect(x: bounds.x + (bounds.width - size.width) * 0.5,
+                                      y: bounds.y + (bounds.height - size.height) * 0.5,
+                                      width: size.width, height: size.height)
+                placeNative(child, in: flip ? Self.mirroredChildRect(rect, within: bounds) : rect,
                             proposal: proposal, run: run)
             }
         }
@@ -2137,7 +2166,7 @@ extension LayoutTree {
     /// proposal. The grid's cells start at `bounds`' origin whatever its size
     /// (as `ZStack`'s union does, CN-E).
     private func placeGrid(_ id: LayoutNodeID, in bounds: LayoutRect, proposal: ProposedSize,
-                           run: NativeLayoutRun) {
+                           flip: Bool, run: NativeLayoutRun) {
         guard let plan = nativeGridPlan(id) else { preconditionFailure("placeGrid on a node that is not a grid") }
         let measure = { (index: Int, cellProposal: ProposedSize) -> SizeD in
             self.measureNative(plan.cells[index].node, proposal: cellProposal, run: run).size
@@ -2145,7 +2174,8 @@ extension LayoutTree {
         let solution = solveNativeGrid(plan, proposal: proposal, measure: measure)
         let placements = nativeGridCellRects(plan, solution: solution, x: bounds.x, y: bounds.y, measure: measure)
         for (cell, placement) in zip(plan.cells, placements) {
-            placeNative(cell.node, in: placement.rect, proposal: placement.proposal, run: run)
+            placeNative(cell.node, in: flip ? Self.mirroredChildRect(placement.rect, within: bounds) : placement.rect,
+                        proposal: placement.proposal, run: run)
         }
     }
 }
@@ -2275,6 +2305,9 @@ extension LayoutTree {
             mixGridPlan(&h, plan, children: children)
             guard mixChildren(&h, children, signatures) else { return nil }
         }
+        // `LD-B`: a node that places mirrored is a different node. Only those mix a tag, so every
+        // left-to-right signature is bit-identical to what it was before the mark existed.
+        if !rightToLeftNodes.isEmpty, rightToLeftNodes.contains(index) { h.mix(0x4C44_5254) }
         return h.signature
     }
 
@@ -2465,6 +2498,8 @@ package struct LayoutSegment {
     fileprivate let cellAnchors: [(Int, ProposalAnchor)]
     fileprivate let cellColumnAlignments: [(Int, ProposalAlignment)]
     fileprivate let cellUnsizedAxes: [(Int, ProposalAxes)]
+    /// The nodes registered under a right-to-left environment, relative to the range (`LD-B`).
+    fileprivate let rightToLeft: [Int]
 }
 
 extension LayoutSegment {
@@ -2474,7 +2509,8 @@ extension LayoutSegment {
         LayoutSegment(nodeCount: nodeCount, rebaseOrigin: rebaseOrigin, tops: tops, children: children, cases: cases,
                       leafKeys: [], spacerAxes: spacerAxes, parents: parents, rowTokens: rowTokens,
                       rowAlignments: rowAlignments, cellColumns: cellColumns, cellAnchors: cellAnchors,
-                      cellColumnAlignments: cellColumnAlignments, cellUnsizedAxes: cellUnsizedAxes)
+                      cellColumnAlignments: cellColumnAlignments, cellUnsizedAxes: cellUnsizedAxes,
+                      rightToLeft: rightToLeft)
     }
 }
 
@@ -2544,7 +2580,8 @@ extension LayoutTree {
             leafKeys: rows(leafKeys), spacerAxes: rows(spacerAxes), parents: parents,
             rowTokens: rows(gridRowTokens), rowAlignments: rows(gridRowAlignments), cellColumns: rows(gridCellColumns),
             cellAnchors: rows(gridCellAnchors), cellColumnAlignments: rows(gridCellColumnAlignments),
-            cellUnsizedAxes: rows(gridCellUnsizedAxes))
+            cellUnsizedAxes: rows(gridCellUnsizedAxes),
+            rightToLeft: rightToLeftNodes.isEmpty ? [] : (lower..<upper).filter { rightToLeftNodes.contains($0) }.map { $0 - lower })
         return (segment, nil)
     }
 
@@ -2591,6 +2628,7 @@ extension LayoutTree {
         for (relative, value) in segment.cellAnchors { gridCellAnchors[base + relative] = value }
         for (relative, value) in segment.cellColumnAlignments { gridCellColumnAlignments[base + relative] = value }
         for (relative, value) in segment.cellUnsizedAxes { gridCellUnsizedAxes[base + relative] = value }
+        for relative in segment.rightToLeft { rightToLeftNodes.insert(base + relative) }
         return segment.tops.map { moved($0) }
     }
 }
@@ -2624,6 +2662,7 @@ extension LayoutTree {
             line += "|\(String(describing: gridRowAlignments[index]))|\(String(describing: gridCellColumns[index]))"
             line += "|\(String(describing: gridCellAnchors[index]))|\(String(describing: gridCellColumnAlignments[index]))"
             line += "|\(String(describing: gridCellUnsizedAxes[index]))"
+            if rightToLeftNodes.contains(index) { line += "|rtl" }
             line += "|rect:\(layouts[index])|mw:\(measuredWidths[index])"
             lines.append(line)
         }

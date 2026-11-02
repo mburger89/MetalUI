@@ -186,8 +186,7 @@ enum LazyLinePlanner {
         -> (index: RowExtentIndex<AnyHashable>?, adjustment: Double) {
         guard let scroller = pass.frame.activeScrollerFrame, scroller.axis == axis else { return (nil, 0) }
         let vertical = axis == .vertical
-        let origin = Double(vertical ? bounds.origin.y.value - scroller.contentOrigin.y.value
-                                     : bounds.origin.x.value - scroller.contentOrigin.x.value)
+        let origin = scroller.logicalStart(of: bounds)   // `LD-E`: from the leading edge
         let cross = Double(vertical ? bounds.size.width.value : bounds.size.height.value)
         var held: RowExtentIndex<AnyHashable>?
         pass.withState(id, initial: LazyOrigin(), unchanged: LazyOrigin.sameEntry) { entry in   // `RW-I`
@@ -257,9 +256,14 @@ enum LazyLinePlanner {
                 let target: Bounds<Pixels>
                 let position = line(unit)
                 if let index {
-                    let along = (vertical ? Double(bounds.origin.y.value) : Double(bounds.origin.x.value))
-                        + index.offset(of: position) - adjustment
-                    let extent = Pixels(Float(index.extent(at: position)))
+                    let logical = index.offset(of: position) - adjustment
+                    let lineExtent = index.extent(at: position)
+                    // `LD-E`: a right-to-left horizontal container counts its lines from its right edge.
+                    let mirrored = !vertical && (pass.frame.activeScrollerFrame?.mirrored ?? false)
+                    let along = vertical ? Double(bounds.origin.y.value) + logical
+                        : mirrored ? Double(bounds.origin.x.value + bounds.size.width.value) - logical - lineExtent
+                        : Double(bounds.origin.x.value) + logical
+                    let extent = Pixels(Float(lineExtent))
                     target = vertical
                         ? Bounds(origin: Point(x: bounds.origin.x, y: Pixels(Float(along))),
                                  size: Size(width: bounds.size.width, height: extent))
