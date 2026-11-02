@@ -65,6 +65,12 @@ struct WindowShellState {
     /// The last build's `.navigationTitle` / `.navigationDocument`.
     var treeTitle: String?
     var treeDocument: URL?
+    /// The last build's `.navigationSubtitle` / `.windowDismissBehavior` (`AE-C`).
+    var treeSubtitle: String?
+    var treeDismiss: WindowInteractionBehavior?
+    /// What the platform was last sent: the subtitle (initially none) and whether dismissing is allowed.
+    var sentSubtitle = ""
+    var sentDismissEnabled = true
     /// What the platform was last sent: the title (initially the opening
     /// one) and the represented path (initially none).
     var sentTitle = ""
@@ -125,6 +131,16 @@ extension Window {
             shell.sentTitle = title
             platformWindow.title = title
         }
+        let subtitle = shell.treeSubtitle ?? ""
+        if subtitle != shell.sentSubtitle {
+            shell.sentSubtitle = subtitle
+            platformWindow.setSubtitle(subtitle)
+        }
+        let dismissEnabled = shell.treeDismiss?.kind != .disabled
+        if dismissEnabled != shell.sentDismissEnabled {
+            shell.sentDismissEnabled = dismissEnabled
+            platformWindow.setDismissEnabled(dismissEnabled)
+        }
         let document = shell.treeDocument ?? shell.representedURL
         let path = document.flatMap { $0.isFileURL ? $0.path : nil }
         if path != shell.sentPath {
@@ -139,6 +155,8 @@ extension Window {
     func adoptShellPreferences(of frame: Frame) {
         shell.treeTitle = frame.collectedNavigationTitle
         shell.treeDocument = frame.collectedNavigationDocument
+        shell.treeSubtitle = frame.collectedNavigationSubtitle
+        shell.treeDismiss = frame.collectedDismissBehavior
         shell.openURLHandlers = frame.openURLHandlers
         reconcileTitleAndDocument()
     }
@@ -259,15 +277,20 @@ extension Window {
     /// Asks exactly as the close button does, and closes if the answer allows
     /// — AppKit's `performClose(_:)`.
     public func performClose() {
-        if answerCloseRequest() { close() }
+        if answerCloseRequest(userInitiated: true) { close() }
     }
 
     /// The platform's question (`PlatformWindow.onCloseRequest`, `AS-B` item
     /// 5) and the termination walk's: closed or pending → `false` (the
     /// handler is not run); no handler or `.now` → `true`; `.cancel` →
     /// `false`; `.later` → pending, `false`.
-    func answerCloseRequest() -> Bool {
+    ///
+    /// `userInitiated` (ruling `AE-D`): the user's close — the button, ⌘W, the window manager, `performClose()`
+    /// — is also refused while the tree holds `.windowDismissBehavior(.disabled)`, the handler not run. The
+    /// termination walk asks with `false`: a quit is not a dismissal (`close()` never asks either).
+    func answerCloseRequest(userInitiated: Bool = true) -> Bool {
         guard !shell.isClosed, !shell.isCloseRequestPending else { return false }
+        if userInitiated, shell.treeDismiss?.kind == .disabled { return false }
         guard let handler = shell.onCloseRequest else { return true }
         switch handler() {
         case .now: return true
