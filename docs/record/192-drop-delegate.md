@@ -42,6 +42,8 @@ boundary: `swift package clean` after pulling. No existing behaviour changed exc
 (`aPlatformWindowWithoutSetDropOperationDoesNotCompile`, `aDropDelegateNeedsOnlyPerformDrop`, `dropInfoHasNoPublicInitializer`), a row in `OuterModifierMatrixTests.swift`. Every
 `PlatformWindow` fake and compile-guard fixture gained `setDropOperation`. `Backends/SDL` builds (`swift build` with the AccessKit flags); its tests were not run.
 
+**After rebasing onto master `6b6a3a1b` (after right-to-left layout, record 191)**, from a `swift package clean`: `✔ Test run with 4923 tests in 14 suites passed after 272.562 seconds.` (0 failures; `FR-J no-argument frame: succeeded=true`). The pre-rebase run follows.
+
 **Counts** (2026-11-02, `feat/drop-delegate` after `swift package clean`, `--build-system native --build-tests` and an unfiltered `--no-parallel` run): **4885 tests in 14 suites passed** (`✔ Test run with 4885 tests in 14 suites passed after 270.519 seconds.`, exit 0, 0 failures, 0 issues; the log tail was read, not truncated). `FR-J no-argument frame: succeeded=true` printed. The three new guards printed `DE-H member required: without succeeded=false with succeeded=true`, `DE-A delegate: minimal succeeded=true missing succeeded=false`, `DE-F DropInfo: made succeeded=false read succeeded=true`. `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. The 14th suite is not this change's (no suite was added by it); the previous line read 13 at `b83efde2`.
 
 ## 6. Mutations
