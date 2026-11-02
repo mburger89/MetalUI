@@ -87,11 +87,7 @@ and the SDL package's records are not asserted by a test), the `StringProtocol` 
 
 Full suite, `swift build --build-system native --build-tests && swift test --build-system native --no-parallel`, unfiltered, on this branch (log kept in the session scratchpad):
 
-`✘ Test run with 4830 tests in 13 suites failed after 595.321 seconds with 1 issue.`
-
-The one failure is `anOutsideSwitchOverPlatformPointerStyleOwesTheImageCase` (`ImageCursorCompileGuards.swift:49`): its fixture's `oldCases` list names twelve `PlatformPointerStyle` cases, but the type has since gained
-`columnResizeOneWay`, `rowResizeOneWay` and `hidden`, so the control arm's `default:`/`.image` switch is not exhaustive. It reads no file this branch touches (`PointerStyle.swift` is unchanged) and is
-carried as a stale guard, not fixed here. The four new tests and both app-shell guards pass;. Quoted guard line: `AS-B spellings: succeeded=true`. `swift build` and, from
+After rebasing onto master `d6d0bbc9` (after `labelsHidden()`, record 189), from a `swift package clean`: `✘ Test run with 4864 tests in 14 suites failed after 343.005 seconds with 1 issue.` The one issue was this branch's own: `everyFrameChannelIsClassified` (`RetainedSubtreeInternalTests.swift`) named `collectedNavigationSubtitle` and `collectedDismissBehavior`, the two `Frame` properties this change adds, as unclassified. Both are now `.buildOnly`, beside `collectedNavigationTitle`, and the test passes. The earlier pre-rebase failure, `anOutsideSwitchOverPlatformPointerStyleOwesTheImageCase`, came from a stale build and passes in this run. Guards: 276 `@Test` functions calling `typecheck(`/`typecheckFile(`, 518 call sites; `FR-J no-argument frame: succeeded=true`. Quoted guard line: `AS-B spellings: succeeded=true`. `swift build` and, from
 `Backends/SDL`, `swift build $(python3 scripts/fetch-accesskit.py --print-flags)` build clean (the SDL package's tests were not run here).
 
 ## 6. Carried
