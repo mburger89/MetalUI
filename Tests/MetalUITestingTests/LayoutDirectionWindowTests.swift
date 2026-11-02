@@ -317,6 +317,32 @@ private func direction(_ rtl: Bool) -> LayoutDirection { rtl ? .rightToLeft : .l
     #expect(!far.rtl.items.contains("i0") && far.rtl.items.contains("i50"), "\(far.rtl.items)")
 }
 
+/// **LD-E.** The lazy window measures from the container's leading edge: behind a 100 wide header the container starts 100 into the content, so
+/// the same logical scroll realises the same items left-to-right and right-to-left, and not the items physically 100 away. Mutation:
+/// `LazyLinePlanner.prepaint`'s `origin` read from `contentOrigin` physically instead of `logicalStart(of:)` (right-to-left realises the
+/// items at the wrong offset).
+@Test @MainActor func aLazyHStackBehindAHeaderIsWindowedFromItsLeadingEdgeInARightToLeftScroller() throws {
+    func items(rtl: Bool) throws -> [String] {
+        let window = try arm(rtl: rtl) {
+            ProposalScrollView(.horizontal) {
+                HStack(spacing: Pixels(0)) {
+                    Color.gray.frame(width: Pixels(100), height: Pixels(10))
+                    LazyHStack(spacing: Pixels(0)) {
+                        ForEach(0..<1000) { index in ProposalText("i\(index)").frame(width: Pixels(20)) }
+                    }
+                }
+            }
+        }
+        window.tick(); window.tick()
+        window.scroll(at: pt(50, 5), byDeltaX: rtl ? 2100 : -2100, deltaY: 0)
+        for _ in 0..<4 { window.tick() }
+        return try window.elements(role: .staticText).compactMap(\.value).sorted()
+    }
+    let leftToRight = try items(rtl: false), rightToLeft = try items(rtl: true)
+    #expect(leftToRight == rightToLeft, "\(leftToRight) vs \(rightToLeft)")
+    #expect(rightToLeft.contains("i100") && !rightToLeft.contains("i0"), "\(rightToLeft)")
+}
+
 /// **LD-E (`SP-`).** `scrollPosition(id:)` reads the leading edge in logical extents: a lazy horizontal list of 20 wide items
 /// scrolled forward by 300 (wheel `-300` left-to-right, `+300` right-to-left) writes item 15 either way, and writing 50 to the
 /// binding brings item 50 to the leading edge (the cell at 0...20 left-to-right, at 80...100 right-to-left). Mutation:
@@ -413,24 +439,33 @@ private func direction(_ rtl: Bool) -> LayoutDirection { rtl ? .rightToLeft : .l
 }
 
 /// **LD-C/LD-F.** The text input area follows a mirrored offset: a focused `TextField` under `offset(x: 10)` moves its caret
-/// rect by -10 right-to-left and +10 left-to-right, against the same field with no offset. Mutation: `effectBoundingBox`
-/// reading `mirrored: false`.
+/// rect by -10 right-to-left and +10 left-to-right, against the same field with no offset, whether the offset is the field's own
+/// legacy decoration (`ownEffects`, `effectBoundingBox`'s first branch) or a proposal-chain layer outside its frame (the prepaint
+/// effect). Mutation: `effectBoundingBox` reading `mirrored: false` reddens the own-effects rows; the prepaint site reading it
+/// reddens the layer rows.
 @Test @MainActor func theCaretRectFollowsAnOffsetInsideARightToLeftWriter() throws {
     @MainActor final class Text { var value = "" }
-    func caretX(rtl: Bool, offset: Float) throws -> Float {
+    func caretX(rtl: Bool, offset: Float, ownEffect: Bool) throws -> Float {
         let model = Text()
+        let binding = Binding(get: { model.value }, set: { model.value = $0 })
         let window = try arm(rtl: rtl) {
             HStack(spacing: Pixels(0)) {
-                TextField("", text: Binding(get: { model.value }, set: { model.value = $0 }))
-                    .frame(width: Pixels(60), height: Pixels(20))
-                    .offset(x: Pixels(offset))
+                if ownEffect {
+                    TextField("", text: binding).offset(x: Pixels(offset)).frame(width: Pixels(60), height: Pixels(20))
+                } else {
+                    TextField("", text: binding).frame(width: Pixels(60), height: Pixels(20)).offset(x: Pixels(offset))
+                }
             }
         }
-        window.click(at: pt(rtl ? 70 + offset * -1 : 5 + offset, 10))
+        window.click(at: pt(rtl ? 70 - offset : 5 + offset, 10))
         window.tick()
         let area = try #require(window.platformWindow.textInputAreas.last ?? nil)
         return area.origin.x.value
     }
-    #expect(try caretX(rtl: false, offset: 10) - caretX(rtl: false, offset: 0) == 10)
-    #expect(try caretX(rtl: true, offset: 10) - caretX(rtl: true, offset: 0) == -10)
+    for ownEffect in [true, false] {
+        #expect(try caretX(rtl: false, offset: 10, ownEffect: ownEffect) - caretX(rtl: false, offset: 0, ownEffect: ownEffect) == 10,
+                "left-to-right, own effect \(ownEffect)")
+        #expect(try caretX(rtl: true, offset: 10, ownEffect: ownEffect) - caretX(rtl: true, offset: 0, ownEffect: ownEffect) == -10,
+                "right-to-left, own effect \(ownEffect)")
+    }
 }

@@ -221,24 +221,23 @@ private struct PlacesNothing: ProposalLayout, Hashable {
     #expect(xs(rtl: true, build) == [-200, 90])
 }
 
-/// The wrappers that place a child at their own origin (`fixedSize`, `aspectRatio`, `layoutPriority`) mirror it too.
-/// **Mutation:** any of the three arms' `place(child, ...)` written `placeNative(child, in: ...)` reddens its row.
-@Test @MainActor func aRightToLeftFixedSizeAspectRatioAndPriorityWrappersMirrorTheirChild() {
-    let wrappers: [(String, (LayoutTree, LayoutNodeID) -> LayoutNodeID)] = [
-        ("fixedSize", { $0.newNativeFixedSize(child: $1, horizontal: true, vertical: true) }),
-        ("aspectRatio", { $0.newNativeAspectRatio(child: $1, ratio: 2, contentMode: .fit) }),
-        ("layoutPriority", { $0.newNativeLayoutPriority(child: $1, priority: 1) }),
+/// `fixedSize` and `aspectRatio` place their child at their own origin at the child's own answer, so placed in bounds wider than
+/// that answer (a kernel caller's, here the root's 100) the child sits at 0 and mirrors to 80 (20 wide). `layoutPriority` hands its
+/// child the whole bounds, which reflect onto themselves: 0 either way (an equivalent mutant, recorded in record 191).
+/// **Mutation:** the `.fixedSize` or `.aspectRatio` arm's `place(child, ...)` written `placeNative(child, in: ...)` reddens its row.
+@Test @MainActor func aRightToLeftFixedSizeAndAspectRatioWrappersMirrorTheirChildAgainstTheirBounds() {
+    let wrappers: [(String, Double, (LayoutTree, LayoutNodeID) -> LayoutNodeID)] = [
+        ("fixedSize", 80, { $0.newNativeFixedSize(child: $1, horizontal: true, vertical: true) }),
+        ("aspectRatio", 80, { $0.newNativeAspectRatio(child: $1, ratio: 2, contentMode: .fit) }),
+        ("layoutPriority", 0, { $0.newNativeLayoutPriority(child: $1, priority: 1) }),
     ]
-    for (name, wrap) in wrappers {
+    for (name, mirrored, wrap) in wrappers {
         func build(_ tree: LayoutTree) -> (root: LayoutNodeID, probes: [LayoutNodeID]) {
             let a = leaf(tree, 20, 10)
-            let wrapped = wrap(tree, a)
-            return (tree.newNativeFrame(child: wrapped, maxWidth: .infinity, alignment: .trailing), [a])
+            return (wrap(tree, a), [a])
         }
-        // A trailing frame puts the 20 wide child at 80; the wrapper is the same size, so mirroring about its own
-        // bounds leaves it on itself: the probe is that the wrapper does not DISPLACE it (80 -> 0 under RTL).
-        #expect(xs(rtl: false, build) == [80], "\(name) left-to-right")
-        #expect(xs(rtl: true, build) == [0], "\(name) right-to-left")
+        #expect(xs(rtl: false, build) == [0], "\(name) left-to-right")
+        #expect(xs(rtl: true, build) == [mirrored], "\(name) right-to-left")
     }
 }
 
