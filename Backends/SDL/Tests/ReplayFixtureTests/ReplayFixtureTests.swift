@@ -632,3 +632,23 @@ private func backdropFixture() throws -> ReplayFixture {
     #expect(second.g == 0 && second.h == 0 && second.i == 0 && second.det3 == 0, "a widened record is affine: zero lane 4")
     #expect(widened.transforms[64..<80].allSatisfy { $0 == 0 } && widened.transforms[144..<160].allSatisfy { $0 == 0 })
 }
+
+/// **29** (`PJ-A`). The parity mask places a sprite quad under a projective record by the divide: a 10 x 10 glyph at the origin
+/// under `w = 1 + 0.1 x` has its far corners at x' = 10 / 2 = 5 (plus the one-pixel fringe), where an affine placement would
+/// put them at 10. Mutation: drop the `/ w` in `placed(_:transform:)`.
+@Test func aProjectiveSpriteQuadIsPlacedByTheDivide() throws {
+    var glyph = MUIGlyph()
+    glyph.bounds = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 10, height: 10))
+    let box = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 100, height: 100))
+    let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+    let record = MUITransform(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0, pixelScale: 1, _reserved: 0, outerMask: box,
+                              outerMaskRadii: none, g: 0.1, h: 0, i: 1, det3: 1)
+    var scene = Scene()
+    scene.insert(glyph, transform: record)
+    scene.finalize()
+    let fixture = try ReplayFixture(scene: scene, atlas: GlyphAtlas(width: 1, height: 1), width: 16, height: 16,
+                                    projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                    reference: [UInt8](repeating: 0, count: 16 * 16 * 4))
+    let placed = try #require(fixture.glyphBounds.first)
+    #expect(abs(placed.x + placed.width - 6) < 1e-4, "right edge 10 / 2 + 1 = 6: \(placed)")
+}

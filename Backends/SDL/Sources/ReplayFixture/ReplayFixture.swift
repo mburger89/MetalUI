@@ -453,7 +453,7 @@ public struct Parity: Equatable, Sendable {
 extension ReplayFixture {
     /// Glyph bounds (`MUIGlyph.bounds`) on the target before the
     /// projection: as recorded, or — under a transform (ruling GX-F) — the
-    /// box of the four corners the record maps them to, grown by the
+    /// box of the four corners the record maps them to (divided by `w` for a projective record, `PJ-A`), grown by the
     /// vertex stage's one-pixel fringe.
     public var glyphBounds: [(x: Float, y: Float, width: Float, height: Float)] {
         glyphRecords.map { placed($0.bounds, transform: $0.transform) }
@@ -467,7 +467,11 @@ extension ReplayFixture {
         let t = records[Int(index) - 1]
         let corners = [(b.origin.x, b.origin.y), (b.origin.x + b.size.width, b.origin.y),
                        (b.origin.x, b.origin.y + b.size.height), (b.origin.x + b.size.width, b.origin.y + b.size.height)]
-            .map { (t.a * $0.0 + t.c * $0.1 + t.tx, t.b * $0.0 + t.d * $0.1 + t.ty) }
+            .map { (x: Float, y: Float) -> (Float, Float) in
+                // A projective record (`PJ-A`, `det3 != 0`) divides by `w = g x + h y + i`.
+                let w: Float = t.det3 != 0 ? t.g * x + t.h * y + t.i : 1
+                return ((t.a * x + t.c * y + t.tx) / w, (t.b * x + t.d * y + t.ty) / w)
+            }
         let x0 = corners.map(\.0).min()! - 1, x1 = corners.map(\.0).max()! + 1
         let y0 = corners.map(\.1).min()! - 1, y1 = corners.map(\.1).max()! + 1
         return (x0, y0, x1 - x0, y1 - y0)
