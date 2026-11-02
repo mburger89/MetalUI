@@ -1,7 +1,7 @@
 # 193 - 3D render effects (`PJ-A`..`PJ-K`)
 
 2026-11-02, branch `feat/projection-effects` from master `5c47e0d8`; round-3 item R3-10 item 6. Rulings: `docs/superpowers/2026-11-02-projection-effects-decisions.md`. Rules in
-`docs/rules/drawing.md`, `retained.md` and `input-focus.md`. **Partial: paint (`PJ-G`) is not built**; see section 5.
+`docs/rules/drawing.md`, `retained.md` and `input-focus.md`. Built through the GPU (80-byte record, both shader backends, rebuilt SDL blobs, parity frame 15).
 
 ## 1. What was there
 
@@ -22,15 +22,13 @@ for geometry and accessibility, right-to-left conjugation, animation, retained r
 
 ## 4. Tests
 
-`ProjectionEffectTests.swift` (25 tests) and the updated `RenderEffectCompileGuards` guard. Mutation table: see the end of this record.
+`ProjectionEffectTests.swift` (25 tests), `ProjectionPaintTests.swift` (8), `ProjectivePrimitiveTests.swift` (5, Metal pixels), two SDL tests, the ABI pins, and the updated `RenderEffectCompileGuards` guard. Mutation table: see the end of this record.
 
-## 5. Not built, and why
+## 5. The GPU side
 
-The pinned `shadercross` (`1ff05bec`, `docs/packaging.md` 4a) is not installed here (no `shadercross`, `dxc`, `libSDL3_shadercross` on the machine or in the Docker images), and the SDL
-shader blobs and `SOURCE.sha256` cannot be rebuilt without it. A source edit with stale blobs would fail `verifyingSources`, so nothing of the GPU side was committed: the 80-byte
-record (`MetalUIShaderTypes.h`), `shaders.metal`, `replay.hlsl`, `SDLBridge` stride, replay fixture v6, the blobs, the parity frame 15 and the SDL tests; the CPU leaf scopes
-(divergences 1065-1067, 1069); the demo strip; tests 18, 19, 21-29 and 33 of the plan; the 106 and 109 amendments. Until then a projective scope paints nothing (`PJ-STEP4` in
-`paintWithDeviceMap`).
+The pinned shadercross was built from source at `1ff05bec` (outside the repo, `~/Developer/tools/shadercross`, 1303 ninja steps) and first compiled HEAD's `replay.hlsl` to byte-identical blobs. Then: `MUITransform` 64 to 80 bytes (`MetalUIShaderTypes.h`; a compatibility `init` without lane 4 keeps every affine call site), `shaders.metal` and `replay.hlsl` projective branches (`projective_w/scale/screen/fringe/clip` and their HLSL twins; rect, glyph and image stages; backdrops never get one), `SDLBridge` stride, fixture version 6 (2-5 load), `Experiments/SDLGPU` parity frame 15 and `--expect 16` (two places in `.github/workflows/sdl-gpu-linux.yml`), blobs and `SOURCE.sha256`, `transform_abi_probe` lane 4. Measured: frame 15 on macOS, Metal against SDL over MSL: 0 differing pixels. Not run here: Linux Vulkan and Windows D3D12 (CI); those replay the SPIR-V and DXIL the same compile produced.
+
+CPU side: the scope applies the homography, drops primitives behind the eye, degrades backdrops, drops projective leaves from shadow and blur scopes, rasterises CPU images in creation space and inserts them with the record. The `PJ-STEP4` gate is gone.
 
 ## 6. Mutation table
 
@@ -67,3 +65,24 @@ Not mutated (no test yet; belong to the deferred GPU work): plan tests 13, 18, 1
 `swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native --no-parallel` unfiltered: **root 4948 tests in 14 suites passed, 0 failures**
 (the 25 new tests included); `FR-J no-argument frame: succeeded=true`; the render-effect spellings guard ran (`GX-H spellings: succeeded=true ... Rotation3D` refused). `Backends/SDL`
 builds (`swift build $(python3 scripts/fetch-accesskit.py --print-flags)`); its tests were not run (no SDL shader or fixture change was made).
+
+Added with the GPU work (Metal, `ProjectivePrimitiveTests`; Swift, `ProjectionPaintTests`; SDL, `ReplayFixtureTests` and `SDLWindowRendererTests`):
+
+| Mutation (spelling) | Reddened |
+|---|---|
+| `shaders.metal` `projective_clip`: `W` written as `1.0` | `aProjectedRectCoversItsTrapezoidAndNotItsBounds`, `aProjectedEdgeAntialiasesOverOneScreenPixelAtBothDepths`, `aProjectedImageSamplesPerspectiveCorrect`, `theOuterMaskUnderAProjectionIsTestedAtTheScreenPoint`, `aForcedProjectiveIdentityRowMatchesTheAffineBranch` |
+| `projective_scale` returns `t.pixelScale` | `aProjectedEdgeAntialiasesOverOneScreenPixelAtBothDepths` |
+| `[[center_no_perspective]]` on `ImageVertexOut.uv` | `aProjectedImageSamplesPerspectiveCorrect` |
+| `rect_fragment` reads `in.screenPosition` for the outer mask | `theOuterMaskUnderAProjectionIsTestedAtTheScreenPoint` |
+| `projective_scale`: `w * w` for `w * w * w` | `aForcedProjectiveIdentityRowMatchesTheAffineBranch`, `aProjectedEdgeAntialiasesOverOneScreenPixelAtBothDepths` |
+| `SDLBridge.c` `TRANSFORM_STRIDE` 64 | `aProjectedFrameIsTheReplayPathsFrame`, `aTransformedFrameIsTheReplayPathsFrame` |
+| fixture: widen a version-5 record with 0xFF | `aVersionFiveFixtureWidensItsTransformsWithAnAffineTail` |
+| fixture: read a version-5 table at the new stride | `aVersionFiveFixtureWidensItsTransformsWithAnAffineTail`, `theFixtureStrideIs256AndVersion4Widens`, `theFixtureVersionIsSixAndOldVersionsStillLoad` |
+| `replay.hlsl` `projectiveScale`: `w * w` (blobs recompiled to a temp directory, `REPLAY_SHADERS`) | Replay frame 15: `differing pixels=1411, max channel delta=26`, "Parity failed" (frame 7: 0) |
+| `PrimitiveTransform.record`: `det3` written for an affine record | `anAffineRecordsTailIsZero` |
+| `pathImage`: rasterise under the effect's affine part | `anAnimatingFlipRasterizesNothingAfterTheFirstFrame` |
+| `processScopes` shadow arm casts from every leaf | `aShadowOutsideAProjectiveEffectCastsNothingFromIt` |
+| `processScopes`: skip the backdrop degrade | `aMaterialUnderAProjectiveEffectDrawsItsFlatTint` |
+| `RenderEffect.apply`: drop both `isInFront` guards | `aPrimitiveBehindTheEyeIsNotEmitted` |
+| `paintWithDeviceMap`: outer mask made 100000 wide; or an inner rect's content mask replaced by the outer one | `aClipInsideAProjectiveEffectProjectsAndOneOutsideStays` (each) |
+| `looksProjectionStrip` without `@inline(never)` | **not measurable here**: the overflow shows only on `swift:6.4-noble` (`CI-AI`); the test passes on macOS either way |

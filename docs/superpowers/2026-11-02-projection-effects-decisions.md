@@ -3,12 +3,9 @@
 Rulings for round-3 item R3-10 item 6: `rotation3DEffect`, `projectionEffect`, `transformEffect`, `ProjectionTransform`. Branch `feat/projection-effects`
 from master `5c47e0d8`. Code: `Sources/MetalUI/Homography2D.swift`, `ProjectionTransform.swift`, `RenderEffects.swift`, `Transition.swift`, `Hitbox.swift`, `Frame.swift`.
 Probe: `docs/probes/swiftui-projection-effects.swift` (recorded, compiled, two byte-identical runs). Tests: `ProjectionEffectTests.swift`, the `LayoutModifier` guard in
-`RenderEffectCompileGuards.swift`. Record: `docs/record/193-projection-effects.md`. **Next unused: `PJ-L`.**
-Divergences reserved 1065-1074: **1068 used**; 1065-1067 and 1069 are the paint rulings (below) and are unused until the GPU record lands; 1070-1074 unused.
+`RenderEffectCompileGuards.swift`. Record: `docs/record/193-projection-effects.md`. Also `ProjectionPaintTests.swift`, `Tests/MetalUIRenderTests/ProjectivePrimitiveTests.swift`, the fixture and SDL tests, parity frame 15.
 
-**State of this branch.** Rulings A-F, H-K are built. **`PJ-G` (paint) is not**: the 80-byte `MUITransform`, both shader backends, the rebuilt SDL blobs
-and the parity frame need the pinned `shadercross`, which was not installed where this was written; a projective scope paints nothing until they land
-(`paintWithDeviceMap`, marked `PJ-STEP4`). Hit testing, accessibility, geometry, right-to-left, animation and retained refusal are complete.
+**State.** Every ruling is built. The pinned `shadercross` (`1ff05bec`, `docs/packaging.md` 4a) was built outside the repo at `~/Developer/tools/shadercross`; before the rebuild it reproduced the checked-in blobs byte for byte (HEAD's `replay.hlsl` compiled to an identical `compiled/`). Divergences 1065-1069 used (1070-1074 unused). **Next unused: `PJ-N`.**
 
 ## PJ-A: `Homography2D`
 
@@ -43,11 +40,17 @@ projected quad (measured for geometry; accessibility by the same chain, unmeasur
 Every effect is conjugated by the reflection about the rect's centre line (`LD-C`): `rotation3D` becomes axis `(x, -y, -z)` with anchor x `1 - x` and the same angle; a projection is
 `F . M . F` (`transformEffect` tx 30 becomes -30, `m31` 30 becomes -30, `m32` unchanged).
 
-## PJ-G: paint (not built here)
+## PJ-G: paint
 
-One 3x3 per draw, no offscreen pass; `MUITransform` 64 to 80 bytes, lane 4 `(g, h, i, det3)`, `det3 == 0` meaning affine; the vertex stage emits `(X, Y, 0, W)`, the fragment
-`local = H^-1(screen)`; paths, shadows and gradients rasterise flat in creation space and are resampled (divergence 1065); an enclosing shadow, blur or composite drops projective
-leaves (1066); a material or glass draws its flat tint (1067); overflow crossing behind the eye is dropped per primitive (1069). Amends 106, 109.
+One 3x3 per draw, no offscreen pass. `MUITransform` is 80 bytes, five `float4` lanes; lane 4 is `(g, h, i, det3)` and `det3 == 0` means affine, so every old record and scene runs the old code byte for byte (the 64-byte `Scene.transformIndex` zeroing of `_reserved` is unchanged; a compatibility `init` without the tail keeps every affine call site). The vertex stage emits the homogeneous clip point `(2X/vw - W, -2Y/vh + W, 0, W)` so the rasteriser interpolates the local position perspective-correctly (the fringe is one over the smallest `sqrt(|det3| / w^3)` of the four un-grown corners); the fragment recomputes `s = sqrt(|det3| / w^3)` and the outer mask's screen point from the local point. `+ - * / sqrt` only, `shaders.metal` and `replay.hlsl` statement for statement. A primitive with a corner at `w <= 0` is dropped per primitive (divergence 1069); an effect whose rectangle has such a corner paints nothing. Backdrop and glass stages are never given a projective record: a backdrop degrades to its flat tint at the scope (1067).
+
+## PJ-L: creation-space rasters (divergence 1065)
+
+A path, shadow, gradient or blur under a projective record is rasterised in its creation space (`RasterPlacement`: local content mask, clip bounded by the window) and inserted as a linearly filtered image **with** the record, so the cache key does not depend on the effect and an animating flip makes no texture after its first frame. A shadow, blur or composite scope enclosing a projective leaf drops it from the silhouette and draws it unblurred (1066).
+
+## PJ-M: SDL and the fixture
+
+`SDLBridge.c` `TRANSFORM_STRIDE` is 80. The replay fixture is version 6; versions 2-5 still load (a 64-byte record is widened with a zero lane 4, which is affine). The blobs and `SOURCE.sha256` are rebuilt with the pinned shadercross. Parity frame 15 (`Experiments/SDLGPU`, `projectionFrame`) is judged as frame 7 is; the workflow's `--expect` is 16.
 
 ## PJ-H: API
 
