@@ -219,7 +219,7 @@ public struct DraggableModifier<Content: ProposalElementGroup>: Element {
 extension DraggableModifier: ProposalElement {}
 
 /// A wrapper whose destination an outer wrapper of the same kind overrides
-/// (divergence 1057): SwiftUI's outermost drop modifier on one view wins, but
+/// (`DE-G`; fixed, not a divergence): SwiftUI's outermost drop modifier on one view wins, but
 /// wrappers register outermost-first and the later region ranks higher.
 @MainActor
 protocol DropDestinationWrapping {
@@ -229,13 +229,13 @@ protocol DropDestinationWrapping {
 
 /// A proposal wrapper that makes its content a drop destination —
 /// `GestureModifier`'s recipe (ruling `DN-P`). When two of these wrap one view
-/// the outer one wins (divergence 1057): it tells the wrapper directly inside
+/// the outer one wins (`DE-G`; fixed, not a divergence): it tells the wrapper directly inside
 /// it to register nothing.
 public struct DropDestinationModifier<Content: ProposalElementGroup>: Element {
     /// The wrapped proposal content.
     public var content: Content
     var target: DropDestinationTarget
-    /// Set by an outer `DropDestinationModifier` on this one (divergence 1057).
+    /// Set by an outer `DropDestinationModifier` on this one (`DE-G`; fixed, not a divergence).
     var yieldsToOuter = false
 
     init(content: Content, target: DropDestinationTarget) {
@@ -256,7 +256,7 @@ public struct DropDestinationModifier<Content: ProposalElementGroup>: Element {
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        // Divergence 1057: a drop wrapper directly inside this one registers nothing.
+        // `DE-G`: a drop wrapper directly inside this one registers nothing.
         if var inner = content as? any DropDestinationWrapping {
             inner.yieldToOuterDestination()
             // swiftlint:disable:next force_cast

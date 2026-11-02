@@ -439,7 +439,7 @@ private func dragAndDrop(_ platform: FakePlatformWindow, through path: [Point<Pi
     #expect(log.entries == ["T=true"], "F10: only dropDestination")
 }
 
-/// **DE-14** (divergence 1057). The same on the proposal path, where two wrappers
+/// **DE-14** (`DE-G`; fixed, not a divergence). The same on the proposal path, where two wrappers
 /// register in nesting order: the outer wrapper wins for `onDrop(of:delegate:)`
 /// and for `dropDestination`, as SwiftUI's does.
 /// Mutation: the outer wrapper registers its region too (inner topmost).
