@@ -62,27 +62,9 @@ Not mutated (no test yet; belong to the deferred GPU work): plan tests 13, 18, 1
 
 ## 7. Counts (2026-11-02, `feat/projection-effects`)
 
-`swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native --no-parallel` unfiltered: **root 4948 tests in 14 suites passed, 0 failures**
-(the 25 new tests included); `FR-J no-argument frame: succeeded=true`; the render-effect spellings guard ran (`GX-H spellings: succeeded=true ... Rotation3D` refused). `Backends/SDL`
-builds (`swift build $(python3 scripts/fetch-accesskit.py --print-flags)`); its tests were not run (no SDL shader or fixture change was made).
+`swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native --no-parallel` unfiltered, after the GPU work: **root 4960 tests in 14 suites passed, 0 failures**
+(4948 before the GPU work; 12 added); `FR-J no-argument frame: succeeded=true`; the render-effect spellings guard ran (`GX-H spellings: succeeded=true ... Rotation3D` refused).
 
-Added with the GPU work (Metal, `ProjectivePrimitiveTests`; Swift, `ProjectionPaintTests`; SDL, `ReplayFixtureTests` and `SDLWindowRendererTests`):
-
-| Mutation (spelling) | Reddened |
-|---|---|
-| `shaders.metal` `projective_clip`: `W` written as `1.0` | `aProjectedRectCoversItsTrapezoidAndNotItsBounds`, `aProjectedEdgeAntialiasesOverOneScreenPixelAtBothDepths`, `aProjectedImageSamplesPerspectiveCorrect`, `theOuterMaskUnderAProjectionIsTestedAtTheScreenPoint`, `aForcedProjectiveIdentityRowMatchesTheAffineBranch` |
-| `projective_scale` returns `t.pixelScale` | `aProjectedEdgeAntialiasesOverOneScreenPixelAtBothDepths` |
-| `[[center_no_perspective]]` on `ImageVertexOut.uv` | `aProjectedImageSamplesPerspectiveCorrect` |
-| `rect_fragment` reads `in.screenPosition` for the outer mask | `theOuterMaskUnderAProjectionIsTestedAtTheScreenPoint` |
-| `projective_scale`: `w * w` for `w * w * w` | `aForcedProjectiveIdentityRowMatchesTheAffineBranch`, `aProjectedEdgeAntialiasesOverOneScreenPixelAtBothDepths` |
-| `SDLBridge.c` `TRANSFORM_STRIDE` 64 | `aProjectedFrameIsTheReplayPathsFrame`, `aTransformedFrameIsTheReplayPathsFrame` |
-| fixture: widen a version-5 record with 0xFF | `aVersionFiveFixtureWidensItsTransformsWithAnAffineTail` |
-| fixture: read a version-5 table at the new stride | `aVersionFiveFixtureWidensItsTransformsWithAnAffineTail`, `theFixtureStrideIs256AndVersion4Widens`, `theFixtureVersionIsSixAndOldVersionsStillLoad` |
-| `replay.hlsl` `projectiveScale`: `w * w` (blobs recompiled to a temp directory, `REPLAY_SHADERS`) | Replay frame 15: `differing pixels=1411, max channel delta=26`, "Parity failed" (frame 7: 0) |
-| `PrimitiveTransform.record`: `det3` written for an affine record | `anAffineRecordsTailIsZero` |
-| `pathImage`: rasterise under the effect's affine part | `anAnimatingFlipRasterizesNothingAfterTheFirstFrame` |
-| `processScopes` shadow arm casts from every leaf | `aShadowOutsideAProjectiveEffectCastsNothingFromIt` |
-| `processScopes`: skip the backdrop degrade | `aMaterialUnderAProjectiveEffectDrawsItsFlatTint` |
-| `RenderEffect.apply`: drop both `isInFront` guards | `aPrimitiveBehindTheEyeIsNotEmitted` |
-| `paintWithDeviceMap`: outer mask made 100000 wide; or an inner rect's content mask replaced by the outer one | `aClipInsideAProjectiveEffectProjectsAndOneOutsideStays` (each) |
-| `looksProjectionStrip` without `@inline(never)` | **not measurable here**: the overflow shows only on `swift:6.4-noble` (`CI-AI`); the test passes on macOS either way |
+`Backends/SDL` (`swift test $(python3 scripts/fetch-accesskit.py --print-flags)`): 32 fixture tests and 350 in all, **2 failures, both environmental**: `SDLGPUShaderLibraryTests` write a temporary
+directory and this agent's sandbox refuses it (`NSCocoaErrorDomain Code=513`; a different pair of that suite fails on each run, none touches a shader). Replay: `Replay --portable` on macOS (Metal against
+SDL over the rebuilt MSL), 16 frames, frame 15 `differing pixels=0`; `shasum -a 256 -c compiled/SOURCE.sha256` OK.
