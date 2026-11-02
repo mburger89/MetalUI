@@ -22,7 +22,7 @@ for geometry and accessibility, right-to-left conjugation, animation, retained r
 
 ## 4. Tests
 
-`ProjectionEffectTests.swift` (30 tests) and the updated `RenderEffectCompileGuards` guard. Mutation table: see the end of this record.
+`ProjectionEffectTests.swift` (25 tests) and the updated `RenderEffectCompileGuards` guard. Mutation table: see the end of this record.
 
 ## 5. Not built, and why
 
@@ -61,3 +61,9 @@ Each mutation applied to `Sources/MetalUI/`, the filtered new tests run, the fil
 | `indirect` removed from `rotation3DEffect` | **nothing: equivalent** (`LR-X`): the payload is 64 bytes, under the enum's 81 set by an existing case, so `theLayoutModifierKeepsItsSize` (pinned at 81) holds either way; it is a ceiling pin |
 
 Not mutated (no test yet; belong to the deferred GPU work): plan tests 13, 18, 19, 21-29, 33. `aClipInsideAProjectiveEffectProjectsAndOneOutsideStays` (13) needs the projective clip split and is deferred with paint.
+
+## 7. Counts (2026-11-02, `feat/projection-effects`)
+
+`swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native --no-parallel` unfiltered: **root 4948 tests in 14 suites passed, 0 failures**
+(the 25 new tests included); `FR-J no-argument frame: succeeded=true`; the render-effect spellings guard ran (`GX-H spellings: succeeded=true ... Rotation3D` refused). `Backends/SDL`
+builds (`swift build $(python3 scripts/fetch-accesskit.py --print-flags)`); its tests were not run (no SDL shader or fixture change was made).
