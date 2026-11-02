@@ -44,6 +44,25 @@ import MetalUICore
     }
 }
 
+/// The reflection is about the middle of the parent's own bounds, not the origin: the same `HStack` placed at x = 40
+/// (the stack 30 wide at 70...100 inside a frame at 40...140 and 100 wide) is at 130/110, 40 more than at the origin.
+/// **Mutation:** `mirroredChildRect` without its `2 * bounds.x` term.
+@Test @MainActor func aMirroredChildIsReflectedAboutItsParentsBoundsAndNotTheOrigin() {
+    func positions(rtl: Bool, originX: Double) -> [Double] {
+        let tree = LayoutTree(generation: 1)
+        tree.registersRightToLeft = rtl
+        let a = leaf(tree, 10), b = leaf(tree, 20)
+        let stack = tree.newNativeLinearStack(children: [a, b], axis: .horizontal, spacing: 0)
+        let root = leadingFrame(tree, stack)
+        tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 100, height: 40),
+                                 in: LayoutRect(x: originX, y: 0, width: 100, height: 40))
+        return [tree.layout(a).x, tree.layout(b).x]
+    }
+    #expect(positions(rtl: true, originX: 0) == [90, 70])
+    #expect(positions(rtl: true, originX: 40) == [130, 110])
+    #expect(positions(rtl: false, originX: 40) == [40, 50])
+}
+
 /// B1-B3: a leading frame puts the child at 0 (right edge under RTL: 90), trailing 90 -> 0, centre 45 both.
 /// **Mutation:** the `.frame` arm's `place(child, ...)` written `placeNative(child, in: ...)`.
 @Test @MainActor func aRightToLeftFrameMirrorsLeadingAndTrailingAndLeavesCentre() {
