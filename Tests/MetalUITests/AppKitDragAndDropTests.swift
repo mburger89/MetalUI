@@ -285,3 +285,42 @@ private final class CountingProvider: NSObject, NSPasteboardItemDataProvider, @u
     #expect(appKit.hostView.draggingSession(session, sourceOperationMaskFor: .withinApplication) == .copy)
     #expect(appKit.hostView.draggingSession(session, sourceOperationMaskFor: .outsideApplication) == .copy)
 }
+
+// MARK: - `DropDelegate` (record 192, `DE-H`)
+
+/// A delegate proposing `proposal` for `.plainText` drags.
+@MainActor private final class ProposingDelegate: DropDelegate {
+    var proposal: DropProposal?
+    init(_ proposal: DropProposal?) { self.proposal = proposal }
+    func performDrop(info: DropInfo) -> Bool { true }
+    func dropUpdated(info: DropInfo) -> DropProposal? { proposal }
+}
+
+/// **DE-17** (`D3`, `D3b`). A `.move` proposal is answered `.move` from both
+/// `draggingEntered` and `draggingUpdated`, whatever the source's mask; a
+/// `.copy` or nil proposal `.copy`; a forbidden one none.
+/// Mutation: `operation(accepting:)` ignores the stored operation (always `.copy`).
+@Test @MainActor func aMoveProposalAnswersMoveFromEnteredAndUpdated() throws {
+    let cases: [(DropProposal?, NSDragOperation)] = [
+        (DropProposal(operation: .move), .move), (DropProposal(operation: .copy), .copy), (nil, .copy),
+        (DropProposal(operation: .forbidden), []),
+    ]
+    for (proposal, expected) in cases {
+        let delegate = ProposingDelegate(proposal)
+        let (window, appKit, nsWindow) = try appKitWindow {
+            Row {
+                Box().frame(width: px(200), height: px(200))
+                Box().frame(width: px(200), height: px(200)).onDrop(of: [.plainText], delegate: delegate)
+            }
+        }
+        defer { nsWindow.close(); withExtendedLifetime(window) {} }
+        let pb = scratchPasteboard()
+        defer { pb.releaseGlobally() }
+        pb.clearContents()
+        pb.setString("hello", forType: .string)
+        let info = FakeDrag(window: nsWindow, location: windowPoint(330, 140), pb: pb)
+        info.mask = .copy   // a copy-only source: SwiftUI still answers move (D3b)
+        #expect(appKit.hostView.draggingEntered(info) == expected, "entered \(String(describing: proposal))")
+        #expect(appKit.hostView.draggingUpdated(info) == expected, "updated \(String(describing: proposal))")
+    }
+}

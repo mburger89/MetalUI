@@ -11,7 +11,8 @@ import Foundation
 /// whose rows drag `"Row n"`. Right: four wells, each showing its last drop and
 /// filling with `.accent` while `isTargeted`: **Text** (`String`), **Links and
 /// files** (`URL`), **Anything** (`Data`, its byte count) and **Disabled**
-/// (`String`, `.disabled(true)` — divergence 100).
+/// (`String`, `.disabled(true)` — divergence 100), then three `DropDelegate`
+/// wells proposing copy, move and forbidden (`DE-J`).
 ///
 /// **The human looks** (`docs/verification/human-checks.md` N1–N8): the
 /// preview, the highlight, Escape, a row's click against its drag, Finder and
@@ -100,8 +101,73 @@ private func dndWells() -> some Element {
             items.map { "\($0.count) bytes" }.joined(separator: ", ")
         }
         DropWell(title: "Disabled", disabled: true) { (items: [String]) in items.joined(separator: ", ") }
+        dndDelegateWells()
     }
     .alignItems(.flexStart)
+}
+
+/// Three `onDrop(of:delegate:)` destinations proposing `.copy`, `.move` and
+/// `.forbidden` (record 192, `DE-J`; human checks `DE1`–`DE5`). Its own
+/// function: the Windows stack rule.
+@MainActor
+private func dndDelegateWells() -> some Element {
+    Row(gap: Pixels(8)) {
+        DelegateWell(title: "Delegate: copy", operation: .copy)
+        DelegateWell(title: "Delegate: move", operation: .move)
+        DelegateWell(title: "Delegate: forbidden", operation: .forbidden)
+    }
+}
+
+/// A `DropDelegate` proposing a fixed operation, reporting each callback to
+/// `report` (called from input, so the state write is current).
+@MainActor
+private final class ProposingDropDelegate: DropDelegate {
+    let operation: DropOperation
+    let report: @MainActor (String) -> Void
+    let setTargeted: @MainActor (Bool) -> Void
+
+    init(operation: DropOperation, report: @escaping @MainActor (String) -> Void,
+         setTargeted: @escaping @MainActor (Bool) -> Void) {
+        self.operation = operation
+        self.report = report
+        self.setTargeted = setTargeted
+    }
+
+    func dropEntered(info: DropInfo) { setTargeted(true) }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: operation) }
+    func dropExited(info: DropInfo) { setTargeted(false); report("exited") }
+    func performDrop(info: DropInfo) -> Bool {
+        setTargeted(false)
+        report("dropped \(info.itemProviders(for: [.item]).count) item(s)")
+        return true
+    }
+}
+
+/// A destination driven by a delegate proposing `operation`.
+struct DelegateWell: Component {
+    let title: String
+    let operation: DropOperation
+    @State var last = "—"
+    @State var targeted = false
+
+    init(title: String, operation: DropOperation) {
+        self.title = title
+        self.operation = operation
+    }
+
+    var content: some ElementGroup {
+        Column(gap: Pixels(6)) {
+            Text(title).font(size: 13)
+            Text(last)
+        }
+        .alignItems(.flexStart)
+        .padding(Pixels(10))
+        .frame(width: Pixels(100), height: Pixels(70), alignment: .topLeading)
+        .background(targeted ? .accent : .surfaceSecondary)
+        .cornerRadius(Pixels(10))
+        .onDrop(of: [.item], delegate: ProposingDropDelegate(
+            operation: operation, report: { last = $0 }, setTargeted: { targeted = $0 }))
+    }
 }
 
 /// One row of the demo's list.

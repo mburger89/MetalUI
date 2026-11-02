@@ -189,6 +189,7 @@ private func conformer(member: String) -> String {
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
         func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }
+        func setDropOperation(_: PlatformDropOperation) {}
         // Colour scheme (`CR-M`), defaultless too, so every arm here carries
         // it; `ColorSchemeCompileGuards` pins it.
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}

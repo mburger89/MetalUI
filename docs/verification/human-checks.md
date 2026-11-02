@@ -2160,3 +2160,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **LD3.** In the right-to-left card, click and hover the offset badge and the scaled and rotated chips: the hover highlight and the click land exactly where the chip is drawn, not at its left-to-right place. **Observed:**
 - [ ] **LD4.** With VoiceOver on, move through the right-to-left card: the cursor outlines (VO focus rectangles) sit on the mirrored views, and the reading order is the tree order (unchanged by mirroring; carried, `LD-H`). **Observed:**
 - [ ] **LD5.** Linux and Windows (SDL): the same card mirrors identically (LD1) and the scroller's wheel/precise-scroll direction matches LD2. **Observed:**
+
+## DE. `DropDelegate` - validate, proposals and the operation badge (round 3 item R3-10 item 5; decisions `docs/superpowers/2026-11-01-drop-delegate-decisions.md`, record 192; provisional letter)
+
+*An agent cannot: the cursor badge, Finder's reaction to a move and a real drag from another app are looks and system behaviour. Use the demo (`METALUI_DND_DEMO=1 swift run MetalUIDemo`), whose "Delegate" chips are `.copy`, `.move` and `.forbidden` `onDrop(of:delegate:)` destinations.*
+
+- [ ] **DE1.** Drag a file from Finder over the `.copy` chip (cursor shows the green plus, the chip reacts, a drop logs the file), over the `.move` chip (no plus; after the drop Finder may move the original, check the file is where you expect) and over the `.forbidden` chip (the not-allowed cursor, a release does nothing and the chip's exit is logged). **Observed:**
+- [ ] **DE2.** Drag selected text from TextEdit onto the `.move` chip: the text arrives, TextEdit removes the selection (a move) or keeps it as the platform decides. **Observed:**
+- [ ] **DE3.** Start a MetalUI drag, take it out of the window (it becomes a system drag), bring it back onto the `.move` chip and release: the delegate is validated, entered and performed, and the cursor shows the move operation. **Observed:**
+- [ ] **DE4.** Drag a MetalUI draggable inside the window over the delegate chips: the chips react and a drop performs, and the cursor shows no copy or forbidden badge (divergence 1055). **Observed:**
+- [ ] **DE5.** Linux (SDL): drag a file from Nautilus onto a delegate chip: it validates while hovering with unknown items (divergence 102), and the drop performs with the file. **Observed:**

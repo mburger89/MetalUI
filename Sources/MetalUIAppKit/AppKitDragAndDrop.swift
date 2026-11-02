@@ -105,9 +105,13 @@ extension MetalHostView: NSDraggingSource {
         return Point(x: Pixels(Float(p.x)), y: Pixels(Float(p.y)))
     }
 
-    /// `.copy` when a destination under the pointer accepts, else none —
-    /// whatever the source's operation mask (`R10`).
-    private func operation(accepting: Bool) -> NSDragOperation { accepting ? .copy : [] }
+    /// What a destination under the pointer proposed — `.move` for a delegate
+    /// that proposed it, else `.copy` — or none when nothing accepts, whatever
+    /// the source's operation mask (`R10`, `DE-H`).
+    func operation(accepting: Bool) -> NSDragOperation {
+        guard accepting else { return [] }
+        return dropOperation == .move ? .move : .copy
+    }
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
         let items = AppKitDragAndDrop.dropItems(from: sender.draggingPasteboard)
@@ -119,6 +123,7 @@ extension MetalHostView: NSDraggingSource {
     }
 
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        dropOperation = .copy
         _ = onInput?(.drop(.exited))
     }
 

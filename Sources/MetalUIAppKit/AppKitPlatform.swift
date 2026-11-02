@@ -23,6 +23,8 @@ final class MetalHostView: NSView {
     /// The last `mouseDragged` event, which an `NSDraggingSession` must start
     /// from (ruling `DN-K` item 2).
     var lastDragEvent: NSEvent?
+    /// What the window last said a drag over it would do (`DE-H`); `operation(accepting:)` answers it.
+    var dropOperation: PlatformDropOperation = .copy
 
     /// The event AppKit is dispatching — `NSApp.currentEvent` in production; a
     /// test scripts it (ruling `MN-AA`: an Edit action tells a menu click from
@@ -1147,6 +1149,12 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
             at: NSPoint(x: CGFloat(position.x.value), y: CGFloat(position.y.value)))
         startDraggingSession([item], event)
         return true
+    }
+
+    /// Stores the operation `MetalHostView` answers `NSDraggingDestination`'s
+    /// entered and updated with (`DE-H`).
+    func setDropOperation(_ operation: PlatformDropOperation) {
+        hostView.dropOperation = operation
     }
 
     /// Shows `menu` as a native `NSMenu` (ruling `MN-C` item 2) popped up at

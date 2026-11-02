@@ -209,6 +209,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public private(set) var windowActions: [PlatformWindowAction] = []
     /// Every `beginExternalDrag` call, in order.
     public private(set) var externalDrags: [([DragRepresentation], Point<Pixels>)] = []
+    /// Every `setDropOperation` call, in order (`DE-H`, `HT-X` 1).
+    public private(set) var dropOperations: [PlatformDropOperation] = []
     /// Every `presentMenu` call, in order.
     public private(set) var presentedMenus: [(menu: PlatformMenu, at: Point<Pixels>)] = []
     /// Every `presentAlert` request, in order.
@@ -291,6 +293,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         externalDrags.append((representations, position))
         return options.externalDragResult
     }
+
+    /// Records the operation (`DE-H`).
+    public func setDropOperation(_ operation: PlatformDropOperation) { dropOperations.append(operation) }
 
     /// Records the menu and answers ``Options/presentsMenusNatively``.
     public func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {

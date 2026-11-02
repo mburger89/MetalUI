@@ -49,7 +49,7 @@ plain colour: `-`).
    both. Spellings are SwiftUI's except where a type is Apple-only: the
    action's location is `Point<Pixels>` (SwiftUI: `CGPoint`), MetalUI's own
    coordinate type, as `DragGesture.Value` already uses.
-2. **Not built, owner none**: `.onDrag`/`.onDrop` (their payload is
+2. **Not built, owner none** (**`DropDelegate` and `.onDrop(of:delegate:)` were built later and this item is reversed for them: `DE-A`, record 192; `DropItem` stands in for `NSItemProvider`**): `.onDrag`/`.onDrop` (their payload is
    `NSItemProvider`, an Apple-only type that cannot cross the portable surface,
    and `.onDrop(of:delegate:)` adds `DropDelegate`, a second surface for the
    same behaviour); the `DropSession` family —

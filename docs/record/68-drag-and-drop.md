@@ -52,7 +52,7 @@ lock probe.
   `StyledElement` (returning `Self`, no id moves) and every
   `ProposalElementGroup` (`DraggableModifier`, `DropDestinationModifier`,
   `DraggablePreviewModifier`, each one identity level). `.onDrag`/`.onDrop`,
-  `DropDelegate` and the `DropSession` family are ruled out (`DN-A` item 2).
+  `DropDelegate` and the `DropSession` family were ruled out (`DN-A` item 2); **superseded for `DropDelegate` by `DE-A` (record 192)**.
 - **The arena member and the session** (`Gesture.swift`, `DragSession.swift`,
   `Window.swift`, `DN-D`…`DN-I`): a drag begins on the first pointer move
   from a draggable, outranks taps, long presses and clicks, yields to a

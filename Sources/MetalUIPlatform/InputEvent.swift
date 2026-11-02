@@ -428,3 +428,16 @@ public enum DropEvent: Sendable {
     /// The drag was dropped at `position`, carrying `items`.
     case performed(position: Point<Pixels>, items: [DropItem])
 }
+
+/// What the window tells the platform a drag over it would do if dropped now
+/// (ruling `DE-H`): a delegate's proposal mapped, `.copy` for a
+/// `dropDestination`, `.none` over no destination, a refusing delegate or a
+/// forbidden or cancelled proposal. Handed to `PlatformWindow.setDropOperation(_:)`.
+public enum PlatformDropOperation: Sendable, Hashable {
+    /// The drag would not be accepted.
+    case none
+    /// The drag would be copied.
+    case copy
+    /// The drag would be moved.
+    case move
+}

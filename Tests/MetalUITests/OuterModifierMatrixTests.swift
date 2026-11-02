@@ -695,6 +695,22 @@ private struct ProposalMatrixRow {
                                                   .dropDestination(for: String.self, action: { _, _ in true })))
                           }),
 
+        ProposalMatrixRow(name: "onDrop(of:delegate:)", path: "legacy Element",
+                          kinds: [.selfStorage, .prepaintOnly],
+                          note: "a non-opaque region carrying only the destination (DE-A)", outer: (40, 40),
+                          arms: {
+                              (try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                               },
+                               try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in
+                                   Box().cssWidth(px(40)).cssHeight(px(40))
+                                       .onDrop(of: [.plainText], delegate: MatrixDropDelegate())
+                               },
+                               storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
+                                              Box().cssWidth(px(40)).cssHeight(px(40))
+                                                  .onDrop(of: [.plainText], delegate: MatrixDropDelegate())))
+                          }),
+
         // MARK: distributes
         ProposalMatrixRow(name: "padding(_:)", path: "legacy Component", kinds: [.distributes, .wraps],
                           note: "a WRAP PER MEMBER (OM-D)", memberCount: 2, outer: (80, 160),
@@ -1151,4 +1167,9 @@ private struct ProposalMatrixRow {
             why("DIVERGENCE (OM-G): and no rounded mask either; got " + describe(child)))
     #expect(child.bounds.size.width == 60 && child.bounds.size.height == 60,
             why("the child overflows its rounded parent at full size; got " + describe(child)))
+}
+
+/// A delegate for the `onDrop(of:delegate:)` matrix row (`DE-A`).
+private struct MatrixDropDelegate: DropDelegate {
+    func performDrop(info: DropInfo) -> Bool { true }
 }
