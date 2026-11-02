@@ -197,6 +197,19 @@ public protocol PlatformWindow: AnyObject {
     /// `func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }`.
     func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool
 
+    /// Tells the platform what a drag from outside the window would do if it
+    /// were dropped now (ruling `DE-H`): called after every `.entered` and
+    /// `.moved` drop event has been resolved, before the event's answer is
+    /// read. AppKit answers its `NSDragOperation` from it (`.move` shows the
+    /// move cursor); SDL has no feedback channel and ignores it.
+    ///
+    /// **No default implementation** (`DE-H`, `EV-AB`'s reason): a conformer
+    /// that forgets it fails to compile. Pinned by
+    /// `aPlatformWindowWithoutSetDropOperationDoesNotCompile`. **Migration**:
+    /// a conformer outside this repository adds
+    /// `func setDropOperation(_: PlatformDropOperation) {}`.
+    func setDropOperation(_ operation: PlatformDropOperation)
+
     /// Shows `menu` itself at `position` (window points, the menu's top-left
     /// corner) and answers whether it did (ruling `MN-C`). `false` — SDL, which
     /// has no menu API — means "draw it yourself", and `Window` opens its

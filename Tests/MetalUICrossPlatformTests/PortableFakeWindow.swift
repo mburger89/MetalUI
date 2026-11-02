@@ -92,6 +92,7 @@ final class PortableFakeWindow: PlatformWindow {
     func startDisplayLink(_ tick: @escaping (Double) -> Void) { self.tick = tick }
     func setDisplayLinkPaused(_ paused: Bool) {}
     func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool { false }
+    func setDropOperation(_ operation: PlatformDropOperation) {}
     func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
     func presentFileDialog(_ dialog: PlatformFileDialog) -> Bool { false }
     func presentAlert(_ alert: PlatformAlert) -> Bool { false }

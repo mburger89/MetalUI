@@ -141,6 +141,7 @@ private func conformer(_ extra: String) -> String {
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
         func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }
+        func setDropOperation(_: PlatformDropOperation) {}
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
         func presentMenu(_: PlatformMenu, at: Point<Pixels>) -> Bool { false }
         func presentFileDialog(_: PlatformFileDialog) -> Bool { false }

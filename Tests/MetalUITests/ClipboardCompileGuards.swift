@@ -99,7 +99,7 @@ private func conformer(clipboard members: String) -> String {
 /// Mutation **MG3.1a**: a protocol-extension default for one requirement (its negative compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUIPlatform"), platformSkipReason))
 func aPlatformWindowWithoutAClipboardRequirementDoesNotCompile() throws {
-    let base = "func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }\n"
+    let base = "func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }\nfunc setDropOperation(_: PlatformDropOperation) {}\n"
     let all = clipboardMembers.map(\.line).joined(separator: "\n")
     let with = try typecheckFile(conformer(clipboard: base + all), importing: "MetalUIPlatform")
     try #require(with.succeeded, "the control must compile, or this guard cannot fail:\n\(with.output)")

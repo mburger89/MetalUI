@@ -193,6 +193,7 @@ private func conformer(member: String) -> String {
         func setToolbar(_: PlatformToolbar?) -> Bool { false }
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         func setPointerStyle(_ style: PlatformPointerStyle) {}
+        func setDropOperation(_: PlatformDropOperation) {}
         func orderFrontAndMakeKey() {}
         // Colour scheme (`CR-M`), defaultless too, so every arm here carries
         // it; `ColorSchemeCompileGuards` pins it.
@@ -233,4 +234,81 @@ func aPlatformWindowWithoutBeginExternalDragDoesNotCompile() throws {
                  """)
     #expect(without.messages.contains("beginExternalDrag"),
             "the negative must be refused FOR beginExternalDrag:\n\(without.output)")
+}
+
+// MARK: - `DropDelegate` (record 192, rulings `DE-A`, `DE-H`)
+
+/// **G-DE.1** (`DE-H`). `PlatformWindow.setDropOperation` has **no default
+/// implementation**: a conformer that forgets it fails to compile, naming it.
+/// **Positive control**: the same conformer with it compiles.
+///
+/// Mutation **MG-DE.1**: a protocol-extension default (the negative compiles).
+@Test(.enabled(if: canTypecheck(module: "MetalUIPlatform"), platformSkipReason))
+func aPlatformWindowWithoutSetDropOperationDoesNotCompile() throws {
+    let member = "func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }"
+    let with = try typecheckFile(conformer(member: member), importing: "MetalUIPlatform")
+    let source = conformer(member: member)
+    try #require(source.contains("setDropOperation"), "set up: the conformer carries the member")
+    let stripped = source.split(separator: "\n", omittingEmptySubsequences: false)
+        .filter { !$0.contains("setDropOperation") }.joined(separator: "\n")
+    let without = try typecheckFile(stripped, importing: "MetalUIPlatform")
+    print("DE-H member required: without succeeded=\(without.succeeded) with succeeded=\(with.succeeded)")
+    try #require(with.succeeded && !without.succeeded,
+                 "the control must compile and the negative must not:\nwith:\n\(with.output)\nwithout:\n\(without.output)")
+    #expect(without.messages.contains("setDropOperation"), "refused FOR setDropOperation:\n\(without.output)")
+}
+
+/// **G-DE.2** (`DE-A`). A delegate written outside the package needs only
+/// `performDrop`; one without it does not compile; `onDrop(of:delegate:)`
+/// takes it on both vocabularies.
+///
+/// Mutation **MG-DE.2**: a `performDrop` default in the protocol extension (the negative compiles).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), metalUISkipReason))
+func aDropDelegateNeedsOnlyPerformDrop() throws {
+    let minimal = try typecheckFile("""
+        import MetalUICore
+
+        @MainActor struct Delegate: DropDelegate {
+            func performDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.plainText]) && info.location.x.value >= 0 }
+        }
+
+        @MainActor final class Full: DropDelegate {
+            func validateDrop(info: DropInfo) -> Bool { true }
+            func dropEntered(info: DropInfo) {}
+            func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+            func dropExited(info: DropInfo) {}
+            func performDrop(info: DropInfo) -> Bool { !info.itemProviders(for: [.item]).isEmpty }
+        }
+
+        @MainActor func styled() -> some ElementGroup { Box().onDrop(of: [.plainText], delegate: Delegate()) }
+        @MainActor func proposal() -> some ProposalElementGroup { Rectangle().onDrop(of: [.url], delegate: Full()) }
+        """, importing: "MetalUI")
+    let missing = try typecheckFile("""
+        @MainActor struct Delegate: DropDelegate {
+            func validateDrop(info: DropInfo) -> Bool { true }
+        }
+        """, importing: "MetalUI")
+    print("DE-A delegate: minimal succeeded=\(minimal.succeeded) missing succeeded=\(missing.succeeded)")
+    try #require(minimal.succeeded && !missing.succeeded,
+                 "the minimal delegate must compile and one without performDrop must not:\nminimal:\n\(minimal.output)\nmissing:\n\(missing.output)")
+    #expect(missing.messages.contains("performDrop") || missing.messages.contains("DropDelegate"),
+            "refused FOR the conformance:\n\(missing.output)")
+}
+
+/// **G-DE.3** (`DE-F`). `DropInfo` has no public initialiser, as SwiftUI's has none.
+///
+/// Mutation **MG-DE.3**: make the initialiser `public` (the negative compiles).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), metalUISkipReason))
+func dropInfoHasNoPublicInitializer() throws {
+    let made = try typecheckFile("""
+        import MetalUICore
+        @MainActor func make() -> DropInfo { DropInfo(location: Point(x: Pixels(0), y: Pixels(0)), items: nil) }
+        """, importing: "MetalUI")
+    let read = try typecheckFile("""
+        import MetalUICore
+        @MainActor func read(_ info: DropInfo) -> Float { info.location.x.value }
+        """, importing: "MetalUI")
+    print("DE-F DropInfo: made succeeded=\(made.succeeded) read succeeded=\(read.succeeded)")
+    try #require(read.succeeded && !made.succeeded,
+                 "reading must compile and constructing must not:\nread:\n\(read.output)\nmade:\n\(made.output)")
 }

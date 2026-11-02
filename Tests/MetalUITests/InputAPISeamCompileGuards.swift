@@ -122,6 +122,7 @@ private func conformer(member: String) -> String {
         func startDisplayLink(_ tick: @escaping (Double) -> Void) {}
         func setDisplayLinkPaused(_ paused: Bool) {}
         func beginExternalDrag(_: [DragRepresentation], at: Point<Pixels>) -> Bool { false }
+        func setDropOperation(_: PlatformDropOperation) {}
         func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
         func presentFileDialog(_: PlatformFileDialog) -> Bool { false }
         func presentAlert(_: PlatformAlert) -> Bool { false }

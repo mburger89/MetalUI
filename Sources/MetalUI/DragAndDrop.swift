@@ -9,9 +9,12 @@ import MetalUIPlatform
 // identity level — `GestureModifier`'s recipe). `draggable(_:preview:)` is lane
 // 2's (`DN-T`). Evidence: `docs/probes/swiftui-drag-and-drop.swift`.
 //
-// **Not offered** (`DN-A` item 2, owner none): `.onDrag`/`.onDrop` and
-// `DropDelegate` (their payload is `NSItemProvider`, an Apple-only type), and
-// the `DropSession` family.
+// **Not offered** (`DN-A` item 2, owner none): the closure forms `.onDrag` and
+// `.onDrop(of:isTargeted:perform:)` (their payload is `NSItemProvider`, an
+// Apple-only type) and the `DropSession` family. `DropDelegate` and
+// `onDrop(of:delegate:)` are offered since record 192 (`DE-A` reverses `DN-A`
+// item 2 for the delegate: `DropItem` stands in for `NSItemProvider`, as it does
+// for `PasteButton`); see `DropDelegate.swift`.
 
 // MARK: - The two records `Handlers` carries
 
@@ -37,12 +40,25 @@ final class DropDestinationTarget {
     let importedTypes: [ContentType]
     private let action: @MainActor ([DropItem], Point<Pixels>) -> Bool
     private let targeted: @MainActor (Bool) -> Void
+    /// The delegate of an `onDrop(of:delegate:)` destination, else `nil`
+    /// (`DE-A`). Held in this class box, never on `Handlers` (`IX-N`).
+    let delegate: (any DropDelegate)?
+
+    /// A delegate-driven destination for `types` (`DE-A`): `accepts` and the
+    /// session's callbacks run through the delegate.
+    init(delegate: any DropDelegate, types: [ContentType]) {
+        self.importedTypes = types
+        self.delegate = delegate
+        self.action = { _, _ in false }
+        self.targeted = { _ in }
+    }
 
     init<T: Transferable>(_ type: T.Type,
                           action: @escaping @MainActor ([T], Point<Pixels>) -> Bool,
                           isTargeted: @escaping @MainActor (Bool) -> Void) {
         let imported = T.importedContentTypes()
         self.importedTypes = imported
+        self.delegate = nil
         self.targeted = isTargeted
         self.action = { items, location in
             let values: [T] = items.compactMap { item in
@@ -202,12 +218,25 @@ public struct DraggableModifier<Content: ProposalElementGroup>: Element {
 
 extension DraggableModifier: ProposalElement {}
 
+/// A wrapper whose destination an outer wrapper of the same kind overrides
+/// (divergence 1057): SwiftUI's outermost drop modifier on one view wins, but
+/// wrappers register outermost-first and the later region ranks higher.
+@MainActor
+protocol DropDestinationWrapping {
+    /// Registers no region of its own, and tells a wrapper inside it the same.
+    mutating func yieldToOuterDestination()
+}
+
 /// A proposal wrapper that makes its content a drop destination —
-/// `GestureModifier`'s recipe (ruling `DN-P`).
+/// `GestureModifier`'s recipe (ruling `DN-P`). When two of these wrap one view
+/// the outer one wins (divergence 1057): it tells the wrapper directly inside
+/// it to register nothing.
 public struct DropDestinationModifier<Content: ProposalElementGroup>: Element {
     /// The wrapped proposal content.
     public var content: Content
     var target: DropDestinationTarget
+    /// Set by an outer `DropDestinationModifier` on this one (divergence 1057).
+    var yieldsToOuter = false
 
     init(content: Content, target: DropDestinationTarget) {
         self.content = content
@@ -227,8 +256,14 @@ public struct DropDestinationModifier<Content: ProposalElementGroup>: Element {
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        // Divergence 1057: a drop wrapper directly inside this one registers nothing.
+        if var inner = content as? any DropDestinationWrapping {
+            inner.yieldToOuterDestination()
+            // swiftlint:disable:next force_cast
+            content = inner as! Content
+        }
         var handlers = Handlers()
-        handlers.dropDestination = target
+        if !yieldsToOuter { handlers.dropDestination = target }
         // A wrapper's registration follows an effect written inside it at the
         // same rect (`GX-P` item 1).
         let frame = pass.frame
@@ -242,6 +277,10 @@ public struct DropDestinationModifier<Content: ProposalElementGroup>: Element {
                                prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
+}
+
+extension DropDestinationModifier: DropDestinationWrapping {
+    mutating func yieldToOuterDestination() { yieldsToOuter = true }
 }
 
 extension DropDestinationModifier: ProposalElement {}

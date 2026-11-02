@@ -707,8 +707,19 @@ SDL (101); external drops arrive from Finder and other apps through
 unknown until the drop (102). At the seam: `InputEvent.drop` (`DropEvent`,
 `DropItem`, `PasteboardType`) and `PlatformWindow.beginExternalDrag`
 (`DragRepresentation`), defaultless (`DN-C`). Accessibility publishes
-nothing for either, as SwiftUI's does not (`DN-N`). `.onDrag`/`.onDrop` and
-the `DropSession` family are not offered (`DN-A`).
+nothing for either, as SwiftUI's does not (`DN-N`). `.onDrag`, the closure
+`.onDrop(of:isTargeted:perform:)` and the `DropSession` family are not offered
+(`DN-A`).
+
+`DropDelegate`, `DropProposal`, `DropOperation` (`cancel`, `forbidden`, `copy`,
+`move`) and `.onDrop(of:delegate:)` on both vocabularies (A; `DropInfo` and the
+`onDrop` overloads D, 1055-1056, `DE-A`…`DE-J`): only `performDrop` is
+required; entering runs `validateDrop`, `dropEntered`, `dropUpdated`, a move
+one `dropUpdated`, a release `dropUpdated` and `performDrop`, leaving
+`dropExited`; the proposal decides the cursor and whether a release performs. The
+outermost drop modifier on a view wins. `DropInfo` carries a destination-local
+`Point<Pixels>`, `ContentType`s and synchronous `DropItem`s. At the seam: the
+defaultless `PlatformWindow.setDropOperation(_:)` (`PlatformDropOperation`).
 
 ## GPU surfaces — M / D
 

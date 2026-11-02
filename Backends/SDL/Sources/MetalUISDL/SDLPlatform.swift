@@ -911,6 +911,10 @@ public final class SDLWindow: PlatformWindow {
         false
     }
 
+    /// Ignored (ruling `DE-H`): SDL3 has no way to tell the drag source what a
+    /// drop would do (`SDL_events.h` offers no feedback for `SDL_EVENT_DROP_*`).
+    public func setDropOperation(_ operation: PlatformDropOperation) {}
+
     /// Always `false` (ruling `MN-C` item 3): SDL3 has no menu API, so
     /// `Window` draws the menu in the window (`MN-F`).
     public func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool {

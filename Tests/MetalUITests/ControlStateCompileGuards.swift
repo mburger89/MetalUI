@@ -68,6 +68,7 @@ private func conformer(pair: String) -> String {
         // Drag and drop's hand-off (`DN-C` item 2), defaultless too, so every
         // arm here carries it; `DragAndDropCompileGuards` pins it.
         func beginExternalDrag(_ representations: [DragRepresentation], at position: Point<Pixels>) -> Bool { false }
+        func setDropOperation(_: PlatformDropOperation) {}
         func presentMenu(_ menu: PlatformMenu, at position: Point<Pixels>) -> Bool { false }
         // Platform services (`SV-B`), defaultless too, so every arm here carries
         // them; `PlatformServicesCompileGuards` pins them.

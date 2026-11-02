@@ -359,6 +359,10 @@ final class FakePlatformWindow: PlatformWindow {
         return externalDragResult
     }
 
+    /// Every `setDropOperation` call, in order (`DE-H`).
+    private(set) var dropOperations: [PlatformDropOperation] = []
+    func setDropOperation(_ operation: PlatformDropOperation) { dropOperations.append(operation) }
+
     /// Every `presentMenu` call, in order (ruling `MN-C` item 3).
     private(set) var presentedMenus: [(menu: PlatformMenu, at: Point<Pixels>)] = []
     /// What `presentMenu` answers; `false`, as SDL does, by default — so

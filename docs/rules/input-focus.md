@@ -54,7 +54,13 @@ ranking (`DN-F`); destinations register inside the disabled gate and outside
 `allowsHitTesting`. **A new `StyledElement` site must paint through
 `paintDecoration`** or it drags with no preview (`DN-X`). An SDL test takes
 `SDL_EVENT_DROP_*` from C-exported constants and arms
-`armMainRunLoopExitCheck()`.
+`armMainRunLoopExitCheck()`. **`DropDelegate`** (`DE-`, record §192):
+`onDrop(of:delegate:)` writes the same `Handlers.dropDestination` field, so the
+outermost wins and no registration site is new; every callback runs from input
+through `StateDispatch.dispatching`, and `Window.retarget`/`untarget`/`deliver`
+are the one place (`DE-B`). A drop wrapper silences a wrapper directly inside it
+(`DropDestinationWrapping`, `DE-G`). **A new `PlatformWindow` drop feedback is
+`setDropOperation(_:)`, defaultless**; a conformer owes it (`DE-H`).
 
 **Accessibility (`AB-`, `IX-U`…).** Nothing recorded until a client activates
 the window (sticky). Synthesized nodes are records (`Frame.axEmissions`),

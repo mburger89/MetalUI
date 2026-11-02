@@ -165,6 +165,9 @@ F	portable-text	M	-	-	-	-	FT-B SH-B PT-A LB-A FN-A FB-A BD-B SF-A	MetalUIFreeTyp
 F	demo-content	M	-	-	-	-	LR-S CX-Q	MetalUIDemoContent: the demo trees, importable by tests
 F	transferable	A	swiftui-drag-and-drop.swift	T5	aStringExportsAndImportsUTF8PlainTextOnly	-	DN-B DN-S	Transferable/ContentType: MetalUI's own synchronous Data-based protocol with CoreTransferable's call-site spellings; String/URL/Data conform; transferRepresentation is not offered
 F	drag-and-drop	A	swiftui-drag-and-drop.swift	P14	isTargetedTurnsFalseBeforeTheNextTrueAndBeforeTheAction	100 101 102	DN-A DN-D DN-F DN-G DN-H DN-J DN-K DN-M	draggable(_:)/draggable(_:preview:)/dropDestination(for:action:isTargeted:) and their modifiers: a drag begins on the first move, outranks tap/long press/click, the one hit ranking finds the destination, isTargeted false before the next true
+F	drop-delegate	A	swiftui-drop-delegate.swift	D0	aDelegateGetsValidateEnterUpdateThenUpdatePerMoveThenUpdatePerform	-	DE-A DE-B DE-C DE-D DE-E	DropDelegate (validateDrop, dropEntered, dropUpdated, dropExited, performDrop; only performDrop required), DropProposal(operation:) and DropOperation (cancel, forbidden, copy, move): entering validates then enters then updates, a move updates, a release updates then performs with no exit, leaving exits; nil proposes copy, forbidden refuses and keeps asking, cancel stops asking; the macOS 26 cases are not offered
+F	drop-delegate-surface	D	swiftui-drop-delegate.swift	F8	theOuterOfTwoDropModifiersOnOneElementWins	1055 1056	DE-A DE-F DE-G DE-H	DropInfo (location a destination-local Point<Pixels>, hasItemsConforming(to:) and itemProviders(for:) over ContentType and DropItem, no public initialiser) and onDrop(of:delegate:) on StyledElement and ProposalElementGroup: the outermost drop modifier wins, a disabled or hidden delegate is never validated; no operation badge in an in-window drag
+F	drop-delegate-seam	M	-	-	-	-	DE-H	PlatformWindow.setDropOperation(_:) (defaultless) and PlatformDropOperation (none, copy, move): what the window tells the platform a drag over it would do; AppKit answers its NSDragOperation from it, SDL ignores it, the headless window records it
 F	context-menus	A	swiftui-menus-popovers.swift	C1	aRightPressOverAContextMenuPresentsItsItemsToThePlatform	110 114	MN-B MN-C MN-D MN-E MN-F MN-U MN-V MN-AE	.contextMenu on both vocabularies (ContextualModifier) and the closed MenuContent vocabulary (Button/Toggle/Menu/Divider/Text items, MenuContentBuilder, MenuItems, Menu's declaration): a native NSMenu or a drawn in-window menu, evaluated at each open; a secondary press only opens menus (110); a painted cover does not block (114)
 F	menu-bar	A	swiftui-commands.swift	PLAIN	theDefaultMenuBarHasTheStandardMenus	-	MN-I MN-J MN-K MN-X MN-AA MN-AF	App.commands(content:) with CommandMenu/CommandGroup/CommandGroupPlacement/CommandsBuilder/CommandItems and Platform.setMenuBar/PlatformMenuBar: the standard menus as NSApp.mainMenu on AppKit (Edit items reach the focused field as its keys), on SDL setMenuBar answers false and every window draws a 25-point bar above the toolbar strip (divergence 195, SG-A); a command's shortcut fires after the window's own stages, once
 F	pull-down-menu	A	swiftui-menus-popovers.swift	M1	aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself	-	MN-H MN-AD MN-AF	Menu("Title") { } as a view: Button's chrome and keys opening its items at its bottom-leading corner (native on AppKit, the drawn panel elsewhere), published as a menu button
@@ -601,6 +604,11 @@ M	MetalUIPlatform	PointerStyle.swift	.*	.*	.*	input-apis-seam
 M	MetalUIPlatform	Platform.swift	PlatformWindow	setPointerStyle	.*	input-apis-seam
 M	MetalUIPlatform	InputEvent.swift	Modifiers	primary	.*	primary-modifier
 M	MetalUIPlatform	AppShell.swift	.*	.*	.*	app-shell-seam
+M	MetalUI	DropDelegate.swift	-	(DropOperation|DropProposal|DropDelegate)	.*	drop-delegate
+M	MetalUI	DropDelegate.swift	(DropProposal|DropDelegate)	.*	.*	drop-delegate
+M	MetalUI	DropDelegate.swift	.*	.*	.*	drop-delegate-surface
+M	MetalUIPlatform	Platform.swift	PlatformWindow	setDropOperation	.*	drop-delegate-seam
+M	MetalUIPlatform	InputEvent.swift	(-|PlatformDropOperation)	(PlatformDropOperation|none|copy|move)	.*	drop-delegate-seam
 M	MetalUIPlatform	.*	.*	.*	.*	platform
 M	MetalUIPrimitives	.*	.*	.*	.*	render
 M	MetalUIRender	.*	.*	.*	.*	render

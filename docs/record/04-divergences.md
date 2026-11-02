@@ -2843,3 +2843,13 @@ a node registered under a right-to-left environment now reflects each child's re
 points, `trim`, and `UnevenRoundedRectangle`'s leading/trailing corners; MetalUI's shapes are drawn from the rect the layout gave them and do not (`LD-G`). `Canvas` is not mirrored in SwiftUI either (`O2`),
 and an `Image` only under `flipsForRightToLeftLayoutDirection(true)` (`N1`, `N2`), which MetalUI does not offer. Pin `aRightToLeftShapeIsNotYetMirrored`. Mechanism, mutations and the carried list:
 `docs/superpowers/2026-11-01-layout-direction-decisions.md`, `docs/record/191-layout-direction.md`.
+
+## 2026-11-02: `DropDelegate` (`DE-F`, `DE-H`, record §192)
+
+**New: 1055, 1056** (199 live; next label 210; 1057-1064 reserved by DE and unused). 1055: an in-window drag shows no operation badge (`PlatformPointerStyle` has no drag cursors; a drag from
+another app answers its `NSDragOperation` on AppKit, SDL has none); pins `theHeadlessWindowRecordsEachReportedOperation`, `aMoveProposalAnswersMoveFromEnteredAndUpdated`. 1056: `DropInfo.location` is a
+`Point<Pixels>` local to the destination, types are `ContentType`, items are synchronous `[DropItem]`; pins `dropInfoMatchesByConformance`, `dropInfoLocationIsLocalInEveryCallback`,
+`dropInfoHasNoPublicInitializer`. Amended 100 (a disabled delegate is never validated; pin `aDisabledOrHiddenDelegateIsNeverValidated`) and 102 (on SDL `validateDrop` runs with unknown items;
+pin `sdlHoverIsOptimisticAndPerformSeesItems`). **1057 was measured and fixed, not recorded**: two chained proposal-path drop wrappers let the inner win against SwiftUI's outer; the outer now silences
+the wrapper inside it (`theOuterOfTwoProposalDropWrappersWins`, `DE-G`), for `dropDestination` too. "Not offered": the `DropDelegate` half of the `.onDrag`/`.onDrop` row is gone; a new row lists
+`DropOperation.delete`/`.alias`/`Set`, `operationOutsideApplication` and `init(withinApplication:outsideApplication:)`. Mechanisms and mutations: `docs/superpowers/2026-11-01-drop-delegate-decisions.md`.

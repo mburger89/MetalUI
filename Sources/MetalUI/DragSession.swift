@@ -60,6 +60,16 @@ struct DropTargetState {
     /// The destination region, whose stored inverse maps a window point into
     /// the space `origin` is in (`GX-P` item 3).
     var region: Hitbox? = nil
+    /// The last pointer position retargeted at, in window points, and the
+    /// items then offered — a delegate's `DropInfo` (`DE-B`, `DE-F`).
+    var point: Point<Pixels> = Point(x: Pixels(0), y: Pixels(0))
+    var items: [DropItem]? = nil
+    /// A delegate's session record (`DE-B`, `DE-C`): whether `validateDrop`
+    /// answered `true`, whether it proposed `.cancel` (no more `dropUpdated`
+    /// until the drag leaves), and what a release now would do.
+    var validated = false
+    var cancelled = false
+    var operation: PlatformDropOperation = .copy
 }
 
 extension Window {
@@ -136,11 +146,11 @@ extension Window {
         case .entered(let position, let items):
             externalDropItems = .some(items)
             retarget(at: position, items: items)
-            return dropTarget != nil
+            return reportDropOperation()
         case .moved(let position):
             let items = externalDropItems ?? nil
             retarget(at: position, items: items)
-            return dropTarget != nil
+            return reportDropOperation()
         case .exited:
             externalDropItems = nil
             untarget()
@@ -150,6 +160,15 @@ extension Window {
             retarget(at: position, items: items)
             return deliver(items, at: position)
         }
+    }
+
+    /// Tells the platform what a release now would do (`DE-H`) and answers
+    /// whether it would be accepted: a destination is targeted and its
+    /// operation is a copy or a move.
+    private func reportDropOperation() -> Bool {
+        let operation = dropTarget?.operation ?? .none
+        platformWindow.setDropOperation(operation)
+        return operation != .none
     }
 
     // MARK: The one resolver and the one importer
@@ -182,36 +201,102 @@ extension Window {
 
     /// Moves the target to whatever `dropTarget(at:items:)` answers, the old
     /// one's `false` strictly before the new one's `true` (`DN-H` item 1,
-    /// `P14`); the same destination again sends nothing (`P19`).
+    /// `P14`); the same destination again sends nothing to a `dropDestination`
+    /// (`P19`) and one `dropUpdated` to a delegate (`DE-B`).
     func retarget(at point: Point<Pixels>, items: [DropItem]?) {
-        let new = dropTarget(at: point, items: items)
-        if let current = dropTarget, let new, current.id == new.id {
-            dropTarget = new   // this frame's record; no callback
+        var new = dropTarget(at: point, items: items)
+        new?.point = point
+        new?.items = items
+        if let current = dropTarget, var new, current.id == new.id {
+            new.validated = current.validated
+            new.cancelled = current.cancelled
+            new.operation = current.operation
+            dropTarget = new   // this frame's record; no callback (a delegate: one update)
+            updateDelegate()
             return
         }
         untarget()
         dropTarget = new
-        if let new {
+        guard let new else { return }
+        if let delegate = new.target.delegate {
+            let info = dropInfo(for: new)
+            let valid = StateDispatch.dispatching(to: new.id) { delegate.validateDrop(info: info) }
+            dropTarget?.validated = valid
+            dropTarget?.operation = valid ? .copy : .none
+            guard valid else { return }
+            StateDispatch.dispatching(to: new.id) { delegate.dropEntered(info: info) }
+            updateDelegate()
+        } else {
             StateDispatch.dispatching(to: new.id) { new.target.setTargeted(true) }
         }
     }
 
-    /// Un-targets the current destination, if any, with its `false`.
+    /// The `DropInfo` a delegate callback gets for `state`: the last position,
+    /// local to the destination, and the items offered then (`DE-F`).
+    private func dropInfo(for state: DropTargetState) -> DropInfo {
+        DropInfo(location: localLocation(of: state.point, in: state), items: state.items)
+    }
+
+    /// `point` (window points) in `state`'s destination-local space (`DN-H` item 2).
+    private func localLocation(of point: Point<Pixels>, in state: DropTargetState) -> Point<Pixels> {
+        let point = state.region?.localPoint(point) ?? point
+        return Point(x: Pixels(point.x.value - state.origin.x.value),
+                     y: Pixels(point.y.value - state.origin.y.value))
+    }
+
+    /// Runs the current delegate's `dropUpdated` — only once validated and not
+    /// cancelled — and records its proposal (`DE-D`): `nil` is `.copy`;
+    /// `.forbidden` answers none but keeps asking; `.cancel` answers none and stops asking.
+    private func updateDelegate() {
+        guard let state = dropTarget, let delegate = state.target.delegate,
+              state.validated, !state.cancelled else { return }
+        let info = dropInfo(for: state)
+        let proposal = StateDispatch.dispatching(to: state.id) { delegate.dropUpdated(info: info) }
+        switch proposal?.operation ?? .copy {
+        case .copy: dropTarget?.operation = .copy
+        case .move: dropTarget?.operation = .move
+        case .forbidden: dropTarget?.operation = .none
+        case .cancel:
+            dropTarget?.operation = .none
+            dropTarget?.cancelled = true
+        }
+    }
+
+    /// Un-targets the current destination, if any: a `dropDestination` gets
+    /// its `false`, a delegate its `dropExited` — validated or not (`DE-B`).
     func untarget() {
         guard let current = dropTarget else { return }
         dropTarget = nil
-        StateDispatch.dispatching(to: current.id) { current.target.setTargeted(false) }
+        if let delegate = current.target.delegate {
+            let info = dropInfo(for: current)
+            StateDispatch.dispatching(to: current.id) { delegate.dropExited(info: info) }
+        } else {
+            StateDispatch.dispatching(to: current.id) { current.target.setTargeted(false) }
+        }
     }
 
-    /// Drops `items` on the current target at `point`: its `isTargeted(false)`
-    /// first, then the import and the action at the destination-local point
-    /// (`DN-H` items 1–3). Whether the action ran; `false` with no target.
+    /// Drops `items` on the current target at `point`. A `dropDestination`:
+    /// its `isTargeted(false)` first, then the import and the action at the
+    /// destination-local point (`DN-H` items 1–3); whether the action ran. A
+    /// delegate (`DE-E`): `performDrop` and its answer when validated, not
+    /// cancelled and a copy or move is proposed — no `dropExited` — else
+    /// `dropExited` and `false`. `false` with no target.
     func deliver(_ items: [DropItem], at point: Point<Pixels>) -> Bool {
         guard let target = dropTarget else { return false }
+        if let delegate = target.target.delegate {
+            guard target.validated, !target.cancelled, target.operation != .none else {
+                untarget()
+                return false
+            }
+            dropTarget = nil
+            var performed = target
+            performed.point = point
+            performed.items = items
+            let info = dropInfo(for: performed)
+            return StateDispatch.dispatching(to: target.id) { delegate.performDrop(info: info) }
+        }
         untarget()
-        let point = target.region?.localPoint(point) ?? point
-        let location = Point(x: Pixels(point.x.value - target.origin.x.value),
-                             y: Pixels(point.y.value - target.origin.y.value))
+        let location = localLocation(of: point, in: target)
         return StateDispatch.dispatching(to: target.id) { target.target.deliver(items, at: location) }
     }
 }
