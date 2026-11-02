@@ -1147,7 +1147,8 @@ private func proposalTextMeasure<C: ElementGroup>(_ content: (Text) -> C, _ text
 
 /// **E17, flipped by R3-10 item 4** (ruling `LD-A`; was pinned wrong on purpose under `EV-K`, divergence 25). Under
 /// `.rightToLeft` SwiftUI mirrors: probe H places a 10pt and a 20pt child at x **90** and **70** in a 100pt leading
-/// frame, and so does MetalUI. The separating arm is the same tree under `.leftToRight`, which keeps 0 and 10.
+/// frame, and so does MetalUI (arm A1 of `docs/probes/swiftui-layout-direction.swift`). The separating arm is the same
+/// tree under `.leftToRight`, which keeps 0 and 10.
 /// Mutation (record 191): the `didSet` of `Frame.environmentTop` not setting `tree.registersRightToLeft`.
 @MainActor
 @Test func aRightToLeftLayoutDirectionMirrorsAnHStack() throws {

@@ -719,6 +719,19 @@ with a radius past half the shorter side draws as a path and cannot be a `clipSh
 - **`GlyphAtlas(width:height:)` is unchanged and never grows**; pass `maximumExtent:` to opt in. A full atlas still answers `nil`, now also counted in
   `droppedGlyphs`.
 
+### Right-to-left layout direction mirrors layout (`LD-`, record 191)
+
+**Behaviour change; no source change.** `.environment(\.layoutDirection, .rightToLeft)` (or a window root whose environment reads it) used to be
+carried and read by nothing (divergence 25). It now mirrors layout as SwiftUI does: stacks run right to left, a `.leading` alignment or frame
+puts the child on the right, `padding(.leading:)` pads the right, `ZStack`/overlay/`Grid`/lazy-stack/custom-`ProposalLayout` placements reflect,
+`offset(x:)`/`position(x:)` flip inside the writer, `scaleEffect`/`rotationEffect` anchors and sense mirror, a horizontal scroller opens at the
+right and its offset is measured from the right, and `multilineTextAlignment(.leading)` aligns right. **If your tree was already right-to-left**
+(an app that set the key to try it out, or a test that pinned the old unmirrored figures such as `aRightToLeftLayoutDirectionDoesNotYetMirrorAnHStack`),
+its layout changes; wrap the part that should stay left-to-right in `.environment(\.layoutDirection, .leftToRight)`. Not mirrored (divergence 1045):
+a shape's own path, a gradient's `.leading`/`.trailing` points, `trim`, `UnevenRoundedRectangle`'s corners; mirror such a shape yourself (an element
+that reads `@Environment(\.layoutDirection)` and picks its own path). A custom `ProposalLayout` keeps writing its placements as if left-to-right: the kernel reflects them. Rebuild
+dependents with `swift package clean` (a stored property on the public `LayoutTree`).
+
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.
