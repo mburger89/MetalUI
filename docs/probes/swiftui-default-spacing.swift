@@ -38,11 +38,132 @@
 // ENVIRONMENT VALUE, which is not the same thing), any pixel-level fact, and
 // any arm that needs a window on a second display.
 //
-// RECORDED 2026-11-03 by R4-2 PR A on macOS 27.2, `/usr/bin/swift`, locked
-// session (CGSSessionScreenIsLocked = 1; the probe needs no pixels). Run
-// twice; the two outputs are byte-identical (`diff` empty). The reading and
-// the recorded stdout are in docs/record/202-default-spacing-probe.md and
-// docs/probes/swiftui-default-spacing-run.txt.
+// RECORDED 2026-11-03 by R4-2 PR A on macOS 27.2 (26B123), `/usr/bin/swift` =
+// Apple Swift 6.4.2, screen LOCKED (CGSSessionScreenIsLocked = 1,
+// preflightScreenCaptureAccess false; no arm needs pixels). Exit 0. Run twice;
+// the two outputs are byte-identical (`cmp` empty, 1239 lines) and are kept in
+// docs/probes/swiftui-default-spacing-run.txt. `=== instruments: 922 pairs, 0
+// DISAGREE`. Two instrument limits, both found by the first run and now
+// handled in the harness rather than hidden: instrument a is INVALID for a
+// flexible neighbour (a `Spacer`, a horizontal `Divider`: its solo size is not
+// what the stack adds up), so `rep(…, flexible: true)` prints `a=n/a` and b
+// and c must still agree; and an `Edge` of two `Spacer`s is never asked, so c
+// prints `unread`.
+//
+// RE-RUN RECIPE. `/usr/bin/swift` JIT-fails with `___isPlatformVersionAtLeast`
+// if this file spells `View.tag(_:)` (a macOS 26 availability check): the
+// `Picker` in DS7 uses `ForEach` for that reason. Do not add a `.tag`.
+//
+// READING (each claim names its arms; all at the default 8 pt horizontal gap
+// unless said otherwise, all in a VStack).
+// - DS0 reproduces the records: every S, K0/K1b/K1/K1c, K3, K3a, SP8 and GS7
+//   line MATCHES (S prints 4.742 and 8.151 where the record rounded to 4.74 and
+//   8.15; the comparison is at two decimals). The three instruments agree to
+//   the printed 0.001 on every pair of the file.
+// - THE HORIZONTAL GAP IS 8 BESIDE EVERY NEIGHBOUR AT EVERY FONT AND SIZE
+//   (DS1, DS1b, DS2 to DS13 `h` columns).
+// - THE VERTICAL TEXT EDGES ARE A FUNCTION OF THE RESOLVED FONT'S METRICS, not
+//   a constant (DS1, DS1b, DS2; 107 font-size rows over 12 families and sizes 6
+//   to 200 including fractions). With a = ascent, d = descent, c = capHeight,
+//   l = leading (CTFontGet…, NSFont's ascender/-descender/capHeight/leading;
+//   `ceil` is `.up`):
+//     rect|text   = d + ceil((a + d) / 10)                   max residual 0.0000
+//     text|rect   = rect|text + (a - c)                      max residual 0.0010
+//                   (0.001 is the probe's 3-decimal print, not a misfit)
+//     text|text   = ceil(l of the LOWER text)                max residual 0.0000
+//   13 pt SF: 2.742 + 2 = 4.742; + (12.568 - 9.16) = 8.151; leading 0 -> 0.
+//   The step ceil((a + d) / 10) is not `ceil(a / 8)` or `floor(a / 8) + 1`
+//   (both fail at s = 16.9, 24.9, 25, 200 and Geneva 48): 0 misses of 107 only
+//   for `a + d` over 10. Rejected: a constant (H0: up to 110 pt off), a
+//   proportional gap (H1: up to 11.3 pt), `rect|text = d + 2` (22 pt), no cap
+//   height for text|rect (up to 9.3 pt). The Tests/Fonts faces fit with their
+//   `hhea` metrics (NotoSans hhea 1069/-293/0 at 13 pt: 13.897, 3.809; Source
+//   Sans 3 1000/-326/0: 13, 4.238), so the portable system's metrics give the
+//   same figures; its `TextFontMetrics` has no cap height.
+// - text|text IS THE FONT'S LEADING, so it is 0 for `.system(size:)`, a custom
+//   face with leading 0 and an unset font, and a whole point for a text STYLE
+//   (DS4, DS4b): `.body` 1, `.title` 1, `.title2` 2, `.title3` 3, `.headline` 1,
+//   `.subheadline` 2, `.callout` 1, `.footnote` 2, `.caption`/`.caption2` 2,
+//   `.largeTitle` 2 (NSFont.preferredFont's leading 0.689, 0.09, 1.979, 2.334,
+//   0.689, 1.045, 0.867, 1.223, 1.379 ceil'd), and 1/1/3/2 for ArialMT,
+//   Futura-Medium, DINCondensed-Bold, Geneva at 13 pt (0.425, 0.387, 2.6,
+//   1.085). Unequal fonts use the LOWER text's leading (DS5: .body|.largeTitle
+//   2, .largeTitle|.body 1, DIN|Arial 1, Arial|DIN 3). `.body.leading(.tight)`
+//   is -1 and `.loose` 3 (-2/+2 around the style's). A style font's rect gaps
+//   equal the same-size `.system` font's (DS4b `.body` 4.742/8.151).
+// - What leaves the figures alone: `displayScale` as an ENVIRONMENT value 1, 2
+//   and 3 (DS3), `dynamicTypeSize` through accessibility5 (DS4: the default
+//   font does not scale on macOS), bold and italic (same a, d, c at 13 pt),
+//   `lineSpacing`, `baselineOffset`, `kerning`, `tracking`, a second line (DS6).
+//   `controlSize` acts only through the default font it selects (mini is 9 pt:
+//   3.898/6.258, the DS1 9 pt row). Not measured: a real backing scale.
+// - DS6: an empty `Text("")` has no vertical edges (0 beside a rect either
+//   side); `Text + Text` takes the LARGER font's edges in either order
+//   (mixedSum and mixedSumReversed both 9.484/16.302); a 26 pt attributed run
+//   takes its own (9.484/16.302).
+// - EDGES BY NEIGHBOUR KIND (DS7, DS7b, DS2 control): standard (8 against a
+//   rect, a bitmap `Image`, `Color`, `Divider`, `TextField`, `Slider`, `Picker`,
+//   `Stepper`, default `Button`, `.switch` Toggle, `ScrollView`, `Grid` of
+//   rects, `ProgressView`; and against text the TEXT's figure above); a
+//   `.plain` `Button` with a text label and a `Label` are TEXT edges (0 beside
+//   text, 4.742/8.151 beside a rect); a checkbox `Toggle` is 6 beside a rect,
+//   a toggle and (text's figure) text; an SF Symbol `Image` is neither (DS7b):
+//   against a rect 2 above and 3 below at the default font (9 pt 1/2, 26 pt
+//   3/4, 48 pt 6/7) and 0 against text and itself. DS10: a font on the STACK is
+//   inherited by its Texts and changes nothing else (rect|rect 8, Button 8,
+//   Toggle 6); `.system(size: 26)` on the stack gives 0 text|text and
+//   `.largeTitle` 2.
+// - WRAPPERS (DS8): `.padding(0)`, `.padding(.horizontal)`, a flexible frame,
+//   `background`, `overlay`, `fixedSize`, `layoutPriority`, `offset`,
+//   `opacity`, `border`, a `ZStack`/`Pass{}` of the text, all carry the text
+//   edges. A FIXED `.frame(width:height:)` and non-zero padding give a standard
+//   (8) edge on the edge they affect: `.padding(4)` 8 on all four,
+//   `.padding(.top, 4)` only the top (8.151 after a text, 8 after a rect),
+//   `.padding(.bottom, 4)` only the bottom.
+// - MERGING (DS9, DS6): a composite's edge is the first child's (leading) and
+//   the last child's (trailing) along its own axis (nested VStack, DS12 Grid
+//   rows); across it, a TEXT edge wins over a standard one (HStack{rect; text}
+//   beside a rect is 4.742/8.151, as FM0's 4.74 row shows) and among text edges
+//   the LARGER font's wins in either order (HStack{13; 26} is the 26's
+//   9.484/16.302; ZStack too). Leading in a union: the larger of two styles' (DS9: as the LOWER
+//   view HStack{.body; .largeTitle} gives 2; as the upper view above a .body
+//   it gives 1, the lower's).
+// - SPACER (DS11): `Spacer()`'s nil minimum is a constant 8 at 9, 13 and 48 pt
+//   (VStack{T; Spacer(); T} is 2 lines + 8, 13x40 at 13 pt) and no default
+//   spacing is inserted beside it (b = c = 0 for text|Spacer, Spacer|text,
+//   rect|Spacer).
+// - GRID (DS12): the row gap is the stack rule (text/text 0, rect/text 4.742,
+//   text/rect 8.151 at 13; 0, 9.484, 16.302 at 26), a mixed-cell row takes the
+//   largest pair over its cells ({text,rect}/{rect,text} 8.151 at 13, 16.302 at
+//   26), a spanning cell over texts gives 0, the column gap is 8 at 13 and 26,
+//   explicit spacing is verbatim; as a stack child a Grid's edges are its first
+//   and last ROW's (text-over-standard union within a row).
+// - LAZY AND SCROLLING (DS13): `LazyVStack` and `LazyVGrid` (one column) follow
+//   the text-edge rule exactly as `VStack` does (rect/text 4.742, text/text 0,
+//   text/rect 8.151); `LazyHStack` and a two-column `LazyVGrid` gap are 8; a
+//   `ScrollView`'s implicit stack follows it; a `ScrollView` AS A CHILD has a
+//   standard edge (scroll|text is 4.742, the standard-above-text figure). MetalUI's lazy containers use one
+//   constant.
+// - ROW 89 (DS14), by `NSHostingView` layout, no `ImageRenderer`. The `Where`
+//   replay reproduces K1 and K4 exactly (text 16 / 48 / 96 tall at frames 60 /
+//   100 / 200; K1's 15.5 / 47.5 / 96 are the same lines at the renderer's
+//   half-point grid): `VStack(0){para; Where{Spacer()}}`, `…Where{Spacer(minLength:
+//   0)}` and `VStack(0){Where{para}; Where{Spacer()}}` (the equal-share model).
+//   The BARE stack is not that: `VStack(0){para; Spacer()}` gives the text 48,
+//   80 and 96 tall (3, 5, 6 lines; default spacing the same), and with
+//   `Spacer(minLength: 0)` 48, 96, 96 (3, 6, 6): the spacer takes only its
+//   minimum, as SP8 and MetalUI say. `Where` around ONLY THE TEXT leaves a bare
+//   spacer's 48 / 80 / 96. A spacer behind `Pass{}`, `.padding(0)`, or replaced
+//   by `Color.clear` is an ordinary flexible child (16 / 48 / 96). So row 89's
+//   1 and 3 lines belonged to the wrapper around the spacer. Horizontally
+//   (HStack(0), 300 tall) a text and a bare spacer: 60 wide text 208 tall (a
+//   narrow text), 100 wide 112 tall; with `minLength: 0` 144 and 96; the
+//   `Where` spacer 288 and 208.
+// - NOT MEASURED HERE: a real backing scale; the portable system's own figures
+//   (no SwiftUI there); text in a `Menu`, `List` row or toolbar; a locale whose
+//   fonts have other metrics; fonts of fractional leading mixed in the same
+//   stack beyond the arms listed; `TextField`'s own text edges (DS7 reads a
+//   field beside text as a standard edge).
 
 import AppKit
 import SwiftUI

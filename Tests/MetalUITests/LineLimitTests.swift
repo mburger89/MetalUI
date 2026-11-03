@@ -210,8 +210,9 @@ private func linesBesideSpacer(_ height: Float, _ spacer: () -> some ProposalEle
 /// all 6 at 100 (SwiftUI: text 48 and 96 tall), where the default minimum of 8
 /// leaves 5 at 100 (80 tall). The 100 arm separates the two spellings.
 ///
-/// Mutation **M20b**: `nativeLayoutPriority` returns 0 for a `.spacer`: reddens
-/// the 60 and 100 arms of the default spelling (the text then gets half).
+/// Mutation **M20b**: `nativeLayoutPriority` returns 0 for a `.spacer` (the text
+/// then gets half): reddens the 60 and 100 arms of `minLength: 0` and the 100
+/// arm of the default spelling, and `aStackSharesItsHeight…`'s 60 and 100.
 @MainActor
 @Test func aBareSpacerBesideAWrappingTextTakesOnlyItsMinimum() throws {
     try #require(naturalLines(width: 100) == 6, "K0: six lines at width 100")
