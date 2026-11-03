@@ -101,6 +101,26 @@ public protocol PlatformWindow: AnyObject {
     /// `onAppearanceChange`'s reason.
     var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)? { get set }
 
+    /// The display-accessibility settings the user chose (`AD-C`, R3-10 item 7): Increase
+    /// Contrast, Differentiate Without Colour, Invert Colours, Show Borders, Dim Flashing
+    /// Lights, Auto-Play Animated Images. Read at window construction and re-read on every
+    /// `onAccessibilityDisplaySettingsChange`; `Window` stamps the six values over its root
+    /// environment's keys (`colorSchemeContrast`, `accessibilityDifferentiateWithoutColor`, …),
+    /// which **no built-in view reacts to but a few** (divergences 1076, 1078). AppKit reads
+    /// `NSWorkspace`, `Accessibility` and `MediaAccessibility` (what SwiftUI reads is measured
+    /// only for the first three, probe `swiftui-accessibility-display.swift` H1); SDL answers
+    /// the standard values and never fires (SDL3 has no query, divergence 1075). Reduce Motion
+    /// and Reduce Transparency keep their own pairs.
+    ///
+    /// **No default implementation, for either requirement**
+    /// (`accessibilityReduceMotion`'s reason). **Migration**: a conformer outside this repository
+    /// adds `var accessibilityDisplaySettings: AccessibilityDisplaySettings { AccessibilityDisplaySettings() }`
+    /// and `var onAccessibilityDisplaySettingsChange: ((AccessibilityDisplaySettings) -> Void)?`.
+    var accessibilityDisplaySettings: AccessibilityDisplaySettings { get }
+    /// Fired with the new settings when any of them changes -- a passed value, for
+    /// `onAppearanceChange`'s reason.
+    var onAccessibilityDisplaySettingsChange: ((AccessibilityDisplaySettings) -> Void)? { get set }
+
     var onClose: (() -> Void)? { get set }
 
     /// Fired by the platform when an accessibility client asks for something

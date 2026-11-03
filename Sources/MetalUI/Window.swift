@@ -278,6 +278,20 @@ public final class Window {
         }
     }
 
+    /// The root source of every frame's display-accessibility keys (`AD-E`), as
+    /// ``accessibilityReduceTransparency`` is: read from
+    /// `PlatformWindow.accessibilityDisplaySettings` at construction, updated through
+    /// `onAccessibilityDisplaySettingsChange`, stamped over `environment` at every draw -- never a
+    /// `Window.environment` write (that dirties every draw, and the keys are get-only there).
+    /// **Guarded**: a report of the value the window already has does not repaint. Pinned by
+    /// `theWindowStampsAccessibilityDisplaySettingsFromItsPlatformWindow`.
+    private(set) var accessibilityDisplaySettings: AccessibilityDisplaySettings {
+        didSet {
+            guard accessibilityDisplaySettings != oldValue else { return }
+            setNeedsRedraw()
+        }
+    }
+
     // MARK: Colour scheme (rulings `CR-J`, `CR-K`, `CR-L`, `CR-M`)
 
     /// The colour scheme this window draws in (ruling `CR-J` item 3): the
@@ -932,6 +946,7 @@ public final class Window {
         self.controlActiveState = platformWindow.controlActiveState
         self.accessibilityReduceMotion = platformWindow.accessibilityReduceMotion
         self.accessibilityReduceTransparency = platformWindow.accessibilityReduceTransparency
+        self.accessibilityDisplaySettings = platformWindow.accessibilityDisplaySettings
         self.renderRoot = { frame in
             var root = content()
             frame.render(&root)
@@ -994,6 +1009,10 @@ public final class Window {
         platformWindow.onAccessibilityReduceTransparencyChange = { [weak self] reduceTransparency in
             // The guarded `didSet` marks the window dirty (`MT-D`).
             self?.accessibilityReduceTransparency = reduceTransparency
+        }
+        platformWindow.onAccessibilityDisplaySettingsChange = { [weak self] settings in
+            // The guarded `didSet` marks the window dirty (`AD-E`).
+            self?.accessibilityDisplaySettings = settings
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
@@ -1892,6 +1911,7 @@ public final class Window {
             rootEnvironment.controlActiveState = controlActiveState
             rootEnvironment.accessibilityReduceMotion = accessibilityReduceMotion  // AN-AD, the same stamp
             rootEnvironment.accessibilityReduceTransparency = accessibilityReduceTransparency  // MT-D, the same stamp
+            rootEnvironment.accessibilityDisplay = accessibilityDisplaySettings  // AD-E, the same stamp
             rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
             rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
             rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp

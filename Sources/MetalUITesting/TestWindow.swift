@@ -248,6 +248,12 @@ public final class TestWindow {
         tick()
     }
 
+    /// Changes the display-accessibility settings, then draws (`AD-H`).
+    public func setAccessibilityDisplaySettings(_ value: AccessibilityDisplaySettings) {
+        platformWindow.simulateAccessibilityDisplaySettingsChange(to: value)
+        tick()
+    }
+
     /// Closes the window as the platform does, asking nobody: every
     /// `onDisappear` runs once (`LC-J`), and the app ends if it was the last.
     public func close() {

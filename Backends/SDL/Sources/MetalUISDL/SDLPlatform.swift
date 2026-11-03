@@ -716,6 +716,18 @@ public final class SDLWindow: PlatformWindow {
     /// Never fired -- the value never changes (see ``accessibilityReduceTransparency``).
     public var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
 
+    /// The standard settings, always (`AD-F`, divergence 1075): SDL 3.4 has no accessibility-display
+    /// query (only `SDL_GetSystemTheme`), and a per-OS read (Windows `SPI_GETHIGHCONTRAST`,
+    /// GNOME's `high-contrast`, KDE's) is carried. Auto-Play Animated Images answers `true`, the
+    /// reading of a SwiftUI app whose user never turned it off (probe H0), not a bare
+    /// `EnvironmentValues()`'s `false`.
+    public var accessibilityDisplaySettings: AccessibilityDisplaySettings {
+        AccessibilityDisplaySettings(playAnimatedImages: true)
+    }
+
+    /// Never fired -- the value never changes (see ``accessibilityDisplaySettings``).
+    public var onAccessibilityDisplaySettingsChange: ((AccessibilityDisplaySettings) -> Void)?
+
     func publishControlActiveStateIfChanged() {
         let state = controlActiveState
         guard state != reportedControlActiveState else { return }

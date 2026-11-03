@@ -14,7 +14,8 @@ import MetalUITextSystem
 /// positive) and its `controlActiveState` is the bare `.key` — the
 /// `ImageRenderer` analogue of probe `swiftui-environment-control-state.swift`
 /// S1 and V0 (rulings EV-AA, EV-AB). Its `accessibilityReduceMotion` is
-/// `false`, stamped (ruling `AN-AD`): a headless frame has no platform to ask.
+/// `false`, stamped (ruling `AN-AD`): a headless frame has no platform to ask; the display-accessibility
+/// keys (`colorSchemeContrast`, …) read the bare `AccessibilityDisplaySettings()`, stamped (`AD-E`).
 /// Its `windowSize` is `size`, stamped as a window stamps its `contentSize`
 /// (ruling `OV-R`).
 ///
@@ -32,6 +33,7 @@ public func renderFrame<Root: Element>(_ content: () -> Root, size: Size<Pixels>
     var environment = frame.rootEnvironment
     environment.accessibilityReduceMotion = false
     environment.accessibilityReduceTransparency = false
+    environment.accessibilityDisplay = AccessibilityDisplaySettings()  // AD-E: the bare value
     environment.windowSize = size  // OV-R: a window of `size` stamps its contentSize
     frame.rootEnvironment = environment
     var root = content()
