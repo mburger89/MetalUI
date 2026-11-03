@@ -24,12 +24,12 @@ public struct GeometryProxy: Sendable {
     /// and the innermost open effect's composed map (`nil`: none), for a named
     /// frame (`OV-M` item 1).
     let scrolledFrame: Bounds<Pixels>
-    let composed: Affine2D?
+    let composed: Homography2D?
     /// The named spaces in force at the scope, innermost last (`OV-E`).
     let namedSpaces: [NamedSpace]
 
     init(size: Size<Pixels>, globalFrame: Bounds<Pixels>, scrolledFrame: Bounds<Pixels>? = nil,
-         composed: Affine2D? = nil, namedSpaces: [NamedSpace] = []) {
+         composed: Homography2D? = nil, namedSpaces: [NamedSpace] = []) {
         self.size = size
         self.globalFrame = globalFrame
         self.scrolledFrame = scrolledFrame ?? globalFrame

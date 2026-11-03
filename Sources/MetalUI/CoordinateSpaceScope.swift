@@ -21,8 +21,8 @@ import MetalUILayout
 /// an `AnyHashable`, read only on the main actor.
 struct NamedSpace: @unchecked Sendable, Equatable {
     let name: AnyHashable
-    let toSpace: Affine2D?
-    let toWindow: Affine2D
+    let toSpace: Homography2D?
+    let toWindow: Homography2D
 
     /// The innermost entry named `name` in `stack`, or `nil` when none is or
     /// the innermost such entry is degenerate (`OV-E` items 2–3) — a
@@ -45,7 +45,7 @@ extension Frame {
     /// translation; `toSpace` its inverse.
     func localSpace(of bounds: Bounds<Pixels>, name: AnyHashable = AnyHashable(LocalSpaceName())) -> NamedSpace {
         let moved = scrolled(bounds)
-        let origin = Affine2D.translation(x: Double(moved.origin.x.value), y: Double(moved.origin.y.value))
+        let origin = Homography2D.translation(x: Double(moved.origin.x.value), y: Double(moved.origin.y.value))
         let toWindow = prepaintEffects.last.map { $0.composed.concatenating(origin) } ?? origin
         return NamedSpace(name: name, toSpace: toWindow.inverted, toWindow: toWindow)
     }

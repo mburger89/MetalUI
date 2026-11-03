@@ -193,3 +193,5 @@ isolation check per call: a hot loop uses a plain loop or a nonisolated function
 (`PlacementBox`, `AnimationStore.borderKeyBuilds`/`numberTrackRebuilds`, `RasterCache.keyProbes`), pins count work. Carried:
 `Frame.swift` hot sites and `RetainedSubtree` (C14b-2), layout pre-sizing, `measureNative` hashing, `ForEach` (P2), path-raster
 clip key and R8 coverage (P3: pixels and shaders).
+
+**3D render effects (`PJ-`, record §193).** An effect's map is a `Homography2D` (3x3, `Double`, affine fast path in every operation so affine effects stay bit-identical); a reader that needs an affine asks `.affine` and handles `nil`, and `Affine2D` never gains `g h i`. A view with any corner at `w <= 0` draws nothing. `MUITransform` is 80 bytes: lane 4 `(g, h, i, det3)`, `det3 == 0` means affine (the old code runs byte for byte); `shaders.metal` and `replay.hlsl` carry the projective branches statement for statement (rect, glyph, image; backdrops are degraded to their flat tint at the scope), the replay fixture is version 6 (2-5 load), and a CPU raster under a projective record is made in its creation space and drawn with the record (`PJ-G`, `PJ-L`, `PJ-M`).

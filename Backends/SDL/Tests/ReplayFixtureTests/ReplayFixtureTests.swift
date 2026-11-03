@@ -29,10 +29,11 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func encodingIsLittleEndianWithMagicAndVersion() throws {
     let bytes = try sample().encoded()
     #expect(Array(bytes[0..<8]) == Array("MUIRPLY".utf8) + [0])
-    #expect(Array(bytes[8..<12]) == [5, 0, 0, 0])       // version (5 since LG-O)
+    #expect(Array(bytes[8..<12]) == [6, 0, 0, 0])       // version (6 since PJ-A)
     #expect(Array(bytes[12..<16]) == [3, 0, 0, 0])      // width
     #expect(Array(bytes[20..<24]) == [120, 0, 0, 0])    // rect stride
     #expect(Array(bytes[24..<28]) == [88, 0, 0, 0])     // glyph stride
+    #expect(Array(bytes[32..<36]) == [80, 0, 0, 0])     // transform stride 80 (PJ-A)
     #expect(Array(bytes[36..<40]) == [0, 1, 0, 0])      // backdrop stride 256 (LG-B)
 }
 
@@ -202,8 +203,8 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
     #expect(ReplayFixture.glyphStride == 88)
     // An image is four float4 lanes, uploaded unpadded (ruling TE-AF).
     #expect(ReplayFixture.imageStride == 64)
-    // The transform table is four float4 lanes a record (ruling GX-F).
-    #expect(ReplayFixture.transformStride == 64)
+    // The transform table is five float4 lanes a record: four (ruling GX-F) and the projective one (`PJ-A`).
+    #expect(ReplayFixture.transformStride == 80)
 }
 
 /// S1.1 — version 2 carries image records and the textures they sample
@@ -308,10 +309,10 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
 }
 
 /// S1.1 (ruling GX-F) — version 3 (and every later one) carries the scene's `MUITransform` table
-/// (64 bytes a record) after the textures, and a fixture made from a scene
+/// (80 bytes a record since `PJ-A`) after the textures, and a fixture made from a scene
 /// carries its table; a table that is not whole records is rejected.
 @Test func aVersionThreeFixtureRoundTripsTransforms() throws {
-    #expect(ReplayFixture.transformStride == 64)
+    #expect(ReplayFixture.transformStride == 80)
     var scene = Scene()
     var rect = MUIRect()
     rect.bounds = MUIBounds(origin: MUIPoint(x: 1, y: 1), size: MUISize(width: 2, height: 2))
@@ -328,7 +329,7 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
     #expect(Array(bytes[8..<12]) == [UInt8(ReplayFixture.version), 0, 0, 0], "the current version carries the table")
     let decoded = try ReplayFixture(decoding: bytes)
     #expect(decoded == fixture)
-    #expect(decoded.transforms.count == 64)
+    #expect(decoded.transforms.count == 80)
     var bad = fixture
     bad.transforms = [1, 2, 3]
     #expect(throws: FixtureError.self) { try bad.validate() }
@@ -393,16 +394,21 @@ private func backdropFixture() throws -> ReplayFixture {
     #expect(MemoryLayout<MUIBackdrop>.offset(of: \.opacity) == 92)
 }
 
-/// **3.6** (ruling `BB-J`, `LG-O`). The version is 5; a fixture written before it —
-/// version 4 (96-byte backdrop records), version 3 (no backdrop stride, no backdrop table) and version 2 (no
+/// **3.6** (ruling `BB-J`, `LG-O`, `PJ-A`). The version is 6; a fixture written before it —
+/// version 5 (64-byte transform records), version 4 (96-byte backdrop records), version 3 (no backdrop stride, no backdrop table) and version 2 (no
 /// transform stride or table either) — still loads, to the same fixture;
 /// version 1 stays refused. The old files are built from the new encoding by
 /// removing exactly the fields the old layouts lack. Mutation: bump
 /// `version` without the reader's older arms.
-@Test func theFixtureVersionIsFiveAndOldVersionsStillLoad() throws {
-    #expect(ReplayFixture.version == 5)
+@Test func theFixtureVersionIsSixAndOldVersionsStillLoad() throws {
+    #expect(ReplayFixture.version == 6)
     let fixture = try sample()
-    let v5 = fixture.encoded()
+    let v6 = fixture.encoded()
+    // v5: the same bytes with the old version and the 64-byte transform stride (no records here).
+    var v5 = v6
+    v5[8] = 5
+    v5.replaceSubrange(32..<36, with: [64, 0, 0, 0])
+    #expect(try ReplayFixture(decoding: v5) == fixture)
     // v4: the same bytes with the old version and the 96-byte backdrop stride (no records here).
     var v4 = v5
     v4[8] = 4
@@ -425,12 +431,12 @@ private func backdropFixture() throws -> ReplayFixture {
     v2.removeSubrange(32..<36)
     v2[8] = 2
     #expect(try ReplayFixture(decoding: v2) == fixture)
-    var v1 = v5
+    var v1 = v6
     v1[8] = 1
     #expect(throws: FixtureError.unsupportedVersion(1)) { try ReplayFixture(decoding: v1) }
-    var v6 = v5
-    v6[8] = 6
-    #expect(throws: FixtureError.unsupportedVersion(6)) { try ReplayFixture(decoding: v6) }
+    var v7 = v6
+    v7[8] = 7
+    #expect(throws: FixtureError.unsupportedVersion(7)) { try ReplayFixture(decoding: v7) }
 }
 
 /// **3.4** (ruling `BB-J`, `MV-C` item 4). A scene's backdrop run is recorded
@@ -525,7 +531,7 @@ private func backdropFixture() throws -> ReplayFixture {
 /// version-5 record keeps its whole tail through an encode and a decode.
 /// Mutations: widen with 0xFF; read a version-4 table at the new stride.
 @Test func theFixtureStrideIs256AndVersion4Widens() throws {
-    #expect(ReplayFixture.backdropStride == 256 && ReplayFixture.version == 5)
+    #expect(ReplayFixture.backdropStride == 256 && ReplayFixture.version == 6)
     // A version-4 stream built from the version-5 encoding: the stride field and the table
     // shrink to the first 96 bytes of each record.
     let fixture = try backdropFixture()
@@ -534,6 +540,7 @@ private func backdropFixture() throws -> ReplayFixture {
         + 4 + 4 + fixture.transforms.count
     var v4 = Array(v5[0..<tableOffset])
     v4[8] = 4
+    v4.replaceSubrange(32..<36, with: [64, 0, 0, 0])   // a version-4 file's transform records are 64 bytes (`PJ-A`)
     v4.replaceSubrange(36..<40, with: [96, 0, 0, 0])
     let records = fixture.backdrops.count / 256
     try #require(records == 1 && Array(v5[tableOffset..<tableOffset + 4]) == [0, 1, 0, 0], "one 256-byte record")
@@ -578,4 +585,70 @@ private func backdropFixture() throws -> ReplayFixture {
     var wrongV4 = withGlass.encoded()
     wrongV4[8] = 4
     #expect(throws: FixtureError.self) { try ReplayFixture(decoding: wrongV4) }
+}
+
+// MARK: - The projective lane (ruling PJ-A, version 6)
+
+/// **28** (`PJ-A`). A version-5 fixture's 64-byte transform records widen to 80 with a zero projective lane (an affine
+/// record, `det3 == 0`), and a version-6 projective record keeps `(g, h, i, det3)` through an encode and a decode.
+/// Mutations: widen with 0xFF; read a version-5 table at the new stride.
+@Test func aVersionFiveFixtureWidensItsTransformsWithAnAffineTail() throws {
+    let box = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 4, height: 4))
+    let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+    let affine = MUITransform(a: 0, b: 1, c: -1, d: 0, tx: 3, ty: 0, pixelScale: 1, _reserved: 0, outerMask: box, outerMaskRadii: none)
+    let projective = MUITransform(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0, pixelScale: 1, _reserved: 0, outerMask: box,
+                                  outerMaskRadii: none, g: 0.5, h: 0.25, i: 2, det3: 2)
+    var scene = Scene()
+    var rect = MUIRect()
+    rect.bounds = MUIBounds(origin: MUIPoint(x: 1, y: 1), size: MUISize(width: 2, height: 2))
+    scene.insert(rect, transform: affine)
+    scene.insert(rect, transform: projective)
+    scene.finalize()
+    let v6 = try ReplayFixture(scene: scene, atlas: GlyphAtlas(width: 1, height: 1), width: 4, height: 4,
+                               projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                               reference: [UInt8](repeating: 0, count: 64))
+    try #require(v6.transforms.count == 160)
+    let decoded6 = try ReplayFixture(decoding: v6.encoded())
+    #expect(decoded6 == v6)
+    let back = try #require(decoded6.transformRecords.last)
+    #expect(back.g == 0.5 && back.h == 0.25 && back.i == 2 && back.det3 == 2, "lane 4 survives a version-6 round trip")
+    // The version-5 stream: the stride field, the table byte count and each record's first 64 bytes.
+    let bytes = v6.encoded()
+    let tableOffset = 8 + 4 + 28 + 4 + v6.rects.count + 4 + v6.glyphs.count + 4 + v6.images.count + 4
+        + v6.textures.reduce(0) { $0 + 8 + $1.pixels.count }
+    try #require(Array(bytes[tableOffset..<tableOffset + 4]) == [160, 0, 0, 0], "two 80-byte records")
+    var v5 = Array(bytes[0..<tableOffset])
+    v5[8] = 5
+    v5.replaceSubrange(32..<36, with: [64, 0, 0, 0])
+    var table: [UInt8] = []
+    for r in 0..<2 { table += v6.transforms[(r * 80)..<(r * 80 + 64)] }
+    withUnsafeBytes(of: UInt32(table.count).littleEndian) { v5 += $0 }
+    v5 += table
+    v5 += bytes[(tableOffset + 4 + v6.transforms.count)...]
+    let widened = try ReplayFixture(decoding: v5)
+    #expect(widened.transforms.count == 160)
+    let first = try #require(widened.transformRecords.first), second = try #require(widened.transformRecords.last)
+    #expect(first.b == 1 && first.tx == 3 && first.det3 == 0, "the affine record keeps its lanes")
+    #expect(second.g == 0 && second.h == 0 && second.i == 0 && second.det3 == 0, "a widened record is affine: zero lane 4")
+    #expect(widened.transforms[64..<80].allSatisfy { $0 == 0 } && widened.transforms[144..<160].allSatisfy { $0 == 0 })
+}
+
+/// **29** (`PJ-A`). The parity mask places a sprite quad under a projective record by the divide: a 10 x 10 glyph at the origin
+/// under `w = 1 + 0.1 x` has its far corners at x' = 10 / 2 = 5 (plus the one-pixel fringe), where an affine placement would
+/// put them at 10. Mutation: drop the `/ w` in `placed(_:transform:)`.
+@Test func aProjectiveSpriteQuadIsPlacedByTheDivide() throws {
+    var glyph = MUIGlyph()
+    glyph.bounds = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 10, height: 10))
+    let box = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 100, height: 100))
+    let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+    let record = MUITransform(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0, pixelScale: 1, _reserved: 0, outerMask: box,
+                              outerMaskRadii: none, g: 0.1, h: 0, i: 1, det3: 1)
+    var scene = Scene()
+    scene.insert(glyph, transform: record)
+    scene.finalize()
+    let fixture = try ReplayFixture(scene: scene, atlas: GlyphAtlas(width: 1, height: 1), width: 16, height: 16,
+                                    projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                    reference: [UInt8](repeating: 0, count: 16 * 16 * 4))
+    let placed = try #require(fixture.glyphBounds.first)
+    #expect(abs(placed.x + placed.width - 6) < 1e-4, "right edge 10 / 2 + 1 = 6: \(placed)")
 }

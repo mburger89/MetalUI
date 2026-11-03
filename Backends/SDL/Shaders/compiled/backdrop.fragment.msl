@@ -81,7 +81,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant type_Draw& Draw [[bu
             }
             else
             {
-                uint _152 = (_99 - 1u) * 4u;
+                uint _152 = (_99 - 1u) * 5u;
                 uint _155 = _152 + 1u;
                 uint _158 = _86 + 1u;
                 uint _161 = _86 + 2u;
@@ -1720,7 +1720,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant type_Draw& Draw [[bu
         }
         else
         {
-            uint _2447 = (_2394 - 1u) * 4u;
+            uint _2447 = (_2394 - 1u) * 5u;
             uint _2448 = _2447 + 1u;
             uint _2451 = _86 + 1u;
             uint _2454 = _86 + 2u;

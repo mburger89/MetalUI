@@ -333,8 +333,44 @@ private func looksPathsShadowsTransformsSection() -> some Element {
             Text("Aa").font(size: 12).scaleEffect(3).frame(width: Pixels(56), height: Pixels(56))
             LooksRotatingSquare()
         }
+        looksProjectionStrip()
     }
     .alignItems(.flexStart)
+}
+
+/// **Q7–Q9** (3D render effects, `PJ-`). A card that flips about its vertical axis on each tap (animated, hover and tap
+/// following the projected quad, Q7), a text turned in perspective (Q8), and a `projectionEffect` with a perspective term
+/// over a shadowed card (Q9). **Its own frame**: a debug build reserves a slot for every temporary, and the 1 MB Windows
+/// stack counts them (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+@MainActor @inline(never)
+func looksProjectionStrip() -> some Element {
+    var perspective = ProjectionTransform()
+    perspective.m13 = 0.004
+    return Row(gap: Pixels(32)) {
+        LooksFlipCard()
+        Text("Perspective").font(size: 22)
+            .rotation3DEffect(.degrees(-35), axis: (x: 0, y: 1, z: 0), anchor: .leading, perspective: 0.8)
+        Box { Text("Projected") }
+            .padding(Pixels(12))
+            .background(.surface)
+            .shadow(radius: Pixels(4), y: Pixels(3))
+            .projectionEffect(perspective)
+    }
+}
+
+/// **Q7.** A 70 × 90 card that flips 180° about y on each tap, under `withAnimation(.easeInOut(duration: 0.8))`; it brightens
+/// while hovered, and both the hover and the tap region follow the projected quad.
+struct LooksFlipCard: Component {
+    @State var flipped = false
+
+    var content: some ElementGroup {
+        Box()
+            .frame(width: Pixels(70), height: Pixels(90))
+            .background(.accent)
+            .hoverBackground(.separator)
+            .rotation3DEffect(.degrees(flipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+            .onTapGesture { withAnimation(.easeInOut(duration: 0.8)) { flipped.toggle() } }
+    }
 }
 
 /// **Q6.** A 60 × 60 square that turns 45° more on each tap, under

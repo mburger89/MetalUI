@@ -36,6 +36,11 @@ func theRenderEffectSpellingsCompileFromAPlainImport() throws {
                     .offset(x: Pixels(3), y: Pixels(4))
                     .offset(Size(width: Pixels(1), height: Pixels(2)))
                 Color(.separator).rotationEffect(Angle(radians: 1) + .degrees(10) * 2)
+                Color(.accent)
+                    .rotation3DEffect(.degrees(45), axis: (x: 0, y: 1, z: 0))
+                    .rotation3DEffect(.degrees(10), axis: (x: 1, y: 0, z: 0), anchor: .leading, anchorZ: 4, perspective: 0.5)
+                    .projectionEffect(ProjectionTransform(Transform2D(translationX: 1, y: 2)))
+                    .transformEffect(Transform2D(translationX: 3, y: 4))
             }
         }
 
@@ -47,6 +52,16 @@ func theRenderEffectSpellingsCompileFromAPlainImport() throws {
                 .scaleEffect(x: 2, y: 1)
                 .offset(x: Pixels(5))
                 .offset(Size(width: Pixels(0), height: Pixels(1)))
+                .rotation3DEffect(.degrees(20), axis: (x: 0, y: 1, z: 0))
+                .projectionEffect(ProjectionTransform())
+                .transformEffect(.identity)
+        }
+
+        func projection() -> Bool {
+            var p = ProjectionTransform()
+            p.m13 = 0.001
+            let q = p.inverted().concatenating(p)
+            return q.isAffine || p.isIdentity || p.invert()
         }
 
         func describe(_ m: LayoutModifier) -> String {
@@ -54,15 +69,18 @@ func theRenderEffectSpellingsCompileFromAPlainImport() throws {
             case .rotationEffect(let a, let anchor): return "\\(a.degrees) \\(anchor.x)"
             case .scaleEffect(let x, let y, _): return "\\(x) \\(y)"
             case .offset(let x, let y): return "\\(x.value) \\(y.value)"
+            case .rotation3DEffect(let a, let axis, _, _, _): return "\\(a.degrees) \\(axis.y)"
+            case .projectionEffect(let p): return "\\(p.m33)"
             default: return ""
             }
         }
 
         let ordered = Angle.zero < Angle.radians(1)
         """, importing: "MetalUI")
+    // `Rotation3D` (the visionOS overloads) and `init(CATransform3D)` are not offered (divergence 1068).
     let transformEffect = try typecheckFile("""
         @MainActor func tree() -> some ProposalElementGroup {
-            Color(.accent).transformEffect(.identity)
+            Color(.accent).rotation3DEffect(Rotation3D(), axis: (x: 0, y: 1, z: 0))
         }
         """, importing: "MetalUI")
 
@@ -80,6 +98,6 @@ func theRenderEffectSpellingsCompileFromAPlainImport() throws {
                  transformEffect:
                  \(transformEffect.output)
                  """)
-    #expect(transformEffect.messages.contains("transformEffect"),
-            "refused FOR transformEffect:\n\(transformEffect.output)")
+    #expect(transformEffect.messages.contains("Rotation3D"),
+            "refused FOR Rotation3D:\n\(transformEffect.output)")
 }

@@ -47,6 +47,15 @@ private func buildEveryProductionTree() {
     buildTheClipboardDemo()   // clipboard beyond text (CB-, spec §6)
     buildTheLazyContainersDemo()   // lazy containers (LZ-Q, spec section 6)
     buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
+    buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
+}
+
+/// The looks demo's 3D strip and its flip card (a `Component` built at layout), in its own frame as
+/// `buildTheServicesDemo()`'s note says (`PJ-`).
+@MainActor @inline(never)
+private func buildTheProjectionStrip() {
+    _ = looksProjectionStrip()
+    _ = LooksFlipCard().content
 }
 
 /// The window chrome demo's tree and its bar and body (components built at layout), in its own frame.

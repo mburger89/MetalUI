@@ -200,6 +200,8 @@ struct LedgerSnapshot {
 struct AmbientKey: Equatable {
     /// The kind word of an effect scope in `scopes` (`retainedAmbientKey`), index 0 of its vector.
     static let effectKind = Double(PaintScope.Kind.effect.hashValue)
+    /// A projective effect scope's word 3 (a flattening one is 1, a non-flattening affine one 0, `PJ-K`).
+    static let projectiveFlag = 2.0
 
     var clip: [Float]
     var offset: [Float]
@@ -229,6 +231,11 @@ extension AmbientKey {
             guard new.count >= 10, was.count >= 10, new[0] == Self.effectKind, was[0] == Self.effectKind else { return nil }
             moved = true
             normalized.scopes[index] = was
+            // A projective scope (flattens word 2) compares its numbers here, before the outer-clip words, so a change in
+            // one is named for what it is and an outer pan composed onto it refuses too (`PJ-K`).
+            if new[3] == Self.projectiveFlag || was[3] == Self.projectiveFlag {
+                refusal = refusal ?? "effectProjective"; continue
+            }
             if new.count != was.count { refusal = refusal ?? "effectScopeChanged"; continue }
             // Indices 0...3: kind, alpha, entry clip depth, flattens; 4...9 the six affine numbers; 10... the outer clip.
             if new[3] != was[3] { refusal = refusal ?? "effectFlatteningChanged"; continue }
@@ -245,7 +252,8 @@ extension AmbientKey {
         var normalized = self
         for index in scopes.indices where scopes[index] != old.scopes[index] {
             let new = scopes[index], was = old.scopes[index]
-            guard new.count == was.count, new.count >= 10, new[0] == Self.effectKind else { return false }
+            guard new.count == was.count, new.count >= 10, new[0] == Self.effectKind,
+                  new[3] != Self.projectiveFlag, was[3] != Self.projectiveFlag else { return false }
             var a = new, b = was
             a[8] = 0; a[9] = 0; b[8] = 0; b[9] = 0
             guard a == b else { return false }
@@ -567,7 +575,10 @@ extension Frame {
         [b.origin.x.value, b.origin.y.value, b.size.width.value, b.size.height.value]
     }
 
-    private func flat(_ a: Affine2D) -> [Double] { [a.a, a.b, a.c, a.d, a.tx, a.ty] }
+    /// An affine map is its six numbers, as it always was; a projective one appends `g`, `h`, `i` (`PJ-K`).
+    private func flat(_ a: Homography2D) -> [Double] {
+        a.isAffine ? [a.a, a.b, a.c, a.d, a.tx, a.ty] : [a.a, a.b, a.c, a.d, a.tx, a.ty, a.g, a.h, a.i]
+    }
 
     private func flat(_ m: MUIBounds) -> [Double] {
         [Double(m.origin.x), Double(m.origin.y), Double(m.size.width), Double(m.size.height)]
@@ -587,8 +598,8 @@ extension Frame {
             var v: [Double] = []
             v.reserveCapacity(64)  // `PA-I`: one buffer for the `+=` chain below
             v += [Double(scope.kind.hashValue), Double(scope.effect.alpha), Double(scope.entryClipDepth),
-                               scope.flattens ? 1 : 0]
-            v += flat(scope.effect.affine)
+                               scope.effect.homography.isAffine ? (scope.flattens ? 1 : 0) : AmbientKey.projectiveFlag]
+            v += flat(scope.effect.homography)
             if let outer = scope.outer {
                 v += [1] + flat(outer.bounds) + flat(outer.radii) + [Double(outer.depth)]
             } else {

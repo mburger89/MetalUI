@@ -57,6 +57,15 @@ public enum LayoutModifier: Sendable {
     case scaleEffect(x: Double, y: Double, anchor: UnitPoint)
     /// `offset(x:y:)`: the content's rendering moved; layout unchanged (`GX-H`).
     case offset(x: Pixels, y: Pixels)
+    /// `rotation3DEffect(_:axis:anchor:anchorZ:perspective:)`: the content's rendering turned in 3D under a
+    /// perspective; layout unchanged (`PJ-B`). `indirect`: eight numbers would widen every layer
+    /// (the 1 MB Windows stack, `PJ-R`). **New since 3D render effects**: an exhaustive `switch` outside the
+    /// package gains two arms.
+    indirect case rotation3DEffect(Angle, axis: (x: Double, y: Double, z: Double), anchor: UnitPoint,
+                                   anchorZ: Double, perspective: Double)
+    /// `projectionEffect(_:)` and `transformEffect(_:)`: the content's rendering through a 3×3 map in its own
+    /// points; layout unchanged (`PJ-B`). Snaps under animation.
+    indirect case projectionEffect(ProjectionTransform)
     /// `shadow(color:radius:x:y:)`: a shadow under each leaf of the content;
     /// layout, hit testing and accessibility unchanged (ruling `GX-J`). **New
     /// since paths, shadows and transforms**, like the three effects above.

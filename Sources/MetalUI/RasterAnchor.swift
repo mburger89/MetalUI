@@ -285,9 +285,7 @@ extension CapturedPrimitive {
     func movedCanonically(_ dx: Double, _ dy: Double) -> CapturedPrimitive {
         var p = self
         if var t = p.transform {
-            let a = t.affine
-            t.affine = Affine2D(a: a.a, b: a.b, c: a.c, d: a.d,
-                                tx: a.tx + (dx - (a.a * dx + a.c * dy)), ty: a.ty + (dy - (a.b * dx + a.d * dy)))
+            t.homography = t.homography.conjugatedByTranslation(dx, dy)
             t.outerMask = t.outerMask.moved(dx, dy)
             p.transform = t
         }

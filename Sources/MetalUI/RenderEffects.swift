@@ -8,6 +8,15 @@ import MetalUIPrimitives
 // and §6; SwiftUI's side is `docs/probes/swiftui-paths-shadows-transforms.swift`,
 // arms T1–T16, H1–H7, X1–X5 and N1–N9.
 
+/// The eight numbers of `rotation3DEffect` (`PJ-B`), as a hashable value.
+struct Rotation3DSpec: Hashable, Sendable {
+    var angle: Angle
+    var axisX: Double, axisY: Double, axisZ: Double
+    var anchor: UnitPoint
+    var anchorZ: Double
+    var perspective: Double
+}
+
 /// One render effect, as a legacy element's `Decoration` records it (in
 /// written order) and as a proposal layer's case is read: what it does to the
 /// element's laid-out rectangle, never to its layout.
@@ -22,6 +31,10 @@ enum RenderEffectSpec: Hashable, Sendable {
     /// A composite (`PF-E`): no map — a paint scope that makes the leaves
     /// inside it one leaf to an enclosing shadow or blur.
     case compositingGroup
+    /// `rotation3DEffect` (`PJ-B`): a perspective turn about an axis, a projective map.
+    indirect case rotation3D(Rotation3DSpec)
+    /// `projectionEffect` and `transformEffect` (`PJ-B`): a 3×3 map in the view's local points, which snaps.
+    indirect case projection(ProjectionTransform)
 
     /// The effect's map in points over `rect` — the element's rectangle in the
     /// space its primitives are emitted in (already moved by the scroll
@@ -32,9 +45,14 @@ enum RenderEffectSpec: Hashable, Sendable {
     /// the reflection about the rect's vertical centre line, which is what SwiftUI measured: an offset's
     /// x negates, an anchor's x becomes `1 − x`, a rotation's angle negates (the sense reverses) and a
     /// scale's factors stand.
-    func affine(in rect: Bounds<Pixels>, mirrored: Bool = false) -> Affine2D {
-        if mirrored { return mirroredSpec.unmirroredAffine(in: rect) }
-        return unmirroredAffine(in: rect)
+    func map(in rect: Bounds<Pixels>, mirrored: Bool = false) -> Homography2D {
+        if case let .projection(p) = self {
+            // A projection is conjugated by the reflection about the rect's centre line (`PJ-F`).
+            let local = p.homography.about(Double(rect.origin.x.value), Double(rect.origin.y.value))
+            return mirrored ? local.reflected(aboutX: Double(rect.origin.x.value) + Double(rect.size.width.value) / 2) : local
+        }
+        if mirrored { return mirroredSpec.unmirrored(in: rect) }
+        return unmirrored(in: rect)
     }
 
     /// The spec a right-to-left site reads as its left-to-right equivalent (`LD-C`).
@@ -46,12 +64,17 @@ enum RenderEffectSpec: Hashable, Sendable {
             .scale(x: x, y: y, anchor: UnitPoint(x: 1 - anchor.x, y: anchor.y))
         case let .offset(x, y):
             .offset(x: Pixels(-x.value), y: y)
-        case .shadow, .blur, .compositingGroup:
+        case let .rotation3D(spec):
+            // The axis becomes `(x, −y, −z)` and the anchor's x `1 − x`, the angle stands (`PJ-F`).
+            .rotation3D(Rotation3DSpec(angle: spec.angle, axisX: spec.axisX, axisY: -spec.axisY, axisZ: -spec.axisZ,
+                                       anchor: UnitPoint(x: 1 - spec.anchor.x, y: spec.anchor.y),
+                                       anchorZ: spec.anchorZ, perspective: spec.perspective))
+        case .shadow, .blur, .compositingGroup, .projection:
             self
         }
     }
 
-    private func unmirroredAffine(in rect: Bounds<Pixels>) -> Affine2D {
+    private func unmirrored(in rect: Bounds<Pixels>) -> Homography2D {
         func anchorPoint(_ u: UnitPoint) -> (Double, Double) {
             (Double(rect.origin.x.value) + u.x * Double(rect.size.width.value),
              Double(rect.origin.y.value) + u.y * Double(rect.size.height.value))
@@ -59,13 +82,19 @@ enum RenderEffectSpec: Hashable, Sendable {
         switch self {
         case let .rotation(angle, anchor):
             let (ax, ay) = anchorPoint(anchor)
-            return .rotation(radians: angle.radians, about: ax, ay)
+            return Homography2D(.rotation(radians: angle.radians, about: ax, ay))
         case let .scale(x, y, anchor):
             let (ax, ay) = anchorPoint(anchor)
-            return .scale(x: x, y: y, about: ax, ay)
+            return Homography2D(.scale(x: x, y: y, about: ax, ay))
         case let .offset(x, y):
             return .translation(x: Double(x.value), y: Double(y.value))
-        case .shadow, .blur, .compositingGroup:
+        case let .rotation3D(spec):
+            return Homography2D.rotation3D(
+                radians: spec.angle.radians, axis: (spec.axisX, spec.axisY, spec.axisZ),
+                anchor: (spec.anchor.x, spec.anchor.y), anchorZ: spec.anchorZ, perspective: spec.perspective,
+                size: (Double(rect.size.width.value), Double(rect.size.height.value)),
+                origin: (Double(rect.origin.x.value), Double(rect.origin.y.value)))
+        case .shadow, .blur, .compositingGroup, .projection:
             return .identity
         }
     }
@@ -80,6 +109,10 @@ enum RenderEffectSpec: Hashable, Sendable {
         case let .shadow(_, radius, x, y): [Double(radius.value), Double(x.value), Double(y.value)]
         case let .blur(radius): [Double(radius.value)]
         case .compositingGroup: []
+        case let .rotation3D(spec):
+            [spec.angle.radians, spec.axisX, spec.axisY, spec.axisZ, spec.anchor.x, spec.anchor.y, spec.anchorZ,
+             spec.perspective]
+        case .projection: []
         }
     }
 
@@ -92,6 +125,8 @@ enum RenderEffectSpec: Hashable, Sendable {
         case .shadow: 3
         case .blur: 4
         case .compositingGroup: 5
+        case .rotation3D: 6
+        case .projection: 7
         }
     }
 
@@ -111,6 +146,11 @@ enum RenderEffectSpec: Hashable, Sendable {
             return .blur(radius: Pixels(Float(max(0, n[0]))))
         case .compositingGroup:
             return .compositingGroup
+        case .rotation3D:
+            return .rotation3D(Rotation3DSpec(angle: Angle(radians: n[0]), axisX: n[1], axisY: n[2], axisZ: n[3],
+                                              anchor: UnitPoint(x: n[4], y: n[5]), anchorZ: n[6], perspective: n[7]))
+        case .projection:
+            return self
         }
     }
 
@@ -126,7 +166,7 @@ enum RenderEffectSpec: Hashable, Sendable {
     var isPaintScopeOnly: Bool {
         switch self {
         case .shadow, .blur, .compositingGroup: true
-        default: false
+        case .rotation, .scale, .offset, .rotation3D, .projection: false
         }
     }
 }
@@ -140,6 +180,10 @@ extension LayoutModifier {
         case let .rotationEffect(angle, anchor): .rotation(angle, anchor: anchor)
         case let .scaleEffect(x, y, anchor): .scale(x: x, y: y, anchor: anchor)
         case let .offset(x, y): .offset(x: x, y: y)
+        case let .rotation3DEffect(angle, axis, anchor, anchorZ, perspective):
+            .rotation3D(Rotation3DSpec(angle: angle, axisX: axis.x, axisY: axis.y, axisZ: axis.z, anchor: anchor,
+                                       anchorZ: anchorZ, perspective: perspective))
+        case let .projectionEffect(transform): .projection(transform)
         default: nil
         }
     }
@@ -193,6 +237,33 @@ extension ProposalElementGroup {
     public func offset(_ offset: Size<Pixels>) -> ModifiedContent<ProposalBase, LayoutModifier> {
         _wrapLayout(.offset(x: offset.width, y: offset.height))
     }
+
+    /// Turns this view's rendering in 3D by `angle` about `axis` through `anchor` (and `anchorZ` in front of
+    /// the plane), seen from an eye at `max(width, height) / perspective` — SwiftUI's
+    /// `rotation3DEffect(_:axis:anchor:anchorZ:perspective:)`. **Render only**: layout is unchanged, hit
+    /// testing follows the projected quad and the accessibility frame is its bounding box. A view with any
+    /// corner at or behind the eye draws nothing; `perspective` 0 is orthographic. The angle, the axis, the
+    /// anchor, `anchorZ` and `perspective` animate (eight numbers). Paths, shadows and gradients inside are
+    /// rasterised flat and resampled (divergence 1065).
+    public func rotation3DEffect(_ angle: Angle, axis: (x: Double, y: Double, z: Double),
+                                 anchor: UnitPoint = .center, anchorZ: Double = 0, perspective: Double = 1)
+        -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.rotation3DEffect(angle, axis: axis, anchor: anchor, anchorZ: anchorZ, perspective: perspective))
+    }
+
+    /// Renders this view through `transform`, a 3×3 map in the view's own points (row vectors, SwiftUI's
+    /// `projectionEffect(_:)`); layout is unchanged. Snaps under animation.
+    public func projectionEffect(_ transform: ProjectionTransform)
+        -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.projectionEffect(transform))
+    }
+
+    /// Renders this view through the affine `transform` in the view's own points — SwiftUI's
+    /// `transformEffect(_:)` (`CGAffineTransform` is ``Transform2D`` here, divergence 945). Snaps.
+    public func transformEffect(_ transform: Transform2D)
+        -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.projectionEffect(ProjectionTransform(transform)))
+    }
 }
 
 // MARK: - The legacy vocabulary (`Decoration.renderEffects`, `GX-H`)
@@ -231,6 +302,24 @@ extension StyledElement {
     /// Moves this element's rendering by `offset`.
     public func offset(_ offset: Size<Pixels>) -> Self {
         appendingRenderEffect(.offset(x: offset.width, y: offset.height))
+    }
+
+    /// Turns this element's rendering in 3D; see the proposal vocabulary's
+    /// `rotation3DEffect(_:axis:anchor:anchorZ:perspective:)` for the rules.
+    public func rotation3DEffect(_ angle: Angle, axis: (x: Double, y: Double, z: Double),
+                                 anchor: UnitPoint = .center, anchorZ: Double = 0, perspective: Double = 1) -> Self {
+        appendingRenderEffect(.rotation3D(Rotation3DSpec(angle: angle, axisX: axis.x, axisY: axis.y, axisZ: axis.z,
+                                                         anchor: anchor, anchorZ: anchorZ, perspective: perspective)))
+    }
+
+    /// Renders this element through `transform` in its own points; snaps under animation.
+    public func projectionEffect(_ transform: ProjectionTransform) -> Self {
+        appendingRenderEffect(.projection(transform))
+    }
+
+    /// Renders this element through the affine `transform` in its own points; snaps under animation.
+    public func transformEffect(_ transform: Transform2D) -> Self {
+        appendingRenderEffect(.projection(ProjectionTransform(transform)))
     }
 
     func appendingRenderEffect(_ effect: RenderEffectSpec) -> Self {
@@ -316,13 +405,13 @@ extension PaintPass {
 /// degenerate), the clip at the outermost effect's entry in window points, and
 /// the `clipBase` to restore.
 struct PrepaintEffect {
-    let composed: Affine2D
-    let inverse: Affine2D?
+    let composed: Homography2D
+    let inverse: Homography2D?
     let outerClip: Bounds<Pixels>
     let savedClipBase: Int
     /// The effect's own map (`composed` is the enclosing one's `concatenating(map)`) and the clip in force at its entry when a
     /// clip was pushed inside the enclosing effect, local to it: what an accessibility replay re-derives a nested effect from (`AT-G`).
-    var map: Affine2D = .identity
+    var map: Homography2D = .identity
     var clipLocal: Bounds<Pixels>?
 }
 
@@ -358,7 +447,7 @@ extension Frame {
         var composed = prepaintEffects.last?.composed ?? .identity
         let scrolledBounds = scrolled(bounds)
         let mirrored = environmentTop.layoutDirection == .rightToLeft
-        for effect in ownEffects.reversed() { composed = composed.concatenating(effect.affine(in: scrolledBounds, mirrored: mirrored)) }
+        for effect in ownEffects.reversed() { composed = composed.concatenating(effect.map(in: scrolledBounds, mirrored: mirrored)) }
         return composed.boundingBox(of: rect)
     }
 
@@ -370,7 +459,7 @@ extension Frame {
     func prepaintWithRenderEffect<R>(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> R) -> R {
         effectScopesPushed += 1
         let rect = scrolled(bounds)
-        let map = effect.affine(in: rect, mirrored: environmentTop.layoutDirection == .rightToLeft)
+        let map = effect.map(in: rect, mirrored: environmentTop.layoutDirection == .rightToLeft)
         let outerClip: Bounds<Pixels>
         if let top = prepaintEffects.last {
             // The clip at this entry is in the enclosing effect's local space:
@@ -430,14 +519,22 @@ extension Frame {
     /// when it has no entry clip of its own and the enclosing one cuts
     /// (`GX-Y`). A degenerate map (a zero scale) paints nothing.
     func paintWithRenderEffect(_ effect: RenderEffectSpec, bounds: Bounds<Pixels>, _ body: () -> Void) {
-        let map = effect.affine(in: scrolled(bounds), mirrored: environmentTop.layoutDirection == .rightToLeft)
+        let map = effect.map(in: scrolled(bounds), mirrored: environmentTop.layoutDirection == .rightToLeft)
         guard map.determinant != 0, map.determinant.isFinite else { effectScopesPushed += 1; return }
+        // A projective map draws nothing at all when any corner of the effect's rectangle is on or behind the eye
+        // (`PJ-C`, measured), counting the scope as a zero scale does.
+        guard map.isInFront(of: scrolled(bounds)) else { effectScopesPushed += 1; return }
         paintWithDeviceMap(map.scaledToDevice(scaleFactor), body)
+    }
+
+    /// ``paintWithDeviceMap(_:_:)`` for a map that is affine by construction (`matchedGeometryEffect`'s flight).
+    func paintWithDeviceMap(_ device: Affine2D, _ body: () -> Void) {
+        paintWithDeviceMap(Homography2D(device), body)
     }
 
     /// Paint inside a map already in device pixels (`GX-G`): ``paintWithRenderEffect(_:bounds:_:)`` after it has
     /// resolved its effect, and `matchedGeometryEffect`'s flight (`MG-A`), which computes its own.
-    func paintWithDeviceMap(_ device: Affine2D, _ body: () -> Void) {
+    func paintWithDeviceMap(_ device: Homography2D, _ body: () -> Void) {
         effectScopesPushed += 1
         guard device.determinant != 0, device.determinant.isFinite else { return }
         let flattens = device.isUniformPositiveScaleTranslation
@@ -451,7 +548,7 @@ extension Frame {
             : OuterMask(bounds: MUIBounds(activeClip.scaled(by: scaleFactor)),
                         radii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
                         depth: clipDepth)
-        let scope = PaintScope(kind: .effect, effect: RenderEffect(affine: device), entryClipDepth: clipDepth,
+        let scope = PaintScope(kind: .effect, effect: RenderEffect(homography: device), entryClipDepth: clipDepth,
                                flattens: flattens, outer: outer)
         let savedBase = clipBase, savedFlatteningBase = flatteningClipBase
         if flattens { flatteningClipBase = clipDepth } else { clipBase = clipDepth }

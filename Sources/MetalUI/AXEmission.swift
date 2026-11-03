@@ -52,7 +52,7 @@ struct AXEmission {
 
 /// One open render effect as an accessibility replay re-derives it (`AT-G`): its own map and the clip in force at its entry.
 struct AXEffectStep {
-    var map: Affine2D
+    var map: Homography2D
     var clipLocal: Bounds<Pixels>?
 }
 

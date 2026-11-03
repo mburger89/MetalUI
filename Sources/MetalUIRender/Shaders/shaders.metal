@@ -121,6 +121,44 @@ static inline float2 transform_point(MUITransform t, float2 p) {
     return float2(t.a * p.x + t.c * p.y + t.tx, t.b * p.x + t.d * p.y + t.ty);
 }
 
+// Projective records (`PJ-A`, 3D render effects). Lane 4 of a record is `(g, h, i, det3)`;
+// `det3 == 0` is the affine code above, unchanged. Otherwise a local point `p` has
+// `w = g p.x + h p.y + i`, lands at `transform_point(t, p) / w`, and one local pixel is
+// `sqrt(|det3| / w^3)` screen pixels there. The vertex stage emits the homogeneous clip point so
+// the rasteriser interpolates `pixelPosition` (the local point) perspective-correctly; the
+// fragment recomputes the screen point from it for the outer mask. `+ − × ÷ sqrt` only, as
+// `replay.hlsl` does statement for statement.
+static inline float projective_w(MUITransform t, float2 p) {
+    return t.g * p.x + t.h * p.y + t.i;
+}
+
+static inline float projective_scale(MUITransform t, float2 p) {
+    float w = projective_w(t, p);
+    return sqrt(abs(t.det3) / (w * w * w));
+}
+
+static inline float2 projective_screen(MUITransform t, float2 p) {
+    return transform_point(t, p) / projective_w(t, p);
+}
+
+/// One over the smallest scale at the four corners of the un-grown quad: the width of the
+/// one-screen-pixel fringe in local pixels.
+static inline float projective_fringe(MUITransform t, float2 origin, float2 size) {
+    float s0 = projective_scale(t, origin);
+    float s1 = projective_scale(t, origin + float2(size.x, 0.0));
+    float s2 = projective_scale(t, origin + float2(0.0, size.y));
+    float s3 = projective_scale(t, origin + size);
+    return 1.0 / min(min(s0, s1), min(s2, s3));
+}
+
+/// The pre-projection clip point of local `p`: `(2X/vw − W, −2Y/vh + W, 0, W)`, which divides to the
+/// same normalised device coordinates the affine path computes.
+static inline float4 projective_clip(MUITransform t, float2 p, float2 viewport) {
+    float w = projective_w(t, p);
+    float2 h = transform_point(t, p);
+    return float4(h.x * 2.0 / viewport.x - w, -(h.y * 2.0 / viewport.y) + w, 0.0, w);
+}
+
 /// `mask_coverage` with distances scaled to screen pixels: the content mask
 /// of a transformed primitive, which lives in its local space.
 static inline float mask_coverage_scaled(float2 p, MUIBounds mask, MUICorners maskRadii, float s) {
@@ -172,21 +210,34 @@ vertex RectVertexOut rect_vertex(
     uint transformIndex = r.shape >> 8;
     float2 pos;
     float2 local;
+    bool projective = false;
+    float4 clipPoint = float4(0.0, 0.0, 0.0, 1.0);
     if (transformIndex == 0) {
         pos = float2(r.bounds.origin.x, r.bounds.origin.y)
             + unit * float2(r.bounds.size.width, r.bounds.size.height);
         local = pos;
     } else {
         MUITransform t = transforms[transformIndex - 1];
-        float fringe = 1.0 / t.pixelScale;
-        local = float2(r.bounds.origin.x, r.bounds.origin.y) - fringe
-              + unit * (float2(r.bounds.size.width, r.bounds.size.height) + 2.0 * fringe);
-        pos = transform_point(t, local);
+        if (t.det3 != 0.0) {
+            float2 origin = float2(r.bounds.origin.x, r.bounds.origin.y);
+            float2 size = float2(r.bounds.size.width, r.bounds.size.height);
+            float fringe = projective_fringe(t, origin, size);
+            local = origin - fringe + unit * (size + 2.0 * fringe);
+            pos = projective_screen(t, local);
+            clipPoint = projective_clip(t, local, float2(viewport.width, viewport.height));
+            projective = true;
+        } else {
+            float fringe = 1.0 / t.pixelScale;
+            local = float2(r.bounds.origin.x, r.bounds.origin.y) - fringe
+                  + unit * (float2(r.bounds.size.width, r.bounds.size.height) + 2.0 * fringe);
+            pos = transform_point(t, local);
+        }
     }
 
     // Pixel space (y down) to normalised device coordinates (y up).
     float2 ndc = pos / float2(viewport.width, viewport.height) * float2(2.0, -2.0)
                + float2(-1.0, 1.0);
+    if (!projective) { clipPoint = float4(ndc, 0.0, 1.0); }
 
     RectVertexOut out;
     // CONTRACT: `projection` is a POST-NDC transform, not a camera matrix. It is
@@ -196,7 +247,7 @@ vertex RectVertexOut rect_vertex(
     // this shader owns, and encode any depth it needs into the matrix itself.
     // That is expressible for a planar UI, so the spec 3.2 seam holds — but "a
     // matrix the renderer does not interpret" understates what the caller owes.
-    out.position = projection * float4(ndc, 0.0, 1.0);
+    out.position = projection * clipPoint;
     out.pixelPosition = local;
     out.screenPosition = pos;
     out.rectID = instanceID;
@@ -290,9 +341,15 @@ fragment float4 rect_fragment(
         return rect_shade(r, in.pixelPosition, 1.0) * clip;
     }
     MUITransform t = fragmentTransforms[transformIndex - 1];
-    float clip = mask_coverage_scaled(in.pixelPosition, r.contentMask, r.maskCornerRadii, t.pixelScale)
-               * mask_coverage(in.screenPosition, t.outerMask, t.outerMaskRadii);
-    return rect_shade(r, in.pixelPosition, t.pixelScale) * clip;
+    float s = t.pixelScale;
+    float2 screen = in.screenPosition;
+    if (t.det3 != 0.0) {
+        s = projective_scale(t, in.pixelPosition);
+        screen = projective_screen(t, in.pixelPosition);
+    }
+    float clip = mask_coverage_scaled(in.pixelPosition, r.contentMask, r.maskCornerRadii, s)
+               * mask_coverage(screen, t.outerMask, t.outerMaskRadii);
+    return rect_shade(r, in.pixelPosition, s) * clip;
 }
 
 // ---------------------------------------------------------------------------
@@ -336,6 +393,8 @@ vertex GlyphVertexOut glyph_vertex(
     float2 pos;
     float2 local;
     float2 atlasPosition;
+    bool projective = false;
+    float4 clipPoint = float4(0.0, 0.0, 0.0, 1.0);
     if (g.transform == 0) {
         pos = float2(g.bounds.origin.x, g.bounds.origin.y)
             + unit * float2(g.bounds.size.width, g.bounds.size.height);
@@ -346,11 +405,22 @@ vertex GlyphVertexOut glyph_vertex(
         // The fringe extrapolates the atlas position by the same fraction of
         // the quad; the fragment clamps it back inside the slot.
         MUITransform t = transforms[g.transform - 1];
-        float fringe = 1.0 / t.pixelScale;
         float2 size = float2(g.bounds.size.width, g.bounds.size.height);
+        float fringe;
+        if (t.det3 != 0.0) {
+            fringe = projective_fringe(t, float2(g.bounds.origin.x, g.bounds.origin.y), size);
+        } else {
+            fringe = 1.0 / t.pixelScale;
+        }
         float2 grown = unit * (size + 2.0 * fringe) - fringe;
         local = float2(g.bounds.origin.x, g.bounds.origin.y) + grown;
-        pos = transform_point(t, local);
+        if (t.det3 != 0.0) {
+            pos = projective_screen(t, local);
+            clipPoint = projective_clip(t, local, float2(viewport.width, viewport.height));
+            projective = true;
+        } else {
+            pos = transform_point(t, local);
+        }
         float2 fraction = float2(size.x > 0.0 ? grown.x / size.x : 0.0, size.y > 0.0 ? grown.y / size.y : 0.0);
         atlasPosition = float2(g.atlasBounds.origin.x, g.atlasBounds.origin.y)
                       + fraction * float2(g.atlasBounds.size.width, g.atlasBounds.size.height);
@@ -361,10 +431,11 @@ vertex GlyphVertexOut glyph_vertex(
     // rect behind it are placed in one coordinate system by the paint pass.
     float2 ndc = pos / float2(viewport.width, viewport.height) * float2(2.0, -2.0)
                + float2(-1.0, 1.0);
+    if (!projective) { clipPoint = float4(ndc, 0.0, 1.0); }
 
     GlyphVertexOut out;
     // Same POST-NDC projection contract as `rect_vertex` — see the note there.
-    out.position = projection * float4(ndc, 0.0, 1.0);
+    out.position = projection * clipPoint;
     out.pixelPosition = local;
     out.atlasPosition = atlasPosition;
     out.screenPosition = pos;
@@ -421,15 +492,21 @@ fragment float4 glyph_fragment(
         // slot so a neighbour's bitmap never bleeds in, times the quad's own
         // antialiased edge and both masks.
         MUITransform t = fragmentTransforms[transformed.transform - 1];
+        float s = t.pixelScale;
+        float2 screen = in.screenPosition;
+        if (t.det3 != 0.0) {
+            s = projective_scale(t, in.pixelPosition);
+            screen = projective_screen(t, in.pixelPosition);
+        }
         float2 slotMin = float2(transformed.atlasBounds.origin.x, transformed.atlasBounds.origin.y);
         float2 slotMax = slotMin + float2(transformed.atlasBounds.size.width, transformed.atlasBounds.size.height);
         float2 inside = clamp(in.atlasPosition, slotMin + 0.5, slotMax - 0.5);
         float sampled = atlas.sample(atlas_sampler, inside).r
-                      * quad_edge(in.pixelPosition, transformed.bounds, t.pixelScale);
+                      * quad_edge(in.pixelPosition, transformed.bounds, s);
         float4 tinted = hsla_to_srgba(transformed.color);
         float masks = mask_coverage_scaled(in.pixelPosition, transformed.contentMask,
-                                           transformed.maskCornerRadii, t.pixelScale)
-                    * mask_coverage(in.screenPosition, t.outerMask, t.outerMaskRadii);
+                                           transformed.maskCornerRadii, s)
+                    * mask_coverage(screen, t.outerMask, t.outerMaskRadii);
         float transformedAlpha = tinted.a * sampled * masks;
         return float4(tinted.rgb * transformedAlpha, transformedAlpha);
     }
@@ -493,6 +570,8 @@ vertex ImageVertexOut image_vertex(
     float2 pos;
     float2 local;
     float2 uv;
+    bool projective = false;
+    float4 clipPoint = float4(0.0, 0.0, 0.0, 1.0);
     if (transformIndex == 0) {
         pos = float2(m.bounds.origin.x, m.bounds.origin.y)
             + unit * float2(m.bounds.size.width, m.bounds.size.height);
@@ -501,20 +580,32 @@ vertex ImageVertexOut image_vertex(
     } else {
         // The fringe extrapolates the UVs past 0…1; the fragment clamps them.
         MUITransform t = transforms[transformIndex - 1];
-        float fringe = 1.0 / t.pixelScale;
         float2 size = float2(m.bounds.size.width, m.bounds.size.height);
+        float fringe;
+        if (t.det3 != 0.0) {
+            fringe = projective_fringe(t, float2(m.bounds.origin.x, m.bounds.origin.y), size);
+        } else {
+            fringe = 1.0 / t.pixelScale;
+        }
         float2 grown = unit * (size + 2.0 * fringe) - fringe;
         local = float2(m.bounds.origin.x, m.bounds.origin.y) + grown;
-        pos = transform_point(t, local);
+        if (t.det3 != 0.0) {
+            pos = projective_screen(t, local);
+            clipPoint = projective_clip(t, local, float2(viewport.width, viewport.height));
+            projective = true;
+        } else {
+            pos = transform_point(t, local);
+        }
         uv = float2(size.x > 0.0 ? grown.x / size.x : 0.0, size.y > 0.0 ? grown.y / size.y : 0.0);
     }
     // Identical to `rect_vertex`'s mapping, and it must stay identical.
     float2 ndc = pos / float2(viewport.width, viewport.height) * float2(2.0, -2.0)
                + float2(-1.0, 1.0);
+    if (!projective) { clipPoint = float4(ndc, 0.0, 1.0); }
 
     ImageVertexOut out;
     // Same POST-NDC projection contract as `rect_vertex` — see the note there.
-    out.position = projection * float4(ndc, 0.0, 1.0);
+    out.position = projection * clipPoint;
     out.pixelPosition = local;
     out.uv = uv;
     out.screenPosition = pos;
@@ -534,6 +625,12 @@ fragment float4 image_fragment(
         // Under a transform (ruling GX-F): the same filter at UVs clamped to
         // the texture, times the quad's antialiased edge and both masks.
         MUITransform t = fragmentTransforms[transformIndex - 1];
+        float s = t.pixelScale;
+        float2 screen = in.screenPosition;
+        if (t.det3 != 0.0) {
+            s = projective_scale(t, in.pixelPosition);
+            screen = projective_screen(t, in.pixelPosition);
+        }
         float2 uv = clamp(in.uv, 0.0, 1.0);
         float4 sampled;
         if ((m.filter & 0xFF) == MUIImageFilterNearest) {
@@ -545,9 +642,9 @@ fragment float4 image_fragment(
                                                   filter::linear);
             sampled = image.sample(transformed_sampler, uv);
         }
-        float coverage = quad_edge(in.pixelPosition, m.bounds, t.pixelScale)
-                       * mask_coverage_scaled(in.pixelPosition, m.contentMask, m.maskCornerRadii, t.pixelScale)
-                       * mask_coverage(in.screenPosition, t.outerMask, t.outerMaskRadii);
+        float coverage = quad_edge(in.pixelPosition, m.bounds, s)
+                       * mask_coverage_scaled(in.pixelPosition, m.contentMask, m.maskCornerRadii, s)
+                       * mask_coverage(screen, t.outerMask, t.outerMaskRadii);
         return sampled * (m.opacity * coverage);
     }
     float4 texel;
@@ -651,7 +748,7 @@ kernel void image_abi_probe(
 
 
 // Metal's view of `MUITransform` (ruling GX-F), read by
-// `metalAndSwiftAgreeOnTheTransformStruct`: each float ×10, then `_reserved`.
+// `metalAndSwiftAgreeOnTheTransformStruct`: each float ×10, then `_reserved`, then lane 4 (`g h i det3`, `PJ-A`).
 kernel void transform_abi_probe(
     device MUIUInt         *out [[buffer(MUIProbeBufferOut)]],
     constant MUITransform  &t   [[buffer(MUIProbeBufferTransform)]]
@@ -672,6 +769,10 @@ kernel void transform_abi_probe(
     out[13] = (MUIUInt)(t.outerMaskRadii.topLeft * 10.0);
     out[14] = (MUIUInt)(t.outerMaskRadii.topRight * 10.0);
     out[15] = (MUIUInt)(t.outerMaskRadii.bottomLeft * 10.0);
+    out[16] = (MUIUInt)(t.g * 10.0);
+    out[17] = (MUIUInt)(t.h * 10.0);
+    out[18] = (MUIUInt)(t.i * 10.0);
+    out[19] = (MUIUInt)(t.det3 * 10.0);
 }
 
 // ---------------------------------------------------------------------------

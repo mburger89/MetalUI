@@ -165,7 +165,7 @@ struct Hitbox {
         // the local rect and shape at the inverse-mapped point; a degenerate
         // map (a zero scale) contains nothing.
         guard transform.outerClip.contains(point), let inverse = transform.inverse else { return false }
-        let local = inverse.apply(point)
+        guard let local = inverse.apply(point) else { return false }
         return bounds.contains(local) && (shape?.contains(local) ?? true)
     }
 
@@ -174,7 +174,8 @@ struct Hitbox {
     /// one (`GX-P` item 3).
     func localPoint(_ point: Point<Pixels>) -> Point<Pixels> {
         guard let inverse = transform?.inverse else { return point }
-        return inverse.apply(point)
+        // Behind the eye (`PJ-C`) a point has no local position: nothing is hit there, so the window point stands.
+        return inverse.apply(point) ?? point
     }
 }
 
@@ -184,8 +185,18 @@ struct Hitbox {
 /// nothing), and the clip in force at the outermost effect's entry, in window
 /// points.
 struct HitboxTransform {
-    let inverse: Affine2D?
+    let inverse: Homography2D?
     let outerClip: Bounds<Pixels>
+
+    init(inverse: Homography2D?, outerClip: Bounds<Pixels>) {
+        self.inverse = inverse
+        self.outerClip = outerClip
+    }
+
+    /// An affine inverse (`PJ-A`): every pre-3D call site.
+    init(inverse: Affine2D?, outerClip: Bounds<Pixels>) {
+        self.init(inverse: inverse.map(Homography2D.init), outerClip: outerClip)
+    }
 }
 
 /// A declared `.contentShape(_:)`'s shape, boxed so `Handlers` carries one

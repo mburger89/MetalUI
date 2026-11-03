@@ -2170,3 +2170,14 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **DE3.** Start a MetalUI drag, take it out of the window (it becomes a system drag), bring it back onto the `.move` chip and release: the delegate is validated, entered and performed, and the cursor shows the move operation. **Observed:**
 - [ ] **DE4.** Drag a MetalUI draggable inside the window over the delegate chips: the chips react and a drop performs, and the cursor shows no copy or forbidden badge (divergence 1055). **Observed:**
 - [ ] **DE5.** Linux (SDL): drag a file from Nautilus onto a delegate chip: it validates while hovering with unknown items (divergence 102), and the drop performs with the file. **Observed:**
+
+## PJ. 3D render effects - the card flip, edges and text under a turn (round 3 item R3-10 item 6; decisions `docs/superpowers/2026-11-02-projection-effects-decisions.md`, record 193; provisional letter)
+
+*An agent cannot: the look of a perspective turn, its antialiased edges, text under it and a real pointer on the projected quad are looks. Use the looks demo (`METALUI_LOOKS_DEMO=1 swift run MetalUIDemo`, section Q7-Q9).*
+
+- [ ] **PJ1.** A card flipping with `rotation3DEffect(.degrees(angle), axis: (0, 1, 0))` looks like SwiftUI's side by side: the near edge grows, the far edge shrinks, no back-face culling at 180 degrees. **Observed:**
+- [ ] **PJ2.** The near and far edges are antialiased over about one screen pixel at both depths, with no shimmer while the angle animates. **Observed:**
+- [ ] **PJ3.** Text under a 3D turn is resampled and soft, not re-rasterised (divergence 106), and an animating flip does no visible hitch. **Observed:**
+- [ ] **PJ4.** Hover and click on a turned view land where its projected quad would be: the near edge outside the layout rectangle hits, the layout area beyond the far edge does not. **Observed:**
+- [ ] **PJ5.** With VoiceOver on, the cursor outline of a turned view is the bounding box of its projected quad. **Observed:**
+- [ ] **PJ6.** Linux and Windows (SDL): the card flip matches macOS (PJ1, PJ2). **Observed:**

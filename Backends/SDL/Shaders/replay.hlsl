@@ -7,8 +7,8 @@
 // shaders.metal's `backdrop_pass_vertex`, `backdrop_downsample_fragment`,
 // `backdrop_gaussian_fragment`, statement for statement, TE-AD).
 // Storage is float4 lanes: rectangle stride 8 lanes (128 bytes), glyph 6 (96),
-// image 4 (64, uploaded as recorded), transform 4 (64, `MUITransform`, ruling
-// GX-F). Uniforms occupy 16 and 64 bytes. See SDLBridge.c for the packing
+// image 4 (64, uploaded as recorded), transform 5 (80, `MUITransform`, rulings
+// GX-F and PJ-A: lane 4 is `(g, h, i, det3)`, `det3 == 0` the affine code). Uniforms occupy 16 and 64 bytes. See SDLBridge.c for the packing
 // boundary. A backdrop record (MUIBackdrop, 256 bytes since Liquid Glass, ruling
 // LG-B) is 16 lanes, uploaded as recorded: lanes 0-5 are the material's (bounds,
 // contentMask, maskCornerRadii, cornerRadii, tint, (order, shape, sigma,
@@ -16,7 +16,8 @@
 // press, pressLift, reserved), lanes 8-15 four members of two lanes each
 // (bounds, radii as fractions of the record's bounds, `LG-S` 1). A primitive's transform index (rect lane 7 .y and image lane 3 .z
 // bits 8…31, glyph lane 5 .y) is 0 for today's code; i > 0 reads transform
-// record i − 1 — shaders.metal's transformed branches, statement for statement.
+// record i − 1 — shaders.metal's transformed branches, statement for statement; a record whose lane 4 `.w`
+// (`det3`) is not 0 takes the projective branches (`PJ-A`, shaders.metal's `projective_*`).
 #ifdef PASS_STAGE
 // ---------------------------------------------------------------------------
 // The blur passes (ruling BB-D, BB-S). `PassConstants` is shaders.metal's
@@ -112,6 +113,35 @@ StructuredBuffer<float4> transforms : register(t1, space2);
 #endif
 #endif
 
+// Projective records (`PJ-A`): shaders.metal's `projective_w`, `projective_scale`, `projective_screen`,
+// `projective_fringe` and `projective_clip`, statement for statement. `projective` is lane 4,
+// `(g, h, i, det3)`.
+float2 transformPoint(float4 lin, float4 translation, float2 p) {
+    return float2(lin.x * p.x + lin.z * p.y + translation.x, lin.y * p.x + lin.w * p.y + translation.y);
+}
+float projectiveW(float4 projective, float2 p) {
+    return projective.x * p.x + projective.y * p.y + projective.z;
+}
+float projectiveScale(float4 projective, float2 p) {
+    float w = projectiveW(projective, p);
+    return sqrt(abs(projective.w) / (w * w * w));
+}
+float2 projectiveScreen(float4 lin, float4 translation, float4 projective, float2 p) {
+    return transformPoint(lin, translation, p) / projectiveW(projective, p);
+}
+float projectiveFringe(float4 projective, float2 origin, float2 size) {
+    float s0 = projectiveScale(projective, origin);
+    float s1 = projectiveScale(projective, origin + float2(size.x, 0.0));
+    float s2 = projectiveScale(projective, origin + float2(0.0, size.y));
+    float s3 = projectiveScale(projective, origin + size);
+    return 1.0 / min(min(s0, s1), min(s2, s3));
+}
+float4 projectiveClip(float4 lin, float4 translation, float4 projective, float2 p, float2 extent) {
+    float w = projectiveW(projective, p);
+    float2 h = transformPoint(lin, translation, p);
+    return float4(h.x * 2.0 / extent.x - w, -(h.y * 2.0 / extent.y) + w, 0.0, w);
+}
+
 struct VertexOut {
     float4 position : SV_Position;
     // Local under a transform (the SDFs and content mask read it), the
@@ -156,6 +186,8 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
 #ifdef SPRITE_STAGE
     float2 atlasPosition;
 #endif
+    bool isProjective = false;
+    float4 clipPoint = float4(0, 0, 0, 1);
     if (transformIndex == 0) {
         pos = bounds.xy + unit * bounds.zw;
         local = pos;
@@ -166,10 +198,16 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
         atlasPosition = unit;
 #endif
     } else {
-        uint record = (transformIndex - 1) * 4;
+        uint record = (transformIndex - 1) * 5;
         float4 lin = transforms[record];
         float4 translation = transforms[record + 1];
-        float fringe = 1.0 / translation.z;
+        float4 projective = transforms[record + 4];
+        float fringe;
+        if (projective.w != 0.0) {
+            fringe = projectiveFringe(projective, bounds.xy, bounds.zw);
+        } else {
+            fringe = 1.0 / translation.z;
+        }
 #ifdef SPRITE_STAGE
         float2 grown = unit * (bounds.zw + 2.0 * fringe) - fringe;
         local = bounds.xy + grown;
@@ -183,12 +221,19 @@ VertexOut main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) {
 #else
         local = bounds.xy - fringe + unit * (bounds.zw + 2.0 * fringe);
 #endif
-        pos = float2(lin.x * local.x + lin.z * local.y + translation.x,
-                     lin.y * local.x + lin.w * local.y + translation.y);
+        if (projective.w != 0.0) {
+            pos = projectiveScreen(lin, translation, projective, local);
+            clipPoint = projectiveClip(lin, translation, projective, local, viewport);
+            isProjective = true;
+        } else {
+            pos = float2(lin.x * local.x + lin.z * local.y + translation.x,
+                         lin.y * local.x + lin.w * local.y + translation.y);
+        }
     }
     float2 ndc = pos / viewport * float2(2, -2) + float2(-1, 1);
+    if (!isProjective) { clipPoint = float4(ndc, 0, 1); }
     VertexOut result;
-    result.position = mul(projection, float4(ndc, 0, 1));
+    result.position = mul(projection, clipPoint);
     result.pixelPosition = local;
     result.screenPosition = pos;
     result.primitiveID = id;
@@ -364,7 +409,7 @@ float4 glassShade(uint base, uint flags, VertexOut input) {
     if (transformIndex == 0) {
         clip = maskCoverage(input.pixelPosition, primitives[base + 1], primitives[base + 2]);
     } else {
-        uint record = (transformIndex - 1) * 4;
+        uint record = (transformIndex - 1) * 5;
         lin = transforms[record];
         s = transforms[record + 1].z;
         clip = maskCoverageScaled(input.pixelPosition, primitives[base + 1], primitives[base + 2], s)
@@ -424,7 +469,7 @@ float4 main(VertexOut input) : SV_Target0 {
     if (transformIndex == 0) {
         clip = maskCoverage(input.pixelPosition, primitives[base + 1], primitives[base + 2]);
     } else {
-        uint record = (transformIndex - 1) * 4;
+        uint record = (transformIndex - 1) * 5;
         s = transforms[record + 1].z;
         clip = maskCoverageScaled(input.pixelPosition, primitives[base + 1], primitives[base + 2], s)
              * maskCoverage(input.screenPosition, transforms[record + 2], transforms[record + 3]);
@@ -442,16 +487,22 @@ float4 main(VertexOut input) : SV_Target0 {
     atlas.GetDimensions(width, height);
     uint transformIndex = asuint(primitives[base + 5].y);
     if (transformIndex != 0) {
-        uint record = (transformIndex - 1) * 4;
+        uint record = (transformIndex - 1) * 5;
         float4 translation = transforms[record + 1];
         float s = translation.z;
+        float2 screen = input.screenPosition;
+        float4 projective = transforms[record + 4];
+        if (projective.w != 0.0) {
+            s = projectiveScale(projective, input.pixelPosition);
+            screen = projectiveScreen(transforms[record], translation, projective, input.pixelPosition);
+        }
         float4 slot = primitives[base + 1];
         float2 inside = clamp(input.atlasPosition, slot.xy + 0.5, slot.xy + slot.zw - 0.5);
         float sampled = atlas.Sample(atlasSampler, inside / float2(width, height))
                       * quadEdge(input.pixelPosition, primitives[base], s);
         float4 tinted = hslaToRGBA(primitives[base + 4]);
         float masks = maskCoverageScaled(input.pixelPosition, primitives[base + 2], primitives[base + 3], s)
-                    * maskCoverage(input.screenPosition, transforms[record + 2], transforms[record + 3]);
+                    * maskCoverage(screen, transforms[record + 2], transforms[record + 3]);
         float transformedAlpha = tinted.a * sampled * masks;
         return float4(tinted.rgb * transformedAlpha, transformedAlpha);
     }
@@ -466,8 +517,14 @@ float4 main(VertexOut input) : SV_Target0 {
     float4 fields = primitives[base + 3];
     uint transformIndex = asuint(fields.z) >> 8;
     if (transformIndex != 0) {
-        uint record = (transformIndex - 1) * 4;
+        uint record = (transformIndex - 1) * 5;
         float s = transforms[record + 1].z;
+        float2 screen = input.screenPosition;
+        float4 projective = transforms[record + 4];
+        if (projective.w != 0.0) {
+            s = projectiveScale(projective, input.pixelPosition);
+            screen = projectiveScreen(transforms[record], transforms[record + 1], projective, input.pixelPosition);
+        }
         float2 uv = clamp(input.atlasPosition, 0.0, 1.0);
         float4 sampled;
         if ((asuint(fields.z) & 0xFF) == 1) {
@@ -480,7 +537,7 @@ float4 main(VertexOut input) : SV_Target0 {
         }
         float coverage = quadEdge(input.pixelPosition, primitives[base], s)
                        * maskCoverageScaled(input.pixelPosition, primitives[base + 1], primitives[base + 2], s)
-                       * maskCoverage(input.screenPosition, transforms[record + 2], transforms[record + 3]);
+                       * maskCoverage(screen, transforms[record + 2], transforms[record + 3]);
         return sampled * (fields.x * coverage);
     }
     float4 texel;
@@ -502,10 +559,16 @@ float4 main(VertexOut input) : SV_Target0 {
         float clip = maskCoverage(input.pixelPosition, primitives[base + 1], primitives[base + 2]);
         return rectShade(base, input.pixelPosition, 1.0) * clip;
     }
-    uint record = (transformIndex - 1) * 4;
+    uint record = (transformIndex - 1) * 5;
     float s = transforms[record + 1].z;
+    float2 screen = input.screenPosition;
+    float4 projective = transforms[record + 4];
+    if (projective.w != 0.0) {
+        s = projectiveScale(projective, input.pixelPosition);
+        screen = projectiveScreen(transforms[record], transforms[record + 1], projective, input.pixelPosition);
+    }
     float clip = maskCoverageScaled(input.pixelPosition, primitives[base + 1], primitives[base + 2], s)
-               * maskCoverage(input.screenPosition, transforms[record + 2], transforms[record + 3]);
+               * maskCoverage(screen, transforms[record + 2], transforms[record + 3]);
     return rectShade(base, input.pixelPosition, s) * clip;
 #endif
 }

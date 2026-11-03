@@ -529,3 +529,13 @@ public struct Scene: Sendable {
         drawList = runs
     }
 }
+
+extension MUITransform {
+    /// An affine record: the projective lane (`g`, `h`, `i`, `det3`) is zero, which every shader reads as
+    /// "no perspective" (`PJ-A`). The spelling every record had before the 80-byte layout.
+    public init(a: Float, b: Float, c: Float, d: Float, tx: Float, ty: Float, pixelScale: Float,
+                _reserved: MUIUInt, outerMask: MUIBounds, outerMaskRadii: MUICorners) {
+        self.init(a: a, b: b, c: c, d: d, tx: tx, ty: ty, pixelScale: pixelScale, _reserved: _reserved,
+                  outerMask: outerMask, outerMaskRadii: outerMaskRadii, g: 0, h: 0, i: 0, det3: 0)
+    }
+}

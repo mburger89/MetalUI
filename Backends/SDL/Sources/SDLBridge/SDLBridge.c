@@ -36,9 +36,9 @@ static const char *const kind_names[] = {"rect", "glyph", "image"};
 /* An image record is 64 bytes, four float4 lanes (MUIImage): bounds,
    contentMask, maskCornerRadii, then opacity, texture, filter, order. */
 enum { IMAGE_STRIDE = 64, IMAGE_TEXTURE_OFFSET = 52 };
-/* A transform record is 64 bytes, four float4 lanes (MUITransform, ruling
-   GX-F); an empty table binds one zero record, which index 0 never reads. */
-enum { TRANSFORM_STRIDE = 64 };
+/* A transform record is 80 bytes, five float4 lanes (MUITransform, rulings GX-F and PJ-A);
+   an empty table binds one zero record, which index 0 never reads. */
+enum { TRANSFORM_STRIDE = 80 };
 static const uint8_t empty_transform[TRANSFORM_STRIDE] = {0};
 /* Where each record keeps its transform index: rect `shape` (offset 116) and
    image `filter` (offset 56) bits 8…31, glyph `transform` (offset 84). */

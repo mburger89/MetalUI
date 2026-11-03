@@ -31,31 +31,82 @@ struct main0_out
 vertex main0_out main0(constant type_Viewport& Viewport [[buffer(0)]], constant type_Projection& Projection [[buffer(1)]], const device type_StructuredBuffer_v4float& units [[buffer(2)]], const device type_StructuredBuffer_v4float& primitives [[buffer(3)]], const device type_StructuredBuffer_v4float& transforms [[buffer(4)]], uint gl_VertexIndex [[vertex_id]], uint gl_InstanceIndex [[instance_id]])
 {
     main0_out out = {};
-    uint _58 = gl_InstanceIndex + Viewport.firstInstance;
-    uint _59 = _58 * 16u;
-    uint _69 = as_type<uint>(((device float*)&primitives._m0[_59 + 5u])[1]) >> 8u;
-    float2 _113;
-    float2 _114;
-    if (_69 == 0u)
+    uint _62 = gl_InstanceIndex + Viewport.firstInstance;
+    uint _63 = _62 * 16u;
+    uint _73 = as_type<uint>(((device float*)&primitives._m0[_63 + 5u])[1]) >> 8u;
+    float2 _225;
+    float4 _226;
+    bool _227;
+    float2 _228;
+    if (_73 == 0u)
     {
-        float2 _77 = primitives._m0[_59].xy + (units._m0[gl_VertexIndex].xy * primitives._m0[_59].zw);
-        _113 = _77;
-        _114 = _77;
+        float2 _81 = primitives._m0[_63].xy + (units._m0[gl_VertexIndex].xy * primitives._m0[_63].zw);
+        _225 = _81;
+        _226 = float4(0.0, 0.0, 0.0, 1.0);
+        _227 = false;
+        _228 = _81;
     }
     else
     {
-        uint _79 = (_69 - 1u) * 4u;
-        uint _82 = _79 + 1u;
-        float2 _95 = (primitives._m0[_59].xy - float2(1.0 / transforms._m0[_82].z)) + (units._m0[gl_VertexIndex].xy * (primitives._m0[_59].zw + float2(2.0 / transforms._m0[_82].z)));
-        float _97 = _95.x;
-        float _100 = _95.y;
-        _113 = _95;
-        _114 = float2(((transforms._m0[_79].x * _97) + (transforms._m0[_79].z * _100)) + transforms._m0[_82].x, ((transforms._m0[_79].y * _97) + (transforms._m0[_79].w * _100)) + transforms._m0[_82].y);
+        uint _83 = (_73 - 1u) * 5u;
+        uint _86 = _83 + 1u;
+        uint _89 = _83 + 4u;
+        bool _93 = transforms._m0[_89].w != 0.0;
+        float _156;
+        if (_93)
+        {
+            float _107 = ((transforms._m0[_89].x * primitives._m0[_63].x) + (transforms._m0[_89].y * primitives._m0[_63].y)) + transforms._m0[_89].z;
+            float _108 = abs(transforms._m0[_89].w);
+            float2 _115 = primitives._m0[_63].xy + float2(primitives._m0[_63].z, 0.0);
+            float _121 = ((transforms._m0[_89].x * _115.x) + (transforms._m0[_89].y * _115.y)) + transforms._m0[_89].z;
+            float2 _128 = primitives._m0[_63].xy + float2(0.0, primitives._m0[_63].w);
+            float _134 = ((transforms._m0[_89].x * _128.x) + (transforms._m0[_89].y * _128.y)) + transforms._m0[_89].z;
+            float2 _139 = primitives._m0[_63].xy + primitives._m0[_63].zw;
+            float _145 = ((transforms._m0[_89].x * _139.x) + (transforms._m0[_89].y * _139.y)) + transforms._m0[_89].z;
+            _156 = 1.0 / precise::min(precise::min(sqrt(_108 / ((_107 * _107) * _107)), sqrt(_108 / ((_121 * _121) * _121))), precise::min(sqrt(_108 / ((_134 * _134) * _134)), sqrt(_108 / ((_145 * _145) * _145))));
+        }
+        else
+        {
+            _156 = 1.0 / transforms._m0[_86].z;
+        }
+        float2 _165 = (primitives._m0[_63].xy - float2(_156)) + (units._m0[gl_VertexIndex].xy * (primitives._m0[_63].zw + float2(2.0 * _156)));
+        float4 _223;
+        float2 _224;
+        if (_93)
+        {
+            float _170 = _165.x;
+            float _173 = _165.y;
+            float _177 = ((transforms._m0[_83].x * _170) + (transforms._m0[_83].z * _173)) + transforms._m0[_86].x;
+            float _184 = ((transforms._m0[_83].y * _170) + (transforms._m0[_83].w * _173)) + transforms._m0[_86].y;
+            float _192 = ((transforms._m0[_89].x * _170) + (transforms._m0[_89].y * _173)) + transforms._m0[_89].z;
+            _223 = float4(((_177 * 2.0) / Viewport.viewport.x) - _192, _192 - ((_184 * 2.0) / Viewport.viewport.y), 0.0, _192);
+            _224 = float2(_177, _184) / float2(_192);
+        }
+        else
+        {
+            float _207 = _165.x;
+            float _210 = _165.y;
+            _223 = float4(0.0, 0.0, 0.0, 1.0);
+            _224 = float2(((transforms._m0[_83].x * _207) + (transforms._m0[_83].z * _210)) + transforms._m0[_86].x, ((transforms._m0[_83].y * _207) + (transforms._m0[_83].w * _210)) + transforms._m0[_86].y);
+        }
+        _225 = _165;
+        _226 = _223;
+        _227 = _93;
+        _228 = _224;
     }
-    out.gl_Position = Projection.projection * float4(((_114 / Viewport.viewport) * float2(2.0, -2.0)) + float2(-1.0, 1.0), 0.0, 1.0);
-    out.out_var_TEXCOORD0 = _113;
-    out.out_var_TEXCOORD3 = _114;
-    out.out_var_TEXCOORD1 = _58;
+    float4 _240;
+    if (!_227)
+    {
+        _240 = float4(((_228 / Viewport.viewport) * float2(2.0, -2.0)) + float2(-1.0, 1.0), 0.0, 1.0);
+    }
+    else
+    {
+        _240 = _226;
+    }
+    out.gl_Position = Projection.projection * _240;
+    out.out_var_TEXCOORD0 = _225;
+    out.out_var_TEXCOORD3 = _228;
+    out.out_var_TEXCOORD1 = _62;
     return out;
 }
 
