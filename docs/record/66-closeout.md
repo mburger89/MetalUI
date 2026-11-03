@@ -399,7 +399,7 @@ grep `closeout-inventory-check.sh` uses). Result: **6 retire** (85 by `CX-F`;
 | 86 | `aNotoSansLineIsTwentyFourPointsWhereSwiftUIsIsTwentyThree` | — | text-semantics X13 | keep | none |
 | 87 | `aMiddleTruncationKeepsCoreTextsStringWhereSwiftUIKeepsMore` | — | text-semantics X5 | keep | none |
 | 88 | `aGridRowWithATextBaselineAlignmentTraps` | — | text-semantics X11 | keep | none |
-| 89 | `aStackSharesItsHeightWithAWrappingTextAsSwiftUIDoes` (its two spacer arms) | "spec 3.23" | text-in-stacks K1, K4 | keep | none |
+| 89 | `aStackSharesItsHeightWithAWrappingTextAsSwiftUIDoes` (its two spacer arms) | "spec 3.23" | text-in-stacks K1, K4 | keep (retired 2026-11-03, `DS-A`, record 202: K1/K4 measured a wrapped spacer) | none |
 | 90 | `theContinuousStyleIsTheDefaultAndIsDrawnCircular` | — | shapes-and-rendering S3, C4 | keep | none |
 | 91 | `clipShapeOfAnEllipseTrapsNamingDivergence91` | — | shapes-and-rendering C5 | keep | none |
 | 92 | `twoCrossingRoundedClipsIntersectAsTheSquareBox` | — | shapes-and-rendering C6 | keep | none |

@@ -130,7 +130,7 @@ the window's top layer — a portal for modals, popovers and tooltips
 
 `HStack`, `VStack`, `ZStack`, `Spacer`, `VerticalAlignment` (with text
 baselines), `HorizontalAlignment`, `.layoutPriority` — SwiftUI's stack
-algorithms (51, 58, 70, 89). The containers take legacy content too — the
+algorithms (51, 58, 70). The containers take legacy content too — the
 controls, `Text`, `Box`, a `Component` — through `ProposalContentBuilder`
 (`PE-B`); `ProposalFrame`, `Padding`, `Background`, `FixedSize` and
 `nativeOverlay` (MetalUI-only wrappers) still take proposal content only. `Grid`, `GridRow`, `.gridCellColumns`,

@@ -46,6 +46,17 @@
 //   K4 VStack{Text; Spacer(minLength: 0)} h=200: text y=-100 h=96 spacer y=0 h=104
 //   done
 //
+// CORRECTED 2026-11-03 (R4-2 PR A, ruling DS-A, record 202). The K1 and K4
+// READING below says a `Spacer` shares a limited height with the text (1 line
+// at 60, 3 at 100). That was the WRAPPER: `Where{ Spacer() }` is a custom
+// `Layout`, which hides a spacer's priority, so the spacer was an ordinary
+// flexible child. `swiftui-default-spacing.swift` DS14 (`NSHostingView`
+// layout, no `ImageRenderer`) replays K1/K4 exactly through `Where` (text 16 /
+// 48 / 96 tall) and reads a BARE `VStack(0){para; Spacer()}` at 48 / 80 / 96
+// (3 / 5 / 6 lines), with `minLength: 0` 48 / 96 / 96. K0, K2 and K3 stand.
+// Divergence 89 and TE-Z are retired/overturned; the figures above are kept as
+// recorded.
+//
 // READING (ruling TE-R).
 // - A stack DOES compress a wrapping text by the height proposal it shares
 //   out: beside a `Spacer` at 60 the paragraph gets one line (15.5) and the
