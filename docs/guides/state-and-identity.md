@@ -188,7 +188,7 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 
 - divergence 71: a value placed twice and written outside input reaches the last occurrence.
 - divergence 78: `Binding` is `@MainActor`.
-- divergence 211: a legacy decoration (`Stack.background`) on an erased element is not a type change, so its `@State` is kept where an `AnyView` resets it.
+- divergence 211: a legacy decoration (`Stack.background`) on an erased element is not a type change, so its `@State` is kept where an `AnyView` resets it (pin: `aLegacyDecorationIsNotATypeChangeUnderAnAnyElement`).
 - divergence 134: a missing environment object traps, naming the type.
 - divergence 145: a content-sized `List` row is exactly its content's height.
 - divergence 146: an insertion above the viewport keeps the top row in place.
