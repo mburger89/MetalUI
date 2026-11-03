@@ -67,15 +67,15 @@ struct SDLGPUSubmitLockTests {
                 var transfers: [SDLGPUTransferBuffer] = []
                 func next() -> Int { state = state &* 6364136223846793005 &+ 1442695040888963407; return Int(state >> 33) }
                 while Date() < deadline {
-                    let size = 256 << (next() % 12)   // 256 B ... 512 KiB
+                    let size = 1024 << (next() % 13)   // 1 KiB ... 4 MiB: fills 16 MiB allocations and leaves holes no later request fits (SDL marks an allocation for defragmentation only then)
                     if next() % 2 == 0 {
                         if let b = device.makeBuffer(size: size, usage: [.computeStorageRead, .computeStorageWrite]) { storage.append(b) }
                     } else if let t = device.makeTransferBuffer(size: size, direction: next() % 2 == 0 ? .upload : .download) {
                         if let m = t.map() { m.storeBytes(of: 1, as: UInt8.self); t.unmap() }
                         transfers.append(t)
                     }
-                    if storage.count > 48 { storage.remove(at: next() % storage.count) }
-                    if transfers.count > 48 { transfers.remove(at: next() % transfers.count) }
+                    if storage.count > 40 { storage.remove(at: next() % storage.count) }
+                    if transfers.count > 40 { transfers.remove(at: next() % transfers.count) }
                 }
                 group.leave()
             }.start()
