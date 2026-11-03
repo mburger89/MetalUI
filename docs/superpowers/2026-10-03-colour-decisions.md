@@ -144,6 +144,8 @@ exactly SwiftUI's exposure; the demo and migration guide steer to
    sRGB (`R4`), and MetalUI would then clamp and draw those numbers into a P3
    layer (divergence 1) — wrong twice. A SwiftUI source line naming it fails
    to compile rather than drawing the wrong colour.
+   *Note (`LS-A`, 2026-11-03): the layer is tagged sRGB now, so "wrong twice" is
+   wrong once; the clamp, and so the refusal, stands (`LS-B`).*
 
 **Cost if wrong.** Clamping at resolution instead of draw differs only for an
 app that reads `Color.Resolved` of an out-of-gamut colour; additive to fix.
@@ -289,6 +291,10 @@ Backends/SDL/Shaders` is empty. A literal is interpreted exactly as a token
 is: sRGB numbers written to a layer whose colour space is Display P3 on
 AppKit (divergence 1, amended to say literals share it) and to an sRGB
 swapchain on SDL.
+
+*Note (`LS-A`, 2026-11-03): "a layer whose colour space is Display P3" is no
+longer true; the layer is tagged sRGB, which is what the SDL swapchain always
+was. Literals and tokens still share one path.*
 
 ## CR-J — `ColorScheme`, the environment's `colorScheme`, and the window's stamp
 

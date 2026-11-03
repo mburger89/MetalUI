@@ -2879,3 +2879,9 @@ verbatim (`SR-C`, probe AX1-AX8); what stays is the unmeasured `TextField` place
 new type reads its own seed 20, not the old type's 10 or written 11); an `AnyElement` has no type tracking and shares `$state<n>`, which `FV-A` made newly wrong for a never-written default (it read its own 20 before) and which was already so for a
 written value (11). Pins: `aNeverWrittenStateDefaultKeepsItsFirstEvaluationForTheViewsLifetime` (was `...IsReseededSoOnAppearAndOnDisappearSeeDifferentInstances`), `aSeedFromAParentParameterDoesNotFollowIt`,
 `anAnyElementSwapKeepsTheSlotOfTheTypeItReplaced`. Mechanisms, mutations and counts: `docs/superpowers/2026-11-03-state-first-value-decisions.md`, `docs/record/199-state-first-value.md`.
+
+## 2026-11-03: the layer is tagged sRGB (`LS-A`..`LS-C`, record §200)
+
+**Narrowed: 1** (207 live unchanged; next label 211). 1's "the layer's colour space is Display P3" is gone: `MetalLayerSurface` tags the `CAMetalLayer` `CGColorSpace.sRGB`, so a gamma sRGB number written to the `bgra8Unorm` drawable is read as the sRGB it is, as SwiftUI's and as SDL's swapchain (`SDL_gpu.h` SDR is sRGB-encoded).
+Arithmetic (`coregraphics-layer-colourspace.swift`): `#38BDF8` read as P3 is the sRGB colour (-73, 192, 254), clipped to (0, 192, 254), not (56, 189, 248); a neutral grey moves by at most one level. What stays: no colour can leave sRGB (`.displayP3` is not a case, `LS-B`), and a P3-profiled PNG or JPEG
+desaturates like SDL (138). **Not run**: the window gate `appkit-layer-colourspace.swift` (S == C == L1 != L2) and human checks LS1-LS4, because the session was locked with no Screen Recording permission; the label is therefore narrowed, not retired. Pin: `theLayerColourSpaceIsSRGB`. Mechanisms and mutations: `docs/superpowers/2026-11-03-layer-colour-space-decisions.md`, `docs/record/200-layer-colour-space.md`.

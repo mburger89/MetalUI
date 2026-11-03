@@ -351,7 +351,7 @@ equality compares components. Statics: the thirteen hues and `gray` are the
 macOS 27 light/dark values (117), `black`/`white`/`clear` fixed, `primary`/
 `secondary`/`accentColor` through the theme (116). `Color.Resolved` and
 `resolve(in:)` give clamped sRGB components. A literal is drawn like a token:
-sRGB numbers on a Display P3 layer (1). No `.displayP3`, no asset catalog, no
+sRGB numbers on an sRGB layer (1, `LS-A`; Display P3 before record 200). No `.displayP3` (`LS-B`), no asset catalog, no
 hierarchical style (`.foregroundStyle(.secondary)` is `Color.secondary`, 119).
 
 **Shape styles and the tint (A / D; 975–977).** `ShapeStyle` is SwiftUI's protocol:

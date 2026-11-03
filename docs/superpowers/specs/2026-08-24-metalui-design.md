@@ -1323,7 +1323,7 @@ Specification:
 - **Working space: gamma-encoded sRGB.** Drawable format **`bgra8Unorm`** — *not* `_sRGB`. This is
   load-bearing: an `_sRGB` target makes the hardware decode to linear before blending and re-encode
   after, which is linear compositing, the opposite of this decision. `bgra8Unorm` blends on the
-  stored gamma-encoded values. Layer colorspace is Display P3.
+  stored gamma-encoded values. ~~Layer colorspace is Display P3.~~ **Amended 2026-11-03 (`LS-A`, record 200): the layer colorspace is sRGB** (every colour is a gamma sRGB number, so a P3 tag displayed them more saturated than SwiftUI's; the pixel format is unchanged).
 - **Colors** reach the shader as HSLA and are converted to gamma-encoded sRGB in-shader. No
   linearization anywhere in the composite path.
 - **Gradients** are converted to Oklab, interpolated there, and converted back to gamma-encoded sRGB
