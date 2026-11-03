@@ -13,6 +13,7 @@
 //       written by the app), off -> on.
 //   K2  a binding write with NO animation, off -> on, from outside (`model.on = true`).
 //   K3  the same write inside `withAnimation(.linear(duration: 1))`, the control arm: motion must show.
+//   K5  a write under `Transaction.disablesAnimations = true`; K6 `withAnimation(nil)`.
 //   K4  a plain `.checkbox` toggle written the same way as K2: the separating arm (the checkbox snaps).
 // Each arm samples the presentation x of every layer for 0.6 s at ~60 Hz and prints the distinct x sequence of the
 // layer whose x varies most. "moved" means that layer took 3 or more distinct x values.
@@ -124,6 +125,15 @@ func layers(_ l: CALayer, path: String = "", _ out: inout [(String, CALayer)]) {
     let h3 = hostWindow(checkbox: false)
     sample("K3 withAnimation(.linear(duration: 1)) write, off -> on", h3) { withAnimation(.linear(duration: 1)) { model.on = true } }
 
+    let h5 = hostWindow(checkbox: false)
+    sample("K5 Transaction.disablesAnimations = true write, off -> on", h5) {
+        var t = Transaction(); t.disablesAnimations = true
+        withTransaction(t) { model.on = true }
+    }
+
+    let h6 = hostWindow(checkbox: false)
+    sample("K6 withAnimation(nil) write, off -> on", h6) { withAnimation(nil) { model.on = true } }
+
     let h4 = hostWindow(checkbox: true)
     sample("K4 .checkbox binding write, no animation (separating arm)", h4) { model.on = true }
 }
@@ -138,9 +148,11 @@ MainActor.assumeIsolated { run() }
 //   K1 accessibility press (no app transaction)            knob x 2.0 -> 20.0 over 17-19 distinct values, settles at ~0.31 s, peak 20.54  -> SLID
 //   K2 binding write, no animation                          the same curve, settles at ~0.27 s, peak 20.54                                  -> SLID
 //   K3 withAnimation(.linear(duration: 1)) write            the same curve, settles at ~0.27 s (NOT 1 s, not linear)                          -> SLID
+//   K5 Transaction.disablesAnimations = true write         2 distinct values, 2.0 -> 20.0 at once (peak 20.0)                                    -> SNAPPED
+//   K6 withAnimation(nil) write                             the same curve as K2, settles at ~0.28 s                                              -> SLID
 //   K4 .checkbox binding write (separating arm)             1 distinct value                                                                   -> snapped
 //
 // READING. The `.switch` knob slides on EVERY change, a click, an un-animated write and an animated one alike, with the control's
 // own spring-like curve (ease out, ~0.27-0.31 s, a 0.54 point overshoot). **The app's transaction does not drive it**: K3's linear
-// one-second animation is ignored, which K4's checkbox (a snap) separates from "nothing animates". The old reading "unmeasured: the
+// one-second animation is ignored (so is `withAnimation(nil)`, K6), and only `disablesAnimations` (K5) makes it snap, which K4's checkbox (a snap) separates from "nothing animates". The old reading "unmeasured: the
 // offscreen capture is blind to motion" is replaced by this one.

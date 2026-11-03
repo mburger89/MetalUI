@@ -217,7 +217,7 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
                 Button<Label>.enteringLabel(labelEnvironment, pass.frame) {
                     box.paint(id, bounds: bounds, layout: &builtIn, prepaint: &builtInPrepaint, pass: &pass)
                 }
-                if look == .switch { paintKnob(bounds: bounds, on: on, pass: &pass) }
+                if look == .switch { paintKnob(id, bounds: bounds, on: on, pass: &pass) }
             }
             layout.inner = .builtIn(builtIn, labelEnvironment, look)
         case .custom(var element):
@@ -228,18 +228,41 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
         }
     }
 
-    /// The switch's knob (`BY-I`): a white circle inset 2 in the track, at the leading end off and the trailing end
-    /// on. The track is the row's first child, vertically centred, so its origin is computed from the row's bounds;
-    /// the knob does not slide (divergence 885).
-    private func paintKnob(bounds: Bounds<Pixels>, on: Bool, pass: inout PaintPass) {
+    /// The switch's knob (`BY-I`, `SR-D`): a white circle inset 2 in the track, at the leading end off and the trailing
+    /// end on. The track is the row's first child, vertically centred, so its origin is computed from the row's bounds.
+    ///
+    /// **It slides on every change of `on`** (divergence 885 retired; probe `swiftui-switch-knob.swift` K1-K3): one
+    /// fixed spring, `knobSpring`, on an `AnimationStore` track beside the track's other numbers
+    /// (`animatedNumbers`, the `TrimmedShape` precedent), **the transaction not consulted** — SwiftUI's knob ignores a
+    /// `.linear(duration: 1)` write (K3) and slides on an un-animated one (K2) — except `disablesAnimations`, which snaps
+    /// it (K5). A first sighting snaps (nothing to slide from). The curve is an approximation of the control's own
+    /// (divergence 886).
+    ///
+    /// **Right-to-left** (`LD-A`): the row's children are reflected about the row's bounds, so the track sits at the
+    /// row's right end and the leading end is the right one; the knob is reflected with it (`SR-D`, found by reading
+    /// and pinned by `aSwitchKnobSitsOnItsTrackUnderRightToLeft`: unmirrored it landed 37 points left of the track).
+    private func paintKnob(_ id: GlobalElementID, bounds: Bounds<Pixels>, on: Bool, pass: inout PaintPass) {
         let track = Self.switchTrack
         let knob = Self.switchKnob, inset = Self.switchInset
+        let rightToLeft = pass.frame.environmentTop.layoutDirection == .rightToLeft
+        let snaps = pass.frame.transactionTop.disablesAnimations
+        let fraction = animatedNumbers([on ? 1 : 0], at: layerAnimationKey(id, "switch-knob"),
+                                       frame: pass.frame, transaction: snaps ? nil : Self.knobSpring,
+                                       range: -1...2)[0] ?? (on ? 1 : 0)
+        let travel = track.width - knob - 2 * inset
+        let leading = inset + Float(fraction) * travel        // from the leading edge
+        let trackX = rightToLeft ? bounds.origin.x.value + bounds.size.width.value - track.width : bounds.origin.x.value
         let trackY = bounds.origin.y.value + (bounds.size.height.value - track.height) / 2
-        let x = bounds.origin.x.value + (on ? track.width - knob - inset : inset)
+        let x = rightToLeft ? trackX + track.width - knob - leading : trackX + leading
         let rect = Bounds(origin: Point(x: Pixels(x), y: Pixels(trackY + inset)),
                           size: Size(width: Pixels(knob), height: Pixels(knob)))
         pass.fill(rect, color: Hsla(h: 0, s: 0, l: 1, a: 1), cornerRadii: Corners(all: Pixels(knob / 2)))
     }
+
+    /// The knob's one curve: a 0.25 s spring with bounce 0.25 (zeta 0.75), which settles within 0.3% by 0.3 s and
+    /// overshoots 2.8%. SwiftUI's switch settles in 0.27-0.31 s with a 3% overshoot (probe K1-K3); the shape in between
+    /// is not matched.
+    static var knobSpring: Animation { .spring(duration: 0.25, bounce: 0.25) }
 }
 
 extension Toggle {
@@ -253,8 +276,16 @@ extension Toggle {
 }
 
 extension Toggle where Label == Text {
-    /// A toggle labelled by `title` (SwiftUI's `Toggle(_:isOn:)`).
-    public init(_ title: String, isOn: Binding<Bool>) {
-        self.init(isOn: isOn) { Text(title) }
+    /// A toggle labelled by `titleKey` (SwiftUI's `Toggle(_:isOn:)`): a string **literal** is parsed as inline
+    /// Markdown, as `Text`'s is (`SR-C`, divergence 154).
+    public init(_ titleKey: LocalizedStringKey, isOn: Binding<Bool>) {
+        self.init(isOn: isOn) { Text(titleKey) }
+    }
+
+    /// A toggle labelled by the `StringProtocol` value `title`, shown verbatim (`SR-C`). Disfavoured, so a literal
+    /// reaches the `LocalizedStringKey` overload.
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ title: S, isOn: Binding<Bool>) {
+        self.init(isOn: isOn) { Text(verbatim: String(title)) }
     }
 }
