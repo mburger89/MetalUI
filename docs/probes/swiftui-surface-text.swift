@@ -36,6 +36,20 @@
 // measures (0, 14) in a Canvas but (0, 0) as a view, so the Canvas measure is
 // NOT always the layout answer (divergence 295). F: an infinite proposal is
 // the unbounded measure. G: baselines are functions of a size, 13 for 13 pt.
+//
+// R4-1 PR A ADDENDUM (2026-11-03, macOS 27.2, same compiled form; the arms E3-E7 below the existing ones). **E2 WAS
+// AN INSTRUMENT ARTIFACT**: `ImageRenderer` returns a nil image for a zero-WIDTH view, which `viewSize` reads as
+// (0, 0). `NSHostingView.fittingSize` (the `fitting` helper) reads the same `Text("")` as (0, 14), equal to the
+// Canvas measure `E`, so a laid-out empty `Text` is one line tall in SwiftUI and divergence 295's SwiftUI side was wrong.
+//
+//   E3  VStack(spacing:10){rect;Text("");rect}  (10.0, 54.0)   = 10+10+14+10+10: the empty Text takes its 14 AND both gaps
+//   E3b VStack(spacing:10){rect;rect}           (10.0, 30.0)   (control)
+//   E4  HStack(firstTextBaseline){Text("");Text("x")} (7.0, 16.0)  = Text("x") alone (7.0, 16.0)
+//   E5  Text("").padding(4)                     (8.0, 22.0)    = 0+8 wide, 14+8 tall
+//   E6  Text(" ")                               (4.0, 16.0)    (control: a blank is a full line, 16 not 14)
+//   E7  Button("") (24.0, 22.0)  Toggle("") (21.0, 19.0)  Button("x") (31.0, 24.0)
+//   E2c Text("") fittingSize (0.0, 14.0); Text("").fixedSize() (0.0, 14.0); .font(system 13) (0.0, 14.0);
+//       ImageRenderer(Text("").fixedSize()) nsImage = nil (the artifact); ImageRenderer(Text("").padding(.horizontal,1).fixedSize()) (2.0, 14.0).
 import SwiftUI
 import AppKit
 
@@ -58,6 +72,11 @@ import AppKit
     return renderer.nsImage?.size ?? .zero
 }
 
+@MainActor func fitting<V: View>(_ v: V) -> CGSize {
+    let host = NSHostingView(rootView: v)
+    return host.fittingSize
+}
+
 @MainActor func main() {
     let t = Text("12.5 mm").font(.system(size: 13))
     let a0view = viewSize(t)
@@ -73,6 +92,14 @@ import AppKit
     let r = ImageRenderer(content: Canvas { c, _ in let rt = c.resolve(t); let big = CGSize(width: 1000, height: 1000); base = (rt.firstBaseline(in: big), rt.lastBaseline(in: big)) }.frame(width: 50, height: 50))
     r.scale = 1; _ = r.nsImage
     print("G  ResolvedText firstBaseline(in:)/lastBaseline(in:) of the 13 pt text: \(base)")
+    // R4-1 PR A arms (SR-A): what an empty Text does to its neighbours. Rows are 10x10 rects.
+    let rect = Color.red.frame(width: 10, height: 10)
+    print("E3 VStack(spacing:10){rect;Text(\"\");rect} \(fitting(VStack(spacing: 10) { rect; Text(""); rect })) (40 high = spacing survives twice; 30 = collapses)")
+    print("E3b VStack(spacing:10){rect;rect} \(fitting(VStack(spacing: 10) { rect; rect }))")
+    print("E4 HStack(firstTextBaseline){Text(\"\");Text(\"x\")} \(fitting(HStack(alignment: .firstTextBaseline, spacing: 0) { Text(""); Text("x") })) vs Text(\"x\") \(fitting(Text("x")))")
+    print("E5 Text(\"\").padding(4) \(fitting(Text("").padding(4)))")
+    print("E6 Text(\" \") \(fitting(Text(" "))) (control: one line)")
+    print("E7 Button(\"\"){} \(fitting(Button("") {})) Toggle(\"\") \(fitting(Toggle("", isOn: .constant(false)))) Button(\"x\"){} \(fitting(Button("x") {}))")
     print("F  infinity proposal \(canvasMeasure(t, in: CGSize(width: CGFloat.infinity, height: CGFloat.infinity)))")
 }
 MainActor.assumeIsolated { main() }
