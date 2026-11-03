@@ -348,9 +348,11 @@ stated.
   [`api-overview.md`](api-overview.md) and [`migration.md`](migration.md) for
   their SwiftUI-vocabulary replacements.
 - **Declared-but-inert API** — spellings that compile and do little or nothing
-  by design (`ButtonRole` draws nothing; `AccessibilityTraits.updatesFrequently`
-  publishes nothing, as on macOS; `locale` has no reader; `dynamicTypeSize`
-  reaches no text size, as on macOS). The list is
-  [`record/05-declared-but-inert.md`](record/05-declared-but-inert.md).
+  by design (a plain `Button`'s role changes nothing drawn;
+  `AccessibilityTraits.updatesFrequently` publishes nothing, as on macOS; `locale`
+  has no reader; `dynamicTypeSize` reaches no text size, as on macOS; a `tag`
+  outside a `Picker` selects nothing). The list is
+  [`record/05-declared-but-inert.md`](record/05-declared-but-inert.md), checked by
+  `docs/probes/record-05-check.sh`.
 - **Looks nobody has seen yet** — behaviour pinned headless but owed a human
   look: [`verification/human-checks.md`](verification/human-checks.md).
