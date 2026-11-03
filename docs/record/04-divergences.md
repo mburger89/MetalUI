@@ -2863,3 +2863,11 @@ probe B1); both pinned by `noBuiltInControlReactsToAccessibilityDisplaySettings`
 `legibilityWeightIsScopedNearestWriterWins`. **1077 and 1080 were measured and are not divergences**: probe D1 (Differentiate Without Colour) and I1 (Invert Colours) changed no pixel of any SwiftUI
 built-in control tried, so MetalUI not reacting is the same behaviour (record 05 rows). "Not offered": the `colorSchemeContrast` row and the "Increase Contrast, Reduce Transparency,
 Differentiate Without Colour" row (stale since Reduce Transparency) are narrowed to what is still absent. Mechanisms and mutations: `docs/superpowers/2026-11-02-accessibility-display-decisions.md`.
+
+## 2026-11-03: silent results (`SR-A`..`SR-E`, record §198)
+
+**Retired: 81, 885. New: 886** (207 live: 208 - 2 + 1; next label 210 unchanged; 886 from BY's reserved 885-894, 887-894 unused). **Narrowed: 154. Reworded: 295, 208.**
+81: the automatic `Picker` is the pop-up (`SR-B`; pin `theAutomaticPickerStaysSegmented` became `theAutomaticPickerIsAPopUpMenu`, and `anExplicitSegmentedPickerKeepsItsSegments` keeps the old look). 885: the switch knob slides (`SR-D`, probe
+K1-K6: a fixed spring the transaction does not drive; `disablesAnimations` snaps); 886 is what remains (SwiftUI's 54 by 24 track and 32 by 20 knob, the curve as an approximation). 154: a control's literal title parses and a `String` value is
+verbatim (`SR-C`, probe AX1-AX8); what stays is the unmeasured `TextField` placeholder, alert title and native menu-item title. **295's "0 by 0" was refuted**: probe `E2` was an `ImageRenderer` artifact; a laid-out `Text("")` is (0, 14) at every font
+(`E3`-`E8`), so the row now says "one line of the resolved font against a constant 14". 208's `leading`/`trailing` clause is stale since `LD-A`. Mechanisms, mutations and the flake note: `docs/superpowers/2026-11-03-silent-results-decisions.md`, `docs/record/198-silent-results.md`.

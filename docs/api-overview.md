@@ -187,7 +187,7 @@ vocabulary: [`migration.md`](migration.md).
 `ButtonStyle`/`PrimitiveButtonStyle`/`ToggleStyle` with their configurations, `StyleLabel` (M) and the
 built-ins (`.automatic`, `.bordered`, `.borderedProminent`, `.borderless`, `.plain`, `.link`, `.glass`, `.glassProminent`;
 `.automatic`, `.checkbox`, `.switch`, `.button`), applied by `.buttonStyle(_:)`/`.toggleStyle(_:)` through the environment
-(`BY-A`–`BY-K`, 885), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
+(`BY-A`–`BY-K`, 886), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
 (81, 82; `.inline` is the radio group, `BY-J`), `List(_:selection:rowHeight:row:)` and the content-sized
 `List(_:selection:estimatedRowHeight:rowContent:)` (M; `VL-A`), `TextField` and
 `TextEditor` (the `Binding<String>` initialisers A; the controlled
@@ -252,7 +252,7 @@ the size layout gives that text under a proposal — a finite width wraps it, a
 finite height caps its lines, an infinite axis is unbounded — through
 `resolveTextStyle` and the frame's text system, with no layout, no node and no
 state. The answer is the unrounded leaf answer (a laid-out frame is that rounded
-to whole points), and an empty `Text` is one line tall (295). SwiftUI spells it
+to whole points), and an empty `Text` is one line of the resolved font tall where SwiftUI's is a constant 14 (295). SwiftUI spells it
 `GraphicsContext.resolve(_:)` + `ResolvedText.measure(in:)` in a `Canvas`; the
 environment is the carrier here because MetalUI has no `Canvas` context (296) —
 M / D. Use it to place a label or a chip over a `GPUSurface` before the labels
@@ -951,7 +951,7 @@ with `if`/`switch`/`for`), and `.searchable(text:prompt:)`, on every element
 group, each returning the transparent `ToolbarScope<Content>` — not an
 `Element`, so write it inside the root's first container (120). Items are a
 closed set (135): `Button` with a `Text` or `Image` label (`ToolbarButtonLabel`),
-`Toggle`, `Picker` (`.menu` a pop-up, else segmented), `TextField`, `Text`, under
+`Toggle`, `Picker` (`.menu` and the automatic style a pop-up, else segmented), `TextField`, `Text`, under
 `.disabled`/`.help`. Every `.toolbar` in the main tree merges in pre-order, a
 popover's or `Deferred` presentation's is ignored, the search field last. On
 AppKit a real `NSToolbar` of native controls, updated in place (the window
@@ -988,7 +988,7 @@ line across the nearest `HStack`/`Row` (vertical) or `VStack`/`Column`
 10) along; the theme's `.separator`; no accessibility node. In a menu builder it
 is still a separator.
 
-**Menu picker** (`SV-P`, `SV-AA`, `SV-Q`; A, D 81, 128):
+**Menu picker** (`SV-P`, `SV-AA`, `SV-Q`, `SR-B`; A, D 128; the automatic style is this one):
 `.pickerStyle(.menu)` — the title, 8, a pull-down button showing the selected
 option's title (`""` when no tag matches), as wide as the widest option, opening
 every option as a checked-or-not item (a native `NSMenu`, else the drawn panel,

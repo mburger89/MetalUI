@@ -18,7 +18,7 @@ are built at layout into one erased `Box` that keeps the control's handlers, foc
 button's `isPressed` is read from `Frame.pointerOwner` (the previous frame's hitboxes) and corrected by one frame; the
 built-ins are `PrimitiveButtonStyle`/`ToggleStyle` structs `Button`/`Toggle` draw themselves, a new built-in look goes in
 `ButtonLook`/`ToggleLook`, and a new style writer uses a **custom environment key** (`setCustom`, never a new
-`EnvironmentValues` field).
+`EnvironmentValues` field). **The automatic `Picker` is the pop-up** (`SR-B`; `.pickerStyle(.segmented)` is the old look), and **the `.switch` knob slides on a fixed spring the transaction does not drive** (`SR-D`: `animatedNumbers`, `disablesAnimations` snaps, reflected with its track under right-to-left).
 
 **`ScrollViewReader`/`scrollTo`** (`DD-G`…`DD-K`): one identity slot; a proxy
 reaches only its own subtree; keys compared by value (`AnyHashable`); resolved

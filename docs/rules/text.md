@@ -57,7 +57,7 @@ strikethrough and background are **ordinary rects inside the text's one shadow l
 **inert** (divergence 150); accessibility gets the concatenated string. Markdown in
 a string **literal** (`LocalizedStringKey`) is parsed by MetalUI's own inline
 parser (`MarkdownInline.swift`, checked against Foundation's on 2498 sources); a
-`String` value, `Text(verbatim:)` and control titles are never parsed;
+`String` value and `Text(verbatim:)` are never parsed, and a **control's string literal title is** (`Button`, `Toggle`, `Stepper`, `Picker`, `ColorPicker`, `ProgressView`, `Menu`: a `LocalizedStringKey` initialiser and a disfavoured `StringProtocol` one, `SR-C`; `TextField` placeholders and alert titles stay plain);
 `Text(AttributedString)` reads MetalUI's attribute scope (per-key subscripts, never
 a generic one: `RT-D`, `RT-T`). `+` is deprecated and traps on a decorated operand
 (divergence 155). `TextField`/`TextEditor` stay plain. A new `Text` modifier owes
@@ -80,7 +80,7 @@ overlay stays the recommended path (`DT-I`) and **`drawText` is built, in `DT-` 
 get-only `TextMeasurer` (no public initialiser; SwiftUI's `resolve(_:)` + `ResolvedText.measure(in:)`
 carried by the environment, divergence 296) that calls the one layout measure through
 `resolveTextStyle` and `Frame.textSystem`: the **unrounded** leaf answer, a laid-out frame being
-it rounded; an empty `Text` is one line tall (divergence 295, `GT-I`); the frame stamps its system
+it rounded; an empty `Text` is one line of the resolved font tall where SwiftUI's is a constant 14, and never 0 by 0 (divergence 295, `GT-I`, `SR-A`); the frame stamps its system
 box and a `\.self` reset keeps it (`GT-D`). `PortableTextSystem` caches an **origin-free**
 `[LaidOutLine]` per `MeasureKey` (two-frame lifetime) so a moving plain label shapes once; rich text
 still shapes per frame there (`GT-E`, `GT-H`).
