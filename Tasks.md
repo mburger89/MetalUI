@@ -161,4 +161,12 @@ Ranked from the carried/not-built sweep (decisions docs' Carried sections, the "
   - [x] 8. (merged 2026-11-02 PR #191, merge f0438e00, record 196, RD-A…RD-F, no divergence) Record §05 re-derived.
 - [x] MF-segmented. (merged 2026-11-01 PR #181, merge 5f347c1a, record 187, SD-A/SD-B, no divergence) MetalFlow-requested segmented picker look in dark mode.
 - [x] MF-labelsHidden. (merged 2026-11-01 PR #182, merge d6d0bbc9, record 189, LB-A…LB-C, divergences 1025, 1026) MetalFlow-requested `labelsHidden()`.
+- Round 4: fix about 40 divergences in batches, from the triage of all 208 live rows (record 197).
+- [ ] R4-1. Silent wrong results: 295 (`Text("")` height; also the contradicting comment at `TextMeasurer.swift:100`), 81 (automatic `Picker` is the pop-up menu; breaking), 125 (never-written `@State` default; needs a ruling, `LC-S` said it must not move), 1 (layer colour space; probe first), 885, 154. Also correct row 208's retired right-to-left clause and `PaddingSpellings.swift:12`, `:46`.
+- [ ] R4-2. Default stack and grid spacing is font-derived: 51, 65, 89 (probe first; may shift existing layouts).
+- [ ] R4-3. Animation: 98 default cross-fade with 897, 898; then 169, 947 (`Animatable`); then 828 (glass morph).
+- [ ] R4-4. Text and focus: 150 (clickable links), 186 (initial focus), 94 (click-to-focus), 119 (hierarchical styles).
+- [ ] R4-5. Renderer: 205 (group opacity, offscreen pass shared with 167, 248, 1066); then 975 (gradient text), 106, 109 (text under scale), 90, 91, 92.
+- [ ] R4-6. Viewport unknown at build: 13, 124, 636, 638. Only if an app hits it.
+- [ ] R4-7. `List` without a `ScrollView`, and non-data `List`: 84. Large; on its own.
 - Carried until an app asks: retained-replay arms (records 156/157: outer scale + moving offset, EL-D/E/F/I, MA-D), layout struct reshape, run-time shader graphics stages/cache (RC-L/M), Liquid Glass path SDF, precise-scroll momentum (TP-L), GPU surface blur pass, `metalui bundle` extras, HSplitView probe; publishing items (BS-G/H) are the user's call.
