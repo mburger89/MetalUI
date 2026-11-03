@@ -14,8 +14,10 @@ final class MetalLayerSurface: RenderSurface {
         layer = CAMetalLayer()
         layer.device = device
         // Gamma-encoded sRGB compositing; see Renderer.pixelFormat and spec 7.8.
+        // Every colour is a gamma sRGB number (`CR-C`), so the layer says so
+        // (`LS-A`: it was Display P3 until record 200).
         layer.pixelFormat = Renderer.pixelFormat
-        layer.colorspace = CGColorSpace(name: CGColorSpace.displayP3)
+        layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         layer.isOpaque = false
         layer.framebufferOnly = true
     }

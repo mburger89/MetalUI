@@ -450,3 +450,20 @@ import MetalUIRender
         #expect(MetalHostView.inputPhase(phase) == expected, "\(phase)")
     }
 }
+
+/// Divergence 1, ruling `LS-A`: the presentation layer is tagged sRGB, because
+/// every colour MetalUI draws is a gamma sRGB number (`CR-C`) written to a
+/// `bgra8Unorm` drawable. Tagged Display P3 (its value until record 200) the
+/// compositor read the same bytes as P3 and every colour came out more
+/// saturated than SwiftUI's. The property is a tag only: no pixel in the
+/// renderer or in any parity fixture reads it, so this pin is the only thing
+/// that notices it move. No window is opened.
+@MainActor
+@Test func theLayerColourSpaceIsSRGB() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let layer = MetalLayerSurface(device: device).backingLayer
+    let space = try #require(layer.colorspace, "the layer carries no colour space")
+    #expect(space.name == CGColorSpace.sRGB)
+    #expect(layer.pixelFormat == .bgra8Unorm)
+}

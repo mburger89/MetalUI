@@ -51,7 +51,10 @@ and the frozen human-verification table in `docs/record/19-claude-md-full-2026-0
   0 / 0, 2026-09-30 23:41 PDT (`CX-M` item 2). *Source: record §03, stage 6b
   section onward; task 12 part 2 section.* An agent may run this one when the
   lock probe reads unlocked; the rest of this page needs a person.
-  **Observed:**
+  **Since record 200 (`LS-A`) the layer is tagged sRGB: on a wide-gamut display
+  a window differs from `1b093b8` (less saturated), and `capture.sh` against
+  `1b093b8` will read non-zero for every colour; compare across two commits
+  after `LS-A` instead.** **Observed:**
 
 ## B. The demo's layout since the proposal engine became production (stage 6b)
 
@@ -2203,3 +2206,12 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **SR2.** `.toggleStyle(.switch)`: click it. The knob slides to the other end in about a third of a second with a very small overshoot, and the SwiftUI switch beside it (same size or not; SwiftUI's is 54x24, MetalUI's 38x22) moves in about the same time. A binding written from code (no click) slides too; under `withAnimation(.linear(duration: 2))` it still takes about a third of a second; inside `.transaction { $0.disablesAnimations = true }` it jumps. Reduce Motion on: note whether SwiftUI's knob still slides (unmeasured; MetalUI's does). **Observed:**
 - [ ] **SR3.** `Button("**bold**") {}`, `Toggle("**bold**", isOn:)`, `Stepper`, `Picker`, `ColorPicker` and `ProgressView` with that title: each draws a bold `bold`, no asterisks; the same title held in a `String` variable draws the asterisks. VoiceOver reads `bold`. **Observed:**
 - [ ] **SR4.** A right-to-left window (`.environment(\.layoutDirection, .rightToLeft)`) with a `.switch` toggle: the knob sits inside its track (at the track's right end off, left end on). **Observed:**
+
+## LS. The layer colour space - colours match SwiftUI's (round 4 item R4-1 PR C; ruling `LS-A`, `LS-C`, record 200; decisions `docs/superpowers/2026-11-03-layer-colour-space-decisions.md`; provisional letter)
+
+*An agent cannot: record 200's window gate (`docs/probes/appkit-layer-colourspace.swift`) needed an unlocked session with Screen Recording permission and the one session available had neither. Do LS1 on a Display P3 panel, and run the probe there first (`appkit-screen-lock-state.swift` must read unlocked; expect `S == C == L1` and `L2 != L1`; if `S != L1` the ruling is wrong, stop and tell the next session).*
+
+- [ ] **LS1.** A MetalUI view filled `Color(red: 0x38/255, green: 0xBD/255, blue: 0xF8/255)` beside a SwiftUI `Color(.sRGB, red: 0x38/255, green: 0xBD/255, blue: 0xF8/255)` in a scratch window: Digital Color Meter (Display native values, or sRGB) reads the same value on both, and they look the same side by side. Before `LS-A` MetalUI's was visibly the more saturated (arithmetic: red channel 56 against about -73 clipped to 0). **Observed:**
+- [ ] **LS2.** The materials and glass demos (`METALUI_LOOKS_DEMO=1`, `METALUI_GLASS_DEMO=1`), light and dark: the frosted tints and the glass lens look like the SwiftUI ones they were fitted to (their tables were read through sRGB contexts, so the layer now means what was measured; no refit is expected). **Observed:**
+- [ ] **LS3.** `METALUI_METALVIEW_DEMO=1`: the surface's colours are not oversaturated and still match the P7 reading. A `MetalView` shader tuned for P3 is expected to desaturate. **Observed:**
+- [ ] **LS4.** AppKit against SDL (`Backends/SDL`, macOS) on the same display: the same hex looks the same. **Observed:**

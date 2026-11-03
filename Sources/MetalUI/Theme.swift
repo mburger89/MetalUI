@@ -73,9 +73,10 @@ public enum ColorToken: Sendable, Hashable, CaseIterable {
 /// the `switch` below is exhaustive, so adding a case to `ColorToken` is a
 /// compile error here rather than a colour that quietly resolves to grey.
 ///
-/// **Colours are authored in sRGB while the layer's colorspace is Display P3**,
-/// so these render somewhat more saturated than the hex implies. That is
-/// divergence 1 in CLAUDE.md — expected and measured, not a bug to chase.
+/// **Colours are authored in sRGB and the layer is tagged sRGB** (`LS-A`, record
+/// 200; it was Display P3 until then, which drew a hex colour more saturated
+/// than SwiftUI's). What remains of divergence 1 is that no colour can leave
+/// the sRGB gamut (`LS-B`).
 public struct Theme: Sendable, Hashable {
     /// The window background.
     public var background: Hsla
