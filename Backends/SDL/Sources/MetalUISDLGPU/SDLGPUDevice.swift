@@ -24,9 +24,9 @@ public struct SDLGPUError: Error, CustomStringConvertible, Sendable {
 /// window renderer's device taken from a surface draw's context. Named after
 /// SDL_GPU, so its documentation applies; ``raw`` is always the escape hatch.
 ///
-/// Threads (ruling `GA-E`): creation and release take one lock; a batch is
-/// recorded and submitted on the device's worker thread; its fence is awaited
-/// on a second thread. A buffer must not be used while another thread releases
+/// Threads (rulings `GA-E`, `GA-S`): creation, release, submit and map/unmap
+/// take one lock; a batch is recorded and submitted on the device's worker
+/// thread; its fence is awaited on a second thread (never under the lock). A buffer must not be used while another thread releases
 /// it: batches retain what they touch until their fence signals.
 public final class SDLGPUDevice: @unchecked Sendable {
     /// The `SDL_GPUDevice *`.
@@ -204,6 +204,51 @@ public final class SDLGPUDevice: @unchecked Sendable {
         body(raw)
     }
 
+    /// Test hooks (ruling `GA-S`): how many submits and maps found the device
+    /// lock held (`...Locked`, what the fix guarantees) and not held
+    /// (`...Unlocked`, always 0). Observed by `lock.try()` from inside the helper.
+    nonisolated(unsafe) static var submitLockedCount = 0
+    nonisolated(unsafe) static var submitUnlockedCount = 0
+    nonisolated(unsafe) static var mapLockedCount = 0
+    nonisolated(unsafe) static var mapUnlockedCount = 0
+    private static let hookLock = NSLock()
+
+    private func noteLockState(locked: inout Int, unlocked: inout Int) {
+        // Called with `lock` supposedly held: a successful `try()` means it was not.
+        let held = !lock.try()
+        if !held { lock.unlock() }
+        Self.hookLock.lock(); defer { Self.hookLock.unlock() }
+        if held { locked += 1 } else { unlocked += 1 }
+    }
+
+    /// Submits `handle` with a fence under the device lock (ruling `GA-S`).
+    ///
+    /// **Lock order: `lock` (this) -> SDL's `submitLock` -> `allocatorLock` /
+    /// `disposeLock`.** SDL's Vulkan submit may defragment and re-point every
+    /// live buffer's container; a release on another thread would race it.
+    /// The lock is never held across `SDL_WaitForGPUFences` (the submit only
+    /// queues), and no path takes it and then calls another helper that does:
+    /// the body here is the bare SDL call; record closures run outside it.
+    func submitWithFence(_ handle: OpaquePointer) -> OpaquePointer? {
+        lock.lock(); defer { lock.unlock() }
+        noteLockState(locked: &Self.submitLockedCount, unlocked: &Self.submitUnlockedCount)
+        return SDL_SubmitGPUCommandBufferAndAcquireFence(handle)
+    }
+
+    /// Maps `buffer` under the device lock (ruling `GA-S`; same order as
+    /// ``submitWithFence(_:)``). SDL's map is also serialised with a defragment.
+    func mapTransfer(_ buffer: OpaquePointer) -> UnsafeMutableRawPointer? {
+        lock.lock(); defer { lock.unlock() }
+        noteLockState(locked: &Self.mapLockedCount, unlocked: &Self.mapUnlockedCount)
+        return SDL_MapGPUTransferBuffer(raw, buffer, false)
+    }
+
+    /// Unmaps `buffer` under the device lock (ruling `GA-S`).
+    func unmapTransfer(_ buffer: OpaquePointer) {
+        lock.lock(); defer { lock.unlock() }
+        SDL_UnmapGPUTransferBuffer(raw, buffer)
+    }
+
     // MARK: Resources
 
     /// A GPU buffer (`SDL_CreateGPUBuffer`), or `nil` when SDL refuses.
@@ -331,7 +376,7 @@ public final class SDLGPUDevice: @unchecked Sendable {
             SDL_CancelGPUCommandBuffer(handle)
             return .failure(SDLGPUError("a batch ended with \(commandBuffer.openPasses) pass(es) not ended"))
         }
-        guard let fence = SDL_SubmitGPUCommandBufferAndAcquireFence(handle) else {
+        guard let fence = submitWithFence(handle) else {
             return .failure(SDLGPUError("SDL_SubmitGPUCommandBufferAndAcquireFence"))
         }
         let result = SDLGPUFence(raw: fence, device: self, retained: commandBuffer.retained)

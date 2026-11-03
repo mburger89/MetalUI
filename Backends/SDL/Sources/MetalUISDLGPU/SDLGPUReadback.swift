@@ -93,7 +93,7 @@ extension SDLGPUDevice {
                 commandBuffer.retained.append(transfer)
             }
             commandBuffer.isOpen = false
-            guard let fence = SDL_SubmitGPUCommandBufferAndAcquireFence(handle) else {
+            guard let fence = submitWithFence(handle) else {
                 submitted.finish(.failure(SDLGPUError("SDL_SubmitGPUCommandBufferAndAcquireFence"))); return
             }
             let result = SDLGPUFence(raw: fence, device: self, retained: commandBuffer.retained)
