@@ -73,6 +73,38 @@
 // empty; byte-identical to the reading below outside S1/S2 and the new D2
 // block (spliced in below after D1).
 //
+// RE-RUN 2026-11-03 by R4-1 PR B (divergence 125, ruling `FV-A`), macOS 27.2 (26B123), Apple Swift 6.4.2
+// (swiftlang-6.4.2.1.9), compiled form. Arms D3, D5 and D5b added (value-type `@State` seeded through `init` from a
+// parameter that changes; `AnyView` swapping two view types that each hold an `Int` `@State`, never written (D5) and
+// written (D5b)); the whole file run twice: 589 lines each, stderr empty, the process exiting on its own; the two runs
+// differ only in the order of the S1/S2 row sets. The new blocks, verbatim:
+//
+//   === D3 a value-type @State seeded from a changing parent parameter: does it follow?
+//     -- show = true
+//     body v=0 s=0
+//     -- v = 1
+//     body v=1 s=0
+//     -- v = 2
+//     body v=2 s=0
+//   === D5 AnyView swapping SeedA (seed 10) for SeedB (seed 20): does B read 20 or A's slot (10)?
+//     body A n=10
+//     -- flag = true (swap A to B)
+//     body B n=20
+//     -- flag = false (swap back)
+//     body A n=10
+//   === D5b separating: the same swap with A's state WRITTEN (11) in onAppear
+//     body A n=10
+//     A writes 11
+//     body A n=11
+//     -- flag = true (swap A to B)
+//     body B n=20
+//
+// READING. D3: SwiftUI keeps the first seed for the view's lifetime (`s=0` while `v` is 0, 1, 2): a `@State`
+// seeded from a parameter through `init` does not follow it. D5: when the type wrapped by an `AnyView` at one
+// position changes, state does not carry over: B reads its own seed 20, and A reads 10 again on the swap back. D5b:
+// that holds for a written value too (B reads 20, not A's 11). MetalUI's `AnyElement` has no type tracking and
+// shares `$state0` under the one id (divergence 210).
+//
 // The second of those runs, verbatim:
 //
 //   === L0 control: a hosted view's onAppear fires
@@ -695,8 +727,11 @@
 // - D2: SwiftUI keeps the FIRST evaluation of a `@State` default for the
 //   view's lifetime: the default is evaluated on every re-init (`made Mon 1`
 //   … `made Mon 4`) and discarded, and onAppear and onDisappear both see
-//   `Mon 1`. MetalUI re-seeds a never-written default every build (divergence
-//   125).
+//   `Mon 1`. MetalUI kept the LATEST evaluation until `FV-A` (divergence 125,
+//   retired); it keeps the first now.
+// - D3: SwiftUI keeps the first value of a parameter-seeded `@State` (`s=0` as `v`
+//   goes 0, 1, 2). D5/D5b: an `AnyView` whose wrapped type changes resets its
+//   state, never-written or written (divergence 210).
 // - W1: ordering a window out fires nothing; W2: `close()` with the host
 //   retained fires nothing; W3: removing the hosting view from the window runs
 //   onDisappear.
@@ -824,6 +859,37 @@ struct MonLeaf: View {
         Text("v=\(v)").onAppear { log("appear start Mon \(mon.serial)") }
             .onDisappear { log("disappear stop Mon \(mon.serial)") }
     }
+}
+
+/// D3's instrument: a value-type `@State` seeded from a changing parent parameter through `init`
+/// (`_s = State(initialValue: v)`); the body logs both, so a seed that follows the parent shows as `s=` moving with `v=`.
+struct SeedLeaf: View {
+    let v: Int
+    @State var s: Int
+    init(v: Int) { self.v = v; _s = State(initialValue: v) }
+    var body: some View {
+        let _ = log("body v=\(v) s=\(s)")
+        Text("v=\(v)")
+    }
+}
+
+/// D5's instruments: two different view types, each with an `Int` `@State` of its own seed (10 and 20), in the
+/// same `AnyView` position. `SeedB` reads 20 if SwiftUI resets state when the wrapped type changes, 10 if it
+/// shares the slot. `WriterA` writes 11 in `onAppear` (D5b: does a WRITTEN value leak across the swap).
+struct SeedA: View {
+    @State var n: Int
+    init() { _n = State(initialValue: 10) }
+    var body: some View { let _ = log("body A n=\(n)"); Text("A") }
+}
+struct SeedB: View {
+    @State var n: Int
+    init() { _n = State(initialValue: 20) }
+    var body: some View { let _ = log("body B n=\(n)"); Text("B") }
+}
+struct WriterA: View {
+    @State var n: Int
+    init() { _n = State(initialValue: 10) }
+    var body: some View { let _ = log("body A n=\(n)"); Text("A").onAppear { log("A writes 11"); n = 11 } }
 }
 
 struct StateLeaf: View {
@@ -1090,6 +1156,21 @@ arm("D2 a never-written @State default: onAppear and onDisappear see one instanc
            ("v = 2", { m, _, _ in m.v = 2 }),
            ("v = 3", { m, _, _ in m.v = 3 }),
            ("show = false", { m, _, _ in m.show = false })])
+
+arm("D3 a value-type @State seeded from a changing parent parameter: does it follow?", { m in
+    if m.show { SeedLeaf(v: m.v) }
+}, steps: [("show = true", { m, _, _ in m.show = true }),
+           ("v = 1", { m, _, _ in m.v = 1 }),
+           ("v = 2", { m, _, _ in m.v = 2 })])
+
+arm("D5 AnyView swapping SeedA (seed 10) for SeedB (seed 20): does B read 20 or A's slot (10)?", { m in
+    AnyView(m.flag ? AnyView(SeedB()) : AnyView(SeedA()))
+}, steps: [("flag = true (swap A to B)", { m, _, _ in m.flag = true }),
+           ("flag = false (swap back)", { m, _, _ in m.flag = false })])
+
+arm("D5b separating: the same swap with A's state WRITTEN (11) in onAppear", { m in
+    AnyView(m.flag ? AnyView(SeedB()) : AnyView(WriterA()))
+}, steps: [("flag = true (swap A to B)", { m, _, _ in m.flag = true })])
 
 // ------------------------------------------------------------ S: scrolling
 arm("S1 List(0..<200) rows in a 100 pt frame, scrolled to row 150 then back to 0", { m in
