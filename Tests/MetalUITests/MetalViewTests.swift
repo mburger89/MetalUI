@@ -457,10 +457,11 @@ private struct NotMetal: GPUSurfaceContext {
 /// large surface's draws, and the count it shows **advances**: over six ticks
 /// of a real `Window` (its content closure rebuilding the tree every frame,
 /// as `main.swift`'s does) the header reads the counter the draws incremented,
-/// one frame behind. A counter held in a never-written `@State` would read 0
-/// forever — an absent `StateTable` entry re-seeds from the freshly built
-/// struct's initial value every frame — so the counter is created once,
-/// outside the content closure, and passed in.
+/// one frame behind. A counter held in a never-written `@State` read 0
+/// forever until `FV-A` — an absent `StateTable` entry re-seeded from the freshly
+/// built struct's initial value every frame — so the counter is created once,
+/// outside the content closure, and passed in (the `@State` spelling was not
+/// re-measured after `FV-A`, so mutation M2o's reading below is the pre-`FV-A` one).
 ///
 /// Mutation **M2o**: hold the counter in `@State` again (the header reads 0).
 @Test @MainActor func theMetalViewDemosDrawCountAdvances() throws {

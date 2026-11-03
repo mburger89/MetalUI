@@ -23,8 +23,10 @@ import MetalUI
 /// passes it in** (`main.swift` does so outside `openWindow`'s content
 /// closure, which runs every frame): held in a never-written `@State` it was
 /// re-seeded from the freshly built struct's initial value every frame —
-/// `StateTable.peek` reads an absent entry as absent — so the header read 0
-/// forever (`MV-O`; pinned by `theMetalViewDemosDrawCountAdvances`).
+/// `StateTable.peek` read an absent entry as absent — so the header read 0
+/// forever (`MV-O`; pinned by `theMetalViewDemosDrawCountAdvances`). Since
+/// `FV-A` a `@State` keeps its first instance, so that failure is gone; the
+/// counter is still created once and passed in (not re-measured as a `@State`).
 ///
 /// Nothing here is in the default demo, so the fourteen offscreen images and
 /// `Expected.swift` do not move (`MV-K` item 1). Each section is its own

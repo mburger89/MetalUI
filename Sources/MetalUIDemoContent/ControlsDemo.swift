@@ -210,7 +210,8 @@ func swiftUIVocabularyStatusBar(name: String, enabled: Bool, speed: Double, flav
 // MARK: - Port gaps (medium)
 
 /// The port-gaps section's model (ruling `MD-M`): a `@MainActor` global, as
-/// `demoModel` is — never a never-written `@State` (divergence 125) — provided
+/// `demoModel` is — not a `@State`, whose default was re-seeded every build until
+/// `FV-A` (divergence 125, retired) — provided
 /// to the section's `Component` with `.environment(_:)` and bound by the
 /// toolbar's controls.
 @Observable @MainActor
