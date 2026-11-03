@@ -70,11 +70,11 @@ public final class SDLGPUTransferBuffer: @unchecked Sendable {
     /// refuses. Not thread safe against another use of this same buffer (SDL's
     /// header, ruling `GA-E`); unmap before submitting the copy that reads it.
     public func map() -> UnsafeMutableRawPointer? {
-        SDL_MapGPUTransferBuffer(device.raw, raw, false)
+        device.mapTransfer(raw)
     }
 
     /// Ends a mapping (`SDL_UnmapGPUTransferBuffer`).
-    public func unmap() { SDL_UnmapGPUTransferBuffer(device.raw, raw) }
+    public func unmap() { device.unmapTransfer(raw) }
 
     deinit { device.release { SDL_ReleaseGPUTransferBuffer($0, raw) } }
 }

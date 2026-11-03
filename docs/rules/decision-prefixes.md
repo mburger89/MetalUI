@@ -56,7 +56,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-13-hot-paths-decisions.md`, next `HP-K`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
-  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-S`), `CB-` (clipboard beyond text:
+  `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-T`), `CB-` (clipboard beyond text:
   `2026-10-14-clipboard-types-decisions.md`, next `CB-R`), `IC-` (image cursors, headless SDL launch:
   `2026-10-14-cursors-headless-decisions.md`, next `IC-S`), `IH-` (header-only image read and bounded decode:
   `2026-10-14-image-info-decisions.md`, next `IH-Q`), `PN-` (pan path rasters:

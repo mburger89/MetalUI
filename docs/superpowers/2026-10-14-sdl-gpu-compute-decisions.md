@@ -2,7 +2,7 @@
 
 Rulings for items S5 and S6 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
 MetalCreator's SDL-port gaps 1 and 2 (developer-c0, 2026-10-13/14), RAISED: they block its xp-c track (GPU
-meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-S`.**
+meshing of implicit geometry on all three platforms). Prefix `GA-`. **Next unused: `GA-T`.**
 Spec: [`specs/2026-10-14-sdl-gpu-compute-design.md`](specs/2026-10-14-sdl-gpu-compute-design.md).
 Record: `../record/114-sdl-gpu-compute.md`. Branch `feat/sdl-gpu-compute` from `fb9a7e42`.
 Divergence labels reserved 445–454: **none taken** (`GA-J`).
@@ -416,3 +416,23 @@ surface draw`, so an unrelated crash fails the test on the message. Separation b
 comments of `SDLGPUDrawContext` and `SDLGPUWindowGuard` now list all four typed checks as pinned; a raw SDL call stays
 undetected (`GA-I`). **Cost if wrong.** A hook that diverges from a real draw's thread state; `beginDraw()` is the
 one setter both use.
+
+## GA-S - Amends GA-E: the device lock also covers submit and map/unmap (MetalCreator XP-G37)
+
+**Question.** `GA-E` made creation and release take one lock. An intermittent SIGSEGV in SDL 3.4.16's `VULKAN_Submit`
+(lavapipe, Linux x86_64) remained. Is the lock the fix?
+
+**Evidence.** Source and disassembly of `SDL_gpu_vulkan.c` at `release-3.4.16`: on a device with no claimed window,
+`VULKAN_Submit` runs the inlined `VULKAN_INTERNAL_DefragmentMemory` under `submitLock` and `allocatorLock`. For each used
+region it checks `!markedForDestroy`, creates a new buffer and writes `newBuffer->container->buffers[...]`.
+`SDL_ReleaseGPUBuffer` on another thread takes only `disposeLock`, sets `container = NULL` and frees the container: the
+crash is the NULL+8 read. Textures have the same shape (a use-after-free). SDL `main` has it too; no upstream fix or
+issue. `SDL_MapGPUTransferBuffer`/`Unmap` during a defragment is a related hazard (SDL issues 11107, 12242).
+**Ruling.** The one device lock (`SDLGPUDevice.lock`) covers creation, release, **submit and map/unmap**, because a
+submit may defragment and re-point every live buffer's container. Helpers `submitWithFence(_:)`, `mapTransfer(_:)`,
+`unmapTransfer(_:)` wrap the SDL calls; `recordAndSubmit` and `downloadSynchronously` call them, `SDLGPUTransferBuffer.map`/`unmap`
+call the others. Lock order: device lock -> SDL's `submitLock` -> `allocatorLock`/`disposeLock`. The lock is never held across
+`SDL_WaitForGPUFences` (a submit only queues) and no helper calls another that takes it (`NSLock` is not recursive); record
+closures run outside it. Pinned by `SDLGPUSubmitLockTests` (record 195). **Cost if wrong.** A submit waits for a create or
+release in flight, and the reverse; SDL's own window-frame submits and the C bridge's (`SDLBridge.c`, the renderer's
+device) are outside this wrapper and not covered.
