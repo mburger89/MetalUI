@@ -52,7 +52,7 @@ divergence, no census row: `Backends/SDL` is outside it, `GA-L`) is a thin typed
 every wrapper with `.raw` and `@_exported import CSDL` so one import also gives every `SDL_` call (`GA-A`, `GA-B`); a
 portable cross-backend GPU API is refused. **A batch** (`device.submitBatch`) is recorded and submitted on a dedicated
 worker thread and its fence awaited on a waiter thread, never the main actor; every fence is released after its signal
-whether or not anyone awaits it (`GA-E`); `make` is serialized, and `SDLGPUDevice(borrowing:)` never destroys the
+whether or not anyone awaits it (`GA-E`); `make` is serialized, **and creation, release, submit and map/unmap all take the device lock, because SDL's Vulkan submit may defragment and re-point every live buffer (`GA-S`; a new SDL submit or map site goes through `submitWithFence`/`mapTransfer`)**; and `SDLGPUDevice(borrowing:)` never destroys the
 window's device. An atomic append is a storage-buffer counter (`GA-G`). App shaders are HLSL built by
 `MetalUICompileShaders` (`BS-`, below) into checked-in `.spv/.msl/.dxil/.json` blobs with `SOURCE.sha256` and found in
 `MetalUIAppShaders` beside the executable (`GA-F`, `docs/packaging.md` 4a). **`ctx.view` records into the frame's own
