@@ -1,4 +1,5 @@
 import Testing
+import MetalUILayout
 @testable import MetalUI
 @testable import MetalUIText
 
@@ -137,11 +138,14 @@ private func naturalLines(_ string: String = tePara, width: Double) -> Int {
 /// `Column` (gap 0) of a `Text` and a 40-tall `Box`. Line counts, from the
 /// frame's own 16 pt line, never SwiftUI's half-point heights (divergence 77).
 ///
-/// **The `Spacer` arms pin MetalUI's answer, not SwiftUI's — divergence 89**
-/// (ruling TE-Y): the kernel gives a bare `Spacer` priority −∞ (CN-C, probe
-/// SP8), so a text beside one is offered everything but the spacer's 8 pt
-/// minimum — 3 lines at 60 and 5 at 100, where SwiftUI splits the height
-/// evenly (K1: 1 and 3). At 200 both draw all 6 (the separating control).
+/// **The `Spacer` arms agree with SwiftUI (row 89 retired, ruling DS-A).** The
+/// kernel gives a bare `Spacer` priority −∞ (CN-C, probe SP8), so a text beside
+/// one is offered everything but the spacer's 8 pt minimum: 3 lines at 60 and 5
+/// at 100, 6 at 200. `swiftui-default-spacing.swift` DS14 measured the same
+/// bare stack in SwiftUI with `NSHostingView` layout (text 48, 80 and 96 tall:
+/// 3, 5 and 6 lines). The 1 and 3 lines that K1 recorded (via `ImageRenderer`)
+/// were the `Where` wrapper's, not the `Spacer`'s: see
+/// `aSpacerInACustomLayoutSharesLikeAnyFlexibleChild`.
 ///
 /// Red before: every arm draws 6. Mutation **M3u**: the measure ignores a
 /// finite height proposal.
@@ -159,9 +163,9 @@ private func naturalLines(_ string: String = tePara, width: Double) -> Int {
         let text = try controlBounds(frame, controlID([0, 0, 0, 0]))
         return Int((text.size.height.value / lh).rounded())
     }
-    #expect(try lines(60, spacer: true) == 3, "K1 60: divergence 89 (SwiftUI 1)")
-    #expect(try lines(100, spacer: true) == 5, "K1 100: divergence 89 (SwiftUI 3)")
-    #expect(try lines(200, spacer: true) == 6, "K1 200 (the separating control)")
+    #expect(try lines(60, spacer: true) == 3, "bare Spacer at 60: DS14 3")
+    #expect(try lines(100, spacer: true) == 5, "bare Spacer at 100: DS14 5")
+    #expect(try lines(200, spacer: true) == 6, "bare Spacer at 200 (the separating control)")
     #expect(try lines(80, spacer: false) == 2, "K2 80")
 
     let legacy = try controlRender(controlRoot(height: 300) {
@@ -172,4 +176,70 @@ private func naturalLines(_ string: String = tePara, width: Double) -> Int {
     }, height: 300)
     let text = try controlBounds(legacy, controlID([0, 0, 0, 0, 0]))
     #expect(Int((text.size.height.value / lh).rounded()) == 2, "K2 on a legacy Column")
+}
+
+/// A custom layout that hands its one subview its own bounds and proposal: the
+/// `Where` of `swiftui-text-in-stacks.swift` (K1), which recorded its bounds.
+private struct PassOne: ProposalLayout {
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        subviews[0].sizeThatFits(proposal)
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        subviews[0].place(at: Point(x: bounds.x, y: bounds.y), proposal: proposal)
+    }
+}
+
+/// The wrapped text's line count in `VStack(spacing: 0) { ProposalText(tePara); <spacer> }`
+/// 100 wide at `height`.
+@MainActor
+private func linesBesideSpacer(_ height: Float, _ spacer: () -> some ProposalElementGroup) throws -> Int {
+    let lh = teLineHeight()
+    let frame = try controlRender(controlRoot(height: 300) {
+        VStack(spacing: Pixels(0)) {
+            ProposalText(tePara)
+            spacer()
+        }.frame(width: Pixels(100), height: Pixels(height))
+    }, height: 300)
+    let text = try controlBounds(frame, controlID([0, 0, 0, 0]))
+    return Int((text.size.height.value / lh).rounded())
+}
+
+/// **Row 89, bare spacer (DS14).** A bare `Spacer` takes only its minimum: with
+/// `minLength: 0` the text takes the whole height it can use: 3 lines at 60 and
+/// all 6 at 100 (SwiftUI: text 48 and 96 tall), where the default minimum of 8
+/// leaves 5 at 100 (80 tall). The 100 arm separates the two spellings.
+///
+/// Mutation **M20b**: `nativeLayoutPriority` returns 0 for a `.spacer`: reddens
+/// the 60 and 100 arms of the default spelling (the text then gets half).
+@MainActor
+@Test func aBareSpacerBesideAWrappingTextTakesOnlyItsMinimum() throws {
+    try #require(naturalLines(width: 100) == 6, "K0: six lines at width 100")
+    #expect(try linesBesideSpacer(60) { Spacer(minLength: 0) } == 3, "minLength 0 at 60: DS14 48 tall")
+    #expect(try linesBesideSpacer(100) { Spacer(minLength: 0) } == 6, "minLength 0 at 100: DS14 96 tall")
+    #expect(try linesBesideSpacer(200) { Spacer(minLength: 0) } == 6, "minLength 0 at 200: DS14 96 tall")
+    #expect(try linesBesideSpacer(100) { Spacer() } == 5, "the default minimum of 8 leaves 5 at 100: DS14 80 tall")
+}
+
+/// **Row 89, the wrapper (DS14).** A `Spacer` inside a custom layout is an
+/// ordinary flexible child: the text is offered its equal share, 30 at 60 (1
+/// line), 50 at 100 (3), 100 at 200 (all 6). These are the 1 and 3 lines that
+/// K1 and K4 recorded and the 15.5 / 47.5 / 96 heights DS14's `Where` arms
+/// replay under `NSHostingView`: the wrapper hid the spacer's priority, the
+/// same way `Pass { Spacer() }` and `Spacer().padding(0)` do (DS14, 16 / 48 /
+/// 96 tall). `minLength: 0` does not change them.
+///
+/// Mutation **M20**: `nativeLayoutPriority` reads a one-child `.custom`
+/// node's child's priority (as it does a one-child stack's): the wrapped
+/// spacer is then −∞ again and the 60 and 100 arms draw 3 and 5.
+@MainActor
+@Test func aSpacerInACustomLayoutSharesLikeAnyFlexibleChild() throws {
+    try #require(naturalLines(width: 100) == 6, "K0: six lines at width 100")
+    for minimum in [nil, 0] as [Float?] {
+        func spacer() -> Spacer { minimum.map { Spacer(minLength: Pixels($0)) } ?? Spacer() }
+        let tag = minimum.map { "minLength \(Int($0))" } ?? "default minimum"
+        #expect(try linesBesideSpacer(60) { ProposalLayoutContainer(PassOne()) { spacer() } } == 1, "wrapped, \(tag), 60: DS14 16 tall")
+        #expect(try linesBesideSpacer(100) { ProposalLayoutContainer(PassOne()) { spacer() } } == 3, "wrapped, \(tag), 100: DS14 48 tall")
+        #expect(try linesBesideSpacer(200) { ProposalLayoutContainer(PassOne()) { spacer() } } == 6, "wrapped, \(tag), 200: DS14 96 tall")
+    }
 }
