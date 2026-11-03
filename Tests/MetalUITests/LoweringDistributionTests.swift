@@ -506,6 +506,11 @@ private struct DistributionCounter: Component {
     // `Component` contributes no layout node, so it records no bounds of its own,
     // and the boxes hang off the components' ids (identity-opaque).
     let boxes = (0..<3).map { child(child(containerID, $0), 0) }
+    // `ER-A`: each component returns an `AnyElement`, whose element runs one `$erased` level below its position
+    // (bounds stay recorded at the position; hitboxes, accessibility records and `$ax` slots sit on the level).
+    let specs = [DistributionCounter(role: .grower, size: 20, tall: 10), DistributionCounter(role: .plain, size: 30, tall: 20),
+                 DistributionCounter(role: .floored, size: 40, tall: 30)]
+    let levels = zip(specs, boxes).map { spec, position in (spec.content as! AnyElement).contentID(under: position) }
 
     let reversed = LayoutDifferential.report(width: 400, height: 200) { interactiveRow(reverse: true) }
     try #require(reversed.elements == 5, "\(reversed.elements)")
@@ -514,11 +519,11 @@ private struct DistributionCounter: Component {
     #expect(lowered(reversed, [containerID] + boxes) == [bounds(0, 0, 300, 30)] + reversedRects,
             "\(lowered(reversed, boxes))")
     #expect(reversed.sceneRects == reversedRects, "paint order: \(reversed.sceneRects)")
-    #expect(reversed.frame.hitboxes.map(\.id) == boxes, "hit order: \(reversed.frame.hitboxes.map(\.id))")
+    #expect(reversed.frame.hitboxes.map(\.id) == levels, "hit order: \(reversed.frame.hitboxes.map(\.id))")
     #expect(reversed.frame.hitboxes.map(\.bounds) == reversedRects)
-    #expect(reversed.frame.axEmissions.map(\.id) == boxes, "accessibility order")
+    #expect(reversed.frame.axEmissions.map(\.id) == levels, "accessibility order")
     #expect(reversed.frame.axEmissions.map(\.declared.label) == ["c20", "c30", "c40"])
-    for (i, box) in boxes.enumerated() {
+    for (i, box) in levels.enumerated() {
         #expect(reversed.frame.stateTable.ids.contains { $0.parent == box && $0.component == .named(ElementID("$ax")) },
                 "box \(i)'s $ax slot")
     }

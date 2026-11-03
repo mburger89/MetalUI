@@ -243,5 +243,6 @@ private struct BuiltCounter: Component {
     let groupOwner = try #require(grouped.openURLHandlerOwners.first, "the grouped scope registered a handler")
     #expect(groupOwner.component == .positional(0), "control: a group owns by position: \(groupOwner.component)")
     let owner = try #require(erased.openURLHandlerOwners.first, "the erased scope registered a handler")
-    #expect(owner.component == .named(ElementID("r")), "the element path owns by the scope's own id: \(owner.component)")
+    // `ER-A`: the scope is the erased element, so its own id is the `$erased` level one below the position named "r".
+    #expect(owner.parent?.component == .named(ElementID("r")), "the element path owns by the scope's own id: \(owner.component)")
 }

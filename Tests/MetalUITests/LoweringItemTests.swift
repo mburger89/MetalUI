@@ -191,10 +191,13 @@ private struct AtOrigin: ProposalLayout {
             }
             try #require(declared.elements == 3 + cIDs, "\(name), declared: \(declared.elements)")
             expectCorpusNothingReported(declared, "\(name), declared")
-            let declaredC = try #require(declared.bounds[child(containerID, 1)])
+            // `ER-A`: the container is an `AnyElement`, so its children sit under its `$erased` level, and c's own
+            // children under c's. An erased element's bounds are recorded at its position (`recordElementBounds`).
+            let declaredRoot = container(cross: 70) { s(); c() }.contentID(under: containerID)
+            let declaredC = try #require(declared.bounds[child(declaredRoot, 1)])
             #expect((isColumn ? declaredC.size.width : declaredC.size.height) == px(70), "\(name), declared: \(declaredC)")
             if stretched == .row && isColumn {
-                #expect(declared.bounds[child(child(containerID, 1), 0)]?.origin.x == px(30), "\(name), declared")
+                #expect(declared.bounds[child(c().contentID(under: child(declaredRoot, 1)), 0)]?.origin.x == px(30), "\(name), declared")
             }
 
             // Stretched: the parent declares nothing and a sized grandparent stretches it to 60.
@@ -206,11 +209,12 @@ private struct AtOrigin: ProposalLayout {
             }
             try #require(stretchedParent.elements == 5 + cIDs, "\(name), stretched: \(stretchedParent.elements)")
             expectCorpusNothingReported(stretchedParent, "\(name), stretched by its parent")
-            let p = child(containerID, 0)
+            let stretchedRoot = container(cross: 60) { container(cross: nil) { s(); c() }; fixed(10, 10) }.contentID(under: containerID)
+            let p = container(cross: nil) { s(); c() }.contentID(under: child(stretchedRoot, 0))
             let stretchedC = try #require(stretchedParent.bounds[child(p, 1)])
             #expect((isColumn ? stretchedC.size.width : stretchedC.size.height) == px(60), "\(name), stretched: \(stretchedC)")
             if stretched == .row && isColumn {
-                #expect(stretchedParent.bounds[child(child(p, 1), 0)]?.origin.x == px(25), "\(name), stretched")
+                #expect(stretchedParent.bounds[child(c().contentID(under: child(p, 1)), 0)]?.origin.x == px(25), "\(name), stretched")
             }
             arms += 2
         }
@@ -939,14 +943,18 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
                 }
                 try #require(r.elements == (grower == .row ? 6 : 4), "\(name): \(r.elements)")
                 expectCorpusNothingReported(r, name)
-                let grown = try #require(r.bounds[child(containerID, 1)])
+                // `ER-A`: the root is an `AnyElement` (its children sit under its level), and so is the grower.
+                let growRoot = (isRow ? AnyElement(Row(gap: px(gap)) { fixed(40, 10); g() }.cssWidth(px(300)))
+                                      : AnyElement(Column(gap: px(gap)) { fixed(10, 40); g() }.cssHeight(px(300))))
+                    .contentID(under: containerID)
+                let grown = try #require(r.bounds[child(growRoot, 1)])
                 if isRow {
                     #expect(grown.origin.x == px(40 + gap) && grown.size.width == px(260 - gap), "\(name): \(grown)")
                 } else {
                     #expect(grown.origin.y == px(40 + gap) && grown.size.height == px(260 - gap), "\(name): \(grown)")
                 }
                 if grower == .row {
-                    let inner = child(containerID, 1)
+                    let inner = g().contentID(under: child(growRoot, 1))
                     let placed = [0, 1].map { r.bounds[child(inner, $0)] }
                     if isRow {
                         #expect(placed == [bounds(270, 0, 10, 10), bounds(280, 0, 20, 10)], "\(name): \(placed)")

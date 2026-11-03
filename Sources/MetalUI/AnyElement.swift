@@ -205,11 +205,23 @@ public struct AnyElementBox<E: Element>: ElementObject {
 @MainActor
 public struct AnyElement {
     var box: any ElementObject
+    /// The wrapped element's metatype (`ER-A`): the key of the `$erased` level the group entry lays the element out under.
+    let wrappedType: ObjectIdentifier
 
     /// Erases `element`'s type. `@State` and `@Environment` inside it still
     /// bind before every phase (`ID-E`).
     public init<E: Element>(_ element: E) {
         box = AnyElementBox(element)
+        wrappedType = ObjectIdentifier(E.self)
+    }
+
+    /// The id the wrapped element runs its three phases under when the group entry places it at `id` (`ER-A`): a
+    /// level below the position whose component carries the wrapped type's identity, so a different type is a
+    /// different element (its `@State`, focus, `.task`, lifecycle keys and memos are new) and the same type is the
+    /// same one. `.id("$erased")` has no key and cannot collide. A direct `requestLayout(_:pass:)` caller does not
+    /// get this level and keeps the id it passes (`ER-B`).
+    func contentID(under id: GlobalElementID) -> GlobalElementID {
+        GlobalElementID.child(of: id, at: 0, name: ElementID(name: "$erased", key: IdentityKey(AnyHashable(wrappedType))))
     }
 
     /// The erased element's local identity (§4.3).

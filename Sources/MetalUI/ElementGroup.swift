@@ -642,6 +642,8 @@ extension AnyElement: ElementGroup {
     /// container needs to carry between phases is the node and the identity.
     public struct GroupLayout {
         var id: GlobalElementID
+        /// The `$erased` level the wrapped element runs under (`ER-A`); `id` stays the position's.
+        var contentID: GlobalElementID
         var node: LayoutNodeID
     }
 
@@ -678,8 +680,12 @@ extension AnyElement: ElementGroup {
         let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
         pass.frame.stateTable.noteNamed(id, at: cursor)  // `ID-R`, the copy of `enteringGroupMember`'s
         cursor += 1
-        let node = requestLayout(id, pass: &pass)
-        return ([node], GroupLayout(id: id, node: node))
+        // `ER-A`: the wrapped element runs one keyed level below the position, noted so a changed type departs the
+        // old level (`ID-R`) and a swap back starts fresh.
+        let contentID = contentID(under: id)
+        pass.frame.stateTable.noteNamed(contentID, at: 0)
+        let node = requestLayout(contentID, pass: &pass)
+        return ([node], GroupLayout(id: id, contentID: contentID, node: node))
     }
 
     public mutating func prepaintGroup(layout: inout GroupLayout,
@@ -700,14 +706,14 @@ extension AnyElement: ElementGroup {
         // erased element's own prepaint decides whether it passes it through.
         guard pass.frame.hiddenNodes.contains(layout.node) else {
             pass.frame.enteringShareBarrier {
-                prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+                prepaint(layout.contentID, bounds: pass.bounds(of: layout.node), pass: &pass)
             }
             return
         }
         pass.frame.withAccessibilitySuppressed(except: nil) {
             pass.frame.withHitTestingDisabled {
                 pass.frame.enteringShareBarrier {
-                    prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+                    prepaint(layout.contentID, bounds: pass.bounds(of: layout.node), pass: &pass)
                 }
             }
         }
@@ -718,6 +724,6 @@ extension AnyElement: ElementGroup {
         // Stage 6b (`LR-DH` item 4): `Element.paintGroup`'s skip, mirrored.
         guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
         pass.frame.elementPaints += 1
-        paint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
+        paint(layout.contentID, bounds: pass.bounds(of: layout.node), pass: &pass)
     }
 }

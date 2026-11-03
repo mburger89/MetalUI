@@ -308,4 +308,222 @@ private struct ERTaskB: Component {
             .task { log.add("start B"); await untilCancelled { log.add("cancel B") } }
     }
 }
+
+// MARK: Scroll, focus, animation
+
+private func erStyle(width: Float?, height: Float?, column: Bool = false) -> Style {
+    var s = Style()
+    if column { s.flexDirection = .column }
+    if let width { s.size.width = .length(.pixels(Pixels(width))) }
+    if let height { s.size.height = .length(.pixels(Pixels(height))) }
+    s.flexShrink = 0
+    return s
+}
+
+@MainActor private func erOffset(_ window: Window) -> Double? {
+    let regions = window.lastScrollRegions
+    guard !regions.isEmpty else { return nil }
+    let id = regions[0].id
+    return window.stateTable.peek(id, as: ScrollState.self)?.offset
+}
+
+/// **A swap resets a scroll offset** (`ER-A`; the `departedRoots.contains(id)` conjunct of `resetQueuedEntries`: a
+/// `ScrollView` keeps its offset at its own, bare id, with no slot name under it). `AnyElement(ScrollView{..})` swapped
+/// for a scroller of another content type starts at 0, and a swap back too. Mutation (M6): that conjunct removed.
+@MainActor
+@Test func aSwapResetsAScrollOffset() throws {
+    let m = LCModel()
+    let (window, platform) = try lcWindow(size: 100) {
+        Box(style: erStyle(width: 100, height: 100, column: true)) {
+            m.flag
+                ? AnyElement(ScrollView { Box(style: erStyle(width: 100, height: 1000)) })
+                : AnyElement(ScrollView { Stack { Box(style: erStyle(width: 100, height: 1000)) } })
+        }
+    }
+    eraDraw(window)
+    _ = platform.simulateInput(.scrollWheel(ScrollEvent(position: Point(x: Pixels(50), y: Pixels(50)),
+                                                        delta: Point(x: Pixels(0), y: Pixels(-40)))))
+    eraDraw(window)
+    try #require((erOffset(window) ?? 0) > 0, "set up: the scroller scrolled: \(String(describing: erOffset(window)))")
+    m.flag = true
+    eraDraw(window)
+    #expect((erOffset(window) ?? 0) == 0, "the new scroller starts at 0: \(String(describing: erOffset(window)))")
+}
+
+/// A focusable element (`@State` count, recorded id) of two types, for the focus arm.
+private final class ERIDs { var ids: [String: GlobalElementID] = [:] }
+private struct ERFocusA: Element {
+    let ids: ERIDs
+    @State var count = 0
+    var elementID: ElementID? { nil }
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        ids.ids["a"] = id
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }.layoutNodeID, ())
+    }
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
+        var handlers = Handlers()
+        handlers.isFocusable = true
+        pass.registerHandlers(handlers, at: bounds, id: id)
+    }
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+private struct ERFocusB: Element {
+    let ids: ERIDs
+    @State var count = 0
+    var elementID: ElementID? { nil }
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        ids.ids["b"] = id
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }.layoutNodeID, ())
+    }
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
+        var handlers = Handlers()
+        handlers.isFocusable = true
+        pass.registerHandlers(handlers, at: bounds, id: id)
+    }
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **`AVF`.** A focused element inside an `AnyElement` whose type changes loses focus in the swap frame (the old level's
+/// `$focus` slot is reset, `IX-I`) and does not get it back when the old type returns. Mutation (M7): `noteNamed` of
+/// the level deleted (the old `$focus` slot survives until the reap and focus clears a frame late, or returns).
+@MainActor
+@Test func aFocusedElementLosesFocusInTheSwapFrameAndDoesNotGetItBack() throws {
+    let m = LCModel(), ids = ERIDs()
+    let (window, _) = try lcWindow {
+        Column { m.flag ? AnyElement(ERFocusB(ids: ids)) : AnyElement(ERFocusA(ids: ids)) }
+    }
+    eraDraw(window)
+    let a = try #require(ids.ids["a"])
+    window.focus(a)
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement == a, "set up: A is focused")
+    m.flag = true
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == nil, "focus is gone in the swap frame (AVF): \(String(describing: window.focusedElement))")
+    m.flag = false
+    eraDraw(window)
+    #expect(window.focusedElement == nil, "and does not return with the old type (AVF)")
+}
+
+/// **`AV6a`.** A swap under `withAnimation` has no ghost and no baseline carried across: B's tile is at its final width in
+/// the first animated frame and there is one tile (SwiftUI: the old content's `disappear` fires at once, no removal
+/// ghost). Mutation (M10): the level removed, so `$anim` is shared and B interpolates from A's width.
+@MainActor
+@Test func aSwapUnderAnAnimationIsInstant() throws {
+    let m = LCModel()
+    let (window, platform) = try lcWindow(size: 200, startsDisplayLink: true) {
+        Column {
+            m.flag ? AnyElement(Stack { ERB(w: 0) }.frame(width: Pixels(60), height: Pixels(20)))
+                   : AnyElement(Stack { ERA(w: 0) }.frame(width: Pixels(10), height: Pixels(20)))
+        }
+    }
+    eraDraw(window)
+    platform.simulateTick(timestamp: 100)
+    withAnimation(.linear(duration: 1)) { m.flag = true }
+    window.drawFrameIfNeeded()
+    platform.simulateTick(timestamp: 100.3)
+    let tiles = window.lastScene.rects.filter { $0.bounds.size.height == 20 }
+    #expect(tiles.count == 1, "no ghost of A: \(tiles.count) tiles")
+    #expect(tiles.first.map { $0.bounds.size.width } == 20, "B's own seed width, not interpolated from A's: \(tiles.map { $0.bounds.size.width })")
+}
+
+// MARK: Named positions and direct callers
+
+/// **A named element keeps its name at the position** (`ER-A`): `scrollTo` reaches a `.id("t")` element inside an
+/// `AnyElement`, which `recordElementBounds` records under the position's id, not the `$erased` level. Mutation (M12):
+/// that record taken under the level.
+@MainActor
+@Test func aScrollToReachesANamedElementInAnAnyElement() throws {
+    let (window, _) = try lcWindow(size: 100) {
+        Box(style: erStyle(width: 100, height: 100, column: true)) {
+            ScrollViewReader { proxy in
+                let _ = ERProxy.proxy = proxy
+                ScrollView {
+                    Box(style: erStyle(width: 100, height: nil, column: true)) {
+                        Box(style: erStyle(width: 100, height: 200))
+                        AnyElement(Box(style: erStyle(width: 100, height: 10)).id("t"))
+                        Box(style: erStyle(width: 100, height: 1000))
+                    }
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+    window.recordsElementBounds = true
+    window.setNeedsRedraw()
+    var frames = 0
+    while window.needsRedraw && frames < 6 { window.drawFrameIfNeeded(); frames += 1 }
+    let proxy = try #require(ERProxy.proxy)
+    proxy.scrollTo("t", anchor: .top)
+    frames = 0
+    while window.needsRedraw && frames < 6 { window.drawFrameIfNeeded(); frames += 1 }
+    let id = try #require(window.lastScrollRegions.first).id
+    #expect(window.stateTable.peek(id, as: ScrollState.self)?.offset == 200, "the erased named element is the target")
+}
+@MainActor private enum ERProxy { static var proxy: ScrollViewProxy? }
+
+/// **A direct caller owns its identity** (`ER-B`): a custom-style `Button` lays its erased label out through
+/// `AnyElement.requestLayout(_:pass:)` at its own id, and nothing it registers sits under an `$erased` level; the
+/// control, an `AnyElement` entered as a group member, does. Mutation (M13): the level minted in
+/// `AnyElement.requestLayout`.
+@MainActor
+@Test func aDirectRequestLayoutMintsNoLevel() {
+    func erasedLevels(_ id: GlobalElementID) -> Int {
+        var count = 0, current: GlobalElementID? = id
+        while let c = current {
+            if case .named(let name) = c.component, name.name == "$erased" { count += 1 }
+            current = c.parent
+        }
+        return count
+    }
+    func hitboxes<E: Element>(_ element: E) -> [GlobalElementID] {
+        var root = element
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(100)), scaleFactor: 1, stateTable: StateTable(), theme: .light)
+        frame.render(&root)
+        return frame.hitboxes.map(\.id)
+    }
+    let button = hitboxes(Column { Button("B") {}.buttonStyle(ERPaddedStyle()) })
+    #expect(!button.isEmpty && button.allSatisfy { erasedLevels($0) == 0 }, "a custom-style Button registers at its own id: \(button.map(erasedLevels))")
+    let control = hitboxes(Column { AnyElement(Box(style: erStyle(width: 20, height: 20)).onClick {}) })
+    #expect(!control.isEmpty && control.allSatisfy { erasedLevels($0) == 1 }, "control: a group-entered AnyElement does: \(control.map(erasedLevels))")
+}
+private struct ERPaddedStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some ElementGroup {
+        configuration.label.padding(10).background(.accent)
+    }
+}
+
+// MARK: Cost
+
+/// **A steady erased position costs one name and no scan** (`ER-A`): over a steady run the reset pass never scans
+/// (`lastResetScanWork == 0`), the table holds what an unboxed twin does, and a swap frame is the one that scans
+/// (`departedNameResets` +1). Mutations (M18): the name always departing (the steady scan is not 0).
+@MainActor
+@Test func aSteadyErasedPositionCostsOneNameAndNoScan() throws {
+    func run(erased: Bool, _ steps: [Bool]) -> (scans: [Int], resets: [Int], counts: [Int]) {
+        let table = StateTable()
+        var scans: [Int] = [], resets: [Int] = [], counts: [Int] = []
+        for flag in steps {
+            var tree = Row {
+                if erased {
+                    flag ? AnyElement(Stack { ERB(w: 0) }) : AnyElement(Stack { ERA(w: 0) })
+                } else {
+                    Stack { ERA(w: 0) }
+                }
+            }
+            Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)), scaleFactor: 1, stateTable: table).render(&tree)
+            scans.append(table.lastResetScanWork); resets.append(table.departedNameResets); counts.append(table.count)
+        }
+        return (scans, resets, counts)
+    }
+    let steady = run(erased: true, [false, false, false, false])
+    let twin = run(erased: false, [false, false, false, false])
+    #expect(steady.scans[2...] == [0, 0], "a steady frame scans nothing: \(steady.scans)")
+    #expect(steady.resets[1] == steady.resets[3], "and departs nothing: \(steady.resets)")
+    #expect(steady.counts == twin.counts, "the table holds what the unboxed twin's does: \(steady.counts) vs \(twin.counts)")
+    let swapped = run(erased: true, [false, false, false, true])
+    #expect(swapped.resets[3] == swapped.resets[2] + 1, "a swap departs the old level once: \(swapped.resets)")
+    #expect(swapped.scans[3] > 0, "and is the frame that scans: \(swapped.scans)")
+}
 #endif

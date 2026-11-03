@@ -250,7 +250,10 @@ private func point(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y:
         }.cssWidth(px(100)).cssHeight(px(100))
     }
     let theme = Theme.light
-    let under = child(rootID, 0), top = child(rootID, 1)
+    let under = child(rootID, 0)
+    // `ER-A`: the erased top runs one `$erased` level below its position; the same expression as `tree`'s `top`, so the same type.
+    let top = AnyElement(Box().cssWidth(px(40)).cssHeight(px(40)).background(.accent).onClick {}
+        .handling { $0.axNode = AXNode(label: "top") }).contentID(under: child(rootID, 1))
 
     let shown = production(tree(hidden: false))
     try #require(shown.scene.rects.contains { isFilled($0, with: .accent, in: theme) }, "control: paints")

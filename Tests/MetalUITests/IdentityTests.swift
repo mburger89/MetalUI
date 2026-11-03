@@ -511,8 +511,10 @@ import MetalUICore
     frame.render(&row)
 
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
-    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 1)
-    #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == 1)
+    // `ER-A`: each erased sibling runs under its own `$erased` level, one below its position.
+    let level = AnyElement(CountingElement(nil))
+    #expect(table.peek(level.contentID(under: GlobalElementID.child(of: root, at: 0, name: nil)), as: Int.self) == 1)
+    #expect(table.peek(level.contentID(under: GlobalElementID.child(of: root, at: 1, name: nil)), as: Int.self) == 1)
     // 2 (one per erased sibling) + 1 — the `Row`'s own `$anim` baseline, on
     // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
     #expect(table.count == 3)
