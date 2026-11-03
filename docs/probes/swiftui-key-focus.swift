@@ -31,6 +31,19 @@
 //        content evaluations over a fixed spin; T2 (paused) is the separating
 //        arm for "evaluates every frame".
 //
+//
+// AVF (R4-1a, gated: `KF_PROBE_AVF=1 /tmp/kf-probe`, prints after the ungated arms). RECORDED 2026-11-03, macOS 27.2
+// (26B123), Apple Swift 6.4.2, screen LOCKED (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 0`; the events are
+// posted into the probe's own `KeyWindow` through `NSApp.sendEvent`, so the lock does not matter). Controls read in
+// the same run as before: K0 `focused=true,k:x[down]`, FC1 `focused=true`, RS0 `focused=true,|start`. An `AnyView`
+// swaps `FocusA` (focused on its first appearance only) for `FocusB`, an unfocused focusable view, and back:
+//
+//   --- AVF: focus inside an AnyView swap (R4-1a)
+//     AVF A focused on appear; x; swap to B; x; swap back to A; x: A focused=true,|start,A hears x[down],|swap to B,|swap back to A
+//
+// READING. After the swap neither `A` nor `B` hears `x` (focus is dropped with the old content, B is not focused), and
+// after the swap back A hears nothing and logs no `focused=true`: the focus neither survives nor returns.
+//
 // KX ARMS (added by the critic, ruling KF-Q; gated: `KF_PROBE_KX=1 /tmp/kf-probe`
 // prints them after T5). KX1 a ⌘-key `Button` shortcut, KX2/KX3 a main-menu
 // ⌘-key item, each against a focused view's `onKeyPress`. RECORDED 2026-10-09
@@ -883,6 +896,43 @@ final class MenuTarget: NSObject {
     }
 }
 
+// MARK: - AVF: R4-1a, focus inside an AnyView whose wrapped type changes — gated, see the header
+
+final class Flip: ObservableObject { @Published var flag = false }
+nonisolated(unsafe) var avfFirstFocus = true
+struct FocusA: View {
+    @FocusState var f: Bool
+    var body: some View {
+        Color.blue.focusable().focused($f)
+            .onKeyPress { p in Log.add("A hears " + describe(p)); return .handled }
+            .onAppear { if avfFirstFocus { avfFirstFocus = false; f = true } }
+            .onChange(of: f) { _, v in Log.add("A focused=\(v)") }
+    }
+}
+struct FocusB: View {
+    @FocusState var f: Bool
+    var body: some View {
+        Color.green.focusable().focused($f)
+            .onKeyPress { p in Log.add("B hears " + describe(p)); return .handled }
+            .onChange(of: f) { _, v in Log.add("B focused=\(v)") }
+    }
+}
+struct AVFRoot: View {
+    @ObservedObject var flip: Flip
+    var body: some View { AnyView(flip.flag ? AnyView(FocusB()) : AnyView(FocusA())) }
+}
+
+@MainActor func armAVF() {
+    print("--- AVF: focus inside an AnyView swap (R4-1a)")
+    avfFirstFocus = true
+    let flip = Flip()
+    arm("AVF A focused on appear; x; swap to B; x; swap back to A; x", AVFRoot(flip: flip)) { w in
+        Log.add("|start"); key(w, "x", keyCode: 7)
+        Log.add("|swap to B"); flip.flag = true; spin(); key(w, "x", keyCode: 7)
+        Log.add("|swap back to A"); flip.flag = false; spin(); key(w, "x", keyCode: 7)
+    }
+}
+
 // MARK: - run
 
 @MainActor func run() {
@@ -890,6 +940,7 @@ final class MenuTarget: NSObject {
     armK(); armFC(); armRS(); armG(); armT()
     // Gated so the recorded 69 lines above stay byte-identical (KF-Q).
     if ProcessInfo.processInfo.environment["KF_PROBE_KX"] == "1" { armKX() }
+    if ProcessInfo.processInfo.environment["KF_PROBE_AVF"] == "1" { armAVF() }
 }
 
 MainActor.assumeIsolated {
