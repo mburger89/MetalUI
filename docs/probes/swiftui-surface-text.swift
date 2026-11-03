@@ -33,8 +33,8 @@
 // size. B: a width proposal wraps (60 wide, five lines at 16). C: a short height
 // proposal caps the lines to one (MetalUI's TE-H item 2 rule, the same). D:
 // `resolve` reads the Canvas's environment font. E vs E2: the empty string
-// measures (0, 14) in a Canvas but (0, 0) as a view, so the Canvas measure is
-// NOT always the layout answer (divergence 295). F: an infinite proposal is
+// measures (0, 14) in a Canvas and read (0, 0) as a view: **that E2 reading is WRONG, an instrument artifact**
+// (R4-1 addendum below: the laid-out view is (0, 14) too, at every font). F: an infinite proposal is
 // the unbounded measure. G: baselines are functions of a size, 13 for 13 pt.
 //
 // R4-1 PR A ADDENDUM (2026-11-03, macOS 27.2, same compiled form; the arms E3-E7 below the existing ones). **E2 WAS
@@ -50,6 +50,12 @@
 //   E7  Button("") (24.0, 22.0)  Toggle("") (21.0, 19.0)  Button("x") (31.0, 24.0)
 //   E2c Text("") fittingSize (0.0, 14.0); Text("").fixedSize() (0.0, 14.0); .font(system 13) (0.0, 14.0);
 //       ImageRenderer(Text("").fixedSize()) nsImage = nil (the artifact); ImageRenderer(Text("").padding(.horizontal,1).fixedSize()) (2.0, 14.0).
+//
+//   E8 (`Text("")` against `Text(" ")` by `fittingSize` height, system font): the empty height is a CONSTANT 14 whatever the font:
+//       size 9: 14 vs 11 | 10: 14 vs 13 | 11: 14 vs 14 | 12: 14 vs 15 | 13: 14 vs 16 | 14: 14 vs 17 | 16: 14 vs 19 | 20: 14 vs 24
+//       24: 14 vs 28 | 30: 14 vs 35 | 40: 14 vs 47; default font 14 vs 16; .body 14/16, .title 14/26, .caption 14/13.
+//   So SwiftUI's empty `Text` is 14 tall at every size, equal to a line of the system font only near 11 pt; it is not a function of the
+//   resolved font's metrics (divergence 295 keeps the full line of the resolved font).
 import SwiftUI
 import AppKit
 
@@ -100,6 +106,13 @@ import AppKit
     print("E5 Text(\"\").padding(4) \(fitting(Text("").padding(4)))")
     print("E6 Text(\" \") \(fitting(Text(" "))) (control: one line)")
     print("E7 Button(\"\"){} \(fitting(Button("") {})) Toggle(\"\") \(fitting(Toggle("", isOn: .constant(false)))) Button(\"x\"){} \(fitting(Button("x") {}))")
+    for size in [9, 10, 11, 12, 13, 14, 16, 20, 24, 30, 40] as [CGFloat] {
+        let e = fitting(Text("").font(.system(size: size))).height, b = fitting(Text(" ").font(.system(size: size))).height
+        let x = fitting(Text("x").font(.system(size: size))).height
+        print("E8 system \(size)pt: Text(\"\") h=\(e)  Text(\" \") h=\(b)  Text(\"x\") h=\(x)  diff=\(b - e)")
+    }
+    print("E8 default font: Text(\"\") \(fitting(Text("")).height) Text(\" \") \(fitting(Text(" ")).height)")
+    print("E8 .body \(fitting(Text("").font(.body)).height)/\(fitting(Text(" ").font(.body)).height) .title \(fitting(Text("").font(.title)).height)/\(fitting(Text(" ").font(.title)).height) .caption \(fitting(Text("").font(.caption)).height)/\(fitting(Text(" ").font(.caption)).height)")
     print("F  infinity proposal \(canvasMeasure(t, in: CGSize(width: CGFloat.infinity, height: CGFloat.infinity)))")
 }
 MainActor.assumeIsolated { main() }

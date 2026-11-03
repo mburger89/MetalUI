@@ -190,8 +190,8 @@ private func same(_ a: Size<Pixels>, _ b: Bounds<Pixels>) -> Bool {
 }
 
 /// 1.7 — the empty string is `Text("")`'s layout answer: no width and one line
-/// of height (divergence 295; SwiftUI's view is 0 by 0, probe E2). Mutation: a
-/// zero height forced.
+/// of height (divergence 295: SwiftUI's empty `Text` is also 0 wide but a constant 14 tall at every font, probe E3/E8,
+/// not the resolved font's line; the "0 by 0" of probe E2 was an instrument artifact, `SR-A`). Mutation: a zero height forced.
 @Test @MainActor func anEmptyStringMeasuresAsItLaysOut() throws {
     let empty = MeasureBox(), line = MeasureBox()
     let window = try harnessWindow {

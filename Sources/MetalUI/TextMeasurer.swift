@@ -97,7 +97,7 @@ public struct TextMeasurer {
         /// The size the text is laid out at under `proposal` (SwiftUI's
         /// `ResolvedText.measure(in:)`): a finite width wraps it, a finite height
         /// caps its lines, an infinite or non-positive-infinite axis is
-        /// unbounded. The empty string is 0 by 0 (divergence 295).
+        /// unbounded. The empty string is 0 wide and one line tall of the resolved font, as `Text("")` lays out (SwiftUI: a constant 14 tall at every font, `SR-A`, divergence 295).
         @MainActor
         public func measure(in proposal: Size<Pixels>) -> Size<Pixels> {
             let answer = measurement(in: proposal)
