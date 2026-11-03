@@ -167,7 +167,7 @@ private let longLabel = "A much longer label"
               [(28, 24), (49.58, 24), (49.58, 24), (49.58, 24), (49.58, 24), (49.58, 24)])
     // FL8–FL10: every Picker style hugs.
     func picker() -> Picker<Int, Pair<TaggedElement<Text>, TaggedElement<Text>>> {
-        Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }
+        Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }.pickerStyle(.segmented)
     }
     expectRow("Picker.menu", try answers(picker().pickerStyle(.menu)),
               [(67, 24), (112.56, 24), (112.56, 24), (112.56, 24), (112.56, 24), (67, 64)])
@@ -628,7 +628,7 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
             Toggle("Wi-Fi", isOn: .constant(true))
             Slider(value: .constant(0.5))
             TextField("Name", text: .constant("Hello"))
-            Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }
+            Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }.pickerStyle(.segmented)
         }
     }
     let legacy = LayoutDifferential.render(width: 600, height: 100) {
@@ -637,7 +637,7 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
             Toggle("Wi-Fi", isOn: .constant(true))
             Slider(value: .constant(0.5))
             TextField("Name", text: .constant("Hello"))
-            Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }
+            Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }.pickerStyle(.segmented)
         }
     }
     try #require(proposal.unlowerableFields.isEmpty && legacy.unlowerableFields.isEmpty)
@@ -672,7 +672,7 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
             TextField("Name", text: .constant(""))
             Button("Go") {}
             Toggle("On", isOn: .constant(true))
-            Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }
+            Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }.pickerStyle(.segmented)
             Slider(value: .constant(0.5))
             Stepper("Qty", value: .constant(1), in: 0...3)
         }
@@ -682,7 +682,7 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
             TextField("Name", text: .constant(""))
             Button("Go") {}
             Toggle("On", isOn: .constant(true))
-            Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }
+            Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }.pickerStyle(.segmented)
             Slider(value: .constant(0.5))
             Stepper("Qty", value: .constant(1), in: 0...3)
         }

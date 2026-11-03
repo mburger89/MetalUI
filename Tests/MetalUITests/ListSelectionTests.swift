@@ -693,7 +693,7 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
         try depth("Slider") { controlRoot { Slider(value: level, in: 0...1) } },
         try depth("Stepper") { controlRoot { Stepper("Qty", value: count, in: 0...9) } },
         try depth("Picker segmented") {
-            controlRoot { Picker("P", selection: choice) { Text("A").tag(0); Text("B").tag(1) } }
+            controlRoot { Picker("P", selection: choice) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.segmented) }
         },
         try depth("Picker radioGroup") {
             controlRoot {

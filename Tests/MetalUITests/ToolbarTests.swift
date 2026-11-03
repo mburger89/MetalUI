@@ -376,7 +376,7 @@ private struct Panel: Component {
         PlatformToolbarItem(id: "menu", placement: .automatic,
                             control: .picker(title: "M", options: ["x", "y"], selected: 0, style: .menu)),
         PlatformToolbarItem(id: "auto", placement: .automatic,
-                            control: .picker(title: "A", options: ["x", "y"], selected: 0, style: .segmented)),
+                            control: .picker(title: "A", options: ["x", "y"], selected: 0, style: .menu)),   // "auto": SR-B, probe TB-A
         PlatformToolbarItem(id: "radio", placement: .automatic,
                             control: .picker(title: "R", options: ["x", "y"], selected: 0, style: .segmented)),
         PlatformToolbarItem(id: "help", placement: .automatic, control: .button(title: "H", image: nil),

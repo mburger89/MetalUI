@@ -102,6 +102,45 @@ var windows: [NSWindow] = []
     return w
 }
 
+/// TB-A (R4-1 PR A, `SR-B`): an AUTOMATIC-style `Picker` (no `.pickerStyle`) as a toolbar item. Is the hosted
+/// control an `NSPopUpButton` or an `NSSegmentedControl`? Separating arms: the same picker with `.segmented` and
+/// `.menu` explicit, and the same automatic picker in the window body (not a toolbar).
+struct ToolbarPickerRoot: View {
+    let style: Int // 0 automatic, 1 segmented, 2 menu
+    @State var pick = 0
+    var body: some View {
+        Color.gray.opacity(0.2).frame(width: 400, height: 100).toolbar {
+            ToolbarItem(placement: .principal) {
+                switch style {
+                case 1: Picker("Mode", selection: $pick) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.segmented)
+                case 2: Picker("Mode", selection: $pick) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.menu)
+                default: Picker("Mode", selection: $pick) { Text("A").tag(0); Text("B").tag(1) }
+                }
+            }
+        }
+    }
+}
+
+func classes(_ v: NSView, _ out: inout [String]) {
+    out.append(String(describing: type(of: v)))
+    for s in v.subviews { classes(s, &out) }
+}
+
+@MainActor func toolbarArm(_ label: String, style: Int) {
+    let c = NSHostingController(rootView: ToolbarPickerRoot(style: style))
+    c.sceneBridgingOptions = [.toolbars, .title]
+    let w = NSWindow(contentViewController: c)
+    w.isReleasedWhenClosed = false
+    w.setFrameOrigin(NSPoint(x: 100, y: 100))
+    w.makeKeyAndOrderFront(nil)
+    spin()
+    windows.append(w)
+    var found: [String] = []
+    for item in w.toolbar?.items ?? [] { if let v = item.view { classes(v, &found) } }
+    let kind = found.contains { $0.contains("Segmented") } ? "segmented (SystemSegmentedControl)" : "pop-up (no segmented class; the .menu arm's exact view list)"
+    print("\(label): hosted control = \(kind)   views=\(found)")
+}
+
 @MainActor func run() {
     NSApplication.shared.setActivationPolicy(.regular)
     NSApplication.shared.activate()
@@ -114,6 +153,9 @@ var windows: [NSWindow] = []
     let after = w1.toolbar?.items.map { ObjectIdentifier($0) } ?? []
     print("UP after state change: same toolbar=\(beforeToolbar == w1.toolbar.map { ObjectIdentifier($0) }) same items=\(before == after) count=\(after.count)")
     _ = open("SR searchable", toolbar: true, searchable: true)
+    toolbarArm("TB-A automatic", style: 0)
+    toolbarArm("TB-A segmented", style: 1)
+    toolbarArm("TB-A menu", style: 2)
 }
 
 MainActor.assumeIsolated { run() }
@@ -211,3 +253,12 @@ MainActor.assumeIsolated { run() }
 //             _NSCoreHostingView<AppKitTextField> (0, 0, 120, 24)
 //   item id=NSToolbarFlexibleSpaceItem class=NSToolbarFlexibleSpaceItem label="" bordered=false navigational=false visibilityPriority=0
 //   item id=com.apple.SwiftUI.search class=AppKitSearchToolbarItem label="Search" bordered=true navigational=false visibilityPriority=0
+
+// TB-A, RECORDED 2026-11-03 (R4-1 PR A, ruling `SR-B`; macOS 27.2, Apple Swift 6.4, screen unlocked, compiled form): an
+// AUTOMATIC-style `Picker` (no `.pickerStyle`) as a `.principal` toolbar item hosts the same view list as an explicit
+// `.menu` one and NOT the `SystemSegmentedControl` of an explicit `.segmented` one:
+//   TB-A automatic: pop-up   views=["ToolbarItemHostingView<_ViewList_View>", "_FocusRingView", "KeyViewProxy"]
+//   TB-A segmented: segmented views=[..., "AppKitPlatformViewHost<PlatformViewRepresentableAdaptor<SystemSegmentedControl>>", "SwiftUISegmentedControl", "_NSCoreHostingView<AppKitSegmentedControl>"]
+//   TB-A menu:      pop-up   views=["ToolbarItemHostingView<_ViewList_View>", "_FocusRingView", "KeyViewProxy"]
+// So the toolbar's automatic picker is the pop-up, as in a window body: flipping MetalUI's `Picker` default to `.menu` needs no
+// `Kind.automatic`.

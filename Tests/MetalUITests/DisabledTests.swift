@@ -402,7 +402,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         Row {
             Picker("", selection: Binding(get: { 0 }, set: { _ in log.names.append("segment") })) {
                 Text("x").tag(1)
-            }.disabled(d)
+            }.pickerStyle(.segmented).disabled(d)
         }.cssWidth(px(100)).cssHeight(px(100))
     }
     // Plan task 10 part 2, lane 2: a `Slider`'s track (a press writes the value

@@ -315,16 +315,51 @@ private struct SingleEntry<Content: Element>: Element {
     withExtendedLifetime(window) {}
 }
 
-/// **5.11** (`SV-P` item 1, divergence 81). `.automatic` stays segmented: its
-/// options are click targets side by side and no pop-up button publishes.
+/// **5.11** (`SR-B`, divergence 81 retired; reverses `SV-P` item 1). `.automatic` is the pop-up menu: one click target
+/// (the button), a published `.popUpButton`, and the scene is byte for byte the explicit `.menu`'s (probes PK0 = PK1).
+/// The separating arm is the explicit `.segmented` (three side-by-side targets, no pop-up). Mutation: `.automatic`
+/// restored to `kind: .segmented` reddens it.
 @MainActor
-@Test func theAutomaticPickerStaysSegmented() throws {
+@Test func theAutomaticPickerIsAPopUpMenu() throws {
+    func scene(_ style: PickerStyle?) -> [[UInt8]] {
+        ixSceneBytes {
+            controlRoot(width: 400, height: 400) {
+                if let style {
+                    Picker("Flavor", selection: .constant(0)) { for (index, title) in titles.enumerated() { Text(title).tag(index) } }
+                        .pickerStyle(style)
+                } else {
+                    Picker("Flavor", selection: .constant(0)) { for (index, title) in titles.enumerated() { Text(title).tag(index) } }
+                }
+            }
+        }
+    }
+    #expect(scene(nil) == scene(.menu), "automatic is the explicit menu, byte for byte")
+    #expect(scene(nil) != scene(.segmented), "the separating arm: not the segmented look")
     let model = MPChoice(0)
     let (window, platform) = try controlWindow {
         controlRoot(width: 400, height: 400) {
             Picker("Flavor", selection: model.binding) {
                 for (index, title) in titles.enumerated() { Text(title).tag(index) }
             }
+        }
+    }
+    let targets = window.lastHitboxes.filter { $0.handlers.onClick != nil }
+    #expect(targets.count == 1, "one click target: the pop-up button")
+    let tree = try controlTree(window, platform)
+    #expect(tree.nodes.values.contains { $0.role == .popUpButton }, "published as a pop-up button")
+    #expect(!tree.nodes.values.contains { $0.role == .radioButton }, "no per-option radio buttons")
+    withExtendedLifetime(window) {}
+}
+
+/// `SR-B`: an explicit `.segmented` is what the automatic picker was: three side-by-side targets and no pop-up.
+@MainActor
+@Test func anExplicitSegmentedPickerKeepsItsSegments() throws {
+    let model = MPChoice(0)
+    let (window, platform) = try controlWindow {
+        controlRoot(width: 400, height: 400) {
+            Picker("Flavor", selection: model.binding) {
+                for (index, title) in titles.enumerated() { Text(title).tag(index) }
+            }.pickerStyle(.segmented)
         }
     }
     let targets = window.lastHitboxes.filter { $0.handlers.onClick != nil }

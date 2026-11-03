@@ -46,28 +46,50 @@ public struct Stepper: Element, StyledElement {
     private let decrement: (@MainActor () -> Void)?
     private let valueText: (@MainActor () -> String)?
     private var box: Body
-    private let title: String
+    private let label: Text
+    private var title: String { label.string }
 
     /// A stepper over `bounds` (SwiftUI's `Stepper(_:value:in:step:)`).
-    public init<V: Strideable>(_ title: String, value: Binding<V>, in bounds: ClosedRange<V>,
+    /// A literal title is parsed as inline Markdown (`SR-C`); a `String` value takes the disfavoured verbatim overload.
+    public init<V: Strideable>(_ titleKey: LocalizedStringKey, value: Binding<V>, in bounds: ClosedRange<V>,
                                step: V.Stride = 1) {
-        self.init(title, value: value, bounds: bounds, step: step)
+        self.init(Text(titleKey), value: value, bounds: bounds, step: step)
+    }
+
+    /// A stepper titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    public init<V: Strideable, S: StringProtocol>(_ title: S, value: Binding<V>, in bounds: ClosedRange<V>,
+                                                  step: V.Stride = 1) {
+        self.init(Text(verbatim: String(title)), value: value, bounds: bounds, step: step)
     }
 
     /// An unbounded stepper (SwiftUI's `Stepper(_:value:step:)`): no clamp.
-    public init<V: Strideable>(_ title: String, value: Binding<V>, step: V.Stride = 1) {
-        self.init(title, value: value, bounds: nil, step: step)
+    public init<V: Strideable>(_ titleKey: LocalizedStringKey, value: Binding<V>, step: V.Stride = 1) {
+        self.init(Text(titleKey), value: value, bounds: nil, step: step)
+    }
+
+    /// An unbounded stepper titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    public init<V: Strideable, S: StringProtocol>(_ title: S, value: Binding<V>, step: V.Stride = 1) {
+        self.init(Text(verbatim: String(title)), value: value, bounds: nil, step: step)
     }
 
     /// A stepper that runs a closure per direction (SwiftUI's
     /// `Stepper(_:onIncrement:onDecrement:)`); a nil closure disables its
     /// direction. It publishes no value.
-    public init(_ title: String, onIncrement: (@MainActor () -> Void)?,
+    public init(_ titleKey: LocalizedStringKey, onIncrement: (@MainActor () -> Void)?,
                 onDecrement: (@MainActor () -> Void)?) {
-        self.init(title: title, increment: onIncrement, decrement: onDecrement, valueText: nil)
+        self.init(label: Text(titleKey), increment: onIncrement, decrement: onDecrement, valueText: nil)
     }
 
-    private init<V: Strideable>(_ title: String, value: Binding<V>, bounds: ClosedRange<V>?, step: V.Stride) {
+    /// The closure form titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ title: S, onIncrement: (@MainActor () -> Void)?,
+                                   onDecrement: (@MainActor () -> Void)?) {
+        self.init(label: Text(verbatim: String(title)), increment: onIncrement, decrement: onDecrement, valueText: nil)
+    }
+
+    private init<V: Strideable>(_ title: Text, value: Binding<V>, bounds: ClosedRange<V>?, step: V.Stride) {
         func stepper(_ direction: ControlKeys.Direction) -> @MainActor () -> Void {
             {
                 if let next = ValueStepping.stepped(value.wrappedValue, in: bounds, step: step, direction) {
@@ -75,14 +97,14 @@ public struct Stepper: Element, StyledElement {
                 }
             }
         }
-        self.init(title: title, increment: stepper(.forward), decrement: stepper(.backward),
+        self.init(label: title, increment: stepper(.forward), decrement: stepper(.backward),
                   valueText: {
                       let current = value.wrappedValue
                       return String(describing: bounds.map { ValueStepping.clamp(current, $0) } ?? current)
                   })
     }
 
-    private init(title: String, increment: (@MainActor () -> Void)?, decrement: (@MainActor () -> Void)?,
+    private init(label: Text, increment: (@MainActor () -> Void)?, decrement: (@MainActor () -> Void)?,
                  valueText: (@MainActor () -> String)?) {
         var style = Style()
         style.flexDirection = .row
@@ -92,8 +114,8 @@ public struct Stepper: Element, StyledElement {
         self.increment = increment
         self.decrement = decrement
         self.valueText = valueText
-        self.title = title
-        self.box = Body(style: style, content: Pair(OptionalGroup(Text(title)), Self.control()))
+        self.label = label
+        self.box = Body(style: style, content: Pair(OptionalGroup(label), Self.control()))
     }
 
     private static func sized(_ width: Float, _ height: Float) -> Style {
@@ -131,7 +153,7 @@ public struct Stepper: Element, StyledElement {
         box.style = style
         box.decoration = decoration
         // `labelsHidden()` (`LB-A`): the title row and its gap go; the slot stays reserved.
-        box.content.first.wrapped = pass.frame.environmentTop.labelsHidden ? nil : Text(title)
+        box.content.first.wrapped = pass.frame.environmentTop.labelsHidden ? nil : label
         // The focus ring (`IX-H` item 2), unless the caller declared one.
         if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(pass.frame.environmentTop) }
         return box.requestLayout(id, pass: &pass)

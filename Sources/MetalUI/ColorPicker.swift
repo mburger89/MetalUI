@@ -123,9 +123,17 @@ extension ColorPicker where Label == Text {
     /// A colour picker labelled by `titleKey` — SwiftUI's
     /// `ColorPicker(_:selection:supportsOpacity:)` (`LK-C` item 1). An empty
     /// title keeps the gap (`LB-A` item 2); `labelsHidden()` draws the well alone.
-    public init(_ titleKey: String, selection: Binding<Color>, supportsOpacity: Bool = true) {
+    /// A literal is parsed as inline Markdown (`SR-C`).
+    public init(_ titleKey: LocalizedStringKey, selection: Binding<Color>, supportsOpacity: Bool = true) {
         self.init(selection: selection, supportsOpacity: supportsOpacity,
                   label: Text(titleKey))
+    }
+
+    /// A colour picker labelled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ title: S, selection: Binding<Color>, supportsOpacity: Bool = true) {
+        self.init(selection: selection, supportsOpacity: supportsOpacity,
+                  label: Text(verbatim: String(title)))
     }
 }
 

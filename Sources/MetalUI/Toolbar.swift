@@ -80,8 +80,8 @@ struct ToolbarControlNode {
 }
 
 /// A control a toolbar item can hold: `Button` with a `Text` or an `Image`
-/// label, `Toggle` with a `Text` label, `Picker` (`.menu` → a pop-up, every
-/// other style → segmented), `TextField`, `Text` (a label), any of them under
+/// label, `Toggle` with a `Text` label, `Picker` (`.menu` and the automatic
+/// style → a pop-up, every other style → segmented), `TextField`, `Text` (a label), any of them under
 /// `.disabled(_:)` or with `.help(_:)` — and `if`/`switch`/`for` through
 /// `@ToolbarItemContentBuilder` (ruling `MD-I` item 3).
 ///
@@ -192,7 +192,8 @@ extension Toggle: ToolbarItemContent where Label == Text {
 /// A picker: its title, its options' titles in declaration order (each
 /// option's `Text`, else its tag's description — the menu picker's rule) and
 /// the selected index; `.select(i)` writes option `i`'s tag. `.menu` is a
-/// pop-up; every other style is segmented (`MD-I` item 3).
+/// pop-up, and so is the automatic style (`SR-B`, probe `swiftui-toolbar.swift` TB-A); every other
+/// style is segmented (`MD-I` item 3).
 extension Picker: ToolbarItemContent {
     /// This content's controls. SPI: see `ToolbarItemContent`.
     @_spi(ToolbarInternals) public func _toolbarControls(in context: _ToolbarItemContext) -> _ToolbarControls {

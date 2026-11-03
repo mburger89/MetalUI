@@ -34,6 +34,18 @@ import Testing
     }
 }
 
+/// Yields up to `limit` main-actor turns until `condition` holds; never sleeps. A window's invalidation can be a
+/// hop queued behind the write (`Window.markDirtyFromObservation`'s off-main arm, which is every write on Linux:
+/// the main actor is not the main thread there), and `runUntilIdle()` treats a closed window as clean, so it may
+/// return before the hop lands (R4-1: this file's separating arm failed once on Linux CI). A read of
+/// `needsRedraw` that the test's claim rests on waits for the hop first.
+@MainActor private func yieldUntil(limit: Int = 64, _ condition: () -> Bool) async {
+    for _ in 0..<limit {
+        if condition() { return }
+        await Task.yield()
+    }
+}
+
 /// `HT-Y` item 1 — the MetalFlow shape: a quit held `.later`, then a model
 /// write and the approved reply landing two turns into `runUntilIdle()`. The
 /// reply closes every window (`endEverything`) with the write's frame not yet
@@ -54,6 +66,7 @@ import Testing
     }
     try await window.runUntilIdle()
     #expect(window.platformWindow.isClosed, "the approved termination closed the window")
+    await yieldUntil { window.window.needsRedraw }
     #expect(window.window.needsRedraw, "the write's frame is owed and never drawn: the separating arm")
     #expect(window.testApp.platform.terminateReplies == [true])
 }
@@ -147,6 +160,7 @@ import Testing
     }
     try await window.runUntil { window.testApp.platform.terminateReplies == [true] }
     #expect(window.platformWindow.isClosed)
+    await yieldUntil { window.window.needsRedraw }
     #expect(window.window.needsRedraw, "the frame is owed and never drawn")
 }
 

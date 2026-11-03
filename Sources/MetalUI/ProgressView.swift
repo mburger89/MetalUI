@@ -161,16 +161,34 @@ extension ProgressView where Label == EmptyGroup, CurrentValueLabel == EmptyGrou
 extension ProgressView where Label == Text, CurrentValueLabel == EmptyGroup {
     /// An indeterminate progress view titled `title` — SwiftUI's
     /// `ProgressView(_:)`: the spinner with the title below.
-    public init(_ title: String) {
-        self.init(value: nil as Double?, total: 1, label: Text(title).accessibilityHidden(true),
-                  currentValueLabel: EmptyGroup(), title: title, hasValue: false)
+    /// A literal is parsed as inline Markdown; the accessibility label is the markup-free string (`SR-C`, probe AX6).
+    public init(_ titleKey: LocalizedStringKey) {
+        let text = Text(titleKey)
+        self.init(value: nil as Double?, total: 1, label: text.accessibilityHidden(true),
+                  currentValueLabel: EmptyGroup(), title: text.string, hasValue: false)
+    }
+
+    /// An indeterminate progress view titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ title: S) {
+        self.init(value: nil as Double?, total: 1, label: Text(verbatim: String(title)).accessibilityHidden(true),
+                  currentValueLabel: EmptyGroup(), title: String(title), hasValue: false)
     }
 
     /// A progress view of `value` out of `total` titled `title` — SwiftUI's
     /// `ProgressView(_:value:total:)`: the bar with the title above.
-    public init<V: BinaryFloatingPoint>(_ title: String, value: V?, total: V = 1.0) {
-        self.init(value: value, total: total, label: Text(title).accessibilityHidden(true),
-                  currentValueLabel: EmptyGroup(), title: title)
+    /// A literal is parsed as inline Markdown (`SR-C`).
+    public init<V: BinaryFloatingPoint>(_ titleKey: LocalizedStringKey, value: V?, total: V = 1.0) {
+        let text = Text(titleKey)
+        self.init(value: value, total: total, label: text.accessibilityHidden(true),
+                  currentValueLabel: EmptyGroup(), title: text.string)
+    }
+
+    /// A determinate progress view titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    public init<V: BinaryFloatingPoint, S: StringProtocol>(_ title: S, value: V?, total: V = 1.0) {
+        self.init(value: value, total: total, label: Text(verbatim: String(title)).accessibilityHidden(true),
+                  currentValueLabel: EmptyGroup(), title: String(title))
     }
 }
 

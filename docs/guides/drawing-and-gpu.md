@@ -272,7 +272,7 @@ read it**, so a measure inside a `.font(.system(size: 26))` subtree is the large
 the lines (pin: `aNarrowProposalWrapsAndAShortHeightCapsTheLines`). The answer is the unrounded size
 layout gives the text, so the frame a `Text` gets is it rounded to whole points, within one point (pin:
 `aMeasuredTextIsTheFrameALaidOutTextGets`; divergence 296). An empty string measures 0 wide and one
-line tall, where SwiftUI's `Text("")` view is 0 by 0 (divergence 295; pin:
+line tall of the resolved font, where SwiftUI's `Text("")` is 0 wide and a constant 14 tall at every font (divergence 295, probe `swiftui-surface-text.swift` E8; pin:
 `anEmptyStringMeasuresAsItLaysOut`). MetalUI has no `Canvas` or `GraphicsContext`, which is why the
 measurer is an environment value; it has no public initialiser (pin:
 `theMeasurerHasNoPublicInitialiserAndNoSetter`). Label the surface for accessibility, which also lets a test find it. The test below reads the surface's

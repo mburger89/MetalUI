@@ -366,3 +366,64 @@ private struct TonedHolder: Component, @MainActor Equatable {
     #expect(after != nil && before != nil && after!.h != before!.h, "the new tone was drawn")
     #expect(window.lastFrameWork.retainedHits == 0)
 }
+
+// MARK: SR-D — the switch knob's hand-painted store track inside a retained subtree
+
+@Observable @MainActor private final class KnobModel { var on = false }
+
+private struct KnobHolder: Component, @MainActor Equatable {
+    let model: KnobModel
+    var content: some ElementGroup {
+        VStack(spacing: 0) {
+            Toggle("T", isOn: Binding(get: { model.on }, set: { model.on = $0 })).toggleStyle(.switch)
+        }
+    }
+    static func == (l: KnobHolder, r: KnobHolder) -> Bool { true }
+}
+
+/// `SR-D` — the knob animates through an `AnimationStore` track painted by hand inside a control, so a retained
+/// replay must keep that track alive and a flight must repaint. (1) After real replays of a settled switch, a change
+/// to `on` still slides (a dropped track would snap it as a first sighting); (2) while it is in flight frames repaint
+/// it, so x moves between ticks, and once it lands the subtree replays again. Mutation: the `retainLog?.touches`
+/// append in `AnimationStore.value(at:)` removed (the replayed frames let the track be swept).
+@MainActor @Test func aSwitchInARetainedSubtreeSlidesAfterReplays() async throws {
+    let model = KnobModel()
+    let window = try TestWindow(size: Size(width: Pixels(200), height: Pixels(60))) {
+        VStack(spacing: 0) { KnobHolder(model: model).equatable() }
+    }
+    func redrawFrame() { window.window.setNeedsRedraw(); window.advanceFrames() }
+    func knobX() throws -> Float {
+        let knob = try #require(window.scene.rects.first { $0.bounds.size.width == 18 && $0.bounds.size.height == 18 },
+                                "the 18-point knob")
+        let track = try #require(window.scene.rects.first { $0.bounds.size.width == 38 }, "the 38-point track")
+        return knob.bounds.origin.x - track.bounds.origin.x
+    }
+    var replays = 0
+    for _ in 0..<12 {
+        redrawFrame()
+        if window.lastFrameWork.retainedHits == 1 { replays += 1 }
+    }
+    try #require(replays >= 3, "the settled switch really replays: \(replays)")
+    #expect(try knobX() == 2)
+    // Past the store's one-frame drop several times over, then the change.
+    model.on = true
+    for _ in 0..<4 { await Task.yield() }
+    redrawFrame()
+    var xs: [Float] = []
+    for _ in 0..<6 {
+        redrawFrame()
+        xs.append(try knobX())
+    }
+    #expect(xs.contains { $0 > 2.5 && $0 < 17.5 }, "slid through mid-travel rather than snapping: \(xs)")
+    #expect(Set(xs).count >= 4, "frames repaint the knob in flight, so x moves between ticks: \(xs)")
+    for _ in 0..<30 { redrawFrame() }
+    let landed = try knobX()
+    #expect(abs(landed - 18) < 0.05, "landed: \(landed)")
+    var replaysAfter = 0
+    for _ in 0..<12 {
+        redrawFrame()
+        if window.lastFrameWork.retainedHits == 1 { replaysAfter += 1 }
+    }
+    try #require(replaysAfter >= 1, "the landed switch replays again: \(replaysAfter)")
+    #expect(abs(try knobX() - 18) < 0.05)
+}

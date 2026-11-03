@@ -212,8 +212,16 @@ public struct Menu<Label: ElementGroup, Content: MenuContent> {
 extension Menu where Label == Text {
     /// A menu titled `title` — as a button, or as a submenu inside another
     /// menu (`MN-D`, `MN-H` item 1).
+    /// A literal is parsed as inline Markdown; the title a native menu shows is the markup-free string (`SR-C`).
     @MainActor
-    public init(_ title: String, @MenuContentBuilder content: @escaping @MainActor () -> Content) {
-        self.init(content: content) { Text(title) }
+    public init(_ titleKey: LocalizedStringKey, @MenuContentBuilder content: @escaping @MainActor () -> Content) {
+        self.init(content: content) { Text(titleKey) }
+    }
+
+    /// A menu titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    @MainActor
+    public init<S: StringProtocol>(_ title: S, @MenuContentBuilder content: @escaping @MainActor () -> Content) {
+        self.init(content: content) { Text(verbatim: String(title)) }
     }
 }

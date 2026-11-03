@@ -96,3 +96,60 @@ func aMenuPickerStyleCompiles() throws {
     #expect(!control.succeeded && control.messages.contains("bogus"),
             "`.bogus` names no style:\n\(control.output)")
 }
+
+/// **SR-C — every control's title spellings compile from outside the module**: a string literal, a `String`, a
+/// `Substring` and a `LocalizedStringKey`, on `Button`, `Toggle`, `Stepper`, `Picker`, `ColorPicker`, `ProgressView`
+/// and `Menu` (divergence 154, `SR-C`). The key spelling is written out so that a literal falling through to the
+/// `StringProtocol` overload cannot hide an internal key initialiser. `Button(42)` is the separating arm.
+///
+/// Mutation that must redden it: any one of those initialisers made `internal`.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aControlTitleSpellingsCompile() throws {
+    func source(_ extra: String) -> String {
+        """
+        @MainActor @ElementBuilder func titles(_ name: String, _ sub: Substring, _ on: Binding<Bool>, _ n: Binding<Int>, _ c: Binding<Color>) -> some ElementGroup {
+            let key = LocalizedStringKey("**b**")
+            Button("**b**") {}
+            Button(name) {}
+            Button(sub) {}
+            Button(key) {}
+            Button(key, role: .destructive) {}
+            Button(name, role: nil) {}
+            Toggle("**b**", isOn: on)
+            Toggle(name, isOn: on)
+            Toggle(sub, isOn: on)
+            Toggle(key, isOn: on)
+            Stepper("**b**", value: n, in: 0...3)
+            Stepper(name, value: n, in: 0...3)
+            Stepper(key, value: n)
+            Stepper(sub, value: n)
+            Stepper(key, onIncrement: {}, onDecrement: {})
+            Stepper(name, onIncrement: {}, onDecrement: {})
+            Picker("**b**", selection: n) { Text("A").tag(1) }
+            Picker(name, selection: n) { Text("A").tag(1) }
+            Picker(key, selection: n) { Text("A").tag(1) }
+            ColorPicker("**b**", selection: c)
+            ColorPicker(name, selection: c)
+            ColorPicker(key, selection: c)
+            ProgressView("**b**")
+            ProgressView(name)
+            ProgressView(key)
+            ProgressView(key, value: 0.5)
+            ProgressView(name, value: 0.5)
+            Menu("**b**") { Button("x") {} }
+            Menu(name) { Button("x") {} }
+            Menu(key) { Button("x") {} }
+            \(extra)
+        }
+        """
+    }
+    let positive = try typecheckFile(source(""), importing: "MetalUI")
+    print("CONTROLS GUARD SR-C positive: succeeded=\(positive.succeeded)\n\(positive.messages)")
+    let control = try typecheckFile(source("Button(42) {}"), importing: "MetalUI")
+    print("CONTROLS GUARD SR-C control: succeeded=\(control.succeeded)\n\(control.messages)")
+
+    try #require(positive.succeeded != control.succeeded,
+                 "the two arms must disagree, or the guard measures nothing:\n\(positive.output)\n\(control.output)")
+    #expect(positive.succeeded, "every title spelling must compile outside the module:\n\(positive.output)")
+    #expect(!control.succeeded, "an Int is not a title:\n\(control.output)")
+}

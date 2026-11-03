@@ -178,3 +178,115 @@ private func colour(_ color: Color) -> Hsla { color.resolved(theme: .light, sche
     #expect(scene(.inline) == scene(.radioGroup), ".inline is the radio group's look")
     #expect(scene(.inline) != scene(.segmented), "the separating arm: not the segmented look")
 }
+
+// MARK: - The switch knob (`SR-D`, divergence 885 retired, 886 live; probe `swiftui-switch-knob.swift`)
+
+/// The knob's x relative to the track's left edge, from the scene's two filled rects (the track, then the knob).
+@MainActor
+private func knobOffset(_ window: Window) throws -> Float {
+    let rects = window.lastScene.rects.filter { $0.background.a > 0 }
+    try #require(rects.count == 2, "the track and the knob: \(rects.count)")
+    return ixBounds(rects[1]).origin.x.value - ixBounds(rects[0]).origin.x.value
+}
+
+/// A ticking window over one `.switch` toggle driven by `flag`, drawn at t = 0.
+@MainActor
+private func switchWindow(_ flag: Flag, rightToLeft: Bool = false) throws -> (Window, FakePlatformWindow) {
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 400, startsDisplayLink: true) {
+        controlRoot { Toggle("Wi-Fi", isOn: flag.binding).toggleStyle(.switch) }
+            .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight)
+    }
+    platform.simulateTick(timestamp: 0)
+    return (window, platform)
+}
+
+/// `SR-D` (found by reading, then measured here): under right-to-left the track is reflected (`LD-A`), so the knob
+/// has to be too. Off it sits at the track's leading end, which is the right: 18 from the track's left edge; on at 2.
+/// Mutation: `paintKnob` unmirrored (the left-to-right offsets) reddens it.
+@Test @MainActor func aSwitchKnobSitsOnItsTrackUnderRightToLeft() throws {
+    var offsets: [Float] = []
+    for on in [false, true] {
+        let flag = Flag(); flag.isOn = on
+        let (window, _) = try switchWindow(flag, rightToLeft: true)
+        offsets.append(try knobOffset(window))
+    }
+    #expect(offsets == [18, 2], "off at the track's right (leading) end, on at its left: \(offsets)")
+}
+
+/// `SR-D`, probe K2: a write with no animation at all slides (SwiftUI's knob moves on every change). At 0.05 s the
+/// knob is strictly between its ends and it has landed by 0.5 s. Mutation: `transaction: nil`.
+@Test @MainActor func aSwitchKnobSlidesOnAnUnanimatedWrite() throws {
+    let flag = Flag()
+    let (window, platform) = try switchWindow(flag)
+    let start = try knobOffset(window)
+    #expect(start == 2)
+    flag.isOn = true
+    window.setNeedsRedraw()
+    platform.simulateTick(timestamp: 1.0)
+    let changeFrame = try knobOffset(window)
+    #expect(changeFrame == 2, "the change frame is progress 0")
+    platform.simulateTick(timestamp: 1.05)
+    let early = try knobOffset(window)
+    #expect(early > 2.5 && early < 17.5, "mid-travel at 0.05 s: \(early)")
+    var peak: Float = 0
+    for step in 6...40 {
+        platform.simulateTick(timestamp: 1.0 + Double(step) * 0.01)
+        peak = max(peak, try knobOffset(window))
+    }
+    #expect(peak > 18.2 && peak < 19, "the spring overshoots its end by a little (SwiftUI's 0.54): \(peak)")
+    platform.simulateTick(timestamp: 1.5)
+    let landed = try knobOffset(window)
+    #expect(abs(landed - 18) < 0.01, "landed by 0.5 s: \(landed)")
+}
+
+/// `SR-D`, probe K3: a `.linear(duration: 1)` write does not slow the knob (SwiftUI's settles in ~0.27 s whatever the
+/// transaction). Linear would be at 8.3 at 0.35 s; the fixed spring has landed. Mutation: the transaction drives it.
+@Test @MainActor func aLinearOneSecondWriteHasAlreadyLandedByThreeHundredFiftyMilliseconds() throws {
+    let flag = Flag()
+    let (window, platform) = try switchWindow(flag)
+    withAnimation(.linear(duration: 1)) { flag.isOn = true; window.setNeedsRedraw() }
+    platform.simulateTick(timestamp: 1.0)
+    platform.simulateTick(timestamp: 1.35)
+    let landed = try knobOffset(window)
+    #expect(abs(landed - 18) < 0.1, "landed: \(landed)")
+}
+
+/// `SR-D`, probe K5: `disablesAnimations` snaps the knob (and only that flag does; `withAnimation(nil)` still slides, K6).
+/// Mutation: ignore `disablesAnimations`.
+@Test @MainActor func aSwitchKnobSnapsUnderDisablesAnimationsAndSlidesUnderANilAnimation() throws {
+    let flag = Flag()
+    let (window, platform) = try switchWindow(flag)
+    var snap = Transaction(); snap.disablesAnimations = true
+    withTransaction(snap) { flag.isOn = true; window.setNeedsRedraw() }
+    platform.simulateTick(timestamp: 1.0)
+    let snapped = try knobOffset(window)
+    #expect(snapped == 18, "snapped under disablesAnimations")
+    withAnimation(nil) { flag.isOn = false; window.setNeedsRedraw() }
+    platform.simulateTick(timestamp: 2.0)
+    platform.simulateTick(timestamp: 2.05)
+    let early = try knobOffset(window)
+    #expect(early < 17.5 && early > 2.5, "withAnimation(nil) still slides (K6): \(early)")
+}
+
+/// `SR-D`: the first frame snaps to the declared end (nothing to slide from), and a settled switch interpolates nothing
+/// and keeps the window asleep. Mutation: the baseline stored as 0 (the first frame would slide); a key rebuilt per frame.
+@Test @MainActor func aSwitchsFirstFrameSnapsAndASettledOneInterpolatesNothing() throws {
+    let flag = Flag(); flag.isOn = true
+    let (window, platform) = try switchWindow(flag)
+    let first = try knobOffset(window)
+    #expect(first == 18, "first sighting snaps")
+    window.setNeedsRedraw()
+    platform.simulateTick(timestamp: 1.0)
+    #expect(!window.hasActiveAnimations, "settled: nothing animating")
+    flag.isOn = false
+    window.setNeedsRedraw()
+    platform.simulateTick(timestamp: 2.0)
+    platform.simulateTick(timestamp: 2.05)
+    #expect(window.hasActiveAnimations, "sliding keeps the display link awake")
+    platform.simulateTick(timestamp: 3.0)
+    window.setNeedsRedraw()
+    platform.simulateTick(timestamp: 3.1)
+    #expect(!window.hasActiveAnimations, "landed: asleep again")
+    let end = try knobOffset(window)
+    #expect(abs(end - 2) < 0.01, "\(end)")
+}

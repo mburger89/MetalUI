@@ -124,7 +124,7 @@ is unbounded. **Empty string: (0, one line)** — `Text("")` lays out 0 wide and
 one line tall (measured at implementation: frame (0, 18) in Noto Sans 13), so
 the measure says the same; SwiftUI's *view* is (0, 0) (probe E2) and its Canvas
 measure (0, 14) (probe E), which MetalUI's layout matches in kind: divergence
-295, corrected by `GT-I`. Baselines (`firstBaseline(in:)`, probe G: 13 for a
+295, corrected by `GT-I`. **Corrected again by `SR-A` (record 198): E2's (0, 0) was an instrument artifact; SwiftUI's laid-out empty `Text` is (0, 14), equal to the Canvas measure, at every font (probe E8).** Baselines (`firstBaseline(in:)`, probe G: 13 for a
 13 pt text) are **not built** (GT-G).
 
 **Cost if wrong.** A measure that disagreed with layout would place a chip a
@@ -261,7 +261,7 @@ height exactly when width is fixed). An app placing a chip rounds up itself
 (`.rounded(.up)`); rounding to the device grid is the kernel's, not the
 measurer's. (2) The empty string measures as it lays out: width 0, height one
 line. Divergence 295 is therefore "an empty `Text` is one line tall where
-SwiftUI's view is zero tall", pinned by test 1.7; it is a fact about layout
+SwiftUI's view is zero tall" (**`SR-A` corrects the SwiftUI side: a constant 14 tall**), pinned by test 1.7; it is a fact about layout
 that the measurer inherits, not new behaviour. The spec's 1.7 name
 `anEmptyStringMeasuresZeroByZero` becomes `anEmptyStringMeasuresAsItLaysOut`.
 

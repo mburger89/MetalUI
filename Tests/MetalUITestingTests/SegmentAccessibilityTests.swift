@@ -33,7 +33,7 @@ private struct AnonymousPicker: Component {
         Picker("Mode", selection: $mode) {
             Text("Alpha").tag(Mode.alpha)
             Text("Beta").tag(Mode.beta)
-        }
+        }.pickerStyle(.segmented)
     }
 }
 

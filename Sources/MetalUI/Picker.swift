@@ -6,17 +6,17 @@ import MetalUIPlatform
 /// over a **closed** set (ruling `DD-V` item 4). A struct with static members,
 /// so turning it into SwiftUI's protocol later keeps every call site compiling.
 ///
-/// **`.automatic` is segmented** — divergence 81, narrowed by `SV-P` item 1:
-/// SwiftUI's automatic picker on macOS is a pop-up menu (PK0 = PK1 `.menu`;
-/// PA0 `AXPopUpButton`). `.menu` is offered since platform services (`SV-P`);
-/// `.inline` is offered since `BY-J`. Pinned by `aMenuPickerStyleCompiles` (which replaced
-/// `aMenuPickerStyleIsNotOffered`) and `theAutomaticPickerStaysSegmented`.
+/// **`.automatic` is the pop-up menu**, as SwiftUI's is on macOS (PK0 = PK1 `.menu`; PA0 `AXPopUpButton`; a toolbar's
+/// automatic picker too, probe `swiftui-toolbar.swift` TB-A) — divergence 81 retired by `SR-B`, reversing `SV-P` item 1
+/// (which kept the segmented look for no technical reason). `.menu` is offered since platform services (`SV-P`);
+/// `.inline` since `BY-J`. A caller that wants the old look writes `.pickerStyle(.segmented)`. Pinned by
+/// `theAutomaticPickerIsAPopUpMenu` and `aMenuPickerStyleCompiles`.
 public struct PickerStyle: Sendable, Hashable {
     enum Kind: Sendable, Hashable { case segmented, radioGroup, menu }
     let kind: Kind
 
-    /// Segmented (divergence 81: SwiftUI's is a pop-up menu).
-    public static let automatic = PickerStyle(kind: .segmented)
+    /// The pop-up menu, as SwiftUI's automatic picker is on macOS (`SR-B`; it was segmented until then).
+    public static let automatic = PickerStyle(kind: .menu)
     /// Every segment as wide as the widest (PA1), in a recessed capsule.
     public static let segmented = PickerStyle(kind: .segmented)
     /// A leading-aligned column of radio rows, 6 apart (PK1, PK3).
@@ -83,7 +83,8 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     private var selection: Binding<SelectionValue>
     private var pickerStyle: PickerStyle = .automatic
     private var scope: PickerScope
-    private var title: String
+    private var label: Text
+    private var title: String { label.string }
     private var box: Box<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>
 
     /// The menu style's structure (`SV-P` item 2): the title, then the
@@ -108,10 +109,23 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
 
     /// A picker titled `title` whose options are `content`'s `.tag(_:)`ed
     /// elements; choosing one writes its tag to `selection`. SwiftUI's
-    /// `Picker(_:selection:content:)`; the automatic style is segmented
-    /// (divergence 81, `DD-V`).
-    public init(_ title: String, selection: Binding<SelectionValue>,
+    /// `Picker(_:selection:content:)`; the automatic style is the pop-up
+    /// menu (`SR-B`).
+    ///
+    /// A literal title is parsed as inline Markdown (`SR-C`); a `String` value takes the disfavoured verbatim overload.
+    public init(_ titleKey: LocalizedStringKey, selection: Binding<SelectionValue>,
                 @ElementBuilder content: () -> Content) {
+        self.init(label: Text(titleKey), selection: selection, content: content)
+    }
+
+    /// A picker titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ title: S, selection: Binding<SelectionValue>,
+                                   @ElementBuilder content: () -> Content) {
+        self.init(label: Text(verbatim: String(title)), selection: selection, content: content)
+    }
+
+    private init(label: Text, selection: Binding<SelectionValue>, @ElementBuilder content: () -> Content) {
         var style = Style()
         style.flexDirection = .row
         style.alignItems = .center
@@ -119,11 +133,11 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         self.style = style
         self.decoration = Decoration()
         self.selection = selection
-        self.title = title
+        self.label = label
         self.scope = PickerScope(
             matches: { tag in (tag.base as? SelectionValue).map { $0 == selection.wrappedValue } ?? false },
             write: { tag in if let value = tag.base as? SelectionValue { selection.wrappedValue = value } })
-        self.box = Box(style: style, content: Pair(OptionalGroup(Text(title)), Box(content: OptionRow(content: content(),
+        self.box = Box(style: style, content: Pair(OptionalGroup(label), Box(content: OptionRow(content: content(),
                                                                                       equalWidth: true))))
     }
 
@@ -163,7 +177,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         // The focus ring (`IX-H` item 2), unless the caller declared one.
         if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(environment) }
         // `labelsHidden()` (`LB-A`): no title row, so no gap; the slot stays reserved.
-        box.content.first.wrapped = environment.labelsHidden ? nil : Text(title)
+        box.content.first.wrapped = environment.labelsHidden ? nil : label
         scope.kind = pickerStyle.kind
         scope.accent = controlAccent(environment)
         scope.tags.removeAll()
@@ -184,7 +198,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         scope.tags.removeAll()
         let labelHidden = pass.frame.environmentTop.labelsHidden   // `LB-A`
         var menuBox = MenuBox(style: style, decoration: decoration,
-                              content: Pair(OptionalGroup(labelHidden ? nil : Text(title)),
+                              content: Pair(OptionalGroup(labelHidden ? nil : label),
                                             PickerMenuButton(content: box.content.second.content.content,
                                                              scope: scope, title: title, pickerID: id)))
         PickerScope.stack.append(scope)
