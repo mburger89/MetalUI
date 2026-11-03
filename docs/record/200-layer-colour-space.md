@@ -27,7 +27,7 @@ Branch `feat/r4-1-layer-srgb`, from master `09d2457b`. Decisions: `docs/superpow
 
 ## 4. Counts
 
-See section 5, filled from the unfiltered native run.
+`swift package clean`, then `swift build --build-system native --build-tests && swift test --build-system native --no-parallel`, unfiltered, at the docs commit: **`Test run with 4998 tests in 14 suites passed`**, 0 failures; `FR-J no-argument frame: succeeded=true` (guards ran). The three closeout checks (`record-05-check.sh`, `closeout-inventory-check.sh`, `closeout-undocumented.sh`) print nothing. `Backends/SDL` tests not run (nothing there changed).
 
 ## 5. Not verified
 
