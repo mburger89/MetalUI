@@ -1,6 +1,7 @@
 import Foundation
 import MetalUI
 import MetalUITesting
+import Observation
 import Testing
 
 // `FV-A`/`FV-B` over the retained paths (record 199): a seeded `@State` is read by a retained record, a graft and a
