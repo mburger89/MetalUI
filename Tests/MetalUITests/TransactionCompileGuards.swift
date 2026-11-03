@@ -56,10 +56,18 @@ private let transparencyPair = """
         var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
     """
 
+/// The display-accessibility pair (`AD-C`), spelled as the migration note does.
+private let displayPair = """
+        var accessibilityDisplaySettings: AccessibilityDisplaySettings { AccessibilityDisplaySettings() }
+        var onAccessibilityDisplaySettingsChange: ((AccessibilityDisplaySettings) -> Void)?
+    """
+
 /// A `PlatformWindow` conformer with every requirement except the Reduce
 /// Motion pair, which the caller splices in (or not), and the Reduce
-/// Transparency pair (`MT-D`), present unless `transparency` says otherwise.
-private func conformer(pair: String, transparency: String = transparencyPair) -> String {
+/// Transparency pair (`MT-D`) and display-accessibility pair (`AD-C`), present unless
+/// `transparency` or `display` says otherwise.
+private func conformer(pair: String, transparency: String = transparencyPair,
+                       display: String = displayPair) -> String {
     """
     import MetalUICore
     import MetalUIScene
@@ -126,6 +134,7 @@ private func conformer(pair: String, transparency: String = transparencyPair) ->
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
     \(pair)
     \(transparency)
+    \(display)
     }
     """
 }
@@ -233,4 +242,38 @@ func aPlatformWindowWithoutTheReduceTransparencyPairDoesNotCompile() throws {
             "the negative must be refused FOR accessibilityReduceTransparency:\n\(without.output)")
     #expect(without.messages.contains("onAccessibilityReduceTransparencyChange"),
             "the negative must be refused FOR onAccessibilityReduceTransparencyChange:\n\(without.output)")
+}
+
+/// **13** (`AD-C`). `accessibilityDisplaySettings` and `onAccessibilityDisplaySettingsChange`
+/// have **no default implementation**: a conformer without them fails to compile, naming both;
+/// with them (the migration note's spelling) it compiles. Mutation: a protocol-extension default
+/// for the pair.
+@Test(.enabled(if: canTypecheck(module: "MetalUIPlatform"), platformSkipReason))
+func aPlatformWindowWithoutTheDisplaySettingsPairDoesNotCompile() throws {
+    let motion = """
+            var accessibilityReduceMotion: Bool { false }
+            var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
+        """
+    let without = try typecheckFile(conformer(pair: motion, display: ""), importing: "MetalUIPlatform")
+    let with = try typecheckFile(conformer(pair: motion), importing: "MetalUIPlatform")
+
+    print("""
+        AD-C pair required: without succeeded=\(without.succeeded) \
+        messages=[\(without.messages)]; with succeeded=\(with.succeeded) \
+        messages=[\(with.messages)]
+        """)
+
+    try #require(with.succeeded && !without.succeeded,
+                 """
+                 the control must compile and the negative must not, or this guard \
+                 cannot fail:
+                 with:
+                 \(with.output)
+                 without:
+                 \(without.output)
+                 """)
+    #expect(without.messages.contains("accessibilityDisplaySettings"),
+            "the negative must be refused FOR accessibilityDisplaySettings:\n\(without.output)")
+    #expect(without.messages.contains("onAccessibilityDisplaySettingsChange"),
+            "the negative must be refused FOR onAccessibilityDisplaySettingsChange:\n\(without.output)")
 }

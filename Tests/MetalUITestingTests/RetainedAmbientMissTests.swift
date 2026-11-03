@@ -86,13 +86,15 @@ struct RetainedAmbientMissTests {
     /// makes a new field owe a row in `EnvironmentFingerprint.differences`. **Mutation:** drop one row (reddens that field's arm).
     @Test func everyEnvironmentFingerprintFieldIsNamedWhenItDiffersAlone() throws {
         let base = EnvironmentValues().retainedFingerprint
-        try #require(Mirror(reflecting: base).children.count == 29, "a new EnvironmentFingerprint field owes a row in differences(from:) and here")
+        try #require(Mirror(reflecting: base).children.count == 31, "a new EnvironmentFingerprint field owes a row in differences(from:) and here")
         var cases: [(String, (inout EnvironmentFingerprint) -> Void)] = [
             ("isEnabled", { $0.isEnabled.toggle() }), ("layoutDirection", { $0.layoutDirection = $0.layoutDirection == .leftToRight ? .rightToLeft : .leftToRight }),
             ("locale", { $0.locale = Locale(identifier: "xx_YY") }), ("dynamicTypeSize", { $0.dynamicTypeSize = .xxxLarge }),
             ("displayScale", { $0.displayScale += 1 }), ("controlActiveState", { $0.controlActiveState = .inactive }),
             ("accessibilityReduceMotion", { $0.accessibilityReduceMotion.toggle() }),
             ("accessibilityReduceTransparency", { $0.accessibilityReduceTransparency.toggle() }),
+            ("accessibilityDisplay", { $0.accessibilityDisplay.colorSchemeContrast = .increased }),
+            ("legibilityWeight", { $0.legibilityWeight = .bold }),
             ("titleBarInsets", { $0.titleBarInsets = Edges(top: Pixels(9), right: Pixels(0), bottom: Pixels(0), left: Pixels(0)) }),
             ("windowSize", { $0.windowSize = Size(width: Pixels(7), height: Pixels(7)) }), ("colorScheme", { $0.colorScheme = $0.colorScheme == .light ? .dark : .light }),
             ("controlSize", { $0.controlSize = .large }), ("font", { $0.font = .title }), ("lineLimit", { $0.lineLimit = 3 }),
@@ -105,7 +107,7 @@ struct RetainedAmbientMissTests {
         ]
         cases.append(("objects", { $0.objects[ObjectIdentifier(AMEnvBox.self)] = ObjectIdentifier(AMEnvBox.self) }))
         cases.append(("custom", { $0.custom[ObjectIdentifier(AMEnvBox.self)] = EnvironmentReading.value(7) }))
-        try #require(cases.count == 29)
+        try #require(cases.count == 31)
         for (name, change) in cases {
             var other = base; change(&other)
             #expect(base != other, "\(name): the change changes the fingerprint")
