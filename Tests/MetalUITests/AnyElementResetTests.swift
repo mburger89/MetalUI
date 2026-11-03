@@ -11,6 +11,10 @@ import MetalUITestSupport
 // `swiftui-key-focus.swift` `AVF` (header readings); MetalUI's mechanism is `ElementGroup.swift`'s `AnyElement` group
 // entry (a keyed `$erased` level under the position, noted through `noteNamed`).
 //
+// **Every instrument declares its stored properties in one order (`w`, `height`, `log`, `n`)**: the `@State` slot is
+// named by its property's position (`$state<k>`), so two types whose `@State` sits at different positions never shared
+// a slot and could not show divergence 210 at all (the first run of this file read `[20]` with the old code).
+//
 // The instruments: `ERA`, `ERB`, `ERS` are three distinct `Component` types with an `Int` `@State` of seed 10, 20 and 30,
 // drawn as the width of a tile; an `onChange(of: w)` writes 11, 21 and 31, so a state is written by a model step (input)
 // and not by an appearance. `ERGen<T>` is one generic type with a seed of 10.
@@ -41,6 +45,7 @@ private struct ERA: Component {
 
 private struct ERB: Component {
     let w: Int
+    var height: Float = 20
     var log: LCLog?
     @State var n: Int
     init(w: Int = 0, log: LCLog? = nil) { self.w = w; self.log = log; _n = State(wrappedValue: 20) }
@@ -54,6 +59,8 @@ private struct ERB: Component {
 
 private struct ERS: Component {
     let w: Int
+    var height: Float = 22
+    var log: LCLog?
     @State var n: Int
     init(w: Int = 0) { self.w = w; _n = State(wrappedValue: 30) }
     var content: some ElementGroup {
@@ -63,6 +70,8 @@ private struct ERS: Component {
 
 private struct ERGen<T>: Component {
     let w: Int
+    var height: Float = 20
+    var log: LCLog?
     @State var n: Int
     init(_ type: T.Type, w: Int = 0) { self.w = w; _n = State(wrappedValue: 10) }
     var content: some ElementGroup {
@@ -268,7 +277,7 @@ private struct ERGen<T>: Component {
     let m = LCModel(), log = LCLog()
     let (window, _) = try lcWindow {
         Column {
-            m.flag ? AnyElement(Stack { ERTaskB(log: log, tick: m.value) }) : AnyElement(Stack { ERTaskA(log: log, tick: m.value) })
+            m.flag ? AnyElement(Stack { ERTaskB(tick: m.value, log: log) }) : AnyElement(Stack { ERTaskA(tick: m.value, log: log) })
         }
     }
     eraDraw(window)
@@ -282,16 +291,18 @@ private struct ERGen<T>: Component {
 }
 
 private struct ERTaskA: Component {
-    let log: LCLog
     let tick: Int
+    var height: Float = 20
+    let log: LCLog
     var content: some ElementGroup {
         Box().frame(width: Pixels(10), height: Pixels(20)).background(.accent)
             .task { log.add("start A"); await untilCancelled { log.add("cancel A") } }
     }
 }
 private struct ERTaskB: Component {
-    let log: LCLog
     let tick: Int
+    var height: Float = 20
+    let log: LCLog
     var content: some ElementGroup {
         Box().frame(width: Pixels(10), height: Pixels(20)).background(.accent)
             .task { log.add("start B"); await untilCancelled { log.add("cancel B") } }
