@@ -174,28 +174,29 @@ struct ERInner: Component, @MainActor Equatable {
 
 // MARK: The layout memo
 
-/// **An equal-shape swap with different text draws B** (`ER-A`, `IV-J`): `Stack { Text("ab") }` swapped for
-/// `Row { Text("cd") }` lays out to the same shape, so the layout memo may hit, and the frame must still draw B's glyphs:
-/// the swapping window's scene equals a window that showed B from the start. Run under `METALUI_VERIFY_LAYOUT_MEMO=1`
-/// as well (it recomputes every hit and traps). Mutation: a keyed text leaf dropping its text from the key.
-@Test @MainActor func anEqualShapeSwapDrawsTheNewTypesText() throws {
+/// **An equal-shape swap with different text lays B out** (`ER-A`, `IV-J`): `Stack { Text("i") }` swapped for
+/// `Row { Text("WWWW") }` has the same tree shape, so the layout memo may hit, and the frame must still measure B's
+/// text: the swapping window's element bounds (sizes) equal a window that showed B from the start. Run under
+/// `METALUI_VERIFY_LAYOUT_MEMO=1` as well (it recomputes every hit and traps). Mutation: a keyed text leaf dropping its
+/// text from the key (the swap reuses A's width).
+@Test @MainActor func anEqualShapeSwapMeasuresTheNewTypesText() throws {
     func make(_ model: ERModel) throws -> TestWindow {
         try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
             VStack(spacing: 0) {
-                model.flag ? AnyElement(Row { Text("cd").frame(width: Pixels(40), height: Pixels(20)) })
-                           : AnyElement(Stack { Text("ab").frame(width: Pixels(40), height: Pixels(20)) })
+                model.flag ? AnyElement(Row { Text("WWWW") }) : AnyElement(Stack { Text("i") })
             }
         }
     }
-    func glyphs(_ w: TestWindow) -> Data { w.scene.glyphs.withUnsafeBytes { Data($0) } }
+    func widths(_ w: TestWindow) -> [Float] {
+        w.window.testingElementBounds.values.map { $0.size.width.value }.sorted()
+    }
     let swapping = ERModel(), direct = ERModel()
     direct.flag = true
     let a = try make(swapping), b = try make(direct)
     for _ in 0..<3 { a.window.setNeedsRedraw(); a.tick(); b.window.setNeedsRedraw(); b.tick() }
-    let before = glyphs(a)
-    #expect(before != glyphs(b), "set up: the two texts draw differently")
+    let before = widths(a)
+    try #require(before != widths(b), "set up: the two texts measure differently: \(before) vs \(widths(b))")
     swapping.flag = true
     a.window.setNeedsRedraw(); a.tick()
-    #expect(glyphs(a) == glyphs(b), "the swap draws B's glyphs")
-    #expect(glyphs(a) != before)
+    #expect(widths(a) == widths(b), "the swap measures B's text: \(widths(a)) vs \(widths(b))")
 }
