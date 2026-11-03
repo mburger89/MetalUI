@@ -91,7 +91,11 @@ public struct State<Value> {
     let initialValue: Value
 
     /// `@State var name = value`: `value` is what the state reads until its
-    /// first write — an optional with a non-`nil` default included (`CX-F`).
+    /// first write — an optional with a non-`nil` default included (`CX-F`) — and
+    /// the **first** `value` the element was built with for as long as it lives:
+    /// `bind` stores it in the table (`FV-A`), so a default re-evaluated by a
+    /// later build (`@State var monitor = Monitor()`, a parent-seeded `init`)
+    /// is discarded, as SwiftUI discards it.
     public init(wrappedValue: Value) { self.initialValue = wrappedValue }
 
     /// The value stored in the window's `StateTable` for this slot, or the
@@ -134,8 +138,10 @@ public struct State<Value> {
 }
 
 extension State {
-    /// Seeds the box, and marks the slot live for this frame's sweep. Called
-    /// by the framework once per frame per element (`StateBinder.bind`).
+    /// Seeds the box, marks the slot live for this frame's sweep, and **stores the
+    /// default as the slot's first value when it has none** (`FV-A`,
+    /// ``StateTable/mark(_:seeding:)``). Called by the framework once per frame per
+    /// element (`StateBinder.bind`).
     ///
     /// The ordinal goes in the NAME rather than in `at:` — a name replaces a
     /// position rather than joining it, so `at:` is ignored whenever a name is
@@ -176,6 +182,6 @@ extension State {
         }
         box.slotID = slotID
         box.boundGeneration = table.generation
-        table.mark(slotID)
+        table.mark(slotID, seeding: initialValue)   // `FV-A`
     }
 }

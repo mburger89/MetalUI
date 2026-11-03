@@ -140,6 +140,11 @@ import MetalUICore
 /// this type is waiting on. An element that stops being produced no longer
 /// loses its state on that very frame; nothing here uses that survival for
 /// anything yet.
+///
+/// **Every declared `@State` holds an entry from its first bind** (`FV-A`, ``mark(_:seeding:)``): the default's
+/// first evaluation is stored then, so the table holds one entry per `@State` of a live element, not one per
+/// *written* `@State`. The reset rules, the tombstone bound and the reap above treat a seeded entry as any other,
+/// and `sweepThreshold` engages sooner by exactly that many entries.
 @MainActor
 final class StateTable {
     /// One entry's storage. `isLive` and `lastSeenGeneration` are what let an
@@ -865,6 +870,30 @@ final class StateTable {
         marked.insert(id)
         // `PA-E`: through the index; `storage[id]?.isLive = true` runs a `modify` coroutine that allocates.
         if let index = storage.index(forKey: id) { storage.values[index].isLive = true }
+    }
+
+    /// `mark`, and on a slot with **no entry** stores `initial` as its first evaluation (`FV-A`, overturns `LC-S`
+    /// item 1): a `@State` keeps the default it was first built with for the view's lifetime, as SwiftUI does (probe
+    /// `swiftui-lifecycle.swift` `D2`, `D3`), instead of reading the freshly built struct's default every build.
+    ///
+    /// **Not a write.** No `isDirty`, no `onWrite`, no `writeCount`, no taint: the entry holds what the bind would
+    /// have read anyway, and any window opened on this build reads the seeded version afterwards, so a seed taints
+    /// nothing (`FV-B`, amends `RW-F`). The entry is versioned from the same counter as a
+    /// write, so a slot that was reset and seeded again never repeats a number. It is journalled as the plain `.mark`:
+    /// a replay marks an entry that is still there, and recording the value would make a `GraftRecord` hold the
+    /// instance past its reset. A slot that already has an entry, of any type, is untouched. One `storage.index` lookup
+    /// (`PA-E`); `initial` is evaluated, and boxed into `Any`, only on a miss.
+    func mark<S>(_ id: GlobalElementID, seeding initial: @autoclosure () -> S) {
+        if contentMemos.retainsSubtrees { markJournal.append(id) }
+        contentMemos.journal.record(.mark(id))   // `RK-F`; `FV-B`: no value in the journal
+        retainLog?.marks.append(id)
+        marked.insert(id)
+        if let index = storage.index(forKey: id) {
+            storage.values[index].isLive = true
+        } else {
+            versionCounter &+= 1
+            storage[id] = Entry(value: initial(), lastSeenGeneration: generation, isLive: true, version: versionCounter)
+        }
     }
 
     /// Write `value` at `id`, setting the entry live immediately, and —

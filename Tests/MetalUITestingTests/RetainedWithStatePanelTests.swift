@@ -394,25 +394,26 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
 
 /// **Test 14** (`RW-C`): every `withState(` call in `Sources/MetalUI` is spelled plain, with `unchanged:` or as a `readState`,
 /// and the count per file equals the table below (spec §2), so a new framework site must choose one of the three. The first
-/// number is the plain `withState`s, the second the compared ones, the third the `readState`s. Comment lines and the declarations in
-/// `Passes.swift`/`StateTable.swift` are not call sites. **Mutation:** a plain `withState(` added to any file (or a conversion
-/// reverted) moves that file's row.
+/// number is the plain `withState`s, the second the compared ones, the third the `readState`s, the fourth the seeding `mark(_:seeding:)`
+/// calls (`FV-B`: a bind that creates an entry is neither a write nor a read; `State.swift` has the one, `State.bind`).
+/// Comment lines and the declarations in `Passes.swift`/`StateTable.swift` are not call sites. **Mutation:** a plain `withState(` added to any file (or a conversion
+/// reverted) moves that file's row; a second `mark(_, seeding:)` in any file moves the `seeds` column.
 @Test func everyStateWriteSiteIsClassified() throws {
-    let expected: [String: (plain: Int, compared: Int, reads: Int)] = [
-        "AnimatedColor.swift": (2, 0, 0), "AnimatedStyle.swift": (2, 0, 0), "FocusState.swift": (1, 0, 0),
-        "Frame.swift": (5, 0, 0), "LazyCore.swift": (0, 1, 0), "LazyGrid.swift": (0, 1, 0), "List.swift": (3, 2, 0), "ProposalScrollView.swift": (0, 0, 1),
-        "ScrollChrome.swift": (0, 1, 2), "ScrollPosition.swift": (0, 0, 1), "ScrollView.swift": (0, 0, 1), "TestingHooks.swift": (1, 0, 0),
-        "TextEditor.swift": (1, 1, 2), "TextField.swift": (1, 1, 2), "Window.swift": (5, 0, 0),
+    let expected: [String: (plain: Int, compared: Int, reads: Int, seeds: Int)] = [
+        "AnimatedColor.swift": (2, 0, 0, 0), "AnimatedStyle.swift": (2, 0, 0, 0), "FocusState.swift": (1, 0, 0, 0),
+        "Frame.swift": (5, 0, 0, 0), "LazyCore.swift": (0, 1, 0, 0), "LazyGrid.swift": (0, 1, 0, 0), "List.swift": (3, 2, 0, 0), "ProposalScrollView.swift": (0, 0, 1, 0),
+        "ScrollChrome.swift": (0, 1, 2, 0), "ScrollPosition.swift": (0, 0, 1, 0), "ScrollView.swift": (0, 0, 1, 0), "TestingHooks.swift": (1, 0, 0, 0),
+        "State.swift": (0, 0, 0, 1), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 1, 2, 0), "Window.swift": (5, 0, 0, 0),
     ]
     let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Sources/MetalUI")
     let names = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".swift") }.sorted()
     try #require(names.contains("StateTable.swift"), "the scan found the sources at \(dir.path)")
-    var found: [String: (plain: Int, compared: Int, reads: Int)] = [:]
+    var found: [String: (plain: Int, compared: Int, reads: Int, seeds: Int)] = [:]
     for name in names where name != "Passes.swift" && name != "StateTable.swift" {
         let lines = try String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8)
             .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
-        var row = (plain: 0, compared: 0, reads: 0)
+        var row = (plain: 0, compared: 0, reads: 0, seeds: 0)
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("//") { continue }
@@ -421,12 +422,13 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
                 if statement.contains("unchanged:") { row.compared += 1 } else { row.plain += 1 }
             }
             if line.contains("readState(") && !line.contains("func readState") { row.reads += 1 }
+            if line.contains("mark(") && line.contains("seeding:") && !line.contains("func mark") { row.seeds += 1 }
         }
-        if row != (0, 0, 0) { found[name] = row }
+        if row != (0, 0, 0, 0) { found[name] = row }
     }
     #expect(Set(found.keys) == Set(expected.keys), "files with a state access: \(found.keys.sorted())")
     for (name, want) in expected.sorted(by: { $0.key < $1.key }) {
-        let got = found[name] ?? (0, 0, 0)
-        #expect(got == want, "\(name): plain/compared/reads \(got) != \(want)")
+        let got = found[name] ?? (0, 0, 0, 0)
+        #expect(got == want, "\(name): plain/compared/reads/seeds \(got) != \(want)")
     }
 }

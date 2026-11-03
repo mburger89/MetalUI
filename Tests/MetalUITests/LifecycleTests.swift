@@ -1214,8 +1214,8 @@ private struct LCRow: Identifiable { let id: String }
 }
 
 /// The SMK shape written with a never-written `@State` default (divergence
-/// 125): the default is re-seeded every build, so `onAppear` and `onDisappear`
-/// reach different instances.
+/// 125, retired by `FV-A`): the default is evaluated on every re-init and the
+/// first evaluation is kept, so `onAppear` and `onDisappear` reach one instance.
 private struct LCDefaultMonitorPane: Component {
     let factory: LCMonitorFactory
     let value: Int
@@ -1226,15 +1226,16 @@ private struct LCDefaultMonitorPane: Component {
         _monitor = State(wrappedValue: factory.make())
     }
     var content: some ElementGroup {
-        Box().frame(width: Pixels(10 + Float(value)), height: Pixels(20))
+        Box().frame(width: Pixels(10 + Float(value)), height: Pixels(20)).background(.accent)   // painted: a removal draws a ghost
             .onAppear { monitor.start() }
             .onDisappear { monitor.stop() }
     }
 }
 
-/// The documented spelling (divergence 125, `LC-S` item 1): the instance is
-/// assigned in `onAppear`, so it is a written `@State` value — kept while the
-/// pane is present and read by `onDisappear` through its departed state.
+/// The spelling that was documented for divergence 125 (`LC-S` item 1, overturned
+/// by `FV-A`): the instance is assigned in `onAppear`, so it is a written `@State`
+/// value — kept while the pane is present and read by `onDisappear` through its
+/// departed state. Still correct, and still the way to defer construction.
 private struct LCAssignedMonitorPane: Component {
     let factory: LCMonitorFactory
     let value: Int
@@ -1246,15 +1247,16 @@ private struct LCAssignedMonitorPane: Component {
     }
 }
 
-/// **5.5** (`D2`, divergence 125, `LC-S` item 1). SwiftUI keeps a `@State`
+/// **5.5** (`D2`, divergence 125 retired, `FV-A`). SwiftUI keeps a `@State`
 /// default's first evaluation for the view's lifetime (`D2`: start and stop
-/// both reach `Mon 1` of four made). MetalUI re-seeds a never-written default
-/// every build: four builds while present, then a removal — `onAppear` reached
-/// instance 1 and `onDisappear` a later one. This pins the divergence; the
-/// separating arm is 5.6. A fix that keeps the first value reddens this test —
-/// read divergence 125 first.
+/// both reach `Mon 1` of four made), and so does MetalUI since `FV-A`: four
+/// builds while present, then a removal — `onAppear` and `onDisappear` both
+/// reach instance 1 while the default was evaluated on every build
+/// (`made > 1`, the separating half: a build that stopped evaluating it would
+/// keep the first value trivially). Mutation: remove the seed in
+/// `State.bind` (`mark(slotID)` for `mark(slotID, seeding:)`).
 @MainActor
-@Test func aNeverWrittenStateDefaultIsReseededSoOnAppearAndOnDisappearSeeDifferentInstances() throws {
+@Test func aNeverWrittenStateDefaultKeepsItsFirstEvaluationForTheViewsLifetime() throws {
     let m = LCModel(), log = LCLog()
     let factory = LCMonitorFactory(log)
     m.shown = true
@@ -1264,9 +1266,8 @@ private struct LCAssignedMonitorPane: Component {
     try #require(log.take() == ["start 1"])
     m.shown = false
     window.drawFrameIfNeeded()
-    let stops = log.take()
-    #expect(stops.count == 1 && stops != ["stop 1"], "re-seeded every build (divergence 125): \(stops)")
-    #expect(factory.made > 1, "the default was evaluated per build: \(factory.made)")
+    #expect(log.entries == ["stop 1"], "the first evaluation is kept (FV-A): \(log.entries)")
+    #expect(factory.made > 1, "the default was still evaluated per build: \(factory.made)")
 }
 
 /// **5.6** (`LC-S` item 1, `LC-I`). The documented spelling — the instance
@@ -1341,4 +1342,48 @@ private struct LCAssignedMonitorPane: Component {
     try #require(log.entries == [], "mid-fade: \(log.entries)")
     platform.simulateTick(timestamp: 101.7)
     #expect(log.entries == ["disappear a=7 b=0"], "\(log.entries)")
+}
+
+/// **6.6b** (`FV-A`, `LC-I`, `LC-H`). The parked disappearance of a never-written `@State` default reads the
+/// first instance: four builds while present (each constructing another monitor), then a fading removal, and the
+/// `onDisappear` that runs after the fade stops instance 1, as the one `onAppear` started. Before `FV-A` the
+/// slot held nothing, so the departed overlay had no value to give and the stop reached a later build's default.
+/// Mutation V1 again: `departed: nil` in `LifecycleStore.endFrame` (the stop reaches the freshly built default).
+@MainActor
+@Test func aGhostParkedOnDisappearReadsTheSeededInstance() throws {
+    let m = LCModel(), log = LCLog()
+    let factory = LCMonitorFactory(log)
+    m.shown = true
+    let (window, platform) = try transitionWindow(m) {
+        if m.shown { LCDefaultMonitorPane(factory: factory, value: m.value).transition(.opacity) }
+    }
+    platform.simulateTick(timestamp: 100)
+    try #require(log.take() == ["start 1"])
+    for v in 1...3 { m.value = v; platform.simulateTick(timestamp: 100 + Double(v) / 10) }
+    try #require(factory.made > 1, "set up: the default was evaluated per build")
+    withAnimation(.linear(duration: 0.6)) { m.shown = false }
+    platform.simulateTick(timestamp: 101)
+    try #require(window.animationStore.lifecycle.parkedCount == 1, "set up: parked on the ghost")
+    platform.simulateTick(timestamp: 101.7)
+    #expect(log.entries == ["stop 1"], "\(log.entries)")
+}
+
+/// **7.1b** (`FV-A`, `LC-J`). Closing the window runs a present element's `onDisappear` on the first instance of a
+/// never-written default, not on the last build's. Mutation: remove the seed in `State.bind`.
+@MainActor
+@Test func closingTheWindowStopsTheSeededInstance() throws {
+    let m = LCModel(), log = LCLog()
+    let factory = LCMonitorFactory(log)
+    let (app, platform) = try lcApp()
+    try app.openWindow(title: "Lifecycle", size: Size(width: Pixels(100), height: Pixels(100)),
+                       startsDisplayLink: true) {
+        Column { LCDefaultMonitorPane(factory: factory, value: m.value) }
+    }
+    let fake = try #require(platform.openedWindows.first)
+    fake.simulateTick(timestamp: 100)
+    try #require(log.take() == ["start 1"])
+    for v in 1...3 { m.value = v; fake.simulateTick(timestamp: 100 + Double(v) / 10) }
+    try #require(factory.made > 1, "set up: the default was evaluated per build")
+    fake.onClose?()
+    #expect(log.entries == ["stop 1"], "\(log.entries)")
 }
