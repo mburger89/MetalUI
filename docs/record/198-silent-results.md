@@ -40,4 +40,5 @@ Branch `feat/r4-1-silent-results`, from master `1d5d723f`. Decisions: `docs/supe
 
 ## 4. Counts and checks
 
-COUNTS_PLACEHOLDER
+`swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native --no-parallel`, unfiltered, 2026-11-03: **`Test run with 4985 tests in 14 suites passed after 283.150 seconds`**, 0 failures; `FR-J no-argument frame: succeeded=true` (guards ran). The counts line of `CLAUDE.md` is not replaced (the batch's three PRs re-take it once). New tests: 5 in `ToggleStyleTests` (knob), `theAutomaticPickerIsAPopUpMenu` replacing `theAutomaticPickerStaysSegmented` plus `anExplicitSegmentedPickerKeepsItsSegments`, `aControlTitleLiteralIsParsedAndAStringVariableIsVerbatim` replacing `aControlTitleIsVerbatim`, the guard `aControlTitleSpellingsCompile`.
+`zsh docs/probes/record-05-check.sh`, `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. Not run: `Backends/SDL` tests (no source there changed), `METALUI_VERIFY_RETAINED` / `METALUI_VERIFY_LAYOUT_MEMO` over the retained tests, the windows/Linux CI jobs; human group SR.
