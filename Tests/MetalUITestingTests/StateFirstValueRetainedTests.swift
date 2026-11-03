@@ -9,7 +9,19 @@ import Testing
 private let verifyingNote: Comment =
     "METALUI_VERIFY_RETAINED=1 builds a replayed frame twice and presents the second: the counts this test pins are not its to read"
 
-/// An `.equatable()` card holding a never-written `@State` seeded from its parameter through `init`.
+/// A child component with a `@State` seeded from its parameter: it binds **inside** the occurrence's recorded window,
+/// where a seed that tainted would taint the open record (the card's own bind precedes the window, `EquatableComponent`).
+struct FVInnerSeeded: Component {
+    let parent: Int
+    @State var seed: Int
+    init(parent: Int) { self.parent = parent; _seed = State(wrappedValue: parent) }
+    var content: some ElementGroup {
+        Text("in \(seed)").frame(width: Pixels(60), height: Pixels(14))
+    }
+}
+
+/// An `.equatable()` card holding a never-written `@State` seeded from its parameter through `init`, and an inner
+/// component with one of its own.
 struct FVRetainedCard: Component, @MainActor Equatable {
     let title: String
     let parent: Int
@@ -19,7 +31,10 @@ struct FVRetainedCard: Component, @MainActor Equatable {
         _seed = State(wrappedValue: parent)
     }
     var content: some ElementGroup {
-        Text("\(title) \(seed)").frame(width: Pixels(80), height: Pixels(14))
+        VStack(spacing: 0) {
+            Text("\(title) \(seed)").frame(width: Pixels(80), height: Pixels(14))
+            FVInnerSeeded(parent: parent)
+        }
     }
     static func == (l: FVRetainedCard, r: FVRetainedCard) -> Bool { l.title == r.title && l.parent == r.parent }
 }
@@ -87,16 +102,16 @@ func aGraftedOccurrenceKeepsItsSeededEntry() throws {
     for _ in 0..<5 { fvStep(pair) }
     #expect(pair.on.lastFrameWork.retainedGrafts == 1, "set up: the occurrence is grafted")
     let seeded = fvSeeded(pair.on)
-    #expect(seeded.count == 1 && seeded[0].hasSuffix("live:true"), "the seeded entry is live: \(seeded)")
+    #expect(seeded.count == 2 && seeded.allSatisfy { $0.hasSuffix("live:true") }, "both seeded entries are live: \(seeded)")
     try agree("the grafted frames")
     fvStep(pair) { $0.show = false }
     #expect(fvSeeded(pair.on).isEmpty, "hiding the card reset its seeded entry: \(fvSeeded(pair.on))")
     try agree("hiding")
     fvStep(pair) { $0.show = true; $0.parent = 8 }
-    #expect(fvSeeded(pair.on).count == 1, "showing it seeds again: \(fvSeeded(pair.on))")
+    #expect(fvSeeded(pair.on).count == 2, "showing it seeds both again: \(fvSeeded(pair.on))")
     try agree("showing")
     for _ in 0..<5 { fvStep(pair) }
     #expect(pair.on.lastFrameWork.retainedGrafts == 1, "the new record grafts")
-    #expect(fvSeeded(pair.on).count == 1 && fvSeeded(pair.on)[0].hasSuffix("live:true"))
+    #expect(fvSeeded(pair.on).count == 2 && fvSeeded(pair.on).allSatisfy { $0.hasSuffix("live:true") })
     try agree("the second life")
 }
