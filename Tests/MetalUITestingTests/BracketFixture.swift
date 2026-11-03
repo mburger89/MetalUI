@@ -288,7 +288,7 @@ struct BracketTopBar: Component, @MainActor Equatable {
             Picker("Mode", selection: $mode) {
                 Text("Model").tag(0)
                 Text("Sketch").tag(1)
-            }
+            }.pickerStyle(.segmented)
             Button("Undo") {}
             Button("Redo") {}
             Menu("File") { Button("New") {}; Button("Open") {} }

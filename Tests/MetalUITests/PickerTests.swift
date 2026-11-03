@@ -27,7 +27,7 @@ private final class Choice<V: Hashable> {
 }
 
 @MainActor
-private func flavorPicker(_ model: Choice<Flavor>, style: PickerStyle = .automatic)
+private func flavorPicker(_ model: Choice<Flavor>, style: PickerStyle = .segmented)
     -> Picker<Flavor, some ElementGroup> {
     Picker("Flavor", selection: model.binding) {
         Text(labels[0]).tag(Flavor.alpha)
@@ -45,7 +45,7 @@ private func options(_ hitboxes: [Hitbox]) -> [Hitbox] {
 }
 
 @MainActor
-private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automatic,
+private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .segmented,
                           disabled: Bool = false) throws -> (Window, FakePlatformWindow) {
     try controlWindow {
         controlRoot { flavorPicker(model, style: style).disabled(disabled) }
@@ -108,7 +108,7 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
                 Text("ten").tag(10)
                 Text("twenty").tag(20)
                 Text("thirty").tag(30)
-            }
+            }.pickerStyle(.segmented)
         }
     }
     let numberSegments = options(numbersWindow.lastHitboxes)
@@ -128,7 +128,7 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
                 Text("one").tag(1)
                 Text("two").tag(2)
                 Text("three").tag(3)
-            }
+            }.pickerStyle(.segmented)
         }
     }
     let tree = try controlTree(window, platform)
@@ -220,7 +220,7 @@ private func pickerWindow(_ model: Choice<Flavor>, style: PickerStyle = .automat
                 Text("one").tag(1)
                 Text("two").tag(2)
                 Text("three").tag(3)
-            }
+            }.pickerStyle(.segmented)
         }
     }
     numbersWindow.focus(id)
@@ -365,7 +365,7 @@ private struct NamedCounter: Element {
                 Text("A").id("a").tag(1)
                 NamedCounter().tag(2)
                 Text("C").tag(3)
-            }
+            }.pickerStyle(.segmented)
         }
     }
     let options = controlID([0, 0, 1])
@@ -409,7 +409,7 @@ private struct NamedCounter: Element {
             Picker("N", selection: model.binding) {
                 Row { Text("x").tag(2) }.tag(1)
                 Text("y").tag(3)
-            }
+            }.pickerStyle(.segmented)
         }
     }
     let id = controlID([0, 0])

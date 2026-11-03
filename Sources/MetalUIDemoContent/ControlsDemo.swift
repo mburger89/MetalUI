@@ -97,7 +97,7 @@ struct ControlsDemo: Component {
                     Text("Vanilla").tag(DemoFlavor.vanilla)
                     Text("Chocolate").tag(DemoFlavor.chocolate)
                     Text("Strawberry").tag(DemoFlavor.strawberry)
-                }
+                }.pickerStyle(.segmented)
                 Picker("Size", selection: $size) {
                     Text("Small").tag(0)
                     Text("Medium").tag(1)

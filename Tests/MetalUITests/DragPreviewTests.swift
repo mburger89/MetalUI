@@ -322,7 +322,7 @@ private struct Named: Identifiable, Hashable {
         ("Toggle", { AnyElement(Toggle("T", isOn: .constant(true)).draggable("s")) }),
         ("Picker", { AnyElement(Picker("P", selection: .constant(0)) {
                 Text("a").tag(0); Text("b").tag(1)
-            }.draggable("s")) }),
+            }.pickerStyle(.segmented).draggable("s")) }),
         ("Stepper", { AnyElement(Stepper("S", value: .constant(1), in: 0...5).draggable("s")) }),
         ("List", { AnyElement(ScrollView {
                 List(rows, rowHeight: px(20)) { row in Text(row.name) }.draggable("s")

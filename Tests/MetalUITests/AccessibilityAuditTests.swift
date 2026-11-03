@@ -403,7 +403,7 @@ private struct AuditControls: Component {
         Toggle("Wi-Fi", isOn: .constant(true))
         Slider(value: .constant(0.4), in: 0...1)
         Stepper("Quantity 2", value: .constant(2), in: 0...10)
-        Picker("Flavor", selection: .constant(1)) { Text("Vanilla").tag(0); Text("Chocolate").tag(1) }
+        Picker("Flavor", selection: .constant(1)) { Text("Vanilla").tag(0); Text("Chocolate").tag(1) }.pickerStyle(.segmented)
         Picker("Size", selection: .constant(0)) { Text("Small").tag(0); Text("Large").tag(1) }
             .pickerStyle(.radioGroup)
         TextField("Search", text: .constant("abc"))
