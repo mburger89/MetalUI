@@ -1030,11 +1030,11 @@ on first sight only with `initial: true`. Order: changes, then appears, then
 disappears, each children first (`LC-F`). A disappearance under a removal
 transition waits for the fade to end; `onDisappear` reads its element's state
 as it was (`LC-H`, `LC-I`). Closing a window runs every present `onDisappear`
-once; a headless `renderFrame` runs no action (`LC-J`). Divergences 120–125: a
+once; a headless `renderFrame` runs no action (`LC-J`). Divergences 120–124: a
 legacy decoration after the scope does not compile, and a scope cannot be a
 window's root (120); the settle bound (121); one fixed order (122); re-inserted
 mid-fade content is fresh (123); a `List`'s first frame appears every row
-(124); a never-written `@State` default is re-seeded (125).
+(124). (125, a never-written `@State` default re-seeded by every build, is retired: a `@State` keeps its first value, `FV-A`.)
 
 `.task(name:priority:file:line:_:)` and `.task(id:name:priority:file:line:_:)`
 (A; `PX-F`, `PX-G`; probe `swiftui-task.swift`) — SwiftUI's spelling and

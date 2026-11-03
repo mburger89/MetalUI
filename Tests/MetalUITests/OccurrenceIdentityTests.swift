@@ -557,7 +557,9 @@ private func generationFrame(_ table: StateTable) -> Frame {
     StateDispatch.dispatching(to: own) { p.count += 1 }
 
     #expect(table.peek(slot(own, 0), as: Int.self) == 1, "the write lands on frame 2's own occurrence")
-    #expect(table.peek(slot(stale, 0), as: Int.self) == nil, "and not on frame 1's dead slot")
+    // `FV-A`: frame 1's bind seeded the dead slot with the default 0, so it reads 0 where it read `nil`; a write that
+    // landed there would read 1 (the B2 mutant).
+    #expect(table.peek(slot(stale, 0), as: Int.self) == 0, "and not on frame 1's dead slot, which keeps its seed")
 }
 
 /// **O1.12 — an `@Environment` box forgets the previous generation's

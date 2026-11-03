@@ -6,9 +6,10 @@ import Observation
 /// publishers). Views read it while they build and MetalUI tracks the reads;
 /// a write from input redraws only what read it.
 ///
-/// It is created once, in `main.swift`, and passed to `rootView(model:)` - never
-/// defaulted in a view's `@State`, which is re-seeded on every build until it is
-/// written (divergence 125).
+/// It is created once, in `main.swift`, and passed to `rootView(model:)` - not
+/// defaulted in a view's `@State`, whose default was re-seeded on every build
+/// until it was written (divergence 125, retired by `FV-A`: a `@State` keeps its
+/// first value now), and the app's model is shared state either way.
 @MainActor
 @Observable
 public final class NotesModel {
