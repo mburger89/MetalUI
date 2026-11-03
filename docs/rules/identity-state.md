@@ -79,7 +79,7 @@ sits outside it** (`EV-X`). `theme` is readable only in `PaintPass`.
 always dirty — write from input. `theme`, `displayScale`,
 `controlActiveState` and `accessibilityReduceMotion` are stamped by
 `Window`/`Frame`, not sourced from `Window.environment`.
-`accessibilityReduceMotion` is `public internal(set)`. `.disabled(d)` is an
+`accessibilityReduceMotion` is `public internal(set)`. **Display-accessibility keys (`AD-`, record §194):** `colorSchemeContrast`, `accessibilityDifferentiateWithoutColor`, `accessibilityInvertColors`, `accessibilityShowBorders` (alias `accessibilityShowButtonShapes`), `accessibilityDimFlashingLights` and `accessibilityPlayAnimatedImages` are `public internal(set)` views of one internal `EnvironmentValues.accessibilityDisplay`, stamped by `Window` from `PlatformWindow.accessibilityDisplaySettings` (never from `Window.environment`); `legibilityWeight` is writable, bare `nil`, never stamped. No built-in view reads any of them (divergences 1076, 1078, 1079). `.disabled(d)` is an
 `isEnabled` transform; the one gate is `Frame.registerHandlers`' 5-argument
 implementation — **a new handler-registering site gains an arm in the D2
 guard**. Scroll regions are outside the gate. `KeyBinding` (the keymap's

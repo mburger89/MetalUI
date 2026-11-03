@@ -2853,3 +2853,13 @@ another app answers its `NSDragOperation` on AppKit, SDL has none); pins `theHea
 pin `sdlHoverIsOptimisticAndPerformSeesItems`). **1057 was measured and fixed, not recorded**: two chained proposal-path drop wrappers let the inner win against SwiftUI's outer; the outer now silences
 the wrapper inside it (`theOuterOfTwoProposalDropWrappersWins`, `DE-G`), for `dropDestination` too. "Not offered": the `DropDelegate` half of the `.onDrag`/`.onDrop` row is gone; a new row lists
 `DropOperation.delete`/`.alias`/`Set`, `operationOutsideApplication` and `init(withinApplication:outsideApplication:)`. Mechanisms and mutations: `docs/superpowers/2026-11-01-drop-delegate-decisions.md`.
+
+## 2026-11-02: accessibility display settings (`AD-F`, `AD-I`, `AD-J`, record §194)
+
+**New: 1075, 1076, 1078, 1079** (208 live; next label 210; 1077 and 1080-1084 reserved by AD and unused). 1075: SDL answers the standard values and never fires; pin
+`anSDLWindowReportsStandardAccessibilityDisplaySettings`. 1076: `colorSchemeContrast` is read and stamped, and no built-in colour or control reacts, where SwiftUI's colours and bordered/plain
+`Button`, both `Toggle` styles, `Divider` and segmented `Picker` do (probe C0, C1, via the underscored setter); 1078: the same for `accessibilityShowBorders` (bordered `Button`, checkbox `Toggle`,
+probe B1); both pinned by `noBuiltInControlReactsToAccessibilityDisplaySettings`. 1079: `Text` does not read `legibilityWeight` (probe L1: `.bold` widens the ink 207 to 218); pin
+`legibilityWeightIsScopedNearestWriterWins`. **1077 and 1080 were measured and are not divergences**: probe D1 (Differentiate Without Colour) and I1 (Invert Colours) changed no pixel of any SwiftUI
+built-in control tried, so MetalUI not reacting is the same behaviour (record 05 rows). "Not offered": the `colorSchemeContrast` row and the "Increase Contrast, Reduce Transparency,
+Differentiate Without Colour" row (stale since Reduce Transparency) are narrowed to what is still absent. Mechanisms and mutations: `docs/superpowers/2026-11-02-accessibility-display-decisions.md`.

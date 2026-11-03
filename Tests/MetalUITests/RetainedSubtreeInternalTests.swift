@@ -183,6 +183,7 @@ private let environmentFields: [String: String] = [
     "isEnabled": "fingerprint", "layoutDirection": "fingerprint", "locale": "fingerprint",
     "dynamicTypeSize": "fingerprint", "displayScale": "fingerprint", "controlActiveState": "fingerprint",
     "accessibilityReduceMotion": "fingerprint", "accessibilityReduceTransparency": "fingerprint",
+    "accessibilityDisplay": "fingerprint", "legibilityWeight": "fingerprint",
     "titleBarInsets": "fingerprint", "windowSize": "fingerprint", "colorScheme": "fingerprint",
     "controlSize": "fingerprint", "font": "fingerprint",
     "truncationMode": "fingerprint", "multilineTextAlignment": "fingerprint", "foregroundStyle": "fingerprint", "tint": "fingerprint",

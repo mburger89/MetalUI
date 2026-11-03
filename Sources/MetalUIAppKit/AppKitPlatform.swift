@@ -776,9 +776,13 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         center.addObserver(self, selector: selector, name: NSWindow.didResignKeyNotification, object: window)
         center.addObserver(self, selector: selector, name: NSApplication.didBecomeActiveNotification, object: nil)
         center.addObserver(self, selector: selector, name: NSApplication.didResignActiveNotification, object: nil)
+        observeAccessibilityDisplaySettingsNotifications()
     }
 
     @objc private func controlActiveStateNotification(_ notification: Notification) {
+        // The activation backstop (`AD-G`): a setting changed while the app was in the background
+        // is read when it comes back, whichever notification was missed.
+        if notification.name == NSApplication.didBecomeActiveNotification { refreshAccessibilityDisplaySettings() }
         if notification.name == NSWindow.didResignKeyNotification { hostView.forgetHeldPress() }
         if notification.name == NSWindow.didBecomeKeyNotification { pollClipboardChange() }
         refreshControlActiveState()
@@ -848,6 +852,34 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     @objc private func accessibilityDisplayOptionsNotification(_ notification: Notification) {
         refreshAccessibilityReduceMotion()
         refreshAccessibilityReduceTransparency()
+        refreshAccessibilityDisplaySettings()
+    }
+
+    // MARK: Display accessibility settings (`AD-C`, `AD-G`; the readers are in `AppKitAccessibilityDisplay.swift`)
+
+    /// What `accessibilityDisplaySettings` reads: the live system reading in production
+    /// (`systemAccessibilityDisplaySettings()`), a test's stand-in otherwise -- the
+    /// Media Accessibility, Accessibility and show-borders readers cannot be swizzled
+    /// (human checks AD4-AD6).
+    var readAccessibilityDisplaySettings: @MainActor () -> AccessibilityDisplaySettings = AppKitWindow.systemAccessibilityDisplaySettings
+
+    /// A live read, never a cache (`readAccessibilityDisplaySettings`).
+    var accessibilityDisplaySettings: AccessibilityDisplaySettings { readAccessibilityDisplaySettings() }
+
+    /// Fired with the new settings when a re-read differs from the last one.
+    var onAccessibilityDisplaySettingsChange: ((AccessibilityDisplaySettings) -> Void)?
+
+    /// The reading the last re-read saw, updated whether or not a callback is set.
+    private(set) var lastAccessibilityDisplaySettings = AccessibilityDisplaySettings()
+
+    /// Re-reads the settings and reports them if they changed. Called on the display-options
+    /// notification, the Media Accessibility and Accessibility notifications, and application
+    /// activation.
+    func refreshAccessibilityDisplaySettings() {
+        let settings = accessibilityDisplaySettings
+        guard settings != lastAccessibilityDisplaySettings else { return }
+        lastAccessibilityDisplaySettings = settings
+        onAccessibilityDisplaySettingsChange?(settings)
     }
 
     // MARK: Reduce Transparency (`MT-D`)
@@ -1001,6 +1033,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         observeControlActiveState()
         lastAccessibilityReduceMotion = accessibilityReduceMotion
         lastAccessibilityReduceTransparency = accessibilityReduceTransparency
+        lastAccessibilityDisplaySettings = accessibilityDisplaySettings
         observeAccessibilityReduceMotion()
         lastReportedAppearance = appearance
         accessibilityBridge.hostView = hostView

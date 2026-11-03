@@ -105,10 +105,18 @@ func runDemo() throws {
     // with a spacing control, over a striped backdrop.
     let glassDemo = ProcessInfo.processInfo.environment["METALUI_GLASS_DEMO"] == "1"
 
+    // Accessibility display settings (`AD-A`...`AD-L`, human checks group AD): every value the window stamps,
+    // live. Its own root, not under the looks demo, whose pins count its layout (`LG-V`'s reason).
+    let accessibilityDemo = ProcessInfo.processInfo.environment["METALUI_ACCESSIBILITY_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if glassDemo {
+    if accessibilityDemo {
+        window = try app.openWindow(title: "MetalUI — Accessibility Display",
+                                    size: Size(width: Pixels(560), height: Pixels(260)),
+                                    content: accessibilityDisplayDemoContent)
+    } else if glassDemo {
         window = try app.openWindow(title: "MetalUI — Liquid Glass",
                                     size: Size(width: Pixels(720), height: Pixels(420)),
                                     content: liquidGlassDemoContent)

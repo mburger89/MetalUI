@@ -848,3 +848,17 @@ inert**: no click, no keyboard activation, no accessibility link element
 colours, decorations, kerning, tracking, baseline offset) is read by both text
 systems or by paint. `Text.LineStyle` patterns other than `.solid` are **not
 declared** (a documented absence), so they are not inert.
+
+## 2026-11-02: rows added (accessibility display settings)
+
+Record §194. Every key below is stamped by the window and **read by no built-in view**: it is for authors (the demo panel `METALUI_ACCESSIBILITY_DEMO=1` is the only reader). Where SwiftUI's
+built-in views were measured to change (probe `swiftui-accessibility-display.swift` C0/C1/B1/L1) the absence is a divergence (1076, 1078, 1079); where they were measured not to (D1, I1), or
+there is nothing to react (no video, no animated image), it is a row here, not a divergence.
+
+| declared | read by | SwiftUI's built-in reaction |
+|---|---|---|
+| `accessibilityDifferentiateWithoutColor` | authors only | none measured (probe D1: no pixel of `Button` x3, `Toggle` x2, `Divider`, `TextField`, `Picker` moved); no divergence label |
+| `accessibilityInvertColors` | authors only | none measured (probe I1, same set); no divergence label |
+| `accessibilityDimFlashingLights` | authors only | unmeasured: MetalUI plays no video, so there is nothing to dim |
+| `accessibilityPlayAnimatedImages` | authors only | unmeasured: MetalUI decodes no animated image (`PX-C` item 5) |
+| `colorSchemeContrast`, `accessibilityShowBorders`, `legibilityWeight` | authors only | SwiftUI's built-ins DO react (divergences 1076, 1078, 1079) |

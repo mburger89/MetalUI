@@ -99,7 +99,12 @@ the window's top layer — a portal for modals, popovers and tooltips
   `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
   (inert as on macOS), `accessibilityReduceMotion`, `accessibilityReduceTransparency` (SwiftUI's
   key, read-only outside; stamped from the platform; while true every `Material` draws an opaque
-  grey with no blur, divergence 315; C27, `MT-D`, `MT-F`); `layoutDirection`
+  grey with no blur, divergence 315; C27, `MT-D`, `MT-F`); `colorSchemeContrast`,
+  `accessibilityDifferentiateWithoutColor`, `accessibilityInvertColors`, `accessibilityShowBorders`
+  (and `accessibilityShowButtonShapes`), `accessibilityDimFlashingLights`,
+  `accessibilityPlayAnimatedImages` (SwiftUI's keys, read-only outside; stamped from
+  `PlatformWindow.accessibilityDisplaySettings`; no built-in view reacts, divergences 1075, 1076,
+  1078; `AD-A`..`AD-L`) and the writable `legibilityWeight` (`Text` does not read it, 1079); `layoutDirection`
   mirrors layout under `.rightToLeft` (A; a shape's path, gradient unit points, `trim` and
   `UnevenRoundedRectangle`'s corners stay unmirrored, 1045); `colorScheme`, readable while building
   ([Colour](#colour--a--d--m)). `Theme`/`ColorToken`/`.theme(_:)` are

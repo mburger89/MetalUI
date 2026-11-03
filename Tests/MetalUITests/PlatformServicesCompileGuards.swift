@@ -63,6 +63,8 @@ private func conformer(members: [String]) -> String {
         var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
         var accessibilityReduceTransparency: Bool { false }
         var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
+        var accessibilityDisplaySettings: AccessibilityDisplaySettings { AccessibilityDisplaySettings() }
+        var onAccessibilityDisplaySettingsChange: ((AccessibilityDisplaySettings) -> Void)?
         var onClose: (() -> Void)?
         var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
         func publishAccessibilityTree(_ tree: AccessibilityTree) {}

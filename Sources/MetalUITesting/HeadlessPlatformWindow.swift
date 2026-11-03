@@ -50,6 +50,11 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         /// AppKit's answer with the setting off); ``HeadlessPlatformWindow/simulateReduceTransparencyChange(to:)``
         /// changes it later.
         public var accessibilityReduceTransparency: Bool
+        /// The display-accessibility settings when the window opens (`AD-H`): AppKit's answer
+        /// with nothing turned on (standard contrast, Auto-Play Animated Images `true`);
+        /// ``HeadlessPlatformWindow/simulateAccessibilityDisplaySettingsChange(to:)`` changes
+        /// them later.
+        public var accessibilityDisplaySettings: AccessibilityDisplaySettings
         /// What `setWindowDragRegions` answers: `true` (SDL) makes `Window` compute and publish drag
         /// regions; `false` (AppKit) is asked once and never computed for (`CW-F`).
         public var usesWindowDragRegions: Bool
@@ -82,6 +87,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
                     appliesTitleBarStyle: Bool = true, externalDragResult: Bool = false,
                     accessibilityClientActive: Bool = true, performsWindowDrag: Bool = true,
                     accessibilityReduceTransparency: Bool = false,
+                    accessibilityDisplaySettings: AccessibilityDisplaySettings = AccessibilityDisplaySettings(playAnimatedImages: true),
                     usesWindowDragRegions: Bool = false, hasNativeWindowControls: Bool = true,
                     isZoomed: Bool = false, hiddenTitleBarInsets: Edges<Pixels>? = nil,
                     clipboardExportsLazily: Bool = true) {
@@ -96,6 +102,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
             self.accessibilityClientActive = accessibilityClientActive
             self.performsWindowDrag = performsWindowDrag
             self.accessibilityReduceTransparency = accessibilityReduceTransparency
+            self.accessibilityDisplaySettings = accessibilityDisplaySettings
             self.usesWindowDragRegions = usesWindowDragRegions
             self.hasNativeWindowControls = hasNativeWindowControls
             self.isZoomed = isZoomed
@@ -117,6 +124,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         self.scaleFactor = options.scaleFactor
         self.appearance = options.appearance
         self.accessibilityReduceTransparency = options.accessibilityReduceTransparency
+        self.accessibilityDisplaySettings = options.accessibilityDisplaySettings
         self.isZoomed = options.isZoomed
         self.headlessRenderer = HeadlessWindowRenderer(scaleFactor: options.scaleFactor)
         self.title = title
@@ -147,6 +155,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// Reduce Transparency; ``Options/accessibilityReduceTransparency`` until
     /// ``simulateReduceTransparencyChange(to:)``.
     public private(set) var accessibilityReduceTransparency: Bool
+    /// The display-accessibility settings; ``Options/accessibilityDisplaySettings`` until
+    /// ``simulateAccessibilityDisplaySettingsChange(to:)`` (`AD-H`).
+    public private(set) var accessibilityDisplaySettings: AccessibilityDisplaySettings
 
     // MARK: Callbacks the window installs
 
@@ -162,6 +173,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public var onAccessibilityReduceMotionChange: ((Bool) -> Void)?
     /// Installed by `Window`; ``simulateReduceTransparencyChange(to:)`` calls it.
     public var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)?
+    /// Installed by `Window`; ``simulateAccessibilityDisplaySettingsChange(to:)`` calls it.
+    public var onAccessibilityDisplaySettingsChange: ((AccessibilityDisplaySettings) -> Void)?
     /// Installed by the app; fires once when the window closes.
     public var onClose: (() -> Void)?
     /// Installed by `Window`; asked by ``simulateCloseRequest()``.
@@ -492,6 +505,13 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public func simulateReduceTransparencyChange(to value: Bool) {
         accessibilityReduceTransparency = value
         onAccessibilityReduceTransparencyChange?(value)
+    }
+
+    /// The user changed a display-accessibility setting: records the settings and tells the
+    /// window, which repaints only if they differ from what it holds (`AD-E`, `AD-H`).
+    public func simulateAccessibilityDisplaySettingsChange(to value: AccessibilityDisplaySettings) {
+        accessibilityDisplaySettings = value
+        onAccessibilityDisplaySettingsChange?(value)
     }
 
     /// A user's close request (the close button, ⌘W, Alt-F4): ``onCloseRequest``

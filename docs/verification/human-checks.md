@@ -2181,3 +2181,16 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **PJ4.** Hover and click on a turned view land where its projected quad would be: the near edge outside the layout rectangle hits, the layout area beyond the far edge does not. **Observed:**
 - [ ] **PJ5.** With VoiceOver on, the cursor outline of a turned view is the bounding box of its projected quad. **Observed:**
 - [ ] **PJ6.** Linux and Windows (SDL): the card flip matches macOS (PJ1, PJ2). **Observed:**
+
+## AD. Accessibility display settings - the panel follows System Settings (round 3 item R3-10 item 7; decisions `docs/superpowers/2026-11-02-accessibility-display-decisions.md`, record 194; provisional letter)
+
+*An agent cannot: the values come from System Settings, which an agent does not touch, and the Media Accessibility and Accessibility readers cannot be swizzled. Use the accessibility demo (`METALUI_ACCESSIBILITY_DEMO=1 swift run MetalUIDemo`): a panel of the seven values, read live. Nothing else in MetalUI reacts to them (divergences 1076, 1078, 1079).*
+
+- [ ] **AD1.** System Settings > Accessibility > Display > Increase contrast: the `colorSchemeContrast` row flips between standard and increased at once, with the app in the foreground. **Observed:**
+- [ ] **AD2.** Differentiate without color: the `accessibilityDifferentiateWithoutColor` row flips. **Observed:**
+- [ ] **AD3.** Invert colours: the `accessibilityInvertColors` row flips. **Observed:**
+- [ ] **AD4.** macOS 26.1 and later: Show borders (Button Shapes) flips the `accessibilityShowBorders` row; on an earlier macOS it stays `false`. **Observed:**
+- [ ] **AD5.** Dim flashing lights (Accessibility > Motion or Video): the `accessibilityDimFlashingLights` row flips, live or at the latest when the app is next activated (the Media Accessibility notification's centre is unmeasured). **Observed:**
+- [ ] **AD6.** Auto-play animated images (Accessibility > Motion): the `accessibilityPlayAnimatedImages` row flips. **Observed:**
+- [ ] **AD7.** With the app in the background, change any of the six; bring the app forward: the panel shows the new value on activation. **Observed:**
+- [ ] **AD8.** Linux and Windows (SDL): the panel shows the standard values (standard contrast, four flags false, animated images true) whatever the OS setting (divergence 1075). **Observed:**

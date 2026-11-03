@@ -190,6 +190,79 @@ public struct EnvironmentValues {
     /// write it (`aScopeCannotWriteReduceTransparency`).
     public internal(set) var accessibilityReduceTransparency: Bool = false
 
+    /// The platform's display-accessibility settings, as one value (`AD-D`): the storage behind
+    /// the six keys below. Internal -- a `Window` stamps it over its root environment at every
+    /// draw (`AD-E`); `renderFrame` stamps the bare value. A bare value is a bare SwiftUI
+    /// `EnvironmentValues()`'s reading (probe `swiftui-accessibility-display.swift` V0).
+    var accessibilityDisplay = AccessibilityDisplaySettings()
+
+    /// Whether the user asked for more contrast (SwiftUI's `colorSchemeContrast`, `AD-D`).
+    /// `.standard` in a bare value and in `renderFrame`; the window stamps its platform
+    /// window's value. **No built-in view reacts to it**, though SwiftUI's colours and several
+    /// controls do (probe C0, C1; divergence 1076) -- it is for authors to read. **Get-only
+    /// outside the module**, as SwiftUI's key path is: a scope cannot write it
+    /// (`theAccessibilityDisplayKeysAreReadOnlyOutsideMetalUI`).
+    public internal(set) var colorSchemeContrast: ColorSchemeContrast {
+        get { accessibilityDisplay.colorSchemeContrast }
+        set { accessibilityDisplay.colorSchemeContrast = newValue }
+    }
+
+    /// Whether the user asked to differentiate without colour (SwiftUI's
+    /// `accessibilityDifferentiateWithoutColor`, `AD-D`). `false` in a bare value. No built-in
+    /// view reads it, and none of SwiftUI's built-in controls changed with it either (probe
+    /// D1: no pixel moved). Get-only outside the module.
+    public internal(set) var accessibilityDifferentiateWithoutColor: Bool {
+        get { accessibilityDisplay.differentiateWithoutColor }
+        set { accessibilityDisplay.differentiateWithoutColor = newValue }
+    }
+
+    /// Whether the user asked to invert colours (SwiftUI's `accessibilityInvertColors`,
+    /// `AD-D`). `false` in a bare value. No built-in view reads it (probe I1: no SwiftUI
+    /// control changed). Get-only outside the module.
+    public internal(set) var accessibilityInvertColors: Bool {
+        get { accessibilityDisplay.invertColors }
+        set { accessibilityDisplay.invertColors = newValue }
+    }
+
+    /// Whether the user asked to show borders / button shapes (SwiftUI's
+    /// `accessibilityShowBorders`, `AD-D`). `false` in a bare value; AppKit reads it on macOS
+    /// 26.1 and later and `false` before. **No built-in view reacts to it**, though SwiftUI's
+    /// bordered `Button` and checkbox `Toggle` do (probe B1; divergence 1078). Get-only
+    /// outside the module.
+    public internal(set) var accessibilityShowBorders: Bool {
+        get { accessibilityDisplay.showBorders }
+        set { accessibilityDisplay.showBorders = newValue }
+    }
+
+    /// SwiftUI's earlier spelling of ``accessibilityShowBorders`` (`AD-D`). **Not deprecated
+    /// here**: SwiftUI marks it deprecated, renamed, but warns nowhere today (probe A).
+    /// Get-only.
+    public var accessibilityShowButtonShapes: Bool { accessibilityShowBorders }
+
+    /// Whether the user asked to dim flashing lights (SwiftUI's `accessibilityDimFlashingLights`,
+    /// `AD-D`). `false` in a bare value. Nothing built in reads it (MetalUI plays no video).
+    /// Get-only outside the module.
+    public internal(set) var accessibilityDimFlashingLights: Bool {
+        get { accessibilityDisplay.dimFlashingLights }
+        set { accessibilityDisplay.dimFlashingLights = newValue }
+    }
+
+    /// Whether animated images may play (SwiftUI's `accessibilityPlayAnimatedImages`, `AD-D`).
+    /// **`false` in a bare value** (probe V0) -- a window stamps its platform's value, `true`
+    /// unless the user turned Auto-Play Animated Images off. Nothing built in reads it (MetalUI
+    /// decodes no animated image, `PX-C`). Get-only outside the module.
+    public internal(set) var accessibilityPlayAnimatedImages: Bool {
+        get { accessibilityDisplay.playAnimatedImages }
+        set { accessibilityDisplay.playAnimatedImages = newValue }
+    }
+
+    /// The text weight the user asked for (SwiftUI's `legibilityWeight`, `AD-J`): `nil` in a
+    /// bare value and in a hosted SwiftUI view (probe H0), and the window stamps nothing.
+    /// **Writable**, as SwiftUI's is: `.environment(\.legibilityWeight, .bold)` scopes it.
+    /// **`Text` does not read it**, though SwiftUI's widens (probe L1; divergence 1079) --
+    /// for authors to read.
+    public var legibilityWeight: LegibilityWeight? = nil
+
     /// How far a hidden title bar overlaps the content (ruling `AS-E` item 4,
     /// MetalUI-only — SwiftUI keeps the content in a safe area instead,
     /// divergence 175): `top` is the bar's height (32 points on macOS, more
@@ -427,6 +500,8 @@ struct EnvironmentFingerprint: Equatable {
     var controlActiveState: ControlActiveState
     var accessibilityReduceMotion: Bool
     var accessibilityReduceTransparency: Bool
+    var accessibilityDisplay: AccessibilityDisplaySettings
+    var legibilityWeight: LegibilityWeight?
     var titleBarInsets: Edges<Pixels>
     var windowSize: Size<Pixels>
     var colorScheme: ColorScheme
@@ -468,6 +543,8 @@ extension EnvironmentFingerprint {
         if controlActiveState != other.controlActiveState { out.append("controlActiveState") }
         if accessibilityReduceMotion != other.accessibilityReduceMotion { out.append("accessibilityReduceMotion") }
         if accessibilityReduceTransparency != other.accessibilityReduceTransparency { out.append("accessibilityReduceTransparency") }
+        if accessibilityDisplay != other.accessibilityDisplay { out.append("accessibilityDisplay") }
+        if legibilityWeight != other.legibilityWeight { out.append("legibilityWeight") }
         if titleBarInsets != other.titleBarInsets { out.append("titleBarInsets") }
         if windowSize != other.windowSize { out.append("windowSize") }
         if colorScheme != other.colorScheme { out.append("colorScheme") }
@@ -506,6 +583,7 @@ extension EnvironmentValues {
             controlActiveState: controlActiveState,
             accessibilityReduceMotion: accessibilityReduceMotion,
             accessibilityReduceTransparency: accessibilityReduceTransparency,
+            accessibilityDisplay: accessibilityDisplay, legibilityWeight: legibilityWeight,
             titleBarInsets: titleBarInsets, windowSize: windowSize, colorScheme: colorScheme,
             controlSize: controlSize, font: font, lineLimit: lineLimit, truncationMode: truncationMode,
             multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStyle, tint: tint,
