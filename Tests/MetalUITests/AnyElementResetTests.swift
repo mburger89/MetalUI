@@ -526,4 +526,39 @@ private struct ERPaddedStyle: ButtonStyle {
     #expect(swapped.resets[3] == swapped.resets[2] + 1, "a swap departs the old level once: \(swapped.resets)")
     #expect(swapped.scans[3] > 0, "and is the frame that scans: \(swapped.scans)")
 }
+
+// MARK: The residual (ER-C)
+
+/// **`AV3d`, `AV3e`: the residual (divergence 211) and its control.** SwiftUI makes a modifier part of the erased type, so
+/// `AnyView(X)` -> `AnyView(X.background(.red))` resets (probe `AV3d`) and so does `.padding` -> `.opacity` (`AV3e`).
+/// Here `Stack.background(_:)` is a legacy decoration returning `Self`: it writes the element's own `Style`, the wrapped
+/// type does not change and the written 11 is **kept** (arm `background`, pinned wrong on purpose; the second 11 is the
+/// background's own rect, also 20 tall). `.padding` and `.opacity` are different `ModifiedContent` layers, a different
+/// type: that arm resets to 10, SwiftUI's answer (the control that the key does see a layer change). A fix of the first
+/// would key the level by the decoration too.
+@MainActor
+@Test(arguments: ["background", "paddingToOpacity"]) func aLegacyDecorationIsNotATypeChangeUnderAnAnyElement(arm: String) throws {
+    let m = LCModel()
+    let (window, _) = try lcWindow {
+        Column {
+            if arm == "background" {
+                m.flag ? AnyElement(Stack { ERA(w: m.value) }.background(.accent)) : AnyElement(Stack { ERA(w: m.value) })
+            } else {
+                m.flag ? AnyElement(Stack { ERA(w: m.value) }.opacity(0.5)) : AnyElement(Stack { ERA(w: m.value) }.padding(Pixels(4)))
+            }
+        }
+    }
+    eraDraw(window)
+    m.value = 1
+    eraDraw(window)
+    let before = eraWidths(window)
+    try #require(before == [11], "set up: A is written: \(before)")
+    m.flag = true
+    eraDraw(window)
+    if arm == "background" {
+        #expect(eraWidths(window) == [11, 11], "the decoration is not a type change: the 11 is kept (SwiftUI resets, divergence 211): \(eraWidths(window))")
+    } else {
+        #expect(eraWidths(window) == [10], "a different modifier layer is a different type (AV3e): \(eraWidths(window))")
+    }
+}
 #endif
