@@ -1335,7 +1335,8 @@ public final class LayoutTree {
     ///   (`nativeGridZeroSpacingEdges`; ruling GR-R, probe GE).
     ///
     /// Leading/trailing are left/right for a horizontal stack and top/bottom
-    /// for a vertical one; no layout direction is read (divergence 25).
+    /// for a vertical one, in declaration order; measurement reads no layout direction (a right-to-left
+    /// environment reflects the placed rects, `LD-A`).
     private func zeroSpacingEdges(_ id: LayoutNodeID,
                                   axis: ProposalStackAxis) -> (leading: Bool, trailing: Bool) {
         switch nativeNode(id) {

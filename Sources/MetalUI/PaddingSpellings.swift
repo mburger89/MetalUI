@@ -8,8 +8,9 @@ import MetalUICore
 // SwiftUI, each lowering to the one existing modifier of its vocabulary.
 
 extension Edge {
-    /// A set of edges — SwiftUI's `Edge.Set`, for `padding(_:_:)`. `leading` is the left edge
-    /// and `trailing` the right: MetalUI has no right-to-left layout (divergence 208).
+    /// A set of edges — SwiftUI's `Edge.Set`, for `padding(_:_:)`. `leading` is the leading edge:
+    /// the left under a left-to-right layout direction; a right-to-left environment reflects it at placement
+    /// (`LD-A`, probe `swiftui-layout-direction.swift` E1/E2). Divergence 208 is only the absent default amount.
     public struct Set: OptionSet, Sendable, Hashable {
         /// The set's bits.
         public let rawValue: UInt8
@@ -18,11 +19,11 @@ extension Edge {
 
         /// The top edge.
         public static let top = Set(rawValue: 1 << 0)
-        /// The leading (left) edge.
+        /// The leading edge (the left under left-to-right, `LD-A`).
         public static let leading = Set(rawValue: 1 << 1)
         /// The bottom edge.
         public static let bottom = Set(rawValue: 1 << 2)
-        /// The trailing (right) edge.
+        /// The trailing edge (the right under left-to-right, `LD-A`).
         public static let trailing = Set(rawValue: 1 << 3)
         /// Leading and trailing.
         public static let horizontal: Set = [.leading, .trailing]
@@ -43,15 +44,15 @@ extension Edge {
     }
 }
 
-/// An inset on each edge — SwiftUI's `EdgeInsets` (leading is the left edge, divergence 208).
+/// An inset on each edge — SwiftUI's `EdgeInsets` (leading is the leading edge: the left, reflected under right-to-left, `LD-A`; divergence 208).
 public struct EdgeInsets: Sendable, Hashable {
     /// The top inset.
     public var top: Pixels
-    /// The leading (left) inset.
+    /// The leading inset (the left under left-to-right, `LD-A`).
     public var leading: Pixels
     /// The bottom inset.
     public var bottom: Pixels
-    /// The trailing (right) inset.
+    /// The trailing inset (the right under left-to-right, `LD-A`).
     public var trailing: Pixels
 
     /// Insets of zero.

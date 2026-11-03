@@ -221,8 +221,8 @@ extension Font.Design {
 }
 
 /// How each line of a multi-line text sits in the text's box — SwiftUI's
-/// `TextAlignment` (ruling TE-J). `.leading` is the left edge: nothing mirrors
-/// under right-to-left yet (EV-K, divergence 25).
+/// `TextAlignment` (ruling TE-J). `.leading` is the leading edge: the left under
+/// left-to-right and the right under right-to-left, where `resolveTextStyle` swaps it (`LD-A`).
 public enum TextAlignment: Hashable, Sendable {
     case leading, center, trailing
 }
