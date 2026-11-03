@@ -228,6 +228,12 @@ private func switchWindow(_ flag: Flag, rightToLeft: Bool = false) throws -> (Wi
     platform.simulateTick(timestamp: 1.05)
     let early = try knobOffset(window)
     #expect(early > 2.5 && early < 17.5, "mid-travel at 0.05 s: \(early)")
+    var peak: Float = 0
+    for step in 6...40 {
+        platform.simulateTick(timestamp: 1.0 + Double(step) * 0.01)
+        peak = max(peak, try knobOffset(window))
+    }
+    #expect(peak > 18.2 && peak < 19, "the spring overshoots its end by a little (SwiftUI's 0.54): \(peak)")
     platform.simulateTick(timestamp: 1.5)
     let landed = try knobOffset(window)
     #expect(abs(landed - 18) < 0.01, "landed by 0.5 s: \(landed)")
