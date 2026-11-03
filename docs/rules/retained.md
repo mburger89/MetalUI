@@ -76,7 +76,7 @@ while retaining, `peek` included; a slot with its own channel (`$ax`, `$focus`, 
 ledger and the graft record a read set of `(id, version)` that must be unchanged for a hit, a mismatch being a counted **miss**; liveness
 runs in three channels (the record's `marks`, the ledger's `liveStates` through `touchLive`, the graft's `.liveState`) so a replayed field's
 `TextEditState` is not swept (`RW-E`); a replay re-notes what it stands for. A creating read, a clamp that changes the offset and a first
-sighting are writes (`RW-F`); a record made then gains its ledger one counted miss later (`RW-S`). **Eligible now:** an unfocused
+sighting are writes (`RW-F`), **except a `@State` seed, which is neither** (`FV-B`: `StateTable.mark(_:seeding:)` taints nothing and journals a plain `.mark` with no value, since a window opened on that build reads the seeded version afterwards and the entry stays while it is marked; `everyStateWriteSiteIsClassified` counts it in a `seeds` column); a record made then gains its ledger one counted miss later (`RW-S`). **Eligible now:** an unfocused
 `TextField`/`TextEditor`, a settled `ScrollView`/`ProposalScrollView`, a `List` whose window did not move, a closed `Picker`/`Menu`/`.popover`
 declarer (its anchor replays from the ledger, `RW-K`). **Still miss or refuse, by name:** a focused field, a typed character, a wheel or drag, a
 selection change, `scrollTo`, an open popover, alert or dialog, a `GPUSurface` (`surface`, carried `RW-L`), `.continuous` always.

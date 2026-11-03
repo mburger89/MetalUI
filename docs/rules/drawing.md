@@ -123,8 +123,8 @@ entries (`SurfaceRegistry`, the seven slots unmoved). **A new backend** adds the
 `finishFrame` requirement, composites `.surface` runs as image runs, never adds
 a submission for a surface (the fence rule), records a draw only after its
 frame commits, and clears a new target. A `FixtureRun` cannot record a surface.
-A draw's counter or state must be passed in, never a never-written `@State`
-(re-seeded every build).
+A draw's counter or state must be passed in, never a `@State` the draw writes (a phase
+write is silently stale; before `FV-A` a never-written default was also re-seeded every build).
 
 **Backdrop blur (`BB-`, record §94).** A `Material` is one scene primitive, `PrimitiveKind.backdrop`
 (`MUIBackdrop`, 96 bytes, `Scene.backdrops`): the blurred backdrop and the tint together,

@@ -2871,3 +2871,11 @@ Differentiate Without Colour" row (stale since Reduce Transparency) are narrowed
 K1-K6: a fixed spring the transaction does not drive; `disablesAnimations` snaps); 886 is what remains (SwiftUI's 54 by 24 track and 32 by 20 knob, the curve as an approximation). 154: a control's literal title parses and a `String` value is
 verbatim (`SR-C`, probe AX1-AX8); what stays is the unmeasured `TextField` placeholder, alert title and native menu-item title. **295's "0 by 0" was refuted**: probe `E2` was an `ImageRenderer` artifact; a laid-out `Text("")` is (0, 14) at every font
 (`E3`-`E8`), so the row now says "one line of the resolved font against a constant 14". 208's `leading`/`trailing` clause is stale since `LD-A`. Mechanisms, mutations and the flake note: `docs/superpowers/2026-11-03-silent-results-decisions.md`, `docs/record/198-silent-results.md`.
+
+## 2026-11-03: a `@State` keeps its first value (`FV-A`..`FV-D`, record §199)
+
+**Retired: 125. New: 210** (207 live: 207 - 1 + 1; next label 211). 125: `State.bind` stores the default through `StateTable.mark(_:seeding:)` on a slot with no entry, so a never-written `@State` keeps its first evaluation as SwiftUI does
+(probe `swiftui-lifecycle.swift` `D2`, `D3`: `s=0` as the parent parameter goes 0, 1, 2); `LC-S` item 1's "must not move" was a scope fence, not an impossibility. 210: probe `D5`/`D5b` show an `AnyView` swapping two view types resets state (the
+new type reads its own seed 20, not the old type's 10 or written 11); an `AnyElement` has no type tracking and shares `$state<n>`, which `FV-A` made newly wrong for a never-written default (it read its own 20 before) and which was already so for a
+written value (11). Pins: `aNeverWrittenStateDefaultKeepsItsFirstEvaluationForTheViewsLifetime` (was `...IsReseededSoOnAppearAndOnDisappearSeeDifferentInstances`), `aSeedFromAParentParameterDoesNotFollowIt`,
+`anAnyElementSwapKeepsTheSlotOfTheTypeItReplaced`. Mechanisms, mutations and counts: `docs/superpowers/2026-11-03-state-first-value-decisions.md`, `docs/record/199-state-first-value.md`.

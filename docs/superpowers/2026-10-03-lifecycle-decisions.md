@@ -360,6 +360,7 @@ default that is **never written** is not in the table at all — `peek` answers
 `nil` and every build re-seeds it from the new default — so the overlay has
 nothing to keep, and `onAppear` (build 1) and `onDisappear` (the last present
 build) reach different instances (`["start 1", "stop 4"]` after four builds).
+(**Overturned by `FV-A`:** the default is stored on the first bind, so the overlay has a value to keep and the pair is `["start 1", "stop 1"]`.)
 SwiftUI keeps the default's first evaluation (`D2`). Divergence **125**; the
 working spelling assigns the instance in `onAppear` (`monitor = Monitor();
 monitor?.start()`), which writes the slot, so it is kept while present and
@@ -706,7 +707,11 @@ and two documentation errors. Each is fixed here; nothing in
    move state retention (a never-written slot would become a stored entry,
    with every `TB-AH`/`ID-C` count that implies), which this item's
    "MUST NOT MOVE" forbids without a ruling of its own — **not done**; owner:
-   none scheduled. The documented spelling is to write the instance in
+   none scheduled. **Overturned by `FV-A`** (`2026-11-03-state-first-value-decisions.md`,
+   record §199): the reason given was scope, not impossibility; `State.bind` now stores the
+   default on a slot with no entry (`StateTable.mark(_:seeding:)`), divergence 125 is retired
+   and tests 5.5/5.6 below changed with it (5.5 is now
+   `aNeverWrittenStateDefaultKeepsItsFirstEvaluationForTheViewsLifetime`; 5.6 still holds). The documented spelling is to write the instance in
    `onAppear` (`@State var monitor: Monitor? = nil; .onAppear { monitor =
    Monitor(); monitor?.start() } .onDisappear { monitor?.stop() }`) or hold it
    in an `@Observable` model. Pins: test 5.5

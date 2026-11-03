@@ -48,7 +48,11 @@ declare them on members. Over proposal content declare
 `theSevenRetentionSlotsAreMutuallyDistinct` — new animation state goes in
 `AnimationStore`, not an eighth slot. **Write from input, never from a phase**
 (keeps the display link awake forever; a phase-time `@Observable` write is
-silently stale). `$state` projects a `Binding`. One element value placed
+silently stale). `$state` projects a `Binding`. **A `@State` keeps its default's first
+evaluation** (`FV-A`, overturns `LC-S` item 1): `State.bind` calls `StateTable.mark(_:seeding:)`, which stores the
+default on a slot with no entry, so a re-evaluated default (`@State var owner = UUID()`, a parameter-seeded `init`) is
+discarded after the first and the table holds one entry per declared `@State`; a seed is not a write and journals
+as a plain `.mark` (`retained.md`, `FV-B`); an `AnyElement` type swap shares the old slot (divergence 210, `FV-C`). One element value placed
 twice resolves its own occurrence under input dispatch (`ID-F`); outside
 dispatch it reaches the last-bound one (divergence 71).
 
@@ -112,8 +116,8 @@ frame — never run an action from `Frame.render`. Order: changes, appears,
 disappears, each reverse pre-order (`LC-F`). A disappearance under a removal
 ghost is parked until it ends, and re-insertion cancels both callbacks
 (`LC-H`); `onDisappear` reads departed `@State` through `StateTable`'s overlay,
-only while an `onDisappear` exists (`LC-I`). A never-written `@State` default
-is re-seeded every build: assign the instance in `onAppear` (divergence 125).
+only while an `onDisappear` exists (`LC-I`). A `@State` default keeps its
+first evaluation (`FV-A`, divergence 125 retired): `@State var monitor = Monitor()` starts and stops one instance.
 A window close runs every `onDisappear` once (`App`'s `onClose` →
 `runDisappearancesForClose`); a headless `renderFrame` runs nothing.
 **`.task { }`/`.task(id:priority:_:)` are built** (`PX-F`, record §80):

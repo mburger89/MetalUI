@@ -135,11 +135,13 @@ struct StateLosses: Component {
 }
 ```
 
-Two cautions. A `@State` that is never written is seeded again by every build, so a default such
-as `@State var monitor = Monitor()` is a different instance in `onAppear` and `onDisappear`;
-assign the instance in `onAppear` instead (divergence 125). And a single element value placed twice
-resolves its own occurrence only under input dispatch; a write from a phase reaches the last one
-(divergence 71).
+Three cautions. A `@State` keeps the first value its default evaluated to, for as long as the
+element lives (as SwiftUI does): `@State var monitor = Monitor()` is one instance in `onAppear` and
+`onDisappear`, and a `@State` set from a parent parameter through `init` does not follow the
+parameter afterwards (pin: `aSeedFromAParentParameterDoesNotFollowIt`); write it, or use the parameter itself, when it should change. A single element
+value placed twice resolves its own occurrence only under input dispatch; a write from a phase reaches
+the last one (divergence 71). And an `AnyElement` whose wrapped type changes at one position keeps the
+old type's `@State` slots, where an `AnyView` resets them (divergence 210; pin: `anAnyElementSwapKeepsTheSlotOfTheTypeItReplaced`).
 
 ## How do I show a long list, and let the user select rows?
 
@@ -187,7 +189,7 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 
 - divergence 71: a value placed twice and written outside input reaches the last occurrence.
 - divergence 78: `Binding` is `@MainActor`.
-- divergence 125: a never-written `@State` default is seeded again by every build.
+- divergence 210: an `AnyElement` whose wrapped type changes at one position keeps the old type's `@State` slots.
 - divergence 134: a missing environment object traps, naming the type.
 - divergence 145: a content-sized `List` row is exactly its content's height.
 - divergence 146: an insertion above the viewport keeps the top row in place.
