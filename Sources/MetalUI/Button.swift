@@ -366,14 +366,29 @@ extension Button {
 }
 
 extension Button where Label == Text {
-    /// A button labelled by `title` (SwiftUI's `Button(_:action:)`).
-    public init(_ title: String, action: @escaping @MainActor () -> Void) {
-        self.init(action: action) { Text(title) }
+    /// A button labelled by `titleKey` (SwiftUI's `Button(_:action:)` over a `LocalizedStringKey`): a string
+    /// **literal** is parsed as inline Markdown, as `Text`'s is (`SR-C`, divergence 154; probe
+    /// `swiftui-control-titles.swift` AX1). A `String` value takes the disfavoured verbatim overload below.
+    public init(_ titleKey: LocalizedStringKey, action: @escaping @MainActor () -> Void) {
+        self.init(action: action) { Text(titleKey) }
     }
 
-    /// A button labelled by `title` with a role (SwiftUI's
-    /// `Button(_:role:action:)`, `IX-E` item 1).
-    public init(_ title: String, role: ButtonRole?, action: @escaping @MainActor () -> Void) {
-        self.init(role: role, action: action) { Text(title) }
+    /// A button labelled by the `StringProtocol` value `title`, shown verbatim — never parsed (`SR-C`; `Text(verbatim:)`).
+    /// Disfavoured, so a literal reaches the `LocalizedStringKey` overload.
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ title: S, action: @escaping @MainActor () -> Void) {
+        self.init(action: action) { Text(verbatim: String(title)) }
+    }
+
+    /// A button labelled by `titleKey` with a role (SwiftUI's `Button(_:role:action:)`, `IX-E` item 1, `SR-C`): a
+    /// literal is parsed as inline Markdown.
+    public init(_ titleKey: LocalizedStringKey, role: ButtonRole?, action: @escaping @MainActor () -> Void) {
+        self.init(role: role, action: action) { Text(titleKey) }
+    }
+
+    /// A button labelled by the `StringProtocol` value `title` with a role, shown verbatim (`SR-C`).
+    @_disfavoredOverload
+    public init<S: StringProtocol>(_ title: S, role: ButtonRole?, action: @escaping @MainActor () -> Void) {
+        self.init(role: role, action: action) { Text(verbatim: String(title)) }
     }
 }

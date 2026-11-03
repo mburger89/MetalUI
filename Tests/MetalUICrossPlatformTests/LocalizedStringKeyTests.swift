@@ -198,21 +198,46 @@ private func portableFrame<E: Element>(_ element: E) throws -> Frame {
     return frame
 }
 
-/// **3.15** (divergence 154; ruling RT-A). A control's `String` title is
-/// verbatim — SwiftUI parses it (`M30`, `M31`): `Button("**b**")` and
-/// `Toggle("**b**", isOn:)` publish and draw `**b**`, five glyphs. Green on
-/// arrival (it pins the divergence). Mutation **M3.15**: route the `String`
-/// title through `LocalizedStringKey`.
+/// **3.15** (divergence 154 narrowed; ruling `SR-C`, which reverses `RT-A`'s deferral; probe `swiftui-control-titles.swift`
+/// AX1-AX6). A control's string **literal** title is parsed as `Text`'s is (`Button("**b**")` draws one glyph and
+/// publishes `b`), and a `String` **variable** is verbatim (five glyphs, `**b**`); `LocalizedStringKey(variable)`
+/// parses. Every control in the fix set draws four fewer glyphs for the literal than for the variable (the four
+/// asterisks). Mutations **M3.15a**: delete a control's `LocalizedStringKey` overload (the literal reaches the
+/// `StringProtocol` one: five glyphs); **M3.15b**: route the `StringProtocol` overload through a key (the variable parses).
 @MainActor
-@Test func aControlTitleIsVerbatim() throws {
+@Test func aControlTitleLiteralIsParsedAndAStringVariableIsVerbatim() throws {
+    let variable = "**b**"
     let button = try portableFrame(Button("**b**") {})
-    #expect(button.axEmissions.compactMap(\.text).contains("**b**"),
-            "the button's title: \(button.axEmissions.compactMap(\.text))")
-    #expect(button.scene.glyphs.count == 5, "five glyphs drawn: \(button.scene.glyphs.count)")
+    #expect(button.axEmissions.compactMap(\.text).contains("b"), "a literal publishes the markup-free text: \(button.axEmissions.compactMap(\.text))")
+    #expect(button.scene.glyphs.count == 1, "one glyph for the bold b: \(button.scene.glyphs.count)")
+    let verbatim = try portableFrame(Button(variable) {})
+    #expect(verbatim.axEmissions.compactMap(\.text).contains("**b**"), "a variable publishes as written")
+    #expect(verbatim.scene.glyphs.count == 5, "five glyphs drawn: \(verbatim.scene.glyphs.count)")
+    let keyed = try portableFrame(Button(LocalizedStringKey(variable)) {})
+    #expect(keyed.scene.glyphs.count == 1, "an explicit key parses a variable")
     let toggle = try portableFrame(Toggle("**b**", isOn: .constant(false)))
-    #expect(toggle.axEmissions.compactMap(\.text).contains("**b**"),
-            "the toggle's title: \(toggle.axEmissions.compactMap(\.text))")
-    #expect(toggle.scene.glyphs.count == 5, "five glyphs drawn: \(toggle.scene.glyphs.count)")
+    #expect(toggle.axEmissions.compactMap(\.text).contains("b"), "\(toggle.axEmissions.compactMap(\.text))")
+    let toggleVerbatim = try portableFrame(Toggle(variable, isOn: .constant(false)))
+    #expect(toggleVerbatim.axEmissions.compactMap(\.text).contains("**b**"))
+
+    func glyphs<E: Element>(_ literal: E, _ value: E) throws -> (Int, Int) {
+        (try portableFrame(literal).scene.glyphs.count, try portableFrame(value).scene.glyphs.count)
+    }
+    let pairs: [(String, (Int, Int))] = [
+        ("Button", try glyphs(Button("**b**") {}, Button(variable) {})),
+        ("Toggle", try glyphs(Toggle("**b**", isOn: .constant(false)), Toggle(variable, isOn: .constant(false)))),
+        ("Stepper", try glyphs(Stepper("**b**", value: .constant(1)), Stepper(variable, value: .constant(1)))),
+        ("Stepper(closures)", try glyphs(Stepper("**b**", onIncrement: {}, onDecrement: {}), Stepper(variable, onIncrement: {}, onDecrement: {}))),
+        ("Picker", try glyphs(Picker("**b**", selection: .constant(1)) { Text("A").tag(1) }.pickerStyle(.segmented),
+                              Picker(variable, selection: .constant(1)) { Text("A").tag(1) }.pickerStyle(.segmented))),
+        ("ColorPicker", try glyphs(ColorPicker("**b**", selection: .constant(.red)), ColorPicker(variable, selection: .constant(.red)))),
+        ("ProgressView", try glyphs(ProgressView("**b**", value: 0.5), ProgressView(variable, value: 0.5))),
+        ("ProgressView(spinner)", try glyphs(ProgressView("**b**"), ProgressView(variable))),
+        ("Menu", try glyphs(Menu("**b**") { Button("x") {} }, Menu(variable) { Button("x") {} })),
+    ]
+    for (name, counts) in pairs {
+        #expect(counts.1 - counts.0 == 4, "\(name): the variable draws the four asterisks the literal does not: \(counts)")
+    }
 }
 
 /// **3.16** (`RT-O` item 14). A literal with no Markdown trigger character
