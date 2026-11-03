@@ -11,9 +11,10 @@ import MetalUICore
 /// **Literals are gamma-encoded sRGB** (probe `swiftui-colour.swift` R1:
 /// `Color(white: 0.5)` resolves 0.5, not linear light's 0.214), stored as
 /// written and **clamped when resolved** (`R5`, `O4`, `O5`; divergence 118).
-/// Like the theme's tokens they are written to a layer whose colour space is
-/// Display P3 on AppKit, so they render slightly more saturated than the hex
-/// implies — divergence 1, which literals share (`CR-I`).
+/// Like the theme's tokens they are written to a layer tagged sRGB on AppKit
+/// (`LS-A`; Display P3 until record 200) and to an sRGB swapchain on SDL, so a
+/// hex displays as SwiftUI's sRGB colour. No colour can leave sRGB (`LS-B`,
+/// divergence 1).
 ///
 /// **Equality compares components** (`Q4`, `Q5`): `Color(white: 1) == .white
 /// == Color(red: 1, green: 1, blue: 1)`. A dynamic colour equals only a
@@ -27,8 +28,9 @@ import MetalUICore
 public struct Color: Hashable, Sendable {
     /// The colour space a literal's components are written in — SwiftUI's
     /// `Color.RGBColorSpace` without `.displayP3` (`CR-C` item 6: MetalUI
-    /// would clamp SwiftUI's extended-sRGB answer and draw it into a P3 layer,
-    /// wrong twice, so the spelling does not compile rather than mis-drawing).
+    /// would clamp SwiftUI's extended-sRGB answer and, until `LS-A`, draw it
+    /// into a P3 layer; the layer is sRGB now and the clamp remains, so the
+    /// spelling still does not compile rather than mis-drawing; `LS-B`).
     public enum RGBColorSpace: Hashable, Sendable {
         /// Gamma-encoded sRGB, the components as drawn (probe R1, R2).
         case sRGB
