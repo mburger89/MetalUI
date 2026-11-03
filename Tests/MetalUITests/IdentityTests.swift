@@ -488,10 +488,13 @@ import MetalUICore
 /// siblings did not exist in any test, so the whole erased path was outside the
 /// index space's coverage.
 ///
-/// The claim this pins is asserted in two places — CLAUDE.md's `AnyElement` row
+/// The claim this pinned was asserted in two places — CLAUDE.md's `AnyElement` row
 /// ("boxing every child moves no path and no `StateTable` entry") and
 /// `ElementBuilder.swift`'s note that the boxing mutation reddens only
-/// type-level tests. Both were true by inspection and measured by nothing.
+/// type-level tests. **Refuted by R4-1a (`ER-A`, record 201):** an erased child runs
+/// one `$erased` level below its position, so what it registers moves one level
+/// (this test's peeks go through `AnyElement.contentID(under:)`); the table still
+/// holds one entry per erased sibling.
 ///
 /// Measured, `--no-parallel`, 358 tests — edit: delete `cursor += 1` from
 /// `AnyElement.requestGroupLayout` (`ElementGroup.swift`, **not** `Element`'s
@@ -511,8 +514,10 @@ import MetalUICore
     frame.render(&row)
 
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
-    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 1)
-    #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == 1)
+    // `ER-A`: each erased sibling runs under its own `$erased` level, one below its position.
+    let level = AnyElement(CountingElement(nil))
+    #expect(table.peek(level.contentID(under: GlobalElementID.child(of: root, at: 0, name: nil)), as: Int.self) == 1)
+    #expect(table.peek(level.contentID(under: GlobalElementID.child(of: root, at: 1, name: nil)), as: Int.self) == 1)
     // 2 (one per erased sibling) + 1 — the `Row`'s own `$anim` baseline, on
     // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
     #expect(table.count == 3)

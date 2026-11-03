@@ -404,6 +404,16 @@ private struct NamedCounterComponent: Component {
         }
         #expect(erased.values["p"] == expected, "AnyElement over \(steps): \(String(describing: erased.values["p"]))")
 
+        // `ER-A`: an erased type swap, `a, a, b, a` with `b` another wrapped type at the same position: the
+        // returning type starts fresh (its `$erased` level departed when `b` took the position). Mutation **M2**
+        // (`noteNamed` of the level deleted) reads 3: the old level survives the sweep and the returning type revives.
+        let swapped = render(steps) { n, reads in
+            Row {
+                n == "b" ? AnyElement(Stack { ConditionalCounter("p", reads) }) : AnyElement(Box { ConditionalCounter("p", reads) })
+            }
+        }
+        #expect(swapped.values["p"] == expected, "AnyElement type swap over \(steps): \(String(describing: swapped.values["p"]))")
+
         // `FI-D`: a `ForEach` element whose id prints alike for every step
         // ("twin") and differs in value. a, a, b, a: the returning id starts
         // fresh. Mutation **M7** (`noteNamed` skipped for keyed scopes) and

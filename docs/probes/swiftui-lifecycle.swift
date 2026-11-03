@@ -105,7 +105,252 @@
 // that holds for a written value too (B reads 20, not A's 11). MetalUI's `AnyElement` has no type tracking and
 // shares `$state0` under the one id (divergence 210).
 //
-// The second of those runs, verbatim:
+// RE-RUN 2026-11-03 by R4-1a (divergence 210, ruling family `ER-`), macOS 27.2 (26B123), Apple Swift 6.4.2, compiled
+// form, screen LOCKED (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 0`, `preflightScreenCaptureAccess: false`;
+// nothing in these arms reads pixels). Arms AV1..AV6c added (an `AnyView` whose wrapped type changes, with `WA`/`WB`/`WS`,
+// `Gen<T>` and `Slide*` as instruments) and `PROBE_ONLY=<prefix>` added to `arm` (unset runs every arm). The whole file run
+// twice: 2484 and 2381 lines (AV6c's `slide` lines and S1/S2's row lines vary), stderr empty, exit 0, the two runs equal
+// outside those lines. Controls read in the same session before the AV arms: D5 `body B n=20` then `body A n=10` and
+// D5b `body B n=20` (as recorded above), T1 `disappear x` only after the 1.0 s spin (a ghost delays it). The AV blocks, verbatim
+// (`-- host` and `-- ordered front` lines left out, as above):
+//
+//   === AV1 A written 11, swapped to B, swapped back: does A read 10 (reset) or 11 (revived)?
+//     body A n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (A to B)
+//     body B n=20 tick=0
+//     -- settled after flag = true (A to B)
+//     -- flag = false (back to A)
+//     body A n=10 tick=0
+//     -- settled after flag = false (back to A)
+//   === AV1b one update setting flag true then false: no swap, state kept?
+//     body A n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true then false in one update
+//     -- settled after flag = true then false in one update
+//     -- v = 1 (force a body)
+//     body A n=11 tick=1
+//     -- settled after v = 1 (force a body)
+//   === AV2 the same type from two AnyView expressions in a ternary, written: kept, nothing fires?
+//     body A n=10 tick=0
+//     appear A n=10
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (same type, other expression)
+//     body A n=11 tick=1
+//     -- settled after flag = true (same type, other expression)
+//     -- flag = false
+//     body A n=11 tick=0
+//     -- settled after flag = false
+//   === AV3a Gen<Int> vs Gen<String>, written
+//     body Gen<Int> n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (Gen<Int> writes 11)
+//     body Gen<Int> n=10 tick=0
+//     body Gen<Int> n=11 tick=0
+//     -- settled after w = 1 (Gen<Int> writes 11)
+//     -- flag = true (Gen<String>)
+//     body Gen<String> n=10 tick=0
+//     -- settled after flag = true (Gen<String>)
+//   === AV3b AnyView(VStack{WA}) vs AnyView(HStack{WA}), written
+//     body A n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (VStack to HStack)
+//     body A n=10 tick=0
+//     -- settled after flag = true (VStack to HStack)
+//   === AV3c same modifier type, different values (padding 5 vs 20), written
+//     body A n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (padding 20)
+//     -- settled after flag = true (padding 20)
+//   === AV3c2 same modifier type, different values (opacity 0.5 vs 1), written
+//     body A n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (opacity 0.5)
+//     -- settled after flag = true (opacity 0.5)
+//   === AV3d AnyView(WA) vs AnyView(WA.background(red)), written
+//     body A n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (background added)
+//     body A n=10 tick=0
+//     -- settled after flag = true (background added)
+//   === AV3e AnyView(WA.padding) vs AnyView(WA.opacity), written
+//     body A n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (padding to opacity)
+//     body A n=10 tick=0
+//     -- settled after flag = true (padding to opacity)
+//   === AV4a an inner AnyView swaps inside a VStack with a written sibling
+//     body A n=10 tick=0
+//     body S n=30 tick=0
+//     -- initial settled
+//     -- w = 1 (A and S write)
+//     body A n=10 tick=0
+//     body S n=30 tick=0
+//     body A n=11 tick=0
+//     body S n=31 tick=0
+//     -- settled after w = 1 (A and S write)
+//     -- flag = true (inner A to B)
+//     body B n=20 tick=0
+//     -- settled after flag = true (inner A to B)
+//     -- v = 1 (force bodies)
+//     body B n=20 tick=1
+//     body S n=31 tick=1
+//     -- settled after v = 1 (force bodies)
+//   === AV4b the outer wrapped type changes (VStack to HStack) around an inner AnyView
+//     body A n=10 tick=0
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (VStack to HStack)
+//     body A n=10 tick=0
+//     -- settled after flag = true (VStack to HStack)
+//   === AV5a onAppear/onDisappear of the swapped content
+//     body A n=10 tick=0
+//     appear A n=10
+//     -- initial settled
+//     -- flag = true (A to B)
+//     body B n=20 tick=0
+//     disappear A n=10
+//     appear B n=20
+//     -- settled after flag = true (A to B)
+//     -- flag = false (B to A)
+//     body A n=10 tick=0
+//     disappear B n=20
+//     appear A n=10
+//     -- settled after flag = false (B to A)
+//   === AV5b onDisappear reads A's state (11) and writes 99: is the write lost?
+//     body A n=10 tick=0
+//     appear A n=10
+//     -- initial settled
+//     -- w = 1 (A writes 11)
+//     body A n=10 tick=0
+//     body A n=11 tick=0
+//     -- settled after w = 1 (A writes 11)
+//     -- flag = true (A to B)
+//     body B n=20 tick=0
+//     disappear A n=11
+//     A writes 99 in onDisappear
+//     -- settled after flag = true (A to B)
+//     -- flag = false (back to A)
+//     body A n=10 tick=0
+//     appear A n=10
+//     -- settled after flag = false (back to A)
+//   === AV5c a modifier outside the AnyView does not fire on a swap
+//     body A n=10 tick=0
+//     outer appear
+//     -- initial settled
+//     -- flag = true (A to B)
+//     body B n=20 tick=0
+//     -- settled after flag = true (A to B)
+//   === AV5d a running .task: cancelled and started on a swap
+//     body A n=10 tick=0
+//     task start A
+//     -- initial settled
+//     -- flag = true (A to B)
+//     body B n=20 tick=0
+//     task start B
+//     task A cancelled
+//     -- settled after flag = true (A to B)
+//     -- v = 1 (a re-render with no swap)
+//     -- settled after v = 1 (a re-render with no swap)
+//   === AV6a a swap under withAnimation(0.6), no transition: is A's disappear delayed?
+//     body A n=10 tick=0
+//     appear A n=10
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     body B n=20 tick=0
+//     disappear A n=10
+//     appear B n=20
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 1.0 more
+//     -- settled after spin 1.0 more
+//   === AV6b the same with .transition(.opacity) inside the erased view
+//     body A n=10 tick=0
+//     appear A n=10
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     body B n=20 tick=0
+//     disappear A n=10
+//     appear B n=20
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 1.0 more
+//     -- settled after spin 1.0 more
+//   === AV6c A animating at the swap; swap back mid-flight: what does A start from?
+//     slide A x=0.0
+//     -- initial settled
+//     -- withAnimation(0.6) { k = 1 } (A slides 0 to 100)
+//     slide A x=0.1
+//     slide A x=0.1
+//       ... (266 slide lines) ...
+//     slide A x=8.1
+//     slide A x=8.1
+//     -- settled after withAnimation(0.6) { k = 1 } (A slides 0 to 100)
+//     -- spin 0.2, flag = true (A to B mid-flight)
+//     slide A x=8.1
+//     slide A x=8.1
+//       ... (1937 slide lines) ...
+//     slide A x=41.4
+//     slide B x=100.0
+//     -- settled after spin 0.2, flag = true (A to B mid-flight)
+//     -- spin 0.2, flag = false (back to A mid-flight)
+//     slide A x=100.0
+//     -- settled after spin 0.2, flag = false (back to A mid-flight)
+//     -- spin 1.0 more
+//     -- settled after spin 1.0 more
+//
+// READING (AV). SwiftUI RESETS state whenever the type behind an `AnyView` changes, including a written value, and
+// keeps it whenever the type is the same: AV1 A (written 11) -> B -> A reads 10 on the way back (no revival); AV1b one
+// update setting the flag true then false evaluates nothing and keeps 11; AV2 the same type from two `AnyView(...)`
+// expressions keeps 11 and fires nothing; AV3a `Gen<Int>` -> `Gen<String>` and AV3b `VStack{A}` -> `HStack{A}` reset;
+// AV3c/AV3c2 same modifier type with other values (padding 5/20, opacity 0.5/1) keep it (no body at all). **AV3d (adding
+// `.background`) and AV3e (`.padding` -> `.opacity`) reset**: a modifier is part of the erased type. AV4a an inner
+// `AnyView` swap resets the inner state only (the sibling `S` still reads 31); AV4b an outer type change resets the inner
+// `AnyView`'s content. AV5a: the new content appears and the old one disappears, **disappear BEFORE appear** (`disappear A`,
+// `appear B`), where A4 (`if`/`else`) and E2 (`.id`) measured appear before disappear. AV5b: `onDisappear` reads A's
+// last value (11) and its write (99) is lost (A reads 10 on the way back). AV5c: a modifier outside the `AnyView` fires
+// nothing. AV5d: the old task is cancelled and the new one started (the printed order is the resumption, as K2).
+// AV6a/AV6b: under `withAnimation(0.6)` the old content's `disappear` fires in the same step, with or without a
+// `.transition(.opacity)` inside (T1 delays it past the animation): there is no removal ghost. Whether the swap
+// cross-fades on screen was not read (no pixels, locked). AV6c: A animating (x = 41.4 at the swap), B appears at its settled
+// x = 100.0 and A returns at x = 100.0; the per-line logging slows the animation clock, so "mid-flight on return" was not
+// separated (A's own animation may have finished); the readings do not contradict "B starts settled, A starts fresh".
+// AVF (swiftui-key-focus.swift, `KF_PROBE_AVF=1`): focus does not survive and does not return.
+//
+// The second of the 2026-10-03 design session's three runs, verbatim:
 //
 //   === L0 control: a hosted view's onAppear fires
 //     -- host
@@ -792,6 +1037,8 @@ func arm<Content: View>(_ name: String, @ViewBuilder _ content: @escaping (M) ->
                         steps: [(String, (M, NSWindow, NSHostingView<Root<Content>>) -> Void)] = [],
                         spinAfterStep: Double = 0.15,
                         keep: Bool = false) -> NSWindow {
+    // PROBE_ONLY=<prefix> runs only the arms whose name starts with it (R4-1a); unset runs every arm.
+    if let only = ProcessInfo.processInfo.environment["PROBE_ONLY"], !name.hasPrefix(only) { return NSWindow() }
     lines.removeAll()
     let m = M()
     setup(m)
@@ -890,6 +1137,79 @@ struct WriterA: View {
     @State var n: Int
     init() { _n = State(initialValue: 10) }
     var body: some View { let _ = log("body A n=\(n)"); Text("A").onAppear { log("A writes 11"); n = 11 } }
+}
+
+/// R4-1a's instruments (arms `AV*`): `WA`/`WB`/`WS` are three distinct view types with an `Int` `@State` of seed 10, 20
+/// and 30; an `onChange(of: w)` writes 11, 21 and 31, so a state is written by a step and not by an appearance.
+/// `tick` only forces a body to re-evaluate (SwiftUI skips an equal-input body). `life` logs onAppear/onDisappear,
+/// `dis` makes `WA`'s onDisappear read the state and write 99, `task` starts a task that logs its cancel,
+/// `trans` puts `.transition(.opacity)` on the content.
+struct WA: View {
+    let w: Int; var tick = 0; var life = false; var dis = false; var task = false; var trans = false
+    @State var n: Int
+    init(w: Int, tick: Int = 0, life: Bool = false, dis: Bool = false, task: Bool = false, trans: Bool = false) {
+        self.w = w; self.tick = tick; self.life = life; self.dis = dis; self.task = task; self.trans = trans
+        _n = State(initialValue: 10)
+    }
+    var body: some View {
+        let _ = log("body A n=\(n) tick=\(tick)")
+        Text("A").transition(trans ? .opacity : .identity)
+            .onChange(of: w) { n = 11 }
+            .onAppear { if life { log("appear A n=\(n)") } }
+            .onDisappear { if life { log("disappear A n=\(n)") }; if dis { log("A writes 99 in onDisappear"); n = 99 } }
+            .task { guard task else { return }
+                log("task start A"); do { try await Task.sleep(for: .seconds(5)) } catch { log("task A cancelled") } }
+    }
+}
+struct WB: View {
+    let w: Int; var tick = 0; var life = false; var task = false; var trans = false
+    @State var n: Int
+    init(w: Int, tick: Int = 0, life: Bool = false, task: Bool = false, trans: Bool = false) {
+        self.w = w; self.tick = tick; self.life = life; self.task = task; self.trans = trans
+        _n = State(initialValue: 20)
+    }
+    var body: some View {
+        let _ = log("body B n=\(n) tick=\(tick)")
+        Text("B").transition(trans ? .opacity : .identity)
+            .onChange(of: w) { n = 21 }
+            .onAppear { if life { log("appear B n=\(n)") } }
+            .onDisappear { if life { log("disappear B n=\(n)") } }
+            .task { guard task else { return }
+                log("task start B"); do { try await Task.sleep(for: .seconds(5)) } catch { log("task B cancelled") } }
+    }
+}
+struct WS: View {
+    let w: Int; var tick = 0
+    @State var n: Int
+    init(w: Int, tick: Int = 0) { self.w = w; self.tick = tick; _n = State(initialValue: 30) }
+    var body: some View {
+        let _ = log("body S n=\(n) tick=\(tick)")
+        Text("S").onChange(of: w) { n = 31 }
+    }
+}
+struct Gen<T>: View {
+    let w: Int; var tick = 0
+    @State var n: Int
+    init(_ t: T.Type, w: Int, tick: Int = 0) { self.w = w; self.tick = tick; _n = State(initialValue: 10) }
+    var body: some View {
+        let _ = log("body Gen<\(T.self)> n=\(n) tick=\(tick)")
+        Text("G").onChange(of: w) { n = 11 }
+    }
+}
+/// AV6c's instrument: an `Animatable` modifier logs the value it is asked to draw on every animation tick.
+struct Slide: ViewModifier, Animatable {
+    var x: Double
+    var tag: String
+    var animatableData: Double { get { x } set { x = newValue } }
+    func body(content: Content) -> some View { let _ = log("slide \(tag) x=\(String(format: "%.1f", x))"); return content.offset(x: x) }
+}
+struct SlideA: View {
+    let k: Int
+    var body: some View { Text("A").modifier(Slide(x: Double(k) * 100, tag: "A")) }
+}
+struct SlideB: View {
+    let k: Int
+    var body: some View { Text("B").modifier(Slide(x: Double(k) * 100, tag: "B")) }
 }
 
 struct StateLeaf: View {
@@ -1171,6 +1491,104 @@ arm("D5 AnyView swapping SeedA (seed 10) for SeedB (seed 20): does B read 20 or 
 arm("D5b separating: the same swap with A's state WRITTEN (11) in onAppear", { m in
     AnyView(m.flag ? AnyView(SeedB()) : AnyView(WriterA()))
 }, steps: [("flag = true (swap A to B)", { m, _, _ in m.flag = true })])
+
+// ------------------------------------------------------------ AV: R4-1a, an AnyView whose wrapped type changes
+arm("AV1 A written 11, swapped to B, swapped back: does A read 10 (reset) or 11 (revived)?", { m in
+    AnyView(m.flag ? AnyView(WB(w: m.w)) : AnyView(WA(w: m.w)))
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (A to B)", { m, _, _ in m.flag = true }),
+           ("flag = false (back to A)", { m, _, _ in m.flag = false })])
+
+arm("AV1b one update setting flag true then false: no swap, state kept?", { m in
+    AnyView(m.flag ? AnyView(WB(w: m.w, tick: m.v)) : AnyView(WA(w: m.w, tick: m.v)))
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true then false in one update", { m, _, _ in m.flag = true; m.flag = false }),
+           ("v = 1 (force a body)", { m, _, _ in m.v = 1 })])
+
+arm("AV2 the same type from two AnyView expressions in a ternary, written: kept, nothing fires?", { m in
+    AnyView(m.flag ? AnyView(WA(w: m.w, tick: 1, life: true)) : AnyView(WA(w: m.w, tick: 0, life: true)))
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (same type, other expression)", { m, _, _ in m.flag = true }),
+           ("flag = false", { m, _, _ in m.flag = false })])
+
+arm("AV3a Gen<Int> vs Gen<String>, written", { m in
+    AnyView(m.flag ? AnyView(Gen(String.self, w: m.w)) : AnyView(Gen(Int.self, w: m.w)))
+}, steps: [("w = 1 (Gen<Int> writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (Gen<String>)", { m, _, _ in m.flag = true })])
+
+arm("AV3b AnyView(VStack{WA}) vs AnyView(HStack{WA}), written", { m in
+    m.flag ? AnyView(HStack { WA(w: m.w) }) : AnyView(VStack { WA(w: m.w) })
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (VStack to HStack)", { m, _, _ in m.flag = true })])
+
+arm("AV3c same modifier type, different values (padding 5 vs 20), written", { m in
+    m.flag ? AnyView(WA(w: m.w).padding(20)) : AnyView(WA(w: m.w).padding(5))
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (padding 20)", { m, _, _ in m.flag = true })])
+
+arm("AV3c2 same modifier type, different values (opacity 0.5 vs 1), written", { m in
+    m.flag ? AnyView(WA(w: m.w).opacity(0.5)) : AnyView(WA(w: m.w).opacity(1))
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (opacity 0.5)", { m, _, _ in m.flag = true })])
+
+arm("AV3d AnyView(WA) vs AnyView(WA.background(red)), written", { m in
+    m.flag ? AnyView(WA(w: m.w).background(Color.red)) : AnyView(WA(w: m.w))
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (background added)", { m, _, _ in m.flag = true })])
+
+arm("AV3e AnyView(WA.padding) vs AnyView(WA.opacity), written", { m in
+    m.flag ? AnyView(WA(w: m.w).opacity(0.5)) : AnyView(WA(w: m.w).padding(4))
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (padding to opacity)", { m, _, _ in m.flag = true })])
+
+arm("AV4a an inner AnyView swaps inside a VStack with a written sibling", { m in
+    AnyView(VStack { AnyView(m.flag ? AnyView(WB(w: m.w, tick: m.v)) : AnyView(WA(w: m.w, tick: m.v))); WS(w: m.w, tick: m.v) })
+}, steps: [("w = 1 (A and S write)", { m, _, _ in m.w = 1 }),
+           ("flag = true (inner A to B)", { m, _, _ in m.flag = true }),
+           ("v = 1 (force bodies)", { m, _, _ in m.v = 1 })])
+
+arm("AV4b the outer wrapped type changes (VStack to HStack) around an inner AnyView", { m in
+    m.flag ? AnyView(HStack { AnyView(WA(w: m.w)) }) : AnyView(VStack { AnyView(WA(w: m.w)) })
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (VStack to HStack)", { m, _, _ in m.flag = true })])
+
+arm("AV5a onAppear/onDisappear of the swapped content", { m in
+    AnyView(m.flag ? AnyView(WB(w: m.w, life: true)) : AnyView(WA(w: m.w, life: true)))
+}, steps: [("flag = true (A to B)", { m, _, _ in m.flag = true }),
+           ("flag = false (B to A)", { m, _, _ in m.flag = false })])
+
+arm("AV5b onDisappear reads A's state (11) and writes 99: is the write lost?", { m in
+    AnyView(m.flag ? AnyView(WB(w: m.w)) : AnyView(WA(w: m.w, life: true, dis: true)))
+}, steps: [("w = 1 (A writes 11)", { m, _, _ in m.w = 1 }),
+           ("flag = true (A to B)", { m, _, _ in m.flag = true }),
+           ("flag = false (back to A)", { m, _, _ in m.flag = false })])
+
+arm("AV5c a modifier outside the AnyView does not fire on a swap", { m in
+    AnyView(m.flag ? AnyView(WB(w: m.w)) : AnyView(WA(w: m.w)))
+        .onAppear { log("outer appear") }.onDisappear { log("outer disappear") }
+}, steps: [("flag = true (A to B)", { m, _, _ in m.flag = true })])
+
+arm("AV5d a running .task: cancelled and started on a swap", { m in
+    AnyView(m.flag ? AnyView(WB(w: m.w, task: true)) : AnyView(WA(w: m.w, task: true)))
+}, steps: [("flag = true (A to B)", { m, _, _ in m.flag = true }),
+           ("v = 1 (a re-render with no swap)", { m, _, _ in m.v = 1 })])
+
+arm("AV6a a swap under withAnimation(0.6), no transition: is A's disappear delayed?", { m in
+    AnyView(m.flag ? AnyView(WB(w: m.w, life: true)) : AnyView(WA(w: m.w, life: true)))
+}, steps: [("withAnimation(0.6) { flag = true }", { m, _, _ in withAnimation(.linear(duration: 0.6)) { m.flag = true } }),
+           ("spin 1.0 more", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)
+
+arm("AV6b the same with .transition(.opacity) inside the erased view", { m in
+    AnyView(m.flag ? AnyView(WB(w: m.w, life: true, trans: true)) : AnyView(WA(w: m.w, life: true, trans: true)))
+}, steps: [("withAnimation(0.6) { flag = true }", { m, _, _ in withAnimation(.linear(duration: 0.6)) { m.flag = true } }),
+           ("spin 1.0 more", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)
+
+arm("AV6c A animating at the swap; swap back mid-flight: what does A start from?", { m in
+    AnyView(m.flag ? AnyView(SlideB(k: m.k)) : AnyView(SlideA(k: m.k)))
+}, steps: [("withAnimation(0.6) { k = 1 } (A slides 0 to 100)", { m, _, _ in withAnimation(.linear(duration: 0.6)) { m.k = 1 } }),
+           ("spin 0.2, flag = true (A to B mid-flight)", { m, _, _ in spin(0.2); m.flag = true }),
+           ("spin 0.2, flag = false (back to A mid-flight)", { m, _, _ in spin(0.2); m.flag = false }),
+           ("spin 1.0 more", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)
 
 // ------------------------------------------------------------ S: scrolling
 arm("S1 List(0..<200) rows in a 100 pt frame, scrolled to row 150 then back to 0", { m in

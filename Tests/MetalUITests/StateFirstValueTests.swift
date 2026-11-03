@@ -25,26 +25,6 @@ private struct FVSeeded: Component {
     }
 }
 
-/// `D5`'s two types: each an `Int` `@State` of its own seed (10 and 20), drawn as its width.
-private struct FVSeedA: Component {
-    @State var n: Int
-    init() { _n = State(wrappedValue: 10) }
-    var content: some ElementGroup { Box().frame(width: Pixels(Float(n)), height: Pixels(20)).background(.accent) }
-}
-private struct FVSeedB: Component {
-    @State var n: Int
-    init() { _n = State(wrappedValue: 20) }
-    var content: some ElementGroup { Box().frame(width: Pixels(Float(n)), height: Pixels(20)).background(.accent) }
-}
-/// `D5b`'s A: the same seed 10, written to 11 in `onAppear`.
-private struct FVWriterA: Component {
-    @State var n: Int
-    init() { _n = State(wrappedValue: 10) }
-    var content: some ElementGroup {
-        Box().frame(width: Pixels(Float(n)), height: Pixels(20)).background(.accent).onAppear { n = 11 }
-    }
-}
-
 /// The widths of the 20-tall tiles in paint order.
 @MainActor private func fvWidths(_ window: Window) -> [Float] {
     window.lastScene.rects.filter { $0.bounds.size.height == 20 }.map { $0.bounds.size.width }
@@ -269,31 +249,6 @@ private struct FVWide { var a = 1, b = 2, c = 3, d = 4, e = 5 }
     #expect(small <= 10 && large <= 10, "seeding a present slot allocated more than mark: \(small) at 100, \(large) at 1000")
 }
 
-// MARK: `AnyElement` (divergence 210)
-
-/// **`D5`, `D5b`: pinned wrong on purpose (divergence 210).** An `AnyView` whose wrapped type changes at one position
-/// resets its state in SwiftUI: `SeedB` reads its own seed 20 after `SeedA` (10), and after a `SeedA` that wrote 11
-/// (probes `D5`, `D5b`). An `AnyElement` has no type tracking, so both share `$state0` under the one id: `SeedB` reads
-/// `SeedA`'s 10 (never written: the case `FV-A` made newly wrong, 20 before it) and 11 (written: always so). A fix
-/// that resets on a type change reddens both arms: read divergence 210 first.
-@MainActor
-@Test(arguments: ["seeded", "written"]) func anAnyElementSwapKeepsTheSlotOfTheTypeItReplaced(arm: String) throws {
-    let m = LCModel()
-    let (window, _) = try lcWindow {
-        Column {
-            if arm == "seeded" {
-                m.flag ? AnyElement(Stack { FVSeedB() }) : AnyElement(Stack { FVSeedA() })
-            } else {
-                m.flag ? AnyElement(Stack { FVSeedB() }) : AnyElement(Stack { FVWriterA() })
-            }
-        }
-    }
-    window.drawFrameIfNeeded()
-    window.drawFrameIfNeeded()
-    try #require(fvWidths(window) == (arm == "seeded" ? [10] : [11]), "set up: A reads its own value: \(fvWidths(window))")
-    m.flag = true
-    window.drawFrameIfNeeded()
-    #expect(fvWidths(window) == (arm == "seeded" ? [10] : [11]),
-            "B reads A's slot (divergence 210; SwiftUI resets and reads 20): \(fvWidths(window))")
-}
+// The `AnyElement` swap this file once pinned wrong (divergence 210) is `AnyElementResetTests.swift`'s
+// `anAnyElementSwapReadsTheNewTypesOwnValue` since `ER-A` (record 201).
 #endif

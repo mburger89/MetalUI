@@ -65,8 +65,11 @@ import MetalUILayout
 // `ElementBuilder` produces one. `theBuilderPreservesConcreteTypesRatherThanBoxing`
 // and its two siblings in `ElementLayoutTests.swift` are the guards, and they
 // assert on `type(of:)` because that is the only kind of assertion that can see
-// the difference — measured: a builder that boxes everything reddens those three
-// and no behavioural test at all, out of 303.
+// the difference. (Measured once: a builder that boxes everything reddened those
+// three and no behavioural test at all, out of 303. Re-run for R4-1a on the
+// current tree it does not build — `PullDownMenu.swift:45` — and boxing every
+// child would also move every path one level, `ER-A`: the earlier "moves no path"
+// is refuted, see `ElementBuilder.swift`.)
 //
 // **The mutation that measures that has to be spelled carefully.** Adding
 // `buildExpression<E: Element>(_:) -> AnyElement` alone does not compile, because
@@ -205,16 +208,33 @@ public struct AnyElementBox<E: Element>: ElementObject {
 @MainActor
 public struct AnyElement {
     var box: any ElementObject
+    /// The wrapped element's metatype (`ER-A`): the key of the `$erased` level the group entry lays the element out under.
+    let wrappedType: ObjectIdentifier
 
     /// Erases `element`'s type. `@State` and `@Environment` inside it still
     /// bind before every phase (`ID-E`).
     public init<E: Element>(_ element: E) {
         box = AnyElementBox(element)
+        wrappedType = ObjectIdentifier(E.self)
+    }
+
+    /// The id the wrapped element runs its three phases under when the group entry places it at `id` (`ER-A`): a
+    /// level below the position whose component carries the wrapped type's identity, so a different type is a
+    /// different element (its `@State`, focus, `.task`, lifecycle keys and memos are new) and the same type is the
+    /// same one. `.id("$erased")` has no key and cannot collide. A direct `requestLayout(_:pass:)` caller does not
+    /// get this level and keeps the id it passes (`ER-B`).
+    func contentID(under id: GlobalElementID) -> GlobalElementID {
+        GlobalElementID.child(of: id, at: 0, name: ElementID(name: "$erased", key: IdentityKey(AnyHashable(wrappedType))))
     }
 
     /// The erased element's local identity (§4.3).
     public var elementID: ElementID? { box.elementID }
 
+    /// **A direct caller owns its identity** (`ER-B`): this and the other two phases run the
+    /// element under the id passed in, with no `$erased` level. The level (`contentID(under:)`)
+    /// is minted by the group entry in `ElementGroup.swift`, so an `AnyElement` placed in a
+    /// container is keyed by its wrapped type, and one a control lays out itself (a custom
+    /// `Button`/`Toggle` style's label, a strip) keeps the control's id.
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> LayoutNodeID {
         box.requestLayout(id, pass: &pass)

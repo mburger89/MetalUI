@@ -262,7 +262,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
         try #require(r.elements == 3, "\(kind): \(r.elements)")
         #expect(r.unlowerable.isEmpty, "\(kind): \(r.unlowerable)")
         #expect(r.bounds[containerID] == bounds(0, 0, 10, 10), "\(kind)")
-        #expect(r.bounds[child(containerID, 0)] == expected[kind]!, "\(kind)")
+        #expect(r.bounds[child(element.contentID(under: containerID), 0)] == expected[kind]!, "\(kind)")   // `ER-A`: under the erased element's level
     }
 }
 

@@ -36,6 +36,8 @@ Probe (recorded in its header, macOS 27.2, 2026-11-03): `swiftui-lifecycle.swift
 
 ## FV-C: an erased type swap shares the old slot (divergence 210; the hazard the plan named)
 
+**Forward note (R4-1a, record 201):** divergence 210 is retired and item 3's "not fixed here" and its design (a type key per position, a reset through the `ID-C` sweep and a journal event) are overturned by `ER-A` (`2026-11-03-anyelement-reset-decisions.md`): a keyed `$erased` level noted through `noteNamed`, no new journal event. The text below is the record as written.
+
 1. **Probe `D5`/`D5b`**: an `AnyView` that swaps two view types, each holding an `Int` `@State` (seeds 10 and 20), resets state. `SeedB` reads its own 20 after `SeedA` (10) and `SeedA` reads 10 again on the swap back; with `SeedA`'s state *written*
    to 11 the swap still reads 20 (`D5b`).
 2. **MetalUI's `AnyElement` has no type tracking**: both elements bind under the same id's `$state<n>`. Measured on the tree before this change: a never-written default read **its own 20** (`D5`, the right answer, by accident, because nothing
