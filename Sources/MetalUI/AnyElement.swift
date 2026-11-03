@@ -65,8 +65,11 @@ import MetalUILayout
 // `ElementBuilder` produces one. `theBuilderPreservesConcreteTypesRatherThanBoxing`
 // and its two siblings in `ElementLayoutTests.swift` are the guards, and they
 // assert on `type(of:)` because that is the only kind of assertion that can see
-// the difference — measured: a builder that boxes everything reddens those three
-// and no behavioural test at all, out of 303.
+// the difference. (Measured once: a builder that boxes everything reddened those
+// three and no behavioural test at all, out of 303. Re-run for R4-1a on the
+// current tree it does not build — `PullDownMenu.swift:45` — and boxing every
+// child would also move every path one level, `ER-A`: the earlier "moves no path"
+// is refuted, see `ElementBuilder.swift`.)
 //
 // **The mutation that measures that has to be spelled carefully.** Adding
 // `buildExpression<E: Element>(_:) -> AnyElement` alone does not compile, because
@@ -227,6 +230,11 @@ public struct AnyElement {
     /// The erased element's local identity (§4.3).
     public var elementID: ElementID? { box.elementID }
 
+    /// **A direct caller owns its identity** (`ER-B`): this and the other two phases run the
+    /// element under the id passed in, with no `$erased` level. The level (`contentID(under:)`)
+    /// is minted by the group entry in `ElementGroup.swift`, so an `AnyElement` placed in a
+    /// container is keyed by its wrapped type, and one a control lays out itself (a custom
+    /// `Button`/`Toggle` style's label, a strip) keeps the control's id.
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> LayoutNodeID {
         box.requestLayout(id, pass: &pass)

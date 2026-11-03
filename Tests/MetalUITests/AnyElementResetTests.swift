@@ -245,7 +245,7 @@ private struct ERGen<T>: Component {
 /// once (`LC-F` order, appears first: SwiftUI runs the disappearance first, a new divergence row, `ER-C`); the old
 /// `onDisappear` reads the value A left with (11, `LC-I`'s overlay) and its write (99) is lost, so A reads 10 on the
 /// way back; a modifier outside the `AnyElement` fires nothing. Mutations: the level removed (M1: nothing fires);
-/// `retainsDepartedValues` forced false (M8b: the disappear reads the seed).
+/// `retainsDepartedValues` forced false (M8b).
 @MainActor
 @Test func aSwapRunsDisappearAndAppearOnce() throws {
     let m = LCModel(), log = LCLog()
@@ -329,7 +329,7 @@ private func erStyle(width: Float?, height: Float?, column: Bool = false) -> Sty
 
 /// **A swap resets a scroll offset** (`ER-A`; the `departedRoots.contains(id)` conjunct of `resetQueuedEntries`: a
 /// `ScrollView` keeps its offset at its own, bare id, with no slot name under it). `AnyElement(ScrollView{..})` swapped
-/// for a scroller of another content type starts at 0, and a swap back too. Mutation (M6): that conjunct removed.
+/// for a scroller of another content type starts at 0, and the old one comes back at 0 (its offset entry sits at the departed level's own id, which only `departedRoots.contains(id)` removes). Mutation (M6): that conjunct removed.
 @MainActor
 @Test func aSwapResetsAScrollOffset() throws {
     let m = LCModel()
@@ -348,6 +348,9 @@ private func erStyle(width: Float?, height: Float?, column: Bool = false) -> Sty
     m.flag = true
     eraDraw(window)
     #expect((erOffset(window) ?? 0) == 0, "the new scroller starts at 0: \(String(describing: erOffset(window)))")
+    m.flag = false
+    eraDraw(window)
+    #expect((erOffset(window) ?? 0) == 0, "and the old scroller comes back at 0, not at the offset it left with: \(String(describing: erOffset(window)))")
 }
 
 /// A focusable element (`@State` count, recorded id) of two types, for the focus arm.
@@ -431,8 +434,9 @@ private struct ERFocusB: Element {
 // MARK: Named positions and direct callers
 
 /// **A named element keeps its name at the position** (`ER-A`): `scrollTo` reaches a `.id("t")` element inside an
-/// `AnyElement`, which `recordElementBounds` records under the position's id, not the `$erased` level. Mutation (M12):
-/// that record taken under the level.
+/// `AnyElement`, which `recordElementBounds` records under the position's id, not the `$erased` level. A characterization:
+/// **mutation M12 (that record taken under the level) leaves it green** (`scrollTo` resolves the name some other way);
+/// the mutation is reddened by `aNamedElementKeepsItsNameThroughAScopeWhenErased` (`ScopeForwardTests`) alone.
 @MainActor
 @Test func aScrollToReachesANamedElementInAnAnyElement() throws {
     let (window, _) = try lcWindow(size: 100) {
@@ -465,8 +469,8 @@ private struct ERFocusB: Element {
 
 /// **A direct caller owns its identity** (`ER-B`): a custom-style `Button` lays its erased label out through
 /// `AnyElement.requestLayout(_:pass:)` at its own id, and nothing it registers sits under an `$erased` level; the
-/// control, an `AnyElement` entered as a group member, does. Mutation (M13): the level minted in
-/// `AnyElement.requestLayout`.
+/// control, an `AnyElement` entered as a group member, does. Mutation (M13b): the level minted in
+/// `AnyElement`'s three direct methods.
 @MainActor
 @Test func aDirectRequestLayoutMintsNoLevel() {
     func erasedLevels(_ id: GlobalElementID) -> Int {
@@ -498,7 +502,7 @@ private struct ERPaddedStyle: ButtonStyle {
 
 /// **A steady erased position costs one name and no scan** (`ER-A`): over a steady run the reset pass never scans
 /// (`lastResetScanWork == 0`), the table holds what an unboxed twin does, and a swap frame is the one that scans
-/// (`departedNameResets` +1). Mutations (M18): the name always departing (the steady scan is not 0).
+/// (`departedNameResets` +1). Mutation (M3, a key that changes every build: the name always departs; M18, `previous != id` dropped, is an equivalent mutant, record 201).
 @MainActor
 @Test func aSteadyErasedPositionCostsOneNameAndNoScan() throws {
     func run(erased: Bool, _ steps: [Bool]) -> (scans: [Int], resets: [Int], counts: [Int]) {

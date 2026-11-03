@@ -174,16 +174,20 @@ struct ERInner: Component, @MainActor Equatable {
 
 // MARK: The layout memo
 
-/// **An equal-shape swap with different text lays B out** (`ER-A`, `IV-J`): `Stack { Text("i") }` swapped for
-/// `Row { Text("WWWW") }` has the same tree shape, so the layout memo may hit, and the frame must still measure B's
-/// text: the swapping window's element bounds (sizes) equal a window that showed B from the start. Run under
-/// `METALUI_VERIFY_LAYOUT_MEMO=1` as well (it recomputes every hit and traps). Mutation: a keyed text leaf dropping its
-/// text from the key (the swap reuses A's width).
+/// Two layout-transparent components of one shape (a single `Text` leaf) and different types.
+struct ERTextI: Component { var content: some ElementGroup { Text("i") } }
+struct ERTextW: Component { var content: some ElementGroup { Text("WWWW") } }
+
+/// **An equal-shape swap with different text lays B out** (`ER-A`, `IV-J`): `Stack { ERTextI() }` swapped for `Stack { ERTextW() }` (two
+/// `Component` types, so layout-transparent: the tree is a `Stack` over one `Text` leaf either way) has the same shape, so the layout
+/// memo may hit, and the frame must still measure B's text: the swapping window's element bounds (sizes) equal a window
+/// that showed B from the start. Run under `METALUI_VERIFY_LAYOUT_MEMO=1` as well (it recomputes every hit and traps).
+/// Mutation: a keyed text leaf dropping its text from the key (the swap reuses A's width).
 @Test @MainActor func anEqualShapeSwapMeasuresTheNewTypesText() throws {
     func make(_ model: ERModel) throws -> TestWindow {
         try TestWindow(size: sz(200, 100), textSystem: harnessTextSystem) {
             VStack(spacing: 0) {
-                model.flag ? AnyElement(Row { Text("WWWW") }) : AnyElement(Stack { Text("i") })
+                model.flag ? AnyElement(Stack { ERTextW() }) : AnyElement(Stack { ERTextI() })
             }
         }
     }

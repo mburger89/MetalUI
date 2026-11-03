@@ -22,6 +22,7 @@ header.
   named id owes a `StateTable.noteNamed` call and an arm in
   `everyNamingSiteStartsAReturningNameFresh`.** All resets run in one pass per
   `sweep()` (E3.13).
+- **An `AnyElement` is keyed by its wrapped type** (`ER-A`, record §201, divergence 210 retired): its group entry runs the wrapped element, in all three phases, under `child(of: position, at: 0, name: ElementID(name: "$erased", key: IdentityKey(ObjectIdentifier(E.self))))` and notes it with `noteNamed`, so a changed type departs the old level through `ID-R` (state, focus, `.task`, lifecycle keys and memos reset, a swap back is fresh); an element's recorded bounds stay at the position, everything it registers sits on the level, and **a direct `AnyElement.requestLayout(_:pass:)` caller owns its id** (`ER-B`). A legacy decoration returning `Self` is not a type change (`ER-C`, 211); the swap appears before it disappears (212). A new erased entry owes the level and its `noteNamed`.
 - Modifiers are one flat `ModifiedContent<Content, Modifier>` (stage 11;
   `ModifiedElement` is its legacy typealias): each modifier is one layer = one
   node = one id level; outermost takes the parent's slot, inner layers
@@ -52,7 +53,7 @@ silently stale). `$state` projects a `Binding`. **A `@State` keeps its default's
 evaluation** (`FV-A`, overturns `LC-S` item 1): `State.bind` calls `StateTable.mark(_:seeding:)`, which stores the
 default on a slot with no entry, so a re-evaluated default (`@State var owner = UUID()`, a parameter-seeded `init`) is
 discarded after the first and the table holds one entry per declared `@State`; a seed is not a write and journals
-as a plain `.mark` (`retained.md`, `FV-B`); an `AnyElement` type swap shares the old slot (divergence 210, `FV-C`). One element value placed
+as a plain `.mark` (`retained.md`, `FV-B`); an `AnyElement` type swap is a new element (`ER-A`, below). One element value placed
 twice resolves its own occurrence under input dispatch (`ID-F`); outside
 dispatch it reaches the last-bound one (divergence 71).
 

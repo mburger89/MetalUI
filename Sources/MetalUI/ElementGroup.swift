@@ -648,7 +648,13 @@ extension AnyElement: ElementGroup {
     }
 
     /// Identical to `Element`'s default for the CURSOR: an erased element is
-    /// still one element and therefore one index.
+    /// still one element and therefore one index. **Not for the id** (`ER-A`,
+    /// divergence 210 retired): the wrapped element runs one level below the
+    /// position, under `AnyElement.contentID(under:)` (a `$erased` component keyed
+    /// by `ObjectIdentifier(E.self)`), and that level is noted through `noteNamed`
+    /// so a changed type departs the old one and resets its state, focus, tasks,
+    /// lifecycle keys and memos through `ID-R`. The position keeps its own
+    /// `noteNamed` and its element bounds (`scrollTo`, `frame(ofID:)`).
     ///
     /// **Not `enteringGroupMember`, and `@State` still binds.** `Element`'s
     /// default seeds every `@State` through `StateBinder.bind` inside the shared

@@ -140,8 +140,7 @@ element lives (as SwiftUI does): `@State var monitor = Monitor()` is one instanc
 `onDisappear`, and a `@State` set from a parent parameter through `init` does not follow the
 parameter afterwards (pin: `aSeedFromAParentParameterDoesNotFollowIt`); write it, or use the parameter itself, when it should change. A single element
 value placed twice resolves its own occurrence only under input dispatch; a write from a phase reaches
-the last one (divergence 71). And an `AnyElement` whose wrapped type changes at one position keeps the
-old type's `@State` slots, where an `AnyView` resets them (divergence 210; pin: `anAnyElementSwapKeepsTheSlotOfTheTypeItReplaced`).
+the last one (divergence 71). And an `AnyElement` whose wrapped type changes at one position is a different element, as an `AnyView` is: its `@State`, focus and `.task` start fresh, and a swap back starts fresh too (pin: `anAnyElementSwapBackStartsFresh`); the same wrapped type changes nothing, and a legacy decoration that returns `Self` is not a type change (divergence 211).
 
 ## How do I show a long list, and let the user select rows?
 
@@ -189,7 +188,7 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 
 - divergence 71: a value placed twice and written outside input reaches the last occurrence.
 - divergence 78: `Binding` is `@MainActor`.
-- divergence 210: an `AnyElement` whose wrapped type changes at one position keeps the old type's `@State` slots.
+- divergence 211: a legacy decoration (`Stack.background`) on an erased element is not a type change, so its `@State` is kept where an `AnyView` resets it.
 - divergence 134: a missing environment object traps, naming the type.
 - divergence 145: a content-sized `List` row is exactly its content's height.
 - divergence 146: an insertion above the viewport keeps the top row in place.

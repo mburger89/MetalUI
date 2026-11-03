@@ -11,14 +11,18 @@
 /// mitigation 1 would be silently gone with nothing red. So the guards are
 /// *type-level*: three tests in `ElementLayoutTests.swift` assert on
 /// `type(of:)`, and they are the only kind of test that can see the difference.
-/// Measured: adding **both** `buildExpression<E: Element>(_:) -> AnyElement` and
-/// `buildExpression(_ e: AnyElement) -> AnyElement` here reddens exactly those
-/// three and no behavioural test at all — re-measured `--no-parallel` after
-/// structural identity, **out of 358** rather than the 303 first recorded, and
-/// the three are the same three. Universal identity does not change that, and
-/// the reason is that `AnyElement`'s `requestGroupLayout` consumes exactly one
-/// cursor index like `Element`'s default does, so boxing every child moves no
-/// path and no `StateTable` entry.
+/// Measured once: adding **both** `buildExpression<E: Element>(_:) -> AnyElement` and
+/// `buildExpression(_ e: AnyElement) -> AnyElement` here reddened exactly those
+/// three and no behavioural test at all (out of 303, then 358 after structural
+/// identity). **That reading is stale (R4-1a, record 201).** Re-run on the
+/// current tree the pair no longer reaches the tests: `Sources/MetalUI/PullDownMenu.swift:45`
+/// fails to compile (`cannot convert value of type 'Label' to expected argument
+/// type 'AnyElement'`), so the compiler is now the guard. The claim it
+/// carried, "`AnyElement` consumes one cursor index like `Element`'s default, so
+/// boxing every child moves no path and no `StateTable` entry", is **refuted**:
+/// an erased child runs one `$erased` level below its position (`ER-A`), so
+/// everything it registers moves one level, and a type-keyed reset would apply
+/// to every boxed child.
 ///
 /// **The second overload is not optional, and the generic one alone is no longer
 /// a measurable mutation.** `anExplicitAnyElementIsStillAcceptedAsAChild` puts an
