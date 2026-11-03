@@ -150,13 +150,13 @@ Ranked from the carried/not-built sweep (decisions docs' Carried sections, the "
 - [x] R3-8. (merged 2026-11-01 PR #172, record 181, PG-A…PG-H, divergences 945–947) Paths: `trimmedPath`/`Shape.trim`, `strokedPath`, `addRelativeArc`, `Path.applying`, `UnevenRoundedRectangle`.
 - [x] R3-9. (merged 2026-11-01 PR #176, record 185, SS-A…SS-G, divergences 975–977) Shape styles: `ShapeStyle` protocol, `AnyShapeStyle`, `.tint`/`.accentColor`.
 - [x] MF-atlas. (merged 2026-11-01 PR #177, merge b83efde2, record 184, GL-A…GL-J, no divergence) MetalFlow-requested glyph-atlas fix: the atlas grows in place to 4096, rebuilds between frames, counts drops past the cap; MetalFlow verified headlessly at b83efde2 (zoom 25–400%, 0 dropped glyphs).
-- [ ] R3-10. (items 1–5 merged; item 6, 3D render effects, in its PR; item 7, accessibility display settings, in PR #190) Then, one at a time: `Text` view-level modifiers and dash patterns; pointer/hover extras; app-shell extras (`windowDismissBehavior`, `WindowDragGesture`, `navigationTitle(Text)`); right-to-left `layoutDirection` (divergence 25); drag-and-drop `DropDelegate` family; 3D render effects; accessibility display settings; record §05 re-derived.
+- [ ] R3-10. (items 1–6 merged; item 7, accessibility display settings, in PR #190; item 8 next) Then, one at a time: `Text` view-level modifiers and dash patterns; pointer/hover extras; app-shell extras (`windowDismissBehavior`, `WindowDragGesture`, `navigationTitle(Text)`); right-to-left `layoutDirection` (divergence 25); drag-and-drop `DropDelegate` family; 3D render effects; accessibility display settings; record §05 re-derived.
   - [x] 1. (merged 2026-11-01 PR #180, merge 24532b55, record 186, TM-A…TM-H, no divergence) `Text` dash patterns and view-level text modifiers.
   - [x] 2. (merged 2026-11-01 PR #183, merge 302effd2, record 188, PH-A…PH-J, no divergence) Pointer extras: one-way `columnResize`/`rowResize`, `pointerVisibility`.
   - [x] 3. (merged 2026-11-02 PR #184, merge 4026f5ab, record 190, AE-A…AE-F, divergences 1035, 1036) App-shell extras: `navigationTitle(Text)`, `navigationSubtitle`, `windowDismissBehavior`.
   - [x] 4. (merged 2026-11-02 PR #185, merge 6b6a3a1b, record 191, LD-A…LD-H, retired 25, added 1045) Right-to-left `layoutDirection` mirrors layout.
   - [x] 5. (merged 2026-11-02 PR #186, merge 5c47e0d8, record 192, DE-A…DE-J, divergences 1055, 1056) `DropDelegate` family.
-  - [ ] 6. 3D render effects.
+  - [x] 6. (merged 2026-11-02 PR #188, merge 76b03e58, record 193, PJ-A…PJ-K, divergences 1065–1069) 3D render effects.
   - [x] 7. (PR #190, record 194, AD-A…AD-L, divergences 1075, 1076, 1078, 1079) Accessibility display settings.
   - [ ] 8. Record §05 re-derived.
 - [x] MF-segmented. (merged 2026-11-01 PR #181, merge 5f347c1a, record 187, SD-A/SD-B, no divergence) MetalFlow-requested segmented picker look in dark mode.
