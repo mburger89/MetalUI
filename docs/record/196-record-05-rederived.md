@@ -1,0 +1,1097 @@
+# Record 196: record §05 re-derived (declared but inert)
+
+2026-11-02, branch `docs/record-05-rederive` from master `e92c1751`; R3-10 item 8
+(`Tasks.md`). Rulings `RD-A`..`RD-F` in
+`docs/superpowers/2026-11-02-record-05-rederive-decisions.md` (a new prefix, `docs/rules/decision-prefixes.md`).
+No `Sources/`, `Tests/` or `Package.swift` change; **no new divergence**; no new public declaration.
+
+[`05-declared-but-inert.md`](05-declared-but-inert.md) is now one current list, checked by
+`docs/probes/record-05-check.sh`. Its previous text (864 lines: a 20-row table written in the
+CSS-engine era, 26 dated sections from 2026-09-15 to 2026-11-02, and the 2026-10-01 "final list") is
+frozen verbatim at the end of this record (section 7); the citations in records 19, 67 and 69 resolve
+there. This is the `CX-G` shape (`docs/superpowers/2026-09-30-closeout-decisions.md`): read every old
+claim once against one criterion, record a verdict per item, publish one current list.
+
+## 1. Method and result
+
+1. **Baseline** at `e92c1751`: `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing;
+   `closeout-public-api.sh | wc -l` is 4422 (the recorded `closeout-public-api.tsv` has 3874 lines and is
+   stale; the check runs the census live).
+2. **Candidates** are the union of (i) every item of the old file, (ii) the doc-comment sweeps (S1, S2), (iii) two
+   identifier scans (S3), (iv) the inventory map's behaviour cells (S4) and (v) the live divergence rows (S5).
+3. **Adjudication**: each candidate got a reader grep against today's source (pattern, hit count and
+   classified hits are in the ledger), its doc comment and the rulings it cites were read, and it got a verdict:
+   a row, an internal row, a decided non-row or a retirement. Hit counts are raw non-comment line counts at
+   `e92c1751` and are mechanical; the classification is the reading. **Nothing was carried forward from the
+   old text without a grep.** The `SwiftUI (macOS) does` column of the table is the exception, by design: it is
+   carried from the cited probes and rulings (no probe was re-run).
+4. **Result**: **48 public rows** (keyed by the census, 23 inventory families) and **9 internal rows**,
+   against the old file's 20 table rows and its dated additions.
+   The decided non-rows are listed in the new file (20 bullets, several naming more than one declaration) with their reasons.
+
+P/I numbers below are the row order of the new table at the commit that adds it.
+Public: P1 EnvironmentValues.locale, P2 EnvironmentValues.dynamicTypeSize, P3 ElementGroup.dynamicTypeSize, P4 EnvironmentValues.displayScale, P5 EnvironmentValues.pixelLength, P6 EnvironmentValues.controlSize, P7 ElementGroup.controlSize, P8 EnvironmentValues.colorSchemeContrast, P9 EnvironmentValues.accessibilityDifferentiateWithoutColor, P10 EnvironmentValues.accessibilityInvertColors, P11 EnvironmentValues.accessibilityShowBorders, P12 EnvironmentValues.accessibilityShowButtonShapes, P13 EnvironmentValues.accessibilityDimFlashingLights, P14 EnvironmentValues.accessibilityPlayAnimatedImages, P15 EnvironmentValues.legibilityWeight, P16 ButtonRole, P17 AccessibilityTraits.updatesFrequently, P18 AXNode.children, P19 GridRow, P20 ProposalElementGroup.gridCellColumns, P21 ProposalElementGroup.gridCellAnchor, P22 ProposalElementGroup.gridColumnAlignment, P23 ProposalElementGroup.gridCellUnsizedAxes, P24 ElementGroup.gridCellColumns, P25 ElementGroup.gridCellAnchor, P26 ElementGroup.gridColumnAlignment, P27 ElementGroup.gridCellUnsizedAxes, P28 LayoutPass.markNativeGridRow, P29 LayoutPass.markNativeGridCell, P30 LayoutTree.markNativeGridRow, P31 LayoutTree.markNativeGridCell, P32 StyledElement.alignSelf, P33 StyledElement.flexGrow, P34 StyledElement.flexShrink, P35 StyledElement.flexBasis, P36 Element.tag, P37 StyledElement.contentShape, P38 ElementGroup.disabled, P39 AttributeScopes.MetalUIAttributes.foundation, P40 ElementGroup.glassEffectID, P41 Glass.interactive, P42 ElementGroup.confirmationDialog, P43 PointerStyle.image, P44 Binding.transaction, P45 ElementGroup.presentationBackground, P46 ElementGroup.transition, P47 ModifierLayerKind, P48 StyledElement.margin.
+Internal: I1 Platform: var onInput: ((InputEvent) -> Bool)?, I2 Frame: var scrollRegions:, I3 Window: var lastScrollRegions:, I4 StateTable: private(set) var isDirty, I5 StateTable: private(set) var writeCount, I6 Frame: private(set) var axNodes, I7 AXEmission: let synthesizes: Bool, I8 LayoutTree: package private(set) var lastNativeLayou, I9 NativeGrid: var bookkeepingSteps = 0.
+
+## 2. Staleness found
+
+Every old item was given a verdict (66 ledger entries, section 3.1). The top table's 20 rows are 21 items (row 19 names two declarations):
+
+| category | top table (21 items) | all entries (66) |
+|---|---|---|
+| still holds unchanged | 4 | 17 |
+| narrowed: a reader was added later | 1 | 2 |
+| narrowed and its citation moved | 1 | 1 |
+| a dated deletion or fix never applied to the top table (the field, case or modifier is gone) | 7 | 18 |
+| the 2026-10-01 final list names something that changed afterwards | 2 | 4 |
+| contradicted by a later ruling or test | 0 | 1 |
+| wrongly retired by the final list | 1 | 2 |
+| misfiled: implemented, a renderer limit, a function, or a lowering rule | 5 | 19 |
+| missing: inert, and no row (found by this derivation) | 0 | 2 |
+
+So of the old top table, 15 of 21 items are no longer a correct row (the estimate before the derivation was
+about 60 percent), 4 hold unchanged and 2 hold narrowed. Beyond the ledger entries: **two public declarations the old
+file never listed** that the derivation added as rows by the criterion (`StyledElement.margin` under a stack parent,
+T3b, P48; `Binding.transaction` on a closure binding, P44) and a further set the old file knew only as prose
+(`ElementGroup.transition` nested, `presentationBackground` outside a popover, `ModifierLayerKind`, `glassEffectID`,
+`Glass.interactive`, `confirmationDialog`'s `titleVisibility:`, `PointerStyle.image`, the grid marks outside a `Grid`),
+and the old file's own mechanism of rot: the top table was never rewritten after its 2026-09-15 rows, its
+dated sections only appended, and it was untouched between 2026-10-12 and 2026-11-01 (about records 84 to 183).
+
+Categories not in the tallies: **duplication** (`controlSize` was told in four sections and `ButtonRole` in three,
+with different answers) and **citation drift** (the frozen text cites `Frame.swift:420`, `MetalUIPlatform/AppKit/`,
+`CLAUDE.md`'s inert table; `Sources/` and `Tests/` still say "CLAUDE.md's inert table" in 31 comments, `RD-F`).
+
+## 3. The ledger
+
+### 3.1 Every old item
+
+Reader-grep: `grep -rnE "<pattern>" Sources Backends/SDL/Sources --include='*.swift'`, comment lines removed with
+`grep -vE ':[0-9]+:[[:space:]]*//'` (or `Tests` for a test name). IDs: `T` the top table, `D` a dated section
+in order of date, `F` the final list (each of its items repeats an earlier entry).
+
+- **T1** (top table) `AlignItems.baseline` / `AlignSelf.baseline`. `grep -rnE "case baseline|\.baseline\b.*alignItems|alignItems.*\.baseline"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **4** hits. RETIRED: row deleted at `TE-L` and still in the top table. A baseline row lowers to `baseline: .first`; every other spelling is a permanent refusal by name, a trap or a report. Evidence: `LegacyLowering.swift:1017-1034` (`alignSelf.baseline` reported), dated section 2026-09-28 of the frozen text.
+- **T2** (top table) `Style.aspectRatio`. `grep -rnE "var aspectRatio|style\.aspectRatio|\.aspectRatio\b.*Style"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. STALE: the field is deleted (stage 10); only the unrelated `.aspectRatio(_:contentMode:)` modifier remains and it is live. Evidence: no `var aspectRatio` in `Sources/MetalUI/Style.swift`; `ProposalElementGroup.aspectRatio` is read by `newNativeAspectRatio`.
+- **T3** (top table) `margin: .auto`. `grep -rnE "\.auto. lowers as 0|marginEdge|hasMargin"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **9** hits. NOT A ROW: lowered to an explicit zero (`LR-AH`, `anAutoMarginLowersAsZero`); `Style.margin` is `package`. A lowering rule with a reader is not stored-and-unread. Evidence: `LegacyLowering.swift:1097-1100` (`.auto` lowers as 0); pin `anAutoMarginLowersAsZero` (`LoweringBoxModelTests.swift`).
+- **T4** (top table) `MUIRect.borderColor` / `borderWidths`. `grep -rnE "borderColor|borderWidths"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **60** hits. STALE, both halves false: `MUIRect` is a C ABI struct outside the census, and `Decoration.border`/`hoverBorder` set the fields (`Box.swift:309,314`). Evidence: erratum already in the frozen text, record 9.
+- **T5** (top table) `Position.relative`. `grep -rnE "case relative"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. STALE: the case is deleted (stage 10). The two hits are unrelated `relative` properties (`LayoutTree.swift:691`, `RetainedSubtree.swift:644`). Evidence: Box.swift doc: "removed by plan task 7, stage 10".
+- **T6** (top table) `Style.overflow`. `grep -rnE "var overflow|style\.overflow|viewportStyle\.overflow"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. STALE: field and its one write deleted at stage 10. Evidence: `LegacyEngineSymbolTests` lists the accessor among absent names.
+- **T7** (top table) `AnyElement` / `ElementObject` / `AnyElementBox`. `grep -rnE "AnyElement\("` over `Sources` + `Backends/SDL/Sources`, comments excluded: **15** hits. NOT A ROW: fully implemented, and produced by `Toolbar.swift:171..241,448`, `ToolbarStrip.swift:63`, `PresentationBackground.swift:85`, `WindowControlsStrip.swift:61,68`, `Toggle.swift:186`, `Button.swift:243`. The "produced by nothing" half is false. Evidence: pin `theBuilderPreservesConcreteTypesRatherThanBoxing` (`ElementLayoutTests.swift`) is a type-level guard, not an inertness pin.
+- **T8** (top table) Colour glyphs. `grep -rnE "COLR|sbix|polychrome"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. NOT A ROW: true (`GlyphRaster.swift:96`) but a renderer limit, not a declaration; `docs/divergences.md` lists it under "not offered". Evidence: `docs/divergences.md` "What this list does not cover".
+- **T9** (top table) `GlyphAtlas.evictUnusedSince`. `grep -rnE "evictUnusedSince"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. RETIRED: removed (record 184, `GL-`). The 2026-10-01 final list (line 789 of the frozen text) still names it. Evidence: 0 hits.
+- **T10** (top table) `Style.alignSelf` on a stack child. `grep -rnE "\balignSelf\b|\bflexGrow\b|\bflexShrink\b|\bflexBasis\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **62** hits. ROW `StyledElement.alignSelf/flexGrow/flexShrink/flexBasis` (P32-P35), inert where the parent is a `Stack`. The final list wrongly retired it as "history": `LegacyLowering.swift:1046-1051` reads none of the four for a `.stack`/`.leaf`/`.frameLayer`/`.presentation` parent, and the public modifiers (`Box.swift:1335-1377`) still compile on a `Stack` child. Pin `aStackStretchesByItsItemsAlignmentAndIgnoresTheirFlexFields`. Evidence: `LegacyLowering.swift:926-928` "A stack parent ignores `alignSelf`, `flexGrow`, `flexShrink` and `flexBasis`".
+- **T11** (top table) `Style.padding`/`border`/`margin` on a leaf. `grep -rnE "paddedAndSized|func resolvedLength"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **5** hits. RETIRED: a leaf is lowered with its padding (`LR-AH`); `Style.border` is deleted. The pin the frozen text names, `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, no longer exists in `Tests/`. Evidence: `LegacyLowering.swift` `paddedAndSized`.
+- **T12** (top table) `hidden()` on a subtree that draws. `grep -rnE "hiddenNodes"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **17** hits. RETIRED: live since `LR-DH`; a hidden node lowers as shown and joins `Frame.hiddenNodes`, painting and registering nothing. Evidence: `Box.swift:1453-1470` doc; the focusable half closed by `IX-K` (`disablingHitTestingIfHidden`, 4 hits).
+- **T13** (top table) `Frame.scrollRegions` / `Window.lastScrollRegions`. `grep -rnE "scrollRegions|lastScrollRegions"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **2** hits. INTERNAL I2, I3: two declarations and no other hit; read by `NestedClipTests`, `ContentShapeTests`. Evidence: `Frame.swift:1443`, `Window.swift:519`.
+- **T14** (top table) `LayoutTree.reset(generation:)`. `grep -rnE "\.reset\(generation|func reset\(generation"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **2** hits. NOT A ROW: a function that works when called (its four guards in `LayoutTreeTests` pin it); zero callers is dead code, not inertness (`RD-A`). Evidence: `LayoutTree.swift:778`.
+- **T15** (top table) `StateTable.isDirty`. `grep -rnE "\bisDirty\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **3** hits. INTERNAL I4: declaration, set in `write`, cleared by `clearDirty`; no read. Evidence: `StateTable.swift:645,936,948`; pin `writingStateMarksTheTableDirtyAndReadingDoesNot`.
+- **T16** (top table) `StateTable.writeCount`. `grep -rnE "\bwriteCount\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **2** hits. INTERNAL I5: declaration and one increment. Evidence: `StateTable.swift:685,765`; pin `aSettledFieldStopsIncrementingTheWriteCount`.
+- **T17** (top table) `AXNode.children`. `grep -rnE "emitAXNode\(|resolved\.children|children: \[\]"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **8** hits. ROW `AXNode.children` (P18): the sole production call passes `children: []` (`Frame.swift:1962`); nothing in the builder reads the field. The frozen text's grep counts (17 lines, 4 code) are stale. Evidence: `Frame.swift:1962,2353`, `Passes.swift:483`.
+- **T18** (top table) `AXNode.logicalCount`. `grep -rnE "logicalCount"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **16** hits. NOT A ROW: read since `AB-L` as `rowCount:` (`AccessibilityTreeBuilder.swift:225`). The frozen final list still calls it unread. Evidence: `AccessibilityTreeBuilder.swift:225`.
+- **T19a** (top table) `Frame.axNodes`. `grep -rnE "\baxNodes\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **25** hits. INTERNAL I6, narrowed: the retained ledger and verify snapshot read it (`RetainedPrepaint.swift:508,509,612-614`, `RetainedTranslationCarries.swift:127,143`); no non-verify reader. Evidence: `Frame.swift:2076,2357`.
+- **T19b** (top table) `Frame.axNode(for:)`. `grep -rnE "axNode\(for"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **1** hits. NOT A ROW: a function with the one declaration and no caller (`Frame.swift:2426`). Evidence: `Frame.swift:2426`.
+- **T20** (top table) `PlatformWindow.onInput` return. `grep -rnE "onInput"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **73** hits. INTERNAL I1 (a protocol requirement, so outside the census), narrowed and its citation moved: AppKit reads the Bool for `performKeyEquivalent` (`AppKitPlatform.swift:450`) and the drop targets (`AppKitDragAndDrop.swift:118,122,134`) and discards it for every other event; SDL discards it everywhere. The path is `Sources/MetalUIAppKit/`, not `MetalUIPlatform/AppKit/`. Evidence: `SDLPlatform.swift:1046..1520`.
+- **D1** (2026-09-15) `AXNode.actions`. `grep -rnE "\.actions\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **33** hits. NOT A ROW: deprecated with a message that says it is never read (`AXNode.swift:109`, `AXActionKind` `:57`); the builder derives actions from live handlers (`AB-H`). Evidence: `AXNode.swift:110,300`.
+- **D2** (2026-09-15) `AXEmission.synthesizes`. `grep -rnE "\.synthesizes\b|synthesizes:"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **4** hits. INTERNAL I7: one producer (`Frame.swift:2014`); the only reader is the verify snapshot (`RetainedPrepaint.swift:644`). Evidence: `AXEmission.swift:34` doc: "it has no reader".
+- **D3** (2026-09-15) `ElementGroup.LayerBase` / `_wrap(_:)` on a custom conformer (`MC-A`). `grep -rnE "\._wrap\(|func _wrap"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **6** hits. NOT A ROW: a conformer-misuse hazard documented at the requirement (`ElementGroup.swift:84-100`); a protocol requirement with a working default, no stored value. Evidence: `ElementGroup.swift:92-100`.
+- **D4** (2026-09-15) `EnvironmentValues.layoutDirection`. `grep -rnE "\.layoutDirection"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **12** hits. RETIRED: mirrors layout since record 191 (`LD-A`, `LD-E`): readers incl. `Frame.swift:673`, `ScrollView.swift:375`. Evidence: `TextStyleResolution.swift:72`.
+- **D5** (2026-09-15) `EnvironmentValues.locale`. `grep -rnE "\blocale\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **6** hits. ROW P1: the writers are `EnvironmentValues.swift:67,75`; line 540 is the diff list. No formatter reads it. Evidence: pin `aLocaleChangesNoTextMeasurementUnderTheProposalAuthority`.
+- **D6** (2026-09-15) `EnvironmentValues.dynamicTypeSize`. `grep -rnE "dynamicTypeSize"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **6** hits. ROW P2, P3: declaration, the scope modifier, the diff list. Evidence: `EnvironmentScope.swift:260`.
+- **D7** (2026-09-15) `EnvironmentValues.pixelLength`. `grep -rnE "pixelLength"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **1** hits. ROW P5: one declaration, computed from `displayScale`; no reader. Evidence: `EnvironmentValues.swift:148`.
+- **D8** (2026-09-15) `@Environment` inside `AnyElement` and unbound. `grep -rnE "func anEnvironmentPropertyInsideAnyElementReadsItsScope"` over `Tests`, comments excluded: **1** hits. RETIRED: fixed at task 8 (`ID-E`); the test was renamed to assert the bound value. Evidence: `EnvironmentTests.swift`.
+- **D9** (2026-09-15) in-module write to `theme`/`pixelLength` through the root (re-stamped, `EV-H`, `EV-U`). `grep -rnE "\.theme = "` over `Sources` + `Backends/SDL/Sources`, comments excluded: **9** hits. NOT A ROW: a lifetime fact about the root environment (`Frame.swift:718-764` re-stamp), not a declared property; `pixelLength` is now computed. Evidence: `Frame.swift:718,753,761,764`.
+- **D10** (2026-09-15) `.disabled` on a `ScrollView`. `grep -rnE "func disabled"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **1** hits. ROW P38: the scroll region bypasses the gate; pin `aDisabledScrollViewStillScrollsOnTheWheel`. Evidence: `DisabledTests.swift:1110`.
+- **D11** (2026-09-16) legacy `borderWidth(_:)`. `grep -rnE "func borderWidth"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **1** hits. RETIRED: modifier gone (`OM-M`); the legacy path paints through `Decoration.border`. Evidence: 0 hits.
+- **D12** (2026-09-16) `Style.border` on a container. `grep -rnE "style\.border|var border:"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **2** hits. RETIRED: field deleted (stage 10, `LR-FM`). Evidence: see T4.
+- **D13** (2026-09-16) `contentShape(inset:)` with no `onClick` on its layer. `grep -rnE "func contentShape"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **5** hits. ROW P37 (divergences 44, 50): `Handlers.contentShapeInset` is read only by the click registrar. Evidence: `Box.swift:1746-1772`; pin `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`.
+- **D14** (2026-09-16) a single-axis infinite maximum on the legacy frame (`FR-O`). `grep -rnE "maxWidth\?\.value == \.infinity|isFinite \{ style\.max"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **3** hits. RETIRED: `LegacyLowering.swift:282-284` says the kernel frame fills a single infinite maximum where the legacy layer was inert; the legacy engine is gone. Evidence: `FrameLayer.swift:66-67` doc table is the legacy arm.
+- **D15** (2026-09-16) the no-argument `frame()` on both protocols (`FR-J`). `grep -rnE "func frame\(\) -> Self"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **2** hits. NOT A ROW: deprecated, message "Please pass one or more parameters." (`FrameLayer.swift:200`, `NativeModifiedContent.swift:285`). Evidence: typecheck fixture `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`.
+- **D16** (2026-09-16) `.allowsHitTesting(false)` covers both paths (`OM-AK`). `grep -rnE "hitTestingDisabled"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **13** hits. NOT A ROW: it registers no hitbox on both paths (13 hits incl. `Frame.swift:1477-1484`); the inner-layer reach is divergence 44. Evidence: `Frame.swift:1477`.
+- **D17** (2026-09-21) `margin: .auto`, `Style.border`, leaf `padding` under the proposal authority. `grep -rnE "paddedAndSized"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **4** hits. RETIRED: lowered (`LR-AH`); see T3, T11, D12. Evidence: `LegacyLowering.swift`.
+- **D18** (2026-09-21) `markNativeGridRow`'s horizontal factor, `markNativeGridCell(columnAlignment:)`'s vertical factor. `grep -rnE "markNativeGrid(Row|Cell)|gridRowAlignments|gridCellColumnAlignments"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **27** hits. ROW P28-P31: `NativeGrid.swift:367-372` reads the row alignment's vertical factor and the column alignment's horizontal one only; the public modifiers take a one-axis type, so the discarded axis exists only on the layer API. Evidence: `LayoutTree.swift:1924,1963`, `Grid.swift:29,47`.
+- **D19** (2026-09-21) `anchor:`, `columnAlignment:`, `unsizedAxes:`, `ProposalAxes` are NOT inert. `grep -rnE "unsizedAxes"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **21** hits. HOLDS: 21 hits incl. the solver's `NativeGrid.swift:639,659`; not rows.
+- **D20** (2026-09-21) a grid mark on a node outside a grid; `GridRow`/`GridCellModifier` outside a `Grid`. `grep -rnE "gridChildMarks"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **2** hits. ROWS P19-P27: `gridChildMarks` has one caller, `newNativeGrid` (`LayoutTree.swift:2087`). Only `GridRow` has a pin. Evidence: `aGridRowOutsideAGridIsItsCells`.
+- **D21** (2026-09-22/23/24) `LayoutAuthority.allCases`, `ListRows.GroupLayout.spacer`, `LayoutAuthority.proposal`. `grep -rnE "enum LayoutAuthority|spacerStyle|var spacer\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. RETIRED: all three deleted at stage 9; 0 hits.
+- **D22** (2026-09-23) `UnlowerableField` sites `.list`, `.component`. `grep -rnE "site: \.(list|component)"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **4** hits. NOT A ROW: internal diagnostic tags used as sites by `recordLoweredItem` (`ListRows.swift:185`, `Component.swift:585`); that no report is raised there is a fact about reporting. Evidence: `LayoutAuthority.swift:36-37`.
+- **D23** (2026-09-24) demo `.minHeight(Pixels(0))` inert in one context. `grep -rnE "minHeight\(Pixels\(0\)\)"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. NOT A ROW: the frozen section already said so (a context, not a declaration); the demo no longer uses it. Evidence: 0 hits.
+- **D24** (2026-09-25) `deferred.amended`. `grep -rnE "\bamended\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. RETIRED: deleted at stage 11. Evidence: 0 hits.
+- **D25** (2026-09-25) `@State` inside `AnyElement`. `grep -rnE "StateBinder\.bind"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **11** hits. RETIRED: fixed at task 8 (`ID-E`). Evidence: `AnyElementBox` binds before every phase.
+- **D26** (2026-09-25) `EnvironmentValues.controlActiveState`. `grep -rnE "\bcontrolActiveState\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **24** hits. NOT A ROW: read by `ControlLook.swift:21` (accent falls to `.separator` outside the key window). Evidence: deleted at `IX-H`.
+- **D27** (2026-09-25 to 09-28) `EnvironmentValues.controlSize`. `grep -rnE "\.controlSize\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **14** hits. ROW P6, P7, NARROWED THREE TIMES: readers are the default font (`TextStyleResolution.swift:59,60`), `Button` (`Button.swift:156`), `TextField` (`TextField.swift:161`), a `.button`-style `Toggle` (`Toggle.swift:146`) and `ProgressView` (`ProgressView.swift:105`). Divergence 76's "`Toggle` … read nothing" cell is false for `.button` (carried, `RD-F`). Evidence: pin `controlSizeReachesTheDefaultFontButNoControlsChrome`.
+- **D28** (2026-09-25) `EnvironmentValues.displayScale`. `grep -rnE "displayScale"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **8** hits. ROW P4: writers `Frame.swift:720,2703`; `Frame.swift:730` is a helper. No reader. Evidence: pin `aDisplayScaleWriteChangesTheNumberNotTheScaleDrawingUses`.
+- **D29** (2026-09-25) `ScrollIndicatorVisibility`'s new cases. `grep -rnE "scrollIndicators|ScrollIndicatorVisibility"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **6** hits. NOT A ROW: `.visible` behaves as `.automatic`, `.never` as `.hidden`. Evidence: `ScrollView.swift:238`.
+- **D30** (2026-09-25) `PickerStyle`, `AXNode.selectionHint`, `Handlers.valueTrack`, `ClickDispatch.modifiers`. `grep -rnE "selectionHint|valueTrack|ClickDispatch\.modifiers"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **14** hits. NOT ROWS: `selectionHint` is read at `AccessibilityTreeBuilder.swift:219`, `valueTrack` at `Window.swift:3358,3373`, `ClickDispatch.modifiers` at `List.swift:1124`; `PickerStyle.inline` is wired (`Picker.swift:35`).
+- **D31** (2026-09-28) `dynamicTypeSize` confirmed. `grep -rnE "dynamicTypeSize"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **6** hits. HOLDS: ROW P2, P3. Evidence: `TE-E`.
+- **D32** (2026-09-29) `PaintPass.isActive`. `grep -rnE "\.isActive\("` over `Sources` + `Backends/SDL/Sources`, comments excluded: **1** hits. RETIRED: `Button`'s pressed look reads it (`IX-E`, `aButtonPaintsPressedOnlyWhilePressedAndOverIt`).
+- **D33** (2026-09-29) `ButtonRole` binds Escape and Return. `grep -rnE "ButtonRole|role == \."` over `Sources` + `Backends/SDL/Sources`, comments excluded: **56** hits. ROW P16, CONTRADICTED: the frozen text says `.cancel`/`.confirm` bind Escape/Return; `ButtonStyle.swift:6-7` and the pin `aButtonRoleBindsNoKeyAndChangesNothingDrawn` say a role binds no key. Readers: `Alert.swift:53-62` (alert actions) and the style configuration (`ButtonStyle.swift:128`). Evidence: pin `aButtonRoleBindsNoKeyAndChangesNothingDrawn`.
+- **D34** (2026-09-29) `hidden()` on a focusable element. `grep -rnE "disablingHitTestingIfHidden"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **4** hits. RETIRED: `IX-K` item 3; `disablingHitTestingIfHidden` is called from `ElementGroup.swift:171`, `ModifiedContent.swift:294`, `Frame.swift:3916`.
+- **D35** (2026-09-30) `AccessibilityTraits.updatesFrequently`. `grep -rnE "updatesFrequently"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **2** hits. ROW P17: two declarations (`AccessibilityTraits.swift:68`, `AXNode.swift:44`), no reader.
+- **D36** (2026-09-30) `accessibilityReduceMotion`. `grep -rnE "accessibilityReduceMotion"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **18** hits. NOT A ROW: read by `TransitionGroup.swift:100`.
+- **D37** (2026-10-01) `Box`'s `style:` initialiser. `grep -rnE "init\(style:"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **12** hits. RETIRED: `package` (`aPlainImportCannotPassBoxAStyle`).
+- **D38** (2026-10-01) final list group 4 (superseded `Style` rows). `grep -rnE "permanent refusal"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **0** hits. HOLDS as a statement, but it retired `alignSelf` on a stack child wrongly (T10).
+- **D39** (2026-10-01) drag and drop: `beginExternalDrag`. `grep -rnE "beginExternalDrag"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **5** hits. NOT A ROW: read by `Window.swift:2883`; SDL answers `false` by ruling (divergence 101).
+- **D40** (2026-10-02) MetalView: `frameIndex`, `isNewTarget`, `policy`. `grep -rnE "frameIndex|isNewTarget"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **18** hits. NOT ROWS: values the draw closure reads; outputs (`RD-A`). Evidence: `MetalDrawContext.swift:61-79`.
+- **D41** (2026-10-02) paths: `miterLimit`, `isAntialiased`. `grep -rnE "miterLimit|isAntialiased"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **21** hits. NOT ROWS: read by the stroker (`Stroker.swift:197`) and `GradientRaster.swift:76`.
+- **D42** (2026-10-03) menus and popovers: `arrowEdge`. `grep -rnE "arrowEdge"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **8** hits. NOT A ROW: read by placement. Evidence: `Popover.swift:269`.
+- **D43** (2026-10-08) the `link` of a run. `grep -rnE "run\.link|\.link\b.*accent|var link: String"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **6** hits. ROW P39 (divergence 150): `TextRuns.swift:303` styles it, nothing handles a click. Evidence: pin `aLinkRegistersNothingAPlainTextDoesNot`.
+- **D44** (2026-11-02) accessibility display keys (8). `grep -rnE "accessibilityDisplay\b"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **18** hits. ROWS P8-P15: only the demo reads them; `accessibilityShowButtonShapes` (an alias, divergence 1078) was missing from the frozen table. Evidence: pin `noBuiltInControlReactsToAccessibilityDisplaySettings`.
+- **T3b** (top table (new)) `StyledElement.margin(_:)` under a stack or frame-layer parent. `grep -rnE "hasMargin|marginInsets"` over `Sources` + `Backends/SDL/Sources`, comments excluded: **7** hits. ROW P48, missing from the frozen text: `LegacyLowering.swift:1097-1114` lowers a margin only under a flex parent; `.stack`, `.leaf`, `.frameLayer`, `.presentation` parents drop it (`LR-AZ`, "measured on the legacy stack"). The frozen text carried only `.auto`. Evidence: `LegacyLowering.swift:855-859`, `:1110-1111`.
+
+- **F1-F4** (2026-10-01 final list) are the four groups, item by item, in T/D above: group 1 holds P1-P4/P6/P16/P17/P28-P31 and I1, retires AXNode.actions to deprecation; group 2 (test observables) keeps I2-I6, drops `reset` and `evictUnusedSince`, and calls `logicalCount` unread (B); group 3 (`AnyElement`) is not a row (N); group 4 retired `alignSelf` on a stack child wrongly (W).
+
+### 3.2 Sweeps
+
+**S1. The narrow doc-comment sweep, 57 declarations** (a `///` or attribute line directly above the declaration matches `inert|read by nothing|reads nothing|no (production |framework )?reader|never read|authors only|accepted and|carried and`; the loop in the plan's step 2 (ii), run live at `e92c1751`). Verdicts:
+
+- Rows: `ModifierLayerKind` (P47), `AccessibilityTraits` and `.updatesFrequently` (P17), `AnyTransition` and `ElementGroup.transition` (P46 via the `TransitionGroup` type's "inert unless outermost"), `ButtonRole` (P16), `GridRow` (P19), `TaggedElement` (P36), `AttributeScopes.MetalUIAttributes.foundation` (P39), `ElementGroup.confirmationDialog` (P42), `ElementGroup.glassEffectID` (P40), `Glass.interactive` (P41), `Handlers.contentShapeInset` and `StyledElement.contentShape` (P37), `LayoutTree.markNativeGridRow` (P30), `Binding.init` (P44, its `transaction`), `ProposalElementGroup.frame` and `ElementGroup.frame` (not a row, see D14).
+- Deprecated, not rows: `AXActionKind`, `AXNode.actions`, `AXNode.init`.
+- Past tense or history in the doc comment, with a reader today (not rows): `ColorToken`, `KeymapBuilder`, `Text.paint`, `StyledElement.focusBackground`, `StyledElement.hidden`, `StyledElement.minHeight`, `PrepaintPass.registerHandlers`, `ProposalElementGroup.aspectRatio`, `AnyElement.requestGroupLayout`, `ScrollView`, `Window.hasActiveAnimations`, `Style` (opaque outside the package), `Box.flexDirection` (why the modifier is not offered on a `Stack`), `Environment`, `richTextDemoContent`.
+- Runtime state or input validation, not a declaration: `ContextPredicate`, `KeyBinding`, `Keystroke.init?` (a malformed spelling makes a binding inert by design, `aBindingWithAMalformedPredicateIsInertRatherThanFatal`), `PasteButton` (dimmed while the clipboard is empty), `StyledElement.accessibilityLabel` (inert while no client is active), `StyledElement.resignsFocusOnPress` (the noun "inert chrome"), `MatchedGeometryGroupLayout`/`TransitionGroupLayout` (a layout value that is `nil` when the group is inert), `StyledComponent`, `Component.equatable`.
+- Read by their consumer or by the author they exist for: `ScrollIndicatorVisibility`, `UnitPoint` (a one-axis scroller has no cross offset), `ScrollContext.axis`, `ProposalElementGroup.layoutPriority`, `Rectangle` (`NativeElements.swift:595`), `Text.init`, `LayoutTree.newNativeFrame`, `GlyphAtlas.clearDirtyRect` (3 renderers), `FontKey`, `LayoutTree.reset` (T14).
+
+**S2. The broad doc sweep, 135 declarations** (adds `ignored|carried|does nothing|changes nothing|has no effect|unread|not read|no built-in`). The 78 beyond S1 were read one doc line at a time; none added a row except where named above and in T3b. They are mostly: `.id` on the transparent scopes (`CoordinateSpaceScope.id`, `GeometryChangeScope.id`, `TransactionScope.id`, `ModifierKeysScope.id`, `GlassTagScope.id`, `TransitionGroup.id`: "carried" there means the scope names itself), image decoders ("colour profiles ignored"), `HeadlessPlatformWindow.setSubtitle/setDismissEnabled` (recorders of a test fake), `ElementGroup.alert`/`toolbar`/`presentationBackground` prose about runtime behaviour, `Window.backgroundDragBehavior`, `App.replyToTerminateRequest`, and the shaping/atlas internals of `MetalUIText`/`MetalUIScene`. `ElementGroup.presentationBackground` is P45 (outside the popover content, B4); `ElementGroup.dynamicTypeSize` is P3; `ScrollViewProxy.scrollTo` of an unknown id is a runtime no-op as in SwiftUI.
+
+**S3. The identifier scans** (not in the plan; added because the doc sweep only sees declarations whose comment says so).
+- Every census `var`/`let`/`case`/`func` whose name occurs at most twice in `Sources/` and `Backends/SDL/Sources` outside comments and string literals: **248**. The 29 with zero are operators and back-ticked names. The remaining 219 are API values (`Material.*`, `Color.*`, `Font.Weight.*`, `Transform2D.*`), conversions (`Path.*`, `Gesture.*`), `MetalUITesting` fakes and drivers, and `MetalUIDemoContent` entry points. Candidates followed up: `EnvironmentValues.textMeasurer` (a get-only measurer; not a row, MetalUI-only output), `Window.drawnChromeHeight`, `Window.windowResizability` (written through to the platform window), `DragGesture.Value.predictedEnd*` (computed), `ElementGroup.glassEffectID` (P40). None else.
+- Every census `var`/`let` with an owner and **no `.name` access outside its own file**: **258**, 155 outside `MetalUITesting` and the demo content. Followed up: `Text.fontFamily`/`fontSize` and the `TextField`/`TextEditor`/`ProposalText` twins (computed over `fontRequest`, read), `OnTapModifier.hoverColor` (read at `NativeTappable.swift:66`), `Window.hasActiveAnimations` (read at `Window.swift:1552`), `ScrollEvent.isMomentum`, `ShapedRun.isRightToLeft`, `MeasurementSubview.isSpacer` (outputs handed to an author), `ChromeHitSnapshot.*` (read in the same file). None is a row.
+- Internal declarations (4-space `var`/`let`, not `private`) whose name occurs at most twice in `Sources/`: **625** declaration lines with locals; **559** member-level ones outside `MetalUITesting` and the demo, read for the old list's shape (names and files only: the scan finds a candidate, it does not prove an absence). The nine internal rows are the old list's six plus `AXEmission.synthesizes`, `lastNativeLayoutWork` and `bookkeepingSteps` (found by this scan). The remaining internal counters (`buildCount`, `publishCount`, `lastEmissionCount`, `geometryPublishCount`, `parkedCount`, the `testing*` hooks) are read by tests by design behind a named seam and are not enumerated; see `RD-F`.
+
+**S4. The inventory map's behaviour cells** (`grep -nE "inert|read by nothing|carried|authors only|accepted and"` over `closeout-inventory-map.tsv`): `environment-dynamic-type` (P2, P3), `environment-locale` (P1), `image-cursor` (P43), `dialog-extras` (its inertness is `confirmationDialog`'s `titleVisibility:`, P42 in family `alerts`; the family's other members are live, so it carries no token), `accessibility-display` (P8-P15), `glass-effect` (divergence 827 belongs to `Glass.interactive`, census family `glass`: P41), `glass-id-transition` (P40). **S5. The live divergence rows** (`grep -nE "inert|read by nothing|accepted and carried"` over `docs/divergences.md`): 44, 50, 150, 827, 828 are rows; 276 (a window drag gesture "inert for a press the region took"), 277 and 846 describe a mechanism, not a declaration.
+
+
+## 4. The check script and its mutations
+
+`docs/probes/record-05-check.sh` (zsh, `set -e`, prints one line per problem and nothing when consistent; not wired into the suite,
+like `closeout-inventory-check.sh`, whose M-rule matching and live-label code it copies). It reads the two tables of `docs/record/05-declared-but-inert.md`
+between their markers, runs the census live (`CENSUS=$(zsh docs/probes/closeout-public-api.sh)`, fed in by process substitution, no temp file),
+and joins them with the inventory map, `docs/divergences.md`, `Tests/` and `docs/superpowers/`.
+
+Each mutation was applied to the committed file (commit `1d4edd5c`), the script run, the output recorded, and the file restored with
+`git checkout` (committed, so nothing was lost; `git status` clean after each). The "output" column is the script's own first lines.
+
+| mutation (applied to) | output |
+|---|---|
+| M1 rename the `locale` row to `localeX` (§05 public table) | `NODECL	MetalUI.EnvironmentValues.localeX` and `ORPHAN	environment-locale` (the family now has no row) |
+| M2 the `locale` row's family `environment-locale` to `environment-control` (§05) | `FAMILY	MetalUI.EnvironmentValues.locale	environment-control	map says: environment-locale` and `ORPHAN	environment-locale` |
+| M3 drop `(record §05)` from family `button` (map) | `UNLINKED	button` |
+| M4 add `(record §05)` to family `navigation-title`, which has no row (map) | `ORPHAN	navigation-title` |
+| M5 duplicate the `ButtonRole` row (§05) | `DUP	MetalUI.-.ButtonRole` |
+| M6 the `ButtonRole` pin to `noSuchTest` (§05) | `PIN	MetalUI.-.ButtonRole	noSuchTest` |
+| M7 `controlSize`'s divergence label 76 to 25, a retired label (§05) | `LIVE	MetalUI.EnvironmentValues.controlSize	25` |
+| M8 the `ButtonRole` ruling `IX-E` to `RD-Z` (§05) | `RULING	MetalUI.-.ButtonRole	RD-Z` |
+| M9 the `isDirty` internal ERE to `private\(set\) var isDirtyX` (§05) | `INTERNAL	Sources/MetalUI/StateTable.swift	private\(set\) var isDirtyX` |
+| M10 delete the public table's end marker (§05) | `MARKER	public` |
+| X1 the `locale` row's family to a name no F row defines (§05) | `NOFAMILY	MetalUI.EnvironmentValues.locale	no-such-family` and `ORPHAN	environment-locale` |
+| X2 a pipe character inside a cell of the `locale` row (§05) | `CELLS	public	MetalUI.locale	12 cells` and `ORPHAN	environment-locale` |
+
+Each of the ten planned mutations produced the code it was meant to, and so did the two extra ones (X1 for `NOFAMILY`, X2 for `CELLS`); the unmutated tree prints
+nothing. What the script cannot see: whether a row is *inert* (the ledger's claim), whether a declaration the census does not list should have a
+row (a protocol requirement, an internal counter), and whether a `SwiftUI does` cell is right. A family whose only row is mutated also reports
+`ORPHAN`, because the token then has no row; that is the check working, not noise.
+
+## 5. Verification
+
+Run at the head of this branch; the first four print nothing.
+
+```
+zsh docs/probes/record-05-check.sh                 # (nothing)
+zsh docs/probes/closeout-inventory-check.sh        # (nothing)
+zsh docs/probes/closeout-undocumented.sh           # (nothing)
+git diff --name-only e92c1751 -- Sources Tests Package.swift   # (nothing)
+cmp CLAUDE.md AGENTS.md                            # (nothing)
+awk 'f{print} /^<!-- frozen below/{f=1}' docs/record/196-record-05-rederived.md | cmp - <(git show e92c1751:docs/record/05-declared-but-inert.md)   # (nothing)
+zsh docs/probes/closeout-public-api.sh | wc -l     # 4422
+```
+
+The baseline at `e92c1751` before any edit: both closeout probes printed nothing and the census was 4422 lines. `grep -c "record §05" docs/probes/closeout-inventory-map.tsv` is 23: one per family with a public row.
+
+**The test suite was not re-run, by design.** This change adds a zsh script, markdown and a TSV cell suffix (`closeout-inventory-check.sh` ignores the behaviour column) and touches no Swift file, so the suite's count cannot move: `CLAUDE.md`'s count line (4817 tests in 13 suites at `b83efde2`, 275 guards) is unchanged and is not re-taken. The files changed: `docs/record/05-declared-but-inert.md`, `docs/record/196-record-05-rederived.md`, `docs/record/README.md`, `docs/probes/record-05-check.sh`, `docs/probes/closeout-inventory-map.tsv`, `docs/rules/decision-prefixes.md`, `docs/divergences.md`, `docs/superpowers/2026-11-02-record-05-rederive-decisions.md`, `CLAUDE.md`, `AGENTS.md`, `Tasks.md`.
+
+What was checked against the source by reading, not by a script: every verdict in section 3 (a reviewer can re-run any ledger line's grep; the hit counts are at `e92c1751`). What was **not** re-measured: the `SwiftUI (macOS) does` cells (no probe was run), and the internal-counter population (section 6).
+
+## 6. Carried findings (`RD-F`), not fixed here
+
+Findings outside this change's scope, not fixed (no `Sources/` or `Tests/` edit here), ruling `RD-F`:
+
+1. **Divergence 76's cell is wrong for `Toggle`**: it says `Toggle` reads nothing, but a `.button`-style `Toggle` reads `controlSize` (`Toggle.swift:146`, `Button<Label>.metrics(environment.controlSize)`). P6 says so; the divergences row still does.
+2. **`Box.swift`'s docs** at `:645` and `:1318` still say `baseline` "falls back to `flexStart` until text metrics exist"; fixed at `TE-L` (T1).
+3. **`docs/probes/closeout-public-api.tsv` is stale**: 3874 lines recorded, 4422 live. `record-05-check.sh` and `closeout-inventory-check.sh` run the census live and are unaffected.
+4. **31 comments in `Sources/` and `Tests/` cite "CLAUDE.md's inert table"** (for example `Text.swift:293`, `Box.swift:634,1465`, `LayoutTree.swift:766`); the table is `docs/record/05-declared-but-inert.md`. Three cite "record §05's row" and stay right (`Picker.swift:406`, `PickerTests.swift:282`, `AccessibilityTraits.swift:67`) because the rows they promised now exist (P36, P17).
+5. **`FrameLayer.swift:55-70`'s doc table** still describes the legacy single-infinite-maximum arm as inert; `LegacyLowering.swift:282-284` says the kernel frame fills the axis.
+6. **Four pins the old text named are gone or renamed**: `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `aPopoverHasNoAttachmentAnchorParameter`, `autoMarginsResolveToZeroForNow`, `controlSizeReachesNoBuiltInMeasurement`.
+7. **The census omits protocol requirements** (`PlatformWindow.onInput` is invisible to it), so the check keys those by file and ERE. A census that listed requirements would let I1 be a public row.
+8. **The internal population is not enumerated.** About 60 `testing*`, `*Count` and `last*` counters on internal types are read only by tests; the new file's rule is that a named test seam is a non-row, but the 196 scan (S3) found candidates by identifier count, which cannot prove an absence. A future pass could classify them.
+9. **Context-scoped inertness is found only where something documents it.** The sweeps read doc comments and identifier counts; `StyledElement.margin` under a stack parent (T3b) was found by reading the lowering switch. Other `switch parentKind` arms (`LegacyLowering.swift`) were read for `alignSelf`, the flex trio and `margin`; the arms for `position`, `inset` and sizing were not walked for dropped fields.
+10. **`ElementGroup.transition` nested is inert by measurement (probes X15, X15b, X16) with no divergence label.** If SwiftUI applies a nested transition when its container is inserted, that is an unlabelled divergence (the label range is not touched here).
+
+## 7. The frozen text
+
+Everything after the marker line below is `git show e92c1751:docs/record/05-declared-but-inert.md`, byte for byte
+(checked by the `cmp` in section 5). It is history: its table is stale (section 2), its dated sections describe
+code that is gone, and it is not to be edited. Its H2 anchors are unchanged so older links read the same text here.
+
+<!-- frozen below: byte-identical to git show e92c1751:docs/record/05-declared-but-inert.md -->
+## Declared but inert — verified, not remembered
+
+The single most likely way to write a bug in this repo is to use an API that
+exists, compiles, and does nothing. `Style` has 22 stored properties; **two of
+them are read by no production code** — `overflow`, `aspectRatio`.
+(**`Style` is untouched by the input-and-state milestone and by the
+tombstones-and-AX one, and both rows were re-checked rather than assumed**:
+`git diff --name-only 2f8994b..HEAD -- Sources/MetalUILayout/` is empty for the
+whole tombstones branch — as `994a4a7..HEAD` was for the input branch —
+`grep -rn "\.overflow\b" Sources/` still finds one write and no read, and
+`grep -rn "aspectRatio" Sources/ | grep -v "var aspectRatio"` finds one doc
+comment and no use at all. The 22 is itself re-derived rather than carried:
+`grep -cE "^    public var " Sources/MetalUILayout/Style.swift` returns **24**,
+of which `FlexDirection.isRow` and `.isReverse` are computed.
+That is what ruling IN-H's fourth `StyledElement` requirement bought instead of
+a `Style` field — see `Handlers`. **The tombstones milestone did the same
+thing a second time**: AX data went onto `Handlers` as a sixth stored member
+rather than into `Style` or onto a fifth `StyledElement` requirement, ruling
+`TB-AG`, so the three AX rows below are `MetalUI`'s rows and not `Style`'s.)
+**`StyledElement` deliberately exposes no modifier for either** (`Box.swift`): a
+modifier for an inert property is worse than none, because from outside it is
+indistinguishable from an implemented one. When one becomes live, add its
+modifier in the same task that deletes its row.
+
+**It was four until the absolute-positioning milestone, and the pair that left
+is the worked example of the rule above.** `position` and `inset` are read by
+`placeNode`/`placeAbsolute` now, so their row is gone — and
+`StyledElement.position(_:)`/`inset(_:)` landed in the same change that deleted
+it (ruling AP-L), because deleting the row without adding the modifiers leaves a
+live feature unreachable from the public API. **The enum did not leave whole**:
+`Position.relative` has its own row below, on `AlignItems.baseline`'s footing.
+
+**`Style.justifyItems` is the property a reader of this table might expect to
+find here and will not — the Stack milestone added it and it never entered
+the table.** It has a production reader from the task that declared it
+(`positionStackItems`, `Sources/MetalUILayout/FlexEngine.swift`), so it does
+not fit "read by no production code." Its inertness *for a flex container* —
+`justify-items` has no effect there — is CSS's own behaviour rather than a
+gap in this implementation, exactly as `JustifyItems`'s own doc comment
+(`Style.swift`) says. Do not add a row for it.
+
+**`overflow` is the counter-intuitive case the clipping-and-scroll milestone
+added, and it stays in this table on purpose.** `ScrollView.requestLayout`
+now WRITES `viewportStyle.overflow = Axes(both: .scroll)` — the first
+production write this property has ever had — but the engine still reads it
+nowhere: removing that line was measured (a probe built for exactly this
+question) to move no number in the layout it produces. Clipping and scrolling
+both work anyway, driven entirely by `ScrollView` pushing an explicit
+`pass.clipped(to:offsetBy:)` and registering a scroll region — mechanisms that
+do not consult `Style.overflow` at all. So the property documents intent for a
+reader of the style, same as CSS's own keyword would, and does nothing when
+the engine runs. A production write is not the same as a production read, and
+silence in this table on that distinction would read as "implemented" — the
+one thing this table exists to prevent. Re-count with the grep below rather
+than trusting the number: it was nine before the box model wired `padding`,
+`border` and `margin` in, six before wrapping wired `flexWrap`, five before
+`align-content` landed, four before absolute positioning wired `position` and
+`inset`, and 23 stored properties before the Stack milestone added
+`justifyItems` (a stored property with a production reader, not a row in
+this table — see above). Count the properties with an *anchored* pattern and
+subtract nothing by eye: `grep -cE "^    public var " Sources/MetalUILayout/Style.swift`
+returns **24**, because `FlexDirection.isRow` and `.isReverse` are computed
+`var`s at the same indentation in the same file. They were declared so the model
+matches CSS, and the algorithm that consumes them has not been written yet.
+
+**`wrap-reverse` left this table in wrapping's third task**, and it left as a
+whole rule rather than a property: `flexWrap` was already live, and what was
+missing was §8.3's cross-axis flip. Both halves are implemented now — the
+`align-content` leading offset and each item's `crossAxisOffset` — in
+`positionItems`, with three browser fixtures (`flex_wrap_reverse*`).
+
+**Three things the input-and-state milestone left NOT in this table, each with
+its reason — because silence at any of them would read as either "inert" or
+"fine", and none of the three is quite either.**
+
+- **`PaintPass.isActive(_:)` and `PaintPass.isHovered(_ id: HitboxID)` have no
+  production caller inside `MetalUI`.** That is not inertness: both are public
+  members of a pass, which exist precisely so an element author *outside* this
+  module can use them, and both are correct and pinned. What it does mean is
+  that **no built-in element paints a pressed state** —
+  `animatedBackground(_:for:pass:)` — called by `Box.paint`, `Stack.paint` and
+  `Text.paint` — consults `isFocused` and the element-keyed `isHovered`, and
+  nothing at all consults
+  `isActive` — so a caller who expects `.onClick { … }` to give a button a
+  pressed appearance gets none, and there is no modifier to ask for one the way
+  `hoverBackground(_:)`/`focusBackground(_:)` exist for the other two states.
+  Adding one is a `Decoration` field and a line in
+  `animatedBackground(_:for:pass:)`, on those two
+  modifiers' exact footing.
+- **A `ScrollView` is now a hover and active target**, because a scroll region
+  *is* a hitbox. Benign, and measured rather than assumed: a `ScrollView`
+  registers itself **before** descending into its content, so children and
+  `Deferred` subtrees register later, outrank it on the registration-index
+  tie-break, and nothing is shadowed. Recorded here because "the scroller is
+  now in the hover list" sounds like it should shadow its own rows, and it does
+  not.
+- **`Frame.scrollRegions` and `Window.lastScrollRegions` DID get a row**, below
+  — a get-only view with no production reader is exactly the shape this table
+  is for, and the two used to disagree about admitting it.
+
+The table is wider than that count, because a property can be read and still
+not do what its name promises — a stand-in value, or half a rule. Those rows
+are the dangerous ones.
+
+| Declared | Reality |
+|---|---|
+| `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to the start edge in TWO places now, not one — and as of M2 the blocker this row used to name is GONE while the work is not done.** The stack milestone added the second: `positionStackItems`' `case .baseline: y = 0` (`FlexEngine.swift`), which is `crossAxisOffset`'s fallback repeated for a container that has no flex axis at all, pinned by `baselineOnAStackFallsBackToTheStartEdge`. Whoever implements baselines owns both sites, and the stack one owns a third missing piece on top of the three below: a stack aligns on *both* axes, and `JustifyItems` has no `baseline` case to fall back *from*. The rest of this row is about the flex site. The row said `crossAxisOffset` "needs font metrics that arrive with the text system in M2". Those metrics exist: `MetalUIText`'s `FontMetrics` carries ascent, descent and leading, pinned against `CTFontGetAscent`/`Descent`/`Leading` by `metricsMatchCoreText`. Nothing is waiting on a milestone, so the three things that *are* missing are named as mechanisms at `crossAxisOffset` (`Alignment.swift`) instead — taxonomy shape 10's rule, applied to the row that motivated it. **(1) The engine cannot see a baseline at all**: a `MeasureFunction` returns a `SizeD`, so an item's first baseline never reaches `collectItems`, and the measure protocol has to carry it first. **(2) `crossAxisOffset`'s signature is the wrong shape**: baseline alignment is not an offset computed per item from `(itemCross, lineCross)` — a line's items must agree on a common baseline, which is a per-*line* quantity this function is never given. **(3) The `wrap-reverse` clause**: CSS Flexbox §8.3 swaps first- and last-baseline alignment in a `wrap-reverse` container, and nothing in the flip `positionItems` does today expresses that — it flips an offset, and baseline alignment is not an offset. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row. **The element pipeline's Task 4 made it reachable from the public API**: `StyledElement.alignItems(_:)` / `alignSelf(_:)` take the whole enum, so `.baseline` can now be written by a caller who will silently get `flexStart` — this row is the only thing guarding that, unlike `margin: .auto`, which the modifier's parameter type keeps out of reach. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them and `alignContent` when wrapping's second task did; **a whole enum leaving is not the same as its every case leaving**, and this row is the standing counter-example |
+| `aspectRatio` | **0 uses** — **Erratum 2026-09-14 (at `7cfcddc`; record §09):** true of `Style.aspectRatio` only. The unrelated proposal-path modifier `.aspectRatio(_:contentMode:)` (`NativeModifiedContent.swift:269`, `ee56284`) is live and never reads the `Style` field; do not delete it on this row's authority |
+| `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees. **Unreachable from the public modifier API since the element pipeline's Task 4**, and by a type rather than by a convention: `StyledElement.margin(_:)` takes `Length`, not `Dimension`, so `.auto` cannot be written through it at all. `Style.margin` is still public, so the case is reachable by setting `style` directly |
+| `MUIRect.borderColor` / `MUIRect.borderWidths` | **Round-trip the ABI, are drawn by `rect_fragment` — the M0 demo proved that end to end — and nothing in `MetalUI` can set either.** `Frame.fill` hard-codes `.transparent` and zero widths, and `Decoration` deliberately has no `borderColor`. The blocker is the **width**, not the colour: `Style.border` is an `Edges<Length>` whose percentage case resolves against the *containing block's* width, and the engine computes that inside `contentBox` and throws it away, so paint has no resolved width to pair a colour with. Re-resolving one at paint time against the box's own width is the exact mistake the percentage-inset constraint below records. Storing the resolved edges on `LayoutTree` is what unblocks it. Note the asymmetry this leaves: `StyledElement.borderWidth(_:)` is **live** and shrinks the content box, so a border affects sizing today and paints nothing. **Erratum 2026-09-14 (at `7cfcddc`; record §09):** "nothing in `MetalUI` can set either" and "`Frame.fill` hard-codes `.transparent` and zero widths" are false since `7c71996`. `Frame.fill`/`PaintPass.fill` take `borderColor:` and `borderWidths:`, and the proposal-path `.border(_:width:cornerRadius:)` sets them (`nativeBorderPaintsOverContentWithoutChangingItsFrame`). The legacy half stands: no `Box`/`Decoration` path passes a border, and `borderWidth(_:)` still paints nothing |
+| `Position.relative`'s **offset** | **Half-implemented, and the half that is missing is the half CSS is named for.** `.relative` does make a box the containing block its absolute descendants are placed against — live, load-bearing, read by `placeNode`'s `childCB` — and it does **not** shift the box by its own `inset` while reserving its in-flow space, which is what `position: relative` means in CSS. A `.relative` box lays out exactly where a `.static` one would. **Reachable from the public API since ruling AP-L**: `StyledElement.position(_:)` takes the whole enum, so `.position(.relative).inset(...)` compiles today and moves nothing, exactly as `.alignItems(.baseline)` does — and this row is the only thing guarding it, since the modifier's parameter type cannot keep one case of an enum out the way `margin(_:)`'s `Length` keeps `.auto` out. The mechanism, not a milestone: `placeAbsolute` is the only reader of `Style.inset`, and it is reached only from `placeNode`'s `position == .absolute` loop — nothing consults a `.relative` box's own inset at all. Implementing it means offsetting a box after in-flow placement without disturbing the space it reserved, which touches `positionItems`/`positionStackItems` rather than the absolute path. `position` and `inset` as *properties* left this table when absolute positioning wired them; **a whole enum leaving is not the same as its every case leaving** — see the `AlignItems.baseline` row, which is the standing counter-example this one joins |
+| `overflow` | **Written for the first time, still read nowhere.** `ScrollView.requestLayout` sets `viewportStyle.overflow = Axes(both: .scroll)` (ruling CL-B) — a production write, which is more than `aspectRatio` has ever had — but the engine consults it in no code path: `grep -rn "\.overflow\b" Sources/` outside `Style.swift`'s own declaration returns **three lines: one write** (`ScrollView.swift`) **and two doc mentions** (`ScrollView.swift`, `StateTable.swift`), **and nothing that reads it back** — re-run at the end of the input-and-state milestone. The "no read" half is the claim; the line count moves with the prose, as the `evictUnusedSince` row below has now been caught by twice. Clipping and scrolling both work, but through `ScrollView` pushing an explicit `pass.clipped(to:offsetBy:)` and registering a scroll region directly — mechanisms independent of this property. Kept as its own row rather than folded into `aspectRatio`'s, because a write with no read is a sharper trap than a property nobody touches at all: a reader who sees `ScrollView` set `overflow: .scroll` and then finds clipping working would reasonably conclude the two are connected |
+| `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** The element pipeline's Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by that same commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all — re-measured `--no-parallel` on 2026-08-27 after structural identity, out of 358 rather than the 303 first recorded, and the three are the same three.** Universal identity does not disturb it: `AnyElement`'s `requestGroupLayout` consumes one cursor index exactly as `Element`'s default does, so boxing every child moves no path and no `StateTable` entry. Delete this row when the static path demonstrably does not serve a real container |
+| **Colour glyphs** (emoji, `COLR`/`sbix`) | **Wrong rather than absent, and now visibly so.** Spec §6.1 routes them to a *polychrome* atlas that skips tinting; there is no polychrome atlas in M2 and `GlyphRaster.rasterize` does not detect one either. So `CTFontDrawGlyphs` renders an emoji into the `DeviceGray` context as a **luminance silhouette**, it packs into the R8 atlas like any other glyph, and `glyph_fragment` multiplies it by the text colour — `Text("hi 🎉")` paints a flat blob in the text's colour where the emoji should be. It does not trap and it is not blank, which is exactly why it is written down: **nothing in this repo can see it**, there being no oracle for a rendered glyph at all (spec §4.2). The fix is a second atlas and a second draw path, not a branch in the rasterizer. Note that it was *invisible* rather than *wrong* until the glyph emitter landed — this row's status changed without its text changing, which is the shape ruling CS-E names |
+| ~~`GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves~~ | **Resolved 2026-11-01 (record 184, `GL-A`..`GL-J`): superseded and removed.** The row's diagnosis stood to the end - eviction stranded pixels, the atlas was grow-only, and a full atlas silently dropped glyphs (MetalFlow's zoom sweep from 25% to 150% blanked its node cards for good). `evictUnusedSince` is gone (public API; `docs/migration.md`). In its place: **growth** inside a frame (`GlyphAtlas.packed` doubles the atlas up to `maximumExtent`, 4096 for a window; every slot keeps its coordinates), a **rebuild** between frames (`GlyphAtlas.reclaim()`, called only from `Window.reclaimAtlasIfNeeded()`, which re-rasterizes lazily), `layoutGeneration` as the key every retained holder of a rect checks, and `droppedGlyphs` for what no longer fits past the cap. The guard `theGlyphAtlasHasNoEvictionCaller` became `theGlyphAtlasIsReclaimedOnlyAtTheTopOfADraw`. |
+| `Style.alignSelf` on a **stack child** | **Ignored entirely, and it is the most misleading inert API this table holds** — an *alignment* property, public and live for flex, silently doing nothing on an *alignment* container. `Stack { Box().alignSelf(.flexEnd) }` compiles today: `StyledElement.alignSelf(_:)` is a live modifier and `Stack` conforms to `StyledElement` as of the stack milestone. Measured at that milestone's final review: a 20x10 child with `alignSelf = .flexEnd` in a 100x60 stack lays out at **`y = 0`**; WebKit's grid puts the same child at **`y = 50`**. The mechanism, not a milestone: `positionStackItems` reads the *container's* `alignItems`/`justifyItems` once before its item loop and never consults `tree.style(item.node)` for an override — the per-item style it reads is `size`, for the `stretch` carve-out, and on a stretched axis only `minSize`/`maxSize`/`padding`/`border`, for the clamp and floor review finding B-8 added. It never reads `alignSelf`. Per-child alignment was out of the milestone's scope, and closing it needs **two** things rather than one: `alignSelf` for the block axis and a `justifySelf` that does not exist in this `Style` at all for the inline one, since implementing one alone would make a stack's two axes disagree about whether a child may override its container. Recorded at `Display.stack`'s own doc comment (`Style.swift`) as well as here |
+| `Style.padding` / `Style.border` / `Style.margin` on a **leaf** | **Ignored entirely — for a `Text`, not "resolved wrongly".** `measureNode` returns a leaf's measure result unchanged where it adds a container's `edges` back on, and `contentBox` only ever runs on a node with children, so a leaf's border box *is* its content box. `Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph, and `Text.paint` lays its glyphs from `bounds.origin` on exactly that basis. Consistent, and consistently wrong against CSS. **Reachable from the public API**, unlike the `Style` properties above: `StyledElement.padding(_:)`/`.borderWidth(_:)`/`.margin(_:)` are live modifiers that do the right thing on a `Box` and nothing on a `Text` — which is the shape this table exists for, an API that is implemented for one receiver and inert for another. **There is now a SECOND way to meet this row, and it is quieter than the first (2026-09-03, the `Component` milestone).** `Component`'s modifiers **distribute** — `StyledComponent` amends the `Style` of each top-level node the content contributed — so `Component { Text("Hi") }.padding(20)` puts the padding on the `Text`'s own leaf node, where this row says it does nothing. **Measured**: a following marker leaf's `x` reads **13.0 bare and 13.0 padded**, i.e. zero effect, where the same modifier on a component of `Box`-backed children moves it (80.0 → 90.0). Neither half is a defect and each is documented alone; **together they are silent**, and the exposure is the worst case available — a single-`Text` component is the most likely first component anyone writes, and `padding` is the modifier the component spec leads with. Recorded in that spec's §9 and at `StyledComponent`'s own doc. Whoever implements a leaf's box model owns the paint half too: the glyph origin becomes the content box and must come from the engine rather than be re-resolved at paint time, for the percentage-inset reason recorded at `Frame.fill`. **Amended by the §9.7.4.c shrink-weighting fix (2026-09-10): the row holds for a content-sized leaf, not for one with a declared main size.** `flexBaseSize` now reports how much of each base is the item's own main-axis padding and border (`FlexItem.mainEdges`), and §9.7.4.c weights shrink by the base minus that. For a content-sized measured leaf the report is 0, because `measureNode` returns the `MeasureFunction` answer unchanged. Its padding therefore stays out of the weight: a padded leaf lays out 50 / 50 beside its unpadded twin, `aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`. An earlier cut that resolved the edges for every item put it at 83 / 17. For a leaf with a definite `flex-basis` or main size, ruling BM-4 floors the base at the padding, so the base holds it and it is subtracted: two `width: 200px` measured leaves in a 200 row, one with `padding: 0 40px`, lay out 125 / 75, `aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`. WebKit gives the same 125 / 75 for the equivalent divs with content. So a leaf's padding is live on the main axis in that one composition, and still moves no glyph. **Erratum 2026-09-14 (at `7cfcddc`; record §09):** the sentence "`Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph", and "`StyledElement.padding(_:)` … nothing on a `Text`", are false since `f1944f8`. The modifier now returns an outer `Box<Self>` whose own `Style.padding` holds the edges. By reading, it moves the `Text` by the padding and grows its footprint, and chained calls accumulate. **No test pins either on a `Text`:** the two pins, `paddingWrapsAnElementAndExpandsItsOuterFootprint` and `chainedPaddingCreatesNestedWrappers` (`ComponentTests.swift:657-687`), wrap `ComponentTests`' private `Leaf` (`:54-72`), a childless `requestNode` with a fixed 30×10 style, which is neither a `Text` nor a measured leaf. The row still holds for `Style.padding` written directly on a leaf, for `.borderWidth(_:)` and `.margin(_:)`, and for a `Component`'s distributed `.padding`, which is unchanged |
+| `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` recurses into `content.paintGroup` unconditionally, and fills its own bounds whenever it carries a `.background`; that fill is a harmless zero-size rect, but the children paint from the node's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits **0 rects and 2 glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **0 rects, not one zero-size rect**: neither `Box` in that probe carries a `.background`, so nothing fills at all and the glyphs are the entire output. Re-measured 2026-08-28; this row said "the expected zero rect and two glyphs" until then. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es, wrong on anything that draws, and — as of the input-and-state milestone — **wrong on anything FOCUSABLE, which is a new failure mode rather than an instance of the paint one**. Measured through a real `Window`: a `.focusable().onKey { … }.hidden()` box registers as focusable, `focus(_:)` sticks, it **claims the keystroke**, the window's `onInput` fallback sees nothing, and focus is **retained** across the next frame — `Frame.resolveFocus()` cannot clear it, because the element's `prepaint` genuinely ran. **The differential is what makes it new**: the same box with `onClick` registers a `(0,0) 0x0` hitbox, so the *pointer* side is protected by geometry (`Bounds.contains` is half-open), while focus registration reads no geometry at all — deliberately, that being the design's own argument for riding on `registerHandlers`. `display: .none` is invisible to it, and the consequence is keystrokes vanishing into an element nobody can see. **No deliberately-wrong pin, and that judgement is carried rather than hidden**: the paint half of this row has no pin either, one `display` check in the group walk closes both halves, and a single pin covering both is the better artifact — but nothing enforces that, so the next person to touch `hidden()` owns all three failures |
+| `Frame.scrollRegions` / `Window.lastScrollRegions` | **Get-only derived views with ZERO production readers — `LayoutTree.reset`'s exact shape, arrived at by a refactor rather than by never being wired.** They were the framework's scroll registry until the input-and-state milestone folded scroll regions into the one hitbox list (design spec §3.1); keeping the names as accessors is what let every routing assertion written against the old registry pass **unedited**, which was that task's whole safety argument and is why this is the right call rather than dead weight. But `Window.applyScroll` ranks against `lastHitboxes` directly, `Window.lastScrollRegions` derives its own view from that same array rather than calling `Frame.scrollRegions`, and nothing else reads either. Verify with `grep -rn "scrollRegions" Sources/`, which returns **five lines and no call site at all**: the one declaration this pattern matches, in `Frame.swift`; two doc lines, one in `Frame.swift` and one in `Window.swift` (the latter the sentence you are reading, quoted back); and two references in `Hitbox.swift`'s prose. **No line numbers, on purpose** — this row cited `Frame.swift:420` and `:400` when it was written and both were wrong by the end of the same milestone (**431** and **401**), the second time line numbers in this table have moved inside one milestone. Read the five lines the grep prints; the count and the "no call site" claim are two separate assertions and both were re-run here. **The pattern is case-sensitive and therefore misses `Window.lastScrollRegions`' own declaration** — so it finds one declaration, not two, and a case-INSENSITIVE sweep (`grep -rni "scrollregions" Sources/`) is what sees both. No count is quoted for that one deliberately: it matches every prose mention including this row, so it moves whenever the prose does. The load-bearing half is "no call site", which holds under either pattern. (This sentence said "the two declarations" and named no doc lines until the counts were actually run — a correction written from reasoning rather than from the grep it prescribes, which is the exact failure the practices doc's first record-mechanism names.) `Window`'s one already said "test observability" in its first line; `Frame`'s did not and read as a live API — it says so now. **Keep both**: they are what several routing tests read, and deleting them churns green tests to prove nothing |
+| `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **three** lines and none is a call: the string inside its own precondition message (`LayoutTree.swift:135`), a doc comment on the method that quotes this very grep (`:116`), and — added by the input-and-state milestone — a doc line in `Frame.swift`, where the `Frame.scrollRegions` row below cites this one as the same shape. (Line numbers are deliberately not given for the prose lines: they moved twice inside this one fix round.) (It matched one line when this row was written and two after the method's own doc comment landed, so re-run it rather than counting — the claim is "no call", not any particular number, and this row has now been made stale twice by prose that merely mentions the symbol.) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
+| `StateTable.isDirty` | **A production write with no production read — the `Style.overflow` shape, narrower.** Task 3 of the input-and-state milestone (§2.6) added it alongside `write(_:_:)`, which sets it on every `@State` mutation. Nothing reads it back: `grep -rn "isDirty" Sources/` finds the declaration, the set inside `write`, the clear inside `clearDirty`, and doc comments — no `if stateTable.isDirty` anywhere, in `Window` or elsewhere. **Narrower than `Style.overflow`'s row**, because `StateTable` is `internal` (unreachable from outside `MetalUI`, unlike `Style`, which is public API a caller can read and be misled by) — the risk here is a future contributor inside this module, not an external one. The entire production mechanism is the sibling `onWrite` hook: `write` fires it unconditionally on every call, so a hypothetical `if stateTable.isDirty { window.setNeedsRedraw() }` would be dead code, not a fix — `onWrite` already called `setNeedsRedraw()` by the time such a read could happen. **Kept anyway, not deleted**: it is the observable this task's own tests read (`writingStateMarksTheTableDirtyAndReadingDoesNot` and others in `StateTests.swift`), two of which construct no `Window` at all, so removing it would mean rewriting green tests to chase a hook-invocation counter instead. `Window.drawFrameIfNeeded` clears it *before* `renderRoot` runs rather than after — but that ordering has no production consequence either, since a write during render reaches `needsRedraw` (which nothing clears again before the function returns) through `onWrite` regardless of where the clear sits. The ordering exists only to keep `isDirty` itself coherent for whatever next reads it back, which today is only a test |
+| `StateTable.writeCount` | **A production write with no production read — `isDirty`'s exact shape, added for the same reason two milestones later.** The animation milestone's Task 3 fix round added it (ruling S) alongside the `mark`-when-settled fix (ruling P), to make `withState`'s write *frequency* assertable — neither `StateTable.count` (unmoved by re-writing an existing key) nor `isDirty` (which `withState` never touches at all) can see it. `private(set)`, incremented by exactly one line inside `withState` and nowhere else: `grep -rn "writeCount" Sources/` finds the declaration, that one increment, and no read anywhere in `Sources/`. **Not `RX-R`'s contrasting case** — `Window.pausesEntered`/`observationDirtyings` earned no row because each has a production reader in `Sources/MetalUIDemo/main.swift`'s exit summary; `grep -rn "writeCount" Sources/MetalUIDemo/` returns nothing, so this one stays a plain test observable rather than joining that pair. Its only readers are in `Tests/MetalUITests/AnimationTests.swift` (`aSettledFieldStopsIncrementingTheWriteCount`, which pins Ruling I's write-frequency half — a settled `$anim` field must not re-write its slot every frame — and is what the unconditional-`withState` mutation reddens). Kept on `isDirty`'s own footing rather than deleted: it is what that task's own tests read, and removing it would mean rewriting a green test to chase a different, harder-to-observe signal instead |
+| `AXNode.children` | **ALWAYS EMPTY in production, so design spec §9's "full logical count with realized children" is HALF met — and the half that is missing is the one a bridge needs to attach the count to** (ruling `TB-W`). Not "unfilled pending a call site": `Frame.registerHandlers` is the sole production caller of `emitAXNode` — reached from `Box.prepaint`, `Stack.prepaint` and `Text.prepaint` (`Column`/`Row`/`List` through their wrapped `Box`) — and always passes `children: []`, verified with `grep -rn "emitAXNode" Sources/`: 17 lines, of which **four are code** — two `func` declarations (`Frame`, `PrepaintPass`), `PrepaintPass`'s one-line forward into `Frame`'s, and `Frame.registerHandlers`'s single call. (Until 2026-09-10 the caller was `Box.prepaint` alone, so a node declared on a `Stack` or `Text` was dropped silently; `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` pins all six conformers.) Everything else is a doc comment. Measured through the real three-phase pipeline on a production-shaped 500-row `List`: `totalAXNodes=1, rowNodes=0, children=0, logicalCount=500`; with the demo's own row shape, `hitboxes=17` — **seventeen rows realized as hit targets and none as AX nodes**, with or without `onClick`. (Task 7's review, through a throwaway probe that was not committed; **not re-run by the documentation task**, which verified only the greps in this row. The structural half — `Frame.registerHandlers` always passing `children: []` — is re-verified above and is what the claim rests on.) **The blocker is a mechanism, not reach, and both halves of it were measured rather than argued.** `ElementGroup.requestGroupLayout` hands a container a flat `[LayoutNodeID]`, not a `GlobalElementID` per child, so a container has no ids to pass. And reconstructing order from `Frame.axNodes`' own keys is **provably ambiguous**: `GlobalElementID.child(of:at:name:)` is `name.map(PathComponent.named) ?? .positional(index)`, so the index is *discarded* whenever a name is given — `Row { Box(); Box().id("x"); Box().id("y"); Box() }` and the same row with `"x"` and `"y"` swapped produce an **identical set** of four ids. Structure is derivable from `GlobalElementID.parent`; order is not, in general, and a wrong AX order is invisible to every rect-based test in this repo. Closing it needs an `ElementGroup` associated-type change threading `GlobalElementID` alongside `LayoutNodeID` through `EmptyGroup`, `Pair`, `OptionalGroup`, `EitherGroup`, `ArrayGroup`, `AnyElement` and `Element`'s default — **a named follow-up outside M3, not a mystery**. The field is kept rather than deleted for exactly that reason (ruling `TB-M`): "derive it in the M4 bridge instead" is not a cost trade, it is wrong. Recorded at `AXNode.children`'s own doc and at `List`'s type doc as well. **Erratum 2026-09-14 (at `7cfcddc`; record §09):** "reached from `Box.prepaint`, `Stack.prepaint` and `Text.prepaint`" and "pins all six conformers" are stale. `grep -rn "registerHandlers(" Sources` now also finds `FrameModifier.prepaint` (`FrameModifier.swift:48`) and `OnTapModifier.prepaint` (`NativeTappable.swift:35`). `FrameModifier` is a seventh `StyledElement` conformer (`FrameModifier.swift:10`) with a public `var handlers` (`:15`), so a `handlers.axNode` set on it is emitted; `OnTapModifier` registers a local `Handlers()` carrying only `onClick`. `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` (`AXEmitSiteTests.swift:88`) still has six arms — box, column, row, stack, text, list — and none for either. `children: []` still holds at every site; `grep -rn emitAXNode Sources` still returns 17 lines |
+| `AXNode.logicalCount` | **One production writer, zero production readers.** `List.requestLayout` sets `listHandlers.axNode.logicalCount = count` — the only write in `Sources/`, confirmed by `grep -rn "logicalCount" Sources/`: 7 lines, of which **four are code**, and three of those four are `AXNode`'s own property declaration and its initializer's parameter and assignment. The fourth is `List`'s write. Nothing reads it. Its reader is M4's `NSAccessibilityElement`/`UIAccessibilityElement` bridge, which design spec §9 puts in M4 and which does not exist. **Not the `Style.overflow` shape and worth distinguishing from it**: `overflow` has a write nothing will ever read because the mechanism went elsewhere, whereas this is correct data waiting for a consumer that is scheduled. It is in this table because a reader who sees a `List` populate `logicalCount` and knows VoiceOver reports "3 of 500" will reasonably conclude the two are connected today, and they are not — see the `AXNode.children` row for the other half of why. **Deliberately unconditional and not behind a modifier**: the exit criterion is that a `List` always exposes this, not that one *can*, and there is no public `.axNode(_:)` modifier at all yet (ruling `TB-AG`) |
+| `Frame.axNodes` / `Frame.axNode(for:)` | **A per-frame registry and a durable query, both written every frame and read by nothing in production — `Frame.scrollRegions`' exact shape, arrived at by being built before its consumer rather than by a refactor.** `grep -rn "axNodes\|axNode(for" Sources/` returns 24 lines, of which exactly **three are code** — `axNodes`' declaration, the one write to it inside `emitAXNode`, and `axNode(for:)`'s own `func` line — and the other 21 are doc comments. **No production call site reads either.** (**Note the pattern, and note it precisely, because this row's whole subject is grep precision.** The alternation must be `axNode(for` without a trailing colon. `grep -rn "axNode(for:" Sources/` — with the colon — returns **6 lines, every one a doc comment** naming the method by its Swift selector spelling `axNode(for:)`, and **zero code**: it cannot match the declaration, which is written `axNode(for id:`. So the colon spelling does not return nothing; it returns six hits that look like coverage and contain no declaration at all, which is strictly worse than returning nothing. The combined colon pattern returns 23 lines with 2 code where the correct one returns 24 with 3. That spelling was written into this row's first draft and the miss was caught by running it — the same silent-miss class the `scrollRegions` row above records from the case-sensitivity direction.) That is expected rather than broken: the whole point of M3's AX work is that the node tree settles before M4 bridges it, and spec §4 puts the bridge out of scope explicitly. **Kept, and the two are not redundant**: `axNodes` answers "was `id` produced THIS frame" and is rebuilt from scratch each frame; `axNode(for:)` answers "is a handle an AX client still holds valid", by reading `StateTable.isLive` at the `$ax` retention slot, which is the durable question §9 actually asks. **One measured caveat a bridge author must know**: `axNode(for:)`'s validity has a **one-frame read lag** — `isLive` reflects the sweep at the end of the last *completed* frame, so an element that vanishes mid-frame still reads `isValid == true` while `axNodes[id]` is already `nil`, and only the next sweep corrects it. Measured on that exact shape, not reasoned. The lag is one-directional and self-correcting: it can only report valid one frame too long. **Delete this row in the same change that lands the bridge**, on the rule the top of this section states |
+| `PlatformWindow.onInput`'s `-> Bool` return | **Computed carefully, then dropped at the last hop out of the framework.** Everything inside the framework is live: `dispatchAction`/`dispatchKey`/`applyScroll` returns decide keymap-before-`onKey` ordering and whether `Window.onInput` is reached at all, and `Window` returns `handled` from the platform hook. `AppKitWindow` passes it through (`hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }`), and then every `MetalHostView` event override discards it. Verify with `grep -c "_ = onInput?" Sources/MetalUIPlatform/AppKit/AppKitPlatform.swift` (**7**: mouseDown, mouseUp, mouseMoved, scrollWheel, keyDown, keyUp, flagsChanged), and read those seven bodies for a `super.` call (**none**; the five `super.` calls in the class are `init`, `viewDidChangeBackingProperties`, `setFrameSize`, `updateTrackingAreas` and `viewDidChangeEffectiveAppearance`, all non-event overrides). So an unhandled event never reaches the next responder. Today the only reachable difference is the missing `noResponderFor:` beep: the demo has one view, no `NSMenu`, and no `performKeyEquivalent` override (Cmd equivalents never reach `keyDown`). **Do not simply honour it:** `super.keyDown` on an unhandled key with no menu beeps on every unbound keystroke, and nothing in the suite can hear a beep. `FakePlatformWindow.simulateInput` returns the answer to tests and is its only reader. Its doc and `inputReachesTheHandlerAndTheAnswerReachesTheHost`'s failure message both used to say AppKit reads it; corrected on `lane/platform` (review item B-15). |
+
+Re-check any row rather than trusting this table:
+
+```bash
+grep -rn "aspectRatio" Sources/ | grep -v "var aspectRatio"
+```
+
+**When you implement one, delete its row.** When you add a property you cannot
+implement yet, add one — silence at a declaration reads as "implemented", and that
+is taxonomy shape 4 in the practices doc.
+
+
+---
+
+## 2026-09-15: rows changed at the task 3/9/12 integration
+
+Record §13; mechanisms in the cited rulings.
+
+- **Replaced:** "`AXNode.children`, `AXNode.logicalCount`, `Frame.axNodes`/`axNode(for:)`"
+  became "`AXNode.children`, `AXNode.actions`, `Frame.axNodes`/`axNode(for:)`,
+  `AXEmission.synthesizes`". `logicalCount` is now read (as `AXRowCount`,
+  `AB-L`). Checked at integration: `AccessibilityTreeBuilder` builds actions
+  from hitboxes and the focus registry and never reads `declared.actions`;
+  `synthesizes` has no reader outside its initializer.
+- **Added:** `ElementGroup.LayerBase`/`_wrap(_:)` on a custom conformer (`MC-A`);
+  `EnvironmentValues.layoutDirection` (since record §191 it mirrors layout, `LD-A`; it was inert until then), `.locale`, `.dynamicTypeSize`,
+  `.pixelLength` (`EV-I`, `EV-K`, `EV-J`); `@Environment` inside `AnyElement`
+  and unbound; an in-module write to `theme`/`pixelLength` through the root
+  (re-stamped, `EV-H`, `EV-U`); `.disabled` on a `ScrollView` (the scroll region
+  bypasses the gate; pinned as it stands by `aDisabledScrollViewStillScrollsOnTheWheel`).
+- **Edited:** the leaf-padding row's "wraps in a `Box`" now reads "wraps in a
+  `ModifiedElement` layer".
+
+---
+
+## 2026-09-16: rows changed at the task 4/5 integration
+
+Records §14–§16; mechanisms in the cited rulings. Added by the integration
+check, which found this section missing.
+
+- **Deleted:** legacy `borderWidth(_:)` — the modifier itself is gone (`OM-M`),
+  and the legacy path paints borders through `Decoration.border`/`hoverBorder`/
+  `focusBorder` (`OM-L`, `OM-V`). The `MUIRect` row above is therefore stale in
+  its legacy half as well: a `Box`/`Decoration` path now passes a border.
+- **Added:** `Style.border` on a container (still discarded by the engine,
+  reachable only via `Box(style:)`, `OM-M`; by reading); `contentShape(inset:)`
+  with no `onClick` on its layer (`OM-AB`) and, on a chain, before the layer
+  that carries the click (divergences 44, 50); a single-axis infinite maximum on
+  the legacy frame (`FR-O`); the no-argument `frame()` on both protocols
+  (`FR-J`).
+- **Edited:** the leaf-padding row no longer lists `.borderWidth(_:)` or a
+  `Component`'s distributed `.padding` (a component's padding now wraps,
+  `OM-D`); the `.allowsHitTesting(false)` row covers both paths (`OM-AK`).
+
+## 2026-09-21: rows changed at the stage 2 / grids integration
+
+Records §21–§23; mechanisms in the cited rulings. These rows were written into
+the root `CLAUDE.md` at the `integrate/stage-2-grids` Docs phase and are
+recorded here because that file has since been cut to rules only — `CLAUDE.md`
+now points at this section and at the frozen copy in §19, which predates them.
+
+- **Three rows are now legacy-authority only.** Under the **proposal**
+  authority task 7 stage 2 lowers each of them, so each is live there:
+  - `margin: .auto` — lowered to nothing and reported as nothing, which makes
+    the old "resolves to 0 by accident" explicit (`LR-AH`,
+    `anAutoMarginLowersAsZero`).
+  - `Style.border` on a container — lowered to native padding insets **inside**
+    the declared size (`aStyleBorderLowersAsInsetsInsideTheDeclaredSize`).
+  - `Style.padding` on a **leaf** (`Text`) — a lowered `Text`'s padding pads it,
+    around **its leaf**, so the glyphs paint and wrap at the leaf
+    (`paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt`, `LR-AH`).
+- **Added (grids, `GR-`):**
+  - `markNativeGridRow(alignment:)`'s **horizontal** factor and
+    `markNativeGridCell(columnAlignment:)`'s **vertical** factor — each reads
+    one axis only and discards the other (`GR-G`). The three other
+    `markNativeGridCell` parameters (`anchor:`, `columnAlignment:`,
+    `unsizedAxes:`) and `ProposalAxes` are **NOT** inert: lane 4 gave each a
+    `LayoutPass` caller and an element modifier, and `NativeGridSolver.serve`
+    reads the axes.
+  - a grid mark on a node that never sits under a grid, and a `GridRow`'s
+    alignment or a `GridCellModifier` written **outside** a `Grid` — carried and
+    never read; a `GridRow` outside a grid is simply its cells (`GR-I`,
+    `aGridRowOutsideAGridIsItsCells`).
+- **Edited:** the test-observables row gains `NativeGridSolution`'s bookkeeping
+  counter (`GR-U`).
+
+## 2026-09-22: rows changed at engine replacement stage 3
+
+Record §25; mechanisms in `LR-BB`…`LR-BP`. **No row is deleted**: nothing in
+production sets `LayoutAuthority.proposal` until stage 6b.
+
+- **Edited — `Style.overflow`.** Still exactly one write (in
+  `ScrollView.requestLayout`, now on the viewport style inside `loweredLayout`
+  as well) and still no reader. **The stage-3 lowering does not carry it
+  either**: the kernel reads `overflow` nowhere, and `loweredLayout` says so in
+  a comment beside the write — "Inert here as it is under the legacy engine …
+  the kernel reads `overflow` nowhere, and the lowering does not carry it". So
+  the property now has a write on **both** authorities and a read on neither.
+- **Edited — the test-observables row** (`Frame.scrollRegions` /
+  `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`,
+  `LayoutTree.lastNativeLayoutWork`, `NativeGridSolution`'s counter) **gains
+  `LayoutAuthority.allCases`.** The `CaseIterable` conformance lane 3 added
+  exists only so `ScrollAuthorityCoverage.authorities` can be the single
+  `arguments:` list every parameterised scroll scenario is declared over
+  (`LR-BI`, corrected by `LR-BN`); it has no production reader. Its own doc
+  comment says so. Deleting it would mean hand-writing the authority list into
+  34 test declarations and losing mutation M3c's subject.
+  *(2026-09-23: `ScrollAuthorityCoverage` is now `AuthorityCoverage` and the 34
+  declarations are 67 across ten files; the row is otherwise unchanged.)*
+
+## 2026-09-23: rows changed at engine replacement stage 4
+
+Record §27; mechanisms in `LR-BQ`…`LR-CG`. **One row edited, one added, none
+deleted.** `LayoutAuthority.proposal` in production is **still inert** —
+nothing sets it until stage 6b — so no row is deleted here either.
+
+- **Edited — the test-observables row** (`Frame.scrollRegions` /
+  `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`,
+  `LayoutTree.lastNativeLayoutWork`, `NativeGridSolution`'s counter,
+  `LayoutAuthority.allCases`) **gains `ListRows.GroupLayout.spacer`.** It is
+  stored on every frame of every **legacy** `List` — `nil` under the proposal
+  authority, which registers no spacer — and read by nothing. Its own doc
+  comment says so: "carried rather than dropped so that a later phase could
+  read its rect; nothing does today, and that is why it is a node rather than
+  an element." It is **internal**, so this is a note inside the
+  test-observables row rather than a public-API row of its own; lane 1's minor
+  2 records the same thing.
+- **Added — `UnlowerableField` site `.list`.** Stage 4 deleted `List`'s
+  explicit site check, and **no site-level reporter is left** for `.list`. The
+  case survives for a ROW's unlowerable item field, which `ListRows` reports at
+  this site through `planLegacyItems`' `parentSite:` — `flexGrow.weights`, the
+  only field raised there (`LR-BM`) — and for a field a later stage puts on the
+  windowed node's unconsumed record; **no row can raise the weights entry
+  today** (`LR-BV`). `owningStage`'s `.list` comment says all of this in
+  source. It is the same shape as stage 3's "site `component` has no reachable
+  report": an enum case that compiles, is kept so a later stage gets the right
+  stage number, and that no production path can now raise.
+
+## 2026-09-23: no row changed at engine replacement stage 5
+
+Record §29; rulings `LR-CH`…`LR-CS`. **Checked and none added, edited or
+deleted.** Stage 5's new consumer-side reports
+(`deferred.containingBlock`/`.nested`/`.root`/`.amended`, `<site>.minSize`/
+`maxSize.absolute`, and `position`/`inset` moved to the consumer for an
+absolute box outside a `Deferred`) are diagnostics raised and read by the
+report mechanism itself, not stored-but-unread state, so none is this table's
+shape. `LoweredItem.Kind.presentation`'s placeholder record is consumed by
+`Deferred` at lowering (`LR-CK`) — not a new `.list`/`.component`-shaped "no
+reader left" case. `LayoutAuthority.proposal` in production is **still
+inert**, unchanged, until stage 6b.
+
+## 2026-09-23: no row changed at engine replacement stage 6a
+
+Record §38; rulings `LR-CT`…`LR-DE`. **Checked and none added, edited or
+deleted.** `UnlowerableField.owningStage` for `.customElement` moves from
+`"6a"` to `"9"` (`LR-CW`) — a stage-number literal in an existing exit-test
+message, not a new inert row: the case itself, and the fact that it compiles
+and is reachable only under diagnostics, are unchanged. The public
+`LayoutPass.requestNode`/`requestLeaf` becoming deprecated adds no row
+either: they are not declared-but-inert (the internal, undeprecated
+`Frame.requestNode`/`requestLeaf` they forward to are exactly what production
+already called), and every in-repo caller was moved in the same change
+(`LR-CU`), so nothing is left half-implemented in the sense this table
+tracks. `LayoutAuthority.proposal` in production is **still inert**,
+unchanged, until stage 6b.
+
+## 2026-09-23: one row deleted at engine replacement stage 6b
+
+Record §41; rulings `LR-DF`…`LR-DR`. **One row deleted, none added or
+edited.** `Frame.defaultLayoutAuthority` is now `.proposal` (`LR-DF`):
+`Frame.init`'s default and `Window.layoutAuthority`'s initial value both read
+it, so every production frame or window built with no explicit authority now
+sets `LayoutAuthority.proposal` — the fact every prior dated section in this
+file (stage 3, stage 4, stage 6a) reaffirmed as "still inert … until stage 6b"
+is now false, and the row it names is **deleted**. This is not "implementing
+an inert property" in the usual sense of this table (no new code path is
+added; `computeRootLayout`'s two branches, `if tree.isNativeLayoutNode(root)`
+and the legacy fallback, are unchanged) — it is the *default argument* that
+chooses between two already-implemented branches moving from one to the
+other, which is exactly what makes `.proposal` reachable in production for
+the first time. `LayoutAuthority` itself stays internal (no public spelling,
+`LR-DF` item 2), so this is a deletion of the row, not a new public API
+surface. Nothing else in the table's shape changes: `LayoutAuthority.allCases`
+(the test-observables row, added at stage 3) still has no production reader,
+and `UnlowerableField` site `.list`/`component` still has no site-level
+reporter — both unaffected by which authority is the default.
+
+## 2026-09-23: no row changed at engine replacement stage 7a
+
+Record §48; rulings `LR-DS`…`LR-EB`. **Checked and none added, edited or
+deleted.** Stage 7a deletes test files only (the goldens, their fixtures, the
+WebKit oracle and their consumers) and one doc comment in `Sources/`
+(`roundLayout`'s); nothing declared in `Sources/` gains or loses a reader. The
+test-only `assertMatchesGolden` is gone with its callers, and the one private
+test helper left with no caller (`FlexEngineTests`' `threeJustifiedChildren`)
+was deleted with them (`LR-EB`), so the removal leaves no stored-but-unread
+state of its own.
+
+## 2026-09-24: no row changed at engine replacement stage 7b, two evidence citations lost
+
+Record §49; rulings `LR-EC`…`LR-EP`. **No row added, edited or deleted.**
+Stage 7b's `Sources/` diff is comment lines only (checked, record §49 §6.1's
+`git diff … | grep -vE '^[-+]\s*//'` prints nothing over every lane), so no
+declared-but-inert property gains or loses a reader. One row's evidence is
+thinner, not wrong: the `Style.padding`/`.border`/`.margin` on a leaf row (the
+long cell above) cites `aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`
+and `aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`, both in
+`FlexBaseSizeTests`, one of the seventeen files stage 7b retired whole (no row
+in record §49 §4 names either — the file's tests are all CSS-engine-subject
+tests with no distinct native fact to hand to an N row, since the shrink
+weighting they measure is `FlexItem.mainEdges`' own internal accounting, not
+externally observable under the proposal engine). `Sources/MetalUILayout/FlexBaseSize.swift:53`
+and `:128` still name them in comments, listed and left for stage 9 (record
+§49 §5.1). **The figures (50/50, 83/17, 125/75) are no longer asserted by any
+test** — the underlying `Sources/` code is untouched (this stage moved no
+`Sources/` behaviour line), so the numbers still hold if re-measured, but
+nothing in the suite would catch a regression in them between now and
+stage 9, when `FlexBaseSize.swift` itself retires. Not a declared-but-inert
+row in the usual sense (the property is reachable, just untested) — noted here
+because this is the row those two names were cited from.
+
+## 2026-09-24: no row changed at engine replacement stage 8
+
+Record §50; rulings `LR-ER`…`LR-FB`. Stage 8 deprecates the eight
+`StyledElement` sizing modifiers and converts every in-repo caller, but adds
+no new always-inert API and removes none: `.width`/`.height`/`min*`/`max*`
+and `width(fraction:)`/`height(fraction:)` still write their field and are
+still read (deprecated, not inert — a call still lowers). The demo's own
+`.minHeight(Pixels(0))` (now `.frame(minHeight: Pixels(0), maxHeight:
+Pixels(.infinity), alignment: .topLeading)`, `LR-ET`'s spelling) reads as **inert in this
+one production site** since stage 6b (the scroller box holds a lowered
+`ScrollView`, whose viewport fills its proposal on the scrolling axis,
+`LR-BB`, so the box's content never floors it) — this is a fact about one
+call site's context, not a declared-but-globally-inert API, so it takes no
+row here; record §50 §3's O1/O2 measurements are where it is recorded.
+
+## 2026-09-24: two rows deleted at engine replacement stage 9
+
+Record §51; rulings `LR-FC`…`LR-FL`. **Two rows deleted, none added or
+edited.** Stage 9 deletes the layout authority and the legacy CSS engine, and
+with them the two test-observables gained at stages 3 and 4:
+
+- **`LayoutAuthority.allCases` is gone** — the enum itself is deleted
+  (`LayoutAuthority.swift` keeps its name but now holds only
+  `LoweringSite`/`UnlowerableField`, `LR-FC`). The `CaseIterable` conformance
+  existed only so `AuthorityCoverage.authorities` could be the single
+  `arguments:` list every parameterised scenario was declared over; that
+  registry is deleted in the same stage (lanes 1 and 2, record §51 §5.2,
+  §6.1), so the row and its reason for existing leave together.
+- **`ListRows.GroupLayout.spacer` is gone** — the field, and `ListRows.spacerStyle`
+  that built it, are deleted with the legacy `List` path they served
+  (`ListRows.swift`'s own comment: "it went with the legacy engine, and with
+  it `ListRows.spacerStyle` and `GroupLayout.spacer`"). It was `nil` under the
+  proposal authority already; now there is no other authority for it to be
+  non-nil under, so the always-unread field is gone rather than merely always
+  `nil`.
+
+The test-observables row now reads `Frame.scrollRegions` / `Window.lastScrollRegions`,
+`StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork`
+and `NativeGridSolution`'s counter — the same five it carried before stage 3
+added the first of the two rows this stage removes. `UnlowerableField` sites
+`.list` and `.component` are unaffected (both lowering sites, and both cases,
+survive; still no site-level reporter for either, `LR-FJ` item 2 confirms
+`.list`'s trap is unmoved). `deferred.containingBlock`/`.nested`/`.root`,
+deleted this stage (`LR-FF`), were never a row here — stage 5's section
+already found them "diagnostics raised and read by the report mechanism
+itself, not stored-but-unread state" — so their deletion is not a retirement
+of this table's shape either; `deferred.amended` survives, re-owned to stage
+11, unaffected. `Style.overflow` is unaffected (`Style` itself stays until
+stage 10): still one write in `ScrollView`'s viewport style, still no reader.
+`LayoutAuthority.proposal` in production was already **not** a row here — it
+stopped being inert at stage 6b, and this stage deletes the symbol itself
+rather than its inertness.
+
+## 2026-09-24: three rows deleted, one narrowed, one added at engine replacement stage 10
+
+Record §53; rulings `LR-FM`…`LR-FT`. Stage 10 deletes `Style`'s CSS fields
+that no lowering reads (`aspectRatio`, `overflow`), the one no production
+code writes (`border`), and `Position.relative`, and narrows every surviving
+stored field — including `margin` — to `package`.
+
+- **`aspectRatio` is gone** (the top-table row above, and its
+  `Style.aspectRatio` half of the "0 uses" erratum) — the field, and the
+  earlier erratum's own subject, no longer exist to be inert. The unrelated
+  proposal-path modifier `.aspectRatio(_:contentMode:)` the erratum carved out
+  is untouched and stays live; it never read the `Style` field, so its own
+  row (never one of this table's) is unaffected.
+- **`overflow` is gone** (the row above, and the 2026-09-22 section's "now has
+  a write on both authorities and a read on neither" edit). `ScrollView.swift`'s
+  `viewportStyle.overflow = Axes(both: .scroll)` write and the field it wrote
+  to are both deleted in the same change (lane 2; `LegacyEngineSymbolTests`
+  lists the deleted field's accessor among its **absent** names, block B and
+  its `MetalUI` twin in block C — not a positive control, as this bullet read
+  until the branch check, `LR-FU`) — the property does not
+  survive as a write with no reader; it is gone outright.
+- **`Style.border` on a container is gone** — both the original `MUIRect`-row
+  mention ("reachable only via `Box(style:)`") and the 2026-09-21 section's
+  "legacy-authority-only, lowered to native padding insets" bullet describe a
+  field that no longer exists. `Box(style:)`'s public parameter was `border`'s
+  only writer (spec §2.1), so no in-repository production caller loses
+  behaviour — a `Box` built with a `border`-carrying `Style` before this stage
+  painted nothing from it (the `MUIRect` row's own point), though it did inset
+  its content, so an external caller that wrote `Style.border` loses that inset
+  and migrates to `.padding(_:)` (`LR-FN`'s table). The lowering's border-fold
+  arithmetic is **deleted with the field**: `paddedAndSized`'s insets are
+  `resolvedLength(padding)` alone since lane 2 (`LegacyLowering.swift`), and
+  `T1.13`–`T1.15` carry the old border widths folded into `padding`, which is
+  what `M1b`/`M1b′` pin (record §53 §4.3). Until the branch check (`LR-FU`)
+  this bullet said the fold "survives unaffected … a border that can only ever
+  be `.zero`" — refuted by the source: nothing folds a border any more.
+- **`Position.relative`'s offset row is gone** — the case itself is deleted
+  (`Box.swift`'s own doc comment: "removed by plan task 7, stage 10"; a
+  `.relative` box was already a production trap since stage 6b, so no
+  production tree loses behaviour). `Position.absolute`/`.static` and the row's
+  neighbour, `AlignItems.baseline` (the standing counter-example for "a whole
+  enum leaving is not the same as its every case leaving"), are unaffected.
+- **`margin: .auto`'s row is narrowed, not deleted.** The field is kept
+  (`margin` still lowers, `LR-AB`'s stage-2 native padding), so the row's
+  CSS-answer gap stands. Its last sentence — "`Style.margin` is still public,
+  so the case is reachable by setting `style` directly" — is now false:
+  `Style`'s stored fields, `margin` included, are narrowed to `package`
+  (`LR-FM` item 2), so `.auto` is unreachable from outside the package by
+  either route, not only through `StyledElement.margin(_:)`'s `Length`
+  parameter. Reachable only from inside `MetalUI` now (by direct `Style`
+  construction, which lane 2's plain-import guard `aPlainImportCannotWriteAStyleField`
+  pins against from outside).
+- **Added — `Box`'s public `style:` initialiser parameter** (its three `init(style:…)` spellings; `Stack` and `Text` have no `style:` initialiser, only the `public var style` every `StyledElement` conformer carries, equally opaque — corrected by the branch check, `LR-FU`)
+  (`LR-FR` F5). Narrowing every stored field to `package` makes `Style`
+  opaque outside the package (`init()`, `default`, `==` only, `LR-FM` item 2)
+  — kept inert rather than deprecated or removed for this stage, handed to
+  plan task 15 to decide (spec §9). An external caller can still write
+  `Box(style: Style())` or `Box(style: .default)`, but every field the
+  parameter would let them customise is unreachable, so the parameter accepts
+  no useful argument from outside `MetalUI`: `Box(style:)`'s only live
+  external use is the default value, indistinguishable from `Box()` — kept
+  because it is public API removing it would break, its inertness was found
+  by critic round 1 (`LR-FR` F5), and `Box(style:)` itself was already the
+  only production writer of the now-deleted `border` field (this section's
+  own third bullet).
+
+The test-observables row (`Frame.scrollRegions` / `Window.lastScrollRegions`,
+`StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork`,
+`NativeGridSolution`'s counter) is unaffected — none of stage 10's deletions
+touch it. `UnlowerableField` sites `.list` and `.component` are unaffected.
+`LayoutAuthority.proposal` in production was already not a row here (deleted
+at stage 6b, its symbol deleted at stage 9); unaffected by this stage.
+
+## 2026-09-25: one row deleted at engine replacement stage 11
+
+Record §54; rulings `LR-FV`…`LR-GG`. **One row deleted, none added or
+edited.** `deferred.amended` (`UnlowerableField` site `.deferred`, field
+`"amended"`, added at stage 5 as a report and given a live owner
+`"plan task 7, stage 11"` at stage 10) is **deleted, not merely reassigned**:
+`loweredComponentFrame`'s `isPresentation` branch now returns the node
+without a report at all (`LR-FY` §6.1). Measured before the change (record
+§54 §3): a legacy `.frame` **layer** over a presentation member already
+handed the placeholder on and dropped it silently, at hitbox (5, 5) 10×10; a
+`Component`'s `.width` amend over the same member reported `deferred.amended`
+and landed at the identical rect. The amend now answers exactly as the frame
+layer already did — the report had nothing left to say once its answer
+matched the unreported path bit for bit. `UnlowerableField.owner` loses its
+`"plan task 7, stage 11"` branch with it, so `grep -n "plan task 7"
+Sources/MetalUI/LayoutAuthority.swift` now hits only the permanent-refusal
+trap message's ruling citation (`"…LR-FO"`), not an owner string — the last
+live `owner` this file's table pointed at task 7 is gone. `LoweringSite
+.deferred` itself **stays**: it is still the site of the presentation
+placeholder's own `LoweredItem` (`Deferred.swift:117`), unrelated to the
+deleted report. Nothing else in the table's shape changes: the
+`.list`/`.component` site-reporter rows and the test-observables row are
+unaffected by a report at a different site being deleted.
+
+## 2026-09-25: one row deleted at composition and identity (plan task 8)
+
+Record §55; rulings `ID-A`…`ID-Q`. **One row deleted, none added or edited.**
+`@State` inside an `AnyElement` is **fixed, not merely reassigned**:
+`AnyElementBox` now binds its concrete element with
+`StateBinder.bind(element, in: pass.frame, id:)` before `requestLayout`,
+`prepaint` and `paint` — reflection *inside* `AnyElementBox` itself, the
+option this row's own text named as the closing move (`ID-E`). Measured
+before the change (record §55 §2.2, scratch S2): a `Counter`'s `@State`
+erased into an `AnyElement` for three frames left the shared `StateTable`
+with no entry, where the identical `Counter` unboxed held the accumulated 3.
+After: `anEnvironmentPropertyInsideAnyElementIsInertAndReadsTheDefault`
+(the neighbouring `@Environment` case this row's own text pointed at as
+"nothing in production reaches it today") is renamed
+`anEnvironmentPropertyInsideAnyElementReadsItsScope` and now asserts the
+bound value rather than the default (record §55 §5.3's retirement row);
+`@State`'s own new pins are `O1.7`/`O1.8`
+(`OccurrenceIdentityTests.swift`). **Nothing else in the table's shape
+changes**: `AnyElement`/`ElementObject`/`AnyElementBox`'s own row above is
+unedited — it is about *producing* an `AnyElement`, which the builder still
+never does, not about what a hand-written one's `@State` does once bound —
+and the 2026-09-15 section's "Added: … `@Environment` inside `AnyElement` and
+unbound" is likewise left as written: it records what was true at that
+integration, and this task's fix does not rewrite history, only the present
+tense the deleted row asserted.
+
+## 2026-09-25: three rows added, none deleted, at environment control state and scale (plan task 9)
+
+Record §56; rulings `EV-AA`…`EV-AF`. **Three rows added**, each with an owner
+or a reason it needs none:
+
+- **`EnvironmentValues.controlActiveState`**: declared, read by
+  `Window`'s own guarded copy and stamped over the root each frame, but no
+  built-in element changes appearance because of it — MetalUI's controls do
+  not dim in an inactive window. **Owner: plan task 12**, alongside the
+  disabled look (`EV-AB`, `EV-Q`).
+- **`EnvironmentValues.controlSize`**: declared, scoped like every other
+  environment value (`.controlSize(_:)`, nearest writer wins, `EV-AC`), but
+  no built-in element measures differently under it — SwiftUI's `Text`,
+  `TextField` and `Button` all do (probe Z2, Z3; divergence 76, record §04).
+  **Owner: plan task 11** for `Text`'s default font, **plan task 10** for
+  `TextField`/`Button` and the other common controls.
+- **`EnvironmentValues.displayScale`**: declared and writable, but **no
+  owner is named** — the same footing as `pixelLength`'s own row above (added
+  2026-09-15), which this task turns from a stored, re-stamped field into a
+  computed one derived from `displayScale` without changing its inert status.
+  Both exist for an **author** to read (a hairline's width, a scale-aware
+  asset choice), not for a framework consumer to read back: `Frame.fill`
+  still scales by the frame's own `scaleFactor`, never by
+  `environmentTop.displayScale` (`EV-AA`'s S3 finding — SwiftUI's own
+  rendering does the same), and `roundLayout` still rounds to whole points
+  whatever `displayScale` reads (divergence 77, record §04). Nothing here is
+  scheduled to close it, because nothing is wrong: `pixelLength` has held
+  this exact shape since the 2026-09-15 integration with no report of a
+  bug, and `displayScale` inherits it verbatim.
+
+**What it costs if wrong.** A reader who sees `controlActiveState`/
+`controlSize` declared and assumes a built-in control already reads them
+would be surprised that a `Button` under `.controlSize(.small)` renders at
+regular size, or that a panel's controls do not dim when another window
+becomes key — both are their pins (`controlSizeReachesNoBuiltInMeasurement`,
+and `controlActiveState`'s absence of one). A reader who lists `displayScale`
+here expecting a future "add a reader" row, as most of this table's rows
+carry, is the one case this section corrects in advance: there is no such
+row coming for this one, by design, same as `pixelLength`.
+
+## 2026-09-25: no row added or deleted, at data and scrolling (plan task 10, part 1)
+
+Record §57; rulings `DD-A`…`DD-P`. **Nothing changes in this table's shape.**
+Two candidates were considered and both rejected, each with a reason
+(`DD-M`, critic round):
+
+- **`ScrollIndicatorVisibility`'s two new cases (`.visible`, `.never`) are
+  not a new inert row.** The enum's own doc comment used to read "a third
+  case would be inert"; that sentence is now wrong on its face (`.visible`
+  and `.never` behave exactly as SwiftUI's overlay scrollers do, measured —
+  probes I1–I5), so it was tempting to log them here as "declared but
+  reaching no built-in behaviour" the way `controlSize` is above. They are
+  not that shape: `.visible` behaves as `.automatic` and `.never` as
+  `.hidden`, both already-wired paths, not new state nobody reads.
+- **`KeyBinding`'s deprecated `Binding` alias is deleted, not merely made
+  inert.** It never held a row in this table (a deprecated alias was never
+  "declared but inert" — it worked, and warned), so there is nothing to
+  remove here either; its own guard,
+  `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`, is a
+  retired *test* (record §57 §3.3), not a retired row of this table.
+
+**What it costs if wrong.** A reader who assumed the enum's own superseded
+doc comment still held would think `.visible`/`.never` were placeholders;
+this section says plainly they are not, and points at the probes that
+measured them instead of the source comment that used to guess.
+
+
+## 2026-09-28: `controlSize`'s row narrowed, none added or deleted, at controls and selection (plan task 10, part 2)
+
+Record §58 (§7); rulings `DD-Q`…`DD-AI`. (This section was cited by
+`CLAUDE.md` and record §58 from the Record phase's commit `c9a741e` but not
+written there; the branch checker wrote it, record §58 §11.)
+
+- **`controlSize` is narrowed, not deleted** (`DD-R` item 4): `Button`'s
+  automatic chrome — its padding and height, not its label's font — now
+  reads it, so the row no longer reads "reaches no built-in element" but
+  "reaches `Button`'s chrome only" (divergence 76, amended). `Text`'s default
+  font, `TextField`/`TextEditor` and every other control's metrics still read
+  nothing from it — owner plan task 11 (`DD-AB` item 2). The inline example
+  list in `CLAUDE.md` keeps the name, as stage 10 kept `margin: .auto`'s after
+  narrowing it; the dated sections say what narrowed.
+- **`controlActiveState` and `displayScale` are untouched**: no control this
+  part built reads either. `controlActiveState`'s consumers stay plan task
+  12's (`DD-Q`'s table).
+- **No row is added.** `PickerStyle` is a closed struct offering only
+  `.automatic` (== `.segmented`) and `.radioGroup`, both wired, so there is
+  no stored-but-unread style; the internal `AXNode.selectionHint` is read by
+  both bridges (`isSelected`); `Handlers.valueTrack` is read by `Window`'s
+  press and drag dispatch. `ClickDispatch.modifiers` has one consumer (a
+  selectable `List`'s rows) and is internal.
+
+**What it costs if wrong.** A reader who takes `controlSize` for wholly inert
+would miss that a `Button`'s size moves with it; a reader who takes it for
+wired everywhere would expect a `Text` or a `TextField` to follow it, and
+neither does.
+
+## 2026-09-28: `AlignItems.baseline`'s row deleted, `controlSize`'s narrowed further, `dynamicTypeSize`'s confirmed unmoved, at text semantics (plan task 11, part 1)
+
+Record §59; rulings `TE-L`, `TE-F`, `TE-E`.
+
+- **`AlignItems.baseline`'s row is deleted, not narrowed** (`TE-L`): the
+  legacy engine that ran CSS is gone (stage 9), so a row/column's
+  `alignItems.baseline` was, before this task, simply unimplemented rather
+  than measured-and-withheld — it compiled and did nothing, this table's
+  exact shape. It now **lowers**: a row's `alignItems.baseline` becomes
+  `baseline: .first` on its native stack, a column's `flexStart`, and a
+  child's own `alignSelf.baseline` under a baseline row is consumed without
+  a report. What is left — a `display: .stack` container's
+  `alignItems.baseline`, and any `alignSelf.baseline` outside a baseline
+  row — is not inert either: both are **permanent refusals by name**
+  (`owner: nil`, the same shape as the percentages/unequal-weights/
+  non-greedy-`maxSize` rows already reported by name elsewhere), not
+  stored-but-unread state. `UnlowerableField.owner`'s `"plan task 11"`
+  branch is deleted with the fix, so no report in the kernel names this task
+  as an owner any more. This row is removed from the table's inline example
+  list in `CLAUDE.md`, the same shape as the `deferred.amended` deletion at
+  stage 11 and the `@State`-inside-`AnyElement` deletion at plan task 8 — a
+  row **fixed**, not merely reassigned or narrowed.
+- **`controlSize`'s row is narrowed again, not deleted** (`TE-F` item 4):
+  it now reaches every text's default font too — `Text`, `ProposalText`,
+  `TextField`, `TextEditor`, and through `Button`'s label — in addition to
+  `Button`'s own chrome from task 10 part 2. `TextField`'s own padding and
+  every other control's chrome (`Toggle`, `Picker`, `Slider`, `Stepper`)
+  still read nothing from it — no owner is named for them (divergence 76,
+  amended a third time, record §04).
+- **`dynamicTypeSize`'s row is confirmed, not narrowed**: `Font`'s
+  eleven-case text-style table has no size column for it to scale (`TE-E`),
+  so the value stays carried and scoped but reaches no text style — a ruled
+  inertness by construction, pinned by spec 3.9, not an oversight this task
+  found and left open. Unlike `controlSize`, no built-in consumer is owed to
+  a later task; this row is not expected to narrow again the way
+  `controlSize`'s has three times running.
+
+**What it costs if wrong.** A reader who still expects `alignItems.baseline`
+to do nothing on a legacy row would miss that it now aligns exactly as a
+`VStack(alignment: .firstTextBaseline)`'s SwiftUI counterpart would; a reader
+who expects `controlSize` to reach only `Button` would miss a `Text`'s
+default font shrinking under `.controlSize(.small)`; a reader who expects
+`dynamicTypeSize` to gain a reader here, as most of this table's rows do
+eventually, would be waiting for something no ruling schedules.
+
+## 2026-09-29: two rows deleted, one added, at interaction (plan task 12, part 1)
+
+Record §62; rulings `IX-E`, `IX-H`, `IX-K`. **Note**: task 11 part 2 (record
+§61) added no row and deleted none per its own text in CLAUDE.md, but never
+appended a dated section of its own here — a pre-existing gap, not this
+section's to close.
+
+- **`EnvironmentValues.controlActiveState`'s row is deleted** (`IX-H`): every
+  accent-carrying control (`Toggle`'s on state, a `Slider`'s fill, a
+  segmented `Picker`'s selected segment) and every one of the five controls'
+  focus rings now read it, falling to `.separator` outside the key window.
+  Nothing here is a SwiftUI claim — the harness never runs with a real key
+  window, so the *choice* of `.separator` there is MetalUI's own.
+- **`PaintPass.isActive`'s row is deleted** (`IX-E` item 3): `Button`'s
+  pressed look now reads it, pinned by
+  `aButtonPaintsPressedOnlyWhilePressedAndOverIt` (2.3).
+- **A row is added: `ButtonRole`** (`IX-E` item 1): `.destructive`,
+  `.cancel`, `.confirm` and `.close` all compile, and `.cancel`/`.confirm`
+  (SwiftUI's default-action pair) bind Escape/Return exactly as
+  `.keyboardShortcut(.cancelAction)`/`.defaultAction` already did — but the
+  role itself changes nothing drawn (no bordered-destructive red, no
+  automatic ordering). An inert row **by design**, the same shape as
+  `dynamicTypeSize`'s row above, not a gap left open.
+- **The `hidden()`-on-focusable hazard is deleted, not narrowed** (`IX-K`
+  item 3, an earlier row of this table under `focusable()`'s own doc
+  comment): a hidden focusable element can no longer take focus or keys at
+  all — `Frame.disablingHitTestingIfHidden`'s one helper now also gates the
+  keyboard half, mirrored per `ModifiedContent`'s own copy (`MC-B`) — so
+  there is no more hazard left to log as inert-but-dangerous. The same shape
+  as `AlignItems.baseline`'s deletion at plan task 11 part 1 and
+  `deferred.amended`'s at stage 11: a row **fixed**, not reassigned.
+
+**What it costs if wrong.** A reader who still expects `controlActiveState`
+to reach no built-in element would miss every control losing its accent in
+an inactive window; a reader who expects `ButtonRole` to change a button's
+drawn chrome (as SwiftUI's `.destructive` role visually does with the
+bordered style) would be surprised MetalUI draws every role identically,
+by ruling; a reader who still trusts the old `hidden()`-on-focusable hazard
+note would wrongly expect a hidden focusable box to still be reachable by
+Tab or a stray `Window.focus` call.
+
+## 2026-09-30: one row amended, two added (plan task 12 part 2, the accessibility half)
+
+Record §63; rulings `IX-Y`, `IX-AF`.
+
+- **`AXNode.actions`/`AXActionKind`'s row is amended, not deleted**
+  (`IX-Y` item 4): both are now `@available(*, deprecated)`, pointing at
+  `accessibilityAction(_:)`/`accessibilityAdjustableAction(_:)` — but the
+  field is still never read (actions are derived from live handlers, `AB-H`),
+  so the row stays, its message updated. No in-repo caller writes either
+  spelling, so the 0-`warning:` baseline held without editing a call site.
+- **A row is added: `AccessibilityTraits.updatesFrequently`**: it compiles
+  and sets a bit in the trait set, but neither bridge reads it — published
+  nowhere, matching SwiftUI's own trait on macOS (probe T10). An inert row
+  **by design**, the same shape as `ButtonRole`'s own row at part 1, not a
+  gap this task left open.
+- **`ButtonRole`'s row (added at part 1) gains its accessibility evidence**:
+  probe arms B1 and B2 confirm neither bridge publishes anything for
+  `.destructive`/`.cancel`/`.confirm`/`.close` beyond the button's own role,
+  label and press — matching AppKit's own `NSButton`, which publishes no
+  key-equivalent attribute either (C2). The row's own text is unchanged; this
+  is confirmation, not a narrowing.
+
+**What it costs if wrong.** A reader who expects `AXNode.actions` to have
+been deleted outright, rather than deprecated, would be surprised the field
+and the enum still exist, only warned against; a reader who expects
+`.updatesFrequently` to change VoiceOver's polling behaviour would find it
+does nothing, by design, the same as `ButtonRole` itself.
+
+## 2026-09-30: no row added or deleted (plan task 13, transactions and animation)
+
+Record §64; rulings `AN-AD`, `AN-AH`.
+
+- **No row added.** `EnvironmentValues.accessibilityReduceMotion` is read by
+  the transition code (which substitutes a cross-fade for every transition
+  but `.identity` when it is set) and by
+  `propertyAnimationsRunUnchangedUnderReduceMotion`'s own set-up — a value
+  that changes behaviour is not stored-but-unread state, so it earns no row
+  here, the same shape `ScrollIndicatorVisibility`'s two new cases were
+  already given at plan task 10 part 1.
+- **No row deleted, and no eighth `StateTable` slot added to name one.** The
+  design session's own first draft of `AN-AA` would have minted an eighth
+  reserved slot (`$anim-border`) for the legacy border colour's track; the
+  critic round (`AN-AH` item 3) replaced it with a window-owned
+  `AnimationStore` key instead, the same mechanism every proposal animation
+  track already uses. Since that slot was never built, this section has
+  nothing to retire.
+
+**What it costs if wrong.** A reader who expected Reduce Motion to be listed
+here (on the pattern of `displayScale`/`controlActiveState`/`controlSize`,
+which were each inert at the task that added them) would be surprised it is
+absent — it is absent because, unlike those three at their own landing,
+Reduce Motion has a live consumer (the transition system) in this same
+change, not a later one.
+
+## 2026-10-01: `Box`'s `style:` row deleted; the final list (plan task 15, the closeout)
+
+Record §66; rulings `CX-D`, `CX-F`, `CX-C`, `CX-I`. **One row deleted, none
+added.** `Box`'s public `style:` initialiser parameter (added at stage 10)
+is **fixed, not narrowed**: the three `init(style:…)` spellings are `package`
+(`aPlainImportCannotPassBoxAStyle`, whole-file typecheck guard, red before the
+change) and the public `Box(decoration:)` spellings forward to them
+(`thePublicBoxDecorationInitialisersPaintWhatTheStyleInitialiserPaints`).
+`Style` remains opaque outside the package. **Migration**: `Box(style:
+Style(), decoration: d)` → `Box(decoration: d)`.
+
+**The final list**, at public-API level, read through every dated section
+above and checked against the source at this commit (`evictUnusedSince`,
+`LayoutTree.reset(generation:)`, `AnyElementBox`, `AXNode.logicalCount`,
+`Window.lastScrollRegions`, `StateTable.isDirty`/`writeCount` each still
+exist with no production reader):
+
+1. *Declared, deliberately limited*: `PlatformWindow.onInput`'s `-> Bool`;
+   colour glyphs (wrong rather than absent, `TE-AO` item 2);
+   `locale`/`dynamicTypeSize` (carried, scoped, read by no
+   text size, as on macOS; `layoutDirection` mirrors layout since record §191, `LD-A`); `controlSize` (reaches `Button`'s chrome and every
+   text's default font only, divergence 76); `displayScale` (no framework
+   reader, no owner); `ButtonRole` (binds a key, draws nothing else);
+   `AXNode.actions`/`AXActionKind` (deprecated, never read);
+   `AccessibilityTraits.updatesFrequently` (published on neither bridge, as
+   on macOS); one axis each of `markNativeGridRow`/`markNativeGridCell`'s
+   alignment and a grid mark outside a grid.
+2. *Test observables with no production reader* (unchanged): `StateTable.isDirty`/
+   `writeCount`, `Frame.scrollRegions`/`Window.lastScrollRegions`,
+   `LayoutTree.reset(generation:)`, `GlyphAtlas.evictUnusedSince` (a caller
+   would strand pixels), `AXNode.logicalCount`, `Frame.axNodes`.
+3. *Hand-written only*: `AnyElement` is produced by no builder (its
+   `@State` row was fixed at task 8).
+4. *Superseded rows*: the table's CSS-engine-era `Style`-field rows
+   (`alignSelf` on a stack child, leaf `padding`/`border`/`margin`, `hidden()`
+   and paint, `margin: .auto`) describe a legacy engine deleted at stage 9;
+   every legacy element now lowers, and a field with no lowering is a
+   **permanent refusal by name** (`LR-FO`) — a trap or a report, never a
+   silent no-op. Those rows are history, not a live inert list.
+
+**No row added by tasks 13–15 beyond the above**: `accessibilityReduceMotion`
+and the closeout's looks demo are read by their own consumers.
+
+## 2026-10-01: no row added or deleted (drag and drop)
+
+Record §68. `PlatformWindow.beginExternalDrag` is read by the window's drag
+session on every platform, and answers `false` on `SDLWindow` by ruling (SDL3
+has no outgoing-drag API, divergence 101), not by being unread. `DropItem`,
+`PasteboardType` and `DragRepresentation` are read by the shared drop path.
+`.draggable(_:preview:)`'s preview is a picture: it registers no hitbox and
+publishes nothing to accessibility by design (`DN-X` item 3), not an inert
+declaration. The one SDL setting nothing pins, `SDL_SetEventEnabled` for
+`SDL_EVENT_DROP_FILE`/`TEXT`, is a defensive call, not a declared property.
+
+## 2026-10-02: no row added or deleted (MetalView)
+
+Record §71. `GPUSurfaceContext.frameIndex` and `isNewTarget` are read by the app's
+draw closure, not by any framework reader, by design (an app-facing context, not
+a declared property). `SurfaceDrawRequest.policy` is read by
+`SurfaceTargetTable` (a `.continuous` request draws every frame) on both
+renderers. `RedrawPolicy` and `GPUSurface`'s `value:` are read on every frame
+the surface paints. `SurfaceTarget`'s size is read by both renderers'
+allocation. Nothing here is declared and inert: the one thing a surface cannot
+carry, a depth attachment, is not declared at all (`MV-F` item 6).
+
+## 2026-10-02: no row added or deleted (paths, shadows and transforms)
+
+Record §73. `StrokeStyle.miterLimit` is read by the stroker's miter-to-bevel
+decision, `dash`/`dashPhase` by its arc-length walk, `FillStyle.isAntialiased`
+by `paintShapeFill`'s non-antialiased branch (MV8 pins it). The renderer's
+`MUITransform._reserved` word is reserved padding, not a declared property.
+`Shape.path(in:)` and `geometry(in:)` each default to the other (a conformer
+that writes neither traps, `GX-D`). Nothing declared is unread.
+
+## 2026-10-03: no row added or deleted (menus, popovers and tooltips)
+
+Record §74. `Menu`, `CommandMenu`, `CommandGroup`, `.popover` and `.help` are
+all read: `PlatformMenuItem.shortcut` and `.isOn` by the AppKit builder and the
+drawn menu, `.popover`'s `arrowEdge` by `MN-M`'s placement. `.popover(attachmentAnchor:)`
+was **not declared** here (a test pinned its absence, `aPopoverHasNoAttachmentAnchorParameter`;
+built since by `OV-B`, record §92, and the guard re-spelled by `OV-T`), so it was not an inert property. Nothing declared is unread.
+
+## 2026-10-08: one inert attribute added (rich text)
+
+Record §83. The `link` of a run (`TextRunStyle`'s URL, set by Markdown
+`[a](u)`, a bare URL or `AttributedString.link`) is **stored and styled but
+inert**: no click, no keyboard activation, no accessibility link element
+(divergence 150, `RT-K`; pin 2.18). Every other new run field (font fields,
+colours, decorations, kerning, tracking, baseline offset) is read by both text
+systems or by paint. `Text.LineStyle` patterns other than `.solid` are **not
+declared** (a documented absence), so they are not inert.
+
+## 2026-11-02: rows added (accessibility display settings)
+
+Record §194. Every key below is stamped by the window and **read by no built-in view**: it is for authors (the demo panel `METALUI_ACCESSIBILITY_DEMO=1` is the only reader). Where SwiftUI's
+built-in views were measured to change (probe `swiftui-accessibility-display.swift` C0/C1/B1/L1) the absence is a divergence (1076, 1078, 1079); where they were measured not to (D1, I1), or
+there is nothing to react (no video, no animated image), it is a row here, not a divergence.
+
+| declared | read by | SwiftUI's built-in reaction |
+|---|---|---|
+| `accessibilityDifferentiateWithoutColor` | authors only | none measured (probe D1: no pixel of `Button` x3, `Toggle` x2, `Divider`, `TextField`, `Picker` moved); no divergence label |
+| `accessibilityInvertColors` | authors only | none measured (probe I1, same set); no divergence label |
+| `accessibilityDimFlashingLights` | authors only | unmeasured: MetalUI plays no video, so there is nothing to dim |
+| `accessibilityPlayAnimatedImages` | authors only | unmeasured: MetalUI decodes no animated image (`PX-C` item 5) |
+| `colorSchemeContrast`, `accessibilityShowBorders`, `legibilityWeight` | authors only | SwiftUI's built-ins DO react (divergences 1076, 1078, 1079) |

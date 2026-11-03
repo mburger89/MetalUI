@@ -233,8 +233,10 @@ Read `docs/practices/verifying-tests-can-fail.md`; history in record §02.
 - **Divergences**: `docs/divergences.md` (208 live, next label 210). A new
   divergence gets the next label, a row there, a section in record §04 and a
   pin. Many rows are pinned wrong on purpose — a reddening test may be a fix.
-- **Declared but inert**: record §05 (plan task 15's section is the final
-  list). Adding an unimplementable property: add a row.
+- **Declared but inert**: record §05's table (re-derived 2026-11-02, record 196,
+  `RD-`; the history is frozen there). Adding a declaration that is stored and read by
+  nothing: add a row and `record §05` to its inventory family;
+  `zsh docs/probes/record-05-check.sh` prints nothing.
 - **Human verification**: `docs/verification/human-checks.md`. Paint order,
   portals, scroll direction, presentation, the display link and real hover
   are looks; nothing in the suite sees them.
