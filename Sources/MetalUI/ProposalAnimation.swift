@@ -153,6 +153,89 @@ func animatedNumbers(_ declared: [Double?], at key: GlobalElementID, frame: Fram
     return out
 }
 
+/// One ``Animatable`` value's baseline and, while it moves, its flight — a `VA-` track in the
+/// `AnimationStore` (never `StateTable`, so no slot, threshold or reserved name moves).
+struct VectorTrack<V: VectorArithmetic> {
+    struct Flight {
+        var from: V
+        var to: V
+        var delta: V
+        var magnitude: Double
+        var startTime: Double
+        var animation: Animation
+    }
+
+    /// The value declared when the track was last written.
+    var baseline: V
+    var flight: Flight?
+}
+
+/// The position of `flight` at `now` and whether it has landed. The curve runs over the vector's own length,
+/// `animation.value(from: 0, to: |delta|)`, so the spring's finishing threshold scales with the motion
+/// (`min(0.001 * scale, 0.1667)`, `Animation.value`) as a scalar track's does, and a whole-range trim
+/// fraction (scaled by 128) settles at 0.001 of the fraction, `animatedNumbers`' own rule (`VA-D`).
+func vectorFlightValue<V: VectorArithmetic>(_ flight: VectorTrack<V>.Flight, now: Double) -> (value: V, finished: Bool) {
+    let r = flight.animation.value(at: now - flight.startTime, from: 0, to: flight.magnitude, initialVelocity: 0)
+    if r.isFinished { return (flight.to, true) }
+    return (flight.from + flight.delta.scaled(by: r.value / flight.magnitude), false)
+}
+
+/// The animated value of `declared` on a track in the `AnimationStore` at `key` (`VA-D`): an ``Animatable``
+/// value's interpolation, run in PAINT (`AN-AA`, as ``shapeForPaint``).
+///
+/// **What snaps**: a first sighting (the baseline is stored, `declared` returned); a change without a
+/// transaction; a change whose length is zero or not finite (no direction to move in). **A retarget
+/// restarts at rest** from the current value, the whole vector (`VA4`, `VA6`), `initialVelocity: 0`
+/// (divergence 216); no clamp. A settled track whose declared value equals its baseline returns before
+/// any allocation. In flight it counts one interpolation and notes an active animation, never
+/// `requestAnotherFrame()`.
+@MainActor
+func animatedVector<V: VectorArithmetic>(_ declared: V, at key: GlobalElementID, frame: Frame,
+                                         transaction: Animation?) -> V {
+    let store = frame.animationStore
+    guard let existing = store.value(at: key, as: VectorTrack<V>.self) else {
+        store.set(VectorTrack(baseline: declared, flight: nil), at: key)
+        return declared
+    }
+    let now = frame.timestamp
+    if existing.flight == nil && existing.baseline == declared { return declared }
+    store.noteVectorTrackRebuild()
+    var track = existing
+    var result = declared
+    func start(from: V, animation: Animation) {
+        let delta = declared - from
+        let magnitude = delta.magnitudeSquared.squareRoot()
+        guard magnitude.isFinite && magnitude > 0 else { track.flight = nil; return }
+        track.flight = VectorTrack<V>.Flight(from: from, to: declared, delta: delta, magnitude: magnitude, startTime: now,
+                                             animation: animation)
+        result = from
+    }
+    if let flight = existing.flight {
+        let (current, finished) = vectorFlightValue(flight, now: now)
+        if declared != flight.to {
+            // Retargeted: from wherever the value is now.
+            if let transaction { start(from: current, animation: transaction) } else { track.flight = nil }
+        } else if finished {
+            track.flight = nil
+        } else {
+            // Still moving to the same target: the stored flight is unchanged, so nothing is written
+            // (the read touched the entry).
+            store.noteInterpolation()
+            frame.noteActiveAnimation()
+            return current
+        }
+    } else if let transaction {
+        start(from: existing.baseline, animation: transaction)
+    }
+    track.baseline = declared
+    store.set(track, at: key)
+    if track.flight != nil {
+        store.noteInterpolation()
+        frame.noteActiveAnimation()
+    }
+    return result
+}
+
 extension LayoutModifier {
     /// Rewrites this layer's numeric case to its animated value for `id`
     /// (`AN-AB`): `.frame`'s width and height, `.flexibleFrame`'s finite
