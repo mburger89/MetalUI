@@ -176,6 +176,7 @@ final class SubtreeRecorder {
     /// `TransitionStore.ranges.count` and the scene's emission sequence where the paint window opened (`XF-H` item 8).
     var rangesFrom = 0
     var sequenceFrom = 0
+    var matchedFrom = 0
 }
 
 // MARK: - The ledger
@@ -343,6 +344,7 @@ final class RetainedRecord {
     /// emits another count.
     var ranges: [UnitRange] = []
     var emitted = 0
+    var matched: [(key: GlobalElementID, range: Range<Int>)] = []
     /// Whether a leaf of the occurrence passed a paint scope opened inside it: such a record is not moved by an add (`FS-D`).
     var innerScopes = false
     /// Whether the build, prepaint and paint windows were all observed when the record was made
@@ -675,6 +677,7 @@ extension Frame {
         recorder.before = ledgerSnapshot()
         recorder.rangesFrom = animationStore.transitions.ranges.count
         recorder.sequenceFrom = scene.nextEmissionSequence
+        recorder.matchedFrom = animationStore.matched.noted.count
         stateTable.contentMemos.retained.ledgerSnapshots += 1
         log.recorders.append(recorder)
     }
@@ -715,6 +718,9 @@ extension Frame {
         // emitted count drops them, and the ghost of a removal then draws nothing but still parks.
         if !r.ranges.isEmpty, scene.nextEmissionSequence - sequenceBase == r.emitted {
             animationStore.transitions.renoteRanges(r.ranges, base: sequenceBase)
+        }
+        if !r.matched.isEmpty {
+            animationStore.matched.renote(r.matched, base: scene.nextEmissionSequence - sequenceBase == r.emitted ? sequenceBase : nil)
         }
         stateTable.contentMemos.retained.skippedPaints += r.paintWork
         stateTable.contentMemos.retained.replayedOps += r.scene.count
@@ -926,6 +932,12 @@ extension Frame {
                 UnitRange(unit: $0.unit, start: $0.start - recorder.sequenceFrom, end: $0.end - recorder.sequenceFrom)
             }
         }
+        let notedGroups = animationStore.matched.noted
+        if recorder.matchedFrom < notedGroups.count {
+            record.matched = notedGroups[recorder.matchedFrom...].map {
+                (key: $0.key, range: ($0.range.lowerBound - recorder.sequenceFrom)..<($0.range.upperBound - recorder.sequenceFrom))
+            }
+        }
         record.innerScopes = recorder.passedInnerScope
         if log.recorders.isEmpty { retainLog = nil }
         let memos = stateTable.contentMemos
@@ -969,7 +981,7 @@ extension RetainedRecord {
         copy.marks = marks; copy.touches = touches; copy.lives = lives
         copy.paintWork = paintWork; copy.coverageBuild = coverageBuild; copy.coveragePrepaint = coveragePrepaint; copy.prepaint = prepaint
         copy.innerScopes = innerScopes
-        copy.ranges = ranges; copy.emitted = emitted
+        copy.ranges = ranges; copy.emitted = emitted; copy.matched = matched
         return copy
     }
 
@@ -1013,6 +1025,7 @@ extension RetainedRecord {
         if marks != other.marks { return "marks" }
         if emitted != other.emitted { return "emitted \(emitted) vs \(other.emitted)" }
         if ranges != other.ranges { return "unit ranges \(ranges.count) vs \(other.ranges.count)" }
+        if !matched.elementsEqual(other.matched, by: { $0.key == $1.key && $0.range == $1.range }) { return "matched groups \(matched.count) vs \(other.matched.count)" }
         // A first sighting touches and stores (two touches), a later frame only touches: the same entry kept
         // alive, so the comparison is of the ids, not of the touch count.
         func ids(_ touches: [RetainLog.Touch]) -> Set<GlobalElementID> {
