@@ -179,6 +179,41 @@ private func near(_ a: Float?, _ b: Float, _ tol: Float = 0.002) -> Bool {
     #expect(near(alpha(later, 50), 0.375), "and goes to 0 from there over the animation (0.5 x 0.75): \(alphas(later, 50))")
 }
 
+/// **An unannotated ghost is first in its container's run too** (`XF10c`: annotated and unannotated alike; `XF-F` applies to a
+/// default ghost through its key): `ZStack { blue; if red }` removal reads `[background, ghost, blue]`, and a nested
+/// ghost leads its own container. Mutation: the anchored draw removed (`paintGhosts(anchoredAt:)` returns) reads the ghost last.
+@Test @MainActor func anUnannotatedGhostIsFirstInItsContainersRun() throws {
+    func order(_ frame: Frame) -> [Int] { frame.scene.rects.map { Int($0.bounds.size.width) } }
+    func tree(_ shown: Bool) -> some Element {
+        ZStack {
+            leaf(40)
+            ZStack {
+                if shown { leaf(50, 30) }
+                leaf(30)
+            }
+            leaf(20)
+        }
+        .frame(width: Pixels(120), height: Pixels(120))
+        .background(Color(.separator))
+    }
+    let h = TransitionHarness()
+    let rest = order(h.frame(0, nil, tree(true)))
+    let start = order(h.frame(0, linear12, tree(false)))
+    #expect(rest == [120, 40, 50, 30, 20] && start == [120, 40, 50, 30, 20], "rest \(rest), removal \(start)")
+    func above(_ shown: Bool) -> some Element {
+        ZStack {
+            leaf(40)
+            if shown { leaf(50, 30) }
+        }
+        .frame(width: Pixels(120), height: Pixels(120))
+        .background(Color(.separator))
+    }
+    let g = TransitionHarness()
+    #expect(order(g.frame(0, nil, above(true))) == [120, 40, 50])
+    #expect(order(g.frame(0, linear12, above(false))) == [120, 50, 40], "the leaver drops below its sibling")
+    #expect(g.store.transitions.lastFrameUnanchoredGhosts == 0)
+}
+
 // MARK: - A mixed unit (`XF5`, `XF5b`)
 
 @MainActor private func mixedStage(_ shown: Bool, _ annotated: AnyTransition) -> some Element {
@@ -441,7 +476,9 @@ private var dtVerifying: Bool { ProcessInfo.processInfo.environment["METALUI_VER
 }
 
 /// **An insertion in flight is not replayed frozen**: the `.fade` scope taints the occurrence, so the panel paints fresh
-/// each frame and equals the oracle. Mutation **MB2n** (no taint: the replay stands for the flip frame's alpha).
+/// each frame and equals the oracle, counted `activeAnimation` (`noteActiveAnimation` taints the open recorders by itself).
+/// Mutation **MB2n** (no `.fade` taint) is **green**, reported not fixed: `noteActiveAnimation()` taints the same open
+/// recorders by itself, and so does `requestAnotherFrame()` (MB2n2, also green); with neither call the fade never runs.
 @Test(.enabled(if: !dtVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the replay counts are not its to read"))
 @MainActor func anInFlightInsertionIsNotReplayedFrozen() throws {
     let on = try dtScript(retained: true, flipTo: true)
