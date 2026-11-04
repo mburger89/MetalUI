@@ -178,7 +178,8 @@ final class TransitionStore {
         let start: Double
         let animation: Animation
         let from: Double
-        let atoms: [TransitionAtom]
+        /// What the removal does; a matched-geometry leaver's ghost gains a translation (`XF-M`).
+        var atoms: [TransitionAtom]
         let rect: MUIBounds
         var captures: [CapturedPrimitive]
         /// The element whose run this ghost is drawn in (`XF-F`): the nearest ancestor of the ghost's position that was
@@ -194,6 +195,9 @@ final class TransitionStore {
         /// The emission sequence of each of `captures` in the frame they were sliced from (`XF-H` item 10), parallel to
         /// it; empty for an annotated ghost. What a matched-geometry handoff carves a leaver's member out by.
         var captureSequences: [Int] = []
+        /// The default unit a matched-geometry leaver's own ghost was carved out of (`XF-M`), so the unit's
+        /// reappearance takes it down with the unit's ghost; `nil` for every other ghost.
+        var carvedFrom: GlobalElementID?
     }
 
     private var insertions: [GlobalElementID: Insertion] = [:]
@@ -388,7 +392,10 @@ final class TransitionStore {
                 let from = ghost.map { activeness(of: ghosts[$0].ghost, at: now).value } ?? 1
                 insertions[unit] = Insertion(start: now, animation: animation, from: from, atoms: [.opacity])
             }
-            if let ghost { ghosts.remove(at: ghost) }
+            if let ghost {
+                ghosts.remove(at: ghost)
+                ghosts.removeAll { $0.ghost.carvedFrom == unit }   // `XF-M`: its leavers' own ghosts go with it
+            }
         }
         guard notedAnimationThisFrame else { return }
         for (unit, p) in previousProduced where p.fades && produced[unit] == nil {
@@ -431,28 +438,58 @@ final class TransitionStore {
         return (scene.capturedPrimitives(inSequences: range.start..<range.end, excluding: carved), annotated, exempt)
     }
 
-    /// A matched-geometry handoff took the frame of the leaver whose members drew the scene sequences `range` (`XF-H`
-    /// item 10, until PR C): its default ghost draws that member no more (the ghost still parks), and the newcomer's
-    /// default insertion in `unit`'s ancestry is dropped, so the card flies opaque under nothing instead of fading in
-    /// from 0. Only a flight does this; a handoff that starts and ends at one rectangle is an ordinary cross-fade.
-    func handOver(leaverSequences range: Range<Int>?, newcomer key: GlobalElementID) {
-        if let range {
-            for index in ghosts.indices where !ghosts[index].ghost.captureSequences.isEmpty {
-                var keep: [CapturedPrimitive] = [], keptSequences: [Int] = []
-                let ghost = ghosts[index].ghost
-                for (primitive, sequence) in zip(ghost.captures, ghost.captureSequences) where !range.contains(sequence) {
+    /// The key of the ghost a matched-geometry leaver gets of its own (`XF-M`): under the leaver's position, so the
+    /// anchor walk of `XF-F` and the lifecycle's parking (`key.parent`) read it as they read an annotated ghost's.
+    static func leaverKey(_ position: GlobalElementID) -> GlobalElementID {
+        .child(of: position, at: 0, name: ElementID("$matched-leaver"))
+    }
+
+    /// A matched-geometry leaver moves toward the group's source as it fades out (`XF-M`, divergence 897, probes `S1`,
+    /// `S9`, `S12`): `(dx, dy)` points, the leaver keeping its own size.
+    ///
+    /// - An **annotated** leaver's ghost (`transitionKey`) gains the translation when it fades (`.opacity`).
+    /// - An **unannotated** leaver's primitives (`range`, the scene sequences its group drew) are carved out of the
+    ///   default ghost of its unit into a ghost of their own, which fades and moves; the unit's ghost no longer
+    ///   parks the leaver's position, the new one does (`Ghost.exempt`).
+    ///
+    /// The atom shares the ghost's activeness, so the fade and the move are one curve. Does nothing when no ghost
+    /// holds the leaver (the removal was not animated, or its sequences were not recorded).
+    func leaverMoves(transitionKey: GlobalElementID, sequences range: Range<Int>?, dx: Double, dy: Double, frame: Frame) {
+        let move = TransitionAtom.translate(sizeX: 0, sizeY: 0, x: dx, y: dy)
+        if let index = ghostIndex(transitionKey) {
+            if ghosts[index].ghost.atoms.contains(.opacity) { ghosts[index].ghost.atoms.append(move) }
+            return
+        }
+        guard let range, let position = transitionKey.parent else { return }
+        var captures: [CapturedPrimitive] = [], sequences: [Int] = []
+        var donor: (key: GlobalElementID, ghost: Ghost)?
+        for index in ghosts.indices where !ghosts[index].ghost.captureSequences.isEmpty {
+            var keep: [CapturedPrimitive] = [], keptSequences: [Int] = []
+            let ghost = ghosts[index].ghost
+            var carved = false
+            for (primitive, sequence) in zip(ghost.captures, ghost.captureSequences) {
+                if range.contains(sequence) {
+                    captures.append(primitive)
+                    sequences.append(sequence)
+                    carved = true
+                } else {
                     keep.append(primitive)
                     keptSequences.append(sequence)
                 }
-                ghosts[index].ghost.captures = keep
-                ghosts[index].ghost.captureSequences = keptSequences
             }
+            guard carved else { continue }
+            ghosts[index].ghost.captures = keep
+            ghosts[index].ghost.captureSequences = keptSequences
+            ghosts[index].ghost.exempt.append(position)
+            if donor == nil { donor = ghosts[index] }
         }
-        var cursor: GlobalElementID? = key
-        while let id = cursor {
-            if produced[id]?.fades == true, insertions[id] != nil { insertions[id] = nil; break }
-            cursor = id.parent
-        }
+        guard let donor else { return }
+        var own = Ghost(start: donor.ghost.start, animation: donor.ghost.animation, from: donor.ghost.from,
+                        atoms: [.opacity, move], rect: Self.zeroRect, captures: captures)
+        own.captureSequences = sequences
+        own.carvedFrom = donor.key.parent
+        ghosts.append((Self.leaverKey(position), own))
+        frame.pendingGhostAnchors = true
     }
 
     /// Opens the non-capturing fade of the default insertion of `unit`, if one is in flight (`XF-H` item 7). Keeps the
