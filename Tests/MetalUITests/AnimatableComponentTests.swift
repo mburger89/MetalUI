@@ -340,7 +340,9 @@ private struct SteadyEquatable: Component, @MainActor Equatable {
 /// hook computes no id for a component that is not `Animatable`. A first version computed the id in
 /// `EquatableComponent` before calling the hook and read 399 (one `GlobalElementID` allocation per equatable
 /// component per frame): mutation **ME7**.
-@Test @MainActor func aNonAnimatableComponentAllocatesWhatItDid() throws {
+@Test(.enabled(if: !acVerifying && ProcessInfo.processInfo.environment["METALUI_VERIFY_LAYOUT_MEMO"] != "1",
+               "METALUI_VERIFY_RETAINED=1 and METALUI_VERIFY_LAYOUT_MEMO=1 recompute every hit: the allocation count is not theirs to read (1085)"))
+@MainActor func aNonAnimatableComponentAllocatesWhatItDid() throws {
     let h = WrapperHarness()
     func tree() -> some Element {
         DifferentialRoot(width: 400, height: 100) { SteadyPlain(x: 5); SteadyEquatable(x: 5).equatable() }
