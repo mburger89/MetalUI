@@ -1,0 +1,1239 @@
+=== DS0: replay of S, K0/K1/K3, SP8, GS7 (expected = the recorded figure; MATCH or DIFF)
+DS0 S control explicit: hstack(0) 0 hstack(20) 20 vstack(20) 20  MATCH
+DS0 S rect|rect: hstack 8  vstack 8  MATCH
+DS0 S color|color: hstack 8  vstack 8  MATCH
+DS0 S leaf|leaf: hstack 8  vstack 8  MATCH
+DS0 S text|text: hstack 8  vstack 0  MATCH
+DS0 S rect|text: hstack 8  vstack 4.74  MATCH
+DS0 S text|rect: hstack 8  vstack 8.15  MATCH
+DS0 S leaf|text: hstack 8  vstack 4.74  MATCH
+DS0 S image|image: hstack 8  vstack 0  MATCH
+DS0 S image|text: hstack 8  vstack 0  MATCH
+DS0 S hstack|rect: hstack 8  vstack 8  MATCH
+DS0 S hstack|text: hstack 8  vstack 4.74  MATCH
+DS0 S button|button: hstack 8  vstack 8  MATCH
+DS0 S text|button: hstack 8  vstack 8.15  MATCH
+DS0 S paddedText|paddedText: hstack 8  vstack 8  MATCH
+DS0 S paddedText|rect: hstack 8  vstack 8  MATCH
+DS0 S toggle|toggle: hstack 8  vstack 6  MATCH
+DS0 S text|toggle: hstack 8  vstack 8.15  MATCH
+DS0 S zstack(text)|text: hstack 8 vstack 0  MATCH
+DS0 K0 VStack(0){text; text}: size 13x32  MATCH
+DS0 K1b VStack{text; text}: size 13x32  MATCH
+DS0 K1 VStack{text; Spacer(); text}: size 13x40  MATCH
+DS0 K1c VStack(0){text; Spacer(); text}: size 13x40  MATCH
+DS0 K3 control HStack{a20; b20}: size 48x20  MATCH
+DS0 K3a HStack{a20; Spacer(minLength: 0).padding(0); b20}: size 40x20  MATCH
+DS0 SP8 HStack(0){a20; Spacer(); b20} @200x50: size 200x20  MATCH
+DS0 GS7 Texts [Hi, Yo] [A, B] (bg leaves): size 36x32 | t4 (24, 16) 9x16 | t3 (2, 16) 9x16 | t2 (21, 0) 15x16 | t1 (0, 0) 13x16  MATCH
+=== DS1 (separating arm): text|text, rect|text, text|rect at every size; CoreText metrics beside the answered height
+DS1 control rect|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS1 control default-font Text 13x16 vs .system(size: 13) 13x16; NSFont.systemFontSize 13 asc=12.568 desc=-2.742 lead=0 cap=9.16 xh=6.843
+DS1 s=9 asc=8.701 desc=-1.898 lead=0 cap=6.341 xh=4.737 lineHeight(asc-desc+lead)=10.6 height=11 width=10
+DS1 s=9 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=9 rect|text | v a=3.898 b=3.898 c=3.898 | h a=8 b=8 c=8
+DS1 s=9 text|rect | v a=6.258 b=6.258 c=6.258 | h a=8 b=8 c=8
+DS1 s=10 asc=9.668 desc=-2.109 lead=0 cap=7.046 xh=5.264 lineHeight(asc-desc+lead)=11.777 height=13 width=11
+DS1 s=10 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=10 rect|text | v a=4.109 b=4.109 c=4.109 | h a=8 b=8 c=8
+DS1 s=10 text|rect | v a=6.731 b=6.731 c=6.731 | h a=8 b=8 c=8
+DS1 s=11 asc=10.635 desc=-2.32 lead=0 cap=7.75 xh=5.79 lineHeight(asc-desc+lead)=12.955 height=14 width=12
+DS1 s=11 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=11 rect|text | v a=4.32 b=4.32 c=4.32 | h a=8 b=8 c=8
+DS1 s=11 text|rect | v a=7.205 b=7.205 c=7.205 | h a=8 b=8 c=8
+DS1 s=12 asc=11.602 desc=-2.531 lead=0 cap=8.455 xh=6.316 lineHeight(asc-desc+lead)=14.133 height=15 width=12
+DS1 s=12 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=12 rect|text | v a=4.531 b=4.531 c=4.531 | h a=8 b=8 c=8
+DS1 s=12 text|rect | v a=7.678 b=7.678 c=7.678 | h a=8 b=8 c=8
+DS1 s=13 asc=12.568 desc=-2.742 lead=0 cap=9.16 xh=6.843 lineHeight(asc-desc+lead)=15.311 height=16 width=13
+DS1 s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=13 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS1 s=13 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS1 s=14 asc=13.535 desc=-2.953 lead=0 cap=9.864 xh=7.369 lineHeight(asc-desc+lead)=16.488 height=17 width=14
+DS1 s=14 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=14 rect|text | v a=4.953 b=4.953 c=4.953 | h a=8 b=8 c=8
+DS1 s=14 text|rect | v a=8.624 b=8.624 c=8.624 | h a=8 b=8 c=8
+DS1 s=15 asc=14.502 desc=-3.164 lead=0 cap=10.569 xh=7.896 lineHeight(asc-desc+lead)=17.666 height=19 width=15
+DS1 s=15 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=15 rect|text | v a=5.164 b=5.164 c=5.164 | h a=8 b=8 c=8
+DS1 s=15 text|rect | v a=9.097 b=9.097 c=9.097 | h a=8 b=8 c=8
+DS1 s=16 asc=15.469 desc=-3.375 lead=0 cap=11.273 xh=8.422 lineHeight(asc-desc+lead)=18.844 height=19 width=16
+DS1 s=16 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=16 rect|text | v a=5.375 b=5.375 c=5.375 | h a=8 b=8 c=8
+DS1 s=16 text|rect | v a=9.57 b=9.57 c=9.57 | h a=8 b=8 c=8
+DS1 s=17 asc=16.436 desc=-3.586 lead=0 cap=11.978 xh=8.948 lineHeight(asc-desc+lead)=20.021 height=20 width=16
+DS1 s=17 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=17 rect|text | v a=6.586 b=6.586 c=6.586 | h a=8 b=8 c=8
+DS1 s=17 text|rect | v a=11.043 b=11.043 c=11.043 | h a=8 b=8 c=8
+DS1 s=20 asc=19.336 desc=-4.219 lead=0 cap=14.092 xh=10.439 lineHeight(asc-desc+lead)=23.555 height=24 width=19
+DS1 s=20 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=20 rect|text | v a=7.219 b=7.219 c=7.219 | h a=8 b=8 c=8
+DS1 s=20 text|rect | v a=12.463 b=12.463 c=12.463 | h a=8 b=8 c=8
+DS1 s=24 asc=23.203 desc=-5.063 lead=0 cap=16.91 xh=12.27 lineHeight(asc-desc+lead)=28.266 height=28 width=23
+DS1 s=24 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=24 rect|text | v a=8.063 b=8.063 c=8.063 | h a=8 b=8 c=8
+DS1 s=24 text|rect | v a=14.355 b=14.355 c=14.355 | h a=8 b=8 c=8
+DS1 s=26 asc=25.137 desc=-5.484 lead=0 cap=18.319 xh=13.241 lineHeight(asc-desc+lead)=30.621 height=30 width=25
+DS1 s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=26 rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS1 s=26 text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS1 s=28 asc=27.07 desc=-5.906 lead=0 cap=19.729 xh=14.219 lineHeight(asc-desc+lead)=32.977 height=33 width=27
+DS1 s=28 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=28 rect|text | v a=9.906 b=9.906 c=9.906 | h a=8 b=8 c=8
+DS1 s=28 text|rect | v a=17.248 b=17.248 c=17.248 | h a=8 b=8 c=8
+DS1 s=34 asc=32.871 desc=-7.172 lead=0 cap=23.956 xh=17.266 lineHeight(asc-desc+lead)=40.043 height=40 width=32
+DS1 s=34 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=34 rect|text | v a=12.172 b=12.172 c=12.172 | h a=8 b=8 c=8
+DS1 s=34 text|rect | v a=21.087 b=21.087 c=21.087 | h a=8 b=8 c=8
+DS1 s=48 asc=46.406 desc=-10.125 lead=0 cap=33.82 xh=24.375 lineHeight(asc-desc+lead)=56.531 height=56 width=45
+DS1 s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=48 rect|text | v a=16.125 b=16.125 c=16.125 | h a=8 b=8 c=8
+DS1 s=48 text|rect | v a=28.711 b=28.711 c=28.711 | h a=8 b=8 c=8
+DS1 s=64 asc=61.875 desc=-13.5 lead=0 cap=45.094 xh=32.5 lineHeight(asc-desc+lead)=75.375 height=76 width=59
+DS1 s=64 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=64 rect|text | v a=21.5 b=21.5 c=21.5 | h a=8 b=8 c=8
+DS1 s=64 text|rect | v a=38.281 b=38.281 c=38.281 | h a=8 b=8 c=8
+DS1 s=96 asc=92.813 desc=-20.25 lead=0 cap=67.641 xh=48.75 lineHeight(asc-desc+lead)=113.063 height=113 width=87
+DS1 s=96 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1 s=96 rect|text | v a=32.25 b=32.25 c=32.25 | h a=8 b=8 c=8
+DS1 s=96 text|rect | v a=57.422 b=57.422 c=57.422 | h a=8 b=8 c=8
+=== DS1b: every integer size 6...40 and fractional sizes (the metrics line then the three pairs, as DS1)
+DS1b s=6 asc=5.801 desc=-1.266 lead=0 cap=4.228 xh=3.158 lineHeight(asc-desc+lead)=7.066 height=8 width=7
+DS1b s=6 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=6 rect|text | v a=2.266 b=2.266 c=2.266 | h a=8 b=8 c=8
+DS1b s=6 text|rect | v a=3.839 b=3.839 c=3.839 | h a=8 b=8 c=8
+DS1b s=7 asc=6.768 desc=-1.477 lead=0 cap=4.932 xh=3.685 lineHeight(asc-desc+lead)=8.244 height=9 width=8
+DS1b s=7 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=7 rect|text | v a=2.477 b=2.477 c=2.477 | h a=8 b=8 c=8
+DS1b s=7 text|rect | v a=4.312 b=4.312 c=4.312 | h a=8 b=8 c=8
+DS1b s=8 asc=7.734 desc=-1.688 lead=0 cap=5.637 xh=4.211 lineHeight(asc-desc+lead)=9.422 height=10 width=9
+DS1b s=8 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=8 rect|text | v a=2.688 b=2.688 c=2.688 | h a=8 b=8 c=8
+DS1b s=8 text|rect | v a=4.785 b=4.785 c=4.785 | h a=8 b=8 c=8
+DS1b s=9 asc=8.701 desc=-1.898 lead=0 cap=6.341 xh=4.737 lineHeight(asc-desc+lead)=10.6 height=11 width=10
+DS1b s=9 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=9 rect|text | v a=3.898 b=3.898 c=3.898 | h a=8 b=8 c=8
+DS1b s=9 text|rect | v a=6.258 b=6.258 c=6.258 | h a=8 b=8 c=8
+DS1b s=10 asc=9.668 desc=-2.109 lead=0 cap=7.046 xh=5.264 lineHeight(asc-desc+lead)=11.777 height=13 width=11
+DS1b s=10 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=10 rect|text | v a=4.109 b=4.109 c=4.109 | h a=8 b=8 c=8
+DS1b s=10 text|rect | v a=6.731 b=6.731 c=6.731 | h a=8 b=8 c=8
+DS1b s=11 asc=10.635 desc=-2.32 lead=0 cap=7.75 xh=5.79 lineHeight(asc-desc+lead)=12.955 height=14 width=12
+DS1b s=11 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=11 rect|text | v a=4.32 b=4.32 c=4.32 | h a=8 b=8 c=8
+DS1b s=11 text|rect | v a=7.205 b=7.205 c=7.205 | h a=8 b=8 c=8
+DS1b s=12 asc=11.602 desc=-2.531 lead=0 cap=8.455 xh=6.316 lineHeight(asc-desc+lead)=14.133 height=15 width=12
+DS1b s=12 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=12 rect|text | v a=4.531 b=4.531 c=4.531 | h a=8 b=8 c=8
+DS1b s=12 text|rect | v a=7.678 b=7.678 c=7.678 | h a=8 b=8 c=8
+DS1b s=13 asc=12.568 desc=-2.742 lead=0 cap=9.16 xh=6.843 lineHeight(asc-desc+lead)=15.311 height=16 width=13
+DS1b s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=13 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS1b s=13 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS1b s=14 asc=13.535 desc=-2.953 lead=0 cap=9.864 xh=7.369 lineHeight(asc-desc+lead)=16.488 height=17 width=14
+DS1b s=14 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=14 rect|text | v a=4.953 b=4.953 c=4.953 | h a=8 b=8 c=8
+DS1b s=14 text|rect | v a=8.624 b=8.624 c=8.624 | h a=8 b=8 c=8
+DS1b s=15 asc=14.502 desc=-3.164 lead=0 cap=10.569 xh=7.896 lineHeight(asc-desc+lead)=17.666 height=19 width=15
+DS1b s=15 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=15 rect|text | v a=5.164 b=5.164 c=5.164 | h a=8 b=8 c=8
+DS1b s=15 text|rect | v a=9.097 b=9.097 c=9.097 | h a=8 b=8 c=8
+DS1b s=16 asc=15.469 desc=-3.375 lead=0 cap=11.273 xh=8.422 lineHeight(asc-desc+lead)=18.844 height=19 width=16
+DS1b s=16 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=16 rect|text | v a=5.375 b=5.375 c=5.375 | h a=8 b=8 c=8
+DS1b s=16 text|rect | v a=9.57 b=9.57 c=9.57 | h a=8 b=8 c=8
+DS1b s=17 asc=16.436 desc=-3.586 lead=0 cap=11.978 xh=8.948 lineHeight(asc-desc+lead)=20.021 height=20 width=16
+DS1b s=17 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=17 rect|text | v a=6.586 b=6.586 c=6.586 | h a=8 b=8 c=8
+DS1b s=17 text|rect | v a=11.043 b=11.043 c=11.043 | h a=8 b=8 c=8
+DS1b s=18 asc=17.402 desc=-3.797 lead=0 cap=12.683 xh=9.457 lineHeight(asc-desc+lead)=21.199 height=21 width=17
+DS1b s=18 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=18 rect|text | v a=6.797 b=6.797 c=6.797 | h a=8 b=8 c=8
+DS1b s=18 text|rect | v a=11.517 b=11.517 c=11.517 | h a=8 b=8 c=8
+DS1b s=19 asc=18.369 desc=-4.008 lead=0 cap=13.387 xh=9.973 lineHeight(asc-desc+lead)=22.377 height=23 width=18
+DS1b s=19 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=19 rect|text | v a=7.008 b=7.008 c=7.008 | h a=8 b=8 c=8
+DS1b s=19 text|rect | v a=11.99 b=11.99 c=11.99 | h a=8 b=8 c=8
+DS1b s=20 asc=19.336 desc=-4.219 lead=0 cap=14.092 xh=10.439 lineHeight(asc-desc+lead)=23.555 height=24 width=19
+DS1b s=20 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=20 rect|text | v a=7.219 b=7.219 c=7.219 | h a=8 b=8 c=8
+DS1b s=20 text|rect | v a=12.463 b=12.463 c=12.463 | h a=8 b=8 c=8
+DS1b s=21 asc=20.303 desc=-4.43 lead=0 cap=14.796 xh=10.9 lineHeight(asc-desc+lead)=24.732 height=25 width=20
+DS1b s=21 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=21 rect|text | v a=7.43 b=7.43 c=7.43 | h a=8 b=8 c=8
+DS1b s=21 text|rect | v a=12.936 b=12.936 c=12.936 | h a=8 b=8 c=8
+DS1b s=22 asc=21.27 desc=-4.641 lead=0 cap=15.501 xh=11.365 lineHeight(asc-desc+lead)=25.91 height=26 width=21
+DS1b s=22 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=22 rect|text | v a=7.641 b=7.641 c=7.641 | h a=8 b=8 c=8
+DS1b s=22 text|rect | v a=13.409 b=13.409 c=13.409 | h a=8 b=8 c=8
+DS1b s=23 asc=22.236 desc=-4.852 lead=0 cap=16.206 xh=11.814 lineHeight(asc-desc+lead)=27.088 height=27 width=22
+DS1b s=23 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=23 rect|text | v a=7.852 b=7.852 c=7.852 | h a=8 b=8 c=8
+DS1b s=23 text|rect | v a=13.882 b=13.882 c=13.882 | h a=8 b=8 c=8
+DS1b s=24 asc=23.203 desc=-5.063 lead=0 cap=16.91 xh=12.27 lineHeight(asc-desc+lead)=28.266 height=28 width=23
+DS1b s=24 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=24 rect|text | v a=8.063 b=8.063 c=8.063 | h a=8 b=8 c=8
+DS1b s=24 text|rect | v a=14.355 b=14.355 c=14.355 | h a=8 b=8 c=8
+DS1b s=25 asc=24.17 desc=-5.273 lead=0 cap=17.615 xh=12.756 lineHeight(asc-desc+lead)=29.443 height=29 width=24
+DS1b s=25 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=25 rect|text | v a=8.273 b=8.273 c=8.273 | h a=8 b=8 c=8
+DS1b s=25 text|rect | v a=14.829 b=14.829 c=14.829 | h a=8 b=8 c=8
+DS1b s=26 asc=25.137 desc=-5.484 lead=0 cap=18.319 xh=13.241 lineHeight(asc-desc+lead)=30.621 height=30 width=25
+DS1b s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=26 rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS1b s=26 text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS1b s=27 asc=26.104 desc=-5.695 lead=0 cap=19.024 xh=13.737 lineHeight(asc-desc+lead)=31.799 height=32 width=26
+DS1b s=27 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=27 rect|text | v a=9.695 b=9.695 c=9.695 | h a=8 b=8 c=8
+DS1b s=27 text|rect | v a=16.775 b=16.775 c=16.775 | h a=8 b=8 c=8
+DS1b s=28 asc=27.07 desc=-5.906 lead=0 cap=19.729 xh=14.219 lineHeight(asc-desc+lead)=32.977 height=33 width=27
+DS1b s=28 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=28 rect|text | v a=9.906 b=9.906 c=9.906 | h a=8 b=8 c=8
+DS1b s=28 text|rect | v a=17.248 b=17.248 c=17.248 | h a=8 b=8 c=8
+DS1b s=29 asc=28.037 desc=-6.117 lead=0 cap=20.433 xh=14.727 lineHeight(asc-desc+lead)=34.154 height=34 width=28
+DS1b s=29 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=29 rect|text | v a=10.117 b=10.117 c=10.117 | h a=8 b=8 c=8
+DS1b s=29 text|rect | v a=17.721 b=17.721 c=17.721 | h a=8 b=8 c=8
+DS1b s=30 asc=29.004 desc=-6.328 lead=0 cap=21.138 xh=15.234 lineHeight(asc-desc+lead)=35.332 height=35 width=28
+DS1b s=30 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=30 rect|text | v a=10.328 b=10.328 c=10.328 | h a=8 b=8 c=8
+DS1b s=30 text|rect | v a=18.194 b=18.194 c=18.194 | h a=8 b=8 c=8
+DS1b s=31 asc=29.971 desc=-6.539 lead=0 cap=21.842 xh=15.742 lineHeight(asc-desc+lead)=36.51 height=37 width=29
+DS1b s=31 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=31 rect|text | v a=10.539 b=10.539 c=10.539 | h a=8 b=8 c=8
+DS1b s=31 text|rect | v a=18.667 b=18.667 c=18.667 | h a=8 b=8 c=8
+DS1b s=32 asc=30.938 desc=-6.75 lead=0 cap=22.547 xh=16.25 lineHeight(asc-desc+lead)=37.688 height=38 width=30
+DS1b s=32 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=32 rect|text | v a=10.75 b=10.75 c=10.75 | h a=8 b=8 c=8
+DS1b s=32 text|rect | v a=19.141 b=19.141 c=19.141 | h a=8 b=8 c=8
+DS1b s=33 asc=31.904 desc=-6.961 lead=0 cap=23.251 xh=16.758 lineHeight(asc-desc+lead)=38.865 height=39 width=31
+DS1b s=33 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=33 rect|text | v a=10.961 b=10.961 c=10.961 | h a=8 b=8 c=8
+DS1b s=33 text|rect | v a=19.614 b=19.614 c=19.614 | h a=8 b=8 c=8
+DS1b s=34 asc=32.871 desc=-7.172 lead=0 cap=23.956 xh=17.266 lineHeight(asc-desc+lead)=40.043 height=40 width=32
+DS1b s=34 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=34 rect|text | v a=12.172 b=12.172 c=12.172 | h a=8 b=8 c=8
+DS1b s=34 text|rect | v a=21.087 b=21.087 c=21.087 | h a=8 b=8 c=8
+DS1b s=35 asc=33.838 desc=-7.383 lead=0 cap=24.661 xh=17.773 lineHeight(asc-desc+lead)=41.221 height=41 width=33
+DS1b s=35 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=35 rect|text | v a=12.383 b=12.383 c=12.383 | h a=8 b=8 c=8
+DS1b s=35 text|rect | v a=21.56 b=21.56 c=21.56 | h a=8 b=8 c=8
+DS1b s=36 asc=34.805 desc=-7.594 lead=0 cap=25.365 xh=18.281 lineHeight(asc-desc+lead)=42.398 height=43 width=34
+DS1b s=36 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=36 rect|text | v a=12.594 b=12.594 c=12.594 | h a=8 b=8 c=8
+DS1b s=36 text|rect | v a=22.033 b=22.033 c=22.033 | h a=8 b=8 c=8
+DS1b s=37 asc=35.771 desc=-7.805 lead=0 cap=26.07 xh=18.789 lineHeight(asc-desc+lead)=43.576 height=44 width=35
+DS1b s=37 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=37 rect|text | v a=12.805 b=12.805 c=12.805 | h a=8 b=8 c=8
+DS1b s=37 text|rect | v a=22.506 b=22.506 c=22.506 | h a=8 b=8 c=8
+DS1b s=38 asc=36.738 desc=-8.016 lead=0 cap=26.774 xh=19.297 lineHeight(asc-desc+lead)=44.754 height=45 width=36
+DS1b s=38 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=38 rect|text | v a=13.016 b=13.016 c=13.016 | h a=8 b=8 c=8
+DS1b s=38 text|rect | v a=22.979 b=22.979 c=22.979 | h a=8 b=8 c=8
+DS1b s=39 asc=37.705 desc=-8.227 lead=0 cap=27.479 xh=19.805 lineHeight(asc-desc+lead)=45.932 height=46 width=37
+DS1b s=39 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=39 rect|text | v a=13.227 b=13.227 c=13.227 | h a=8 b=8 c=8
+DS1b s=39 text|rect | v a=23.453 b=23.453 c=23.453 | h a=8 b=8 c=8
+DS1b s=40 asc=38.672 desc=-8.438 lead=0 cap=28.184 xh=20.313 lineHeight(asc-desc+lead)=47.109 height=47 width=37
+DS1b s=40 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=40 rect|text | v a=13.438 b=13.438 c=13.438 | h a=8 b=8 c=8
+DS1b s=40 text|rect | v a=23.926 b=23.926 c=23.926 | h a=8 b=8 c=8
+DS1b s=8.5 asc=8.218 desc=-1.793 lead=0 cap=5.989 xh=4.474 lineHeight(asc-desc+lead)=10.011 height=10 width=9
+DS1b s=8.5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=8.5 rect|text | v a=3.793 b=3.793 c=3.793 | h a=8 b=8 c=8
+DS1b s=8.5 text|rect | v a=6.022 b=6.022 c=6.022 | h a=8 b=8 c=8
+DS1b s=12.5 asc=12.085 desc=-2.637 lead=0 cap=8.807 xh=6.58 lineHeight(asc-desc+lead)=14.722 height=15 width=13
+DS1b s=12.5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=12.5 rect|text | v a=4.637 b=4.637 c=4.637 | h a=8 b=8 c=8
+DS1b s=12.5 text|rect | v a=7.914 b=7.914 c=7.914 | h a=8 b=8 c=8
+DS1b s=13.5 asc=13.052 desc=-2.848 lead=0 cap=9.512 xh=7.106 lineHeight(asc-desc+lead)=15.899 height=16 width=14
+DS1b s=13.5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=13.5 rect|text | v a=4.848 b=4.848 c=4.848 | h a=8 b=8 c=8
+DS1b s=13.5 text|rect | v a=8.387 b=8.387 c=8.387 | h a=8 b=8 c=8
+DS1b s=15.9 asc=15.372 desc=-3.354 lead=0 cap=11.203 xh=8.369 lineHeight(asc-desc+lead)=18.726 height=19 width=16
+DS1b s=15.9 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=15.9 rect|text | v a=5.354 b=5.354 c=5.354 | h a=8 b=8 c=8
+DS1b s=15.9 text|rect | v a=9.523 b=9.523 c=9.523 | h a=8 b=8 c=8
+DS1b s=16.1 asc=15.565 desc=-3.396 lead=0 cap=11.344 xh=8.475 lineHeight(asc-desc+lead)=18.962 height=20 width=16
+DS1b s=16.1 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=16.1 rect|text | v a=5.396 b=5.396 c=5.396 | h a=8 b=8 c=8
+DS1b s=16.1 text|rect | v a=9.618 b=9.618 c=9.618 | h a=8 b=8 c=8
+DS1b s=16.2 asc=15.662 desc=-3.417 lead=0 cap=11.414 xh=8.527 lineHeight(asc-desc+lead)=19.079 height=20 width=16
+DS1b s=16.2 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=16.2 rect|text | v a=5.417 b=5.417 c=5.417 | h a=8 b=8 c=8
+DS1b s=16.2 text|rect | v a=9.665 b=9.665 c=9.665 | h a=8 b=8 c=8
+DS1b s=16.5 asc=15.952 desc=-3.48 lead=0 cap=11.626 xh=8.685 lineHeight(asc-desc+lead)=19.433 height=20 width=16
+DS1b s=16.5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=16.5 rect|text | v a=5.48 b=5.48 c=5.48 | h a=8 b=8 c=8
+DS1b s=16.5 text|rect | v a=9.807 b=9.807 c=9.807 | h a=8 b=8 c=8
+DS1b s=16.9 asc=16.339 desc=-3.565 lead=0 cap=11.908 xh=8.896 lineHeight(asc-desc+lead)=19.904 height=20 width=16
+DS1b s=16.9 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=16.9 rect|text | v a=5.565 b=5.565 c=5.565 | h a=8 b=8 c=8
+DS1b s=16.9 text|rect | v a=9.996 b=9.996 c=9.996 | h a=8 b=8 c=8
+DS1b s=24.5 asc=23.687 desc=-5.168 lead=0 cap=17.262 xh=12.513 lineHeight(asc-desc+lead)=28.854 height=29 width=23
+DS1b s=24.5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=24.5 rect|text | v a=8.168 b=8.168 c=8.168 | h a=8 b=8 c=8
+DS1b s=24.5 text|rect | v a=14.592 b=14.592 c=14.592 | h a=8 b=8 c=8
+DS1b s=24.9 asc=24.073 desc=-5.252 lead=0 cap=17.544 xh=12.705 lineHeight(asc-desc+lead)=29.326 height=29 width=24
+DS1b s=24.9 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=24.9 rect|text | v a=8.252 b=8.252 c=8.252 | h a=8 b=8 c=8
+DS1b s=24.9 text|rect | v a=14.781 b=14.781 c=14.781 | h a=8 b=8 c=8
+DS1b s=25 asc=24.17 desc=-5.273 lead=0 cap=17.615 xh=12.756 lineHeight(asc-desc+lead)=29.443 height=29 width=24
+DS1b s=25 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=25 rect|text | v a=8.273 b=8.273 c=8.273 | h a=8 b=8 c=8
+DS1b s=25 text|rect | v a=14.829 b=14.829 c=14.829 | h a=8 b=8 c=8
+DS1b s=25.5 asc=24.653 desc=-5.379 lead=0 cap=17.967 xh=12.999 lineHeight(asc-desc+lead)=30.032 height=30 width=24
+DS1b s=25.5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=25.5 rect|text | v a=9.379 b=9.379 c=9.379 | h a=8 b=8 c=8
+DS1b s=25.5 text|rect | v a=16.065 b=16.065 c=16.065 | h a=8 b=8 c=8
+DS1b s=32 asc=30.938 desc=-6.75 lead=0 cap=22.547 xh=16.25 lineHeight(asc-desc+lead)=37.688 height=38 width=30
+DS1b s=32 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=32 rect|text | v a=10.75 b=10.75 c=10.75 | h a=8 b=8 c=8
+DS1b s=32 text|rect | v a=19.141 b=19.141 c=19.141 | h a=8 b=8 c=8
+DS1b s=32.5 asc=31.421 desc=-6.855 lead=0 cap=22.899 xh=16.504 lineHeight(asc-desc+lead)=38.276 height=38 width=31
+DS1b s=32.5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=32.5 rect|text | v a=10.855 b=10.855 c=10.855 | h a=8 b=8 c=8
+DS1b s=32.5 text|rect | v a=19.377 b=19.377 c=19.377 | h a=8 b=8 c=8
+DS1b s=40.5 asc=39.155 desc=-8.543 lead=0 cap=28.536 xh=20.566 lineHeight(asc-desc+lead)=47.698 height=48 width=38
+DS1b s=40.5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=40.5 rect|text | v a=13.543 b=13.543 c=13.543 | h a=8 b=8 c=8
+DS1b s=40.5 text|rect | v a=24.162 b=24.162 c=24.162 | h a=8 b=8 c=8
+DS1b s=56 asc=54.141 desc=-11.813 lead=0 cap=39.457 xh=28.438 lineHeight(asc-desc+lead)=65.953 height=66 width=52
+DS1b s=56 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=56 rect|text | v a=18.813 b=18.813 c=18.813 | h a=8 b=8 c=8
+DS1b s=56 text|rect | v a=33.496 b=33.496 c=33.496 | h a=8 b=8 c=8
+DS1b s=72 asc=69.609 desc=-15.188 lead=0 cap=50.73 xh=36.563 lineHeight(asc-desc+lead)=84.797 height=85 width=66
+DS1b s=72 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=72 rect|text | v a=24.188 b=24.188 c=24.188 | h a=8 b=8 c=8
+DS1b s=72 text|rect | v a=43.066 b=43.066 c=43.066 | h a=8 b=8 c=8
+DS1b s=128 asc=123.75 desc=-27 lead=0 cap=90.188 xh=65 lineHeight(asc-desc+lead)=150.75 height=151 width=116
+DS1b s=128 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=128 rect|text | v a=43 b=43 c=43 | h a=8 b=8 c=8
+DS1b s=128 text|rect | v a=76.563 b=76.563 c=76.563 | h a=8 b=8 c=8
+DS1b s=200 asc=193.359 desc=-42.188 lead=0 cap=140.918 xh=101.563 lineHeight(asc-desc+lead)=235.547 height=235 width=182
+DS1b s=200 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS1b s=200 rect|text | v a=66.188 b=66.188 c=66.188 | h a=8 b=8 c=8
+DS1b s=200 text|rect | v a=118.629 b=118.629 c=118.629 | h a=8 b=8 c=8
+=== DS2: font families at 13, 26, 48 (SF, serif, mono, rounded, Georgia, Menlo, NotoSans, SourceSans3 from Tests/Fonts, and four faces with a non-zero leading)
+DS2 SF s=13 asc=12.568 desc=-2.742 lead=0 cap=9.16 xh=6.843 height=16 width=13
+DS2 SF s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 SF s=13 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS2 SF s=13 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS2 serif s=13 asc=12.378 desc=-3.136 lead=0 cap=9.166 xh=6.297 height=16 width=15
+DS2 serif s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 serif s=13 rect|text | v a=5.136 b=5.136 c=5.136 | h a=8 b=8 c=8
+DS2 serif s=13 text|rect | v a=8.348 b=8.348 c=8.348 | h a=8 b=8 c=8
+DS2 mono s=13 asc=12.568 desc=-2.742 lead=0 cap=9.16 xh=6.875 height=16 width=17
+DS2 mono s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 mono s=13 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS2 mono s=13 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS2 rounded s=13 asc=12.568 desc=-2.742 lead=0 cap=9.16 xh=6.602 height=16 width=13
+DS2 rounded s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 rounded s=13 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS2 rounded s=13 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS2 Georgia s=13 asc=11.921 desc=-2.85 lead=0 cap=9.007 xh=6.259 height=15 width=15
+DS2 Georgia s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 Georgia s=13 rect|text | v a=4.85 b=4.85 c=4.85 | h a=8 b=8 c=8
+DS2 Georgia s=13 text|rect | v a=7.764 b=7.764 c=7.764 | h a=8 b=8 c=8
+DS2 Menlo s=13 asc=12.067 desc=-3.066 lead=0 cap=9.477 xh=7.109 height=15 width=16
+DS2 Menlo s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 Menlo s=13 rect|text | v a=5.066 b=5.066 c=5.066 | h a=8 b=8 c=8
+DS2 Menlo s=13 text|rect | v a=7.656 b=7.656 c=7.656 | h a=8 b=8 c=8
+DS2 NotoSans s=13 asc=13.897 desc=-3.809 lead=0 cap=9.282 xh=6.968 height=18 width=13
+DS2 NotoSans s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 NotoSans s=13 rect|text | v a=5.809 b=5.809 c=5.809 | h a=8 b=8 c=8
+DS2 NotoSans s=13 text|rect | v a=10.424 b=10.424 c=10.424 | h a=8 b=8 c=8
+DS2 SourceSans3 s=13 asc=13 desc=-4.238 lead=0 cap=8.58 xh=6.318 height=17 width=12
+DS2 SourceSans3 s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 SourceSans3 s=13 rect|text | v a=6.238 b=6.238 c=6.238 | h a=8 b=8 c=8
+DS2 SourceSans3 s=13 text|rect | v a=10.658 b=10.658 c=10.658 | h a=8 b=8 c=8
+DS2 ArialMT s=13 asc=11.769 desc=-2.755 lead=0.425 cap=9.312 xh=6.741 height=15 width=13
+DS2 ArialMT s=13 text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS2 ArialMT s=13 rect|text | v a=4.755 b=4.755 c=4.755 | h a=8 b=8 c=8
+DS2 ArialMT s=13 text|rect | v a=7.211 b=7.211 c=7.211 | h a=8 b=8 c=8
+DS2 Futura-Medium s=13 asc=13.501 desc=-3.377 lead=0.387 cap=9.896 xh=6.271 height=17 width=13
+DS2 Futura-Medium s=13 text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS2 Futura-Medium s=13 rect|text | v a=5.377 b=5.377 c=5.377 | h a=8 b=8 c=8
+DS2 Futura-Medium s=13 text|rect | v a=8.982 b=8.982 c=8.982 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=13 asc=9.256 desc=-3.744 lead=2.6 cap=9.256 xh=6.591 height=13 width=8
+DS2 DINCondensed-Bold s=13 text|text | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=13 rect|text | v a=5.744 b=5.744 c=5.744 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=13 text|rect | v a=5.744 b=5.744 c=5.744 | h a=8 b=8 c=8
+DS2 Geneva s=13 asc=13 desc=-3.25 lead=1.085 cap=9.852 xh=7.09 height=16 width=13
+DS2 Geneva s=13 text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS2 Geneva s=13 rect|text | v a=5.25 b=5.25 c=5.25 | h a=8 b=8 c=8
+DS2 Geneva s=13 text|rect | v a=8.398 b=8.398 c=8.398 | h a=8 b=8 c=8
+DS2 SF s=26 asc=25.137 desc=-5.484 lead=0 cap=18.319 xh=13.241 height=30 width=25
+DS2 SF s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 SF s=26 rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS2 SF s=26 text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS2 serif s=26 asc=24.756 desc=-6.271 lead=0 cap=18.332 xh=11.185 height=31 width=28
+DS2 serif s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 serif s=26 rect|text | v a=10.271 b=10.271 c=10.271 | h a=8 b=8 c=8
+DS2 serif s=26 text|rect | v a=16.695 b=16.695 c=16.695 | h a=8 b=8 c=8
+DS2 mono s=26 asc=25.137 desc=-5.484 lead=0 cap=18.319 xh=13.749 height=30 width=33
+DS2 mono s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 mono s=26 rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS2 mono s=26 text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS2 rounded s=26 asc=25.137 desc=-5.484 lead=0 cap=18.319 xh=13.203 height=30 width=25
+DS2 rounded s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 rounded s=26 rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS2 rounded s=26 text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS2 Georgia s=26 asc=23.842 desc=-5.7 lead=0 cap=18.015 xh=12.518 height=30 width=29
+DS2 Georgia s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 Georgia s=26 rect|text | v a=8.7 b=8.7 c=8.7 | h a=8 b=8 c=8
+DS2 Georgia s=26 text|rect | v a=14.527 b=14.527 c=14.527 | h a=8 b=8 c=8
+DS2 Menlo s=26 asc=24.134 desc=-6.132 lead=0 cap=18.954 xh=14.219 height=30 width=32
+DS2 Menlo s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 Menlo s=26 rect|text | v a=10.132 b=10.132 c=10.132 | h a=8 b=8 c=8
+DS2 Menlo s=26 text|rect | v a=15.312 b=15.312 c=15.312 | h a=8 b=8 c=8
+DS2 NotoSans s=26 asc=27.794 desc=-7.618 lead=0 cap=18.564 xh=13.936 height=36 width=26
+DS2 NotoSans s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 NotoSans s=26 rect|text | v a=11.618 b=11.618 c=11.618 | h a=8 b=8 c=8
+DS2 NotoSans s=26 text|rect | v a=20.848 b=20.848 c=20.848 | h a=8 b=8 c=8
+DS2 SourceSans3 s=26 asc=26 desc=-8.476 lead=0 cap=17.16 xh=12.636 height=34 width=24
+DS2 SourceSans3 s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 SourceSans3 s=26 rect|text | v a=12.476 b=12.476 c=12.476 | h a=8 b=8 c=8
+DS2 SourceSans3 s=26 text|rect | v a=21.316 b=21.316 c=21.316 | h a=8 b=8 c=8
+DS2 ArialMT s=26 asc=23.537 desc=-5.51 lead=0.851 cap=18.624 xh=13.482 height=30 width=25
+DS2 ArialMT s=26 text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS2 ArialMT s=26 rect|text | v a=8.51 b=8.51 c=8.51 | h a=8 b=8 c=8
+DS2 ArialMT s=26 text|rect | v a=13.423 b=13.423 c=13.423 | h a=8 b=8 c=8
+DS2 Futura-Medium s=26 asc=27.003 desc=-6.754 lead=0.774 cap=19.792 xh=12.543 height=34 width=26
+DS2 Futura-Medium s=26 text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS2 Futura-Medium s=26 rect|text | v a=10.754 b=10.754 c=10.754 | h a=8 b=8 c=8
+DS2 Futura-Medium s=26 text|rect | v a=17.965 b=17.965 c=17.965 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=26 asc=18.512 desc=-7.488 lead=5.2 cap=18.512 xh=13.182 height=26 width=16
+DS2 DINCondensed-Bold s=26 text|text | v a=6 b=6 c=6 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=26 rect|text | v a=10.488 b=10.488 c=10.488 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=26 text|rect | v a=10.488 b=10.488 c=10.488 | h a=8 b=8 c=8
+DS2 Geneva s=26 asc=26 desc=-6.5 lead=2.171 cap=19.703 xh=14.181 height=33 width=25
+DS2 Geneva s=26 text|text | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS2 Geneva s=26 rect|text | v a=10.5 b=10.5 c=10.5 | h a=8 b=8 c=8
+DS2 Geneva s=26 text|rect | v a=16.797 b=16.797 c=16.797 | h a=8 b=8 c=8
+DS2 SF s=48 asc=46.406 desc=-10.125 lead=0 cap=33.82 xh=24.375 height=56 width=45
+DS2 SF s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 SF s=48 rect|text | v a=16.125 b=16.125 c=16.125 | h a=8 b=8 c=8
+DS2 SF s=48 text|rect | v a=28.711 b=28.711 c=28.711 | h a=8 b=8 c=8
+DS2 serif s=48 asc=45.703 desc=-11.578 lead=0 cap=33.844 xh=16.922 height=58 width=50
+DS2 serif s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 serif s=48 rect|text | v a=17.578 b=17.578 c=17.578 | h a=8 b=8 c=8
+DS2 serif s=48 text|rect | v a=29.438 b=29.438 c=29.438 | h a=8 b=8 c=8
+DS2 mono s=48 asc=46.406 desc=-10.125 lead=0 cap=33.82 xh=25.383 height=56 width=60
+DS2 mono s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 mono s=48 rect|text | v a=16.125 b=16.125 c=16.125 | h a=8 b=8 c=8
+DS2 mono s=48 text|rect | v a=28.711 b=28.711 c=28.711 | h a=8 b=8 c=8
+DS2 rounded s=48 asc=46.406 desc=-10.125 lead=0 cap=33.82 xh=24.375 height=56 width=45
+DS2 rounded s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 rounded s=48 rect|text | v a=16.125 b=16.125 c=16.125 | h a=8 b=8 c=8
+DS2 rounded s=48 text|rect | v a=28.711 b=28.711 c=28.711 | h a=8 b=8 c=8
+DS2 Georgia s=48 asc=44.016 desc=-10.523 lead=0 cap=33.258 xh=23.109 height=55 width=54
+DS2 Georgia s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 Georgia s=48 rect|text | v a=16.523 b=16.523 c=16.523 | h a=8 b=8 c=8
+DS2 Georgia s=48 text|rect | v a=27.281 b=27.281 c=27.281 | h a=8 b=8 c=8
+DS2 Menlo s=48 asc=44.555 desc=-11.32 lead=0 cap=34.992 xh=26.25 height=56 width=58
+DS2 Menlo s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 Menlo s=48 rect|text | v a=17.32 b=17.32 c=17.32 | h a=8 b=8 c=8
+DS2 Menlo s=48 text|rect | v a=26.883 b=26.883 c=26.883 | h a=8 b=8 c=8
+DS2 NotoSans s=48 asc=51.312 desc=-14.064 lead=0 cap=34.272 xh=25.728 height=65 width=48
+DS2 NotoSans s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 NotoSans s=48 rect|text | v a=21.064 b=21.064 c=21.064 | h a=8 b=8 c=8
+DS2 NotoSans s=48 text|rect | v a=38.104 b=38.104 c=38.104 | h a=8 b=8 c=8
+DS2 SourceSans3 s=48 asc=48 desc=-15.648 lead=0 cap=31.68 xh=23.328 height=64 width=44
+DS2 SourceSans3 s=48 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS2 SourceSans3 s=48 rect|text | v a=22.648 b=22.648 c=22.648 | h a=8 b=8 c=8
+DS2 SourceSans3 s=48 text|rect | v a=38.968 b=38.968 c=38.968 | h a=8 b=8 c=8
+DS2 ArialMT s=48 asc=43.453 desc=-10.172 lead=1.57 cap=34.383 xh=24.891 height=53 width=46
+DS2 ArialMT s=48 text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS2 ArialMT s=48 rect|text | v a=16.172 b=16.172 c=16.172 | h a=8 b=8 c=8
+DS2 ArialMT s=48 text|rect | v a=25.242 b=25.242 c=25.242 | h a=8 b=8 c=8
+DS2 Futura-Medium s=48 asc=49.852 desc=-12.469 lead=1.43 cap=36.539 xh=23.156 height=62 width=48
+DS2 Futura-Medium s=48 text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS2 Futura-Medium s=48 rect|text | v a=19.469 b=19.469 c=19.469 | h a=8 b=8 c=8
+DS2 Futura-Medium s=48 text|rect | v a=32.781 b=32.781 c=32.781 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=48 asc=34.176 desc=-13.824 lead=9.6 cap=34.176 xh=24.336 height=48 width=30
+DS2 DINCondensed-Bold s=48 text|text | v a=10 b=10 c=10 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=48 rect|text | v a=18.824 b=18.824 c=18.824 | h a=8 b=8 c=8
+DS2 DINCondensed-Bold s=48 text|rect | v a=18.824 b=18.824 c=18.824 | h a=8 b=8 c=8
+DS2 Geneva s=48 asc=48 desc=-12 lead=4.008 cap=36.375 xh=26.18 height=60 width=45
+DS2 Geneva s=48 text|text | v a=5 b=5 c=5 | h a=8 b=8 c=8
+DS2 Geneva s=48 rect|text | v a=18 b=18 c=18 | h a=8 b=8 c=8
+DS2 Geneva s=48 text|rect | v a=29.625 b=29.625 c=29.625 | h a=8 b=8 c=8
+=== DS3: the displayScale ENVIRONMENT VALUE 1, 2, 3 (not a real backing scale; the one screen reads 1.0)
+DS3 scale=1 s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS3 scale=1 s=13 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS3 scale=1 s=13 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS3 scale=1 s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS3 scale=1 s=26 rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS3 scale=1 s=26 text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS3 scale=2 s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS3 scale=2 s=13 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS3 scale=2 s=13 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS3 scale=2 s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS3 scale=2 s=26 rect|text | v a=8.984 b=8.984 c=8.984 | h a=8 b=8 c=8
+DS3 scale=2 s=26 text|rect | v a=15.802 b=15.802 c=15.802 | h a=8 b=8 c=8
+DS3 scale=3 s=13 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS3 scale=3 s=13 rect|text | v a=4.409 b=4.409 c=4.409 | h a=8 b=8 c=8
+DS3 scale=3 s=13 text|rect | v a=7.818 b=7.818 c=7.818 | h a=8 b=8 c=8
+DS3 scale=3 s=26 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS3 scale=3 s=26 rect|text | v a=8.818 b=8.818 c=8.818 | h a=8 b=8 c=8
+DS3 scale=3 s=26 text|rect | v a=15.635 b=15.635 c=15.635 | h a=8 b=8 c=8
+=== DS4: text styles, dynamicTypeSize, controlSize, bold, italic
+DS4 style largeTitle s=26 asc=25.137 desc=-5.484 lead=1.379 cap=18.319 xh=13.241 height=31 (.system(size:) of the same point size: 30)
+DS4 style largeTitle text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4 style largeTitle rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS4 style largeTitle text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS4 style title s=22 asc=21.27 desc=-4.641 lead=0.09 cap=15.501 xh=11.365 height=26 (.system(size:) of the same point size: 26)
+DS4 style title text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4 style title rect|text | v a=7.641 b=7.641 c=7.641 | h a=8 b=8 c=8
+DS4 style title text|rect | v a=13.409 b=13.409 c=13.409 | h a=8 b=8 c=8
+DS4 style title2 s=17 asc=16.436 desc=-3.586 lead=1.979 cap=11.978 xh=8.948 height=21 (.system(size:) of the same point size: 20)
+DS4 style title2 text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4 style title2 rect|text | v a=6.586 b=6.586 c=6.586 | h a=8 b=8 c=8
+DS4 style title2 text|rect | v a=11.043 b=11.043 c=11.043 | h a=8 b=8 c=8
+DS4 style title3 s=15 asc=14.502 desc=-3.164 lead=2.334 cap=10.569 xh=7.896 height=19 (.system(size:) of the same point size: 19)
+DS4 style title3 text|text | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS4 style title3 rect|text | v a=5.164 b=5.164 c=5.164 | h a=8 b=8 c=8
+DS4 style title3 text|rect | v a=9.097 b=9.097 c=9.097 | h a=8 b=8 c=8
+DS4 style headline s=13 asc=12.568 desc=-2.742 lead=0.689 cap=9.16 xh=6.989 height=16 (.system(size:) of the same point size: 16)
+DS4 style headline text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4 style headline rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 style headline text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 style subheadline s=11 asc=10.635 desc=-2.32 lead=1.045 cap=7.75 xh=5.79 height=14 (.system(size:) of the same point size: 14)
+DS4 style subheadline text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4 style subheadline rect|text | v a=4.32 b=4.32 c=4.32 | h a=8 b=8 c=8
+DS4 style subheadline text|rect | v a=7.205 b=7.205 c=7.205 | h a=8 b=8 c=8
+DS4 style body s=13 asc=12.568 desc=-2.742 lead=0.689 cap=9.16 xh=6.843 height=16 (.system(size:) of the same point size: 16)
+DS4 style body text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4 style body rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 style body text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 style callout s=12 asc=11.602 desc=-2.531 lead=0.867 cap=8.455 xh=6.316 height=15 (.system(size:) of the same point size: 15)
+DS4 style callout text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4 style callout rect|text | v a=4.531 b=4.531 c=4.531 | h a=8 b=8 c=8
+DS4 style callout text|rect | v a=7.678 b=7.678 c=7.678 | h a=8 b=8 c=8
+DS4 style footnote s=10 asc=9.668 desc=-2.109 lead=1.223 cap=7.046 xh=5.264 height=13 (.system(size:) of the same point size: 13)
+DS4 style footnote text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4 style footnote rect|text | v a=4.109 b=4.109 c=4.109 | h a=8 b=8 c=8
+DS4 style footnote text|rect | v a=6.731 b=6.731 c=6.731 | h a=8 b=8 c=8
+DS4 style caption s=10 asc=9.668 desc=-2.109 lead=1.223 cap=7.046 xh=5.264 height=13 (.system(size:) of the same point size: 13)
+DS4 style caption text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4 style caption rect|text | v a=4.109 b=4.109 c=4.109 | h a=8 b=8 c=8
+DS4 style caption text|rect | v a=6.731 b=6.731 c=6.731 | h a=8 b=8 c=8
+DS4 style caption2 s=10 asc=9.668 desc=-2.109 lead=1.223 cap=7.046 xh=5.303 height=13 (.system(size:) of the same point size: 13)
+DS4 style caption2 text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4 style caption2 rect|text | v a=4.109 b=4.109 c=4.109 | h a=8 b=8 c=8
+DS4 style caption2 text|rect | v a=6.731 b=6.731 c=6.731 | h a=8 b=8 c=8
+DS4 dynamicTypeSize xSmall default-font height=16
+DS4 dynamicTypeSize xSmall text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 dynamicTypeSize xSmall rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 dynamicTypeSize xSmall text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 dynamicTypeSize large default-font height=16
+DS4 dynamicTypeSize large text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 dynamicTypeSize large rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 dynamicTypeSize large text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 dynamicTypeSize xxxLarge default-font height=16
+DS4 dynamicTypeSize xxxLarge text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 dynamicTypeSize xxxLarge rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 dynamicTypeSize xxxLarge text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 dynamicTypeSize accessibility5 default-font height=16
+DS4 dynamicTypeSize accessibility5 text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 dynamicTypeSize accessibility5 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 dynamicTypeSize accessibility5 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 controlSize mini default-font height=11
+DS4 controlSize mini text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 controlSize mini rect|text | v a=3.898 b=3.898 c=3.898 | h a=8 b=8 c=8
+DS4 controlSize mini text|rect | v a=6.258 b=6.258 c=6.258 | h a=8 b=8 c=8
+DS4 controlSize small default-font height=14
+DS4 controlSize small text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 controlSize small rect|text | v a=4.32 b=4.32 c=4.32 | h a=8 b=8 c=8
+DS4 controlSize small text|rect | v a=7.205 b=7.205 c=7.205 | h a=8 b=8 c=8
+DS4 controlSize regular default-font height=16
+DS4 controlSize regular text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 controlSize regular rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 controlSize regular text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 controlSize large default-font height=16
+DS4 controlSize large text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 controlSize large rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 controlSize large text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 bold SF 13 asc=12.568 desc=-2.742 lead=0 cap=9.16 xh=6.989 height=16
+DS4 italic SF 13 asc=12.568 desc=-2.742 lead=0 cap=9.16 xh=6.843 height=16
+DS4 bold text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 bold rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 bold text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4 italic text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4 italic rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4 italic text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+=== DS4b: what makes text|text non-zero (text-style fonts), by spelling of the same 13 pt and 26 pt fonts
+DS4b no font (nil): height 16
+DS4b no font (nil) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b no font (nil) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b no font (nil) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .body: height 16
+DS4b .body text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4b .body rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .body text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .system(.body): height 16
+DS4b .system(.body) text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4b .system(.body) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .system(.body) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .system(.body, design: .default): height 16
+DS4b .system(.body, design: .default) text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4b .system(.body, design: .default) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .system(.body, design: .default) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .system(.body, design: .serif): height 16
+DS4b .system(.body, design: .serif) text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4b .system(.body, design: .serif) rect|text | v a=5.136 b=5.136 c=5.136 | h a=8 b=8 c=8
+DS4b .system(.body, design: .serif) text|rect | v a=8.348 b=8.348 c=8.348 | h a=8 b=8 c=8
+DS4b .body.weight(.regular): height 16
+DS4b .body.weight(.regular) text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4b .body.weight(.regular) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .body.weight(.regular) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .body.bold(): height 16
+DS4b .body.bold() text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4b .body.bold() rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .body.bold() text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .body.leading(.tight): height 16
+DS4b .body.leading(.tight) text|text | v a=-1 b=-1 c=-1 | h a=8 b=8 c=8
+DS4b .body.leading(.tight) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .body.leading(.tight) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .body.leading(.loose): height 16
+DS4b .body.leading(.loose) text|text | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS4b .body.leading(.loose) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .body.leading(.loose) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .system(size: 13): height 16
+DS4b .system(size: 13) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b .system(size: 13) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .system(size: 13) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .system(size: 13, weight: .regular): height 16
+DS4b .system(size: 13, weight: .regular) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b .system(size: 13, weight: .regular) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .system(size: 13, weight: .regular) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .system(size: 13, weight: .bold): height 16
+DS4b .system(size: 13, weight: .bold) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b .system(size: 13, weight: .bold) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b .system(size: 13, weight: .bold) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b Font(NSFont.preferredFont(.body)): height 16
+DS4b Font(NSFont.preferredFont(.body)) text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4b Font(NSFont.preferredFont(.body)) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b Font(NSFont.preferredFont(.body)) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b Font(NSFont.systemFont(ofSize: 13)): height 16
+DS4b Font(NSFont.systemFont(ofSize: 13)) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b Font(NSFont.systemFont(ofSize: 13)) rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS4b Font(NSFont.systemFont(ofSize: 13)) text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS4b .custom(Georgia, size: 13, relativeTo: .body): height 15
+DS4b .custom(Georgia, size: 13, relativeTo: .body) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b .custom(Georgia, size: 13, relativeTo: .body) rect|text | v a=4.85 b=4.85 c=4.85 | h a=8 b=8 c=8
+DS4b .custom(Georgia, size: 13, relativeTo: .body) text|rect | v a=7.764 b=7.764 c=7.764 | h a=8 b=8 c=8
+DS4b .custom(Georgia, fixedSize: 13): height 15
+DS4b .custom(Georgia, fixedSize: 13) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b .custom(Georgia, fixedSize: 13) rect|text | v a=4.85 b=4.85 c=4.85 | h a=8 b=8 c=8
+DS4b .custom(Georgia, fixedSize: 13) text|rect | v a=7.764 b=7.764 c=7.764 | h a=8 b=8 c=8
+DS4b .largeTitle: height 31
+DS4b .largeTitle text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4b .largeTitle rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS4b .largeTitle text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS4b .largeTitle.leading(.tight): height 31
+DS4b .largeTitle.leading(.tight) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b .largeTitle.leading(.tight) rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS4b .largeTitle.leading(.tight) text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS4b .largeTitle.leading(.loose): height 31
+DS4b .largeTitle.leading(.loose) text|text | v a=4 b=4 c=4 | h a=8 b=8 c=8
+DS4b .largeTitle.leading(.loose) rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS4b .largeTitle.leading(.loose) text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS4b .system(size: 26): height 30
+DS4b .system(size: 26) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b .system(size: 26) rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS4b .system(size: 26) text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS4b .system(.largeTitle): height 31
+DS4b .system(.largeTitle) text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4b .system(.largeTitle) rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS4b .system(.largeTitle) text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS4b Font(NSFont.preferredFont(.largeTitle)): height 31
+DS4b Font(NSFont.preferredFont(.largeTitle)) text|text | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS4b Font(NSFont.preferredFont(.largeTitle)) rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS4b Font(NSFont.preferredFont(.largeTitle)) text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS4b .title3: height 19
+DS4b .title3 text|text | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS4b .title3 rect|text | v a=5.164 b=5.164 c=5.164 | h a=8 b=8 c=8
+DS4b .title3 text|rect | v a=9.097 b=9.097 c=9.097 | h a=8 b=8 c=8
+DS4b .system(size: 15): height 19
+DS4b .system(size: 15) text|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS4b .system(size: 15) rect|text | v a=5.164 b=5.164 c=5.164 | h a=8 b=8 c=8
+DS4b .system(size: 15) text|rect | v a=9.097 b=9.097 c=9.097 | h a=8 b=8 c=8
+DS4b inherit .body text|text | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS4b inherit .title3 text|text | v a=3 b=3 c=3 | h a=8 b=8 c=8
+=== DS5: text|text of different fonts, both orders; equal-size different-family pairs
+DS5 control 13|13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 13|26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 26|13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 26|26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 13|48 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 48|13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 13 regular|13 bold | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 13 bold|13 regular | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 13 SF|13 serif | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 13 serif|13 SF | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 26 SF|26 Georgia | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 26 Georgia|26 SF | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 leading .body(0.689 -> 1)|.largeTitle(1.379 -> 2) | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS5 leading .largeTitle(2)|.body(1) | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS5 leading .body(1)|.system(size: 13)(0) | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS5 leading .system(size: 13)(0)|.body(1) | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS5 leading .title3(3)|.body(1) | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS5 leading .body(1)|.title3(3) | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS5 leading ArialMT 13 (0.425 -> 1)|DINCondensed-Bold 13 (2.6 -> 3) | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS5 leading DINCondensed-Bold 13 (3)|ArialMT 13 (1) | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS5 leading DINCondensed-Bold 13 (3)|Geneva 13 (1.085 -> 2) | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS5 13 NotoSans|26 SourceSans3 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+=== DS6: lineSpacing, baselineOffset, multi-line, empty, Text+Text, attributed
+DS6 plain alone: 13x16
+DS6 plain X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 plain rect|X | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS6 plain X|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS6 plain text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 plain X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 lineSpacing10 alone: 13x16
+DS6 lineSpacing10 X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 lineSpacing10 rect|X | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS6 lineSpacing10 X|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS6 lineSpacing10 text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 lineSpacing10 X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 baselineOffset8 alone: 13x24
+DS6 baselineOffset8 X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 baselineOffset8 rect|X | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS6 baselineOffset8 X|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS6 baselineOffset8 text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 baselineOffset8 X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 twoLines alone: 15x32
+DS6 twoLines X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 twoLines rect|X | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS6 twoLines X|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS6 twoLines text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 twoLines X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 empty alone: 0x14
+DS6 empty X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 empty rect|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 empty X|rect | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 empty text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 empty X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 mixedSum alone: 22x30
+DS6 mixedSum X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 mixedSum rect|X | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS6 mixedSum X|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS6 mixedSum text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 mixedSum X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 mixedSumReversed alone: 22x30
+DS6 mixedSumReversed X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 mixedSumReversed rect|X | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS6 mixedSumReversed X|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS6 mixedSumReversed text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 mixedSumReversed X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 attributed alone: 25x30
+DS6 attributed X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 attributed rect|X | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS6 attributed X|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS6 attributed text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 attributed X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 kerning alone: 23x16
+DS6 kerning X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 kerning rect|X | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS6 kerning X|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS6 kerning text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 kerning X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 tracking alone: 23x16
+DS6 tracking X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 tracking rect|X | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS6 tracking X|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS6 tracking text|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS6 tracking X|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+=== DS7: neighbour kinds beside text at 13 and 26 (X|X, text|X, X|text)
+DS7 rect alone: 20x20
+DS7 rect X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 rect X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 rect rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 rect|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 rect|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 bitmap alone: 16x16
+DS7 bitmap X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 bitmap X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 bitmap rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|bitmap | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 bitmap|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|bitmap | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 bitmap|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 symbol alone: 17x16
+DS7 symbol X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 symbol X|rect | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS7 symbol rect|X | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS7 s=13 text|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=13 symbol|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=26 text|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=26 symbol|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 color alone: 200x200
+DS7 color X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 color X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 color rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|color | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 color|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|color | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 color|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 divider alone: 200x1
+DS7 divider X|X | v a=n/a b=8 c=8 | h a=n/a b=8 c=8
+DS7 divider X|rect | v a=n/a b=8 c=8 | h a=n/a b=8 c=8
+DS7 divider rect|X | v a=n/a b=8 c=8 | h a=n/a b=8 c=8
+DS7 s=13 text|divider | v a=n/a b=8.151 c=8.151 | h a=n/a b=8 c=8
+DS7 s=13 divider|text | v a=n/a b=4.742 c=4.742 | h a=n/a b=8 c=8
+DS7 s=26 text|divider | v a=n/a b=16.302 c=16.302 | h a=n/a b=8 c=8
+DS7 s=26 divider|text | v a=n/a b=9.484 c=9.484 | h a=n/a b=8 c=8
+DS7 textField alone: 200x24
+DS7 textField X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 textField X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 textField rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|textField | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 textField|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|textField | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 textField|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 slider alone: 200x16
+DS7 slider X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 slider X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 slider rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|slider | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 slider|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|slider | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 slider|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 picker alone: 71.5x24
+DS7 picker X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 picker X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 picker rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|picker | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 picker|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|picker | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 picker|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 stepper alone: 35x24
+DS7 stepper X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 stepper X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 stepper rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|stepper | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 stepper|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|stepper | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 stepper|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 button alone: 33x24
+DS7 button X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 button X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 button rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|button | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 button|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|button | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 button|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 plainButton alone: 9x16
+DS7 plainButton X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 plainButton X|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 plainButton rect|X | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=13 text|plainButton | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=13 plainButton|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=26 text|plainButton | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=26 plainButton|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 checkbox alone: 30x16.08
+DS7 checkbox X|X | v a=6 b=6 c=6 | h a=8 b=8 c=8
+DS7 checkbox X|rect | v a=6 b=6 c=6 | h a=8 b=8 c=8
+DS7 checkbox rect|X | v a=6 b=6 c=6 | h a=8 b=8 c=8
+DS7 s=13 text|checkbox | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 checkbox|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|checkbox | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 checkbox|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 switchToggle alone: 71x24
+DS7 switchToggle X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 switchToggle X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 switchToggle rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|switchToggle | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 switchToggle|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|switchToggle | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 switchToggle|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 label alone: 33x16.08
+DS7 label X|X | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 label X|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 label rect|X | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=13 text|label | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=13 label|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=26 text|label | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 s=26 label|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7 scrollView alone: 20x200
+DS7 scrollView X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 scrollView X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 scrollView rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|scrollView | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 scrollView|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|scrollView | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 scrollView|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 grid alone: 20x20
+DS7 grid X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 grid X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 grid rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|grid | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 grid|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|grid | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 grid|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS7 progress alone: 200x20
+DS7 progress X|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 progress X|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 progress rect|X | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS7 s=13 text|progress | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS7 s=13 progress|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS7 s=26 text|progress | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS7 s=26 progress|text | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+=== DS7b: Image(systemName:) at several font sizes beside rect, text and itself
+DS7b s=9 symbol alone: 12x12; text alone: 10x11
+DS7b s=9 symbol|rect | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS7b s=9 rect|symbol | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS7b s=9 symbol|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=9 symbol|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=9 text|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=13 symbol alone: 17x16; text alone: 13x16
+DS7b s=13 symbol|rect | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS7b s=13 rect|symbol | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS7b s=13 symbol|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=13 symbol|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=13 text|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=26 symbol alone: 33x32; text alone: 25x30
+DS7b s=26 symbol|rect | v a=4 b=4 c=4 | h a=8 b=8 c=8
+DS7b s=26 rect|symbol | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS7b s=26 symbol|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=26 symbol|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=26 text|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=48 symbol alone: 62x59; text alone: 45x56
+DS7b s=48 symbol|rect | v a=7 b=7 c=7 | h a=8 b=8 c=8
+DS7b s=48 rect|symbol | v a=6 b=6 c=6 | h a=8 b=8 c=8
+DS7b s=48 symbol|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=48 symbol|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b s=48 text|symbol | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS7b default-font symbol|rect | v a=3 b=3 c=3 | h a=8 b=8 c=8
+DS7b default-font rect|symbol | v a=2 b=2 c=2 | h a=8 b=8 c=8
+=== DS8: wrappers on a 13 pt Text, beside a rect and beside text, on both sides
+DS8 bare W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 bare W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 bare rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 bare W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 bare text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 padding0 W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 padding0 W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 padding0 rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 padding0 W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 padding0 text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 padding4 W|W | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8 padding4 W|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8 padding4 rect|W | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8 padding4 W|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 padding4 text|W | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 paddingTop4 W|W | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 paddingTop4 W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 paddingTop4 rect|W | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8 paddingTop4 W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 paddingTop4 text|W | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 paddingBottom4 W|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 paddingBottom4 W|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8 paddingBottom4 rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 paddingBottom4 W|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 paddingBottom4 text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 paddingHorizontal4 W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 paddingHorizontal4 W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 paddingHorizontal4 rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 paddingHorizontal4 W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 paddingHorizontal4 text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 fixedFrame W|W | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8 fixedFrame W|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8 fixedFrame rect|W | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8 fixedFrame W|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 fixedFrame text|W | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 flexFrame W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 flexFrame W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 flexFrame rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 flexFrame W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 flexFrame text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 background W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 background W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 background rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 background W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 background text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 overlay W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 overlay W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 overlay rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 overlay W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 overlay text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 fixedSize W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 fixedSize W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 fixedSize rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 fixedSize W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 fixedSize text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 priority W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 priority W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 priority rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 priority W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 priority text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 pass W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 pass W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 pass rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 pass W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 pass text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 zstack W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 zstack W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 zstack rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 zstack W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 zstack text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 offset W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 offset W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 offset rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 offset W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 offset text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 opacity W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 opacity W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 opacity rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 opacity W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 opacity text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 border W|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 border W|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS8 border rect|W | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS8 border W|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS8 border text|W | v a=0 b=0 c=0 | h a=8 b=8 c=8
+=== DS8b: the same wrappers on a 26 pt Text, beside a rect
+DS8b s=26 bare W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 bare rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 padding0 W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 padding0 rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 padding4 W|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8b s=26 padding4 rect|W | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8b s=26 paddingTop4 W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 paddingTop4 rect|W | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8b s=26 paddingBottom4 W|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8b s=26 paddingBottom4 rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 paddingHorizontal4 W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 paddingHorizontal4 rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 fixedFrame W|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8b s=26 fixedFrame rect|W | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS8b s=26 flexFrame W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 flexFrame rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 background W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 background rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 overlay W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 overlay rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 fixedSize W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 fixedSize rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 priority W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 priority rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 pass W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 pass rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 zstack W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 zstack rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 offset W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 offset rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 opacity W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 opacity rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS8b s=26 border W|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS8b s=26 border rect|W | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+=== DS9: merging — composite beside rect, beside 13 pt text and beside 26 pt text, on both sides
+DS9 hstackRectText M|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 hstackRectText rect|M | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 hstackRectText M|text13 | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 hstackRectText text13|M | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 hstackRectText M|text26 | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 hstackRectText text26|M | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 hstackTextText26 M|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 hstackTextText26 rect|M | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 hstackTextText26 M|text13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 hstackTextText26 text13|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 hstackTextText26 M|text26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 hstackTextText26 text26|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 hstackText26Text M|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 hstackText26Text rect|M | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 hstackText26Text M|text13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 hstackText26Text text13|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 hstackText26Text M|text26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 hstackText26Text text26|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackRectText M|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 zstackRectText rect|M | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 zstackRectText M|text13 | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 zstackRectText text13|M | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 zstackRectText M|text26 | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 zstackRectText text26|M | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 vstackRectText M|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 vstackRectText rect|M | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS9 vstackRectText M|text13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackRectText text13|M | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 vstackRectText M|text26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackRectText text26|M | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 vstackTextRect M|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS9 vstackTextRect rect|M | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 vstackTextRect M|text13 | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 vstackTextRect text13|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackTextRect M|text26 | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 vstackTextRect text26|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 passRectText M|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 passRectText rect|M | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 passRectText M|text13 | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 passRectText text13|M | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 passRectText M|text26 | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 passRectText text26|M | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 vstackText26Text13 M|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9 vstackText26Text13 rect|M | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 vstackText26Text13 M|text13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackText26Text13 text13|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackText26Text13 M|text26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackText26Text13 text26|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackText13Text26 M|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 vstackText13Text26 rect|M | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9 vstackText13Text26 M|text13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackText13Text26 text13|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackText13Text26 M|text26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 vstackText13Text26 text26|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackText13Text26 M|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 zstackText13Text26 rect|M | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 zstackText13Text26 M|text13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackText13Text26 text13|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackText13Text26 M|text26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackText13Text26 text26|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackText26Text13 M|rect | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9 zstackText26Text13 rect|M | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9 zstackText26Text13 M|text13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackText26Text13 text13|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackText26Text13 M|text26 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 zstackText26Text13 text26|M | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 HStack{.body; .largeTitle} | .body | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS9 HStack{.body; .largeTitle} | .largeTitle | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS9 HStack{.largeTitle; .body} | .body | v a=1 b=1 c=1 | h a=8 b=8 c=8
+DS9 HStack{.body; .system(size: 13)} | .system(size: 13) | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 HStack{.system(size: 13); .body} | .system(size: 13) | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9 .body | HStack{.body; .largeTitle} | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS9 .system(size: 13) | HStack{.body; .largeTitle} | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS9 FM0 {Text; Slider}|{Toggle; Spacer; Button} | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+=== DS10: a font set on the STACK, not the children (mod wraps singles and stacks alike)
+DS10 control no mod rect|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS10 control no mod rect|Text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS10 .largeTitle rect|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS10 .largeTitle rect|Text (inherits) | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS10 .largeTitle Text|rect (inherits) | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS10 .largeTitle Text|Text (inherit) | v a=2 b=2 c=2 | h a=8 b=8 c=8
+DS10 .largeTitle rect|Text 13 (own font) | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS10 .largeTitle Text 13|rect (own font) | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS10 .largeTitle Text 13|Text 13 (own font) | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS10 .system(size: 26) rect|Text (inherits) | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS10 .system(size: 26) Text|rect (inherits) | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS10 .system(size: 26) Text|Text (inherit) | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS10 .largeTitle rect|Button | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS10 .largeTitle Button|Button | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS10 .largeTitle Toggle|Toggle | v a=6 b=6 c=6 | h a=8 b=8 c=8
+=== DS11: Spacer() minimum and zero edges between texts at 9, 13, 48
+DS11 s=9 text height=11: VStack{T;Spacer();T} 10x30 | VStack(0){…} 10x30 | VStack{T;Spacer(minLength: 0);T} 10x22 | VStack{T;T} 10x22 | spacer share = 8
+DS11 s=9 text|Spacer | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+DS11 s=9 Spacer|text | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+DS11 s=9 Spacer|Spacer | v a=n/a b=0 c=unread | h a=n/a b=0 c=unread
+DS11 s=13 text height=16: VStack{T;Spacer();T} 13x40 | VStack(0){…} 13x40 | VStack{T;Spacer(minLength: 0);T} 13x32 | VStack{T;T} 13x32 | spacer share = 8
+DS11 s=13 text|Spacer | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+DS11 s=13 Spacer|text | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+DS11 s=13 Spacer|Spacer | v a=n/a b=0 c=unread | h a=n/a b=0 c=unread
+DS11 s=48 text height=56: VStack{T;Spacer();T} 45x120 | VStack(0){…} 45x120 | VStack{T;Spacer(minLength: 0);T} 45x112 | VStack{T;T} 45x112 | spacer share = 8
+DS11 s=48 text|Spacer | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+DS11 s=48 Spacer|text | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+DS11 s=48 Spacer|Spacer | v a=n/a b=0 c=unread | h a=n/a b=0 c=unread
+DS11 control rect|Spacer | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+=== DS12: Grid. rows: dy is row b minus row a; cols: dx is column b minus column a
+DS12 control rect/rect rows: size 20x48 | a (0, 0) 20x20 | b (0, 28) 20x20 | dy 8 dx -20
+DS12 s=13 text/text rows: size 13x32 | a (0, 0) 13x16 | b (0, 16) 13x16 | dy 0 dx -13
+DS12 s=13 rect/text rows: size 20x40.742 | a (0, 0) 20x20 | b (3.5, 24.742) 13x16 | dy 4.742 dx -16.5
+DS12 s=13 text/rect rows: size 20x44.151 | a (3.5, 0) 13x16 | b (0, 24.151) 20x20 | dy 8.151 dx -16.5
+DS12 s=13 text|text columns: size 34x16 | a (0, 0) 13x16 | b (21, 0) 13x16 | dy -16 dx 8
+DS12 s=13 rect|text columns: size 41x20 | a (0, 0) 20x20 | b (28, 2) 13x16 | dy -18 dx 8
+DS12 s=13 mixed rows {text,rect}/{rect,text} (a = text of row 1, b = text of row 2): size 48x48.151 | a (3.5, 2) 13x16 | b (31.5, 30.151) 13x16 | dy 12.151 dx 15
+DS12 s=13 mixed rows {text,text}/{rect,rect} (a = row 1 col 1, b = row 2 col 1): size 48x44.151 | a (3.5, 0) 13x16 | b (0, 24.151) 20x20 | dy 8.151 dx -16.5
+DS12 s=13 mixed rows {rect,rect}/{text,text} (a = row 1 col 1, b = row 2 col 1): size 48x40.742 | a (0, 0) 20x20 | b (3.5, 24.742) 13x16 | dy 4.742 dx -16.5
+DS12 s=13 span: row 1 one text across 2 columns, row 2 two texts: size 34x32 | a (10.5, 0) 13x16 | b (0, 16) 13x16 | dy 0 dx -23.5
+DS12 s=13 explicit verticalSpacing 0, text/text rows: size 13x32 | a (0, 0) 13x16 | b (0, 16) 13x16 | dy 0 dx -13
+DS12 s=13 explicit verticalSpacing 5, text/text rows: size 13x37 | a (0, 0) 13x16 | b (0, 21) 13x16 | dy 5 dx -13
+DS12 s=26 text/text rows: size 25x60 | a (0, 0) 25x30 | b (0, 30) 25x30 | dy 0 dx -25
+DS12 s=26 rect/text rows: size 25x59.484 | a (2.5, 0) 20x20 | b (0, 29.484) 25x30 | dy 9.484 dx -22.5
+DS12 s=26 text/rect rows: size 25x66.302 | a (0, 0) 25x30 | b (2.5, 46.302) 20x20 | dy 16.302 dx -22.5
+DS12 s=26 text|text columns: size 58x30 | a (0, 0) 25x30 | b (33, 0) 25x30 | dy -30 dx 8
+DS12 s=26 rect|text columns: size 53x30 | a (0, 5) 20x20 | b (28, 0) 25x30 | dy -25 dx 8
+DS12 s=26 mixed rows {text,rect}/{rect,text} (a = text of row 1, b = text of row 2): size 58x76.302 | a (0, 0) 25x30 | b (33, 46.302) 25x30 | dy 16.302 dx 8
+DS12 s=26 mixed rows {text,text}/{rect,rect} (a = row 1 col 1, b = row 2 col 1): size 58x66.302 | a (0, 0) 25x30 | b (2.5, 46.302) 20x20 | dy 16.302 dx -22.5
+DS12 s=26 mixed rows {rect,rect}/{text,text} (a = row 1 col 1, b = row 2 col 1): size 58x59.484 | a (2.5, 0) 20x20 | b (0, 29.484) 25x30 | dy 9.484 dx -22.5
+DS12 s=26 span: row 1 one text across 2 columns, row 2 two texts: size 58x60 | a (16.5, 0) 25x30 | b (0, 30) 25x30 | dy 0 dx -41.5
+DS12 s=26 explicit verticalSpacing 0, text/text rows: size 25x60 | a (0, 0) 25x30 | b (0, 30) 25x30 | dy 0 dx -25
+DS12 s=26 explicit verticalSpacing 5, text/text rows: size 25x65 | a (0, 0) 25x30 | b (0, 35) 25x30 | dy 5 dx -25
+DS12 Grid{text;text} as a stack child: grid|text | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS12 Grid{text;text} as a stack child: text|grid | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS12 Grid{rect;text} as a stack child: grid|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS12 Grid{rect;text} as a stack child: rect|grid | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS12 Grid{ {rect,text} } as a stack child: grid|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS12 Grid{ {rect,text} } as a stack child: rect|grid | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS12 Grid{ {text,text} } as a stack child: rect|grid | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS12 Grid{ {text,text} } as a stack child: grid|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS12 Grid{text;rect} as a stack child: text|grid | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS12 Grid{text;rect} as a stack child: grid|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+=== DS13: lazy containers and ScrollView (instrument b only; c needs a layout parent)
+DS13 control VStack rect/text @nilxnil: a (0, 0) 20x20 b (3.5, 24.742) 13x16 gap 4.742
+DS13 LazyVStack rect/text @nilxnil: a (0, 0) 20x20 b (3.5, 24.742) 13x16 gap 4.742
+DS13 LazyVStack text/text @nilxnil: a (0, 0) 13x16 b (0, 16) 13x16 gap 0
+DS13 LazyVStack text/rect @nilxnil: a (0, 0) 13x16 b (-3.5, 24.151) 20x20 gap 8.151
+DS13 LazyHStack rect/text @nilxnil: a (0, 0) 20x20 b (28, 2) 13x16 gap 8
+DS13 LazyVStack(spacing: 0) rect/text @nilxnil: a (0, 0) 20x20 b (3.5, 20) 13x16 gap 0
+DS13 control VStack text/text @nilxnil: a (0, 0) 13x16 b (0, 16) 13x16 gap 0
+DS13 ScrollView{VStack rect/text} 200x200 @200x200: a (0, 0) 20x20 b (3.5, 24.742) 13x16 gap 4.742
+DS13 ScrollView{VStack text/rect} 200x200 @200x200: a (3.5, 0) 13x16 b (0, 24.151) 20x20 gap 8.151
+DS13 ScrollView{rect; text} (implicit stack) 200x200 @200x200: a (0, 0) 20x20 b (3.5, 24.742) 13x16 gap 4.742
+DS13 ScrollView{text; rect} (implicit stack) 200x200 @200x200: a (3.5, 0) 13x16 b (0, 24.151) 20x20 gap 8.151
+DS13 ScrollView{text; text} (implicit stack) 200x200 @200x200: a (0, 0) 13x16 b (0, 16) 13x16 gap 0
+DS13 LazyVGrid 1 column rect/text 200x200 @200x200: a (90, 0) 20x20 b (93.5, 24.742) 13x16 gap 4.742
+DS13 LazyVGrid 1 column text/text 200x200 @200x200: a (93.5, 0) 13x16 b (93.5, 16) 13x16 gap 0
+DS13 LazyVGrid 2 fixed(40) columns text|text 200x200 (gap = dx - 40; 8 expected) @200x200: a (69.5, 0) 13x16 b (117.5, 0) 13x16 gap 35
+DS13 LazyVGrid 2 fixed(40) columns, then a second row: rows rect/text (a = col 1 row 1, b = col 1 row 2) @200x200: a (66, 0) 20x20 b (69.5, 30) 13x16 gap 10
+DS13 LazyVStack{text} as child: lazy|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS13 LazyVStack{text} as child: text|lazy | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS13 LazyVStack{rect} as child: lazy|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS13 ScrollView{text} as child: scroll|text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+=== DS14 (row 89): text beside a Spacer at a fixed frame, NSHostingView layout only. Reads the text's placed rect (bg leaf t) and each Where's bounds
+DS14 K0 control paragraph alone, frame width 100: t y=0 h=96
+DS14 K0w control Where{paragraph} alone, frame width 100: w y=0 h=96
+DS14 K3 control VStack(0){para; para} h=100: a y=2 h=48 | b y=50 h=48
+DS14 K3 control VStack(0){para; para} h=300: a y=54 h=96 | b y=150 h=96
+DS14 bare VStack(0){para; Spacer()} h=60: t y=0 h=48
+DS14 bare VStack(0){para; Spacer(minLength: 0)} h=60: t y=0 h=48
+DS14 VStack{para; Spacer()} default spacing h=60: t y=0 h=48
+DS14 VStack(0){para; Where{Spacer()}} (K1 replay) h=60: t y=0 h=16 | s y=0 h=44
+DS14 VStack(0){para; Where{Spacer(minLength: 0)}} (K4 replay) h=60: t y=0 h=16 | s y=0 h=44
+DS14 VStack(0){Where{para}; Spacer()} (the wrapper on the text) h=60: t y=0 h=48 | s y=48 h=12
+DS14 VStack(0){Where{para}; Where{Spacer()}} (K1 exactly) h=60: t y=0 h=16 | s y=0 h=44
+DS14 VStack(0){para; Pass{Spacer()}} h=60: t y=0 h=16
+DS14 VStack(0){para; Spacer().padding(0)} h=60: t y=0 h=16
+DS14 VStack(0){para; Color.clear} (flexible non-spacer control) h=60: t y=0 h=16
+DS14 bare VStack(0){para; Spacer()} h=100: t y=0 h=80
+DS14 bare VStack(0){para; Spacer(minLength: 0)} h=100: t y=0 h=96
+DS14 VStack{para; Spacer()} default spacing h=100: t y=0 h=80
+DS14 VStack(0){para; Where{Spacer()}} (K1 replay) h=100: t y=0 h=48 | s y=0 h=52
+DS14 VStack(0){para; Where{Spacer(minLength: 0)}} (K4 replay) h=100: t y=0 h=48 | s y=0 h=52
+DS14 VStack(0){Where{para}; Spacer()} (the wrapper on the text) h=100: t y=0 h=80 | s y=80 h=20
+DS14 VStack(0){Where{para}; Where{Spacer()}} (K1 exactly) h=100: t y=0 h=48 | s y=0 h=52
+DS14 VStack(0){para; Pass{Spacer()}} h=100: t y=0 h=48
+DS14 VStack(0){para; Spacer().padding(0)} h=100: t y=0 h=48
+DS14 VStack(0){para; Color.clear} (flexible non-spacer control) h=100: t y=0 h=48
+DS14 bare VStack(0){para; Spacer()} h=200: t y=0 h=96
+DS14 bare VStack(0){para; Spacer(minLength: 0)} h=200: t y=0 h=96
+DS14 VStack{para; Spacer()} default spacing h=200: t y=0 h=96
+DS14 VStack(0){para; Where{Spacer()}} (K1 replay) h=200: t y=0 h=96 | s y=0 h=104
+DS14 VStack(0){para; Where{Spacer(minLength: 0)}} (K4 replay) h=200: t y=0 h=96 | s y=0 h=104
+DS14 VStack(0){Where{para}; Spacer()} (the wrapper on the text) h=200: t y=0 h=96 | s y=96 h=104
+DS14 VStack(0){Where{para}; Where{Spacer()}} (K1 exactly) h=200: t y=0 h=96 | s y=0 h=104
+DS14 VStack(0){para; Pass{Spacer()}} h=200: t y=0 h=96
+DS14 VStack(0){para; Spacer().padding(0)} h=200: t y=0 h=96
+DS14 VStack(0){para; Color.clear} (flexible non-spacer control) h=200: t y=0 h=96
+DS14 HStack(0){para; Spacer()} w=60 (horizontal, tight): t y=46 h=208
+DS14 HStack(0){para; Spacer(minLength: 0)} w=60: t y=78 h=144
+DS14 HStack(0){para; Where{Spacer()}} w=60: t y=6 h=288 | s y=0 h=300
+DS14 HStack(0){para; Spacer()} w=100 (horizontal, tight): t y=94 h=112
+DS14 HStack(0){para; Spacer(minLength: 0)} w=100: t y=102 h=96
+DS14 HStack(0){para; Where{Spacer()}} w=100: t y=46 h=208 | s y=0 h=300
+DS14 HStack(0){para; Spacer()} w=200 (horizontal, tight): t y=126 h=48
+DS14 HStack(0){para; Spacer(minLength: 0)} w=200: t y=126 h=48
+DS14 HStack(0){para; Where{Spacer()}} w=200: t y=102 h=96 | s y=0 h=300
+=== instruments: 922 pairs, 0 DISAGREE
+DONE

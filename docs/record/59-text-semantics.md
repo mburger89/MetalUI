@@ -69,6 +69,7 @@ commit; rulings `TE-Q`…`TE-S` (next unused `TE-T`).
   60 beside a `Spacer`, three at 100, six at 200). Adopted as SwiftUI's
   answer; lane 3 takes a height census before implementing and a ruling names
   any moved image; pin 3.23 (`TE-R`).
+  *(Corrected 2026-11-03, `DS-A`, record 202: the spacer in K1/K4 was wrapped in a custom layout; a bare `Spacer` reads 3 and 5 lines in SwiftUI too.)*
 - **Amended** (`TE-S`): lanes rebalanced (font selection to lane 2, so the two
   oracle-heavy pieces are in different lanes); `TE-L`'s `display: .stack`
   branch ruled a permanent refusal, and the report table keeps 265 entries
@@ -598,7 +599,7 @@ Commits: `fc60d0c` (the census), `ac8c87a` (red, against an API skeleton),
 re-recorded; one real-window look owed; four T rows), `TE-Z` (divergence 89:
 a text beside a bare `Spacer` is offered all but the spacer's minimum, where
 SwiftUI shares the height — `TE-R`'s "exactly that rule" was wrong for K1/K4)
-and `TE-AA` (the element surface as landed). Next unused `TE-AB`. Live
+and `TE-AA` (the element surface as landed). Next unused `TE-AB`. *(Corrected 2026-11-03: `TE-Z` was overturned by `DS-A`, record 202; divergence 89 is retired.)* Live
 divergences **64 → 65**, next label **90**.
 
 **The census re-run after the implementation** (the same instrument, adapted

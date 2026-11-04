@@ -678,6 +678,8 @@ line and the spacer 44.5, although the spacer could have shrunk to 8 (K1); at
 40-tall colour at 80: two lines (K2). Two paragraphs at 100: three lines each
 (K3). `Spacer(minLength: 0)`: the same (K4).
 
+> **Corrected 2026-11-03 (`DS-A`, record 202, probe `swiftui-default-spacing.swift` DS14):** K1 and K4 measured a spacer wrapped in a custom `Layout` (`Where`), not a bare one; a bare `Spacer` beside the paragraph reads 3, 5 and 6 lines at 60, 100 and 200 in SwiftUI, which is MetalUI's answer, so divergence 89 is retired and `TE-R`'s "exactly that rule" holds for the spacer arms too. K1/K4's text heights were the equal-share model of a flexible child, which a wrapped spacer is.
+
 **The problem the design missed.** `TE-H` item 2 makes a text's answer depend
 on a finite height proposal. Today every text is vertically **rigid** in a
 stack (its height ignores the proposal); after `TE-H` a wrapping text is
@@ -1268,6 +1270,8 @@ only production text the census found squeezed.
 ---
 
 ## TE-Z — a text beside a `Spacer` is served before the spacer's share: divergence 89 (lane 3)
+
+> **Overturned 2026-11-03 by `DS-A` (record 202).** The evidence below was an instrument artifact: K1 and K4 wrapped the spacer in `Where`, a custom layout that hides a spacer's priority. A bare `Spacer` in SwiftUI reads 3 and 5 lines at 60 and 100 (`swiftui-default-spacing.swift` DS14), as MetalUI does; `SP8` and the bare K1 are consistent under `CN-C`'s one rule. Divergence 89 is retired (its label is not reused); the text below is history.
 
 **Evidence.** `swiftui-text-in-stacks.swift` K1 and K4 (`VStack(spacing: 0)
 { Text(paragraph); Spacer() }` 100 wide: one line at 60, three at 100 — the
