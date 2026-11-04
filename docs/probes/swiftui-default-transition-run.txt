@@ -1,0 +1,441 @@
+=== XF0 C0' control: withAnimation(A) { v } on .frame(width: 100 + v)
+  A P<P<F, F>, P<F, F>> [0.000, 0.000, 200.000, 0.000] x1
+=== XF0 C1' control: the same change with no transaction
+  (nothing animated)
+=== XF0 X0' default insert
+  A Double [1.000] x1
+=== XF0 X0' default remove
+  A Double [-1.000] x1
+=== XF0 X0' default with NO transaction insert
+  (nothing animated)
+=== XF0 X0' default with NO transaction remove
+  (nothing animated)
+=== XF0 W10' .clipped() added where it was absent (structure change)
+  A Double [-1.000] x1
+  A Double [1.000] x1
+=== XF0 X15' nested: if flag { VStack { red.transition(.move(edge: .leading)) } } insert
+  A Double [1.000] x1
+=== XF0 X15b' nested, with .transition(.identity) on the inserted VStack
+  (nothing animated)
+=== XF0 one view under a changed opacity: one animator
+  A Double [-0.500] x1
+=== XF0 if/else swap of two views: animator count
+  A Double [-1.000] x1
+  A Double [1.000] x1
+=== XF1 control: red.opacity(0 -> 1) under L (an animated opacity the bitmap MUST show if it can)
+  L Double [1.000] x1
+  before: (255,255,255)
+  shape red-over-white at (25,15): m m m m m m m m m R R R
+  ~ t=0.12 anim=0.12 (255,240,241)
+  ~ t=0.24 anim=0.24 (255,225,225)
+  ~ t=0.36 anim=0.36 (255,210,209)
+  ~ t=0.48 anim=0.48 (255,194,194)
+  ~ t=0.60 anim=0.60 (255,178,177)
+  ~ t=0.72 anim=0.72 (255,162,160)
+  ~ t=0.84 anim=0.84 (255,144,142)
+  ~ t=0.96 anim=0.96 (255,128,125)
+  ~ t=1.08 anim=1.08 (255,110,106)
+  ~ t=1.21 anim=1.20 (255,91,86)
+  ~ t=1.33 anim=1.20 (255,91,86)
+  ~ t=1.46 anim=1.20 (255,91,86)
+=== XF1 control: static red.opacity(0.5) over white
+  (nothing animated)
+  before: (255,178,177)
+  shape red-over-white at (25,15): m
+  ~ t=0.13 anim=0.00 (255,178,177)
+=== XF1 default insertion under L (no .transition)
+  L Double [1.000] x1
+  before: (255,255,255)
+  shape red-over-white at (25,15): m m m m m m m m m R R R
+  ~ t=0.12 anim=0.12 (255,240,241)
+  ~ t=0.24 anim=0.24 (255,225,225)
+  ~ t=0.36 anim=0.36 (255,210,210)
+  ~ t=0.48 anim=0.48 (255,194,194)
+  ~ t=0.60 anim=0.60 (255,178,177)
+  ~ t=0.72 anim=0.72 (255,162,160)
+  ~ t=0.84 anim=0.84 (255,144,142)
+  ~ t=0.96 anim=0.96 (255,128,125)
+  ~ t=1.08 anim=1.08 (255,110,106)
+  ~ t=1.21 anim=1.20 (255,91,86)
+  ~ t=1.33 anim=1.20 (255,91,86)
+  ~ t=1.46 anim=1.20 (255,91,86)
+=== XF1 .transition(.opacity) insertion under L
+  L Double [1.000] x1
+  before: (255,255,255)
+  shape red-over-white at (25,15): m m m m m m m m m R R R
+  ~ t=0.12 anim=0.12 (255,240,241)
+  ~ t=0.24 anim=0.24 (255,225,225)
+  ~ t=0.36 anim=0.36 (255,210,210)
+  ~ t=0.48 anim=0.48 (255,194,194)
+  ~ t=0.60 anim=0.60 (255,178,177)
+  ~ t=0.72 anim=0.72 (255,162,160)
+  ~ t=0.84 anim=0.84 (255,144,142)
+  ~ t=0.96 anim=0.96 (255,128,125)
+  ~ t=1.08 anim=1.08 (255,110,106)
+  ~ t=1.21 anim=1.20 (255,91,86)
+  ~ t=1.34 anim=1.20 (255,91,86)
+  ~ t=1.46 anim=1.20 (255,91,86)
+=== XF1 .transition(.identity) insertion under L
+  (nothing animated)
+  before: (255,255,255)
+  shape red-over-white at (25,15): R R R R R R R R R R R R
+  ~ t=0.13 anim=0.00 (255,91,86)
+  ~ t=0.25 anim=0.00 (255,91,86)
+  ~ t=0.37 anim=0.00 (255,91,86)
+  ~ t=0.50 anim=0.00 (255,91,86)
+  ~ t=0.63 anim=0.00 (255,91,86)
+  ~ t=0.75 anim=0.00 (255,91,86)
+  ~ t=0.87 anim=0.00 (255,91,86)
+  ~ t=1.00 anim=0.00 (255,91,86)
+  ~ t=1.12 anim=0.00 (255,91,86)
+  ~ t=1.25 anim=0.00 (255,91,86)
+  ~ t=1.37 anim=0.00 (255,91,86)
+  ~ t=1.50 anim=0.00 (255,91,86)
+=== XF1 default removal under L (no .transition)
+  L Double [-1.000] x1
+  before: (255,91,86)
+  shape red-over-white at (25,15): m m m m m m m m m W W W
+  ~ t=0.12 anim=0.12 (255,110,106)
+  ~ t=0.24 anim=0.24 (255,128,125)
+  ~ t=0.36 anim=0.36 (255,144,142)
+  ~ t=0.48 anim=0.48 (255,162,160)
+  ~ t=0.60 anim=0.60 (255,179,177)
+  ~ t=0.72 anim=0.72 (255,194,194)
+  ~ t=0.84 anim=0.84 (255,210,210)
+  ~ t=0.96 anim=0.96 (255,225,225)
+  ~ t=1.08 anim=1.08 (255,240,241)
+  ~ t=1.21 anim=1.20 (255,255,255)
+  ~ t=1.33 anim=1.20 (255,255,255)
+  ~ t=1.46 anim=1.20 (255,255,255)
+=== XF1 .transition(.opacity) removal under L
+  L Double [-1.000] x1
+  before: (255,91,86)
+  shape red-over-white at (25,15): m m m m m m m m m W W W
+  ~ t=0.12 anim=0.12 (255,110,106)
+  ~ t=0.24 anim=0.24 (255,128,125)
+  ~ t=0.36 anim=0.36 (255,144,142)
+  ~ t=0.48 anim=0.48 (255,162,160)
+  ~ t=0.60 anim=0.60 (255,179,177)
+  ~ t=0.72 anim=0.72 (255,194,194)
+  ~ t=0.84 anim=0.84 (255,210,210)
+  ~ t=0.96 anim=0.96 (255,225,225)
+  ~ t=1.08 anim=1.08 (255,240,241)
+  ~ t=1.21 anim=1.20 (255,255,255)
+  ~ t=1.33 anim=1.20 (255,255,255)
+  ~ t=1.46 anim=1.20 (255,255,255)
+=== XF1 .transition(.identity) removal under L
+  (nothing animated)
+  before: (255,91,86)
+  shape red-over-white at (25,15): W W W W W W W W W W W W
+  ~ t=0.13 anim=0.00 (255,255,255)
+  ~ t=0.26 anim=0.00 (255,255,255)
+  ~ t=0.38 anim=0.00 (255,255,255)
+  ~ t=0.51 anim=0.00 (255,255,255)
+  ~ t=0.63 anim=0.00 (255,255,255)
+  ~ t=0.76 anim=0.00 (255,255,255)
+  ~ t=0.89 anim=0.00 (255,255,255)
+  ~ t=1.01 anim=0.00 (255,255,255)
+  ~ t=1.13 anim=0.00 (255,255,255)
+  ~ t=1.26 anim=0.00 (255,255,255)
+  ~ t=1.38 anim=0.00 (255,255,255)
+  ~ t=1.51 anim=0.00 (255,255,255)
+=== XF2 control: static red.opacity(0.5)
+  layers: 2
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=1
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.50 presentation=0.50 sub=0
+  ~ anim clock 0.00
+=== XF2 control: red.opacity(0 -> 1) under L, read 0.4 s in
+  layers: 2
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=1
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.33 presentation=0.33 sub=0
+  ~ anim clock 0.40
+=== XF2 default insertion under L, read 0.4 s in
+  layers: 2
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=1
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.33 presentation=0.33 sub=0
+  ~ anim clock 0.40
+=== XF2 default removal under L, read 0.4 s in (the ghost: is there a layer at all?)
+  layers: 2
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=1
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.67 presentation=0.67 sub=0
+  ~ anim clock 0.40
+=== XF2 .transition(.opacity) removal under L, read 0.4 s in
+  layers: 2
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=1
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.67 presentation=0.67 sub=0
+  ~ anim clock 0.40
+=== XF2z the tree at rest: ZStack { white; red; blue } with every leaf in its own layer (opacity 0.99)
+  layers: 4
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=3
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.00
+=== XF2z unannotated removal, red BELOW blue (leaves in layers), 0.4 s in
+  layers: 4
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=3
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2z .transition(.opacity) removal, red BELOW blue (leaves in layers), 0.4 s in
+  layers: 4
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=3
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2z unannotated removal, red ABOVE blue (leaves in layers), 0.4 s in
+  layers: 4
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=3
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2zb the same trees with the white backdrop as .background (not a sibling): unannotated removal, red BELOW blue, 0.4 s in
+  layers: 4
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=3
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2zb unannotated removal, red ABOVE blue, 0.4 s in
+  layers: 4
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=3
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2zb .transition(.opacity) removal, red ABOVE blue, 0.4 s in
+  layers: 4
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=3
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2zb red ABOVE blue, the ZStack with a THIRD, always-present leaf above red, removal 0.4 s in
+  layers: 5
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=4
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=20x5 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2zc NESTED: onWhite { blue 30x10; ZStack { if flag { red 50x30 }; yellow 40x20 }; green 20x5 }, red removed, 0.4 s in (is the ghost at the bottom of its own container or of the host?)
+  layers: 6
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=5
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=40x20 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=20x5 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2zc NESTED, the same tree at rest (the order the layers have before the removal)
+  layers: 6
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=5
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=40x20 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=20x5 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.00
+=== XF2z unannotated removal in a VStack, red FIRST (leaves in layers), 0.4 s in
+  layers: 3
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=2
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=30x10 pos=(0,20) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF3 VStack(spacing: 0) { if flag { red 50x30 }; blue 30x10 } insert
+  A Double [1.000] x1
+  A P<P<F, F>, P<F, F>> [0.000, 30.000, 0.000, 0.000] x1
+=== XF3 VStack(spacing: 0) { if flag { red 50x30 }; blue 30x10 } remove
+  A Double [-1.000] x1
+  A P<P<F, F>, P<F, F>> [0.000, -30.000, 0.000, 0.000] x1
+=== XF3 HStack(spacing: 0) { if flag { red 50x30 }; blue 30x10 } insert
+  A Double [1.000] x1
+  A P<P<F, F>, P<F, F>> [50.000, 0.000, 0.000, 0.000] x1
+=== XF3 HStack(spacing: 0) { if flag { red 50x30 }; blue 30x10 } remove
+  A Double [-1.000] x1
+  A P<P<F, F>, P<F, F>> [-50.000, 0.000, 0.000, 0.000] x1
+=== XF3 Group { if flag { red } } (root) insert
+  A Double [1.000] x1
+=== XF3 Group { if flag { red } } (root) remove
+  A Double [-1.000] x1
+=== XF3 bare if flag { red } as the root's only child insert
+  A Double [1.000] x1
+=== XF3 bare if flag { red } as the root's only child remove
+  A Double [-1.000] x1
+=== XF4 ZStack { if flag { red 50x30; blue 30x10 } } insert
+  A Double [1.000] x2
+=== XF4 ZStack { if flag { red 50x30; blue 30x10 } } remove
+  A Double [-1.000] x2
+=== XF4b VStack(spacing: 0) { if flag { red 50x30; blue 30x10 }; green 20x10 } insert
+  A Double [1.000] x2
+  A P<P<F, F>, P<F, F>> [0.000, 40.000, 0.000, 0.000] x1
+=== XF4b VStack(spacing: 0) { if flag { red 50x30; blue 30x10 }; green 20x10 } remove
+  A Double [-1.000] x2
+  A P<P<F, F>, P<F, F>> [0.000, -40.000, 0.000, 0.000] x1
+=== XF5 ZStack { if flag { red.transition(.move(edge: .leading)); blue 30x10 } } insert
+  A Double [1.000] x1
+  A P<P<F, F>, P<F, F>> [50.000, 0.000, 0.000, 0.000] x1
+=== XF5 ZStack { if flag { red.transition(.move(edge: .leading)); blue 30x10 } } remove
+  A Double [-1.000] x1
+  A P<P<F, F>, P<F, F>> [-50.000, 0.000, 0.000, 0.000] x1
+=== XF5b ZStack { if flag { red.transition(.identity); blue 30x10 } } insert
+  A Double [1.000] x1
+=== XF5b ZStack { if flag { red.transition(.identity); blue 30x10 } } remove
+  A Double [-1.000] x1
+=== XF6 ForEach insertion, no .transition: [1,2] -> [1,2,3] (ZStack of fixed rows, no geometry)
+  A Double [1.000] x1
+=== XF6 ForEach removal, no .transition: [1,2,3] -> [1,3]
+  A Double [-1.000] x1
+=== XF6b ForEach in a VStack insertion: [1,2] -> [1,2,3]
+  A Double [1.000] x1
+  A P<P<F, F>, P<F, F>> [1.000, 0.000, 0.000, 0.000] x3
+=== XF6b ForEach in a VStack removal: [1,2,3] -> [1,3]
+  A Double [-1.000] x1
+  A P<P<F, F>, P<F, F>> [0.000, -10.000, 0.000, 0.000] x3
+=== XF7 .id(k) change 0 -> 1 on a red view, recorder (A)
+  A Double [-1.000] x1
+  A Double [1.000] x1
+=== XF7 .id(k) 0 -> 1 under S (0.6 s), appear/disappear
+  S Double [-1.000] x1
+  S Double [1.000] x1
+  appear x early
+  disappear x late
+  ~ appear x 0 ms
+  ~ disappear x 601 ms
+=== XF7 control: if-removal under S, no .transition (the unannotated removal; T1u's twin)
+  S Double [-1.000] x1
+  disappear x late
+  ~ disappear x 601 ms
+=== XF8a AnyView(flag ? AnyView(WB) : AnyView(WA)) swap under A
+  (nothing animated)
+=== XF8b the same with .transition(.opacity) on each erased view
+  (nothing animated)
+=== XF8c control: if flag { AnyView(WA) } insert
+  A Double [1.000] x1
+=== XF8c control: if flag { AnyView(WA) } remove
+  A Double [-1.000] x1
+=== XF8d control: AnyView(WA) swapped to another AnyView(WA) with a different tick (same type, no swap)
+  (nothing animated)
+=== XF8e AnyView swap under S (0.6 s): appear/disappear timing (AV6a's twin, through the recorder)
+  (nothing animated)
+  disappear A early
+  appear B early
+  ~ disappear A 0 ms
+  ~ appear B 0 ms
+=== XF8f AnyView swap under S with .transition(.opacity) inside (AV6b's twin)
+  (nothing animated)
+  disappear A early
+  appear B early
+  ~ disappear A 0 ms
+  ~ appear B 0 ms
+=== XF9a first appearance: if flag (true from the first render) { red } under .transaction { animation = A }
+  (nothing animated)
+=== XF9 LazyVStack in a ScrollView: withAnimation(A) { proxy.scrollTo(150) }; rows enter the window
+  (nothing animated)
+  before: clip y=0
+  after 0.3 s: clip y=2400 (control: a moved origin means the scroll ran)
+=== XF9 List: withAnimation(A) { proxy.scrollTo(150) }; rows enter the window
+  (nothing animated)
+  before: clip y=0
+  after 0.3 s: clip y=3610 (control: a moved origin means the scroll ran)
+=== XF9 List data insertion (not a scroll): items [1,2] -> [1,2,3] under A, informational
+  (nothing animated)
+=== XF10a unannotated removal, red BELOW the blue sibling in ZStack { if flag { red }; blue } .background(white)
+  L Double [-1.000] x1
+  before: (255,93,88) (0,164,254)
+  shape red-over-white at (40,20): m m m m m m m m m W W W
+  shape overlap at (10,5): Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl
+  ~ t=0.12 anim=0.12 (255,112,108) (0,164,254)
+  ~ t=0.24 anim=0.24 (255,129,127) (0,164,254)
+  ~ t=0.36 anim=0.36 (255,146,144) (0,164,254)
+  ~ t=0.48 anim=0.48 (255,163,162) (0,165,255)
+  ~ t=0.60 anim=0.60 (255,179,178) (0,165,255)
+  ~ t=0.72 anim=0.72 (255,195,195) (0,165,255)
+  ~ t=0.85 anim=0.84 (255,210,210) (0,165,255)
+  ~ t=0.97 anim=0.96 (255,226,226) (0,166,255)
+  ~ t=1.09 anim=1.08 (255,241,241) (0,166,255)
+  ~ t=1.21 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.34 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.46 anim=1.20 (255,255,255) (0,166,255)
+=== XF10b unannotated removal, red ABOVE the blue sibling in ZStack { blue; if flag { red } } .background(white)
+  L Double [-1.000] x1
+  before: (255,93,88) (255,92,88)
+  shape red-over-white at (40,20): m m m m m m m m m W W W
+  shape overlap at (10,5): Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl
+  ~ t=0.12 anim=0.12 (255,112,108) (0,164,254)
+  ~ t=0.24 anim=0.24 (255,129,127) (0,164,254)
+  ~ t=0.36 anim=0.36 (255,146,144) (0,164,254)
+  ~ t=0.48 anim=0.48 (255,163,162) (0,165,255)
+  ~ t=0.60 anim=0.60 (255,179,178) (0,165,255)
+  ~ t=0.72 anim=0.72 (255,195,195) (0,165,255)
+  ~ t=0.85 anim=0.84 (255,210,210) (0,165,255)
+  ~ t=0.97 anim=0.96 (255,226,226) (0,166,255)
+  ~ t=1.09 anim=1.08 (255,241,241) (0,166,255)
+  ~ t=1.21 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.34 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.46 anim=1.20 (255,255,255) (0,166,255)
+=== XF10c .transition(.opacity) removal, red BELOW the blue sibling
+  L Double [-1.000] x1
+  before: (255,93,88) (0,164,254)
+  shape red-over-white at (40,20): m m m m m m m m m W W W
+  shape overlap at (10,5): Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl
+  ~ t=0.12 anim=0.12 (255,112,108) (0,164,254)
+  ~ t=0.24 anim=0.24 (255,129,127) (0,164,254)
+  ~ t=0.36 anim=0.36 (255,146,144) (0,164,254)
+  ~ t=0.48 anim=0.48 (255,163,162) (0,165,255)
+  ~ t=0.60 anim=0.60 (255,179,178) (0,165,255)
+  ~ t=0.72 anim=0.72 (255,195,194) (0,165,255)
+  ~ t=0.85 anim=0.84 (255,210,210) (0,165,255)
+  ~ t=0.97 anim=0.96 (255,226,226) (0,166,255)
+  ~ t=1.09 anim=1.08 (255,241,241) (0,166,255)
+  ~ t=1.21 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.34 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.47 anim=1.20 (255,255,255) (0,166,255)
+=== XF10d unannotated insertion, red BELOW the blue sibling
+  L Double [1.000] x1
+  before: (255,255,255) (0,166,255)
+  shape red-over-white at (40,20): m m m m m m m m m R R R
+  shape overlap at (10,5): Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl
+  ~ t=0.12 anim=0.12 (255,240,241) (0,166,255)
+  ~ t=0.24 anim=0.24 (255,226,226) (0,166,255)
+  ~ t=0.36 anim=0.36 (255,210,210) (0,165,255)
+  ~ t=0.48 anim=0.48 (255,195,194) (0,165,255)
+  ~ t=0.60 anim=0.60 (255,179,177) (0,165,255)
+  ~ t=0.72 anim=0.72 (255,162,161) (0,165,255)
+  ~ t=0.85 anim=0.84 (255,146,144) (0,164,254)
+  ~ t=0.97 anim=0.96 (255,129,126) (0,164,254)
+  ~ t=1.09 anim=1.08 (255,111,108) (0,164,254)
+  ~ t=1.21 anim=1.20 (255,93,88) (0,164,254)
+  ~ t=1.34 anim=1.20 (255,93,88) (0,164,254)
+  ~ t=1.47 anim=1.20 (255,93,88) (0,164,254)
+=== XF10e control: red BELOW the blue sibling, red.opacity(1 -> 0) animated (no structure change)
+  L Double [-1.000] x1
+  before: (255,93,88) (0,164,254)
+  shape red-over-white at (40,20): m m m m m m m m m W W W
+  shape overlap at (10,5): Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl Bl
+  ~ t=0.12 anim=0.12 (255,112,108) (0,164,254)
+  ~ t=0.24 anim=0.24 (255,129,127) (0,164,254)
+  ~ t=0.36 anim=0.36 (255,146,144) (0,164,254)
+  ~ t=0.48 anim=0.48 (255,163,162) (0,165,255)
+  ~ t=0.60 anim=0.60 (255,179,178) (0,165,255)
+  ~ t=0.72 anim=0.72 (255,195,195) (0,165,255)
+  ~ t=0.85 anim=0.84 (255,210,210) (0,165,255)
+  ~ t=0.97 anim=0.96 (255,226,226) (0,166,255)
+  ~ t=1.09 anim=1.09 (255,241,241) (0,166,255)
+  ~ t=1.21 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.34 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.46 anim=1.20 (255,255,255) (0,166,255)
+=== XF11 control: a reader view under the swizzle
+  (nothing animated)
+  reads: ["appear true"]
+=== XF11 X0' default insert with Reduce Motion reading true
+  A Double [1.000] x1
+  reads: ["appear true"]
+=== XF11 X0' default remove with Reduce Motion reading true
+  A Double [-1.000] x1
+  reads: ["appear true"]
+=== XF11 control after undo: X0' default insert
+  A Double [1.000] x1

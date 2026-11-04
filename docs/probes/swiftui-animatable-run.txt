@@ -1,0 +1,117 @@
+=== VT language-mode isolation of Animatable (SwiftUI's View is @MainActor, Animatable and Shape are not)
+  VT1 positive: struct S: Shape { var animatableData } (nonisolated protocol): swift5 compiles | swift6 compiles
+  VT2 struct V: View, Animatable { var animatableData: Double } (SwiftUI's own spelling): swift5 compiles | swift6 ERROR conformance of 'V' to protocol 'Animatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
+  VT3 the same with `nonisolated var animatableData`: swift5 compiles | swift6 compiles
+  VT4 struct M: ViewModifier, Animatable { var animatableData: Double }: swift5 compiles | swift6 ERROR conformance of 'M' to protocol 'Animatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
+  VT5 the same with `nonisolated var animatableData`: swift5 compiles | swift6 compiles
+  VT6 @Animatable macro on a View: swift5 compiles | swift6 compiles
+  VT7 @Animatable macro on a Shape: swift5 compiles | swift6 compiles
+  VT8 struct E: Animatable {} (no animatableData: EmptyAnimatableData default): swift5 compiles | swift6 compiles
+  VT9 a Shape with no animatableData: swift5 compiles | swift6 compiles
+  VT10 positive: Double is Animatable: swift5 compiles | swift6 compiles
+  VT11 Float: Animatable?: swift5 ERROR global function 'f' requires that 'Float' conform to 'Animatable' | swift6 ERROR global function 'f' requires that 'Float' conform to 'Animatable'
+  VT11 CGFloat: Animatable?: swift5 compiles | swift6 compiles
+  VT11 CGPoint: Animatable?: swift5 compiles | swift6 compiles
+  VT11 CGSize: Animatable?: swift5 compiles | swift6 compiles
+  VT11 Angle: Animatable?: swift5 compiles | swift6 compiles
+  VT11 UnitPoint: Animatable?: swift5 compiles | swift6 compiles
+  VT11 EdgeInsets: Animatable?: swift5 compiles | swift6 compiles
+  VT11 CGRect: Animatable?: swift5 compiles | swift6 compiles
+  VT11 Int: Animatable?: swift5 ERROR global function 'f' requires that 'Int' conform to 'Animatable' | swift6 ERROR global function 'f' requires that 'Int' conform to 'Animatable'
+  VT11 Color: Animatable?: swift5 ERROR global function 'f' requires that 'Color' conform to 'Animatable' | swift6 ERROR global function 'f' requires that 'Color' conform to 'Animatable'
+  VT12 VectorArithmetic.scaled(by:) is public: Double(1).scaled(by: 2): swift5 compiles | swift6 compiles
+  VT13 Float: VectorArithmetic: swift5 compiles | swift6 compiles
+  VT14 positive: LinearKeyframe over a custom Animatable struct: swift5 compiles | swift6 compiles
+  VT15 separating: LinearKeyframe over a plain struct that is not Animatable: swift5 ERROR generic struct 'LinearKeyframe' requires that 'P' conform to 'Animatable' | swift6 ERROR generic struct 'LinearKeyframe' requires that 'P' conform to 'Animatable'
+  VT16 positive: LinearKeyframe over Float: swift5 ERROR generic struct 'LinearKeyframe' requires that 'Float' conform to 'Animatable' | swift6 ERROR generic struct 'LinearKeyframe' requires that 'Float' conform to 'Animatable'
+=== VA1 custom Shape with animatableData: Bar(t: 0 -> 1) under A4
+  A Double [1.000] x1
+  bar: interpolated=yes range=[0.0, 1.0] last=1.0
+  ~ bar: calls=11972 distinct=1001 exact range=[0.0003643750096671283, 1.0]
+=== VA1c control: the same change with no transaction (path called at the final value only)
+  (nothing animated)
+  bar: interpolated=no range=[1.0, 1.0] last=1.0
+  ~ bar: calls=1 distinct=1 exact range=[1.0, 1.0]
+=== VA2 a Shape with NO animatableData (BarNoData t: 0 -> 1) under A4: snaps?
+  (nothing animated)
+  nodata: interpolated=no range=[1.0, 1.0] last=1.0
+  ~ nodata: calls=1 distinct=1 exact range=[1.0, 1.0]
+=== VA3a Circle().trim(from: 0, to: v).stroke under A4: the animated type
+  A P<P<Empty, P<F, F>>, P<F, P<F, F>>> [0.000, 128.000, 0.000, 0.000, 0.000] x1
+=== VA3a2 PS(u).trim(from: u2, to: v) under A4, all three moving: the pair's type and the base's u
+  A P<Double, P<F, F>> [1.000, 64.000, 128.000] x1
+  ps: interpolated=yes range=[0.0, 1.0] last=1.0
+  ~ ps: calls=9641 distinct=1000 exact range=[0.000432187516707927, 1.0]
+=== VA3b a wrapper around a trim that declares nothing (TrimWrapNoData to: 0 -> 1): snaps?
+  (nothing animated)
+  tw0: interpolated=no range=[1.0, 1.0] last=1.0
+  ~ tw0: calls=1 distinct=1 exact range=[1.0, 1.0]
+=== VA3c a wrapper that forwards one Double (TrimWrapDouble to: 0 -> 1): animates?
+  A Double [1.000] x1
+  tw1: interpolated=yes range=[0.0, 1.0] last=1.0
+  ~ tw1: calls=9281 distinct=1000 exact range=[0.0004290624929126352, 1.0]
+=== VA3d a wrapper that forwards the trim's own animatableData (TrimHolder): the type and the base's u
+  A P<Double, P<F, F>> [1.000, 0.000, 128.000] x1
+  ps: interpolated=yes range=[0.0, 1.0] last=1.0
+  ~ ps: calls=9194 distinct=1000 exact range=[0.00044291664380580187, 1.0]
+=== VA3e trim of a trim: PS(u).trim(from: 0, to: v).trim(from: 0, to: w) under A4: the nested type and the base's u
+  A P<P<Double, P<F, F>>, P<F, F>> [1.000, 0.000, 128.000, 0.000, 128.000] x1
+  ps: interpolated=yes range=[0.0, 1.0] last=1.0
+  ~ ps: calls=9109 distinct=1001 exact range=[0.00024052074877545238, 1.0]
+=== VA4 AnimatablePair retarget: A6 { a = 1, b = 1 }, 0.3 s later B6 { a = 0 } (b unchanged): whole pair or one component?
+  A P<Double, Double> x1
+  B P<Double, Double> x1
+  ~ A P<Double, Double> [1.000, 1.000] x1
+  ~ B P<Double, Double> [-0.498, 0.502] x1
+  pa: interpolated=yes range=[0.0, 0.6] last=0.0
+  ~ pa: calls=21124 distinct=562 exact range=[0.0, 0.5612103754770043]
+  pb: interpolated=yes range=[0.0, 1.0] last=1.0
+  ~ pb: calls=21124 distinct=1001 exact range=[0.00032215282165748427, 1.0]
+  ~ at the retarget: a=0.498 b=0.617 (path calls before: 6777)
+  after the retarget: b restarts (min b below b-at-retarget - 0.05) = no; a ends at 0.00, b ends at 1.00; a decreases monotonically = yes
+=== VA5 View & Animatable: AVw(x: 0 -> 200) under A4: body values and the widths its child layout is proposed
+  A Double [200.000] x1
+  avbody: interpolated=yes range=[0.1, 200.0] last=200.0
+  ~ avbody: calls=13139 distinct=13139 exact range=[0.10281248250976205, 200.0]
+  w: interpolated=yes range=[100.1, 300.0] last=300.0
+  ~ w: calls=13139 distinct=13139 exact range=[100.10281248250976, 300.0]
+=== VA5 control P1': .frame(width: 100 + v) around a WidthLog layout (no Animatable): the widths proposed
+  A P<P<F, F>, P<F, F>> [0.000, 0.000, 200.000, 0.000] x1
+  w: interpolated=no range=[300.0, 300.0] last=300.0
+  ~ w: calls=1 distinct=1 exact range=[300.0, 300.0]
+=== VA6 retarget continuity with the ramp recorder: A6 { x = 100 }, 0.3 s later B6 { x = 0 }
+  A Double x1
+  B Double x1
+  ~ A Double [100.000] x1
+  ~ B Double [-49.871] x1
+  continuous across the retarget (|first x after - last x before| < 8): yes
+  ~ last x before 49.9, first x after 49.9; mean slope over the 30 ms before the retarget 167/s, over the 30 ms after 75/s
+=== VA6b retarget continuity with .spring(duration: 0.6, bounce: 0): x = 100, 0.3 s later x = 0 (velocity read)
+  (nothing animated)
+  continuous across the retarget (|first x after - last x before| < 8): yes
+  ~ last x before 81.8, first x after 81.8; mean slope over the 30 ms before the retarget 155/s, over the 30 ms after -12/s
+=== VA6c pair retarget under a spring: a moves 0 -> 1, 0.15 s later b moves 0 -> 1 (a's slope across the retarget)
+  (nothing animated)
+  ~ a slope over the 30 ms before the retarget 3.59/s, over the 30 ms after 3.17/s (a's own target did not change)
+=== VA7 EV (Animatable & Equatable) with .equatable() under A4: does the body run in flight?
+  A Double [200.000] x1
+  evbody: interpolated=yes range=[0.1, 200.0] last=200.0
+  ~ evbody: calls=12094 distinct=12094 exact range=[0.10804168414324522, 200.0]
+=== VA7 control: EVplain (Animatable, no Equatable, no .equatable()) under A4
+  A Double [200.000] x1
+  evplain: interpolated=yes range=[0.1, 200.0] last=200.0
+  ~ evplain: calls=11758 distinct=11758 exact range=[0.10591666796244681, 200.0]
+=== VA7s settled: EV(x: 5).equatable() re-evaluated by an unrelated parent change (tick): body calls
+  (nothing animated)
+  evbody: no calls
+  ~ evbody: calls=0 distinct=0 exact range=[0.0, 0.0]
+=== VA7s control: EVplain(x: 5) with no .equatable(), the same parent change
+  (nothing animated)
+  evplain: no calls
+  ~ evplain: calls=0 distinct=0 exact range=[0.0, 0.0]
+=== VA8 keyframeAnimator with KeyframeTrack(\.pos) over a custom Animatable struct (Pos: a 0 -> 100 -> 0, b 0 -> 50 -> 0)
+  (nothing animated)
+  kfa: interpolated=yes range=[0.0, 100.0] last=0.0
+  ~ kfa: calls=15153 distinct=14677 exact range=[0.0, 99.99668749514964]
+  kfb: interpolated=yes range=[0.0, 50.0] last=0.0
+  ~ kfb: calls=15153 distinct=14230 exact range=[0.0, 49.99834374757482]
