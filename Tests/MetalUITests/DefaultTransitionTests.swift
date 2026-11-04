@@ -163,6 +163,22 @@ private func near(_ a: Float?, _ b: Float, _ tol: Float = 0.002) -> Bool {
     #expect(near(alpha(outThird, 50), 0.667) && near(alpha(outThird, 60), 0.667), "and out: \(alphas(outThird, 50)) \(alphas(outThird, 60))")
 }
 
+/// **A removal during an insertion keeps its alpha** (`XF-H` item 4): the slice has the insertion's alpha baked in, so the
+/// ghost starts at 0 and the unit goes from its current alpha down, not from 1 and not double-dimmed. Flipped in at 0 and out
+/// at 0.6 (the insertion at 0.5): the ghost is at 0.5 on the flip frame and 0.25 a quarter of the way down. Mutation
+/// **MB2o** (the ghost starts at the insertion's progress: 0.25 on the flip frame).
+@Test @MainActor func aRemovalDuringAnInsertionKeepsItsAlpha() throws {
+    let h = TransitionHarness()
+    h.frame(0, nil, proposalStage(false))
+    h.frame(0, linear12, proposalStage(true))
+    let mid = h.frame(0.6, nil, proposalStage(true))
+    try #require(near(alpha(mid, 50), 0.5), "set up: half in: \(alphas(mid, 50))")
+    let out = h.frame(0.6, linear12, proposalStage(false))
+    #expect(near(alpha(out, 50), 0.5), "the ghost starts where the insertion was: \(alphas(out, 50))")
+    let later = h.frame(0.9, nil, proposalStage(false))
+    #expect(near(alpha(later, 50), 0.375), "and goes to 0 from there over the animation (0.5 x 0.75): \(alphas(later, 50))")
+}
+
 // MARK: - A mixed unit (`XF5`, `XF5b`)
 
 @MainActor private func mixedStage(_ shown: Bool, _ annotated: AnyTransition) -> some Element {
