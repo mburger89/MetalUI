@@ -59,8 +59,8 @@ private func read<E: Element>(_ root: E, width: Float = 420, height: Float = 420
 
 /// `EqualWidthRow.widths`: all the widest while the width is nil, infinite or at least `n × widest`; below
 /// that an equal share, never under a segment's own width, the rest shared (probe SG2: 335 reads 108, 108,
-/// 121 through AX, MetalUI's 107, 107, 121; 280 reads 75, 86, 121; 271 and below 66, 86, 121). MA1 (the
-/// proposal ignored) reddens every row but the first three; MA2 (no floor) reddens 280, 271 and 200.
+/// 121 through AX, MetalUI's 107, 107, 121; 280 reads 75, 86, 121; 271 and below 66, 86, 121). Reddened by MA1 (the
+/// proposal ignored: every row below 363) and MA2 (no floor: 280, 271 and 200).
 @Test func theSegmentWidthsAreAnEqualShareNeverUnderTheNaturalWidth() {
     let natural: [Double] = [64, 86, 121]
     #expect(EqualWidthRow.widths(natural: natural, available: nil) == [121, 121, 121], "no proposal")
@@ -80,8 +80,9 @@ private func read<E: Element>(_ root: E, width: Float = 420, height: Float = 420
 
 /// SG3a, SG3b: a labelled segmented picker in the 420 window of human check SR1 keeps its title on one
 /// line. SwiftUI: title 37×16, control 335 (segments 108, 108, 121); MetalUI's 107, 107, 121. Before, the
-/// capsule was rigid at 362 and the title read 8 wide and 96 tall. MA4 (`isSegmented` always false) and
-/// MA1 redden both; MA6 (gap 0) moves the title-to-control gap in the first.
+/// capsule was rigid at 362 and the title read 8 wide and 96 tall. Reddened by MA1 (rigid again), MA3 and MA6
+/// (gap 0); **not** by MA4 (a legacy row also answers 335 here: `aShortLabelledPickerKeepsItsIdealInAWiderFrame`
+/// and `aLabelledPickerSqueezes…` are the ones that see `isSegmented`).
 @Test @MainActor func aSegmentedPickerKeepsItsTitleOnOneLine() throws {
     let padded = try read(VStack(alignment: .leading) { picker() }.padding(Edges(all: px(20))))
     #expect(try size(padded, [0, 0, 0, 0, 0]) == (37, 16), "the title in a padded VStack")
@@ -97,7 +98,7 @@ private func read<E: Element>(_ root: E, width: Float = 420, height: Float = 420
 
 /// SG3c: `HStack { Text("Flavor"); Picker("") }` at 380. SwiftUI's stack gives the text its ideal and the
 /// picker the rest: text 37×16, segments 104, 104, 121; MetalUI's 103, 103, 121 (the empty title keeps its
-/// 8, SG1c, so the control is 8 narrower than the hidden-title case). MA4 and MA1 redden it.
+/// 8, SG1c, so the control is 8 narrower than the hidden-title case). Reddened by MA1, MA3 and MA6; not by MA4.
 @Test @MainActor func aStackBesideASegmentedPickerSharesWhatTheTextLeaves() throws {
     let frame = try read(HStack { Text("Flavor"); picker("") }.frame(width: px(380)))
     #expect(try size(frame, [0, 0, 0]) == (37, 16), "the text keeps one line")
@@ -106,8 +107,8 @@ private func read<E: Element>(_ root: E, width: Float = 420, height: Float = 420
 
 /// SG3e at 300: SwiftUI proposes the control `300 - 8 - 37`, which is 255 (floor 271), so the title is
 /// proposed the remainder 21 and answers 20×32 (SwiftUI) and the control is proposed 300 - 8 - 20 = 272
-/// (segments 67, 86, 121 by AX). MetalUI: title 19×32, control 273, segments 67, 85, 121. MA5 (no control
-/// re-proposal) leaves the control at its first answer, 271 or 255-based, and reddens the control width.
+/// (segments 67, 86, 121 by AX). MetalUI: title 19×32, control 273, segments 67, 85, 121. Reddened by MA5 (no
+/// control re-proposal: the control keeps its first answer), MA4, MA6, MA1, MA2 and MA3.
 @Test @MainActor func aLabelledPickerSqueezesTheTitleBeforeTheSegmentsReachTheirFloor() throws {
     let frame = try read(picker().frame(width: px(300)))
     #expect(try size(frame, [0, 0, 0, 0]) == (19, 32), "the title wraps to two lines (SwiftUI 20×32)")
@@ -143,7 +144,7 @@ private func read<E: Element>(_ root: E, width: Float = 420, height: Float = 420
 
 /// SG4c: Alpha, Beta titled "Mode" in a 200 frame. SwiftUI answers 161 (title 35, 8, control 118); MetalUI
 /// 158 (34, 8, 116: the control keeps its ideal, the segments 58 and 58). MA4 (a legacy row) answers the
-/// floor instead of the ideal (`linearStack` lowering, probe SG4c) and reddens it.
+/// floor instead of the ideal (`linearStack` lowering) and reddens it, as MA3 and MA6 do.
 @Test @MainActor func aShortLabelledPickerKeepsItsIdealInAWiderFrame() throws {
     let frame = try read(alphaBeta("Mode").frame(width: px(200)), width: 420, height: 100)
     #expect(try size(frame, [0, 0]).width == 158, "title, 8, the ideal control")
@@ -154,7 +155,7 @@ private func read<E: Element>(_ root: E, width: Float = 420, height: Float = 420
 
 /// SG2 at 300 and 200 with the title hidden: the control is the proposal down to the floor. SwiftUI at 300
 /// reads 91, 90, 121 (AX), MetalUI 90, 89, 121; at 200 the floor 271 overflows the frame (MetalUI 270).
-/// MA1 reddens both, MA2 the second.
+/// Reddened by MA1, MA2 and MA3.
 @Test @MainActor func aHiddenTitlePickerTakesTheProposalDownToItsFloor() throws {
     let at300 = try read(picker().labelsHidden().frame(width: px(300)))
     expectSegments(at300, [90, 89, 121], "hidden, 300")
