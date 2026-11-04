@@ -1606,6 +1606,12 @@ no such source is known, and the AppKit test swizzles the same getter.
 > evaluated last frame (X17); `TransitionGroup` is identity-**transparent**
 > (item 3 below is withdrawn); 3.13's mutation is re-named. The text below
 > is the design session's, kept as written.
+>
+> **Forward note (R4-3 PR B2, record 206, `XF-H`)**: item 8's "no default transition" and its cost argument ("every
+> conditional would capture its primitives every frame") are superseded. A builder `if`, an `if`/`else` branch and a
+> non-lazy `ForEach` element **fade by default** (SwiftUI's measured `XF0`..`XF6`); nothing is captured at rest, a unit
+> notes a scene sequence range and a removal slices the previous frame's scene by it. Divergence 98 stays live, narrowed
+> (a changed `.id`, `for` iterations, `List` data insertion, `Deferred`/glass/`.compositingGroup()` primitives).
 
 **Ruling.** (1) **Supported**, each probe-backed: `.identity` (X7),
 `.opacity` (X1), `.move(edge:)` by the element's own size (X2, X3, X3t, X3b),

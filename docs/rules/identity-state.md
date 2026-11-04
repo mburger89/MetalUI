@@ -168,7 +168,7 @@ insertion needs the conditional evaluated last frame; removal draws a ghost,
 passed `recordElementBounds`, drawn by `Frame.paintAnchoredGhosts(at:)` from `Element.paintGroup`, `paintDecoration`'s content, a
 modifier chain's innermost layer, `AnyElement`'s entry and the root; a hook that draws taints the paint recorders, `ghostInRun`, since
 a direct insert bypasses them; `XF-F`), and a ghost always exists, so empty content still parks `onDisappear` (`XF-G`);
-no default transition (divergence 98). Reduce Motion changes only
+**a builder `if`, `if`/`else` branch and non-lazy `ForEach` element fades by default** (`XF-H`, record 206; divergence 98 narrowed: a unit notes its scene sequence range at paint, a removal slices the previous frame's scene by it, an insertion opens a non-capturing `.fade` scope; a framework slot is `OptionalGroup(_:)`, never `OptionalGroup(builder:)`; **a new conditional site decides whether it is a unit and notes the range**; a mixed unit carves its annotated members out; nothing is captured at rest, and the retained records carry the ranges, `XF-I`). Reduce Motion changes only
 transitions (to a cross-fade). **`matchedGeometryEffect` is a paint map, not a relayout** (`MG-A`): a window-owned
 `MatchedGeometryStore` (never a `StateTable` slot), a newcomer takes a *source* leaver's drawn frame under the transaction at it, none from an explicit
 `.transition(.identity)` leaver; hit testing keeps the laid-out frame; an occurrence with a matched group is graft-refused as `matchedGeometry`. A custom
