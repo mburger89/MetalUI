@@ -441,7 +441,8 @@ extension Component where Self: Animatable {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], ComponentLayout<Self>) {
-        _interpolateAnimatableData(id: GlobalElementID.child(of: parent, at: cursor, name: elementID), pass: &pass)
+        interpolateAnimatableComponent(&self, id: GlobalElementID.child(of: parent, at: cursor, name: elementID),
+                                       pass: &pass)
         let id = enterComponent(under: parent, at: &cursor, pass: &pass)
         var materialized = content
         return finishComponent(&materialized, id: id, pass: &pass)
