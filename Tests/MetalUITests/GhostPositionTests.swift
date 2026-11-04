@@ -224,11 +224,13 @@ private struct GPLeaver: Component {
     #expect(r.harness.store.transitions.lastFrameUnanchoredGhosts == 0)
 }
 
-/// **A modifier chain on the leaver's group is the container of a ghost inside it** (MetalUI's own rule, unmeasured in
-/// SwiftUI): with two layers the nearest prepainted ancestor is the innermost layer, whose `paintLayer` draws the ghost as
-/// the first thing inside every layer's own paint, so it stays in the chain's member run, after the sibling before it.
-/// Mutation **MB1m** (the hook removed from `ModifiedContent`'s innermost `inside()`): unanchored, `[120, 40, 20, 50]`.
-@Test @MainActor func aModifierChainOnTheLeaversGroupIsItsContainer() throws {
+/// **A modified component's ghost stays in the modified member's run** (MetalUI's own rule, unmeasured in SwiftUI): the chain
+/// `padding(2).frame(...)` over a `Component` whose only content is the conditional lays out no node when the conditional is
+/// absent, so no inner layer exists and the nearest prepainted ancestor is the member itself (the outermost layer's id,
+/// `Element.paintGroup`'s hook): the ghost is drawn first in that member, after the sibling before it. **The innermost-layer
+/// hook of `ModifiedContent.paintLayer` (`MB1m`) is reached by no fixture**: a proposal chain over a conditional traps on its
+/// one-node rule, and a legacy chain over `OptionalGroup` has no `.width`/`.padding` spelling that compiles (record 205).
+@Test @MainActor func aModifiedComponentsGhostStaysInItsMembersRun() throws {
     let r = removal { shown in
         onBackdrop(ZStack {
             leaf(40, 20)
