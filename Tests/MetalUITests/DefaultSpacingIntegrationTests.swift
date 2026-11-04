@@ -78,7 +78,7 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
     #expect(height(VStack { rects }) == 48, "and changes nothing else")
 }
 
-/// An empty text has no vertical edge (DS6 `empty`), and 8 horizontally. Mutation **M10**: an empty text marked
+/// An empty text has no vertical edge (DS6 `empty`), and 8 horizontally. Mutation **M24**: an empty text marked
 /// as text, or not marked (its gap above a rect reads 4.742 or 8).
 @MainActor @Test func anEmptyTextHasNoVerticalEdge() {
     #expect(gap(block(), ProposalText("")) == 0 && gap(ProposalText(""), block()) == 0, "empty beside a rect")

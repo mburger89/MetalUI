@@ -170,7 +170,7 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
 }
 
 /// An empty `Text` has no vertical edge (DS6 `empty`: rect|X, X|rect, X|X all 0; 8 horizontally). Mutation
-/// **M10** (an empty text marked as text, or not marked): rect above it reads the font's gap or 8.
+/// **M24** (an empty text marked as text, or not marked): rect above it reads the font's gap or 8.
 @Test @MainActor func anEmptyTextHasNoVerticalEdge() {
     #expect(gap(rect, emptyText) == 0 && gap(emptyText, rect) == 0, "empty beside a rect")
     #expect(gap(emptyText, text(sf13)) == 0 && gap(text(sf13), emptyText) == 0, "empty beside a text")
@@ -209,7 +209,7 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
 
 /// DS8: a fixed `.frame(width: 40, height: 30)` gives standard (W|W 8, W|rect 8, rect|W 8, W|text 4.742,
 /// text|W 8.151); a flexible frame (`maxWidth: .infinity`) keeps the text edges (8.151 / 4.742 / 0).
-/// Mutation **M11**: a frame passes the text edge whatever its height.
+/// Mutation **M23**: a frame passes the text edge whatever its height.
 @Test @MainActor func aFixedHeightFrameTurnsATextEdgeStandard() {
     let fixed: Build = { tree in tree.newNativeFrame(child: text(sf13)(tree), width: 40, height: 30) }
     let flexible: Build = { tree in tree.newNativeFrame(child: text(sf13)(tree), maxWidth: .infinity) }
@@ -264,7 +264,7 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
 
 /// A grid's row gap is the stack rule, the largest pair over the cells meeting in a column (GS1/GS4;
 /// DS12 s=13: text/text rows dy 0, rect/text 4.742, text/rect 8.151, mixed `{text,rect}/{rect,text}`
-/// 48.151 tall = 20 + 8.151 + 20, `{rect,rect}/{text,text}` 40.742); the column gap is 8. Mutation **M12**:
+/// 48.151 tall = 20 + 8.151 + 20, `{rect,rect}/{text,text}` 40.742); the column gap is 8. Mutation **M10**:
 /// `pair` ignores the metrics (8 for all, or 0).
 @Test @MainActor func aGridsRowGapIsTheLargestPairOverTextCells() {
     func height(_ rows: [[Build]]) -> Double {
@@ -310,15 +310,22 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
 /// can change a leaf's proposal under) registered once with plain leaves and once with the leaves alternately
 /// marked as text, reads the same `lastNativeLayoutWork`, and not zero. Practice:
 /// work counted on a branching tree (`SA-M`), never wall clock. Mutation **M21**: the walk measures a marked leaf
-/// (`spacingEdges` calling `measureNativeLayout` on it): `measureCalls` moves.
+/// (`spacingEdges` calling the leaf's measure closure): the leaves' call count moves.
 @Test @MainActor func aTextStacksLayoutWorkEqualsARectStacks() {
-    func work(marked: Bool) -> NativeLayoutWork {
+    final class Calls: @unchecked Sendable { var count = 0 }
+    func work(marked: Bool) -> (NativeLayoutWork, leafCalls: Int) {
+        let calls = Calls()
         let tree = LayoutTree(generation: 1)
         var columns: [LayoutNodeID] = []
         for column in 0..<3 {
             var leaves: [LayoutNodeID] = []
             for row in 0..<3 {
-                leaves.append((marked && (row + column) % 2 == 0 ? text(sf13) : rect)(tree))
+                let leaf = tree.newNativeLeaf { _ in
+                    calls.count += 1
+                    return LayoutMeasurement(size: SizeD(width: 10, height: 10))
+                }
+                if marked && (row + column) % 2 == 0 { tree.markTextSpacing(leaf, .text(sf13.metrics)) }
+                leaves.append(leaf)
             }
             columns.append(tree.newNativeLinearStack(children: leaves, axis: .vertical, spacing: nil))
         }
@@ -326,10 +333,12 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
         let size = tree.measureNativeLayout(root: root, proposal: ProposedSize(width: nil, height: nil)).size
         tree.computeNativeLayout(root: root, proposal: ProposedSize(width: nil, height: nil),
                                  in: LayoutRect(x: 0, y: 0, width: size.width, height: size.height))
-        return tree.lastNativeLayoutWork
+        return (tree.lastNativeLayoutWork, calls.count)
     }
     let plain = work(marked: false), marked = work(marked: true)
-    // The count itself is the rect tree's (the unmarked path is untouched); the claim is the equality.
-    #expect(plain.measureCalls >= 9 && plain.cacheMisses > 0, "the instrument sees work: \(plain)")
-    #expect(marked == plain, "marked \(marked) vs plain \(plain)")
+    // The counts themselves are the rect tree's (the unmarked path is untouched); the claim is the equality, on the
+    // kernel's counters and on the leaves' own closures (a walk that measured would call them).
+    #expect(plain.leafCalls >= 9 && plain.0.cacheMisses > 0, "the instrument sees work: \(plain)")
+    #expect(marked.0 == plain.0, "marked \(marked.0) vs plain \(plain.0)")
+    #expect(marked.leafCalls == plain.leafCalls, "leaf closures called: \(marked.leafCalls) vs \(plain.leafCalls)")
 }
