@@ -145,7 +145,9 @@ private struct EqCounter: Component, Animatable, @MainActor Equatable {
     static func == (l: EqCounter, r: EqCounter) -> Bool { l.x == r.x }
     var content: some ElementGroup {
         let _ = acNote("eq", x)
+        // The frame's own animation is off, so only the component's interpolation moves the width.
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
+            .transaction { $0.animation = nil }
     }
 }
 
