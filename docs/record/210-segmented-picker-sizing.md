@@ -47,7 +47,7 @@ The comments in `SegmentedPickerSizingTests.swift` name the mutants as measured 
 
 ## 5. Counts and checks
 
-`swift package clean`, `swift build --build-system native --build-tests` exit 0, `swift test --build-system native --no-parallel` unfiltered, 2026-11-04: **`Test run with 5146 tests in 14 suites passed after 292.050 seconds`** (5135 + 11); `FR-J no-argument frame: succeeded=true deprecations=2`. `anUnannotatedInsertionAndRemovalFadeByDefault` and `aRedoWithATimelineInTheTreeEqualsAFreshFrame` passed on this fresh build (R4-3d, R4-3e: no failure). VERIFY_PLACEHOLDER
+`swift package clean`, `swift build --build-system native --build-tests` exit 0, `swift test --build-system native --no-parallel` unfiltered, 2026-11-04: **`Test run with 5146 tests in 14 suites passed after 292.050 seconds`** (5135 + 11); `FR-J no-argument frame: succeeded=true deprecations=2`. `anUnannotatedInsertionAndRemovalFadeByDefault` and `aRedoWithATimelineInTheTreeEqualsAFreshFrame` passed on this fresh build (R4-3d, R4-3e: no failure). `METALUI_VERIFY_RETAINED=1`: **`Test run with 5146 tests in 14 suites passed after 273.825 seconds`**; `METALUI_VERIFY_LAYOUT_MEMO=1`: **`5146 tests in 14 suites passed after 323.034 seconds`** (both native, unfiltered, `--no-parallel`, on the same build). `record-05-check.sh`, `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. CLAUDE.md is unchanged, so no `AGENTS.md` copy.
 
 ## 6. Not verified
 
