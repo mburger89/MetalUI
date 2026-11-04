@@ -5,7 +5,7 @@ import Foundation
 // SwiftUI's keyframe vocabulary — `KeyframeTimeline`, `KeyframeTrack`,
 // `LinearKeyframe`, `CubicKeyframe`, `SpringKeyframe`, `MoveKeyframe`,
 // `UnitCurve`, `Spring` and the two result builders — over MetalUI's
-// ``VectorArithmetic``. A timeline is a **pure function of time**: each track
+// ``Animatable`` (``VectorArithmetic`` data, `VA-`). A timeline is a **pure function of time**: each track
 // compiles its keyframes once, at the timeline's initialisation, into a list of
 // segments, and `value(time:)` evaluates them. Every rule is a literal from
 // probe `docs/probes/swiftui-controls-looks.swift`, arms `K1`–`K9`.
@@ -133,7 +133,7 @@ private func keyframeDuration(_ duration: TimeInterval, _ kind: String) -> Doubl
 /// a type outside MetalUI cannot (`LK-V` item 2).
 public protocol KeyframeTrackContent<Value> {
     /// The value the keyframes move.
-    associatedtype Value: VectorArithmetic
+    associatedtype Value: Animatable
 
     /// The keyframes, in order. Implemented by MetalUI's keyframe types only:
     /// the carrier has no public initialiser.
@@ -143,10 +143,10 @@ public protocol KeyframeTrackContent<Value> {
 /// A sequence of keyframes — what ``KeyframeTrackContentBuilder`` builds and
 /// what every ``KeyframeTrackContent`` hands its track. It has no public
 /// initialiser (`LK-V` item 2).
-public struct KeyframeTrackContentGroup<Value: VectorArithmetic>: KeyframeTrackContent {
-    let specs: [KeyframeSpec<Value>]
+public struct KeyframeTrackContentGroup<Value: Animatable>: KeyframeTrackContent {
+    let specs: [KeyframeSpec<Value.AnimatableData>]
 
-    init(_ specs: [KeyframeSpec<Value>]) { self.specs = specs }
+    init(_ specs: [KeyframeSpec<Value.AnimatableData>]) { self.specs = specs }
 
     /// Itself (``KeyframeTrackContent``).
     public var _keyframes: KeyframeTrackContentGroup<Value> { self }
@@ -155,13 +155,13 @@ public struct KeyframeTrackContentGroup<Value: VectorArithmetic>: KeyframeTrackC
 /// A keyframe reached at constant speed or along a ``UnitCurve`` from the
 /// previous value — SwiftUI's `LinearKeyframe` (`LK-I` item 3, probes `K1`,
 /// `K2`).
-public struct LinearKeyframe<Value: VectorArithmetic>: KeyframeTrackContent {
-    let spec: KeyframeSpec<Value>
+public struct LinearKeyframe<Value: Animatable>: KeyframeTrackContent {
+    let spec: KeyframeSpec<Value.AnimatableData>
 
     /// Reaches `to` after `duration` seconds along `timingCurve`. A
     /// zero-duration keyframe reads `to` at its own time (divergence 171).
     public init(_ to: Value, duration: TimeInterval, timingCurve: UnitCurve = .linear) {
-        spec = .linear(to, duration: keyframeDuration(duration, "LinearKeyframe"), curve: timingCurve)
+        spec = .linear(to.animatableData, duration: keyframeDuration(duration, "LinearKeyframe"), curve: timingCurve)
     }
 
     /// This keyframe alone (``KeyframeTrackContent``).
@@ -173,14 +173,14 @@ public struct LinearKeyframe<Value: VectorArithmetic>: KeyframeTrackContent {
 /// between two cubic keyframes is the finite difference of their neighbours, at
 /// a boundary with another kind of keyframe that keyframe's velocity, and at the
 /// track's start or end 0.
-public struct CubicKeyframe<Value: VectorArithmetic>: KeyframeTrackContent {
-    let spec: KeyframeSpec<Value>
+public struct CubicKeyframe<Value: Animatable>: KeyframeTrackContent {
+    let spec: KeyframeSpec<Value.AnimatableData>
 
     /// Reaches `to` after `duration` seconds, leaving the previous value at
     /// `startVelocity` and arriving at `endVelocity` (per second) when given.
     public init(_ to: Value, duration: TimeInterval, startVelocity: Value? = nil, endVelocity: Value? = nil) {
-        spec = .cubic(to, duration: keyframeDuration(duration, "CubicKeyframe"),
-                      start: startVelocity, end: endVelocity)
+        spec = .cubic(to.animatableData, duration: keyframeDuration(duration, "CubicKeyframe"),
+                      start: startVelocity?.animatableData, end: endVelocity?.animatableData)
     }
 
     /// This keyframe alone (``KeyframeTrackContent``).
@@ -192,14 +192,14 @@ public struct CubicKeyframe<Value: VectorArithmetic>: KeyframeTrackContent {
 /// incoming velocity and **stops at `duration`, holding the value it reached**;
 /// the next keyframe starts from there. **`duration` is required** (divergence
 /// 168: SwiftUI's default length is unfitted).
-public struct SpringKeyframe<Value: VectorArithmetic>: KeyframeTrackContent {
-    let spec: KeyframeSpec<Value>
+public struct SpringKeyframe<Value: Animatable>: KeyframeTrackContent {
+    let spec: KeyframeSpec<Value.AnimatableData>
 
     /// Springs toward `to` for `duration` seconds with `spring`'s motion,
     /// starting at `startVelocity` (per second) when given.
     public init(_ to: Value, duration: TimeInterval, spring: Spring = Spring(), startVelocity: Value? = nil) {
-        spec = .spring(to, duration: keyframeDuration(duration, "SpringKeyframe"), spring: spring,
-                       start: startVelocity)
+        spec = .spring(to.animatableData, duration: keyframeDuration(duration, "SpringKeyframe"), spring: spring,
+                       start: startVelocity?.animatableData)
     }
 
     /// This keyframe alone (``KeyframeTrackContent``).
@@ -208,11 +208,11 @@ public struct SpringKeyframe<Value: VectorArithmetic>: KeyframeTrackContent {
 
 /// A jump to a value at the keyframe's time — SwiftUI's `MoveKeyframe` (`LK-I`
 /// item 6, probe `K5`); the next keyframe starts from it.
-public struct MoveKeyframe<Value: VectorArithmetic>: KeyframeTrackContent {
-    let spec: KeyframeSpec<Value>
+public struct MoveKeyframe<Value: Animatable>: KeyframeTrackContent {
+    let spec: KeyframeSpec<Value.AnimatableData>
 
     /// Jumps to `to`.
-    public init(_ to: Value) { spec = .move(to) }
+    public init(_ to: Value) { spec = .move(to.animatableData) }
 
     /// This keyframe alone (``KeyframeTrackContent``).
     public var _keyframes: KeyframeTrackContentGroup<Value> { KeyframeTrackContentGroup([spec]) }
@@ -221,7 +221,7 @@ public struct MoveKeyframe<Value: VectorArithmetic>: KeyframeTrackContent {
 /// Builds a ``KeyframeTrack``'s keyframes — SwiftUI's
 /// `KeyframeTrackContentBuilder`, with `if`, `if`/`else` and `for`.
 @resultBuilder
-public enum KeyframeTrackContentBuilder<Value: VectorArithmetic> {
+public enum KeyframeTrackContentBuilder<Value: Animatable> {
     /// One keyframe or group.
     public static func buildExpression<C: KeyframeTrackContent>(_ content: C) -> KeyframeTrackContentGroup<Value>
         where C.Value == Value {
@@ -308,7 +308,7 @@ public struct KeyframesGroup<Value>: Keyframes {
 /// Its second generic parameter is spelled `TrackValue` where SwiftUI writes
 /// `Value` (`LK-V` item 3): MetalUI's ``Keyframes`` names its root `Value`, and a
 /// generic parameter of that name would bind it. No call site spells it.
-public struct KeyframeTrack<Root, TrackValue: VectorArithmetic, Content: KeyframeTrackContent>: Keyframes
+public struct KeyframeTrack<Root, TrackValue: Animatable, Content: KeyframeTrackContent>: Keyframes
     where Content.Value == TrackValue {
     let keyPath: WritableKeyPath<Root, TrackValue>
     let content: Content
@@ -331,9 +331,9 @@ public struct KeyframeTrack<Root, TrackValue: VectorArithmetic, Content: Keyfram
         let keyPath = keyPath
         let specs = content._keyframes.specs
         return KeyframesGroup([ErasedKeyframeTrack { root in
-            let segments = KeyframeSegments(specs: specs, from: root[keyPath: keyPath])
+            let segments = KeyframeSegments(specs: specs, from: root[keyPath: keyPath].animatableData)
             return CompiledKeyframeTrack(duration: segments.duration) { time, root in
-                root[keyPath: keyPath] = segments.value(at: time)
+                root[keyPath: keyPath].animatableData = segments.value(at: time)
             }
         }])
     }

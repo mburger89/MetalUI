@@ -19,7 +19,7 @@ private let isolationError = "crosses into main actor-isolated code"
 /// main-actor isolated, unlike SwiftUI's nonisolated `Shape` (`VT1`): **`S1`, SwiftUI's own spelling, is an
 /// error in MetalUI** (the conformance to the nonisolated ``Animatable`` crosses into main-actor code), and
 /// **`S2`, with `nonisolated var animatableData`, compiles** and reads the stored property. `nonisolated struct`
-/// compiles with the plain spelling, and `@MainActor` on the witness does not help. Divergence 210 states the
+/// compiles with the plain spelling, and `@MainActor` on the witness does not help. Divergence 215 states the
 /// difference. Marking the `Animatable` requirement `@MainActor` instead would make `S1` compile (measured, not
 /// shipped: it would make `Double` and a keyframe timeline main-actor, and it would let `S3` through, which
 /// SwiftUI rejects).
@@ -117,4 +117,40 @@ func theBuiltInAnimatablesAndAShapeWithNoDataCompile() throws {
                 "\(name) must not be Animatable:\n\(negative.output)")
     }
     print("VA-B conformers: ran")
+}
+
+/// `VA-B` keyframes, arm `S7` (`VT14`-`VT16`): a keyframe track over a custom `Animatable` struct compiles from
+/// a plain import, in SwiftUI's call shape, and a type that is not `Animatable` is refused. **`Float` compiles
+/// here and does not in SwiftUI** (`VT16`; the MetalUI extra of divergence 169).
+///
+/// Mutations: constrain `LinearKeyframe`'s `Value` to `VectorArithmetic` (the positive fails); drop the
+/// constraint (the separating arm compiles).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aKeyframeTrackOverACustomAnimatableCompiles() throws {
+    let positive = try typecheckFile("""
+        struct Pos: Animatable {
+            var a = 0.0
+            var b = 0.0
+            var animatableData: AnimatablePair<Double, Double> {
+                get { AnimatablePair(a, b) }
+                set { a = newValue.first; b = newValue.second }
+            }
+        }
+        struct Wobble { var pos = Pos(); var x = 0.0 }
+        func timeline() -> KeyframeTimeline<Wobble> {
+            KeyframeTimeline(initialValue: Wobble()) {
+                KeyframeTrack(\\.pos) { LinearKeyframe(Pos(a: 100, b: 50), duration: 0.4) }
+                KeyframeTrack(\\.x) { CubicKeyframe(1.0, duration: 0.2); SpringKeyframe(0.0, duration: 0.2) }
+            }
+        }
+        func floats() { _ = LinearKeyframe(Float(1), duration: 0.1) }
+        """, importing: "MetalUI")
+    #expect(positive.succeeded, "S7 must compile:\n\(positive.output)")
+    let negative = try typecheckFile("""
+        struct P { var a = 0.0 }
+        func f() { _ = LinearKeyframe(P(), duration: 1) }
+        """, importing: "MetalUI")
+    #expect(!negative.succeeded && negative.messages.contains("conform to 'Animatable'"),
+            "a non-Animatable value must be refused:\n\(negative.output)")
+    print("VA-B keyframes: ran")
 }

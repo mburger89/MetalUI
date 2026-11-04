@@ -53,7 +53,7 @@ enum KeyframeAnimatorMode {
 /// lives in the window's animation store, never in `StateTable`. **A
 /// `Self`-returning decoration written after it does not compile** (divergence
 /// 120's rule, `LK-T` item 2): write it inside the content closure, as
-/// SwiftUI's spelling does anyway. Track values constrain ``VectorArithmetic``
+/// SwiftUI's spelling does anyway. Track values constrain ``Animatable``
 /// and the modifier's content closure receives the element itself, not a
 /// placeholder (divergence 169).
 public struct KeyframeAnimator<Value, Content: ElementGroup, K: Keyframes>: ElementGroup where K.Value == Value {

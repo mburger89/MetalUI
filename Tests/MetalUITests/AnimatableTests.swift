@@ -338,6 +338,35 @@ private var avVerifying: Bool { ProcessInfo.processInfo.environment["METALUI_VER
     }
 }
 
+// MARK: - Keyframes (VA8)
+
+private struct Pos: Animatable {
+    var a = 0.0
+    var b = 0.0
+    var animatableData: AnimatablePair<Double, Double> {
+        get { AnimatablePair(a, b) }
+        set { a = newValue.first; b = newValue.second }
+    }
+}
+
+private struct Wobble { var pos = Pos() }
+
+/// **A keyframe track over a custom `Animatable` interpolates every component** (`VA8`: a 0 to 100 to 0, b 0 to
+/// 50 to 0). Mutation **MD13** (the track does not write the data back).
+@Test func aKeyframeTrackOverACustomAnimatable() {
+    let timeline = KeyframeTimeline(initialValue: Wobble()) {
+        KeyframeTrack(\.pos) {
+            LinearKeyframe(Pos(a: 100, b: 50), duration: 0.4)
+            LinearKeyframe(Pos(a: 0, b: 0), duration: 0.2)
+        }
+    }
+    func at(_ t: Double) -> [Double] { let p = timeline.value(time: t).pos; return [p.a, p.b] }
+    #expect(at(0) == [0, 0] && at(0.2) == [50, 25] && at(0.4) == [100, 50], "\(at(0.2)) \(at(0.4))")
+    let back = at(0.5)
+    #expect(abs(back[0] - 50) < 1e-9 && abs(back[1] - 25) < 1e-9, "\(back)")
+    #expect(at(0.6).allSatisfy { abs($0) < 1e-9 } && at(5) == [0, 0], "\(at(0.6)) \(at(5))")
+}
+
 // MARK: - Arithmetic
 
 /// **`AnimatablePair` and `EmptyAnimatableData` are componentwise.** Mutations **MD11** (`scale` skips
