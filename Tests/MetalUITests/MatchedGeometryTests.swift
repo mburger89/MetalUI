@@ -944,3 +944,16 @@ private let replayArmVerifying = ProcessInfo.processInfo.environment["METALUI_VE
     copy.matched = []
     #expect(hero.differences(from: copy, ignoringFinalStream: true)?.hasPrefix("matched groups") == true, "\(String(describing: hero.differences(from: copy, ignoringFinalStream: true)))")
 }
+
+/// **`renote` notes a range only where it is given a base** (`XF-N`): with none (the replay emitted another count) the groups are
+/// not re-noted and a recorder above learns nothing; with one they are noted at it, so an outer record inherits an inner replay.
+/// The caller's count check (**MR5**) is not separated by an integration arm: the unit's own ranges are dropped on the same count
+/// and a leaver is carved out of its unit's ghost, so ghosts read 1 either way (recorded in record 211).
+@Test @MainActor func renoteNotesRangesOnlyAtABase() {
+    let store = MatchedGeometryStore()
+    let key = GlobalElementID.child(of: nil, at: 0, name: nil)
+    store.renote([(key: key, range: 2..<5)], base: nil)
+    #expect(store.noted.isEmpty, "no base, nothing noted: \(store.noted.count)")
+    store.renote([(key: key, range: 2..<5)], base: 10)
+    #expect(store.noted.map(\.range) == [12..<15] && store.noted.map(\.key) == [key], "noted at the base: \(store.noted.map(\.range))")
+}
