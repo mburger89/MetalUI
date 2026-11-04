@@ -204,7 +204,9 @@ private var acVerifying: Bool { ProcessInfo.processInfo.environment["METALUI_VER
 
 /// **An animatable component in a retained (grafted, memoized) occurrence is not replayed frozen**: every frame
 /// of the flight paints a new width, equal to the oracle's (retention off), and the occurrence grafted before
-/// it started. Mutation **ME6** (no `noteInterpolation`/`noteActiveAnimation` inside the build window).
+/// it started. Mutations **ME2** (compared before interpolating) and **ME3** redden it. **ME6** (the hook before the build
+/// window opens) is **green**, reported: the interpolated value differs each frame, so the memo misses and the occurrence is
+/// rebuilt whatever the window saw; the placement inside the window is not load-bearing.
 @Test(.enabled(if: !acVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss"))
 @MainActor func anAnimatableComponentInARetainedOccurrenceIsNotFrozen() throws {
     func script(retained: Bool) throws -> (widths: [Double], rest: FrameWork, redos: [Int]) {
@@ -314,4 +316,39 @@ private struct Rebuilds: Component, Animatable {
         #expect(!f.hasActiveAnimations && !f.wantsAnotherFrame)
     }
     #expect(h.store.vectorTrackRebuilds == settled, "a settled component does no track work")
+}
+
+// MARK: - A non-animatable component allocates what it did
+
+private struct SteadyPlain: Component {
+    var x: Double
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
+    }
+}
+
+private struct SteadyEquatable: Component, @MainActor Equatable {
+    var x: Double
+    static func == (l: SteadyEquatable, r: SteadyEquatable) -> Bool { l.x == r.x }
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
+    }
+}
+
+/// **A steady frame of non-animatable components allocates exactly what it did before PR E** (a bare component and
+/// an `.equatable()` one, measured 398 on PR D's head `7c684807` and 398 here, the machine this record ran on): the
+/// hook computes no id for a component that is not `Animatable`. A first version computed the id in
+/// `EquatableComponent` before calling the hook and read 399 (one `GlobalElementID` allocation per equatable
+/// component per frame): mutation **ME7**.
+@Test @MainActor func aNonAnimatableComponentAllocatesWhatItDid() throws {
+    let h = WrapperHarness()
+    func tree() -> some Element {
+        DifferentialRoot(width: 400, height: 100) { SteadyPlain(x: 5); SteadyEquatable(x: 5).equatable() }
+    }
+    for i in 0..<4 { h.frame(Double(i), nil, tree()) }
+    #if canImport(Darwin)
+    let allocations = try #require(countAllocations { h.frame(10, nil, tree()) })
+    #expect(allocations == 398, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
+    #endif
+    #expect(h.store.vectorTrackRebuilds == 0 && h.store.count == 0, "and no track: \(h.store.vectorTrackRebuilds) \(h.store.count)")
 }

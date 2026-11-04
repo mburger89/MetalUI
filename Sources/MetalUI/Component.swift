@@ -94,7 +94,7 @@ public protocol Component: ElementGroup {
     /// interpolation in the `Self: Animatable` extension. A requirement, not a free function, so that
     /// `EquatableComponent` (generic over `Component & Equatable`) reaches the constrained witness without a
     /// dynamic cast; public because a protocol requirement cannot be less visible than its protocol (`package` is refused; an SPI requirement hides the default from other modules and no outside `Component` would conform): **framework-internal, never implement or call it**.
-    mutating func _interpolateAnimatableData(id: GlobalElementID, pass: inout LayoutPass)
+    mutating func _interpolateAnimatableData(under parent: GlobalElementID?, at cursor: Int, pass: inout LayoutPass)
 }
 
 /// What a `Component`'s `requestGroupLayout` hands to the later phases.
@@ -222,8 +222,9 @@ public struct ComponentPrepaint<C: Component> {
 extension Component {
     public var elementID: ElementID? { nil }
 
-    /// A component that is not ``Animatable`` interpolates nothing (`VA-I`).
-    public mutating func _interpolateAnimatableData(id: GlobalElementID, pass: inout LayoutPass) {}
+    /// A component that is not ``Animatable`` interpolates nothing (`VA-I`) and computes no id: the id is made inside the
+    /// `Self: Animatable` witness, so a non-conformer's `.equatable()` entry allocates what it did before.
+    public mutating func _interpolateAnimatableData(under parent: GlobalElementID?, at cursor: Int, pass: inout LayoutPass) {}
 
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
@@ -449,8 +450,9 @@ extension Component where Self: Animatable {
     }
 
     /// Interpolates ``Animatable/animatableData`` into `self` (`VA-I`).
-    public mutating func _interpolateAnimatableData(id: GlobalElementID, pass: inout LayoutPass) {
-        interpolateAnimatableComponent(&self, id: id, pass: &pass)
+    public mutating func _interpolateAnimatableData(under parent: GlobalElementID?, at cursor: Int, pass: inout LayoutPass) {
+        interpolateAnimatableComponent(&self, id: GlobalElementID.child(of: parent, at: cursor, name: elementID),
+                                       pass: &pass)
     }
 }
 
