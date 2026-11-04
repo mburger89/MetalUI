@@ -194,6 +194,29 @@ private struct GPLeaver: Component {
     #expect(r.harness.store.transitions.lastFrameUnanchoredGhosts == 0, "and the ghost is anchored")
 }
 
+/// **An erased container is a container** (`AnyElement`'s group entry records its bounds like `Element`'s, so its position is
+/// the anchor of a ghost inside the wrapped element). Legacy vocabulary, where `AnyElement` is a group member. Mutation
+/// **MB1k** (the hook removed from `AnyElement`'s `paintGroup`): the ghost is unanchored and drawn last, `[40, 30, 20, 50]`.
+@Test @MainActor func anErasedContainersGhostIsAnchoredAtItsEntry() throws {
+    func tile(_ w: Float, _ h: Float) -> some StyledElement {
+        Box().frame(width: Pixels(w), height: Pixels(h)).background(.accent)
+    }
+    let r = removal { shown in
+        Stack {
+            tile(40, 20)
+            AnyElement(Stack {
+                tile(30, 10)
+                if shown { tile(50, 30).transition(.opacity) }
+            })
+            tile(20, 5)
+        }
+    }
+    try #require(r.rest == [40, 30, 50, 20], "\(r.rest)")
+    #expect(r.start == [40, 50, 30, 20], "the ghost is first in the erased container's run: \(r.start)")
+    #expect(r.mid == [40, 50, 30, 20], "\(r.mid)")
+    #expect(r.harness.store.transitions.lastFrameUnanchoredGhosts == 0)
+}
+
 // MARK: - Insertion stays in place (`XF10d`)
 
 /// **An insertion is not moved** (`XF10d`): a leaf above its sibling enters above it, a leaf below enters below. Nothing
