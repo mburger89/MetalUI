@@ -1,8 +1,12 @@
+import Foundation
 import Testing
 import Observation
 import MetalUICore
 import MetalUILayout
 import MetalUIPlatform
+import MetalUIScene
+import MetalUITesting
+import MetalUITestSupport
 @testable import MetalUI
 
 // Round 3, item R3-2 — `matchedGeometryEffect` and the `Transition` protocol (ruling family `MG-`,
@@ -41,10 +45,15 @@ private struct R: Equatable, CustomStringConvertible {
     }
 }
 
-/// The one accent rect `frame` painted (the stage paints exactly one tile at rest and mid-flight).
-@MainActor private func one(_ frame: Frame) -> R? {
+/// The accent rect `frame` painted for the view that arrives (the stage paints exactly one tile at rest and once a
+/// flight has landed). **While the leaver fades there are two** (R4-3 PR C, `XF-M`: the leaver's ghost moves and fades,
+/// the newcomer fades in while it flies): the newcomer is the one drawn last when it sits in the lower container (a swap
+/// A -> B) and the first when it sits in the upper one (B -> A, `newcomerIsLast: false`), the leaver's ghost being the
+/// first sublayer of its own container's run.
+@MainActor private func one(_ frame: Frame, newcomerIsLast: Bool = true) -> R? {
     let all = accents(frame)
-    return all.count == 1 ? R(all[0]) : nil
+    guard !all.isEmpty, all.count <= 2 else { return nil }
+    return R(newcomerIsLast ? all[all.count - 1] : all[0])
 }
 
 private let rectA = R(50, 50, 50, 30)
@@ -327,7 +336,7 @@ private struct MGOptions {
     let mid = one(h.frame(0.5, nil, stage(true)))
     try #require(mid?.near(R(100, 120, 75, 45)) == true, "set up: half-way \(String(describing: mid))")
     // Back to A at 0.5: A is the newcomer now and starts from where B was drawn.
-    let back = one(h.frame(0.5, linear1, stage(false)))
+    let back = one(h.frame(0.5, linear1, stage(false)), newcomerIsLast: false)
     #expect(back?.near(R(100, 120, 75, 45)) == true, "A starts where B was drawn: \(String(describing: back))")
     let end = one(h.frame(1.5, nil, stage(false)))
     #expect(end == rectA, "and lands on A: \(String(describing: end))")
@@ -513,4 +522,256 @@ private struct StillPair: Component, @MainActor Equatable {
     #expect(window.animationStore.matched.liveCount == 0 && !window.hasActiveAnimations, "landed")
     #expect(reasons["matchedGeometry", default: 0] > 0 && grafts == 0,
             "an occurrence with a matched group is refused a graft by name: grafts \(grafts), reasons \(reasons)")
+}
+
+// MARK: - R4-3 PR C: the leaver moves as it fades (`XF-M`, divergence 897)
+//
+// SwiftUI's side: `docs/probes/swiftui-matched-geometry.swift` S1 (both cross-fade; the leaver moves with its own
+// size), S12 (a non-source leaver moves to the source's centre), S9 (`.position`: same), S10 (`.size` alone: no motion),
+// S13 (no source: no motion), S2 (`.identity`: no ghost). The stage is the swap above: A (50, 50, 50, 30), centre
+// (75, 65), leaves for B (150, 190, 100, 60), centre (200, 220); the animation is `linear(1)`, read at 0.5.
+
+/// The accent rects of `frame` as (rect, alpha), the leaver's ghost being the one of A's size.
+@MainActor private func leaverAndNewcomer(_ frame: Frame, leaverWidth: Float = 50) -> (leaver: (R, Float)?, newcomer: (R, Float)?) {
+    let all = accents(frame)
+    func read(_ r: MUIRect) -> (R, Float) { (R(r), r.background.a) }
+    return (all.first { $0.bounds.size.width == leaverWidth }.map(read), all.first { $0.bounds.size.width != leaverWidth }.map(read))
+}
+
+/// A swap mid-fade: the frame at 0.5 after the change at 0 under `linear(1)`.
+@MainActor private func midSwap(_ o: MGOptions = MGOptions()) -> Frame {
+    let h = TransitionHarness()
+    h.frame(0, nil, stage(false, o))
+    h.frame(0, linear1, stage(true, o))
+    return h.frame(0.5, nil, stage(true, o))
+}
+
+/// **The leaver moves toward the source as it fades** (`S1`): half-way, A's ghost has travelled half the way from its
+/// centre (75, 65) to B's (200, 220), keeping its own 50 × 30, at alpha 0.5. Mutations **MC1** (the full-frame map: the
+/// leaver also takes B's size), **MC3** (the move is dropped for a source leaver), **MC4** (the whole unit's ghost is
+/// translated), **MC6** (the move is never handed to the store).
+@Test @MainActor func aLeaverMovesToTheSourceAsItFades() throws {
+    let (leaver, newcomer) = leaverAndNewcomer(midSwap())
+    try #require(leaver != nil && newcomer != nil, "set up: both are drawn")
+    #expect(leaver!.0.near(R(112.5, 127.5, 50, 30)), "centre half-way to B's, own size: \(leaver!.0)")
+    #expect(abs(leaver!.1 - 0.5) < 0.01, "and half faded: \(leaver!.1)")
+    let start = leaverAndNewcomer({
+        let h = TransitionHarness()
+        h.frame(0, nil, stage(false))
+        return h.frame(0, linear1, stage(true))
+    }())
+    #expect(start.leaver?.0 == rectA && start.leaver?.1 == 1, "the first frame draws it where it was, opaque: \(String(describing: start.leaver))")
+}
+
+/// **The newcomer fades while it flies** (`S1`; `XF-K` dropped its default insertion until this PR): half-way it is at the
+/// flight's half-way frame at alpha 0.5, and it was transparent at the first frame. Mutation **MC5** (the newcomer's
+/// default insertion is dropped on a flight again: alpha 1).
+@Test @MainActor func theNewcomerFadesWhileItFlies() throws {
+    let (_, newcomer) = leaverAndNewcomer(midSwap())
+    try #require(newcomer != nil, "set up")
+    #expect(newcomer!.0.near(R(100, 120, 75, 45)) && abs(newcomer!.1 - 0.5) < 0.01, "flying and half faded: \(newcomer!)")
+    let h = TransitionHarness()
+    h.frame(0, nil, stage(false))
+    let first = accents(h.frame(0, linear1, stage(true)))
+    #expect(first.count == 2 && first[1].background.a == 0, "transparent at the first frame: \(first.map { ($0.bounds.origin.x, $0.background.a) })")
+    let end = one(h.frame(1.0, nil, stage(true)))
+    #expect(end == rectB, "and opaque, alone, at its own frame at the end: \(String(describing: end))")
+    #expect(accents(h.frame(1.0, nil, stage(true))).first.map(\.background.a) == 1)
+}
+
+/// **A non-source leaver moves too** (`S12`): the newcomer is at its own frame at once (no handoff) and A's ghost, which is
+/// not a source, travels to B's centre keeping its size. Mutation **MC3** (only a source leaver moves).
+@Test @MainActor func aNonSourceLeaverMovesToo() throws {
+    var o = MGOptions()
+    o.oldSource = false
+    let (leaver, newcomer) = leaverAndNewcomer(midSwap(o))
+    try #require(leaver != nil && newcomer != nil, "set up")
+    #expect(leaver!.0.near(R(112.5, 127.5, 50, 30)), "S12: A's ghost half-way to B's centre: \(leaver!.0)")
+    #expect(newcomer!.0 == rectB, "the newcomer is at its own frame: \(newcomer!.0)")
+}
+
+/// **`.position` moves the leaver, `.size` alone does not** (`S9`, `S10`). Mutation **MC2** (`properties` ignored).
+@Test @MainActor func aSizeOnlyLeaverStays() throws {
+    var position = MGOptions()
+    position.oldProperties = .position; position.newProperties = .position
+    let moved = leaverAndNewcomer(midSwap(position))
+    #expect(moved.leaver?.0.near(R(112.5, 127.5, 50, 30)) == true, "S9: \(String(describing: moved.leaver))")
+    var size = MGOptions()
+    size.oldProperties = .size; size.newProperties = .size
+    let stays = leaverAndNewcomer(midSwap(size), leaverWidth: 50)
+    #expect(stays.leaver?.0 == rectA, "S10: the leaver stays where it was: \(String(describing: stays.leaver))")
+}
+
+/// **No source, no motion** (`S13`). Mutation **MC3**' (the leaver is moved toward its own frame / a missing source
+/// treated as the newcomer).
+@Test @MainActor func noSourceNoMotion() throws {
+    var o = MGOptions()
+    o.oldSource = false; o.newSource = false
+    let (leaver, newcomer) = leaverAndNewcomer(midSwap(o))
+    #expect(leaver?.0 == rectA && newcomer?.0 == rectB, "S13: nothing moves: \(String(describing: leaver)), \(String(describing: newcomer))")
+}
+
+/// **An `.identity` leaver has no ghost, so nothing moves and nothing is handed over** (`S2`).
+@Test @MainActor func anIdentityLeaverHandsOverNothing() throws {
+    var o = MGOptions()
+    o.oldTransition = .identity
+    let f = midSwap(o)
+    #expect(accents(f).map(R.init) == [rectB], "S2: B alone, at its own frame: \(accents(f).map(R.init))")
+}
+
+/// **An annotated leaver that fades moves; one that does not fade stays** (`XF-M`): `.opacity` takes the translation
+/// onto its own ghost; `.move(edge:)` has no opacity atom and keeps its transition alone.
+@Test @MainActor func anAnnotatedLeaverMovesOnlyWhenItFades() throws {
+    var fading = MGOptions()
+    fading.oldTransition = .opacity; fading.newTransition = .identity
+    let moved = leaverAndNewcomer(midSwap(fading))
+    #expect(moved.leaver?.0.near(R(112.5, 127.5, 50, 30)) == true && abs((moved.leaver?.1 ?? 0) - 0.5) < 0.01,
+            "an opacity leaver is ghosted, moved and faded: \(String(describing: moved.leaver))")
+    var sliding = MGOptions()
+    sliding.oldTransition = .move(edge: .leading); sliding.newTransition = .identity
+    let slid = leaverAndNewcomer(midSwap(sliding))
+    #expect(slid.leaver.map { $0.0.x < 50 && $0.0.y == 50 } == true,
+            "a move leaver slides out by its own transition, not toward B: \(String(describing: slid.leaver))")
+}
+
+@MainActor private func unitStage(_ flag: Bool) -> some Element {
+    Column {
+        Stack(alignment: .topLeading) {
+            Box().frame(width: Pixels(200), height: Pixels(100))
+            if !flag {
+                tileA().matchedGeometryEffect(id: "hero", in: space)
+                Box().frame(width: Pixels(20), height: Pixels(10)).background(.accent)
+            }
+        }
+        Stack(alignment: .bottomTrailing) {
+            Box().frame(width: Pixels(200), height: Pixels(100))
+            if flag { tileB().matchedGeometryEffect(id: "hero", in: space) }
+        }
+    }
+}
+
+/// **A multi-member unit moves only the matched member** (`XF4`-consistent): the unit `{ matched tile; plain 20 × 10 }`
+/// fades as two members, and only the matched one travels. Mutation **MC4** (the whole unit's ghost translated).
+@Test @MainActor func aMultiMemberUnitMovesOnlyTheMatchedMember() throws {
+    let h = TransitionHarness()
+    h.frame(0, nil, unitStage(false))
+    h.frame(0, linear1, unitStage(true))
+    let f = h.frame(0.5, nil, unitStage(true))
+    let rects = accents(f)
+    let plain = rects.first { $0.bounds.size.width == 20 }
+    let tile = rects.first { $0.bounds.size.width == 50 && $0.bounds.size.height == 30 }
+    try #require(plain != nil && tile != nil, "set up: \(rects.map(R.init))")
+    #expect(R(tile!).near(R(112.5, 127.5, 50, 30)), "the matched tile travels: \(R(tile!))")
+    #expect(R(plain!).x == 50 && R(plain!).y == 50, "the plain member fades in place: \(R(plain!))")
+    #expect(abs(plain!.background.a - 0.5) < 0.01 && abs(tile!.background.a - 0.5) < 0.01, "both half faded")
+}
+
+private final class DisappearLog { var count = 0 }
+
+/// **The moving leaver's ghost parks its `onDisappear`** (`XF-J` carried): the callback of the carved member waits for the
+/// fade with the leaver's own ghost, not the unit's. Mutation **MC7** (the unit's ghost does not exempt the leaver's
+/// position: the unit's ghost parks it, which here releases at the same tick, so the arm also reads the ghost count).
+@Test @MainActor func aMovingLeaverStillParksItsDisappearAndLeavesTwoGhosts() throws {
+    let model = MatchedModel()
+    let log = DisappearLog()
+    let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 400, startsDisplayLink: true) {
+        Column {
+            Stack(alignment: .topLeading) {
+                Box().frame(width: Pixels(200), height: Pixels(100))
+                if !model.flag {
+                    tileA().matchedGeometryEffect(id: "hero", in: space).onDisappear { log.count += 1 }
+                    Box().frame(width: Pixels(20), height: Pixels(10)).background(.accent)
+                }
+            }
+            Stack(alignment: .bottomTrailing) {
+                Box().frame(width: Pixels(200), height: Pixels(100))
+                if model.flag { tileB().matchedGeometryEffect(id: "hero", in: space) }
+            }
+        }
+    }
+    platform.simulateTick(timestamp: 100)
+    withAnimation(.linear(duration: 1)) { model.flag = true }
+    platform.simulateTick(timestamp: 100.1)
+    #expect(window.animationStore.transitions.ghostCount == 2, "the unit's ghost and the leaver's own: \(window.animationStore.transitions.ghostCount)")
+    #expect(log.count == 0 && window.animationStore.lifecycle.parkedCount == 1, "parked: \(log.count)")
+    // The leaver's own ghost is the one that holds it: the unit's ghost carries the leaver's position as an exemption.
+    let live = window.animationStore.transitions.liveGhosts
+    #expect(window.animationStore.lifecycle.parkedOn == Set(live.filter { $0.exempt.isEmpty }.map(\.key)) && live.contains { !$0.exempt.isEmpty },
+            "parked on the leaver's ghost, not the unit's: \(window.animationStore.lifecycle.parkedOn.count) of \(live.count)")
+    platform.simulateTick(timestamp: 100.6)
+    #expect(log.count == 0, "still waiting half-way")
+    platform.simulateTick(timestamp: 101.3)
+    platform.simulateTick(timestamp: 101.4)
+    #expect(log.count == 1 && window.animationStore.transitions.ghostCount == 0, "released once at the end: \(log.count)")
+}
+
+/// **Re-inserting the unit during the fade takes the leaver's ghost down with the unit's** (`T4u` carried). Mutation
+/// **MC8** (the leaver's ghost outlives its unit's).
+@Test @MainActor func reinsertingTheUnitRemovesTheLeaversGhost() throws {
+    let h = TransitionHarness()
+    h.frame(0, nil, unitStage(false))
+    h.frame(0, linear1, unitStage(true))
+    try #require(h.store.transitions.ghostCount == 2, "set up: the unit's ghost and the leaver's")
+    h.frame(0.5, nil, unitStage(true))
+    h.frame(0.5, linear1, unitStage(false))
+    // B, the newcomer of the first swap, is the leaver now: its own unit ghost and its own leaver ghost. A's two are gone.
+    #expect(h.store.transitions.ghostCount == 2, "A's two ghosts went with the unit's return, B's two stand: \(h.store.transitions.ghostCount)")
+}
+
+/// **FINDING (existing, reported, not fixed here): a leaver whose paint was a replay hands nothing over and does not
+/// move.** `MatchedGeometryStore` writes a record's `displayed` (and `noteSequences` its range) only in `beginPaint` /
+/// `MatchedGeometryGroup.paintGroup`, which a paint replay does not run. An `.equatable()` occurrence holding a matched
+/// group is built every frame (it is refused a graft by name, `matchedGeometry`, the test above) but its **paint** is
+/// replayed once it has been steady for a few frames, so the last frame's record has `displayed == nil`, the handoff's
+/// `old.displayed != nil` guard fails and no flight starts: the newcomer is at its own frame and the leaver fades in
+/// place inside the unit's ghost, as with retention off and no matched effect. Measured at the head of PR B2 too (`git
+/// stash` of this PR's `Sources/`): flights 0 after six steady frames, 1 after one, and 1 with retention off. **Pinned
+/// wrong on purpose**: whoever fixes the record (re-noting `displayed` and `sequences` from the retained record, as the
+/// ranges are, `XF-I`) flips the first two expectations; the oracle arm (retention off) is what it must equal.
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_VERIFY_RETAINED"] != "1",
+               "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the replay counts are not its to read"))
+@MainActor func aLeaverInAReplayedOccurrenceHandsNothingOverToday() throws {
+    struct Panel: Component, @MainActor Equatable {
+        let tag: Int
+        var content: some ElementGroup { Box().frame(width: Pixels(40), height: Pixels(40)).background(.accent) }
+    }
+    func run(retained: Bool, restFrames: Int) throws -> (flights: Int, ghosts: Int, hits: Int) {
+        let model = MatchedModel()
+        let w = try TestWindow(size: Size(width: Pixels(400), height: Pixels(300))) {
+            Row {
+                HeroStage(flag: model.flag, id: "left").equatable()
+                Panel(tag: 1).equatable()
+            }
+        }
+        w.window.testingRetainedSubtrees = retained
+        for _ in 0..<restFrames { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
+        let hits = w.lastFrameWork.retainedHits
+        withAnimation(.linear(duration: 1)) { model.flag = true }
+        w.advance(by: 0.1)
+        return (w.window.animationStore.matched.liveCount, w.window.animationStore.transitions.ghostCount, hits)
+    }
+    let steady = try run(retained: true, restFrames: 6)
+    try #require(steady.hits > 0, "set up: the still panel's paint was a replay in the steady frames: \(steady.hits)")
+    let oracle = try run(retained: false, restFrames: 6)
+    #expect(oracle.flights == 1 && oracle.ghosts == 2, "the oracle (retention off): the flight starts and the leaver has its own ghost: \(oracle)")
+    #expect(steady.flights == 0 && steady.ghosts == 1, "after replayed frames nothing is handed over today (the finding): \(steady)")
+    let early = try run(retained: true, restFrames: 1)
+    #expect(early.flights == 1 && early.ghosts == 2, "after one steady frame the paint is not yet a replay and it works: \(early)")
+}
+
+/// **A leaver already at the source's centre has nothing to travel and stays in its unit's ghost** (`XF-M`): both tiles
+/// share one centre in one container, so the move is zero and no second ghost is made. Mutation **MC13** (a zero move
+/// still carves the leaver out: two ghosts).
+@Test @MainActor func aLeaverAtTheSourcesCentreKeepsItsUnitsGhost() throws {
+    func tree(_ flag: Bool) -> some Element {
+        Stack(alignment: .center) {
+            Box().frame(width: Pixels(200), height: Pixels(100))
+            if !flag { tileA().matchedGeometryEffect(id: "hero", in: space) }
+            if flag { tileB().matchedGeometryEffect(id: "hero", in: space) }
+        }
+    }
+    let h = TransitionHarness()
+    h.frame(0, nil, tree(false))
+    let f = h.frame(0, linear1, tree(true))
+    #expect(h.store.transitions.ghostCount == 1, "one ghost, the unit's: \(h.store.transitions.ghostCount) \(accents(f).map(R.init))")
 }

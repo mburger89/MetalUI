@@ -801,34 +801,3 @@ private struct DTRow: Identifiable { let id: Int }
     let out = h.frame(0.2, linear12, proposalStage(false))
     #expect(store.ghostCount == 1 && alphas(out, 50).isEmpty, "a ghost that draws nothing: \(alphas(out, 50))")
 }
-
-// MARK: - A matched-geometry handoff (until PR C)
-
-private let dtSpace = Namespace.ID(owner: .child(of: nil, at: 91, name: nil))
-
-/// **A handed-over leaver draws nothing and its newcomer is opaque** (`XF-H` item 10, flips in PR C): a flight replaces the
-/// cross-fade, so the card flies from the leaver's frame at full alpha with nothing under it instead of fading in from 0
-/// beside a leaver that fades out in place. Mutation **MB2aa** (no handoff carve: two rects, the newcomer at alpha 0).
-@Test @MainActor func aHandedOverLeaverDrawsNothingAndItsNewcomerIsOpaque() throws {
-    func tree(_ flag: Bool) -> some Element {
-        Column {
-            Stack(alignment: .topLeading) {
-                Box().frame(width: Pixels(200), height: Pixels(100))
-                if !flag { tile(50, 30).matchedGeometryEffect(id: "hero", in: dtSpace) }
-            }
-            Stack(alignment: .bottomTrailing) {
-                Box().frame(width: Pixels(200), height: Pixels(100))
-                if flag { tile(100, 60).matchedGeometryEffect(id: "hero", in: dtSpace) }
-            }
-        }
-    }
-    let h = TransitionHarness()
-    h.frame(0, nil, tree(false))
-    let start = h.frame(0, linear1, tree(true))
-    let mid = h.frame(0.5, nil, tree(true))
-    for (name, f) in [("start", start), ("mid", mid)] {
-        let rects = f.scene.rects.filter { $0.bounds.size.width < 150 }
-        #expect(rects.count == 1 && (rects.first?.background.a ?? 0) > 0.99,
-                "\(name): one opaque rect (the newcomer in flight): \(f.scene.rects.map { ($0.bounds.size.width, $0.background.a) })")
-    }
-}

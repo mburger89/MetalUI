@@ -229,6 +229,9 @@ final class LifecycleStore {
     /// Entries the last completed build left — test observability (`LC-K`).
     var count: Int { previous.count }
 
+    /// The ghosts holding a parked disappearance (a test reads which ghost parked it, `XF-M`).
+    var parkedOn: Set<GlobalElementID> { Set(parked.keys) }
+
     /// Disappearances parked on a live ghost.
     var parkedCount: Int { parked.values.reduce(0) { $0 + $1.events.count } }
 

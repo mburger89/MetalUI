@@ -82,7 +82,7 @@ final class MatchedGeometryStore {
         /// Where it was drawn this frame, after any flight (a leaver's last place, and the start of an
         /// interrupting flight).
         var displayed: Rect?
-        /// The scene sequence range its content drew, for a handoff to carve the leaver out of a default ghost (`XF-H`).
+        /// The scene sequence range its content drew, for a leaver to be carved out of its unit's default ghost (`XF-M`).
         var sequences: Range<Int>?
     }
 
@@ -184,9 +184,19 @@ final class MatchedGeometryStore {
             let start = Self.shown(own: own, source: from, properties: record.spec.properties, anchor: record.spec.anchor)
             if start != target {
                 flights[key] = Flight(start: now, animation: animation, from: start)
-                // The flight replaces the cross-fade until PR C draws the leaver moving (`XF-H` item 10).
-                transitions.handOver(leaverSequences: leaver.value.sequences, newcomer: key)
             }
+        }
+        // The leaver moves as it fades (`XF-M`, 897): every record gone this frame that takes the group's source's
+        // position, handed over or not (S12: a non-source leaver moves while the newcomer is at its own place).
+        for (leaverKey, old) in previousRecords where records[leaverKey] == nil {
+            guard old.spec.properties.contains(.position), let displayed = old.displayed,
+                  let sourceKey = sources[GroupKey(namespace: old.spec.namespace, id: old.spec.id)],
+                  let source = records[sourceKey]?.rect else { continue }
+            let ax = Double(old.spec.anchor.x), ay = Double(old.spec.anchor.y)
+            let dx = (source.x + ax * source.w) - (displayed.x + ax * displayed.w)
+            let dy = (source.y + ay * source.h) - (displayed.y + ay * displayed.h)
+            guard dx != 0 || dy != 0 else { continue }
+            transitions.leaverMoves(transitionKey: old.transitionKey, sequences: old.sequences, dx: dx, dy: dy, frame: frame)
         }
     }
 

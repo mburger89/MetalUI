@@ -685,7 +685,7 @@ Additive: `matchedGeometryEffect(id:in:properties:anchor:isSource:)`, `MatchedGe
 protocol, `TransitionPhase`, `TransitionContent`, `AnyTransition(_:)` and `.transition(_:)` over a `Transition`. **Porting
 SwiftUI code:** a `matchedGeometryEffect` swap works as written, but a leaver you gave `.transition(.identity)` hands its
 frame over to nothing (SwiftUI's rule, probe S2); the move is a paint map (hit testing keeps the laid-out frame, 895; a
-size change stretches the content, 896; the leaver does not move, 897). A SwiftUI `Transition`'s `body` returns a view;
+size change stretches the content, 896; the leaver moves toward the source as it fades, with the residues of 897, and the newcomer fades in while it flies). A SwiftUI `Transition`'s `body` returns a view;
 here it returns `TransitionContent` built with `content.opacity(_:)`, `.scaleEffect(_:anchor:)` and `.offset(x:y:)`, the
 only effects a transition has (898): rewrite `content.scaleEffect(phase.isIdentity ? 1 : 0.5)` as is, and drop any other
 modifier (a blur, a rotation, a background). `contentTransition`, `.blurReplace` and `.modifier(active:identity:)` do not

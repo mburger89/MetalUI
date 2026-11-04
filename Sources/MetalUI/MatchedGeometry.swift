@@ -120,7 +120,7 @@ extension ElementGroup {
     /// `.position` with its own size kept (S9), the size for `.size` with its centre kept. Without a
     /// transaction the newcomer is at its own frame at once (MG1n). A leaver removed at once by an explicit
     /// `.transition(.identity)` hands nothing over (S2); a leaver that is not a source hands nothing over
-    /// (S12). A view with no `.transition` is removed instantly in MetalUI (divergence 98) and still hands its
+    /// (S12). A view with no `.transition` fades out by default (divergence 98, narrowed) and still hands its
     /// frame over, as SwiftUI's default cross-fade does (S1).
     ///
     /// **Sources and followers.** Of several live views with one id and namespace the last source in tree
@@ -129,8 +129,9 @@ extension ElementGroup {
     ///
     /// **Not SwiftUI:** the move is a paint map from the laid-out rectangle to the shown one, not a relayout at
     /// the shown size, so a `.size` change stretches the drawn content (divergence 896); hit testing keeps the
-    /// laid-out frame (divergence 895); the leaver's own move toward the newcomer's frame (SwiftUI moves the
-    /// outgoing view too, S12) is not drawn (divergence 897); `anchor` is MetalUI's reading of an unprobed
+    /// laid-out frame (divergence 895); the leaver moves toward the source's centre as it fades,
+    /// keeping its own size (S1, S12, S9), but a clip inside its ghost stays put, it is drawn at the bottom of its container's
+    /// run and a paint that was a replay hands nothing over (divergence 897, `XF-M`); `anchor` is MetalUI's reading of an unprobed
     /// parameter (`MG-D`).
     public func matchedGeometryEffect<ID: Hashable>(
         id: ID, in namespace: Namespace.ID, properties: MatchedGeometryProperties = .frame,
