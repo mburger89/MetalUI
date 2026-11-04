@@ -101,22 +101,24 @@ extension OptionalGroup: ProposalElementGroup where Wrapped: ProposalElementGrou
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
-        -> ([ProposalNodeID], Wrapped.GroupLayout?) {
+        -> ([ProposalNodeID], ConditionalLayout<Wrapped.GroupLayout>) {
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
         cursor += 1
         guard var inner = wrapped else {
             pass.frame.stateTable.noteAbsent(slot)
             pass.frame.animationStore.transitions.noteOptional(slot, produced: false,  // `AN-AE`, the copy's own
-                                                               animation: pass.frame.conditionalAnimation)
-            return ([], nil)
+                                                               animation: pass.frame.conditionalAnimation,
+                                                               fades: fades)
+            return ([], ConditionalLayout(inner: nil, unit: nil))
         }
         pass.frame.stateTable.noteProduced(slot)
         pass.frame.animationStore.transitions.noteOptional(slot, produced: true,  // `AN-AE`, the copy's own
-                                                           animation: pass.frame.conditionalAnimation)
+                                                           animation: pass.frame.conditionalAnimation,
+                                                           fades: fades)
         var innerCursor = 0
         let (nodes, layout) = inner.requestProposalGroupLayout(under: slot, at: &innerCursor, pass: &pass)
         wrapped = inner
-        return (nodes, layout)
+        return (nodes, ConditionalLayout(inner: layout, unit: fades ? slot : nil))
     }
 }
 
@@ -137,7 +139,7 @@ extension EitherGroup: ProposalElementGroup where First: ProposalElementGroup, S
             var inner = 0
             let (nodes, layout) = group.requestProposalGroupLayout(under: firstBranch, at: &inner, pass: &pass)
             self = .first(group)
-            return (nodes, .first(layout))
+            return (nodes, .first(layout, unit: firstBranch))
         case .second(var group):
             pass.frame.stateTable.noteProduced(secondBranch)
             pass.frame.stateTable.noteAbsent(firstBranch)
@@ -146,7 +148,7 @@ extension EitherGroup: ProposalElementGroup where First: ProposalElementGroup, S
             var inner = 0
             let (nodes, layout) = group.requestProposalGroupLayout(under: secondBranch, at: &inner, pass: &pass)
             self = .second(group)
-            return (nodes, .second(layout))
+            return (nodes, .second(layout, unit: secondBranch))
         }
     }
 }

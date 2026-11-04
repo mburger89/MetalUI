@@ -173,6 +173,9 @@ final class SubtreeRecorder {
     var passedInnerScope = false
     var from = RetainLog.Marks()
     var before = LedgerSnapshot()
+    /// `TransitionStore.ranges.count` and the scene's emission sequence where the paint window opened (`XF-H` item 8).
+    var rangesFrom = 0
+    var sequenceFrom = 0
 }
 
 // MARK: - The ledger
@@ -335,6 +338,11 @@ final class RetainedRecord {
     /// The entries read-only accesses kept live under the paint (`RW-E`).
     var lives: [GlobalElementID] = []
     var paintWork = 0
+    /// The default-fade unit ranges the occurrence's paint noted, relative to the sequence its window opened at, and how
+    /// many primitives it emitted (`XF-H` item 8): a replay re-notes them at the current sequence, and drops them when it
+    /// emits another count.
+    var ranges: [UnitRange] = []
+    var emitted = 0
     /// Whether a leaf of the occurrence passed a paint scope opened inside it: such a record is not moved by an add (`FS-D`).
     var innerScopes = false
     /// Whether the build, prepaint and paint windows were all observed when the record was made
@@ -665,6 +673,8 @@ extension Frame {
         recorder.readLow = stateTable.readJournal.count
         recorder.from = log.current
         recorder.before = ledgerSnapshot()
+        recorder.rangesFrom = animationStore.transitions.ranges.count
+        recorder.sequenceFrom = scene.nextEmissionSequence
         stateTable.contentMemos.retained.ledgerSnapshots += 1
         log.recorders.append(recorder)
     }
@@ -688,6 +698,7 @@ extension Frame {
     }
 
     func replayPaint(_ r: RetainedRecord, translated: Bool = false, scene movedScene: [RetainLog.SceneOp]? = nil) {
+        let sequenceBase = scene.nextEmissionSequence
         // A record replayed at a translated position goes through the live scopes (`RK-S`): the final stream holds
         // the old translation in its coordinates.
         if !translated, retainLog?.needsLeaves != true, let final = r.finalScene {
@@ -700,6 +711,11 @@ extension Frame {
         for id in r.lives { stateTable.touchLive(id); retainLog?.lives.append(id); prepaintLog?.lives.append(id) }
         for (id, _) in r.versions { stateTable.noteRead(id) }
         for touch in r.touches { animationStore.replay(touch) }
+        // A replay re-notes the unit ranges its paint stood for, at the sequence it started at (`XF-H` item 8); another
+        // emitted count drops them, and the ghost of a removal then draws nothing but still parks.
+        if !r.ranges.isEmpty, scene.nextEmissionSequence - sequenceBase == r.emitted {
+            animationStore.transitions.renoteRanges(r.ranges, base: sequenceBase)
+        }
         stateTable.contentMemos.retained.skippedPaints += r.paintWork
         stateTable.contentMemos.retained.replayedOps += r.scene.count
     }
@@ -903,6 +919,13 @@ extension Frame {
         record.lives = Array(log.lives[from.lives..<to.lives])
         record.touches = Array(log.touches[from.touches..<to.touches])
         record.paintWork = after.work - before.work
+        record.emitted = scene.nextEmissionSequence - recorder.sequenceFrom
+        let noted = animationStore.transitions.ranges
+        if recorder.rangesFrom < noted.count {
+            record.ranges = noted[recorder.rangesFrom...].map {
+                UnitRange(unit: $0.unit, start: $0.start - recorder.sequenceFrom, end: $0.end - recorder.sequenceFrom)
+            }
+        }
         record.innerScopes = recorder.passedInnerScope
         if log.recorders.isEmpty { retainLog = nil }
         let memos = stateTable.contentMemos
@@ -946,6 +969,7 @@ extension RetainedRecord {
         copy.marks = marks; copy.touches = touches; copy.lives = lives
         copy.paintWork = paintWork; copy.coverageBuild = coverageBuild; copy.coveragePrepaint = coveragePrepaint; copy.prepaint = prepaint
         copy.innerScopes = innerScopes
+        copy.ranges = ranges; copy.emitted = emitted
         return copy
     }
 
@@ -987,6 +1011,8 @@ extension RetainedRecord {
             for (a, b) in zip(x, y) where describe(a) != describe(b) { return "final op \(describe(a)) vs \(describe(b))" }
         }
         if marks != other.marks { return "marks" }
+        if emitted != other.emitted { return "emitted \(emitted) vs \(other.emitted)" }
+        if ranges != other.ranges { return "unit ranges \(ranges.count) vs \(other.ranges.count)" }
         // A first sighting touches and stores (two touches), a later frame only touches: the same entry kept
         // alive, so the comparison is of the ids, not of the touch count.
         func ids(_ touches: [RetainLog.Touch]) -> Set<GlobalElementID> {

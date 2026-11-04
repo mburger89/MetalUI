@@ -82,6 +82,8 @@ final class MatchedGeometryStore {
         /// Where it was drawn this frame, after any flight (a leaver's last place, and the start of an
         /// interrupting flight).
         var displayed: Rect?
+        /// The scene sequence range its content drew, for a handoff to carve the leaver out of a default ghost (`XF-H`).
+        var sequences: Range<Int>?
     }
 
     /// A newcomer's flight: from the rectangle it starts at to its `target`.
@@ -118,6 +120,11 @@ final class MatchedGeometryStore {
 
     func setNodes(_ nodes: [LayoutNodeID], for key: GlobalElementID) {
         records[key]?.nodes = nodes
+    }
+
+    /// The claimed group's content drew the scene sequences `range` this frame.
+    func noteSequences(_ range: Range<Int>, for key: GlobalElementID) {
+        records[key]?.sequences = range
     }
 
     /// The rectangle a view with laid-out rectangle `own` is drawn at when it takes `source`'s as `properties`
@@ -177,6 +184,8 @@ final class MatchedGeometryStore {
             let start = Self.shown(own: own, source: from, properties: record.spec.properties, anchor: record.spec.anchor)
             if start != target {
                 flights[key] = Flight(start: now, animation: animation, from: start)
+                // The flight replaces the cross-fade until PR C draws the leaver moving (`XF-H` item 10).
+                transitions.handOver(leaverSequences: leaver.value.sequences, newcomer: key)
             }
         }
     }

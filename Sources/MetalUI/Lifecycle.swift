@@ -450,7 +450,8 @@ final class LifecycleStore {
     /// the returning appearance (`T4`); a returning key compares against the
     /// entry it left with, as a present key does against last build's
     /// (`TF-A`).
-    func endFrame(liveGhosts: [(key: GlobalElementID, position: GlobalElementID)], departed: DepartedState?) {
+    func endFrame(liveGhosts: [(key: GlobalElementID, position: GlobalElementID, exempt: [GlobalElementID])],
+                  departed: DepartedState?) {
         defer {
             occurrences.removeAll(keepingCapacity: true)
             nextOrder = 0
@@ -568,7 +569,10 @@ final class LifecycleStore {
         pending.append(contentsOf: appearances.map(\.event))
         pending.append(contentsOf: released)
         for item in disappearances {
-            if let ghost = liveGhosts.first(where: { item.owner.isOrDescends(from: $0.position) }) {
+            if let ghost = liveGhosts.first(where: { ghost in
+                item.owner.isOrDescends(from: ghost.position)
+                    && !ghost.exempt.contains { item.owner.isOrDescends(from: $0) }   // `XF-H`: a `.identity` member parks nowhere
+            }) {
                 parked[ghost.key, default: ParkedGhost()].keys.insert(item.key)
                 parked[ghost.key, default: ParkedGhost()].departed[item.key] = item.entry
                 if let event = item.event {

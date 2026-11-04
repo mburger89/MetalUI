@@ -416,7 +416,9 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
     let a = TransitionHarness()
     a.frame(0, nil, x15(false))
     let x15start = accent(a.frame(0, linear1, x15(true)))
-    #expect(x15start?.background.a == 1, "X15: the nested transition is inert; got \(describe(x15start))")
+    // R4-3 B2 (`XF-H`): the nested transition is still inert, and the unit it sits in fades by default (`X15'`: the unit
+    // still fades): alpha 0 on the first frame where this read 1.
+    #expect(x15start?.background.a == 0, "X15: the nested transition is inert, the unit fades; got \(describe(x15start))")
 
     func x15b(_ shown: Bool) -> some Element {
         Column {
@@ -437,14 +439,12 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
 
 // MARK: - 3.13 (X0; divergence 98)
 
-/// **3.13 (X0) — pinned WRONG ON PURPOSE (divergence 98).** SwiftUI cross-fades
-/// an unannotated insertion and removal (X0); MetalUI has no default
-/// transition: under `linear(1)` the tile appears at alpha 1 and vanishes at
-/// once, and nothing is captured. Green before for its scene half (today's
-/// answer); the capture counter does not compile before lane 3. Mutation
-/// **M3.13**: give an unannotated conditional's content a default `.opacity`
-/// transition (`AN-AH` item 6).
-@Test @MainActor func anUnannotatedInsertionAndRemovalAreInstant() throws {
+/// **3.13 (X0; divergence 98, narrowed by R4-3 B2).** SwiftUI cross-fades an unannotated insertion and removal (X0,
+/// `XF0`); MetalUI does since record 206: under `linear(1)` the tile is inserted at alpha 0 and removed as a ghost at
+/// alpha 1, ½ half-way, and **nothing is captured** (a ghost slices the previous frame's scene, `XF-H`). Before: this
+/// test pinned the instant answer (alpha 1 on the first frame, no ghost, `liveCount == 0`) and was named
+/// `anUnannotatedInsertionAndRemovalAreInstant`. Mutation **MB2a**: gate the default off.
+@Test @MainActor func anUnannotatedInsertionAndRemovalFadeByDefault() throws {
     func tree(_ shown: Bool) -> some Element {
         Column {
             Stack {
@@ -456,12 +456,16 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
     let h = TransitionHarness()
     h.frame(0, nil, tree(false))
     let start = accent(h.frame(0, linear1, tree(true)))
-    #expect(start?.background.a == 1, "divergence 98: an unannotated insertion is instant; got \(describe(start))")
-    h.frame(0.5, nil, tree(true))
+    #expect(start?.background.a == 0, "an unannotated insertion fades in from 0; got \(describe(start))")
+    let mid = accent(h.frame(0.5, nil, tree(true)))
+    #expect(mid?.background.a == 0.5, "and is at ½ half-way; got \(describe(mid))")
     #expect(h.store.transitions.lastFrameCapturedPrimitives == 0, "an unannotated conditional captures nothing")
-    let removing = h.frame(1, linear1, tree(false))
-    #expect(accents(removing).isEmpty, "divergence 98: an unannotated removal is instant; got \(accents(removing).map(describe))")
-    #expect(h.store.transitions.liveCount == 0, "nothing in flight")
+    h.frame(2, nil, tree(true))   // landed: the removal starts from full alpha
+    let removing = h.frame(3, linear1, tree(false))
+    #expect(accents(removing).count == 1 && accents(removing).first?.background.a == 1,
+            "an unannotated removal draws a ghost at alpha 1; got \(accents(removing).map(describe))")
+    #expect(h.store.transitions.liveCount == 1, "one ghost in flight")
+    #expect(h.store.transitions.lastFrameCapturedPrimitives == 0, "and still nothing captured")
 }
 
 // MARK: - 3.14 (R5…, R10)
@@ -732,7 +736,9 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
         Column {
             Stack {
                 Box().frame(width: Pixels(200), height: Pixels(100))
-                if outer { Column { if true { tile().transition(.opacity) } } }
+                // The outer unit's own default fade is suppressed with `.identity` so the inner arm reads alone (R4-3 B2:
+                // without it the outer `if` fades its Column in from 0, where this arm used to read 1).
+                if outer { Column { if true { tile().transition(.opacity) } }.transition(.identity) }
             }
         }
     }
@@ -1122,11 +1128,13 @@ private func sameBounds(_ a: MUIBounds, _ b: MUIBounds) -> Bool {
 /// Pinned so that a change to it is seen: the insertion is instant (alpha 1 on
 /// its first frame), while the same tile with `.id` INSIDE `.transition` fades.
 @Test @MainActor func anIDWrittenOutsideTheTransitionMakesItInert() throws {
+    // R4-3 B2 (`XF-H`): an inert transition no longer reads as "alpha 1": the unit fades by default. A `.move` tells the
+    // two apart: inside, the move applies (50 left, alpha 1); outside, nothing moves and the default fade runs (alpha 0).
     func outside(_ shown: Bool) -> some Element {
         Column {
             Stack {
                 Box().frame(width: Pixels(200), height: Pixels(100))
-                if shown { tile().transition(.opacity).id("x") }
+                if shown { tile().transition(.move(edge: .leading)).id("x") }
             }
         }
     }
@@ -1134,16 +1142,20 @@ private func sameBounds(_ a: MUIBounds, _ b: MUIBounds) -> Bool {
         Column {
             Stack {
                 Box().frame(width: Pixels(200), height: Pixels(100))
-                if shown { tile().id("x").transition(.opacity) }
+                if shown { tile().id("x").transition(.move(edge: .leading)) }
             }
         }
     }
     let o = TransitionHarness()
     o.frame(0, nil, outside(false))
     let outsideStart = accent(o.frame(0, linear1, outside(true)))
+    let outsideSettled = accent(o.frame(2, nil, outside(true)))
     let i = TransitionHarness()
     i.frame(0, nil, inside(false))
     let insideStart = accent(i.frame(0, linear1, inside(true)))
-    #expect(insideStart?.background.a == 0, "control: `.id` inside `.transition` fades from 0; got \(describe(insideStart))")
-    #expect(outsideStart?.background.a == 1, "`.id` outside `.transition`: inert, instant; got \(describe(outsideStart))")
+    let insideSettled = accent(i.frame(2, nil, inside(true)))
+    #expect(offset(insideStart, from: insideSettled).map { [$0.0, $0.1] } == [-50, 0] && insideStart?.background.a == 1,
+            "control: `.id` inside `.transition` moves in from 50 left; got \(describe(insideStart))")
+    #expect(offset(outsideStart, from: outsideSettled).map { [$0.0, $0.1] } == [0, 0] && outsideStart?.background.a == 0,
+            "`.id` outside `.transition`: the move is inert, the unit fades by default; got \(describe(outsideStart))")
 }

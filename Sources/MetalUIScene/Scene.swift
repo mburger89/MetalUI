@@ -282,6 +282,47 @@ public struct Scene: Sendable {
         return BackdropRegion(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
 
+    /// The emission sequence the next inserted primitive takes (`XF-H`): a conditional's paint reads it before and after its
+    /// content, and the range between is the primitives the content emitted. Meaningful only before ``finalize()``, which
+    /// permutes the per-kind arrays; `package`, so no app can spell it.
+    package var nextEmissionSequence: Int { nextSequence }
+
+    /// The primitives emitted with a sequence in `range`, as `(kind, index)` pairs in emission order (`XF-H`): a binary
+    /// search per kind over the ascending sequence arrays, merged by sequence. Only valid on an unfinalized scene.
+    package func primitives(inSequences range: Range<Int>) -> [(kind: PrimitiveKind, index: Int)] {
+        guard !range.isEmpty else { return [] }
+        func bounds(_ sequences: [Int]) -> Range<Int> {
+            func lower(_ target: Int) -> Int {
+                var low = 0, high = sequences.count
+                while low < high {
+                    let mid = (low + high) / 2
+                    if sequences[mid] < target { low = mid + 1 } else { high = mid }
+                }
+                return low
+            }
+            return lower(range.lowerBound)..<lower(range.upperBound)
+        }
+        var found: [(sequence: Int, kind: PrimitiveKind, index: Int)] = []
+        for i in bounds(rectSequence) { found.append((rectSequence[i], .rect, i)) }
+        for i in bounds(glyphSequence) { found.append((glyphSequence[i], .glyph, i)) }
+        for i in bounds(imageSequence) { found.append((imageSequence[i], .image, i)) }
+        for i in bounds(surfaceSequence) { found.append((surfaceSequence[i], .surface, i)) }
+        for i in bounds(backdropSequence) { found.append((backdropSequence[i], .backdrop, i)) }
+        found.sort { $0.sequence < $1.sequence }
+        return found.map { ($0.kind, $0.index) }
+    }
+
+    /// The emission sequence of the `index`th primitive of `kind` (`XF-H`); only valid before ``finalize()``.
+    package func emissionSequence(of kind: PrimitiveKind, at index: Int) -> Int {
+        switch kind {
+        case .rect: rectSequence[index]
+        case .glyph: glyphSequence[index]
+        case .image: imageSequence[index]
+        case .surface: surfaceSequence[index]
+        case .backdrop: backdropSequence[index]
+        }
+    }
+
     /// The highest layer any primitive was inserted on, or `nil` for an empty
     /// scene — what a drag preview rises above (ruling `DN-J`). Computed, so
     /// a frame that never asks pays nothing.

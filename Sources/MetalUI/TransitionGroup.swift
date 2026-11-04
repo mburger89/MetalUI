@@ -67,9 +67,17 @@ public struct TransitionGroup<Content: ElementGroup>: ElementGroup {
             return
         }
         pass.frame.paintScopes.append(scope)
-        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        // A claimed member keeps its own transition and is not faded by its unit's default (`XF5`, `XF-H` item 4).
+        if let unit = pass.frame.animationStore.transitions.unit(of: key) {
+            pass.frame.animationStore.transitions.suspendingFade(of: unit, in: pass.frame) {
+                content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+            }
+        } else {
+            content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        }
         pass.frame.paintScopes.removeLast()
-        pass.frame.animationStore.transitions.endPaint(key, scope: scope)
+        pass.frame.animationStore.transitions.endPaint(key, scope: scope, sequenceEnd: pass.frame.scene.nextEmissionSequence,
+                                                       composite: pass.frame.paintScopes.contains { $0.kind == .composite })
     }
 }
 

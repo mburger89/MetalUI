@@ -76,7 +76,7 @@ extension Frame {
             switch scope.kind {
             case .barrier: return false
             case .shadow, .blur: return true
-            case .transition, .effect, .capture, .composite: continue
+            case .transition, .effect, .capture, .composite, .fade: continue
             }
         }
         return false

@@ -77,8 +77,15 @@ public enum Edge: Sendable, Hashable, CaseIterable {
 /// `.asymmetric(insertion: .identity, removal: .move(edge: .top))` fades out and
 /// inserts instantly.
 ///
-/// **No default transition** — SwiftUI cross-fades an unannotated insertion
-/// and removal (X0); MetalUI inserts and removes it instantly (divergence 98).
+/// **The default fade** (`XF-H`, record 206; divergence 98 narrowed) — SwiftUI cross-fades an unannotated
+/// insertion and removal (X0): every member of a builder `if`, `if`/`else`/`switch` branch and non-lazy `ForEach` element
+/// fades in and out by default, linear in the animation's progress, on the same animation. `.transition(.identity)`
+/// suppresses it (X15b'); in a mixed unit the annotated member keeps its own transition and the others fade (XF5); a
+/// nested `.transition` is inert and the unit still fades (X15'); no animation and a window's first render fade nothing.
+/// A framework slot (`OptionalGroup(_:)`), a `for` iteration, a lazy or `List` row and an `AnyElement` swap do not
+/// (divergence 212); nor does a changed `.id(_:)`, which SwiftUI does (XF7, row 98's residue). A removal's default ghost is
+/// the previous frame's primitives of the unit, sliced from its scene (nothing is captured at rest), and parks the
+/// unit's `onDisappear` like an annotated one; an `.equatable()` occurrence holding one rebuilds for its length.
 ///
 /// **How it is drawn.** An insertion paints the live content with the
 /// transition's active state moving to identity: opacity multiplies every
@@ -112,9 +119,9 @@ public enum Edge: Sendable, Hashable, CaseIterable {
 ///
 /// `.blurReplace` (guard `theUnsupportedTransitionsDoNotCompile`),
 /// `.modifier(active:identity:)`, `AnyTransition.animation(_:)` (a per-transition animation),
-/// `contentTransition` (all carried, `MG-H`), a default transition on
-/// unannotated content (divergence 98), a transition on a changed `.id(_:)`
-/// outside a loop, `.id(_:)` written **outside** `.transition` on the inserted
+/// `contentTransition` (all carried, `MG-H`), a default fade of a changed `.id(_:)`
+/// (divergence 98's residue; a `.transition` on a changed `.id(_:)`
+/// outside a loop is not offered either), `.id(_:)` written **outside** `.transition` on the inserted
 /// content (`content.transition(.opacity).id("x")` — the `.id` numbers the
 /// group under its name, so the group is no longer the conditional's content
 /// and is inert; write `.id` inside, `content.id("x").transition(.opacity)`,

@@ -81,6 +81,8 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
     struct Member {
         var content: Content
         var layout: Content.GroupLayout
+        /// The element's scope, the unit it fades as by default (`XF-H`).
+        let scope: GlobalElementID
         /// The element's id and layout nodes, kept only when a position scroller tracks it (`SP-B`).
         var target: (key: AnyHashable, nodes: [LayoutNodeID])?
     }
@@ -134,7 +136,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
             var built = content(element)
             let (childNodes, childLayout) = register(&built, scope, &pass)
             nodes.append(contentsOf: childNodes)
-            members.append(Member(content: built, layout: childLayout,
+            members.append(Member(content: built, layout: childLayout, scope: scope,
                                   target: notesTargets ? (AnyHashable(key), childNodes.map(layoutNode)) : nil))
         }
         pass.frame.forEachIdentityWork.elements += offset  // `FI-B`, counted per element
@@ -189,7 +191,9 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
                                     pass: inout PaintPass) {
         for index in layout.members.indices {
             var member = layout.members[index]
+            let mark = pass.frame.beginConditionalUnit(member.scope)   // `XF-H`
             member.content.paintGroup(layout: &member.layout, prepaint: &prepaint[index], pass: &pass)
+            pass.frame.endConditionalUnit(member.scope, mark)
             layout.members[index] = member
         }
     }

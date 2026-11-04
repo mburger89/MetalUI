@@ -2,7 +2,7 @@
 
 Rulings for the third of three R4-1 PRs: divergence 1, "the layer's colour space is Display P3 while colours are authored in sRGB". Branch `feat/r4-1-layer-srgb`, from master `09d2457b`. Code:
 `MetalLayerSurface.swift` (one line), comments in `Theme.swift` and `Color.swift`. Probes (headers hold the output): `coregraphics-layer-colourspace.swift` (new, run), `appkit-layer-colourspace.swift` (new,
-**not run to a verdict**: the session was locked and had no Screen Recording permission). Test: `PlatformTests.swift` `theLayerColourSpaceIsSRGB`. **Next unused: `LS-D`.** Divergences: 1 narrowed; the live
+**not run to a verdict** on 2026-11-03: the session was locked and had no Screen Recording permission; run on 2026-11-04 on an sRGB display and met, `LS-C` 4). Test: `PlatformTests.swift` `theLayerColourSpaceIsSRGB`. **Next unused: `LS-D`.** Divergences: 1 narrowed; the live
 count (207) and the next label (211) do not move. Human checks: group LS.
 
 ## LS-A: the presentation layer is tagged sRGB (divergence 1 narrowed; amends spec §7.8, `CR-I`, `CR-C` item 6)
@@ -32,3 +32,4 @@ and for the P3-profiled image direction (138).
 2. Therefore row 1 is **narrowed, not retired**, and the end-to-end claim ("the layer now shows SwiftUI's pixels") is unmeasured. **A person on an unlocked P3 Mac runs the probe, then group LS** (`docs/verification/human-checks.md`; LS1 is the
    side-by-side meter reading). If `S != L1`, revert `LS-A` and record why.
 3. Human check `A1` notes that a window differs from `1b093b8` on a wide-gamut display from this commit on.
+4. **2026-11-04: the gate is met on an sRGB display.** An unlocked session (master `a88eb210`, macOS 27.2, one 1920x1080 display, scale 1.0, sRGB IEC61966-2.1, not a P3 panel) ran `appkit-layer-colourspace.swift` twice, identical, exit 0: `S`, `C` and `L1` read (56, 189, 248), `L2` (0, 192, 254), all `kCGColorSpaceSRGB`; `S == C`, `S == L1`, `L2 != L1`. Still owed: the probe and LS1 on a P3 panel (Digital Color Meter), and the looks LS2 and LS3. LS4 read (56, 189, 248) on SDL, the same as AppKit and SwiftUI, on the sRGB display only. The row stays narrowed.
