@@ -17,6 +17,8 @@ public final class PortableFont {
     public var key: FontKey { raster.key }
     /// The face's line metrics at `size` (ruling LB-F).
     public let metrics: PortableFontMetrics
+    /// The face's `OS/2` cap height at `size`, in points, or `nil` when the table lacks one (ruling `DS-F`).
+    let capHeight: Double?
 
     /// Faces that draw what this one has no glyph for, in order (ruling FB-A)
     /// — each at this font's size. Line metrics stay this face's, as the Apple
@@ -61,6 +63,7 @@ public final class PortableFont {
         }
         metrics = PortableFontMetrics(ascent: points(hhea.ascender), descent: points(-hhea.descender),
                                       leading: points(hhea.lineGap))
+        capHeight = raster.capHeight.map { Double($0) * (size / unitsPerEm) }
         guard shaping.unitsPerEm == raster.unitsPerEm else {
             throw PortableTextError("the shaping and raster faces disagree on unitsPerEm: "
                                     + "\(shaping.unitsPerEm) vs \(raster.unitsPerEm)")

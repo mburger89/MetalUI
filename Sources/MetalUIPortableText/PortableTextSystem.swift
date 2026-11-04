@@ -68,9 +68,10 @@ public final class PortableTextSystem: TextSystem {
 
     /// The resolved font's metrics.
     public func fontMetrics(_ font: FontKey) -> TextFontMetrics {
-        let metrics = registered(font).metrics
+        let portable = registered(font)
+        let metrics = portable.metrics
         return TextFontMetrics(ascent: metrics.ascent, descent: metrics.descent, leading: metrics.leading,
-                               lineHeight: metrics.lineHeight)
+                               lineHeight: metrics.lineHeight, capHeight: portable.capHeight)
     }
 
     /// Measures `string` wrapped at `width` (`nil` is one line per hard break)

@@ -113,6 +113,14 @@ public final class FreeTypeFont {
         return Int(table.assumingMemoryBound(to: TT_Postscript.self).pointee.underlineThickness)
     }
 
+    /// The face's cap height, in design units: OS/2 `sCapHeight` (table version 2 and later), else `nil`
+    /// (ruling `DS-F`; `CTFontGetCapHeight`'s source). **`package`**: `MetalUIPortableText` reads it.
+    package var capHeight: Int? {
+        guard let table = FT_Get_Sfnt_Table(face, FT_SFNT_OS2) else { return nil }
+        let os2 = table.assumingMemoryBound(to: TT_OS2.self).pointee
+        return os2.version >= 2 && os2.sCapHeight > 0 ? Int(os2.sCapHeight) : nil
+    }
+
     /// The face's x-height, in design units (RT-J item 2): OS/2 `sxHeight`
     /// (table version 2 and later), else the top of the `x` glyph's outline —
     /// `CTFontGetXHeight`'s sources (measured equal on the three test faces).

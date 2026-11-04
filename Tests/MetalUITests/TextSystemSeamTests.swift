@@ -455,9 +455,15 @@ private func sameGlyphsBarAVariantTie(_ a: [TextGlyph], _ p: [TextGlyph]) -> (sa
     for size in [11.0, 13, 17, 26] {
         let (apple, appleFont, portable, portableFont) = try seamPair(size: size)
         let a = apple.fontMetrics(appleFont), p = portable.fontMetrics(portableFont)
-        let direct = FontResolver.resolve(family: "Noto Sans", size: size).metrics
+        let resolved = FontResolver.resolve(family: "Noto Sans", size: size)
+        let direct = resolved.metrics
+        // `capHeight` (`DS-F`): CoreText's own `CTFontGetCapHeight` on this path, `OS/2.sCapHeight` on the other.
         #expect(a == TextFontMetrics(ascent: direct.ascent, descent: direct.descent, leading: direct.leading,
-                                     lineHeight: direct.lineHeight), "\(size): CoreText's own metrics")
+                                     lineHeight: direct.lineHeight,
+                                     capHeight: Double(CTFontGetCapHeight(resolved.ctFont))),
+                "\(size): CoreText's own metrics")
+        #expect(abs((p.capHeight ?? -1) - (a.capHeight ?? -2)) < 1e-3 && (a.capHeight ?? 0) > 0,
+                "\(size): the cap height, \(String(describing: p.capHeight)) vs \(String(describing: a.capHeight))")
         #expect(p.lineHeight == a.lineHeight, "\(size) lineHeight")
         #expect(abs(p.ascent - a.ascent) < 1e-5 && abs(p.descent - a.descent) < 1e-5
                 && abs(p.leading - a.leading) < 1e-5, "\(size): \(p) vs \(a)")
