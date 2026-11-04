@@ -301,8 +301,22 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
     /// group takes one structural slot (`ID-B`).
     public var wrapped: Wrapped?
 
-    /// The group an `if` with no `else` builds.
-    public init(_ wrapped: Wrapped?) { self.wrapped = wrapped }
+    /// Whether the content fades in and out by default when an animation inserts or removes it (`XF-H`): set by the
+    /// builder's `if` only. A framework slot built with ``init(_:)`` (a popover, a control's label) never fades.
+    let fades: Bool
+
+    /// The group an `if` with no `else` builds when written by hand: it does not fade by default, only an explicit
+    /// `.transition(_:)` on its content animates (divergence 98).
+    public init(_ wrapped: Wrapped?) {
+        self.wrapped = wrapped
+        self.fades = false
+    }
+
+    /// The group a builder's `if` produces (`XF-H` item 1): its content fades by default, as SwiftUI's does.
+    init(builder wrapped: Wrapped?) {
+        self.wrapped = wrapped
+        self.fades = true
+    }
 
     /// Reserves one index, then registers the content under that slot with a
     /// fresh inner cursor — or notes the slot absent (`ID-C`). **The typed copy
@@ -311,50 +325,54 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
-        -> ([LayoutNodeID], Wrapped.GroupLayout?) {
+        -> ([LayoutNodeID], ConditionalLayout<Wrapped.GroupLayout>) {
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
         cursor += 1
         guard var inner = wrapped else {
             pass.frame.stateTable.noteAbsent(slot)
             pass.frame.animationStore.transitions.noteOptional(slot, produced: false,  // `AN-AE`
-                                                               animation: pass.frame.conditionalAnimation)
-            return ([], nil)
+                                                               animation: pass.frame.conditionalAnimation,
+                                                               fades: fades)
+            return ([], ConditionalLayout(inner: nil, unit: nil))
         }
         pass.frame.stateTable.noteProduced(slot)
         pass.frame.animationStore.transitions.noteOptional(slot, produced: true,  // `AN-AE`
-                                                           animation: pass.frame.conditionalAnimation)
+                                                           animation: pass.frame.conditionalAnimation,
+                                                           fades: fades)
         var innerCursor = 0
         let (nodes, layout) = inner.requestGroupLayout(under: slot, at: &innerCursor, pass: &pass)
         wrapped = inner
-        return (nodes, layout)
+        return (nodes, ConditionalLayout(inner: layout, unit: fades ? slot : nil))
     }
 
-    public mutating func prepaintGroup(layout: inout Wrapped.GroupLayout?,
+    public mutating func prepaintGroup(layout: inout ConditionalLayout<Wrapped.GroupLayout>,
                                        pass: inout PrepaintPass) -> Wrapped.GroupPrepaint? {
         guard var inner = wrapped else {
-            precondition(layout == nil, Self.mismatch("prepaint"))
+            precondition(layout.inner == nil, Self.mismatch("prepaint"))
             return nil
         }
-        guard var innerLayout = layout else { preconditionFailure(Self.mismatch("prepaint")) }
+        guard var innerLayout = layout.inner else { preconditionFailure(Self.mismatch("prepaint")) }
         let prepaint = inner.prepaintGroup(layout: &innerLayout, pass: &pass)
         wrapped = inner
-        layout = innerLayout
+        layout.inner = innerLayout
         return prepaint
     }
 
-    public mutating func paintGroup(layout: inout Wrapped.GroupLayout?,
+    public mutating func paintGroup(layout: inout ConditionalLayout<Wrapped.GroupLayout>,
                                     prepaint: inout Wrapped.GroupPrepaint?,
                                     pass: inout PaintPass) {
         guard var inner = wrapped else {
-            precondition(layout == nil && prepaint == nil, Self.mismatch("paint"))
+            precondition(layout.inner == nil && prepaint == nil, Self.mismatch("paint"))
             return
         }
-        guard var innerLayout = layout,
+        guard var innerLayout = layout.inner,
               var innerPrepaint = prepaint else { preconditionFailure(Self.mismatch("paint")) }
+        let mark = pass.frame.beginConditionalUnit(layout.unit)   // `XF-H`
         inner.paintGroup(layout: &innerLayout,
                          prepaint: &innerPrepaint, pass: &pass)
+        pass.frame.endConditionalUnit(layout.unit, mark)
         wrapped = inner
-        layout = innerLayout
+        layout.inner = innerLayout
         prepaint = innerPrepaint
     }
 
@@ -392,8 +410,10 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     /// branch id at all — the branch's id was its only reader, and both are gone
     /// together.
     public enum Layout {
-        case first(First.GroupLayout)
-        case second(Second.GroupLayout)
+        /// The first branch's layout and its branch id, the unit it fades as by default (`XF-H`).
+        case first(First.GroupLayout, unit: GlobalElementID)
+        /// The second branch's layout and its branch id.
+        case second(Second.GroupLayout, unit: GlobalElementID)
     }
 
     public enum Prepaint {
@@ -456,7 +476,7 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
             var inner = 0
             let (nodes, layout) = group.requestGroupLayout(under: firstBranch, at: &inner, pass: &pass)
             self = .first(group)
-            return (nodes, .first(layout))
+            return (nodes, .first(layout, unit: firstBranch))
         case .second(var group):
             pass.frame.stateTable.noteProduced(secondBranch)
             pass.frame.stateTable.noteAbsent(firstBranch)
@@ -465,22 +485,22 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
             var inner = 0
             let (nodes, layout) = group.requestGroupLayout(under: secondBranch, at: &inner, pass: &pass)
             self = .second(group)
-            return (nodes, .second(layout))
+            return (nodes, .second(layout, unit: secondBranch))
         }
     }
 
     public mutating func prepaintGroup(layout: inout Layout,
                                        pass: inout PrepaintPass) -> Prepaint {
         switch (self, layout) {
-        case (.first(var group), .first(var inner)):
+        case (.first(var group), .first(var inner, let unit)):
             let prepaint = group.prepaintGroup(layout: &inner, pass: &pass)
             self = .first(group)
-            layout = .first(inner)
+            layout = .first(inner, unit: unit)
             return .first(prepaint)
-        case (.second(var group), .second(var inner)):
+        case (.second(var group), .second(var inner, let unit)):
             let prepaint = group.prepaintGroup(layout: &inner, pass: &pass)
             self = .second(group)
-            layout = .second(inner)
+            layout = .second(inner, unit: unit)
             return .second(prepaint)
         default:
             preconditionFailure(Self.mismatch("prepaint"))
@@ -490,17 +510,21 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     public mutating func paintGroup(layout: inout Layout,
                                     prepaint: inout Prepaint, pass: inout PaintPass) {
         switch (self, layout, prepaint) {
-        case (.first(var group), .first(var innerLayout), .first(var innerPrepaint)):
+        case (.first(var group), .first(var innerLayout, let unit), .first(var innerPrepaint)):
+            let mark = pass.frame.beginConditionalUnit(unit)   // `XF-H`
             group.paintGroup(layout: &innerLayout,
                              prepaint: &innerPrepaint, pass: &pass)
+            pass.frame.endConditionalUnit(unit, mark)
             self = .first(group)
-            layout = .first(innerLayout)
+            layout = .first(innerLayout, unit: unit)
             prepaint = .first(innerPrepaint)
-        case (.second(var group), .second(var innerLayout), .second(var innerPrepaint)):
+        case (.second(var group), .second(var innerLayout, let unit), .second(var innerPrepaint)):
+            let mark = pass.frame.beginConditionalUnit(unit)   // `XF-H`
             group.paintGroup(layout: &innerLayout,
                              prepaint: &innerPrepaint, pass: &pass)
+            pass.frame.endConditionalUnit(unit, mark)
             self = .second(group)
-            layout = .second(innerLayout)
+            layout = .second(innerLayout, unit: unit)
             prepaint = .second(innerPrepaint)
         default:
             preconditionFailure(Self.mismatch("paint"))

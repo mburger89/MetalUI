@@ -206,15 +206,23 @@ private struct MGOptions {
 /// **T-F (probe S12, S13).** Only a leaver that is a source hands its frame over; a different id or a different
 /// namespace matches nothing. Mutation **M-F**: match on the id alone / hand over from a non-source.
 @Test @MainActor func onlyAMatchingSourceLeaverHandsItsFrameOver() throws {
+    // R4-3 B2 (`XF-H`): with no handoff the unannotated leaver is no longer removed instantly but fades out in place
+    // (SwiftUI's default, `XF3`) while the newcomer fades in at its own frame: **two accent rects, A's ghost and B**,
+    // where these arms used to read the one rect B. A handoff (the last arm) still reads one rect, the flight.
+    func cross(_ o: MGOptions) -> [R] {
+        let h = TransitionHarness()
+        h.frame(0, nil, stage(false, o))
+        return accents(h.frame(0, linear1, stage(true, o))).map(R.init)
+    }
     var nonSource = MGOptions()
     nonSource.oldSource = false
-    #expect(swap(nonSource).start == rectB, "a non-source leaver hands nothing over (S12)")
+    #expect(cross(nonSource) == [rectA, rectB], "a non-source leaver hands nothing over (S12): it cross-fades in place")
     var otherID = MGOptions()
     otherID.newID = "other"
-    #expect(swap(otherID).start == rectB, "a different id matches nothing")
+    #expect(cross(otherID) == [rectA, rectB], "a different id matches nothing")
     var otherNamespace = MGOptions()
     otherNamespace.newSpace = otherSpace
-    #expect(swap(otherNamespace).start == rectB, "a different namespace matches nothing")
+    #expect(cross(otherNamespace) == [rectA, rectB], "a different namespace matches nothing")
     var nonSourceNew = MGOptions()
     nonSourceNew.newSource = false
     #expect(swap(nonSourceNew).start == rectA, "a non-source newcomer still starts at the source leaver's frame (S11)")

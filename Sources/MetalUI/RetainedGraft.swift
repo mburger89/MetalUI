@@ -34,7 +34,7 @@ final class BuildJournal {
         case memoTouch(ContentMemoStore.Key)
         case animationTouch(GlobalElementID)
         case transitionEvaluated(GlobalElementID, Animation?)
-        case transitionProduced(GlobalElementID, GlobalElementID)
+        case transitionProduced(GlobalElementID, GlobalElementID, Bool)
         case transitionArray(GlobalElementID, Int)
         /// A lifecycle scope's store note: `(write, scope, owner, order)` (`RL-C`). The order is the build's while the journal
         /// records and relative to the window's first reserved order in a `GraftRecord`.
@@ -282,7 +282,7 @@ extension Frame {
             case .memoTouch(let key): memos.touch(key)
             case .animationTouch(let id): animationStore.touch(id)
             case .transitionEvaluated(let slot, let animation): animationStore.transitions.replayEvaluated(slot, animation)
-            case .transitionProduced(let unit, let evaluator): animationStore.transitions.replayProduced(unit, evaluator)
+            case .transitionProduced(let unit, let evaluator, let fades): animationStore.transitions.replayProduced(unit, evaluator, fades)
             case .transitionArray(let slot, let extent): animationStore.transitions.replayArray(slot, extent)
             case .lifecycleNote(let write, let scope, let owner, let order):
                 animationStore.lifecycle.note(write, scope: scope, owner: owner, order: lifecycleBase + order)   // `RL-A`, `RL-C`

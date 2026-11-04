@@ -174,6 +174,9 @@ package final class ContentMemoStore {
 
     private var entries: [Key: Entry] = [:]
 
+    /// Every memo entry, for a test that breaks a standing record on purpose (`XF-H`); internal, read by nothing else.
+    var allEntries: [Entry] { Array(entries.values) }
+
     /// The build journal of this window (`RK-F`): every funnel a graft window must replay appends to it while a
     /// window is open.
     let journal = BuildJournal()

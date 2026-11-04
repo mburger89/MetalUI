@@ -278,6 +278,7 @@ M	MetalUI	Transition.swift	.*	.*	.*	transition
 M	MetalUI	MatchedGeometry.swift	.*	.*	.*	matched-geometry
 M	MetalUI	CustomTransition.swift	.*	.*	.*	custom-transition
 M	MetalUI	TransitionGroup.swift	.*	.*	.*	transition
+M	MetalUI	DefaultTransition.swift	-	ConditionalLayout	.*	transition
 M	MetalUI	AnyElement.swift	-	ElementObject	.*	element-protocols
 M	MetalUI	AnyElement.swift	.*	.*	.*	any-element
 M	MetalUI	App.swift	App	icon	.*	app-icon

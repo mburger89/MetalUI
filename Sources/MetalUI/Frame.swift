@@ -3564,9 +3564,11 @@ public final class Frame {
             retainLog?.noteBoundary(index, leaves, depth)
             index -= 1
             let scope = paintScopes[index]
-            if retainLog != nil, scope.capturing || scope.kind == .barrier {
+            // A default fade scope opened inside an occurrence cannot be replayed (`XF-H` item 7): its alpha is live.
+            if retainLog != nil, scope.capturing || scope.kind == .barrier || scope.kind == .fade {
                 retainLog?.taint("capturingScope", scopeIndex: index)
             }
+            if scope.suspended { continue }   // a mixed unit's annotated member is not faded by the unit (`XF-H` item 4)
             switch scope.kind {
             case .barrier:
                 pastBarrier = true
@@ -4026,7 +4028,7 @@ public final class Frame {
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()
-        animationStore.transitions.endFrame()
+        animationStore.transitions.endFrame(scene: scene)
         animationStore.matched.endFrame()
         animationStore.endFrame()  // drops every entry this frame did not touch (AN-AB)
         animationStore.rasters.endFrame()  // drops every raster this frame did not draw (GX-K)

@@ -73,7 +73,7 @@ public enum ElementBuilder {
         _ group: Group?
     ) -> OptionalGroup<Group> {
         StackMeter.sample()
-        return OptionalGroup(group)
+        return OptionalGroup(builder: group)
     }
 
     /// The `if` branch of an `if`/`else`.

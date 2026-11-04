@@ -67,13 +67,19 @@ public struct MatchedGeometryGroup<Content: ElementGroup>: ElementGroup {
                                     prepaint: inout Content.GroupPrepaint,
                                     pass: inout PaintPass) {
         let frame = pass.frame
-        guard let key = layout.key, let map = frame.animationStore.matched.beginPaint(key, frame: frame) else {
+        guard let key = layout.key else {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
             return
         }
-        frame.paintWithDeviceMap(map) {
+        let start = frame.scene.nextEmissionSequence
+        if let map = frame.animationStore.matched.beginPaint(key, frame: frame) {
+            frame.paintWithDeviceMap(map) {
+                content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+            }
+        } else {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         }
+        frame.animationStore.matched.noteSequences(start..<frame.scene.nextEmissionSequence, for: key)   // `XF-H` item 10
     }
 }
 

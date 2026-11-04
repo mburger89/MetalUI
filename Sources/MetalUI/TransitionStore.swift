@@ -42,11 +42,22 @@ final class TransitionStore {
     private var evaluated: [GlobalElementID: Animation?] = [:]
     private var previousEvaluated: [GlobalElementID: Animation?] = [:]
 
+    /// A produced unit: its evaluator and whether it fades by default (`XF-H`).
+    struct Produced {
+        let evaluator: GlobalElementID
+        let fades: Bool
+    }
+
     /// Units produced this frame, each with its evaluator: an `if`'s slot (its
     /// own evaluator), a taken branch (its own), a `ForEach` element's scope
-    /// (the loop slot).
-    private var produced: [GlobalElementID: GlobalElementID] = [:]
-    private var previousProduced: [GlobalElementID: GlobalElementID] = [:]
+    /// (the loop slot). `fades` is set by a builder's `if`/`else` and a non-lazy `ForEach` element, never by
+    /// a framework slot built with `OptionalGroup(_:)` or a `for` loop (`XF-H` item 1).
+    private var produced: [GlobalElementID: Produced] = [:]
+    private var previousProduced: [GlobalElementID: Produced] = [:]
+
+    /// Whether any conditional or loop noted an animation this frame (`XF-H` item 4): the gate of the default fade's
+    /// `afterLayout` work, so a frame with no animation iterates no unit.
+    private(set) var notedAnimationThisFrame = false
 
     /// `for` loops noted this frame, by slot, with the extent they consumed
     /// (`Int.max` while the loop is still registering its iterations).
@@ -54,10 +65,14 @@ final class TransitionStore {
     private var previousArrayExtents: [GlobalElementID: Int] = [:]
 
     /// An `if` (untyped or typed copy) was evaluated at `slot`.
-    func noteOptional(_ slot: GlobalElementID, produced isProduced: Bool, animation: Animation?) {
+    func noteOptional(_ slot: GlobalElementID, produced isProduced: Bool, animation: Animation?, fades: Bool = false) {
         buildJournal?.record(.transitionEvaluated(slot, animation))
         evaluated[slot] = .some(animation)
-        if isProduced { buildJournal?.record(.transitionProduced(slot, slot)); produced[slot] = slot }
+        if animation != nil { notedAnimationThisFrame = true }
+        if isProduced {
+            buildJournal?.record(.transitionProduced(slot, slot, fades))
+            produced[slot] = Produced(evaluator: slot, fades: fades)
+        }
     }
 
     /// An `if`/`else` (untyped or typed copy) was evaluated: `taken` produced,
@@ -65,22 +80,24 @@ final class TransitionStore {
     func noteEither(taken: GlobalElementID, untaken: GlobalElementID, animation: Animation?) {
         buildJournal?.record(.transitionEvaluated(taken, animation))
         buildJournal?.record(.transitionEvaluated(untaken, animation))
-        buildJournal?.record(.transitionProduced(taken, taken))
+        buildJournal?.record(.transitionProduced(taken, taken, true))
         evaluated[taken] = .some(animation)
         evaluated[untaken] = .some(animation)
-        produced[taken] = taken
+        if animation != nil { notedAnimationThisFrame = true }
+        produced[taken] = Produced(evaluator: taken, fades: true)
     }
 
     /// A loop (a `ForEach`, either entry) was evaluated at `slot`.
     func noteLoop(_ slot: GlobalElementID, animation: Animation?) {
         buildJournal?.record(.transitionEvaluated(slot, animation))
         evaluated[slot] = .some(animation)
+        if animation != nil { notedAnimationThisFrame = true }
     }
 
     /// A `ForEach` produced the element whose scope is `scope` under `slot`.
     func noteLoopElement(_ scope: GlobalElementID, of slot: GlobalElementID) {
-        buildJournal?.record(.transitionProduced(scope, slot))
-        produced[scope] = slot
+        buildJournal?.record(.transitionProduced(scope, slot, true))
+        produced[scope] = Produced(evaluator: slot, fades: true)
     }
 
     /// A `for` loop (either copy) is being evaluated at `slot`: its iterations
@@ -89,6 +106,7 @@ final class TransitionStore {
         buildJournal?.record(.transitionEvaluated(slot, animation))
         buildJournal?.record(.transitionArray(slot, Int.max))
         evaluated[slot] = .some(animation)
+        if animation != nil { notedAnimationThisFrame = true }
         arrayExtents[slot] = Int.max
     }
 
@@ -108,11 +126,12 @@ final class TransitionStore {
     func replayEvaluated(_ slot: GlobalElementID, _ animation: Animation?) {
         buildJournal?.record(.transitionEvaluated(slot, animation))
         evaluated[slot] = .some(animation)
+        if animation != nil { notedAnimationThisFrame = true }
     }
 
-    func replayProduced(_ unit: GlobalElementID, _ evaluator: GlobalElementID) {
-        buildJournal?.record(.transitionProduced(unit, evaluator))
-        produced[unit] = evaluator
+    func replayProduced(_ unit: GlobalElementID, _ evaluator: GlobalElementID, _ fades: Bool) {
+        buildJournal?.record(.transitionProduced(unit, evaluator, fades))
+        produced[unit] = Produced(evaluator: evaluator, fades: fades)
     }
 
     func replayArray(_ slot: GlobalElementID, _ extent: Int) {
@@ -136,6 +155,10 @@ final class TransitionStore {
         /// The same in the scene's device pixels, where it painted.
         var surfaceRect: MUIBounds?
         var captures: [CapturedPrimitive] = []
+        /// The scene sequence range this annotated group painted, `nil` before its paint or under a composite
+        /// scope (`XF-H` item 3): a default ghost carves it out of its unit's range.
+        var sequences: Range<Int>?
+        var sequenceStart = 0
     }
 
     private var records: [GlobalElementID: Record] = [:]
@@ -165,6 +188,12 @@ final class TransitionStore {
         /// Whether this frame's paint already drew the ghost at its anchor. Part of what a redo puts back
         /// (`rollbackBuild`) and cleared by `paintGhosts` at the end of every frame.
         var drawn = false
+        /// Positions whose disappearances this ghost does not park (`XF-H`): the annotated members of a default
+        /// ghost's unit, which park under their own ghosts, or nowhere for a `.identity` one.
+        var exempt: [GlobalElementID] = []
+        /// The emission sequence of each of `captures` in the frame they were sliced from (`XF-H` item 10), parallel to
+        /// it; empty for an annotated ghost. What a matched-geometry handoff carves a leaver's member out by.
+        var captureSequences: [Int] = []
     }
 
     private var insertions: [GlobalElementID: Insertion] = [:]
@@ -173,9 +202,30 @@ final class TransitionStore {
 
     private var capturedThisFrame = 0
 
+    /// The scene ranges the fading units painted this frame, and the last completed frame's with its scene (`XF-H`
+    /// item 3). The scene is the frame's own **unfinalized** one, kept only while a unit drew, so a removal slices it.
+    private(set) var ranges: [UnitRange] = []
+    private var previousRanges: [UnitRange] = []
+    private var previousScene: Scene?
+
+    /// A unit painted `start..<end` of the frame's emission sequence.
+    @inline(__always)
+    func noteRange(_ unit: GlobalElementID, start: Int, end: Int) {
+        ranges.append(UnitRange(unit: unit, start: start, end: end))
+    }
+
+    /// Re-notes a recorded occurrence's unit ranges at the sequence its replay started at (`XF-H` item 8).
+    func renoteRanges(_ recorded: [UnitRange], base: Int) {
+        for r in recorded { ranges.append(UnitRange(unit: r.unit, start: r.start + base, end: r.end + base)) }
+    }
+
     /// Primitives the last completed frame captured for a possible ghost — a
     /// work counter (spec 3.16): 0 for a tree with no `.transition`.
     private(set) var lastFrameCapturedPrimitives = 0
+
+    /// The unit ranges the last completed frame noted (`XF-H`): a work counter, one per fading unit that painted (or whose
+    /// replay was re-noted), 0 for a tree with no builder `if`, `if`/`else` branch or `ForEach` element.
+    var lastFrameUnitRanges: Int { previousRanges.count }
 
     /// Insertions and ghosts in flight.
     var liveCount: Int { insertions.count + ghosts.count }
@@ -197,9 +247,12 @@ final class TransitionStore {
     /// Each live ghost's key and its group's position (`key.parent`) — read by
     /// the lifecycle after `paintGhosts`, so a landed ghost is already gone
     /// (ruling `LC-H`).
-    var liveGhosts: [(key: GlobalElementID, position: GlobalElementID)] {
-        ghosts.map { ($0.key, $0.key.parent!) }
+    var liveGhosts: [(key: GlobalElementID, position: GlobalElementID, exempt: [GlobalElementID])] {
+        ghosts.map { ($0.key, $0.key.parent!, $0.ghost.exempt) }
     }
+
+    /// Whether any insertion is in flight, annotated or default: the gate of `beginFade`'s dictionary read.
+    var hasLiveInsertions: Bool { !insertions.isEmpty }
 
     /// Whether the group recorded at `key` last frame carries a transition that removes it at once — an
     /// explicit `.identity` (or any transition with nothing to play on removal): `matchedGeometryEffect`'s
@@ -228,9 +281,9 @@ final class TransitionStore {
             unit = .child(of: parent, at: cursor, name: nil)
             evaluator = parent
             arrayIndex = cursor
-        } else if let e = produced[parent] {
+        } else if let p = produced[parent] {
             unit = parent
-            evaluator = e
+            evaluator = p.evaluator
             arrayIndex = nil
         } else {
             return false
@@ -239,6 +292,9 @@ final class TransitionStore {
                               transition: transition, reduceMotion: reduceMotion)
         return true
     }
+
+    /// The unit a claimed group sits in, `nil` when it is not claimed (`XF-H`).
+    func unit(of key: GlobalElementID) -> GlobalElementID? { records[key]?.unit }
 
     /// The claimed group's content registered `nodes`.
     func setNodes(_ nodes: [LayoutNodeID], for key: GlobalElementID) {
@@ -303,6 +359,131 @@ final class TransitionStore {
                                       rect: rect, captures: previous.captures)))
             frame.pendingGhostAnchors = true   // its container is found after prepaint (`XF-F`)
         }
+        advanceDefaultUnits(frame)
+    }
+
+    // MARK: Default units (`XF-H`)
+
+    /// The key of the ghost a removed default unit leaves.
+    static func defaultKey(_ unit: GlobalElementID) -> GlobalElementID {
+        .child(of: unit, at: 0, name: ElementID("$default-transition"))
+    }
+
+    private static let zeroRect = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0))
+
+    /// Default insertions and removals (`XF-H` item 4), after the annotated groups'. Gated on an animation having been
+    /// noted this frame, or a default ghost standing (a unit produced again cancels it): a frame with neither
+    /// iterates no unit.
+    private func advanceDefaultUnits(_ frame: Frame) {
+        guard notedAnimationThisFrame || !ghosts.isEmpty else { return }
+        let now = frame.timestamp
+        for (unit, p) in produced where p.fades {
+            let ghost = ghostIndex(Self.defaultKey(unit))
+            if notedAnimationThisFrame,
+               insertions[unit] == nil,
+               previousEvaluated[p.evaluator] != nil,
+               previousProduced[unit] == nil,
+               let animation = evaluated[p.evaluator] ?? nil {
+                // An insertion during a removal starts from the ghost's progress.
+                let from = ghost.map { activeness(of: ghosts[$0].ghost, at: now).value } ?? 1
+                insertions[unit] = Insertion(start: now, animation: animation, from: from, atoms: [.opacity])
+            }
+            if let ghost { ghosts.remove(at: ghost) }
+        }
+        guard notedAnimationThisFrame else { return }
+        for (unit, p) in previousProduced where p.fades && produced[unit] == nil {
+            // A removal during an insertion: the slice has the insertion's alpha baked in, so the ghost starts at 0.
+            insertions[unit] = nil
+            guard let entry = evaluated[p.evaluator], let animation = entry else { continue }
+            let (slice, annotated, exempt) = defaultSlice(of: unit)
+            let captures = slice.primitives
+            // A unit whose members are all annotated leaves no default ghost: each parks under its own (`XF-H` item 4).
+            if captures.isEmpty && annotated { continue }
+            let key = Self.defaultKey(unit)
+            if let stale = ghostIndex(key) { ghosts.remove(at: stale) }
+            var ghost = Ghost(start: now, animation: animation, from: 0, atoms: [.opacity],
+                              rect: Self.zeroRect, captures: captures)
+            ghost.exempt = exempt
+            ghost.captureSequences = slice.sequences
+            ghosts.append((key, ghost))
+            frame.pendingGhostAnchors = true
+        }
+    }
+
+    /// The last frame's primitives of `unit` minus its annotated members' (`XF-H` item 3), whether the unit has an
+    /// annotated member, and those members' positions. Empty when the scene or the range is gone (an atlas rebuild,
+    /// a dropped replay): the ghost then draws nothing and still parks.
+    private func defaultSlice(of unit: GlobalElementID)
+        -> (slice: (primitives: [CapturedPrimitive], sequences: [Int]), annotated: Bool, exempt: [GlobalElementID]) {
+        var carved: [Range<Int>] = [], exempt: [GlobalElementID] = []
+        var annotated = false
+        for record in previousRecords.values where record.unit == unit {
+            annotated = true
+            if let sequences = record.sequences { carved.append(sequences) }
+        }
+        if annotated {
+            for (key, record) in previousRecords where record.unit == unit {
+                if let position = key.parent { exempt.append(position) }
+            }
+        }
+        guard let scene = previousScene, let range = previousRanges.last(where: { $0.unit == unit }),
+              range.end > range.start else { return (([], []), annotated, exempt) }
+        return (scene.capturedPrimitives(inSequences: range.start..<range.end, excluding: carved), annotated, exempt)
+    }
+
+    /// A matched-geometry handoff took the frame of the leaver whose members drew the scene sequences `range` (`XF-H`
+    /// item 10, until PR C): its default ghost draws that member no more (the ghost still parks), and the newcomer's
+    /// default insertion in `unit`'s ancestry is dropped, so the card flies opaque under nothing instead of fading in
+    /// from 0. Only a flight does this; a handoff that starts and ends at one rectangle is an ordinary cross-fade.
+    func handOver(leaverSequences range: Range<Int>?, newcomer key: GlobalElementID) {
+        if let range {
+            for index in ghosts.indices where !ghosts[index].ghost.captureSequences.isEmpty {
+                var keep: [CapturedPrimitive] = [], keptSequences: [Int] = []
+                let ghost = ghosts[index].ghost
+                for (primitive, sequence) in zip(ghost.captures, ghost.captureSequences) where !range.contains(sequence) {
+                    keep.append(primitive)
+                    keptSequences.append(sequence)
+                }
+                ghosts[index].ghost.captures = keep
+                ghosts[index].ghost.captureSequences = keptSequences
+            }
+        }
+        var cursor: GlobalElementID? = key
+        while let id = cursor {
+            if produced[id]?.fades == true, insertions[id] != nil { insertions[id] = nil; break }
+            cursor = id.parent
+        }
+    }
+
+    /// Opens the non-capturing fade of the default insertion of `unit`, if one is in flight (`XF-H` item 7). Keeps the
+    /// display link awake and ends a landed one.
+    func beginFade(_ unit: GlobalElementID, frame: Frame) -> PaintScope? {
+        guard let insertion = insertions[unit] else { return nil }
+        let a = activeness(of: insertion, at: frame.timestamp)
+        if a.isFinished {
+            insertions[unit] = nil
+            return nil
+        }
+        frame.noteActiveAnimation()
+        let effect = RenderEffect(atoms: insertion.atoms, activeness: a.value, rect: Self.zeroRect,
+                                  scaleFactor: frame.scaleFactor)
+        let scope = PaintScope(kind: .fade, effect: effect, entryClipDepth: frame.clipDepth)
+        scope.fadeUnit = unit
+        return scope
+    }
+
+    /// Suspends the open default fade of `unit` for the duration of `body` (`XF-H` item 4): an annotated member of a
+    /// mixed unit keeps its own transition and is not faded by the unit's default (`XF5`). The scope stays on the stack,
+    /// so every index and recorder height is unmoved; `processScopes` skips a suspended scope.
+    func suspendingFade(of unit: GlobalElementID, in frame: Frame, _ body: () -> Void) {
+        guard insertions[unit] != nil else { return body() }
+        var suspended: [PaintScope] = []
+        for scope in frame.paintScopes where scope.kind == .fade && scope.fadeUnit == unit && !scope.suspended {
+            scope.suspended = true
+            suspended.append(scope)
+        }
+        body()
+        for scope in suspended { scope.suspended = false }
     }
 
     private func activeness(of insertion: Insertion, at now: Double) -> (value: Double, isFinished: Bool) {
@@ -328,6 +509,7 @@ final class TransitionStore {
                                     height: r.size.height.value * scaleFactor))
         }
         records[key]?.surfaceRect = surfaceRect
+        records[key]?.sequenceStart = frame.scene.nextEmissionSequence
         var effect = RenderEffect.identity
         if let insertion = insertions[key] {
             let a = activeness(of: insertion, at: frame.timestamp)
@@ -345,9 +527,10 @@ final class TransitionStore {
     }
 
     /// Closes a claimed group's paint: its capture becomes the group's record.
-    func endPaint(_ key: GlobalElementID, scope: PaintScope) {
+    func endPaint(_ key: GlobalElementID, scope: PaintScope, sequenceEnd: Int, composite: Bool) {
         capturedThisFrame += scope.captures.count
         records[key]?.captures = scope.captures
+        if let start = records[key]?.sequenceStart, !composite { records[key]?.sequences = start..<sequenceEnd }
     }
 
     /// Draws `ghost` at `activeness`: its capture replayed with its removal effect, straight into the scene (a ghost
@@ -426,6 +609,8 @@ final class TransitionStore {
         produced.removeAll(keepingCapacity: true)
         arrayExtents.removeAll(keepingCapacity: true)
         records.removeAll(keepingCapacity: true)
+        ranges.removeAll(keepingCapacity: true)
+        notedAnimationThisFrame = false
         insertions = saved.insertions
         ghosts = saved.ghosts
         capturedThisFrame = saved.captured
@@ -440,13 +625,21 @@ final class TransitionStore {
     func forgetCapturedPrimitives() {
         for key in Array(records.keys) { records[key]?.captures = [] }
         for key in Array(previousRecords.keys) { previousRecords[key]?.captures = [] }
-        for index in ghosts.indices { ghosts[index].ghost.captures = [] }
+        for index in ghosts.indices { ghosts[index].ghost.captures = []; ghosts[index].ghost.captureSequences = [] }
+        // The kept scene names atlas slots too (`XF-H` item 9): a removal after it is a ghost that draws nothing.
+        previousScene = nil
+        previousRanges.removeAll()
+        ranges.removeAll()
     }
 
     /// Called once per frame at its end, before the `AnimationStore` drops
     /// untouched entries: this frame's notes and records become the last
     /// completed frame's.
-    func endFrame() {
+    func endFrame(scene: Scene) {
+        swap(&ranges, &previousRanges)
+        ranges.removeAll(keepingCapacity: true)
+        previousScene = previousRanges.isEmpty ? nil : scene
+        notedAnimationThisFrame = false
         swap(&evaluated, &previousEvaluated)
         evaluated.removeAll(keepingCapacity: true)
         swap(&produced, &previousProduced)
@@ -480,7 +673,7 @@ extension Frame {
 /// (before its own effect) for a ghost or a preview.
 @MainActor
 final class PaintScope {
-    enum Kind { case transition, effect, capture, barrier, shadow, blur, composite }
+    enum Kind { case transition, effect, capture, barrier, shadow, blur, composite, fade }
 
     /// A shadow scope's shadow (`GX-J`): its colour, radius and offset in
     /// device pixels of the space it was pushed in, and the clip at its entry.
@@ -518,6 +711,10 @@ final class PaintScope {
         var radii: MUICorners
     }
     var captures: [CapturedPrimitive] = []
+    /// A default insertion's fade scope names its unit (`XF-H` item 7); `nil` for every other kind.
+    var fadeUnit: GlobalElementID?
+    /// Whether `processScopes` skips this scope for now: a `.fade` while an annotated member of its unit paints.
+    var suspended = false
     /// A composite scope's collected primitives' emission clip depths, one per
     /// entry of `captures` (`PF-E`): what `maskDepth(emittedAt:)` reads when
     /// the collection goes through the scopes outside it.
