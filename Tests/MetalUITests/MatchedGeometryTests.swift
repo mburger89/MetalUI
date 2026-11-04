@@ -783,6 +783,7 @@ private struct ReplayArmPanel: Component, @MainActor Equatable {
 }
 private struct ReplayArmOuter: Component, @MainActor Equatable {
     let flag: Bool
+    var tick: Float = 0
     var content: some ElementGroup {
         Column { HeroStage(flag: flag, id: "n").equatable(); ReplayArmPanel(tag: 2).equatable() }
     }
@@ -852,6 +853,24 @@ private let replayArmVerifying = ProcessInfo.processInfo.environment["METALUI_VE
             "\(on.frames)")
 }
 
+/// **A group that sits after painted content, and an outer occurrence that missed once with the inner one replaying** (`XF-N`): the
+/// hero's sequence range is not at zero, so a re-note without the base arithmetic is wrong, and the outer record built on a frame
+/// in which the inner one replayed holds the inner's re-noted group. Mutations **MR3** (no base) and **MR4** (`renote` does not append).
+@Test @MainActor func aReplayedLeaverFliesAfterPaintedContentAndAnOuterMiss() throws {
+    let (before, _) = try replayArmPair({ m in
+        Row { Box().frame(width: Pixels(20), height: Pixels(20)).background(.red); HeroStage(flag: m.flag, id: "left").equatable(); ReplayArmPanel(tag: 1).equatable() }
+    })
+    #expect(before.frames[0].hasPrefix("f1 g2") && before.frames[1].contains("a=0.40") && before.frames[1].contains("a=0.60"), "\(before.frames)")
+    let (nested, _) = try replayArmPair({ m in
+        Row { ReplayArmOuter(flag: m.flag, tick: m.lead).equatable(); ReplayArmPanel(tag: 1).equatable() }
+    }, script: { m, w in
+        m.lead = 40
+        for _ in 0..<3 { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
+        withAnimation(.linear(duration: 1)) { m.flag = true }
+    })
+    #expect(nested.frames[0].hasPrefix("f1 g2") && nested.frames[1].contains("a=0.40") && nested.frames[1].contains("a=0.60"), "\(nested.frames)")
+}
+
 /// **A translated replay** (`XF-N`): the occurrence moved 30 points right while steady, so its record was `moved(to:)` and the
 /// replay re-notes at the new origin; the flight starts at x 150 and the leaver reaches 160. Mutation **MR7** (`moved(to:)`
 /// drops `matched`: flights 0).
@@ -894,7 +913,12 @@ private let replayArmVerifying = ProcessInfo.processInfo.environment["METALUI_VE
     }
     for _ in 0..<6 { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
     var broken = 0
-    for entry in w.window.stateTable.contentMemos.allEntries where entry.record != nil { entry.record?.emitted += 1; broken += 1 }
+    for entry in w.window.stateTable.contentMemos.allEntries where entry.record != nil {
+        // The count is one over and the ranges one up, so a re-note that ignored the count would carve the wrong operations.
+        entry.record?.emitted += 1
+        entry.record?.matched = entry.record?.matched.map { (key: $0.key, range: ($0.range.lowerBound + 1)..<($0.range.upperBound + 1)) } ?? []
+        broken += 1
+    }
     try #require(broken > 0, "set up: records to break")
     w.window.setNeedsRedraw(); w.advance(by: 0.05)
     withAnimation(.linear(duration: 1)) { m.flag = true }

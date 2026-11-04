@@ -247,7 +247,6 @@ final class MatchedGeometryStore {
     /// return to what they were before `afterLayout` advanced them.
     func rollbackBuild(_ saved: Checkpoint) {
         records.removeAll(keepingCapacity: true)
-        noted.removeAll(keepingCapacity: true)
         claimOrder = 0
         flights = saved.flights
     }
