@@ -31,10 +31,10 @@ Applied to the committed tree, `swift test --no-parallel --filter MatchedGeometr
 | MR4 `renote` without `noted.append` | `aReplayedLeaverFliesAfterPaintedContentAndAnOuterMiss` only (green until that arm was added) |
 | MR5 count check skipped (`base: sequenceBase`) | **green, a finding**: see below |
 | MR6 `rollbackBuild` clears `noted` | green as predicted; the clear was removed |
-| MR7 `moved(to:)` drops `matched` | green in the default run: `moved(to:)` is verify mode's copy only (not run under verify) |
+| MR7 `moved(to:)` drops `matched` | green in the default run (`moved(to:)` is verify mode's copy only). **Under `METALUI_VERIFY_RETAINED=1` it reddens**: the run traps (signal 5, no summary line) with `replay differs from a fresh run ... matched groups 0 vs 1` while `aReplayedLeaverFliesAfterATranslatedReplay` is running (the last test started) |
 | MR8 `differences` ignores `matched` | `twoRecordsDifferByTheirMatchedGroups` only |
 
-**MR5 is green and stays green.** A replay that emitted another count drops the unit's ranges (`XF-I`) on the same condition, and a leaver is carved out of its unit's ghost, so ghosts read 1 with or without the matched range; `displayed` is re-noted either way. Pinned at the callee (`renoteNotesRangesOnlyAtABase`), not at the caller. **MR7 was run only in the default build**; the verify-mode run (`METALUI_VERIFY_RETAINED=1`) compares a moved copy against a fresh record, and whether it reddens under MR7 was not measured.
+**MR5 is green and stays green.** A replay that emitted another count drops the unit's ranges (`XF-I`) on the same condition, and a leaver is carved out of its unit's ghost, so ghosts read 1 with or without the matched range; `displayed` is re-noted either way. Pinned at the callee (`renoteNotesRangesOnlyAtABase`), not at the caller. **MR7** is seen only by verify mode, which compares a moved copy against a fresh record; there the translated arm traps as above, so the arm does separate it.
 
 ## 5. Counts
 
