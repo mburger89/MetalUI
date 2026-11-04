@@ -23,6 +23,18 @@
 // false: the probe compiled, opened its window, and printed "could not create
 // image from window / no capture ..." (exit 2). Record 200 §1 and human check
 // LS1 carry this gate. Fill in the readings here when an unlocked session runs it.
+//
+// Recorded output, 2026-11-04 (master a88eb210, macOS 27.2; an unlocked
+// session, captured with `screencapture`, no mouse or keyboard). One display,
+// 1920x1080, backing scale 1.0, colour space sRGB IEC61966-2.1: not a Display
+// P3 panel and not Retina. `appkit-screen-lock-state.swift`: no
+// `CGSSessionScreenIsLocked` line, `displayAsleep main: 0`,
+// `preflightScreenCaptureAccess: true`. This probe, two runs, both exit 0 and
+// identical:
+//   S  [56, 189, 248]   C  [56, 189, 248]   L1 [56, 189, 248]   L2 [0, 192, 254]
+//   all kCGColorSpaceSRGB, bitmapInfo 3
+//   S == C: true   S == L1: true   L2 != L1: true
+// The gate is met on an sRGB display. It is not measured on a P3 panel.
 import AppKit
 import Metal
 import QuartzCore
