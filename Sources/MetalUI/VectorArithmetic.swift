@@ -17,9 +17,8 @@ public protocol VectorArithmetic: AdditiveArithmetic {
 }
 
 extension VectorArithmetic {
-    /// A copy multiplied by `k` — the one interpolation helper the keyframe
-    /// timeline uses.
-    func scaled(by k: Double) -> Self {
+    /// A copy multiplied by `k` — SwiftUI's public `scaled(by:)` (probe `VT12`).
+    public func scaled(by k: Double) -> Self {
         var copy = self
         copy.scale(by: k)
         return copy
