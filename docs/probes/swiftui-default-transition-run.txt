@@ -28,7 +28,7 @@
   shape red-over-white at (25,15): m m m m m m m m m R R R
   ~ t=0.12 anim=0.12 (255,240,241)
   ~ t=0.24 anim=0.24 (255,225,225)
-  ~ t=0.36 anim=0.36 (255,210,210)
+  ~ t=0.36 anim=0.36 (255,210,209)
   ~ t=0.48 anim=0.48 (255,194,194)
   ~ t=0.60 anim=0.60 (255,178,177)
   ~ t=0.72 anim=0.72 (255,162,160)
@@ -36,13 +36,13 @@
   ~ t=0.96 anim=0.96 (255,128,125)
   ~ t=1.08 anim=1.08 (255,110,106)
   ~ t=1.21 anim=1.20 (255,91,86)
-  ~ t=1.34 anim=1.20 (255,91,86)
+  ~ t=1.33 anim=1.20 (255,91,86)
   ~ t=1.46 anim=1.20 (255,91,86)
 === XF1 control: static red.opacity(0.5) over white
   (nothing animated)
   before: (255,178,177)
   shape red-over-white at (25,15): m
-  ~ t=0.12 anim=0.00 (255,178,177)
+  ~ t=0.13 anim=0.00 (255,178,177)
 === XF1 default insertion under L (no .transition)
   L Double [1.000] x1
   before: (255,255,255)
@@ -58,7 +58,7 @@
   ~ t=1.08 anim=1.08 (255,110,106)
   ~ t=1.21 anim=1.20 (255,91,86)
   ~ t=1.33 anim=1.20 (255,91,86)
-  ~ t=1.45 anim=1.20 (255,91,86)
+  ~ t=1.46 anim=1.20 (255,91,86)
 === XF1 .transition(.opacity) insertion under L
   L Double [1.000] x1
   before: (255,255,255)
@@ -73,24 +73,24 @@
   ~ t=0.96 anim=0.96 (255,128,125)
   ~ t=1.08 anim=1.08 (255,110,106)
   ~ t=1.21 anim=1.20 (255,91,86)
-  ~ t=1.33 anim=1.20 (255,91,86)
-  ~ t=1.45 anim=1.20 (255,91,86)
+  ~ t=1.34 anim=1.20 (255,91,86)
+  ~ t=1.46 anim=1.20 (255,91,86)
 === XF1 .transition(.identity) insertion under L
   (nothing animated)
   before: (255,255,255)
   shape red-over-white at (25,15): R R R R R R R R R R R R
   ~ t=0.13 anim=0.00 (255,91,86)
   ~ t=0.25 anim=0.00 (255,91,86)
-  ~ t=0.38 anim=0.00 (255,91,86)
-  ~ t=0.51 anim=0.00 (255,91,86)
+  ~ t=0.37 anim=0.00 (255,91,86)
+  ~ t=0.50 anim=0.00 (255,91,86)
   ~ t=0.63 anim=0.00 (255,91,86)
-  ~ t=0.76 anim=0.00 (255,91,86)
-  ~ t=0.89 anim=0.00 (255,91,86)
-  ~ t=1.01 anim=0.00 (255,91,86)
-  ~ t=1.13 anim=0.00 (255,91,86)
-  ~ t=1.26 anim=0.00 (255,91,86)
-  ~ t=1.38 anim=0.00 (255,91,86)
-  ~ t=1.51 anim=0.00 (255,91,86)
+  ~ t=0.75 anim=0.00 (255,91,86)
+  ~ t=0.87 anim=0.00 (255,91,86)
+  ~ t=1.00 anim=0.00 (255,91,86)
+  ~ t=1.12 anim=0.00 (255,91,86)
+  ~ t=1.25 anim=0.00 (255,91,86)
+  ~ t=1.37 anim=0.00 (255,91,86)
+  ~ t=1.50 anim=0.00 (255,91,86)
 === XF1 default removal under L (no .transition)
   L Double [-1.000] x1
   before: (255,91,86)
@@ -105,8 +105,8 @@
   ~ t=0.96 anim=0.96 (255,225,225)
   ~ t=1.08 anim=1.08 (255,240,241)
   ~ t=1.21 anim=1.20 (255,255,255)
-  ~ t=1.34 anim=1.20 (255,255,255)
-  ~ t=1.47 anim=1.20 (255,255,255)
+  ~ t=1.33 anim=1.20 (255,255,255)
+  ~ t=1.46 anim=1.20 (255,255,255)
 === XF1 .transition(.opacity) removal under L
   L Double [-1.000] x1
   before: (255,91,86)
@@ -120,25 +120,25 @@
   ~ t=0.84 anim=0.84 (255,210,210)
   ~ t=0.96 anim=0.96 (255,225,225)
   ~ t=1.08 anim=1.08 (255,240,241)
-  ~ t=1.20 anim=1.20 (255,255,255)
+  ~ t=1.21 anim=1.20 (255,255,255)
   ~ t=1.33 anim=1.20 (255,255,255)
-  ~ t=1.45 anim=1.20 (255,255,255)
+  ~ t=1.46 anim=1.20 (255,255,255)
 === XF1 .transition(.identity) removal under L
   (nothing animated)
   before: (255,91,86)
   shape red-over-white at (25,15): W W W W W W W W W W W W
   ~ t=0.13 anim=0.00 (255,255,255)
-  ~ t=0.25 anim=0.00 (255,255,255)
-  ~ t=0.37 anim=0.00 (255,255,255)
-  ~ t=0.50 anim=0.00 (255,255,255)
-  ~ t=0.62 anim=0.00 (255,255,255)
-  ~ t=0.75 anim=0.00 (255,255,255)
-  ~ t=0.87 anim=0.00 (255,255,255)
-  ~ t=1.00 anim=0.00 (255,255,255)
-  ~ t=1.12 anim=0.00 (255,255,255)
-  ~ t=1.25 anim=0.00 (255,255,255)
-  ~ t=1.37 anim=0.00 (255,255,255)
-  ~ t=1.50 anim=0.00 (255,255,255)
+  ~ t=0.26 anim=0.00 (255,255,255)
+  ~ t=0.38 anim=0.00 (255,255,255)
+  ~ t=0.51 anim=0.00 (255,255,255)
+  ~ t=0.63 anim=0.00 (255,255,255)
+  ~ t=0.76 anim=0.00 (255,255,255)
+  ~ t=0.89 anim=0.00 (255,255,255)
+  ~ t=1.01 anim=0.00 (255,255,255)
+  ~ t=1.13 anim=0.00 (255,255,255)
+  ~ t=1.26 anim=0.00 (255,255,255)
+  ~ t=1.38 anim=0.00 (255,255,255)
+  ~ t=1.51 anim=0.00 (255,255,255)
 === XF2 control: static red.opacity(0.5)
   layers: 2
    NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=1
@@ -221,6 +221,24 @@
   > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
   > CALayer size=20x5 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
   ~ anim clock 0.40
+=== XF2zc NESTED: onWhite { blue 30x10; ZStack { if flag { red 50x30 }; yellow 40x20 }; green 20x5 }, red removed, 0.4 s in (is the ghost at the bottom of its own container or of the host?)
+  layers: 6
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=5
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.66 presentation=0.66 sub=0
+  > CALayer size=40x20 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=20x5 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.40
+=== XF2zc NESTED, the same tree at rest (the order the layers have before the removal)
+  layers: 6
+   NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=5
+  > CALayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=0
+  > CALayer size=30x10 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=50x30 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=40x20 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  > CALayer size=20x5 pos=(0,0) z=0 opacity=0.99 presentation=0.99 sub=0
+  ~ anim clock 0.00
 === XF2z unannotated removal in a VStack, red FIRST (leaves in layers), 0.4 s in
   layers: 3
    NSViewBackingLayer size=400x200 pos=(0,0) z=0 opacity=1.00 presentation=1.00 sub=2
@@ -358,7 +376,7 @@
   ~ t=1.09 anim=1.08 (255,241,241) (0,166,255)
   ~ t=1.21 anim=1.20 (255,255,255) (0,166,255)
   ~ t=1.34 anim=1.20 (255,255,255) (0,166,255)
-  ~ t=1.47 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.46 anim=1.20 (255,255,255) (0,166,255)
 === XF10c .transition(.opacity) removal, red BELOW the blue sibling
   L Double [-1.000] x1
   before: (255,93,88) (0,164,254)
@@ -369,13 +387,13 @@
   ~ t=0.36 anim=0.36 (255,146,144) (0,164,254)
   ~ t=0.48 anim=0.48 (255,163,162) (0,165,255)
   ~ t=0.60 anim=0.60 (255,179,178) (0,165,255)
-  ~ t=0.72 anim=0.72 (255,195,195) (0,165,255)
+  ~ t=0.72 anim=0.72 (255,195,194) (0,165,255)
   ~ t=0.85 anim=0.84 (255,210,210) (0,165,255)
   ~ t=0.97 anim=0.96 (255,226,226) (0,166,255)
   ~ t=1.09 anim=1.08 (255,241,241) (0,166,255)
   ~ t=1.21 anim=1.20 (255,255,255) (0,166,255)
   ~ t=1.34 anim=1.20 (255,255,255) (0,166,255)
-  ~ t=1.46 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.47 anim=1.20 (255,255,255) (0,166,255)
 === XF10d unannotated insertion, red BELOW the blue sibling
   L Double [1.000] x1
   before: (255,255,255) (0,166,255)
@@ -406,9 +424,9 @@
   ~ t=0.72 anim=0.72 (255,195,195) (0,165,255)
   ~ t=0.85 anim=0.84 (255,210,210) (0,165,255)
   ~ t=0.97 anim=0.96 (255,226,226) (0,166,255)
-  ~ t=1.09 anim=1.08 (255,241,241) (0,166,255)
+  ~ t=1.09 anim=1.09 (255,241,241) (0,166,255)
   ~ t=1.21 anim=1.20 (255,255,255) (0,166,255)
-  ~ t=1.33 anim=1.20 (255,255,255) (0,166,255)
+  ~ t=1.34 anim=1.20 (255,255,255) (0,166,255)
   ~ t=1.46 anim=1.20 (255,255,255) (0,166,255)
 === XF11 control: a reader view under the swizzle
   (nothing animated)

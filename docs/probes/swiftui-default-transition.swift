@@ -39,7 +39,7 @@
 //
 // RECORDED 2026-11-03 by R4-3 PR A, macOS 27.2 (26B123), Apple Swift 6.4.2, compiled with `xcrun swiftc`. Screen LOCKED
 // (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 0`, `preflightScreenCaptureAccess: false`, one 1920x1080 screen); the
-// desktop was shared. Run twice, exit 0, stderr empty after the `Connection]` filter: 423 lines each, the stable (non-`~`)
+// desktop was shared. Run twice, exit 0, stderr empty after the `Connection]` filter: 441 lines each, the stable (non-`~`)
 // lines identical (`diff` empty), the `~` lines differ by a few RGB units and 0.01 s. Run 1 is kept whole in
 // docs/probes/swiftui-default-transition-run.txt. CONTROLS, same session: swiftui-transactions-animation.swift run twice, 227
 // lines each, byte-identical and equal to its recorded 227 (C0 geometry [0, 0, 200, 0]; X0 insert +1 and remove -1; W10 -1 and
@@ -77,7 +77,9 @@
 //        **Red ABOVE blue (XF10b): the overlap ALSO reads pure blue at every sample, from the first, though the red covered it at
 //        rest** (`before: (255, 92, 88)`). XF2zb reads the tree: `[background, GHOST red 0.66, blue, (green)]`: the ghost layer is the
 //        FIRST sublayer above the background whatever its original position (also with a third, always-present leaf above red, and
-//        in a VStack with red first). So the removal is neither in place (originally above its sibling it drops below it) nor on top: it
+//        in a VStack with red first); **NESTED (XF2zc): `blue; ZStack { if red; yellow }; green` reads `[background, blue, GHOST red,
+//        yellow, green]` — the ghost is at the bottom of its OWN container's run (above the outer sibling `blue`, below the inner
+//        `yellow`), not of the host**. So the removal is neither in place (originally above its sibling it drops below it) nor on top: it
 //        is at the BOTTOM of the sibling stack. Annotated (`.transition(.opacity)`) and unannotated read the same. Insertion (XF10d)
 //        stays in place (overlap blue).
 //   XF11 under the Reduce Motion swizzle (reader reads `appear true`) the default insert +1 and remove -1 are unchanged.
@@ -430,6 +432,20 @@ xf2("XF2zb .transition(.opacity) removal, red ABOVE blue, 0.4 s in", all: true, 
 xf2("XF2zb red ABOVE blue, the ZStack with a THIRD, always-present leaf above red, removal 0.4 s in", all: true, { m in
     onWhite { Color.blue.frame(width: 30, height: 10).opacity(0.99); if m.flag { Color.red.frame(width: 50, height: 30).opacity(0.99) }; Color.green.frame(width: 20, height: 5).opacity(0.99) }
 }, setup: { m in m.flag = true }, change: { m in withAnimation(L) { m.flag = false } })
+xf2("XF2zc NESTED: onWhite { blue 30x10; ZStack { if flag { red 50x30 }; yellow 40x20 }; green 20x5 }, red removed, 0.4 s in (is the ghost at the bottom of its own container or of the host?)", all: true, { m in
+    onWhite {
+        Color.blue.frame(width: 30, height: 10).opacity(0.99)
+        ZStack(alignment: .topLeading) { if m.flag { Color.red.frame(width: 50, height: 30).opacity(0.99) }; Color.yellow.frame(width: 40, height: 20).opacity(0.99) }
+        Color.green.frame(width: 20, height: 5).opacity(0.99)
+    }
+}, setup: { m in m.flag = true }, change: { m in withAnimation(L) { m.flag = false } })
+xf2("XF2zc NESTED, the same tree at rest (the order the layers have before the removal)", all: true, { m in
+    onWhite {
+        Color.blue.frame(width: 30, height: 10).opacity(0.99)
+        ZStack(alignment: .topLeading) { if m.flag { Color.red.frame(width: 50, height: 30).opacity(0.99) }; Color.yellow.frame(width: 40, height: 20).opacity(0.99) }
+        Color.green.frame(width: 20, height: 5).opacity(0.99)
+    }
+}, setup: { m in m.flag = true }, change: nil)
 xf2("XF2z unannotated removal in a VStack, red FIRST (leaves in layers), 0.4 s in", all: true, { m in
     VStack(alignment: .leading, spacing: 0) { if m.flag { Color.red.frame(width: 50, height: 30).opacity(0.99) }; Color.blue.frame(width: 30, height: 10).opacity(0.99) }
 }, setup: { m in m.flag = true }, change: { m in withAnimation(L) { m.flag = false } })
