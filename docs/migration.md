@@ -90,8 +90,8 @@ does not compile, `PE-R`).
 
 | legacy | SwiftUI vocabulary | what changes |
 |---|---|---|
-| `Row { … }` | `HStack { … }` | **spacing**: `Row`'s default gap is **0**, `HStack`'s default is SwiftUI's 8 between adjacent views (divergence 52, kept, `CX-E`) — write `HStack(spacing: 0)` to keep the old look, or accept 8. Both centre on the cross axis. `Row(gap: g)` → `HStack(spacing: g)` |
-| `Column { … }` | `VStack { … }` | as `Row`/`HStack` |
+| `Row { … }` | `HStack { … }` | **spacing**: `Row`'s default gap is **0**, `HStack`'s default is SwiftUI's 8 between adjacent views (divergence 52, kept, `CX-E`) — write `HStack(spacing: 0)` to keep the old look, or accept 8. A `VStack`'s default is 8 **except at a vertical text edge**, where it is the font's own gap (a `VStack` of two `Text`s no longer has 8 between them: 0; a `Text` above a rect 8.151 at 13 pt, below one 4.742; `DS-E`, record 203). Both centre on the cross axis. `Row(gap: g)` → `HStack(spacing: g)` |
+| `Column { … }` | `VStack { … }` | as `Row`/`HStack`; a `Grid`'s row gap follows the same text rule |
 | `Row`'s `.flexGrow(1)` child | a `Spacer()` beside it, or `.frame(maxWidth: .infinity)` on it | a greedy frame takes the surplus (`CN-B`); equal growers already shared equally |
 | `.justifyContent(.spaceBetween)` etc. | `Spacer()`s between the children | the lowering already uses spacers (`LR-AB`) |
 | `.alignItems(…)` on a `Row`/`Column` | `HStack(alignment:)`/`VStack(alignment:)` | typed alignment: `VerticalAlignment` for an `HStack` (`.top`, `.center`, `.bottom`, `.firstTextBaseline`, `.lastTextBaseline`), `HorizontalAlignment` for a `VStack` (`CN-I`) |
@@ -243,6 +243,7 @@ public-API removals the records list. **Source** changes stop compiling;
 | `Rectangle.color` as `ColorToken` | `ColorToken?` (`nil` is the foreground style): a reader writes `rect.color ?? token` | `TE-AQ` item 2 |
 | an exhaustive `switch` over `VerticalAlignment` | add `default:` or `.firstTextBaseline`/`.lastTextBaseline` | `TE-K` item 1 |
 | a `TextSystem` conformer outside the package | implement `fontMetrics(_:)`, `resolveFont(_:)` and the `options:` overloads | `TE-C` |
+| the same conformer, `TextFontMetrics` | the initialiser gained a defaulted `capHeight: Double? = nil` (record 203), so a conformer still compiles; pass the face's cap height (`CTFontGetCapHeight`, `OS/2.sCapHeight`) so a text above a rect gets the SwiftUI gap, or leave `nil` and that gap equals the rect-above-text one | `DS-F` |
 | a `PlatformWindow` conformer outside the package | implement `onAccessibilityRequest`, `publishAccessibilityTree(_:)`, `controlActiveState`/`onControlActiveStateChange`, `accessibilityReduceMotion`/`onAccessibilityReduceMotionChange`, and, since drag and drop, `beginExternalDrag(_:at:)` (answer `false` where the platform has no outgoing drag) — none has a default | `AB-R`, `EV-AB`, `AN-AD`, `DN-C` |
 | a `PlatformWindow` conformer outside the package (again, C27) | add `var accessibilityReduceTransparency: Bool { get }` (answer `false` where the platform has no query, as SDL does) and `var onAccessibilityReduceTransparencyChange: ((Bool) -> Void)? { get set }` (call it with the new value when the setting changes); neither has a default. `EnvironmentValues.accessibilityReduceTransparency` is then stamped from it and every `Material` draws an opaque grey instead of a blur while it is `true`. A test using `MetalUITesting` opens a window with `HeadlessPlatformWindow.Options(accessibilityReduceTransparency:)` or calls `TestWindow.setReduceTransparency(_:)` | `MT-D`, `MT-E`, `MT-F`, `MT-G` |
 | an exhaustive `switch` over `PrimitiveKind` | add a `.surface` arm (an app-owned GPU surface's quad, drawn by the image pipeline over its render target) | `MV-C` item 3 |
@@ -740,6 +741,10 @@ its layout changes; wrap the part that should stay left-to-right in `.environmen
 a shape's own path, a gradient's `.leading`/`.trailing` points, `trim`, `UnevenRoundedRectangle`'s corners; mirror such a shape yourself (an element
 that reads `@Environment(\.layoutDirection)` and picks its own path). A custom `ProposalLayout` keeps writing its placements as if left-to-right: the kernel reflects them. Rebuild
 dependents with `swift package clean` (a stored property on the public `LayoutTree`).
+
+## Record 203 (round 4 item R4-2 PR B): default spacing at a text edge
+
+`TextFontMetrics` gained `capHeight: Double?` (a defaulted initialiser argument, so no `TextSystem` conformer changes; see the table above; `swift package clean` after pulling, a stored property on a public type). **Behaviour, compiles and answers differently:** a default-spaced `VStack` or `Grid` (no `spacing:`) next to a `Text` now takes the font's own gap where it took 8: text above text `ceil(leading)` of the lower one (**0** for the system font, so a `VStack` of two `Text`s is one line shorter per gap), a rect above a text `descent + ceil((ascent + descent) / 10)` (4.742 at 13 pt), a text above a rect that plus `ascent - capHeight` (8.151 at 13 pt), measured in SwiftUI on macOS 27.2 (probe `swiftui-default-spacing.swift`). Horizontal gaps, `Spacer()`'s minimum, an explicit `spacing:` and every pair with no text are unchanged; a bordered `Button`, a `Toggle`, a `Stepper`, a `Picker`, a `ColorPicker` and a `ProgressView` keep the standard 8; a `.plain`, `.borderless` or `.link` `Button` takes its label's text edges; `LazyVStack`, `LazyHStack` and `LazyVGrid` keep 8 (divergence 51, narrowed). On Linux and Windows the rule runs on that platform's metrics (`hhea`, `OS/2`): MetalUI's ruling, not a measurement. To find what moved, `grep -nE '\b(VStack|Grid)(\(alignment: *[.a-zA-Z]+\))? *\{'` next to `Text`, or read `frame(ofID:)` before and after. Give the gap you want with `spacing:`.
 
 ## See also
 

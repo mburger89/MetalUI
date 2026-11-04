@@ -44,7 +44,8 @@
 //    A7 180x200). Children align inside that size (A1 centre, A4 leading, A4t
 //    trailing; b overflows centred at -35 in A3).
 // 2. SPACING. Default spacing is the VStack's: 8 between leaf views (A2 = A2c);
-//    two Texts take the same 32 high in both (A10 = A10c, divergence 51). A
+//    two Texts take the same 32 high in both (A10 = A10c; MetalUI's lazy stack keeps
+//    8 where this is 0 since VStack adopted the font's gap, divergence 51 narrowed). A
 //    ForEach element of two views is two views in sequence (A8: b at y 10, no
 //    extra group spacing). An element producing NO view adds no spacing (A9: a,
 //    then c at 16 = 10 + 6).

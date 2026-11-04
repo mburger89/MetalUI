@@ -73,8 +73,9 @@ func layoutStackRow() -> some Element {
 
 To keep a ported layout identical, write `HStack(spacing: 0)`. The two vocabularies nest both
 ways, so a port can go one container at a time ([`migration.md`](../migration.md) maps every
-spelling). In a stack, a `Text` beside a view takes the default 8, where SwiftUI derives the
-space from the font (divergence 51).
+spelling). In a default-spaced `VStack` or `Grid`, a `Text` takes the gap SwiftUI derives from its
+font (two texts 0 apart, a rect above a text 4.742 and a text above a rect 8.151 at 13 pt; horizontally
+always 8), except in a `LazyVStack`, which keeps 8 (divergence 51). Give `spacing:` to choose the gap.
 
 Two legacy habits to leave behind when you port: the `Row`'s CSS item fields (`.flexGrow`,
 `.margin`) belong before `.padding` and are reported by name if a SwiftUI stack receives them,
@@ -161,7 +162,7 @@ func layoutGrid() -> some Element {
 
 `.gridCellColumns`, `.gridCellAnchor`, `.gridColumnAlignment` and `.gridCellUnsizedAxes` are
 SwiftUI's. A modifier on a `GridRow` that holds several cells traps (divergence 66), a row of
-text takes the default row spacing (divergence 65), and a baseline-aligned `GridRow` traps
+text meets the next row by the stack's text rule, and a baseline-aligned `GridRow` traps
 at registration (divergence 88).
 
 ## How do I show ten thousand rows?
@@ -220,10 +221,11 @@ one cell holding both, where SwiftUI makes each view a cell (divergence 635).
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
 
-- divergence 51: spacing beside text in a stack is the default 8, not font-derived.
+- divergence 51: spacing beside text in a lazy stack or grid is the constant 8, not font-derived.
 - divergence 52: `Row` and `Column` default to a gap of 0; `HStack` and `VStack` to 8.
 - divergence 56: `.frame` on a multi-member `Component` frames each member.
-- divergence 65: rows of text in a `Grid` take the default row spacing.
+- divergence 213: a checkbox `Toggle` is 8 from its neighbours, where SwiftUI's edge is 6.
+- divergence 214: the gap between two `Text`s is 0 at every font, where a SwiftUI text-style font adds its leading.
 - divergence 66: a modifier on a multi-cell `GridRow` traps.
 - divergence 72: two siblings with one `.id` share one identity.
 - divergence 73: a legacy `.overlay` or `.background` on a multi-member primary traps naming the count.

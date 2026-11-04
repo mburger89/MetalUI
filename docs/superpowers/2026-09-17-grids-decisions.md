@@ -274,6 +274,10 @@ and the rule is pinned by test 1.5.
   (GS7 36×32; GN2, GN5, GN7 at finite widths). MetalUI gives 8, as `CN-H` does
   for a `VStack` of `ProposalText`. A divergence (`GR-O`), owned by task 11
   (text edges, as `LR-N` already lists), **pinned** by spec test 4.12.
+  **Forward note 2026-11-03 (`DS-G`, record 203): adopted.** A grid's row gap is the stack
+  rule (probe `swiftui-default-spacing.swift` `DS12`), so two `Text` rows are 0 apart, a rect
+  row above a text row 4.742 and a text row above a rect row 8.151 at 13 pt; divergence 65 is
+  retired and test 4.12 is now `textRowsMeetWithoutARowGap`.
 
 **Cost if wrong.** A boundary rule that differs by view kind in a way GS did not
 exercise (for example a `ProposalText` beside a Spacer inside a padding) would

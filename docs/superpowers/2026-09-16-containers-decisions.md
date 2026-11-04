@@ -626,6 +626,12 @@ read 52 (b 32) and 68 (b 48), 4 issues, nothing else red (record §17,
 
 ---
 
+> **Forward note 2026-11-03 (`DS-B`, `DS-E`, record 203): "font-derived" was never measured at more than the 13 pt default, and
+> it is now.** The vertical Text edge is `d + ceil((a + d) / 10)` (rect above text), that `+ (a - c)` (text above rect) and
+> `ceil(leading)` of the lower text (text above text; 0 for an unset or sized font) (probe `swiftui-default-spacing.swift`,
+> three instruments, 922 pairs); MetalUI now adopts it (`ProposalSpacing.defaultGap`), so "MetalUI does not adopt it" below
+> is history: divergence 51 is narrowed to the lazy containers. `toggle|toggle 6` stands (divergence 213).
+
 ## CN-I — typed stack alignments, in SwiftUI's argument order
 
 **The finding.** A1 and A2 read the three positions per axis; SwiftUI types

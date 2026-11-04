@@ -73,8 +73,8 @@
 //   and Slider take the 50. Text wraps per the existing ProposalText rules
 //   (FX3: 49.50x48 at 50).
 // - FORM (FM0): VStack(alignment: .leading) rows stack with spacing 8 plus a
-//   text-derived extra (48.15, 76.89, 101.04 — the CN-H note: MetalUI does
-//   not adopt it); a Toggle/Spacer/Button row puts the Button at the trailing
+//   text-derived extra (48.15, 76.89, 101.04 — the CN-H note: MetalUI adopts the
+//   font's text edges since DS-E, swiftui-default-spacing.swift DS9; the form reads 182.04); a Toggle/Spacer/Button row puts the Button at the trailing
 //   edge (325 = 384 - 59); a TextField beside a label takes the rest
 //   (324.50); the Divider spans 368; the Stepper hugs (50x24).
 // - FM1's printed caption is wrong (kept so the output stays comparable):

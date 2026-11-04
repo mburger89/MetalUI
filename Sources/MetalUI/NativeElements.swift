@@ -25,8 +25,10 @@ import MetalUILayout
 /// **Spacing** (ruling CN-H): `nil`, the default, is SwiftUI's platform
 /// default — 8 between two views and none beside a ``Spacer``, decided per
 /// edge through its wrappers (probe S, SP2, SP3, K3); a number is used for
-/// every gap. MetalUI does not adopt SwiftUI's font-derived vertical spacing at
-/// a text edge (a `VStack` of ``ProposalText``s gets 8 where SwiftUI's is 0).
+/// every gap. At a vertical text edge the default gap is the font's own, as
+/// SwiftUI's (rulings `DS-E`, `DS-F`): a `VStack` of two ``ProposalText``s is 0
+/// apart, a text above a rect `d + ceil((a + d) / 10) + (a - c)` and below one
+/// `d + ceil((a + d) / 10)` (8.151 and 4.742 at 13 pt); horizontally it is 8.
 public struct HStack<Content: ProposalElementGroup>: Element {
     /// The stack's children, laid out left to right.
     public var content: Content
