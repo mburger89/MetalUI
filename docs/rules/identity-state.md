@@ -163,7 +163,11 @@ change, or a one-shot correction. In-flight values are clamped;
 declared values never. Structure snaps, values interpolate (`LR-AS`); a new
 read of `Style` in the lowering owes an animated arm. Interpolation is
 per-component RGB. Transitions: only the outermost group transitions;
-insertion needs the conditional evaluated last frame; removal draws a ghost;
+insertion needs the conditional evaluated last frame; removal draws a ghost,
+**the first thing in the run of its container** (`TransitionStore.resolveAnchors`: the nearest ancestor of the ghost's position that
+passed `recordElementBounds`, drawn by `Frame.paintAnchoredGhosts(at:)` from `Element.paintGroup`, `paintDecoration`'s content, a
+modifier chain's innermost layer, `AnyElement`'s entry and the root; a hook that draws taints the paint recorders, `ghostInRun`, since
+a direct insert bypasses them; `XF-F`), and a ghost always exists, so empty content still parks `onDisappear` (`XF-G`);
 no default transition (divergence 98). Reduce Motion changes only
 transitions (to a cross-fade). **`matchedGeometryEffect` is a paint map, not a relayout** (`MG-A`): a window-owned
 `MatchedGeometryStore` (never a `StateTable` slot), a newcomer takes a *source* leaver's drawn frame under the transaction at it, none from an explicit

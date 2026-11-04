@@ -452,7 +452,13 @@ extension PaintPass {
 
     /// `paintDecoration`'s body, outside the drag-snapshot capture.
     private func paintDecorationUncaptured(_ decoration: Decoration, in bounds: Bounds<Pixels>,
-                                           for id: GlobalElementID, content: () -> Void) {
+                                           for id: GlobalElementID, content paintContent: () -> Void) {
+        // A removal ghost anchored at this element is the first thing drawn in its content, above its own fill and
+        // below its children (`XF-F`); every `StyledElement` site reaches it here.
+        func content() {
+            if frame.hasGhostAnchors { frame.paintAnchoredGhosts(at: id) }
+            paintContent()
+        }
         // Both resolutions happen before any emission, so the two chains see the
         // same pointer and focus state even though only one of them touches the
         // state table. `resolving` is a copy for `animatedBackground`'s `inout`

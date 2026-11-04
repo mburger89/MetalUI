@@ -175,6 +175,17 @@ public final class Frame {
     var elementPrepaints = 0
     var elementPaints = 0
 
+    /// Whether this frame's `afterLayout` made a removal ghost whose container is not yet known (`XF-F`): while true
+    /// `recordElementBounds` also notes each id into `ghostAnchorSeen`, so the walk after prepaint finds the nearest
+    /// ancestor of the ghost's position that was prepainted. False in every frame that starts no ghost (the steady
+    /// frame pays this one flag read per element prepaint).
+    var pendingGhostAnchors = false
+    /// The ids `recordElementBounds` saw while `pendingGhostAnchors` was true.
+    var ghostAnchorSeen: Set<GlobalElementID> = []
+    /// Whether any live ghost has an anchor (`XF-F`): the one flag each element's paint reads before asking the
+    /// transition store for ghosts drawn at its position. False at rest.
+    var hasGhostAnchors = false
+
     /// How many typed keys this frame noted — a work counter.
     var scrollKeyCount: Int { scrollKeys.count }
 
@@ -2778,6 +2789,7 @@ public final class Frame {
     /// element while no request is pending.
     func recordElementBounds(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
         elementPrepaints += 1
+        if pendingGhostAnchors { ghostAnchorSeen.insert(id) }
         if hasUnresolvedScrollRequests { matchScrollRequests(id, bounds) }
         guard recordsElementBounds else { return }
         elementBounds[id] = bounds
@@ -3949,6 +3961,15 @@ public final class Frame {
         // this frame has already decided is not focused. See `resolveFocus()`.
         resolveFocus()
 
+        // A removal ghost's container (`XF-F`): resolved once, here, after every element has been prepainted (the ids
+        // it walks to were noted by `recordElementBounds`) and before any paint reaches a container's hook.
+        if pendingGhostAnchors {
+            animationStore.transitions.resolveAnchors(seen: ghostAnchorSeen)
+            pendingGhostAnchors = false
+            ghostAnchorSeen.removeAll()
+        }
+        hasGhostAnchors = animationStore.transitions.hasAnchoredGhosts
+
         // The atlas's frame brackets go around the paint phase and nothing
         // else, because scene construction is the whole of what they protect:
         // `GlyphAtlas.reclaim` traps while a frame is being built, so
@@ -3966,6 +3987,9 @@ public final class Frame {
         glyphAtlas.beginFrame()
         var paintPass = PaintPass(frame: self)
         if !hiddenNodes.contains(root) {
+            // The root is its own container for a ghost that sits directly in it (`XF-F`): a styled root draws it
+            // inside its decoration, as every `StyledElement` does.
+            if hasGhostAnchors, !(element is any StyledElement) { paintAnchoredGhosts(at: rootID) }
             element.paint(rootID, bounds: rootBounds,
                           layout: &state, prepaint: &prepaintState, pass: &paintPass)
         }

@@ -356,6 +356,9 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
         pass.frame.elementPaints += 1
         func inside() {
             guard depth > 0 else {
+                // The innermost layer's id is the one the content is placed under (`XF-F`): a ghost anchored there
+                // is the first thing drawn inside every layer's own paint.
+                if pass.frame.hasGhostAnchors { pass.frame.paintAnchoredGhosts(at: id) }
                 content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
                 return
             }

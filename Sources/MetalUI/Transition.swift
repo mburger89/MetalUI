@@ -90,8 +90,17 @@ public enum Edge: Sendable, Hashable, CaseIterable {
 /// with it. A removal paints a **ghost**: the content's last painted
 /// primitives, frozen at their last place (they follow neither a scroll nor a
 /// theme change during the removal), with the removal transition applied, on
-/// the layer they had, **above the rest of that layer** — until the animation
-/// lands. Neither registers anything but paint: **hit testing, focus and
+/// the layer they had, as the **first thing in the run of the nearest enclosing
+/// element that was prepainted** (its container: a `ZStack`, a stack, the
+/// window's root; a `Component` and the conditional's slot are no container) —
+/// above that element's own fill, below everything it draws after, so a sibling
+/// that sat above the leaver now covers it (SwiftUI's rule, `XF10`, `XF2zc`;
+/// annotated and unannotated alike) — until the animation lands. A ghost whose
+/// container is not reached (hidden, left) is drawn after the root, on top, and
+/// counted in `TransitionStore.lastFrameUnanchoredGhosts`. A ghost always
+/// exists, even for content that drew nothing: it then draws nothing and holds
+/// the `onDisappear` (`T1e2`, `XF-G`). A retained occurrence that holds a ghost
+/// does not record its paint for as long (`ghostInRun`). Neither registers anything but paint: **hit testing, focus and
 /// accessibility use the final geometry** (an inserting element is hit where
 /// it lands; a ghost has no hitbox, focus or accessibility node — its state is
 /// already reset, `ID-C`/`DD-C`). Siblings move at once (divergence 96). A
