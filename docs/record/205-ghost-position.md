@@ -64,6 +64,6 @@ Applied from the committed tree with `scratchpad/mut/run.py`, restored with `git
 
 ## 6. Counts and checks
 
-COUNTS
+`swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native --no-parallel`, unfiltered, 2026-11-03 (the desktop was shared): **`Test run with 5066 tests in 14 suites passed after 275.817 seconds`** (0 failures; master's 5 050 + the 16 of `GhostPositionTests`); `FR-J no-argument frame: succeeded=true deprecations=2` (guards ran). Verify modes, filter record 201's plus `GhostPosition|TransitionTests|MatchedGeometry` under `--build-system native --no-parallel`: `METALUI_VERIFY_RETAINED=1` **504 tests in 9 suites passed (74.355 s)**; `METALUI_VERIFY_LAYOUT_MEMO=1` **504 tests in 9 suites passed (97.314 s)**; `METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500` passed (15.895 s). The earlier default-build run that found the classification table (3 267 tests in the root suite) was the only red.
 
 `zsh docs/probes/record-05-check.sh`, `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. The counts line of `CLAUDE.md` is not replaced; `divergences.md`'s counts did not move (208 live, next 215), so `CLAUDE.md` and `AGENTS.md` are untouched.
