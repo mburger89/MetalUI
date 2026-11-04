@@ -149,11 +149,13 @@ private let linear1 = Animation.linear(duration: 1)
         Box().frame(width: Pixels(w), height: Pixels(h)).background(.accent)
     }
     func fenced(_ shown: Bool) -> some StyledElement {
+        // The fill is the Stack's OWN decoration (width 120 from its unpainted first child), not a modifier layer's.
         Stack {
+            Box().frame(width: Pixels(120), height: Pixels(10))
             if shown { tile(50, 30).transition(.opacity) }
             tile(40, 20)
         }
-        .frame(width: Pixels(120), height: Pixels(120)).background(.separator)
+        .background(.separator)
     }
     // As the window's root (the hook in `Frame.render`, **MB1n**) and as a member of a column (`Element.paintGroup`, **MB1d**).
     let root = removal { fenced($0) }
@@ -220,6 +222,24 @@ private struct GPLeaver: Component {
     #expect(r.start == [40, 50, 30, 20], "the ghost is first in the erased container's run: \(r.start)")
     #expect(r.mid == [40, 50, 30, 20], "\(r.mid)")
     #expect(r.harness.store.transitions.lastFrameUnanchoredGhosts == 0)
+}
+
+/// **A modifier chain on the leaver's group is the container of a ghost inside it** (MetalUI's own rule, unmeasured in
+/// SwiftUI): with two layers the nearest prepainted ancestor is the innermost layer, whose `paintLayer` draws the ghost as
+/// the first thing inside every layer's own paint, so it stays in the chain's member run, after the sibling before it.
+/// Mutation **MB1m** (the hook removed from `ModifiedContent`'s innermost `inside()`): unanchored, `[120, 40, 20, 50]`.
+@Test @MainActor func aModifierChainOnTheLeaversGroupIsItsContainer() throws {
+    let r = removal { shown in
+        onBackdrop(ZStack {
+            leaf(40, 20)
+            GPLeaver(shown: shown).padding(Pixels(2)).frame(width: Pixels(60), height: Pixels(40))
+            leaf(20, 5)
+        })
+    }
+    try #require(r.rest == [120, 40, 50, 20], "\(r.rest)")
+    #expect(r.start == [120, 40, 50, 20], "\(r.start)")
+    #expect(r.mid == [120, 40, 50, 20], "\(r.mid)")
+    #expect(r.harness.store.transitions.lastFrameUnanchoredGhosts == 0, "and it is anchored")
 }
 
 // MARK: - Insertion stays in place (`XF10d`)
