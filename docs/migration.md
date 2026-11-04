@@ -765,3 +765,8 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 - [`divergences.md`](divergences.md) — every remaining difference from SwiftUI.
 - [`verification/human-checks.md`](verification/human-checks.md) — the looks
   that still need a human.
+
+## Record 209 (round 4 item R4-3 PR E): `Component & Animatable`
+
+**Compiles; a component that already conformed to `Animatable` starts to move.** A `struct Counter: Component, Animatable` used to compile and animate nothing; it now runs its `content` at the interpolated data under a transaction that changes it (SwiftUI's `View & Animatable`, probe `VA5`), so its children are proposed every in-between size and `.equatable()` runs the body in flight and skips it once settled (`VA7`, `VA7s`). **In Swift 6 write `nonisolated var animatableData`** (the same fix as for a `Shape`, divergence 215; SwiftUI's `View` has it too). The setter must not write an `@Observable` or an `@State` (it runs in the layout phase); a setter that replaces `self` (`self = Counter(x: newValue)`) is fine, the state is bound after. A component that is not `Animatable` pays nothing and reads the same as before. `Component` gained one **public, underscored requirement with a default**, `_interpolateAnimatableData(id:pass:)`: never implement or call it (an existing conformer needs no change). Write `swift package clean` after pulling (a protocol requirement added).
+

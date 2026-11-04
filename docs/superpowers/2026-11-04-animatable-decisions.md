@@ -1,6 +1,6 @@
 # `Animatable` on shapes and keyframes (round 4 item R4-3 PR D) — decisions (prefix `VA-`)
 
-Rulings for divergences 947 (retired), 169 (narrowed), 215 and 216 (added). Branch `feat/r4-3-animatable`, on `feat/r4-3-leaver-moves` (PR C, #203). Record 208. Evidence: `XF-C` (`docs/superpowers/2026-11-03-default-transition-decisions.md`) and the probe `docs/probes/swiftui-animatable.swift` (`VT1`..`VT16`, `VA1`..`VA8`, recorded in `swiftui-animatable-run.txt`; `VA6d` was added in this PR and **not run**, the screen being locked on 2026-11-04). `Component & Animatable` is PR E and is not decided here. **Class `A`** (SwiftUI-aligned) with two documented divergences. **Next unused: `VA-I`.**
+Rulings for divergences 947 (retired), 169 (narrowed), 215 and 216 (added). Branch `feat/r4-3-animatable`, on `feat/r4-3-leaver-moves` (PR C, #203). Record 208. Evidence: `XF-C` (`docs/superpowers/2026-11-03-default-transition-decisions.md`) and the probe `docs/probes/swiftui-animatable.swift` (`VT1`..`VT16`, `VA1`..`VA8`, recorded in `swiftui-animatable-run.txt`; `VA6d` was added in this PR and **not run**, the screen being locked on 2026-11-04). `Component & Animatable` is PR E (record 209), decided in `VA-I`..`VA-M` below. **Class `A`** (SwiftUI-aligned) with two documented divergences. **Next unused: `VA-N`.**
 
 ## VA-A: the isolation of a conformance (the spike, measured in MetalUI)
 
@@ -44,4 +44,27 @@ A retarget starts a new flight over the **whole vector** from the current value 
 
 The `@Animatable` and `@AnimatableIgnored` macros (`VT6`, `VT7`; no macro infrastructure in the package; `docs/divergences.md`, not-offered table).
 
-**Next unused: `VA-I`.**
+## VA-I: `Component & Animatable` interpolates in layout (R4-3 PR E, record 209)
+
+1. **The rule** (`VA5`): a `Component` that is `Animatable` runs its `content` at the interpolated data, so a child laid out from it is proposed every intermediate size. The spelling is SwiftUI's `View` (`VT2`, `VT3`; the spike's `S3`/`S4`): `nonisolated var animatableData`.
+2. **Where**: in the layout phase (`AN-AA`'s number-in-layout rule), in `requestGroupLayout`, **into `self`**, through `animatedVector` at `layerAnimationKey(component id, "animatable")` in the `AnimationStore` (no `StateTable` slot, `VA-D` item 2). One internal helper, `interpolateAnimatableComponent(_:id:pass:)` in `Component.swift`, is the whole body; a component whose data is `EmptyAnimatableData` returns at a metatype comparison and stores nothing.
+3. **How a non-conformer pays nothing**: `extension Component where Self: Animatable` supplies a more specialised `requestGroupLayout` witness, so the unconstrained default (`enterComponent`, `content`, `finishComponent`) is byte for byte what it was. The `[PREDICTED]` item held: **the witness is selected for a conformance written in another file** (and another module: the test target), pinned by `aWitnessDeclaredInAnotherFileIsSelected` with the `Animatable` extension in `AnimatableComponentSplit.swift`. No dynamic check was built or counted.
+4. **One requirement had to be added to `Component`**, `_interpolateAnimatableData(id:pass:)` (default: no-op; `Self: Animatable`: the helper). `EquatableComponent` is generic over `Component & Equatable` and cannot see `Animatable` without a cast, so it reaches the constrained witness through the requirement. **`package` is refused on a protocol requirement** ("'package' modifier cannot be used in protocols") **and an `@_spi` requirement is refused downstream** (its default is invisible to a module that does not import the SPI, so every outside `Component` failed to conform: measured, MetalUIDemoContent). It is therefore `public`, underscored, documented "framework-internal, never implement or call it"; the inventory classes it M. The bare path does not use it (it calls the helper directly), so the two entries fail independently.
+
+## VA-J: before the bind, so a setter that rebuilds `self` keeps its state
+
+The interpolation is written after the component's id is known and **before** `StateBinder.bind(self)`. A setter that replaces `self` (`self = Counter(x: newValue)`) makes a copy with fresh, unbound `@State` wrappers; bound afterwards, the copy's state writes are discarded (an unbound `@State` ignores writes). Bound after the interpolation, the state survives. Pinned by `aSetterThatRebuildsSelfKeepsItsState` (the separating arm for the ordering; mutation `ME4`).
+
+## VA-K: `.equatable()` interpolates before `==` (`VA7`, `VA7s`)
+
+`EquatableComponent` calls the hook before `enterComponent`, so the value the memo compares and stores is the interpolated one: every frame of a flight misses and runs the body once (the change frame reads its own `from`, which equals the last evaluation and hits, as the probe's first tick), and a frame after the landing, on an unrelated parent change, hits and runs none. The call sits after the occurrence's `RetainedBuildWindow` opens, so the interpolation it notes is inside the window; **that placement is not load-bearing** (mutation `ME6`, the call before the window, is green: a moving value misses the memo and the occurrence is rebuilt anyway).
+
+## VA-L: a grafted or memoized occurrence is not frozen in flight
+
+`animatedVector` counts an interpolation and notes an active animation (`noteInterpolation`, `noteActiveAnimation`), never `requestAnotherFrame()`. A moving value misses the `==` memo, so the occurrence is rebuilt, and the noted interpolation keeps its record from being replayed: no graft, no prepaint or paint replay. Pinned by `anAnimatableComponentInARetainedOccurrenceIsNotFrozen` (equal to the retention-off oracle, no redo). The `VA6` retarget rule (divergence 216) applies unchanged: a retarget restarts the whole vector at rest.
+
+## VA-M: no mirror in `StyledComponent`
+
+The plan mirrored the body in `StyledComponent.requestGroupLayout`. It is not needed: `StyledComponent` calls `component.requestGroupLayout`, a requirement, so the witness table picks the constrained one; its ops animate on their own keys under the component's id, so the two tracks cannot collide. `aTypedEntryAnimatesToo` pins `Counter(x:).padding(2)`. **No new divergence**: `S3`/`S4` and `VT2`/`VT3` agree; the row-96 residue (a child re-laid out per frame) is unchanged.
+
+**Next unused: `VA-N`.**

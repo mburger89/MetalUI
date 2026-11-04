@@ -41,6 +41,10 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         let window = store.retainsSubtrees ? RetainedBuildWindow(frame: frame) : nil
         // `StateBinder.bind` collects the readings of the declared `@Environment`s in its one pass (`EE-A`).
         frame.environmentReadings = []
+        // An `Animatable` component is interpolated BEFORE `==` and before its `@State` binds (`VA7`, `VA-I`): in
+        // flight the value differs each frame so the memo misses, settled it equals the last evaluation and hits.
+        // After the build window opens, so the interpolation it notes is inside it (not load-bearing: mutation ME6, record 209).
+        component._interpolateAnimatableData(under: parent, at: cursor, pass: &pass)
         let id = component.enterComponent(under: parent, at: &cursor, pass: &pass)
         let readings = frame.environmentReadings ?? []
         frame.environmentReadings = nil

@@ -89,6 +89,12 @@ public protocol Component: ElementGroup {
     /// by **position**. Same contract as `Element.elementID`: a name replaces a
     /// position, so a named component keeps its state through a reorder.
     var elementID: ElementID? { get }
+
+    /// Interpolates this component's ``Animatable`` data into `self` for this frame (`VA-I`): a no-op here, the
+    /// interpolation in the `Self: Animatable` extension. A requirement, not a free function, so that
+    /// `EquatableComponent` (generic over `Component & Equatable`) reaches the constrained witness without a
+    /// dynamic cast; public because a protocol requirement cannot be less visible than its protocol (`package` is refused; an SPI requirement hides the default from other modules and no outside `Component` would conform): **framework-internal, never implement or call it**.
+    mutating func _interpolateAnimatableData(under parent: GlobalElementID?, at cursor: Int, pass: inout LayoutPass)
 }
 
 /// What a `Component`'s `requestGroupLayout` hands to the later phases.
@@ -215,6 +221,10 @@ public struct ComponentPrepaint<C: Component> {
 
 extension Component {
     public var elementID: ElementID? { nil }
+
+    /// A component that is not ``Animatable`` interpolates nothing (`VA-I`) and computes no id: the id is made inside the
+    /// `Self: Animatable` witness, so a non-conformer's `.equatable()` entry allocates what it did before.
+    public mutating func _interpolateAnimatableData(under parent: GlobalElementID?, at cursor: Int, pass: inout LayoutPass) {}
 
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
@@ -403,6 +413,46 @@ extension Component {
             prepaint.withPrepaint { payload.content.paintGroup(layout: &payload.contentLayout,
                                                                prepaint: &$0, pass: &pass) }
         }
+    }
+}
+
+/// `component`'s ``Animatable/animatableData`` at this frame (`VA-I`): the one shared body of the bare and the
+/// `.equatable()` entries, so the two cannot drift. A component whose data is ``EmptyAnimatableData`` returns
+/// at a metatype comparison and touches no track. The track is a `VectorTrack` in the `AnimationStore` at
+/// `layerAnimationKey(id, "animatable")` (never a `StateTable` slot); the setter runs only on a frame that
+/// differs from the declared value. In flight it notes an interpolation and an active animation (inside
+/// `animatedVector`), never `requestAnotherFrame()`, and writes no `@State` or `@Observable`.
+@MainActor
+func interpolateAnimatableComponent<C: Component & Animatable>(_ component: inout C, id: GlobalElementID,
+                                                               pass: inout LayoutPass) {
+    guard ObjectIdentifier(C.AnimatableData.self) != ObjectIdentifier(EmptyAnimatableData.self) else { return }
+    let declared = component.animatableData
+    let animated = animatedVector(declared, at: layerAnimationKey(id, "animatable"), frame: pass.frame,
+                                  transaction: pass.transaction ?? Animation.pendingTransaction)
+    guard animated != declared else { return }
+    component.animatableData = animated
+}
+
+extension Component where Self: Animatable {
+    /// `Component & Animatable` animates (`VA5`, `VA-I`): the layout phase runs `content` at the interpolated
+    /// data, so a child laid out from it is proposed every intermediate size. The interpolation is written
+    /// into `self` after the component's id is known and **before** `@State` is bound and `content` is read.
+    /// Declared in this constrained extension so a component that is not `Animatable` pays nothing.
+    public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
+                                            pass: inout LayoutPass)
+        -> ([LayoutNodeID], ComponentLayout<Self>) {
+        interpolateAnimatableComponent(&self, id: GlobalElementID.child(of: parent, at: cursor, name: elementID),
+                                       pass: &pass)
+        let id = enterComponent(under: parent, at: &cursor, pass: &pass)
+        var materialized = content
+        return finishComponent(&materialized, id: id, pass: &pass)
+    }
+
+    /// Interpolates ``Animatable/animatableData`` into `self` (`VA-I`).
+    public mutating func _interpolateAnimatableData(under parent: GlobalElementID?, at cursor: Int, pass: inout LayoutPass) {
+        interpolateAnimatableComponent(&self, id: GlobalElementID.child(of: parent, at: cursor, name: elementID),
+                                       pass: &pass)
     }
 }
 
