@@ -350,6 +350,63 @@
 // separated (A's own animation may have finished); the readings do not contradict "B starts settled, A starts fresh".
 // AVF (swiftui-key-focus.swift, `KF_PROBE_AVF=1`): focus does not survive and does not return.
 //
+// RE-RUN 2026-11-03 by R4-3 (divergence 98, ruling family `XF-`), macOS 27.2 (26B123), Apple Swift 6.4.2, compiled form, screen LOCKED
+// (`CGSSessionScreenIsLocked = 1`, `displayAsleep main: 0`, `preflightScreenCaptureAccess: false`; no arm reads pixels). Arms T1u, T4u, A4u,
+// T1e and T1e2 added (the UNANNOTATED twins of T1, T4 and A4, and an `if` whose content draws nothing). The whole file run twice: 2980 and
+// 3083 lines, stderr empty, the two runs equal outside AV6c's `slide` lines and S1/S2's row lines (as the R4-1a note above). Controls read
+// in the same session: T1 `disappear x` only after the 1.0 s spin, T4 neither callback, AV6b `disappear A` and `appear B` inside the swap
+// step. The new blocks, verbatim (`-- host` and `-- ordered front` lines left out):
+//
+//   === T1u removal under withAnimation(.linear(duration: 0.6)), NO .transition
+//     appear x
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 1.0 more
+//     disappear x
+//     -- settled after spin 1.0 more
+//   === T4u unannotated removal under a 0.6 s animation, re-inserted 0.15 s in
+//     appear x
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 0.15, then withAnimation(0.6) { flag = false }
+//     -- settled after spin 0.15, then withAnimation(0.6) { flag = false }
+//     -- spin 1.0 more
+//     -- settled after spin 1.0 more
+//   === A4u if/else swap under withAnimation(.linear(duration: 0.6)), no transitions: order and delay
+//     appear else
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     appear then
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 1.0 more
+//     disappear else
+//     -- settled after spin 1.0 more
+//     -- withAnimation(0.6) { flag = false }
+//     appear else
+//     -- settled after withAnimation(0.6) { flag = false }
+//     -- spin 1.0 more (2)
+//     disappear then
+//     -- settled after spin 1.0 more (2)
+//   === T1e unannotated removal of an `if` whose content is Color.clear, under withAnimation(0.6)
+//     appear x
+//     -- initial settled
+//     -- withAnimation(0.6) { flag = true }
+//     -- settled after withAnimation(0.6) { flag = true }
+//     -- spin 1.0 more
+//     disappear x
+//     -- settled after spin 1.0 more
+//   === T1e2 the same with .transition(.opacity) on the Color.clear
+//     (the same lines as T1e: `disappear x` after the spin)
+//
+// READING (R4-3). **T1u: an UNANNOTATED removal delays `onDisappear` past the animation exactly as T1's `.transition(.opacity)` does**
+// (the recollection in the R4-3 plan, now measured). T4u: re-inserted 0.15 s into the removal, neither `onDisappear` nor a second
+// `onAppear` (T4's reading holds without an annotation). **A4u: an `if`/`else` swap under animation keeps `appear` first (A4's
+// order) and delays the old branch's `onDisappear` past the 0.6 s, both ways** (A4 with no animation runs both in the step). **T1e: an
+// `if` whose content draws nothing (`Color.clear`) delays `onDisappear` too, with or without `.transition(.opacity)` (T1e2)**: the delay
+// does not depend on there being anything to fade.
+//
 // The second of the 2026-10-03 design session's three runs, verbatim:
 //
 //   === L0 control: a hosted view's onAppear fires
@@ -1659,6 +1716,50 @@ arm("T5 the parent of a fading child: parent removed under animation, child has 
         VStack { Leaf(name: "child") }.transition(.opacity)
             .onAppear { log("appear parent") }.onDisappear { log("disappear parent") }
     }
+}, steps: [("withAnimation(0.6) { flag = true }", { m, _, _ in
+               withAnimation(.linear(duration: 0.6)) { m.flag = true } }),
+           ("spin 1.0 more", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)
+
+// R4-3 (2026-11-03, default cross-fade): the UNANNOTATED twins of T1/T4/A4, and an `if` that draws nothing.
+// T1u: does a removal with NO `.transition` delay `onDisappear` under an animation, as T1's `.transition(.opacity)` does?
+// T4u: re-inserted 0.15 s into its 0.6 s unannotated removal. A4u: an `if`/`else` swap under animation, no transitions.
+// T1e: the removed `if` content is `Color.clear` (it draws nothing) and carries no transition; T1e2: the same with
+// `.transition(.opacity)` (the separating arm: does a transition on invisible content still delay `onDisappear`?).
+struct ClearLeaf: View {
+    let name: String
+    var body: some View { Color.clear.frame(width: 50, height: 30).onAppear { log("appear \(name)") }.onDisappear { log("disappear \(name)") } }
+}
+arm("T1u removal under withAnimation(.linear(duration: 0.6)), NO .transition", { m in
+    if !m.flag { Leaf(name: "x") }
+}, steps: [("withAnimation(0.6) { flag = true }", { m, _, _ in
+               withAnimation(.linear(duration: 0.6)) { m.flag = true } }),
+           ("spin 1.0 more", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)
+
+arm("T4u unannotated removal under a 0.6 s animation, re-inserted 0.15 s in", { m in
+    if !m.flag { Leaf(name: "x") }
+}, steps: [("withAnimation(0.6) { flag = true }", { m, _, _ in
+               withAnimation(.linear(duration: 0.6)) { m.flag = true } }),
+           ("spin 0.15, then withAnimation(0.6) { flag = false }", { m, _, _ in
+               spin(0.15); withAnimation(.linear(duration: 0.6)) { m.flag = false } }),
+           ("spin 1.0 more", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)
+
+arm("A4u if/else swap under withAnimation(.linear(duration: 0.6)), no transitions: order and delay", { m in
+    if m.flag { Leaf(name: "then") } else { Leaf(name: "else") }
+}, steps: [("withAnimation(0.6) { flag = true }", { m, _, _ in
+               withAnimation(.linear(duration: 0.6)) { m.flag = true } }),
+           ("spin 1.0 more", { _, _, _ in spin(1.0) }),
+           ("withAnimation(0.6) { flag = false }", { m, _, _ in
+               withAnimation(.linear(duration: 0.6)) { m.flag = false } }),
+           ("spin 1.0 more (2)", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)
+
+arm("T1e unannotated removal of an `if` whose content is Color.clear, under withAnimation(0.6)", { m in
+    if !m.flag { ClearLeaf(name: "x") }
+}, steps: [("withAnimation(0.6) { flag = true }", { m, _, _ in
+               withAnimation(.linear(duration: 0.6)) { m.flag = true } }),
+           ("spin 1.0 more", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)
+
+arm("T1e2 the same with .transition(.opacity) on the Color.clear", { m in
+    if !m.flag { ClearLeaf(name: "x").transition(.opacity) }
 }, steps: [("withAnimation(0.6) { flag = true }", { m, _, _ in
                withAnimation(.linear(duration: 0.6)) { m.flag = true } }),
            ("spin 1.0 more", { _, _, _ in spin(1.0) })], spinAfterStep: 0.05)

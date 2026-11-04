@@ -163,6 +163,48 @@
 //  NOT PROBED (cannot be headless): .interactive() press response, glassEffectID morphing and the transitions' animation, Reduce
 //     Transparency's fallback (the swizzle route fails, MT-F), sigma beyond "at least ~5 pt" (a 12 pt stripe period reads flat),
 //     the real specular behaviour in a key window.
+//
+// RE-RUN 2026-11-03 by R4-3 (divergence 828, decisions docs/superpowers/2026-11-03-default-transition-decisions.md `XF-`), macOS 27.2
+// (26B123), Apple Swift 6.4.2, screen LOCKED (CGSSessionScreenIsLocked = 1, displayAsleep main: 0, preflightScreenCaptureAccess:
+// false), `--no-window` (group W needs an unlocked screen and was NOT run). Run twice, stderr empty after the `Connection]` filter:
+// groups A and P read as recorded above; **R1 did NOT reproduce**: this run reads `R1 glass over it: [203, 200, 214]` against
+// `R0 [142, 142, 142]` on both runs (the 2026-10-23 recording read [142, 142, 142] for both). Whether `ImageRenderer` now draws glass or
+// something else changed was not investigated, so "ImageRenderer draws no glass" is UNREPRODUCED on 27.2, and nothing here uses it.
+// Group GM (new, the recorder of swiftui-transactions-animation.swift, one line per ANIMATOR) answers "does a glass swap reach an
+// animation, and as what" and NOT what it looks like. The two runs are identical except GM1c's two glass-internal `AnimatableData`
+// lines, whose component ORDER differs between runs (`[1, -1, 0, 1, ...]` against `[0, -1, 1, 1, ...]`); verbatim, run 1:
+//
+//     --- GM1: glassEffectID morph through the recorder (headless; the look is not read)
+//     GM1a control: .frame(width: 100 + v) animated inside a GlassEffectContainer (the recorder is reached)
+//       A P<P<F, F>, P<F, F>> [0.000, 0.000, 200.000, 0.000] x8
+//     GM1b a glass swap with the SAME glassEffectID in a container (the morph row 828 describes)
+//       A Double [-1.000] x1
+//       A Double [1.000] x1
+//     GM1c a glass swap with DIFFERENT ids in a container
+//       A AnimatableData [1.000, -1.000, 0.000, 1.000, 0.000, 0.000, 0.000] x1
+//       A AnimatableData [1.000, 1.000, 0.000, -1.000, 0.000, 0.000, 0.000] x1
+//       A Double [-1.000] x2
+//       A Double [1.000] x2
+//       A F [-10.000] x1
+//       A F [10.000] x1
+//       A P<F, P<F, F>> [-1.000, 0.000, 0.000] x1
+//       A P<F, P<F, F>> [1.000, 0.000, 0.000] x1
+//     GM1d a glass swap with the same id and NO container
+//       A Double [-1.000] x1
+//       A Double [1.000] x1
+//     GM1e control: the same swap with the same id and no transaction (nothing may animate)
+//       (nothing animated)
+//     GM1f a plain non-glass swap of two circles, same position change, in a container (the separating arm)
+//       A Double [-1.000] x1
+//       A Double [1.000] x1
+//
+// READING (GM1). The recorder is reached inside a container (GM1a, 8 animators for one frame change) and a swap with no
+// transaction animates nothing (GM1e). **A same-id swap in a container (GM1b) records exactly what a plain non-glass swap records
+// (GM1f): one opacity -1 and one opacity +1 animator, no geometry value** — so the recorder sees no morph, and the row's "glass
+// effects sharing an id morph between geometries" is NOT shown by this instrument (a morph the render server performs would be
+// invisible to it: UNMEASURED, not refuted). GM1c (different ids) animates far more (glass-internal `AnimatableData`, a scale-shaped
+// pair `[-1, 0, 0]`, an `F` of +-10 and four opacities): the materialize transition does reach the recorder. The look of any of it,
+// and the liquid merge, are unread (no pixels, locked).
 import SwiftUI
 import AppKit
 
@@ -492,9 +534,97 @@ struct GlassMod: ViewModifier {
     }
 }
 
+// ---------------------------------------------------------------- GM: glassEffectID morphing, through the RECORDER (R4-3)
+// The header's "NOT PROBED (cannot be headless): glassEffectID morphing" is partly answerable: the recorder of
+// swiftui-transactions-animation.swift (a `CustomAnimation` that logs the TYPE and delta of every value SwiftUI animates,
+// one line per animator) works headless and locked, and says whether a glass swap reaches an animation and as WHAT.
+// It does NOT say how the glass looks (no liquid merge is visible to it; `ImageRenderer` draws no glass, R1).
+nonisolated(unsafe) var gAnimators: [String] = []
+struct GSeen: AnimationStateKey { static var defaultValue: Bool { false } }
+struct GRec: CustomAnimation {
+    let tag: String
+    func animate<V: VectorArithmetic>(value: V, time: TimeInterval, context: inout AnimationContext<V>) -> V? {
+        if !context.state[GSeen.self] {
+            context.state[GSeen.self] = true
+            let s = String(describing: V.self).replacingOccurrences(of: "AnimatablePair", with: "P").replacingOccurrences(of: "CGFloat", with: "F")
+            let d = String(describing: value)
+            let re = try! NSRegularExpression(pattern: "-?[0-9]+\\.[0-9]+(e-?[0-9]+)?")
+            let nums = re.matches(in: d, range: NSRange(d.startIndex..., in: d)).map { m -> String in
+                let x = Double(String(d[Range(m.range, in: d)!]))!
+                return String(format: "%.3f", abs(x) < 0.0005 ? 0 : x)
+            }
+            gAnimators.append("\(tag) \(s) [" + nums.joined(separator: ", ") + "]")
+        }
+        if time > 0.15 { return nil }
+        return value.scaled(by: time / 0.15)
+    }
+}
+let GA = Animation(GRec(tag: "A"))
+@MainActor final class GM: ObservableObject { @Published var flag = false; @Published var v = 0.0 }
+@available(macOS 26.0, *)
+struct GMRoot<C: View>: View {
+    @ObservedObject var m: GM; let c: (GM) -> C
+    var body: some View { ZStack(alignment: .topLeading) { c(m) }.frame(width: 400, height: 200, alignment: .topLeading) }
+}
+@available(macOS 26.0, *)
+@MainActor func gmArm<C: View>(_ name: String, _ content: @escaping (GM) -> C, setup: (GM) -> Void = { _ in }, change: (GM) -> Void) {
+    let m = GM(); setup(m)
+    let host = NSHostingView(rootView: GMRoot(m: m, c: content))
+    let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+    win.contentView = host; win.orderFrontRegardless()
+    RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+    gAnimators.removeAll()
+    change(m)
+    RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+    print("  \(name)")
+    if gAnimators.isEmpty { print("    (nothing animated)") }
+    var counts: [String: Int] = [:]
+    for l in gAnimators { counts[l, default: 0] += 1 }
+    for l in counts.keys.sorted() { print("    \(l) x\(counts[l]!)") }
+    win.orderOut(nil); win.contentView = nil
+    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+}
+@available(macOS 26.0, *)
+@MainActor func armGM() {
+    print("  --- GM1: glassEffectID morph through the recorder (headless; the look is not read)")
+    struct IDBox: View {
+        let id: String; let w: CGFloat; let ns: Namespace.ID
+        var body: some View { Color.clear.frame(width: w, height: 60).glassEffect(.regular, in: Circle()).glassEffectID(id, in: ns) }
+    }
+    struct Swap: View {
+        @ObservedObject var m: GM; @Namespace var ns
+        let sameID: Bool; let contained: Bool
+        var inner: some View {
+            HStack(spacing: 0) {
+                if !m.flag { IDBox(id: "a", w: 60, ns: ns) }
+                Spacer().frame(width: 120)
+                if m.flag { IDBox(id: sameID ? "a" : "b", w: 60, ns: ns) }
+            }
+        }
+        var body: some View {
+            if contained { GlassEffectContainer(spacing: 40) { inner } } else { inner }
+        }
+    }
+    gmArm("GM1a control: .frame(width: 100 + v) animated inside a GlassEffectContainer (the recorder is reached)", { m in
+        GlassEffectContainer(spacing: 40) { Color.clear.frame(width: 100 + m.v, height: 60).glassEffect(.regular, in: Circle()) }
+    }, change: { m in withAnimation(GA) { m.v = 200 } })
+    gmArm("GM1b a glass swap with the SAME glassEffectID in a container (the morph row 828 describes)", { m in Swap(m: m, sameID: true, contained: true) },
+          change: { m in withAnimation(GA) { m.flag = true } })
+    gmArm("GM1c a glass swap with DIFFERENT ids in a container", { m in Swap(m: m, sameID: false, contained: true) },
+          change: { m in withAnimation(GA) { m.flag = true } })
+    gmArm("GM1d a glass swap with the same id and NO container", { m in Swap(m: m, sameID: true, contained: false) },
+          change: { m in withAnimation(GA) { m.flag = true } })
+    gmArm("GM1e control: the same swap with the same id and no transaction (nothing may animate)", { m in Swap(m: m, sameID: true, contained: true) },
+          change: { m in m.flag = true })
+    gmArm("GM1f a plain non-glass swap of two circles, same position change, in a container (the separating arm)", { m in
+        GlassEffectContainer(spacing: 40) { HStack(spacing: 0) { if !m.flag { Circle().frame(width: 60, height: 60) }; Spacer().frame(width: 120); if m.flag { Circle().frame(width: 60, height: 60) } } }
+    }, change: { m in withAnimation(GA) { m.flag = true } })
+}
+
 MainActor.assumeIsolated {
     armA()
     if #available(macOS 26.0, *) {
+        armGM()
         armP(); armR()
         if CommandLine.arguments.contains("--no-window") == false { armW(); armW2(); armW3(); armW4(); armW5(); armW6(); armW7() }
     }
