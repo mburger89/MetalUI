@@ -69,7 +69,9 @@ No mutant is green. MD4 and MD12 are caught by one test each: the scale is pinne
 
 ## 6. Counts and checks
 
-FILLED-IN-AT-THE-END
+Steady frame (`aSteadyFrameCapturesAndOpensNothing`, `anEquatableOccurrenceWithAnIfStillGrafts`, unchanged and green): allocations 455, `lastFrameCapturedPrimitives` 0, grafts 4, hits 4, prepaint hits 4, requests 1, prepaints 2, as record 207 read them before this PR; no plain-shape counter or allocation pin moved (a plain shape's paint now returns at a metatype comparison where it made a failed `as? any PaintAnimatedShape` cast). `aSettledShapeDoesNoStoreWork`: a settled animatable shape rebuilds no track (`vectorTrackRebuilds` unchanged over five frames) and a plain shape counts 0.
+
+`swift package clean`, `swift build --build-system native --build-tests` (exit 0), `swift test --build-system native --no-parallel`, unfiltered, 2026-11-04: **`Test run with 5125 tests in 14 suites passed after 279.017 seconds`** (5107 + 14 `AnimatableTests` + 4 `AnimatableCompileGuards`); `FR-J no-argument frame: succeeded=true deprecations=2`. `anUnannotatedInsertionAndRemovalFadeByDefault` passed on this fresh build (R4-3d: no failure this time). `METALUI_VERIFY_RETAINED=1`: `5125 tests in 14 suites passed after 274.422 seconds`; `METALUI_VERIFY_LAYOUT_MEMO=1`: `5125 tests in 14 suites passed after 321.453 seconds`; `METALUI_RUN_100K_LIST_TEST=1 swift test --build-system native --no-parallel --filter aListsWorkIsTheSameFor100kRowsAsFor500`: `Test run with 1 test in 1 suite passed after 16.167 seconds`. `record-05-check.sh`, `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. An earlier unfiltered run (before the keyframe commit's classification row) read one failure, `everyStateTableAndAnimationStoreChannelIsClassified` (the new `vectorTrackRebuilds` property had no row), fixed by adding the row.
 
 ## 7. Downstream
 
