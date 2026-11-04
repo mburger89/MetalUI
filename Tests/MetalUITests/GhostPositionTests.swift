@@ -148,17 +148,22 @@ private let linear1 = Animation.linear(duration: 1)
     func tile(_ w: Float, _ h: Float) -> some StyledElement {
         Box().frame(width: Pixels(w), height: Pixels(h)).background(.accent)
     }
-    let legacy = removal { shown in
+    func fenced(_ shown: Bool) -> some StyledElement {
         Stack {
             if shown { tile(50, 30).transition(.opacity) }
             tile(40, 20)
         }
         .frame(width: Pixels(120), height: Pixels(120)).background(.separator)
     }
-    try #require(legacy.rest == [120, 50, 40], "legacy at rest: \(legacy.rest)")
-    #expect(legacy.start == [120, 50, 40], "the Stack's own fill is below its ghost: \(legacy.start)")
-    #expect(legacy.mid == [120, 50, 40], "\(legacy.mid)")
-    #expect(legacy.harness.store.transitions.lastFrameUnanchoredGhosts == 0)
+    // As the window's root (the hook in `Frame.render`, **MB1n**) and as a member of a column (`Element.paintGroup`, **MB1d**).
+    let root = removal { fenced($0) }
+    let member = removal { shown in Column { fenced(shown) } }
+    for (arm, legacy) in [("root", root), ("member", member)] {
+        try #require(legacy.rest == [120, 50, 40], "\(arm) at rest: \(legacy.rest)")
+        #expect(legacy.start == [120, 50, 40], "\(arm): the Stack's own fill is below its ghost: \(legacy.start)")
+        #expect(legacy.mid == [120, 50, 40], "\(arm): \(legacy.mid)")
+        #expect(legacy.harness.store.transitions.lastFrameUnanchoredGhosts == 0)
+    }
 
     // The proposal `.background` is a separate layer outside the stack: also below the ghost (the first test's `120`).
     let proposal = removal { shown in
