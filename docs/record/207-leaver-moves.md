@@ -1,6 +1,6 @@
 # Record 207: the leaver moves as it fades (round 4 item R4-3 PR C)
 
-Branch `feat/r4-3-leaver-moves`, from `feat/r4-3-default-fade` (PR B2, #202, CI blocked, not merged). Decisions: `docs/superpowers/2026-11-03-default-transition-decisions.md` (`XF-M`; `XF-K` replaced). Human checks: `XF6` (**not run**), MG1 and MG6 reworded. Divergences: **none added or retired**, row 897 **narrowed** in place with its residues named (208 live, next label 215 unchanged). Class `A`. **No shader, renderer or `replay.hlsl` change**: `RenderEffect` already applies a `.translate` atom (`Transition.swift:264`), the ghost's atoms are `[.opacity, .translate]`. No public declaration.
+Branch `feat/r4-3-leaver-moves`, from `feat/r4-3-default-fade` (PR B2, #202), with master `2478df03` merged in once #202 landed. Decisions: `docs/superpowers/2026-11-03-default-transition-decisions.md` (`XF-M`; `XF-K` replaced). Human checks: `XF6` (**not run**), MG1 and MG6 reworded. Divergences: **none added or retired**, row 897 **narrowed** in place with its residues named (208 live, next label 215 unchanged). Class `A`. **No shader, renderer or `replay.hlsl` change**: `RenderEffect` already applies a `.translate` atom (`Transition.swift:264`), the ghost's atoms are `[.opacity, .translate]`. No public declaration.
 
 ## 1. What changed
 
