@@ -296,6 +296,11 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
 /// fresh (probe V5; divergence 18 retired for conditionals). A subtree nothing
 /// evaluates — a `List` row out of the window — is never noted absent and keeps
 /// `TB-AH`'s bounded retention. See `StateTable.noteAbsent`.
+///
+/// **A builder's `if` fades by default** (`XF-H`, record 206; divergence 98 narrowed): `init(builder:)`, which only the
+/// builders call, makes its slot a unit that fades in and out when an animation inserts or removes it, and its paint
+/// notes the scene range it drew (`ConditionalLayout`). `init(_:)`, which a framework slot (a popover, a control's label)
+/// calls by hand, does not.
 public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
     /// The `if`'s content, or `nil` when its condition is false; either way the
     /// group takes one structural slot (`ID-B`).
