@@ -1106,6 +1106,60 @@ DS9 HStack{.system(size: 13); .body} | .system(size: 13) | v a=0 b=0 c=0 | h a=8
 DS9 .body | HStack{.body; .largeTitle} | v a=2 b=2 c=2 | h a=8 b=8 c=8
 DS9 .system(size: 13) | HStack{.body; .largeTitle} | v a=2 b=2 c=2 | h a=8 b=8 c=8
 DS9 FM0 {Text; Slider}|{Toggle; Spacer; Button} | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+=== DS9b: composite beside composite — HStack{rect; text} beside itself, other composites, spacers, ZStack, Pass, and a width-only frame
+DS9b s=13 RT|RT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b s=26 RT|RT | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9b RT13|RT26 | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9b RT26|RT13 | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9b s=13 RT|TT | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b s=13 TT|RT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b s=13 RT|RR | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b s=13 RR|RT | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b s=26 RT|TT | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9b s=26 TT|RT | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9b s=26 RT|RR | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9b s=26 RR|RT | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9b RT13|TT26 | v a=9.484 b=9.484 c=9.484 | h a=8 b=8 c=8
+DS9b TT26|RT13 | v a=16.302 b=16.302 c=16.302 | h a=8 b=8 c=8
+DS9b BT|BT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b BT|text13 | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b text13|BT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b BT|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b rect|BT | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b ButT|ButT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b ButT|text13 | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b text13|ButT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b ButT|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b rect|ButT | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b TogT|TogT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b TogT|text13 | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b text13|TogT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b TogT|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b rect|TogT | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b TS|text13 | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+DS9b text13|TS | v a=n/a b=0 c=0 | h a=n/a b=8 c=8
+DS9b TS|TS | v a=n/a b=0 c=0 | h a=n/a b=0 c=0
+DS9b TS|rect | v a=n/a b=8.151 c=8.151 | h a=n/a b=0 c=0
+DS9b rect|TS | v a=n/a b=4.742 c=4.742 | h a=n/a b=8 c=8
+DS9b RST|text13 | v a=n/a b=4.742 c=4.742 | h a=n/a b=8 c=8
+DS9b text13|RST | v a=n/a b=8.151 c=8.151 | h a=n/a b=8 c=8
+DS9b RST|RST | v a=n/a b=8.151 c=8.151 | h a=n/a b=8 c=8
+DS9b RST|rect | v a=n/a b=8.151 c=8.151 | h a=n/a b=8 c=8
+DS9b rect|RST | v a=n/a b=4.742 c=4.742 | h a=n/a b=8 c=8
+DS9b RST|RT | v a=n/a b=8.151 c=8.151 | h a=n/a b=8 c=8
+DS9b RT|RST | v a=n/a b=8.151 c=8.151 | h a=n/a b=8 c=8
+DS9b ZRT|RT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b RT|ZRT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b PRT|RT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b RT|PRT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b ZRT|ZRT | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b T.frame(width: 100)|rect | v a=8.151 b=8.151 c=8.151 | h a=8 b=8 c=8
+DS9b rect|T.frame(width: 100) | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
+DS9b T.frame(width: 100)|text13 | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9b text13|T.frame(width: 100) | v a=0 b=0 c=0 | h a=8 b=8 c=8
+DS9b T.frame(height: 30)|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS9b rect|T.frame(height: 30) | v a=8 b=8 c=8 | h a=8 b=8 c=8
+DS9b T.frame(height: 30)|text13 | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
 === DS10: a font set on the STACK, not the children (mod wraps singles and stacks alike)
 DS10 control no mod rect|rect | v a=8 b=8 c=8 | h a=8 b=8 c=8
 DS10 control no mod rect|Text | v a=4.742 b=4.742 c=4.742 | h a=8 b=8 c=8
@@ -1235,5 +1289,5 @@ DS14 HStack(0){para; Where{Spacer()}} w=100: t y=46 h=208 | s y=0 h=300
 DS14 HStack(0){para; Spacer()} w=200 (horizontal, tight): t y=126 h=48
 DS14 HStack(0){para; Spacer(minLength: 0)} w=200: t y=126 h=48
 DS14 HStack(0){para; Where{Spacer()}} w=200: t y=102 h=96 | s y=0 h=300
-=== instruments: 922 pairs, 0 DISAGREE
+=== instruments: 975 pairs, 0 DISAGREE
 DONE

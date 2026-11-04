@@ -41,7 +41,7 @@
 // RECORDED 2026-11-03 by R4-2 PR A on macOS 27.2 (26B123), `/usr/bin/swift` =
 // Apple Swift 6.4.2, screen LOCKED (CGSSessionScreenIsLocked = 1,
 // preflightScreenCaptureAccess false; no arm needs pixels). Exit 0. Run twice;
-// the two outputs are byte-identical (`cmp` empty, 1239 lines) and are kept in
+// the two outputs are byte-identical (`cmp` empty, 1293 lines with DS9b, added by R4-2 PR B's follow-up and run twice again, lock state unchanged) and are kept in
 // docs/probes/swiftui-default-spacing-run.txt. `=== instruments: 922 pairs, 0
 // DISAGREE`. Two instrument limits, both found by the first run and now
 // handled in the harness rather than hidden: instrument a is INVALID for a
@@ -128,6 +128,17 @@
 //   9.484/16.302; ZStack too). Leading in a union: the larger of two styles' (DS9: as the LOWER
 //   view HStack{.body; .largeTitle} gives 2; as the upper view above a .body
 //   it gives 1, the lower's).
+// - MIXED EDGES (DS9, DS9b; DS-G2): a composite across its axis (HStack, ZStack, Pass) holding both a
+//   standard and a text edge ({rect; text}, {Image; text}, {Button; text}, {Toggle; text}) is neither:
+//   beside a rect or any standard view it is the TEXT edge (rect|M 4.742, M|rect 8.151 at 13 pt; 9.484 and
+//   16.302 at 26), beside a TEXT it is the STANDARD edge (M|text13 4.742, text13|M 8.151, M|text26 9.484,
+//   text26|M 16.302), beside ITSELF or another mixed edge the larger of the two (13|13 8.151, 26|26 16.302,
+//   13|26 9.484, 26|13 16.302), beside {text; text} as a standard edge and beside {rect; rect} as a text
+//   edge (RT|TT 4.742, TT|RT 8.151, RT|RR 8.151, RR|RT 4.742). A Spacer() inside adds nothing ({text;
+//   Spacer()} reads as a text: TS|text 0; {rect; Spacer(); text} as {rect; text}). A width-only fixed
+//   frame keeps the text's edges (T.frame(width: 100)|rect 8.151, rect| 4.742, |text 0); a fixed height
+//   makes them standard (8, 8, |text 4.742). Fitted by: components {standard} / {text} / {standard, text},
+//   gap = the largest component-pair gap, the standard-standard pair not counted beside a mixed edge.
 // - SPACER (DS11): `Spacer()`'s nil minimum is a constant 8 at 9, 13 and 48 pt
 //   (VStack{T; Spacer(); T} is 2 lines + 8, 13x40 at 13 pt) and no default
 //   spacing is inserted beside it (b = c = 0 for text|Spacer, Spacer|text,

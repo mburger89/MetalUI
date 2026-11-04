@@ -122,12 +122,12 @@ edges). A root is placed centred at its own answer (`CN-J`).
   Flexible frame is greedy (`FR-A`, `FR-M`).
 - **Default spacing at a text edge (`DS-E`…`DS-K`, record §203, probe `swiftui-default-spacing.swift`).**
   Every default gap (stack, grid pair) is `ProposalSpacing.defaultGap(after:before:axis:)`
-  of two `SpacingEdge`s (zero, standard, text): horizontal 8, vertical at a text edge
+  of two `SpacingEdge`s (zero, standard, text, and mixed: a composite across its axis holding both a standard and a text edge, `DS-G2`): horizontal 8, vertical at a text edge
   `d + ceil((a + d) / 10)` (rect above text), that `+ (a - c)` (text above rect), `ceil(leading)`
   of the lower text (text above text). **A text leaf marks its edge when it registers**
   (`Frame.markTextSpacing`, metrics as plain doubles from `system.fontMetrics`; never read in a
   layout phase), the marks live in `LayoutTree.spacingMarks` and travel in `LayoutSegment` and
-  the signature (marked nodes only); the walk is `spacingEdges` and **a new `NativeNode` case
+  the signature (marked nodes only); the walk is `spacingEdges` (a cross-axis `Spacer` and a zero-by-zero frame are not union operands) and **a new `NativeNode` case
   must choose its edges**. **A control presents the standard edge** (`markControlSpacing` on its
   root node, `DS-H`): a new control owes the call and an arm in `everyControlKeepsAStandardEdgeBesideText`.
   Lazy containers keep 8 (divergence 51), a text-style font's leading is not expressed (214), and
