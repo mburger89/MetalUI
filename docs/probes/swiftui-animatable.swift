@@ -63,6 +63,10 @@
 //   VA8  `keyframeAnimator` with `KeyframeTrack(\.pos)` over a custom `Animatable` struct (not a `VectorArithmetic`) compiles and
 //        interpolates both components (a 0 -> 100 -> 0, b 0 -> 50 -> 0), recorder lines absent (keyframes do not go through `Rec`).
 // NOT MEASURED: how a shape looks; the spring's internals.
+//
+// VA6d (added by R4-3 PR D, 2026-11-04): the per-tick arm for "does a retarget keep its velocity?" (docs/superpowers/2026-11-04-animatable-decisions.md
+// `VA-F`). It typechecks (`xcrun swiftc -typecheck`) and was NOT RUN: `appkit-screen-lock-state.swift` read `CGSSessionScreenIsLocked = 1` that
+// day. Its result is unmeasured; divergence 216 says so. Run it on an unlocked Mac, twice, and record the `~` fit line here.
 
 import SwiftUI
 import AppKit
@@ -371,6 +375,35 @@ arm("VA6c pair retarget under a spring: a moves 0 -> 1, 0.15 s later b moves 0 -
         let vb = slope("pa", tR - 0.03, tR), va = slope("pa", tR, tR + 0.03)
         guard let vb, let va else { notes.append("VA6c not enough path calls"); return }
         notes.append("~ a slope over the 30 ms before the retarget \(String(format: "%.2f", vb))/s, over the 30 ms after \(String(format: "%.2f", va))/s (a's own target did not change)")
+    })
+// VA6d (R4-3 PR D): the stronger arm for "does a retarget keep its velocity?". The same-component retarget of VA6b under
+// `.spring(duration: 0.6, bounce: 0)` (a critically damped spring, omega = 2 pi / 0.6), but with PER-TICK `x(t)` for 100 ms after
+// the retarget fitted against both models: KEPT, `x(tau) = (x0 + (v0 + omega x0) tau) e^(-omega tau)` with `v0` the slope over the
+// 30 ms before the retarget, and REST, the same with `v0 = 0`. The line prints each model's RMS residual over the ticks; the
+// model with the smaller RMS is the reading. Every number is timing, so the whole result is `~`.
+arm("VA6d per-tick fit of x(t) after a same-component retarget under a spring: velocity kept or restarted at rest?", { m in AVw(x: m.v) },
+    keys: [], deltaIsTiming: true, after: 1.2, change: { m in
+        let spring = Animation.spring(duration: 0.6, bounce: 0)
+        withAnimation(spring) { m.v = 100 }
+        spin(0.3)
+        let tR = Date().timeIntervalSince(t0)
+        withAnimation(spring) { m.v = 0 }
+        spin(0.5)
+        let xs = vlog["avbody"] ?? [], ts = vtimes["avbody"] ?? []
+        let pre = ts.indices.filter { ts[$0] <= tR }, post = ts.indices.filter { ts[$0] > tR && ts[$0] <= tR + 0.1 }
+        guard let x0 = pre.last.map({ xs[$0] }), let v0 = slope("avbody", tR - 0.03, tR), post.count >= 3 else {
+            notes.append("VA6d not enough ticks (pre \(pre.count), post \(post.count))"); return
+        }
+        let omega = 2 * Double.pi / 0.6
+        func rms(_ v: Double) -> Double {
+            let e = post.map { i -> Double in
+                let tau = ts[i] - tR
+                return ((x0 + (v + omega * x0) * tau) * exp(-omega * tau) - xs[i])
+            }
+            return (e.map { $0 * $0 }.reduce(0, +) / Double(e.count)).squareRoot()
+        }
+        let kept = rms(v0), rest = rms(0)
+        notes.append("~ ticks \(post.count) over 100 ms; x0 \(String(format: "%.1f", x0)), v0 \(String(format: "%.0f", v0))/s; RMS residual KEPT \(String(format: "%.2f", kept)), REST \(String(format: "%.2f", rest)) => \(kept < rest ? "velocity kept" : "restarts at rest")")
     })
 // ---- VA7 Animatable & Equatable with .equatable()
 arm("VA7 EV (Animatable & Equatable) with .equatable() under A4: does the body run in flight?", { m in EV(x: m.v).equatable() },

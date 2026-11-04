@@ -1,13 +1,10 @@
+import Foundation
 import MetalUICore
 import MetalUILayout
 
-// `Shape.trim(from:to:)` (item R3-8, rulings `PG-A`, `PG-F`). SwiftUI's
-// `_TrimmedShape` is `Animatable` over `AnimatablePair<CGFloat, CGFloat>`;
-// MetalUI has no `Animatable` protocol (divergence 169), so a shape that
-// animates a value does it the way the proposal path's other paint-time
-// values do: its element paints through `shapeForPaint(_:_:pass:)`, which
-// runs the declared fractions through a track in the window's
-// `AnimationStore` (divergence 947).
+// `Shape.trim(from:to:)` (item R3-8, rulings `PG-A`, `PG-F`; `VA-` since R4-3 PR D). SwiftUI's `_TrimmedShape` is
+// `Animatable`; so is this one, over the base's data and the two fractions scaled by 128, and
+// `shapeForPaint(_:_:pass:)` runs that data through a track in the window's `AnimationStore`.
 
 /// A shape drawing part of another shape's outline — SwiftUI's `_TrimmedShape`,
 /// made by ``Shape/trim(from:to:)``.
@@ -44,6 +41,21 @@ public struct TrimmedShape<Base: Shape>: Shape {
     public nonisolated func sizeThatFits(_ proposal: ProposedSize) -> SizeD {
         shape.sizeThatFits(proposal)
     }
+
+    /// The base shape's data, then the two fractions **scaled by 128** — SwiftUI's `_TrimmedShape`
+    /// (`VA3a`, `VA3a2`: an end fraction 0 to 1 reads a delta of 128). A power of two, so the scaling is
+    /// exact; a trim of a trim nests (`VA3e`).
+    public typealias AnimatableData = AnimatablePair<Base.AnimatableData, AnimatablePair<CGFloat, CGFloat>>
+
+    /// The base's data and the start and end fractions, each times 128.
+    public nonisolated var animatableData: AnimatablePair<Base.AnimatableData, AnimatablePair<CGFloat, CGFloat>> {
+        get { AnimatablePair(shape.animatableData, AnimatablePair(startFraction * 128, endFraction * 128)) }
+        set {
+            shape.animatableData = newValue.first
+            startFraction = Double(newValue.second.first) / 128
+            endFraction = Double(newValue.second.second) / 128
+        }
+    }
 }
 
 extension Shape {
@@ -55,31 +67,17 @@ extension Shape {
     }
 }
 
-/// A shape whose paint-time numbers animate (`PG-F`): it returns itself with
-/// the values for this frame.
-protocol PaintAnimatedShape {
-    @MainActor func animatedForPaint(_ id: GlobalElementID, pass: PaintPass) -> Self
-}
-
-/// `shape` with its animating numbers at this frame — `shape` itself for every
-/// shape that animates nothing.
+/// `shape` with its ``Animatable/animatableData`` at this frame (`PG-F`, `VA-D`) — `shape` itself for every
+/// shape that animates nothing (``EmptyAnimatableData``), which touches no track and allocates nothing.
 @MainActor
 func shapeForPaint<S: Shape>(_ shape: S, _ id: GlobalElementID, pass: PaintPass) -> S {
-    guard let animating = shape as? any PaintAnimatedShape else { return shape }
-    return (animating.animatedForPaint(id, pass: pass) as? S) ?? shape
-}
-
-extension TrimmedShape: PaintAnimatedShape {
-    @MainActor
-    func animatedForPaint(_ id: GlobalElementID, pass: PaintPass) -> TrimmedShape<Base> {
-        let wide = -Double.greatestFiniteMagnitude...Double.greatestFiniteMagnitude
-        let values = animatedNumbers([startFraction, endFraction], at: layerAnimationKey(id, "trim"),
-                                     frame: pass.frame, transaction: pass.transaction ?? Animation.pendingTransaction,
-                                     range: wide)
-        var out = self
-        out.startFraction = values[0] ?? startFraction
-        out.endFraction = values[1] ?? endFraction
-        out.shape = shapeForPaint(shape, .child(of: id, at: 0, name: ElementID("$anim-trim.base")), pass: pass)
-        return out
-    }
+    guard ObjectIdentifier(S.AnimatableData.self) != ObjectIdentifier(EmptyAnimatableData.self) else { return shape }
+    let declared = shape.animatableData
+    let animated = animatedVector(declared, at: layerAnimationKey(id, "animatable"), frame: pass.frame,
+                                  transaction: pass.transaction ?? Animation.pendingTransaction)
+    // The setter runs only for a frame that differs, so a settled shape never calls a conformer's setter.
+    guard animated != declared else { return shape }
+    var out = shape
+    out.animatableData = animated
+    return out
 }

@@ -1,13 +1,11 @@
 import Foundation
 
-/// A type a keyframe track can interpolate — SwiftUI's `VectorArithmetic`
-/// (C10 lane 2, ruling `LK-I` item 8): a value that adds, subtracts, scales by
-/// a `Double` and measures its own length.
+/// A value an animation interpolates — SwiftUI's `VectorArithmetic` (C10 lane 2, ruling `LK-I` item 8): a
+/// value that adds, subtracts, scales by a `Double` and measures its own length.
 ///
-/// **A keyframe track's value conforms to this, not to `Animatable`**
-/// (divergence 169): MetalUI has no `Animatable` protocol. `Double`, `Float`,
-/// `CGFloat` and ``Angle`` conform; a struct of several fields is animated by
-/// one ``KeyframeTrack`` per field, through a key path, as in SwiftUI.
+/// It is the data of an ``Animatable``: ``Animatable/AnimatableData``. `Double`, `CGFloat`, ``Angle``,
+/// ``AnimatablePair`` and ``EmptyAnimatableData`` conform, and ``Float``, which is a MetalUI extra
+/// (divergence 169). A keyframe track's value is ``Animatable``, not this protocol.
 public protocol VectorArithmetic: AdditiveArithmetic {
     /// Multiplies every component of this value by `rhs`.
     mutating func scale(by rhs: Double)
@@ -17,9 +15,8 @@ public protocol VectorArithmetic: AdditiveArithmetic {
 }
 
 extension VectorArithmetic {
-    /// A copy multiplied by `k` — the one interpolation helper the keyframe
-    /// timeline uses.
-    func scaled(by k: Double) -> Self {
+    /// A copy multiplied by `k` — SwiftUI's public `scaled(by:)` (probe `VT12`).
+    public func scaled(by k: Double) -> Self {
         var copy = self
         copy.scale(by: k)
         return copy

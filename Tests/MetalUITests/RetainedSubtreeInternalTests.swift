@@ -170,7 +170,7 @@ private let animationStoreChannels: [String: Channel] = [
     "keyframeDepth": .buildOnly, "lastFrameInterpolations": .frameLocal, "retainLog": .frameLocal,
     "buildJournal": .buildOnly,
     // Cumulative work counters of `HP-I` (read by differencing); a retained skip does not replay them.
-    "borderKeyBuilds": .frameLocal, "numberTrackRebuilds": .frameLocal,
+    "borderKeyBuilds": .frameLocal, "numberTrackRebuilds": .frameLocal, "vectorTrackRebuilds": .frameLocal,
 ]
 
 @MainActor @Test func everyStateTableAndAnimationStoreChannelIsClassified() {

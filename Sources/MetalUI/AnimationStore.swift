@@ -97,6 +97,11 @@ final class AnimationStore {
     private(set) var numberTrackRebuilds = 0
     func noteNumberTrackRebuild() { numberTrackRebuilds += 1 }
 
+    /// ``Animatable`` tracks (`animatedVector`) that took the slow path so far, cumulative (`VA-D`, `HP-C`): a
+    /// settled track whose declared value equals its baseline returns before any allocation and counts nothing.
+    private(set) var vectorTrackRebuilds = 0
+    func noteVectorTrackRebuild() { vectorTrackRebuilds += 1 }
+
     /// How many entries survive — test observability (1.12).
     var count: Int { entries.count }
 

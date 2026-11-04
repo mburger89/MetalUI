@@ -157,7 +157,7 @@ public struct ShapeGeometry: Sendable, Equatable {
 /// traps naming `GX-D`** at its first paint, rather than recursing.
 /// `Sendable` is SwiftUI's own refinement. A bare shape registers no hitbox,
 /// focus entry or accessibility record, and snaps under animation.
-public protocol Shape: ProposalElement, Sendable {
+public protocol Shape: ProposalElement, Sendable, Animatable {
     /// What the shape draws in `rect`, in **window-space** coordinates (the
     /// rect is the shape's laid-out bounds). Default: ``path(in:)`` of the
     /// local rect, moved to `rect`'s origin, filled nonzero.
