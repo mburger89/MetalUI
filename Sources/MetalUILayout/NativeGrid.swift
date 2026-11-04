@@ -33,11 +33,11 @@ public struct ProposalAxes: OptionSet, Sendable, Hashable {
     public static let vertical = ProposalAxes(rawValue: 1 << 1)
 }
 
-/// Whether a node's two edges along one axis take no default spacing (ruling
-/// CN-H's `zeroSpacingEdges`, stored).
+/// A node's two edges along one axis (ruling CN-H's `spacingEdges`, stored): zero,
+/// standard or a text's metrics (`DS-G`).
 struct NativeGridEdges: Equatable {
-    var leading: Bool
-    var trailing: Bool
+    var leading: SpacingEdge
+    var trailing: SpacingEdge
 }
 
 /// What the plan reads about one grid child, gathered by
@@ -162,8 +162,9 @@ struct NativeGridSolution {
 /// - `hgap[j]` is the largest pair value over adjacent cells of one row meeting
 ///   at j, 0 where none meets (GS5, GS6); `vgap[r]` the largest over cells of
 ///   rows r−1 and r covering one column (GS4). A pair's value is the explicit
-///   spacing if given, else 0 beside a zero-spacing edge, else
-///   `ProposalSpacing.platformDefault` (ruling GR-D).
+///   spacing if given, else `ProposalSpacing.defaultGap(after:before:axis:)`: 0 beside
+///   a zero-spacing edge, a text's own gap between rows (rulings GR-D, `DS-G`, probe
+///   `DS12`: a grid's row gap is the stack rule), else `ProposalSpacing.platformDefault`.
 func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignment,
                         horizontalSpacing: Double?, verticalSpacing: Double?) -> NativeGridPlan {
     // Group children into rows: runs of one non-nil token, or one non-row child.
@@ -234,14 +235,14 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
         }
     }
 
-    func pair(_ explicit: Double?, _ trailingZero: Bool, _ leadingZero: Bool) -> Double {
-        explicit ?? (trailingZero || leadingZero ? 0 : ProposalSpacing.platformDefault)
+    func pair(_ explicit: Double?, _ upper: SpacingEdge, _ lower: SpacingEdge, _ axis: ProposalStackAxis) -> Double {
+        explicit ?? ProposalSpacing.defaultGap(after: upper, before: lower, axis: axis)
     }
     var hgapValues = Array(repeating: Double?.none, count: columnCount)
     for indexes in rowCells {
         for (left, right) in zip(indexes, indexes.dropFirst()) {
             let value = pair(horizontalSpacing, cells[left].horizontalEdges.trailing,
-                             cells[right].horizontalEdges.leading)
+                             cells[right].horizontalEdges.leading, .horizontal)
             let column = cells[right].column
             hgapValues[column] = Swift.max(hgapValues[column] ?? value, value)
         }
@@ -255,7 +256,7 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
         while i < above.count, j < below.count {
             let a = cells[above[i]], b = cells[below[j]]
             if a.column < b.column + b.span, b.column < a.column + a.span {
-                let value = pair(verticalSpacing, a.verticalEdges.trailing, b.verticalEdges.leading)
+                let value = pair(verticalSpacing, a.verticalEdges.trailing, b.verticalEdges.leading, .vertical)
                 best = Swift.max(best ?? value, value)
             }
             if a.column + a.span <= b.column + b.span { i += 1 } else { j += 1 }
@@ -400,22 +401,25 @@ func nativeGridCellOffsetsY(_ plan: NativeGridPlan, solution: NativeGridSolution
     }
 }
 
-/// A grid's zero-spacing edges seen from an enclosing stack (spec §4.4, ruling
-/// GR-R): positional. Along `.horizontal` the leading edge is zero if a cell
-/// starting at column 0 has a zero leading edge, the trailing edge if a cell
-/// ending at the last column has a zero trailing edge (GE1, GE3, GE4, GE26);
-/// along `.vertical`, over the cells of the first and last rows (GE6, GE23,
-/// GE24). A non-row cell starts at 0 and ends at the last column (GE25). A grid
-/// with no cells has both (GE16).
-func nativeGridZeroSpacingEdges(_ plan: NativeGridPlan, axis: ProposalStackAxis) -> (leading: Bool, trailing: Bool) {
-    guard !plan.cells.isEmpty else { return (true, true) }
+/// A grid's spacing edges seen from an enclosing stack (spec §4.4, rulings
+/// GR-R, `DS-G`): positional. Along `.horizontal` the leading edge is the union
+/// (`SpacingEdge.acrossUnion`: a zero edge wins, then the larger text) of the
+/// leading edges of the cells starting at column 0, the trailing edge that of
+/// the cells ending at the last column (GE1, GE3, GE4, GE26); along `.vertical`,
+/// over the cells of the first and last rows (GE6, GE23, GE24, probe `DS12`). A
+/// non-row cell starts at 0 and ends at the last column (GE25). A grid with no
+/// cells has both zero (GE16).
+func nativeGridSpacingEdges(_ plan: NativeGridPlan, axis: ProposalStackAxis)
+    -> (leading: SpacingEdge, trailing: SpacingEdge) {
+    guard !plan.cells.isEmpty else { return (.zero, .zero) }
     switch axis {
     case .horizontal:
-        return (plan.cells.contains { $0.column == 0 && $0.horizontalEdges.leading },
-                plan.cells.contains { $0.column + $0.span == plan.columnCount && $0.horizontalEdges.trailing })
+        return (SpacingEdge.acrossUnion(plan.cells.filter { $0.column == 0 }.map(\.horizontalEdges.leading)),
+                SpacingEdge.acrossUnion(plan.cells.filter { $0.column + $0.span == plan.columnCount }
+                    .map(\.horizontalEdges.trailing)))
     case .vertical:
-        return (plan.rowCells[0].contains { plan.cells[$0].verticalEdges.leading },
-                plan.rowCells[plan.rowCount - 1].contains { plan.cells[$0].verticalEdges.trailing })
+        return (SpacingEdge.acrossUnion(plan.rowCells[0].map { plan.cells[$0].verticalEdges.leading }),
+                SpacingEdge.acrossUnion(plan.rowCells[plan.rowCount - 1].map { plan.cells[$0].verticalEdges.trailing }))
     }
 }
 

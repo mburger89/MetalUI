@@ -156,7 +156,9 @@ public struct Stepper: Element, StyledElement {
         box.content.first.wrapped = pass.frame.environmentTop.labelsHidden ? nil : label
         // The focus ring (`IX-H` item 2), unless the caller declared one.
         if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(pass.frame.environmentTop) }
-        return box.requestLayout(id, pass: &pass)
+        let (node, layout) = box.requestLayout(id, pass: &pass)
+        pass.frame.markControlSpacing(node)   // DS-H: a standard edge (probe DS7)
+        return (node, layout)
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

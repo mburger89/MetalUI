@@ -56,10 +56,10 @@ private func xywh(_ b: Bounds<Pixels>?) -> [Float]? {
     let formLayer = path(stack, [1])
     let form = path(formLayer, [0])
     let origin = try #require(b[formLayer], "the form's padding layer")
-    // 185 since port gaps, medium (`MD-C` item 2): the bordered field's row a is
-    // 24 tall and every row below it 8 lower (test 1.5 moved identically).
-    #expect(origin.size.width.value == 400 && origin.size.height.value == 185,
-            "the form is FM0's 400×185 (test 1.5): \(origin)")
+    // 185 since port gaps, medium (`MD-C` item 2); 182 since the text edges (`DS-E`):
+    // FM0's own 182.04 (test 1.5 moved identically).
+    #expect(origin.size.width.value == 400 && origin.size.height.value == 182,
+            "the form is FM0's 400×182 (test 1.5): \(origin)")
     func rel(_ tail: Int...) -> [Float]? {
         xywh(b[path(form, tail)]).map {
             [$0[0] - origin.origin.x.value, $0[1] - origin.origin.y.value, $0[2], $0[3]]
@@ -70,14 +70,14 @@ private func xywh(_ b: Bounds<Pixels>?) -> [Float]? {
     #expect(rel(0, 1) == [59, 16, 325, 24], "TextField: \(String(describing: rel(0, 1)))")
     #expect(rel(1, 0) == [16, 52, 70, 16], "Toggle(Enabled): \(String(describing: rel(1, 0)))")
     #expect(rel(1, 2) == [325, 48, 59, 24], "Button(Apply): \(String(describing: rel(1, 2)))")
-    #expect(rel(2, 0) == [16, 80, 39, 16], "label Speed: \(String(describing: rel(2, 0)))")
-    #expect(rel(2, 1) == [63, 80, 321, 16], "Slider: \(String(describing: rel(2, 1)))")
+    #expect(rel(2, 0) == [16, 77, 39, 16], "label Speed: \(String(describing: rel(2, 0)))")
+    #expect(rel(2, 1) == [63, 77, 321, 16], "Slider: \(String(describing: rel(2, 1)))")
     // Test 1.5's picker is 113 wide over "Alpha"/"Beta"; this one's options are
     // the demo's flavours, and a menu picker hugs its label and widest option
     // ("Strawberry"): 145, measured by lane 3 (divergence 131's metrics).
-    #expect(rel(3) == [16, 104, 145, 24], "Picker.menu: \(String(describing: rel(3)))")
-    #expect(rel(4) == [16, 136, 368, 1], "Divider: \(String(describing: rel(4)))")
-    #expect(rel(5, 0) == [16, 145, 50, 24], "Stepper(Qty): \(String(describing: rel(5, 0)))")
+    #expect(rel(3) == [16, 101, 145, 24], "Picker.menu: \(String(describing: rel(3)))")
+    #expect(rel(4) == [16, 133, 368, 1], "Divider: \(String(describing: rel(4)))")
+    #expect(rel(5, 0) == [16, 142, 50, 24], "Stepper(Qty): \(String(describing: rel(5, 0)))")
 
     // The controls are the ones the rows name (accessibility records by id; a
     // `Button` declares `.generic` and is a button by its click handler, `AB-H`).

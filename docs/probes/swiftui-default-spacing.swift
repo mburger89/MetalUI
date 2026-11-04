@@ -41,7 +41,7 @@
 // RECORDED 2026-11-03 by R4-2 PR A on macOS 27.2 (26B123), `/usr/bin/swift` =
 // Apple Swift 6.4.2, screen LOCKED (CGSSessionScreenIsLocked = 1,
 // preflightScreenCaptureAccess false; no arm needs pixels). Exit 0. Run twice;
-// the two outputs are byte-identical (`cmp` empty, 1239 lines) and are kept in
+// the two outputs are byte-identical (`cmp` empty, 1293 lines with DS9b, added by R4-2 PR B's follow-up and run twice again, lock state unchanged) and are kept in
 // docs/probes/swiftui-default-spacing-run.txt. `=== instruments: 922 pairs, 0
 // DISAGREE`. Two instrument limits, both found by the first run and now
 // handled in the harness rather than hidden: instrument a is INVALID for a
@@ -128,6 +128,17 @@
 //   9.484/16.302; ZStack too). Leading in a union: the larger of two styles' (DS9: as the LOWER
 //   view HStack{.body; .largeTitle} gives 2; as the upper view above a .body
 //   it gives 1, the lower's).
+// - MIXED EDGES (DS9, DS9b; DS-G2): a composite across its axis (HStack, ZStack, Pass) holding both a
+//   standard and a text edge ({rect; text}, {Image; text}, {Button; text}, {Toggle; text}) is neither:
+//   beside a rect or any standard view it is the TEXT edge (rect|M 4.742, M|rect 8.151 at 13 pt; 9.484 and
+//   16.302 at 26), beside a TEXT it is the STANDARD edge (M|text13 4.742, text13|M 8.151, M|text26 9.484,
+//   text26|M 16.302), beside ITSELF or another mixed edge the larger of the two (13|13 8.151, 26|26 16.302,
+//   13|26 9.484, 26|13 16.302), beside {text; text} as a standard edge and beside {rect; rect} as a text
+//   edge (RT|TT 4.742, TT|RT 8.151, RT|RR 8.151, RR|RT 4.742). A Spacer() inside adds nothing ({text;
+//   Spacer()} reads as a text: TS|text 0; {rect; Spacer(); text} as {rect; text}). A width-only fixed
+//   frame keeps the text's edges (T.frame(width: 100)|rect 8.151, rect| 4.742, |text 0); a fixed height
+//   makes them standard (8, 8, |text 4.742). Fitted by: components {standard} / {text} / {standard, text},
+//   gap = the largest component-pair gap, the standard-standard pair not counted beside a mixed edge.
 // - SPACER (DS11): `Spacer()`'s nil minimum is a constant 8 at 9, 13 and 48 pt
 //   (VStack{T; Spacer(); T} is 2 lines + 8, 13x40 at 13 pt) and no default
 //   spacing is inserted beside it (b = c = 0 for text|Spacer, Spacer|text,
@@ -773,6 +784,76 @@ enum MK: String, CaseIterable { case hstackRectText, hstackTextText26, hstackTex
     }
 }
 
+// ---------------- DS9b: composite beside composite (R4-2 PR B follow-up, DS-G overturned) ----------------
+// DS9 measured a composite beside a RECT or a single TEXT. The common shape is a composite beside a composite
+// (rows of icon-and-label), which DS9 did not reach. Every pair is read by the same three instruments.
+@MainActor func ds9b() {
+    section("DS9b: composite beside composite — HStack{rect; text} beside itself, other composites, spacers, ZStack, Pass, and a width-only frame")
+    let rt = { (s: CGFloat) in HStack { R(); T(s) } }
+    let tt = { (s: CGFloat) in HStack { T(s); T(s) } }
+    // beside itself, and unequal fonts
+    for s: CGFloat in [13, 26] { rep("DS9b s=\(g(s)) RT|RT") { rt(s) } _: { rt(s) } }
+    rep("DS9b RT13|RT26") { rt(13) } _: { rt(26) }
+    rep("DS9b RT26|RT13") { rt(26) } _: { rt(13) }
+    // beside the other composites, both orders
+    for s: CGFloat in [13, 26] {
+        rep("DS9b s=\(g(s)) RT|TT") { rt(s) } _: { tt(s) }
+        rep("DS9b s=\(g(s)) TT|RT") { tt(s) } _: { rt(s) }
+        rep("DS9b s=\(g(s)) RT|RR") { rt(s) } _: { HStack { R(); R() } }
+        rep("DS9b s=\(g(s)) RR|RT") { HStack { R(); R() } } _: { rt(s) }
+    }
+    rep("DS9b RT13|TT26") { rt(13) } _: { tt(26) }
+    rep("DS9b TT26|RT13") { tt(26) } _: { rt(13) }
+    // images and controls with a label
+    let bt = { HStack { Image(nsImage: bitmap); T(13) } }
+    rep("DS9b BT|BT") { bt() } _: { bt() }
+    rep("DS9b BT|text13") { bt() } _: { T(13) }
+    rep("DS9b text13|BT") { T(13) } _: { bt() }
+    rep("DS9b BT|rect") { bt() } _: { R() }
+    rep("DS9b rect|BT") { R() } _: { bt() }
+    let bu = { HStack { Button("B") {}; T(13) } }
+    rep("DS9b ButT|ButT") { bu() } _: { bu() }
+    rep("DS9b ButT|text13") { bu() } _: { T(13) }
+    rep("DS9b text13|ButT") { T(13) } _: { bu() }
+    rep("DS9b ButT|rect") { bu() } _: { R() }
+    rep("DS9b rect|ButT") { R() } _: { bu() }
+    let tg = { HStack { Toggle("T", isOn: .constant(true)); T(13) } }
+    rep("DS9b TogT|TogT") { tg() } _: { tg() }
+    rep("DS9b TogT|text13") { tg() } _: { T(13) }
+    rep("DS9b text13|TogT") { T(13) } _: { tg() }
+    rep("DS9b TogT|rect") { tg() } _: { R() }
+    rep("DS9b rect|TogT") { R() } _: { tg() }
+    // spacers inside a composite
+    let ts = { HStack { T(13); Spacer() } }, rst = { HStack { R(); Spacer(); T(13) } }
+    rep("DS9b TS|text13", flexible: true) { ts() } _: { T(13) }
+    rep("DS9b text13|TS", flexible: true) { T(13) } _: { ts() }
+    rep("DS9b TS|TS", flexible: true) { ts() } _: { ts() }
+    rep("DS9b TS|rect", flexible: true) { ts() } _: { R() }
+    rep("DS9b rect|TS", flexible: true) { R() } _: { ts() }
+    rep("DS9b RST|text13", flexible: true) { rst() } _: { T(13) }
+    rep("DS9b text13|RST", flexible: true) { T(13) } _: { rst() }
+    rep("DS9b RST|RST", flexible: true) { rst() } _: { rst() }
+    rep("DS9b RST|rect", flexible: true) { rst() } _: { R() }
+    rep("DS9b rect|RST", flexible: true) { R() } _: { rst() }
+    rep("DS9b RST|RT", flexible: true) { rst() } _: { rt(13) }
+    rep("DS9b RT|RST", flexible: true) { rt(13) } _: { rst() }
+    // ZStack and Pass beside HStack
+    let zrt = { ZStack { R(); T(13) } }, prt = { Pass { R(); T(13) } }
+    rep("DS9b ZRT|RT") { zrt() } _: { rt(13) }
+    rep("DS9b RT|ZRT") { rt(13) } _: { zrt() }
+    rep("DS9b PRT|RT") { prt() } _: { rt(13) }
+    rep("DS9b RT|PRT") { rt(13) } _: { prt() }
+    rep("DS9b ZRT|ZRT") { zrt() } _: { zrt() }
+    // a width-only fixed frame (DS-G's unmeasured spelling)
+    rep("DS9b T.frame(width: 100)|rect") { T(13).frame(width: 100) } _: { R() }
+    rep("DS9b rect|T.frame(width: 100)") { R() } _: { T(13).frame(width: 100) }
+    rep("DS9b T.frame(width: 100)|text13") { T(13).frame(width: 100) } _: { T(13) }
+    rep("DS9b text13|T.frame(width: 100)") { T(13) } _: { T(13).frame(width: 100) }
+    rep("DS9b T.frame(height: 30)|rect") { T(13).frame(height: 30) } _: { R() }
+    rep("DS9b rect|T.frame(height: 30)") { R() } _: { T(13).frame(height: 30) }
+    rep("DS9b T.frame(height: 30)|text13") { T(13).frame(height: 30) } _: { T(13) }
+}
+
 // ---------------- DS10: the stack's own environment font ----------------
 @MainActor func ds10() {
     section("DS10: a font set on the STACK, not the children (mod wraps singles and stacks alike)")
@@ -935,7 +1016,7 @@ let para = "The quick brown fox jumps over the lazy dog and keeps on running far
 // ---------------- main ----------------
 @MainActor func probes() {
     registerFonts()
-    ds0(); ds1(); ds1b(); ds2(); ds3(); ds4(); ds4b(); ds5(); ds6(); ds7(); ds7b(); ds8(); ds9(); ds10(); ds11(); ds12(); ds13(); ds14()
+    ds0(); ds1(); ds1b(); ds2(); ds3(); ds4(); ds4b(); ds5(); ds6(); ds7(); ds7b(); ds8(); ds9(); ds9b(); ds10(); ds11(); ds12(); ds13(); ds14()
     print("=== instruments: \(pairs) pairs, \(disagreements) DISAGREE")
 }
 

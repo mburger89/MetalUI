@@ -169,6 +169,7 @@ public struct Toggle<Label: ElementGroup>: Element, StyledElement {
         let (node, layout) = Button<Label>.enteringLabel(labelEnvironment, pass.frame) {
             box.requestLayout(id, pass: &pass)
         }
+        pass.frame.markControlSpacing(node)   // DS-H: a standard edge on every look (probe DS7; divergence 213)
         return (node, Layout(inner: .builtIn(layout, labelEnvironment, look)))
     }
 

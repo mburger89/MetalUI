@@ -172,13 +172,21 @@ public struct TextFontMetrics: Hashable, Sendable {
     public let leading: Double
     /// The line advance, `ceil(ascent + descent + leading)` (divergence 86).
     public let lineHeight: Double
+    /// The height of a capital letter above the baseline, in points (`CTFontGetCapHeight` on the
+    /// CoreText path, `OS/2.sCapHeight` on the portable one), or `nil` when the face reports none
+    /// (ruling `DS-F`). The default vertical gap above a rect beneath text reads it
+    /// (`ascent - capHeight`); `nil` removes that term.
+    public let capHeight: Double?
 
-    /// Metrics from their four values.
-    public init(ascent: Double, descent: Double, leading: Double, lineHeight: Double) {
+    /// Metrics from their four values, and optionally the cap height (`nil`: the face reports none,
+    /// which a conformer that predates the field also gives).
+    public init(ascent: Double, descent: Double, leading: Double, lineHeight: Double,
+                capHeight: Double? = nil) {
         self.ascent = ascent
         self.descent = descent
         self.leading = leading
         self.lineHeight = lineHeight
+        self.capHeight = capHeight
     }
 }
 

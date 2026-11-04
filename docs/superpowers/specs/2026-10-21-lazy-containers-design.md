@@ -13,7 +13,7 @@ scroller, on the proposal path. Branch `feat/lazy-containers` from `1bdead8d`. R
 |---|---|
 | cross size is "the widest *realised* child" | **Refuted.** With a cross proposal the lazy stack answers the proposal (A1, A5); at nil it answers the **first** child's (A3, A3b, A3d), not the widest and not the smallest. Main axis is content, not greedy (A1 height 40 at a 200 proposal). |
 | outside a ScrollView | A lazy stack outside any scroller realises everything (A1-A9 lay out every child) and sizes as above. |
-| spacing default | 8 between views, as `VStack` (A2 = A2c); beside text SwiftUI is font-derived and MetalUI's 8 is the existing divergence 51 (A10). |
+| spacing default | 8 between views, as `VStack` (A2 = A2c); beside text SwiftUI follows the stack rule (`DS13`) and MetalUI's lazy 8 is divergence 51, narrowed to the lazy containers (`DS-I`, record 203; A10). |
 | realisation | On screen only, no margin (R1: 10 of 1000, 100...109 after a scroll, 20 built in all); the other axis of a scroller is **not** windowed (R5). |
 | extent of unrealised children | the measured ones' mean (R4: 20000, not 20100; G2: 15000). |
 | state of a scrolled-out child | **retained** (S1: one serial across a 4000pt round trip). |

@@ -141,6 +141,16 @@ private let parameterArms: [ParameterArm] = {
     arms.append(arm("direction.rightToLeft") { t, v in
         t.registersRightToLeft = v == 1
         return t.newNativeFrame(child: leaf(t), width: 50) })
+    // `DS-E`: the spacing edge a text leaf is marked with is part of what it is (its parent's gap reads it).
+    arms.append(arm("leaf.textSpacing") { t, v in
+        let id = leaf(t)
+        t.markTextSpacing(id, .text(TextSpacingMetrics(ascent: 12 + Double(v), descent: 3, leading: 0, capHeight: 9)))
+        return id })
+    // And the control mark (`DS-H`): a node opaque to the walk differs from the same node walked.
+    arms.append(arm("node.controlSpacing") { t, v in
+        let id = t.newNativeLinearStack(children: [leaf(t)], axis: .vertical)
+        if v == 1 { t.markControlSpacing(id) }
+        return id })
     return arms
 }()
 
@@ -148,7 +158,7 @@ private let parameterArms: [ParameterArm] = {
 /// the node twice with one parameter at two values and reads the signature of the
 /// result; they must differ, and two builds at one value must agree (so the arm
 /// separates). Mutation: `frame.maxHeight` dropped from the `.frame` case of
-/// `nodeSignature` reddens `frame.maxHeight` only; the `LD-B` tag line dropped reddens `direction.rightToLeft` only.
+/// `nodeSignature` reddens `frame.maxHeight` only; the `LD-B` tag line dropped reddens `direction.rightToLeft` only; the `DS-E` tag line dropped reddens `leaf.textSpacing` and `node.controlSpacing` only.
 @Test @MainActor func everyRegistrarParameterIsInItsSignature() throws {
     var failures: [String] = []
     for arm in parameterArms {
@@ -163,7 +173,40 @@ private let parameterArms: [ParameterArm] = {
         if zero != again { failures.append("\(arm.name): not deterministic") }
     }
     #expect(failures.isEmpty, "\(failures)")
-    #expect(parameterArms.count == 34)
+    #expect(parameterArms.count == 36)
+}
+
+/// 1.5c — a tree with no spacing mark has the signature it had before the mark existed (`DS-E`): the `DS-E` tag is
+/// mixed for marked nodes only, so every other signature (and every memo entry keyed on one) is bit-identical. The
+/// literal is the signature of a fixed tree, taken once from this change's tree (unmarked nodes reach no new code);
+/// a `.standard` mark records nothing and changes nothing, and a text mark does change it. Mutation **M12**: the tag
+/// mixed unconditionally (`h.mix(0x5453_5043)` outside the `if`): the literal moves.
+@Test @MainActor func anUnmarkedTreesSignatureIsUnchangedByTheSpacingMark() throws {
+    func tree(_ mark: SpacingEdge?) -> (LayoutTree, LayoutNodeID) {
+        let t = LayoutTree(generation: 1)
+        let a = keyed(t, "a"), b = keyed(t, "b")
+        if let mark { t.markTextSpacing(a, mark) }
+        let inner = t.newNativeLinearStack(children: [a, b], axis: .vertical, spacing: nil)
+        let padded = t.newNativePadding(child: inner, insets: Edges(top: 1, right: 2, bottom: 3, left: 4))
+        return (t, t.newNativeLinearStack(children: [padded, keyed(t, "c")], axis: .horizontal, spacing: nil))
+    }
+    let (plainTree, plainRoot) = tree(nil)
+    let plain = try #require(plainTree.structuralSignature(of: plainRoot))
+    // A keyed leaf's key is hashed by a per-process seeded `Hasher`, so the literal is of a tree with no leaf:
+    // spacers (whose marks are the stack's), a padding, a frame and two stacks.
+    let bare = LayoutTree(generation: 1)
+    let padded = bare.newNativePadding(child: bare.newNativeSpacer(minLength: 3),
+                                       insets: Edges(top: 1, right: 2, bottom: 3, left: 4))
+    let framed = bare.newNativeFrame(child: bare.newNativeSpacer(minLength: 5), width: 7)
+    let column = bare.newNativeLinearStack(children: [padded, framed], axis: .vertical, spacing: nil)
+    let row = bare.newNativeLinearStack(children: [column, bare.newNativeSpacer(minLength: 2)], axis: .horizontal,
+                                        spacing: nil)
+    let literal = try #require(bare.structuralSignature(of: row))
+    #expect(literal == LayoutSignature(a: 9327591743575046428, b: 8438196378735958638), "the unmarked signature moved: \(literal)")
+    let (standardTree, standardRoot) = tree(.standard)
+    #expect(standardTree.structuralSignature(of: standardRoot) == plain, "a standard mark records nothing")
+    let (textTree, textRoot) = tree(.text(TextSpacingMetrics(ascent: 12, descent: 3, leading: 0, capHeight: 9)))
+    #expect(textTree.structuralSignature(of: textRoot) != plain, "a text mark is part of the node")
 }
 
 /// 1.5b — a non-`Hashable` custom layout is unmatchable; a `Hashable` one is not.

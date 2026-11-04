@@ -85,8 +85,9 @@ extension LayoutPass {
 /// **Spacing** (ruling GR-D): `nil`, the default, is the largest platform-default
 /// pair spacing meeting at each boundary — not one number for the whole grid; a
 /// given value is used verbatim on every gap of that axis, negative included.
-/// Two rows of ``ProposalText`` take 8 where SwiftUI's font-derived spacing takes
-/// 0 (divergence `GR-O` 5, as `CN-H`'s stacks).
+/// Two rows of ``ProposalText`` meet by the stack's text rule (0 apart, a rect row
+/// above a text row 4.742, a text row above a rect row 8.151 at 13 pt; rulings
+/// `DS-E`, `DS-G`, divergence 65 retired).
 ///
 /// A grid registers and paints nothing of its own: cells register their own
 /// hitboxes and paint themselves, a grid publishes nothing to accessibility, and

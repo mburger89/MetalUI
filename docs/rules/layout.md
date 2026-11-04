@@ -8,8 +8,8 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
 (EP-8). **Modifier order decides which box a modifier reaches**: container and
 item modifiers (`.alignItems`, `.gap`, `.flexGrow`, `.margin`) **before**
 `.padding`; `.frame`, background, corner radius **after**. All wrong orders
-compile. `Row`/`Column` gap is 0 vs `HStack`/`VStack`'s 8 (divergence 52) —
-porting `Row {}` → `HStack {}` changes layout silently.
+compile. `Row`/`Column` gap is 0 vs `HStack`/`VStack`'s 8 (divergence 52; a `VStack`'s is the
+font's own gap at a vertical text edge, `DS-E`) — porting `Row {}` → `HStack {}` changes layout silently.
 
 **Legacy `.frame`** has SwiftUI's full surface and lowers to one `Style` in
 `FrameLayer.swift` `FrameSpec.style()` (`FR-C`); fixed axes via `size` +
@@ -120,6 +120,18 @@ edges). A root is placed centred at its own answer (`CN-J`).
   paint/input → `requestGroupLayout` + `requestNativeLayout`.
 - **Stacks are SwiftUI's** (`CN-B`…`CN-I`, probe `swiftui-stack-algorithms.swift`).
   Flexible frame is greedy (`FR-A`, `FR-M`).
+- **Default spacing at a text edge (`DS-E`…`DS-K`, record §203, probe `swiftui-default-spacing.swift`).**
+  Every default gap (stack, grid pair) is `ProposalSpacing.defaultGap(after:before:axis:)`
+  of two `SpacingEdge`s (zero, standard, text, and mixed: a composite across its axis holding both a standard and a text edge, `DS-G2`): horizontal 8, vertical at a text edge
+  `d + ceil((a + d) / 10)` (rect above text), that `+ (a - c)` (text above rect), `ceil(leading)`
+  of the lower text (text above text). **A text leaf marks its edge when it registers**
+  (`Frame.markTextSpacing`, metrics as plain doubles from `system.fontMetrics`; never read in a
+  layout phase), the marks live in `LayoutTree.spacingMarks` and travel in `LayoutSegment` and
+  the signature (marked nodes only); the walk is `spacingEdges` (a cross-axis `Spacer` and a zero-by-zero frame are not union operands) and **a new `NativeNode` case
+  must choose its edges**. **A control presents the standard edge** (`markControlSpacing` on its
+  root node, `DS-H`): a new control owes the call and an arm in `everyControlKeepsAStandardEdgeBesideText`.
+  Lazy containers keep 8 (divergence 51), a text-style font's leading is not expressed (214), and
+  the rule on Linux and Windows is MetalUI's ruling on `hhea`/`OS/2` metrics (`DS-F`).
 - `ProposalElementGroup` has one requirement returning `[ProposalNodeID]`
   (init internal, `MC-G`). One id under two parents traps (`CN-L`). **A copy
   of a pinned entry is unpinned**: each builder-group/`EnvironmentScope` copy

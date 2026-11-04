@@ -195,6 +195,9 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
             labelEnvironment = values
         }
         let (node, layout) = Self.enteringLabel(labelEnvironment, pass.frame) { box.requestLayout(id, pass: &pass) }
+        // DS-H: a bordered or glass button presents the standard edge (probe DS7 `Button`); `.plain`,
+        // `.borderless` and `.link` are the label alone, so a text label keeps its text edges.
+        if bordered || glassStyle != nil { pass.frame.markControlSpacing(node) }
         return (node, Layout(inner: .chrome(layout, labelEnvironment, look)))
     }
 

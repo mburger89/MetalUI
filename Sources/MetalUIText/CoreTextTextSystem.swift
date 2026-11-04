@@ -30,9 +30,11 @@ public final class CoreTextTextSystem: TextSystem {
 
     /// The resolved font's metrics.
     public func fontMetrics(_ font: FontKey) -> TextFontMetrics {
-        let metrics = registered(font).metrics
+        let resolved = registered(font)
+        let metrics = resolved.metrics
         return TextFontMetrics(ascent: metrics.ascent, descent: metrics.descent, leading: metrics.leading,
-                               lineHeight: metrics.lineHeight)
+                               lineHeight: metrics.lineHeight,
+                               capHeight: Double(CTFontGetCapHeight(resolved.ctFont)))
     }
 
     /// Measures `string` wrapped at `width` (`nil` is one line per hard break)

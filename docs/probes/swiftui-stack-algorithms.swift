@@ -87,7 +87,8 @@
 // READING (each claim names its arms):
 // - Default spacing is 8 horizontally between every pair measured (S), and 8
 //   vertically between non-text views; vertically a Text edge is font-derived
-//   (text|text 0, rect|text 4.74, text|rect 8.15, image|image 0, toggle 6).
+//   (text|text 0, rect|text 4.74, text|rect 8.15, image|image 0, toggle 6; at 13 pt only:
+//   swiftui-default-spacing.swift measures it as d + ceil((a + d) / 10), + (a - c), ceil(leading)).
 //   Explicit spacing is used verbatim (S control). An empty conditional adds
 //   no spacing (G23). A nested stack's spacing is its content's (hstack|text).
 // - Spacer(): minLength nil means 8 (SP1 48, SP6), a constant and not the

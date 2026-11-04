@@ -168,7 +168,8 @@
 //    GS15] and a padding edge whose inset is 0 [GS13: 8 before the padded
 //    leading edge, 0 after], and not on an overlay's content side [GS16]: the
 //    stacks' zero-spacing-edge rule, ruling CN-H. Text cells get 0 vertically
-//    [GS7 36x32], font-derived; not adopted (GR-D).
+//    [GS7 36x32], font-derived (measured in swiftui-default-spacing.swift DS12 as the stack
+//    rule: d + ceil((a + d) / 10), + (a - c), ceil(leading); adopted by DS-G, 65 retired).
 // 3. Nil proposal. Every cell is measured once at nil [GP3], single-column
 //    cells widen their columns, then spanning cells widen theirs [GX7 = GX1:
 //    51/41 whichever row declares the span]. A cell is PLACED at its slot size,

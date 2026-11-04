@@ -1130,32 +1130,39 @@ private func twoFrames<Root: Element>(_ make: (Int) -> Root) {
     #expect(answer.width == labelColumn + 8 + valueColumn,
             "the form's width \(answer.width) vs \(labelColumn) + 8 + \(valueColumn)")
     let row0 = max(measureAlone(name, nil, nil).height, valueAnswer.height)
-    #expect(answer.height == row0 + 8 + longAnswer.height,
-            "the form's height \(answer.height) vs \(row0) + 8 + \(longAnswer.height)")
+    // Two text rows take no row gap (`DS-G`, divergence 65 retired): the width's 8 is the column gap.
+    #expect(answer.height == row0 + longAnswer.height,
+            "the form's height \(answer.height) vs \(row0) + 0 + \(longAnswer.height)")
 }
 
 // MARK: - 4.12 text rows take the default row spacing
 
-/// **Two rows of text take the 8pt default gap** — pinned WRONG ON PURPOSE
-/// (divergence `GR-O` 5; SwiftUI's GS7, GN2 and GN7 all read **0** between two
-/// `Text` rows, its font-derived text spacing, which MetalUI does not adopt —
-/// `CN-H`'s stacks make the same choice).
+/// **Two rows of text meet with no row gap** (divergence 65, retired by `DS-G`; SwiftUI's GS7, GN2 and GN7
+/// all read 0 between two `Text` rows at the default font, and a grid's row gap is the stack rule, probe
+/// `DS12`): text above text is `ceil(leading)` of the lower text, 0 at an unset font. A rect row above a text
+/// row takes 4.742 (the stack rule's rect|text), and the column gap stays 8.
 ///
-/// The owner is plan task 11 (text edges, `GR-N`).
-///
-/// Mutation: a gap of 0 between two rows whose cells are all leaves (the grid's
-/// height loses the 8).
+/// Red before (the grid's height was `line + 8 + line`). Mutations: `pair` ignores the metrics (the first
+/// arm reads 8 again); the plain `ProposalText` site not marked (both).
 @MainActor
-@Test func textRowsTakeTheDefaultRowSpacing() throws {
+@Test func textRowsMeetWithoutARowGap() throws {
     let grid = Grid {
         GridRow { ProposalText("A"); ProposalText("B") }
         GridRow { ProposalText("C"); ProposalText("D") }
     }
     let answer = measureAlone(grid, nil, nil)
     let line = measureAlone(ProposalText("A"), nil, nil).height
-    try #require(line > 0, "a line of text must have a height")
-    #expect(answer.height == line + 8 + line,
-            "two text rows: \(answer.height) vs \(line) + 8 + \(line) (SwiftUI reads \(line + line))")
+    try #require(line == 16, "the default font's line: \(line)")
+    #expect(answer.height == line + line, "two text rows: \(answer.height) vs \(line) + 0 + \(line)")
+    let mixed = Grid {
+        GridRow { Color(.accent).frame(width: px(10), height: px(10)); Color(.accent).frame(width: px(10), height: px(10)) }
+        GridRow { ProposalText("C"); ProposalText("D") }
+    }
+    let mixedAnswer = measureAlone(mixed, nil, nil)
+    #expect(abs(mixedAnswer.height - (10 + 4.742 + line)) < 0.002,
+            "a rect row above a text row: \(mixedAnswer.height) (SwiftUI DS12 4.742)")
+    func w(_ text: String) -> Double { measureAlone(ProposalText(text), nil, nil).width }
+    #expect(answer.width == max(w("A"), w("C")) + 8 + max(w("B"), w("D")), "the column gap stays 8")
 }
 
 // MARK: - 4.17 a grid root is centred at its answer

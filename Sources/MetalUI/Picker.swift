@@ -185,6 +185,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         PickerScope.stack.append(scope)
         defer { PickerScope.stack.removeLast() }
         let (node, inner) = box.requestLayout(id, pass: &pass)
+        pass.frame.markControlSpacing(node)   // DS-H: a standard edge (probe DS7)
         return (node, Layout(inner: .options(inner)))
     }
 
@@ -204,6 +205,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         PickerScope.stack.append(scope)
         defer { PickerScope.stack.removeLast() }
         let (node, inner) = menuBox.requestLayout(id, pass: &pass)
+        pass.frame.markControlSpacing(node)   // DS-H: a standard edge (probe DS7)
         return (node, Layout(inner: .menu(menuBox, inner)))
     }
 
