@@ -694,6 +694,10 @@ private final class DisappearLog { var count = 0 }
     platform.simulateTick(timestamp: 100.1)
     #expect(window.animationStore.transitions.ghostCount == 2, "the unit's ghost and the leaver's own: \(window.animationStore.transitions.ghostCount)")
     #expect(log.count == 0 && window.animationStore.lifecycle.parkedCount == 1, "parked: \(log.count)")
+    // The leaver's own ghost is the one that holds it: the unit's ghost carries the leaver's position as an exemption.
+    let live = window.animationStore.transitions.liveGhosts
+    #expect(window.animationStore.lifecycle.parkedOn == Set(live.filter { $0.exempt.isEmpty }.map(\.key)) && live.contains { !$0.exempt.isEmpty },
+            "parked on the leaver's ghost, not the unit's: \(window.animationStore.lifecycle.parkedOn.count) of \(live.count)")
     platform.simulateTick(timestamp: 100.6)
     #expect(log.count == 0, "still waiting half-way")
     platform.simulateTick(timestamp: 101.3)
@@ -753,4 +757,21 @@ private final class DisappearLog { var count = 0 }
     #expect(steady.flights == 0 && steady.ghosts == 1, "after replayed frames nothing is handed over today (the finding): \(steady)")
     let early = try run(retained: true, restFrames: 1)
     #expect(early.flights == 1 && early.ghosts == 2, "after one steady frame the paint is not yet a replay and it works: \(early)")
+}
+
+/// **A leaver already at the source's centre has nothing to travel and stays in its unit's ghost** (`XF-M`): both tiles
+/// share one centre in one container, so the move is zero and no second ghost is made. Mutation **MC13** (a zero move
+/// still carves the leaver out: two ghosts).
+@Test @MainActor func aLeaverAtTheSourcesCentreKeepsItsUnitsGhost() throws {
+    func tree(_ flag: Bool) -> some Element {
+        Stack(alignment: .center) {
+            Box().frame(width: Pixels(200), height: Pixels(100))
+            if !flag { tileA().matchedGeometryEffect(id: "hero", in: space) }
+            if flag { tileB().matchedGeometryEffect(id: "hero", in: space) }
+        }
+    }
+    let h = TransitionHarness()
+    h.frame(0, nil, tree(false))
+    let f = h.frame(0, linear1, tree(true))
+    #expect(h.store.transitions.ghostCount == 1, "one ghost, the unit's: \(h.store.transitions.ghostCount) \(accents(f).map(R.init))")
 }
