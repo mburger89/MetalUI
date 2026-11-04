@@ -18,7 +18,9 @@ import MetalUITestSupport
 private let linear1 = Animation.linear(duration: 1)
 
 /// An `Animatable` component with one `Double`: its `content` notes `x` and puts a width-recording layout at
-/// `100 + x` (`VA5`).
+/// `100 + x` (`VA5`). **The frame's own animation is switched off** (`.transaction`), so the widths the layout is
+/// proposed come only from the component's interpolated `x`: otherwise the frame's declared width animates
+/// itself (divergence 96) and a component that does not interpolate would read the same.
 private struct Counter: Component, Animatable {
     var x: Double
     nonisolated var animatableData: Double {
@@ -29,6 +31,7 @@ private struct Counter: Component, Animatable {
         let _ = acNote("counter", x)
         ProposalLayoutContainer(RecordsProposedWidth(log: acWidths)) { Rectangle(width: Pixels(10), height: Pixels(10)) }
             .frame(width: Pixels(Float(100 + x)), height: Pixels(40))
+            .transaction { $0.animation = nil }
     }
 }
 
