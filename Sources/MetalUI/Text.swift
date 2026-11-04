@@ -203,11 +203,13 @@ public struct Text: Element, StyledElement {
             let resolved = resolveRichText(content, own: styleRequest, rich: rich, in: pass.environment,
                                            system: system)
             let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
-                pass.frame.requestNativeLeaf { proposal in
+                let leaf = pass.frame.requestNativeLeaf { proposal in
                     MainActor.assumeIsolated {
                         richTextMeasurement(resolved, system: system, proposal: proposal)
                     }
                 }
+                pass.frame.markTextSpacing(leaf, richTextSpacingEdge(resolved, system: system))   // DS-E
+                return leaf
             }
             return (node, Layout(node: node))
         }
@@ -221,12 +223,14 @@ public struct Text: Element, StyledElement {
         let string = plain.string
 
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .text) {
-            pass.frame.requestNativeLeaf(key: TextLeafKey(string, font: key, style: textStyle, system: system)) { proposal in
+            let leaf = pass.frame.requestNativeLeaf(key: TextLeafKey(string, font: key, style: textStyle, system: system)) { proposal in
                 MainActor.assumeIsolated {
                     proposalTextMeasurement(string, font: key, system: system, proposal: proposal,
                                             style: textStyle)
                 }
             }
+            pass.frame.markTextSpacing(leaf, textSpacingEdge(font: key, string: string, system: system))   // DS-E
+            return leaf
         }
         return (node, Layout(node: node))
     }

@@ -321,8 +321,14 @@ private struct Counter: Component {
     // `[0, 0, 0, 0]`; the VStack below them (`MC-A`, `MC-C`).
     // Moved by port gaps, medium (`MD-C` item 2, a layout containing a field):
     // the bordered default field is 24 tall, so row a is 24 and every row below
-    // it moves down 8 (SwiftUI's FM0 row a is 24 tall too).
-    expectFrame(b, id(0, 0), [0, 0, 400, 185], "form")
+    // it moves down 8 (SwiftUI's FM0 row a is 24 tall too). Moved again by the
+    // text edges (`DS-E`, divergence 51 narrowed): the gaps between the rows are
+    // FM0's own (the probe's form origins): row a to b 8.151 (text over a control),
+    // b to c 4.742 (a control over text), c to the picker 8.151, then 8 and 8, so
+    // the form is **182.04** tall as FM0 reads, not 185 (16 + 24 + 8.151 + 24 +
+    // 4.742 + 16 + 8.151 + 24 + 8 + 1 + 8 + 24 + 16). Placed rects are rounded:
+    // 77, 101, 133 and 142.
+    expectFrame(b, id(0, 0), [0, 0, 400, 182], "form")
     let form = [0, 0, 0, 0, 0]
     func at(_ tail: Int...) -> GlobalElementID { controlID(form + tail) }
     expectFrame(b, at(0), [16, 16, 368, 24], "row a")
@@ -331,13 +337,13 @@ private struct Counter: Component {
     expectFrame(b, at(1), [16, 48, 368, 24], "row b")
     expectFrame(b, at(1, 0), [16, 52, 70, 16], "Toggle(Enabled)")
     expectFrame(b, at(1, 2), [325, 48, 59, 24], "Button(Apply)")
-    expectFrame(b, at(2), [16, 80, 368, 16], "row c")
-    expectFrame(b, at(2, 0), [16, 80, 39, 16], "label Speed")
-    expectFrame(b, at(2, 1), [63, 80, 321, 16], "Slider")
-    expectFrame(b, at(3), [16, 104, 113, 24], "Picker.menu")
-    expectFrame(b, at(4), [16, 136, 368, 1], "Divider")
-    expectFrame(b, at(5), [16, 145, 368, 24], "row f")
-    expectFrame(b, at(5, 0), [16, 145, 50, 24], "Stepper(Qty)")
+    expectFrame(b, at(2), [16, 77, 368, 16], "row c")
+    expectFrame(b, at(2, 0), [16, 77, 39, 16], "label Speed")
+    expectFrame(b, at(2, 1), [63, 77, 321, 16], "Slider")
+    expectFrame(b, at(3), [16, 101, 113, 24], "Picker.menu")
+    expectFrame(b, at(4), [16, 133, 368, 1], "Divider")
+    expectFrame(b, at(5), [16, 142, 368, 24], "row f")
+    expectFrame(b, at(5, 0), [16, 142, 50, 24], "Stepper(Qty)")
 
     // The probe's relations, from the measured widths.
     let apply = try #require(b[at(1, 2)])

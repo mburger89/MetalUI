@@ -107,6 +107,7 @@ public struct ProposalText: ProposalElement {
                     richTextMeasurement(resolved, system: system, proposal: proposal)
                 }
             }
+            pass.frame.markTextSpacing(node.layoutNodeID, richTextSpacingEdge(resolved, system: system))   // DS-E
             return (node, Layout(node: node.layoutNodeID))
         }
         // One resolution for layout and paint (spec §3): same environment,
@@ -120,6 +121,7 @@ public struct ProposalText: ProposalElement {
                 proposalTextMeasurement(string, font: key, system: system, proposal: proposal, style: style)
             }
         }
+        pass.frame.markTextSpacing(node.layoutNodeID, textSpacingEdge(font: key, string: string, system: system))   // DS-E
         return (node, Layout(node: node.layoutNodeID))
     }
 

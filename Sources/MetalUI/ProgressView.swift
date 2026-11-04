@@ -124,6 +124,7 @@ public struct ProgressView<Label: ElementGroup, CurrentValueLabel: ElementGroup>
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         var body = body(environment: pass.frame.environmentTop)
         let (node, layout) = body.requestLayout(id, pass: &pass)
+        pass.frame.markControlSpacing(node)   // DS-H: a standard edge (probe DS7)
         return (node, Layout(body: body, bodyLayout: layout))
     }
 

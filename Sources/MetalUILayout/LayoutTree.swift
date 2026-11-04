@@ -96,6 +96,29 @@ public final class LayoutTree {
     /// boundary: `swift package clean` after changing it (CN-R).
     private var spacerAxes: [Int: ProposalStackAxis] = [:]
 
+    /// The default-spacing edge a node presents to its parent's stack, by node index (rulings `DS-E`,
+    /// `DS-G`, `DS-H`): a text leaf's own metrics, `.zero` for an empty text, or `.standard` for a control
+    /// that is opaque to the walk (a bordered `Button`, a `Toggle`, ...). A marked node answers its mark on
+    /// the vertical axis and `.standard` on the horizontal one, whatever its children; an unmarked node is
+    /// walked. Written at registration (`markTextSpacing`, `markControlSpacing`), cleared by
+    /// `reset(generation:)`, carried by a segment and its graft, mixed into `nodeSignature` for marked
+    /// nodes only, never written during layout. A stored property on a public class read across a module
+    /// boundary: `swift package clean` after changing it (CN-R).
+    private var spacingMarks: [Int: SpacingEdge] = [:]
+
+    /// Marks a text leaf's vertical default-spacing edge (`DS-E`): its metrics, or `.zero` for an empty
+    /// text. A `.standard` edge records nothing (an unmarked leaf is standard).
+    package func markTextSpacing(_ id: LayoutNodeID, _ edge: SpacingEdge) {
+        guard edge != .standard else { return }
+        spacingMarks[slot(id)] = edge
+    }
+
+    /// Marks `id` standard on both axes whatever it contains (`DS-H`, probe `DS7`): a control the walk
+    /// must not see into. What is inside keeps its own gaps.
+    package func markControlSpacing(_ id: LayoutNodeID) {
+        spacingMarks[slot(id)] = .standard
+    }
+
     /// Each native child's parent, by node index (ruling CN-L, closing `MC-G`
     /// hole 4). Written by every native registrar that takes children
     /// (`recordParent`), which traps on a child that already has one — a node
@@ -476,10 +499,11 @@ public final class LayoutTree {
     /// beside a spacer included (probe S control, SP4). **`nil` is SwiftUI's
     /// platform default**, decided per adjacent pair: 0 when the earlier
     /// child's trailing edge or the later child's leading edge is a
-    /// zero-spacing edge (`zeroSpacingEdges`: a spacer's, seen through its
+    /// zero-spacing edge (`spacingEdges`: a spacer's, seen through its
     /// wrappers and containers; SP2, SP3, K3a–K3q, V1–V8), else
-    /// `ProposalSpacing.platformDefault` (S). The default stays 0 for kernel
-    /// callers; `HStack`/`VStack` pass nil unless given a spacing.
+    /// `ProposalSpacing.defaultGap(after:before:axis:)`: `platformDefault` (S), or at
+    /// a vertical text edge the font's own gap (`DS-E`, `DS-F`). The default stays 0
+    /// for kernel callers; `HStack`/`VStack` pass nil unless given a spacing.
     ///
     /// **A given spacing must be finite** (ruling SA-J): SwiftUI answers nan
     /// and ±inf (P1, P9). **Negative spacing is accepted, unclamped**: `{20;
@@ -790,6 +814,7 @@ public final class LayoutTree {
         nativeNodes.removeAll(keepingCapacity: true)
         leafKeys.removeAll(keepingCapacity: true)
         spacerAxes.removeAll(keepingCapacity: true)
+        spacingMarks.removeAll(keepingCapacity: true)
         nativeParents.removeAll(keepingCapacity: true)
         gridRowTokens.removeAll(keepingCapacity: true)
         gridRowAlignments.removeAll(keepingCapacity: true)
@@ -1296,15 +1321,17 @@ public final class LayoutTree {
 
     /// The gap after each of a linear stack's children but the last (ruling
     /// CN-H): `spacing` for every pair when one is given; otherwise, per pair,
-    /// 0 when the earlier child's trailing edge or the later child's leading
-    /// edge is a zero-spacing edge, else `ProposalSpacing.platformDefault`.
+    /// `ProposalSpacing.defaultGap(after:before:axis:)` of the earlier child's
+    /// trailing edge and the later child's leading edge: 0 beside a zero-spacing
+    /// edge, a text's own gap at a vertical text edge (rulings `DS-E`, `DS-F`),
+    /// else `ProposalSpacing.platformDefault`.
     private func stackGaps(_ id: LayoutNodeID, axis: ProposalStackAxis, spacing: Double?) -> [Double] {
         let nodes = children(id)
         guard nodes.count > 1 else { return [] }
         if let spacing { return Array(repeating: spacing, count: nodes.count - 1) }
-        let edges = nodes.map { zeroSpacingEdges($0, axis: axis) }
+        let edges = nodes.map { spacingEdges($0, axis: axis) }
         return (1..<nodes.count).map { index in
-            edges[index - 1].trailing || edges[index].leading ? 0 : ProposalSpacing.platformDefault
+            ProposalSpacing.defaultGap(after: edges[index - 1].trailing, before: edges[index].leading, axis: axis)
         }
     }
 
@@ -1316,7 +1343,7 @@ public final class LayoutTree {
     ///   along `axis` or no stack marked it (SP2, SP3, K3g, V3); neither when
     ///   a stack across `axis` did (K3h, V1d, V1h, V3h, V7h);
     /// - `layoutPriority`, `frame`, `fixedSize`, `aspectRatio`: the child's
-    ///   (K3d, K3b, K3e, K3f, K3q);
+    ///   (K3d, K3b, K3e, K3f, K3q; a fixed-height frame turns a text edge standard, `DS8`);
     /// - an overlay attachment: its PRIMARY's (K3c); a spacer on the content
     ///   side is not seen (K3i);
     /// - `padding`: the child's, on an edge whose inset is exactly 0 (K3a,
@@ -1332,43 +1359,62 @@ public final class LayoutTree {
     /// - any of those three with no children: both (V1f, V1g, V3d, V4, V4b);
     /// - a leaf or a scroll viewport: neither (V8, whatever its content);
     /// - a grid: positional over its cells' stored edges
-    ///   (`nativeGridZeroSpacingEdges`; ruling GR-R, probe GE).
+    ///   (`nativeGridSpacingEdges`; ruling GR-R, probe GE).
     ///
     /// Leading/trailing are left/right for a horizontal stack and top/bottom
     /// for a vertical one, in declaration order; measurement reads no layout direction (a right-to-left
     /// environment reflects the placed rects, `LD-A`).
-    private func zeroSpacingEdges(_ id: LayoutNodeID,
-                                  axis: ProposalStackAxis) -> (leading: Bool, trailing: Bool) {
+    ///
+    /// **Three kinds of edge** (`DS-G`, probe `DS7`..`DS9`): zero (above), standard, and a text's own
+    /// (`SpacingEdge.text`, vertical only: a text beside anything horizontally is 8). A text edge beats a
+    /// standard one in a union, the larger font's beats a smaller (`SpacingEdge.acrossUnion`,
+    /// `overlayUnion`); a fixed-height frame and a non-zero inset turn the text edges they touch standard
+    /// (`DS8`); every other wrapper passes the edge through; an empty text's vertical edge is zero (`DS6`).
+    private func spacingEdges(_ id: LayoutNodeID,
+                              axis: ProposalStackAxis) -> (leading: SpacingEdge, trailing: SpacingEdge) {
+        // A marked node (a text leaf, an opaque control) answers its mark; text edges are vertical only
+        // (`DS1`: the horizontal gap is 8 at every size).
+        if !spacingMarks.isEmpty, let mark = spacingMarks[id.index] {
+            return axis == .vertical ? (mark, mark) : (.standard, .standard)
+        }
         switch nativeNode(id) {
         case .spacer:
-            let zero = spacerAxes[id.index].map { $0 == axis } ?? true
-            return (zero, zero)
-        case .layoutPriority, .frame, .fixedSize, .aspectRatio, .overlayAttachment:
-            return zeroSpacingEdges(children(id)[0], axis: axis)
+            let edge: SpacingEdge = (spacerAxes[id.index].map { $0 == axis } ?? true) ? .zero : .standard
+            return (edge, edge)
+        case .frame(_, let height, _, _, _, _, _, _, _):
+            let child = spacingEdges(children(id)[0], axis: axis)
+            // A fixed height (`DS8` fixedFrame) gives the vertical edges standard; flexible frames pass.
+            guard axis == .vertical, height != nil else { return child }
+            return (child.leading.standardisingText, child.trailing.standardisingText)
+        case .layoutPriority, .fixedSize, .aspectRatio, .overlayAttachment:
+            return spacingEdges(children(id)[0], axis: axis)
         case .padding(let insets):
-            let child = zeroSpacingEdges(children(id)[0], axis: axis)
+            let child = spacingEdges(children(id)[0], axis: axis)
             let (leading, trailing) = axis == .horizontal ? (insets.left, insets.right)
                                                           : (insets.top, insets.bottom)
-            return (child.leading && leading == 0, child.trailing && trailing == 0)
+            return (leading == 0 ? child.leading : .standard, trailing == 0 ? child.trailing : .standard)
         case .linearStack(let stackAxis, _, _, _) where stackAxis == axis:
             let nodes = children(id)
-            guard let first = nodes.first, let last = nodes.last else { return (true, true) }
-            return (zeroSpacingEdges(first, axis: axis).leading, zeroSpacingEdges(last, axis: axis).trailing)
+            guard let first = nodes.first, let last = nodes.last else { return (.zero, .zero) }
+            return (spacingEdges(first, axis: axis).leading, spacingEdges(last, axis: axis).trailing)
         case .linearStack, .custom:
             let nodes = children(id)
-            guard !nodes.isEmpty else { return (true, true) }
-            let edges = nodes.map { zeroSpacingEdges($0, axis: axis) }
-            return (edges.contains(where: \.leading), edges.contains(where: \.trailing))
+            guard !nodes.isEmpty else { return (.zero, .zero) }
+            let edges = nodes.map { spacingEdges($0, axis: axis) }
+            return (SpacingEdge.acrossUnion(edges.map(\.leading)), SpacingEdge.acrossUnion(edges.map(\.trailing)))
         case .overlay:
-            let edges = children(id).map { zeroSpacingEdges($0, axis: axis) }
-            return (edges.allSatisfy(\.leading), edges.allSatisfy(\.trailing))
-        case .leaf, .scrollViewport:
-            return (false, false)
+            let edges = children(id).map { spacingEdges($0, axis: axis) }
+            return (SpacingEdge.overlayUnion(edges.map(\.leading)), SpacingEdge.overlayUnion(edges.map(\.trailing)))
+        case .leaf:
+            return (.standard, .standard)
+        case .scrollViewport:
+            return (.standard, .standard)
         case .grid(let plan):
             // GR-R: positional, over the plan's stored cell edges.
-            return nativeGridZeroSpacingEdges(plan, axis: axis)
+            return nativeGridSpacingEdges(plan, axis: axis)
         }
     }
+
 
     /// Whether `id` is a spacer, directly or under any depth of `layoutPriority`
     /// nodes: the public proxies' `isSpacer`. **No built-in reads it** since
@@ -2083,8 +2129,8 @@ extension LayoutTree {
         let id = appendNode(children: children)
         recordParent(id, of: children)
         let inputs = children.map { child in
-            let horizontal = zeroSpacingEdges(child, axis: .horizontal)
-            let vertical = zeroSpacingEdges(child, axis: .vertical)
+            let horizontal = spacingEdges(child, axis: .horizontal)
+            let vertical = spacingEdges(child, axis: .vertical)
             let marks = gridChildMarks(child)
             return NativeGridChild(node: child, rowToken: marks.rowToken,
                                    rowAlignment: marks.rowAlignment,
@@ -2309,7 +2355,20 @@ extension LayoutTree {
         // `LD-B`: a node that places mirrored is a different node. Only those mix a tag, so every
         // left-to-right signature is bit-identical to what it was before the mark existed.
         if !rightToLeftNodes.isEmpty, rightToLeftNodes.contains(index) { h.mix(0x4C44_5254) }
+        // `DS-E`: a node marked with a spacing edge is a different node (its parent's gap reads the metrics). Only
+        // marked nodes mix a tag, so every other signature is bit-identical to what it was before the mark.
+        if !spacingMarks.isEmpty, let edge = spacingMarks[index] { h.mix(0x5453_5043); mixEdge(&h, edge) }
         return h.signature
+    }
+
+    /// One spacing edge's kind and metrics (`DS-E`).
+    private func mixEdge(_ h: inout SignatureBuilder, _ edge: SpacingEdge) {
+        switch edge {
+        case .zero: h.mix(0)
+        case .standard: h.mix(1)
+        case .text(let metrics):
+            h.mix(2); h.mix(metrics.ascent); h.mix(metrics.descent); h.mix(metrics.leading); h.mix(metrics.capHeight)
+        }
     }
 
     /// A grid's plan without a node id or a row token: cells by their position
@@ -2340,8 +2399,8 @@ extension LayoutTree {
             optional(cell.columnAlignment)
             h.mix(UInt64(cell.unsizedAxes.rawValue))
             h.mix(cell.priority)
-            h.mix(cell.horizontalEdges.leading); h.mix(cell.horizontalEdges.trailing)
-            h.mix(cell.verticalEdges.leading); h.mix(cell.verticalEdges.trailing)
+            mixEdge(&h, cell.horizontalEdges.leading); mixEdge(&h, cell.horizontalEdges.trailing)
+            mixEdge(&h, cell.verticalEdges.leading); mixEdge(&h, cell.verticalEdges.trailing)
         }
     }
 
@@ -2492,6 +2551,8 @@ package struct LayoutSegment {
     fileprivate let cases: [NativeNode]
     fileprivate let leafKeys: [(Int, LeafKey)]
     fileprivate let spacerAxes: [(Int, ProposalStackAxis)]
+    /// The nodes' spacing marks, relative to the range (`DS-E`).
+    fileprivate let spacingMarks: [(Int, SpacingEdge)]
     fileprivate let parents: [(Int, Int)]
     fileprivate let rowTokens: [(Int, Int)]
     fileprivate let rowAlignments: [(Int, ProposalAlignment?)]
@@ -2508,7 +2569,7 @@ extension LayoutSegment {
     /// from a fresh build in the digest of every keyed leaf). **`package`**: a test hook, not API.
     package func testingDroppingLeafKeys() -> LayoutSegment {
         LayoutSegment(nodeCount: nodeCount, rebaseOrigin: rebaseOrigin, tops: tops, children: children, cases: cases,
-                      leafKeys: [], spacerAxes: spacerAxes, parents: parents, rowTokens: rowTokens,
+                      leafKeys: [], spacerAxes: spacerAxes, spacingMarks: spacingMarks, parents: parents, rowTokens: rowTokens,
                       rowAlignments: rowAlignments, cellColumns: cellColumns, cellAnchors: cellAnchors,
                       cellColumnAlignments: cellColumnAlignments, cellUnsizedAxes: cellUnsizedAxes,
                       rightToLeft: rightToLeft)
@@ -2578,7 +2639,7 @@ extension LayoutTree {
         // Dictionaries are scanned by node, not by key, so a mark on a node outside the range is not read.
         let segment = LayoutSegment(
             nodeCount: upper - lower, rebaseOrigin: lower, tops: topIndices, children: children, cases: cases,
-            leafKeys: rows(leafKeys), spacerAxes: rows(spacerAxes), parents: parents,
+            leafKeys: rows(leafKeys), spacerAxes: rows(spacerAxes), spacingMarks: rows(spacingMarks), parents: parents,
             rowTokens: rows(gridRowTokens), rowAlignments: rows(gridRowAlignments), cellColumns: rows(gridCellColumns),
             cellAnchors: rows(gridCellAnchors), cellColumnAlignments: rows(gridCellColumnAlignments),
             cellUnsizedAxes: rows(gridCellUnsizedAxes),
@@ -2613,6 +2674,7 @@ extension LayoutTree {
         }
         for (relative, key) in segment.leafKeys { leafKeys[base + relative] = key }
         for (relative, axis) in segment.spacerAxes { spacerAxes[base + relative] = axis }
+        for (relative, edge) in segment.spacingMarks { spacingMarks[base + relative] = edge }
         for (relative, parent) in segment.parents { nativeParents[base + relative] = base + parent }
         var tokens: [Int: Int] = [:]
         for (relative, token) in segment.rowTokens {
@@ -2653,7 +2715,7 @@ extension LayoutTree {
                     + "|\(plan.columnCount)x\(plan.rowCount)|\(plan.hgap)|\(plan.vgap))"
             case .some(let other): line += "\(other)"
             }
-            line += "|key:\(String(describing: leafKeys[index]?.key))|spacer:\(String(describing: spacerAxes[index]))"
+            line += "|key:\(String(describing: leafKeys[index]?.key))|spacer:\(String(describing: spacerAxes[index]))|ts:\(String(describing: spacingMarks[index]))"
             line += "|parent:\(String(describing: nativeParents[index]))"
             if let token = gridRowTokens[index] {
                 let rank = tokenRanks[token] ?? tokenRanks.count

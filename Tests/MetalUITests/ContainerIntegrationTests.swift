@@ -460,51 +460,40 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
     }
 }
 
-/// CN-H's one declared non-adoption, pinned as MetalUI's rule: a vertical stack
-/// of `ProposalText`s gets 8 at a text edge. SwiftUI's is font-derived — probe
-/// S reads `VStack` text|text **0**, rect|text **4.74**, text|rect **8.15**
-/// (and 8 horizontally for every pair) — and the kernel has no font metrics or
-/// spacing-preference channel to derive it from (owner task 11, with baseline
-/// alignment).
+/// Row 51, retired in part (rulings `DS-E`, `DS-F`; probe `swiftui-default-spacing.swift`, macOS 27.2):
+/// a vertical stack of `ProposalText`s takes the font's own gap at a text edge where it used to take 8.
+/// SwiftUI's, at the default 13 pt font: text|text **0**, rect|text **4.742**, text|rect **8.151**
+/// (DS1; `d + ceil((a + d) / 10)` and that `+ (a - c)` with a = 12.568, d = 2.742, c = 9.16), and 8
+/// horizontally for every pair.
 ///
-/// Three `VStack(alignment: .leading)` roots under `.fixedSize()` (each inside a
-/// 300×300 top-leading frame, so the stack's top is the window's whatever its
-/// height; since lane 4's CN-J a bare root would be centred at its answer), the marker
-/// `m` a fixed 20×20 leaf: `{text; text; m}` at spacing 0 puts m at 2h (the
-/// control, from which h, one line's height, is read); `{text; m}` at default
-/// spacing puts m at h + 8 (text|rect); `{text; text; m}` at default spacing at
-/// 2h + 16 (text|text is the difference, 8).
+/// Read unrounded through `measureNativeLayout` (a placed rect is rounded, and 8.151 would round to the old
+/// 8): `{text; m}` is 16 + 8.151 + 20, `{m; text}` 20 + 4.742 + 16, `{text; text}` 32, with `m` a fixed 20×20
+/// leaf. A rect pair keeps 8 (the separating control, so the three differ from a stack that ignores text).
 ///
-/// Green on arrival (the old default was an explicit 8); requires the control
-/// to differ. Mutation: default nil → 0 (both gaps read 0).
+/// Red before (the old pin read 8 for text|text). Mutations: `defaultGap` returns 8 everywhere (all three);
+/// the plain `Text` site not marked (`Text.swift`) leaves `ProposalText` green, and `ProposalText`'s not marked
+/// leaves `Text` green (`DefaultSpacingIntegrationTests` pins that one).
 @MainActor
-@Test func aProposalTextStackUsesEightWhereSwiftUIUsesFontSpacing() throws {
-    func markerY<Root: Element>(_ root: Root, _ log: BoundsLog) throws -> Float {
-        var root = root
+@Test func aProposalTextStackTakesItsTextEdgeGaps() throws {
+    func height<E: ProposalElement>(_ element: E) -> Double {
+        var copy = element
         let frame = Frame(contentSize: Size(width: Pixels(300), height: Pixels(300)), scaleFactor: 1)
-        frame.render(&root)
-        return try #require(log.bounds["m"]).origin.y.value
+        var pass = LayoutPass(frame: frame)
+        let (node, _) = copy.requestProposalLayout(GlobalElementID.child(of: nil, at: 0, name: nil), pass: &pass)
+        return frame.tree.measureNativeLayout(root: node.layoutNodeID,
+                                              proposal: ProposedSize(width: nil, height: nil)).size.height
     }
     let log = BoundsLog()
-    let control = try markerY(VStack(alignment: .leading, spacing: Pixels(0)) {
-        ProposalText("Alpha")
-        ProposalText("Bravo")
-        fixed("m", 20, 20, log)
-    }.fixedSize().frame(width: Pixels(300), height: Pixels(300), alignment: .topLeading), log)
-    let textRect = try markerY(VStack(alignment: .leading) {
-        ProposalText("Alpha")
-        fixed("m", 20, 20, log)
-    }.fixedSize().frame(width: Pixels(300), height: Pixels(300), alignment: .topLeading), log)
-    let textText = try markerY(VStack(alignment: .leading) {
-        ProposalText("Alpha")
-        ProposalText("Bravo")
-        fixed("m", 20, 20, log)
-    }.fixedSize().frame(width: Pixels(300), height: Pixels(300), alignment: .topLeading), log)
-    let lineHeight = control / 2
-    try #require(lineHeight > 0, "the control measured no text")
-    try #require(textText != control, "default spacing and spacing 0 must disagree")
-    #expect(textRect - lineHeight == 8, "text|rect gap (SwiftUI 8.15)")
-    #expect(textText - textRect - lineHeight == 8, "text|text gap (SwiftUI 0)")
+    let textText = height(VStack(alignment: .leading) { ProposalText("Alpha"); ProposalText("Bravo") })
+    let textRect = height(VStack(alignment: .leading) { ProposalText("Alpha"); fixed("m", 20, 20, log) })
+    let rectText = height(VStack(alignment: .leading) { fixed("m", 20, 20, log); ProposalText("Alpha") })
+    let rectRect = height(VStack(alignment: .leading) { fixed("m", 20, 20, log); fixed("n", 20, 20, log) })
+    let line = height(ProposalText("Alpha"))
+    try #require(line == 16, "the default font's line: \(line)")
+    #expect(textText == 2 * line, "text|text gap (SwiftUI 0): \(textText)")
+    #expect(abs(textRect - (line + 8.151 + 20)) < 0.002, "text|rect gap (SwiftUI 8.151): \(textRect)")
+    #expect(abs(rectText - (20 + 4.742 + line)) < 0.002, "rect|text gap (SwiftUI 4.742): \(rectText)")
+    #expect(rectRect == 48, "rect|rect keeps 8: \(rectRect)")
 }
 
 /// The deprecated spacing-first spellings, reached without a deprecation
