@@ -157,7 +157,14 @@ final class TransitionStore {
         let from: Double
         let atoms: [TransitionAtom]
         let rect: MUIBounds
-        let captures: [CapturedPrimitive]
+        var captures: [CapturedPrimitive]
+        /// The element whose run this ghost is drawn in (`XF-F`): the nearest ancestor of the ghost's position that was
+        /// prepainted, resolved once by `resolveAnchors` in the frame that made the ghost. `nil` until then, and for
+        /// good when no ancestor was prepainted (the ghost is then drawn after the root, counted as unanchored).
+        var anchor: GlobalElementID?
+        /// Whether this frame's paint already drew the ghost at its anchor. Part of what a redo puts back
+        /// (`rollbackBuild`) and cleared by `paintGhosts` at the end of every frame.
+        var drawn = false
     }
 
     private var insertions: [GlobalElementID: Insertion] = [:]
@@ -175,6 +182,17 @@ final class TransitionStore {
 
     /// Ghosts in flight.
     var ghostCount: Int { ghosts.count }
+
+    /// Whether any ghost has a resolved anchor (`XF-F`): what `Frame.hasGhostAnchors` is set from each frame.
+    var hasAnchoredGhosts: Bool { ghosts.contains { $0.ghost.anchor != nil } }
+
+    /// Each live ghost's anchor, in removal order (`nil` until resolved, or for good when no ancestor was prepainted).
+    var ghostAnchors: [GlobalElementID?] { ghosts.map { $0.ghost.anchor } }
+
+    /// Ghosts the last completed frame drew after the root instead of at their container (`XF-F`): a work counter.
+    /// Zero in an ordinary tree; non-zero when the container left, was hidden, or paints through a path that
+    /// reaches no hook.
+    private(set) var lastFrameUnanchoredGhosts = 0
 
     /// Each live ghost's key and its group's position (`key.parent`) — read by
     /// the lifecycle after `paintGhosts`, so a landed ghost is already gone
@@ -274,13 +292,16 @@ final class TransitionStore {
             // A removal during an insertion starts from the insertion's progress.
             let from = insertions.removeValue(forKey: key).map { activeness(of: $0, at: now).value } ?? 0
             guard let entry = evaluated[previous.evaluator], let animation = entry,
-                  !wasProduced(previous, previous: false),
-                  let rect = previous.surfaceRect, !previous.captures.isEmpty else { continue }
+                  !wasProduced(previous, previous: false) else { continue }
             let atoms = previous.transition.atoms(insertion: false, reduceMotion: previous.reduceMotion)
             guard !atoms.isEmpty else { continue }
+            // A ghost always exists (`XF-G`, `T1e2`): content that drew nothing, or laid out no node, still holds its
+            // `onDisappear` for the animation. It draws nothing; the zero rect is never read by a primitive.
+            let rect = previous.surfaceRect ?? MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0))
             if let stale = ghostIndex(key) { ghosts.remove(at: stale) }
             ghosts.append((key, Ghost(start: now, animation: animation, from: from, atoms: atoms,
                                       rect: rect, captures: previous.captures)))
+            frame.pendingGhostAnchors = true   // its container is found after prepaint (`XF-F`)
         }
     }
 
@@ -329,23 +350,61 @@ final class TransitionStore {
         records[key]?.captures = scope.captures
     }
 
+    /// Draws `ghost` at `activeness`: its capture replayed with its removal effect, straight into the scene (a ghost
+    /// bypasses every live scope, so it stays frozen at its last place).
+    private func draw(_ ghost: Ghost, activeness value: Double, frame: Frame) {
+        let effect = RenderEffect(atoms: ghost.atoms, activeness: value, rect: ghost.rect,
+                                  scaleFactor: frame.scaleFactor)
+        for primitive in ghost.captures {
+            guard let replayed = effect.apply(to: primitive, flattens: true, outer: nil) else { continue }
+            frame.insertIntoScene(replayed)
+        }
+    }
+
+    /// Finds the container of each ghost that has none (`XF-F`): the nearest ancestor of its position that is in
+    /// `seen`, the ids `recordElementBounds` noted this frame. Called once per frame that made a ghost, after
+    /// prepaint and before paint.
+    func resolveAnchors(seen: Set<GlobalElementID>) {
+        for index in ghosts.indices where ghosts[index].ghost.anchor == nil {
+            var cursor = ghosts[index].key.parent?.parent   // the position's parent
+            while let id = cursor {
+                if seen.contains(id) { ghosts[index].ghost.anchor = id; break }
+                cursor = id.parent
+            }
+        }
+    }
+
+    /// Draws every unfinished ghost anchored at `id`, in the order their removals began, at the position the caller
+    /// is painting (`XF-F`): the first sublayer of the container's run, as SwiftUI places a leaver (`XF10`). A ghost
+    /// is inserted directly, so it bypasses the paint recorder: an enclosing retained occurrence that drew one must
+    /// not record (`ghostInRun`), or its replay would be frozen without the ghost.
+    func paintGhosts(anchoredAt id: GlobalElementID, frame: Frame) {
+        for index in ghosts.indices where ghosts[index].ghost.anchor == id && !ghosts[index].ghost.drawn {
+            let ghost = ghosts[index].ghost
+            let a = activeness(of: ghost, at: frame.timestamp)
+            guard !a.isFinished else { continue }
+            ghosts[index].ghost.drawn = true
+            frame.retainLog?.taint("ghostInRun")
+            draw(ghost, activeness: a.value, frame: frame)
+        }
+    }
+
     /// Called once per frame after the tree has painted, before the glyph
-    /// atlas's frame bracket closes: every live ghost's capture replayed with
-    /// its removal effect, on the layer it had, in the order the removals
-    /// began. A landed ghost is dropped and not drawn.
+    /// atlas's frame bracket closes: every live ghost not already drawn at its
+    /// container, replayed with its removal effect on the layer it had, in the
+    /// order the removals began (above the root: a ghost whose container was not
+    /// reached, `lastFrameUnanchoredGhosts`). A landed ghost is dropped and not drawn.
     func paintGhosts(_ pass: inout PaintPass) {
+        lastFrameUnanchoredGhosts = 0
         guard !ghosts.isEmpty else { return }
         let frame = pass.frame
         ghosts.removeAll { activeness(of: $0.ghost, at: frame.timestamp).isFinished }
-        for (_, ghost) in ghosts {
+        for index in ghosts.indices {
             frame.noteActiveAnimation()
-            let a = activeness(of: ghost, at: frame.timestamp)
-            let effect = RenderEffect(atoms: ghost.atoms, activeness: a.value, rect: ghost.rect,
-                                      scaleFactor: frame.scaleFactor)
-            for primitive in ghost.captures {
-                guard let replayed = effect.apply(to: primitive, flattens: true, outer: nil) else { continue }
-                frame.insertIntoScene(replayed)
-            }
+            if ghosts[index].ghost.drawn { ghosts[index].ghost.drawn = false; continue }
+            lastFrameUnanchoredGhosts += 1
+            let ghost = ghosts[index].ghost
+            draw(ghost, activeness: activeness(of: ghost, at: frame.timestamp).value, frame: frame)
         }
     }
 
@@ -374,16 +433,14 @@ final class TransitionStore {
 
     /// Forgets every captured sprite - the last frame's and each ghost's - because
     /// the glyph atlas was emptied and a captured glyph names a rect in the
-    /// atlas it was painted against (`GL-D` item 3). A group captured so stops
-    /// ghosting (its removal starts no ghost, a ghost in flight draws nothing)
-    /// until its next paint captures it again; insertions and progress stay.
+    /// atlas it was painted against (`GL-D` item 3). A group captured so ghosts
+    /// nothing (its removal starts a ghost that draws nothing, `XF-G`, still
+    /// parking its `onDisappear`; a ghost in flight draws nothing) until its
+    /// next paint captures it again; insertions and progress stay.
     func forgetCapturedPrimitives() {
         for key in Array(records.keys) { records[key]?.captures = [] }
         for key in Array(previousRecords.keys) { previousRecords[key]?.captures = [] }
-        ghosts = ghosts.map { entry in
-            (entry.key, Ghost(start: entry.ghost.start, animation: entry.ghost.animation, from: entry.ghost.from,
-                              atoms: entry.ghost.atoms, rect: entry.ghost.rect, captures: []))
-        }
+        for index in ghosts.indices { ghosts[index].ghost.captures = [] }
     }
 
     /// Called once per frame at its end, before the `AnimationStore` drops
@@ -400,6 +457,15 @@ final class TransitionStore {
         records.removeAll(keepingCapacity: true)
         lastFrameCapturedPrimitives = capturedThisFrame
         capturedThisFrame = 0
+    }
+}
+
+extension Frame {
+    /// Draws the removal ghosts anchored at `id` (`XF-F`). Called by each element's paint, the content of each
+    /// styled element's decoration, each modifier chain's innermost layer, `AnyElement`'s entry and the root, behind
+    /// `hasGhostAnchors`.
+    func paintAnchoredGhosts(at id: GlobalElementID) {
+        animationStore.transitions.paintGhosts(anchoredAt: id, frame: self)
     }
 }
 

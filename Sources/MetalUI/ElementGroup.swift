@@ -187,6 +187,9 @@ extension Element {
         // Same reason as `prepaintGroup` above — paint is a third phase and the
         // box is still whatever the last `bind` left it.
         StateBinder.bind(self, in: pass.frame, id: layout.id)
+        // A removal ghost anchored here is the first thing drawn in this element's run (`XF-F`); a styled element draws
+        // it inside its decoration instead, above its own fill (`paintDecoration`).
+        if pass.frame.hasGhostAnchors, !(self is any StyledElement) { pass.frame.paintAnchoredGhosts(at: layout.id) }
         paint(layout.id, bounds: pass.bounds(of: layout.node),
               layout: &layout.state, prepaint: &prepaint, pass: &pass)
     }
@@ -730,6 +733,8 @@ extension AnyElement: ElementGroup {
         // Stage 6b (`LR-DH` item 4): `Element.paintGroup`'s skip, mirrored.
         guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
         pass.frame.elementPaints += 1
+        // `Element.paintGroup`'s ghost hook (`XF-F`), at the position's id: the one this entry recorded.
+        if pass.frame.hasGhostAnchors { pass.frame.paintAnchoredGhosts(at: layout.id) }
         paint(layout.contentID, bounds: pass.bounds(of: layout.node), pass: &pass)
     }
 }
