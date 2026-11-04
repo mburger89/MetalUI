@@ -64,13 +64,16 @@ func theBracketNodeDragRebuildsTheWholeWindow(arm: BracketArm) throws {
     // Counted at e85cb07a: 81 / 805 / 527 / 1106 / 30. Lane 2 (`SB-AD`) keyed two more leaves for the
     // layout memo (a `Color` as a view, an empty legacy container), so a subtree holding one now has a
     // signature and the same frame measures less: re-counted here, retention off.
-    #expect(f.layoutMeasureCalls == 52)
-    #expect(f.layoutCacheHits == 366)
-    #expect(f.layoutCacheMisses == 217)
-    #expect(f.layoutMemoHits == 1258)
+    // R4-3a (`SR-G`): the top bar's segmented `Picker` is now one native node (`PickerTitleLayout`) with a signature
+    // and a memo hit, and it asks its title and control up to four times: 52 -> 57 measures, 366 -> 365 and 217 -> 223
+    // cache hits and misses, 1258 -> 1259 memo hits, 844 -> 845 signature nodes (re-counted retention off; record 210).
+    #expect(f.layoutMeasureCalls == 57)
+    #expect(f.layoutCacheHits == 365)
+    #expect(f.layoutCacheMisses == 223)
+    #expect(f.layoutMemoHits == 1259)
     #expect(f.layoutMemoMisses == 55)
     #expect(f.layoutMemoRootHits == 0)
-    #expect(f.layoutSignatureNodes == 844)
+    #expect(f.layoutSignatureNodes == 845)
     #expect(f.rects == 182)
     #expect(f.glyphs == 550)
     #expect(f.images == 6)

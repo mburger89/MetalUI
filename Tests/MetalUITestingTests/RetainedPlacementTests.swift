@@ -17,7 +17,7 @@ import Testing
 /// of the 20 nodes are on screen (the canvas cull), ten of them unmoved, and the library `List`
 /// (`WindowedRowsLayout`, not `Hashable`), the inspector (`Slider`, an unkeyed leaf) and the top bar
 /// have no signature. The count is now a literal, with the layout lookups it removes (1258 memo
-/// hits -> 362 and 366 cache hits -> 331 against `theBracketNodeDragRebuildsTheWholeWindow`).
+/// hits -> 362 and 366 cache hits -> 331 against `theBracketNodeDragRebuildsTheWholeWindow`; 363 / 1259, 330 / 365 and 57 measures since R4-3a, `SR-G`).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 presents the rebuild of a prepaint-replayed frame, whose layout work is the second build's (the memo already holds the first's): the layout counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.panels]) @MainActor
 func aDragFrameRestoresTheUnmovedOccurrencesPlacement(arm: BracketArm) throws {
     let on = try bracketDragFrames(arm: arm, steps: 20, retained: true).frames
@@ -26,9 +26,9 @@ func aDragFrameRestoresTheUnmovedOccurrencesPlacement(arm: BracketArm) throws {
     let f = on[on.count / 2], g = off[off.count / 2]
     #expect(g.layoutSubtreeHits == 0, "no marks, no restores")
     #expect(f.layoutSubtreeHits == 11)
-    #expect(f.layoutMemoHits == 362 && g.layoutMemoHits == 1258)
-    #expect(f.layoutCacheHits == 331 && g.layoutCacheHits == 366)
-    #expect(f.layoutMeasureCalls == 52 && f.layoutCacheMisses == 217 && f.layoutMemoMisses == 55)
+    #expect(f.layoutMemoHits == 363 && g.layoutMemoHits == 1259)
+    #expect(f.layoutCacheHits == 330 && g.layoutCacheHits == 365)
+    #expect(f.layoutMeasureCalls == 57 && f.layoutCacheMisses == 223 && f.layoutMemoMisses == 55)
     #expect(f.layoutMemoRootHits == 0)
 }
 

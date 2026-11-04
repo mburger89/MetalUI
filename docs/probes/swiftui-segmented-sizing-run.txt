@@ -1,0 +1,188 @@
+--- TW: Text widths
+--- SG1 sizes
+  TW Vanilla: zero 0x0  nil 40x16  inf 40x16  w200 40x16  w100 40x16  w60 40x16  w50 40x16  w40 40x16  w38 33x32  w37 33x32  w36 33x32  w30 30x32  w20 18x48  w12 11x80  w8 8x96  w6 6x112  w4 4x112  w2 2x112  w1 1x112
+  TW Chocolate: zero 0x0  nil 62x16  inf 62x16  w200 62x16  w100 62x16  w60 55x32  w50 50x32  w40 40x32  w38 32x32  w37 32x32  w36 32x32  w30 30x48  w20 18x64  w12 12x112  w8 8x144  w6 6x144  w4 4x144  w2 2x144  w1 1x144
+  TW Strawberry mint: zero 0x0  nil 97x16  inf 97x16  w200 97x16  w100 97x16  w60 60x32  w50 50x32  w40 36x48  w38 36x48  w37 36x48  w36 36x48  w30 27x64  w20 20x96  w12 12x176  w8 8x224  w6 6x224  w4 4x224  w2 2x224  w1 1x224
+  TW Flavor: zero 0x0  nil 37x16  inf 37x16  w200 37x16  w100 37x16  w60 37x16  w50 37x16  w40 37x16  w38 37x16  w37 37x16  w36 32x32  w30 25x32  w20 20x32  w12 11x80  w8 8x96  w6 6x96  w4 4x96  w2 2x96  w1 1x96
+  TW Strawberry mint Strawberry mint: zero 0x0  nil 198x16  inf 198x16  w200 198x16  w100 100x32  w60 60x64  w50 50x64  w40 36x96  w38 36x96  w37 36x96  w36 36x96  w30 30x128  w20 20x192  w12 12x352  w8 8x448  w6 6x448  w4 4x448  w2 2x448  w1 1x448
+  SG1a labelled 3: zero 279x24  nil 408x24  inf 408x24  w1000 408x24  w500 408x24  w420 408x24  w412 408x24  w400 400x24  w380 380x24  w350 350x24  w335 335x24  w320 320x24  w300 300x32  w280 280x96  w260 279x96  w240 279x96  w220 279x96  w200 279x96  w180 279x96  w160 279x96  w140 279x96  w120 279x96  w100 279x96  w80 279x96  w60 279x96  w50 279x96  w40 279x96  w20 279x96  w6 279x96
+  SG1b hidden 3: zero 271x24  nil 363x24  inf 363x24  w1000 363x24  w500 363x24  w420 363x24  w412 363x24  w400 363x24  w380 363x24  w350 350x24  w335 335x24  w320 320x24  w300 300x24  w280 280x24  w260 271x24  w240 271x24  w220 271x24  w200 271x24  w180 271x24  w160 271x24  w140 271x24  w120 271x24  w100 271x24  w80 271x24  w60 271x24  w50 271x24  w40 271x24  w20 271x24  w6 271x24
+  SG1c empty title 3: zero 279x24  nil 371x24  inf 371x24  w1000 371x24  w500 371x24  w420 371x24  w412 371x24  w400 371x24  w380 371x24  w350 350x24  w335 335x24  w320 320x24  w300 300x24  w280 280x24  w260 279x24  w240 279x24  w220 279x24  w200 279x24  w180 279x24  w160 279x24  w140 279x24  w120 279x24  w100 279x24  w80 279x24  w60 279x24  w50 279x24  w40 279x24  w20 279x24  w6 279x24
+  SG1d hidden Alpha/Beta: zero 111x24  nil 118x24  inf 118x24  w1000 118x24  w500 118x24  w420 118x24  w412 118x24  w400 118x24  w380 118x24  w350 118x24  w335 118x24  w320 118x24  w300 118x24  w280 118x24  w260 118x24  w240 118x24  w220 118x24  w200 118x24  w180 118x24  w160 118x24  w140 118x24  w120 118x24  w100 111x24  w80 111x24  w60 111x24  w50 111x24  w40 111x24  w20 111x24  w6 111x24
+  SG1e hidden A/long: zero 178x24  nil 290x24  inf 290x24  w1000 290x24  w500 290x24  w420 290x24  w412 290x24  w400 290x24  w380 290x24  w350 290x24  w335 290x24  w320 290x24  w300 290x24  w280 280x24  w260 260x24  w240 240x24  w220 220x24  w200 200x24  w180 180x24  w160 178x24  w140 178x24  w120 178x24  w100 178x24  w80 178x24  w60 178x24  w50 178x24  w40 178x24  w20 178x24  w6 178x24
+  SG1f labelled menu 3: zero 41.50x24  nil 189.50x24  inf 189.50x24  w1000 189.50x24  w500 189.50x24  w420 189.50x24  w412 189.50x24  w400 189.50x24  w380 189.50x24  w350 189.50x24  w335 189.50x24  w320 189.50x24  w300 189.50x24  w280 189.50x24  w260 189.50x24  w240 189.50x24  w220 189.50x24  w200 189.50x24  w180 180x24  w160 160x24  w140 140.50x24  w120 120x24  w100 100x24  w80 80.50x24  w60 60.50x48  w50 50.50x96  w40 41.50x96  w20 41.50x96  w6 41.50x96
+  SG1g hidden menu 3: zero 33.50x24  nil 144.50x24  inf 144.50x24  w1000 144.50x24  w500 144.50x24  w420 144.50x24  w412 144.50x24  w400 144.50x24  w380 144.50x24  w350 144.50x24  w335 144.50x24  w320 144.50x24  w300 144.50x24  w280 144.50x24  w260 144.50x24  w240 144.50x24  w220 144.50x24  w200 144.50x24  w180 144.50x24  w160 144.50x24  w140 140x24  w120 120x24  w100 100x24  w80 80x24  w60 60x24  w50 50x24  w40 40.50x24  w20 33.50x24  w6 33.50x24
+--- SG2 hidden picker in frame(width:) and placed; the segment widths
+  SG2 w500 3:
+    picker (68.50, 0, 363, 24)
+    ctl frame=(0, 0, 363, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[122,121,122]
+  SG2 w380 3:
+    picker (8.50, 0, 363, 24)
+    ctl frame=(0, 0, 363, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[122,121,122]
+  SG2 w335 3:
+    picker (0, 0, 335, 24)
+    ctl frame=(0, 0, 335, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[108,108,121]
+  SG2 w300 3:
+    picker (0, 0, 300, 24)
+    ctl frame=(0, 0, 300, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[91,90,121]
+  SG2 w280 3:
+    picker (0, 0, 280, 24)
+    ctl frame=(0, 0, 280, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[75,86,121]
+  SG2 w260 3:
+    picker (-5.50, 0, 271, 24)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG2 w240 3:
+    picker (-15.50, 0, 271, 24)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG2 w200 3:
+    picker (-35.50, 0, 271, 24)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG2 w160 3:
+    picker (-55.50, 0, 271, 24)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG2 w100 3:
+    picker (-85.50, 0, 271, 24)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG2 w300 A/long:
+    picker (5, 0, 290, 24)
+    ctl frame=(0, 0, 290, 24) intrinsic=290x24 dist=2 widthForSegment=[0,0] ax=[146,146]
+  SG2 w200 A/long:
+    picker (0, 0, 200, 24)
+    ctl frame=(0, 0, 200, 24) intrinsic=290x24 dist=2 widthForSegment=[0,0] ax=[57,145]
+  SG2 w160 A/long:
+    picker (-9, 0, 178, 24)
+    ctl frame=(0, 0, 178, 24) intrinsic=290x24 dist=2 widthForSegment=[0,0] ax=[35,145]
+  SG2 w120 A/long:
+    picker (-29, 0, 178, 24)
+    ctl frame=(0, 0, 178, 24) intrinsic=290x24 dist=2 widthForSegment=[0,0] ax=[35,145]
+--- SG3 the human-check scenes, label frame from a Picker label: view
+  SG3a VStack.padding(20) 420:
+    label (20, 24, 37, 16)
+    picker (20, 20, 380, 24)
+    ctl frame=(0, 0, 335, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[108,108,121]
+  SG3b frame(width:380):
+    label (0, 4, 37, 16)
+    picker (0, 0, 380, 24)
+    ctl frame=(0, 0, 335, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[108,108,121]
+  SG3c HStack{Text;Picker("")} 380:
+    picker (45, 0, 335, 24)
+    text (0, 4, 37, 16)
+    ctl frame=(0, 0, 327, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[104,104,121]
+  SG3d HStack{Text;Picker.hidden} 380:
+    picker (45, 0, 335, 24)
+    text (0, 4, 37, 16)
+    ctl frame=(0, 0, 335, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[108,108,121]
+  SG3e labelled frame(width:300):
+    label (0, 0, 20, 32)
+    picker (0, 0, 300, 32)
+    ctl frame=(0, 0, 272, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[67,86,121]
+  SG3e labelled frame(width:280):
+    label (0, 0, 1, 96)
+    picker (0, 0, 280, 96)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG3e labelled frame(width:260):
+    label (-9.50, 0, 0, 96)
+    picker (-9.50, 0, 279, 96)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG3e labelled frame(width:240):
+    label (-19.50, 0, 0, 96)
+    picker (-19.50, 0, 279, 96)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG3e labelled frame(width:200):
+    label (-39.50, 0, 0, 96)
+    picker (-39.50, 0, 279, 96)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG3e labelled frame(width:150):
+    label (-64.50, 0, 0, 96)
+    picker (-64.50, 0, 279, 96)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+  SG3e labelled frame(width:100):
+    label (-89.50, 0, 0, 96)
+    picker (-89.50, 0, 279, 96)
+    ctl frame=(0, 0, 271, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[66,86,121]
+--- SG4 stack around a flexible picker with a small flex
+  SG4a HStack{Text Mode;Picker.hidden Alpha/Beta} 200:
+    picker (66, 0, 111, 24)
+    text (23, 4, 35, 16)
+    ctl frame=(0, 0, 111, 24) intrinsic=118x24 dist=2 widthForSegment=[0,0] ax=[59,54]
+  SG4b HStack{Text Mode;Picker.hidden A/long} 300:
+    picker (43, 0, 257, 24)
+    text (0, 4, 35, 16)
+    ctl frame=(0, 0, 257, 24) intrinsic=290x24 dist=2 widthForSegment=[0,0] ax=[114,145]
+  SG4c labelled Alpha/Beta 200:
+    label (19.50, 4, 35, 16)
+    picker (19.50, 0, 161, 24)
+    ctl frame=(0, 0, 118, 24) intrinsic=118x24 dist=2 widthForSegment=[0,0] ax=[60,60]
+  SG4d five segments 300:
+    picker (-41.50, 0, 383, 24)
+    ctl frame=(0, 0, 383, 24) intrinsic=860x24 dist=2 widthForSegment=[0,0,0,0,0] ax=[35,41,48,89,172]
+  SG4e five segments ideal:
+    picker (0, 0, 800, 24)
+    ctl frame=(0, 0, 800, 24) intrinsic=860x24 dist=2 widthForSegment=[0,0,0,0,0] ax=[158,157,158,157,172]
+  SG4f controlSize small:
+    picker (0, 0, 300, 20)
+    ctl frame=(0, 0, 300, 20) intrinsic=312x20 dist=2 widthForSegment=[0,0,0] ax=[99,99,104]
+  SG4g with disabled:
+    picker (0, 0, 300, 24)
+    ctl frame=(0, 0, 300, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[91,90,121]
+  SG4h long title 380:
+    label (0, 0, 83, 48)
+    picker (0, 0, 380, 48)
+    ctl frame=(0, 0, 289, 24) intrinsic=363x24 dist=2 widthForSegment=[0,0,0] ax=[84,86,121]
+--- SQ Text squeezed by a rigid sibling, window 380x200
+  SQ1 HStack{Text Flavor; Color w300} 380:
+    rigid (62.50, 0, 300, 24)
+    text (17.50, 4, 37, 16)
+  SQ1 HStack{Text Flavor; Color w330} 380:
+    rigid (47.50, 0, 330, 24)
+    text (2.50, 4, 37, 16)
+  SQ1 HStack{Text Flavor; Color w335} 380:
+    rigid (45, 0, 335, 24)
+    text (0, 4, 37, 16)
+  SQ1 HStack{Text Flavor; Color w336} 380:
+    rigid (42, 4, 336, 24)
+    text (2, 0, 32, 32)
+  SQ1 HStack{Text Flavor; Color w340} 380:
+    rigid (40, 4, 340, 24)
+    text (0, 0, 32, 32)
+  SQ1 HStack{Text Flavor; Color w350} 380:
+    rigid (29, 4, 350, 24)
+    text (1, 0, 20, 32)
+  SQ1 HStack{Text Flavor; Color w366} 380:
+    rigid (14, 36, 366, 24)
+    text (0, 0, 6, 96)
+  SQ1 HStack{Text Flavor; Color w372} 380:
+    rigid (8, 36, 372, 24)
+    text (0, 0, 0, 96)
+  SQ1 HStack{Text Flavor; Color w374} 380:
+    rigid (7, 36, 374, 24)
+    text (-1, 0, 0, 96)
+  SQ1 HStack{Text Flavor; Color w379} 380:
+    rigid (4.50, 36, 379, 24)
+    text (-3.50, 0, 0, 96)
+  SQ1 HStack{Text Flavor; Color w400} 380:
+    rigid (-6, 36, 400, 24)
+    text (-14, 0, 0, 96)
+  SQ2 two words, tight:
+    rigid (79.50, 4, 300, 24)
+    text (0.50, 0, 71, 32)
+  SQ3 two words, tighter:
+    rigid (39.50, 20, 340, 24)
+    text (0.50, 0, 31, 64)
+  SQ4 height capped 24:
+    rigid (14, 0, 366, 24)
+    text (0, 4, 6, 16)
+--- PM pop-up frames
+  PM1 labelled menu:
+    label (0, 4, 37, 16)
+    picker (0, 0, 189.50, 24)
+  PM2 hidden menu:
+    picker (0, 0, 144.50, 24)
+  PM3 hidden menu selection 2:
+    picker (0, 0, 144.50, 24)
+  PM4 hidden short:
+    picker (0, 0, 56.50, 24)
+  PM5 hidden Alpha Beta:
+    picker (0, 0, 82.50, 24)
+  PM6 hidden long:
+    picker (0, 0, 168.50, 24)

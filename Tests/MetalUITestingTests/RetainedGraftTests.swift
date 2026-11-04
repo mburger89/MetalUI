@@ -50,7 +50,7 @@ private let afterGraftFrames: [AfterGraftFrame] = [
     AfterGraftFrame(arm: .value, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
     AfterGraftFrame(arm: .environment, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
     // `RW-S`: the graph panel is eligible now (read-only `withState`), no longer a graft refusal: 167 -> 144 requests, 176 -> 153 prepaints.
-    AfterGraftFrame(arm: .panels, requests: 144, skippedRequests: 654, grafts: 31, graftIneligible: 0, graftedNodes: 677, prepaints: 153, prepaintHits: 31),
+    AfterGraftFrame(arm: .panels, requests: 144, skippedRequests: 654, grafts: 31, graftIneligible: 0, graftedNodes: 678, prepaints: 153, prepaintHits: 31),
 ]
 
 @Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor

@@ -995,7 +995,7 @@ every option as a checked-or-not item (a native `NSMenu`, else the drawn panel,
 which scrolls when taller than the window and opens on the selection); choosing
 writes the tag. Options are recorded without layout (hundreds cost one record
 each); a non-`Text` option is titled by its tag (128). Published as
-`.popUpButton`. `.automatic` stays segmented (81).
+`.popUpButton`. `.automatic` is this style (`SR-B`).
 
 ## Accessibility — A / M
 

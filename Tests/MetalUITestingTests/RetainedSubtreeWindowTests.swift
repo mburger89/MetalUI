@@ -65,8 +65,8 @@ func theBracketNodeDragReplaysEveryUnchangedSubtree(arm: BracketArm) throws {
             // The press frame. Until C14-e (`CF-J`) the measure entries under a restored subtree were not refreshed by the
             // restore, aged out (two frames) by the first miss, and that miss measured its subtree once: 135 against 52 for an
             // arm that retains nodes. A restored placement now touches its footprint, so the press frame measures what the
-            // unretained window measures: 52 in every arm.
-            #expect(f.layoutMeasureCalls == 52 && base.layoutMeasureCalls == 52, "frame 0: \(f.layoutMeasureCalls) vs \(base.layoutMeasureCalls)")
+            // unretained window measures: 57 in every arm (52 until R4-3a, `SR-G`: the segmented picker's title row measures five more).
+            #expect(f.layoutMeasureCalls == 57 && base.layoutMeasureCalls == 57, "frame 0: \(f.layoutMeasureCalls) vs \(base.layoutMeasureCalls)")
         } else {
             #expect(f.layoutMeasureCalls <= base.layoutMeasureCalls, "frame \(index): \(f.layoutMeasureCalls) vs \(base.layoutMeasureCalls)")
         }
