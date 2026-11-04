@@ -87,6 +87,18 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
     #expect(row == 20, "an empty text keeps a row's height: \(row)")
 }
 
+/// **Rows of icon and label keep their gaps** (`DS-G2`; probe `DS9b`): `VStack { HStack { block; Text }; Text }` is
+/// 4.742 between the row and the text below it (the three-kind union read 0 here, and the old code 8), a row above
+/// a row 8.151, a text above a row 8.151. Through the element API, with an image in place of the block too.
+/// Mutation **MX2**: `mixed` collapsed to `text`.
+@MainActor @Test func aRowOfIconAndLabelKeepsItsGaps() {
+    func row() -> some ElementGroup { HStack { block(); ProposalText("Alpha") } }
+    #expect(near(gap(row(), ProposalText("Bravo")), 4.742), "row over text")
+    #expect(near(gap(ProposalText("Bravo"), row()), 8.151), "text over row")
+    #expect(near(gap(row(), row()), 8.151), "row over row")
+    #expect(near(gap(block(), row()), 4.742) && near(gap(row(), block()), 8.151), "beside a block")
+}
+
 // MARK: - the controls (DS7, DS-H)
 
 private struct ControlArm {

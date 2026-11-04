@@ -42,66 +42,108 @@ package struct TextSpacingMetrics: Hashable, Sendable {
 }
 
 /// What one edge of a node takes from the default spacing along a stack's axis
-/// (rulings CN-H and `DS-G`): nothing (a spacer's), the standard 8, or a
-/// text's own metrics.
+/// (rulings CN-H, `DS-G` and its overturning `DS-G2`): nothing (a spacer's), the
+/// standard 8, a text's own metrics, or **mixed**: a composite across its axis (or
+/// an overlay) that holds both a standard and a text edge, which reads like a text
+/// edge beside a standard neighbour and like a standard edge beside a text one
+/// (probe `swiftui-default-spacing.swift` `DS9`, `DS9b`).
 package enum SpacingEdge: Hashable, Sendable {
     case zero
     case standard
     case text(TextSpacingMetrics)
+    /// A standard and a text edge together; the metrics are the largest font's.
+    case mixed(TextSpacingMetrics)
 
     /// The edge of a composite whose children's edges are `edges`, where a zero
     /// child makes the composite's edge zero (a stack across its axis, a custom
-    /// layout): else the text edge of the largest font, else the standard one
-    /// (`DS9`).
+    /// layout): else the union of `union(_:)`.
     package static func acrossUnion(_ edges: [SpacingEdge]) -> SpacingEdge {
         if edges.contains(.zero) { return .zero }
-        return best(edges)
+        return union(edges)
     }
 
     /// The edge of a composite where it is zero only when every child's is (a `ZStack`).
     package static func overlayUnion(_ edges: [SpacingEdge]) -> SpacingEdge {
         if edges.allSatisfy({ $0 == .zero }) { return .zero }
-        return best(edges.filter { $0 != .zero })
+        return union(edges.filter { $0 != .zero })
     }
 
-    /// The text edge of the largest font among `edges` (the first on a tie), else standard.
-    private static func best(_ edges: [SpacingEdge]) -> SpacingEdge {
-        var chosen: TextSpacingMetrics?
-        for case .text(let metrics) in edges where metrics.extent > (chosen?.extent ?? -1) { chosen = metrics }
-        return chosen.map { .text($0) } ?? .standard
+    /// Standard if only standard edges, the text edge of the largest font if only text
+    /// edges, else mixed with the largest font's metrics (`DS9b`).
+    private static func union(_ edges: [SpacingEdge]) -> SpacingEdge {
+        var standard = false, text = false
+        var largest: TextSpacingMetrics?
+        for edge in edges {
+            switch edge {
+            case .zero: break
+            case .standard: standard = true
+            case .text(let metrics): text = true; largest = larger(largest, metrics)
+            case .mixed(let metrics): standard = true; text = true; largest = larger(largest, metrics)
+            }
+        }
+        guard text, let largest else { return .standard }
+        return standard ? .mixed(largest) : .text(largest)
     }
 
-    /// A text edge turned standard (a fixed frame or a non-zero inset touches it, `DS8`).
+    private static func larger(_ current: TextSpacingMetrics?, _ metrics: TextSpacingMetrics) -> TextSpacingMetrics {
+        guard let current, current.extent >= metrics.extent else { return metrics }
+        return current
+    }
+
+    /// A text or mixed edge turned standard (a fixed frame or a non-zero inset touches it, `DS8`).
     package var standardisingText: SpacingEdge {
-        if case .text = self { return .standard }
-        return self
+        switch self {
+        case .text, .mixed: return .standard
+        case .zero, .standard: return self
+        }
     }
 }
 
 extension ProposalSpacing {
     /// The default gap between a node whose trailing edge is `upper` and the next
     /// whose leading edge is `lower`, along `axis` (probe `swiftui-default-spacing.swift`,
-    /// macOS 27.2; rulings `DS-E`, `DS-F`). With a = ascent, d = descent, c = capHeight,
+    /// macOS 27.2; rulings `DS-E`, `DS-F`, `DS-G2`). With a = ascent, d = descent, c = capHeight,
     /// l = leading:
     ///
     /// - a zero edge on either side: 0;
     /// - **horizontal, or no text edge: 8**;
     /// - standard above text: `d + ceil((a + d) / 10)` of the lower text;
     /// - text above standard: that, from the upper text, `+ (a - c)`;
-    /// - text above text: `ceil(l)` of the lower text.
+    /// - text above text: `ceil(l)` of the lower text;
+    /// - **a mixed edge is a standard and a text component**: the gap is the largest of the
+    ///   component pairs, except that two standard components alone are never counted when
+    ///   either side is mixed (`DS9b`: `{rect; text}` beside a rect is the text above a rect,
+    ///   a rect beside it the rect above a text, beside a text the standard above that text,
+    ///   beside itself the larger of the two).
     package static func defaultGap(after upper: SpacingEdge, before lower: SpacingEdge,
                                    axis: ProposalStackAxis) -> Double {
         if upper == .zero || lower == .zero { return 0 }
         guard axis == .vertical else { return platformDefault }
-        switch (upper, lower) {
-        case (.text, .text(let below)):
-            return below.leading.rounded(.up)
-        case (.standard, .text(let below)):
-            return rectAboveText(below)
-        case (.text(let above), .standard):
-            return rectAboveText(above) + (above.ascent - above.capHeight)
-        default:
-            return platformDefault
+        let involvesMixed: Bool
+        if case .mixed = upper { involvesMixed = true } else if case .mixed = lower { involvesMixed = true } else { involvesMixed = false }
+        var best: Double?
+        for up in components(upper) {
+            for low in components(lower) {
+                if involvesMixed, up == nil, low == nil { continue }
+                let gap: Double
+                switch (up, low) {
+                case (nil, nil): gap = platformDefault
+                case (nil, let below?): gap = rectAboveText(below)
+                case (let above?, nil): gap = rectAboveText(above) + (above.ascent - above.capHeight)
+                case (_?, let below?): gap = below.leading.rounded(.up)
+                }
+                best = Swift.max(best ?? gap, gap)
+            }
+        }
+        return best ?? platformDefault
+    }
+
+    /// An edge's components: nil is a standard one, a value a text one.
+    private static func components(_ edge: SpacingEdge) -> [TextSpacingMetrics?] {
+        switch edge {
+        case .zero, .standard: return [nil]
+        case .text(let metrics): return [metrics]
+        case .mixed(let metrics): return [nil, metrics]
         }
     }
 

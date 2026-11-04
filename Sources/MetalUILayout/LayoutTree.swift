@@ -1400,10 +1400,10 @@ public final class LayoutTree {
         case .linearStack, .custom:
             let nodes = children(id)
             guard !nodes.isEmpty else { return (.zero, .zero) }
-            let edges = nodes.map { spacingEdges($0, axis: axis) }
+            let edges = unionOperands(nodes, axis: axis).map { spacingEdges($0, axis: axis) }
             return (SpacingEdge.acrossUnion(edges.map(\.leading)), SpacingEdge.acrossUnion(edges.map(\.trailing)))
         case .overlay:
-            let edges = children(id).map { spacingEdges($0, axis: axis) }
+            let edges = unionOperands(children(id), axis: axis).map { spacingEdges($0, axis: axis) }
             return (SpacingEdge.overlayUnion(edges.map(\.leading)), SpacingEdge.overlayUnion(edges.map(\.trailing)))
         case .leaf:
             return (.standard, .standard)
@@ -1415,6 +1415,27 @@ public final class LayoutTree {
         }
     }
 
+
+    /// The children whose edges a union reads along `axis`: a spacer across its stack's axis
+    /// (a standard edge alone, K3h), and a zero-by-zero fixed frame (a plain button's strut), add nothing beside another child (probe `DS9b`: `{text; Spacer()}`
+    /// reads exactly as a text, `{rect; Spacer(); text}` as `{rect; text}`), so it is left out unless
+    /// it is all there is.
+    private func unionOperands(_ nodes: [LayoutNodeID], axis: ProposalStackAxis) -> [LayoutNodeID] {
+        let others = nodes.filter { !isCrossAxisSpacer($0, axis: axis) }
+        return others.isEmpty ? nodes : others
+    }
+
+    private func isCrossAxisSpacer(_ id: LayoutNodeID, axis: ProposalStackAxis) -> Bool {
+        switch nativeNode(id) {
+        case .spacer: return spacerAxes[id.index].map { $0 != axis } ?? false
+        case .frame(let width, let height, _, _, _, _, _, _, _) where width == 0 && height == 0:
+            // A zero-by-zero fixed frame is no view (a plain `Button`'s strut, `BT1`): it adds no edge beside its label.
+            return true
+        case .layoutPriority, .fixedSize, .aspectRatio, .frame, .overlayAttachment:
+            return isCrossAxisSpacer(children(id)[0], axis: axis)
+        default: return false
+        }
+    }
 
     /// Whether `id` is a spacer, directly or under any depth of `layoutPriority`
     /// nodes: the public proxies' `isSpacer`. **No built-in reads it** since
@@ -2368,6 +2389,8 @@ extension LayoutTree {
         case .standard: h.mix(1)
         case .text(let metrics):
             h.mix(2); h.mix(metrics.ascent); h.mix(metrics.descent); h.mix(metrics.leading); h.mix(metrics.capHeight)
+        case .mixed(let metrics):
+            h.mix(3); h.mix(metrics.ascent); h.mix(metrics.descent); h.mix(metrics.leading); h.mix(metrics.capHeight)
         }
     }
 

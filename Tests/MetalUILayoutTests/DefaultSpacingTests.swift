@@ -248,16 +248,70 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
     #expect(near(gap(textRect, rect), 8) && near(gap(rect, textRect), 4.742), "{text; rect}")
 }
 
-/// **Not SwiftUI's, pinned as the ruling's behaviour** (`DS-G`; divergence 213 widened): a composite of a rect
-/// and a text across the axis (`HStack{rect; text}`, a `ZStack`) presents the text edge to a rect neighbour (the
-/// arms above agree with the probe) but SwiftUI's reads like a standard edge beside a TEXT neighbour (DS9
-/// `hstackRectText`: M|text13 **4.742**, text13|M **8.151**, M|text26 **9.484**, text26|M **16.302**), where
-/// the three-kind union reads text over text: 0, 0, and the leading of the 26 (0). Wrong on purpose; a fix
-/// would add a fourth, mixed edge kind (stop condition 8's category question, not taken).
-@Test @MainActor func aMixedCompositeBesideTextIsPinnedAsTheRulingReadsIt() {
-    let row = stack(.horizontal, [rect, text(sf13)])
-    #expect(gap(row, text(sf13)) == 0 && gap(text(sf13), row) == 0, "SwiftUI reads 4.742 and 8.151")
-    #expect(gap(row, text(sf26)) == 0 && gap(text(sf26), row) == 0, "SwiftUI reads 9.484 and 16.302")
+/// **A rect-and-text composite beside a text, a rect and itself** (`DS-G2`, probe `DS9`, `DS9b`; the three-kind
+/// union of `DS-G` read text over text here and was overturned). `HStack{rect; text}` (`ZStack`, an image or a
+/// control with a label) presents a MIXED edge: beside a rect it is the text edge (rect|M 4.742, M|rect 8.151 at
+/// 13 pt, 9.484 and 16.302 at 26), beside a text it is the standard one (M|text13 4.742, text13|M 8.151, M|text26
+/// 9.484, text26|M 16.302), beside itself the larger of the two (13|13 8.151, 26|26 16.302, 13|26 9.484, 26|13
+/// 16.302). Mutations, one per arm: **MX1** `mixed` is a standard edge; **MX2** `mixed` is a text edge (the
+/// three-kind behaviour: M|text and M|M read 0); **MX3** two standard components counted beside a mixed edge
+/// (rect|M reads 8); **MX4** `union` keeps the first font, not the largest.
+@Test @MainActor func aMixedCompositeReadsAsTheProbeMeasuresIt() {
+    func rt(_ face: Face) -> Build { stack(.horizontal, [rect, text(face)]) }
+    func tt(_ face: Face) -> Build { stack(.horizontal, [text(face), text(face)]) }
+    let rr = stack(.horizontal, [rect, rect])
+    // beside a rect, beside a text, beside a composite of two texts or two rects
+    for face in [sf13, sf26] {
+        #expect(near(gap(rect, rt(face)), face.rectText) && near(gap(rt(face), rect), face.textRect), "\(face): beside a rect")
+        #expect(near(gap(rt(face), text(face)), face.rectText) && near(gap(text(face), rt(face)), face.textRect),
+                "\(face): beside a text")
+        #expect(near(gap(rt(face), tt(face)), face.rectText) && near(gap(tt(face), rt(face)), face.textRect), "\(face): RT|TT")
+        #expect(near(gap(rt(face), rr), face.textRect) && near(gap(rr, rt(face)), face.rectText), "\(face): RT|RR")
+        #expect(near(gap(rt(face), rt(face)), face.textRect), "\(face): beside itself")
+    }
+    #expect(near(gap(rt(sf13), text(sf26)), 9.484) && near(gap(text(sf26), rt(sf13)), 16.302), "13 beside a 26 text")
+    #expect(near(gap(rt(sf13), rt(sf26)), 9.484) && near(gap(rt(sf26), rt(sf13)), 16.302), "13|26 and 26|13")
+    #expect(near(gap(rt(sf13), tt(sf26)), 9.484) && near(gap(tt(sf26), rt(sf13)), 16.302), "RT13|TT26")
+    // the largest font's metrics are the composite's
+    let big = stack(.horizontal, [rect, text(sf13), text(sf26)])
+    #expect(near(gap(rect, big), 9.484) && near(gap(big, rect), 16.302), "{rect; 13; 26}")
+    // a ZStack, an image or a control with a label is the same shape
+    let layered = overlay([rect, text(sf13)])
+    #expect(near(gap(layered, rt(sf13)), 8.151) && near(gap(layered, layered), 8.151) && near(gap(layered, text(sf13)), 4.742),
+            "ZStack{rect; text}")
+}
+
+/// `Spacer()` inside a composite adds nothing (`DS9b` `TS`, `RST`): `{text; Spacer()}` reads exactly as a text
+/// (text|TS 0, TS|rect 8.151, rect|TS 4.742), `{rect; Spacer(); text}` as `{rect; text}` (RST|text 4.742, text|RST
+/// 8.151, RST|RST 8.151, RST|RT 8.151). Mutation **MX5**: a cross-axis spacer's standard edge joins the union (TS
+/// becomes mixed: TS|text 4.742).
+@Test @MainActor func aSpacerInACompositeAddsNoEdge() {
+    let ts = stack(.horizontal, [text(sf13), zeroSpacer]), rst = stack(.horizontal, [rect, zeroSpacer, text(sf13)])
+    let rt = stack(.horizontal, [rect, text(sf13)])
+    #expect(gap(ts, text(sf13)) == 0 && gap(text(sf13), ts) == 0 && gap(ts, ts) == 0, "TS beside text and itself")
+    #expect(near(gap(ts, rect), 8.151) && near(gap(rect, ts), 4.742), "TS beside a rect")
+    #expect(near(gap(rst, text(sf13)), 4.742) && near(gap(text(sf13), rst), 8.151), "RST beside a text")
+    #expect(near(gap(rst, rst), 8.151) && near(gap(rst, rt), 8.151) && near(gap(rt, rst), 8.151), "RST beside RST and RT")
+    #expect(near(gap(rst, rect), 8.151) && near(gap(rect, rst), 4.742), "RST beside a rect")
+    // a spacer alone across the axis is still a standard edge
+    let alone = stack(.horizontal, [zeroSpacer])
+    #expect(gap(alone, rect) == 8, "a lone spacer's cross edge is standard (K3h)")
+}
+
+/// A fixed height or a non-zero inset makes a mixed edge standard like a text one (DS8 on a composite);
+/// `.frame(width: 100)` alone keeps a text's edge (`DS9b`: T.frame(width: 100)|rect 8.151, rect| 4.742, |text 0), and
+/// `.frame(height: 30)` makes it standard (8, 8, |text 4.742). Mutation **MX6**: `standardisingText` leaves
+/// `mixed` alone.
+@Test @MainActor func aMixedEdgeBecomesStandardUnderAFixedHeightOrInset() {
+    let rt = stack(.horizontal, [rect, text(sf13)])
+    let fixed: Build = { t in t.newNativeFrame(child: rt(t), height: 30) }
+    let sides = padded(rt, top: 4, bottom: 4)
+    #expect(near(gap(fixed, rect), 8) && near(gap(rect, fixed), 8), "a fixed height")
+    #expect(near(gap(sides, rect), 8) && near(gap(rect, sides), 8), "a non-zero inset")
+    let wide: Build = { t in t.newNativeFrame(child: text(sf13)(t), width: 100) }
+    let tall: Build = { t in t.newNativeFrame(child: text(sf13)(t), height: 30) }
+    #expect(near(gap(wide, rect), 8.151) && near(gap(rect, wide), 4.742) && gap(wide, text(sf13)) == 0, "width: 100")
+    #expect(near(gap(tall, rect), 8) && near(gap(rect, tall), 8) && near(gap(tall, text(sf13)), 4.742), "height: 30")
 }
 
 // MARK: - the grid (DS12)
@@ -284,6 +338,9 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
     #expect(near(height([[text(sf13), rect], [rect, text(sf13)]]), 28.151), "mixed: the larger pair")
     #expect(near(height([[rect, rect], [text(sf13), text(sf13)]]), 24.742), "rect row over text row")
     #expect(near(height([[text(sf26)], [rect]]), 36.302), "text/rect at 26")
+    // a mixed cell: DS12 passes the stack rule's edges, so {rect,text} above a text row is the standard-above-text gap
+    let mixedCell: Build = { t in t.newNativeLinearStack(children: [rect(t), text(sf13)(t)], axis: .horizontal, spacing: nil) }
+    #expect(near(height([[mixedCell], [text(sf13)]]), 24.742), "mixed over text: 10 + 4.742 + 10")
     #expect(height([[rect], [rect]]) == 28, "rect/rect keeps 8")
     // A grid as a stack child passes its first and last rows' edges (DS12 "Grid{rect;text} as a stack child":
     // grid|rect 8.151, rect|grid 8).
