@@ -2808,6 +2808,7 @@ motion). The track's fill changes as a checkbox's does. `BY-I`; pin `switchIsACa
 follows (SwiftUI's follow the animated frame); pin `aFlyingViewIsHitAtItsFinalFrame`. **896**: a handed-over size is a paint map, so the content is stretched, not relaid out; SwiftUI's mid-flight size was also read to reach its final value
 before its position (probe `swiftui-matched-geometry.swift` S3, a bitmap, not reproduced); pin `aNewcomerFliesFromTheLeaversFrameToItsOwn`. **897**: only the newcomer moves; SwiftUI's outgoing view also moves to the newcomer's frame (S1, S12);
 pin `aLeaverRemovedByAnIdentityTransitionHandsNothingOver`. **898**: a custom `Transition`'s `body` returns a `TransitionContent` (opacity, scale, offset), not a view; pin `aCustomTransitionInsertsFromItsWillAppearState`.
+**Update, record 207 (R4-3 PR C):** 897 is narrowed in place (count unmoved): the leaver moves toward the source's centre as it fades; the residues are in the row and in `XF-M`.
 **Not offered, moved:** `matchedGeometryEffect` and custom transitions left the "Not offered" table; `contentTransition`, `.blurReplace`, `.modifier(active:identity:)`, `AnyTransition.animation(_:)` stay (`MG-H`).
 **828** is edited, not retired: `matchedGeometryEffect` exists, `glassEffectID` still registers none. Mechanism and mutations: `docs/superpowers/2026-10-31-matched-geometry-decisions.md`.
 ## 2026-10-31: dialog extras (`SV-AO`, record §179)

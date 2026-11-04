@@ -171,7 +171,7 @@ a direct insert bypasses them; `XF-F`), and a ghost always exists, so empty cont
 **a builder `if`, `if`/`else` branch and non-lazy `ForEach` element fades by default** (`XF-H`, record 206; divergence 98 narrowed: a unit notes its scene sequence range at paint, a removal slices the previous frame's scene by it, an insertion opens a non-capturing `.fade` scope; a framework slot is `OptionalGroup(_:)`, never `OptionalGroup(builder:)`; **a new conditional site decides whether it is a unit and notes the range**; a mixed unit carves its annotated members out; nothing is captured at rest, and the retained records carry the ranges, `XF-I`). Reduce Motion changes only
 transitions (to a cross-fade). **`matchedGeometryEffect` is a paint map, not a relayout** (`MG-A`): a window-owned
 `MatchedGeometryStore` (never a `StateTable` slot), a newcomer takes a *source* leaver's drawn frame under the transaction at it, none from an explicit
-`.transition(.identity)` leaver; hit testing keeps the laid-out frame; an occurrence with a matched group is graft-refused as `matchedGeometry`. A custom
+`.transition(.identity)` leaver; **the leaver moves toward the source as it fades** (`XF-M`, record 207, row 897 narrowed: its sequence range is carved into a ghost of its own with `[.opacity, .translate]` on the ghost's one curve; a leaver whose last paint was a replay hands nothing over, a pinned finding); hit testing keeps the laid-out frame; an occurrence with a matched group is graft-refused as `matchedGeometry`. A custom
 `Transition` returns a `TransitionContent` (opacity/scale/offset), never a view (`MG-F`). **Tests never sleep: drive
 `simulateTick(timestamp:)`.**
 

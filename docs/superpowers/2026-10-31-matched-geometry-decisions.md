@@ -30,7 +30,7 @@ Why: round 3's list had matched geometry and custom transitions as the two large
 
 ## MG-E - what stays at the laid-out frame, what is not drawn
 
-**Ruling.** (1) **Hit testing, focus and accessibility use the laid-out geometry** while a view flies or follows (divergence 895), as an inserting transition's do (`AN-AE` item 5): the group registers nothing. (2) The mapped content is **stretched**, not relaid out, when the size changes - glyphs resample, corner radii and borders scale with the horizontal factor (divergence 896). (3) The **leaver is not moved toward the newcomer**: SwiftUI moves the outgoing view to the newcomer's frame as it fades (S1, S12); MetalUI draws its ghost (if it has a removal transition) where it was (divergence 897). The newcomer alone flies, which is the visible morph when the leaver fades.
+**Ruling.** (1) **Hit testing, focus and accessibility use the laid-out geometry** while a view flies or follows (divergence 895), as an inserting transition's do (`AN-AE` item 5): the group registers nothing. (2) The mapped content is **stretched**, not relaid out, when the size changes - glyphs resample, corner radii and borders scale with the horizontal factor (divergence 896). (3) ~~The leaver is not moved toward the newcomer~~ **amended by R4-3 PR C (`XF-M`, record 207): the leaver moves toward the source's centre as it fades, keeping its own size (S1, S12, S9), with the residues of divergence 897**; until then MetalUI drew its ghost where it was and the newcomer alone flew.
 **Pin.** `aFlyingViewIsHitAtItsFinalFrame` (1). Mutation: none cheap - the group's `prepaintGroup` is a pure forward; the pin is red only if a registration site is added there.
 
 ## MG-F - the `Transition` protocol
