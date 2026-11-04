@@ -63,6 +63,10 @@
 //   VA8  `keyframeAnimator` with `KeyframeTrack(\.pos)` over a custom `Animatable` struct (not a `VectorArithmetic`) compiles and
 //        interpolates both components (a 0 -> 100 -> 0, b 0 -> 50 -> 0), recorder lines absent (keyframes do not go through `Rec`).
 // NOT MEASURED: how a shape looks; the spring's internals.
+//
+// VA6d (added by R4-3 PR D, 2026-11-04): the per-tick arm for "does a retarget keep its velocity?" (docs/superpowers/2026-11-04-animatable-decisions.md
+// `VA-F`). It typechecks (`xcrun swiftc -typecheck`) and was NOT RUN: `appkit-screen-lock-state.swift` read `CGSSessionScreenIsLocked = 1` that
+// day. Its result is unmeasured; divergence 216 says so. Run it on an unlocked Mac, twice, and record the `~` fit line here.
 
 import SwiftUI
 import AppKit

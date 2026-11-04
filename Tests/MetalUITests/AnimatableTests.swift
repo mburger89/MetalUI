@@ -242,6 +242,27 @@ private struct HolderNoData: Shape {
     #expect(abs((last("bar").first ?? -1) - 20) < 0.01, "half-way back from 40: \(last("bar"))")
 }
 
+/// **A retarget under a spring restarts at rest** (`VA-F`, divergence 216, pinned wrong on purpose: SwiftUI's
+/// momentum is unmeasured, `VA6d`). A spring 0 to 100 is retargeted back to 0 at 0.3 s, while it is still
+/// moving up; one frame later the value has not risen further (from rest it can only move toward the new
+/// target), where a kept velocity would carry it past the retarget's value. Mutation: start the new flight
+/// with the old flight's velocity (not built).
+@Test @MainActor func aRetargetUnderASpringRestartsAtRest() {
+    clearSeen()
+    let h = TransitionHarness()
+    let spring = Animation.spring(duration: 0.6, bounce: 0)
+    h.frame(0, nil, barTree(0))
+    h.frame(0, spring, barTree(100))
+    h.frame(0.3, nil, barTree(100))
+    let before = last("bar").first ?? -1
+    h.frame(0.3, spring, barTree(0))
+    let at = last("bar").first ?? -1
+    h.frame(0.3 + 1.0 / 120, nil, barTree(0))
+    let after = last("bar").first ?? -1
+    #expect(before > 50 && abs(at - before) < 0.01, "set up: moving up and continuous: \(before) \(at)")
+    #expect(after <= at, "one frame on it has not risen: \(at) then \(after)")
+}
+
 /// **A large delta lands within the spring's absolute ceiling** (the `Animation.value` threshold is
 /// `min(0.001 * scale, 0.1667)` of the motion): a 2000-point spring is not declared finished 2 points short,
 /// as unit progress `0 to 1` would. The last in-flight frame is within half a point of 2000. Mutation
