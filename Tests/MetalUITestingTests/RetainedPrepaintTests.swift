@@ -23,19 +23,21 @@ private struct Fb9a7e42Frame {
     let evaluations: Int, skips: Int, refusals: Int
     let measures: Int, cacheHits: Int, cacheMisses: Int, memoHits: Int, memoMisses: Int, subtreeHits: Int
 }
+// R4-3a (`SR-G`): the layout counts (measures 52 -> 57, cache hits 331 -> 330, misses 217 -> 223, memo hits 362 -> 363) moved by the
+// top bar's segmented `Picker` becoming one native node, as the retention-off baseline's did (record 210).
 private let fb9a7e42Frames = [
     Fb9a7e42Frame(arm: .value, requests: 798, prepaints: 886, paints: 252, hits: 29, misses: 3, ineligible: 0,
-                  skippedPaints: 832, evaluations: 3, skips: 29, refusals: 0, measures: 52, cacheHits: 331,
-                  cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
+                  skippedPaints: 832, evaluations: 3, skips: 29, refusals: 0, measures: 57, cacheHits: 330,
+                  cacheMisses: 223, memoHits: 363, memoMisses: 55, subtreeHits: 11),
     // C14-c (`EE-J`): the `.environment` arm was refused (paints 1008, hits 19, misses 2, refusals 11, memo hits 1258);
     // memoized by its reading it counts what the `.value` arm counts, re-counted by lane 2.
     Fb9a7e42Frame(arm: .environment, requests: 798, prepaints: 886, paints: 252, hits: 29, misses: 3, ineligible: 0,
-                  skippedPaints: 832, evaluations: 3, skips: 29, refusals: 0, measures: 52, cacheHits: 331,
-                  cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
+                  skippedPaints: 832, evaluations: 3, skips: 29, refusals: 0, measures: 57, cacheHits: 330,
+                  cacheMisses: 223, memoHits: 363, memoMisses: 55, subtreeHits: 11),
     // `RW-S`: the graph panel is a counted miss (the drag is inside it, `SB-X`), no longer ineligible; paints and the scene are unmoved.
     Fb9a7e42Frame(arm: .panels, requests: 798, prepaints: 886, paints: 184, hits: 31, misses: 4, ineligible: 0,
-                  skippedPaints: 900, evaluations: 3, skips: 32, refusals: 0, measures: 52, cacheHits: 331,
-                  cacheMisses: 217, memoHits: 362, memoMisses: 55, subtreeHits: 11),
+                  skippedPaints: 900, evaluations: 3, skips: 32, refusals: 0, measures: 57, cacheHits: 330,
+                  cacheMisses: 223, memoHits: 363, memoMisses: 55, subtreeHits: 11),
 ]
 
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor

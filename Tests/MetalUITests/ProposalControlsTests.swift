@@ -165,14 +165,15 @@ private let longLabel = "A much longer label"
     // FL7: hugs.
     expectRow("Stepper(Qty)", try answers(Stepper("Qty", value: .constant(1), in: 0...3)),
               [(28, 24), (49.58, 24), (49.58, 24), (49.58, 24), (49.58, 24), (49.58, 24)])
-    // FL8–FL10: every Picker style hugs.
+    // FL8–FL10: the menu and the radio group hug; the segmented picker is flexible between its floor and its
+    // ideal (`SR-G`, probe SG1a): at zero the floor and the gap, 117.98 (it was 124.85, a rigid row).
     func picker() -> Picker<Int, Pair<TaggedElement<Text>, TaggedElement<Text>>> {
         Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }.pickerStyle(.segmented)
     }
     expectRow("Picker.menu", try answers(picker().pickerStyle(.menu)),
               [(67, 24), (112.56, 24), (112.56, 24), (112.56, 24), (112.56, 24), (67, 64)])
     expectRow("Picker.segmented", try answers(picker().pickerStyle(.segmented)),
-              [(124.85, 24), (159.00, 24), (159.00, 24), (159.00, 24), (159.00, 24), (124.85, 64)])
+              [(117.98, 24), (159.00, 24), (159.00, 24), (159.00, 24), (159.00, 24), (117.98, 64)])
     expectRow("Picker.radioGroup", try answers(picker().pickerStyle(.radioGroup)),
               [(29, 38), (97.57, 38), (97.57, 38), (97.57, 38), (97.57, 38), (50, 150)])
     // FL11: greedy along a stack's cross axis (here: no stack, so both readings).

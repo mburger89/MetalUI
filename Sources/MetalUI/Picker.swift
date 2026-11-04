@@ -17,7 +17,8 @@ public struct PickerStyle: Sendable, Hashable {
 
     /// The pop-up menu, as SwiftUI's automatic picker is on macOS (`SR-B`; it was segmented until then).
     public static let automatic = PickerStyle(kind: .menu)
-    /// Every segment as wide as the widest (PA1), in a recessed capsule.
+    /// A recessed capsule of segments, each as wide as the widest (PA1) while the width allows; in less, an equal
+    /// share never under a segment's own width, overflowing at the sum of the natural widths (`SR-G`).
     public static let segmented = PickerStyle(kind: .segmented)
     /// A leading-aligned column of radio rows, 6 apart (PK1, PK3).
     public static let radioGroup = PickerStyle(kind: .radioGroup)
@@ -49,9 +50,11 @@ public struct PickerStyle: Sendable, Hashable {
 /// selection matching no tag selects nothing and writes nothing (PA3).
 ///
 /// **Layout** (`DD-V` item 5): the title, 8, the options. Segmented: every
-/// segment as wide as the widest (`textW + 24` before equalising, PA1, PK2),
-/// 24 tall by strut, in a `.surfaceSecondary` capsule; `n·w` wide where
-/// SwiftUI's is `n·w + 1` (PK1, PK3; divergence 81). Radio group: a
+/// segment as wide as the widest (`textW + 24` before equalising, PA1, PK2)
+/// while the width allows, in less an equal share never under a segment's own
+/// width (`SR-G`, probe `swiftui-segmented-sizing.swift`), 24 tall by strut, in a
+/// `.surfaceSecondary` capsule; a labelled one gives the control what the title's
+/// ideal width leaves and the title the rest (`PickerTitleLayout`). Radio group: a
 /// leading-aligned column 6 apart (PK3; PK1 reads 6.5, divergence 81), each row
 /// a 14-point circle, 7, the label — `textW + 21` (PK2/PK3).
 ///
@@ -85,7 +88,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     private var scope: PickerScope
     private var label: Text
     private var title: String { label.string }
-    private var box: Box<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>
+    private var box: Box<PickerTitleRow<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>>
 
     /// The menu style's structure (`SV-P` item 2): the title, then the
     /// pull-down button — built in `requestLayout` from `box`'s content.
@@ -94,7 +97,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     public struct Layout {
         var inner: Inner
         enum Inner {
-            case options(Box<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>.Layout)
+            case options(Box<PickerTitleRow<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>>.Layout)
             case menu(MenuBox, MenuBox.Layout)
         }
     }
@@ -102,7 +105,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     public struct PrepaintState {
         var inner: Inner
         enum Inner {
-            case options(Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>.Prepaint)
+            case options(PickerTitleRow<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>.GroupPrepaint)
             case menu(Pair<OptionalGroup<Text>, PickerMenuButton<Content>>.Prepaint)
         }
     }
@@ -137,8 +140,8 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         self.scope = PickerScope(
             matches: { tag in (tag.base as? SelectionValue).map { $0 == selection.wrappedValue } ?? false },
             write: { tag in if let value = tag.base as? SelectionValue { selection.wrappedValue = value } })
-        self.box = Box(style: style, content: Pair(OptionalGroup(label), Box(content: OptionRow(content: content(),
-                                                                                      equalWidth: true))))
+        self.box = Box(style: style, content: PickerTitleRow(content: Pair(OptionalGroup(label), Box(content: OptionRow(content: content(),
+                                                                                      equalWidth: true))), isSegmented: false))
     }
 
     /// This picker in `style` (SwiftUI's `.pickerStyle(_:)`).
@@ -152,7 +155,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     /// `Toolbar.swift`): its title, whether it is a menu, the scope that reads
     /// and writes its selection, and its options' content.
     var toolbarParts: (title: String, isMenu: Bool, scope: PickerScope, content: Content) {
-        (title, pickerStyle.kind == .menu, scope, box.content.second.content.content)
+        (title, pickerStyle.kind == .menu, scope, box.content.content.second.content.content)
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
@@ -161,23 +164,24 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         options.flexDirection = pickerStyle.kind == .segmented ? .row : .column
         switch pickerStyle.kind {
         case .segmented:
-            box.content.second.decoration = Decoration(background: .surfaceSecondary, cornerRadius: Pixels(6))
+            box.content.content.second.decoration = Decoration(background: .surfaceSecondary, cornerRadius: Pixels(6))
         case .radioGroup:
             options.gap = Axes(both: .pixels(Pixels(6)))
             options.alignItems = .flexStart
-            box.content.second.decoration = Decoration()
+            box.content.content.second.decoration = Decoration()
         case .menu:
             break
         }
-        box.content.second.style = options
-        box.content.second.content.equalWidth = pickerStyle.kind == .segmented
+        box.content.content.second.style = options
+        box.content.content.second.content.equalWidth = pickerStyle.kind == .segmented
+        box.content.isSegmented = pickerStyle.kind == .segmented
         box.style = style
         box.decoration = decoration
         let environment = pass.frame.environmentTop
         // The focus ring (`IX-H` item 2), unless the caller declared one.
         if box.decoration.focusBorder == nil { box.decoration.focusBorder = controlRing(environment) }
         // `labelsHidden()` (`LB-A`): no title row, so no gap; the slot stays reserved.
-        box.content.first.wrapped = environment.labelsHidden ? nil : label
+        box.content.content.first.wrapped = environment.labelsHidden ? nil : label
         scope.kind = pickerStyle.kind
         scope.accent = controlAccent(environment)
         scope.tags.removeAll()
@@ -200,7 +204,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         let labelHidden = pass.frame.environmentTop.labelsHidden   // `LB-A`
         var menuBox = MenuBox(style: style, decoration: decoration,
                               content: Pair(OptionalGroup(labelHidden ? nil : label),
-                                            PickerMenuButton(content: box.content.second.content.content,
+                                            PickerMenuButton(content: box.content.content.second.content.content,
                                                              scope: scope, title: title, pickerID: id)))
         PickerScope.stack.append(scope)
         defer { PickerScope.stack.removeLast() }
@@ -373,35 +377,133 @@ struct OptionRow<Content: ElementGroup>: ElementGroup {
     }
 }
 
-/// Every subview as wide as the widest subview's ideal width, side by side from
-/// the leading edge, as tall as the tallest (`DD-V` item 5; PA1: Alpha, Beta,
-/// Gamma all 70).
-struct EqualWidthRow: ProposalLayout {
-    private func widest(_ subviews: MeasurementSubviews) -> Double {
-        var widest = 0.0
-        for index in subviews.indices {
-            widest = Swift.max(widest, subviews[index].sizeThatFits(ProposedSize(width: nil, height: nil)).size.width)
+/// A segmented `Picker`'s title and options row (`SR-G`): when `isSegmented` and the content holds the
+/// two nodes (title, options) it consumes and plans them as a flex row, as `OptionRow` does, and lays
+/// them out with `PickerTitleLayout`. A radio group, a menu or a `labelsHidden()` picker (one node)
+/// passes its nodes through unchanged to the enclosing `Box`, with the identity numbering unchanged.
+struct PickerTitleRow<Content: ElementGroup>: ElementGroup {
+    var content: Content
+    var isSegmented: Bool
+    typealias GroupPrepaint = Content.GroupPrepaint
+
+    mutating func requestGroupLayout(under parent: GlobalElementID?, at cursor: inout Int,
+                                     pass: inout LayoutPass) -> ([LayoutNodeID], Content.GroupLayout) {
+        let (nodes, layout) = content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        guard isSegmented, nodes.count == 2 else { return (nodes, layout) }
+        let received = nodes.map { pass.frame.lowering.consume($0) }
+        var planningParent = Style()
+        planningParent.flexDirection = .row
+        planningParent.alignItems = .center
+        planningParent.size.width = .length(.pixels(Pixels(0)))
+        var fields: [UnlowerableField] = []
+        let plans = pass.planLegacyItems(received, parent: planningParent, parentKind: .flex(isRow: true),
+                                         parentSite: .box, fields: &fields)
+        let node: LayoutNodeID
+        if fields.isEmpty {
+            node = pass.frame.requestNativeLayout(PickerTitleLayout(), children: pass.registerLegacyItems(nodes, plans))
+        } else {
+            for field in fields.dropLast() { pass.frame.noteUnlowerable(field) }
+            node = pass.frame.unlowerable(fields[fields.count - 1])
         }
-        return widest
+        let recorded = pass.recordLoweredItem(node, animated: Style(), declared: Style(), site: .box,
+                                              contentAlignment: .topLeading, kind: .leaf)
+        return ([recorded], layout)
+    }
+    mutating func prepaintGroup(layout: inout Content.GroupLayout, pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        content.prepaintGroup(layout: &layout, pass: &pass)
+    }
+    mutating func paintGroup(layout: inout Content.GroupLayout, prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
+        content.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+/// SwiftUI's labelled segmented picker (`SR-G`, probe `swiftui-segmented-sizing.swift` SG3): the title, 8,
+/// the control, centred vertically. The control is proposed what the title's ideal width leaves; if the
+/// remainder is short of the title, the title is proposed the remainder and the control is proposed what
+/// the title's answer leaves. No width (nil or infinite): both ideal.
+struct PickerTitleLayout: ProposalLayout {
+    private static let gap = 8.0
+    private func solve(_ width: Double?, height: Double?, title: (ProposedSize) -> SizeD, control: (ProposedSize) -> SizeD)
+        -> (titleWidth: Double?, title: SizeD, control: SizeD) {
+        let ideal = title(ProposedSize(width: nil, height: height))
+        guard let width, width.isFinite else {
+            return (nil, ideal, control(ProposedSize(width: nil, height: nil)))
+        }
+        let first = control(ProposedSize(width: Swift.max(0, width - Self.gap - ideal.width), height: nil))
+        let left = width - Self.gap - first.width
+        if left >= ideal.width { return (nil, ideal, first) }
+        let squeezed = Swift.max(0, left)
+        let t = title(ProposedSize(width: squeezed, height: height))
+        let c = control(ProposedSize(width: Swift.max(0, width - Self.gap - t.width), height: nil))
+        return (squeezed, t, c)
     }
 
     func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
-        let width = widest(subviews)
-        var tallest = 0.0
-        for index in subviews.indices {
-            tallest = Swift.max(tallest, subviews[index].sizeThatFits(ProposedSize(width: width, height: nil)).size.height)
-        }
-        return LayoutMeasurement(size: SizeD(width: width * Double(subviews.count), height: tallest))
+        let s = solve(proposal.width, height: proposal.height, title: { subviews[0].sizeThatFits($0).size }, control: { subviews[1].sizeThatFits($0).size })
+        return LayoutMeasurement(size: SizeD(width: s.title.width + Self.gap + s.control.width,
+                                             height: Swift.max(s.title.height, s.control.height)))
     }
 
     func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
-        var width = 0.0
-        for index in subviews.indices {
-            width = Swift.max(width, subviews[index].sizeThatFits(ProposedSize(width: nil, height: nil)).size.width)
+        let s = solve(proposal.width, height: proposal.height, title: { subviews[0].sizeThatFits($0).size }, control: { subviews[1].sizeThatFits($0).size })
+        let midY = bounds.y + bounds.height / 2
+        subviews[0].place(at: Point(x: bounds.x, y: midY - s.title.height / 2), anchor: .topLeading,
+                          proposal: ProposedSize(width: s.titleWidth, height: nil))
+        subviews[1].place(at: Point(x: bounds.x + s.title.width + Self.gap, y: midY - s.control.height / 2), anchor: .topLeading,
+                          proposal: ProposedSize(width: s.control.width, height: nil))
+    }
+}
+
+/// A segmented `Picker`'s options (`DD-V` item 5, amended by `SR-G`): every segment as wide as the
+/// widest segment's ideal width while the proposal allows, else an equal share that is never less than
+/// a segment's own ideal width (`NSSegmentedControl`'s distribution, probe `swiftui-segmented-sizing.swift`
+/// SG2; PA1: Alpha, Beta, Gamma all 70). `widths(natural:available:)` is the one rule `sizeThatFits` and
+/// `placeSubviews` share. Side by side from the leading edge, as tall as the tallest.
+struct EqualWidthRow: ProposalLayout {
+    private func naturals(_ subviews: MeasurementSubviews) -> [Double] {
+        var out: [Double] = []
+        for index in subviews.indices { out.append(subviews[index].sizeThatFits(ProposedSize(width: nil, height: nil)).size.width) }
+        return out
+    }
+    private func naturals(_ subviews: PlacementSubviews) -> [Double] {
+        var out: [Double] = []
+        for index in subviews.indices { out.append(subviews[index].sizeThatFits(ProposedSize(width: nil, height: nil)).size.width) }
+        return out
+    }
+    static func widths(natural: [Double], available: Double?) -> [Double] {
+        let widest = natural.max() ?? 0
+        guard let available, available < widest * Double(natural.count) else { return natural.map { _ in widest } }
+        var fixed = Array(repeating: false, count: natural.count)
+        var remaining = available, open = natural.count
+        var changed = true
+        while changed, open > 0 {
+            changed = false
+            let share = remaining / Double(open)
+            for index in natural.indices where !fixed[index] && natural[index] > share {
+                fixed[index] = true; remaining -= natural[index]; open -= 1; changed = true
+            }
         }
+        let share = open > 0 ? remaining / Double(open) : 0
+        return natural.indices.map { fixed[$0] ? natural[$0] : share }
+    }
+
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        let finite = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+        let widths = Self.widths(natural: naturals(subviews), available: finite)
+        var tallest = 0.0
         for index in subviews.indices {
-            subviews[index].place(at: Point(x: bounds.x + Double(index) * width, y: bounds.y),
-                                  anchor: .topLeading, proposal: ProposedSize(width: width, height: bounds.height))
+            tallest = Swift.max(tallest, subviews[index].sizeThatFits(ProposedSize(width: widths[index], height: nil)).size.height)
+        }
+        return LayoutMeasurement(size: SizeD(width: widths.reduce(0, +), height: tallest))
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        let widths = Self.widths(natural: naturals(subviews), available: bounds.width)
+        var x = bounds.x
+        for index in subviews.indices {
+            subviews[index].place(at: Point(x: x, y: bounds.y), anchor: .topLeading,
+                                  proposal: ProposedSize(width: widths[index], height: bounds.height))
+            x += widths[index]
         }
     }
 }
