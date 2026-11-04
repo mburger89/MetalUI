@@ -718,19 +718,17 @@ private final class DisappearLog { var count = 0 }
     #expect(h.store.transitions.ghostCount == 2, "A's two ghosts went with the unit's return, B's two stand: \(h.store.transitions.ghostCount)")
 }
 
-/// **FINDING (existing, reported, not fixed here): a leaver whose paint was a replay hands nothing over and does not
-/// move.** `MatchedGeometryStore` writes a record's `displayed` (and `noteSequences` its range) only in `beginPaint` /
-/// `MatchedGeometryGroup.paintGroup`, which a paint replay does not run. An `.equatable()` occurrence holding a matched
-/// group is built every frame (it is refused a graft by name, `matchedGeometry`, the test above) but its **paint** is
-/// replayed once it has been steady for a few frames, so the last frame's record has `displayed == nil`, the handoff's
-/// `old.displayed != nil` guard fails and no flight starts: the newcomer is at its own frame and the leaver fades in
-/// place inside the unit's ghost, as with retention off and no matched effect. Measured at the head of PR B2 too (`git
-/// stash` of this PR's `Sources/`): flights 0 after six steady frames, 1 after one, and 1 with retention off. **Pinned
-/// wrong on purpose**: whoever fixes the record (re-noting `displayed` and `sequences` from the retained record, as the
-/// ranges are, `XF-I`) flips the first two expectations; the oracle arm (retention off) is what it must equal.
+/// **A leaver whose paint was a replay hands over as a fresh frame does** (`XF-N`, record 211; it was a pinned finding
+/// until then). `MatchedGeometryStore` writes a record's `displayed` in `beginPaint` and its sequence range in
+/// `noteSequences`, neither of which a paint replay runs. An `.equatable()` occurrence holding a matched group is built every
+/// frame (refused a graft by name, `matchedGeometry`) but its **paint** is replayed once it has been steady for a few frames,
+/// so the last frame's record had `displayed == nil`, the handoff's `old.displayed != nil` guard failed and no flight started.
+/// A record now keeps the groups its paint window noted (`RetainedRecord.matched`, relative to its start) and `replayPaint`
+/// re-notes them (`MatchedGeometryStore.renote`), as `XF-I` does the unit ranges. The oracle arm (retention off) is what every
+/// arm must equal. Mutations **MR1** (`displayed` not re-noted: flights 0) and **MR2** (`sequences` not re-noted: ghosts 1).
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_VERIFY_RETAINED"] != "1",
                "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the replay counts are not its to read"))
-@MainActor func aLeaverInAReplayedOccurrenceHandsNothingOverToday() throws {
+@MainActor func aLeaverInAReplayedOccurrenceHandsOverAsAFreshFrameDoes() throws {
     struct Panel: Component, @MainActor Equatable {
         let tag: Int
         var content: some ElementGroup { Box().frame(width: Pixels(40), height: Pixels(40)).background(.accent) }
@@ -754,9 +752,9 @@ private final class DisappearLog { var count = 0 }
     try #require(steady.hits > 0, "set up: the still panel's paint was a replay in the steady frames: \(steady.hits)")
     let oracle = try run(retained: false, restFrames: 6)
     #expect(oracle.flights == 1 && oracle.ghosts == 2, "the oracle (retention off): the flight starts and the leaver has its own ghost: \(oracle)")
-    #expect(steady.flights == 0 && steady.ghosts == 1, "after replayed frames nothing is handed over today (the finding): \(steady)")
+    #expect(steady.flights == 1 && steady.ghosts == 2, "after replayed frames the handoff is the oracle's: \(steady)")
     let early = try run(retained: true, restFrames: 1)
-    #expect(early.flights == 1 && early.ghosts == 2, "after one steady frame the paint is not yet a replay and it works: \(early)")
+    #expect(early.flights == 1 && early.ghosts == 2, "after one steady frame the paint is not yet a replay: \(early)")
 }
 
 /// **A leaver already at the source's centre has nothing to travel and stays in its unit's ghost** (`XF-M`): both tiles
@@ -774,4 +772,151 @@ private final class DisappearLog { var count = 0 }
     h.frame(0, nil, tree(false))
     let f = h.frame(0, linear1, tree(true))
     #expect(h.store.transitions.ghostCount == 1, "one ghost, the unit's: \(h.store.transitions.ghostCount) \(accents(f).map(R.init))")
+}
+
+// MARK: - R4-3c: a replayed occurrence re-notes its matched groups (`XF-N`, record 211)
+
+@Observable @MainActor final class ReplayArmModel { var flag = false; var lead: Float = 10 }
+private struct ReplayArmPanel: Component, @MainActor Equatable {
+    let tag: Int
+    var content: some ElementGroup { Box().frame(width: Pixels(40), height: Pixels(40)).background(.accent) }
+}
+private struct ReplayArmOuter: Component, @MainActor Equatable {
+    let flag: Bool
+    var content: some ElementGroup {
+        Column { HeroStage(flag: flag, id: "n").equatable(); ReplayArmPanel(tag: 2).equatable() }
+    }
+}
+
+/// What one run of an arm read: the retained hits before the flip, and per frame after it the flights, the ghosts and the
+/// accent rectangles (sorted, with alpha).
+private struct ReplayArmReading: Equatable {
+    var hitsBefore = 0
+    var frames: [String] = []
+}
+
+/// Runs `build` with retention on or off through six steady frames, `script`, then four frames of 0.1, 0.4, 0.4 and 0.4 s.
+@MainActor private func replayArm(retained: Bool, build: @escaping (ReplayArmModel) -> some Element,
+                                  script: (ReplayArmModel, TestWindow) -> Void = { m, _ in withAnimation(.linear(duration: 1)) { m.flag = true } }) throws -> ReplayArmReading {
+    let m = ReplayArmModel()
+    let w = try TestWindow(size: Size(width: Pixels(400), height: Pixels(300))) { build(m) }
+    w.window.testingRetainedSubtrees = retained
+    for _ in 0..<6 { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
+    var out = ReplayArmReading(hitsBefore: w.lastFrameWork.retainedHits)
+    script(m, w)
+    for t in [0.1, 0.4, 0.4, 0.4] {
+        w.advance(by: t)
+        let rects = w.window.lastScene.rects.filter { isAccent($0.background) }.map { "\(R($0)) a=\(String(format: "%.2f", $0.background.a))" }
+        out.frames.append("f\(w.window.animationStore.matched.liveCount) g\(w.window.animationStore.transitions.ghostCount) \(rects.sorted())")
+    }
+    return out
+}
+
+private let replayArmVerifying = ProcessInfo.processInfo.environment["METALUI_VERIFY_RETAINED"] == "1"
+
+/// Reads an arm both ways, requires the retained run to have replayed (`METALUI_VERIFY_RETAINED=1` paints a hit as a miss, so
+/// that set-up is its to skip) and equal the oracle frame for frame.
+@MainActor private func replayArmPair(_ build: @escaping (ReplayArmModel) -> some Element,
+                                      script: (ReplayArmModel, TestWindow) -> Void = { m, _ in withAnimation(.linear(duration: 1)) { m.flag = true } }) throws -> (on: ReplayArmReading, off: ReplayArmReading) {
+    let on = try replayArm(retained: true, build: build, script: script)
+    let off = try replayArm(retained: false, build: build, script: script)
+    if !replayArmVerifying { try #require(on.hitsBefore > 0, "set up: the steady frames replayed paints: \(on.hitsBefore)") }
+    #expect(on.frames == off.frames, "equal to the oracle (retention off):\n on  \(on.frames)\n off \(off.frames)")
+    return (on, off)
+}
+
+@MainActor private func replayArmHero(_ m: ReplayArmModel) -> some Element {
+    Row { HeroStage(flag: m.flag, id: "left").equatable(); ReplayArmPanel(tag: 1).equatable() }
+}
+
+/// **The plain arm** (`XF-N`): a hero occurrence and a still panel, six steady frames, a flip. The newcomer starts at the
+/// leaver's frame and grows to its own, the leaver moves toward the source as it fades; the literals are the retention-off
+/// frames. Mutations **MR1**, **MR2** (flights 1, ghosts 2 become 0 / 1).
+@Test @MainActor func aReplayedLeaverFliesInThePlainArm() throws {
+    let (on, _) = try replayArmPair(replayArmHero)
+    let expected = [
+        "f1 g2 [\"(130.0, 110.0, 50.0×30.0) a=0.00\", \"(130.0, 110.0, 50.0×30.0) a=1.00\", \"(230.0, 130.0, 40.0×40.0) a=1.00\"]",
+        "f1 g2 [\"(130.0, 122.0, 70.0×42.0) a=0.40\", \"(140.0, 128.0, 50.0×30.0) a=0.60\", \"(230.0, 130.0, 40.0×40.0) a=1.00\"]",
+        "f1 g2 [\"(130.0, 134.0, 90.0×54.0) a=0.80\", \"(150.0, 146.0, 50.0×30.0) a=0.20\", \"(230.0, 130.0, 40.0×40.0) a=1.00\"]",
+        "f0 g0 [\"(130.0, 140.0, 100.0×60.0) a=1.00\", \"(230.0, 130.0, 40.0×40.0) a=1.00\"]",
+    ]
+    #expect(on.frames == expected, "\(on.frames)")
+}
+
+/// **A nested occurrence** (`XF-N`): the hero is an `.equatable()` inside an `.equatable()` outer one, so the outer record
+/// holds what the inner replay re-noted (`renote` appends to `noted`). Mutation **MR4** (`renote` does not append: the outer
+/// replay has nothing to re-note, flights 0).
+@Test @MainActor func aReplayedLeaverFliesInANestedOccurrence() throws {
+    let (on, _) = try replayArmPair { m in Row { ReplayArmOuter(flag: m.flag).equatable(); ReplayArmPanel(tag: 1).equatable() } }
+    #expect(on.frames.first?.hasPrefix("f1 g2") == true && on.frames[1].contains("(130.0, 102.0, 70.0×42.0) a=0.40") && on.frames[1].contains("(140.0, 108.0, 50.0×30.0) a=0.60"),
+            "\(on.frames)")
+}
+
+/// **A translated replay** (`XF-N`): the occurrence moved 30 points right while steady, so its record was `moved(to:)` and the
+/// replay re-notes at the new origin; the flight starts at x 150 and the leaver reaches 160. Mutation **MR7** (`moved(to:)`
+/// drops `matched`: flights 0).
+@Test @MainActor func aReplayedLeaverFliesAfterATranslatedReplay() throws {
+    let (on, _) = try replayArmPair({ m in
+        Row { Box().frame(width: Pixels(m.lead), height: Pixels(10)); HeroStage(flag: m.flag, id: "left").equatable(); ReplayArmPanel(tag: 1).equatable() }
+    }, script: { m, w in
+        m.lead = 40
+        for _ in 0..<2 { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
+        withAnimation(.linear(duration: 1)) { m.flag = true }
+    })
+    #expect(on.frames[0].hasPrefix("f1 g2") && on.frames[0].contains("(150.0, 110.0, 50.0×30.0) a=1.00") && on.frames[1].contains("(160.0, 128.0, 50.0×30.0) a=0.60"),
+            "\(on.frames)")
+}
+
+/// **An interrupted flight and a second swap after landing equal the oracle** (`XF-N`): a live flight taints its recorder
+/// (`noteActiveAnimation`), so `displayed = target` is never applied to a flight in progress. The interrupted arm starts no
+/// flight in either run; the second swap starts from the first one's rest frame with the transaction half-way.
+@Test @MainActor func aReplayedOccurrenceAfterAnInterruptedFlightOrALandingEqualsTheOracle() throws {
+    let (interrupted, _) = try replayArmPair(replayArmHero, script: { m, w in
+        withAnimation(.linear(duration: 1)) { m.flag = true }; w.advance(by: 0.5); withAnimation(.linear(duration: 1)) { m.flag = false }
+    })
+    #expect(interrupted.frames.last?.hasPrefix("f0 g0") == true, "settled: \(interrupted.frames)")
+    let (second, _) = try replayArmPair(replayArmHero, script: { m, w in
+        withAnimation(.linear(duration: 1)) { m.flag = true }; w.advance(by: 1.2)
+        for _ in 0..<6 { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
+        withAnimation(.linear(duration: 1)) { m.flag = false }
+    })
+    #expect(second.frames[0].hasPrefix("f1 g2") && second.frames[0].contains("(130.0, 119.0, 65.0×39.0) a=0.30"), "\(second.frames)")
+}
+
+/// **A replay that emits another count re-notes `displayed` but not the range** (`XF-N`, the `aDroppedReplayParksButDrawsNothing`
+/// method: each standing record's `emitted` is broken by one, then one frame replays it): the group's sequence range would be
+/// wrong, so the range is dropped and the leaver's own ghost carves nothing. Mutation **MR5** (the count check skipped).
+@Test(.enabled(if: !replayArmVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the replay counts are not its to read"))
+@MainActor func aReplayThatEmittedAnotherCountDropsTheMatchedRanges() throws {
+    let m = ReplayArmModel()
+    let w = try TestWindow(size: Size(width: Pixels(400), height: Pixels(300))) {
+        Row { HeroStage(flag: m.flag, id: "left").equatable(); ReplayArmPanel(tag: 1).equatable() }
+    }
+    for _ in 0..<6 { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
+    var broken = 0
+    for entry in w.window.stateTable.contentMemos.allEntries where entry.record != nil { entry.record?.emitted += 1; broken += 1 }
+    try #require(broken > 0, "set up: records to break")
+    w.window.setNeedsRedraw(); w.advance(by: 0.05)
+    withAnimation(.linear(duration: 1)) { m.flag = true }
+    w.advance(by: 0.1)
+    let flights = w.window.animationStore.matched.liveCount, ghosts = w.window.animationStore.transitions.ghostCount
+    #expect(flights == 1 && ghosts == 1, "the handoff runs and the leaver has no range of its own to carve: flights \(flights), ghosts \(ghosts)")
+}
+
+/// **`differences(from:)` names the matched groups** (`XF-N`): two records equal in everything else but the groups they hold are
+/// not equal. Mutation **MR8** (`matched` ignored in `differences`).
+@Test(.enabled(if: !replayArmVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: no standing record is read"))
+@MainActor func twoRecordsDifferByTheirMatchedGroups() throws {
+    let m = ReplayArmModel()
+    let w = try TestWindow(size: Size(width: Pixels(400), height: Pixels(300))) {
+        Row { HeroStage(flag: m.flag, id: "left").equatable(); ReplayArmPanel(tag: 1).equatable() }
+    }
+    for _ in 0..<6 { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
+    let records = w.window.stateTable.contentMemos.allEntries.compactMap(\.record)
+    let hero = try #require(records.first { !$0.matched.isEmpty }, "set up: the hero's record holds its matched groups")
+    #expect(records.filter { !$0.matched.isEmpty }.count == 1, "and only the hero's does: \(records.map(\.matched.count))")
+    let copy = hero.moved(to: hero.scene)
+    #expect(hero.differences(from: copy, ignoringFinalStream: true) == nil, "set up: a copy is equal: \(String(describing: hero.differences(from: copy, ignoringFinalStream: true)))")
+    copy.matched = []
+    #expect(hero.differences(from: copy, ignoringFinalStream: true)?.hasPrefix("matched groups") == true, "\(String(describing: hero.differences(from: copy, ignoringFinalStream: true)))")
 }

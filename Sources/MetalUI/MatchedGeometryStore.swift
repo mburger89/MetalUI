@@ -97,6 +97,8 @@ final class MatchedGeometryStore {
     private var previousRecords: [GlobalElementID: Record] = [:]
     private var flights: [GlobalElementID: Flight] = [:]
     private var claimOrder = 0
+    /// What the paints of this frame noted, in order, so a recorder can keep its window's (`XF-I`'s shape).
+    private(set) var noted: [(key: GlobalElementID, range: Range<Int>)] = []
 
     /// Flights in progress.
     var liveCount: Int { flights.count }
@@ -125,6 +127,19 @@ final class MatchedGeometryStore {
     /// The claimed group's content drew the scene sequences `range` this frame.
     func noteSequences(_ range: Range<Int>, for key: GlobalElementID) {
         records[key]?.sequences = range
+        noted.append((key, range))
+    }
+
+    /// A replay stands for the paint its record was made from: re-notes each group's range at `base`, and where it is drawn.
+    func renote(_ recorded: [(key: GlobalElementID, range: Range<Int>)], base: Int?) {
+        for r in recorded {
+            let target = records[r.key]?.target
+            records[r.key]?.displayed = target
+            guard let base else { continue }
+            let range = (r.range.lowerBound + base)..<(r.range.upperBound + base)
+            records[r.key]?.sequences = range
+            noted.append((r.key, range))
+        }
     }
 
     /// The rectangle a view with laid-out rectangle `own` is drawn at when it takes `source`'s as `properties`
@@ -232,6 +247,7 @@ final class MatchedGeometryStore {
     /// return to what they were before `afterLayout` advanced them.
     func rollbackBuild(_ saved: Checkpoint) {
         records.removeAll(keepingCapacity: true)
+        noted.removeAll(keepingCapacity: true)
         claimOrder = 0
         flights = saved.flights
     }
@@ -240,6 +256,7 @@ final class MatchedGeometryStore {
     func endFrame() {
         swap(&records, &previousRecords)
         records.removeAll(keepingCapacity: true)
+        noted.removeAll(keepingCapacity: true)
         claimOrder = 0
     }
 }
