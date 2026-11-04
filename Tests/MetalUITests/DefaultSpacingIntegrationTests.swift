@@ -191,3 +191,24 @@ private struct ControlArm {
     let y = try #require(log.bounds["m"]).origin.y.value
     #expect(y == 16 + 8 + 16 + 8, "the lazy stack keeps 8 between its children (a VStack reads 32): \(y)")
 }
+
+// MARK: - the form (FM0)
+
+/// **The controls form reads FM0's own 182.04** (probe `swiftui-controls-in-stacks.swift` FM0; `DS9` "FM0 {Text;
+/// Slider}|{Toggle; Spacer; Button}" 8.151). Unrounded, from the row gaps the probe's form origins give (8.151, 4.742,
+/// 8.151, 8, 8) and the row heights (24, 24, 16, 24, 1, 24) under 16 padding: 16 + 24 + 8.151 + 24 + 4.742 + 16 +
+/// 8.151 + 24 + 8 + 1 + 8 + 24 + 16 = 182.044. The prediction before the change was `185 - 40 + 37.04`. Mutation **M25**:
+/// the control mark dropped from `Toggle`/`Button` (the row gap reads text|text 0 where FM0's is 8.151).
+@MainActor @Test func theFormMatchesFM0() {
+    let form = VStack(alignment: .leading) {
+        HStack { Text("Name"); TextField("Name", text: .constant("")) }
+        HStack { Toggle("Enabled", isOn: .constant(true)); Spacer(); Button("Apply") {} }
+        HStack { Text("Speed"); Slider(value: .constant(0.5)) }
+        Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }.pickerStyle(.menu)
+        Divider()
+        HStack { Stepper("Qty", value: .constant(1), in: 0...3); Spacer() }
+    }
+    .padding(Edges(all: px(16))).frame(width: px(400)).fixedSize(horizontal: false, vertical: true)
+    let total = height(VStack { form })
+    #expect(abs(total - 182.044) < 0.01, "the form is \(total) tall; FM0 reads 182.04")
+}

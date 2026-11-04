@@ -23,6 +23,8 @@ private struct DSCard: Component, @MainActor Equatable {
         VStack(alignment: .leading) {
             Color.red.frame(width: Pixels(20), height: Pixels(20))
             Text("Alpha")
+            // A hitbox, so the occurrence has a prepaint ledger and METALUI_VERIFY_RETAINED=1 has a record to compare.
+            Button("go") {}.frame(width: Pixels(30), height: Pixels(16))
         }
     }
     static func == (l: DSCard, r: DSCard) -> Bool { true }
@@ -55,7 +57,7 @@ private struct DSRoot: Component {
 /// A grafted text stack keeps its gap: the card is unchanged while the label above it changes, so the card is
 /// grafted (`retainedGrafts`), and its stack's gap (a spacing mark on a text leaf) must come from the segment.
 /// The twin that retains nothing builds it fresh; the two agree on every element's bounds, and the root's height
-/// is the kernel's rule for the face: line + 20 + g + line with g = d + ceil((a + d) / 10) of the system's 13 pt
+/// is the kernel's rule for the face: line + 20 + g + line + g' + 16 (g' = g + a - c, the text above the button's standard edge; the button is 16 tall) with g = d + ceil((a + d) / 10) of the system's 13 pt
 /// font. **Mutation M18**: `LayoutSegment` drops the spacing marks at capture (`rows(spacingMarks)` -> `[]`): the
 /// grafted card's gap falls to 8, the bounds differ and `METALUI_VERIFY_RETAINED=1` traps naming the layout digest.
 @Test @MainActor func aGraftedTextStackKeepsItsGap() async throws {
@@ -75,7 +77,8 @@ private struct DSRoot: Component {
     let key = metrics.resolveFont(FontDescriptor(size: 13))
     let m = metrics.fontMetrics(key)
     let gap = m.descent + ((m.ascent + m.descent) / 10).rounded(.up)
-    let expected = Float((m.lineHeight + 20 + gap + m.lineHeight).rounded())
+    let below = gap + m.ascent - (m.capHeight ?? m.ascent)   // text above the button's standard edge
+    let expected = Float((m.lineHeight + 20 + gap + m.lineHeight + below + 16).rounded())
     #expect(rootHeight(pair.on) == expected, "the grafted root: \(rootHeight(pair.on)) vs \(expected) (g = \(gap))")
     #expect(rootHeight(pair.off) == expected)
 }
