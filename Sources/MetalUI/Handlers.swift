@@ -34,7 +34,7 @@
 /// `isPointerTarget` says, and no focus registration, whatever `isKeyTarget`
 /// says. The two stay separate for an ENABLED element, which is the case the
 /// paragraph above is about. The handlers themselves are untouched: re-enabling
-/// registers the same set on the next frame (`reEnablingRestoresClicksButNotFocus`).
+/// registers the same set on the next frame (`reEnablingRestoresClicksAndAPressFocuses`).
 ///
 /// **A fourth gate is pointer-only on purpose: `allowsHitTesting`** (plan task
 /// 5's lane 3, ruling `OM-T`). Unlike `isEnabled` it covers the hitbox and
@@ -387,12 +387,17 @@ public struct Handlers {
             || keyboard?.clipboard != nil
     }
 
-    /// Whether a primary press focuses this element (ruling `KF-F` item 2):
-    /// focusable, with interactions containing `.edit`. Registers a
-    /// **non-opaque** press region (`Frame.registerHandlers`), never a pointer
-    /// target.
+    /// Whether a primary press focuses this element (rulings `KF-F` item 2,
+    /// `FC-A`): focusable, with interactions containing `.edit` or
+    /// `.automatic` (SwiftUI's click focus on macOS, `FC1`/`FC3`).
+    /// **`nil` interactions stay out** — a control sets `isFocusable` directly
+    /// and records none, so a `Button`, `Toggle` or `Slider` is a Tab stop a
+    /// click does not focus (probe arms `C1`, `C3`, `C4`, Full Keyboard Access
+    /// off) — and so does `.activate` (`FC2`). Registers a **non-opaque**
+    /// press region (`Frame.registerHandlers`), never a pointer target.
     var focusesOnPress: Bool {
-        isFocusable && keyboard?.focusInteractions?.contains(.edit) == true
+        guard isFocusable, let interactions = keyboard?.focusInteractions else { return false }
+        return interactions.contains(.edit) || interactions.contains(.automatic)
     }
 
     /// Whether `.hoverKeyRegion()` made this element a key region (ruling

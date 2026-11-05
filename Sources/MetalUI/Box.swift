@@ -332,7 +332,8 @@ public struct Decoration: Sendable, Hashable {
     /// not violate.
     ///
     /// It needs `focusable()` AND something to move focus, on
-    /// `focusBackground`'s footing: clicking does not focus.
+    /// `focusBackground`'s footing: a press on a `.focusable()` element moves
+    /// it (`FC-A`), a `Button` or other control takes none from a click.
     public var focusBorder: BorderStyle?
 
     /// Multiplies the opacity of everything this element paints — its own
@@ -756,7 +757,8 @@ extension StyledElement {
     /// evaporates on the next frame.
     ///
     /// **It is NOT a pointer hit target**, unlike `onClick(_:)`: a focusable
-    /// element registers no hitbox, so it stays transparent to the pointer and
+    /// element registers no opaque hitbox (its press region is non-opaque,
+    /// `KF-F` item 3, `FC-A`), so it stays transparent to the pointer and
     /// does not swallow the wheel of a `ScrollView` it sits inside. That
     /// separation is the reason `Handlers` carries two gates rather than one.
     ///
@@ -774,9 +776,11 @@ extension StyledElement {
     /// keyboard shortcut still fires (arm X1). Until that ruling a hidden
     /// focusable box took focus and swallowed keystrokes nobody could see.
     ///
-    /// **Clicking does not focus it** — divergence 94 (`IX-K` item 2, narrowed
-    /// by `KF-F`): SwiftUI's click focuses a `.focusable()` view (F3);
-    /// `focusable(_:interactions:)` with `.edit` is the opt-in (SwiftUI's FC3).
+    /// **A primary press focuses it**, as SwiftUI's click does (F3, FC1;
+    /// ruling `FC-A`, divergence 94 retired): it records `.automatic`
+    /// interactions, which register the non-opaque press region
+    /// (`focusable(_:interactions:)` has the details). `.activate` is the
+    /// opt-out.
     ///
     /// `isFocusable` (SwiftUI's `focusable(_:)`): `false` makes the element not
     /// focusable. A later `focusable` replaces an earlier one, interactions
@@ -784,7 +788,7 @@ extension StyledElement {
     public func focusable(_ isFocusable: Bool = true) -> Self {
         handling {
             $0.isFocusable = isFocusable
-            $0.keyboard = KeyboardAttachment.interactions(nil, over: $0.keyboard)
+            $0.keyboard = KeyboardAttachment.interactions(.automatic, over: $0.keyboard)
         }
     }
 
@@ -1013,11 +1017,12 @@ extension StyledElement {
     /// ask for a border at all (`Frame.fill`, and CLAUDE.md's declared-but-inert
     /// table). Two nested filled boxes are the spelling for a ring today.
     ///
-    /// **It needs `focusable()` AND something to move focus.** Focus never
-    /// moves on its own here — clicking does not focus, see `Window.focus(_:)`
-    /// — so an element declaring this and nothing else paints its plain
-    /// background forever, exactly as `hoverBackground(_:)` does without a
-    /// click handler.
+    /// **It needs `focusable()` AND something to move focus.** A press on a
+    /// `.focusable()` element moves it (`FC-A`), Tab and `Window.focus(_:)`
+    /// move it too; a control (`Button`, `Toggle`, `Slider`) takes none from a
+    /// click — so an element declaring this and nothing else paints its plain
+    /// background until one of those, exactly as `hoverBackground(_:)` does
+    /// without a click handler.
     ///
     /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
     /// a palette colour or a token.
@@ -1587,9 +1592,10 @@ extension StyledElement {
     /// as an affordance at all ("a judgement about two dark greys", CLAUDE.md's
     /// human-verification table).
     ///
-    /// It needs `focusable()` AND something to move focus: clicking does not
-    /// focus (`Window.focus(_:)` is the only mover), so an element declaring
-    /// this and nothing else draws its plain border forever.
+    /// It needs `focusable()` AND something to move focus: a press on a
+    /// `.focusable()` element does (`FC-A`), as do Tab and `Window.focus(_:)`,
+    /// so an element declaring this and nothing else draws its plain border
+    /// until one of those.
     ///
     /// A `Color` since the colour work (`CR-E`): a literal, a dynamic colour,
     /// a palette colour or a token.

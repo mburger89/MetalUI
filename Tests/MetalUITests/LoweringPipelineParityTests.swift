@@ -110,8 +110,13 @@ private func count(in window: Window) -> Int? {
     try #require(window.lastElementBounds.count == 12, "\(window.lastElementBounds.count)")
     #expect(window.lastElementBounds[counterElementID] == bounds(0, 0, 260, 60))
     #expect(window.lastElementBounds[child(counterElementID, 2)] == bounds(212, 12, 36, 36))
-    #expect(window.lastHitboxes.map(\.bounds) == [bounds(12, 12, 36, 36), bounds(212, 12, 36, 36)],
+    // The two buttons are the opaque targets; the focusable counter column adds a
+    // NON-opaque press region over its whole 260 x 60 box (`FC-A`).
+    #expect(window.lastHitboxes.filter(\.opaque).map(\.bounds)
+                == [bounds(12, 12, 36, 36), bounds(212, 12, 36, 36)],
             "\(window.lastHitboxes.map(\.bounds))")
+    #expect(window.lastHitboxes.filter { !$0.opaque }.map(\.bounds) == [bounds(0, 0, 260, 60)],
+            "the counter's press region: \(window.lastHitboxes.filter { !$0.opaque }.map(\.bounds))")
 
     click(platform, at: pt(230, 30))
     window.drawFrameIfNeeded()

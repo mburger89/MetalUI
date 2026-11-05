@@ -58,11 +58,10 @@ public struct KeyPress: Sendable {
 }
 
 /// The ways a focusable element takes focus — SwiftUI's `FocusInteractions`
-/// (ruling `KF-F`). In MetalUI only `.edit` changes anything: an element whose
-/// interactions contain it **takes focus on a primary press** (SwiftUI's FC3).
-/// `.activate` and `.automatic` leave it reachable by Tab and programmatic
-/// focus only — `.automatic` is where MetalUI differs from SwiftUI's macOS
-/// answer, which focuses on click (divergence 94, narrowed).
+/// (ruling `KF-F`, `FC-A`). An element whose interactions contain `.edit` or
+/// `.automatic` **takes focus on a primary press** (SwiftUI's FC3, FC1); one
+/// whose interactions are only `.activate` is reachable by Tab and
+/// programmatic focus only (FC2). Plain `.focusable()` records `.automatic`.
 public struct FocusInteractions: OptionSet, Sendable {
     /// The bits of the set.
     public let rawValue: Int
@@ -74,9 +73,9 @@ public struct FocusInteractions: OptionSet, Sendable {
     /// Focus for editing (a text-like surface, a canvas): a primary press
     /// focuses it, as Tab does (SwiftUI's FC3).
     public static let edit = FocusInteractions(rawValue: 1 << 1)
-    /// The platform's choice — in MetalUI, `.activate`'s behaviour (divergence
-    /// 94: SwiftUI's macOS automatic focuses on click). A bit of its own, so
-    /// `.automatic` never contains `.edit`.
+    /// The platform's choice — on macOS SwiftUI's automatic focuses on click
+    /// (FC1), and so does MetalUI's (`FC-A`, divergence 94 retired). A bit of
+    /// its own, so `.automatic` never contains `.edit`.
     public static let automatic = FocusInteractions(rawValue: 1 << 2)
 }
 
@@ -276,9 +275,10 @@ extension StyledElement {
     /// secondary press focuses nothing. `.disabled(true)`, `.hidden()` and
     /// `.allowsHitTesting(false)` withdraw the press region.
     ///
-    /// `.activate` and `.automatic` focus by Tab and `Window.focus(_:)` only —
-    /// `.automatic` is where MetalUI differs from SwiftUI's macOS, which
-    /// focuses on click (divergence 94). A later `focusable` replaces this.
+    /// `.automatic` (what plain `focusable()` records) focuses on a press too,
+    /// as SwiftUI's macOS does (FC1; `FC-A`, divergence 94 retired);
+    /// `.activate` focuses by Tab and `Window.focus(_:)` only. A later
+    /// `focusable` replaces this.
     public func focusable(_ isFocusable: Bool = true, interactions: FocusInteractions) -> Self {
         handling {
             $0.isFocusable = isFocusable

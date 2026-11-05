@@ -16,8 +16,8 @@ import MetalUILayout
 /// `.separator` border) showing the selection inset 4 points (radius 3), with
 /// a checkerboard behind its right half when the opacity is below 1. It is
 /// focusable with the control focus ring; a press, Space or Return, or an
-/// accessibility press opens the panel; a press does not focus (divergence
-/// 94's rule).
+/// accessibility press opens the panel; a press does not focus (a
+/// control takes no click focus, `FC-A`).
 ///
 /// **The panel** is a `.popover` from the well, **drawn on every platform**
 /// (divergence 165: on macOS SwiftUI opens `NSColorPanel`, probe `C3`; the

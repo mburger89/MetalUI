@@ -58,8 +58,8 @@ extension ProposalElementGroup {
     }
 
     /// `StyledElement.focusable(_:)` on the proposal path: wraps once in a
-    /// `KeyboardModifier`, which is then the focus target (Tab reaches it; a
-    /// click does not focus it — divergence 94).
+    /// `KeyboardModifier`, which is then the focus target (Tab reaches it and a
+    /// primary press focuses it, `FC-A`).
     public func focusable(_ isFocusable: Bool = true) -> KeyboardModifier<Self> {
         keyboardLayer { _ in }.focusable(isFocusable)
     }
@@ -183,11 +183,12 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
     }
 
     /// Makes this layer focusable (or not) with the automatic interactions —
-    /// `StyledElement.focusable(_:)`'s rules. A later `focusable` replaces it.
+    /// `StyledElement.focusable(_:)`'s rules (a primary press focuses it,
+    /// `FC-A`). A later `focusable` replaces it.
     public func focusable(_ isFocusable: Bool = true) -> Self {
         handling {
             $0.isFocusable = isFocusable
-            $0.keyboard = KeyboardAttachment.interactions(nil, over: $0.keyboard)
+            $0.keyboard = KeyboardAttachment.interactions(.automatic, over: $0.keyboard)
         }
     }
 

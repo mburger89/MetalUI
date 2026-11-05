@@ -175,7 +175,7 @@ container fields (`.margin`, `.gap`, `.justifyContent`, `.alignItems`,
 `.inset`, `.flexDirection` — lowered onto the kernel, unlowerable cases
 refused by name), `.hidden` (A), `.opacity` (A), `.clipped`/`.clipShape` (A),
 `.allowsHitTesting`/`.contentShape` (A), `.onClick` (27), `.onKey`/
-`.focusable`/`.onAction`/`.keyContext` (21, 22, 26, 94). Every legacy element
+`.focusable`/`.onAction`/`.keyContext` (21, 22, 26). Every legacy element
 lowers onto the same kernel as the SwiftUI vocabulary. `Row`/`Column` default
 to gap 0 (52). The eight sizing modifiers and the `fraction:`/`percent:`
 spellings are deprecated toward `.frame` (X). Moving to the SwiftUI
@@ -422,7 +422,7 @@ are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 modifier is `EventModifiers.primary` (M, `SG-B`: `.command` on Apple, `.control`
 elsewhere; SwiftUI's default, `.command`, is the same value on macOS, and SwiftUI has
 no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
-`@FocusState`/`.focused` (A, 94). The keymap — `Keymap`, `KeyBinding`,
+`@FocusState`/`.focused` (A). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 
 **The clipboard beyond text** (`CB-`, record 115;
@@ -633,8 +633,8 @@ runs the command and never reaches `onKeyPress` (`KF-B`, `KF-C`, `KF-X`). A
 typed character on a focused field is offered as `.down` (D 187); a native-only
 menu item's ⌘-key is offered too (D 188). `focusable(_:)` (replacing
 `focusable()`, which still resolves) and `focusable(_:interactions:)` with
-`FocusInteractions` (A): `.edit` focuses on a primary press (SwiftUI's FC3),
-`.activate`/`.automatic` do not (D 94, narrowed); nothing is focused when a
+`FocusInteractions` (A): `.edit` and `.automatic` (what a plain `.focusable()` records) focus on a
+primary press (SwiftUI's FC3 and FC1), `.activate` does not (FC2); nothing is focused when a
 window shows (D 186). **MetalUI-only**: `.hoverKeyRegion(_:)` — with nothing
 focused, keys (and the `Keymap`'s contexts) go to the key region under the
 pointer; a press in it clears a field's focus (`KF-D`, `KF-E`); a press

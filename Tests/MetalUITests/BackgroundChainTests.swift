@@ -152,9 +152,11 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
         // Read back off the registered hitbox rather than reconstructed, for
         // `focusOutranksHoverWhenAnElementIsBoth`'s reason: a hand-built path
         // passes whatever this test believes the identity to be.
-        let hitboxes = window.lastHitboxes
+        // A `.focusable()` subject also registers a NON-opaque press region
+        // (`FC-A`), so the pointer target is counted among the opaque hitboxes.
+        let hitboxes = window.lastHitboxes.filter(\.opaque)
         try #require(hitboxes.count == 1,
-                     "\(site): set up — onClick registers exactly one hitbox, got \(hitboxes.count)")
+                     "\(site): set up — onClick registers exactly one opaque hitbox, got \(hitboxes.count)")
         let id = hitboxes[0].id
 
         window.focus(id)
@@ -218,8 +220,9 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
         let resting = try subjectRect(window.lastScene)
         try #require(isFilled(resting, with: .surface, in: theme),
                      "\(site) \(state): set up — the resting token, got \(describe(resting, in: theme))")
-        let hitboxes = window.lastHitboxes
-        try #require(hitboxes.count == 1, "\(site) \(state): set up — one hitbox")
+        // The press region of a `.focusable()` subject is non-opaque (`FC-A`).
+        let hitboxes = window.lastHitboxes.filter(\.opaque)
+        try #require(hitboxes.count == 1, "\(site) \(state): set up — one opaque hitbox")
         let id = hitboxes[0].id
 
         withAnimation(.linear(duration: 1)) { change(window, platformWindow, id) }

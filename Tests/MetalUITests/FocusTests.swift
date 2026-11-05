@@ -399,8 +399,12 @@ private final class Toggle {
         Box().cssWidth(px(40)).cssHeight(px(40)).focusable().onKey { _ in true }
     }
     keyboardOnly.drawFrameIfNeeded()
-    #expect(keyboardOnly.lastHitboxes.isEmpty,
+    // `FC-A`: a `.focusable()` box registers a press region, but a NON-opaque one that
+    // carries no click and no scroll, so it still swallows nothing (`KF-F` item 3).
+    #expect(keyboardOnly.lastHitboxes.filter(\.opaque).isEmpty,
             "a focusable key handler is not a hit target, so it swallows no wheel")
+    #expect(keyboardOnly.lastHitboxes.allSatisfy { !$0.opaque && $0.scroll == nil && $0.handlers.onClick == nil },
+            "its press region is non-opaque, scrolls nothing and clicks nothing")
     #expect(keyboardOnly.lastFocusRegistry.isFocusable(rootID2()),
             "it did register for focus, so the line above is not a dead fixture")
 
@@ -409,7 +413,7 @@ private final class Toggle {
         Box().cssWidth(px(40)).cssHeight(px(40)).focusable().onClick {}
     }
     clickable.drawFrameIfNeeded()
-    #expect(clickable.lastHitboxes.count == 1, "`onClick` is what makes a hit target")
+    #expect(clickable.lastHitboxes.filter(\.opaque).count == 1, "`onClick` is what makes a hit target")
 }
 
 private func rootID2() -> GlobalElementID {
