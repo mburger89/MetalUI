@@ -9,7 +9,9 @@ import Testing
 // R4-4 PR A (`HY-B`): an `.equatable()` child holding a level reads its parent through the environment, never
 // through its own value, so a parent that changes from red to blue must repaint it (the retained key sees the
 // changed `foregroundStyle`, whose `over` is part of `Color`'s `Hashable`). Colours are read from the scene's rects
-// (a retention-off twin is compared whole). Mutation 9: `Color.Provider`'s equality ignoring `over`.
+// (a retention-off twin is compared whole). **The level must sit in the environment** (`.foregroundStyle(.secondary)` written under
+// the changing parent), since only then does the retained key hold a `.hierarchical` colour; with a plain `Color` parent the
+// chip's key differs on the plain colour alone and mutation 9 (`Color.Provider`'s equality ignoring `over`) stayed green.
 
 @Observable @MainActor final class HYParentBox { var color: Color = .red }
 
@@ -28,7 +30,7 @@ struct HYParent: Component {
         VStack(spacing: 4) {
             HYChip(tag: 1).equatable()
             Circle().fill(.secondary).frame(width: Pixels(40), height: Pixels(40))
-        }.foregroundStyle(parent)
+        }.foregroundStyle(.secondary).foregroundStyle(parent)
     }
 }
 

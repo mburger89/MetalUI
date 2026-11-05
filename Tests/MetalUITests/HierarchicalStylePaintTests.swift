@@ -175,6 +175,42 @@ private func describe(_ scene: Scene, _ landing: Landing) -> String { "\(landed(
     #expect(has(s9r, .fill, blue, alpha: 1), "S9r: \(describe(s9r, .fill))")
 }
 
+/// **RL1, RL2, S1** — the leading-dot spellings, not typed values: `.primary` and `.secondary` bind the level (red at 1 and
+/// .5 of a red parent), not `Color.primary`/`Color.secondary`, at the shape, group, `Text`, `ProposalText` and
+/// `background` sinks. `Color.primary` is the theme's text colour at alpha 1, so only a leading-dot `.primary` under
+/// a parent separates the level from the colour. Mutations: `@_disfavoredOverload` removed from `Color.primary`
+/// (the `.primary` lines redden) or from `Color.secondary` (the `.secondary` lines redden).
+@Test @MainActor func aLeadingDotPrimaryAndSecondaryBindTheLevelNotTheColour() {
+    func scene<E: ElementGroup>(_ e: E) -> Scene {
+        painted(HStack { e }.foregroundStyle(.red))
+    }
+    let box = (width: px(40), height: px(40))
+    let primary: [(String, Landing, Scene)] = [
+        ("Shape.fill(.primary)", .fill, scene(Circle().fill(.primary).frame(width: box.width, height: box.height))),
+        ("ShapeView.fill(.primary)", .fill, scene(Circle().fill(.blue).fill(.primary).frame(width: box.width, height: box.height))),
+        ("Shape.stroke(.primary)", .border, scene(Circle().stroke(.primary, lineWidth: px(4)).frame(width: box.width, height: box.height))),
+        ("foregroundStyle(.primary) group", .glyph, scene(HStack { ProposalText("Hi") }.foregroundStyle(.primary))),
+        ("Text.foregroundStyle(.primary)", .glyph, scene(Text("Hi").foregroundStyle(.primary))),
+        ("ProposalText.foregroundStyle(.primary)", .glyph, scene(ProposalText("Hi").foregroundStyle(.primary))),
+        ("background(.primary)", .fill, scene(leaf().background(.primary))),
+        ("Box.background(.primary)", .fill, scene(Box().cssWidth(px(40)).cssHeight(px(40)).background(.primary))),
+    ]
+    for (site, landing, s) in primary {
+        #expect(has(s, landing, redLight, alpha: 1), "\(site): wanted the red parent at 1, got \(describe(s, landing))")
+    }
+    let secondary: [(String, Landing, Scene)] = [
+        ("Shape.fill(.secondary)", .fill, scene(Circle().fill(.secondary).frame(width: box.width, height: box.height))),
+        ("foregroundStyle(.secondary) group", .glyph, scene(HStack { ProposalText("Hi") }.foregroundStyle(.secondary))),
+        ("Text.foregroundStyle(.secondary)", .glyph, scene(Text("Hi").foregroundStyle(.secondary))),
+        ("ProposalText.foregroundStyle(.secondary)", .glyph, scene(ProposalText("Hi").foregroundStyle(.secondary))),
+        ("background(.secondary)", .fill, scene(leaf().background(.secondary))),
+        ("Box.background(.secondary)", .fill, scene(Box().cssWidth(px(40)).cssHeight(px(40)).background(.secondary))),
+    ]
+    for (site, landing, s) in secondary {
+        #expect(has(s, landing, redLight, alpha: 0.5), "\(site): wanted the red parent at .5, got \(describe(s, landing))")
+    }
+}
+
 /// **P14, P15 (divergence 975)** — a gradient parent is lowered to its first stop, a `.tint` parent is the tint.
 @Test @MainActor func aGradientParentLowersToItsFirstStopAndATintParentIsTheTint() {
     let size = (width: px(40), height: px(40))
