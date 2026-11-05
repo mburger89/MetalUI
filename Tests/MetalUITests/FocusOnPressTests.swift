@@ -128,6 +128,33 @@ private func drag(_ p: Point<Pixels>) -> InputEvent { .mouseDragged(MouseEvent(p
             "control: each control's own action ran (the clicks landed): \(m.log)")
 }
 
+/// **A26h** (`FC-A` item 2). The predicate itself: `focusesOnPress` is a
+/// focusable whose interactions contain `.edit` or `.automatic`; absent
+/// interactions (a control's, even with a keyboard attachment from an
+/// `onKeyPress`), `.activate`, an empty set and `isFocusable == false` are out.
+/// Mutations: drop `.automatic` (the `.automatic` row reddens); treat `nil` as
+/// `.automatic` (the `nil` row reddens, and with it only this test and a demo
+/// whose first press-focusable lookup finds a text field).
+@MainActor
+@Test func focusesOnPressFollowsTheInteractionsAndNotTheirAbsence() {
+    func handlers(focusable: Bool = true, _ interactions: FocusInteractions?) -> Handlers {
+        var h = Handlers()
+        h.isFocusable = focusable
+        h.keyboard = KeyboardAttachment.make(
+            keyPresses: [KeyPressHandler(phases: [.down], filter: .any, action: { _ in .ignored })],
+            focusInteractions: interactions, isKeyRegion: false, resignsOnPress: false, clipboard: nil)
+        return h
+    }
+    #expect(handlers(.automatic).focusesOnPress, ".automatic is SwiftUI's click focus (FC1)")
+    #expect(handlers(.edit).focusesOnPress, ".edit is FC3")
+    #expect(handlers([.edit, .activate]).focusesOnPress, "a set holding .edit focuses")
+    #expect(!handlers(nil).focusesOnPress, "absent interactions are a control's: Tab only (C1, C3, C4)")
+    #expect(!handlers(.activate).focusesOnPress, ".activate is Tab only (FC2)")
+    #expect(!handlers([]).focusesOnPress, "an empty set focuses nothing")
+    #expect(!handlers(focusable: false, .automatic).focusesOnPress, "not focusable: nothing to focus (FC5)")
+    #expect(!Handlers().focusesOnPress, "no keyboard attachment at all")
+}
+
 /// **A26d** (`C6`). Clicking a `Button` leaves a focused view focused. The
 /// focus was taken by a press (a plain focusable), not set from code.
 @MainActor
