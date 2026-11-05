@@ -245,6 +245,18 @@ private struct EquatableFocusable: Component, Equatable {
     #expect(window.framesDrawn == before, "idle: no frame is drawn")
 }
 
+/// The seat owes the window one more frame, which paints the ring (focus is drawn, `PaintPass.isFocused`), and no
+/// `@FocusState` is needed to say so. Mutation: seat without `setNeedsRedraw()` (green until this test).
+@MainActor
+@Test func theSeatOwesOneFrameThatPaintsTheFocusedElement() throws {
+    let (window, _) = try makeFakeWindowOnDefaultDevice(size: 200) { Row { Column { sq().focusable() } } }
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement != nil, "set up: seated")
+    #expect(window.needsRedraw, "the first frame drew the element unfocused, so a frame is owed")
+    window.drawFrameIfNeeded()
+    #expect(!window.needsRedraw, "and one is all that is owed")
+}
+
 // MARK: - Divergence 217 (a focused focusable removed)
 
 /// **L2, L4, L5; divergence 217's pin.** SwiftUI moves focus from a removed focused `.focusable()` to an existing
