@@ -51,6 +51,10 @@ public struct Color: Hashable, Sendable {
         case palette(PaletteKey)
         /// The environment's tint, else the theme's accent (`SS-D`): `Color.accentColor`.
         case accentColor
+        /// A level of the inherited style (`HY-A`, divergence 119 retired): `over` is the parent style the level
+        /// was written over, with any level of its own stripped; `nil` takes the position's inherited
+        /// `foregroundStyle` at resolution, else the theme's text colour at the level's own alpha.
+        indirect case hierarchical(HierarchicalShapeStyle.Level, over: Color?)
     }
 
     var provider: Provider
@@ -61,6 +65,24 @@ public struct Color: Hashable, Sendable {
     init(provider: Provider, opacityFactor: Float = 1) {
         self.provider = provider
         self.opacityFactor = opacityFactor
+    }
+
+    /// `level` of `parent` (`HY-A`): a level never compounds, so a parent that is itself a level of something is
+    /// replaced by that something (probe `swiftui-hierarchical-paint.swift` P7, P8).
+    init(level: HierarchicalShapeStyle.Level, over parent: Color?) {
+        self.init(provider: .hierarchical(level, over: parent?.strippingLevel))
+    }
+
+    /// This colour without a level written over it: the colour the level was over (`nil` for none), or `self`.
+    var strippingLevel: Color? {
+        if case let .hierarchical(_, base) = provider, opacityFactor == 1 { return base }
+        return self
+    }
+
+    /// Whether resolving this colour reads the position's inherited style (`HY-B`).
+    var readsInheritedStyle: Bool {
+        if case .hierarchical(_, nil) = provider { return true }
+        return false
     }
 
     /// A NaN stored as 0 (`CR-R` item 2); every other value as written.
@@ -187,7 +209,7 @@ public struct Color: Hashable, Sendable {
     /// pixels it drew before); a dynamic colour picks by `scheme`; a palette
     /// colour resolves the theme's override or its key's default, trapping
     /// on a cycle (`CR-N` item 5). The opacity multiplier applies last.
-    func resolved(theme: Theme, scheme: ColorScheme, tint: Color? = nil, depth: Int = 0) -> Hsla {
+    func resolved(theme: Theme, scheme: ColorScheme, tint: Color? = nil, inherited: Color? = nil, depth: Int = 0) -> Hsla {
         var base: Hsla
         switch provider {
         case let .srgb(r, g, b, a):
@@ -195,13 +217,21 @@ public struct Color: Hashable, Sendable {
         case let .token(token):
             base = theme[token]
         case let .dynamic(light, dark):
-            base = (scheme == .dark ? dark : light).resolved(theme: theme, scheme: scheme, tint: tint, depth: depth)
+            base = (scheme == .dark ? dark : light).resolved(theme: theme, scheme: scheme, tint: tint, inherited: inherited, depth: depth)
         case let .palette(key):
             if depth >= 16 { fatalError("ThemeColorKey cycle through \(key.name)") }
-            base = theme.paletteColor(key).resolved(theme: theme, scheme: scheme, tint: tint, depth: depth + 1)
+            base = theme.paletteColor(key).resolved(theme: theme, scheme: scheme, tint: tint, inherited: inherited, depth: depth + 1)
         case .accentColor:
             // The tint resolves with no tint of its own, so `.tint(.accentColor)` is the theme accent (`SS-D`).
             base = tint?.resolved(theme: theme, scheme: scheme, tint: nil, depth: depth + 1) ?? theme[.accent]
+        case let .hierarchical(level, over):
+            if let parent = over ?? inherited?.strippingLevel {
+                base = parent.resolved(theme: theme, scheme: scheme, tint: tint, depth: depth + 1)
+                base.a *= level.factor(overParent: true, scheme: scheme)
+            } else {
+                base = theme[.textPrimary]
+                base.a *= level.factor(overParent: false, scheme: scheme)
+            }
         }
         if opacityFactor != 1 { base.a *= Self.clamped(opacityFactor) }
         return base
@@ -227,7 +257,8 @@ public struct Color: Hashable, Sendable {
     /// The theme itself stays paint-only (`EV-G`); a colour resolves wherever
     /// an environment is in hand.
     public func resolve(in environment: EnvironmentValues) -> Resolved {
-        let rgba = resolved(theme: environment.theme, scheme: environment.colorScheme, tint: environment.tint).toRgba()
+        let rgba = resolved(theme: environment.theme, scheme: environment.colorScheme, tint: environment.tint,
+                            inherited: readsInheritedStyle ? environment.foregroundStyle : nil).toRgba()
         return Resolved(red: rgba.r, green: rgba.g, blue: rgba.b, opacity: rgba.a)
     }
 
@@ -268,9 +299,11 @@ public struct Color: Hashable, Sendable {
 
     /// The primary content colour: the theme's `textPrimary` (divergence 116 —
     /// SwiftUI's is the system label colour, black/white at 0.8471).
+    @_disfavoredOverload
     public static let primary = Color(ColorToken.textPrimary)
     /// The secondary content colour: `textPrimary` at SwiftUI's secondary to
     /// primary alpha ratio, 0.588 light and 0.648 dark (divergence 116).
+    @_disfavoredOverload
     public static let secondary = Color(light: Color(ColorToken.textPrimary).opacity(0.588),
                                         dark: Color(ColorToken.textPrimary).opacity(0.648))
     /// The accent colour: the tint a `.tint(_:)` above wrote, else the theme's
@@ -339,14 +372,19 @@ struct ColorContext {
     var scheme: ColorScheme
     /// The environment's tint, read by `Color.accentColor` (`SS-D`).
     var tint: Color?
+    /// The inherited `foregroundStyle`, which a level written over nothing reads (`HY-B`).
+    var inherited: Color?
 
-    init(theme: Theme, scheme: ColorScheme, tint: Color? = nil) {
+    init(theme: Theme, scheme: ColorScheme, tint: Color? = nil, inherited: Color? = nil) {
         self.theme = theme
         self.scheme = scheme
         self.tint = tint
+        self.inherited = inherited
     }
 
-    func resolve(_ color: Color) -> Hsla { color.resolved(theme: theme, scheme: scheme, tint: tint) }
+    func resolve(_ color: Color) -> Hsla {
+        color.resolved(theme: theme, scheme: scheme, tint: tint, inherited: color.readsInheritedStyle ? inherited : nil)
+    }
 }
 
 extension Frame {
@@ -355,11 +393,12 @@ extension Frame {
     var colorScheme: ColorScheme { environmentTop.colorScheme }
 
     /// The resolution context at the current position.
-    var colorContext: ColorContext { ColorContext(theme: environmentTop.theme, scheme: environmentTop.colorScheme, tint: environmentTop.tint) }
+    var colorContext: ColorContext { ColorContext(theme: environmentTop.theme, scheme: environmentTop.colorScheme, tint: environmentTop.tint, inherited: environmentTop.foregroundStyle) }
 
     /// `color` resolved against the current position's theme and scheme —
     /// `PaintPass.resolve(_:)`'s implementation (`CR-H` item 1).
     func resolve(_ color: Color) -> Hsla {
-        color.resolved(theme: environmentTop.theme, scheme: environmentTop.colorScheme, tint: environmentTop.tint)
+        color.resolved(theme: environmentTop.theme, scheme: environmentTop.colorScheme, tint: environmentTop.tint,
+                       inherited: color.readsInheritedStyle ? environmentTop.foregroundStyle : nil)
     }
 }

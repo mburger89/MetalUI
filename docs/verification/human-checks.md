@@ -2245,3 +2245,12 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **VA2.** `Circle().trim(from: 0, to: value)` changed under `withAnimation`, and a trim of a trim: the stroke draws on smoothly in both windows, with no jump at the start or end. **Observed:**
 - [ ] **VA3.** Change the target mid-flight under a spring (divergence 216): MetalUI restarts from rest at the current position. Compare with SwiftUI's retarget and note how visible the difference is. Run probe arm `VA6d` on the same unlocked session and record its output in the probe header. **Observed:**
 - [ ] **VA4.** (R4-3 PR E, record 209, `VA-I`) A counter and a custom shape under a spring: a `struct Counter: Component, Animatable` (`nonisolated var animatableData`) whose `content` draws a bar `100 + x` wide and prints `x`, beside a custom `Shape` whose data is the same number, both changed under `withAnimation(.spring(duration: 0.6, bounce: 0.3))`, beside the same pair in SwiftUI: the printed number counts through the in-between values (not 0 then 200), the bar and the shape move together with the same overshoot, and nothing stutters or freezes with the counter under `.equatable()`. **Observed:**
+
+## HY. Hierarchical styles - a level of a tinted parent looks like SwiftUI's (round 4 item R4-4 PR A; rulings `HY-A`..`HY-D`, record 213; decisions `docs/superpowers/2026-11-04-hierarchical-styles-decisions.md`; provisional letter)
+
+*An agent cannot: the alphas are pinned headless (`HierarchicalStylePaintTests`) against probe readings taken with `ImageRenderer`; how a level reads on real type and shapes under a tinted parent needs eyes, in both schemes.*
+
+- [ ] **HY1.** Real type under a tinted parent, beside the same views in SwiftUI, light and dark: a `VStack` of five `Text` lines `.primary` to `.quinary` inside `.foregroundStyle(.red)`, and again inside `.tint(.green)` with `.foregroundStyle(.tint)`. Each line steps down in the parent's own hue (alpha 1, .5, .25, .18, .18), not toward grey. **Observed:**
+- [ ] **HY2.** The same five levels with no parent, and as `Rectangle().fill(.secondary)` swatches on white and on black: grey steps of the theme's text colour. Compare the steps and the contrast of `.quaternary` and `.quinary` with SwiftUI's; MetalUI's text colour is the theme token (divergence 116), so the grey differs by that and nothing else. **Observed:**
+- [ ] **HY3.** `Color.secondary` explicit, and `foregroundColor(.secondary)`, inside the red parent: still grey in both. **Observed:**
+

@@ -87,9 +87,10 @@ private let roundJoin = StrokeStyle(lineWidth: px(6), lineJoin: .round)
 /// `StyledElement.background(_ color:)`, `Text.foregroundColor(_ color:)` and
 /// `Shape.fill(_ color:)` replace the forwarded colour with `.surface` —
 /// that arm reddens; `Shape.fill` also reddens the `background(_:in:)` arm,
-/// which forwards to `shape.fill` (`CR-X` item 3, mutation M13). **`CR-U`'s tinted-parent arm**: a `Text` under
-/// `.foregroundStyle(.red)` with its own `.foregroundStyle(.secondary)` paints
-/// `Color.secondary`'s resolved value, not a red (divergence 119).
+/// which forwards to `shape.fill` (`CR-X` item 3, mutation M13). **`CR-U`'s tinted-parent arm, flipped by `HY-A`** (divergence 119 retired): a `Text` under
+/// `.foregroundStyle(.red)` with its own `.foregroundStyle(.secondary)` paints a red level (FF383C at alpha .5,
+/// probe `swiftui-hierarchical-paint.swift` `RL2`/`T3`), not `Color.secondary`'s grey; the grey is the explicit
+/// `Color.secondary` (`HierarchicalStylePaintTests`).
 @Test @MainActor func aLiteralColourReachesEveryColourTakingSite() {
     func arm<E: Element>(_ site: String, _ landing: Landing, mouse: Point<Pixels>? = nil,
                          focused: GlobalElementID? = nil, _ element: E,
@@ -182,12 +183,13 @@ private let roundJoin = StrokeStyle(lineWidth: px(6), lineJoin: .round)
     #expect(tapScene.rects.contains { close(rgba($0.background), Rgba(r: redLight.r, g: redLight.g, b: redLight.b, a: 0.22)) },
             "onTap(hoverColor:): no FF383C wash at 0.22: \(describe(tapScene))")
 
-    // CR-U: the text's own `.secondary` wins over a red parent and is Color.secondary's value.
+    // CR-U, flipped by HY-A: the text's own `.secondary` is a level of the red parent (RL2/T3), not the grey.
     let tinted = painted(HStack { HStack { ProposalText("Hi").foregroundStyle(.secondary) }.foregroundStyle(.red) })
     let text = Theme.light.textPrimary.toRgba()
-    let secondary = Rgba(r: text.r, g: text.g, b: text.b, a: text.a * 0.588)
-    #expect(carries(tinted, secondary, at: .glyph) && !carries(tinted, redLight, at: .glyph),
-            "CR-U: .foregroundStyle(.secondary) under a red parent paints Color.secondary: \(describe(tinted))")
+    let grey = Rgba(r: text.r, g: text.g, b: text.b, a: text.a * 0.588)
+    let redHalf = Rgba(r: redLight.r, g: redLight.g, b: redLight.b, a: 0.5)
+    #expect(carries(tinted, redHalf, at: .glyph) && !carries(tinted, grey, at: .glyph),
+            "HY-A: .foregroundStyle(.secondary) under a red parent paints red at .5: \(describe(tinted))")
 }
 
 /// **1.16** (`CR-G`). `Color.red` as a view is one `FF383C` rect;

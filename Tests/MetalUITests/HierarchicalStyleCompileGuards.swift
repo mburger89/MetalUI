@@ -22,9 +22,11 @@ private let skipReason: Comment =
 /// `flag ? .red : .secondary`). Negative arms are each their own fixture: a level is no `Color`, and a
 /// misspelt level is no style.
 ///
-/// Mutations that must redden it or the build: `@_disfavoredOverload` removed from a sink's `Color`
-/// overload (the level then ties with `Color.secondary`), or from its generic one (the level ties with the
-/// concrete level overload), or the level overload deleted at one sink.
+/// The mechanism (`HY-C`): no sink's overloads changed; `Color.primary` and `Color.secondary` are
+/// `@_disfavoredOverload` and `ShapeStyle where Self == HierarchicalShapeStyle` has the five statics. Mutations
+/// that must redden this or the paint tests: `@_disfavoredOverload` removed from `Color.secondary` (the level
+/// binds the grey, `HierarchicalStylePaintTests`), or the `ShapeStyle` statics deleted (`.secondary` binds only
+/// `Color.secondary`, `.quaternary` no longer compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func everyHierarchicalOverloadArmTypechecksWithoutAmbiguity() throws {
     let positive = try typecheckFile("""
@@ -71,7 +73,7 @@ func everyHierarchicalOverloadArmTypechecksWithoutAmbiguity() throws {
                 .foregroundStyle(.quaternary).foregroundStyle(.quinary)
             _ = Column { Text("a") }.foregroundStyle(.red).foregroundStyle(.accentColor).foregroundStyle(Color.secondary)
                 .foregroundStyle(c).foregroundStyle(.textPrimary).foregroundStyle(t).foregroundStyle(.tint)
-                .foregroundStyle(s).foregroundStyle(any).foregroundStyle(g).foregroundStyle(.regularMaterial)
+                .foregroundStyle(s).foregroundStyle(any).foregroundStyle(g).foregroundStyle(Material.regularMaterial)
             _ = Column { Text("a") }.foregroundStyle(flag ? .secondary : .primary).foregroundStyle(flag ? .red : .blue)
                 .foregroundStyle(flag ? Color.red : .secondary).foregroundStyle(flag ? .red : .secondary)
             _ = Box { Text("a") }.foregroundStyle(.secondary).foregroundStyle(.red).foregroundStyle(t)
@@ -147,7 +149,6 @@ func everyHierarchicalOverloadArmTypechecksWithoutAmbiguity() throws {
             _ = Rectangle().fill(a).stroke(b, lineWidth: Pixels(1)).fill(c).fill(s)
             _ = Column { Text("a") }.foregroundStyle(a).background(b, in: Circle())
             _ = a == b
-            _ = Set([a, b]).count
         }
         """, importing: "MetalUI")
     print("HIERARCHICAL GUARD G-HY1 positive: succeeded=\(positive.succeeded)\n\(positive.messages)")

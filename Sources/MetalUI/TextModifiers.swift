@@ -80,8 +80,10 @@ extension ElementGroup {
     }
 
     /// The glyph colour of every text below that names none (TE-D; probes
-    /// C2, C6) — a `Color`, not a `ShapeStyle` (`CR-E`; a leading-dot
-    /// `.secondary` is `Color.secondary`, divergence 119, `CR-U`).
+    /// C2, C6) — a `Color` (`CR-E`), the fast path beside the generic
+    /// `some ShapeStyle` overload. A leading-dot `.secondary` is not this overload's:
+    /// `Color.secondary` is `@_disfavoredOverload`, so the generic one binds the level
+    /// `HierarchicalShapeStyle.secondary` (`HY-C`); an explicit `Color.secondary` is this.
     public func foregroundStyle(_ color: Color) -> EnvironmentScope<Self> {
         environment(\.foregroundStyle, color)
     }

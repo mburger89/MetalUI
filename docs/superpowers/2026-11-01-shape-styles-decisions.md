@@ -85,7 +85,8 @@ protocol of the new code nests a loop in a container inside a `Component` (`LK-X
 
 ## SS-G: carried
 
-`HierarchicalShapeStyle` (`.primary` … `.quinary`, divergence 119: `.foregroundStyle(.secondary)` is still `Color.secondary`);
-`foregroundStyle(_:_:)` and `(_:_:_:)`, which need it; `ForegroundStyle`/`.foreground`; `ImagePaint`; the `ShapeStyle where Self == Color`
+`HierarchicalShapeStyle` was carried here and is built since `HY-A` (record 213, divergence 119 retired; `Color.primary` and `.secondary` are
+disfavoured so a leading-dot level binds the generic overload, `HY-C`); still carried: `foregroundStyle(_:_:)` and `(_:_:_:)`, whose probe is `P11`..`P13c`;
+the instance members `ShapeStyle.secondary`…; `ForegroundStyle`/`.foreground`; `ImagePaint`; the `ShapeStyle where Self == Color`
 statics (`SS-A` item 4); `AngularGradient`/`EllipticalGradient`; `ShapeStyle` shadows; a tint reaching the theme-only surfaces
 (`SS-D` item 4); `Text` gradient fills.
