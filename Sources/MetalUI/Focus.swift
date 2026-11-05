@@ -105,27 +105,46 @@ struct FocusRegistry {
 
     /// The element the window seats focus on when it first draws, if any
     /// (ruling `FC-E`): the candidate with the smallest `top`, ties kept in
-    /// registration (tree) order, so the first one noted wins a tie.
+    /// registration (tree) order, so the first one noted wins a tie — **unless a
+    /// `List` was noted before it in tree order** (`FC-F`, probes `I13`, `I13s`..
+    /// `I13v`: a list holds the first responder itself), when nothing is seated.
     ///
-    /// **One id and one number, not a list**: the seat is the only question
+    /// **One id and a few numbers, not a list**: the seat is the only question
     /// asked of the candidates, and a frame that replays a prepaint ledger
     /// notes none (a replay needs no seat, since the seat is read on the very
     /// first frame only and that frame replays nothing). They are therefore
     /// not part of any prepaint record or fingerprint.
-    private(set) var initialSeat: GlobalElementID?
-    private var initialSeatTop: Float = 0
+    var initialSeat: GlobalElementID? {
+        guard let best = bestSeat else { return nil }
+        if let holder = firstSeatHolderOrdinal, holder < bestSeatOrdinal { return nil }
+        return best
+    }
+    private var bestSeat: GlobalElementID?
+    private var bestSeatTop: Float = 0
+    private var bestSeatOrdinal = 0
+    private var firstSeatHolderOrdinal: Int?
+    private var seatOrdinal = 0
     /// How many candidates were noted this frame — test observability.
     private(set) var seatCandidateCount = 0
 
     /// Notes `id`, at window-space `top`, as a candidate for the first-draw
     /// seat. The caller has already applied the candidate rule (a
-    /// click-focusable element, enabled, not hidden, outside a scroller).
+    /// click-focusable element, enabled, not hidden, outside a `List`'s rows).
     mutating func noteSeatCandidate(id: GlobalElementID, top: Float) {
         seatCandidateCount += 1
-        if initialSeat == nil || top < initialSeatTop {
-            initialSeat = id
-            initialSeatTop = top
+        seatOrdinal += 1
+        if bestSeat == nil || top < bestSeatTop {
+            bestSeat = id
+            bestSeatTop = top
+            bestSeatOrdinal = seatOrdinal
         }
+    }
+
+    /// Notes a `List` (enabled, not hidden) at this point of the tree order: a
+    /// candidate noted after it is not seated.
+    mutating func noteSeatHolder() {
+        seatOrdinal += 1
+        if firstSeatHolderOrdinal == nil { firstSeatHolderOrdinal = seatOrdinal }
     }
 
     /// A hidden element's keyboard shortcut, and nothing else of its keyboard

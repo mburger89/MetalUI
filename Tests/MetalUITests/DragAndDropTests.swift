@@ -837,9 +837,9 @@ private func item(_ types: [PasteboardType], bytes: [String: [UInt8]], log: Load
 @Test func aPressFocusesADragSourceAndTheDragAddsNoStateEntry() throws {
     let log = DLog()
     let (window, platform) = try dndWindow {
-        // FC-E: a zero-size focusable first takes the first-draw seat, so the source and the destination start
-        // unfocused (the seat's slot belongs to the first one).
-        Row { Box().frame(width: px(0), height: px(0)).focusable(); square().draggable("s").focusable(); stringWell(log).focusable() }
+        // FC-E: a zero-width, full-height focusable first takes the first-draw seat (the topmost, `FC-E`), so the
+        // source and the destination start unfocused and with no `$focus` slot of their own.
+        Row { Box().frame(width: px(0), height: px(200)).focusable(); square().draggable("s").focusable(); stringWell(log).focusable() }
     }
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
@@ -852,10 +852,7 @@ private func item(_ types: [PasteboardType], bytes: [String: [UInt8]], log: Load
     window.drawFrameIfNeeded()
     #expect(window.focusedElement == order[0], "the press focused the source (FC-A, C17)")
     let entries = window.stateTable.count
-    // FC-E: the press writes the source's one `$focus` slot while the retired seat's tombstone is reaped in the same
-    // frame, so the net change is 0 or 1 (it was exactly 1 before the first-draw seat existed). The mid-drag and after-drop
-    // counts below are the pin that a drag adds nothing.
-    #expect(entries >= before && entries <= before + 1, "and wrote its one `$focus` slot: \(before) to \(entries)")
+    #expect(entries == before + 1, "and wrote its one `$focus` slot: \(before) to \(entries)")
     platform.simulateInput(drag(110, 100))
     window.drawFrameIfNeeded()
     platform.simulateInput(drag(300, 100))

@@ -635,7 +635,7 @@ menu item's ⌘-key is offered too (D 188). `focusable(_:)` (replacing
 `focusable()`, which still resolves) and `focusable(_:interactions:)` with
 `FocusInteractions` (A): `.edit` and `.automatic` (what a plain `.focusable()` records) focus on a
 primary press (SwiftUI's FC3 and FC1), `.activate` does not (FC2); the first `.focusable()` is focused when the
-window first draws, never a `TextField` or a scroller's content (D 186, narrowed); a removed focused
+window first draws, never a `TextField` or a `List`'s rows (D 186, narrowed); a removed focused
 `.focusable()` leaves nothing focused (D 217). **MetalUI-only**: `.hoverKeyRegion(_:)` — with nothing
 focused, keys (and the `Keymap`'s contexts) go to the key region under the
 pointer; a press in it clears a field's focus (`KF-D`, `KF-E`); a press

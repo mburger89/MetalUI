@@ -294,6 +294,19 @@ let outside = CGPoint(x: 10, y: 190)
     arm("I13b [focusable, List]", fr: true, Multi { f in VStack(spacing: 0) {
         Color.blue.frame(height: 40).focusable().focused(f, equals: 0)
         List { Text("a"); Text("b") }.frame(height: 100) } })
+    arm("G6s [List{ScrollView{focusable}}]", fr: true, Multi { f in List { ScrollView { Color.blue.frame(height: 40).focusable().focused(f, equals: 0) }.frame(height: 60) } })
+    arm("I13s [List, focusable] side by side, same top, List earlier", fr: true, Multi { f in HStack(alignment: .top, spacing: 0) {
+        List { Text("a"); Text("b") }.frame(width: 100, height: 100)
+        Color.blue.frame(width: 50, height: 100).focusable().focused(f, equals: 0) } })
+    arm("I13t [focusable, List] side by side, same top, focusable earlier", fr: true, Multi { f in HStack(alignment: .top, spacing: 0) {
+        Color.blue.frame(width: 50, height: 100).focusable().focused(f, equals: 0)
+        List { Text("a"); Text("b") }.frame(width: 100, height: 100) } })
+    arm("I13u [List 50 tall, focusable 100 tall] bottom-aligned: List earlier and LOWER", fr: true, Multi { f in HStack(alignment: .bottom, spacing: 0) {
+        List { Text("a") }.frame(width: 100, height: 50)
+        Color.blue.frame(width: 50, height: 100).focusable().focused(f, equals: 0) } })
+    arm("I13v [focusable 50 tall, List 100 tall] bottom-aligned: focusable earlier and LOWER", fr: true, Multi { f in HStack(alignment: .bottom, spacing: 0) {
+        Color.blue.frame(width: 50, height: 50).focusable().focused(f, equals: 0)
+        List { Text("a"); Text("b") }.frame(width: 100, height: 100) } })
     arm("G8 [LazyVStack{focusable}] (no scroller)", Multi { f in LazyVStack(spacing: 0) { Color.blue.frame(height: 40).focusable().focused(f, equals: 0) } })
     arm("G8b [ScrollView{LazyVStack{focusable}}]", Multi { f in ScrollView { LazyVStack(spacing: 0) { Color.blue.frame(height: 40).focusable().focused(f, equals: 0) } } })
     arm("G1 [A offset down 100, B]: B is higher but later in tree order", Multi { f in ZStack(alignment: .top) {

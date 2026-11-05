@@ -37,6 +37,8 @@ private struct Seat<Body: ElementGroup>: Component {
     }
 }
 
+private struct LRow: Identifiable { let id: Int }
+
 @MainActor private func draw(_ window: Window, _ frames: Int = 5) {
     for _ in 0..<frames where window.needsRedraw { window.drawFrameIfNeeded() }
 }
@@ -105,18 +107,77 @@ private struct Seat<Body: ElementGroup>: Component {
         Column { item(f, 0).allowsHitTesting(false); item(f, 1) } }
 }
 
-/// **G5, G7, G8.** A focusable inside a `ScrollView` is not a candidate (the design's scroller exclusion; SwiftUI seats
-/// a `ScrollView`'s content, `G5`/`G7`, a divergence recorded with 186), and a `LazyVStack` outside one is
-/// (`G8`). Mutation: drop the `activeScrollerFrame == nil` condition.
+/// **G5, G5o, G5h, G5v, G7s, G7t, G8, G8b.** A focusable inside a `ScrollView` is a candidate like any other: it is
+/// seated by position, whatever the content's extent or the axis, in the legacy `ScrollView` and in
+/// `ProposalScrollView` (the plan read "not seated", refuted by the probe). Mutation: exclude every scroller
+/// (`activeScrollerFrame == nil`), which reddens each arm.
 @MainActor
-@Test func aFocusableInsideAScrollViewIsNotSeatedButOneOutsideIs() throws {
-    let (alone, _, m1) = try seatOf { _, f in ScrollView { item(f, 0) } }
-    #expect(alone == .some(nil), "G5 (MetalUI): nothing in a scroller is seated: \(m1.seen)")
-    let (beside, _, m2) = try seatOf { _, f in
-        Column { ScrollView { item(f, 0) }.frame(width: Pixels(200), height: Pixels(80)); item(f, 1) } }
-    #expect(beside == .some(1), "G7 (MetalUI): the focusable outside the scroller is seated: \(m2.seen)")
-    let (lazy, _, m3) = try seatOf { _, f in LazyVStack(spacing: 0) { item(f, 0) } }
-    #expect(lazy == .some(0), "G8: a LazyVStack is seated: \(m3.seen)")
+@Test func aFocusableInsideAScrollViewIsSeatedByPositionLikeAnyOther() throws {
+    func expect(_ label: String, _ want: Int?, _ build: @escaping (ISModel, FocusState<Int?>.Binding) -> some ElementGroup,
+                sourceLocation: SourceLocation = #_sourceLocation) throws {
+        let (seat, _, model) = try seatOf(build)
+        #expect(seat == .some(want), "\(label): expected \(String(describing: want)), saw \(model.seen)", sourceLocation: sourceLocation)
+    }
+    // Legacy ScrollView.
+    try expect("G5 legacy, alone", 0) { _, f in ScrollView { item(f, 0) } }
+    try expect("G5o legacy, content taller than the viewport", 0) { _, f in
+        ScrollView { item(f, 0, 400) }.frame(width: Pixels(200), height: Pixels(80)) }
+    try expect("G5h legacy, horizontal", 0) { _, f in ScrollView(.horizontal) { sq(400, 40).focusable().focused(f, equals: 0) } }
+    try expect("G7t legacy above, focusable below", 0) { _, f in
+        Column { ScrollView { item(f, 0, 400) }.frame(width: Pixels(200), height: Pixels(80)); item(f, 1) } }
+    try expect("G7s focusable above, legacy below", 1) { _, f in
+        Column { item(f, 1); ScrollView { item(f, 0, 400) }.frame(width: Pixels(200), height: Pixels(80)) } }
+    try expect("G8b LazyVStack in a ScrollView", 0) { _, f in ScrollView { LazyVStack(spacing: 0) { item(f, 0) } } }
+    // ProposalScrollView.
+    try expect("G5 proposal, alone", 0) { _, f in
+        ProposalScrollView(.vertical) { Rectangle(width: Pixels(100), height: Pixels(40)).focusable().focused(f, equals: 0) } }
+    try expect("G5o proposal, content taller than the viewport", 0) { _, f in
+        ProposalScrollView(.vertical) { Rectangle(width: Pixels(100), height: Pixels(400)).focusable().focused(f, equals: 0) }
+            .frame(width: Pixels(200), height: Pixels(80)) }
+    try expect("G5h proposal, horizontal", 0) { _, f in
+        ProposalScrollView(.horizontal) { Rectangle(width: Pixels(400), height: Pixels(40)).focusable().focused(f, equals: 0) } }
+    try expect("G7s focusable above, proposal below", 1) { _, f in
+        Column {
+            item(f, 1)
+            ProposalScrollView(.vertical) { Rectangle(width: Pixels(100), height: Pixels(400)).focusable().focused(f, equals: 0) }
+                .frame(width: Pixels(200), height: Pixels(80))
+        } }
+    // A lazy container outside a scroller (G8).
+    try expect("G8 LazyVStack", 0) { _, f in LazyVStack(spacing: 0) { item(f, 0) } }
+}
+
+/// **G6, G6s, I13, I14, I13s..I13v.** A `List` holds the first responder itself: its rows are not candidates (`G6`), a
+/// scroller inside a row is not either (`G6s`), and a candidate AFTER the list in tree order is not seated whatever its
+/// position (`I13`, `I14`, `I13s`, `I13u`), while one BEFORE it is, even lower (`I13b`, `I13t`, `I13v`). A list with rows
+/// beside an outside focusable BEFORE it seats the outside one although a row is higher. Mutation: drop the `List`
+/// exclusion (`listRowDepth == 0`) and drop the holder note.
+@MainActor
+@Test func aListHoldsTheFirstResponderAndItsRowsAreNotSeated() throws {
+    func list(_ f: FocusState<Int?>.Binding, rows: Bool = false, height: Float = 100) -> some Element {
+        ScrollView {
+            List([LRow(id: 0), LRow(id: 1)], rowHeight: Pixels(28)) { r in
+                sq(100, 28).focusable(rows).focused(f, equals: 10 + r.id)
+            }
+        }.frame(width: Pixels(100), height: Pixels(height))
+    }
+    func expect(_ label: String, _ want: Int?, _ build: @escaping (ISModel, FocusState<Int?>.Binding) -> some ElementGroup,
+                sourceLocation: SourceLocation = #_sourceLocation) throws {
+        let (seat, _, model) = try seatOf(build)
+        #expect(seat == .some(want), "\(label): expected \(String(describing: want)), saw \(model.seen)", sourceLocation: sourceLocation)
+    }
+    try expect("G6 rows are not candidates", nil) { _, f in list(f, rows: true) }
+    try expect("I13/I14 [List, focusable]: nothing", nil) { _, f in Column { list(f); item(f, 0) } }
+    try expect("I13b [focusable, List]: the focusable", 0) { _, f in Column { item(f, 0); list(f) } }
+    try expect("I13s same top, List earlier: nothing", nil) { _, f in
+        HStack(alignment: .top, spacing: 0) { list(f); sq(50, 100).focusable().focused(f, equals: 0) } }
+    try expect("I13t same top, focusable earlier", 0) { _, f in
+        HStack(alignment: .top, spacing: 0) { sq(50, 100).focusable().focused(f, equals: 0); list(f) } }
+    try expect("I13u List earlier and LOWER: nothing", nil) { _, f in
+        HStack(alignment: .bottom, spacing: 0) { list(f, height: 50); sq(50, 100).focusable().focused(f, equals: 0) } }
+    try expect("I13v focusable earlier and LOWER", 0) { _, f in
+        HStack(alignment: .bottom, spacing: 0) { sq(50, 50).focusable().focused(f, equals: 0); list(f, height: 100) } }
+    try expect("an earlier focusable beats a higher row", 0) { _, f in
+        HStack(alignment: .bottom, spacing: 0) { sq(50, 50).focusable().focused(f, equals: 0); list(f, rows: true, height: 100) } }
 }
 
 /// **G1, G3, G4.** The seat is the topmost candidate by final position, ties in tree order. `G1`: an earlier element

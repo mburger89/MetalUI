@@ -77,7 +77,7 @@ VoiceOver or claim the validation** (`IX-AE`).
 **Focus.** A primary press focuses a `.focusable()` element (`.automatic` or `.edit` interactions, SwiftUI's click focus, `FC-A`,
 divergence 94 retired), a `TextField`/`TextEditor` and a selectable `List`, not a control and not `.activate`. Focus leaves with its identity and does not return
 (`IX-I`: a focused `.focusable()` that is removed clears focus where SwiftUI moves it to an existing one, divergence 217, `FC-G`); a `List` row out of window keeps it. **The first drawn frame seats the first
-`.focusable()`** (`.automatic` or `.edit`, behind the disabled and hidden gates, outside every scroller, not a control, `.activate` or text field; topmost by final position, ties in tree order; `Frame.registerHandlers`
+`.focusable()`** (`.automatic` or `.edit`, behind the disabled and hidden gates, not a control, `.activate`, text field or `List` row (`Frame.listRowDepth`), a `ScrollView`'s content included; topmost by final position, ties in tree order, and nothing when a `List` precedes the winner in tree order (a list holds the first responder, `I13`..`I13v`); `Frame.registerHandlers`
 notes the candidate, `Window.seatInitialFocus` assigns it before `reconcileFocusStates()`, once, whether or not a candidate exists; divergence 186 narrowed, `FC-E`, `FC-F`) — a plain assignment, no `StateTable` write, no harness flag turns it off. `@FocusState` writes apply from
 input, before the next frame. `.hidden()` removes focus/Tab/keys but not a
 keyboard shortcut. Keys go Keymap → `onKeyPress` (outermost first, `KF-C`) →
