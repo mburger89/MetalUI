@@ -596,6 +596,11 @@ arm in 1.15 (`Text` under `.foregroundStyle(.red)` with its own
 `.foregroundStyle(.secondary)` paints `Color.secondary`'s resolved value, not a
 red). `docs/divergences.md`'s next label becomes **120** (lane 3).
 
+**Erratum, 2026-11-04 (round 4 item R4-4 PR A, `HY-A`..`HY-D`, record 213): divergence 119 is retired.** `Color.primary` and `Color.secondary` are
+`@_disfavoredOverload` and `HierarchicalShapeStyle` is built, so a leading-dot level infers it as SwiftUI does and is a factor of the parent
+style (probe `swiftui-hierarchical-paint.swift`); the paint arm above flips (red parent: the level is red at .5), and `Color.secondary` explicit
+stays the grey. The ruling's premise, "a concrete `Color` parameter", still holds for every real `Color`.
+
 ## CR-V — Two test-design defects in the spec's lane 2 table
 
 **Ruling.**

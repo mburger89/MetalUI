@@ -41,7 +41,7 @@ extension ElementGroup {
     /// -- on the declarer, or anywhere in the main tree -- does nothing (`B4`). An
     /// `anchoredOverlay` has no panel and ignores
     /// it; the drawn alert and menu panels are not views and never see it (`BG-A`).
-    /// There is no `ShapeStyle` generic (divergence 119): each style is its own overload.
+    /// There is no `ShapeStyle` generic (carried, `SS-G`): each style is its own overload, and a leading-dot `.secondary` here is `Color.secondary`, not a hierarchical level.
     public func presentationBackground(_ color: Color) -> EnvironmentScope<Self> {
         EnvironmentScope(content: self, write: .presentationBackground(.init(kind: .color(color))))
     }

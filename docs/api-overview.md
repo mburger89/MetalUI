@@ -352,7 +352,7 @@ macOS 27 light/dark values (117), `black`/`white`/`clear` fixed, `primary`/
 `secondary`/`accentColor` through the theme (116). `Color.Resolved` and
 `resolve(in:)` give clamped sRGB components. A literal is drawn like a token:
 sRGB numbers on an sRGB layer (1, `LS-A`; Display P3 before record 200). No `.displayP3` (`LS-B`), no asset catalog, no
-hierarchical style (`.foregroundStyle(.secondary)` is `Color.secondary`, 119).
+hierarchical style: `.foregroundStyle(.secondary)` is a factor of the parent style, `HierarchicalShapeStyle` (`HY-A`, record 213); `Color.secondary` stays the grey.
 
 **Shape styles and the tint (A / D; 975–977).** `ShapeStyle` is SwiftUI's protocol:
 `Color`, `LinearGradient`, `RadialGradient`, `Material`, `TintShapeStyle` (`.tint`)
@@ -873,7 +873,7 @@ toolbar strip, the root laid out below (divergence 195, `SG-A`); command shortcu
 arrow; an outside press or Escape writes the binding false from input, and the
 outside press then reaches what it lands on. Published as a non-modal popover.
 `.presentationBackground(_:)` (A; a `Color`, a `ColorToken`, a `Material`, a `LinearGradient`, a
-`RadialGradient`; no `ShapeStyle` generic, divergence 119) written inside the popover's content fills its
+`RadialGradient`; no `ShapeStyle` generic, so a leading-dot `.secondary` here is `Color.secondary`, carried in `SS-G`) written inside the popover's content fills its
 panel (`BG-C`): the innermost report wins, one on the declarer or elsewhere outside the content does
 nothing, and the 1-pt border, the radius 10 and the shadow stay; a `Material` panel draws through
 `Frame.fillMaterial` and has no drop shadow (`BG-P`). `presentationBackground(alignment:content:)` draws content
