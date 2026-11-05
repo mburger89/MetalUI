@@ -1518,6 +1518,20 @@ public final class Frame {
         return withHitTestingDisabled(body)
     }
 
+    /// How many `List` prepaints are open (`FC-F`): a focusable inside a list's rows is not a first-draw seat
+    /// candidate. Prepaint-only state like `keyboardHiddenDepth`; never journalled, never in a fingerprint.
+    private var listRowDepth = 0
+
+    /// Runs `body` as a `List`'s prepaint: notes the list as a holder of the first responder (a candidate after it in
+    /// tree order is not seated, probes `I13`, `I13s`..`I13v`) behind the same disabled and hidden gates as a
+    /// candidate, and keeps the list's rows out of the candidates (`G6`).
+    func insideListRows<R>(_ body: () -> R) -> R {
+        if environmentTop.isEnabled, keyboardHiddenDepth == 0 { focusRegistry.noteSeatHolder() }
+        listRowDepth += 1
+        defer { listRowDepth -= 1 }
+        return body()
+    }
+
     /// Inside a hidden node's prepaint (`disablingHitTestingIfHidden`) — the
     /// keyboard focus half's hidden condition (`IX-K` item 3).
     private var keyboardHiddenDepth = 0
@@ -1682,6 +1696,19 @@ public final class Frame {
             if keyboardVisible {
                 focusRegistry.register(handlers, id: id)
                 if handlers.isKeyTarget { prepaintLog?.focus.append(.register(handlers, id)) }
+                // A first-draw seat candidate (`FC-E`): a click-focusable element behind the disabled and
+                // hidden gate, outside a `List`'s rows. Deliberately NOT behind `allowsHitTesting(false)`
+                // (probe `I26`) and not journalled: only the first frame reads it.
+                if handlers.focusesOnPress, listRowDepth == 0 {
+                    // The FINAL position (probe `G1`): the rect's top after any render effect open here
+                    // (`.offset`, a scale), as the hitbox's own transform sees it.
+                    let placed = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                                                      y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+                                        size: bounds.size)
+                    let top = prepaintEffects.last.map { $0.composed.boundingBox(of: placed).origin.y.value }
+                        ?? placed.origin.y.value
+                    focusRegistry.noteSeatCandidate(id: id, top: top)
+                }
             } else {
                 focusRegistry.registerShortcut(handlers, id: id)
                 if handlers.keyboardShortcut != nil { prepaintLog?.focus.append(.shortcut(handlers, id)) }

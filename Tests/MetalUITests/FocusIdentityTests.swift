@@ -244,6 +244,8 @@ private func redraw(_ window: Window) {
     window.drawFrameIfNeeded()
     let order = window.lastFocusRegistry.tabOrder
     try #require(order.count == 2, "control: both boxes are focusable")
+    try #require(window.focusedElement == order[0], "control: the first draw seated the first box (FC-E)")
+    window.clearTheFirstDrawSeat()
     try #require(window.focusedElement == nil, "control: nothing is focused before a click")
     for (index, x) in [Float(20), 60].enumerated() {
         let point = Point(x: Pixels(x), y: Pixels(50))

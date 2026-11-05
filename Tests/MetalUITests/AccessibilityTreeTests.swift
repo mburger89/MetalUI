@@ -539,6 +539,8 @@ private struct HitTestingDisabled<Content: Element>: Element {
             declared(Box().cssWidth(px(40)).cssHeight(px(20)), AXNode(label: "c"))
         }
     }
+    window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated `a`; this test starts unfocused
     platform.simulateAccessibilityRequest(.activate)
     drawUntilClean(window)
     let first = try #require(platform.publishedAccessibilityTrees.last)

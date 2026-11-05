@@ -47,6 +47,7 @@ private func focusIndex(_ window: Window) -> Int? {
     let form = Form()
     let (window, platform) = try formWindow(form)
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     try #require(window.lastFocusRegistry.tabOrder.count == 4)
     var visited: [Int?] = []
     for _ in 0..<5 {
@@ -70,6 +71,7 @@ private func focusIndex(_ window: Window) -> Int? {
     let form = Form()
     let (window, platform) = try formWindow(form)
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     platform.simulateInput(key("\t"))          // the name field
     platform.simulateInput(.textInput("Grace"))
     #expect(form.name == "Grace", "the whole text was selected, so typing replaced it")
@@ -89,6 +91,7 @@ private func focusIndex(_ window: Window) -> Int? {
     form.disabled = true
     let (window, platform) = try formWindow(form)
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     #expect(window.lastFocusRegistry.tabOrder.count == 3)
     platform.simulateInput(key("\t")); platform.simulateInput(key("\t")); platform.simulateInput(key("\t"))
     window.drawFrameIfNeeded()
@@ -198,6 +201,7 @@ private final class Controls {
         .alignItems(.stretch)
     }
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     try #require(window.lastFocusRegistry.tabOrder.count == 3,
                  "the two fields and the focusable clipped box; no image or shape")
     var visited: [Int?] = []

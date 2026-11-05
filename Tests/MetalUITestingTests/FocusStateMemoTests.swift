@@ -135,6 +135,8 @@ struct FMRoot: Component {
         on.window.testingRetainedGraft = graft
         on.window.testingRetainedSubtrees = retain
         settle()
+        for w in [on, off] { w.window.focus(nil) }   // FC-E: the first draw seated the first focusable; these fixtures start unfocused
+        settle()
     }
 
     /// Draws until both windows are quiet (a focus write dirties one frame later).

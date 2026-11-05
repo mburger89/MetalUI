@@ -2254,7 +2254,7 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **HY2.** The same five levels with no parent, and as `Rectangle().fill(.secondary)` swatches on white and on black: grey steps of the theme's text colour. Compare the steps and the contrast of `.quaternary` and `.quinary` with SwiftUI's; MetalUI's text colour is the theme token (divergence 116), so the grey differs by that and nothing else. **Observed:**
 - [ ] **HY3.** `Color.secondary` explicit, and `foregroundColor(.secondary)`, inside the red parent: still grey in both. **Observed:**
 
-## FC. Click-to-focus - a press focuses a `.focusable()` element as SwiftUI's click does (round 4 item R4-4 PR B; rulings `FC-A`..`FC-D`, record 214; decisions `docs/superpowers/2026-11-04-focus-click-and-seat-decisions.md`; provisional letter)
+## FC. Click-to-focus - a press focuses a `.focusable()` element as SwiftUI's click does (round 4 item R4-4 PR B; rulings `FC-A`..`FC-D`, record 214, and PR C's `FC-E`..`FC-H`, record 215; decisions `docs/superpowers/2026-11-04-focus-click-and-seat-decisions.md`; provisional letter)
 
 *An agent cannot: the probe's instrument injects `NSEvent`s into a hosting view, so a real mouse, Full Keyboard Access (it cannot be switched on from the process), a click inside a `ScrollView` or `List` (the instrument does not reach the content there), the first click in an inactive window and how a focus ring looks need a person.*
 
@@ -2262,4 +2262,6 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **FC2.** Click a `.focusable()` element inside a `ScrollView` and inside a `List` with a real mouse, in SwiftUI and MetalUI: does focus follow the click, and does the scroll or the row selection still work? **Observed:**
 - [ ] **FC3.** A first click on a `.focusable()` element in an inactive window: does it focus (and activate) at once, as SwiftUI's? **Observed:**
 - [ ] **FC4.** The look of the ring on a click-focused `.focusable()` element beside the same view in SwiftUI (the ring is the element's own to draw in MetalUI, `isFocused`); a click-focused `Button.focusable()`. **Observed:**
+- [ ] **FC5.** Launch an app whose window has a `.focusable()` view first (and one with a `TextField` first) with a real keyboard, on AppKit and on SDL, and type at once: does the `.focusable()` hold focus (ring, `onKey`/`onKeyPress` hear the keys) as SwiftUI's does, without a click? Does a launch-visible `TextField` take the keys in SwiftUI where MetalUI's does not (divergence 186 narrowed)? Does the window being inactive at launch change either? **Observed:**
+- [ ] **FC6.** In MetalCreator and MetalFlow at launch: the `Keymap` plain-letter bindings and the hover-region keys, with the seated `.focusable()` (MetalCreator's viewport, MetalFlow's canvas) holding focus: do they still fire as intended, and does Tab from launch reach the second stop? **Observed:**
 

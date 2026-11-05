@@ -31,6 +31,8 @@ private func drag(_ p: Point<Pixels>) -> InputEvent { .mouseDragged(MouseEvent(p
     -> (Window, FakePlatformWindow) {
     let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200, content: content)
     window.drawFrameIfNeeded()
+    // FC-E: the first draw seats the first focusable; these tests read what a PRESS focuses, from nothing.
+    window.clearTheFirstDrawSeat()
     return (window, platform)
 }
 

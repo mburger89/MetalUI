@@ -126,6 +126,12 @@ test sees its effect.
   field as text input, otherwise as key presses, so a plain-letter `Keymap`
   binding is silent while a field is focused), `typeKey(_:modifierFlags:)`,
   `pressModifiers(_:)`. The editing shortcuts are ⌘ on macOS and ⌃ elsewhere.
+  **A first draw may hold focus**: the window seats focus on its first
+  `.focusable()` when it first draws, as SwiftUI's hosting view does (`FC-E`;
+  not a `TextField`, a control, or a `List`'s rows), so
+  `focusedElement` is already that element after `TestWindow.init`, and the
+  first `typeKey(.tab)` reaches the second stop. A test whose premise is
+  "nothing is focused" calls `window.window.focus(nil)` and ticks once.
 - Raw: `send(_ event: InputEvent)` delivers one event and draws nothing.
 
 ### Recipe: typing into a canvas app's field

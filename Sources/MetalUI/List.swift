@@ -599,6 +599,15 @@ where Data.Element: Identifiable {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> PrepaintState {
+        // The first-draw seat (`FC-F`, probes `G6`, `I13`..`I14`, `I13s`..`I13v`): a `List` holds the first responder
+        // itself, so its rows are not candidates and a candidate after it in tree order is not seated.
+        let frame = pass.frame
+        return frame.insideListRows { prepaintRows(id, bounds: bounds, layout: &layout, pass: &pass) }
+    }
+
+    private mutating func prepaintRows(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                       layout: inout Layout,
+                                       pass: inout PrepaintPass) -> PrepaintState {
         switch rowSizing {
         case .uniform:
             noteOriginAndStaleness(id, bounds: bounds, pass: pass)

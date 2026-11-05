@@ -39,8 +39,10 @@ func inputControlsRoot() -> some Element {
 ```
 
 A test presses the button and leaves focus alone (pin:
-`theInputGuideAClickPressesAButtonWithoutFocusingIt`). Nothing is focused when a window first
-shows (divergence 186).
+`theInputGuideAClickPressesAButtonWithoutFocusingIt`). A window's first `.focusable()` is
+focused when it first draws, as SwiftUI's is; a `TextField`, a `List`'s rows
+and a control are not seated (a `ScrollView`'s content is), and a focusable after a `List` is not either (divergence 186, narrowed). A test that starts from "nothing is
+focused" calls `window.focus(nil)` after the first draw.
 
 ## How do I use gestures, and what is the arena?
 
@@ -485,7 +487,8 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 110: a secondary click runs no tap, click, drag or text press; it opens context menus.
 - divergence 139: `CoordinateSpace.global` is the window's content space.
 - divergence 185: `onKeyPress` and `.focusable()` are order-free on one keyboard layer.
-- divergence 186: nothing is focused when a window first shows.
+- divergence 186 (narrowed): the first `.focusable()` is focused when a window first draws; a `TextField`, a `List`'s rows and a control are not, and a `List` earlier in the tree holds the first responder.
+- divergence 217: a focused `.focusable()` that is removed leaves nothing focused (SwiftUI moves focus to an existing one).
 - divergence 187: a typed character is offered to `onKeyPress` once, as `.down`.
 - divergence 188: a native-only menu item's ⌘-key reaches `onKeyPress` first.
 - divergence 236: `onCancelled` exists on drag, magnify and rotate.

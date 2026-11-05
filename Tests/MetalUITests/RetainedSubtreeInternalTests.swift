@@ -88,7 +88,7 @@ private let frameChannels: [String: Channel] = [
     "leafGroup": .keyed, "prepaintEffects": .prepaintOnly, "shareCandidates": .prepaintOnly,
     "shareCollecting": .prepaintOnly, "shareFloor": .prepaintOnly, "shareFloorAtEntry": .prepaintOnly,
     // Hitboxes, accessibility, focus, hover: prepaint's.
-    "hitboxes": .prepaintOnly, "hitTestingDisabledDepth": .prepaintOnly, "keyboardHiddenDepth": .prepaintOnly,
+    "hitboxes": .prepaintOnly, "hitTestingDisabledDepth": .prepaintOnly, "keyboardHiddenDepth": .prepaintOnly, "listRowDepth": .prepaintOnly,
     "axNodes": .prepaintOnly, "axEmissions": .prepaintOnly, "accessibilityPressOnly": .prepaintOnly,
     "contextMenuRecords": .prepaintOnly, "namedSpaces": .prepaintOnly, "hitboxNamedSpaces": .prepaintOnly,
     "namedSpaceSnapshots": .prepaintOnly, "accessibilitySuppressionExceptions": .prepaintOnly,

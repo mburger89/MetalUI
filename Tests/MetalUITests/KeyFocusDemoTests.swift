@@ -39,6 +39,7 @@ private func kfKey(_ c: String) -> InputEvent {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let (window, platform) = try makeFakeWindow(device: device, size: 1000) { keyFocusDemoContent() }
     kfSettle(window)
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated the viewport; this test's premise is nothing focused
     #expect(keyFocusDemoModel.viewportSize == "240 × 200", "\(keyFocusDemoModel.viewportSize)")
 
     let canvas = try #require(window.lastHitboxes.first { $0.handlers.isKeyRegion }, "the canvas's key region")

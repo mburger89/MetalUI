@@ -222,6 +222,12 @@ struct RPCard: Component, @MainActor Equatable {
         off.window.testingRetainedSubtrees = false
         on.window.testingRetainedGraft = graft   // lane 1's pins count a build that runs; lane 2's tests grafts (`RK-B`)
         for _ in 0..<warm { redraw() }
+        // FC-E: the first draw seats the first `.focusable()` and a focused element makes its first `.equatable()` subtree
+        // ineligible (`SB-X`); these pins read replay counts from nothing focused, so the seat is dropped and settled.
+        if warm > 0 {
+            for w in [on, off] { w.window.focus(nil) }
+            redraw(); redraw()
+        }
         frames = []
         work = FrameWork()
     }

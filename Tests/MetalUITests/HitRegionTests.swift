@@ -318,6 +318,9 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
             }
         }
         window.drawFrameIfNeeded()
+        // FC-E: the first draw seats the first focusable even under `allowsHitTesting(false)` (probe `I26`); this
+        // arm reads what a PRESS focuses, from nothing.
+        window.clearTheFirstDrawSeat()
         let regions = window.lastHitboxes.count
         click(platform, at: pt(100, 100))
         window.drawFrameIfNeeded()

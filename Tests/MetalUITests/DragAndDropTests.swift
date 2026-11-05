@@ -837,13 +837,16 @@ private func item(_ types: [PasteboardType], bytes: [String: [UInt8]], log: Load
 @Test func aPressFocusesADragSourceAndTheDragAddsNoStateEntry() throws {
     let log = DLog()
     let (window, platform) = try dndWindow {
-        Row { square().draggable("s").focusable(); stringWell(log).focusable() }
+        // FC-E: a zero-width, full-height focusable first takes the first-draw seat (the topmost, `FC-E`), so the
+        // source and the destination start unfocused and with no `$focus` slot of their own.
+        Row { Box().frame(width: px(0), height: px(200)).focusable(); square().draggable("s").focusable(); stringWell(log).focusable() }
     }
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated the zero-size focusable; this test's premise is nothing focused
     let before = window.stateTable.count
     try #require(window.focusedElement == nil)
-    let order = window.lastFocusRegistry.tabOrder
+    let order = Array(window.lastFocusRegistry.tabOrder.dropFirst())
     try #require(order.count == 2, "set up: the source and the destination are focusable")
     platform.simulateInput(down(100, 100))
     window.drawFrameIfNeeded()

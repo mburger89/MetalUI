@@ -726,3 +726,13 @@ final class FakePlatform: Platform {
         if let onOpenURLs { onOpenURLs(urls) } else { parkedURLs.append(urls) }
     }
 }
+
+extension Window {
+    /// Drops the focus the window seated on its first draw (`FC-E`) and draws the frame that shows it gone. A test
+    /// whose premise is "nothing is focused" calls this right after the first `drawFrameIfNeeded()`; the seat is a
+    /// plain focus, so `focus(nil)` clears it exactly as it clears any (probe `L3`).
+    func clearTheFirstDrawSeat() {
+        focus(nil)
+        drawFrameIfNeeded()
+    }
+}

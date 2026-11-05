@@ -35,6 +35,10 @@ import MetalUICore
 /// applying a pending write before the frame is built and writing the value
 /// back after the frame's focus read-back, and only when it changed.
 ///
+/// **The first drawn frame is a focus mover too** (`FC-E`, divergence 186 narrowed): the window seats focus on its
+/// first `.focusable()` (never a control, a `TextField` or a `List`'s rows), so a state bound to that element
+/// reads `false`/`nil` in the first frame's body and `true`/its value in the next, the settling frame.
+///
 /// **`.focused` does not make an element focusable** (`IX-J` item 3): it binds
 /// one that is (`.focusable()`, a control, a `TextField`).
 ///

@@ -20,6 +20,11 @@ import MetalUIScene
 /// #expect(try window.frame(ofID: "inspector").size.width == Pixels(248))
 /// ```
 ///
+/// **A first draw may hold focus** (`FC-E`): the window seats focus on its first `.focusable()` when it first draws,
+/// as SwiftUI's hosting view does, so ``focusedElement`` can already be that element after the window opens and the
+/// first Tab reaches the second stop. A test whose premise is "nothing is focused" calls `window.focus(nil)` on
+/// ``window`` and ticks once; there is no harness flag that turns the seat off.
+///
 /// MetalUI-only (`HT-B`).
 @MainActor
 public final class TestWindow {

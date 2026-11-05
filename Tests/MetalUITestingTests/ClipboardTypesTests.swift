@@ -76,6 +76,7 @@ private let primary: EventModifiers = .control
                 .pasteDestination(for: Graph.self, action: { m.pasted.append($0) }, validator: validator)
         }
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seats the first focusable; these tests Tab in from nothing
     if focused { window.typeKey(.tab) }
     return window
 }
@@ -105,6 +106,7 @@ private let primary: EventModifiers = .control
             square("a").focusable().hoverKeyRegion().copyable([m.graph])
         }
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     let box = try window.element(identifier: "a")
     window.hover(at: Point(x: box.frame.origin.x + box.frame.size.width / 2, y: box.frame.origin.y + box.frame.size.height / 2))
     window.typeKey("c", modifierFlags: primary)
@@ -154,6 +156,7 @@ private let primary: EventModifiers = .control
             Button("Paste command") { m.log.append("button") }.keyboardShortcut("v")
         }
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.typeKey(.tab)
     window.setClipboard(Blob(bytes: [1, 2, 3]))   // a type Graph imports neither as itself nor as text
     window.typeKey("v", modifierFlags: primary)
@@ -182,6 +185,7 @@ private let primary: EventModifiers = .control
             Button("alt v") { m.log.append("alt-v") }.keyboardShortcut("v", modifiers: primary.union(.option))
         }
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.typeKey(.tab)
     window.setClipboard(Graph(label: "on-board"))
     let before = window.clipboardRepresentations.map(\.type.identifier)
@@ -327,6 +331,7 @@ private let primary: EventModifiers = .control
                 .cuttable(for: Graph.self) { m.cuts += 1; return [m.graph] }
         }
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     // Nothing focused: the items are disabled.
     try window.click(window.element(label: "Edit"))
     #expect(try window.element(label: "Copy").isEnabled == false)
