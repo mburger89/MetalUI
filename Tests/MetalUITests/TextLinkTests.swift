@@ -86,7 +86,8 @@ private final class LinkRecorder {
     withExtendedLifetime(window) {}
 }
 
-/// **LK4, LK5, LK6.** Press on the run and release off it, press off and release on, and a right press: none opens.
+/// **LK4, LK5, LK5b, LK6.** Press on the run and release off it, press off and release on, press on one link and
+/// release on another, and a right press: none opens.
 /// Mutation: drop the pressed-id test in `Window.dispatchClick` (LK4 and LK5 redden).
 @MainActor
 @Test func onlyAPressAndReleaseOnTheRunOpensIt() throws {
@@ -103,6 +104,20 @@ private final class LinkRecorder {
     platform.simulateInput(.rightMouseUp(MouseEvent(position: on)))
     #expect(platform.openedURLs == [], "LK6: a right press")
     withExtendedLifetime(window) {}
+
+    // Two links: a press on one and a release on the other opens neither (the pressed-id rule of `dispatchClick`; the
+    // single-link arms above cannot separate it, because a press off the run leaves nothing pressed).
+    let two = Text(content: .runs([TextRunRequest(string: "aa", link: "https://a.org"), TextRunRequest(string: " "),
+                                   TextRunRequest(string: "bb", link: "https://b.org")]))
+    let (twoWindow, twoPlatform) = try linkWindow { Row { two }.alignItems(.flexStart) }
+    let boxes = linkBoxes(twoWindow).sorted { $0.bounds.origin.x.value < $1.bounds.origin.x.value }
+    try #require(boxes.count == 2, "two links: \(boxes.count)")
+    twoPlatform.simulateInput(.mouseDown(MouseEvent(position: centre(boxes[0].bounds))))
+    twoPlatform.simulateInput(.mouseUp(MouseEvent(position: centre(boxes[1].bounds))))
+    #expect(twoPlatform.openedURLs == [], "LK5b: press on one link, release on the other: \(twoPlatform.openedURLs)")
+    click(twoPlatform, centre(boxes[1].bounds))
+    #expect(twoPlatform.openedURLs == ["https://b.org"], "control: the second link alone opens its own URL")
+    withExtendedLifetime(twoWindow) {}
 }
 
 /// **LK8.** `.allowsHitTesting(false)` withdraws the region. Mutation: register outside the pointer gate.
@@ -445,6 +460,25 @@ private func collect<E: Element>(_ element: E, collecting: Bool) -> (Frame, Acce
     platform.simulateInput(.mouseDown(MouseEvent(position: from)))
     platform.simulateInput(.mouseDragged(MouseEvent(position: pt(from.x.value + 25, y))))
     platform.simulateInput(.mouseUp(MouseEvent(position: pt(from.x.value + 25, y))))
+    #expect(platform.openedURLs == ["https://x.org"], "\(platform.openedURLs)")
+    withExtendedLifetime(window) {}
+}
+
+/// **An accessibility press on a link runs its action** (`AB-H`: the press is derived from the link's hitboxes). A
+/// client activates, the window publishes `see docs now` with a link child labelled `docs`, and `.press` on that node
+/// asks the platform to open the URL. Mutation: publish the link without its hitboxes (no press, nothing opens).
+@MainActor
+@Test func anAccessibilityPressOnALinkOpensIt() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platform) = try makeFakeWindow(device: device, size: 300) { Row { linkText() }.alignItems(.flexStart) }
+    _ = platform.onAccessibilityRequest?(.activate)
+    window.drawFrameIfNeeded()
+    for _ in 0..<3 where window.needsRedraw { window.drawFrameIfNeeded() }
+    let tree = try #require(platform.publishedAccessibilityTrees.last, "a tree was published")
+    let link = try #require(tree.nodes.first { $0.value.role == .link }, "a link node")
+    #expect(link.value.label == "docs")
+    #expect(link.value.actions.contains(.press))
+    #expect(platform.onAccessibilityRequest?(.press(link.key)) == true)
     #expect(platform.openedURLs == ["https://x.org"], "\(platform.openedURLs)")
     withExtendedLifetime(window) {}
 }

@@ -83,20 +83,30 @@ struct RPLinkPanRoot: Component {
 
 /// **A changed action above `.equatable()` is not stale** (`LI-C`, `EE-`). An action is a closure, so the reading is
 /// uncomparable and the `.equatable()` subtree below it is evaluated again each frame; the link then runs the action
-/// the CURRENT frame built. The retention-off window agrees. Mutation: make `OpenURLAction` `Equatable` (always equal)
-/// so the key reads comparable: the replayed hitbox runs the first action and `open A` is logged after the change.
+/// the CURRENT frame built. The retention-off window agrees. **The control** is the same card with no `\.openURL`
+/// writer above it: with the pointer away it replays (`retainedHits == 1`), so the fixture can replay and the arm below
+/// it is not green for want of a replay (a pointer resting on the link makes its subtree run prepaint, which is why the
+/// pointer is moved off after each click). Mutation: make `OpenURLAction` `Equatable` (always equal) so the key reads
+/// comparable: the card replays with the first action and `open A` is logged after the change.
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"))
 @MainActor func aChangedActionAboveAnEquatableSubtreeIsNotStale() async throws {
+    let control = try RPPair(size: sz(320, 100), warm: 4) { _ in
+        VStack(alignment: .leading, spacing: 0) { RPLinkCard(title: "L").equatable() }
+    }
+    for w in [control.on, control.off] { try w.click(w.element(label: "docs L")); w.hover(at: pt(318, 98)) }
+    control.redraw(); control.redraw()
+    #expect(try #require(control.frames.last).retainedHits == 1, "control: with no action above it the card replays: \(control.frames.suffix(2).map(\.retainedHits))")
+
     let pair = try RPPair(size: sz(320, 100), warm: 4) { side in
         let tag = side.inputs.text.isEmpty ? "A" : side.inputs.text
         return VStack(alignment: .leading, spacing: 0) { RPLinkCard(title: "L").equatable() }
             .environment(\.openURL, OpenURLAction { url in side.log.add("open \(tag) \(url.absoluteString)"); return .handled })
     }
-    for w in [pair.on, pair.off] { try w.click(w.element(label: "docs L")) }
+    for w in [pair.on, pair.off] { try w.click(w.element(label: "docs L")); w.hover(at: pt(318, 98)) }
     #expect(pair.onSide.log.entries == ["open A https://x.org/L"], "\(pair.onSide.log.entries)")
     pair.onSide.inputs.text = "B"; pair.offSide.inputs.text = "B"
     await rsSettle()
-    pair.redraw(); pair.redraw()
+    pair.redraw(); pair.redraw(); pair.redraw()
     for w in [pair.on, pair.off] { try w.click(w.element(label: "docs L")) }
     #expect(pair.onSide.log.entries == ["open A https://x.org/L", "open B https://x.org/L"],
             "the changed action ran, not the first: \(pair.onSide.log.entries)")
