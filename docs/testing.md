@@ -106,6 +106,8 @@ while a popover, menu or alert is open), `windowActions` the minimise and zoom r
 (`Options.isZoomed` and `HeadlessPlatformWindow.isZoomed` are the zoom state), and the drawn Close, Minimise and Zoom
 buttons are found by `element(label:)` and clicked like any button. `Window.drawsWindowControls = false` removes them.
 
+**Links open nothing in a test** (`LI-D`): a click on a `Text` link run reaches `HeadlessPlatformWindow.openURL(_:)`, which records the URL in `TestWindow.platformWindow.openedURLs` and answers `true`. Find the link with `element(label:)` (an `AXLink` child labelled with the run's text) and click it; install `.environment(\.openURL, OpenURLAction { … })` to see the action instead of the platform.
+
 ## Input
 
 Every action delivers its events at the window's clock and **then draws one

@@ -482,3 +482,20 @@ private func collect<E: Element>(_ element: E, collecting: Bool) -> (Frame, Acce
     #expect(platform.openedURLs == ["https://x.org"], "\(platform.openedURLs)")
     withExtendedLifetime(window) {}
 }
+
+/// **LI-B.** Two adjacent link runs of one style and two destinations stay two runs, each with its own region and id,
+/// and a link run never joins a plain neighbour of the same colour: a click on each opens its own URL. Mutation: leave
+/// `link` out of `TextRunPaint` (the two merge into one run and one destination).
+@MainActor
+@Test func adjacentLinksOfOneStyleAndTwoDestinationsStayTwoRuns() throws {
+    let text = Text(content: .runs([TextRunRequest(string: "aa", foreground: .red, link: "https://a.org"),
+                                    TextRunRequest(string: "bb", foreground: .red, link: "https://b.org"),
+                                    TextRunRequest(string: "cc", foreground: .red)]))
+    let (window, platform) = try linkWindow { Row { text }.alignItems(.flexStart) }
+    let boxes = linkBoxes(window).sorted { $0.bounds.origin.x.value < $1.bounds.origin.x.value }
+    try #require(boxes.count == 2, "two link regions, none for the plain tail: \(boxes.count)")
+    #expect(boxes[0].id != boxes[1].id)
+    for box in boxes { click(platform, centre(box.bounds)) }
+    #expect(platform.openedURLs == ["https://a.org", "https://b.org"], "\(platform.openedURLs)")
+    withExtendedLifetime(window) {}
+}
