@@ -461,6 +461,7 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
         let m = RPLog()
         let (window, platform) = try rpWindow { Row { RPBoolFocus(m: m, region: region) } }
         for _ in 0..<3 { window.drawFrameIfNeeded() }
+        window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
         let start = m.flags.count
         click(platform, pt(190, 190))
         for _ in 0..<3 { window.drawFrameIfNeeded() }

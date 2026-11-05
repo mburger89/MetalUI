@@ -102,18 +102,21 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
         if case .keyDown = event { m.log.append("input") }
         return false
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     #expect(window.focusedElement == nil)
     #expect(!platform.simulateInput(kd("x")))
     #expect(m.log == ["input"], "nothing focused: only the window's onInput hears it: \(m.log)")
 }
 
-/// **Divergence 186's pin** (K1, K1t: SwiftUI focuses a window's first
-/// focusable view). MetalUI focuses nothing when a window first draws.
+/// **Divergence 186's pin, narrowed** (`FC-E`; K1, K1t, probe `swiftui-initial-focus.swift` `I0`): SwiftUI
+/// focuses a window's first focusable view when it first draws, and so does MetalUI (a `.focusable()`; a
+/// `TextField` is still not seated, divergence 186 narrowed to fields). Was `noElementHoldsFocusWhenTheWindowFirstDraws`.
 @MainActor
-@Test func noElementHoldsFocusWhenTheWindowFirstDraws() throws {
+@Test func theFirstFocusableIsFocusedWhenTheWindowFirstDraws() throws {
     let (window, _) = try kpWindow { Box { square().focusable(); square().focusable() } }
-    try #require(window.lastFocusRegistry.tabOrder.count == 2, "control: two focusable elements")
-    #expect(window.focusedElement == nil, "no default focus (divergence 186)")
+    let order = window.lastFocusRegistry.tabOrder
+    try #require(order.count == 2, "control: two focusable elements")
+    #expect(window.focusedElement == order[0], "the first focusable holds focus (I0)")
 }
 
 /// Three nested elements, each logging its name from an `onKeyPress` that

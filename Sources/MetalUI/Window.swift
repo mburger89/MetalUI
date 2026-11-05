@@ -724,6 +724,29 @@ public final class Window {
         }
     }
 
+    /// Whether the first drawn frame has had its chance to seat focus (ruling
+    /// `FC-E`). Flipped on that frame whether or not a candidate exists, so a
+    /// focusable inserted later is never seated (probe `L1`).
+    private var initialFocusSeatSettled = false
+
+    /// Seats focus on the first focusable element of the window's first drawn
+    /// frame, when nothing is focused (ruling `FC-E`; SwiftUI's hosting view,
+    /// probes `I0`..`I26`, `G1`..`G4`). Runs once, between the frame's
+    /// read-back and `reconcileFocusStates()`, so the `@FocusState` that names
+    /// the seat reads `true` on the frame after. **A plain assignment plus one
+    /// `setNeedsRedraw()`, not `focus(_:)`'s unconditional path and no
+    /// `StateTable` write**: the next frame's `registerHandlers` writes the
+    /// `$focus` slot as it does for any focus, and the one extra frame paints
+    /// the ring and then goes idle (the link is not kept awake). Lives in
+    /// `Window`, so AppKit, SDL and the headless platform agree.
+    private func seatInitialFocus(from registry: FocusRegistry) {
+        guard !initialFocusSeatSettled else { return }
+        initialFocusSeatSettled = true
+        guard focusedElement == nil, let seat = registry.initialSeat else { return }
+        focusedElement = seat
+        setNeedsRedraw()
+    }
+
     /// Writes each `@FocusState` the frame bound to the value the window's
     /// focus implies — the focused element's bound value for its own state,
     /// the default for every other — only where it changed (`IX-J` items 1, 4).
@@ -2067,6 +2090,7 @@ public final class Window {
         // between frames, never in a phase, and writing only a changed value
         // (ruling `IX-J` item 4).
         updateClipboardCommands()   // CB-E: sent to the platform on change only
+        seatInitialFocus(from: frame.focusRegistry)
         lastFocusStates = stateTable.takeFocusStates()
         reconcileFocusStates()
         // An element asked for another frame — an animation in progress. Marking

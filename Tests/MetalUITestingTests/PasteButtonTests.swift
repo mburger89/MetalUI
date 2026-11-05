@@ -150,6 +150,7 @@ private let primary: EventModifiers = .control
             PasteButton(payloadType: Graph.self) { log.pasted.append($0) }
         }
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.setClipboard(items: [Graph(label: "a")])
     window.tick()
     window.typeKey(.tab)

@@ -154,6 +154,7 @@ private func rootID(_ name: String) -> GlobalElementID {
             .focusable().onKey { _ in log.names.append("element"); return true }
     }
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     #expect(window.focusedElement == nil, "nothing is focused until something focuses it")
 
     var raw: [String] = []
@@ -443,6 +444,7 @@ private func rootID2() -> GlobalElementID {
             .focusable().onKey { _ in true }
     }
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     let drawnAfterFirst = window.framesDrawn
     #expect(!window.needsRedraw, "the window went clean after its first frame")
 

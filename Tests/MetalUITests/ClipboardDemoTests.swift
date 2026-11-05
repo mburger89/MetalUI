@@ -17,6 +17,7 @@ private let demoPrimary: EventModifiers = .control
 @Test @MainActor func theClipboardDemoCopiesAGraphAndPastesItAndItsTextFallback() throws {
     clipboardDemoModel.reset()
     let window = try TestWindow(size: Size(width: Pixels(920), height: Pixels(560)), content: clipboardDemoContent)
+    window.window.focus(nil); window.tick()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.typeKey(.tab)                         // the source
     window.typeKey("c", modifierFlags: demoPrimary)
     #expect(window.clipboardRepresentations.map(\.type.identifier)
@@ -41,6 +42,7 @@ private let demoPrimary: EventModifiers = .control
 @Test @MainActor func theClipboardDemoCopiesTwoGraphsAndAPasteButtonPastesThem() throws {
     clipboardDemoModel.reset()
     let window = try TestWindow(size: Size(width: Pixels(920), height: Pixels(760)), content: clipboardDemoContent)
+    window.window.focus(nil); window.tick()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     #expect(try !window.element(label: "Paste").isEnabled, "nothing on the clipboard")
     for _ in 0..<4 { window.typeKey(.tab) }      // the pair source
     window.typeKey("c", modifierFlags: demoPrimary)

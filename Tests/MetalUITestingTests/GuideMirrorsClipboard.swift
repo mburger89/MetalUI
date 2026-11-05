@@ -44,6 +44,7 @@ private let guidePrimary: EventModifiers = .control
 @Test @MainActor func theInputGuideACopyOfTwoItemsPastesBothInOrder() throws {
     let model = InputPasteModel()
     let window = try harnessWindow { inputPasteRoot(model) }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.typeKey(.tab)
     window.typeKey("c", modifierFlags: guidePrimary)
     window.typeKey(.tab)

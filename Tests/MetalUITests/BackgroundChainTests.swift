@@ -217,6 +217,7 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
         let theme = window.theme
 
         platformWindow.simulateTick(timestamp: 100)
+        window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
         let resting = try subjectRect(window.lastScene)
         try #require(isFilled(resting, with: .surface, in: theme),
                      "\(site) \(state): set up — the resting token, got \(describe(resting, in: theme))")

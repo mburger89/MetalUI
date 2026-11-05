@@ -76,11 +76,13 @@ VoiceOver or claim the validation** (`IX-AE`).
 
 **Focus.** A primary press focuses a `.focusable()` element (`.automatic` or `.edit` interactions, SwiftUI's click focus, `FC-A`,
 divergence 94 retired), a `TextField`/`TextEditor` and a selectable `List`, not a control and not `.activate`. Focus leaves with its identity and does not return
-(`IX-I`); a `List` row out of window keeps it. `@FocusState` writes apply from
+(`IX-I`: a focused `.focusable()` that is removed clears focus where SwiftUI moves it to an existing one, divergence 217, `FC-G`); a `List` row out of window keeps it. **The first drawn frame seats the first
+`.focusable()`** (`.automatic` or `.edit`, behind the disabled and hidden gates, outside every scroller, not a control, `.activate` or text field; topmost by final position, ties in tree order; `Frame.registerHandlers`
+notes the candidate, `Window.seatInitialFocus` assigns it before `reconcileFocusStates()`, once, whether or not a candidate exists; divergence 186 narrowed, `FC-E`, `FC-F`) — a plain assignment, no `StateTable` write, no harness flag turns it off. `@FocusState` writes apply from
 input, before the next frame. `.hidden()` removes focus/Tab/keys but not a
 keyboard shortcut. Keys go Keymap → `onKeyPress` (outermost first, `KF-C`) →
 focused field's editing keys → bubbling `onKey` (controls' `ControlKeys` there) → unclaimed Tab traverses
-(`FocusRegistry.tabOrder`). With nothing focused `onKey` sees nothing.
+(`FocusRegistry.tabOrder`). With nothing focused `onKey` sees nothing; a new test that needs nothing focused calls `window.focus(nil)` after its first draw.
 
 **Input follow-ups (`IF-`, record §93).** `SpatialTapGesture.Value.modifiers` (the last
 press's), `SpatialTapGesture.Value.clickCount` (its platform click count, `IF-O`) and `DragGesture.Value.clickCount` (the press's, never the move's) are MetalUI-only

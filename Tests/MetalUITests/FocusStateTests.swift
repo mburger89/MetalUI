@@ -75,6 +75,8 @@ private func formWindow(_ model: FormModel) throws -> (Window, FakePlatformWindo
         Row { Form(model: model) }
     }
     window.drawFrameIfNeeded()
+    window.focus(nil)   // FC-E: the first draw seated the first focusable; this fixture starts unfocused
+    settle(window)
     let order = window.lastFocusRegistry.tabOrder
     try #require(order.count == 4, "set up: f, a, b and the field are focusable: \(order)")
     try #require(window.focusedElement == nil && model.lastFlag == false && model.lastField == .some(nil),

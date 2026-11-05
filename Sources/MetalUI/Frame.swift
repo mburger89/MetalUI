@@ -1682,6 +1682,19 @@ public final class Frame {
             if keyboardVisible {
                 focusRegistry.register(handlers, id: id)
                 if handlers.isKeyTarget { prepaintLog?.focus.append(.register(handlers, id)) }
+                // A first-draw seat candidate (`FC-E`): a click-focusable element behind the disabled and
+                // hidden gate, outside every scroller. Deliberately NOT behind `allowsHitTesting(false)`
+                // (probe `I26`) and not journalled: only the first frame reads it.
+                if handlers.focusesOnPress, activeScrollerFrame == nil {
+                    // The FINAL position (probe `G1`): the rect's top after any render effect open here
+                    // (`.offset`, a scale), as the hitbox's own transform sees it.
+                    let placed = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                                                      y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+                                        size: bounds.size)
+                    let top = prepaintEffects.last.map { $0.composed.boundingBox(of: placed).origin.y.value }
+                        ?? placed.origin.y.value
+                    focusRegistry.noteSeatCandidate(id: id, top: top)
+                }
             } else {
                 focusRegistry.registerShortcut(handlers, id: id)
                 if handlers.keyboardShortcut != nil { prepaintLog?.focus.append(.shortcut(handlers, id)) }

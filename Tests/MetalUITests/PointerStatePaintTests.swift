@@ -166,6 +166,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         }.cssWidth(px(100)).cssHeight(px(100))
     }
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     #expect(isFilled(try buttonRect(window.lastScene), with: .surface, in: window.theme),
             "neither hovered nor focused")
 

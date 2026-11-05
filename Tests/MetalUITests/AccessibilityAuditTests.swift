@@ -310,6 +310,7 @@ private struct AuditFocusForm: Component {
 @Test @MainActor func anAccessibilityFocusRequestWritesAFocusStateBinding() throws {
     let model = AuditFocusModel()
     let (window, platform) = try controlWindow(size: 200) { Row { AuditFocusForm(model: model) } }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated the first focusable; this test starts unfocused
     let tree = try controlTree(window, platform)
     try #require(model.lastField == .some(nil), "set up: nothing focused")
     let b = try tree.one("B")
@@ -336,6 +337,7 @@ private struct AuditFocusForm: Component {
 @Test @MainActor func aFocusStateWriteIsTheTreesFocusedElement() throws {
     let model = AuditFocusModel()
     let (window, platform) = try controlWindow(size: 200) { Row { AuditFocusForm(model: model) } }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated the first focusable; this test starts unfocused
     let before = try controlTree(window, platform)
     #expect(before.focused == nil, "set up: nothing focused")
     model.setField(.b)

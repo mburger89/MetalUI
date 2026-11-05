@@ -66,3 +66,13 @@ func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bounds<Pix
 func xywh(_ rect: MUIRect) -> [Float] {
     [rect.bounds.origin.x, rect.bounds.origin.y, rect.bounds.size.width, rect.bounds.size.height]
 }
+
+extension TestWindow {
+    /// Drops the focus the window seated on its first draw (`FC-E`) and draws the frame that shows it gone. A test whose
+    /// premise is "nothing is focused" calls this right after creating the window; the seat is a plain focus, so
+    /// `focus(nil)` clears it exactly as it clears any (probe `L3`).
+    func clearTheFirstDrawSeat() {
+        window.focus(nil)
+        tick()
+    }
+}

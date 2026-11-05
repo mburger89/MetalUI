@@ -703,6 +703,7 @@ private let inputPrimary: EventModifiers = .control
 @Test @MainActor func theInputGuideACopyableGraphWritesItsTypeAndItsTextFallback() throws {
     let model = InputClipboardModel()
     let window = try harnessWindow { inputClipboardRoot(model) }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.typeKey("c", modifierFlags: inputPrimary)
     #expect(window.clipboardRepresentations.isEmpty, "nothing is focused: nothing is copied")
     window.typeKey(.tab)
@@ -716,6 +717,7 @@ private let inputPrimary: EventModifiers = .control
 @Test @MainActor func theInputGuidePasteTakesTheCustomTypeThenTheTextFallback() throws {
     let model = InputClipboardModel()
     let window = try harnessWindow { inputClipboardRoot(model) }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.typeKey(.tab)
     window.typeKey("c", modifierFlags: inputPrimary)
     window.typeKey(.tab)

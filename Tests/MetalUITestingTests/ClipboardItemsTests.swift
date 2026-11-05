@@ -53,6 +53,7 @@ struct Counted: Transferable {
             square("dst").focusable().pasteDestination(for: Graph.self) { m.pasted.append($0) }
         }
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.typeKey(.tab)
     window.typeKey("c", modifierFlags: primary)
     #expect(window.clipboardItems.count == 2, "two items on the clipboard: \(window.clipboardItems)")
@@ -71,6 +72,7 @@ struct Counted: Transferable {
             Button("Paste command") { m.log.append("button") }.keyboardShortcut("v")
         }
     }
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     window.typeKey(.tab)
     window.setClipboard(items: [Graph(label: "x"), Graph(label: "y")])
     window.typeKey("v", modifierFlags: primary)

@@ -123,6 +123,7 @@ private func kd(_ c: String, _ modifiers: Modifiers = []) -> InputEvent {
         }
     }
     try #require(window.lastFocusRegistry.tabOrder.count == 1, "set up: one focusable layer")
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     platform.simulateInput(.mouseDown(MouseEvent(position: pt(100, 100))))
     platform.simulateInput(.mouseUp(MouseEvent(position: pt(100, 100))))
     #expect(window.focusedElement == nil, "a press at the untransformed centre focuses nothing")

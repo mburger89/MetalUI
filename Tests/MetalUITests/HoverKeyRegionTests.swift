@@ -37,6 +37,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     -> (Window, FakePlatformWindow) {
     let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 200, content: content)
     window.drawFrameIfNeeded()
+    window.clearTheFirstDrawSeat()   // FC-E: the first draw seated a focusable; this test's premise is nothing focused
     return (window, platform)
 }
 
