@@ -34,7 +34,7 @@
 /// `isPointerTarget` says, and no focus registration, whatever `isKeyTarget`
 /// says. The two stay separate for an ENABLED element, which is the case the
 /// paragraph above is about. The handlers themselves are untouched: re-enabling
-/// registers the same set on the next frame (`reEnablingRestoresClicksButNotFocus`).
+/// registers the same set on the next frame (`reEnablingRestoresClicksAndAPressFocuses`).
 ///
 /// **A fourth gate is pointer-only on purpose: `allowsHitTesting`** (plan task
 /// 5's lane 3, ruling `OM-T`). Unlike `isEnabled` it covers the hitbox and

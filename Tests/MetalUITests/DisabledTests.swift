@@ -782,7 +782,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// after the click, divergence 94; the "not restored" half is now read BEFORE
 /// the click, where it is still separating).
 @MainActor
-@Test func reEnablingRestoresClicksButNotFocus() throws {
+@Test func reEnablingRestoresClicksAndAPressFocuses() throws {
     let device = try device()
     let model = FlagModel()
     model.disabled = true

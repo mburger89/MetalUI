@@ -834,7 +834,7 @@ private func item(_ types: [PasteboardType], bytes: [String: [UInt8]], log: Load
 /// (focus the source at drag begin) is now the destination arm: focus the
 /// destination at drop.
 @MainActor
-@Test func aDragNeitherFocusesNorAddsAStateEntry() throws {
+@Test func aPressFocusesADragSourceAndTheDragAddsNoStateEntry() throws {
     let log = DLog()
     let (window, platform) = try dndWindow {
         Row { square().draggable("s").focusable(); stringWell(log).focusable() }
