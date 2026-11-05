@@ -296,6 +296,37 @@ private func rootTextWidths(_ text: Text) -> (measured: Double, stored: Double) 
     }
 }
 
+/// **3.15b. PINNED — divergence 86 at SF 26 and 48** (R4-3b, record 212; human check DS2 Finding B). The same
+/// rule as above on the system face: `lineHeight` is 16, 31 and 57 at 13, 26 and 48 pt (CoreText's sums are
+/// 15.311, 30.621 and 56.531), where SwiftUI reads 16, 30 and 56 (`docs/probes/swiftui-line-height.swift`). The DS2
+/// stack (13, 26, a 60 x 30 block, 48, 13, 26, 13 pt) is therefore 229.43 tall (16 + 31 + 16.302 + 30 + 16.125 + 57
+/// + 16 + 31 + 16: exactly three line heights over SwiftUI's 226.43, the gaps agree) and its stored rect 230.
+/// Read through the element API with CoreText.
+///
+/// Mutation **M3n** at the system face: `lineHeight` as `round(a) + round(d) + round(l)` on both systems
+/// (16, 30, 56 here) reddens this test and the four 3.15 / metrics pins.
+@MainActor
+@Test func aSystemLineIsThirtyOneAtTwentySixAndFiftySevenAtFortyEight() throws {
+    let system = CoreTextTextSystem()
+    let heights = [13.0, 26.0, 48.0].map { system.fontMetrics(system.resolveFont(family: nil, size: $0)).lineHeight }
+    #expect(heights == [16, 31, 57], "CoreText: \(heights)")
+    let frame = try controlRender(controlRoot(height: 400) {
+        VStack(alignment: .leading) {
+            Text("Aa").font(.system(size: 13))
+            Text("Bb").font(.system(size: 26))
+            Color(.accent).frame(width: Pixels(60), height: Pixels(30))
+            Text("Cc").font(.system(size: 48))
+            Text("Dd").font(.system(size: 13))
+            Text("Ee").font(.system(size: 26))
+            Text("Ff").font(.system(size: 13))
+        }
+    }, height: 400)
+    let texts = try [0, 1, 3, 4, 5, 6].map { try controlBounds(frame, controlID([0, 0, $0])).size.height.value }
+    #expect(texts == [16, 31, 57, 16, 31, 16], "text heights \(texts)")
+    let outer = try controlBounds(frame, controlID([0, 0])).size.height.value
+    #expect(outer == 230, "the stack's stored height is \(outer), SwiftUI's 226.43")
+}
+
 // MARK: - 3.22
 
 /// Every glyph sprite of `frame`.

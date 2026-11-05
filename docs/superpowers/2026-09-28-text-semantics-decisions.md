@@ -355,6 +355,22 @@ round(ascent) in all 25 arms: 13, 25, 11, 18, 16 …; last = first + (lines − 
    portable file carries; changing the formula would move every multi-line
    text's pixels and the portable pins. Pinned by
    `aNotoSansLineIsTwentyFourPointsWhereSwiftUIsIsTwentyThree` (spec 3.15).
+   **Erratum, 2026-11-04 (R4-3b, record 212, probe `swiftui-line-height.swift`).**
+   "Fits no formula" and "no public metric gives it" are corrected, and so is the
+   cost claim. `NSLayoutManager.defaultLineHeight` is public and equals
+   `round(a) + round(d) + round(l)` at all 28 SF sizes swept; it agrees with
+   SwiftUI at 21 of 28 SF sizes (`ceil` of the sum: 16), at 12 of 12 sizes for Noto
+   Sans, Menlo, Georgia, Courier New and Avenir Next (`ceil`: 6 to 7), at 5 of 12
+   for Helvetica Neue (`ceil`: 1) and 2 of 12 for Times New Roman (`ceil`: 1). The
+   remainder at SF (SwiftUI one above that sum at 10, 11, 15, 16, 19, 20 and 21)
+   is unexplained. Changing both formulas to the round sum reddens five tests
+   (record 212), not "every multi-line text's pixels": the suite mostly reads
+   13 pt, which both formulas agree on, and that says little about what a
+   non-13 pt demo would move. The ruling stands (kept, owner none): the round sum
+   would fix SF 17, 18, 24, 26, 30, 34, 40, 48 and 96, but regress SF 16, 19, 20
+   and 21, leave 10, 11 and 15 wrong, and leave Helvetica Neue and Times New Roman
+   mostly wrong, so it would not retire the row. Should it be wanted, it is one
+   PR of its own, starting from the probe's table.
 4. **Baselines** (consumed by `TE-K`): a text's first baseline is
    `round(ascent)` (whole points, as SwiftUI reports it at scale 2), its last
    `first + (lines − 1) × lineHeight` with MetalUI's own line height (so a
