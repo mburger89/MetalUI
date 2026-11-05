@@ -1697,7 +1697,7 @@ public final class Frame {
                 focusRegistry.register(handlers, id: id)
                 if handlers.isKeyTarget { prepaintLog?.focus.append(.register(handlers, id)) }
                 // A first-draw seat candidate (`FC-E`): a click-focusable element behind the disabled and
-                // hidden gate, outside every scroller. Deliberately NOT behind `allowsHitTesting(false)`
+                // hidden gate, outside a `List`'s rows. Deliberately NOT behind `allowsHitTesting(false)`
                 // (probe `I26`) and not journalled: only the first frame reads it.
                 if handlers.focusesOnPress, listRowDepth == 0 {
                     // The FINAL position (probe `G1`): the rect's top after any render effect open here
