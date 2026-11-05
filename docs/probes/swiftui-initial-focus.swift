@@ -20,9 +20,10 @@
 // RECORDED 2026-11-04, macOS 27.2, Apple Swift 6.4.2 (swiftlang-6.4.2.1.9), screen LOCKED
 // (`CGSSessionScreenIsLocked = Yes`; the events go into the probe's own window through `NSWindow.sendEvent` and an
 // `NSHostingView` is laid out before show, so the lock does not matter), Full Keyboard Access off. Compiled form,
-// run three times: stdout byte-identical, exit 0, stderr empty.
+// run three times (twice for the first 64-line recording): stdout byte-identical, exit 0, stderr empty.
 //
-// stdout byte-identical (64 lines, shasum dab329f74cd0cf927bc02de87f617fd619826eef):
+// stdout byte-identical (69 lines, shasum 1fba6abcf233603c132454a59861234893a47740; the first recording of 64 lines
+// predates the arms `G6s`, `I13s`..`I13v`, added when a reviewer asked which rule `I13`/`I14` follow):
 //
 //   --- I: what seats on the first draw
 //     I0 lone .focusable(), key window: f=0,settled
@@ -52,6 +53,11 @@
 //     G7s [focusable above, ScrollView{focusable} below]: f=1,settled
 //     G7t [ScrollView{focusable} above, focusable below]: f=0,settled
 //     I13b [focusable, List]: f=0,settled,fr=SwiftUI.KeyViewProxy,fr=SwiftUI.KeyViewProxy
+//     G6s [List{ScrollView{focusable}}]: settled,fr=SwiftUI.SwiftUIOutlineListView,fr=SwiftUI.SwiftUIOutlineListView
+//     I13s [List, focusable] side by side, same top, List earlier: settled,fr=SwiftUI.SwiftUIOutlineListView,fr=SwiftUI.SwiftUIOutlineListView
+//     I13t [focusable, List] side by side, same top, focusable earlier: f=0,settled,fr=SwiftUI.KeyViewProxy,fr=SwiftUI.KeyViewProxy
+//     I13u [List 50 tall, focusable 100 tall] bottom-aligned: List earlier and LOWER: settled,fr=SwiftUI.SwiftUIOutlineListView,fr=SwiftUI.SwiftUIOutlineListView
+//     I13v [focusable 50 tall, List 100 tall] bottom-aligned: focusable earlier and LOWER: f=0,settled,fr=SwiftUI.KeyViewProxy,fr=SwiftUI.KeyViewProxy
 //     G8 [LazyVStack{focusable}] (no scroller): f=0,settled
 //     G8b [ScrollView{LazyVStack{focusable}}]: f=0,settled
 //     G1 [A offset down 100, B]: B is higher but later in tree order: f=1,settled
@@ -105,13 +111,14 @@
 // `LF1`/`LF2` (the first field takes focus in a laid-out hosting view), `LF5` (`focusable, TextField` seats the
 // focusable).
 // DIFFERS from the plan:
-//   * `G5`, `G7`: a focusable inside a `ScrollView` IS seated (`G5`, `G5o`, `G5h`, `G5v`, `G5t`; with a second
-//     focusable outside, the one in the scroller still wins when it is first or higher, `G7`, `G7o`, `G7t`, and loses
-//     only when the outside one is higher, `G7s`), whatever the content size or axis. The plan read these as "not
-//     seated". Only a `List` is different (`G6`: its rows are not seated).
-//   * `I13`, `I14`, `G6`: a `List` earlier in the tree HOLDS the first responder itself (`SwiftUIOutlineListView`),
-//     so a focusable AFTER it is not seated either (`I13`, `I14` read no flip at all); the plan read "List skipped".
-//     A focusable BEFORE the list is seated (`I13b`).
+//   * `G5`, `G7` (the plan's "inside `ScrollView` or `List`: not seated"): a focusable inside a `ScrollView` IS seated
+//     by position (`G5`, `G5o`, `G5h`, `G5v`, `G5t`, `G7`, `G7o`, `G7t`, `G7s`, `G8b`), whatever the content size or axis.
+//     THE PLAN'S READING IS REFUTED. Only a `List` differs (`G6`: its rows are not seated; `G6s`: a `ScrollView` inside a
+//     row is not either).
+//   * `I13`, `I14`, `G6`: a `List` HOLDS the first responder itself (`SwiftUIOutlineListView`), so a focusable after it is
+//     not seated (`I13`, `I14` read no flip); the plan read "List skipped". THE RULE IS TREE ORDER, NOT POSITION: `I13s`
+//     (same top, list earlier) and `I13u` (list earlier and LOWER) seat nothing; `I13t` (same top, focusable earlier),
+//     `I13v` (focusable earlier and LOWER) and `I13b` seat the focusable.
 //   * `C8b`: a top-aligned earlier sibling beats the outer of a nested pair (`f=2`), as `G3`'s tie rule says; the plan's
 //     "the outer wins, even over an earlier sibling" is not reproduced here. `C8a` (the outer over its own inner) and
 //     `C8c` (a higher earlier sibling) agree with topmost-by-position.
