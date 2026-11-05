@@ -796,8 +796,8 @@ the real pointer and keyboard, and VoiceOver.
   name), the toggle, the slider (drag and click), the stepper's arrows, the
   menu picker (a native menu; choosing a flavour moves the left's Flavor
   selection too); Tab from the left's controls reaches the form's in reading
-  order (a click does not focus a control, divergence 94; it does focus the
-  field); Space presses the focused button or toggle, the arrows move the
+  order (a click does not focus a control, as SwiftUI's with Full Keyboard
+  Access off, `FC-A`; it does focus the field); Space presses the focused button or toggle, the arrows move the
   focused slider and stepper; typing in the field updates the status bar's
   trailing label each keystroke (`PE-I`). **Observed:**
 - [ ] **V3. VoiceOver** (an agent cannot): VO-→ through the form announces
@@ -2253,4 +2253,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **HY1.** Real type under a tinted parent, beside the same views in SwiftUI, light and dark: a `VStack` of five `Text` lines `.primary` to `.quinary` inside `.foregroundStyle(.red)`, and again inside `.tint(.green)` with `.foregroundStyle(.tint)`. Each line steps down in the parent's own hue (alpha 1, .5, .25, .18, .18), not toward grey. **Observed:**
 - [ ] **HY2.** The same five levels with no parent, and as `Rectangle().fill(.secondary)` swatches on white and on black: grey steps of the theme's text colour. Compare the steps and the contrast of `.quaternary` and `.quinary` with SwiftUI's; MetalUI's text colour is the theme token (divergence 116), so the grey differs by that and nothing else. **Observed:**
 - [ ] **HY3.** `Color.secondary` explicit, and `foregroundColor(.secondary)`, inside the red parent: still grey in both. **Observed:**
+
+## FC. Click-to-focus - a press focuses a `.focusable()` element as SwiftUI's click does (round 4 item R4-4 PR B; rulings `FC-A`..`FC-D`, record 214; decisions `docs/superpowers/2026-11-04-focus-click-and-seat-decisions.md`; provisional letter)
+
+*An agent cannot: the probe's instrument injects `NSEvent`s into a hosting view, so a real mouse, Full Keyboard Access (it cannot be switched on from the process), a click inside a `ScrollView` or `List` (the instrument does not reach the content there), the first click in an inactive window and how a focus ring looks need a person.*
+
+- [ ] **FC1.** Turn Full Keyboard Access on (System Settings, Keyboard). In SwiftUI and in MetalUI: does a click on a `Button` focus it, and on a `Toggle` and a `Slider`? Does Tab reach the `Button`? MetalUI's answer with it off is SwiftUI's (a control takes no click focus, `C1`, `C3`, `C4`); with it on SwiftUI may focus a click (divergence 80 keeps that half). **Observed:**
+- [ ] **FC2.** Click a `.focusable()` element inside a `ScrollView` and inside a `List` with a real mouse, in SwiftUI and MetalUI: does focus follow the click, and does the scroll or the row selection still work? **Observed:**
+- [ ] **FC3.** A first click on a `.focusable()` element in an inactive window: does it focus (and activate) at once, as SwiftUI's? **Observed:**
+- [ ] **FC4.** The look of the ring on a click-focused `.focusable()` element beside the same view in SwiftUI (the ring is the element's own to draw in MetalUI, `isFocused`); a click-focused `Button.focusable()`. **Observed:**
 

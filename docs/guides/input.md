@@ -11,9 +11,10 @@ compiled by the test suite and the claims are driven through a headless window
 ## How do I react to a button, and what does a click focus?
 
 `Button` and `Toggle` take a closure and a `Binding`, as in SwiftUI. A click presses them; it does
-not focus them. Tab reaches every control, and only a `TextField`, a `TextEditor`, a selectable
-`List` and `.focusable(interactions: .edit)` focus on a click (divergence 94; pin:
-`aButtonIsFocusableButAClickDoesNotFocusIt`). A right click presses nothing; it opens a context
+not focus them (as SwiftUI's, with Full Keyboard Access off; pin: `aButtonIsFocusableButAClickDoesNotFocusIt`).
+Tab reaches every control, and a `TextField`, a `TextEditor`, a selectable `List` and a `.focusable()`
+element (`.focusable(interactions: .edit)` or the plain spelling) focus on a click, as in SwiftUI (pin:
+`clickingAFocusableElementFocusesIt`); `.focusable(interactions: .activate)` is the opt-out. A right click presses nothing; it opens a context
 menu and nothing else (divergence 110; pin: `aSecondaryPressNeverRunsOnClickOrATap`).
 
 ```swift
@@ -481,7 +482,6 @@ press on the button makes none (pin: `theInputGuideTheBackgroundDragsOnlyWhereNo
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
 
-- divergence 94: a click does not focus a `Button` or a plain `.focusable()`.
 - divergence 110: a secondary click runs no tap, click, drag or text press; it opens context menus.
 - divergence 139: `CoordinateSpace.global` is the window's content space.
 - divergence 185: `onKeyPress` and `.focusable()` are order-free on one keyboard layer.

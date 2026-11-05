@@ -6,8 +6,8 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
 
 **Controls** (`Button`, `Toggle`, `Slider`, `Stepper`, `Picker`, selectable
 `List`) sit on `Binding` and the existing handler machinery: one hitbox each,
-all focusable (Tab reaches them; **a click does not focus them**, divergence
-94), one keyboard table `ControlKeys.swift` running after a caller's `onKey`
+all focusable (Tab reaches them; **a click does not focus them**, as SwiftUI's with Full Keyboard Access off:
+a control records no focus interactions, so `focusesOnPress` leaves it out, `FC-A`), one keyboard table `ControlKeys.swift` running after a caller's `onKey`
 declines, the `.disabled` gate in `Frame.registerHandlers`. Accents and focus
 rings read `controlActiveState` (`ControlLook.swift`). `Button` has `role:`,
 `.buttonStyle` (`.plain`/`.borderless` drop chrome by value), a pressed wash
@@ -74,8 +74,8 @@ Qualify `MetalUIPlatform.AccessibilityRequest` in files importing AppKit.
 `AXNode.actions`/`AXActionKind` are deprecated. **An agent cannot run
 VoiceOver or claim the validation** (`IX-AE`).
 
-**Focus.** Clicking does not focus, except `TextField`/`TextEditor`, a
-selectable `List` and `.focusable(interactions: .edit)` (`KF-F`). Focus leaves with its identity and does not return
+**Focus.** A primary press focuses a `.focusable()` element (`.automatic` or `.edit` interactions, SwiftUI's click focus, `FC-A`,
+divergence 94 retired), a `TextField`/`TextEditor` and a selectable `List`, not a control and not `.activate`. Focus leaves with its identity and does not return
 (`IX-I`); a `List` row out of window keeps it. `@FocusState` writes apply from
 input, before the next frame. `.hidden()` removes focus/Tab/keys but not a
 keyboard shortcut. Keys go Keymap → `onKeyPress` (outermost first, `KF-C`) →
@@ -178,9 +178,9 @@ by it and runs the command, a `Button`'s ⌘-key and every native-only menu item
 grapheme, never during composition (`KF-Q`, divergence 187). **The key chain** is the focus chain,
 else the innermost `.hoverKeyRegion()`'s (the one ranking, found on demand at a key or press, never
 per pointer move) and feeds the Keymap's contexts, actions and `onKeyPress` **only** — `onKey` and
-every control's keys still need focus (`KF-U`). `.focusable(interactions: .edit)` focuses on a
-primary press in the non-claiming `focusOnPress` stage; plain `.focusable()` does not (divergence
-94, narrowed); a press elsewhere does not resign a focused field (SwiftUI, `KF-G`). Proposal
+every control's keys still need focus (`KF-U`). A `.focusable()` element focuses on a
+primary press in the non-claiming `focusOnPress` stage (`.edit` and `.automatic`, which plain
+`.focusable()` records explicitly; `nil` is a control's and stays out, `FC-A`); a press elsewhere does not resign a focused field (SwiftUI, `KF-G`). Proposal
 content (`MetalView`, `GPUSurface`) takes the keyboard modifiers as **one `KeyboardModifier`
 layer** that every further keyboard modifier merges into (`KF-H`, divergence 185), registered
 inside `sharingRegistrationsWithEffects`. A Return with the platform's shortcut modifier is not a
