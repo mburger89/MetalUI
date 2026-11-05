@@ -155,6 +155,35 @@ private func drag(_ p: Point<Pixels>) -> InputEvent { .mouseDragged(MouseEvent(p
     #expect(!Handlers().focusesOnPress, "no keyboard attachment at all")
 }
 
+/// **A26i** (`C9` on the proposal path, `KF-H`; `FC-A` item 2's two other
+/// spellings). A SwiftUI-vocabulary view's `.focusable()` wraps once in a
+/// `KeyboardModifier` and a chained `.onKeyPress { }.focusable()` writes the
+/// layer directly: both record `.automatic`, so both take a press; the
+/// `.activate` spelling on either takes none. Mutations: leave `nil` at the
+/// proposal wrapper (first arm), at the layer (both arms).
+@MainActor
+@Test func theProposalPathSpellingsOfFocusableTakeAPress() throws {
+    let (window, platform) = try fpWindow {
+        HStack(spacing: 0) {
+            Rectangle(width: px(50), height: px(50)).focusable()
+            Rectangle(width: px(50), height: px(50)).onKeyPress { _ in .ignored }.focusable()
+            Rectangle(width: px(50), height: px(50)).focusable(interactions: .activate)
+            Rectangle(width: px(50), height: px(50)).onKeyPress { _ in .ignored }
+                .focusable(interactions: .activate)
+        }
+    }
+    let order = window.lastFocusRegistry.tabOrder
+    try #require(order.count == 4, "set up: four proposal-path focusables: \(order)")
+    platform.simulateInput(down(pt(25, 100)))
+    #expect(window.focusedElement == order[0], "wrapper spelling: .focusable() takes the press")
+    platform.simulateInput(down(pt(75, 100)))
+    #expect(window.focusedElement == order[1], "layer spelling: .onKeyPress { }.focusable() takes the press")
+    platform.simulateInput(down(pt(125, 100)))
+    #expect(window.focusedElement == order[1], ".activate takes none: focus stays")
+    platform.simulateInput(down(pt(175, 100)))
+    #expect(window.focusedElement == order[1], "nor does the layer's .activate")
+}
+
 /// **A26d** (`C6`). Clicking a `Button` leaves a focused view focused. The
 /// focus was taken by a press (a plain focusable), not set from code.
 @MainActor
