@@ -176,9 +176,14 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
                               counter: controlCounter, log: controlLog) {
         subject(controlCounter, controlLog)
     }
-    try #require(control.clicks == 1 && control.regions.count == 1,
-                 why("the control must be hittable and must register exactly one region, or every "
-                     + "zero below is the harness rather than the modifier: \(control)"))
+    // The subject is `.focusable()`, so its pointer target (opaque) is joined by the
+    // non-opaque press region `FC-A` registers; `allowsHitTesting(false)` withdraws both.
+    try #require(control.clicks == 1 && control.regions
+                    == ["[50.0 50.0 100.0x100.0] opaque=true scroll=nil",
+                        "[50.0 50.0 100.0x100.0] opaque=false scroll=nil"],
+                 why("the control must be hittable and must register exactly its opaque click target "
+                     + "and its non-opaque press region, or every zero below is the harness rather "
+                     + "than the modifier: \(control)"))
     #expect(control.keyRan && control.focusable,
             why("and the control's keyboard half must be live: \(control)"))
 

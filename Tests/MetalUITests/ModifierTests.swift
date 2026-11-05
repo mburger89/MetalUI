@@ -460,9 +460,11 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
                      effect: { _, _, _, h in h.pointer = true }),
 
         // MARK: Focus
+        // `FC-A`: the plain spelling records `.automatic` explicitly (it recorded `nil`),
+        // which is what makes a press focus it; `nil` is a control's.
         ModifierCase(name: "focusable()",
                      apply: { $0.focusable() },
-                     effect: { _, _, _, h in h.focusable = true }),
+                     effect: { _, _, _, h in h.focusable = true; h.interactions = FocusInteractions.automatic.rawValue }),
 
         // MARK: Keys and focus interactions (ruling `KF-I`)
         //

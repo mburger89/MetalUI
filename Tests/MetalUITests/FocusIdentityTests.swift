@@ -222,16 +222,17 @@ private func redraw(_ window: Window) {
     #expect(innerKeys.isEmpty, "arm 3: the box under a hidden inner layer takes no key")
 }
 
-// MARK: - 3.14 a click does not focus (divergence 94)
+// MARK: - 3.14 a click focuses a focusable element (divergence 94 retired)
 
-/// **3.14 — clicking a focusable element does not focus it** (divergence
-/// **94**, pinned wrong on purpose, ruling `IX-K` item 2; SwiftUI's click
-/// focuses one, F3). A click on a `.focusable()` box, and on a focusable box
-/// with an `onClick` (whose click runs), leaves `window.focusedElement` nil.
-/// Written first and green throughout. Mutation **M3h** (a press focuses the
-/// target's focusable ancestor) reddens it.
+/// **3.14 — clicking a focusable element focuses it** (`FC-A`; was "does not
+/// focus it", divergence **94** pinned wrong on purpose by `IX-K` item 2,
+/// retired by R4-4 PR B: SwiftUI's click focuses one, `F3`/`FC1`/`C15`). A
+/// click on a `.focusable()` box focuses it and a click on the next box, a
+/// focusable one with an `onClick` whose click runs, moves focus to that one.
+/// The first click reads the first box's id, the second the second's, and the
+/// click ran once (`C13`: the press focuses and the click still runs).
 @MainActor
-@Test func clickingAFocusableElementDoesNotFocusIt() throws {
+@Test func clickingAFocusableElementFocusesIt() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     var clicks = 0
     let (window, platform) = try makeFakeWindow(device: device, size: 100) {
@@ -241,15 +242,17 @@ private func redraw(_ window: Window) {
         }
     }
     window.drawFrameIfNeeded()
-    try #require(window.lastFocusRegistry.tabOrder.count == 2, "control: both boxes are focusable")
-    for x: Float in [20, 60] {
+    let order = window.lastFocusRegistry.tabOrder
+    try #require(order.count == 2, "control: both boxes are focusable")
+    try #require(window.focusedElement == nil, "control: nothing is focused before a click")
+    for (index, x) in [Float(20), 60].enumerated() {
         let point = Point(x: Pixels(x), y: Pixels(50))
         platform.simulateInput(.mouseDown(MouseEvent(position: point)))
         platform.simulateInput(.mouseUp(MouseEvent(position: point)))
         window.drawFrameIfNeeded()
+        #expect(window.focusedElement == order[index], "the click at x \(x) focused box \(index) (FC1)")
     }
     #expect(clicks == 1, "control: the clickable box's click ran")
-    #expect(window.focusedElement == nil, "a click focuses nothing (divergence 94; SwiftUI's does, F3)")
 }
 
 // MARK: - 3.14b a hidden button's shortcut fires (X1)

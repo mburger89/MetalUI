@@ -824,9 +824,15 @@ private func item(_ types: [PasteboardType], bytes: [String: [UInt8]], log: Load
 
 // MARK: - 1.25–1.29: what must not move (`DN-O`, `DN-P`, `DN-H`, `DN-S`)
 
-/// **1.25** (`DN-O`, `DN-H` item 6). A drag neither focuses its source nor its
-/// destination, and adds no `StateTable` entry frame over frame.
-/// Mutation **M1aa** (focus the source at drag begin).
+/// **1.25** (`DN-O`, `DN-H` item 6, `FC-A`). A drag moves no focus of its own:
+/// the PRESS on a `.focusable()` source focuses it (a plain focusable takes
+/// focus on a press since `FC-A`; SwiftUI's `C17` agrees, a press on a
+/// `.draggable("s").focusable()` view focuses it), and nothing else moves
+/// focus, the destination included, while the drag runs and after the drop.
+/// The press writes the one `$focus` slot (6 entries against 5); the drag and
+/// the drop add no `StateTable` entry frame over frame. Mutation **M1aa**
+/// (focus the source at drag begin) is now the destination arm: focus the
+/// destination at drop.
 @MainActor
 @Test func aDragNeitherFocusesNorAddsAStateEntry() throws {
     let log = DLog()
@@ -835,18 +841,25 @@ private func item(_ types: [PasteboardType], bytes: [String: [UInt8]], log: Load
     }
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
-    let entries = window.stateTable.count
+    let before = window.stateTable.count
     try #require(window.focusedElement == nil)
+    let order = window.lastFocusRegistry.tabOrder
+    try #require(order.count == 2, "set up: the source and the destination are focusable")
     platform.simulateInput(down(100, 100))
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == order[0], "the press focused the source (FC-A, C17)")
+    let entries = window.stateTable.count
+    #expect(entries == before + 1, "and wrote its one `$focus` slot: \(before) to \(entries)")
     platform.simulateInput(drag(110, 100))
     window.drawFrameIfNeeded()
     platform.simulateInput(drag(300, 100))
     window.drawFrameIfNeeded()
     #expect(window.stateTable.count == entries, "mid-drag: no entry added")
+    #expect(window.focusedElement == order[0], "mid-drag: the destination is not focused")
     platform.simulateInput(up(300, 100))
     window.drawFrameIfNeeded()
     #expect(log.entries == ["T=true", "T=false", "drop([\"s\"])"])
-    #expect(window.focusedElement == nil, "no focus moved")
+    #expect(window.focusedElement == order[0], "no focus moved after the drop")
     #expect(window.stateTable.count == entries, "after the drop: no entry added")
 }
 

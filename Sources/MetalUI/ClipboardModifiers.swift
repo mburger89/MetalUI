@@ -16,8 +16,8 @@ extension StyledElement {
     /// **Routing** (`CB-B`): the primary modifier (⌘ on Apple, Ctrl elsewhere)
     /// with `C`, and the Edit menu's Copy, reach the handler of the element that
     /// **holds focus or is an ancestor of the focused element**, innermost first.
-    /// It does not make the element focusable (`focusable()`; a click does not
-    /// focus, divergence 94). It runs after the `Keymap`, `onKeyPress`, a
+    /// It does not make the element focusable (`focusable()`, whose press
+    /// focuses it, `FC-A`). It runs after the `Keymap`, `onKeyPress`, a
     /// focused text field's own editing keys and `onKey`, and before a `Button`'s
     /// shortcut and the app's commands, so a focused `TextField` keeps its own
     /// copy (`CB-M`). `items` is evaluated at copy time; **every** item

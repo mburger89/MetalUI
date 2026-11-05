@@ -776,8 +776,11 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 
 /// **D11.** Re-enabling restores clicks at once, and not a focus requested
 /// while disabled. Frame N (disabled): a focus request is cleared and a click
-/// runs nothing. Frame N+1 (enabled): a click runs the handler once, and focus
-/// stays `nil`.
+/// runs nothing. Frame N+1 (enabled): focus is still `nil` before any input,
+/// and a click runs the handler once **and focuses the element**, as a press on
+/// any `.focusable()` element does since `FC-A` (it used to leave focus `nil`
+/// after the click, divergence 94; the "not restored" half is now read BEFORE
+/// the click, where it is still separating).
 @MainActor
 @Test func reEnablingRestoresClicksButNotFocus() throws {
     let device = try device()
@@ -803,9 +806,10 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 
     model.disabled = false
     redraw(window)
+    #expect(window.focusedElement == nil, "the focus requested while disabled is not restored")
     click(platform, at: point)
     #expect(log.count("x") == 1, "frame N+1: re-enabled, the click runs the handler")
-    #expect(window.focusedElement == nil, "the focus requested while disabled is not restored")
+    #expect(window.focusedElement == id, "and the re-enabled element's press region focuses it (FC-A)")
 }
 
 /// **D13.** A focus request on a disabled element leaves no `$focus`

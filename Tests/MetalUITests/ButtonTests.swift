@@ -219,8 +219,11 @@ private func buttonWindow(_ model: ControlModel, disabled: Bool = false,
     #expect(model.count == (TextEditing.platform == .mac ? 1 : 2), "Return activates only off Apple")
 }
 
-/// **1.5.** A button is focusable, and a click does not focus it (the focus
-/// rule stands; `DD-T` item 1). M1e (`isFocusable` false) must redden it.
+/// **1.5.** A button is focusable, and a click does not focus it: **aligned**
+/// with SwiftUI when Full Keyboard Access is off (`DD-T` item 1; probe
+/// `swiftui-focus-click.swift` `C1`, `C3`, `C4`), and since `FC-A` it stays
+/// out because a control records no focus interactions (`nil`), not because
+/// no element takes a press. M1e (`isFocusable` false) must redden it.
 @Test @MainActor func aButtonIsFocusableButAClickDoesNotFocusIt() throws {
     let model = ControlModel()
     let (window, platform) = try buttonWindow(model)

@@ -323,8 +323,9 @@ private struct TwoMembers: Component {
         }
         #expect(isBordered(try bordered("plain"), with: .surface, in: theme))
 
-        let hitboxes = window.lastHitboxes
-        try #require(hitboxes.count == 1, why("\(name): one hitbox, got \(hitboxes.count)"))
+        // The subject is `.focusable()`: its press region is non-opaque (`FC-A`).
+        let hitboxes = window.lastHitboxes.filter(\.opaque)
+        try #require(hitboxes.count == 1, why("\(name): one opaque hitbox, got \(hitboxes.count)"))
         window.focus(hitboxes[0].id)
         window.drawFrameIfNeeded()
         #expect(isBordered(try bordered("focused"), with: .separator, in: theme),
@@ -568,9 +569,9 @@ private struct TwoMembers: Component {
         // none; the control checks the spelling against its own.
         let rowID = GlobalElementID.child(of: nil, at: 0, name: nil)
         let id = GlobalElementID.child(of: rowID, at: 0, name: nil)
-        if hitboxes == 1 {
-            try #require(window.lastHitboxes[0].id == id,
-                         why("\(name): the spelled id is the frame layer's; hitbox id \(window.lastHitboxes[0].id)"))
+        if hitboxes > 0 {
+            try #require(window.lastHitboxes.allSatisfy { $0.id == id },
+                         why("\(name): the spelled id is the frame layer's; hitbox ids \(window.lastHitboxes.map(\.id))"))
         }
         window.focus(id)
         window.drawFrameIfNeeded()
@@ -607,10 +608,10 @@ private struct TwoMembers: Component {
             .focusable().onClick { counter.bump() }
     }
 
-    try #require(control == Reading(hitboxes: 1, focusedBorder: .separator, hoveredBorder: .accent, clicks: 1),
+    try #require(control == Reading(hitboxes: 2, focusedBorder: .separator, hoveredBorder: .accent, clicks: 1),
                  why("set up — the enabled control focuses, hovers and clicks: \(control)"))
     #expect(disabled == Reading(hitboxes: 0, focusedBorder: .surface, hoveredBorder: .surface, clicks: 0),
-            why("disabled: no hitbox, the plain border under focus and hover, no click; got \(disabled)"))
+            why("disabled: no hitbox (neither the click target nor the press region), the plain border under focus and hover, no click; got \(disabled)"))
     #expect(scopeInside == control,
             why("a scope written BEFORE the frame sits inside it (EV-X): the frame layer's handlers are live; got \(scopeInside)"))
 }

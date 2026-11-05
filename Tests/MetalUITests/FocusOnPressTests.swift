@@ -57,12 +57,14 @@ private func drag(_ p: Point<Pixels>) -> InputEvent { .mouseDragged(MouseEvent(p
     #expect(window.focusedElement == id, "the press focused the surface (FC3)")
 }
 
-/// **A26** (FC1 → divergence 94, FC2, FC5). A press focuses neither a plain
-/// `.focusable()` (MetalUI's `.automatic`) nor an `.activate` one, nor a
-/// `.focusable(false, interactions: .edit)` one. Mutation: treat `.automatic`
-/// as `.edit`.
+/// **A26** (FC1, FC2, FC5; was "neither a plain `.focusable()` nor an
+/// `.activate` one", divergence 94, retired by `FC-A`). A press focuses a plain
+/// `.focusable()` and an explicit `.automatic` one (SwiftUI's click focus, FC1);
+/// it focuses neither an `.activate` one (FC2) nor a `.focusable(false,
+/// interactions: .edit)` one (FC5). Mutations: drop `.automatic` from the
+/// predicate (the first two redden); treat `nil` as automatic (A26c).
 @MainActor
-@Test func aPressDoesNotFocusPlainOrActivateFocusables() throws {
+@Test func aPressFocusesPlainAndAutomaticFocusablesButNotActivateOrDisabledOnes() throws {
     let (window, platform) = try fpWindow {
         HStack(spacing: 0) {
             square(50).focusable()
@@ -71,12 +73,220 @@ private func drag(_ p: Point<Pixels>) -> InputEvent { .mouseDragged(MouseEvent(p
             square(50).focusable(false, interactions: .edit)
         }
     }
-    try #require(window.lastFocusRegistry.tabOrder.count == 3, "set up: three are focusable")
-    for x: Float in [25, 75, 125, 175] {
-        platform.simulateInput(down(pt(x, 100)))
-        platform.simulateInput(up(pt(x, 100)))
+    let order = window.lastFocusRegistry.tabOrder
+    try #require(order.count == 3, "set up: three are focusable")
+    // The plain one, then the activate one (focus stays on the plain one), then the
+    // automatic one, then the non-focusable one (focus stays on the automatic one).
+    platform.simulateInput(down(pt(25, 100)))
+    #expect(window.focusedElement == order[0], "a plain .focusable() takes the press (FC1)")
+    platform.simulateInput(down(pt(75, 100)))
+    #expect(window.focusedElement == order[0], ".activate takes no press (FC2): focus stays")
+    platform.simulateInput(down(pt(125, 100)))
+    #expect(window.focusedElement == order[2], ".automatic takes the press (FC1)")
+    platform.simulateInput(down(pt(175, 100)))
+    #expect(window.focusedElement == order[2], "focusable(false, .edit) takes no press (FC5): focus stays")
+}
+
+/// **A26c** (`C1`, `C3`, `C4`, FKA off). A `Button`, `Toggle` and `Slider` are
+/// Tab stops a click does not focus: a control sets `isFocusable` and records
+/// no interactions, and `nil` interactions stay out of `focusesOnPress`
+/// (`FC-A` item 2). Each click lands (its action runs: `C1` `tap`, `C3` `on=`,
+/// `C4` `v=`), and focus stays on a focusable beside them (the separating
+/// arm: `focus` is not merely unset). Mutation: treat `nil` as `.automatic`.
+@MainActor
+@Test func aPressOnAControlTakesNoFocus() throws {
+    let m = FPLog()
+    var on = false
+    var value: Double = 0
+    let (window, platform) = try fpWindow {
+        VStack(spacing: 0) {
+            square(40).focusable()
+            Button("B") { m.log.append("tap") }.frame(width: px(200), height: px(40))
+            Toggle("T", isOn: Binding(get: { on }, set: { on = $0; m.log.append("on=\($0)") }))
+                .frame(width: px(200), height: px(40))
+            Slider(value: Binding(get: { value }, set: { value = $0; m.log.append("v") }), in: 0...1)
+                .frame(width: px(200), height: px(40))
+        }
     }
-    #expect(window.focusedElement == nil, "no press focused anything (divergence 94, FC2, FC5)")
+    let order = window.lastFocusRegistry.tabOrder
+    try #require(order.count == 4, "set up: the focusable, the button, the toggle and the slider are Tab stops: \(order)")
+    let focusable = order[0]
+    click(platform, pt(100, 20))
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement == focusable, "set up: the plain focusable took the press")
+    let buttonBounds = try #require(window.lastHitboxes.first { $0.id == order[1] && $0.opaque }).bounds
+    let toggleBounds = try #require(window.lastHitboxes.first { $0.id == order[2] && $0.opaque }).bounds
+    let sliderBounds = try #require(window.lastHitboxes.first { $0.id == order[3] }).bounds
+    click(platform, centreOf(buttonBounds))
+    #expect(window.focusedElement == focusable, "a Button click focuses nothing (C1)")
+    click(platform, centreOf(toggleBounds))
+    #expect(window.focusedElement == focusable, "a Toggle click focuses nothing (C3)")
+    click(platform, Point(x: px(sliderBounds.origin.x.value + 30),
+                          y: px(sliderBounds.origin.y.value + sliderBounds.size.height.value / 2)))
+    #expect(window.focusedElement == focusable, "a Slider press focuses nothing (C4)")
+    #expect(m.log.first == "tap" && m.log.contains("on=true") && m.log.contains("v"),
+            "control: each control's own action ran (the clicks landed): \(m.log)")
+}
+
+/// **A26d** (`C6`). Clicking a `Button` leaves a focused view focused. The
+/// focus was taken by a press (a plain focusable), not set from code.
+@MainActor
+@Test func clickingAButtonKeepsTheCurrentFocus() throws {
+    let m = FPLog()
+    let (window, platform) = try fpWindow {
+        VStack(spacing: 0) {
+            square(100).focusable()
+            Button("B") { m.log.append("tap") }.frame(width: px(200), height: px(60))
+        }
+    }
+    let focusable = try #require(window.lastFocusRegistry.tabOrder.first)
+    click(platform, pt(100, 30))
+    try #require(window.focusedElement == focusable, "set up: the press focused the focusable")
+    click(platform, pt(100, 160))
+    #expect(m.log == ["tap"], "the button's click ran: \(m.log)")
+    #expect(window.focusedElement == focusable, "and focus stayed (C6)")
+}
+
+/// **A26e** (`C7`, `C7b`, `C7c` against divergence 57, `C13`, `C16`). A
+/// focusable BENEATH a tappable keeps focus where it was and the tap runs
+/// (`C7`, aligned: the tappable's opaque hitbox is the cover and the focusable
+/// is not its ancestor). Beneath a plain `Color` it **focuses** (`C7b`,
+/// divergence 57: a plain colour is no pointer target here, SwiftUI's covers
+/// the press). A focusable ABOVE a tappable focuses (`C7c`) and the tap behind
+/// **still fires** (divergence 57: SwiftUI's does not; the press region is
+/// non-opaque). `C13`: a `Button.focusable()` focuses (the outer box, the
+/// button itself stays a control) and its click runs; `C16`: a `Button` inside
+/// a focusable container focuses the container and the click runs.
+@MainActor
+@Test func aFocusableCoveredByOrCoveringAnotherElementStillTakesThePress() throws {
+    let m = FPLog()
+    // C7: the tappable above the focusable.
+    do {
+        let (window, platform) = try fpWindow {
+            ZStack {
+                square(100).focusable()
+                square(100).onTapGesture { m.log.append("tap") }
+            }
+        }
+        let id = try #require(window.lastFocusRegistry.tabOrder.first)
+        click(platform, pt(100, 100))
+        _ = id
+        #expect(m.log == ["tap"], "C7: the covering tappable ran")
+        #expect(window.focusedElement == nil, "C7 (aligned): the cover keeps focus where it was, so the focusable beneath is not focused")
+        m.log = []
+    }
+    // C7b: a plain Color above the focusable.
+    do {
+        let (window, platform) = try fpWindow {
+            ZStack { square(100).focusable(); Color.red.frame(width: px(100), height: px(100)) }
+        }
+        let id = try #require(window.lastFocusRegistry.tabOrder.first)
+        click(platform, pt(100, 100))
+        #expect(window.focusedElement == id, "C7b (differs, divergence 57): the plain colour is no pointer target")
+    }
+    // C7c: the focusable above a tappable.
+    do {
+        let (window, platform) = try fpWindow {
+            ZStack {
+                square(100).onTapGesture { m.log.append("tap") }
+                square(100).focusable()
+            }
+        }
+        let id = try #require(window.lastFocusRegistry.tabOrder.first)
+        click(platform, pt(100, 100))
+        #expect(window.focusedElement == id, "C7c: the focusable above the tappable focuses")
+        #expect(m.log == ["tap"], "C7c (differs, divergence 57): the tap behind still fires")
+        m.log = []
+    }
+    // C13: Button.focusable().
+    do {
+        let (window, platform) = try fpWindow {
+            Button("B") { m.log.append("tap") }.frame(width: px(100), height: px(100)).focusable()
+        }
+        let id = try #require(window.lastFocusRegistry.tabOrder.first, "the outer focusable box")
+        click(platform, pt(100, 100))
+        #expect(m.log == ["tap"], "C13: the button's click ran")
+        #expect(window.focusedElement == id, "C13: and Button.focusable() took the press")
+        m.log = []
+    }
+    // C16: a Button inside a focusable container.
+    do {
+        let (window, platform) = try fpWindow {
+            Column { Button("B") { m.log.append("tap") }.frame(width: px(100), height: px(100)) }
+                .frame(width: px(200), height: px(200)).focusable()
+        }
+        let container = try #require(window.lastFocusRegistry.tabOrder.first)
+        let button = try #require(window.lastHitboxes.first { $0.handlers.onClick != nil })
+        click(platform, centreOf(button.bounds))
+        #expect(m.log == ["tap"], "C16: the button's click ran")
+        #expect(window.focusedElement == container, "C16: the container took the press")
+    }
+}
+
+/// **A26f** (`C8a`, `C15`). Two sibling focusables: a press on the first
+/// focuses it, a press on the second moves focus to it. Nested focusables: the
+/// inner takes a press on it, the outer takes a press on its own margin.
+/// Mutation: take the outermost member (reddens the inner reading).
+@MainActor
+@Test func siblingAndNestedFocusablesTakeTheirOwnPresses() throws {
+    let (siblings, siblingsPlatform) = try fpWindow {
+        HStack(spacing: 0) { square(100).focusable(); square(100).focusable() }
+    }
+    let pair = siblings.lastFocusRegistry.tabOrder
+    try #require(pair.count == 2)
+    click(siblingsPlatform, pt(50, 100))
+    #expect(siblings.focusedElement == pair[0], "C15: the first")
+    click(siblingsPlatform, pt(150, 100))
+    #expect(siblings.focusedElement == pair[1], "C15: then the second")
+
+    let (nested, nestedPlatform) = try fpWindow {
+        square(40).focusable().frame(width: px(120), height: px(120)).focusable()
+    }
+    let chain = nested.lastFocusRegistry.tabOrder
+    try #require(chain.count == 2, "set up: outer and inner")
+    let inner = try #require(nested.lastHitboxes.first { $0.id != chain[0] && $0.handlers.keyboard != nil })
+    click(nestedPlatform, centreOf(inner.bounds))
+    #expect(nested.focusedElement == inner.id, "C8a: the inner takes a press on it")
+    click(nestedPlatform, pt(100 - 55, 100))
+    #expect(nested.focusedElement == chain[0], "C8a: the outer takes a press on its own margin")
+}
+
+/// **A26g** (`C10`, `C11`, `C12`, `C12b`). A right press, a `.disabled(true)`
+/// focusable and a `.allowsHitTesting(false)` one (written on either side of
+/// `.focusable()`) take no press, with a focusable beside them already focused
+/// so a missing focus is a real answer (the probe's `T1`: a lone focusable
+/// takes focus from any click).
+@MainActor
+@Test func aSecondaryPressADisabledAndAHitTestingOffFocusableTakeNoFocus() throws {
+    let (window, platform) = try fpWindow {
+        HStack(spacing: 0) {
+            square(50).focusable()
+            square(50).focusable()
+            square(50).focusable().disabled(true)
+            square(50).focusable().allowsHitTesting(false)
+        }
+    }
+    let order = window.lastFocusRegistry.tabOrder
+    try #require(order.count >= 2)
+    click(platform, pt(25, 100))
+    try #require(window.focusedElement == order[0], "set up: the first took the press")
+    platform.simulateInput(.rightMouseDown(MouseEvent(position: pt(75, 100))))
+    platform.simulateInput(.rightMouseUp(MouseEvent(position: pt(75, 100))))
+    #expect(window.focusedElement == order[0], "C10: a right press focuses nothing")
+    click(platform, pt(125, 100))
+    #expect(window.focusedElement == order[0], "C11: .disabled(true) takes no press")
+    click(platform, pt(175, 100))
+    #expect(window.focusedElement == order[0], "C12: .allowsHitTesting(false) takes no press")
+    let (before, beforePlatform) = try fpWindow {
+        HStack(spacing: 0) {
+            square(50).focusable()
+            square(50).allowsHitTesting(false).focusable()
+        }
+    }
+    click(beforePlatform, pt(75, 100))
+    let first = try #require(before.focusedElement, "set up: the first took the press")
+    click(beforePlatform, pt(125, 100))
+    #expect(before.focusedElement == first, "C12b: .allowsHitTesting(false) written before .focusable() takes no press")
 }
 
 /// **A27** (FC6). A press on a click-focusable element focuses it and still
@@ -304,7 +514,7 @@ private func centreOf(_ b: Bounds<Pixels>) -> Point<Pixels> {
 /// handler and a drop destination, a tap target in its corner, and over the
 /// whole of it a transparent 200-square box, optionally a click-focusable key
 /// region.
-@MainActor private func a32Tree(_ m: FPLog, regions: Bool) -> some Element {
+@MainActor private func a32Tree(_ m: FPLog, regions: Bool, plain: Bool = false) -> some Element {
     let cover = square(200)
     return ZStack {
         square(200)
@@ -313,17 +523,21 @@ private func centreOf(_ b: Bounds<Pixels>) -> Point<Pixels> {
             .onScrollWheel { _ in m.log.append("wheel"); return true }
             .dropDestination(for: String.self) { items, _ in m.log.append("drop \(items)"); return true }
         square(30).onTapGesture { m.log.append("tap") }
-        if regions { cover.focusable(interactions: .edit).hoverKeyRegion() } else { cover }
+        if regions {
+            // `plain`: a bare `.focusable()` cover (`FC-A`), no key region.
+            if plain { cover.focusable() } else { cover.focusable(interactions: .edit).hoverKeyRegion() }
+        } else { cover }
     }
 }
 
 /// Drives the A32 script and returns the log.
-@MainActor private func a32Script(regions: Bool) throws -> [String] {
+@MainActor private func a32Script(regions: Bool, plain: Bool = false) throws -> [String] {
     let m = FPLog()
-    let (window, platform) = try fpWindow { a32Tree(m, regions: regions) }
+    let (window, platform) = try fpWindow { a32Tree(m, regions: regions, plain: plain) }
     if regions {
-        try #require(window.lastHitboxes.contains { $0.handlers.keyboard?.isKeyRegion == true },
-                     "set up: the region arm registers its region")
+        try #require(window.lastHitboxes.contains {
+            plain ? $0.handlers.focusesOnPress : $0.handlers.keyboard?.isKeyRegion == true
+        }, "set up: the region arm registers its region")
     }
     platform.simulateInput(.mouseMoved(MouseEvent(position: pt(50, 50))))
     click(platform, pt(50, 50))
@@ -351,6 +565,20 @@ private func centreOf(_ b: Bounds<Pixels>) -> Point<Pixels> {
                  "control: every outcome happens without the region: \(without)")
     let with = try a32Script(regions: true)
     #expect(with == without, "identical with the region: \(with) vs \(without)")
+}
+
+/// **A32b** (`FC-A`). A bare `.focusable()` cover over the same base changes no
+/// other pointer outcome either: it blocks no click, hover, tap, wheel or drop
+/// aimed at what it covers (the press region is non-opaque). Mutation: register
+/// the region hitbox `opaque: true`.
+@MainActor
+@Test func aPlainFocusableCoverChangesNoOtherPointerOutcome() throws {
+    let without = try a32Script(regions: false)
+    try #require(without.contains("click") && without.contains("tap") && without.contains("wheel")
+                    && without.contains { $0.hasPrefix("drop") } && without.contains("hover true"),
+                 "control: every outcome happens without the cover: \(without)")
+    let with = try a32Script(regions: true, plain: true)
+    #expect(with == without, "identical with a plain focusable cover: \(with) vs \(without)")
 }
 
 /// **A33** (`KF-E` item 2, `KF-F` item 3). `.disabled(true)`, `.hidden()` and

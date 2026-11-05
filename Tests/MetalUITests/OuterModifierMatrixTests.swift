@@ -458,8 +458,9 @@ private struct ProposalMatrixRow {
                                storageDiffers(Box().cssWidth(px(40)).cssHeight(px(40)),
                                               Box().cssWidth(px(40)).cssHeight(px(40)).id("beacon")))
                           }),
-        ProposalMatrixRow(name: "focusable()", path: "legacy Element", kinds: [.selfStorage],
-                          note: "writes Handlers.isFocusable and registers NO pointer target",
+        ProposalMatrixRow(name: "focusable()", path: "legacy Element", kinds: [.selfStorage, .prepaintOnly],
+                          note: "writes Handlers.isFocusable and the `.automatic` interactions, and registers a "
+                              + "NON-opaque press region (`FC-A`), no pointer target",
                           outer: (40, 40),
                           arms: {
                               (try observeUnderTheProposalAuthority(probe: pt(20, 20)) { _ in

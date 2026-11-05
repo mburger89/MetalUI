@@ -495,9 +495,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     }
 
     try expectBorder(.surface, "neither hovered nor focused")
-    let hitboxes = window.lastHitboxes
+    // The subject is `.focusable()`: its press region is non-opaque (`FC-A`).
+    let hitboxes = window.lastHitboxes.filter(\.opaque)
     try #require(hitboxes.count == 1,
-                 "set up — onClick registers exactly one hitbox, got \(hitboxes.count)")
+                 "set up — onClick registers exactly one opaque hitbox, got \(hitboxes.count)")
     let id = hitboxes[0].id
 
     window.focus(id)
@@ -551,8 +552,9 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                      why("\(site): set up — the resting border is the plain one; got "
                          + describe(plain)))
 
-        let hitboxes = window.lastHitboxes
-        try #require(hitboxes.count == 1, "\(site): set up — one hitbox")
+        // The subject is `.focusable()`: its press region is non-opaque (`FC-A`).
+        let hitboxes = window.lastHitboxes.filter(\.opaque)
+        try #require(hitboxes.count == 1, "\(site): set up — one opaque hitbox")
         window.focus(hitboxes[0].id)
         window.drawFrameIfNeeded()
         let focused = try borderToken("focused")

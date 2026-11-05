@@ -201,8 +201,9 @@ private func ring<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Fl
                 why("unfocused: the plain border was written BEFORE `.opacity` and is inside it "
                     + "(H1) — expected \(theme[.accent].a * 0.5), got \(resting.a)"))
 
-        let hitboxes = window.lastHitboxes
-        try #require(hitboxes.count == 1, "set up — one hitbox")
+        // The subject is `.focusable()`: its press region is non-opaque (`FC-A`).
+        let hitboxes = window.lastHitboxes.filter(\.opaque)
+        try #require(hitboxes.count == 1, "set up — one opaque hitbox")
         window.focus(hitboxes[0].id)
         window.drawFrameIfNeeded()
         let focused = try sizedRect(window.lastScene, 40, 40).borderColor
