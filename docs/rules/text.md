@@ -54,7 +54,12 @@ fourteen images); a `Text` with runs resolves each run once through
 for tracked units by feature ranges) agree under the CoreText oracle. Underline,
 strikethrough and background are **ordinary rects inside the text's one shadow leaf**
 (no shader change, `RT-J`); colours snap (`RT-L`); a link is accent-coloured and
-**inert** (divergence 150); accessibility gets the concatenated string. Markdown in
+**clickable** (`LI-A`; divergence 150 retired): `Text.prepaint` and `ProposalText.prepaint` register one click region per laid-out
+piece of a link run, through `registerHandlers` (`Frame.registerTextLinks`, only for a `Text` with a link run, `Text.hasLinkRun`; a plain
+`Text` does no extra work, `RT-M`), under one `$link<n>` child id per resolved run, with the geometry paint draws
+(`Text.glyphBox`); `TextRunPaint.link` keeps two destinations two runs; accessibility gets the concatenated string and one `.link` child per
+run (union frame, no `AXURL`, `LI-E`). The action is `OpenURLAction` over `\.openURL` (uncomparable: a writer refuses retention, `LI-C`),
+the default asks `PlatformWindow.openURL(_:)` through the window's weak `URLOpener` (`LI-D`); a link under `.disabled` is inert (218). Markdown in
 a string **literal** (`LocalizedStringKey`) is parsed by MetalUI's own inline
 parser (`MarkdownInline.swift`, checked against Foundation's on 2498 sources); a
 `String` value and `Text(verbatim:)` are never parsed, and a **control's string literal title is** (`Button`, `Toggle`, `Stepper`, `Picker`, `ColorPicker`, `ProgressView`, `Menu`: a `LocalizedStringKey` initialiser and a disfavoured `StringProtocol` one, `SR-C`; `TextField` placeholders and alert titles stay plain);

@@ -574,6 +574,9 @@ int32_t mui_instance_payload_high_water(void);
 // SDL_RestoreWindow when minimised, SDL_RaiseWindow, and SDL_FlashWindow until
 // focused when the window did not take focus (ruling SN-H).
 bool mui_window_raise(void *window);
+// SDL_OpenURL: asks the system to open an absolute URL (ruling LI-D; a link click's default action). Returns
+// whether the request was made; the caller has already refused a string with no scheme.
+bool mui_open_url(const char *url);
 
 // ---- Run-time shader compiler (items XP-G25, XP-G27; rulings RC-B..RC-S, HX-C, HX-F): the loader is the
 // portable C target CShaderCross (MetalUIShaderRuntime is its Swift side). Only the two symbols the RC

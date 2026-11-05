@@ -28,7 +28,7 @@ struct TextRunRequest: Sendable, Hashable {
     var kerning: Double?
     var tracking: Double?
     var baselineOffset: Double?
-    /// The destination of a link run (`RT-K`): styled, inert (divergence 150).
+    /// The destination of a link run (`RT-K`): styled, and clickable since `LI-A` (divergence 150 retired).
     var link: String?
 
     init(string: String, font: TextFontRequest? = nil, weight: Font.Weight? = nil, italic: Bool? = nil,
@@ -265,6 +265,9 @@ struct TextRunPaint: Hashable, Sendable {
     /// The dash patterns of the two lines (`TM-B`); meaningful only while the line is set.
     var underlinePattern: Text.LineStyle.Pattern = .solid
     var strikethroughPattern: Text.LineStyle.Pattern = .solid
+    /// The run's link destination (`LI-B`): part of the paint record so that two neighbours of one style and
+    /// different destinations stay two runs, each with its own region.
+    var link: String?
 }
 
 /// A styled `Text` resolved against its environment and text system: the
@@ -314,7 +317,7 @@ func resolveRichText(_ content: TextContent, own: TextStyleRequest, rich: TextRi
                                  underline: underlineStyle.map { $0.color ?? resolved.foreground },
                                  strikethrough: strikeStyle.map { $0.color ?? resolved.foreground },
                                  underlinePattern: underlineStyle?.pattern ?? .solid,
-                                 strikethroughPattern: strikeStyle?.pattern ?? .solid)
+                                 strikethroughPattern: strikeStyle?.pattern ?? .solid, link: run.link)
         string += run.string
         if let last = styledRuns.last, last.length == 0 {
             // An empty first run gives way to the first run with text.

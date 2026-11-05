@@ -653,6 +653,40 @@ public final class SDLWindow: PlatformWindow {
     /// How many times ``orderFrontAndMakeKey()`` was called — recorded so a test sees it without a window manager.
     public private(set) var orderFrontCalls = 0
 
+    /// Asks the system to open `url` through `SDL_OpenURL` (`mui_open_url`; ruling `LI-D`, a link click's default
+    /// action) and answers whether the request was made. A string with no scheme is refused first (`false`,
+    /// nothing recorded or sent), so a bare word never reaches a platform's URL handler. Every accepted request
+    /// is recorded in ``openedURLRequests``. **A test replaces ``openURLRequest``**: the default would launch the
+    /// user's browser.
+    public func openURL(_ url: String) -> Bool {
+        guard Self.hasURLScheme(url) else { return false }
+        openedURLRequests.append(url)
+        if let request = openURLRequest { return request(url) }
+        return url.withCString { mui_open_url($0) }
+    }
+
+    /// Every URL ``openURL(_:)`` accepted, in order.
+    public private(set) var openedURLRequests: [String] = []
+
+    /// Replaces `SDL_OpenURL` (a test's seam; `nil`, the default, is the native call).
+    var openURLRequest: (@MainActor (String) -> Bool)?
+
+    /// Whether `url` starts with an RFC 3986 scheme (`ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":"`).
+    static func hasURLScheme(_ url: String) -> Bool {
+        var count = 0
+        for unit in url.utf8 {
+            switch unit {
+            case UInt8(ascii: ":"): return count > 0
+            case UInt8(ascii: "a")...UInt8(ascii: "z"), UInt8(ascii: "A")...UInt8(ascii: "Z"): break
+            case UInt8(ascii: "0")...UInt8(ascii: "9"), UInt8(ascii: "+"), UInt8(ascii: "-"), UInt8(ascii: "."):
+                if count == 0 { return false }
+            default: return false
+            }
+            count += 1
+        }
+        return false
+    }
+
     public func setPointerStyle(_ style: PlatformPointerStyle) {
         pointerStyles.append(style)
         // Hidden is `SDL_HideCursor`; any other style shows the pointer first (`PH-G`). SDL's visibility

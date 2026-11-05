@@ -14,7 +14,9 @@ import Foundation
 /// **The human looks** (`docs/verification/human-checks.md` group RT): the
 /// styles read as styled in light and dark, decorations crisp at 1× and 2×,
 /// even line spacing, the same demo under SDL, VoiceOver reading the whole
-/// sentence, links inert.
+/// sentence. **Links are clickable** (`LI-A`, group `LI`): the Markdown link and the
+/// `linked` word below open `https://example.com` through `\.openURL` on a click
+/// (the demo installs no action, so the window's platform opens the browser).
 ///
 /// Nothing here is in the default demo, so the fourteen offscreen images and
 /// `Expected.swift` do not move. Each section is its own function, passed as an

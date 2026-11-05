@@ -102,6 +102,7 @@ final class PortableFakeWindow: PlatformWindow {
     func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
     func setToolbar(_ toolbar: PlatformToolbar?) -> Bool { false }
     func setPointerStyle(_ style: PlatformPointerStyle) {}
+    func openURL(_ url: String) -> Bool { false }
     func orderFrontAndMakeKey() {}
     var onCloseRequest: (() -> Bool)?
     func close() { onClose?() }

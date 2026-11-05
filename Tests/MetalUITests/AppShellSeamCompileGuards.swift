@@ -101,6 +101,7 @@ func windowConformer(_ members: [String], includingOrderFront: Bool = true) -> S
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
         func setPointerStyle(_ style: PlatformPointerStyle) {}
+        func openURL(_ url: String) -> Bool { false }
     \(includingOrderFront ? "    func orderFrontAndMakeKey() {}" : "")
     \(members.map { "    " + $0 }.joined(separator: "\n"))
     }

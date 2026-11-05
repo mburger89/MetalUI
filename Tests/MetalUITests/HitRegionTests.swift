@@ -246,7 +246,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
 /// the handlers then `.padding(8)` leaves the click on a layer that
 /// `prepaintLayerBody` visits by recursion rather than first.
 @Test @MainActor func everyHandlerRegisteringSiteHonoursAllowsHitTesting() throws {
-    @MainActor func check<E: Element>(_ site: String,
+    @MainActor func check<E: Element>(_ site: String, regions expected: Int = 1,
                                       _ make: @escaping @MainActor (Bool, ClickCounter) -> E) throws {
         // Stage 6b (`LR-DG`, R-centre — predicted "fill", but every arm's root
         // declares 40x40): the root is centred in the 200x200 window at
@@ -254,7 +254,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         let onCounter = ClickCounter(), onLog = KeyLog()
         let on = try measure(clickAt: pt(100, 100), focusing: subjectID(),
                              counter: onCounter, log: onLog) { make(false, onCounter) }
-        try #require(on.clicks == 1 && on.regions.count == 1,
+        try #require(on.clicks == 1 && on.regions.count == expected,
                      why("\(site): the control must be hittable and register one region, or the "
                          + "disabled arm proves nothing: \(on)"))
 
@@ -281,6 +281,16 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         let base = Text("hi").cssWidth(px(40)).cssHeight(px(40)).id("subject")
             .onClick { counter.bump() }
         return disabled ? base.allowsHitTesting(false) : base
+    }
+    // Text links (`LI-A`): a link run's regions are two (the opaque click hitbox and the pointing-hand region), both
+    // inside the gate; the click is the link's action. The glyph is 30 pt so the centre click lands on it.
+    // Mutation: register the link outside the pointer gate.
+    try check("link run", regions: 2) { disabled, counter in
+        let base = Text(content: .runs([TextRunRequest(string: "M", link: "https://x.org")]))
+            .font(family: nil, size: 30).cssWidth(px(40)).cssHeight(px(40))
+        return Row { (disabled ? base.allowsHitTesting(false) : base)
+            .environment(\.openURL, OpenURLAction { _ in counter.bump(); return .handled }) }
+            .cssWidth(px(40)).cssHeight(px(40)).id("subject")
     }
     // Platform services (ruling `SV-N` item 2): a hover region is inside the
     // `allowsHitTesting` gate. The press of `measure`'s click enters it from

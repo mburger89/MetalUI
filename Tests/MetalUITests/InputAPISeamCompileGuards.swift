@@ -68,7 +68,7 @@ func anExhaustiveInputEventSwitchWithoutTheInputAPICasesDoesNotCompile() throws 
 
 /// A `PlatformWindow` conformer with every requirement except
 /// `setPointerStyle(_:)`, which the caller splices in (or not).
-private func conformer(member: String) -> String {
+private func conformer(member: String, openURL: Bool = true) -> String {
     """
     import MetalUICore
     import MetalUIScene
@@ -132,9 +132,29 @@ private func conformer(member: String) -> String {
         func setToolbar(_: PlatformToolbar?) -> Bool { false }
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         func setPreferredColorScheme(_ colorScheme: ColorScheme?) {}
+        \(openURL ? "func openURL(_ url: String) -> Bool { false }" : "")
     \(member)
     }
     """
+}
+
+/// **`LI-D`** (`CI-J`'s shape). `PlatformWindow.openURL(_:)` has **no default implementation**: a conformer that
+/// forgets it fails to compile, naming it; the control (the same conformer with the migration note's spelling,
+/// verbatim) compiles. Mutation: a protocol-extension default `func openURL(_:) -> Bool { false }` (the negative
+/// compiles).
+@Test(.enabled(if: canTypecheck(module: "MetalUIPlatform"), platformSkipReason))
+func aPlatformWindowWithoutOpenURLDoesNotCompile() throws {
+    let pointer = "func setPointerStyle(_ style: PlatformPointerStyle) {}"
+    let without = try typecheckFile(conformer(member: pointer, openURL: false), importing: "MetalUIPlatform")
+    let with = try typecheckFile(conformer(member: pointer + "\n    func openURL(_ url: String) -> Bool { false }",
+                                           openURL: false), importing: "MetalUIPlatform")
+    print("""
+        LI-D member required: without succeeded=\(without.succeeded) messages=[\(without.messages)]; \
+        with succeeded=\(with.succeeded) messages=[\(with.messages)]
+        """)
+    try #require(with.succeeded && !without.succeeded,
+                 "the control must compile and the negative must not, or this guard cannot fail:\nwith:\n\(with.output)\nwithout:\n\(without.output)")
+    #expect(without.messages.contains("openURL"), "the negative must be refused FOR openURL:\n\(without.output)")
 }
 
 /// **1.2** (`CI-J` item 2, `CR-M`'s shape). `PlatformWindow.setPointerStyle(_:)`
