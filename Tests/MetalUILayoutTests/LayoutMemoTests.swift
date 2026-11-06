@@ -136,6 +136,11 @@ private let parameterArms: [ParameterArm] = {
         let first = [leaf(t)], second = [keyed(t, "k2")]
         t.markNativeGridRow(first); t.markNativeGridRow(second)
         return t.newNativeGrid(children: first + second, verticalSpacing: Double(v)) })
+    // `VF-B`: the axes a `ViewThatFits` tests along are part of what it is.
+    arms.append(arm("firstFitting.horizontal") { t, v in
+        t.newNativeFirstFitting(children: [leaf(t), keyed(t, "k2")], horizontal: v == 0, vertical: false) })
+    arms.append(arm("firstFitting.vertical") { t, v in
+        t.newNativeFirstFitting(children: [leaf(t), keyed(t, "k2")], horizontal: false, vertical: v == 0) })
     arms.append(arm("leaf.key") { t, v in keyed(t, v == 0 ? "x" : "y") })
     // `LD-B`: the mark a node is registered under right-to-left is part of what it is.
     arms.append(arm("direction.rightToLeft") { t, v in
@@ -173,7 +178,7 @@ private let parameterArms: [ParameterArm] = {
         if zero != again { failures.append("\(arm.name): not deterministic") }
     }
     #expect(failures.isEmpty, "\(failures)")
-    #expect(parameterArms.count == 36)
+    #expect(parameterArms.count == 38)
 }
 
 /// 1.5c — a tree with no spacing mark has the signature it had before the mark existed (`DS-E`): the `DS-E` tag is

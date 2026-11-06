@@ -24,6 +24,8 @@ public struct ModifierKeysScopeLayout<ContentLayout> {
     var content: ContentLayout
     var key: GlobalElementID?
     var owner: GlobalElementID?
+    /// The content's nodes, so a scope whose content was elided by an unchosen `ViewThatFits` candidate notes nothing (`VF-C`).
+    var nodes: [LayoutNodeID] = []
 
     /// The store key and owner of a scope at `cursor` under `parent`: the owner
     /// — which the action is dispatched to — is the position; the key is
@@ -68,13 +70,13 @@ public struct ModifierKeysScope<Content: ElementGroup>: ElementGroup {
         }
         let (key, owner) = nodes.isEmpty ? (nil, nil) : ModifierKeysScopeLayout<Content.GroupLayout>
             .key(under: parent, at: start, depth: depth)
-        return (nodes, ModifierKeysScopeLayout(content: layout, key: key, owner: owner))
+        return (nodes, ModifierKeysScopeLayout(content: layout, key: key, owner: owner, nodes: nodes))
     }
 
     /// Prepaints the content, noting the masked modifiers.
     public mutating func prepaintGroup(layout: inout ModifierKeysScopeLayout<Content.GroupLayout>,
                                        pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        if let key = layout.key, let owner = layout.owner {
+        if let key = layout.key, let owner = layout.owner, !pass.frame.allElided(layout.nodes) {
             pass.frame.prepaintLog?.modifiers.append(ModifierNoteRecord(watch: watch, key: key, owner: owner))   // `RL-B`
             pass.frame.animationStore.lifecycle.noteModifierKeys(watch: watch, key: key, owner: owner)
         }
@@ -103,7 +105,7 @@ extension ModifierKeysScope: ProposalElementGroup where Content: ProposalElement
         }
         let (key, owner) = nodes.isEmpty ? (nil, nil) : ModifierKeysScopeLayout<Content.GroupLayout>
             .key(under: parent, at: start, depth: depth)
-        return (nodes, ModifierKeysScopeLayout(content: layout, key: key, owner: owner))
+        return (nodes, ModifierKeysScopeLayout(content: layout, key: key, owner: owner, nodes: nodes.map(\.layoutNodeID)))
     }
 }
 

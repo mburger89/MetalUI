@@ -75,6 +75,16 @@ package final class LayoutMemo {
         let rects: [LayoutRect]
         /// The footprint of the recording (`CF-E`), kept so a translated restore stands for the same entries.
         let footprint: Footprint
+        /// The first-fitting choices of the recording (`VF-H`), by pre-order position.
+        let choices: [FitChoice]
+    }
+
+    /// One first-fitting node's choice in a placement record (`VF-H`): the node's **position in the record's pre-order**
+    /// and the offset of the candidate it placed. A restore places nothing, so without this the choices of a restored
+    /// subtree would be lost and the unchosen candidates would prepaint.
+    struct FitChoice: Equatable {
+        let offset: Int32
+        let choice: Int32
     }
 
     private var measurements: [MeasureKey: LayoutMeasurement] = [:]
@@ -98,6 +108,8 @@ package final class LayoutMemo {
     struct Placed {
         var rects: [LayoutRect]
         var footprint: Footprint
+        /// The first-fitting choices made while placing (`VF-H`).
+        var choices: [FitChoice] = []
     }
 
     /// The signature of each node of the current run, by node index. Scratch:
@@ -134,8 +146,9 @@ package final class LayoutMemo {
         return nil
     }
 
-    func storePlacement(_ key: PlacementKey, _ rects: [LayoutRect], footprint: Footprint = Footprint()) {
-        placements[key] = Placed(rects: rects, footprint: footprint)
+    func storePlacement(_ key: PlacementKey, _ rects: [LayoutRect], footprint: Footprint = Footprint(),
+                        choices: [FitChoice] = []) {
+        placements[key] = Placed(rects: rects, footprint: footprint, choices: choices)
     }
 
     /// Keeps alive what a restored placement stands for (`CF-E`): every entry of `footprint` still in the previous
@@ -164,11 +177,12 @@ package final class LayoutMemo {
         let rects = record.rects.map {
             LayoutRect(x: sameX ? $0.x : $0.x + dx, y: sameY ? $0.y : $0.y + dy, width: $0.width, height: $0.height)
         }
-        return Placed(rects: rects, footprint: record.footprint)
+        return Placed(rects: rects, footprint: record.footprint, choices: record.choices)
     }
 
     /// Records `rects` (the unrounded placement under `key`, placed in `bounds`) for `lookupPlacementTranslated`.
-    func storePlacementTranslated(_ key: PlacementKey, bounds: LayoutRect, _ rects: [LayoutRect], footprint: Footprint = Footprint()) {
+    func storePlacementTranslated(_ key: PlacementKey, bounds: LayoutRect, _ rects: [LayoutRect], footprint: Footprint = Footprint(),
+                                  choices: [FitChoice] = []) {
         var xExact = LayoutMemo.isExactSixteenth(bounds.x), yExact = LayoutMemo.isExactSixteenth(bounds.y)
         for r in rects where xExact || yExact {
             xExact = xExact && LayoutMemo.isExactSixteenth(r.x)
@@ -176,7 +190,8 @@ package final class LayoutMemo {
         }
         guard xExact || yExact else { return }
         translatedPlacements[TranslatedPlacementKey(key)] =
-            TranslatedPlacement(x: bounds.x, y: bounds.y, xExact: xExact, yExact: yExact, rects: rects, footprint: footprint)
+            TranslatedPlacement(x: bounds.x, y: bounds.y, xExact: xExact, yExact: yExact, rects: rects, footprint: footprint,
+                                choices: choices)
     }
 
     /// A multiple of 1/16 below 2^20 in magnitude: sums of such values are exact in a `Double`.

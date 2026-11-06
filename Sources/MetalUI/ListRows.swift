@@ -73,7 +73,7 @@ struct ListRows<Row: Element>: ElementGroup {
         var rows: [SingleElementLayout<Box<Row>>]
     }
 
-    typealias GroupPrepaint = [Box<Row>.PrepaintState]
+    typealias GroupPrepaint = [Box<Row>.PrepaintState?]
 
     /// The whole group is one node (`loweredNode(_:pass:)`).
     ///
@@ -189,7 +189,7 @@ struct ListRows<Row: Element>: ElementGroup {
     mutating func prepaintGroup(layout: inout GroupLayout,
                                 pass: inout PrepaintPass) -> GroupPrepaint {
         precondition(layout.rows.count == rows.count, Self.countMismatch("prepaint"))
-        var prepaints: [Box<Row>.PrepaintState] = []
+        var prepaints: [Box<Row>.PrepaintState?] = []
         prepaints.reserveCapacity(rows.count)
         for index in rows.indices {
             prepaints.append(rows[index].prepaintGroup(layout: &layout.rows[index], pass: &pass))

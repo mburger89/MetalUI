@@ -46,12 +46,14 @@ public struct PresentationScope<Content: ElementGroup>: ElementGroup {
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], LifecycleScopeLayout<Content.GroupLayout>) {
         let start = cursor
+        let first = pass.frame.tree.nodeCount
         let (nodes, layout) = pass.frame.withPresentationScope {
             content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
         }
         // A group with no content presents nothing (`LC-P` item 1's footing).
         if !nodes.isEmpty {
-            pass.frame.notePresentation(isPresented: isPresented, request: request, under: parent, at: start)
+            pass.frame.notePresentation(isPresented: isPresented, request: request, under: parent, at: start,
+                                        span: (first, pass.frame.tree.nodeCount - 1))
         }
         return (nodes, LifecycleScopeLayout(content: layout))
     }
@@ -77,11 +79,13 @@ extension PresentationScope: ProposalElementGroup where Content: ProposalElement
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], LifecycleScopeLayout<Content.GroupLayout>) {
         let start = cursor
+        let first = pass.frame.tree.nodeCount
         let (nodes, layout) = pass.frame.withPresentationScope {
             content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
         }
         if !nodes.isEmpty {
-            pass.frame.notePresentation(isPresented: isPresented, request: request, under: parent, at: start)
+            pass.frame.notePresentation(isPresented: isPresented, request: request, under: parent, at: start,
+                                        span: (first, pass.frame.tree.nodeCount - 1))
         }
         return (nodes, LifecycleScopeLayout(content: layout))
     }
@@ -143,18 +147,24 @@ extension Frame {
     /// id (no reserved name, no `noteNamed`, `LC-C`'s footing) — with an
     /// occurrence for one element value placed twice.
     func notePresentation(isPresented: Binding<Bool>, request: PresentationRequest,
-                          under parent: GlobalElementID?, at cursor: Int) {
+                          under parent: GlobalElementID?, at cursor: Int, span: (low: Int, high: Int)) {
         notePresentation(isPresented: isPresented, request: request,
-                         owner: GlobalElementID.child(of: parent, at: cursor, name: nil))
+                         owner: GlobalElementID.child(of: parent, at: cursor, name: nil), span: span)
     }
 
     /// The same, with the owner given (the `Element` path, `ES-A`).
-    func notePresentation(isPresented: Binding<Bool>, request: PresentationRequest, owner: GlobalElementID) {
+    ///
+    /// `span` is the node-index interval the scope's content registered; under a `ViewThatFits` the record is journaled
+    /// with it, so a candidate that is not chosen retracts it before anything dispatches (`VF-D`).
+    func notePresentation(isPresented: Binding<Bool>, request: PresentationRequest, owner: GlobalElementID,
+                          span: (low: Int, high: Int)) {
         let scope = GlobalElementID.child(of: owner, at: 0, name: ElementID("$presentation\(presentationDepth)"))
         let occurrence = presentationOccurrences[scope, default: 0]
         presentationOccurrences[scope] = occurrence + 1
+        let key = PresentationRecord.Key(scope: scope, occurrence: occurrence)
+        if fitDepth > 0 { fitNotes.append(FitNote(kind: .presentation(key), low: span.low, high: span.high)) }
         presentationRecords.append(PresentationRecord(
-            key: PresentationRecord.Key(scope: scope, occurrence: occurrence), owner: owner,
+            key: key, owner: owner,
             isPresented: isPresented, isShown: isPresented.wrappedValue, request: request,
             fileDialogLabel: environmentTop.fileDialogConfirmationLabel,
             fileDialogMessage: environmentTop.fileDialogMessage))
@@ -346,8 +356,10 @@ extension PresentationScope: Element where Content: Element {
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Content.LayoutState) {
+        let first = pass.frame.tree.nodeCount
         let result = pass.frame.withPresentationScope { content.requestLayout(id, pass: &pass) }
-        pass.frame.notePresentation(isPresented: isPresented, request: request, owner: id)
+        pass.frame.notePresentation(isPresented: isPresented, request: request, owner: id,
+                                    span: (first, pass.frame.tree.nodeCount - 1))
         return result
     }
 

@@ -2575,6 +2575,19 @@ public final class Frame {
     func resolveFocus() {
         guard let focused = focusedElement else { return }
         if focusRegistry.isFocusable(focused) { return }
+        // `VF-F` (probes `FO1`, `FO2`): an element inside a `ViewThatFits` candidate that was not chosen loses focus and
+        // does not regain it: the candidate registered nothing this frame, but its `$focus` slot is still live.
+        if !elidedIDs.isEmpty, elidedIDs.contains(where: { elided in
+            var cursor: GlobalElementID? = focused
+            while let id = cursor {
+                if id == elided { return true }
+                cursor = id.parent
+            }
+            return false
+        }) {
+            focusedElement = nil
+            return
+        }
         if focusedElementProducedThisFrame {
             focusedElement = nil
             return
@@ -2789,6 +2802,54 @@ public final class Frame {
     /// since stage 9 (`LR-FC`).
     var hiddenNodes: Set<LayoutNodeID> = []
 
+    // MARK: ViewThatFits (`VF-`, record 217)
+
+    /// One `ViewThatFits` of this frame's build: its node, its candidates' roots in order, and the tree's node count
+    /// when its content began, so that candidate `i` owns the node range `(candidates[i-1], candidates[i]]` (a post-order
+    /// allocation: a candidate's subtree is contiguous and ends at its root). `VF-C`, `VF-D`.
+    struct FitSpan {
+        let node: LayoutNodeID
+        let candidates: [LayoutNodeID]
+        let start: Int
+    }
+
+    /// What a build-time note under a `ViewThatFits` registered, and the node-index interval it covers (`VF-D`).
+    struct FitNote {
+        enum Kind {
+            case lifecycle(LifecycleStore.Key)
+            case presentation(PresentationRecord.Key)
+        }
+        let kind: Kind
+        let low: Int
+        let high: Int
+    }
+
+    /// The `ViewThatFits` of this build, in registration order (inner before outer).
+    var fitSpans: [FitSpan] = []
+    /// How many `ViewThatFits` contents enclose the node being built; a note is journaled only while this is positive,
+    /// and a graft window opened while it is positive is refused (`VF-H`).
+    var fitDepth = 0
+    /// The notes made while `fitDepth > 0`.
+    var fitNotes: [FitNote] = []
+    /// The roots of the candidates a layout did not choose (`VF-C`), set by `applyFitChoices()` after layout. An element
+    /// whose node is here prepaints and paints nothing (`Element.prepaintGroup`).
+    var elidedNodes: Set<LayoutNodeID> = []
+    /// The ids of the elements elided this prepaint, so a focused element inside an unchosen candidate is cleared (`VF-F`).
+    var elidedIDs: [GlobalElementID] = []
+
+    /// Whether `node` is the root of an unchosen `ViewThatFits` candidate: one `isEmpty` per prepainted element in a
+    /// tree with none.
+    @inline(__always)
+    func isElided(_ node: LayoutNodeID) -> Bool {
+        !elidedNodes.isEmpty && elidedNodes.contains(node)
+    }
+
+    /// Whether `nodes` is non-empty and every node is elided: a group-level hook (a geometry, modifier-keys or identified
+    /// scope, a scroll target) registers nothing for content an unchosen candidate elided.
+    func allElided(_ nodes: [LayoutNodeID]) -> Bool {
+        !elidedNodes.isEmpty && !nodes.isEmpty && nodes.allSatisfy { elidedNodes.contains($0) }
+    }
+
     /// Whether `node` is hidden for accessibility: a lowered `hidden()` put it in
     /// `hiddenNodes` (`LR-DH` item 3). Until stage 9 it also read the node's
     /// registered style for the legacy path's `display: .none` (ruling AB-O); no
@@ -2939,6 +3000,10 @@ public final class Frame {
 
     func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
         tree.newNativeSpacer(minLength: minLength)
+    }
+
+    func requestNativeFirstFitting(children: [LayoutNodeID], horizontal: Bool, vertical: Bool) -> LayoutNodeID {
+        tree.newNativeFirstFitting(children: children, horizontal: horizontal, vertical: vertical)
     }
 
     func requestNativeScrollViewport(child: LayoutNodeID,
@@ -3932,6 +3997,7 @@ public final class Frame {
         drewWindowControls = controls != nil
 
         computeRootLayout(root: root, toolbarStrip: strip?.node, menuBar: bar?.node, windowControls: controls?.node)
+        applyFitChoices()  // `VF-C`, `VF-D`: elide the unchosen `ViewThatFits` candidates, retract their build-time notes
         animationStore.transitions.afterLayout(self)  // plan task 13's transition seam (AN-AE)
         animationStore.matched.afterLayout(self, transitions: animationStore.transitions)  // MG-A
         let rootBounds = bounds(of: root)

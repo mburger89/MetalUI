@@ -66,6 +66,11 @@ public final class LayoutTree {
     /// **`package`**: unreachable from a plain import (guard 1.13).
     package var memo: LayoutMemo?
 
+    /// The candidate each placed first-fitting node chose, by node index (`VF-B`): written by `placeNative` and by a
+    /// memo restore, cleared at the start of every run. A stored property on a public class read across a module
+    /// boundary: `swift package clean` after changing it (CN-R).
+    private var fitChoices: [Int: Int] = [:]
+
     /// Nodes whose subtree placement the memo may restore in place (`SB-AD`): the roots of
     /// retained `.equatable()` occurrences. Indices of this tree; a fresh tree starts empty.
     private var placementRoots: Set<Int> = []
@@ -460,6 +465,42 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers a first-fitting selector over its children (`ViewThatFits`, `VF-B`).
+    ///
+    /// **A kernel case, not a `ProposalLayout`**: a `ProposalLayout` must place every subview, and this node
+    /// places exactly one. The children are the candidates in order. `horizontal` and `vertical` name the
+    /// axes the fit is tested along; with neither, nothing is tested and the first child is always chosen
+    /// (SwiftUI's `ViewThatFits(in: [])` is unmeasured).
+    ///
+    /// **Measurement.** Each candidate in turn is asked its **ideal** along the named axes: the proposal with
+    /// those axes made `nil` (`fixedSizeProposal`; the other axis keeps its proposal, probe `H1`). It fits
+    /// when, on every named axis, the proposal is `nil` or the ideal is `<=` it (probe `H1`: `<`, not `<=`,
+    /// is refuted at W = 100 and W = 60). The first that fits is chosen, **the last child is the fallback**,
+    /// and later candidates are never asked. The node's answer is the chosen child's answer to the **whole**
+    /// proposal (`H1`, `I1`), so the fit test is the ideal alone (`W1`, `W2`). With no children it answers zero.
+    ///
+    /// **Placement** recomputes the choice at the placement proposal (the run cache answers) and places only
+    /// the chosen child, in the node's own bounds at the whole proposal; the other candidates' subtrees keep
+    /// their zero rects and are never visited. The choice is recorded (`firstFittingChoice(_:)`) and a memo
+    /// restore carries it (`LayoutMemo.Placed.choices`).
+    ///
+    /// **Transparent to its parent's priority** (`PR2`: a child's `layoutPriority` is not passed through) and
+    /// presenting its **first** child's spacing edges (`SP1`, `SP2`). Spacers below it are not marked by an
+    /// enclosing stack.
+    package func newNativeFirstFitting(children: [LayoutNodeID], horizontal: Bool,
+                                      vertical: Bool) -> LayoutNodeID {
+        for child in children { _ = nativeNode(child) }
+        let id = appendNode(children: children)
+        recordParent(id, of: children)
+        nativeNodes[id.index] = .firstFitting(horizontal: horizontal, vertical: vertical)
+        return id
+    }
+
+    /// The offset in ``children(_:)`` of the candidate a first-fitting node placed in the last layout run, or
+    /// `nil` for a node that was not placed (an unchosen candidate's descendant, a node never reached) and for
+    /// every other kind of node. **`package`**: read by `Frame.applyFitChoices` (`VF-C`).
+    package func firstFittingChoice(_ id: LayoutNodeID) -> Int? { fitChoices[slot(id)] }
+
     /// Registers a native flexible spacer with an optional minimum length.
     ///
     /// **A nil minimum is `ProposalSpacing.platformDefault`, 8** (probe SP1,
@@ -643,6 +684,8 @@ public final class LayoutTree {
             lastNativeLayoutDeepestLevel = run.deepestLevel
         }
         prepareMemo(run: run, root: root)
+        // `VF-B`: a run owns the choices of its own subtree (a frame runs several roots over one tree).
+        if !fitChoices.isEmpty { for index in preorder(root) { fitChoices[index] = nil } }
         let result = measureNative(root, proposal: proposal, run: run)
         let bounds = placement(result)
         if placeFromMemo(root, proposal: proposal, bounds: bounds, run: run) {
@@ -702,6 +745,12 @@ public final class LayoutTree {
             hasher.combine(rect.width); hasher.combine(rect.height)
             hasher.combine(measuredWidths[index])
             count += 1
+            if !fitChoices.isEmpty, case .firstFitting? = nativeNodes[index] {   // `VF-H`: the choice, and only its subtree
+                guard let choice = fitChoices[index] else { continue }
+                hasher.combine(choice)
+                stack.append(childLists[index][choice].index)
+                continue
+            }
             for child in childLists[index] { stack.append(child.index) }
         }
         return (hasher.finalize(), count)
@@ -731,6 +780,12 @@ public final class LayoutTree {
             relative.combine(rect.width); relative.combine(rect.height)
             relative.combine(measuredWidths[index])
             count += 1
+            if !fitChoices.isEmpty, case .firstFitting? = nativeNodes[index] {   // `VF-H`: the choice, and only its subtree
+                guard let choice = fitChoices[index] else { continue }
+                absolute.combine(choice); relative.combine(choice)
+                stack.append(childLists[index][choice].index)
+                continue
+            }
             for child in childLists[index] { stack.append(child.index) }
         }
         return (absolute.finalize(), relative.finalize(), count)
@@ -816,6 +871,7 @@ public final class LayoutTree {
         spacerAxes.removeAll(keepingCapacity: true)
         spacingMarks.removeAll(keepingCapacity: true)
         nativeParents.removeAll(keepingCapacity: true)
+        fitChoices.removeAll(keepingCapacity: true)
         gridRowTokens.removeAll(keepingCapacity: true)
         gridRowAlignments.removeAll(keepingCapacity: true)
         gridCellColumns.removeAll(keepingCapacity: true)
@@ -1001,6 +1057,13 @@ public final class LayoutTree {
                                    run: run)
         case .layoutPriority:
             result = measureNative(children(id)[0], proposal: proposal, run: run)
+        case .firstFitting(let horizontal, let vertical):
+            if let chosen = firstFittingCandidate(id, proposal: proposal, horizontal: horizontal,
+                                                  vertical: vertical, run: run) {
+                result = measureNative(chosen, proposal: proposal, run: run)
+            } else {
+                result = LayoutMeasurement(size: SizeD(width: 0, height: 0))
+            }
         case .scrollViewport(let axis):
             let content = measureNative(children(id)[0],
                                         proposal: scrollContentProposal(for: axis, parent: proposal),
@@ -1062,8 +1125,11 @@ public final class LayoutTree {
                 let footprint = run.takeFootprint(since: footprintMark)
                 let order = preorder(id)
                 let placed = order.map { layouts[$0] }
-                memo.storePlacement(recording, placed, footprint: footprint)
-                if !holdsCustomLayout(order) { memo.storePlacementTranslated(recording, bounds: bounds, placed, footprint: footprint) }
+                let choices = fitChoicesRecord(order)
+                memo.storePlacement(recording, placed, footprint: footprint, choices: choices)
+                if !holdsCustomLayout(order) {
+                    memo.storePlacementTranslated(recording, bounds: bounds, placed, footprint: footprint, choices: choices)
+                }
                 if run.footprintDepth > 0 { run.footprintLog.placements.append(recording) }
             }
         }
@@ -1165,6 +1231,14 @@ public final class LayoutTree {
             let child = children(id)[0]
             _ = measureNative(child, proposal: proposal, run: run)
             place(child, bounds, proposal)
+        case .firstFitting(let horizontal, let vertical):
+            // `VF-B`: only the chosen candidate is placed, in the node's own bounds at the whole proposal; the
+            // others keep their zero rects. The choice is recorded for `applyFitChoices` and for a memo record.
+            guard let chosen = firstFittingCandidate(id, proposal: proposal, horizontal: horizontal,
+                                                     vertical: vertical, run: run) else { return }
+            fitChoices[id.index] = children(id).firstIndex(of: chosen)
+            _ = measureNative(chosen, proposal: proposal, run: run)
+            place(chosen, bounds, proposal)
         case .scrollViewport(let axis):
             let child = children(id)[0]
             let childProposal = scrollContentProposal(for: axis, parent: proposal)
@@ -1311,7 +1385,7 @@ public final class LayoutTree {
             if spacerAxes[id.index] == nil { spacerAxes[id.index] = axis }
         case .layoutPriority, .padding, .frame, .fixedSize, .aspectRatio, .overlayAttachment:
             for child in children(id) { markSpacers(child, axis: axis) }
-        case .leaf, .overlay, .linearStack, .scrollViewport, .custom:
+        case .leaf, .overlay, .linearStack, .scrollViewport, .custom, .firstFitting:
             return
         case .grid:
             // GR-R (GE29 vs GE30): a stack does not mark a Spacer inside a grid.
@@ -1397,6 +1471,10 @@ public final class LayoutTree {
             let nodes = children(id)
             guard let first = nodes.first, let last = nodes.last else { return (.zero, .zero) }
             return (spacingEdges(first, axis: axis).leading, spacingEdges(last, axis: axis).trailing)
+        case .firstFitting:
+            // `VF-G` (probes `SP1`, `SP2`): the FIRST candidate's edges, whichever is chosen.
+            guard let first = children(id).first else { return (.zero, .zero) }
+            return spacingEdges(first, axis: axis)
         case .linearStack, .custom:
             let nodes = children(id)
             guard !nodes.isEmpty else { return (.zero, .zero) }
@@ -1806,6 +1884,24 @@ public final class LayoutTree {
                      height: parent.height.map { Swift.max(0, $0 - insets.top - insets.bottom) })
     }
 
+    /// The candidate a first-fitting node chooses at `proposal` (`VF-B`), or `nil` with no children: the first whose
+    /// **ideal along the named axes** (its answer to the proposal with those axes `nil`, the other axis keeping
+    /// its value) is `<=` the proposal on each of them, else the last. Candidates after the chosen one are never
+    /// measured. A `nil` proposal axis accepts any ideal.
+    private func firstFittingCandidate(_ id: LayoutNodeID, proposal: ProposedSize, horizontal: Bool,
+                                       vertical: Bool, run: NativeLayoutRun) -> LayoutNodeID? {
+        let nodes = children(id)
+        guard let last = nodes.last else { return nil }
+        let idealProposal = fixedSizeProposal(proposal, horizontal: horizontal, vertical: vertical)
+        for node in nodes {
+            let ideal = measureNative(node, proposal: idealProposal, run: run).size
+            let widthFits = !horizontal || proposal.width.map { ideal.width <= $0 } ?? true
+            let heightFits = !vertical || proposal.height.map { ideal.height <= $0 } ?? true
+            if widthFits && heightFits { return node }
+        }
+        return last
+    }
+
     private func fixedSizeProposal(_ parent: ProposedSize, horizontal: Bool,
                                    vertical: Bool) -> ProposedSize {
         ProposedSize(width: horizontal ? nil : parent.width,
@@ -1961,6 +2057,8 @@ private enum NativeNode {
     case custom(any ProposalLayout)
     /// A grid, its plan resolved at registration (ruling GR-A; `NativeGrid.swift`).
     case grid(NativeGridPlan)
+    /// `ViewThatFits` (`VF-B`): the first child whose ideal fits along the named axes is placed; the rest never are.
+    case firstFitting(horizontal: Bool, vertical: Bool)
 }
 
 /// Temporary source-compatible name for ``ProposalMeasureFunction``.
@@ -2103,7 +2201,7 @@ extension LayoutTree {
             switch nativeNode(node) {
             case .frame, .padding, .fixedSize, .aspectRatio, .layoutPriority, .overlayAttachment:
                 node = children(node)[0]
-            case .leaf, .spacer, .overlay, .linearStack, .scrollViewport, .custom, .grid:
+            case .leaf, .spacer, .overlay, .linearStack, .scrollViewport, .custom, .grid, .firstFitting:
                 precondition(columns <= Int(Int32.max),
                              "grid cell columns must not exceed Int32.max (GR-S), summed to \(columns)")
                 return (rowToken, rowAlignment, columns == 0 ? nil : columns,
@@ -2372,6 +2470,9 @@ extension LayoutTree {
             h.mix(13)
             mixGridPlan(&h, plan, children: children)
             guard mixChildren(&h, children, signatures) else { return nil }
+        case .firstFitting(let horizontal, let vertical):
+            h.mix(14); h.mix(horizontal); h.mix(vertical)
+            guard mixChildren(&h, children, signatures) else { return nil }
         }
         // `LD-B`: a node that places mirrored is a different node. Only those mix a tag, so every
         // left-to-right signature is bit-identical to what it was before the mark existed.
@@ -2456,6 +2557,7 @@ extension LayoutTree {
         let rects = placed.rects
         run.work.memoRootHits += 1
         for (offset, index) in run.order.enumerated() { layouts[index] = rects[offset] }
+        restoreFitChoices(placed.choices, order: run.order)
         if memo.verifies {
             let savedCache = run.cache, savedWork = run.work
             run.cache = [:]
@@ -2468,6 +2570,8 @@ extension LayoutTree {
                 precondition(layouts[index] == rects[offset],
                              "layout memo placement differs from a fresh placement at node \(index): memo \(rects[offset]), fresh \(layouts[index]) (IV-J)")
             }
+            precondition(fitChoicesRecord(run.order) == placed.choices,
+                         "layout memo first-fitting choices differ from a fresh placement: memo \(placed.choices), fresh \(fitChoicesRecord(run.order)) (IV-J, VF-H)")
         }
         return true
     }
@@ -2501,7 +2605,10 @@ extension LayoutTree {
             run.footprintLog.placements.append(key)
         }
         for (offset, index) in order.enumerated() { layouts[index] = rects[offset] }
+        restoreFitChoices(placed.choices, order: order)
         if memo.verifies {
+            // The rects as restored (the unvisited candidates' zero rects re-zeroed, `VF-H`), not the record's.
+            let restored = order.map { layouts[$0] }
             let savedCache = run.cache, savedWork = run.work
             run.cache = [:]
             run.memoSuspended += 1
@@ -2511,9 +2618,11 @@ extension LayoutTree {
             run.cache = savedCache
             run.work = savedWork
             for (offset, index) in order.enumerated() {
-                precondition(layouts[index] == rects[offset],
-                             "subtree placement memo differs from a fresh placement at node \(index): memo \(rects[offset]), fresh \(layouts[index]) (IV-J, SB-AD)")
+                precondition(layouts[index] == restored[offset],
+                             "subtree placement memo differs from a fresh placement at node \(index): memo \(restored[offset]), fresh \(layouts[index]) (IV-J, SB-AD)")
             }
+            precondition(fitChoicesRecord(order) == placed.choices,
+                         "subtree placement memo first-fitting choices differ from a fresh placement: memo \(placed.choices), fresh \(fitChoicesRecord(order)) (IV-J, VF-H)")
         }
         return .restored
     }
@@ -2534,7 +2643,33 @@ extension LayoutTree {
             return
         }
         memo.storePlacement(LayoutMemo.PlacementKey(signature: signature, proposal: proposal, bounds: bounds),
-                            run.order.map { layouts[$0] })
+                            run.order.map { layouts[$0] }, choices: fitChoicesRecord(run.order))
+    }
+
+    /// The first-fitting choices made inside `order` (a pre-order), by position (`VF-H`). Empty, and free, in a tree with none.
+    fileprivate func fitChoicesRecord(_ order: [Int]) -> [LayoutMemo.FitChoice] {
+        guard !fitChoices.isEmpty else { return [] }
+        var out: [LayoutMemo.FitChoice] = []
+        for (position, index) in order.enumerated() {
+            if let choice = fitChoices[index] {
+                out.append(LayoutMemo.FitChoice(offset: Int32(position), choice: Int32(choice)))
+            }
+        }
+        return out
+    }
+
+    /// Writes a placement record's choices back over `order` (`VF-H`), first clearing the entries a fresh placement of
+    /// that subtree could have left, so the table is exactly the record's.
+    fileprivate func restoreFitChoices(_ choices: [LayoutMemo.FitChoice], order: [Int]) {
+        if !fitChoices.isEmpty { for index in order { fitChoices[index] = nil } }
+        for choice in choices { fitChoices[order[Int(choice.offset)]] = Int(choice.choice) }
+        // A translated record (`RG-E`) shifted every rect by the origin's move, the zero rects of the candidates a
+        // fresh placement never visits included; those stay at zero (`VF-H`, found by `METALUI_VERIFY_LAYOUT_MEMO`).
+        for choice in choices {
+            for (offset, child) in childLists[order[Int(choice.offset)]].enumerated() where offset != Int(choice.choice) {
+                for index in preorder(child) { layouts[index] = LayoutRect(x: 0, y: 0, width: 0, height: 0) }
+            }
+        }
     }
 }
 

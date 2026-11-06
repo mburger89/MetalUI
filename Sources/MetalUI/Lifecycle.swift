@@ -67,6 +67,7 @@ public struct LifecycleScope<Content: ElementGroup>: ElementGroup {
         // Pre-order: the scope's order is reserved before its content's (LC-F).
         let start = cursor
         let order = pass.frame.reserveLifecycleOrder()
+        let first = pass.frame.tree.nodeCount
         let (nodes, layout) = pass.frame.withLifecycleScope {
             content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
         }
@@ -74,7 +75,8 @@ public struct LifecycleScope<Content: ElementGroup>: ElementGroup {
         // notes an entry, so toggling an action to or from nil changes no
         // presence (LC-V).
         if !nodes.isEmpty {
-            pass.frame.noteLifecycle(write, order: order, under: parent, at: start)
+            pass.frame.noteLifecycle(write, order: order, under: parent, at: start,
+                                     span: (first, pass.frame.tree.nodeCount - 1))
         }
         return (nodes, LifecycleScopeLayout(content: layout))
     }
@@ -100,11 +102,13 @@ extension LifecycleScope: ProposalElementGroup where Content: ProposalElementGro
         -> ([ProposalNodeID], LifecycleScopeLayout<Content.GroupLayout>) {
         let start = cursor
         let order = pass.frame.reserveLifecycleOrder()
+        let first = pass.frame.tree.nodeCount
         let (nodes, layout) = pass.frame.withLifecycleScope {
             content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
         }
         if !nodes.isEmpty {
-            pass.frame.noteLifecycle(write, order: order, under: parent, at: start)
+            pass.frame.noteLifecycle(write, order: order, under: parent, at: start,
+                                     span: (first, pass.frame.tree.nodeCount - 1))
         }
         return (nodes, LifecycleScopeLayout(content: layout))
     }
@@ -123,15 +127,20 @@ extension Frame {
     /// two entries — a store key, never a `StateTable` id (no reserved name, no
     /// `noteNamed`). The owner, which the action is dispatched to, is the
     /// position.
-    func noteLifecycle(_ write: LifecycleWrite?, order: Int, under parent: GlobalElementID?, at cursor: Int) {
-        noteLifecycle(write, order: order, owner: GlobalElementID.child(of: parent, at: cursor, name: nil))
+    func noteLifecycle(_ write: LifecycleWrite?, order: Int, under parent: GlobalElementID?, at cursor: Int,
+                       span: (low: Int, high: Int)) {
+        noteLifecycle(write, order: order, owner: GlobalElementID.child(of: parent, at: cursor, name: nil), span: span)
     }
 
     /// The same, with the owner given: the `Element` path of a decorated
     /// scope (`ES-A`) owns its entry by the element's own id.
-    func noteLifecycle(_ write: LifecycleWrite?, order: Int, owner: GlobalElementID) {
+    ///
+    /// `span` is the node-index interval the scope's content registered; while a `ViewThatFits` is being built the
+    /// entry is journaled with it so a candidate that is not chosen can retract the entry (`VF-D`).
+    func noteLifecycle(_ write: LifecycleWrite?, order: Int, owner: GlobalElementID, span: (low: Int, high: Int)) {
         let scope = GlobalElementID.child(of: owner, at: 0, name: ElementID("$lifecycle\(lifecycleDepth)"))
-        animationStore.lifecycle.note(write, scope: scope, owner: owner, order: order)
+        let key = animationStore.lifecycle.note(write, scope: scope, owner: owner, order: order)
+        if fitDepth > 0 { fitNotes.append(FitNote(kind: .lifecycle(key), low: span.low, high: span.high)) }
     }
 }
 
@@ -420,7 +429,8 @@ final class LifecycleStore {
     /// A present scope (layout).
     /// A `nil` write is a present scope with no action (`LC-V`): its entry
     /// keeps presence steady while an action toggles to or from `nil`.
-    func note(_ write: LifecycleWrite?, scope: GlobalElementID, owner: GlobalElementID, order: Int) {
+    @discardableResult
+    func note(_ write: LifecycleWrite?, scope: GlobalElementID, owner: GlobalElementID, order: Int) -> Key {
         buildJournal?.record(.lifecycleNote(write, scope, owner, order))
         journaledActivity += 1
         let occurrence = occurrences[scope, default: 0]
@@ -436,8 +446,17 @@ final class LifecycleStore {
         case .task(let spec)?: entry.task = spec
         case nil: break
         }
-        current[Key(scope: scope, occurrence: occurrence)] = entry
+        let key = Key(scope: scope, occurrence: occurrence)
+        current[key] = entry
         workThisFrame += 1
+        return key
+    }
+
+    /// Removes the entries a `ViewThatFits` candidate that was not chosen noted at build time (`VF-D`), before the
+    /// build closes into events: such a scope is not present, so it runs no `onAppear`, `onChange` or `.task` and a
+    /// scope that was present last frame disappears. Called by `Frame.applyFitChoices()`, after layout.
+    func retract(_ keys: Set<Key>) {
+        for key in keys { current[key] = nil }
     }
 
     /// Closes a build into events (`LC-E`, `LC-F`, `LC-H`), called by
@@ -756,8 +775,9 @@ extension LifecycleScope: Element where Content: Element {
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Content.LayoutState) {
         let order = pass.frame.reserveLifecycleOrder()
+        let first = pass.frame.tree.nodeCount
         let result = pass.frame.withLifecycleScope { content.requestLayout(id, pass: &pass) }
-        pass.frame.noteLifecycle(write, order: order, owner: id)
+        pass.frame.noteLifecycle(write, order: order, owner: id, span: (first, pass.frame.tree.nodeCount - 1))
         return result
     }
 

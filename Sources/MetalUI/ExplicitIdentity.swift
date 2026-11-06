@@ -80,7 +80,7 @@ public struct IdentifiedGroup<Content: ElementGroup>: ElementGroup {
 
     public mutating func prepaintGroup(layout: inout IdentifiedGroupLayout<Content.GroupLayout>,
                                        pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        if let id = layout.id, !layout.nodes.isEmpty {
+        if let id = layout.id, !layout.nodes.isEmpty, !pass.frame.allElided(layout.nodes) {
             pass.frame.recordIdentifiedBounds(id, nodes: layout.nodes)
         }
         return content.prepaintGroup(layout: &layout.content, pass: &pass)

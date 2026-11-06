@@ -163,10 +163,11 @@ public struct CoordinateSpaceScope<Content: ElementGroup>: ElementGroup {
     /// decorated scope's layer registers first, so its effects are open when the
     /// space is built (`ES-H`).
     public mutating func prepaintGroup(layout: inout CoordinateSpaceScopeLayout<Content.GroupLayout>,
-                                       pass: inout PrepaintPass) -> Content.GroupPrepaint {
+                                       pass: inout PrepaintPass) -> Content.GroupPrepaint? {
         if var layered = layout.layered as? SingleElementLayout<ModifiedElement<Self>> {
             defer { layout.layered = layered }
-            return withLayer { $0.prepaintGroup(layout: &layered, pass: &pass) }
+            // The layer's group entry is `nil` when it was elided (`VF-C`); two optionals collapse to one.
+            return withLayer { $0.prepaintGroup(layout: &layered, pass: &pass) }.flatMap { $0 }
         }
         guard let space = pass.frame.localSpace(of: layout.nodes, name: name) else {
             return content.prepaintGroup(layout: &layout.content!, pass: &pass)
@@ -178,14 +179,16 @@ public struct CoordinateSpaceScope<Content: ElementGroup>: ElementGroup {
 
     /// Paints the content unchanged; a decorated scope's layer paints around it.
     public mutating func paintGroup(layout: inout CoordinateSpaceScopeLayout<Content.GroupLayout>,
-                                    prepaint: inout Content.GroupPrepaint,
+                                    prepaint: inout Content.GroupPrepaint?,
                                     pass: inout PaintPass) {
         if var layered = layout.layered as? SingleElementLayout<ModifiedElement<Self>> {
             defer { layout.layered = layered }
-            withLayer { $0.paintGroup(layout: &layered, prepaint: &prepaint, pass: &pass) }
+            var wrapped: Content.GroupPrepaint?? = prepaint.map { Optional($0) }
+            withLayer { $0.paintGroup(layout: &layered, prepaint: &wrapped, pass: &pass) }
+            prepaint = wrapped.flatMap { $0 }
             return
         }
-        content.paintGroup(layout: &layout.content!, prepaint: &prepaint, pass: &pass)
+        content.paintGroup(layout: &layout.content!, prepaint: &prepaint!, pass: &pass)
     }
 }
 
@@ -246,7 +249,7 @@ extension CoordinateSpaceScope: Element where Content: Element {
                                layout: inout ScopeLayerState<Content.LayoutState>,
                                prepaint: inout ScopeLayerState<Content.PrepaintState>, pass: inout PaintPass) {
         if var layered = layout.layered as? ModifiedElement<Self>.Layout,
-           var inner = prepaint.layered as? Content.GroupPrepaint {
+           var inner = prepaint.layered as? ModifiedElement<Self>.PrepaintState {
             defer { layout.layered = layered; prepaint.layered = inner }
             withLayer { $0.paint(id, bounds: bounds, layout: &layered, prepaint: &inner, pass: &pass) }
             return
