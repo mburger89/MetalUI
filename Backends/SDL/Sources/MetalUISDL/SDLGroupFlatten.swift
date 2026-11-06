@@ -23,10 +23,12 @@ struct SDLGroupSet {
     /// them to the root's image array, where the root's `.group` runs index them.
     var rootQuads: [MUIImage] = []
 
+    private init() {}
+
     /// `counts`: the root's record counts as the bridge will see them (surface quads and surface text included), and
     /// `mainRunCount` its run count; `textureIndex` maps an `ImageTexture` to its handle index in the shared list.
     init(_ scene: Scene, counts: (rects: Int, glyphs: Int, images: Int, transforms: Int), mainRunCount: Int,
-         groupTextureBase: UInt32, textureIndex: (ImageTexture) -> UInt32) {
+         groupTextureBase: UInt32, textureIndex: @escaping (ImageTexture) -> UInt32) {
         var builder = Builder(counts: counts, mainRunCount: mainRunCount, base: groupTextureBase, textureIndex: textureIndex)
         let quads = builder.visit(scene)
         self = builder.set
