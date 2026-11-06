@@ -53,7 +53,7 @@ struct RPLinkPanRoot: Component {
 /// opens `https://x.org/P0` once; the platform window holds it in `openedURLs`. Mutation: the headless `openURL`
 /// records nothing (the list stays empty).
 @Test @MainActor func aHeadlessWindowRecordsTheURLAClickOpened() throws {
-    let window = try TestWindow(size: sz(300, 60)) {
+    let window = try TestWindow(size: sz(300, 60), textSystem: harnessTextSystem) {
         VStack(alignment: .leading, spacing: 0) {
             Text(linkedText("see ", "docs", "https://x.org")).frame(width: Pixels(140), height: Pixels(16))
         }
