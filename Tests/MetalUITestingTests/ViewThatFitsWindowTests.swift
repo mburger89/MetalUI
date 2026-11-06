@@ -129,8 +129,8 @@ private struct MirrorBar: Component {
 }
 
 /// `T1`..`T4`, `WR0`..`WR2`: a resize and a label change both switch candidates. The wide row's width is read from a
-/// window that holds it alone; the window is then exactly as wide as the `Mirror` row, so `Mirror` fits and
-/// `Mirror ✓` (wider) does not: toggling the label switches to `More` and back, and so does a resize.
+/// window that holds it alone; the window is then midway between the `Mirror` row and the wider `Mirror ✓` row, so `Mirror` fits and
+/// `Mirror ✓` does not: toggling the label switches to `More` and back, and so does a resize.
 @Test @MainActor func aResizeAndALabelChangeSwitchCandidates() throws {
     func wideWidth(_ label: String) throws -> Float {
         let measure = try harnessWindow(size: sz(600, 100)) { VStack { HStack { Text(label); Text("Other tool") }.id("wide") } }
@@ -139,16 +139,17 @@ private struct MirrorBar: Component {
     let narrowRow = try wideWidth("Mirror"), wideRow = try wideWidth("Mirror \u{2713}")
     try #require(wideRow > narrowRow + 1, "set up: the check mark widens the row")
     let model = MirrorModel()
-    let window = try harnessWindow(size: sz(narrowRow.rounded(.up), 100)) { VStack { MirrorBar(model: model) } }
+    let width = (narrowRow + wideRow) / 2   // between the two rows, so neither rounding nor a platform's glyph widths decide
+    let window = try harnessWindow(size: sz(width, 100)) { VStack { MirrorBar(model: model) } }
     func shown() throws -> String { (try? window.frame(ofID: "wide")) != nil ? "wide" : "more" }
-    #expect(try shown() == "wide", "T1: the Mirror row fits exactly")
+    #expect(try shown() == "wide", "T1: the Mirror row fits")
     model.mirrored = true
     window.tick()
     #expect(try shown() == "more", "T2: \"Mirror \u{2713}\" does not fit: More")
     model.mirrored = false
     window.tick()
     #expect(try shown() == "wide", "T3: and back")
-    window.resize(to: sz(narrowRow.rounded(.up) - 5, 100))
+    window.resize(to: sz(narrowRow - 5, 100))
     #expect(try shown() == "more", "WR1: narrower")
     window.resize(to: sz(600, 100))
     #expect(try shown() == "wide", "WR2: and wider again")
@@ -635,4 +636,23 @@ private struct RetainedAppearRow: Component, @MainActor Equatable {
     window.resize(to: sz(300, 100))
     for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
     #expect(log.entries == ["appear", "disappear", "appear"], "and appears again: \(log.entries)")
+}
+
+/// A presentation that is already requested when the build starts (its binding is `true`) in an unchosen candidate is not
+/// presented: the record is retracted (`VF-D`) before anything dispatches, where `unchosenCandidates...` only reaches an alert
+/// through an `onAppear` that is itself retracted. Widened, the candidate is chosen and the alert presents. Mutation:
+/// skipping the `presentationRecords` removal in `applyFitChoices()` presents the unchosen candidate's alert.
+@Test @MainActor func anAlertRequestedBeforeTheBuildInAnUnchosenCandidateIsNotPresented() throws {
+    let window = try harnessWindow(size: sz(300, 100)) {
+        ViewThatFits(in: .horizontal) {
+            Text("wide").frame(width: Pixels(400), height: Pixels(20))
+                .alert("From the wide candidate", isPresented: .constant(true)) { Button("OK") {} }
+            Text("mid").frame(width: Pixels(150), height: Pixels(20))
+        }
+    }
+    window.tick()
+    #expect(window.presentedAlert == nil, "the unchosen candidate's alert is retracted")
+    window.resize(to: sz(600, 100))
+    window.tick()
+    #expect(window.presentedAlert?.title == "From the wide candidate", "chosen, it presents")
 }
