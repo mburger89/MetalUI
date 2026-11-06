@@ -40,7 +40,9 @@ SDL (`Backends/SDL` in the scratch tree, `SDLGroupTests`): S1 `SDLGroupSet` with
 
 ## 3. Runs
 
-COUNTS_PLACEHOLDER
+- [MEASURED] Root, `swift package clean`, `swift build --build-system native --build-tests`, unfiltered `swift test --build-system native --no-parallel`: **5261 tests in 14 suites passed** (`FR-J no-argument frame: succeeded=true`, so the guards ran; 4817 at the previous count line, master `b83efde2`; the difference is the master since then plus this PR's tests). A first full run of 5249 on the pre-fix head failed four pins (section 4 item 6); the same suite with `METALUI_VERIFY_RETAINED=1`: **5261 tests in 14 suites passed**.
+- [MEASURED] Portable (`metalui-portable:latest`, Swift 6.4.1 aarch64, `swift build --build-tests` then `swift test --skip-build --no-parallel`): **796 tests in 10 suites passed** in `MetalUITestingTests` (the first run failed `aRetainedReplayOfAnOpacityGroupStillComposites`: it needed `textSystem: { harnessTextSystem() }` off Apple platforms, fixed), plus 9, 16, 73, 68, 49, 286, 154 and 24 in the other targets.
+- [MEASURED] `Backends/SDL` (`swift test` with the AccessKit flags): `ReplayFixtureTests` 35 passed (the three new fixture tests included), `SDLGroupTests` 4 passed; the whole `MetalUISDLTests` target cannot finish on this Mac (section 5, unchanged from master). `zsh docs/probes/closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing; `cmp CLAUDE.md AGENTS.md` is silent.
 
 ## 4. What the code forced (deviations from the plan)
 
