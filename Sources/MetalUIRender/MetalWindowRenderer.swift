@@ -70,7 +70,7 @@ public final class MetalWindowRenderer: WindowRenderer {
         let device = renderer.device
         let commandBuffer = pending.commandBuffer
         let toDraw = surfaceTable.update(
-            references: scene.surfaceTargets, requests: surfaces,
+            references: scene.allSurfaceTargets(), requests: surfaces,
             create: { target in Self.makeTarget(target, device: device) },
             // Dropping the reference is the release: an in-flight command
             // buffer that still samples the texture keeps it alive (Metal's
@@ -98,7 +98,7 @@ public final class MetalWindowRenderer: WindowRenderer {
         // `Renderer.upload`). No draw can bind the atlas: the app has no handle to it.
         renderer.upload(atlas)
         var targets: [SurfaceID: any MTLTexture] = [:]
-        for target in scene.surfaceTargets {
+        for target in scene.allSurfaceTargets() {
             if let texture = surfaceTable.handle(for: target.id) { targets[target.id] = texture }
         }
 

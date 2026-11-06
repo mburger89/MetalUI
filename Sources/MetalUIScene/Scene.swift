@@ -86,6 +86,38 @@ public struct Scene: Sendable {
     /// the parent's (the target is offset by the quad's box origin), not local.
     public private(set) var groupScenes: [Scene] = []
 
+    /// A filter a group's target goes through before its quad samples it (`GF-C`).
+    public struct GroupFilter: Sendable, Equatable {
+        /// What the filter does to the rendered group.
+        public enum Kind: UInt32, Sendable, Equatable {
+            /// No filter: the group is composited as rendered (`GO-D`).
+            case none = 0
+            /// A Gaussian blur of every channel by ``sigma``: a blurred leaf (`GF-B`).
+            case blur = 1
+            /// The group's alpha blurred by ``sigma`` and replaced by ``tint`` times that alpha: a shadow (`GF-B`).
+            case shadow = 2
+        }
+
+        /// The filter's kind.
+        public var kind: Kind
+        /// The Gaussian's standard deviation in device pixels of the group's target; 0 skips the blur passes.
+        public var sigma: Float
+        /// A shadow's colour, premultiplied sRGB (`r, g, b, a`); unused by the other kinds.
+        public var tint: SIMD4<Float>
+
+        /// The filter that does nothing.
+        public static let none = GroupFilter(kind: .none, sigma: 0, tint: SIMD4<Float>(0, 0, 0, 0))
+
+        /// A filter of `kind` with a Gaussian of `sigma` device pixels and a shadow's `tint`.
+        public init(kind: Kind, sigma: Float, tint: SIMD4<Float>) {
+            self.kind = kind; self.sigma = sigma; self.tint = tint
+        }
+    }
+
+    /// The filter each of ``groups`` applies to its target before the quad samples it, parallel to ``groupScenes``
+    /// (`GF-C`). ``GroupFilter/none`` for an opacity group.
+    public private(set) var groupFilters: [GroupFilter] = []
+
     /// Per-instance affines (ruling GX-F), in first-use order; a primitive
     /// names entry `i` by storing `i + 1` (``insert(_:layer:transform:)``):
     /// `MUIRect.shape` and `MUIImage.filter` bits 8…31, `MUIGlyph.transform`.
@@ -253,14 +285,18 @@ public struct Scene: Sendable {
     /// Appends an offscreen group (`GO-D`): `quad` draws `group`'s render target over
     /// `quad.bounds`. Its `texture` field is set to the group's index in
     /// ``groupScenes``; **every group has its own** (no sharing), and the quad is
-    /// untransformed (the group's content carries its transforms inside `group`).
-    /// `group` must be finalized.
-    public mutating func insert(_ quad: MUIImage, group: Scene, layer: Int = 0) {
+    /// untransformed unless a `transform` is given (the group content carries its own transforms inside `group`).
+    /// `group` must be finalized. A `transform` (`GF-C`) is the quad's record (a filtered group drawn under a
+    /// projective effect, `PJ-G`); `filter` runs over the group's target before the quad samples it.
+    public mutating func insert(_ quad: MUIImage, group: Scene, layer: Int = 0, transform: MUITransform? = nil,
+                                filter: GroupFilter = .none) {
         var quad = quad
-        quad.filter = quad.filter & 0xFF
+        let index = transformIndex(transform)
+        quad.filter = (quad.filter & 0xFF) | index << 8
         quad.texture = MUIUInt(groupScenes.count)
         groups.append(quad)
         groupScenes.append(group)
+        groupFilters.append(filter)
         groupSequence.append(nextSequence)
         groupLayer.append(layer)
         nextSequence += 1
@@ -359,8 +395,22 @@ public struct Scene: Sendable {
         for i in images { add(i.bounds, mask: i.contentMask, transform: i.filter >> 8) }
         for q in surfaces { add(q.bounds, mask: q.contentMask, transform: q.filter >> 8) }
         for b in backdrops { add(b.bounds, mask: b.contentMask, transform: b.shape >> 8) }
-        for q in groups { add(q.bounds, mask: q.contentMask, transform: 0) }
+        for q in groups { add(q.bounds, mask: q.contentMask, transform: q.filter >> 8) }
         return box
+    }
+
+    /// The surface targets this scene and every group scene inside it sample, each id once, the root's first (`GF-C`):
+    /// what a renderer resolves and keeps alive, since a surface inside a filtered group is sampled by the group's own
+    /// pass. `package`, so no app can spell it.
+    package func allSurfaceTargets() -> [SurfaceTarget] {
+        var found = surfaceTargets
+        var seen = Set(found.map(\.id))
+        var stack = groupScenes.reversed().map { $0 }
+        while let nested = stack.popLast() {
+            for target in nested.surfaceTargets where seen.insert(target.id).inserted { found.append(target) }
+            stack.append(contentsOf: nested.groupScenes.reversed())
+        }
+        return found
     }
 
     /// The emission sequence the next inserted primitive takes (`XF-H`): a conditional's paint reads it before and after its
@@ -437,6 +487,7 @@ public struct Scene: Sendable {
         backdrops.removeAll(keepingCapacity: true)
         groups.removeAll(keepingCapacity: true)
         groupScenes.removeAll(keepingCapacity: true)
+        groupFilters.removeAll(keepingCapacity: true)
         surfaceTargets.removeAll(keepingCapacity: true)
         transforms.removeAll(keepingCapacity: true)
         drawList.removeAll(keepingCapacity: true)
@@ -568,6 +619,7 @@ public struct Scene: Sendable {
         var sortedBackdropLayer: [Int] = []
         var sortedGroups: [MUIImage] = []
         var sortedGroupScenes: [Scene] = []
+        var sortedGroupFilters: [GroupFilter] = []
         var sortedGroupSequence: [Int] = []
         var sortedGroupLayer: [Int] = []
         // Device boxes of the backdrops in the run being built (ruling BB-E),
@@ -645,6 +697,7 @@ public struct Scene: Sendable {
                 sameTexture = false
                 sortedGroups.append(groups[entry.4])
                 sortedGroupScenes.append(groupScenes[entry.4])
+                sortedGroupFilters.append(groupFilters[entry.4])
                 sortedGroupSequence.append(entry.2)
                 sortedGroupLayer.append(entry.0)
             }
@@ -673,6 +726,7 @@ public struct Scene: Sendable {
         backdropLayer = sortedBackdropLayer
         groups = sortedGroups
         groupScenes = sortedGroupScenes
+        groupFilters = sortedGroupFilters
         groupSequence = sortedGroupSequence
         groupLayer = sortedGroupLayer
         drawList = runs

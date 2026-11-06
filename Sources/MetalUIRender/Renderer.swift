@@ -85,6 +85,16 @@ public final class Renderer {
     private(set) var lastGroupTexturesMade = 0
     /// Groups of the last frame that drew nothing because their target could not be allocated (`GO-E`).
     private(set) var lastGroupAllocationFailures = 0
+    /// Render passes the filtered groups of the last frame took: `L` downsamples, two Gaussians when sigma is above 0 and, for
+    /// a shadow, one tint pass (`GF-E`).
+    private(set) var lastFilterPasses = 0
+    /// Groups of the last frame that went through a filter (`GF-E`).
+    private(set) var lastFilteredGroups = 0
+    /// Filtered groups of the last frame whose intermediate texture could not be allocated (`GF-E`): a blur draws its
+    /// unfiltered target, a shadow nothing.
+    private(set) var lastFilterAllocationFailures = 0
+    /// Test hook (`GF-E`): every filter intermediate allocation fails.
+    var filterPoolFailsAllocation = false
     /// Test hook (`GO-E`, as `backdropPoolFailsAllocation`): every group target allocation fails, so each group draws nothing.
     var groupPoolFailsAllocation = false
     /// Test hook (`BB-K`, test 2.7): every pool allocation fails, so each record draws its flat tint.
@@ -258,6 +268,7 @@ public final class Renderer {
         lastGlassRecords = 0; lastGlassSharpCopies = 0
         lastFrameTargetCopies = 0; lastBackdropTexturesMade = 0
         lastGroupPasses = 0; lastGroupTexturesMade = 0; lastGroupAllocationFailures = 0
+        lastFilterPasses = 0; lastFilteredGroups = 0; lastFilterAllocationFailures = 0
         let state = backdropState ?? defaultBackdropState
         // **Offscreen groups first** (`GO-E`), post-order, each into its own pooled target; the parent's pass(es) then
         // sample them. The pool is the window's backdrop state, so a steady frame makes none.
@@ -408,9 +419,110 @@ public final class Renderer {
                                    projection: t)
             try encodeSinglePass(child, view: view, in: commandBuffer, surfaces: surfaces, groupTextures: inner, isGroup: true)
             lastGroupPasses += 1
-            made.append(target)
+            let filter = scene.groupFilters[index]
+            guard filter.kind != .none else {
+                made.append(target)
+                continue
+            }
+            // A filtered group (`GF-E`): the raw target goes back to the pool at once; the quad samples the result.
+            lastFilteredGroups += 1
+            let result = try filterGroup(target: target, filter: filter, in: commandBuffer, state: state)
+            if let result, result !== target {
+                heldGroupTextures.removeAll { $0 === target }
+                state.release(target)
+                heldGroupTextures.append(result)
+                made.append(result)
+            } else if let result {
+                made.append(result)
+            } else if filter.kind == .blur {
+                lastFilterAllocationFailures += 1
+                made.append(target)   // a blur that cannot filter draws the unfiltered target
+            } else {
+                lastFilterAllocationFailures += 1
+                heldGroupTextures.removeAll { $0 === target }
+                state.release(target)
+                made.append(nil)      // a shadow that cannot filter draws nothing
+            }
         }
         return made
+    }
+
+    /// The pass sequence of a filtered group (`GF-E`), over the whole `target` (the box was padded by more than
+    /// three sigma of transparent pixels and is a whole multiple of 2^L on both sides, so clamping to the target
+    /// equals zero extension and the quad's read lands on `BB-R`'s texel coordinate): L downsamples, a horizontal and
+    /// a vertical Gaussian at sigma / 2^L when sigma is above 0, and for a shadow one tint pass. Returns the texture
+    /// the quad samples (`target` itself when nothing ran), `nil` when a texture could not be allocated; every
+    /// intermediate goes back to the pool.
+    private func filterGroup(target: any MTLTexture, filter: Scene.GroupFilter, in commandBuffer: any MTLCommandBuffer,
+                             state: BackdropFrameState) throws -> (any MTLTexture)? {
+        let pipelines = try backdropPipelines()
+        var held: [any MTLTexture] = []
+        func give(back all: [any MTLTexture]) { for texture in all { state.release(texture) } }
+        func run(_ pipeline: any MTLRenderPipelineState, source: any MTLTexture, sourceSize: (Int, Int),
+                 target: any MTLTexture, constants bytes: UnsafeRawBufferPointer) throws {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = target
+            pass.colorAttachments[0].loadAction = .dontCare
+            pass.colorAttachments[0].storeAction = .store
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+                throw RendererError.encoderUnavailable
+            }
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setFragmentBytes(bytes.baseAddress!, length: bytes.count, index: 0)
+            encoder.setFragmentTexture(source, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            encoder.endEncoding()
+            lastFilterPasses += 1
+        }
+        func blurPass(_ pipeline: any MTLRenderPipelineState, source: any MTLTexture, size: (Int, Int),
+                      target: any MTLTexture, sigma: Float, horizontal: Bool) throws {
+            var constants = BackdropBlurPass(src: SIMD4(0, 0, Int32(size.0), Int32(size.1)), sigma: sigma,
+                                             horizontal: horizontal ? 1 : 0)
+            try withUnsafeBytes(of: &constants) {
+                try run(pipeline, source: source, sourceSize: size, target: target, constants: $0)
+            }
+        }
+        let sigma = max(filter.sigma, 0)
+        let levels = sigma > 0 ? BackdropBlurReference.levels(sigma: sigma, maxLevel: Int(MUIBackdropBlurMaxLevel)) : 0
+        var source = target
+        var (w, h) = (target.width, target.height)
+        for _ in 0..<levels {
+            let (nw, nh) = ((w + 1) / 2, (h + 1) / 2)
+            guard let level = state.acquire(device: device, width: nw, height: nh, failing: filterPoolFailsAllocation) else {
+                give(back: held); return nil
+            }
+            held.append(level)
+            try blurPass(pipelines.downsample, source: source, size: (w, h), target: level, sigma: 0, horizontal: false)
+            source = level; (w, h) = (nw, nh)
+        }
+        if sigma > 0 {
+            guard let scratch = state.acquire(device: device, width: w, height: h, failing: filterPoolFailsAllocation) else {
+                give(back: held); return nil
+            }
+            held.append(scratch)
+            guard let result = state.acquire(device: device, width: w, height: h, failing: filterPoolFailsAllocation) else {
+                give(back: held); return nil
+            }
+            held.append(result)
+            let levelSigma = sigma / Float(1 << levels)
+            try blurPass(pipelines.gaussian, source: source, size: (w, h), target: scratch, sigma: levelSigma, horizontal: true)
+            try blurPass(pipelines.gaussian, source: scratch, size: (w, h), target: result, sigma: levelSigma, horizontal: false)
+            source = result
+        }
+        if filter.kind == .shadow {
+            guard let tinted = state.acquire(device: device, width: w, height: h, failing: filterPoolFailsAllocation) else {
+                give(back: held); return nil
+            }
+            var constants = GroupTintPass(src: SIMD4(0, 0, Int32(w), Int32(h)), tint: filter.tint)
+            try withUnsafeBytes(of: &constants) {
+                try run(pipelines.tint, source: source, sourceSize: (w, h), target: tinted, constants: $0)
+            }
+            give(back: held)
+            return tinted
+        }
+        // A blur keeps the Gaussian's result; every other texture goes back (the raw target is the caller's).
+        give(back: held.filter { $0 !== source })
+        return source
     }
 
     /// The scene's transform table bound beside every pipeline's records

@@ -3470,6 +3470,11 @@ public final class Frame {
     var groupsBaked = 0
     var groupsFlattenedOversize = 0
 
+    /// Shadows and blurs this frame rendered through a filtered offscreen group, and those whose box exceeded the target
+    /// limit and took the CPU raster instead (`GF-B`, `GF-G`): work counters, 0 for a tree the CPU can read.
+    var filterGroups = 0
+    var filtersFlattenedOversize = 0
+
     /// `GX-P` item 1: every enclosing wrapper registered at exactly `rect` —
     /// innermost first, stopping at the first that is not — gets the
     /// innermost open effect's map: its hitboxes the inverse and their own
@@ -3700,24 +3705,23 @@ public final class Frame {
                 }
                 if scope.capturing { scope.captures.append(contentsOf: group) }
                 if let shadow = scope.shadow {
-                    // A leaf under a projective effect casts no shadow: the CPU silhouette is flat (`PJ-G`, divergence 1066).
-                    let casting = group.filter { $0.transform?.homography.isAffine ?? true }.map(\.bakedGroupAlpha)
-                    if !casting.isEmpty {
-                        next.append(([shadowItem(of: casting, shadow, entryDepth: scope.entryClipDepth)], nil))
-                    }
+                    // The marks every primitive of the leaf shares are lifted (model F, `GF-A`): the shadow is cast by
+                    // the unfaded leaf and joins the leaf's opacity group, with the same tokens.
+                    var cast = group
+                    let lifted = Self.liftSharedMarks(&cast)
+                    var item = shadowItem(of: cast, shadow, entryDepth: scope.entryClipDepth)
+                    item.groups = lifted
+                    next.append(([item], nil))
                     next.append((group, emitted))
                     continue
                 }
                 if let blur = scope.blur {
-                    // A GPU surface's pixels are on the GPU: it is drawn
-                    // unblurred (`LK-K` item 5, divergence 167).
-                    // A leaf under a projective effect is drawn unblurred too (`PJ-G`, divergence 1066).
-                    if group.allSatisfy({ if case .surface = $0.kind { true } else { false } })
-                        || group.contains(where: { !($0.transform?.homography.isAffine ?? true) }) {
-                        next.append((group, emitted))
-                    } else {
-                        next.append(([blurItem(of: group.map(\.bakedGroupAlpha), blur, entryDepth: scope.entryClipDepth)], nil))
-                    }
+                    // The blur replaces its leaf; a shared mark is lifted and fades the blurred image (`GF-A`).
+                    var blurred = group
+                    let lifted = Self.liftSharedMarks(&blurred)
+                    var item = blurItem(of: blurred, blur, entryDepth: scope.entryClipDepth)
+                    item.groups = lifted
+                    next.append(([item], nil))
                     continue
                 }
                 if !scope.effect.isIdentity {
@@ -3793,13 +3797,24 @@ public final class Frame {
         }
     }
 
+    /// Inserts a finalized filtered group's quad into the frame's scene (`GF-B`).
+    func insertGroupQuad(_ quad: MUIImage, group: Scene, layer: Int, transform: MUITransform?, filter: Scene.GroupFilter) {
+        scene.insert(quad, group: group, layer: layer, transform: transform, filter: filter)
+    }
+
+    /// `body`'s scene insertions collected into a fresh `Scene` instead of the frame's (`GF-B`); not finalized.
+    func collectingIntoFreshScene(_ body: () -> Void) -> Scene {
+        var inner = Scene()
+        swap(&scene, &inner)
+        body()
+        swap(&scene, &inner)
+        return inner
+    }
+
     /// One offscreen group (`GO-C`): `children` rendered into a scene of their own, boxed, and that scene drawn back as
     /// one quad at `alpha`.
     private func insertGroup(_ children: [CapturedPrimitive], alpha: Float) {
-        var inner = Scene()
-        swap(&scene, &inner)
-        insertLeaves(children)
-        swap(&scene, &inner)
+        var inner = collectingIntoFreshScene { insertLeaves(children) }
         guard let painted = inner.paintedBounds() else { return }
         let limitX = Float(contentSize.width.value * scaleFactor), limitY = Float(contentSize.height.value * scaleFactor)
         // One pixel of anti-aliasing around the painted box, floored and ceiled without libm, cut by the target.
@@ -3914,12 +3929,14 @@ public final class Frame {
             guard let (quad, texture) = pathImage(paint, transform: primitive.transform) else { return }
             insertRaster(quad, texture: texture, primitive)
         case .shadow(let paint):
+            if Self.needsGPU(paint.leaf) { return insertFilteredGroup(shadow: paint, blur: nil, primitive) }
             guard let (quad, texture) = shadowImage(paint, transform: primitive.transform) else { return }
             insertRaster(quad, texture: texture, primitive)
         case .gradient(let paint):
             guard let (quad, texture) = gradientImage(paint, transform: primitive.transform) else { return }
             insertRaster(quad, texture: texture, primitive)
         case .blur(let paint):
+            if Self.needsGPU(paint.leaf) { return insertFilteredGroup(shadow: nil, blur: paint, primitive) }
             guard let (quad, texture) = blurImage(paint, transform: primitive.transform) else { return }
             insertRaster(quad, texture: texture, primitive)
         case .backdrop(let record):
@@ -3930,7 +3947,7 @@ public final class Frame {
     /// A CPU raster's image: under an affine map it was rasterized in final device pixels and is drawn plain; under a
     /// projective one it was rasterized in its creation space and is drawn with the projective record, filtered
     /// linearly, so an animating flip does no CPU raster after its first frame (`PJ-G`, divergence 1065).
-    private func insertRaster(_ quad: MUIImage, texture: ImageTexture, _ primitive: CapturedPrimitive) {
+    func insertRaster(_ quad: MUIImage, texture: ImageTexture, _ primitive: CapturedPrimitive) {
         guard let t = primitive.transform, !t.homography.isAffine else {
             scene.insert(quad, texture: texture, layer: primitive.layer)
             return
