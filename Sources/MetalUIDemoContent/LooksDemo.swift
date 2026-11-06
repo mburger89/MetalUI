@@ -334,8 +334,37 @@ private func looksPathsShadowsTransformsSection() -> some Element {
             LooksRotatingSquare()
         }
         looksProjectionStrip()
+        looksGroupOpacityStrip()
     }
     .alignItems(.flexStart)
+}
+
+/// **Q10** (group opacity, `GO-`). Two overlapping squares at `.opacity(0.5)` three ways: written on the stack (each
+/// square fades, the lower shows through the upper), outside a `compositingGroup()` (the group is one translucent shape,
+/// the overlap reads the top colour over the backdrop, as SwiftUI's) and a group inside a group. **Its own frame**: the
+/// 1 MB Windows stack counts a debug build's temporaries (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+@MainActor @inline(never)
+func looksGroupOpacityStrip() -> some Element {
+    func pair() -> some ProposalElementGroup {
+        ZStack(alignment: .topLeading) {
+            Color(.separator).frame(width: Pixels(36), height: Pixels(36)).offset(x: Pixels(18), y: Pixels(18))
+            Color(.accent).frame(width: Pixels(36), height: Pixels(36))
+        }
+        .frame(width: Pixels(54), height: Pixels(54), alignment: .topLeading)
+    }
+    return Row(gap: Pixels(32)) {
+        Column(gap: Pixels(4)) { Text("per leaf").font(size: 11); pair().opacity(0.5) }
+        Column(gap: Pixels(4)) { Text("compositingGroup").font(size: 11); pair().compositingGroup().opacity(0.5) }
+        Column(gap: Pixels(4)) {
+            Text("nested").font(size: 11)
+            ZStack(alignment: .topLeading) {
+                pair().compositingGroup().opacity(0.5)
+                Color(.textPrimary).frame(width: Pixels(20), height: Pixels(20)).offset(x: Pixels(40), y: Pixels(6))
+            }
+            .frame(width: Pixels(64), height: Pixels(54), alignment: .topLeading)
+            .compositingGroup().opacity(0.6)
+        }
+    }
 }
 
 /// **Q7–Q9** (3D render effects, `PJ-`). A card that flips about its vertical axis on each tap (animated, hover and tap

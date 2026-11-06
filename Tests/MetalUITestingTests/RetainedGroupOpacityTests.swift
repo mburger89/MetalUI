@@ -23,7 +23,7 @@ private struct FadedPair: Component, @MainActor Equatable {
 /// `insertIntoScene` (the replay draws two half-alpha squares and no group).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the hit counts are not its to read"))
 @MainActor func aRetainedReplayOfAnOpacityGroupStillComposites() throws {
-    let window = try TestWindow(size: sz(200, 200)) { ZStack(alignment: .topLeading) { FadedPair().equatable() } }
+    let window = try TestWindow(size: sz(200, 200), textSystem: { harnessTextSystem() }) { ZStack(alignment: .topLeading) { FadedPair().equatable() } }
     window.window.setNeedsRedraw(); window.tick()
     let first = window.scene
     try #require(first.groups.count == 1, "set up: the first frame composites: \(first.groups.count)")
