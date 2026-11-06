@@ -195,6 +195,7 @@ private func conformer(member: String) -> String {
         func setToolbar(_: PlatformToolbar?) -> Bool { false }
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         func setPointerStyle(_ style: PlatformPointerStyle) {}
+        func openURL(_ url: String) -> Bool { false }
         func setDropOperation(_: PlatformDropOperation) {}
         func orderFrontAndMakeKey() {}
         // Colour scheme (`CR-M`), defaultless too, so every arm here carries

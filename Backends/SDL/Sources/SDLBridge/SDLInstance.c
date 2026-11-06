@@ -811,6 +811,10 @@ bool mui_window_raise(void *window) {
     return raised;
 }
 
+bool mui_open_url(const char *url) {
+    return url != NULL && SDL_OpenURL(url);
+}
+
 #else
 /* Built without the `SDL` trait: no SDL3 header, no SDL3 link. */
 int mui_instance_built_without_sdl = 1;

@@ -263,9 +263,38 @@ public struct Text: Element, StyledElement {
         // content closure is empty and the clip scope is a no-op here — it is
         // written out anyway so a future `Text` that draws through the helper
         // gets the same answer the other three sites do.
+        //
+        // **Link runs register in the content closure** (`LI-A`), so the decoration's clip scopes them as it scopes a
+        // child. Only a `Text` with a link run resolves and lays out here; every other `Text` takes the empty closure
+        // it always took (`RT-M`, pinned by the work count in `aPlainTextRegistersNoLinkWork`).
+        var links: (resolved: ResolvedRichText, box: (origin: Point<Pixels>, width: Double, height: Double),
+                    action: OpenURLAction)?
+        if hasLinkRun {
+            let environment = pass.environment
+            links = (resolveRichText(content, own: styleRequest, rich: rich, in: environment, system: pass.frame.textSystem),
+                     Text.glyphBox(in: pass.frame, node: layout.node, bounds: bounds), environment.openURL)
+        }
+        let frame = pass.frame
         pass.registerAndScope(handlers, decoration, at: bounds, for: id,
                               accessibleText: string.isEmpty ? nil : string,
-                              synthesizesAccessibility: true) { }
+                              synthesizesAccessibility: true) {
+            if let links {
+                frame.registerTextLinks(links.resolved, id: id, origin: links.box.origin, width: links.box.width,
+                                        height: links.box.height, action: links.action)
+            }
+        }
+    }
+
+    /// Where paint lays this text's glyphs: the origin, the width layout **measured** at and the box height
+    /// (`paintGlyphs`' own computation, shared with the link regions so the two agree by construction, `LI-B`).
+    /// A lowered, padded `Text` has its leaf in `Frame.lowering.textLeaves`.
+    static func glyphBox(in frame: Frame, node: LayoutNodeID,
+                         bounds: Bounds<Pixels>) -> (origin: Point<Pixels>, width: Double, height: Double) {
+        let glyphNode = frame.lowering.textLeaves[node]
+        let origin = glyphNode.map { frame.bounds(of: $0).origin } ?? bounds.origin
+        let width = max(frame.tree.measuredWidth(frame.lowering.alias(glyphNode ?? node)), smallestWrapWidth)
+        let height = Double(frame.bounds(of: glyphNode ?? node).size.height.value)
+        return (origin, width, height)
     }
 
     /// Emits the background, then one sprite per inked glyph.
@@ -393,15 +422,14 @@ public struct Text: Element, StyledElement {
         // `Frame.lowering.textLeaves` is empty for an unpadded text, which keeps
         // painting at `bounds.origin` at `layout.node`'s
         // measured width.
-        let glyphNode = pass.frame.lowering.textLeaves[layout.node]
-        let origin = glyphNode.map { pass.bounds(of: $0).origin } ?? bounds.origin
-        let width = max(pass.measuredWidth(of: glyphNode ?? layout.node), smallestWrapWidth)
+        let box = Text.glyphBox(in: pass.frame, node: layout.node, bounds: bounds)
+        let origin = box.origin, width = box.width
         // **The line cap is re-derived from the box** (TE-H item 2): `max(1,
         // ⌊h / lineHeight⌋)` of the node's final height, capped by the limit —
         // the leaf's own answer where nothing frames it, so the lines layout
         // measured; a reserved or framed box is taller or is the proposal, and
         // caps nothing layout did not.
-        let height = Double(pass.bounds(of: glyphNode ?? layout.node).size.height.value)
+        let height = box.height
         guard let plain else {
             // The styled path (RT-J): backgrounds, glyphs and lines inside one
             // leaf group, resolved again through the function layout used.

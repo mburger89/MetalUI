@@ -134,6 +134,15 @@ public struct ProposalText: ProposalElement {
                                   layout: inout Layout, pass: inout PrepaintPass) {
         guard !string.isEmpty else { return }
         pass.frame.recordAccessibility(text: string, declared: AXNode(), at: bounds, id: id)
+        // The link regions of a text with a link run (`LI-A`): the same registration `Text.prepaint` makes, at paint's
+        // own box (this bridge's paint reads `pass.measuredWidth(of: layout.node)` and its bounds).
+        guard case .runs(let runs) = content, runs.contains(where: { $0.link != nil }) else { return }
+        let environment = pass.environment
+        let resolved = resolveRichText(content, own: styleRequest, rich: rich, in: environment,
+                                       system: pass.frame.textSystem)
+        let width = max(pass.frame.tree.measuredWidth(pass.frame.lowering.alias(layout.node)), smallestWrapWidth)
+        pass.frame.registerTextLinks(resolved, id: id, origin: bounds.origin, width: width,
+                                     height: Double(bounds.size.height.value), action: environment.openURL)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

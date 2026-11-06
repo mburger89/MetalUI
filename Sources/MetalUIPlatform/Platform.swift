@@ -338,6 +338,16 @@ public protocol PlatformWindow: AnyObject {
     /// `func setPointerStyle(_ style: PlatformPointerStyle) {}`.
     func setPointerStyle(_ style: PlatformPointerStyle)
 
+    /// Asks the system to open `url` — a link click's default action (ruling `LI-D`, divergence 150 retired) — and
+    /// answers whether the request was made. AppKit: `NSWorkspace.open(_:)`; SDL: `SDL_OpenURL`. The string is an
+    /// absolute URL as written in the link (any scheme, `mailto:` and custom ones included); a string with no
+    /// scheme is refused (`false`). The headless window records it and answers `true` (`HT-X` 1).
+    ///
+    /// **No default implementation** (`LI-D`, `CI-J`'s reason): a conformer that forgets it fails to compile rather
+    /// than silently never opening a link. Pinned by `aPlatformWindowWithoutOpenURLDoesNotCompile`.
+    /// **Migration**: a conformer outside this repository adds `func openURL(_ url: String) -> Bool { false }`.
+    func openURL(_ url: String) -> Bool
+
     /// Brings this window in front of the application's other windows and makes it the key window,
     /// restoring it first if it is minimised (ruling `WA-A`). `Window.makeKeyAndOrderFront()` calls it.
     /// AppKit: `deminiaturize(_:)` when miniaturised, then `makeKeyAndOrderFront(_:)`; SDL: `SDL_RaiseWindow`

@@ -420,25 +420,28 @@ private func tenThenThirty() -> Text {
 
 // MARK: - 2.18
 
-/// **2.18** (ruling RT-K, divergence 150). A link registers nothing a plain
-/// text does not: the hitboxes, focus order and accessibility records of a
-/// text with a link run equal those of the same text without it. Green on
-/// arrival (the pin of an absence). Mutation **M2.18**: register a pointer
-/// hitbox per link segment.
+/// **2.18** (ruling RT-K; divergence 150 RETIRED by `LI-A`, record 216). A plain `Text`, and a `Text` whose runs carry
+/// no link, register nothing: no hitbox, no focus stop, one accessibility record (its string). A `Text` with a link
+/// run now registers its regions: an opaque click hitbox and a pointing-hand region per piece, one accessibility link
+/// per run, and still no focus stop. **This test was `aLinkRegistersNothingAPlainTextDoesNot`**, which pinned the
+/// inert link (linked == plain in hitboxes and records); only its plain half survives, the focus-order and
+/// string-is-whole assertions are kept as they were. Mutation **M2.18**: register a pointer hitbox per link segment
+/// for a text with no link (the plain half reddens).
 @MainActor
-@Test func aLinkRegistersNothingAPlainTextDoesNot() throws {
+@Test func aPlainTextRegistersNothingAndALinkRegistersItsRegions() throws {
     func frame(link: String?) -> Frame {
         rtFrame(rtTopLeft(Text(content: .runs([TextRunRequest(string: "see "),
                                                TextRunRequest(string: "docs", link: link)]))),
                 accessibility: true)
     }
     let linked = frame(link: "https://example.com"), plain = frame(link: nil)
-    #expect(linked.hitboxes.count == plain.hitboxes.count, "hitboxes: \(linked.hitboxes.count)")
+    #expect(plain.hitboxes.isEmpty, "a text with no link registers no hitbox: \(plain.hitboxes.count)")
+    #expect(linked.hitboxes.count == 2, "a link: the click hitbox and the pointing-hand region: \(linked.hitboxes.count)")
     #expect(linked.focusRegistry.tabOrder == plain.focusRegistry.tabOrder, "focus order")
-    #expect(linked.axEmissions.map(\.text) == plain.axEmissions.map(\.text)
-                && linked.axEmissions.map(\.isClickable) == plain.axEmissions.map(\.isClickable),
-            "accessibility records: \(linked.axEmissions.map(\.text))")
-    #expect(linked.axEmissions.compactMap(\.text) == ["see docs"], "the link is part of the text's string")
+    #expect(plain.axEmissions.count == 1, "the plain text's one record: \(plain.axEmissions.count)")
+    #expect(linked.axEmissions.count == 2, "the text's record and the link's: \(linked.axEmissions.count)")
+    #expect(plain.axEmissions.compactMap(\.text) == ["see docs"], "the link is part of the text's string")
+    #expect(linked.axEmissions.compactMap(\.text) == ["see docs"], "and the link's record carries no text of its own")
 }
 
 // MARK: - 2.19

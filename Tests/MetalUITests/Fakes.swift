@@ -254,6 +254,13 @@ final class FakePlatformWindow: PlatformWindow {
     private(set) var pointerStyles: [PlatformPointerStyle] = []
     func setPointerStyle(_ style: PlatformPointerStyle) { pointerStyles.append(style) }
 
+    /// Every `openURL` argument, in call order (`LI-D`); the fake answers `true` and opens nothing.
+    var openedURLs: [String] = []
+    func openURL(_ url: String) -> Bool {
+        openedURLs.append(url)
+        return true
+    }
+
     /// Counts the call (`WA-A`).
     var orderFrontCalls = 0
     func orderFrontAndMakeKey() { orderFrontCalls += 1 }

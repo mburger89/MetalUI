@@ -198,6 +198,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public private(set) var preferredColorSchemeRequests: [ColorScheme?] = []
     /// Every `setPointerStyle` argument, in order.
     public private(set) var pointerStyles: [PlatformPointerStyle] = []
+    /// Every URL `openURL(_:)` was asked to open, in order (a link click's default action, `LI-D`). Nothing is
+    /// opened: a test reads this instead of a browser.
+    public private(set) var openedURLs: [String] = []
     /// Every `setTextInputArea` argument, in order; a non-`nil` last entry
     /// means a text field has the caret.
     public private(set) var textInputAreas: [Bounds<Pixels>?] = []
@@ -351,6 +354,12 @@ public final class HeadlessPlatformWindow: PlatformWindow {
 
     /// Records the style.
     public func setPointerStyle(_ style: PlatformPointerStyle) { pointerStyles.append(style) }
+
+    /// Records the URL in ``openedURLs`` and answers `true`, as a platform that opened it would (`LI-D`, `HT-X` 1).
+    public func openURL(_ url: String) -> Bool {
+        openedURLs.append(url)
+        return true
+    }
 
     /// Counts the call and does what a platform that honoured it does (`WA-A`, `HT-X` 1): a minimised
     /// window is restored (``isMiniaturized`` becomes `false`), and the window is key and frontmost.

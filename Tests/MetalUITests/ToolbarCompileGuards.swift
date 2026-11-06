@@ -151,6 +151,7 @@ private func conformer(_ extra: String) -> String {
         func dismissPresentation(token: Int) {}
         func setContentSizeLimits(minimum: Size<Pixels>?, maximum: Size<Pixels>?) {}
         func setPointerStyle(_ style: PlatformPointerStyle) {}
+        func openURL(_ url: String) -> Bool { false }
         func orderFrontAndMakeKey() {}
     \(extra)
     }

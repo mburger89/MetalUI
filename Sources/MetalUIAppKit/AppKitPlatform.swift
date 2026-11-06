@@ -1132,6 +1132,20 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         if hostView.pointerIsInside { cursor.set() }
     }
 
+    /// Opens `url` with `NSWorkspace` (ruling `LI-D`): any URL that parses with a scheme, `mailto:` and custom
+    /// schemes included; a string with none is refused (`workspaceURL(for:)`). **No test reaches this method past the
+    /// refusal**: it would launch the user's browser.
+    func openURL(_ url: String) -> Bool {
+        guard let target = Self.workspaceURL(for: url) else { return false }
+        return NSWorkspace.shared.open(target)
+    }
+
+    /// The URL `openURL(_:)` hands `NSWorkspace`, or `nil` when `string` has no scheme or does not parse.
+    static func workspaceURL(for string: String) -> URL? {
+        guard let url = URL(string: string), let scheme = url.scheme, !scheme.isEmpty else { return nil }
+        return url
+    }
+
     /// The layer surface, still reachable for the platform tests that draw
     /// into it directly; `Window` draws through ``renderer`` (ruling RS-C).
     var surface: any RenderSurface { metalSurface }

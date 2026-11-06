@@ -1936,6 +1936,7 @@ public final class Window {
             rootEnvironment.accessibilityReduceTransparency = accessibilityReduceTransparency  // MT-D, the same stamp
             rootEnvironment.accessibilityDisplay = accessibilityDisplaySettings  // AD-E, the same stamp
             rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
+            rootEnvironment.stampURLOpener(urlOpener)  // LI-D: an identity reading, holds the platform window weakly
             rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
             rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
             rootEnvironment.windowSize = frame.contentSize  // OV-G, OV-O: the size the frame is built with
@@ -2610,6 +2611,8 @@ public final class Window {
     var lastPasteButtonCount = 0
     /// The window's `PasteButton` view of the platform clipboard (`CP-D`, `CP-M`).
     lazy var clipboardAccess = ClipboardAccess(platform: platformWindow)
+    /// What a link click's default action asks to open a URL (`LI-D`): holds the platform window weakly.
+    lazy var urlOpener = URLOpener(platformWindow: platformWindow)
 
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.

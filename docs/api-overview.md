@@ -240,8 +240,8 @@ multiples of the line's thickness, the cycle starting at each line's own start (
 view-level underline, kerning and the rest do not reach them (`TM-H`). `Text(AttributedString)` reads
 `AttributeScopes.MetalUIAttributes` (SwiftUI's key names over MetalUI's types,
 per-key dynamic-member subscripts) and Foundation's `link`; on Apple platforms
-also `inlinePresentationIntent`. Links are styled in the accent and inert
-(150); underlines and strikethroughs are the face's unsnapped bands (152);
+also `inlinePresentationIntent`. Links are styled in the accent and clickable
+(`OpenURLAction`, `\.openURL`: the nearest action runs on a click, the default opens the URL through the window's platform; one `.link` accessibility child per run; inert under `.disabled`, 218); underlines and strikethroughs are the face's unsnapped bands (152);
 only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
 defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
 
