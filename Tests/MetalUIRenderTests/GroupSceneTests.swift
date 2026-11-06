@@ -128,3 +128,31 @@ private func background() -> MUIRect { rect(0, 0, 200, 200, .white, order: 0) }
     scene.clear()
     #expect(scene.isEmpty && scene.groups.isEmpty && scene.groupScenes.isEmpty)
 }
+
+/// **GO-E.** Two groups of one width and two heights each keep a target of their own size across frames: the pool is
+/// keyed by width and height. Mutation (finding of record 218: the nested test's targets differ in both, so it stayed
+/// green): the pool keyed by width only — the second frame hands the tall group the short group's texture and its
+/// bottom rows are lost.
+@Test @MainActor func twoGroupsOfOneWidthKeepTheirOwnHeights() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    var tall = Scene()
+    tall.insert(rect(20, 20, 92, 92, red, order: 0))
+    tall.finalize()
+    var short = Scene()
+    short.insert(rect(120, 20, 92, 40, blue, order: 0))
+    short.finalize()
+    var scene = Scene()
+    scene.insert(background())
+    scene.insert(groupQuad(20, 20, 92, 92, opacity: 0.5, order: 1), group: tall)
+    scene.insert(groupQuad(120, 20, 92, 40, opacity: 0.5, order: 2), group: short)
+    scene.finalize()
+    let size = Size(width: DevicePixels(240), height: DevicePixels(200))
+    let first = try renderer.renderOffscreen(scene, size: size)
+    let second = try renderer.renderOffscreen(scene, size: size)
+    #expect(renderer.lastGroupTexturesMade == 0, "steady: \(renderer.lastGroupTexturesMade)")
+    // Bottom rows of the tall group (y 100): only a 92-high target has them.
+    #expect(near(pixel(first, 60, 105, width: 240), [255, 128, 128, 255]), "first: \(pixel(first, 60, 105, width: 240))")
+    #expect(near(pixel(second, 60, 105, width: 240), [255, 128, 128, 255]), "second: \(pixel(second, 60, 105, width: 240))")
+    #expect(first == second, "the same frame twice")
+}
