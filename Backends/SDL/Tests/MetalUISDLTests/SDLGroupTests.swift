@@ -108,3 +108,29 @@ private func near(_ a: [Int], _ b: [Int], _ t: Int = 1) -> Bool { zip(a, b).allS
     #expect(near(rgb(pixels, 100, 90), [255, 255, 255]), "the background only: \(rgb(pixels, 100, 90))")
     #expect(renderer.lastGroupAllocationFailures == 1 && renderer.lastGroupPasses == 0)
 }
+
+private func translation(_ tx: Float) -> MUITransform {
+    MUITransform(a: 1, b: 0, c: 0, d: 1, tx: tx, ty: 0, pixelScale: 1, _reserved: 0, outerMask: bounds(0, 0, 400, 400),
+                 outerMaskRadii: square)
+}
+
+/// **GO-F.** The frame's records and the group's share one buffer per kind, so a group's transform index is shifted past
+/// the root's: a root rect under a translation of 100 and a group rect under one of 20 each land where their own record
+/// says. Mutation: `SDLGroupSet` without the transform shift (the group's rect reads the root's record and lands 80 px
+/// to the right).
+@MainActor
+@Test func aGroupsTransformIsNotTheRootsTransform() throws {
+    var inner = Scene()
+    inner.insert(rect(10, 60, 20, 20, hue: 0, order: 0), transform: translation(20))
+    inner.finalize()
+    var scene = Scene()
+    scene.insert(rect(0, 0, 200, 200, hue: 0, lightness: 1, order: 0))
+    scene.insert(rect(10, 120, 20, 20, hue: 2.0 / 3.0, order: 1), transform: translation(100))
+    scene.insert(quad(0, 40, 100, 60, opacity: 1, order: 2), group: inner)
+    scene.finalize()
+    let renderer = try SDLWindowRenderer(offscreenWidth: side, height: side)
+    let pixels = try draw(scene, on: renderer)
+    #expect(near(rgb(pixels, 40, 70), [255, 0, 0]), "the group's rect at x 30...50: \(rgb(pixels, 40, 70))")
+    #expect(near(rgb(pixels, 120, 130), [0, 0, 255]), "the root's rect at x 110...130: \(rgb(pixels, 120, 130))")
+    #expect(near(rgb(pixels, 120, 70), [255, 255, 255]), "nothing at the root's offset in the group's row: \(rgb(pixels, 120, 70))")
+}
