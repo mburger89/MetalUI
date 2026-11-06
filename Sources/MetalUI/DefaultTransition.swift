@@ -64,8 +64,31 @@ extension Scene {
             let b = backdrops[index]
             primitive = .backdrop(b, layer: layer(of: .backdrop, at: index), innerMask: false)
             primitive.transform = transform(index: Int(b.shape >> 8))
+        case .group:
+            return nil   // expanded by `capturedGroup(at:)`, which returns several (`GO-G`)
         }
         return primitive
+    }
+
+    /// Offscreen group `index`'s content as captured primitives in paint order (`GO-G`), each marked with one fresh
+    /// token at the quad's opacity, so a ghost of a removed unit fades the group as one group. A group inside the group
+    /// expands in place, its marks inside this one's.
+    @MainActor
+    func capturedGroup(at index: Int) -> [CapturedPrimitive] {
+        let mark = GroupMark(token: GroupToken(), alpha: groups[index].opacity)
+        let child = groupScenes[index]
+        var out: [CapturedPrimitive] = []
+        for run in child.drawList {
+            for k in run.start..<(run.start + run.count) {
+                if run.kind == .group {
+                    for var nested in child.capturedGroup(at: k) { nested.groups.insert(mark, at: 0); out.append(nested) }
+                } else if var primitive = child.capturedPrimitive(run.kind, at: k) {
+                    primitive.groups = [mark]
+                    out.append(primitive)
+                }
+            }
+        }
+        return out
     }
 
     /// The primitives emitted with a sequence in `range`, minus any in `carved`, as captured primitives in emission
@@ -77,7 +100,9 @@ extension Scene {
         for (kind, index) in primitives(inSequences: range) {
             let sequence = emissionSequence(of: kind, at: index)
             if carved.contains(where: { $0.contains(sequence) }) { continue }
-            if let primitive = capturedPrimitive(kind, at: index) {
+            if kind == .group {
+                for primitive in capturedGroup(at: index) { out.append(primitive); sequences.append(sequence) }
+            } else if let primitive = capturedPrimitive(kind, at: index) {
                 out.append(primitive)
                 sequences.append(sequence)
             }

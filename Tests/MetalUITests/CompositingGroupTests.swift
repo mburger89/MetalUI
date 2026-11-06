@@ -226,19 +226,81 @@ private struct TapCounter: ProposalElement {
             "the bars' union, offset 10, not the presentation: \(gxDescribe(b)) for \(gxDescribe(bar.bounds))")
 }
 
-// MARK: - L2.9 (divergence 205, CG1)
+// MARK: - L2.9 (GO-A, CG1; divergence 205 retired)
 
-/// **L2.9** (divergence 205, CG1). `.compositingGroup().opacity(0.5)` is NOT
-/// composited: each square is drawn at half alpha, so the overlap shows the
-/// lower square through the upper (SwiftUI composites the opacity: CG1 reads
-/// (255, 128, 128) at the overlap, MetalUI (191, 64, 128)). **Pinned wrong on
-/// purpose**: an offscreen pass would redden it, as a fix.
-@Test @MainActor func aCompositingGroupDoesNotCompositeAnOpacity() throws {
+/// **L2.9** (`GO-A`, CG1, `GO0`). `.compositingGroup().opacity(0.5)` composites: the two squares draw
+/// unfaded into one offscreen group the scene holds as a quad at opacity 0.5, so the overlap reads the top
+/// colour over the backdrop (SwiftUI's (255, 128, 128), not red through blue). Mutations: no `withOpacityBase`
+/// (the squares fade inside the group as well), marks not added (per primitive), alpha written to colours
+/// instead of the mark, the box grown by 0.
+@Test @MainActor func aCompositingGroupCompositesAnOpacity() throws {
     let scene = effectFrame(overlap().compositingGroup().opacity(0.5)).finalizedScene()
-    #expect(gxImages(scene).isEmpty, "no offscreen image: \(gxImages(scene).count)")
+    try #require(scene.groups.count == 1, "one offscreen group: \(scene.groups.count)")
+    #expect(scene.rects.isEmpty && scene.images.isEmpty, "nothing drawn beside the group: \(scene.rects.count) rects")
+    let inner = scene.groupScenes[0]
+    try #require(inner.rects.count == 2, "two rects in the group: \(inner.rects.count)")
+    #expect(inner.rects.allSatisfy { $0.background.a == 1 }, "unfaded inside: \(inner.rects.map(\.background.a))")
+    let quad = scene.groups[0]
+    #expect(quad.opacity == 0.5, "the group fades as a whole: \(quad.opacity)")
+    let b = quad.bounds
+    #expect(b.origin.x == 69 && b.origin.y == 69 && b.size.width == 82 && b.size.height == 82,
+            "the union (70, 70)-(150, 150) grown one pixel: \(gxDescribe(b))")
+    #expect(runKinds(scene) == [.group], "one group run: \(runKinds(scene))")
+}
+
+/// **GO0 / CG1** the separating arm: a plain `.opacity(0.5)` on a container stays per primitive.
+@Test @MainActor func aPlainOpacityOnAContainerIsPerPrimitive() throws {
+    let frame = effectFrame(overlap().opacity(0.5))
+    let scene = frame.finalizedScene()
+    #expect(scene.groups.isEmpty && frame.compositeScopesPushed == 0, "no group: \(scene.groups.count)")
     try #require(scene.rects.count == 2, "two rects: \(scene.rects.count)")
     #expect(scene.rects.allSatisfy { abs($0.background.a - 0.5) < 0.001 },
             "each at half alpha: \(scene.rects.map(\.background.a))")
+}
+
+/// **GO1.** An opacity written inside the group is per primitive (`overlap().opacity(0.5).compositingGroup()`).
+@Test @MainActor func anOpacityInsideTheGroupIsPerPrimitive() throws {
+    let frame = effectFrame(overlap().opacity(0.5).compositingGroup())
+    let scene = frame.finalizedScene()
+    #expect(scene.groups.isEmpty && frame.compositeScopesPushed == 0, "no group: \(scene.groups.count)")
+    #expect(scene.rects.count == 2 && scene.rects.allSatisfy { abs($0.background.a - 0.5) < 0.001 }, "per leaf")
+}
+
+/// **CG4 / GO-A.** A group alone, at opacity 1 or with a pure-0 opacity changes nothing and pushes no scope.
+@Test @MainActor func aGroupAloneOrAtFullOpacityChangesNothing() throws {
+    let bare = effectFrame(overlap())
+    for element in [effectFrame(overlap().compositingGroup()), effectFrame(overlap().compositingGroup().opacity(1))] {
+        #expect(element.compositeScopesPushed == 0, "scopes: \(element.compositeScopesPushed)")
+        #expect(sceneBytes(element.finalizedScene()) == sceneBytes(bare.finalizedScene()), "draws the bare scene")
+    }
+    let zero = effectFrame(overlap().compositingGroup().opacity(0))
+    #expect(zero.compositeScopesPushed == 0 && zero.finalizedScene().groups.isEmpty, "opacity 0 is per primitive")
+}
+
+/// **GO-C.** A group of one primitive is baked into the primitive's colour: no offscreen pass.
+@Test @MainActor func aSingleLeafGroupIsBaked() throws {
+    let frame = effectFrame(fxBar(60, 30).compositingGroup().opacity(0.5))
+    let scene = frame.finalizedScene()
+    #expect(scene.groups.isEmpty, "no group quad")
+    try #require(scene.rects.count == 1, "one rect")
+    #expect(abs(scene.rects[0].background.a - 0.5) < 0.001, "faded by its colour: \(scene.rects[0].background.a)")
+    #expect(frame.groupsBaked == 1 && frame.groupsComposited == 0, "baked \(frame.groupsBaked)")
+}
+
+/// **GO2 / GO4.** Two opacities multiply on one group; a group inside a group nests, each its own quad.
+@Test @MainActor func nestedGroupsNest() throws {
+    let twice = effectFrame(overlap().compositingGroup().opacity(0.5).opacity(0.5)).finalizedScene()
+    try #require(twice.groups.count == 1, "one group")
+    #expect(abs(twice.groups[0].opacity - 0.25) < 0.0001, "0.5 x 0.5: \(twice.groups[0].opacity)")
+    let nested = effectFrame(ZStack {
+        overlap().compositingGroup().opacity(0.5)
+        Color(.textPrimary).frame(width: px(30), height: px(30))
+    }.compositingGroup().opacity(0.5)).finalizedScene()
+    try #require(nested.groups.count == 1, "outer group: \(nested.groups.count)")
+    let outer = nested.groupScenes[0]
+    try #require(outer.groups.count == 1, "inner group inside the outer: \(outer.groups.count)")
+    #expect(outer.groups[0].opacity == 0.5 && nested.groups[0].opacity == 0.5, "each at its own 0.5")
+    #expect(outer.groupScenes[0].rects.count == 2 && outer.rects.count == 1, "two in the inner, the green square in the outer")
 }
 
 // MARK: - L2.10 (divergence 108)

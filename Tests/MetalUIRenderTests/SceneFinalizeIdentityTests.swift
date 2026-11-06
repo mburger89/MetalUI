@@ -52,6 +52,7 @@ private func emit(_ script: [Emission], into scene: inout Scene) {
         case .image: preconditionFailure("these scripts emit rects and glyphs only")
         case .surface: preconditionFailure("these scripts emit rects and glyphs only")
         case .backdrop: preconditionFailure("these scripts emit rects and glyphs only")
+        case .group: preconditionFailure("these scripts emit rects and glyphs only")
         }
     }
 }

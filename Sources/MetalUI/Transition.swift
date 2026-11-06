@@ -322,6 +322,9 @@ struct RenderEffect: Equatable {
     func apply(to primitive: CapturedPrimitive, flattens: Bool, outer: OuterMask?) -> CapturedPrimitive? {
         var p = primitive
         if p.transform == nil && flattens {
+            // A primitive in an opacity group is faded as the group is, by its outermost mark (`GO-B`), never by its colours.
+            let a: Float = p.groups.isEmpty ? alpha : 1
+            if !p.groups.isEmpty { p.groups[0].alpha *= alpha }
             switch p.kind {
             case .rect(var r):
                 r.bounds = map(r.bounds)
@@ -332,8 +335,8 @@ struct RenderEffect: Equatable {
                 r.cornerRadii = map(r.cornerRadii)
                 r.borderWidths = MUIEdges(top: r.borderWidths.top * sx, right: r.borderWidths.right * sx,
                                           bottom: r.borderWidths.bottom * sx, left: r.borderWidths.left * sx)
-                r.background.a *= alpha
-                r.borderColor.a *= alpha
+                r.background.a *= a
+                r.borderColor.a *= a
                 p.kind = .rect(r)
             case .glyph(var g):
                 g.bounds = map(g.bounds)
@@ -341,7 +344,7 @@ struct RenderEffect: Equatable {
                     g.contentMask = map(g.contentMask)
                     g.maskCornerRadii = map(g.maskCornerRadii)
                 }
-                g.color.a *= alpha
+                g.color.a *= a
                 p.kind = .glyph(g)
             case .image(var i, let texture):
                 i.bounds = map(i.bounds)
@@ -349,7 +352,7 @@ struct RenderEffect: Equatable {
                     i.contentMask = map(i.contentMask)
                     i.maskCornerRadii = map(i.maskCornerRadii)
                 }
-                i.opacity *= alpha
+                i.opacity *= a
                 p.kind = .image(i, texture: texture)
             case .surface(var q, let target):
                 // The quad moves, never the target (MV-E item 2): a `.scale`
@@ -359,7 +362,7 @@ struct RenderEffect: Equatable {
                     q.contentMask = map(q.contentMask)
                     q.maskCornerRadii = map(q.maskCornerRadii)
                 }
-                q.opacity *= alpha
+                q.opacity *= a
                 p.kind = .surface(q, target: target)
             case .path(var path):
                 // A path stays a vector until it reaches the scene (`GX-B`): the
@@ -370,7 +373,7 @@ struct RenderEffect: Equatable {
                     path.contentMask = map(path.contentMask)
                     path.maskCornerRadii = map(path.maskCornerRadii)
                 }
-                path.color.a *= alpha
+                path.color.a *= a
                 p.kind = .path(path)
             case .shadow(var shadow):
                 // A shadow's offset and blur follow the composed map (`GX-J`;
@@ -380,7 +383,7 @@ struct RenderEffect: Equatable {
                     shadow.contentMask = map(shadow.contentMask)
                     shadow.maskCornerRadii = map(shadow.maskCornerRadii)
                 }
-                shadow.color.a *= alpha
+                shadow.color.a *= a
                 p.kind = .shadow(shadow)
             case .gradient(var gradient):
                 // A gradient stays a vector, as a path does (`LK-J` item 4).
@@ -389,7 +392,7 @@ struct RenderEffect: Equatable {
                     gradient.contentMask = map(gradient.contentMask)
                     gradient.maskCornerRadii = map(gradient.maskCornerRadii)
                 }
-                gradient.opacity *= alpha
+                gradient.opacity *= a
                 p.kind = .gradient(gradient)
             case .blur(var blur):
                 // A blur's reach follows the composed map, as a shadow's does
@@ -399,7 +402,7 @@ struct RenderEffect: Equatable {
                     blur.contentMask = map(blur.contentMask)
                     blur.maskCornerRadii = map(blur.maskCornerRadii)
                 }
-                blur.alpha *= alpha
+                blur.alpha *= a
                 p.kind = .blur(blur)
             case .backdrop(var record):
                 // The blur scales with the layer it blurs for (the sigma is in
@@ -412,7 +415,7 @@ struct RenderEffect: Equatable {
                 }
                 record.cornerRadii = map(record.cornerRadii)
                 record.sigma *= sx
-                record.opacity *= alpha
+                record.opacity *= a
                 p.kind = .backdrop(record)
             }
             return p
@@ -504,6 +507,16 @@ struct PrimitiveTransform {
     }
 }
 
+/// The identity of one opacity group (`GO-B`): a primitive keeps the token it was marked with through captures, ghosts and
+/// replays, so a replayed leaf never merges with a freshly painted group.
+final class GroupToken: Sendable {}
+
+/// One opacity group a primitive is drawn inside (`GO-B`): its token and the alpha the group composites at.
+struct GroupMark {
+    let token: GroupToken
+    var alpha: Float
+}
+
 /// One primitive as a paint scope receives it — what a transition's ghost and
 /// a drag preview replay (`GX-G`). `innerMask` and `outerMaskInner` are
 /// relative to the scope that last read it: whether its own clip, and its
@@ -548,6 +561,11 @@ struct CapturedPrimitive {
     var innerMask: Bool
     var transform: PrimitiveTransform? = nil
     var outerMaskInner = false
+    /// The opacity groups this primitive is drawn inside, **outermost first** (`GO-B`). Empty on every primitive outside
+    /// an opacity `compositingGroup()`. A mark is added at index 0 as the leaf leaves its group's composite scope; an
+    /// enclosing transition, fade or effect multiplies `groups[0].alpha`, not the colours; `Frame.insertLeaves` turns
+    /// each run of one token into an offscreen group.
+    var groups: [GroupMark] = []
 
     static func rect(_ r: MUIRect, layer: Int, innerMask: Bool) -> CapturedPrimitive {
         CapturedPrimitive(kind: .rect(r), layer: layer, innerMask: innerMask)
@@ -619,6 +637,30 @@ struct CapturedPrimitive {
     }
 
     mutating func multiplyAlpha(_ alpha: Float) {
+        guard alpha != 1 else { return }
+        // In an opacity group the group is faded, not its pixels (`GO-B`).
+        if !groups.isEmpty { groups[0].alpha *= alpha; return }
+        multiplyColourAlpha(alpha)
+    }
+
+    /// Multiplies every mark into the colours and drops them: the primitive as it draws when nothing composites it (a
+    /// single leaf, an oversize group, the belt at `insertIntoScene`, a CPU raster's input; `GO-C`).
+    mutating func bakeGroupAlpha() {
+        guard !groups.isEmpty else { return }
+        var alpha: Float = 1
+        for mark in groups { alpha *= mark.alpha }
+        groups = []
+        multiplyColourAlpha(alpha)
+    }
+
+    /// `bakeGroupAlpha()` on a copy.
+    var bakedGroupAlpha: CapturedPrimitive {
+        var copy = self
+        copy.bakeGroupAlpha()
+        return copy
+    }
+
+    private mutating func multiplyColourAlpha(_ alpha: Float) {
         guard alpha != 1 else { return }
         switch kind {
         case .rect(var r):

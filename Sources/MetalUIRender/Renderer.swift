@@ -79,6 +79,14 @@ public final class Renderer {
     private(set) var lastFrameTargetCopies = 0
     /// Textures (frame target and pool) the last frame had to create; 0 on a steady frame.
     private(set) var lastBackdropTexturesMade = 0
+    /// Offscreen group passes of the last frame, one per group quad (`GO-E`); 0 on every scene without a group.
+    private(set) var lastGroupPasses = 0
+    /// Group targets the last frame had to create; 0 on a steady frame (`GO-E`).
+    private(set) var lastGroupTexturesMade = 0
+    /// Groups of the last frame that drew nothing because their target could not be allocated (`GO-E`).
+    private(set) var lastGroupAllocationFailures = 0
+    /// Test hook (`GO-E`, as `backdropPoolFailsAllocation`): every group target allocation fails, so each group draws nothing.
+    var groupPoolFailsAllocation = false
     /// Test hook (`BB-K`, test 2.7): every pool allocation fails, so each record draws its flat tint.
     var backdropPoolFailsAllocation = false
     /// Test hook (`LG-W`): only the glass lens's sharp copy fails, the blur succeeds.
@@ -249,7 +257,25 @@ public final class Renderer {
         lastBackdropSplits = 0; lastBackdropBlurs = 0; lastBackdropPasses = 0
         lastGlassRecords = 0; lastGlassSharpCopies = 0
         lastFrameTargetCopies = 0; lastBackdropTexturesMade = 0
+        lastGroupPasses = 0; lastGroupTexturesMade = 0; lastGroupAllocationFailures = 0
         let state = backdropState ?? defaultBackdropState
+        // **Offscreen groups first** (`GO-E`), post-order, each into its own pooled target; the parent's pass(es) then
+        // sample them. The pool is the window's backdrop state, so a steady frame makes none.
+        var groupTextures: [(any MTLTexture)?] = []
+        let hasGroups = !scene.groupScenes.isEmpty
+        defer {
+            if hasGroups {
+                for texture in heldGroupTextures { state.release(texture) }
+                heldGroupTextures.removeAll(keepingCapacity: true)
+                state.endFrame()
+                lastGroupTexturesMade = state.texturesMade
+            }
+        }
+        if hasGroups {
+            state.beginFrame()
+            _ = try prepareImageTextures(for: scene)
+            groupTextures = try encodeGroups(of: scene, in: commandBuffer, surfaces: surfaces, state: state)
+        }
         let wantsBackdrops = !scene.isEmpty
             && (!scene.backdrops.isEmpty || routesEveryFrameThroughTheFrameTarget)
         // A projection, a rasterization rate map or a drawable of another
@@ -258,10 +284,19 @@ public final class Renderer {
             && simd_equal(view.projection, matrix_identity_float4x4)
             && view.colorTexture.pixelFormat == Self.pixelFormat
         if wantsBackdrops, copyable,
-           try encodeWithBackdrops(scene, view: view, in: commandBuffer, surfaces: surfaces, state: state) {
+           try encodeWithBackdrops(scene, view: view, in: commandBuffer, surfaces: surfaces, state: state,
+                                   groupTextures: groupTextures, beginsFrame: !hasGroups) {
             return
         }
-        if !wantsBackdrops { state.releaseAll() }
+        if !wantsBackdrops { if hasGroups { state.releaseFrameTarget() } else { state.releaseAll() } }
+        try encodeSinglePass(scene, view: view, in: commandBuffer, surfaces: surfaces, groupTextures: groupTextures)
+    }
+
+    /// The old single pass into `view` (`BB-C`): clear, then one draw per run of the draw list. Also what an
+    /// offscreen group's target is drawn by (`GO-E`; a group scene's own backdrops draw their flat tint, `BB-I`).
+    private func encodeSinglePass(_ scene: Scene, view: SurfaceView, in commandBuffer: any MTLCommandBuffer,
+                                  surfaces: [SurfaceID: any MTLTexture],
+                                  groupTextures: [(any MTLTexture)?], isGroup: Bool = false) throws {
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = view.colorTexture
         // RESTRICTION: clearing per view means `encode` cannot be called twice
@@ -283,7 +318,10 @@ public final class Renderer {
 
         // Before the empty-scene return, so a scene with no images releases
         // every cached texture too.
-        let imageTextures = try prepareImageTextures(for: scene)
+        // A group's scene reads the textures the root's `prepareImageTextures` already uploaded for the whole tree.
+        let imageTextures = isGroup
+            ? scene.textures.map { imageTextures[ObjectIdentifier($0)]!.gpu }
+            : try prepareImageTextures(for: scene)
 
         guard !scene.isEmpty else { return }
         // **A scene with primitives and no draw list was never finalized.**
@@ -331,8 +369,48 @@ public final class Renderer {
         // worth of change.
         for run in scene.drawList {
             try encodeRun(run, of: scene, into: encoder, imageTextures: imageTextures, surfaces: surfaces,
+                          groupTextures: groupTextures,
                           viewport: &viewport, projection: &projection, transforms: transformBuffer)
         }
+    }
+
+    /// The group targets held until the frame ends (`GO-E`).
+    private var heldGroupTextures: [any MTLTexture] = []
+
+    /// Renders every group of `scene` (post-order: a group's own groups first) into pooled targets and returns the target
+    /// of each of `scene.groups`, `nil` where it could not be allocated (`GO-E`). The target is the quad's device box;
+    /// the scene inside keeps the parent's coordinates, and a **post-NDC translation** as the view's projection puts the
+    /// box origin at the target's corner. That is exact because every fragment reads its position, clip and SDF from the
+    /// interpolated pre-projection point (`pixelPosition`), never from `[[position]]` (stop condition 4 of the plan),
+    /// and the projective clip stays linear in `w`.
+    private func encodeGroups(of scene: Scene, in commandBuffer: any MTLCommandBuffer,
+                              surfaces: [SurfaceID: any MTLTexture], state: BackdropFrameState) throws -> [(any MTLTexture)?] {
+        var made: [(any MTLTexture)?] = []
+        made.reserveCapacity(scene.groups.count)
+        for (index, quad) in scene.groups.enumerated() {
+            let child = scene.groupScenes[index]
+            let width = Int(quad.bounds.size.width), height = Int(quad.bounds.size.height)
+            guard width > 0, height > 0,
+                  let target = state.acquire(device: device, width: width, height: height, failing: groupPoolFailsAllocation)
+            else {
+                lastGroupAllocationFailures += 1
+                made.append(nil)
+                continue
+            }
+            heldGroupTextures.append(target)
+            let inner = try encodeGroups(of: child, in: commandBuffer, surfaces: surfaces, state: state)
+            let w = Float(width), h = Float(height)
+            let t = simd_float4x4(columns: (SIMD4(1, 0, 0, 0), SIMD4(0, 1, 0, 0), SIMD4(0, 0, 1, 0),
+                                            SIMD4(-2 * quad.bounds.origin.x / w, 2 * quad.bounds.origin.y / h, 0, 1)))
+            let view = SurfaceView(colorTexture: target,
+                                   viewport: MTLViewport(originX: 0, originY: 0, width: Double(width), height: Double(height),
+                                                         znear: 0, zfar: 1),
+                                   projection: t)
+            try encodeSinglePass(child, view: view, in: commandBuffer, surfaces: surfaces, groupTextures: inner, isGroup: true)
+            lastGroupPasses += 1
+            made.append(target)
+        }
+        return made
     }
 
     /// The scene's transform table bound beside every pipeline's records
@@ -360,6 +438,7 @@ public final class Renderer {
                            into encoder: any MTLRenderCommandEncoder,
                            imageTextures: [any MTLTexture],
                            surfaces: [SurfaceID: any MTLTexture],
+                           groupTextures: [(any MTLTexture)?],
                            viewport: inout MUISize, projection: inout simd_float4x4,
                            transforms transformBuffer: any MTLBuffer) throws {
         switch run.kind {
@@ -390,6 +469,13 @@ public final class Renderer {
             try encodeRects(scene.backdrops[run.start..<(run.start + run.count)].flatMap(\.flatTintRects),
                             into: encoder, viewport: &viewport, projection: &projection,
                             transforms: transformBuffer)
+        case .group:
+            // One group a run (`Scene.finalize`): its target, or nothing when it could not be allocated (`GO-E`).
+            let quads = Array(scene.groups[run.start..<(run.start + run.count)])
+            guard Int(quads[0].texture) < groupTextures.count, let texture = groupTextures[Int(quads[0].texture)] else { return }
+            try encodeImages(quads, texture: texture,
+                             into: encoder, viewport: &viewport, projection: &projection,
+                             transforms: transformBuffer)
         }
     }
 
@@ -410,13 +496,14 @@ public final class Renderer {
     private func encodeWithBackdrops(_ scene: Scene, view: SurfaceView,
                                      in commandBuffer: any MTLCommandBuffer,
                                      surfaces: [SurfaceID: any MTLTexture],
-                                     state: BackdropFrameState) throws -> Bool {
+                                     state: BackdropFrameState,
+                                     groupTextures: [(any MTLTexture)?], beginsFrame: Bool) throws -> Bool {
         precondition(!scene.drawList.isEmpty,
                      "Renderer.encode: the scene holds primitives but its draw list is empty — call Scene.finalize() (or use Frame.finalizedScene()) before encoding, or this frame draws nothing at all.")
         let pipelines = try backdropPipelines()
         let imageTextures = try prepareImageTextures(for: scene)
         let width = view.colorTexture.width, height = view.colorTexture.height
-        state.beginFrame()
+        if beginsFrame { state.beginFrame() }
         guard let frame = state.frameTarget(device: device, width: width, height: height) else {
             lastBackdropTexturesMade = state.texturesMade
             return false
@@ -441,6 +528,7 @@ public final class Renderer {
         for run in scene.drawList {
             guard run.kind == .backdrop else {
                 try encodeRun(run, of: scene, into: encoder, imageTextures: imageTextures, surfaces: surfaces,
+                              groupTextures: groupTextures,
                               viewport: &viewport, projection: &projection, transforms: transformBuffer)
                 continue
             }
@@ -488,7 +576,7 @@ public final class Renderer {
         copyEncoder.endEncoding()
         lastFrameTargetCopies = 1
 
-        state.endFrame()
+        if beginsFrame { state.endFrame() }
         lastBackdropTexturesMade = state.texturesMade
         return true
     }
@@ -767,11 +855,19 @@ public final class Renderer {
         var kept: [ObjectIdentifier: (source: ImageTexture, gpu: any MTLTexture)] = [:]
         var result: [any MTLTexture] = []
         result.reserveCapacity(scene.textures.count)
-        for source in scene.textures {
+        // A group's scenes sample textures of their own: they are part of this frame's set, so none is released
+        // while a nested scene still names it (`GO-E`). Only the root's list is returned.
+        var pending = scene.textures.map { (source: $0, forRoot: true) }
+        var stack = scene.groupScenes
+        while let nested = stack.popLast() {
+            pending.append(contentsOf: nested.textures.map { (source: $0, forRoot: false) })
+            stack.append(contentsOf: nested.groupScenes)
+        }
+        for (source, forRoot) in pending {
             let key = ObjectIdentifier(source)
             if let cached = imageTextures[key] ?? kept[key] {
                 kept[key] = cached
-                result.append(cached.gpu)
+                if forRoot { result.append(cached.gpu) }
                 continue
             }
             let descriptor = MTLTextureDescriptor.texture2DDescriptor(
@@ -788,7 +884,7 @@ public final class Renderer {
             }
             imageTextureUploadCount += 1
             kept[key] = (source, texture)
-            result.append(texture)
+            if forRoot { result.append(texture) }
         }
         imageTextures = kept
         return result
