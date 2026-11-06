@@ -99,6 +99,12 @@ private let frameChannels: [String: Channel] = [
     "pointerOwner": .keyed,
     // Layout results.
     "lowering": .buildOnly, "hiddenNodes": .buildOnly, "elementBounds": .prepaintOnly, "unlowerableFields": .buildOnly,
+    // `ViewThatFits` (`VF-C`, `VF-D`, `VF-H`): the spans, notes and depth are written in the build (audited by the count
+    // `BuildAudit.fitContainers`, and a window opened inside a candidate is tainted); the elided set is derived from the
+    // layout's choices once per frame; the elided ids are appended by prepaint and read by `resolveFocus` in the same frame
+    // (a newly elided candidate moves the choice, which is in the prepaint key, so a replay cannot hide one).
+    "fitSpans": .buildOnly, "fitDepth": .buildOnly, "fitNotes": .buildOnly,
+    "elidedNodes": .frameLocal, "elidedIDs": .prepaintOnly,
     // Surfaces.
     "surfaceRequests": .ledger,
     // The drawn overlays and the drag preview: owned by the window, painted at the root.

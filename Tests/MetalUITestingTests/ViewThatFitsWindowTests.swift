@@ -501,3 +501,44 @@ private struct HoldsAViewThatFits: Component, @MainActor Equatable {
     #expect(holder.on.lastFrameWork.retainedGrafts == 0)
     #expect(sceneKey(holder.on) == sceneKey(holder.off))
 }
+
+// MARK: - Divergence 220
+
+@MainActor private enum SeedLog {
+    static var next = 0
+    static func take() -> Int { next += 1; return next }
+}
+
+/// A candidate that shows the seed its `@State` took.
+private struct SeededRow: Component {
+    let tag: String
+    let width: Float
+    @State var seed = SeedLog.take()
+    var content: some ElementGroup {
+        Text("\(tag) \(seed)").frame(width: Pixels(width), height: Pixels(20))
+    }
+}
+
+/// Divergence 220 (pinned): a candidate after the chosen one is built from the first frame, so its `@State` default is
+/// evaluated and kept then, not when it is first chosen. `C` never shows at 300 wide; after the window narrows its
+/// seed is one the first frame took (`<=` the count after that frame), where a state created on first choice would hold a
+/// later one. SwiftUI creates a measured candidate's state when it is measured and, as the recorded probe read it, every
+/// candidate's (`S0b`).
+@Test @MainActor func aLaterCandidatesStateIsSeededOnTheFirstBuiltFrame() throws {
+    SeedLog.next = 0
+    let window = try harnessWindow(size: sz(300, 100)) {
+        ViewThatFits(in: .horizontal) {
+            SeededRow(tag: "A", width: 400)
+            SeededRow(tag: "B", width: 150)
+            SeededRow(tag: "C", width: 10)
+        }
+    }
+    let afterTheFirstFrame = SeedLog.next
+    for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(SeedLog.next > afterTheFirstFrame, "set up: the defaults are evaluated again every frame")
+    window.resize(to: sz(50, 100))
+    let shown = try window.elements(role: .staticText).compactMap { $0.value ?? $0.label }
+    let seed = try #require(shown.first.flatMap { Int($0.dropFirst(2)) }, "C shows its seed: \(shown)")
+    #expect(shown.first?.hasPrefix("C ") == true)
+    #expect(seed <= afterTheFirstFrame, "C's seed \(seed) was taken on the first frame (\(afterTheFirstFrame)), not when C was chosen")
+}

@@ -106,6 +106,8 @@ F	text-markdown	A	swiftui-rich-text.swift	M1	aLiteralParsesAndAValueDoesNot	151 
 F	text-image-interpolation	X	-	-	-	-	RT-T RT-A	LocalizedStringKey.StringInterpolation.appendInterpolation(_: Image): deprecated and traps — interpolating an Image is not offered (Text(Image) deferred); interpolate a Text instead
 F	attributed-text	A	swiftui-rich-text.swift	C11	anAttributedStringBuildsTheConcatenationsRuns	-	RT-D RT-K LI-A	AttributeScopes.MetalUIAttributes (font, foregroundColor, backgroundColor, underlineStyle, strikethroughStyle, kern, tracking, baselineOffset, foundation), AttributeScopes.metalUI, per-key dynamic-member subscripts, Text(_:)/ProposalText(_:) over an AttributedString (inlinePresentationIntent read on Darwin); a link run is styled, clickable and an accessibility link (LI-A, divergence 150 retired)
 F	open-url	A	swiftui-text-links.swift	LK0	aClickOnALinkRunOpensItsURLAndOneOffTheRunDoesNot	218	LI-A LI-C LI-D	OpenURLAction (init(handler:), callAsFunction), OpenURLAction.Result (.handled, .discarded, .systemAction, .systemAction(_:)), EnvironmentValues.openURL, PlatformWindow.openURL(_:) (AppKit NSWorkspace, SDL SDL_OpenURL, headless HeadlessPlatformWindow.openedURLs): a link click calls the nearest action, the default asks the window's platform; a link under .disabled is inert (218)
+F	view-that-fits	A	swiftui-view-that-fits.swift	H1	aViewThatFitsPicksTheFirstChildWhoseIdealFitsWithLessOrEqual	219 220	VF-A VF-B VF-C VF-D VF-E VF-F VF-G VF-H	ViewThatFits(in:content:): the first child whose ideal along the named axes is <= the proposal (the last is the fallback, later ones are never asked), the chosen one offered the whole proposal; the others are built and not prepainted (no shortcut, hitbox, focus stop, accessibility node, lifecycle, geometry or presentation); a candidate's @State survives a switch; focus in an unchosen one is cleared; the first candidate's spacing edge
+F	axis	A	swiftui-view-that-fits.swift	B1	aVerticalAndATwoAxisViewThatFitsReadTheirAxes	-	VF-I	Axis (.horizontal, .vertical) and Axis.Set: SwiftUI's, introduced for ViewThatFits(in:); ScrollAxis is unchanged
 F	text-proposal-bridge	M	-	-	-	-	LR-S CN-A	Text.proposalLayout(): converts a legacy Text to a ProposalText, dropping background, handlers, id and hover/focus colours
 F	font	A	swiftui-text-semantics.swift	F1	aTextStyleResolvesToMacOSsFace	-	TE-B TE-C TE-D TE-E	Font, Font.Weight, Font.Design, Font.TextStyle: system sizes/weights/designs, the eleven text styles, custom families
 F	text-modifiers	A	swiftui-text-semantics.swift	L1	aLineLimitCapsLinesAndAnswersTheWidestKeptLine	-	TE-H TE-I TE-J TE-AA	.font/.fontWeight/.italic/.foregroundStyle/.foregroundColor/.lineLimit/.truncationMode/.multilineTextAlignment, TextAlignment, Text.TruncationMode
@@ -261,6 +263,8 @@ M	MetalUI	WindowChrome.swift	Window	makeKeyAndOrderFront	.*	window-activation
 M	MetalUI	AppShell.swift	App	activate	.*	window-activation
 M	MetalUI	Color.swift	Color	init	.*hex.*	window-activation
 M	MetalUI	OpenURLAction.swift	.*	.*	.*	open-url
+M	MetalUI	ViewThatFits.swift	.*	.*	.*	view-that-fits
+M	MetalUI	Axis.swift	.*	.*	.*	axis
 M	MetalUITesting	HeadlessPlatformWindow.swift	HeadlessPlatformWindow	(openedURLs|openURL)	.*	open-url
 M	MetalUIPlatform	Platform.swift	(PlatformWindow|Platform)	(orderFrontAndMakeKey|activate)	.*	window-activation
 M	MetalUITesting	HeadlessPlatformWindow.swift	HeadlessPlatformWindow	(orderFrontAndMakeKey|orderFrontCalls|isMiniaturized|isFrontmost|isKey)	.*	window-activation

@@ -2273,3 +2273,14 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **LI2.** Press and hold on a link: does SwiftUI show a pressed look (dimmed run) where MetalUI shows none? Does a click open the default browser on the right URL, once, on AppKit, on SDL under Linux and under Windows? **Observed:**
 - [ ] **LI3.** VoiceOver (AppKit) and an AccessKit client (SDL): is each link found as a link (the rotor's Links list), labelled with its text, activated by VO-Space, and is a wrapped run one link? MetalUI publishes an `AXLink` child per run with a press; SwiftUI's link element offers no `AXPress` in process (probe `AX2`), so compare what VoiceOver actually does. **Observed:**
 - [ ] **LI4.** With Full Keyboard Access on, does Tab reach a link in SwiftUI (MetalUI's links take no focus)? Does `.textSelection(.enabled)` still open a link on a real click (the probe's `LK13` did not)? Does `.disabled(true)` open a link as SwiftUI's probe read it (divergence 218)? **Observed:**
+
+## VF. `ViewThatFits` - the first child that fits, and only that one is alive (record 217; rulings `VF-A`..`VF-J`; decisions `docs/superpowers/2026-11-06-view-that-fits-decisions.md`; provisional letter)
+
+*An agent cannot: the probe `docs/probes/swiftui-view-that-fits.swift` measures SwiftUI headless (a locked screen, `performKeyEquivalent`, the accessibility tree in process), and the headless tests drive the harness, but a resize by hand, a real shortcut key, VoiceOver, an AccessKit client and a drag by hand across the three platforms are a person's. Needs MetalCreator's rewritten `SketchToolbar` (its `docs/metalui-gaps.md` TB-a) built against this branch.*
+
+- [ ] **VF1.** Resize MetalCreator's sketch bar across every threshold, on macOS, on Linux (SDL) and on Windows (SDL): is it ever truncated, and does `More` hold exactly the tools that no longer fit? **Observed:**
+- [ ] **VF2.** At every width, does each tool's key fire its tool once (never twice, never not at all)? (`anUnchosenCandidatesShortcutDoesNotFire`.) **Observed:**
+- [ ] **VF3.** VoiceOver (AppKit) and an AccessKit client (SDL): are only the buttons of the visible row found, and does the tree follow a resize? **Observed:**
+- [ ] **VF4.** Open `More`, then resize across a threshold, and toggle `Mirror`'s label with the menu open: what happens to the open menu (the presentation is retracted when its row becomes unchosen; unmeasured in SwiftUI)? **Observed:**
+- [ ] **VF5.** Does the window drag handle (the greedy `Color.clear` at the row's end) drag the window at every width, and does a click on a tool near it still reach the tool? **Observed:**
+
