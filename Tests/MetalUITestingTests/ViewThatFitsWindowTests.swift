@@ -144,9 +144,11 @@ private struct MirrorBar: Component {
     func shown() throws -> String { (try? window.frame(ofID: "wide")) != nil ? "wide" : "more" }
     #expect(try shown() == "wide", "T1: the Mirror row fits")
     model.mirrored = true
+    window.window.setNeedsRedraw()   // an @Observable write from outside input marks the window by a main-queue hop; draw explicitly
     window.tick()
     #expect(try shown() == "more", "T2: \"Mirror \u{2713}\" does not fit: More")
     model.mirrored = false
+    window.window.setNeedsRedraw()
     window.tick()
     #expect(try shown() == "wide", "T3: and back")
     window.resize(to: sz(narrowRow - 5, 100))
