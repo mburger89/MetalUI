@@ -422,3 +422,117 @@ private struct TapCounter: ProposalElement {
     try #require(group.count == 1, "one shadow: \(group.map { gxDescribe($0.image.bounds) })")
     #expect(group[0].image.bounds.size.width == 30, "the group's shadow is clipped: \(gxDescribe(group[0].image.bounds))")
 }
+
+// MARK: - GO-A, GO-C, GO-G, GO-H (record 218)
+
+/// A legacy two-tile group (`GO0`'s overlap in the legacy vocabulary), under `if shown` with `.transition(.opacity)`.
+@MainActor private func fadingGroup(_ shown: Bool) -> some Element {
+    Column {
+        Stack {
+            Box().frame(width: px(200), height: px(100))
+            if shown {
+                Column {
+                    Box().frame(width: px(60), height: px(20)).background(.accent)
+                    Box().frame(width: px(60), height: px(20)).background(.separator)
+                }
+                .compositingGroup()
+                .transition(.opacity)
+            }
+        }
+    }
+}
+
+/// **GO-B.** A transition written outside a group fades the **group**: at half way the scene holds one group quad at
+/// 0.5 and the tiles inside it are unfaded. Mutation: `RenderEffect.apply`'s flattening branch multiplies the colours
+/// (the tiles fade inside the group as well, the quad stays 1).
+@Test @MainActor func aTransitionFadeOutsideAGroupFadesTheGroup() throws {
+    let h = TransitionHarness()
+    h.frame(0, nil, fadingGroup(false))
+    h.frame(0, Animation.linear(duration: 1), fadingGroup(true))
+    let mid = h.frame(0.5, nil, fadingGroup(true)).finalizedScene()
+    try #require(mid.groups.count == 1, "one group at half way: \(mid.groups.count)")
+    #expect(abs(mid.groups[0].opacity - 0.5) < 0.001, "the group fades: \(mid.groups[0].opacity)")
+    #expect(mid.groupScenes[0].rects.allSatisfy { $0.background.a == 1 }, "unfaded inside")
+    let settled = h.frame(2, nil, fadingGroup(true)).finalizedScene()
+    #expect(settled.groups.isEmpty && settled.rects.count >= 2, "settled: drawn plainly, no group")
+}
+
+/// An unannotated `if` unit holding a half-opaque group: its removal fades by the default ghost (`XF-H`), cut from the
+/// previous frame's scene by sequence range.
+@MainActor private func plainGroupUnit(_ shown: Bool) -> some Element {
+    Column {
+        Stack {
+            Box().frame(width: px(200), height: px(100))
+            if shown {
+                overlap().compositingGroup().opacity(0.5)
+            }
+        }
+    }
+}
+
+/// **GO-G.** A removed unit holding a group fades its ghost as one group: the previous scene's group quad is expanded
+/// into captured primitives under one mark and the default fade multiplies that mark (0.5 x 0.5 at half way).
+/// Mutation: the `.group` arm of `Scene.capturedPrimitives` returns nothing (no ghost).
+@Test @MainActor func aRemovedUnitHoldingAGroupFadesItsGhostAsOneGroup() throws {
+    let h = TransitionHarness()
+    let rest = h.frame(0, nil, plainGroupUnit(true)).finalizedScene()
+    try #require(rest.groups.count == 1, "set up: the unit holds a group at rest")
+    h.frame(0, Animation.linear(duration: 1), plainGroupUnit(false))
+    let mid = h.frame(0.5, nil, plainGroupUnit(false)).finalizedScene()
+    try #require(mid.groups.count == 1, "the ghost is one group: \(mid.groups.count)")
+    #expect(abs(mid.groups[0].opacity - 0.25) < 0.001, "0.5 x the ghost's 0.5: \(mid.groups[0].opacity)")
+    #expect(mid.groupScenes[0].rects.count == 2 && mid.groupScenes[0].rects.allSatisfy { $0.background.a == 1 }, "both squares, unfaded inside")
+}
+
+/// **GO-C.** A `Deferred` inside a group is not in it (its content is never faded from outside).
+@Test @MainActor func aDeferredInsideAGroupIsNotInIt() throws {
+    let scene = effectFrame(ZStack {
+        Column {
+            Box().frame(width: px(60), height: px(20)).background(.separator)
+            Box().frame(width: px(60), height: px(20)).background(.separator)
+            Deferred { Box().frame(width: px(50), height: px(30)).background(.accent) }
+        }
+        .frame(width: px(160), height: px(100)).compositingGroup()
+    }.opacity(0.5)).finalizedScene()
+    try #require(scene.groups.count == 1, "the in-flow bars group")
+    #expect(scene.groupScenes[0].rects.count == 2, "two bars in the group: \(scene.groupScenes[0].rects.map { ($0.bounds.size.width, $0.bounds.size.height, $0.background.a) })")
+    #expect(scene.rects.contains { $0.bounds.size.width == 50 && $0.background.a == 1 }, "the presentation outside, unfaded")
+}
+
+/// **GO-C.** A box above 8192 on a side is drawn per primitive (counted), not as a group. Mutation: no limit.
+@Test @MainActor func anOversizeGroupIsBaked() throws {
+    let frame = effectFrame(VStack(spacing: px(0)) {
+        Color(.accent).frame(width: px(9000), height: px(10))
+        Color(.separator).frame(width: px(9000), height: px(10))
+    }.compositingGroup().opacity(0.5), side: 10_000)
+    let scene = frame.finalizedScene()
+    #expect(frame.groupsFlattenedOversize == 1 && scene.groups.isEmpty, "flattened: \(frame.groupsFlattenedOversize)")
+    #expect(scene.rects.count == 2 && scene.rects.allSatisfy { abs($0.background.a - 0.5) < 0.001 }, "per primitive at 0.5")
+}
+
+/// **GO-A / divergence 222.** A group holding a material keeps its live backdrop: not marked, the opacity multiplies
+/// each primitive (the backdrop record's opacity) and no group is made.
+@Test @MainActor func aMaterialInsideAnOpacityGroupKeepsItsBackdrop() throws {
+    let scene = effectFrame(ZStack {
+        Color(.accent).frame(width: px(60), height: px(60))
+        Color.clear.frame(width: px(40), height: px(40)).background(.regularMaterial)
+    }.compositingGroup().opacity(0.5)).finalizedScene()
+    #expect(scene.groups.isEmpty, "no group")
+    try #require(scene.backdrops.count == 1, "the backdrop stays a backdrop: \(scene.backdrops.count)")
+    #expect(abs(scene.backdrops[0].opacity - 0.5) < 0.001, "faded by its opacity: \(scene.backdrops[0].opacity)")
+}
+
+/// **GO-C / divergence 221.** A shadow written outside an opacity group still sees the group's leaves faded one by
+/// one: the group is still composited (one group quad) and the shadow is cast from the faded silhouette. Mutation:
+/// `shadowItem` without baking (the shadow would keep the unfaded silhouette).
+@Test @MainActor func aShadowOutsideAnOpacityGroupStillCompositesTheGroup() throws {
+    let scene = effectFrame(overlap().compositingGroup().opacity(0.5)
+        .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene()
+    try #require(scene.groups.count == 1, "the group composites: \(scene.groups.count)")
+    let shadows = gxImages(scene)
+    try #require(shadows.count == 1, "one shadow of the union: \(shadows.count)")
+    // The silhouette is the faded leaves': its alpha is the shadow colour's times 0.5 (not the unfaded 1).
+    #expect(gxAlpha(shadows[0], 85, 85) < 200, "faded silhouette: \(gxAlpha(shadows[0], 85, 85))")
+    let blurred = effectFrame(overlap().compositingGroup().opacity(0.5).blur(radius: px(4))).finalizedScene()
+    #expect(blurred.groups.isEmpty && blurred.images.count == 1, "a blur rasterizes the faded leaves: \(blurred.groups.count) groups")
+}

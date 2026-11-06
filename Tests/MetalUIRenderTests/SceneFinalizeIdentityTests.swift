@@ -180,6 +180,7 @@ private func expectMatches(_ scene: Scene, _ p: Pattern, _ when: String) {
 /// (`Frame` builds a fresh `Scene` per frame), so the capacity half pins the
 /// method's contract, not a measured frame cost.
 private let sideTableTexture = ImageTexture(width: 1, height: 1, premultipliedRGBA: [0, 0, 0, 0])
+private let sideTableGroup = Scene()
 private let sideTableTarget = SurfaceTarget(id: SurfaceID(rawValue: 1), width: 1, height: 1)
 
 @Test func sceneSideTablesArePlainIntArraysThatKeepCapacityAcrossClear() throws {
@@ -191,6 +192,7 @@ private let sideTableTarget = SurfaceTarget(id: SurfaceID(rawValue: 1), width: 1
         scene.insert(MUIImage(), texture: sideTableTexture, layer: i % 2)
         scene.insert(MUIImage(), surface: sideTableTarget, layer: i % 3)
         scene.insert(MUIBackdrop(), layer: i % 2)
+        scene.insert(MUIImage(), group: sideTableGroup, layer: i % 3)
     }
     scene.finalize()
     scene.clear()
@@ -210,8 +212,8 @@ private let sideTableTarget = SurfaceTarget(id: SurfaceID(rawValue: 1), width: 1
         guard type(of: child.value) == [Int].self, let array = child.value as? [Int] else { return nil }
         return (child.label ?? "?", array)
     }
-    try #require(intArrays.count == 10,
-                 "expected ten [Int] side tables (two per kind, five kinds since `BB-A`), found \(intArrays.map(\.label))")
+    try #require(intArrays.count == 12,
+                 "expected twelve [Int] side tables (two per kind, six kinds since `GO-D`), found \(intArrays.map(\.label))")
     for table in intArrays {
         #expect(table.array.isEmpty, "\(table.label) is not empty after clear()")
         #expect(table.array.capacity >= primitivesPerKind,

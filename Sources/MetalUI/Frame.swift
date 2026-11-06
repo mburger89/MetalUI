@@ -3751,7 +3751,8 @@ public final class Frame {
             leaves = next
         }
         retainLog?.noteBoundary(0, leaves, depth)
-        insertLeaves(leaves.flatMap(\.0))
+        // One group of leaves (the common case) goes straight in: no flattened copy.
+        if leaves.count == 1 { insertLeaves(leaves[0].0) } else { insertLeaves(leaves.flatMap(\.0)) }
     }
 
     /// The largest side of an offscreen group's target, in device pixels (`GO-C`): the surface limit; a larger group is

@@ -227,6 +227,21 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var lastGlassRecords: Int { backdropCounter(5) }
     /// Sharp copies of a frame region the lens of a glass read in the last frame (`LG-D`), one per glass with the lens on.
     package var lastGlassSharpCopies: Int { backdropCounter(6) }
+    private func groupCounter(_ index: Int) -> Int {
+        var counters: [UInt32] = [0, 0, 0]
+        mui_renderer_group_counters(renderer, &counters)
+        return Int(counters[index])
+    }
+    /// Offscreen group passes of the last frame, one per group (`GO-F`); 0 on a frame with no group.
+    package var lastGroupPasses: Int { groupCounter(0) }
+    /// Groups of the last frame that drew nothing because their target could not be made (`GO-F`).
+    package var lastGroupAllocationFailures: Int { groupCounter(1) }
+    /// Pool textures the last frame had to create, groups' and backdrops' together; 0 on a steady frame (`GO-F`).
+    package var lastGroupTexturesMade: Int { groupCounter(2) }
+    /// Test hook (`GO-F`, as `backdropPoolFailsAllocation`): every group target allocation fails.
+    package var groupPoolFailsAllocation = false {
+        didSet { mui_renderer_set_group_hook(renderer, groupPoolFailsAllocation) }
+    }
     /// The atlas bytes the last finished frame moved to the GPU (a test recorder, `RG-H`).
     package var lastAtlasBytes: Int { Int(mui_renderer_last_atlas_bytes(renderer)) }
     /// The bridge's renderer handle, for a test that drives `mui_renderer_finish` by hand.
@@ -261,11 +276,11 @@ public final class SDLWindowRenderer: WindowRenderer {
     /// Each of `scene.textures`' GPU handles, in order — uploading what is not
     /// cached, releasing what the scene does not reference. `nil` when an
     /// upload failed (the frame is then not drawn).
-    private func prepareTextures(for scene: Scene) -> [UnsafeMutableRawPointer]? {
+    private func prepareTextures(for sources: [ImageTexture]) -> [UnsafeMutableRawPointer]? {
         var kept: [ObjectIdentifier: (source: ImageTexture, handle: UnsafeMutableRawPointer)] = [:]
         var handles: [UnsafeMutableRawPointer] = []
         var failed = false
-        for source in scene.textures {
+        for source in sources {
             let key = ObjectIdentifier(source)
             if let cached = textures[key] ?? kept[key] {
                 kept[key] = cached
@@ -304,7 +319,10 @@ public final class SDLWindowRenderer: WindowRenderer {
     /// a headless scene's reference) is dropped. A draw is recorded only once
     /// its frame is submitted (`MV-O` item 2's rule on Metal).
     public func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool {
-        guard let handles = prepareTextures(for: scene) else { return false }
+        // The scene's textures first, then those only an offscreen group samples (`GO-F`): one shared list, so a
+        // group's image records name the same handles the frame's do.
+        let sharedTextures = SDLGroupSet.sharedTextures(of: scene)
+        guard let handles = prepareTextures(for: sharedTextures) else { return false }
         guard let commandBuffer = mui_renderer_command_buffer(renderer) else { return false }
 
         let device = OpaquePointer(mui_renderer_device(renderer)!)
@@ -364,6 +382,8 @@ public final class SDLWindowRenderer: WindowRenderer {
             quad.texture += textureOffset
             images.append(quad)
         }
+        // The group quads follow (`GO-F`): `.group` runs index them from here.
+        let groupQuadBase = UInt32(images.count)
         // Exhaustive (ruling TE-AF): the old `kind == .glyph ? 1 : 0` drew an
         // image run as rects.
         let runs = scene.drawList.compactMap { run -> ReplayRun? in
@@ -380,7 +400,29 @@ public final class SDLWindowRenderer: WindowRenderer {
                 // A segment break: the bridge blurs each record from the frame as it
                 // stands and draws its quad (rulings BB-C, BB-D).
                 return ReplayRun(kind: 3, start: UInt32(run.start), count: UInt32(run.count))
+            case .group:
+                // A group quad is an image record whose texture is the group's target (`SDLGroupSet`).
+                return ReplayRun(kind: 2, start: groupQuadBase + UInt32(run.start), count: UInt32(run.count))
             }
+        }
+        // With offscreen groups their records and runs follow the frame's own (`GO-F`); with none the frame's
+        // arrays go to the bridge untouched.
+        let mainRunCount = runs.count
+        var rectRecords = scene.rects, imageRecords = images, transformRecords = scene.transforms
+        var allRuns = runs
+        var cGroups: [ReplayGroup] = []
+        if !scene.groupScenes.isEmpty {
+            var indexOf: [ObjectIdentifier: UInt32] = [:]
+            for (k, texture) in sharedTextures.enumerated() { indexOf[ObjectIdentifier(texture)] = UInt32(k) }
+            // The root's group quads join its image array after the surface quads; the groups' images follow them.
+            let set = SDLGroupSet(scene, counts: (rectRecords.count, glyphRecords.count,
+                                                  imageRecords.count + scene.groups.count, transformRecords.count),
+                                  mainRunCount: mainRunCount, groupTextureBase: UInt32(handles.count + surfaceHandles.count),
+                                  textureIndex: { indexOf[ObjectIdentifier($0)]! })
+            rectRecords += set.rects; glyphRecords += set.glyphs; imageRecords += set.rootQuads + set.images
+            transformRecords += set.transforms
+            allRuns += set.runs
+            cGroups = set.groups
         }
         // Device-pixel coordinates, as the Metal renderer's surfaces use.
         let identity: [Float] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
@@ -398,14 +440,15 @@ public final class SDLWindowRenderer: WindowRenderer {
             return ReplayRegion(x: Int32(region.x), y: Int32(region.y),
                                 width: Int32(region.width), height: Int32(region.height))
         }
-        let ok = scene.rects.withUnsafeBytes { rects in
+        let ok = rectRecords.withUnsafeBytes { rects in
             glyphRecords.withUnsafeBytes { glyphs in
-                images.withUnsafeBytes { images in
-                  scene.transforms.withUnsafeBytes { transforms in
+                imageRecords.withUnsafeBytes { images in
+                  transformRecords.withUnsafeBytes { transforms in
                    scene.backdrops.withUnsafeBytes { backdrops in
                     regions.withUnsafeBufferPointer { regionBuffer in
                     optionalHandles.withUnsafeBufferPointer { textureBuffer in
-                        runs.withUnsafeBufferPointer { runBuffer in
+                        allRuns.withUnsafeBufferPointer { runBuffer in
+                         cGroups.withUnsafeBufferPointer { groupBuffer in
                             atlas.pixels.withUnsafeBufferPointer { pixels in
                               atlasRects.withUnsafeBufferPointer { atlasRectBuffer in
                                 texts.withUnsafeBufferPointer { textBuffer in
@@ -418,16 +461,19 @@ public final class SDLWindowRenderer: WindowRenderer {
                                                         backdrops.baseAddress, UInt32(backdrops.count),
                                                         regionBuffer.baseAddress, UInt32(regionBuffer.count),
                                                         textureBuffer.baseAddress, UInt32(optionalHandles.count),
-                                                        runBuffer.baseAddress, UInt32(runs.count),
+                                                        runBuffer.baseAddress, UInt32(runBuffer.count),
                                                         pixels.baseAddress, UInt32(atlas.width), UInt32(atlas.height),
                                                         atlasRectBuffer.baseAddress,
                                                         UInt32(atlasRectBuffer.count / 4),
                                                         textBuffer.baseAddress, UInt32(textBuffer.count),
+                                                        groupBuffer.baseAddress, UInt32(groupBuffer.count),
+                                                        UInt32(mainRunCount),
                                                         matrix.baseAddress)
                                 }
                                 }
                               }
                             }
+                         }
                         }
                     }
                     }

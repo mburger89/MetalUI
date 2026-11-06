@@ -365,13 +365,29 @@ typedef struct {
     uint32_t splits, blurs, passes, copies, made;
     /* Glass records encoded and sharp copies of the frame region made for their lens (LG-D). */
     uint32_t glass_records, glass_copies;
-    bool pool_fails, route_every_frame, sharp_fails;
+    /* Offscreen group passes made and groups dropped for want of a target, this frame (GO-F). */
+    uint32_t group_passes, group_failures;
+    bool pool_fails, route_every_frame, sharp_fails, group_pool_fails;
 } BackdropState;
 
 static void backdrop_begin_frame(BackdropState *b) {
     b->splits = b->blurs = b->passes = b->copies = b->made = 0;
     b->glass_records = b->glass_copies = 0;
+    b->group_passes = b->group_failures = 0;
     b->used_count = 0;
+}
+
+/* The frame target and every free pool slot dropped; a slot still held (an offscreen group's target, GO-F) stays.
+   With no group in flight every slot is free, so this is `backdrop_release_all`. */
+static void backdrop_release_unused(ReplayGPU *g, BackdropState *b) {
+    if (b->frame) SDL_ReleaseGPUTexture(g->device, b->frame);
+    b->frame = NULL; b->frame_width = b->frame_height = 0;
+    uint32_t kept = 0;
+    for (uint32_t i = 0; i < b->slot_count; i++) {
+        if (b->slots[i].free) SDL_ReleaseGPUTexture(g->device, b->slots[i].texture);
+        else b->slots[kept++] = b->slots[i];
+    }
+    b->slot_count = kept;
 }
 
 static void backdrop_release_all(ReplayGPU *g, BackdropState *b) {
@@ -648,7 +664,9 @@ static void draw_primitives(FrameDraw *f, SDL_GPURenderPass *pass, uint32_t kind
         SDL_GPUTextureSamplerBinding binding = {f->atlas, g->sampler};
         SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
     } else if (kind == KIND_IMAGE) {
-        SDL_GPUTextureSamplerBinding binding = {f->image_textures[image_texture(f->images, start)], g->sampler};
+        SDL_GPUTexture *sampled = f->image_textures[image_texture(f->images, start)];
+        if (!sampled) return;   /* a group whose target could not be made draws nothing (GO-F) */
+        SDL_GPUTextureSamplerBinding binding = {sampled, g->sampler};
         SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
     }
     /* SDL explicitly warns built-in instance IDs differ across APIs when
@@ -683,6 +701,40 @@ static bool projection_is_identity(const float *m) {
     return memcmp(m, identity, sizeof(identity)) == 0;
 }
 
+/* The offscreen groups of a frame (GO-F), post-order (a group's runs name only earlier groups): each into a pooled
+   target of its box, cleared transparent, with a post-NDC translation as the projection that puts the box origin at the
+   target's corner. Exact because the fragment stage reads positions, clips and SDFs from the interpolated pre-projection
+   point, never SV_Position, and the projective clip stays linear in w. `textures` is the image array the frame samples,
+   room for `texture_count + group_count`: group g's target is stored at `texture_count + g` as it is made. `slots` receives
+   each pool slot (-1 for a group that could not be made: it draws nothing). */
+static bool render_groups(FrameDraw *f, BackdropState *b, SDL_GPUTexture **textures, uint32_t texture_count,
+                          const ReplayGroup *groups, uint32_t group_count, int *slots) {
+    for (uint32_t i = 0; i < group_count; i++) {
+        const ReplayGroup *group = &groups[i];
+        slots[i] = -1;
+        textures[texture_count + i] = NULL;
+        int slot = (b->group_pool_fails || !group->width || !group->height)
+            ? -1 : backdrop_acquire(f->g, b, group->width, group->height);
+        if (slot < 0) { b->group_failures += 1; continue; }
+        slots[i] = slot;
+        SDL_GPUTexture *target = b->slots[slot].texture;
+        FrameDraw inner = *f;
+        float w = (float)group->width, h = (float)group->height;
+        float projection[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -2.0f * group->x / w, 2.0f * group->y / h, 0, 1};
+        inner.runs = f->runs + group->run_start; inner.run_count = group->run_count;
+        inner.width = group->width; inner.height = group->height;
+        inner.viewport.width = w; inner.viewport.height = h;
+        inner.projection = projection;
+        SDL_GPURenderPass *pass = begin_segment(&inner, target, SDL_GPU_LOADOP_CLEAR);
+        if (!pass) return false;
+        for (uint32_t k = 0; k < inner.run_count; k++) draw_run(&inner, pass, &inner.runs[k]);
+        SDL_EndGPURenderPass(pass);
+        b->group_passes += 1;
+        textures[texture_count + i] = target;
+    }
+    return true;
+}
+
 /* Draws the frame into `target` (ruling BB-C). **A frame with no backdrop run
    takes the single pass into the target, byte for byte**; one with backdrops
    renders into the frame target in segments — segment 0 clears transparent and
@@ -697,7 +749,6 @@ static bool encode_frame(FrameDraw *f, BackdropState *b, SDL_GPUTexture *target,
     ReplayGPU *g = f->g;
     bool has_backdrops = false;
     for (uint32_t i = 0; i < f->run_count; i++) if (f->runs[i].kind == KIND_BACKDROP) has_backdrops = true;
-    backdrop_begin_frame(b);
     bool wants = has_backdrops || (b->route_every_frame && f->run_count > 0);
     SDL_GPUTexture *frame = NULL;
     if (wants && projection_is_identity(f->projection)) {
@@ -706,7 +757,7 @@ static bool encode_frame(FrameDraw *f, BackdropState *b, SDL_GPUTexture *target,
         if (ready) frame = backdrop_frame_target(g, b, f->width, f->height);
     }
     if (!frame) {
-        if (!wants) backdrop_release_all(g, b);
+        if (!wants) backdrop_release_unused(g, b);
         SDL_GPURenderPass *pass = begin_segment(f, target, SDL_GPU_LOADOP_CLEAR);
         if (!pass) return false;
         for (uint32_t i = 0; i < f->run_count; i++) draw_run(f, pass, &f->runs[i]);
@@ -793,11 +844,16 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     const ReplayTexture *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t count,
     const uint8_t *atlas, uint32_t aw, uint32_t ah,
+    const ReplayGroup *groups, uint32_t group_count, uint32_t main_run_count,
     const float *projection, uint8_t *out) {
     // Diagnostic harness only: bounded fixtures, one completed frame at a time.
     if (!w || !h || w > 4096 || h > 4096 || !aw || !ah || aw > 4096 || ah > 4096)
         return SDL_SetError("invalid fixture dimensions");
-    if (!images_valid(images, ib, texture_count, runs, count)) return false;
+    if (main_run_count > count) return SDL_SetError("main runs past the run array");
+    for (uint32_t i = 0; i < group_count; i++)
+        if ((uint64_t)groups[i].run_start + groups[i].run_count > count || groups[i].width > 4096 || groups[i].height > 4096)
+            return SDL_SetError("group out of range");
+    if (!images_valid(images, ib, texture_count + group_count, runs, count)) return false;
     if (tb % TRANSFORM_STRIDE) return SDL_SetError("unexpected MetalUI transform ABI");
     if (kb % BACKDROP_STRIDE || region_count != kb / BACKDROP_STRIDE) return SDL_SetError("unexpected MetalUI backdrop ABI");
     if (!transforms_valid(rects, rb, glyphs, gb, images, ib, backdrops, kb, tb, runs, count)) return false;
@@ -812,12 +868,14 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     SDL_GPUCommandBuffer *cmd = NULL;
     SDL_GPUFence *fence = NULL;
     BackdropState backdrop = {0};
+    int *group_slots = NULL;
     bool ok = false;
     void *packed[2] = {0};
-    if (texture_count) {
-        image_textures = SDL_calloc(texture_count, sizeof(*image_textures));
-        image_uploads = SDL_calloc(texture_count, sizeof(*image_uploads));
-        if (!image_textures || !image_uploads) { SDL_SetError("allocation failed"); goto cleanup; }
+    if (texture_count || group_count) {
+        image_textures = SDL_calloc(texture_count + group_count, sizeof(*image_textures));
+        image_uploads = SDL_calloc(texture_count + group_count, sizeof(*image_uploads));
+        group_slots = SDL_calloc(group_count ? group_count : 1, sizeof(*group_slots));
+        if (!image_textures || !image_uploads || !group_slots) { SDL_SetError("allocation failed"); goto cleanup; }
     }
     if (g->target) { SDL_ReleaseGPUTexture(g->device, g->target); g->target = NULL; }
     g->target = texture(g, w, h, true);
@@ -876,12 +934,15 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     FrameDraw frame = {
         .g = g, .cmd = cmd, .atlas = atlas_texture, .image_textures = image_textures, .images = images,
         .backdrops = backdrops, .regions = regions, .rect_records = rect_records,
-        .runs = runs, .run_count = count, .width = w, .height = h, .projection = projection,
+        .runs = runs, .run_count = main_run_count, .width = w, .height = h, .projection = projection,
         .viewport = {(float)w, (float)h, 0, 0}
     };
     memcpy(frame.buffers, buffers, sizeof(buffers));
     if (!g->portable && kb) { SDL_SetError("a backdrop needs the portable shaders (replay_create_portable)"); goto cleanup; }
+    backdrop_begin_frame(&backdrop);
+    if (!render_groups(&frame, &backdrop, image_textures, texture_count, groups, group_count, group_slots)) goto cleanup;
     if (!encode_frame(&frame, &backdrop, g->target, true)) goto cleanup;
+    for (uint32_t i = 0; i < group_count; i++) backdrop_release(&backdrop, group_slots[i]);
     copy = SDL_BeginGPUCopyPass(cmd);
     if (!copy) goto cleanup;
     SDL_GPUTextureRegion src = { .texture = g->target, .w = w, .h = h, .d = 1 };
@@ -905,7 +966,7 @@ cleanup:
         if (image_textures[t]) SDL_ReleaseGPUTexture(g->device, image_textures[t]);
         if (image_uploads && image_uploads[t]) SDL_ReleaseGPUTransferBuffer(g->device, image_uploads[t]);
     }
-    SDL_free(image_textures); SDL_free(image_uploads);
+    SDL_free(image_textures); SDL_free(image_uploads); SDL_free(group_slots);
     if (download) SDL_ReleaseGPUTransferBuffer(g->device, download);
     if (atlas_texture) SDL_ReleaseGPUTexture(g->device, atlas_texture);
     backdrop_destroy(g, &backdrop);
@@ -1142,6 +1203,7 @@ bool mui_renderer_finish(MUIRenderer *r,
     const uint8_t *atlas, uint32_t aw, uint32_t ah,
     const uint32_t *atlas_rects, uint32_t atlas_rect_count,
     const ReplaySurfaceText *texts, uint32_t text_count,
+    const ReplayGroup *groups, uint32_t group_count, uint32_t main_run_count,
     const float *projection) {
     if (!r->cmd) return SDL_SetError("finish without a successful begin");
     r->last_text_passes = 0;
@@ -1154,7 +1216,12 @@ bool mui_renderer_finish(MUIRenderer *r,
     uint8_t *atlas_packed = NULL;
     uint32_t atlas_bytes = 0;
     bool ok = false;
-    if (!images_valid(images, ib, texture_count, runs, count)) goto cleanup;
+    SDL_GPUTexture **frame_textures = NULL;
+    int *group_slots = NULL;
+    if (main_run_count > count) { SDL_SetError("main runs past the run array"); goto cleanup; }
+    for (uint32_t i = 0; i < group_count; i++)
+        if ((uint64_t)groups[i].run_start + groups[i].run_count > count) { SDL_SetError("group out of range"); goto cleanup; }
+    if (!images_valid(images, ib, texture_count + group_count, runs, count)) goto cleanup;
     if (tb % TRANSFORM_STRIDE) { SDL_SetError("unexpected MetalUI transform ABI"); goto cleanup; }
     if (kb % BACKDROP_STRIDE || region_count != kb / BACKDROP_STRIDE) { SDL_SetError("unexpected MetalUI backdrop ABI"); goto cleanup; }
     if (!transforms_valid(rects, rb, glyphs, gb, images, ib, backdrops, kb, tb, runs, count)) goto cleanup;
@@ -1251,7 +1318,7 @@ bool mui_renderer_finish(MUIRenderer *r,
     FrameDraw frame = {
         .g = r->gpu, .cmd = cmd, .atlas = r->atlas, .image_textures = (SDL_GPUTexture *const *)textures,
         .images = images, .backdrops = backdrops, .regions = regions, .rect_records = rect_records,
-        .runs = runs, .run_count = count, .width = r->width, .height = r->height, .projection = projection,
+        .runs = runs, .run_count = main_run_count, .width = r->width, .height = r->height, .projection = projection,
         .viewport = {(float)r->width, (float)r->height, 0, 0}
     };
     memcpy(frame.buffers, buffers, sizeof(buffers));
@@ -1269,7 +1336,21 @@ bool mui_renderer_finish(MUIRenderer *r,
         SDL_EndGPURenderPass(pass);
         r->last_text_passes += 1;
     }
-    if (!encode_frame(&frame, &r->backdrop, r->target, false)) goto cleanup;
+    backdrop_begin_frame(&r->backdrop);
+    if (group_count) {
+        /* The frame's image handles then each group's target, as it is made (GO-F). */
+        frame_textures = calloc(texture_count + group_count, sizeof(*frame_textures));
+        group_slots = calloc(group_count, sizeof(*group_slots));
+        if (!frame_textures || !group_slots) { SDL_SetError("allocation failed"); goto cleanup; }
+        memcpy(frame_textures, textures, texture_count * sizeof(*frame_textures));
+        frame.image_textures = frame_textures;
+        for (uint32_t i = 0; i < group_count; i++) group_slots[i] = -1;
+        if (!render_groups(&frame, &r->backdrop, frame_textures, texture_count, groups, group_count, group_slots)) goto cleanup;
+    }
+    bool encoded = encode_frame(&frame, &r->backdrop, r->target, false);
+    for (uint32_t i = 0; i < group_count; i++) backdrop_release(&r->backdrop, group_slots[i]);
+    if (group_count) backdrop_end_frame(r->gpu, &r->backdrop);
+    if (!encoded) goto cleanup;
     r->submissions += 1;
     if (r->window) {
         ok = SDL_SubmitGPUCommandBuffer(cmd);
@@ -1284,9 +1365,15 @@ cleanup:
     /* SDL releases these once the GPU no longer uses them. */
     for (int i = 0; i < BUF_COUNT; i++) if (buffers[i]) SDL_ReleaseGPUBuffer(d, buffers[i]);
     for (int i = 0; i < BUF_COUNT + 1; i++) if (uploads[i]) SDL_ReleaseGPUTransferBuffer(d, uploads[i]);
-    free(packed[0]); free(packed[1]); free(atlas_packed);
+    free(packed[0]); free(packed[1]); free(atlas_packed); free(frame_textures); free(group_slots);
     return ok;
 }
+
+void mui_renderer_group_counters(MUIRenderer *r, uint32_t out[3]) {
+    out[0] = r->backdrop.group_passes; out[1] = r->backdrop.group_failures; out[2] = r->backdrop.made;
+}
+
+void mui_renderer_set_group_hook(MUIRenderer *r, bool pool_fails) { r->backdrop.group_pool_fails = pool_fails; }
 
 void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[7]) {
     out[0] = r->backdrop.splits; out[1] = r->backdrop.blurs; out[2] = r->backdrop.passes;

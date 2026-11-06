@@ -47,15 +47,19 @@ public final class SDLReplayer {
     /// painter-order control).
     public func render(_ fixture: ReplayFixture, runs: [FixtureRun]? = nil) throws -> [UInt8] {
         let regions = fixture.backdropRegions.map(Self.region)
-        return try fixture.rects.withUnsafeBytes { rects in
-            try fixture.glyphs.withUnsafeBytes { glyphs in
-                try fixture.images.withUnsafeBytes { images in
-                  try fixture.transforms.withUnsafeBytes { transforms in
+        let flat = FlatFrame(root: FixtureBody(rects: fixture.rects, glyphs: fixture.glyphs, images: fixture.images,
+                                               transforms: fixture.transforms, runs: runs ?? fixture.runs),
+                             groups: fixture.groups, groupTextureBase: UInt32(fixture.textures.count))
+        return try flat.rects.withUnsafeBytes { rects in
+            try flat.glyphs.withUnsafeBytes { glyphs in
+                try flat.images.withUnsafeBytes { images in
+                  try flat.transforms.withUnsafeBytes { transforms in
                    try fixture.backdrops.withUnsafeBytes { backdrops in
                     try draw(width: fixture.width, height: fixture.height, rects: rects, glyphs: glyphs,
                              images: images, transforms: transforms, backdrops: backdrops, regions: regions,
                              textures: fixture.textures.map { ($0.width, $0.height, $0.pixels) },
-                             runs: runs ?? fixture.runs, atlas: fixture.atlas,
+                             runs: flat.runs, mainRunCount: flat.mainRunCount, groups: flat.groups,
+                             atlas: fixture.atlas,
                              atlasWidth: fixture.atlasWidth, atlasHeight: fixture.atlasHeight,
                              projection: fixture.projection)
                    }
@@ -72,20 +76,39 @@ public final class SDLReplayer {
         return ReplayRegion(x: Int32(region.x), y: Int32(region.y), width: Int32(region.width), height: Int32(region.height))
     }
 
-    /// Draws a finalized scene straight from its arrays, no copy.
+    /// Draws a finalized scene straight from its arrays, no copy (a scene with offscreen groups is flattened with
+    /// them, `GO-F`).
     public func render(_ scene: Scene, atlas: GlyphAtlas, width: Int, height: Int,
                        projection: [Float], runs: [FixtureRun]? = nil) throws -> [UInt8] {
-        let sceneRuns = runs ?? scene.drawList.map { FixtureRun(scene: $0) }
         let regions = (0..<scene.backdrops.count).map { Self.region(scene.backdropRegion($0, target: (width, height))) }
-        return try scene.rects.withUnsafeBytes { rects in
-            try scene.glyphs.withUnsafeBytes { glyphs in
-                try scene.images.withUnsafeBytes { images in
-                  try scene.transforms.withUnsafeBytes { transforms in
+        var shared = scene.textures
+        let tree = FixtureGroupTree(scene) { texture in
+            if let index = shared.firstIndex(where: { $0 === texture }) { return UInt32(index) }
+            shared.append(texture)
+            return UInt32(shared.count - 1)
+        }
+        let imageCount = scene.images.count
+        let sceneRuns = runs ?? scene.drawList.map { run -> FixtureRun in
+            var fixtureRun = FixtureRun(scene: run)
+            if run.kind == .group { fixtureRun.start += UInt32(imageCount) }
+            return fixtureRun
+        }
+        let flat = FlatFrame(root: FixtureBody(rects: scene.rects.withUnsafeBytes { Array($0) },
+                                               glyphs: scene.glyphs.withUnsafeBytes { Array($0) },
+                                               images: scene.images.withUnsafeBytes { Array($0) } + tree.rootQuads.withUnsafeBytes { Array($0) },
+                                               transforms: scene.transforms.withUnsafeBytes { Array($0) },
+                                               runs: sceneRuns),
+                             groups: tree.groups, groupTextureBase: UInt32(shared.count))
+        return try flat.rects.withUnsafeBytes { rects in
+            try flat.glyphs.withUnsafeBytes { glyphs in
+                try flat.images.withUnsafeBytes { images in
+                  try flat.transforms.withUnsafeBytes { transforms in
                    try scene.backdrops.withUnsafeBytes { backdrops in
                     try draw(width: UInt32(width), height: UInt32(height), rects: rects, glyphs: glyphs,
                              images: images, transforms: transforms, backdrops: backdrops, regions: regions,
-                             textures: scene.textures.map { (UInt32($0.width), UInt32($0.height), $0.pixels) },
-                             runs: sceneRuns, atlas: atlas.pixels,
+                             textures: shared.map { (UInt32($0.width), UInt32($0.height), $0.pixels) },
+                             runs: flat.runs, mainRunCount: flat.mainRunCount, groups: flat.groups,
+                             atlas: atlas.pixels,
                              atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height),
                              projection: projection)
                    }
@@ -104,10 +127,14 @@ public final class SDLReplayer {
                       images: UnsafeRawBufferPointer, transforms: UnsafeRawBufferPointer,
                       backdrops: UnsafeRawBufferPointer, regions: [ReplayRegion],
                       textures: [(UInt32, UInt32, [UInt8])],
-                      runs: [FixtureRun], atlas: [UInt8], atlasWidth: UInt32, atlasHeight: UInt32,
+                      runs: [FixtureRun], mainRunCount: Int, groups: [FlatGroup],
+                      atlas: [UInt8], atlasWidth: UInt32, atlasHeight: UInt32,
                       projection: [Float]) throws -> [UInt8] {
         precondition(projection.count == 16, "projection must be a 4x4 matrix")
         let cRuns = runs.map { ReplayRun(kind: $0.kind.rawValue, start: $0.start, count: $0.count) }
+        let cGroups = groups.map {
+            ReplayGroup(x: $0.x, y: $0.y, width: $0.width, height: $0.height, run_start: $0.runStart, run_count: $0.runCount)
+        }
         var output = [UInt8](repeating: 0, count: Int(width) * Int(height) * 4)
         // Each texture's bytes pinned for the call: `replay_render` copies them.
         func withTextures<R>(_ index: Int, _ built: [ReplayTexture],
@@ -124,6 +151,7 @@ public final class SDLReplayer {
                     projection.withUnsafeBufferPointer { matrix in
                         cTextures.withUnsafeBufferPointer { textureBuffer in
                           regions.withUnsafeBufferPointer { regionBuffer in
+                           cGroups.withUnsafeBufferPointer { groupBuffer in
                             replay_render(gpu, width, height,
                                 rects.baseAddress, UInt32(rects.count), glyphs.baseAddress, UInt32(glyphs.count),
                                 images.baseAddress, UInt32(images.count),
@@ -133,7 +161,9 @@ public final class SDLReplayer {
                                 textureBuffer.baseAddress, UInt32(cTextures.count),
                                 runBuffer.baseAddress, UInt32(cRuns.count),
                                 atlasBuffer.baseAddress, atlasWidth, atlasHeight,
+                                groupBuffer.baseAddress, UInt32(cGroups.count), UInt32(mainRunCount),
                                 matrix.baseAddress, &output)
+                           }
                           }
                         }
                     }

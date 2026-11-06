@@ -350,7 +350,9 @@ private struct SteadyEquatable: Component, @MainActor Equatable {
     for i in 0..<4 { h.frame(Double(i), nil, tree()) }
     #if canImport(Darwin)
     let allocations = try #require(countAllocations { h.frame(10, nil, tree()) })
-    #expect(allocations == 398, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
+    // 397 since `GO-C`: `processScopes` hands its one leaf group to `insertLeaves` directly, where the old loop made a
+    // tuple-array iteration copy (398 on master 3c7eadb9).
+    #expect(allocations == 397, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
     #endif
     #expect(h.store.vectorTrackRebuilds == 0 && h.store.count == 0, "and no track: \(h.store.vectorTrackRebuilds) \(h.store.count)")
 }

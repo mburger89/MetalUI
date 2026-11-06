@@ -4,7 +4,8 @@
 // side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
 // `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
-// Layout (little-endian, no padding), version 6 (ruling PJ-A: the 80-byte transform record with its
+// Layout (little-endian, no padding), version 7 (ruling GO-F: offscreen opacity groups, after the runs; version 6,
+// ruling PJ-A: the 80-byte transform record with its
 // projective lane; version 5, LG-O: the 256-byte
 // backdrop record with the Liquid Glass tail; version 4, BB-J, backdrops at 96
 // bytes; version 3, GX-F, added transforms; version 2, TE-AF, images — versions
@@ -20,7 +21,10 @@
 //   u32 textureCount, textureCount × (u32 width, height, width × height × 4 RGBA8 bytes)
 //   u32 transformByteCount, transform bytes (MUITransform records)   (version 3; 64 bytes a record until 5, 80 from 6)
 //   u32 backdropByteCount, backdrop bytes (MUIBackdrop records)      (version 4, 5)
-//   u32 runCount, runCount × (u32 kind, start, count)
+//   u32 runCount, runCount × (u32 kind, start, count)        (kind 4 = a group quad run, version 7)
+//   u32 groupCount, per group in post-order (version 7, GO-F): u32 x, y, width, height, then a nested body:
+//       u32 byteCount + bytes for rects, glyphs, images, transforms; u32 runCount, runCount × (kind, start, count)
+//       (textures are the top-level list; a group quad in an `images` array names its group by index)
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
 //   16 × f32 projection (column-major)
 //   width × height × 4 BGRA8 reference bytes
@@ -29,7 +33,9 @@ import MetalUIScene
 import MetalUIShaderTypes
 
 public struct FixtureRun: Equatable, Sendable {
-    public enum Kind: UInt32, Sendable { case rect = 0, glyph = 1, image = 2, backdrop = 3 }
+    /// `group` (version 7, `GO-F`): a run of group quads — `MUIImage` records in `images` whose `texture` names the
+    /// group (an index into ``ReplayFixture/groups``, post-order) rather than a texture.
+    public enum Kind: UInt32, Sendable { case rect = 0, glyph = 1, image = 2, backdrop = 3, group = 4 }
     public var kind: Kind
     public var start: UInt32
     public var count: UInt32
@@ -52,6 +58,9 @@ public struct FixtureRun: Equatable, Sendable {
         case .backdrop:
             // Fixture version 4 records it (BB-J).
             kind = .backdrop
+        case .group:
+            // Version 7 records it (GO-F); the caller appends the group quads to the image array.
+            kind = .group
         }
         self.init(kind: kind, start: UInt32(run.start), count: UInt32(run.count))
     }
@@ -68,7 +77,7 @@ public struct FixtureTexture: Equatable, Sendable {
 }
 
 public struct ReplayFixture: Equatable, Sendable {
-    public static let version: UInt32 = 6
+    public static let version: UInt32 = 7
     /// The oldest version ``init(decoding:)`` still reads (ruling `BB-J`):
     /// version 1 had no images and is re-recorded, never read.
     public static let oldestReadableVersion: UInt32 = 2
@@ -101,6 +110,9 @@ public struct ReplayFixture: Equatable, Sendable {
     /// The scene's `MUIBackdrop` records (version 4, ruling `BB-J`).
     public var backdrops: [UInt8] = []
     public var runs: [FixtureRun]
+    /// The offscreen groups, post-order (version 7, `GO-F`): a group's runs name only earlier groups; the top-level
+    /// ``runs`` and each body's draw the group quads their `images` carry.
+    public var groups: [FixtureGroup] = []
     public var atlasWidth: UInt32
     public var atlasHeight: UInt32
     public var atlas: [UInt8]
@@ -166,9 +178,10 @@ public struct ReplayFixture: Equatable, Sendable {
 
     public init(width: UInt32, height: UInt32, rects: [UInt8], glyphs: [UInt8],
                 images: [UInt8] = [], textures: [FixtureTexture] = [], transforms: [UInt8] = [],
-                backdrops: [UInt8] = [], runs: [FixtureRun],
+                backdrops: [UInt8] = [], runs: [FixtureRun], groups: [FixtureGroup] = [],
                 atlasWidth: UInt32, atlasHeight: UInt32, atlas: [UInt8],
                 projection: [Float], reference: [UInt8]) throws(FixtureError) {
+        self.groups = groups
         self.width = width; self.height = height
         self.rects = rects; self.glyphs = glyphs; self.images = images; self.textures = textures
         self.transforms = transforms
@@ -183,16 +196,31 @@ public struct ReplayFixture: Equatable, Sendable {
     /// the atlas they sample, and the reference pixels to compare against.
     public init(scene: Scene, atlas: GlyphAtlas, width: UInt32, height: UInt32,
                 projection: [Float], reference: [UInt8]) throws(FixtureError) {
+        // The scene's textures first, then those only a group samples (`GO-F`): one shared list.
+        var shared = scene.textures
+        let tree = FixtureGroupTree(scene) { texture in
+            if let index = shared.firstIndex(where: { $0 === texture }) { return UInt32(index) }
+            shared.append(texture)
+            return UInt32(shared.count - 1)
+        }
+        var images: [UInt8] = scene.images.withUnsafeBytes { Array($0) }
+        images += tree.rootQuads.withUnsafeBytes { Array($0) }
+        let imageCount = scene.images.count
         try self.init(width: width, height: height,
             rects: scene.rects.withUnsafeBytes { Array($0) },
             glyphs: scene.glyphs.withUnsafeBytes { Array($0) },
-            images: scene.images.withUnsafeBytes { Array($0) },
-            textures: scene.textures.map {
+            images: images,
+            textures: shared.map {
                 FixtureTexture(width: UInt32($0.width), height: UInt32($0.height), pixels: $0.pixels)
             },
             transforms: scene.transforms.withUnsafeBytes { Array($0) },
             backdrops: scene.backdrops.withUnsafeBytes { Array($0) },
-            runs: scene.drawList.map { FixtureRun(scene: $0) },
+            runs: scene.drawList.map { run in
+                var fixtureRun = FixtureRun(scene: run)
+                if run.kind == .group { fixtureRun.start += UInt32(imageCount) }
+                return fixtureRun
+            },
+            groups: tree.groups,
             atlasWidth: UInt32(atlas.width), atlasHeight: UInt32(atlas.height), atlas: atlas.pixels,
             projection: projection, reference: reference)
     }
@@ -223,9 +251,17 @@ public struct ReplayFixture: Equatable, Sendable {
         // The bridge binds one texture per run, the one its first record names,
         // so every record of an image run must name that texture, and it must exist.
         let imageTextures = imageRecords.map(\.texture)
-        for (index, texture) in imageTextures.enumerated() where Int(texture) >= textures.count {
+        var groupQuad = [Bool](repeating: false, count: imageTextures.count)
+        for run in runs where run.kind == .group {
+            for i in Int(run.start)..<min(Int(run.start) + Int(run.count), groupQuad.count) { groupQuad[i] = true }
+        }
+        for (index, texture) in imageTextures.enumerated() where !groupQuad[index] && Int(texture) >= textures.count {
             throw .invalid("image \(index) names texture \(texture) of \(textures.count)")
         }
+        for (index, texture) in imageTextures.enumerated() where groupQuad[index] && Int(texture) >= groups.count {
+            throw .invalid("group quad \(index) names group \(texture) of \(groups.count)")
+        }
+        for (index, group) in groups.enumerated() { try group.validate(index: index, textureCount: textures.count, groupCount: index) }
         guard atlas.count == Int(atlasWidth) * Int(atlasHeight) else { throw .invalid("atlas bytes \(atlas.count) ≠ \(atlasWidth)×\(atlasHeight)") }
         guard projection.count == 16, projection.allSatisfy(\.isFinite) else { throw .invalid("projection must be 16 finite floats") }
         guard reference.count == Int(width) * Int(height) * 4 else { throw .invalid("reference bytes \(reference.count) ≠ \(width)×\(height)×4") }
@@ -235,6 +271,7 @@ public struct ReplayFixture: Equatable, Sendable {
             case .glyph: glyphCount
             case .image: imageCount
             case .backdrop: backdropCount
+            case .group: imageCount
             }
             guard run.count > 0, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
                 throw .invalid("run \(index) \(run.kind) \(run.start)+\(run.count) exceeds \(records) records")
@@ -242,6 +279,10 @@ public struct ReplayFixture: Equatable, Sendable {
             if run.kind == .image {
                 let run = imageTextures[Int(run.start)..<Int(run.start + run.count)]
                 guard Set(run).count == 1 else { throw .invalid("image run \(index) samples several textures") }
+            }
+            if run.kind == .group {
+                // The bridge binds one texture a run: one group a run.
+                guard run.count == 1 else { throw .invalid("group run \(index) draws \(run.count) groups") }
             }
         }
     }
@@ -291,6 +332,13 @@ extension ReplayFixture {
         bytes(transforms); bytes(backdrops)
         u32(UInt32(runs.count))
         for run in runs { u32(run.kind.rawValue); u32(run.start); u32(run.count) }
+        u32(UInt32(groups.count))
+        for group in groups {
+            u32(group.x); u32(group.y); u32(group.width); u32(group.height)
+            bytes(group.body.rects); bytes(group.body.glyphs); bytes(group.body.images); bytes(group.body.transforms)
+            u32(UInt32(group.body.runs.count))
+            for run in group.body.runs { u32(run.kind.rawValue); u32(run.start); u32(run.count) }
+        }
         u32(atlasWidth); u32(atlasHeight); out += atlas
         for value in projection { u32(value.bitPattern) }
         out += reference
@@ -379,6 +427,24 @@ extension ReplayFixture {
             guard let kind = FixtureRun.Kind(rawValue: raw) else { throw .badRunKind(raw) }
             runs.append(FixtureRun(kind: kind, start: try u32(), count: try u32()))
         }
+        var groups: [FixtureGroup] = []
+        if version >= 7 {
+            let groupCount = Int(try u32())
+            for _ in 0..<groupCount {
+                let x = try u32(), y = try u32(), groupWidth = try u32(), groupHeight = try u32()
+                let rects = try bytes(Int(try u32())), glyphs = try bytes(Int(try u32()))
+                let images = try bytes(Int(try u32())), transforms = try bytes(Int(try u32()))
+                var groupRuns: [FixtureRun] = []
+                for _ in 0..<Int(try u32()) {
+                    let raw = try u32()
+                    guard let kind = FixtureRun.Kind(rawValue: raw) else { throw .badRunKind(raw) }
+                    groupRuns.append(FixtureRun(kind: kind, start: try u32(), count: try u32()))
+                }
+                groups.append(FixtureGroup(x: x, y: y, width: groupWidth, height: groupHeight,
+                                           body: FixtureBody(rects: rects, glyphs: glyphs, images: images,
+                                                             transforms: transforms, runs: groupRuns)))
+            }
+        }
         let atlasWidth = try u32(), atlasHeight = try u32()
         // Check dimensions before multiplying them into a read length.
         guard atlasWidth <= Self.maxDimension, atlasHeight <= Self.maxDimension,
@@ -392,7 +458,7 @@ extension ReplayFixture {
         guard offset == data.count else { throw .trailingBytes(data.count - offset) }
         try self.init(width: width, height: height, rects: rects, glyphs: glyphs,
                       images: images, textures: textures, transforms: transforms, backdrops: backdrops, runs: runs,
-                      atlasWidth: atlasWidth, atlasHeight: atlasHeight, atlas: atlas,
+                      groups: groups, atlasWidth: atlasWidth, atlasHeight: atlasHeight, atlas: atlas,
                       projection: projection, reference: reference)
     }
 }

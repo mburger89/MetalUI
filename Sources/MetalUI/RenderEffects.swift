@@ -581,7 +581,7 @@ extension Frame {
             shareCandidates = savedCandidates
             (shareFloor, shareFloorAtEntry) = savedFloors
         }
-        guard paintScopes.contains(where: { $0.kind == .effect || $0.kind == .shadow || $0.kind == .blur })
+        guard paintScopes.contains(where: { $0.kind == .effect || $0.kind == .shadow || $0.kind == .blur || $0.kind == .composite })
         else { return body() }
         paintScopes.append(PaintScope(kind: .barrier, effect: .identity, entryClipDepth: clipDepth))
         defer { paintScopes.removeLast() }
