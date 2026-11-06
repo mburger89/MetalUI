@@ -353,3 +353,21 @@ private func memoTree(_ memo: LayoutMemo, generation: UInt64) -> (LayoutTree, vi
     #expect(wide.absolute != narrow.absolute, "absolute")
     #expect(wide.plain != narrow.plain, "subtreeSignature(of:)")
 }
+
+/// A `Spacer` below a view-that-fits is not marked by the stack around it (`markSpacers` stops, like `.custom`): a spacer
+/// candidate keeps its own axis-less answer (the concrete cross proposal, 50), where one directly in the stack answers 0 across.
+/// MetalUI's reading of a case SwiftUI's probe did not measure (`VF-J`). Mutation: `markSpacers` walking into a
+/// first-fitting node marks the candidate across the stack and its height reads 0.
+@Test @MainActor func aSpacerBelowAViewThatFitsIsNotMarkedByTheStackAround() throws {
+    let tree = LayoutTree(generation: 1)
+    let spacer = tree.newNativeSpacer()
+    let view = fits(tree, [spacer])
+    let row = tree.newNativeLinearStack(children: [view, candidate(tree, 10, 20)], axis: .horizontal, spacing: 0)
+    lay(tree, row, ProposedSize(width: 100, height: 50))
+    #expect(tree.layout(spacer).height == 50, "the unmarked spacer takes the concrete cross proposal: \(tree.layout(spacer))")
+    let direct = LayoutTree(generation: 1)
+    let marked = direct.newNativeSpacer()
+    let stack = direct.newNativeLinearStack(children: [marked, candidate(direct, 10, 20)], axis: .horizontal, spacing: 0)
+    lay(direct, stack, ProposedSize(width: 100, height: 50))
+    #expect(direct.layout(marked).height == 0, "the control: a spacer in the stack itself answers 0 across")
+}

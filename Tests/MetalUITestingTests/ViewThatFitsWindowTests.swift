@@ -542,3 +542,97 @@ private struct SeededRow: Component {
     #expect(shown.first?.hasPrefix("C ") == true)
     #expect(seed <= afterTheFirstFrame, "C's seed \(seed) was taken on the first frame (\(afterTheFirstFrame)), not when C was chosen")
 }
+
+// MARK: - Scroll targets, scopes over several candidates, a retained row that goes unchosen
+
+@MainActor private final class PositionBox { var id: Int? }
+
+/// A `ForEach` of scroll targets in a candidate that is not chosen notes none (`allElided` in `ForEach.prepaintGroup`): the
+/// position binding stays unwritten at 100 wide, and the positive control (the same tree at 600 wide, the candidate chosen)
+/// writes the first row. Mutation: dropping the `allElided` guard writes a zero-rect target's id.
+@Test @MainActor func aScrollTargetInAnUnchosenCandidateIsNotNoted() throws {
+    func writtenPosition(width: Float) throws -> Int? {
+        let box = PositionBox()
+        let binding = Binding<Int?>(get: { box.id }, set: { box.id = $0 })
+        let window = try harnessWindow(size: sz(width, 100)) {
+            ProposalScrollView {
+                ViewThatFits(in: .horizontal) {
+                    VStack(spacing: Pixels(0)) {
+                        ForEach(0..<5) { index in Text("r\(index)").frame(width: Pixels(500), height: Pixels(60)) }
+                    }.scrollTargetLayout()
+                    Text("narrow")
+                }
+            }.scrollPosition(id: binding)
+        }
+        for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+        window.scroll(at: pt(width / 2, 50), byDeltaX: 0, deltaY: -70)
+        for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
+        return box.id
+    }
+    let control = try writtenPosition(width: 600)
+    #expect(control == 1, "the control: scrolled by 70, a chosen candidate's second target (60 tall) is the position")
+    #expect(try writtenPosition(width: 100) == nil, "an unchosen candidate's targets are not noted")
+}
+
+/// A component of two members: a group of two candidates (probe `E3`).
+private struct TwoCandidates: Component {
+    var content: some ElementGroup {
+        Text("A").frame(width: Pixels(400), height: Pixels(20))
+        Text("B").frame(width: Pixels(150), height: Pixels(20))
+    }
+}
+
+/// A lifecycle scope over a group of two members in a view-that-fits: the two candidates are one scope. It is retracted only
+/// when **neither** is chosen: with `A` chosen (wide) it appears once; with `B` chosen (mid) it appears, because its interval
+/// reaches a chosen candidate; with the fallback `C` chosen (narrow) it does not. Mutation: merging the unchosen ranges
+/// (`range.low <= last.high + 1` to a never-true test) retracts nothing for the `narrow` case's two adjacent unchosen
+/// candidates, so the scope appears.
+@Test @MainActor func aScopeOverSeveralCandidatesIsRetractedOnlyWhenNoneIsChosen() throws {
+    func appearances(width: Float) throws -> [String] {
+        let log = HarnessLog()
+        _ = try harnessWindow(size: sz(width, 100)) {
+            ViewThatFits(in: .horizontal) {
+                TwoCandidates().onAppear { log.add("group") }
+                Text("C").frame(width: Pixels(10), height: Pixels(20)).onAppear { log.add("C") }
+            }
+        }
+        return log.entries
+    }
+    #expect(try appearances(width: 500) == ["group"], "A chosen")
+    #expect(try appearances(width: 300) == ["group"], "B chosen")
+    #expect(try appearances(width: 50) == ["C"], "neither A nor B chosen: the scope over both is retracted")
+}
+
+private struct RetainedAppearRow: Component, @MainActor Equatable {
+    let log: HarnessLog
+    var content: some ElementGroup {
+        Text("retained").frame(width: Pixels(200), height: Pixels(20))
+            .onAppear { log.add("appear") }
+            .onDisappear { log.add("disappear") }
+    }
+    static func == (l: RetainedAppearRow, r: RetainedAppearRow) -> Bool { l.log === r.log }
+}
+
+/// A grafted `.equatable()` occurrence inside a candidate would replay its lifecycle notes whether or not the candidate is
+/// chosen: a graft window opened inside a view's content is therefore refused (`VF-H`), and the row disappears when its
+/// candidate stops being chosen, with the retention and the graft switched on. Mutation: dropping the `fitDepth > 0` taint in
+/// `Frame.openGraftWindow` records a graft under the view, which then replays `appear` for the unchosen row.
+@Test @MainActor func aRetainedRowThatGoesUnchosenDisappearsWithGraftsOn() throws {
+    let log = HarnessLog()
+    let window = try harnessWindow(size: sz(300, 100)) {
+        ViewThatFits(in: .horizontal) {
+            RetainedAppearRow(log: log).equatable()
+            Text("n").frame(width: Pixels(10), height: Pixels(20))
+        }
+    }
+    window.window.testingRetainedSubtrees = true
+    window.window.testingRetainedGraft = true
+    for _ in 0..<4 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(log.entries == ["appear"], "chosen: appears once: \(log.entries)")
+    window.resize(to: sz(100, 100))
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(log.entries == ["appear", "disappear"], "unchosen with grafts on: it disappears: \(log.entries)")
+    window.resize(to: sz(300, 100))
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(log.entries == ["appear", "disappear", "appear"], "and appears again: \(log.entries)")
+}

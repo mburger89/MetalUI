@@ -333,9 +333,7 @@ extension Frame {
         guard memos.graftAllowed, let graft = entry.graft, let old = entry.record, let ledger = old.prepaint else {
             return nil
         }
-        // `VF-H`: a graft replays its lifecycle notes through the store, not through `Frame.noteLifecycle`, so inside a
-        // `ViewThatFits` candidate they could not be retracted: the occurrence builds.
-        if fitDepth > 0 { return nil }
+
         // A ledger holding a geometry note a translation cannot recompute would redo the whole frame and back replay off for eight
         // builds (`RG-J`): the refusal stays for such a ledger only (`RL-G`); a recomputable one moves like any other.
         if !geometryNotesRecomputable(ledger) { memos.graftRefusals.append("geometryGraft"); return nil }
