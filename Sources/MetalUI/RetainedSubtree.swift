@@ -706,7 +706,8 @@ extension Frame {
         // the old translation in its coordinates.
         if !translated, retainLog?.needsLeaves != true, let final = r.finalScene {
             // No other live recorder wants the leaves where an outer scope would pass them: straight in.
-            for op in final { for (group, _) in op.leaves { for primitive in group { insertIntoScene(primitive) } } }
+            // `insertLeaves`, not `insertIntoScene`: a replayed opacity group composites again (`GO-G`).
+            for op in final { insertLeaves(op.leaves.flatMap(\.0)) }
         } else {
             for op in movedScene ?? r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
         }

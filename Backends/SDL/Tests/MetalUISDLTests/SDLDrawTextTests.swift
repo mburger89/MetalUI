@@ -242,7 +242,7 @@ private func inkCount(_ pixels: [UInt8], where condition: (Int, Int) -> Bool = {
                     identity.withUnsafeBufferPointer { matrix in
                         mui_renderer_finish(bridge, nil, 0, glyphBytes.baseAddress, UInt32(glyphBytes.count), nil, 0, nil, 0,
                                             nil, 0, nil, 0, nil, 0, nil, 0, pixels.baseAddress, 16, 16, nil, 0,
-                                            textBuffer.baseAddress, UInt32(textBuffer.count), matrix.baseAddress)
+                                            textBuffer.baseAddress, UInt32(textBuffer.count), nil, 0, 0, matrix.baseAddress)
                     }
                 }
             }

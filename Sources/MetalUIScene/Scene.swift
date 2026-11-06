@@ -11,7 +11,13 @@ import MetalUIShaderTypes
 /// one `MUIBackdrop` record per material. **Public break** (`BB-L`, as `MV-C`
 /// item 3): an exhaustive `switch` outside the package adds a `.backdrop` arm
 /// (`docs/migration.md`).
-public enum PrimitiveKind: Sendable, Equatable { case rect, glyph, image, surface, backdrop }
+///
+/// `.group` (an offscreen group, `GO-D`) is one `MUIImage` quad whose texture is a
+/// nested ``Scene`` the renderer draws first, into its own target: an opacity over a
+/// `compositingGroup()` (divergence 205 retired). **Public break** (`GO-D`, as
+/// `BB-L`): an exhaustive `switch` outside the package adds a `.group` arm
+/// (`docs/migration.md`).
+public enum PrimitiveKind: Sendable, Equatable { case rect, glyph, image, surface, backdrop, group }
 
 /// One instanced draw: `count` primitives of `kind`, starting at `start` in
 /// that kind's own array.
@@ -67,6 +73,19 @@ public struct Scene: Sendable {
     /// draws its flat tint (`BB-I`).
     public private(set) var backdrops: [MUIBackdrop] = []
 
+    /// Offscreen groups' quads (`GO-D`): the image record, drawn by the image pipeline
+    /// over the group's target, its `texture` field indexing ``groupScenes`` rather
+    /// than ``textures``. Its `bounds` are the device-pixel box the group renders
+    /// into, `opacity` the group's alpha; the target's pixel `(0, 0)` is the box's
+    /// origin.
+    public private(set) var groups: [MUIImage] = []
+
+    /// The scene each of ``groups`` draws into its own target, one per quad (a
+    /// quad names its own: `GO-D`). Each is finalized when inserted and may hold
+    /// groups of its own; the renderer draws them post-order. Its coordinates are
+    /// the parent's (the target is offset by the quad's box origin), not local.
+    public private(set) var groupScenes: [Scene] = []
+
     /// Per-instance affines (ruling GX-F), in first-use order; a primitive
     /// names entry `i` by storing `i + 1` (``insert(_:layer:transform:)``):
     /// `MUIRect.shape` and `MUIImage.filter` bits 8…31, `MUIGlyph.transform`.
@@ -110,6 +129,7 @@ public struct Scene: Sendable {
     private var imageSequence: [Int] = []
     private var surfaceSequence: [Int] = []
     private var backdropSequence: [Int] = []
+    private var groupSequence: [Int] = []
     private var nextSequence = 0
 
     /// Layer per primitive, parallel to `rectSequence`/`glyphSequence`.
@@ -123,6 +143,7 @@ public struct Scene: Sendable {
     private var imageLayer: [Int] = []
     private var surfaceLayer: [Int] = []
     private var backdropLayer: [Int] = []
+    private var groupLayer: [Int] = []
 
     /// An empty scene.
     public init() {}
@@ -137,7 +158,7 @@ public struct Scene: Sendable {
     /// `aSceneHoldingOnlyASurfaceIsNotEmpty` (`MV-C` item 2).
     /// `aSceneHoldingOnlyABackdropIsNotEmpty` (`BB-A`) pins the backdrop array.
     public var isEmpty: Bool {
-        rects.isEmpty && glyphs.isEmpty && images.isEmpty && surfaces.isEmpty && backdrops.isEmpty
+        rects.isEmpty && glyphs.isEmpty && images.isEmpty && surfaces.isEmpty && backdrops.isEmpty && groups.isEmpty
     }
 
     /// Adds a rectangle on `layer`, under `transform` when given (ruling
@@ -229,6 +250,22 @@ public struct Scene: Sendable {
         nextSequence += 1
     }
 
+    /// Appends an offscreen group (`GO-D`): `quad` draws `group`'s render target over
+    /// `quad.bounds`. Its `texture` field is set to the group's index in
+    /// ``groupScenes``; **every group has its own** (no sharing), and the quad is
+    /// untransformed (the group's content carries its transforms inside `group`).
+    /// `group` must be finalized.
+    public mutating func insert(_ quad: MUIImage, group: Scene, layer: Int = 0) {
+        var quad = quad
+        quad.filter = quad.filter & 0xFF
+        quad.texture = MUIUInt(groupScenes.count)
+        groups.append(quad)
+        groupScenes.append(group)
+        groupSequence.append(nextSequence)
+        groupLayer.append(layer)
+        nextSequence += 1
+    }
+
     /// A pixel rectangle in a render target.
     public struct BackdropRegion: Sendable, Equatable {
         /// The left edge, in device pixels.
@@ -282,6 +319,50 @@ public struct Scene: Sendable {
         return BackdropRegion(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
 
+    /// The device-pixel box everything this (unfinalized or finalized) scene draws lands in, each primitive's bounds
+    /// mapped by its transform's bounding box and cut by its content mask (the transform's outer mask under one), united;
+    /// `nil` when nothing draws (`GO-C`). A projective record whose corner is on or behind the eye counts as unbounded
+    /// (the caller clamps to its target). A backdrop is its bounds; a nested group is its quad's.
+    package func paintedBounds() -> (minX: Float, minY: Float, maxX: Float, maxY: Float)? {
+        var box: (minX: Float, minY: Float, maxX: Float, maxY: Float)?
+        func add(_ b: MUIBounds, mask: MUIBounds, transform index: UInt32) {
+            var x0 = b.origin.x, y0 = b.origin.y, x1 = b.origin.x + b.size.width, y1 = b.origin.y + b.size.height
+            var cut = mask
+            if index > 0, Int(index) <= transforms.count {
+                let m = transforms[Int(index) - 1]
+                var xs: [Float] = [], ys: [Float] = []
+                var unbounded = false
+                for (x, y) in [(x0, y0), (x1, y0), (x0, y1), (x1, y1)] {
+                    let w = m.det3 != 0 ? m.g * x + m.h * y + m.i : 1
+                    if w <= 0 { unbounded = true; break }
+                    xs.append((m.a * x + m.c * y + m.tx) / w)
+                    ys.append((m.b * x + m.d * y + m.ty) / w)
+                }
+                if unbounded {
+                    x0 = -1e9; y0 = -1e9; x1 = 1e9; y1 = 1e9
+                } else {
+                    x0 = xs.min()!; x1 = xs.max()!; y0 = ys.min()!; y1 = ys.max()!
+                }
+                cut = m.outerMask
+            }
+            x0 = max(x0, cut.origin.x); y0 = max(y0, cut.origin.y)
+            x1 = min(x1, cut.origin.x + cut.size.width); y1 = min(y1, cut.origin.y + cut.size.height)
+            guard x1 > x0, y1 > y0 else { return }
+            if let current = box {
+                box = (min(current.minX, x0), min(current.minY, y0), max(current.maxX, x1), max(current.maxY, y1))
+            } else {
+                box = (x0, y0, x1, y1)
+            }
+        }
+        for r in rects { add(r.bounds, mask: r.contentMask, transform: r.shape >> 8) }
+        for g in glyphs { add(g.bounds, mask: g.contentMask, transform: g.transform) }
+        for i in images { add(i.bounds, mask: i.contentMask, transform: i.filter >> 8) }
+        for q in surfaces { add(q.bounds, mask: q.contentMask, transform: q.filter >> 8) }
+        for b in backdrops { add(b.bounds, mask: b.contentMask, transform: b.shape >> 8) }
+        for q in groups { add(q.bounds, mask: q.contentMask, transform: 0) }
+        return box
+    }
+
     /// The emission sequence the next inserted primitive takes (`XF-H`): a conditional's paint reads it before and after its
     /// content, and the range between is the primitives the content emitted. Meaningful only before ``finalize()``, which
     /// permutes the per-kind arrays; `package`, so no app can spell it.
@@ -308,6 +389,7 @@ public struct Scene: Sendable {
         for i in bounds(imageSequence) { found.append((imageSequence[i], .image, i)) }
         for i in bounds(surfaceSequence) { found.append((surfaceSequence[i], .surface, i)) }
         for i in bounds(backdropSequence) { found.append((backdropSequence[i], .backdrop, i)) }
+        for i in bounds(groupSequence) { found.append((groupSequence[i], .group, i)) }
         found.sort { $0.sequence < $1.sequence }
         return found.map { ($0.kind, $0.index) }
     }
@@ -320,6 +402,7 @@ public struct Scene: Sendable {
         case .image: imageSequence[index]
         case .surface: surfaceSequence[index]
         case .backdrop: backdropSequence[index]
+        case .group: groupSequence[index]
         }
     }
 
@@ -327,7 +410,7 @@ public struct Scene: Sendable {
     /// scene — what a drag preview rises above (ruling `DN-J`). Computed, so
     /// a frame that never asks pays nothing.
     public var highestLayer: Int? {
-        [rectLayer.max(), glyphLayer.max(), imageLayer.max(), surfaceLayer.max(), backdropLayer.max()].compactMap { $0 }.max()
+        [rectLayer.max(), glyphLayer.max(), imageLayer.max(), surfaceLayer.max(), backdropLayer.max(), groupLayer.max()].compactMap { $0 }.max()
     }
 
     /// The layer of the `index`th primitive of `kind` — in emission order
@@ -340,6 +423,7 @@ public struct Scene: Sendable {
         case .image: imageLayer[index]
         case .surface: surfaceLayer[index]
         case .backdrop: backdropLayer[index]
+        case .group: groupLayer[index]
         }
     }
 
@@ -351,6 +435,8 @@ public struct Scene: Sendable {
         textures.removeAll(keepingCapacity: true)
         surfaces.removeAll(keepingCapacity: true)
         backdrops.removeAll(keepingCapacity: true)
+        groups.removeAll(keepingCapacity: true)
+        groupScenes.removeAll(keepingCapacity: true)
         surfaceTargets.removeAll(keepingCapacity: true)
         transforms.removeAll(keepingCapacity: true)
         drawList.removeAll(keepingCapacity: true)
@@ -359,11 +445,13 @@ public struct Scene: Sendable {
         imageSequence.removeAll(keepingCapacity: true)
         surfaceSequence.removeAll(keepingCapacity: true)
         backdropSequence.removeAll(keepingCapacity: true)
+        groupSequence.removeAll(keepingCapacity: true)
         rectLayer.removeAll(keepingCapacity: true)
         glyphLayer.removeAll(keepingCapacity: true)
         imageLayer.removeAll(keepingCapacity: true)
         surfaceLayer.removeAll(keepingCapacity: true)
         backdropLayer.removeAll(keepingCapacity: true)
+        groupLayer.removeAll(keepingCapacity: true)
         nextSequence = 0
     }
 
@@ -434,10 +522,11 @@ public struct Scene: Sendable {
         let imageCount = images.count
         let surfaceCount = surfaces.count
         let backdropCount = backdrops.count
+        let groupCount = groups.count
 
         // (layer, order, sequence, kind, indexWithinKind)
         var merged: [(Int, MUIUInt, Int, PrimitiveKind, Int)] = []
-        merged.reserveCapacity(rectCount + glyphCount + imageCount + surfaceCount + backdropCount)
+        merged.reserveCapacity(rectCount + glyphCount + imageCount + surfaceCount + backdropCount + groupCount)
         for i in 0..<rectCount {
             merged.append((rectLayer[i], rects[i].order, rectSequence[i], .rect, i))
         }
@@ -452,6 +541,9 @@ public struct Scene: Sendable {
         }
         for i in 0..<backdropCount {
             merged.append((backdropLayer[i], backdrops[i].order, backdropSequence[i], .backdrop, i))
+        }
+        for i in 0..<groupCount {
+            merged.append((groupLayer[i], groups[i].order, groupSequence[i], .group, i))
         }
         merged.sort { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) }
 
@@ -474,6 +566,10 @@ public struct Scene: Sendable {
         var sortedBackdrops: [MUIBackdrop] = []
         var sortedBackdropSequence: [Int] = []
         var sortedBackdropLayer: [Int] = []
+        var sortedGroups: [MUIImage] = []
+        var sortedGroupScenes: [Scene] = []
+        var sortedGroupSequence: [Int] = []
+        var sortedGroupLayer: [Int] = []
         // Device boxes of the backdrops in the run being built (ruling BB-E),
         // computed against the pre-permutation array.
         var runBoxes: [(minX: Int, minY: Int, maxX: Int, maxY: Int)] = []
@@ -543,6 +639,14 @@ public struct Scene: Sendable {
                 sortedBackdrops.append(backdrops[entry.4])
                 sortedBackdropSequence.append(entry.2)
                 sortedBackdropLayer.append(entry.0)
+            case .group:
+                // One group a run: each quad samples a target of its own (`GO-D`).
+                start = sortedGroups.count
+                sameTexture = false
+                sortedGroups.append(groups[entry.4])
+                sortedGroupScenes.append(groupScenes[entry.4])
+                sortedGroupSequence.append(entry.2)
+                sortedGroupLayer.append(entry.0)
             }
             if let last = runs.last, last.kind == kind, sameTexture {
                 runs[runs.count - 1] =
@@ -567,6 +671,10 @@ public struct Scene: Sendable {
         backdrops = sortedBackdrops
         backdropSequence = sortedBackdropSequence
         backdropLayer = sortedBackdropLayer
+        groups = sortedGroups
+        groupScenes = sortedGroupScenes
+        groupSequence = sortedGroupSequence
+        groupLayer = sortedGroupLayer
         drawList = runs
     }
 }

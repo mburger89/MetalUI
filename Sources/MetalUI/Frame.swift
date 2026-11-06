@@ -1062,6 +1062,15 @@ public final class Frame {
     func pushOpacity(_ opacity: Float) { opacityStack.append(opacity) }
     func popOpacity() { opacityStack.removeLast() }
 
+    /// Runs `body` with the opacity stack empty and restores it after (`GO-A`): the content of an opacity group is
+    /// drawn unfaded, and the group composites at the entry opacity instead.
+    func withOpacityBase(_ body: () -> Void) {
+        let saved = opacityStack
+        opacityStack = []
+        body()
+        opacityStack = saved
+    }
+
     /// The layer currently in effect. `0` — ordinary paint order — when no
     /// `deferred` block is active, the same "nothing special" answer
     /// `activeClip` gives an empty `clipStack`.
@@ -3455,6 +3464,12 @@ public final class Frame {
     /// whose `compositingGroup()`s have no shadow or blur outside them.
     var compositeScopesPushed = 0
 
+    /// Offscreen opacity groups this frame composited / baked into one primitive / flattened because their box
+    /// exceeded the target limit (`GO-C`): work counters, 0 for a tree with no opacity `compositingGroup()`.
+    var groupsComposited = 0
+    var groupsBaked = 0
+    var groupsFlattenedOversize = 0
+
     /// `GX-P` item 1: every enclosing wrapper registered at exactly `rect` —
     /// innermost first, stopping at the first that is not — gets the
     /// innermost open effect's map: its hitboxes the inverse and their own
@@ -3686,7 +3701,7 @@ public final class Frame {
                 if scope.capturing { scope.captures.append(contentsOf: group) }
                 if let shadow = scope.shadow {
                     // A leaf under a projective effect casts no shadow: the CPU silhouette is flat (`PJ-G`, divergence 1066).
-                    let casting = group.filter { $0.transform?.homography.isAffine ?? true }
+                    let casting = group.filter { $0.transform?.homography.isAffine ?? true }.map(\.bakedGroupAlpha)
                     if !casting.isEmpty {
                         next.append(([shadowItem(of: casting, shadow, entryDepth: scope.entryClipDepth)], nil))
                     }
@@ -3701,7 +3716,7 @@ public final class Frame {
                         || group.contains(where: { !($0.transform?.homography.isAffine ?? true) }) {
                         next.append((group, emitted))
                     } else {
-                        next.append(([blurItem(of: group, blur, entryDepth: scope.entryClipDepth)], nil))
+                        next.append(([blurItem(of: group.map(\.bakedGroupAlpha), blur, entryDepth: scope.entryClipDepth)], nil))
                     }
                     continue
                 }
@@ -3736,9 +3751,78 @@ public final class Frame {
             leaves = next
         }
         retainLog?.noteBoundary(0, leaves, depth)
-        for (group, _) in leaves {
-            for primitive in group { insertIntoScene(primitive) }
+        // One group of leaves (the common case) goes straight in: no flattened copy.
+        if leaves.count == 1 { insertLeaves(leaves[0].0) } else { insertLeaves(leaves.flatMap(\.0)) }
+    }
+
+    /// The largest side of an offscreen group's target, in device pixels (`GO-C`): the surface limit; a larger group is
+    /// drawn per primitive.
+    static let maxGroupTargetSide = 8192
+
+    /// `primitives`, in order, into the scene (`GO-C`): **the one place leaves reach it from a paint path** (a new
+    /// paint path that inserts leaves goes through here, not `insertIntoScene`). A primitive with no group is
+    /// `insertIntoScene`'s. Each run of contiguous primitives whose outermost mark is one token drops that mark and
+    /// then: draws inline at alpha 1, nothing at alpha 0, as one faded primitive when it is a single one with no deeper
+    /// group, and otherwise renders into an offscreen group the scene holds as one quad.
+    func insertLeaves(_ primitives: [CapturedPrimitive]) {
+        var i = 0
+        while i < primitives.count {
+            guard let mark = primitives[i].groups.first else {
+                insertIntoScene(primitives[i])
+                i += 1
+                continue
+            }
+            var j = i + 1
+            while j < primitives.count, primitives[j].groups.first?.token === mark.token,
+                  primitives[j].groups[0].alpha == mark.alpha { j += 1 }
+            var children = Array(primitives[i..<j])
+            for k in children.indices { children[k].groups.removeFirst() }
+            i = j
+            if mark.alpha >= 1 {
+                insertLeaves(children)
+            } else if mark.alpha <= 0 {
+                continue
+            } else if children.count == 1, children[0].groups.isEmpty {
+                groupsBaked += 1
+                var only = children[0]
+                only.multiplyAlpha(mark.alpha)
+                insertIntoScene(only)
+            } else {
+                insertGroup(children, alpha: mark.alpha)
+            }
         }
+    }
+
+    /// One offscreen group (`GO-C`): `children` rendered into a scene of their own, boxed, and that scene drawn back as
+    /// one quad at `alpha`.
+    private func insertGroup(_ children: [CapturedPrimitive], alpha: Float) {
+        var inner = Scene()
+        swap(&scene, &inner)
+        insertLeaves(children)
+        swap(&scene, &inner)
+        guard let painted = inner.paintedBounds() else { return }
+        let limitX = Float(contentSize.width.value * scaleFactor), limitY = Float(contentSize.height.value * scaleFactor)
+        // One pixel of anti-aliasing around the painted box, floored and ceiled without libm, cut by the target.
+        func floorInt(_ v: Float) -> Float { let t = Float(Int(v)); return t > v ? t - 1 : t }
+        func ceilInt(_ v: Float) -> Float { let t = Float(Int(v)); return t < v ? t + 1 : t }
+        let x0 = max(floorInt(painted.minX - 1), 0), y0 = max(floorInt(painted.minY - 1), 0)
+        let x1 = min(ceilInt(painted.maxX + 1), ceilInt(limitX)), y1 = min(ceilInt(painted.maxY + 1), ceilInt(limitY))
+        guard x1 > x0, y1 > y0 else { return }
+        if x1 - x0 > Float(Self.maxGroupTargetSide) || y1 - y0 > Float(Self.maxGroupTargetSide) {
+            // Too large for one target: drawn per primitive, faded by its colours, as before this existed.
+            groupsFlattenedOversize += 1
+            var flat = children
+            for k in flat.indices { flat[k].bakeGroupAlpha(); flat[k].multiplyAlpha(alpha) }
+            insertLeaves(flat)
+            return
+        }
+        inner.finalize()
+        let box = MUIBounds(origin: MUIPoint(x: x0, y: y0), size: MUISize(width: x1 - x0, height: y1 - y0))
+        let quad = MUIImage(bounds: box, contentMask: box,
+                            maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+                            opacity: alpha, texture: 0, filter: ImageFilter.nearest.rawValue, order: 0)
+        groupsComposited += 1
+        scene.insert(quad, group: inner, layer: children.first?.layer ?? activeLayer)
     }
 
     /// `primitive` after a flattening effect mapped it (`GX-X`, the LF-a fix):
@@ -3816,6 +3900,8 @@ public final class Frame {
     /// one (`GX-F`); `nil` writes index 0. A path or a shadow is rasterized
     /// here, in device pixels, into one untransformed image (`GX-B`, `GX-J`).
     func insertIntoScene(_ primitive: CapturedPrimitive) {
+        // The belt (`GO-C`): a marked primitive that reaches here directly (a drag preview) draws faded by its colours.
+        if !primitive.groups.isEmpty { return insertIntoScene(primitive.bakedGroupAlpha) }
         let transform = primitive.transform?.record
         switch primitive.kind {
         case .rect(let rect): scene.insert(rect, layer: primitive.layer, transform: transform)
@@ -3861,7 +3947,8 @@ public final class Frame {
         for scope in paintScopes.reversed() {
             switch scope.kind {
             case .barrier: return false
-            case .shadow, .blur, .composite: return true
+            case .shadow, .blur: return true
+            case .composite where scope.leafEffect: return true
             default: continue
             }
         }

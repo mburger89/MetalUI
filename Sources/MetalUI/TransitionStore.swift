@@ -575,10 +575,8 @@ final class TransitionStore {
     private func draw(_ ghost: Ghost, activeness value: Double, frame: Frame) {
         let effect = RenderEffect(atoms: ghost.atoms, activeness: value, rect: ghost.rect,
                                   scaleFactor: frame.scaleFactor)
-        for primitive in ghost.captures {
-            guard let replayed = effect.apply(to: primitive, flattens: true, outer: nil) else { continue }
-            frame.insertIntoScene(replayed)
-        }
+        // Through `insertLeaves`, so a group the removed unit held fades as one group (`GO-G`).
+        frame.insertLeaves(ghost.captures.compactMap { effect.apply(to: $0, flattens: true, outer: nil) })
     }
 
     /// Finds the container of each ghost that has none (`XF-F`): the nearest ancestor of its position that is in
@@ -756,6 +754,12 @@ final class PaintScope {
     /// entry of `captures` (`PF-E`): what `maskDepth(emittedAt:)` reads when
     /// the collection goes through the scopes outside it.
     var captureDepths: [Int] = []
+    /// A composite scope that exists for a shadow or blur outside it (`PF-E`): it degrades a backdrop to its flat tint.
+    var leafEffect = false
+    /// A composite scope that composites an opacity (`GO-A`): its leaves leave it marked with `entryOpacity`.
+    var groupsOpacity = false
+    /// The opacity in force where the group starts, which becomes the mark's alpha (`GO-A`).
+    var entryOpacity: Float = 1
 
     var capturing: Bool { kind == .transition || kind == .capture }
 

@@ -480,6 +480,46 @@ func projectionFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene
        atlas: atlas)
 }
 
+/// Frame 16 (ruling `GO-F`, offscreen opacity groups): the overlap of the probe's GO0 as a half-opaque group, a group
+/// inside a group at another opacity, a group under a rotation, and a group of a word and a gradient raster. Each is
+/// rendered into its own target and drawn back as a quad, so it judges the post-NDC projection of the group pass, the
+/// nested post-order and the texture binding on every pipeline. Fractional placement keeps edges antialiased; the
+/// backends are judged as frame 7's are.
+@MainActor
+func groupFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    func pair() -> some ProposalElementGroup {
+        ZStack(alignment: .topLeading) {
+            Color(.separator).frame(width: Pixels(60), height: Pixels(60)).offset(x: Pixels(30), y: Pixels(30))
+            Color(.accent).frame(width: Pixels(60), height: Pixels(60))
+        }
+        .frame(width: Pixels(90), height: Pixels(90), alignment: .topLeading)
+    }
+    return renderFrame({
+        VStack(spacing: Pixels(40)) {
+            HStack(spacing: Pixels(50)) {
+                pair().compositingGroup().opacity(0.5)
+                ZStack(alignment: .topLeading) {
+                    pair().compositingGroup().opacity(0.5)
+                    Color(.textPrimary).frame(width: Pixels(40.5), height: Pixels(40.25)).offset(x: Pixels(60), y: Pixels(10))
+                }
+                .frame(width: Pixels(110), height: Pixels(90), alignment: .topLeading)
+                .compositingGroup().opacity(0.6)
+                pair().compositingGroup().rotationEffect(.degrees(20)).opacity(0.5)
+            }
+            VStack(spacing: Pixels(8)) {
+                Text("Group").font(size: 34)
+                Circle().fill(LinearGradient(colors: [.accent, .separator], startPoint: .top, endPoint: .bottom))
+                    .frame(width: Pixels(60.5), height: Pixels(60))
+            }
+            .compositingGroup().opacity(0.7)
+        }
+        .offset(x: Pixels(20.25), y: Pixels(10.5))
+    }, size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))), scaleFactor: 1, textSystem: system,
+       atlas: atlas)
+}
+
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
 /// scale 1, through `PortableTextSystem` over Noto Sans.
 @MainActor
@@ -619,23 +659,28 @@ func run() throws {
     let looksAtlas = GlyphAtlas(width: 512, height: 512)
     // Frame 15's word is PortableText's, into its own atlas (`PJ-A`).
     let projectionAtlas = GlyphAtlas(width: 512, height: 512)
+    // Frame 16's word is PortableText's, into its own atlas (`GO-F`).
+    let groupAtlas = GlyphAtlas(width: 512, height: 512)
     // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O) need the portable shaders: the adapted MSL has no backdrop stages.
     let portableShaders = portable
     let sizes = [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380)]
+                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380)]
     for (index, dimensions) in sizes.enumerated() {
         let (width, height) = dimensions
+        let groups = index == 16
         let projection3D = index == 15
-        let backdrops = index >= 9 && !projection3D
-        let glass = index >= 12 && !projection3D
-        if (backdrops || projection3D) && !portableShaders { print("frame \(index) (\(glass ? "liquid glass" : "backdrop blur")): skipped, needs --portable"); continue }
+        let backdrops = index >= 9 && !projection3D && !groups
+        let glass = index >= 12 && !projection3D && !groups
+        if (backdrops || projection3D || groups) && !portableShaders { print("frame \(index) (\(glass ? "liquid glass" : "backdrop blur")): skipped, needs --portable"); continue }
         let portable = index == 4
         let demo = index == 5
         let shapes = index == 6
         let transforms = index == 7
         let looks = index == 8
-        let frameAtlas = projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = projection3D
+        let frameAtlas = groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = groups
+            ? try groupFrame(width: width, height: height, atlas: groupAtlas)
+            : projection3D
             ? try projectionFrame(width: width, height: height, atlas: projectionAtlas)
             : glass
             ? GlassParityFrames.scene(index: index)
@@ -660,7 +705,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
@@ -672,7 +717,7 @@ func run() throws {
         // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O, the glass frames of
         // `GlassParityFrames`): the blurred quad is judged at the backdrop tolerance
         // (`ReplayFixture.backdropMask()` covers backdrop bounds), every other pixel to one step.
-        try require(shapes || transforms || looks || backdrops || projection3D ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
+        try require(shapes || transforms || looks || backdrops || projection3D || groups ? parity.passes : delta.maxDelta <= 1, "Parity failed: \(line)")
         if let record {
             let path = URL(fileURLWithPath: record).appendingPathComponent("frame-\(index).muireplay")
             try Data(frameFixture.encoded()).write(to: path)

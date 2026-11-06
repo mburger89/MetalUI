@@ -125,6 +125,9 @@ final class BackdropFrameState {
         for key in free.keys where !usedThisFrame.contains(key) { free[key] = nil }
     }
 
+    /// Drops the frame target only: a frame with groups and no backdrop keeps its pool (`GO-E`).
+    func releaseFrameTarget() { frame = nil }
+
     /// Drops the frame target and the pool (a frame with no backdrop).
     func releaseAll() {
         frame = nil

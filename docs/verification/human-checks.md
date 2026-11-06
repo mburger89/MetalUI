@@ -2284,3 +2284,11 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **VF4.** Open `More`, then resize across a threshold, and toggle `Mirror`'s label with the menu open: what happens to the open menu (the presentation is retracted when its row becomes unchosen; unmeasured in SwiftUI)? **Observed:**
 - [ ] **VF5.** Does the window drag handle (the greedy `Color.clear` at the row's end) drag the window at every width, and does a click on a tool near it still reach the tool? **Observed:**
 
+## GO. Group opacity - an opacity outside `compositingGroup()` composites (record 218; rulings `GO-A`..`GO-H`; decisions `docs/superpowers/2026-11-06-group-opacity-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-group-opacity.swift` measures SwiftUI through `ImageRenderer` (a locked screen), the tests read scene structure and Metal or SDL pixels offscreen, but a real window on a GPU, a real fade over time and the SwiftUI window capture `W1`/`W2` (recorded not run) are looks.*
+
+- [ ] **GO1.** Run the looks demo (`METALUI_LOOKS_DEMO=1`) on Metal: does the half-opaque group read as one translucent shape (no lower square showing through the upper), the group inside a group fainter again, and the rotated one clean at its edges? **Observed:**
+- [ ] **GO2.** The same on Linux (Vulkan) and Windows (Direct3D 12), and parity frame 16 (`--expect 17`) in CI: any seam at the group's box edge, any pixel of the box showing as a halo? **Observed:**
+- [ ] **GO3.** Fade a group in and out (a `.transition(.opacity)` on a `compositingGroup()`): is the fade smooth with no pop where the group starts or ends compositing (opacity 1 draws inline, below 1 offscreen)? **Observed:**
+- [ ] **GO4.** `W1`/`W2`: the `GO0` pair in a real `NSHostingView` window against MetalUI's, by window capture (`docs/probes/window-capture/`) on an unlocked screen: does SwiftUI composite the group in a live window as `ImageRenderer` reads, and does a plain `.opacity` on a container stay per leaf there? **Observed:**

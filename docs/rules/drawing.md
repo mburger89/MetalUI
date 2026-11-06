@@ -71,8 +71,7 @@ work, never time. `.shadow`/`.blur` stay **per leaf**; one shadow of a container
 `.compositingGroup()` (both vocabularies, one `LayoutModifier` layer, `PF-E`): a
 `PaintScope.Kind.composite` pushed **only when a shadow or blur scope is open outside it**,
 collecting leaves with their clip depths (`captureDepths`) and re-emitting them as one leaf, stopped
-by a `Deferred` barrier; alone it changes nothing, and it does **not** composite an opacity
-(divergence 205). `BoxBlur` in `MetalUIPath` runs over unchecked `Int32` buffers, byte-identical to
+by a `Deferred` barrier; alone it changes nothing (an opacity composites since `GO-`, below). `BoxBlur` in `MetalUIPath` runs over unchecked `Int32` buffers, byte-identical to
 its reference copy, still importing nothing (`PF-F`).
 
 **Pan rasters (`PN-`, record §118).** Value-identical, no public API, no divergence (labels 485–494 untouched). A path with
@@ -197,3 +196,5 @@ isolation check per call: a hot loop uses a plain loop or a nonisolated function
 clip key and R8 coverage (P3: pixels and shaders).
 
 **3D render effects (`PJ-`, record §193).** An effect's map is a `Homography2D` (3x3, `Double`, affine fast path in every operation so affine effects stay bit-identical); a reader that needs an affine asks `.affine` and handles `nil`, and `Affine2D` never gains `g h i`. A view with any corner at `w <= 0` draws nothing. `MUITransform` is 80 bytes: lane 4 `(g, h, i, det3)`, `det3 == 0` means affine (the old code runs byte for byte); `shaders.metal` and `replay.hlsl` carry the projective branches statement for statement (rect, glyph, image; backdrops are degraded to their flat tint at the scope), the replay fixture is version 6 (2-5 load), and a CPU raster under a projective record is made in its creation space and drawn with the record (`PJ-G`, `PJ-L`, `PJ-M`).
+
+**Group opacity (`GO-`, record 218).** An opacity written outside `compositingGroup()` composites through one offscreen group pass on both renderers (divergence 205 retired; 221, 222 added; no shader change): the composite scope is pushed when the entry opacity times the alpha of the transition, fade and effect scopes outside it is below 1, the content paints unfaded (`withOpacityBase`), each leaf leaves the scope with a `GroupMark` (outermost first; scopes outside multiply `groups[0].alpha`, never the colours), and `Frame.insertLeaves` turns each run of one token into a `Scene` the main scene holds as a `PrimitiveKind.group` quad. **A paint path that inserts leaves goes through `insertLeaves`, never `insertIntoScene`** (which bakes a mark away: drag previews); a group holding a `.backdrop` or `.surface` is not marked; a side above 8192 draws per primitive. Metal: `Renderer.encodeGroups`, post-order, pooled targets, a post-NDC translation as the projection (valid because no fragment reads `[[position]]` for a mask: a new shader that does breaks groups). Pins count work (`GroupSceneTests`, `CompositingGroupTests`).

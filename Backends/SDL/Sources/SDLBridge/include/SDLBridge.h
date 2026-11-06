@@ -14,6 +14,12 @@ typedef struct { uint32_t kind, start, count; } ReplayRun;
 // record then draws its flat tint, ruling BB-I). The blur's level count is
 // derived from the record's own `sigma` (`mui_backdrop_levels`).
 typedef struct { int32_t x, y, width, height; } ReplayRegion;
+// One offscreen opacity group (ruling GO-F): rendered, before the frame's own passes, into a pooled target of
+// `width` x `height` whose pixel (0, 0) is the device point (`x`, `y`) (a post-NDC translation as the projection),
+// by `run_count` runs from `run_start` of the frame's run array (the main runs come first, then each group's, in
+// post-order: a group's runs name only earlier groups). A run that draws a group is an image run whose records name
+// the texture `texture_count + group index`.
+typedef struct { float x, y; uint32_t width, height, run_start, run_count; } ReplayGroup;
 // One surface's `drawText` glyphs (ruling DT-G): `count` glyph records from `start` (an index into the
 // frame's glyph buffer, the scene's own glyphs first), drawn into `target` (a surface target, `width` x
 // `height` texels) in one load-op pass after the atlas copy pass and before the scene's pass.
@@ -48,6 +54,7 @@ bool replay_render(ReplayGPU *gpu, uint32_t width, uint32_t height,
     const ReplayTexture *textures, uint32_t texture_count,
     const ReplayRun *runs, uint32_t run_count,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height,
+    const ReplayGroup *groups, uint32_t group_count, uint32_t main_run_count,
     const float *projection, uint8_t *bgra);
 // Shows the most recently rendered texture in an SDL window for bounded seconds.
 bool replay_show(ReplayGPU *gpu, uint32_t seconds);
@@ -92,6 +99,7 @@ bool mui_renderer_finish(MUIRenderer *r,
     const uint8_t *atlas, uint32_t atlas_width, uint32_t atlas_height,
     const uint32_t *atlas_rects, uint32_t atlas_rect_count,
     const ReplaySurfaceText *texts, uint32_t text_count,
+    const ReplayGroup *groups, uint32_t group_count, uint32_t main_run_count,
     const float *projection);
 // The text passes the last finished frame ran (ruling DT-G): one per `ReplaySurfaceText`, 0 for a
 // frame with none. A test recorder.
@@ -102,6 +110,11 @@ uint32_t mui_renderer_last_text_passes(MUIRenderer *r);
 // frame), glass records encoded and sharp copies of the frame region made for
 // their lens (ruling LG-D). All 0 on a frame without a backdrop run.
 void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[7]);
+// The last frame's offscreen group work (ruling GO-F): `out` = group passes, groups dropped for want of a target,
+// textures made (a pool texture made this frame, groups' and backdrops' together; 0 on a steady frame).
+void mui_renderer_group_counters(MUIRenderer *r, uint32_t out[3]);
+// Test hook (ruling GO-F): every group target allocation fails, so each group draws nothing.
+void mui_renderer_set_group_hook(MUIRenderer *r, bool pool_fails);
 // The atlas bytes the last finished frame moved to the GPU (0 for a clean
 // atlas; the whole atlas for a new or resized one). A test recorder (RG-H).
 uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r);

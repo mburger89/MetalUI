@@ -53,6 +53,7 @@ private let frameChannels: [String: Channel] = [
     "wantsAnotherFrame": .ledger, "hasActiveAnimations": .ledger, "timeVaryingNotes": .ledger,
     "transactionTop": .keyed, "transactionDepth": .keyed, "lifecycleDepth": .buildOnly,
     "effectScopesPushed": .frameLocal, "compositeScopesPushed": .frameLocal,
+    "groupsComposited": .frameLocal, "groupsBaked": .frameLocal, "groupsFlattenedOversize": .frameLocal,   // GO-C counters
     // Tallies, prepaint's.
     "hoverRegionCount": .prepaintOnly, "pointerStyleRegionCount": .prepaintOnly, "keyRegionCount": .prepaintOnly,
     "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,

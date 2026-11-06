@@ -29,7 +29,7 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func encodingIsLittleEndianWithMagicAndVersion() throws {
     let bytes = try sample().encoded()
     #expect(Array(bytes[0..<8]) == Array("MUIRPLY".utf8) + [0])
-    #expect(Array(bytes[8..<12]) == [6, 0, 0, 0])       // version (6 since PJ-A)
+    #expect(Array(bytes[8..<12]) == [7, 0, 0, 0])       // version (7 since GO-F)
     #expect(Array(bytes[12..<16]) == [3, 0, 0, 0])      // width
     #expect(Array(bytes[20..<24]) == [120, 0, 0, 0])    // rect stride
     #expect(Array(bytes[24..<28]) == [88, 0, 0, 0])     // glyph stride
@@ -84,8 +84,8 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
     // and textures, then the (empty) transform and backdrop tables.
     let runsOffset = 8 + 4 + 28 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + 4 + 4 + 4 + 4
     try #require(bytes[runsOffset] == 0)  // first run is a rect
-    bytes[runsOffset] = 4                 // 2 is an image run since version 2, 3 a backdrop since version 4
-    #expect(throws: FixtureError.badRunKind(4)) { try ReplayFixture(decoding: bytes) }
+    bytes[runsOffset] = 5                 // 2 is an image run since version 2, 3 a backdrop since version 4, 4 a group since 7
+    #expect(throws: FixtureError.badRunKind(5)) { try ReplayFixture(decoding: bytes) }
 }
 
 @Test func anOverstatedRunCountIsRejected() throws {
@@ -394,16 +394,28 @@ private func backdropFixture() throws -> ReplayFixture {
     #expect(MemoryLayout<MUIBackdrop>.offset(of: \.opacity) == 92)
 }
 
-/// **3.6** (ruling `BB-J`, `LG-O`, `PJ-A`). The version is 6; a fixture written before it —
+/// A version-6 file from a version-7 encoding of a fixture with no groups (`GO-F`): the group count, the one u32 between
+/// the runs and the atlas, removed, and the version byte set back.
+func asVersion6(_ v7: [UInt8], _ fixture: ReplayFixture) throws -> [UInt8] {
+    let atlasStart = v7.count - fixture.reference.count - 64 - fixture.atlas.count - 8
+    try #require(Array(v7[(atlasStart - 4)..<atlasStart]) == [0, 0, 0, 0], "an empty group table")
+    var v6 = v7
+    v6.removeSubrange((atlasStart - 4)..<atlasStart)
+    v6[8] = 6
+    return v6
+}
+
+/// **3.6** (ruling `BB-J`, `LG-O`, `PJ-A`, `GO-F`). The version is 7; a fixture written before it —
 /// version 5 (64-byte transform records), version 4 (96-byte backdrop records), version 3 (no backdrop stride, no backdrop table) and version 2 (no
 /// transform stride or table either) — still loads, to the same fixture;
 /// version 1 stays refused. The old files are built from the new encoding by
 /// removing exactly the fields the old layouts lack. Mutation: bump
 /// `version` without the reader's older arms.
-@Test func theFixtureVersionIsSixAndOldVersionsStillLoad() throws {
-    #expect(ReplayFixture.version == 6)
+@Test func theFixtureVersionIsSevenAndOldVersionsStillLoad() throws {
+    #expect(ReplayFixture.version == 7)
     let fixture = try sample()
-    let v6 = fixture.encoded()
+    let v6 = try asVersion6(fixture.encoded(), fixture)
+    #expect(try ReplayFixture(decoding: v6) == fixture, "version 6 (no group table) still loads")
     // v5: the same bytes with the old version and the 64-byte transform stride (no records here).
     var v5 = v6
     v5[8] = 5
@@ -434,9 +446,9 @@ private func backdropFixture() throws -> ReplayFixture {
     var v1 = v6
     v1[8] = 1
     #expect(throws: FixtureError.unsupportedVersion(1)) { try ReplayFixture(decoding: v1) }
-    var v7 = v6
-    v7[8] = 7
-    #expect(throws: FixtureError.unsupportedVersion(7)) { try ReplayFixture(decoding: v7) }
+    var v8 = v6
+    v8[8] = 8
+    #expect(throws: FixtureError.unsupportedVersion(8)) { try ReplayFixture(decoding: v8) }
 }
 
 /// **3.4** (ruling `BB-J`, `MV-C` item 4). A scene's backdrop run is recorded
@@ -531,11 +543,11 @@ private func backdropFixture() throws -> ReplayFixture {
 /// version-5 record keeps its whole tail through an encode and a decode.
 /// Mutations: widen with 0xFF; read a version-4 table at the new stride.
 @Test func theFixtureStrideIs256AndVersion4Widens() throws {
-    #expect(ReplayFixture.backdropStride == 256 && ReplayFixture.version == 6)
+    #expect(ReplayFixture.backdropStride == 256 && ReplayFixture.version == 7)
     // A version-4 stream built from the version-5 encoding: the stride field and the table
     // shrink to the first 96 bytes of each record.
     let fixture = try backdropFixture()
-    let v5 = fixture.encoded()
+    let v5 = try asVersion6(fixture.encoded(), fixture)
     let tableOffset = 8 + 4 + 28 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + fixture.images.count
         + 4 + 4 + fixture.transforms.count
     var v4 = Array(v5[0..<tableOffset])
@@ -613,7 +625,7 @@ private func backdropFixture() throws -> ReplayFixture {
     let back = try #require(decoded6.transformRecords.last)
     #expect(back.g == 0.5 && back.h == 0.25 && back.i == 2 && back.det3 == 2, "lane 4 survives a version-6 round trip")
     // The version-5 stream: the stride field, the table byte count and each record's first 64 bytes.
-    let bytes = v6.encoded()
+    let bytes = try asVersion6(v6.encoded(), v6)
     let tableOffset = 8 + 4 + 28 + 4 + v6.rects.count + 4 + v6.glyphs.count + 4 + v6.images.count + 4
         + v6.textures.reduce(0) { $0 + 8 + $1.pixels.count }
     try #require(Array(bytes[tableOffset..<tableOffset + 4]) == [160, 0, 0, 0], "two 80-byte records")
@@ -651,4 +663,90 @@ private func backdropFixture() throws -> ReplayFixture {
                                     reference: [UInt8](repeating: 0, count: 16 * 16 * 4))
     let placed = try #require(fixture.glyphBounds.first)
     #expect(abs(placed.x + placed.width - 6) < 1e-4, "right edge 10 / 2 + 1 = 6: \(placed)")
+}
+
+// MARK: - Offscreen opacity groups (ruling GO-F, version 7)
+
+private func groupBounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> MUIBounds {
+    MUIBounds(origin: MUIPoint(x: x, y: y), size: MUISize(width: w, height: h))
+}
+
+private func groupRect(_ x: Float, _ order: MUIUInt = 0) -> MUIRect {
+    let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+    return MUIRect(bounds: groupBounds(x, 0, 4, 4), contentMask: groupBounds(0, 0, 8, 8), maskCornerRadii: none,
+                   background: MUIHsla(h: 0, s: 1, l: 0.5, a: 1), borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+                   cornerRadii: none, borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: order, shape: 0)
+}
+
+private func transformRecord(_ tx: Float) -> MUITransform {
+    MUITransform(a: 1, b: 0, c: 0, d: 1, tx: tx, ty: 0, pixelScale: 1, _reserved: 0,
+                 outerMask: groupBounds(0, 0, 8, 8),
+                 outerMaskRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0))
+}
+
+/// A root rect, a group (a rect under transform record 1) and a group inside that group's own parent: two groups, the
+/// inner one first (post-order), the second holding the first's quad.
+private func groupTreeScene() -> Scene {
+    var inner = Scene()
+    inner.insert(groupRect(1), transform: transformRecord(2))
+    inner.finalize()
+    var outer = Scene()
+    outer.insert(groupRect(3), transform: transformRecord(5))
+    outer.insert(MUIImage(bounds: groupBounds(0, 0, 8, 8), contentMask: groupBounds(0, 0, 8, 8),
+                          maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0), opacity: 0.5, texture: 0,
+                          filter: MUIUInt(MUIImageFilterNearest.rawValue), order: 1), group: inner)
+    outer.finalize()
+    var root = Scene()
+    root.insert(groupRect(0))
+    root.insert(MUIImage(bounds: groupBounds(0, 0, 8, 8), contentMask: groupBounds(0, 0, 8, 8),
+                          maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0), opacity: 0.5, texture: 0,
+                         filter: MUIUInt(MUIImageFilterNearest.rawValue), order: 1), group: outer)
+    root.finalize()
+    return root
+}
+
+/// **GO-F.** A scene with nested groups records as post-order fixture groups, round-trips through the v7 encoding and
+/// validates; a group quad naming a group that is not earlier than it is refused. Mutation: record the groups
+/// outermost-first (the validator's "earlier" rule reddens).
+@Test func aFixtureWithGroupsRoundTripsInPostOrder() throws {
+    let fixture = try ReplayFixture(scene: groupTreeScene(), atlas: GlyphAtlas(width: 1, height: 1), width: 8, height: 8,
+                                    projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                    reference: [UInt8](repeating: 0, count: 8 * 8 * 4))
+    try #require(fixture.groups.count == 2, "inner then outer: \(fixture.groups.count)")
+    #expect(fixture.groups[0].body.runs == [FixtureRun(kind: .rect, start: 0, count: 1)])
+    #expect(fixture.groups[1].body.runs.contains { $0.kind == .group }, "the outer one draws the inner")
+    #expect(fixture.runs.contains { $0.kind == .group }, "the root draws the outer one")
+    #expect(try ReplayFixture(decoding: fixture.encoded()) == fixture)
+    var bad = fixture
+    bad.groups.swapAt(0, 1)
+    #expect(throws: FixtureError.self) { try bad.validate() }
+}
+
+/// **GO-F.** `FlatFrame` appends each group's records after the root's, shifting transform indices by the transforms
+/// before them, run starts by the records before them, and naming group targets from `groupTextureBase`. Mutation:
+/// no transform shift (the outer group's rect reads the inner group's table entry, index 1).
+@Test func aFlatFrameShiftsTransformsRunsAndGroupTextures() throws {
+    let fixture = try ReplayFixture(scene: groupTreeScene(), atlas: GlyphAtlas(width: 1, height: 1), width: 8, height: 8,
+                                    projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                    reference: [UInt8](repeating: 0, count: 8 * 8 * 4))
+    let flat = FlatFrame(root: FixtureBody(rects: fixture.rects, glyphs: fixture.glyphs, images: fixture.images,
+                                           transforms: fixture.transforms, runs: fixture.runs),
+                         groups: fixture.groups, groupTextureBase: 3)
+    #expect(flat.mainRunCount == fixture.runs.count)
+    #expect(flat.groups.count == 2 && flat.groups[0].runStart == UInt32(flat.mainRunCount))
+    let stride = Int(ReplayFixture.rectStride)
+    let rects = flat.rects.withUnsafeBytes { raw in
+        (0..<flat.rects.count / stride).map { raw.loadUnaligned(fromByteOffset: $0 * stride, as: MUIRect.self) }
+    }
+    // Post-order: the root's rect (no transform), then the inner group's (record 1, no transform before it) and the
+    // outer group's (record 1 shifted past the inner group's one).
+    try #require(rects.count == 3, "three rects flat")
+    #expect(rects.map { $0.shape >> 8 } == [0, 1, 2], "transform indices: \(rects.map { $0.shape >> 8 })")
+    #expect(flat.transforms.count / Int(ReplayFixture.transformStride) == 2)
+    let imageStride = Int(ReplayFixture.imageStride)
+    let images = flat.images.withUnsafeBytes { raw in
+        (0..<flat.images.count / imageStride).map { raw.loadUnaligned(fromByteOffset: $0 * imageStride, as: MUIImage.self) }
+    }
+    #expect(images.map(\.texture) == [3 + 1, 3 + 0], "group quads name base + index: \(images.map(\.texture))")
+    #expect(flat.runs.allSatisfy { $0.kind != .group }, "group runs are image runs for the bridge")
 }

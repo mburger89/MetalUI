@@ -69,8 +69,11 @@ func drawingGroupedRoot() -> some Element {
 }
 ```
 
-`.compositingGroup()` alone changes nothing, and it does not composite an opacity written outside
-it (divergence 205). SwiftUI's `drawingGroup()` and inner shadows are not offered. Under a
+`.compositingGroup()` alone changes nothing, and an opacity written outside it composites the
+group: the content renders into an offscreen target and is drawn back at that opacity, so two
+overlapping squares at `.opacity(0.5)` read the top colour over the backdrop, not one through the
+other (the group's own shadow and blur are still per leaf under it, divergence 221, and a group
+holding a material, glass or GPU surface fades per primitive, 222). SwiftUI's `drawingGroup()` and inner shadows are not offered. Under a
 non-uniform scale both axes blur by one radius (divergence 105), and text and images under a scale
 are resampled rather than re-rasterized (divergence 106).
 
@@ -469,7 +472,8 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 109: a clip between two nested rotations becomes its bounding box.
 - divergence 166: a material is a blurred backdrop with a tint.
 - divergence 167: a GPU surface under `.blur(radius:)` is drawn unblurred.
-- divergence 205: an opacity outside `compositingGroup()` is not composited.
+- divergence 221: a shadow or blur outside an opacity group sees the faded leaves one by one.
+- divergence 222: a group holding a material, glass or GPU surface is not composited.
 - divergence 248: a material inside a CPU-rasterized shadow, blur or group draws its flat tint.
 - divergence 295: an empty `Text` measures one line tall.
 - divergence 296: a text measurer is an environment value; MetalUI has no `Canvas`.

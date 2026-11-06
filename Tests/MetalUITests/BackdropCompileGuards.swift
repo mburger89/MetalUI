@@ -38,6 +38,7 @@ func anExhaustiveSwitchOverPrimitiveKindNeedsABackdropArm() throws {
             switch kind {
             case .rect, .glyph, .image, .surface: return "kind"
             case .backdrop: return "backdrop"
+            case .group: return "group"   // GO-D
             }
         }
 
