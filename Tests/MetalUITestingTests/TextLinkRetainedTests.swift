@@ -9,12 +9,22 @@ import Testing
 // why `\.openURL` is uncomparable. Counts and values, never time. Platform opens are read off the headless window
 // (`HeadlessPlatformWindow.openedURLs`): nothing reaches `NSWorkspace`.
 
+/// `before` then `label` linked to `url`. Built by attribute, not `AttributedString(markdown:)`, which
+/// swift-corelibs-foundation lacks on Linux and Windows (`MarkdownInlineTests`' note).
+func linkedText(_ before: String, _ label: String, _ url: String) -> AttributedString {
+    var text = AttributedString(before)
+    var link = AttributedString(label)
+    link.link = URL(string: url)
+    text.append(link)
+    return text
+}
+
 /// A card: a line of text with one link, and a bar. `==` on its inputs.
 struct RPLinkCard: Component, @MainActor Equatable {
     let title: String
     var content: some ElementGroup {
         VStack(spacing: 2) {
-            Text(try! AttributedString(markdown: "see [docs \(title)](https://x.org/\(title))"))
+            Text(linkedText("see ", "docs \(title)", "https://x.org/\(title)"))
                 .frame(width: Pixels(120), height: Pixels(14))
             Box().frame(width: Pixels(40), height: Pixels(8)).background(.accent)
         }
@@ -45,7 +55,7 @@ struct RPLinkPanRoot: Component {
 @Test @MainActor func aHeadlessWindowRecordsTheURLAClickOpened() throws {
     let window = try TestWindow(size: sz(300, 60)) {
         VStack(alignment: .leading, spacing: 0) {
-            Text(try! AttributedString(markdown: "see [docs](https://x.org)")).frame(width: Pixels(140), height: Pixels(16))
+            Text(linkedText("see ", "docs", "https://x.org")).frame(width: Pixels(140), height: Pixels(16))
         }
     }
     #expect(window.platformWindow.openedURLs == [])
