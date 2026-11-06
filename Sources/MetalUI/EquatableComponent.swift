@@ -119,6 +119,11 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
     public mutating func prepaintGroup(layout: inout ComponentLayout<C>,
                                        pass: inout PrepaintPass) -> ComponentPrepaint<C> {
         let grafted = layout.storage.graft != nil
+        // `VF-H`: an occurrence in an unchosen `ViewThatFits` candidate replays nothing and records nothing: its elements
+        // elide themselves, and its paint takes the plain branch below (no phase).
+        if let build = layout.storage.retained, pass.frame.allElided(build.topNodes) {
+            return component.prepaintGroup(layout: &layout, pass: &pass)
+        }
         guard let build = layout.storage.retained,
               let phase = pass.frame.retainedPrepaintPhase(build: build) else {
             return component.prepaintGroup(layout: &layout, pass: &pass)   // traps by name for a graft (`RK-B`)

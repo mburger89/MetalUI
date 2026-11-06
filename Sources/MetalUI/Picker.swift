@@ -547,7 +547,7 @@ public struct TaggedElement<Content: Element>: Element {
 
     /// Which way this frame's layout went, carried to prepaint and paint.
     public struct GroupLayout { var state: Either<Content.GroupLayout, SingleElementLayout<Chrome>> }
-    public struct GroupPrepaint { var state: Either<Content.GroupPrepaint, Chrome.PrepaintState> }
+    public struct GroupPrepaint { var state: Either<Content.GroupPrepaint, Chrome.PrepaintState?> }
     public struct LayoutState { var state: Either<Content.LayoutState, Chrome.Layout> }
     public struct PrepaintState { var state: Either<Content.PrepaintState, Chrome.PrepaintState> }
 

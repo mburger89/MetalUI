@@ -135,8 +135,15 @@ extension Element {
         return ([node], SingleElementLayout(id: id, node: node, state: state))
     }
 
+    /// **`nil` for an element in an unchosen `ViewThatFits` candidate** (`VF-C`): it and everything below it registers
+    /// nothing (no hitbox, focus stop, shortcut, accessibility node) and paints nothing. Every element's group entry is
+    /// this one, so the check is the one place the candidate's whole subtree is skipped.
     public mutating func prepaintGroup(layout: inout SingleElementLayout<Self>,
-                                       pass: inout PrepaintPass) -> PrepaintState {
+                                       pass: inout PrepaintPass) -> PrepaintState? {
+        if pass.frame.isElided(layout.node) {
+            pass.frame.elidedIDs.append(layout.id)
+            return nil
+        }
         // **Re-bind, because `State.Box` is a class and one element VALUE can
         // be placed twice.** `Row { sep; sep }` copies the struct, and a copy
         // shares the box by reference, so the second occurrence's `bind` in
@@ -176,8 +183,10 @@ extension Element {
     }
 
     public mutating func paintGroup(layout: inout SingleElementLayout<Self>,
-                                    prepaint: inout PrepaintState,
+                                    prepaint: inout PrepaintState?,
                                     pass: inout PaintPass) {
+        // An elided element (`VF-C`) was not prepainted and paints nothing.
+        guard prepaint != nil else { return }
         // A lowered `hidden()` paints nothing, and nothing inside it paints (stage 6b,
         // ruling `LR-DH` item 2; probe V1). **`hiddenNodes` only**: until stage 9
         // the legacy path kept painting a `display: none` subtree as before (1.6);
@@ -191,7 +200,7 @@ extension Element {
         // it inside its decoration instead, above its own fill (`paintDecoration`).
         if pass.frame.hasGhostAnchors, !(self is any StyledElement) { pass.frame.paintAnchoredGhosts(at: layout.id) }
         paint(layout.id, bounds: pass.bounds(of: layout.node),
-              layout: &layout.state, prepaint: &prepaint, pass: &pass)
+              layout: &layout.state, prepaint: &prepaint!, pass: &pass)
     }
 }
 
@@ -728,6 +737,12 @@ extension AnyElement: ElementGroup {
 
     public mutating func prepaintGroup(layout: inout GroupLayout,
                                        pass: inout PrepaintPass) {
+        // `Element.prepaintGroup`'s elision (`VF-C`), mirrored: an erased element in an unchosen `ViewThatFits` candidate
+        // registers nothing (found by `everyCandidateKindRegistersNothingWhenUnchosen`). Its paint reads the same set.
+        if pass.frame.isElided(layout.node) {
+            pass.frame.elidedIDs.append(layout.id)
+            return
+        }
         // The element bounds log (plan task 7, ruling LR-D), as
         // `Element.prepaintGroup` records it: this group entry is a copy of that
         // default, and lane 1's log missed it, so the differential harness could
@@ -759,8 +774,8 @@ extension AnyElement: ElementGroup {
 
     public mutating func paintGroup(layout: inout GroupLayout,
                                     prepaint: inout Void, pass: inout PaintPass) {
-        // Stage 6b (`LR-DH` item 4): `Element.paintGroup`'s skip, mirrored.
-        guard !pass.frame.hiddenNodes.contains(layout.node) else { return }
+        // Stage 6b (`LR-DH` item 4): `Element.paintGroup`'s skip, mirrored; and the elision's (`VF-C`).
+        guard !pass.frame.hiddenNodes.contains(layout.node), !pass.frame.isElided(layout.node) else { return }
         pass.frame.elementPaints += 1
         // `Element.paintGroup`'s ghost hook (`XF-F`), at the position's id: the one this entry recorded.
         if pass.frame.hasGhostAnchors { pass.frame.paintAnchoredGhosts(at: layout.id) }

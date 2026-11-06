@@ -177,7 +177,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
         prepaints.reserveCapacity(layout.members.count)
         for index in layout.members.indices {
             var member = layout.members[index]
-            if let target = member.target, let bounds = Self.union(of: target.nodes, pass: pass) {
+            if let target = member.target, !pass.frame.allElided(target.nodes), let bounds = Self.union(of: target.nodes, pass: pass) {
                 pass.frame.noteScrollTarget(target.key, bounds: bounds)   // `SP-B`
             }
             prepaints.append(member.content.prepaintGroup(layout: &member.layout, pass: &pass))

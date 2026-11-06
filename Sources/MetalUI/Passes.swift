@@ -124,6 +124,13 @@ public struct LayoutPass {
         ProposalNodeID(frame.requestNativeLayoutPriority(child: child.layoutNodeID, priority: priority))
     }
 
+    /// Registers a first-fitting selector over `children` (`ViewThatFits`, `VF-B`). **`package`**: no public kernel API.
+    package func requestNativeFirstFitting(children: [ProposalNodeID], horizontal: Bool,
+                                           vertical: Bool) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeFirstFitting(children: children.map(\.layoutNodeID),
+                                                       horizontal: horizontal, vertical: vertical))
+    }
+
     /// Registers a native flexible spacer for a native linear stack.
     public func requestNativeSpacer(minLength: Double? = nil) -> ProposalNodeID {
         ProposalNodeID(frame.requestNativeSpacer(minLength: minLength))

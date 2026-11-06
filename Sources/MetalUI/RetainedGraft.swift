@@ -100,6 +100,8 @@ struct BuildAudit: Equatable {
     var scrollKeys = 0, elementBounds = 0, presentationRecords = 0, toolbarRecords = 0, openURLs = 0
     var navigation = 0, colorScheme = 0, limits = 0, anotherFrame = 0, unlowerable = 0
     var lifecycle = 0, timeline = 0, transitions = 0, matched = 0, surfaces = 0, hasScrollRequests = 0
+    /// `ViewThatFits` containers registered (`VF-H`): their spans, elisions and retractions are made by the build.
+    var fitContainers = 0
 
     func movedChannel(to other: BuildAudit) -> String? {
         if timeVarying != other.timeVarying { return "timeVarying" }
@@ -118,6 +120,7 @@ struct BuildAudit: Equatable {
         if transitions != other.transitions { return "transitionGroup" }
         if matched != other.matched { return "matchedGeometry" }
         if surfaces != other.surfaces { return "surface" }
+        if fitContainers != other.fitContainers { return "viewThatFits" }
         return nil
     }
 }
@@ -205,6 +208,7 @@ extension Frame {
         a.transitions = animationStore.transitions.buildActivity
         a.matched = animationStore.matched.buildActivity
         a.surfaces = surfaceRegistry.buildActivity
+        a.fitContainers = fitSpans.count
         return a
     }
 
@@ -219,6 +223,9 @@ extension Frame {
         recorder.requests = elementRequests &+ stateTable.contentMemos.retained.skippedRequests
         recorder.audit = buildAudit()
         recorder.lifecycleBase = animationStore.lifecycle.nextRegistrationOrder
+        // `VF-H`: a window opened inside a `ViewThatFits` candidate would stand for a build whose notes a graft
+        // cannot journal for retraction.
+        if fitDepth > 0 { recorder.taint = "viewThatFits" }
         journal.open.append(recorder)
         return recorder
     }
@@ -326,6 +333,9 @@ extension Frame {
         guard memos.graftAllowed, let graft = entry.graft, let old = entry.record, let ledger = old.prepaint else {
             return nil
         }
+        // `VF-H`: a graft replays its lifecycle notes through the store, not through `Frame.noteLifecycle`, so inside a
+        // `ViewThatFits` candidate they could not be retracted: the occurrence builds.
+        if fitDepth > 0 { return nil }
         // A ledger holding a geometry note a translation cannot recompute would redo the whole frame and back replay off for eight
         // builds (`RG-J`): the refusal stays for such a ledger only (`RL-G`); a recomputable one moves like any other.
         if !geometryNotesRecomputable(ledger) { memos.graftRefusals.append("geometryGraft"); return nil }

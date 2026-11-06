@@ -186,27 +186,32 @@ public struct GeometryChangeScope<Content: ElementGroup>: ElementGroup {
     /// Prepaints the content; a decorated scope's layer registers first, so its
     /// effects are open when the geometry is noted (`ES-J`).
     public mutating func prepaintGroup(layout: inout GeometryChangeScopeLayout<Content.GroupLayout>,
-                                       pass: inout PrepaintPass) -> Content.GroupPrepaint {
+                                       pass: inout PrepaintPass) -> Content.GroupPrepaint? {
         if var layered = layout.layered as? SingleElementLayout<ModifiedElement<Self>> {
             defer { layout.layered = layered }
-            return withLayer { $0.prepaintGroup(layout: &layered, pass: &pass) }
+            // The layer's group entry is `nil` when it was elided (`VF-C`); two optionals collapse to one.
+            return withLayer { $0.prepaintGroup(layout: &layered, pass: &pass) }.flatMap { $0 }
         }
         if let key = layout.key, let owner = layout.owner {
-            pass.frame.noteGeometry(watch, key: key, owner: owner, nodes: layout.nodes)
+            // `VF-C`: a candidate that was not chosen reports no geometry (probe `X0`).
+            let live = pass.frame.elidedNodes.isEmpty ? layout.nodes : layout.nodes.filter { !pass.frame.isElided($0) }
+            if !live.isEmpty { pass.frame.noteGeometry(watch, key: key, owner: owner, nodes: live) }
         }
         return content.prepaintGroup(layout: &layout.content!, pass: &pass)
     }
 
     /// Paints the content unchanged; a decorated scope's layer paints around it.
     public mutating func paintGroup(layout: inout GeometryChangeScopeLayout<Content.GroupLayout>,
-                                    prepaint: inout Content.GroupPrepaint,
+                                    prepaint: inout Content.GroupPrepaint?,
                                     pass: inout PaintPass) {
         if var layered = layout.layered as? SingleElementLayout<ModifiedElement<Self>> {
             defer { layout.layered = layered }
-            withLayer { $0.paintGroup(layout: &layered, prepaint: &prepaint, pass: &pass) }
+            var wrapped: Content.GroupPrepaint?? = prepaint.map { Optional($0) }
+            withLayer { $0.paintGroup(layout: &layered, prepaint: &wrapped, pass: &pass) }
+            prepaint = wrapped.flatMap { $0 }
             return
         }
-        content.paintGroup(layout: &layout.content!, prepaint: &prepaint, pass: &pass)
+        content.paintGroup(layout: &layout.content!, prepaint: &prepaint!, pass: &pass)
     }
 }
 
@@ -279,7 +284,7 @@ extension GeometryChangeScope: Element where Content: Element {
                                layout: inout ScopeLayerState<GeometryChangeScopeLayout<Content.LayoutState>>,
                                prepaint: inout ScopeLayerState<Content.PrepaintState>, pass: inout PaintPass) {
         if var layered = layout.layered as? ModifiedElement<Self>.Layout,
-           var inner = prepaint.layered as? Content.GroupPrepaint {
+           var inner = prepaint.layered as? ModifiedElement<Self>.PrepaintState {
             defer { layout.layered = layered; prepaint.layered = inner }
             withLayer { $0.paint(id, bounds: bounds, layout: &layered, prepaint: &inner, pass: &pass) }
             return
