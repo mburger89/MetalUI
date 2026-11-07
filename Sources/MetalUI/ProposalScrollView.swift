@@ -19,6 +19,8 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     public var indicatorVisibility: ScrollIndicatorVisibility = .automatic
     /// The `scrollPosition(id:anchor:)` binding, if any (`SP-A`).
     var position: ScrollPositionBinding?
+    /// The `defaultScrollAnchor` declarations, if any (`DSA-A`).
+    var defaultAnchors = DefaultScrollAnchors()
 
     /// A scroller over proposal `content` along `axis`; `elementID` names it
     /// for its scroll state.
@@ -68,9 +70,9 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         var cursor = 0
         position?.beginLayout(id, pass: &pass)   // `SP-A`
         defer { position?.endLayout(pass: &pass) }
-        let (children, contentLayout) = pass.withScrollContext(
-            ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
-        ) {
+        var context = ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
+        context.followsEnd = chrome.layoutFollowsEnd(scrollState, raw: rawOffset)   // `DSA-C`
+        let (children, contentLayout) = pass.withScrollContext(context) {
             content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
         }
         // SwiftUI's `ScrollView` lays several direct children out as a
@@ -104,7 +106,7 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     /// lived here as private copies, untested and already drifting.
     var chrome: ScrollChrome {
         ScrollChrome(axis: axis, cornerRadius: cornerRadius,
-                     indicatorVisibility: indicatorVisibility)
+                     indicatorVisibility: indicatorVisibility, anchors: defaultAnchors)
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

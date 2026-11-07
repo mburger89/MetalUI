@@ -278,6 +278,12 @@ public final class GlyphAtlas {
     /// `theGenerationLivesInTheOneDictionaryThatHoldsTheGlyph`.
     private var placed: [GlyphKey: Placement] = [:]
 
+    /// The key each non-empty slot was packed for, written only on a pack miss and emptied by ``reclaim()`` (`TZ-A`). A
+    /// scene insert that draws a glyph at a scale other than the one it was emitted at (text under a `scaleEffect`) reads
+    /// it to find the glyph again: a `CapturedPrimitive` carries a slot, not a key, and growing it was the alternative.
+    /// A slot is unique within a ``layoutGeneration``, and every holder of a slot drops on a generation change.
+    private var keysBySlot: [AtlasSlot: GlyphKey] = [:]
+
     /// True for the duration of one frame's scene construction — the same shape
     /// as `LayoutTree.isLayingOut`. ``reclaim()`` traps while this is
     /// true: emptying a slot the frame in flight may still hold an `AtlasSlot`
@@ -386,12 +392,27 @@ public final class GlyphAtlas {
             return nil
         }
         blit(image, into: slot)
+        keysBySlot[slot] = key
         packedArea &+= slot.width &* slot.height
         frameLiveArea &+= slot.width &* slot.height
         let entry = PackedGlyph(slot: slot, left: image.left, top: image.top)
         placed[key] = Placement(glyph: entry, generation: currentGeneration)
         return entry
     }
+
+    /// The key `slot` was packed for in the current ``layoutGeneration``, or `nil` for an empty slot, a slot of an earlier
+    /// generation, or one this atlas never handed out (`TZ-A`).
+    package func key(forSlot slot: AtlasSlot) -> GlyphKey? { keysBySlot[slot] }
+
+    /// ``key(forSlot:)`` for a scene record's `atlasBounds` (a glyph carries its slot as a float rectangle, and
+    /// ``AtlasSlot`` cannot be built outside this module).
+    package func key(forAtlasX x: Float, y: Float, width: Float, height: Float) -> GlyphKey? {
+        keysBySlot[AtlasSlot(x: Int(x), y: Int(y), width: Int(width), height: Int(height))]
+    }
+
+    /// `key`'s placement if it is packed, **without** stamping it as used this frame or rasterizing (`TZ-A`): the base
+    /// raster a re-keyed glyph falls back to.
+    package func packedGlyph(for key: GlyphKey) -> PackedGlyph? { placed[key]?.glyph }
 
     /// Doubles the atlas until `width x height` fits or ``maximumExtent`` stops
     /// it (`GL-B`). Every slot keeps its coordinates, so nothing already handed
@@ -471,6 +492,7 @@ public final class GlyphAtlas {
             newHeight = min(newHeight * 2, maximumExtent)
         }
         placed.removeAll(keepingCapacity: true)
+        keysBySlot.removeAll(keepingCapacity: true)
         shelfY = 0
         shelfHeight = 0
         cursorX = 0

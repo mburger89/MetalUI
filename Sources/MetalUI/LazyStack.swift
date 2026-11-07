@@ -214,7 +214,8 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
         let sequenceNodeCount = nodes.count
         if !pinnedViews.isEmpty, plan.mode == .bounded, let index = plan.index, let context = pass.scrollContext {
             let spans = table.sectionSpans().filter { !$0.all.isEmpty }
-            let top = context.offset - (stored?.offset ?? 0)
+            let top = context.followsEnd ? Swift.max(0, index.totalExtent - context.viewportExtent)
+                : context.offset - (stored?.offset ?? 0)
             let bottom = top + context.viewportExtent
             func span(containing unit: Int) -> LazySectionSpan? {
                 spans.first { $0.all.contains(unit) }

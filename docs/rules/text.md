@@ -37,7 +37,7 @@ a draw (`reclaim()` traps mid-frame, `theGlyphAtlasIsReclaimedOnlyAtTheTopOfADra
 **Anything that keeps a glyph's rect past the frame must key on
 `GlyphAtlas.layoutGeneration` or be dropped when it changes** (`AmbientKey`,
 `BuildKey`, the raster key, transition captures, drag snapshots): a new holder
-owes the same. Past the cap a glyph is dropped and `droppedGlyphs` counts it; a
+owes the same. **A glyph under a flattening scale is re-keyed at `Frame.insertIntoScene` (`TZ-A`): the atlas keeps a `package` slot-to-key map (written on a pack miss, emptied by `reclaim()`) so a holder of a slot can find the key again — a new holder keeps keys, not slots, and a text-drawing site emits the base key and slot as before.** Past the cap a glyph is dropped and `droppedGlyphs` counts it; a
 new `GlyphAtlas(width:height:)` never grows unless given a `maximumExtent`. Baseline alignment works in a horizontal
 stack only.
 

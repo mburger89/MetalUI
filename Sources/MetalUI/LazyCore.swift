@@ -99,14 +99,17 @@ enum LazyLinePlanner {
         let index = storedIndex ?? RowExtentIndex(count: count, declaredEstimate: nil)
         guard context.viewportExtent > 0 else {
             if index.count != count { index.rebuild(ids: (0..<count).lazy.map(key)) }
-            let window = 0..<Swift.min(LazyWindow.coldLines, count)
-            return LazyLinePlan(mode: .cold, window: window, anchorLine: 0, anchorOffset: 0,
+            // `DSA-C`: a scroller that will pin to its end realises the LAST lines of its first frame.
+            let first = context.followsEnd ? Swift.max(0, count - LazyWindow.coldLines) : 0
+            let window = first..<Swift.min(first + LazyWindow.coldLines, count)
+            let firstOffset = index.offset(of: first)
+            return LazyLinePlan(mode: .cold, window: window, anchorLine: first, anchorOffset: firstOffset,
                                 trailing: index.totalExtent - index.offset(of: window.upperBound), index: index,
-                                anchor: count > 0 ? (0, 0) : nil)
+                                anchor: count > 0 ? (first, firstOffset) : nil)
         }
         let viewport = context.viewportExtent
         var total = index.totalExtent
-        let top = Swift.min(Swift.max(0, context.offset - origin), Swift.max(0, total - viewport))
+        let top = Swift.min(Swift.max(0, context.windowOffset - origin), Swift.max(0, total - viewport))
         var anchorIndex = index.index(containing: top)
         let anchorY = index.offset(of: anchorIndex)
         // After a rebuild the anchor sits at `anchorY` while the index puts it at

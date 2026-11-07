@@ -2321,3 +2321,24 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **TG3.** Resize a window holding a gradient label, and edit a counter text under a gradient (a digit changing width): any flicker, a one-frame flat colour, or a gradient that jumps? **Observed:**
 - [ ] **TG4.** Hover and select (drag over) gradient text inside a `TextField`-adjacent label: selection stays the selection colour (the field's own text is not a gradient, divergence 975's residue) and a `.foregroundStyle(.secondary)` below a gradient parent keeps the gradient dimmed, as SwiftUI's? **Observed:**
 - [ ] **TG5.** Parity frame 19 (`--expect 20`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam or halo at a letter's edge, any difference in the glyph coverage from Metal's? **Observed:**
+
+## TZ. Text under transforms - zoomed text is sharp and a clip between rotations turns like SwiftUI's (record 223; rulings `TZ-A`..`TZ-F`; decisions `docs/superpowers/2026-11-07-text-zoom-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-text-under-transform.swift` measures SwiftUI through `ImageRenderer` (not the on-screen renderer), the tests read scene structure and Metal or SDL pixels offscreen, but a real window, a live zoom and a GPU on Linux or Windows are a person's. Not run.*
+
+- [ ] **TZ1.** Run the looks demo (`METALUI_LOOKS_DEMO=1`) beside the same words in a SwiftUI app: does 14 pt text at `scaleEffect` 2 and 1.5 look as sharp as real 28 and 21 pt text (no soft, blurred stems), and the 0.5 text as crisp as real 14 pt? **Observed:**
+- [ ] **TZ2.** Tap the zooming word (1 to 3 over a second): does it grow smoothly, with no pop, shimmer or jump in weight when the raster changes rung, and does it settle sharp? **Observed:**
+- [ ] **TZ3.** Run the strip on Linux and Windows (SDL): the same as TZ1 and TZ2, and no glyph missing or clipped at a rung change (the atlas grows)? **Observed:**
+- [ ] **TZ4.** The two clips between 30-degree rotations: do the square and the rounded clip turn with the outer rotation (square and rounded corners, no axis-aligned box showing the inner content's corners)? **Observed:**
+- [ ] **TZ5.** Rotated text (`rotationEffect`) is still the upright raster resampled (divergence 106's residue): is it visibly softer than SwiftUI's at 30 degrees, and acceptable? **Observed:**
+- [ ] **TZ6.** Parity frame 20 (`--expect 21`) on Linux Vulkan and Windows Direct3D 12 in CI: any glyph halo, a missing glyph after the atlas grows, any difference from Metal's at the nested clips' edges? **Observed:**
+
+## DA. `defaultScrollAnchor` - a transcript starts at the bottom and follows it like SwiftUI's (Alloy gap G6; rulings `DSA-A`..`DSA-I`, record 224; decisions `docs/superpowers/2026-11-07-default-scroll-anchor-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-default-scroll-anchor.swift` reads SwiftUI's offsets through an offscreen hosting window and the tests read the headless harness, but how a streaming transcript looks and feels under a real trackpad (a flicker on append, a jump when a block above expands, momentum into the bottom) is a person's. Not run.*
+
+- [ ] **DA1.** In a window with a `ScrollView { LazyVStack { ForEach(blocks) } }.defaultScrollAnchor(.bottom)` of a few thousand variable-height blocks, appended every frame or two, does it open at the last block, and does the last block stay glued to the bottom edge while the blocks stream in, with no one-frame flash of older blocks or blank space? **Observed:**
+- [ ] **DA2.** Scroll up with the trackpad while blocks keep arriving: does the content under your eyes stay put (no creep, no jump)? Then scroll back to the bottom (including by momentum): does following resume without a click? **Observed:**
+- [ ] **DA3.** With the transcript pinned, expand and collapse a block above the viewport: does the last block stay at the bottom edge? Scrolled up, expand a block above the viewport: does the content you are reading stay put? **Observed:**
+- [ ] **DA4.** Resize the window taller and shorter while pinned and while scrolled up: pinned stays at the bottom, scrolled up keeps its place? **Observed:**
+- [ ] **DA5.** `ScrollViewReader.scrollTo(someEarlierBlock)` while pinned: does it release (the next append does not yank back), and `scrollTo(lastBlock, anchor: .bottom)` pin again? **Observed:**

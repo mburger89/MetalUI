@@ -399,7 +399,9 @@ public final class Frame {
         // for one scroller sum.
         for adjustment in scrollAnchorAdjustments {
             stateTable.withState(adjustment.scroller, initial: ScrollState()) {
-                $0.offset += adjustment.delta
+                // `DSA-E`: a scroller following its end is re-placed at the end by the next prepaint; an
+                // adjustment would only read as the user leaving it.
+                if !$0.anchor.following { $0.offset += adjustment.delta }
             }
         }
         // `SP-C`: the registry learns what the position bindings now hold, and reports scrollers a `scrollTo`
@@ -3561,6 +3563,16 @@ public final class Frame {
     var masksBakedToEllipse = 0
     var masksFlattenedBackdrop = 0
     var masksFlattenedOversize = 0
+    /// Clips between two non-flattening effects drawn as a masked group (`TZ-B`): work counter, 0 for a tree with none.
+    var nestedClipMasks = 0
+
+    /// Glyphs `insertIntoScene` drew from a raster at the scale they are drawn at (text under a `scaleEffect`), and those it
+    /// drew from their device-scale raster because the atlas refused the new one or knew no key for the slot (`TZ-A`,
+    /// `TZ-C`): work counters, 0 for a tree with no scaled text.
+    var glyphsRekeyed = 0
+    var glyphRekeyFallbacks = 0
+    /// Reads of the atlas's slot-to-key map by a glyph that was drawn at another scale (0 for text at its device scale).
+    var glyphRekeyLookups = 0
 
     /// Shadows and blurs this frame rendered through a filtered offscreen group, and those whose box exceeded the target
     /// limit and took the CPU raster instead (`GF-B`, `GF-G`): work counters, 0 for a tree the CPU can read.
@@ -4058,7 +4070,7 @@ public final class Frame {
         let transform = primitive.transform?.record
         switch primitive.kind {
         case .rect(let rect): scene.insert(rect, layer: primitive.layer, transform: transform)
-        case .glyph(let glyph): scene.insert(glyph, layer: primitive.layer, transform: transform)
+        case .glyph(let glyph): scene.insert(rekeyedGlyph(glyph) ?? glyph, layer: primitive.layer, transform: transform)
         case .image(let image, let texture):
             scene.insert(image, texture: texture, layer: primitive.layer, transform: transform)
         case .surface(let quad, let target):

@@ -74,7 +74,7 @@ group: the content renders into an offscreen target and is drawn back at that op
 overlapping squares at `.opacity(0.5)` read the top colour over the backdrop, not one through the
 other (a shadow or blur written outside it is cast by, or blurs, the unfaded composite and fades with it as one, and a group
 holding a material, glass or GPU surface fades per primitive, 222; a view's `.opacity` written inside a shadow fades the shadow's source, divergence 223). SwiftUI's `drawingGroup()` and inner shadows are not offered. Under a
-non-uniform scale both axes blur by one radius (divergence 105), and text and images under a scale
+non-uniform scale both axes blur by one radius (divergence 105), and text under a rotation, skew or projection (text under a uniform scale is re-rasterized at the scale it is drawn at) and images under a transform
 are resampled rather than re-rasterized (divergence 106).
 
 ## How do I put a blurred material behind a panel?
@@ -466,10 +466,9 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 103: a GPU surface redraws on a new target or a changed `value:`, not on every body.
 - divergence 104: a shadow is per drawn leaf.
 - divergence 105: a shadow's blur is three box blurs approximating a Gaussian.
-- divergence 106: text and images under a scale are resampled.
+- divergence 106: text under a rotation, skew, non-uniform scale or projection, and images under a transform, are resampled; text under a uniform scale is re-rasterized, up to 256 pixels of em.
 - divergence 107: an accessibility frame under a rotation off a right angle is the transformed bounding box (40.31 square at 45° for a 33 × 24 view, SwiftUI reports 35.36).
 - divergence 108: a legacy element's render effects wrap the whole element.
-- divergence 109: a clip between two nested rotations becomes its bounding box.
 - divergence 166: a material is a blurred backdrop with a tint.
 - divergence 167: a GPU surface under `.blur(radius:)` is blurred offscreen; SwiftUI's side for platform views is unmeasured.
 - divergence 223: a view's `.opacity` written inside a `.shadow` fades the shadow's source, not the shadow.

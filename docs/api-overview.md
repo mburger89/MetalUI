@@ -138,7 +138,7 @@ controls, `Text`, `Box`, a `Component` — through `ProposalContentBuilder`
 (A; `LZ-`, record §134): SwiftUI's spellings, windowed against the enclosing `ScrollView`/`ProposalScrollView` (the viewport's lines plus two each side,
 divergence 637; the whole content outside a scroller), children of a `ForEach` or static, variable extents through `List`'s own `RowExtentIndex`, an adaptive
 `GridItem` resolved by `GridTrackSolver` (635–638); **`pinnedViews: PinnedScrollableViews` over `Section`** on `LazyVStack`/`LazyHStack` (A; `SP-G`…`SP-J`, record §177, divergence 915): a section's header/footer stays at the viewport's edge while the section is current, the stack stays windowed, a `ForEach` of sections is read as units; grids and a `List` take neither. `METALUI_LAZY_DEMO=1`; human checks group LZ, unrun.
-`ProposalScrollView`, `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)` (animated under `withAnimation`, `SP-F`), **`.scrollPosition(id:anchor:)`** with **`.scrollTargetLayout()`** (A; `SP-A`…`SP-C`, divergence 916: the topmost `ForEach` target is written to the binding from the wheel, writing it scrolls; two-axis scrolling is carried, `SP-K`),
+`ProposalScrollView`, `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)` (animated under `withAnimation`, `SP-F`), **`.defaultScrollAnchor(_:)`** and **`(_:for:)`** with **`ScrollAnchorRole`** (A; `DSA-A`…`DSA-I`, record 224, divergence 226: `.bottom` starts a transcript at its end and follows it while the scroller is at the end; a wheel or `scrollTo` away releases it; on the scroll view itself, not an ancestor), **`.scrollPosition(id:anchor:)`** with **`.scrollTargetLayout()`** (A; `SP-A`…`SP-C`, divergence 916: the topmost `ForEach` target is written to the binding from the wheel, writing it scrolls; two-axis scrolling is carried, `SP-K`),
 `UnitPoint`, `.scrollIndicators`. `ProposalLayout` +
 `ProposalLayoutContainer` — SwiftUI's `Layout` without a cache (`SA-A`), over
 `MeasurementSubviews`/`PlacementSubviews` and `ProposedSize`.
@@ -413,10 +413,12 @@ accessibility frame is the transformed frame's bounding box (107 at angles off
 a right angle). On the proposal vocabulary each is one `LayoutModifier` layer
 (`.rotationEffect`, `.scaleEffect`, `.offset` cases); on a `StyledElement`
 each returns `Self` and wraps the whole element whatever the written order
-(108). A clip between two nested rotations is its screen bounding box (109); a
+(108). A clip between two nested rotations clips to the clip (a masked group,
+`TZ-B`; 109 retired); a
 handler written outside a padding over an effect hits its own axis-aligned
-frame (41). Angle, factors, anchor and offset animate. Text and images under
-a scale or rotation are resampled, not re-rasterized (106); paths and shadows
+frame (41). Angle, factors, anchor and offset animate. Text under a uniform
+scale is re-rasterized at the scale it is drawn at (`TZ-A`); under a rotation, skew,
+non-uniform scale or projection it is resampled (106), as are images; paths and shadows
 are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 `rotation3DEffect`.
 
