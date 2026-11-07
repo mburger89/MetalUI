@@ -211,13 +211,10 @@ private func describe(_ scene: Scene, _ landing: Landing) -> String { "\(landed(
     }
 }
 
-/// **P14, P15 (divergence 975)** — a gradient parent is lowered to its first stop, a `.tint` parent is the tint.
-@Test @MainActor func aGradientParentLowersToItsFirstStopAndATintParentIsTheTint() {
+/// **P15** — a `.tint` parent is the tint. (The gradient half, P14, moved to `aLevelOverAGradientParentKeepsTheGradient`: a
+/// gradient parent is no longer lowered to its first stop, `TG-B`.)
+@Test @MainActor func aTintParentIsTheTint() {
     let size = (width: px(40), height: px(40))
-    let gradient = LinearGradient(colors: [.red, .blue], startPoint: .leading, endPoint: .trailing)
-    let p14 = painted(HStack { Circle().foregroundStyle(.secondary).frame(width: size.width, height: size.height) }
-        .foregroundStyle(gradient))
-    #expect(has(p14, .fill, redLight, alpha: 0.5), "P14 (first stop × .5): \(describe(p14, .fill))")
     let green = (r: Float(0x34) / 255, g: Float(0xC7) / 255, b: Float(0x59) / 255)
     let p15 = painted(HStack { Circle().foregroundStyle(.secondary).frame(width: size.width, height: size.height) }
         .foregroundStyle(.tint).tint(.green))

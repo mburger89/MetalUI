@@ -200,7 +200,7 @@ private let environmentFields: [String: String] = [
     "accessibilityDisplay": "fingerprint", "legibilityWeight": "fingerprint",
     "titleBarInsets": "fingerprint", "windowSize": "fingerprint", "colorScheme": "fingerprint",
     "controlSize": "fingerprint", "font": "fingerprint",
-    "truncationMode": "fingerprint", "multilineTextAlignment": "fingerprint", "foregroundStyle": "fingerprint", "tint": "fingerprint",
+    "truncationMode": "fingerprint", "multilineTextAlignment": "fingerprint", "foregroundStorage": "fingerprint (as foregroundStyle: the whole storage)", "tint": "fingerprint",
     "fontWeight": "fingerprint", "italic": "fingerprint", "isBold": "fingerprint", "textRichBox": "fingerprint (the fields it holds, as textRich)",
     "textLineLimit": "fingerprint",
     "fieldStyles": "fingerprint (both styles)", "theme": "fingerprint", "textSystemBox": "fingerprint (presence)",

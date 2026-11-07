@@ -119,7 +119,11 @@ public struct Text: Element, StyledElement {
     /// a gradient written before it. Source-compatible (`docs/migration.md`).
     public var foregroundColor: Color? {
         get { foregroundStorage?.representativeColor }
-        set { foregroundStorage = newValue.map { .color($0) } }
+        set {
+            // Not `newValue.map { .color($0) }`: that closure carries a main-actor check, and a text's colour is set while a
+            // production tree is built (the one-megabyte-thread harness builds off the main thread).
+            if let newValue { foregroundStorage = .color(newValue) } else { foregroundStorage = nil }
+        }
     }
 
     /// This text's own style (`TG-A`): a colour, a gradient (painted across the glyphs' ink) or a material (its flat

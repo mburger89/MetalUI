@@ -32,7 +32,11 @@ public struct ProposalText: ProposalElement {
     /// ``Text/foregroundColor``.
     public var foregroundColor: Color? {
         get { foregroundStorage?.representativeColor }
-        set { foregroundStorage = newValue.map { .color($0) } }
+        set {
+            // Not `newValue.map { .color($0) }`: that closure carries a main-actor check, and a text's colour is set while a
+            // production tree is built (the one-megabyte-thread harness builds off the main thread).
+            if let newValue { foregroundStorage = .color(newValue) } else { foregroundStorage = nil }
+        }
     }
     /// The text's own style (`TG-A`): a colour, a gradient or a material; `nil` inherits the environment's.
     var foregroundStorage: ShapeStyleStorage?

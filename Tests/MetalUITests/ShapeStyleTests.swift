@@ -224,14 +224,20 @@ private struct SSLoop: ShapeStyle {
             "foregroundStyle(custom) resolves in the scope it is written in")
 }
 
-/// `foregroundStyle` of a gradient paints its first stop (divergence 975); a style that never reaches a primitive traps
-/// rather than loops (not asserted: an exit test is not offered here), so only the first-stop rule is pinned.
-@Test @MainActor func aGradientForegroundStylePaintsItsFirstStop() throws {
+/// `foregroundStyle` of a gradient on text is a gradient, painted as a masked group over the glyphs' ink (`TG-`, divergence 975
+/// narrowed); the representative colour (its first stop) is what every single-colour reader still takes. A style that never
+/// reaches a primitive traps rather than loops (not asserted: an exit test is not offered here). Replaces
+/// `aGradientForegroundStylePaintsItsFirstStop`, whose `allSatisfy` over the root glyphs went vacuous.
+@Test @MainActor func aGradientForegroundStyleOnTextIsAMaskedGroupAndItsRepresentativeColourIsTheFirstStop() throws {
     let g = LinearGradient(colors: [.green, .blue], startPoint: .top, endPoint: .bottom)
     let frame = rtFrame(rtTopLeft(Column { Text("ab") }.foregroundStyle(g)))
-    #expect(frame.scene.glyphs.allSatisfy { ssSame($0.color, frame.resolve(.green)) })
+    let scene = frame.finalizedScene()
+    #expect(frame.groupsMasked == 1 && scene.glyphs.isEmpty && scene.groupMasks.compactMap { $0 }.first?.glyphs.count == 2)
     #expect(AnyShapeStyle(g).resolve(in: EnvironmentValues()) == ResolvedShapeStyle(.gradient(.linear(g))))
     #expect(ShapeStyleStorage.gradient(.linear(g)).representativeColor == .green)
+    var values = EnvironmentValues()
+    values.foregroundStorage = .gradient(.linear(g))
+    #expect(values.foregroundStyle == .green, "the colour reader sees the first stop")
 }
 
 /// A box border and a box background take a style. Mutation: `StyledElement.background<S>` dropping the gradient case.

@@ -42,7 +42,9 @@ struct TextRunRequest: Sendable, Hashable {
         self.weight = weight
         self.italic = italic
         self.monospaced = monospaced
-        self.foreground = foregroundStyle ?? foreground.map { .color($0) }
+        if let foregroundStyle { self.foreground = foregroundStyle }
+        else if let foreground { self.foreground = .color(foreground) }   // not `.map`: its closure carries a main-actor check
+        else { self.foreground = nil }
         self.background = background
         self.underline = underline
         self.strikethrough = strikethrough

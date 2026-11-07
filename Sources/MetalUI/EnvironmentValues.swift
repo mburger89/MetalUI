@@ -353,7 +353,11 @@ public struct EnvironmentValues {
     /// **Internal**: SwiftUI has no public key.
     var foregroundStyle: Color? {
         get { foregroundStorage?.representativeColor }
-        set { foregroundStorage = newValue.map { .color($0) } }
+        set {
+            // Not `newValue.map { .color($0) }`: that closure carries a main-actor check, and a text's colour is set while a
+            // production tree is built (the one-megabyte-thread harness builds off the main thread).
+            if let newValue { foregroundStorage = .color(newValue) } else { foregroundStorage = nil }
+        }
     }
 
     /// The tint `.tint(_:)` wrote (`SS-D`): what `Color.accentColor` resolves to and what the

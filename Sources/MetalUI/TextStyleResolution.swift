@@ -95,7 +95,7 @@ func resolveForeground(_ own: ShapeStyleStorage?, in environment: EnvironmentVal
     case let .gradient(fill)?:
         return (fill.gradient.stops.first?.color ?? .clear, fill)
     case let .material(material)?:
-        return (material.color, nil)
+        return (ShapeStyleStorage.material(material).representativeColor, nil)
     }
 }
 
