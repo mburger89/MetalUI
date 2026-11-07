@@ -53,8 +53,8 @@ private let lineAlpha: Float = 0.27
     redraw(window)
     let pitch = codePitch(scale: 1)
     let plain = matchRects(window), current = currentRects(window)
-    #expect(plain.count == 2, "two plain matches: \(plain.map(\.bounds))")
-    #expect(current.count == 1, "one current match: \(current.map(\.bounds))")
+    try #require(plain.count == 2, "two plain matches: \(plain.map(\.bounds))")
+    try #require(current.count == 1, "one current match: \(current.map(\.bounds))")
     for rect in plain + current { #expect(rect.bounds.size.height == pitch && rect.bounds.size.width > 0) }
     #expect(current[0].bounds.origin.y == 0, "the current match (index 1) is the second foo of the first row")
     #expect(plain.map(\.bounds.origin.y).sorted() == [0, pitch], "the others: the first foo of row 0 and the one of row 1")
