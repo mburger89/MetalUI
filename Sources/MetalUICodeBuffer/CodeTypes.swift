@@ -12,6 +12,7 @@ public struct CodePoint: Hashable, Comparable, Sendable {
         self.column = column
     }
 
+    /// Whether `a` comes before `b`: by row, then by column.
     public static func < (a: CodePoint, b: CodePoint) -> Bool {
         a.row != b.row ? a.row < b.row : a.column < b.column
     }
