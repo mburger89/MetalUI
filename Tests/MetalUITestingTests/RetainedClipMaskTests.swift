@@ -79,3 +79,32 @@ func aMaskedClipInsideAnOccurrenceMissesWhenItMovesAndEqualsAFreshFrame() throws
     #expect(movedY > beforeY, "the mask moved with the content: \(beforeY) to \(movedY)")
     #expect(maskedBytes(moved) == maskedBytes(fresh), "equal to the retention-off window's frame")
 }
+
+// R4-5 PR E lane 1 (`TZ-B`, record 222): a clip between two rotations is a masked group too, so a replay re-groups it.
+private struct NestedClipCard: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        Color(.accent).frame(width: Pixels(100), height: Pixels(100)).rotationEffect(.degrees(30))
+            .frame(width: Pixels(60), height: Pixels(60)).clipped().rotationEffect(.degrees(30))
+            .padding(Edges(all: Pixels(60)))
+    }
+}
+
+/// **TZ-B.** A clip between two 30-degree rotations inside an `.equatable()` occurrence replays (`retainedHits > 0`) as the same
+/// masked group, byte for byte. Mutation **L8**: `replayPaint`'s fast path back to `insertIntoScene` per primitive (the replay
+/// draws the content under its box and no group).
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the hit counts are not its to read"))
+@MainActor
+func aRetainedReplayUnderANestedClipEqualsAFreshFrame() throws {
+    let window = try TestWindow(size: sz(200, 200), textSystem: { harnessTextSystem() }) { ZStack(alignment: .topLeading) { NestedClipCard().equatable() } }
+    window.window.setNeedsRedraw(); window.tick()
+    let first = window.scene
+    try #require(first.groups.count == 1 && first.groupMasks[0] != nil, "set up: the first frame is a masked group: \(first.groups.count)")
+    let firstBytes = maskedBytes(first)
+    window.resetFrameWork()
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    let sum = window.frameWork.dropFirst().reduce(window.frameWork[0], +)
+    #expect(sum.retainedHits > 0 && sum.retainedReplayedOps > 0, "a replay happened: \(sum.retainedHits) hits")
+    let replayed = window.scene
+    #expect(replayed.groups.count == 1 && replayed.groupMasks[0] != nil, "still one masked group")
+    #expect(maskedBytes(replayed) == firstBytes, "the same bytes as the fresh frame")
+}

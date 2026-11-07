@@ -3559,6 +3559,8 @@ public final class Frame {
     var masksBakedToEllipse = 0
     var masksFlattenedBackdrop = 0
     var masksFlattenedOversize = 0
+    /// Clips between two non-flattening effects drawn as a masked group (`TZ-B`): work counter, 0 for a tree with none.
+    var nestedClipMasks = 0
 
     /// Shadows and blurs this frame rendered through a filtered offscreen group, and those whose box exceeded the target
     /// limit and took the CPU raster instead (`GF-B`, `GF-G`): work counters, 0 for a tree the CPU can read.

@@ -318,7 +318,8 @@ struct RenderEffect: Equatable {
     /// - Otherwise the map composes onto its transform record (`M ∘ T`). Its
     ///   local geometry never moves; its outer mask moves with a flattening map
     ///   when `outerMaskInner`, and under a non-flattening one becomes its
-    ///   bounding box cut by the scope's own outer mask (divergence 109).
+    ///   bounding box cut by the scope's own outer mask: a superset of the clip, which a masked group cuts exactly where
+    ///   the box is not the clip (`nestedClipMask()`, `TZ-B`, divergence 109 retired).
     func apply(to primitive: CapturedPrimitive, flattens: Bool, outer: OuterMask?) -> CapturedPrimitive? {
         guard var p = applyToShape(to: primitive, flattens: flattens, outer: outer) else { return nil }
         guard p.groups.contains(where: \.isMasked) else { return p }
