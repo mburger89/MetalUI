@@ -12,6 +12,7 @@ licence text is. Facts were read from `Package.swift`, each target's
 | Component | Version | Licence (as used) | Licence text in the repo | Linked by |
 |---|---|---|---|---|
 | stb_image (`CStbImage`) | 2.30 | MIT or public domain (Unlicense), dual | `Sources/CStbImage/LICENSE` | **Every `MetalUI` product on every platform** (macOS included): `MetalUI` depends on `CStbImage` unconditionally. Not behind any trait. |
+| Lucide (`MetalUIIconData`) | lucide-static 1.70.0 | ISC, with the icons derived from Feather under the MIT License (see "Lucide (ISC) / Feather (MIT)" below) | `Sources/MetalUIIconData/LICENSE` | **Every `MetalUI` product on every platform**: `MetalUI` depends on `MetalUIIconData` unconditionally. 29 icons' geometry only (about 15 KB of source), drawn by `Image(systemName:)` on Linux and Windows and by `Icon.bundled(_:)` everywhere. |
 | FreeType (`CFreeType`) | 2.14.3 | FreeType License (FTL), chosen over GPLv2 (`VENDORED.md`: "used under the FTL") | `Sources/CFreeType/FTL.TXT`, with the dual-licence statement in `Sources/CFreeType/LICENSE.TXT` | `MetalUIFreeType`, so `MetalUIPortableText` and `MetalUISystemFonts`. Not linked by `MetalUI` on macOS (CoreText). Linked by any app that uses the portable text system: the Linux and Windows (SDL) starter, or macOS `App(platform:textSystem:)` with `MetalUIPortableText`. |
 | HarfBuzz (`CHarfBuzz`) | 14.5.0 | "Old MIT" | `Sources/CHarfBuzz/COPYING` | `MetalUIHarfBuzz`, so `MetalUIPortableText`. Same products as FreeType. |
 | libunibreak (`CUnibreak`) | 8.0 | zlib | `Sources/CUnibreak/LICENCE` | `MetalUIPortableText`. Same products as FreeType. |
@@ -31,13 +32,13 @@ under the FTL; they are covered by `FTL.TXT` as part of FreeType.
 
 ### What each product contains
 
-| Product / configuration | stb_image | FreeType | HarfBuzz | libunibreak | SheenBidi | SDL3 | AccessKit |
-|---|---|---|---|---|---|---|---|
-| `MetalUI` on macOS (CoreText text system, default) | yes | no | no | no | no | no | no |
-| `MetalUI` on macOS plus `MetalUIPortableText` / `MetalUISystemFonts` | yes | yes | yes | yes | yes | no | no |
-| `MetalUI` + `MetalUIPortableText` + `MetalUISDL`, trait `SDL`, Linux / Windows | yes | yes | yes | yes | yes | yes (dynamic) | no |
-| Same with trait `AccessKit` | yes | yes | yes | yes | yes | yes (dynamic) | yes (static) |
-| `MetalUICore`, `MetalUILayout`, `MetalUIScene`, `MetalUIPlatform`, `MetalUIPath`, `MetalUITextSystem` alone | no | no | no | no | no | no | no |
+| Product / configuration | stb_image | Lucide | FreeType | HarfBuzz | libunibreak | SheenBidi | SDL3 | AccessKit |
+|---|---|---|---|---|---|---|---|---|
+| `MetalUI` on macOS (CoreText text system, default) | yes | yes | no | no | no | no | no | no |
+| `MetalUI` on macOS plus `MetalUIPortableText` / `MetalUISystemFonts` | yes | yes | yes | yes | yes | yes | no | no |
+| `MetalUI` + `MetalUIPortableText` + `MetalUISDL`, trait `SDL`, Linux / Windows | yes | yes | yes | yes | yes | yes | yes (dynamic) | no |
+| Same with trait `AccessKit` | yes | yes | yes | yes | yes | yes | yes (dynamic) | yes (static) |
+| `MetalUICore`, `MetalUILayout`, `MetalUIScene`, `MetalUIPlatform`, `MetalUIPath`, `MetalUITextSystem` alone | no | no | no | no | no | no | no | no |
 
 Measured on macOS: `swift build -c release --product MetalUIDemo` (9,619,400
 bytes), then `nm .build/release/MetalUIDemo`: 92 lines mention `stbi_` (89 begin
@@ -97,6 +98,17 @@ into an app, ship their licences beside them: `Tests/Fonts/NotoSans-OFL.txt`,
 The full text is in the file named in the first table; each must travel with a
 binary that contains the component. Short forms follow for the notices that
 require reproducing a text.
+
+### Lucide (ISC) / Feather (MIT)
+
+Text: `Sources/MetalUIIconData/LICENSE`, copied verbatim from the `lucide-static` 1.70.0
+tarball (`VENDORED.md` gives its sha256). It is the ISC licence of "Lucide Icons and
+Contributors" (copyright 2026), followed by the list of Lucide icons derived from the Feather
+project, which are under the MIT License, copyright (c) 2013-present Cole Bemis. Of the 29
+bundled icons, `check`, `chevron-down`, `chevron-right`, `circle`, `search`, `square`,
+`triangle` and `x` are on that list. Both licences require the copyright and permission
+notice to travel with copies; ship `Sources/MetalUIIconData/LICENSE` with a binary that
+contains the icons (every `MetalUI` product does).
 
 ### stb_image (MIT or public domain)
 

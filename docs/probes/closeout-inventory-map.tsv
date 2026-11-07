@@ -121,6 +121,7 @@ F	clip-shape	A	swiftui-shapes-and-rendering.swift	C3	clippedAndCornerRadiusClipO
 F	shape-background	A	swiftui-shapes-and-rendering.swift	O2	backgroundInAShapeIsTheFilledShapeAndDefaultsToTheBackgroundToken	-	TE-AK	.background(_:in:)/.background(in:): a filled shape behind the content
 F	image	A	swiftui-shapes-and-rendering.swift	I1	anImageAnswersItsPointSizeAtEveryProposal	93	TE-AL TE-AM	Image/Image.Interpolation: decorative and labelled images, .resizable, .interpolation (.high draws bilinear, 93)
 F	symbol-image	A	swiftui-symbol-images.swift	S1	aSymbolsSizeIsTheFontsAtTheImageScale	227 228 229	SYM-A SYM-B SYM-C SYM-D SYM-E SYM-F SYM-G SYM-H	Image(systemName:) on macOS, Image.Scale/imageScale, SymbolRenderingMode (monochrome, hierarchical, multicolor; no palette)/symbolRenderingMode, SymbolVariants/symbolVariant: the size is the font's at the image scale (the alignment rect's width, the image's height, S1), the baseline height minus the alignment rect's bottom (S2), AppKit's raster tinted by the foreground (S4) and cached process-wide, variants resolved by the slash, shape, fill order with fallback (S5, S5b), a missing name an empty 0 x 0 leaf with no log (S6), an image node labelled with SwiftUI's label (S8); AppKit's raster sits up to a device pixel off SwiftUI's (227), a name outside the label table reads AppKit's wording (228), a symbol under scaleEffect is soft (229); every name is missing on Linux and Windows until the bundled icons land
+F	bundled-icon	M	-	-	-	230 231	SYM-I SYM-J SYM-N	Icon (layers of Paths on a view box), Icon.Layer/Paint/Level, Icon.bundled(_:), Image(icon:label:) and Image(decorative:): MetalUI-only; the bundled Lucide subset Image(systemName:) draws off Apple platforms
 F	image-bitmap	M	-	-	-	-	TE-AL	ImageBitmap: the portable stand-in for CGImage (premultiplied RGBA8)
 F	image-decoding	M	-	-	-	138	PX-B PX-C PX-D PX-E	ImageBitmap(contentsOfFile:)/(data:)/(resource:withExtension:subdirectory:bundle:): PNG and JPEG decoded by MetalUI's own decoder (CStbImage) on every platform, identical premultiplied sRGB bytes, colour profiles ignored (138), corrupt input nil; MetalUI-only: SwiftUI's images come from CGImage/NSImage/asset catalogs, and its Image(_:bundle:) reads asset catalogs, not loose files (probe swiftui-bundle-image B0-B9); the resource form decodes once per path
 F	image-decode	M	-	-	-	-	IB-A IB-B IB-C IB-D IB-I IB-J IB-K	DecodedImage (+ ImageBitmap(_:)): PNG/JPEG decoded to straight RGBA8 or 8-bit grey by the one vendored decoder on every platform, width, height, bytesPerRow, the EXIF orientation reported and not applied, applyingOrientation(); SwiftUI has no pixel-level decode API, so MetalUI-only
@@ -436,6 +437,7 @@ M	MetalUI	Gesture.swift	.*	.*	.*	gestures
 M	MetalUI	GestureModifiers.swift	.*	.*	.*	gestures
 M	MetalUI	Grid.swift	LayoutPass	.*	.*	kernel-registrars
 M	MetalUI	Grid.swift	.*	.*	.*	grid
+M	MetalUI	Icon.swift	.*	.*	.*	bundled-icon
 M	MetalUI	SymbolEnvironment.swift	.*	.*	.*	symbol-image
 M	MetalUI	SymbolImage.swift	.*	.*	.*	symbol-image
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(imageScale|symbolVariants)	.*	symbol-image

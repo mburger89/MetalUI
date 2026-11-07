@@ -766,6 +766,10 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 
 **Compiles; `swift package clean` after pulling.** `Image` stores a content enum (a bitmap or a symbol name) instead of an `ImageBitmap`, and `EnvironmentValues` gained `imageScale`, `symbolVariants` (public) and a rendering-mode field (internal), all three in the retained fingerprint: a stale build directory crashes or reads a wrong value. The guard `anImageHasNoSystemNameOrAssetInitialiser` is `anImageHasASystemNameButNoAssetInitialiser`. On Linux and Windows `Image(systemName:)` compiles and draws nothing (a 0 x 0 leaf) until the bundled icons land.
 
+## Record 232 (Alloy gap G3 PR 2): bundled icons
+
+**Compiles; `swift package clean` after pulling** (a new case on `Image`'s content enum and a new target, `MetalUIIconData`, that `MetalUI` depends on). On Linux and Windows `Image(systemName:)` now draws a bundled Lucide icon for the 38 names it maps (divergences 230, 231) instead of nothing; an unmapped name is still an empty 0 x 0 leaf. New MetalUI-only API: `Icon`, `Icon.Layer`, `Icon.bundled(_:)`, `Image(icon:label:)`, `Image(decorative: Icon)`. A binary now carries the Lucide licence: see `THIRD-PARTY-NOTICES.md`.
+
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.
