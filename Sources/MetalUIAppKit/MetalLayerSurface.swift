@@ -46,7 +46,16 @@ final class MetalLayerSurface: RenderSurface {
     }
 
     func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer) {
+        present(frame, in: commandBuffer, onPresented: nil)
+    }
+
+    func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer,
+                 onPresented: (@Sendable (Double) -> Void)?) {
         if let drawable = currentDrawable {
+            // `FP-F`: before the present, so the handler is attached to this frame's drawable.
+            if let onPresented {
+                drawable.addPresentedHandler { onPresented($0.presentedTime) }
+            }
             commandBuffer.present(drawable)
             currentDrawable = nil
         }

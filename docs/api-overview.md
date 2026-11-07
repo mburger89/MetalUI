@@ -1189,3 +1189,7 @@ platform-services seam, `SV-B`: `PlatformFileType`, `PlatformFileDialog`,
 `MetalUIPath` (paths, strokes, exact-area coverage, blur — `package` API,
 no product, imports nothing, `GX-B`), and
 `MetalUIDemoContent` (the demo trees, importable by tests).
+
+## Frame timing — M
+
+`Window.frameTiming: FrameTiming?` (off by default), `FrameTiming` (a ring of `FrameTimingSample`s, `samples`, `last`, `framesRecorded`, `removeAll()`, `onFrame`, `onPresented`, `FrameTiming.now()`, optional `os` signposts under `com.metalui`), `FrameTimingSample` and `FrameInputKind`; the renderer seam `WindowRenderer.setPresentationObserver(_:)`; the headless renderer's `reportsPresentation` and `deliverPresentations(at:)`. MetalUI-only (`FP-A`..`FP-H`, record 222); guide [`frame-timing.md`](frame-timing.md).

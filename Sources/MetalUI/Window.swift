@@ -449,6 +449,17 @@ public final class Window {
     /// Test observability: how many frames actually reached the GPU.
     public private(set) var framesDrawn: Int = 0
 
+    /// Opt-in frame instrumentation (ruling `FP-A`): assign a ``FrameTiming`` to record, per frame, when the
+    /// input that caused it arrived, when layout, prepaint and paint ended, when it was committed and, where the
+    /// platform reports it, when it was presented; `nil` (the default) records nothing and costs one optional
+    /// check per input event and per frame. Setting the environment variable `METALUI_SIGNPOSTS=1` gives every
+    /// new window a timing that also emits `os` signposts (macOS). MetalUI-only.
+    public var frameTiming: FrameTiming? = FrameTiming.fromEnvironment()
+    /// The timing the renderer's presentation observer is installed for (`FP-F`); compared by identity at the
+    /// start of each frame.
+    private weak var observedFrameTiming: FrameTiming?
+    private var frameTimingObserverInstalled = false
+
     /// How many times the loop has found nothing to do and paused the display
     /// link. Test and debug observability, not API.
     public private(set) var pausesEntered: Int = 0
@@ -1042,6 +1053,11 @@ public final class Window {
             // A bound text selection is published after every input that moved it
             // (`SL-B`); one site covers press, drag, key, ⌘A, Tab, text and undo.
             defer { self.publishFocusedSelection() }
+            // `FP-C`: one optional check when instrumentation is off. The earliest event that leaves the window
+            // dirty is the next frame's input (`FP-B`).
+            let timing = self.frameTiming
+            timing?.noteInput(event)
+            defer { timing?.settleInput(dirtied: self.needsRedraw) }
             self.noteModifiers(from: event)   // `IF-D` item 2: first, never claims
             // A flags report carries nothing else: it dirties the window through
             // `currentModifiers`' own guard (`IF-D` item 2) and, as before, when
@@ -1662,9 +1678,17 @@ public final class Window {
         // lost" claim it exists to let a test check.
         stateTable.clearDirty()
 
+        // `FP-B`: the frame's clock starts here, before the drawable is acquired. One optional check when off.
+        let timing = frameTiming
+        if timing !== observedFrameTiming || (timing != nil && !frameTimingObserverInstalled) {
+            bindFrameTimingObserver(timing)
+        }
+        timing?.beginFrame()
+
         // No drawable is an ordinary condition: stay dirty and retry (the
         // window's `WindowRenderer` says so with `nil`, ruling RS-A).
         guard let drawScaleFactor = platformWindow.renderer.beginFrame() else {
+            timing?.abandonFrame()
             setNeedsRedraw()
             return
         }
@@ -1798,11 +1822,31 @@ public final class Window {
         // after its atlas upload and before it encodes `scene`.
         guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas,
                                                   surfaces: frame.surfaceRequests) else {
+            timing?.abandonFrame()
             setNeedsRedraw()
             return
         }
+        timing?.commitFrame()   // `FP-B`: stamped the moment `finishFrame` returned
         framesDrawn += 1
         noteAtlasPressureAfterFrame()
+        timing?.deliverFrame()   // `FP-D`: after the frame, outside every phase
+    }
+
+    /// Points the renderer's presentation observer at `timing` (`FP-F`), or removes it. Frames the timing records
+    /// from now on are numbered from its current ``FrameTiming/framesRecorded``, and the renderer counts from 0
+    /// at installation, so the base maps one to the other.
+    private func bindFrameTimingObserver(_ timing: FrameTiming?) {
+        observedFrameTiming = timing
+        guard let timing else {
+            if frameTimingObserverInstalled { platformWindow.renderer.setPresentationObserver(nil) }
+            frameTimingObserverInstalled = false
+            return
+        }
+        frameTimingObserverInstalled = true
+        let base = timing.framesRecorded
+        platformWindow.renderer.setPresentationObserver { [weak timing] token, presentedAt in
+            timing?.notePresented(index: base + token, at: presentedAt)
+        }
     }
 
     /// Runs every lifecycle event the builds so far produced (ruling `LC-E`),
@@ -1925,6 +1969,7 @@ public final class Window {
                               surfaceRegistry: surfaceRegistry,
                               collectsAccessibility: accessibility.isActive,
                               recordsElementBounds: recordsElementBounds)
+            frame.timing = frameTiming   // `FP-B`: the phase stamps
             frame.clipboardAccess = clipboardAccess   // CP-D
             frame.pointerOwner = lastMousePosition.flatMap { topmostHitboxOwner(at: $0) }   // BY-D
             // The window's key state is stamped OVER `environment` (ruling EV-AB):

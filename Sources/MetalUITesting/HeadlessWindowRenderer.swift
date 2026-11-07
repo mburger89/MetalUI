@@ -57,6 +57,32 @@ public final class HeadlessWindowRenderer: WindowRenderer {
     /// held, so an identity cannot be reused by a new texture while it counts.
     private var previousTextures: [ObjectIdentifier: ImageTexture] = [:]
 
+    /// Whether this renderer answers `WindowRenderer.setPresentationObserver(_:)` (ruling `FP-F`). `false`, the
+    /// default, is the honest headless answer: there is no display, so ``FrameTimingSample/presented`` stays
+    /// `nil` like on SDL. A test of the presentation path sets `true` and plays the display itself with
+    /// ``deliverPresentations(at:)``.
+    public var reportsPresentation = false
+    private var presentationObserver: (@MainActor @Sendable (UInt64, UInt64?) -> Void)?
+    private var observedFrames: UInt64 = 0
+    private var undelivered: [UInt64] = []
+
+    /// Stores the observer; frames are reported only once ``reportsPresentation`` is `true`.
+    public func setPresentationObserver(_ observer: (@MainActor @Sendable (UInt64, UInt64?) -> Void)?) {
+        presentationObserver = observer
+        observedFrames = 0
+        undelivered = []
+    }
+
+    /// Reports every frame finished since the last call as presented at `time` (default: now on
+    /// ``FrameTiming/now()``'s clock), in order, as a display's callback would, outside any frame. Reports
+    /// nothing unless ``reportsPresentation`` is `true`.
+    public func deliverPresentations(at time: UInt64? = nil) {
+        guard let presentationObserver else { return }
+        let tokens = undelivered
+        undelivered = []
+        for token in tokens { presentationObserver(token, time ?? FrameTiming.now()) }
+    }
+
     /// A renderer answering `scaleFactor` from ``beginFrame()``.
     public init(scaleFactor: Float = 1) {
         self.scaleFactor = scaleFactor
@@ -101,6 +127,10 @@ public final class HeadlessWindowRenderer: WindowRenderer {
         lastNewTexturePixels = newPixels
         lastSurfaceRequests = surfaces
         framesPresented += 1
+        if reportsPresentation, presentationObserver != nil {
+            undelivered.append(observedFrames)
+            observedFrames += 1
+        }
         onFramePresented?(self)
         return true
     }
