@@ -110,7 +110,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 
 ### Targets and import rules (each fails silently on macOS)
 
-Twenty-five one-way-dependent targets (`MetalUIPath`, `GX-B`, `MetalUICodeBuffer`, `CV-A`, the last two
+Twenty-six one-way-dependent targets (`MetalUIPath`, `GX-B`, `MetalUICodeBuffer`, `CV-A`, `MetalUIMarkdown`, `BM-A`, the last two
 `MetalUIScaffold` and `MetalUICLI`, `SC-A`, and portable `MetalUITesting`, which imports
 only `MetalUI` and `MetalUIScene`, `HT-A`) plus `Tests/MetalUITestSupport`;
 `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
@@ -119,6 +119,7 @@ these violations show.
 
 - `MetalUILayout` imports only `MetalUICore` and declares no `Style` (`LR-FM`).
 - **`MetalUICodeBuffer` imports only `Observation`** (no Foundation, no `MetalUICore`; portable, own product, re-exported by `MetalUI`; `CV-A`).
+- **`MetalUIMarkdown` imports nothing** (no Foundation, no `MetalUICore`, not even `Observation`; portable, own product, re-exported by `MetalUI`; `BM-A`).
 - `MetalUIScene` imports only `MetalUIShaderTypes` (`PS-A`); an initialiser
   that must stay unspellable outside the package is `package`, with a
   plain-import guard (`PS-D`, `PS-E`).
