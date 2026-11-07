@@ -144,7 +144,13 @@ private struct CMRing: Shape {
 
 /// The probe's CM2: the same with an `.offset` between the clips, so the inner clip is pushed at a flattening effect's entry.
 @MainActor private func crossingByOffset() -> some Element & ProposalElementGroup {
-    twoLeavesSquare().clipShape(RoundedRectangle(cornerRadius: px(30)))
+    // Four leaves, two of them inside the overlap, so a group per leaf would show as two groups.
+    HStack(spacing: px(0)) {
+        pureRed.frame(width: px(25), height: px(100))
+        pureBlue.frame(width: px(25), height: px(100))
+        pureRed.frame(width: px(25), height: px(100))
+        pureBlue.frame(width: px(25), height: px(100))
+    }.clipShape(RoundedRectangle(cornerRadius: px(30)))
         .offset(x: px(50), y: px(50))
         .frame(width: px(100), height: px(100), alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: px(30)))
@@ -179,7 +185,9 @@ private struct CMRing: Shape {
     #expect(alpha(r.pixels, 102, 102) == 0, "the inner's corner is clear: \(pixel(r.pixels, 102, 102))")
     #expect(alpha(r.pixels, 147, 147) == 0, "the outer's corner is clear: \(pixel(r.pixels, 147, 147))")
     #expect(alpha(r.pixels, 125, 125) == 255, "the overlap draws: \(pixel(r.pixels, 125, 125))")
-    #expect(r.frame.groupsMasked == 1, "both leaves share the scope's crossing group: \(r.frame.groupsMasked)")
+    // One group per leaf: every fill is its own leaf through `processScopes`, so the scope's crossing token merges only the
+    // primitives of one leaf array (a text draw's glyphs). Carried in record 220 section 4; each group's box is its leaf's.
+    #expect(r.frame.groupsMasked == 2, "a masked group per leaf in the overlap: \(r.frame.groupsMasked)")
 }
 
 /// **6b (`CM-B`).** A crossing pair inside an offset moves with it: the mask's `contentMask` (the outer clip) was pushed inside
