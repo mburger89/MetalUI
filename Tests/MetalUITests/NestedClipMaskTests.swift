@@ -195,3 +195,29 @@ private func maskRects(_ scene: Scene) -> [MUIRect] { scene.groupMasks.first.fla
     #expect(frame.nestedClipMasks == 0, "no group around a transition: \(frame.nestedClipMasks)")
     #expect(frame.effectScopesPushed >= 2, "set up: both rotations' scopes opened: \(frame.effectScopesPushed)")
 }
+
+// MARK: - 9. under an enclosing offset
+
+/// The bounding box of the pixels with any coverage.
+private func inkBox(_ pixels: [UInt8]) -> (minX: Int, maxX: Int, minY: Int, maxY: Int) {
+    var box = (minX: 999, maxX: -1, minY: 999, maxY: -1)
+    for y in 0..<200 { for x in 0..<200 where pixels[(y * 200 + x) * 4 + 3] > 0 {
+        box = (min(box.minX, x), max(box.maxX, x), min(box.minY, y), max(box.maxY, y))
+    } }
+    return box
+}
+
+/// **9 (`TZ-B`; found by parity frame 20's first render, whose nested clips sat inside a flattening `.offset`).** A flattening
+/// effect enclosing the nested pair moves the whole result: the same tree under `.offset(x: 10, y: 6)` has the plain tree's
+/// ink box shifted by exactly (10, 6) (before the fix the content's screen box kept its unshifted place and cut the shifted
+/// content at the old edge: 71 pixels wide for 81). The box that came from the deeper clip keeps that clip's depth through the
+/// outer non-flattening effect, so the flattening effect maps it (`PrimitiveTransform.outerDepth`, `GX-X`). Mutation **L9**:
+/// `t.outerDepth` reset to the enclosing effect's depth (the line the fix replaced).
+@Test @MainActor func aNestedClipUnderAnEnclosingOffsetMovesWithIt() throws {
+    let plain = inkBox(try render(turned().clipped().rotationEffect(.degrees(30)).padding(Edges(all: px(70)))).pixels)
+    let moved = inkBox(try render(turned().clipped().rotationEffect(.degrees(30)).padding(Edges(all: px(70)))
+        .offset(x: px(10), y: px(6))).pixels)
+    try #require(plain.maxX - plain.minX > 75, "set up: the plain square is whole (\(plain))")
+    #expect(moved.minX == plain.minX + 10 && moved.maxX == plain.maxX + 10 && moved.minY == plain.minY + 6 && moved.maxY == plain.maxY + 6,
+            "the ink box moves by (10, 6): plain \(plain), under the offset \(moved)")
+}

@@ -459,15 +459,24 @@ struct RenderEffect: Equatable {
                 t.outerMaskRadii = map(t.outerMaskRadii)
             }
         } else if let outer {
+            var depth = outer.depth
             if t.outerMask.size.width >= PrimitiveTransform.unboundedThreshold {
                 t.outerMask = outer.bounds
                 t.outerMaskRadii = outer.radii
             } else {
                 let box = homography.boundingBox(of: t.outerMask)
-                t.outerMask = box.intersection(outer.bounds)
+                let cut = box.intersection(outer.bounds)
+                // A box that lies inside the enclosing clip came from the deeper clip alone, so it keeps that clip's depth: an
+                // enclosing flattening effect then moves it (a clip pushed inside the effect is local to it, `GX-X`). A box
+                // the enclosing clip cuts is the intersection of two clips of two depths, and takes the enclosing one's.
+                if abs(cut.origin.x - box.origin.x) < 1e-3, abs(cut.origin.y - box.origin.y) < 1e-3,
+                   abs(cut.size.width - box.size.width) < 1e-3, abs(cut.size.height - box.size.height) < 1e-3 {
+                    depth = max(t.outerDepth, depth)
+                }
+                t.outerMask = cut
                 t.outerMaskRadii = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
             }
-            t.outerDepth = outer.depth
+            t.outerDepth = depth
         }
         p.transform = t
         return p

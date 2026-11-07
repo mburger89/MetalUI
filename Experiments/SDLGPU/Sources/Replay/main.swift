@@ -711,26 +711,24 @@ func textZoomFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
         defaultFont: repositoryFont("NotoSans-Regular.ttf")))
     let sweep = LinearGradient(colors: [Color(.accent), Color(Hsla(h: 0.08, s: 1, l: 0.5, a: 1))],
                                startPoint: .leading, endPoint: .trailing)
-    func cell<E: Element>(_ content: E) -> some Element & ProposalElementGroup {
-        content.frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
-    }
-    func turned() -> some Element & ProposalElementGroup {
+    func turned() -> some ProposalElementGroup {
         Color(.accent).frame(width: Pixels(100), height: Pixels(100)).rotationEffect(.degrees(30))
             .frame(width: Pixels(60), height: Pixels(60))
     }
     return renderFrame({
         VStack(alignment: .leading, spacing: Pixels(14)) {
             HStack(alignment: .top, spacing: Pixels(20)) {
-                cell(Text("Zoom 2").font(size: 16).scaleEffect(2, anchor: .topLeading))
-                cell(Text("Zoom 1.5").font(size: 16).scaleEffect(1.5, anchor: .topLeading))
-                cell(Text("Zoom half").font(size: 32).scaleEffect(0.5, anchor: .topLeading))
-                cell(Text("Turn").font(size: 16).scaleEffect(2, anchor: .topLeading).rotationEffect(.degrees(-12), anchor: .topLeading))
+                Text("Zoom 2").font(size: 16).scaleEffect(2, anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Zoom 1.5").font(size: 16).scaleEffect(1.5, anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Half").font(size: 32).scaleEffect(0.5, anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Turn").font(size: 16).scaleEffect(2, anchor: .topLeading).rotationEffect(.degrees(-12), anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
             }
             HStack(alignment: .top, spacing: Pixels(20)) {
-                cell(Text("Flip").font(size: 16).scaleEffect(2, anchor: .topLeading)
-                    .rotation3DEffect(.degrees(35), axis: (x: 0, y: 1, z: 0), perspective: 0.6))
-                cell(Text("Gradient").font(size: 16).foregroundStyle(sweep).scaleEffect(2, anchor: .topLeading))
-                cell(Text("Plain 16").font(size: 16))
+                Text("Flip").font(size: 16).scaleEffect(2, anchor: .topLeading)
+                    .rotation3DEffect(.degrees(35), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+                    .frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Gradient").font(size: 16).foregroundStyle(sweep).scaleEffect(2, anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Plain 16").font(size: 16).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
             }
             HStack(alignment: .top, spacing: Pixels(80)) {
                 turned().clipped().rotationEffect(.degrees(30)).padding(Edges(all: Pixels(40)))
