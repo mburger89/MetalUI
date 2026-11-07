@@ -148,7 +148,14 @@ extension Image: ToolbarButtonLabel {
     /// The accessibility label (or `""`) and the bitmap's texture. SPI: see
     /// `ToolbarButtonLabel`.
     @_spi(ToolbarInternals) public func _toolbarLabel() -> (title: String, image: ImageTexture?) {
-        (accessibilityLabelText ?? "", bitmap.texture)
+        switch content {
+        case .bitmap(let bitmap, _):
+            return (accessibilityLabelText ?? "", bitmap.texture)
+        case .symbol(let name):
+            // `SYM-L`: the symbol's black raster at the body font, scale 2; a missing name has no image.
+            let raster = Image.platformRaster(forSymbol: name)
+            return (SymbolAccessibilityLabels.table[name] ?? "", raster?.texture)
+        }
     }
 }
 

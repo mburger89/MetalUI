@@ -164,8 +164,8 @@ private struct ControlArm {
 }
 
 /// Divergence 213 (row, narrowed from the Toggle edge): SwiftUI's checkbox `Toggle` is 6 beside a rect and a
-/// toggle (DS7), MetalUI's is the standard 8. Pinned wrong on purpose; `Image(systemName:)` is not offered, so
-/// there is no symbol edge to pin. Mutation: a `Toggle` edge of 6 (`markControlSpacing` replaced by a 6 mark).
+/// toggle (DS7), MetalUI's is the standard 8. Pinned wrong on purpose; `Image(systemName:)` exists since record 230 and keeps
+/// the standard edge too (`SYM-M`, carried: SwiftUI's is 2 above and 3 below at 13 pt, DS7b), so no symbol edge is pinned here. Mutation: a `Toggle` edge of 6 (`markControlSpacing` replaced by a 6 mark).
 @MainActor @Test func aToggleBesideAToggleKeepsEight() {
     #expect(gap(Toggle("A", isOn: .constant(true)), Toggle("B", isOn: .constant(false))) == 8, "SwiftUI reads 6")
     #expect(gap(block(), Toggle("A", isOn: .constant(true))) == 8, "SwiftUI reads 6 beside a rect")

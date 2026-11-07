@@ -2375,3 +2375,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **CV17.** (Find, record 229.) In a large file give the view a few hundred matches (assign `decorations.findMatches = buffer.snapshot().ranges(of: "let")` from a scratch app, the demo has no find bar) and scroll: are the matches readable behind the text in light and dark, is the current one (orange) clearly apart from the others (yellow), and is the selection still visible over a match? Does scrolling stay as smooth as without matches, with 10 000 of them? **Observed:**
 - [ ] **CV18.** Press Command-G repeatedly (Control-G on Windows and Linux), then Shift-Command-G: does each press select the next (previous) match, wrapping at the ends, and does the view jump to centre a match that was far off screen in one step, with no flicker or intermediate scroll? With no matches does the key do nothing? Edit the text above a match: does its highlight stay on the same word? **Observed:**
 
+## SYM. Symbol images - SF Symbols in a MetalUI app (Alloy gap G3; record 230; rulings `SYM-A`..`SYM-M`; decisions `docs/superpowers/2026-11-07-symbol-images-decisions.md`)
+
+*An agent cannot: the probe compares pixels of a drawing against `ImageRenderer` and the tests read the raster's texels, but how a symbol looks beside the same SwiftUI symbol, in dark mode and on a 1x display, and what VoiceOver says, are looks.*
+
+- [ ] **SYM1.** Put `Image(systemName: "star")`, `magnifyingglass`, `doc.text`, `globe` and `xmark.circle.fill` at body, `.title` and 48 pt beside the same views in a SwiftUI app, at 1x and 2x: is the MetalUI symbol the same size and weight, and is the edge difference (divergence 227: up to a device pixel lower, slightly different edge coverage) acceptable? **Observed:**
+- [ ] **SYM2.** Dark mode and a coloured `foregroundStyle`: do the default colour (theme text, not exactly `labelColor`), a red tint and `.hierarchical` on `doc.on.doc` read like SwiftUI's? **Observed:**
+- [ ] **SYM3.** A symbol beside text in an `HStack(alignment: .firstTextBaseline)`: does it sit on the text's baseline like SwiftUI's (`star`, `chevron.right`, `doc.badge.plus`, whose box is narrower than its image)? **Observed:**
+- [ ] **SYM4.** `.scaleEffect(2)` on a symbol: it is soft (divergence 229); is it tolerable for the Alloy icons? **Observed:**
+- [ ] **SYM5.** VoiceOver on `Image(systemName: "doc.on.doc")`: "Copy, image"? A name outside the table (`bolt`) reads "flash" in lower case (divergence 228). **Observed:**
+- [ ] **SYM6.** On Linux and Windows every `Image(systemName:)` draws nothing (PR 1; the bundled icons are PR 2): is the empty box the layout you expect? **Observed:**
