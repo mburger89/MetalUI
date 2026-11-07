@@ -191,7 +191,7 @@ Ranked from the carried/not-built sweep (decisions docs' Carried sections, the "
 
 ## Alloy gaps (Alloy, an LLM-first code editor targeting Zed-level typing latency and scroll frame times; reported 2026-11-07)
 
-- [ ] G1. `CodeView` (a read/edit code surface). PR 1 (PR #TBD, branch feat/code-buffer, record 225): the pure target `MetalUICodeBuffer` (rope, snapshots, edit stream, undo, selections, external edits, find; `CV-A`..`CV-I`). PRs 2-4 (read-only view and decorations, editing, find painting) follow.
+- [ ] G1. `CodeView` (a read/edit code surface). PR 1 (PR #222, branch feat/code-buffer, record 225): the pure target `MetalUICodeBuffer` (rope, snapshots, edit stream, undo, selections, external edits, find; `CV-A`..`CV-I`). PRs 2-4 (read-only view and decorations, editing, find painting) follow.
 - [ ] G2. Block markdown.
 - [ ] G3. `Image(systemName:)` plus portable vector icons.
 - [ ] G4. A closable tab bar.
