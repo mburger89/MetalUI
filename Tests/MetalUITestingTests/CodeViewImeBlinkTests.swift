@@ -111,19 +111,43 @@ import MetalUITesting
     buffer.replace(0..<0, with: "zero\n", origin: .programmatic)
     window.window.setNeedsRedraw(); window.tick()
     #expect(window.markedText == "かな" && !buffer.snapshot().text.contains("かな"))
+    let area = try #require(window.platformWindow.textInputAreas.last ?? nil)
+    let pitch = codePitch(scale: 1)
+    #expect(area.origin.y == Pixels(codeTop + 2 * pitch), "the marked text moved to the third line with the text: \(area.origin.y.value) vs \(codeTop + 2 * pitch)")
     #expect(window.commitMarkedText("X"))
     #expect(buffer.snapshot().text == "zero\none\ntXwo\nthree\n", Comment(rawValue: buffer.snapshot().text.debugDescription))
     // Focus lost.
     #expect(window.setMarkedText("かな"))
     window.click(at: pt(Float(other.origin.x.value) + 5, Float(other.origin.y.value) + 5))
-    #expect(window.window.focusedElement != nil)
-    window.click(at: pt(60, codeTop + 4))   // focus back: the composition did not come with it
+    window.typeKey(.tab, modifierFlags: .shift)   // back into the code view by traversal, with no press to end anything
     #expect(window.window.testingComposition == nil, "focus loss ended the composition")
     // A press.
     #expect(window.setMarkedText("かな"))
     window.click(at: pt(80, codeTop + 40))
     #expect(window.window.testingComposition == nil, "a press ended the composition")
     #expect(buffer.snapshot().text == "zero\none\ntXwo\nthree\n")
+}
+
+/// 11.5 — while marked text is shown the line's layout has it in it, and a point is still a buffer position: a press
+/// inside the marked text places the caret where it was inserted, and a press just after it places the caret
+/// at the buffer offset of the text there (the end of the line, were its layout offset taken). **Mutation:** the hit test not removing the marked bytes.
+@Test @MainActor func aPressAfterMarkedTextResolvesToTheBufferOffset() throws {
+    let (window, buffer) = try editingWindow("hello\nworld\n")
+    caret(buffer, 0, 2)
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(window.setMarkedText("xyz", selectedRange: 0..<0))
+    let start = try #require(window.platformWindow.textInputAreas.last ?? nil)
+    #expect(window.setMarkedText("xyz", selectedRange: 3..<3))
+    let end = try #require(window.platformWindow.textInputAreas.last ?? nil)
+    let advance = (end.origin.x.value - start.origin.x.value) / 3
+    let y = start.origin.y.value + 2
+    #expect(advance > 3)
+    window.click(at: pt(end.origin.x.value + 1, y))
+    #expect(buffer.primarySelection == CodeSelection(caret: 2), "just after the marked text: \(buffer.primarySelection)")
+    #expect(buffer.snapshot().text == "hello\nworld\n")
+    #expect(window.setMarkedText("xyz"))
+    window.click(at: pt(start.origin.x.value + 1.4 * advance, y))
+    #expect(buffer.primarySelection == CodeSelection(caret: 2), "inside it: \(buffer.primarySelection)")
 }
 
 // MARK: Blink
