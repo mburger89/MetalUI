@@ -89,6 +89,16 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
                 } else {
                     frame.requestAnotherFrame()
                 }
+            case .suggestion(let edge, let alignment, let spacing):
+                if let previous {
+                    slot = PopoverSlot(AnchoredPresentation(
+                        content: Self.chrome(body, name: name, padding: 0, popoverHint: false), owner: id,
+                        anchor: previous,
+                        placement: .suggestion(anchor: previous, edge: edge, alignment: alignment, spacing: spacing),
+                        chrome: false, consumesAnchorPress: false, dismiss: dismiss))
+                } else {
+                    frame.requestAnotherFrame()
+                }
             }
         }
         let (_, layout) = slot.requestGroupLayout(under: id, at: &cursor, pass: &pass)
@@ -122,11 +132,12 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
     /// border and the default shadow — is painted by `AnchoredPresentation` as
     /// one bordered rect (a legacy `Box` would paint its fill and border as two
     /// primitives, each with its own shadow).
-    static func chrome(_ body: PopoverContent, name: String?, padding: Float) -> Box<PopoverContent> {
+    static func chrome(_ body: PopoverContent, name: String?, padding: Float,
+                       popoverHint: Bool = true) -> Box<PopoverContent> {
         var box = Box(content: body)
         box.style.padding = Edges(all: .pixels(Pixels(padding)))
         box.elementID = name.map { ElementID($0) }
-        box.handlers.axNode.popoverHint = true
+        box.handlers.axNode.popoverHint = popoverHint
         return box
     }
 
@@ -211,6 +222,9 @@ enum PopoverKind {
     /// `anchoredOverlay`: no chrome, the content's `anchor` unit point at
     /// `point` in `space`.
     case overlay(point: Point<Pixels>, space: CoordinateSpace, anchor: UnitPoint)
+    /// `suggestionOverlay`: no chrome, no key or focus capture, no dismissal; against the
+    /// declarer's frame on a vertical edge (`SOC-A`).
+    case suggestion(edge: VerticalEdge, alignment: HorizontalAlignment, spacing: Float)
 }
 
 /// `isPresented:`'s presentation: the content while the binding is `true`.
