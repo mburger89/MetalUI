@@ -28,6 +28,10 @@ var products: [Product] = [
         // stream, undo and a find engine (ruling CV-A). Imports only
         // Observation, so an app can depend on it without any UI.
         .library(name: "MetalUICodeBuffer", targets: ["MetalUICodeBuffer"]),
+        // The block-level Markdown parser behind a chat transcript: CommonMark
+        // block structure plus GFM tables, with a streaming append (ruling
+        // BM-A). Imports nothing, so an app can parse without any UI.
+        .library(name: "MetalUIMarkdown", targets: ["MetalUIMarkdown"]),
         // The framework itself, on every platform (ruling XP-A), and the
         // demo's content, which `Backends/SDL`'s demo draws (roadmap item 10).
         .library(name: "MetalUI", targets: ["MetalUI"]),
@@ -62,7 +66,7 @@ var products: [Product] = [
 
 var metalUIDependencies: [Target.Dependency] = [
     "MetalUICore", "MetalUILayout", "MetalUITextSystem", "MetalUIPlatform", "MetalUIPrimitives",
-    "MetalUIPath", "MetalUICodeBuffer", "CStbImage",
+    "MetalUIPath", "MetalUICodeBuffer", "MetalUIMarkdown", "CStbImage",
 ]
 #if os(macOS)
 metalUIDependencies += ["MetalUIText", "MetalUIRender", "MetalUIAppKit"]
@@ -214,6 +218,13 @@ var targets: [Target] = [
         // Imports only Observation (no Foundation, no MetalUICore); portable.
         .target(name: "MetalUICodeBuffer"),
         .testTarget(name: "MetalUICodeBufferTests", dependencies: ["MetalUICodeBuffer"]),
+
+        // Block Markdown (ruling BM-A): CommonMark block structure and GFM
+        // tables over UTF-8 bytes, with an append that re-parses only the last
+        // top-level block. Imports NOTHING (no Foundation, no MetalUICore);
+        // portable. Inline content stays a String for MetalUI's inline parser.
+        .target(name: "MetalUIMarkdown"),
+        .testTarget(name: "MetalUIMarkdownTests", dependencies: ["MetalUIMarkdown"]),
 
         // The C structs shared with the shaders; MetalUIScene imports them.
         .target(name: "MetalUIShaderTypes"),
