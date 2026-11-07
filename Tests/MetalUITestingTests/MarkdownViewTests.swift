@@ -154,27 +154,41 @@ import Testing
 /// and true after its closing line, and never again on frames where nothing changed. Mutation: the fence's `==`
 /// without the highlighter's identity (a new highlighter instance is never called).
 @Test @MainActor func theHighlighterIsCalledOncePerChangedFenceAndSeesWhetherItClosed() throws {
-    let highlighter = RunHighlighter([])
-    var document = MarkdownDocument(parsing: "```swift\nlet a = 1")
+    @MainActor final class Holder { var highlighter: RunHighlighter; var document: MarkdownDocument
+        init(_ h: RunHighlighter, _ d: MarkdownDocument) { highlighter = h; document = d } }
+    let first = RunHighlighter([])
+    let holder = Holder(first, MarkdownDocument(parsing: "```swift\nlet a = 1"))
     let window = try harnessWindow(size: sz(300, 200)) {
-        VStack(alignment: .leading, spacing: Pixels(0)) { MarkdownView(document).codeHighlighter(highlighter).equatable() }
+        VStack(alignment: .leading, spacing: Pixels(0)) {
+            MarkdownView(holder.document).codeHighlighter(holder.highlighter).equatable()
+        }
     }
     markdownSettle(window, frames: 4)
-    #expect(highlighter.calls == [.init(code: "let a = 1", language: "swift", isClosed: false)], "\(highlighter.calls)")
+    #expect(first.calls == [.init(code: "let a = 1", language: "swift", isClosed: false)], "\(first.calls)")
     markdownSettle(window, frames: 4)
-    #expect(highlighter.calls.count == 1, "frames where nothing changed do not call it")
-    // The root closure captured the variable; a new document comes through the model-free path: rebuild the window.
-    document.append("\n```")
-    let second = try harnessWindow(size: sz(300, 200)) {
-        VStack(alignment: .leading, spacing: Pixels(0)) { MarkdownView(document).codeHighlighter(highlighter).equatable() }
-    }
-    markdownSettle(second, frames: 3)
-    #expect(highlighter.calls.last == .init(code: "let a = 1", language: "swift", isClosed: true), "\(highlighter.calls)")
+    #expect(first.calls.count == 1, "frames where nothing changed do not call it")
+    holder.document.append("\n```")
+    markdownSettle(window, frames: 4)
+    #expect(first.calls.last == .init(code: "let a = 1", language: "swift", isClosed: true) && first.calls.count == 2, "\(first.calls)")
     // A replacement instance is called: the view compares the highlighter by identity.
     let other = RunHighlighter([])
-    let third = try harnessWindow(size: sz(300, 200)) {
-        VStack(alignment: .leading, spacing: Pixels(0)) { MarkdownView(document).codeHighlighter(other).equatable() }
-    }
-    markdownSettle(third, frames: 3)
-    #expect(other.calls.count == 1)
+    holder.highlighter = other
+    markdownSettle(window, frames: 4)
+    #expect(other.calls.count == 1 && first.calls.count == 2, "\(other.calls.count) calls of the new one")
+}
+
+/// **BM-H.** A table wraps its cells by default and, with `tableScrolls`, keeps them whole in a horizontal scroller
+/// (`fixedSize` on the cell). Mutation: the cells' `fixedSize` dropped (the scrolling table wraps).
+@Test @MainActor func aTableWrapsByDefaultAndScrollsWhenTheThemeAsks() throws {
+    let source = "| a | b |\n|--|--|\n| a long cell with many words in it | another long cell with many more words |"
+    let wrapped = try markdownWindow(source, width: 200)
+    let cell = try #require(try wrapped.elements(role: .staticText).first { ($0.value ?? "").hasPrefix("a long cell") })
+    #expect(cell.frame.size.height.value > 20 && cell.frame.origin.x.value + cell.frame.size.width.value <= 200, "wrapped: \(cell.frame)")
+    var theme = MarkdownTheme()
+    theme.tableScrolls = true
+    let scrolling = try markdownWindow(source, theme: theme, width: 200)
+    let whole = try #require(try scrolling.elements(role: .staticText).first { ($0.value ?? "").hasPrefix("a long cell") })
+    #expect(whole.frame.size.height.value <= 20 && whole.frame.size.width.value > 150, "whole: \(whole.frame)")
+    let other = try #require(try scrolling.elements(role: .staticText).first { ($0.value ?? "").hasPrefix("another long") })
+    #expect(other.frame.origin.x.value + other.frame.size.width.value > 200, "the table is wider than its block: \(other.frame)")
 }

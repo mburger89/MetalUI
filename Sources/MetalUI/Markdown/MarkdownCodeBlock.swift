@@ -133,17 +133,15 @@ struct MarkdownCodeChunk: Component, ProposalElementGroup, @MainActor Equatable 
     let chunk: MarkdownCodeSlicing.Chunk
     let font: Font
     let foreground: Color?
-    let wraps: Bool
 
     var content: some ProposalElementGroup {
         ProposalText(content: MarkdownCodeSlicing.textContent(chunk))
             .font(font)
             .foregroundColor(foreground)
-            .fixedSize(horizontal: !wraps, vertical: false)
     }
 
     static func == (l: MarkdownCodeChunk, r: MarkdownCodeChunk) -> Bool {
-        l.chunk == r.chunk && l.font == r.font && l.foreground == r.foreground && l.wraps == r.wraps
+        l.chunk == r.chunk && l.font == r.font && l.foreground == r.foreground
     }
 }
 
@@ -163,8 +161,7 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
         let theme = theme
         let column = VStack(alignment: .leading, spacing: Pixels(0)) {
             ForEach(chunks, id: \.index) { chunk in
-                MarkdownCodeChunk(chunk: chunk, font: theme.codeFont, foreground: theme.codeForeground,
-                                  wraps: theme.codeWraps).equatable()
+                MarkdownCodeChunk(chunk: chunk, font: theme.codeFont, foreground: theme.codeForeground).equatable()
             }
         }
         let caption = theme.showsCodeLanguage ? language : nil
@@ -175,7 +172,7 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
             if theme.codeWraps {
                 column
             } else {
-                ProposalScrollView(.horizontal) { column.fixedSize(horizontal: true, vertical: false) }
+                ProposalScrollView(.horizontal) { column }
             }
         }
         .padding(theme.codeBlockPadding)
