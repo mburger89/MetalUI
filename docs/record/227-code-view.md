@@ -61,7 +61,7 @@ Findings from the first runs: a dedupe test needs an unanswered provider; a blan
 
 ## 5. Results
 
-`TODO(final)`: see the report; `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_CODE_CACHE=1` over `CodeViewTests` both pass (26 tests; the allocation pin is skipped under them).
+`swift package clean`, `swift build --build-system native --build-tests`, then `swift test --build-system native --no-parallel`, unfiltered: `Test run with 5452 tests in 18 suites passed after 379.329 seconds.` and `FR-J no-argument frame: succeeded=true deprecations=2` (an earlier run of the same tree failed only `everyFrameChannelIsClassified`, fixed by classifying `Frame.codeWork` as `.buildOnly`). `zsh docs/probes/closeout-inventory-check.sh`, `closeout-undocumented.sh` and `record-05-check.sh` print nothing. `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_CODE_CACHE=1` over `CodeViewTests` both pass (26 tests; the allocation pin is skipped under them).
 
 ## 6. Linux (portable container)
 
