@@ -159,7 +159,7 @@ private struct CMRing: Shape {
     #expect(alpha(r.pixels, 102, 102) == 0, "the inner's own corner is clear: \(pixel(r.pixels, 102, 102))")
     #expect(alpha(r.pixels, 147, 147) == 0, "the outer's corner is clear: \(pixel(r.pixels, 147, 147))")
     #expect(alpha(r.pixels, 125, 125) == 255, "the overlap draws: \(pixel(r.pixels, 125, 125))")
-    #expect(r.frame.groupsMasked >= 1, "a crossing is a masked group: \(r.frame.groupsMasked)")
+    #expect(r.frame.groupsMasked == 1, "a crossing is one masked group for both leaves: \(r.frame.groupsMasked)")
     #expect(Frame.clipsCross(Bounds(origin: Point(x: px(0), y: px(0)), size: Size(width: px(100), height: px(60))),
                              radii: Corners(all: px(20)),
                              Bounds(origin: Point(x: px(50), y: px(0)), size: Size(width: px(100), height: px(60))),
@@ -356,6 +356,12 @@ private struct CMRing: Shape {
     var worst = 0
     for i in 0..<(200 * 200 * 4) { worst = max(worst, abs(Int(lone.pixels[i]) - Int(pair.pixels[i]))) }
     #expect(worst <= 2, "the same pixels as the group, within 2/255: \(worst)")
+    // A leaf larger than the clip box holds the whole ellipse: the shortcut applies. One smaller does not: it is a group.
+    let larger = effectFrame(pureRed.frame(width: px(140), height: px(100)).frame(width: px(100), height: px(60)).clipShape(Ellipse()))
+    #expect(larger.masksBakedToEllipse == 1 && larger.groupsMasked == 0, "larger: \(larger.masksBakedToEllipse) baked, \(larger.groupsMasked) groups")
+    let smaller = effectFrame(pureRed.frame(width: px(60), height: px(30)).frame(width: px(100), height: px(60)).clipShape(Ellipse()))
+    _ = smaller.finalizedScene()
+    #expect(smaller.masksBakedToEllipse == 0 && smaller.groupsMasked == 1, "smaller: \(smaller.masksBakedToEllipse) baked, \(smaller.groupsMasked) groups")
 }
 
 // MARK: - 20. a ghost
