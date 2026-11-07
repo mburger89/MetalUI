@@ -168,3 +168,30 @@ private func maskRects(_ scene: Scene) -> [MUIRect] { scene.groupMasks.first.fla
     } }
     #expect(outside == 0 && inside > 2500, "a circle of radius 30: outside \(outside) inside \(inside)")
 }
+
+// MARK: - 8. a transition between keeps the box
+
+/// **8 (`TZ-B`, divergence 224).** A transition scope opened between the clip and an inner rotation maps the content by an
+/// effect that is not undone on the way into the mask's space: the box stays and no group is built (the transition is
+/// halfway, so its scope is open in the frame). Mutation **L6b**: the `kind == .effect` half of the check dropped, so the
+/// transition's scope is treated as a flattening effect.
+@Test @MainActor func aClipAroundATransitionAroundARotationKeepsTheBox() throws {
+    func stage(_ shown: Bool) -> some Element {
+        Stack {
+            if shown {
+                pureRed.frame(width: px(100), height: px(100)).rotationEffect(.degrees(30)).transition(.scale(scale: 0.5))
+            }
+        }
+        .frame(width: px(60), height: px(60)).clipped().rotationEffect(.degrees(30)).padding(Edges(all: px(70)))
+    }
+    func midway() -> Frame {
+        let h = TransitionHarness()
+        h.frame(0, nil, stage(false), side: 300, scaleFactor: 1)
+        h.frame(0, Animation.linear(duration: 1), stage(true), side: 300, scaleFactor: 1)
+        return h.frame(0.5, nil, stage(true), side: 300, scaleFactor: 1)
+    }
+    let frame = midway()
+    _ = frame.finalizedScene()
+    #expect(frame.nestedClipMasks == 0, "no group around a transition: \(frame.nestedClipMasks)")
+    #expect(frame.effectScopesPushed >= 2, "set up: both rotations' scopes opened: \(frame.effectScopesPushed)")
+}
