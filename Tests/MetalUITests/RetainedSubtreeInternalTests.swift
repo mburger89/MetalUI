@@ -55,6 +55,8 @@ private let frameChannels: [String: Channel] = [
     "effectScopesPushed": .frameLocal, "compositeScopesPushed": .frameLocal,
     "groupsComposited": .frameLocal, "groupsBaked": .frameLocal, "groupsFlattenedOversize": .frameLocal,   // GO-C counters
     "filterGroups": .frameLocal, "filtersFlattenedOversize": .frameLocal,   // GF-B counters
+    "maskScopesPushed": .frameLocal, "groupsMasked": .frameLocal, "masksBakedToEllipse": .frameLocal,   // CM-A counters
+    "masksFlattenedBackdrop": .frameLocal, "masksFlattenedOversize": .frameLocal,
     // Tallies, prepaint's.
     "hoverRegionCount": .prepaintOnly, "pointerStyleRegionCount": .prepaintOnly, "keyRegionCount": .prepaintOnly,
     "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,

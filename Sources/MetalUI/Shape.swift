@@ -52,8 +52,8 @@ public struct ShapeGeometry: Sendable, Equatable {
     }
 
     /// `path`, in the shape's (window-space) coordinates, filled by `style`
-    /// (`GX-D`): its hit test is its winding, and as a clip it traps
-    /// (divergence 91).
+    /// (`GX-D`): its hit test is its winding, and as a clip it is a masked
+    /// group (`CM-A`).
     public static func path(_ path: Path, style: FillStyle = FillStyle()) -> ShapeGeometry {
         ShapeGeometry(rect: path.boundingRect, kind: .path(path, style))
     }

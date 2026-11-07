@@ -247,29 +247,10 @@ struct GXEvenOddRing: Shape {
     }
 }
 
-// MARK: - 3.10 (divergence 91)
+// MARK: - 3.10 (divergence 91, retired)
 
-/// **3.10** (exit test, divergence 91 amended, `GX-D`). `clipShape` of a path
-/// traps naming divergence 91 — every primitive's mask is a rounded rectangle;
-/// a rounded rectangle still clips. Mutation **M3j**: a path clip treated as
-/// its bounding box.
-@Test func clipShapeOfAPathTrapsNamingDivergence91() async {
-    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            _ = effectFrame(Color(.accent).frame(width: Pixels(40), height: Pixels(40))
-                .clipShape(gxTriangle(40)))
-        }
-    }
-    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(stderr.contains("clipShape(_:) of a path") && stderr.contains("divergence 91"),
-            "aborted, but not at the path clip:\n\(stderr)")
-    await #expect(processExitsWith: .success) {
-        await MainActor.run {
-            _ = effectFrame(Color(.accent).frame(width: Pixels(40), height: Pixels(40))
-                .clipShape(RoundedRectangle(cornerRadius: Pixels(8))))
-        }
-    }
-}
+// `clipShapeOfAPathTrapsNamingDivergence91` is retired with divergence 91: a path clip is a masked group (`CM-A`), pinned
+// by `aPathClipMasksToItsWinding` and `anEvenOddPathClipLeavesTheHoleClear` in `ClipMaskTests.swift`.
 
 // MARK: - 3.11 (T16)
 

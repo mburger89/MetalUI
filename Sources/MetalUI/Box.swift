@@ -457,8 +457,8 @@ public struct Decoration: Sendable, Hashable {
     }
 
     /// The rect and radii this decoration clips its children to, or `nil`
-    /// for none: a `clipShape`'s geometry in `bounds` (an ellipse traps,
-    /// divergence 91), else `clipsContent`'s box rounded by `cornerRadius`.
+    /// for none: a `clipShape`'s geometry in `bounds` (an ellipse or path
+    /// carries a mask, `CM-A`), else `clipsContent`'s box rounded by `cornerRadius`.
     /// Read by both clip halves (`registerAndScope`, `paintDecoration`).
     @MainActor
     func clipRegion(in bounds: Bounds<Pixels>) -> ClipRegion? {
