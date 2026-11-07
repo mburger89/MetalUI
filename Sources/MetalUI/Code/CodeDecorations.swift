@@ -47,12 +47,17 @@ public struct CodeLineDecoration: Sendable {
     public var gutterBar: Color?
     /// A tint across the rows' full width; `nil` draws none.
     public var background: Color?
+    /// An app-defined identifier handed back in the ``CodeGutterHit`` of a click or context menu on this
+    /// decoration's gutter bar (an edit's id, say); `nil` for none. Decorations with different tags never
+    /// merge into one hit range.
+    public var tag: UInt64?
 
     /// A decoration of `lines`.
-    public init(lines: Range<Int>, gutterBar: Color? = nil, background: Color? = nil) {
+    public init(lines: Range<Int>, gutterBar: Color? = nil, background: Color? = nil, tag: UInt64? = nil) {
         self.lines = lines
         self.gutterBar = gutterBar
         self.background = background
+        self.tag = tag
     }
 }
 
@@ -126,6 +131,8 @@ struct HighlightPayload: Equatable {
 package struct LineDecorationPayload: Equatable {
     package var gutterBar: Color?
     package var background: Color?
+    /// The app's tag (`CodeLineDecoration.tag`); part of the payload so differently tagged neighbours stay apart.
+    package var tag: UInt64?
     var isEmpty: Bool { gutterBar == nil && background == nil }
 }
 
@@ -314,7 +321,7 @@ public final class CodeDecorations {
         let tree = RunTree(total: max(0, sizeThen), payload: LineDecorationPayload())
         for d in decorations where !d.lines.isEmpty {
             let r = max(0, d.lines.lowerBound)..<min(tree.total, d.lines.upperBound)
-            if !r.isEmpty { tree.set(r, to: LineDecorationPayload(gutterBar: d.gutterBar, background: d.background)) }
+            if !r.isEmpty { tree.set(r, to: LineDecorationPayload(gutterBar: d.gutterBar, background: d.background, tag: d.tag)) }
         }
         for delta in deltas where delta.version > version {
             let at = min(delta.afterRow, tree.total)
@@ -388,13 +395,42 @@ public final class CodeDecorations {
             lines.append(VirtualLine(text: String(decoding: bytes, as: UTF8.self), bytes: bytes, hash: codeHash(bytes),
                                      styling: styling, marker: row.gutterMarker))
         }
-        return VirtualGroup(lines: lines, gutterBar: row.gutterBar, background: row.background)
+        return VirtualGroup(lines: lines, gutterBar: row.gutterBar, background: row.background, tag: row.tag, anchoredAfter: row.anchor.isAfter)
     }
 
     /// The decoration of `row`, or `nil`.
     package func lineDecoration(row: Int) -> LineDecorationPayload? {
         guard let payload = lines.payload(at: row), !payload.isEmpty else { return nil }
         return payload
+    }
+
+    /// The gutter bar over `row` and the whole row range it spans, with its tag: the neighbouring runs with the same
+    /// bar colour and tag are one bar, however an edit has split them. `nil` when the row has no bar. Walks outward
+    /// by doubling windows, so it costs the bar's runs and a logarithm, and is called at a click, never per frame.
+    package func gutterBar(overRow row: Int) -> (lines: Range<Int>, tag: UInt64?)? {
+        sync()
+        guard let payload = lines.payload(at: row), payload.gutterBar != nil else { return nil }
+        func same(_ other: LineDecorationPayload) -> Bool { other.gutterBar == payload.gutterBar && other.tag == payload.tag }
+        var lower = row, upper = row + 1
+        var step = 64
+        outer: while lower > 0 {
+            let from = max(0, lower - step)
+            for run in lines.runs(in: from..<lower).reversed() {
+                guard same(run.payload) else { break outer }
+                lower = run.range.lowerBound
+            }
+            step *= 2
+        }
+        step = 64
+        outer: while upper < lines.total {
+            let to = min(lines.total, upper + step)
+            for run in lines.runs(in: upper..<to) {
+                guard same(run.payload) else { break outer }
+                upper = run.range.upperBound
+            }
+            step *= 2
+        }
+        return (lower..<upper, payload.tag)
     }
 
     /// The decorated runs in `rows`, clipped, for painting: tints merge across equal neighbours.

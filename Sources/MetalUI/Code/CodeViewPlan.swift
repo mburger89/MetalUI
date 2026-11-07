@@ -1,6 +1,7 @@
 import MetalUICodeBuffer
 import MetalUICore
 import MetalUILayout
+import MetalUIPlatform
 import MetalUITextSystem
 
 /// What a `CodeView` keeps between frames (`CV-O`): the scroll anchor, the pending wheel travel, the
@@ -42,6 +43,35 @@ struct CodeViewState: Equatable {
     var dragGranularity: UInt8 = 0
     var dragOriginLower = 0
     var dragOriginUpper = 0
+    /// Whether a press began a drag that has not been released (`CV-AD`).
+    var dragging = false
+    /// The input method's marked text, shown at `compositionOffset` (a buffer byte as of `compositionVersion`) and
+    /// never in the buffer or its edit stream until committed (`CV-AA`).
+    var composition = TextComposition.none
+    var compositionOffset = 0
+    var compositionVersion: UInt64 = 0
+    /// What the caret's blink restarted at (`CV-AC`): the epoch is the frame time at which the caret last moved,
+    /// an edit landed or the view gained focus; the caret is drawn for the first half second of each second after it.
+    var blinkEpoch = 0.0
+    var blinkSelection = 0..<0
+    var blinkHead = 0
+    var blinkVersion: UInt64 = 0
+    var blinkFocused = false
+    var blinkComposition = ""
+    /// A drag selection that left the view (`CV-AD`): written from input, a function of the frame time in every phase.
+    var autoscroll: Autoscroll?
+
+    /// Scrolling while a drag is held outside the view: from `baseTopPx` and `baseXPx` at `start`, at `vy` and `vx`
+    /// points a second. The pointer (window points) keeps the selection's head under it.
+    struct Autoscroll: Equatable {
+        var start: Double
+        var baseTopPx: Int
+        var baseXPx: Int
+        var vy: Double
+        var vx: Double
+        var pointerX: Double
+        var pointerY: Double
+    }
 }
 
 /// One frame's geometry and laid-out rows (`CV-N`): built in prepaint, read by paint and by the pointer
@@ -68,6 +98,30 @@ final class CodeViewPlan {
         let labelColor: Color?
         /// A virtual line's text (accessibility); `nil` for a buffer row.
         let virtualText: String?
+        /// The app's tag of the row's decoration or virtual group (`CodeLineDecoration.tag`, `CodeVirtualRow.tag`).
+        var tag: UInt64? = nil
+        /// A virtual line's anchor buffer line (`CodeGutterHit.lines`); the row itself for a buffer row.
+        var anchorLine = 0
+        /// Where the input method's marked text sits in this row's layout, when it is the composing row (`CV-AA`).
+        var marked: Marked? = nil
+
+        /// The marked text inserted into this row's layout for display.
+        struct Marked {
+            /// The byte offset in the buffer line where it was inserted, from the line's start.
+            let at: Int
+            let length: Int
+            /// The bytes of the marked text before the input method's selection.
+            let caretBytes: Int
+            /// The marked text's selected bytes (empty for a caret), from the marked text's start.
+            let selected: Range<Int>
+        }
+
+        /// A buffer byte (absolute) mapped to the byte of this row's layout: bytes after the marked text move.
+        func layoutByte(_ byte: Int) -> Int {
+            let local = byte - textStart
+            guard let marked else { return local }
+            return local > marked.at ? local + marked.length : local
+        }
     }
 
     var scale: Float = 1
@@ -88,6 +142,12 @@ final class CodeViewPlan {
     /// One buffer row's layout from the text now, through the line cache: what a key's vertical motion and caret
     /// x read in input, where the frame's own rows may be older than the buffer (`CV-X`).
     var layoutRow: (Int, CodeSnapshot) -> CodeLineLayout = { _, _ in fatalError("CodeViewPlan.layoutRow is set by makePlan") }
+    /// The rows and tag of the gutter bar over a buffer row (`CodeDecorations`), read at click time (`CV-AB`).
+    var gutterBarOf: (Int) -> (lines: Range<Int>, tag: UInt64?)? = { _ in nil }
+    /// The caret's blink: whether this frame draws it, and when the next toggle is (`CV-AC`).
+    var caretVisible = true
+    /// While a drag autoscrolls, the selection the frame computed from the pointer and the frame time (`CV-AD`).
+    var liveDragSelection: CodeSelection?
 
     init(snapshot: CodeSnapshot, font: FontKey) {
         self.snapshot = snapshot
@@ -117,13 +177,20 @@ final class CodeViewPlan {
         let row = rows[index]
         let x = Int((Double(point.x.value) * Double(scale)).rounded(.down))
         let local = Double(x - textOriginX) / Double(scale)
-        let byte = min(max(0, row.layout.byte(atX: local)), row.range.count)
-        return row.range.lowerBound + byte
+        var byte = max(0, row.layout.byte(atX: local))
+        if let marked = row.marked {   // the layout has the marked text in it: a point in it is its start
+            byte = byte >= marked.at + marked.length ? byte - marked.length : min(byte, marked.at)
+        }
+        return row.range.lowerBound + min(byte, row.range.count)
     }
 
     /// The device-pixel x of byte `byte` of `row`'s line, as the painter places it.
     func xPx(_ row: Row, byte: Int) -> Int {
-        let local = byte - row.textStart
+        xPx(row, layoutByte: row.layoutByte(byte))
+    }
+
+    /// The device-pixel x of byte `local` of `row`'s layout (marked text included).
+    func xPx(_ row: Row, layoutByte local: Int) -> Int {
         let points = row.layout.x(ofByte: local)
             ?? (local < row.layout.windowStart ? row.layout.caretX.first : row.layout.caretX.last) ?? 0
         return textOriginX + Int((points * Double(scale)).rounded())
@@ -137,6 +204,7 @@ final class CodeViewPlan {
             let row = rows[i]
             i += 1
             if !row.isVirtual && row.range.lowerBound <= head && head <= row.range.upperBound {
+                if let marked = row.marked { return (xPx(row, layoutByte: marked.at + marked.caretBytes), row.top) }
                 return (xPx(row, byte: head), row.top)
             }
         }
@@ -146,6 +214,15 @@ final class CodeViewPlan {
     /// Whether `point` (window points) is in the gutter.
     func isInGutter(_ point: Point<Pixels>) -> Bool {
         gutterPx > 0 && Int((Double(point.x.value) * Double(scale)).rounded(.down)) - originX < gutterPx
+    }
+
+    /// The selection a drag has at `offset`, for the press's `origin` and unit (0 character, 1 word, 2 line).
+    func dragSelection(to offset: Int, origin: Range<Int>, granularity: UInt8) -> CodeSelection {
+        if granularity == 0 { return CodeSelection(anchor: origin.lowerBound, head: offset) }
+        let unit = granularity == 1 ? self.unit(atWord: offset) : self.unit(atLine: offset)
+        return unit.lowerBound < origin.lowerBound
+            ? CodeSelection(anchor: origin.upperBound, head: unit.lowerBound)
+            : CodeSelection(anchor: origin.lowerBound, head: max(origin.upperBound, unit.upperBound))
     }
 
     /// The word, whitespace run or single symbol at `offset`, as a byte range.
@@ -175,6 +252,34 @@ final class CodeViewPlan {
         let line = snapshot.lineRange(row)
         let end = row + 1 < snapshot.lineCount ? snapshot.offset(of: CodePoint(row: row + 1, column: 0)) : snapshot.utf8Count
         return line.lowerBound..<end
+    }
+
+    // MARK: Gutter bars
+
+    /// The gutter bar under `point` (window points), or `nil`: a point in the bar's column (the bar widened by four
+    /// points towards the line numbers) on a row that has one, a buffer row's decoration or a virtual line's group
+    /// (`CV-AB`). A virtual line's bar is hit like any other: that is where a removed hunk's Revert lives.
+    func gutterHit(at point: Point<Pixels>) -> CodeGutterHit? {
+        guard gutterPx > 0 else { return nil }
+        let x = Int((Double(point.x.value) * Double(scale)).rounded(.down))
+        let y = Int((Double(point.y.value) * Double(scale)).rounded(.down))
+        let barWidth = max(1, Int((3 * Double(scale)).rounded()))
+        let reach = Int((4 * Double(scale)).rounded())
+        let textLeft = originX + gutterPx
+        guard x >= textLeft - barWidth - reach - Int(Double(scale).rounded()), x < textLeft, y >= originY, y < originY + heightPx else { return nil }
+        var i = shownFrom
+        while i < shownTo {
+            let row = rows[i]
+            i += 1
+            guard y >= row.top, y < row.top + pitchPx else { continue }
+            guard row.bar != nil else { return nil }
+            if row.isVirtual {
+                return CodeGutterHit(lines: row.anchorLine..<(row.anchorLine + 1), tag: row.tag, source: .virtualRow, displayRow: row.display)
+            }
+            guard let bar = gutterBarOf(row.buffer) else { return nil }
+            return CodeGutterHit(lines: bar.lines, tag: bar.tag, source: .lineDecoration, displayRow: row.display)
+        }
+        return nil
     }
 
     // MARK: Accessibility
@@ -228,6 +333,7 @@ extension CodeView {
     @MainActor
     func makePlan(_ id: GlobalElementID, bounds: Bounds<Pixels>, stored: CodeViewState,
                   environment: EnvironmentValues, frame: Frame) -> (CodeViewPlan, CodeViewState) {
+        let focused = frame.focusedElement == id
         let system = frame.textSystem
         let scale = frame.scaleFactor
         let scaleD = Double(scale)
@@ -260,6 +366,28 @@ extension CodeView {
         let textViewPx = max(1, plan.widthPx - plan.gutterPx - plan.padPx)
 
         var state = stored
+        // The input method's marked text (`CV-AA`): mapped through edits that landed since, or dropped.
+        var marked: (offset: Int, composition: TextComposition)?
+        if !state.composition.text.isEmpty {
+            var offset = state.compositionOffset
+            var alive = true
+            if state.compositionVersion != snap.version {
+                if let moved = buffer.map(offset, from: state.compositionVersion, bias: .before) {
+                    offset = moved
+                    state.compositionOffset = moved
+                    state.compositionVersion = snap.version
+                } else {
+                    alive = false
+                }
+            }
+            if alive {
+                marked = (min(max(0, offset), snap.utf8Count), state.composition)
+                plan.selection = marked!.offset..<marked!.offset   // the selection a commit replaces is not drawn
+                plan.head = marked!.offset
+            } else {
+                state.composition = .none
+            }
+        }
         let map = decorations.rowMap   // the one place a display row becomes a buffer row or a virtual line (`CV-S`)
         let bufferRows = snap.lineCount
         let displayRows = map.displayRowCount
@@ -304,6 +432,17 @@ extension CodeView {
         let wholeX = Int(dx.rounded(.towardZero))
         state.scrollXPx += wholeX
         state.pendingX = (dx - Double(wholeX)) / scaleD
+
+        // A drag held outside the view scrolls by the frame's time (`CV-AD`): the offsets are a pure function of
+        // the state input wrote and `frame.timestamp`, so repeating a phase repeats its answer.
+        let autoscroll = state.dragging ? state.autoscroll : nil
+        if let auto = autoscroll {
+            let elapsed = max(0, frame.timestamp - auto.start)
+            topPx = auto.baseTopPx + Int((auto.vy * elapsed * scaleD).rounded())
+            state.scrollXPx = auto.baseXPx + Int((auto.vx * elapsed * scaleD).rounded())
+            state.pendingX = 0
+            state.pendingY = 0
+        }
 
         // `select(_:reveal: true)` centres the head's row (`CV-P`).
         let serial = buffer.revealSerial
@@ -373,8 +512,15 @@ extension CodeView {
         }
         state.scrollXPx = min(max(0, state.scrollXPx), plan.maxScrollXPx)
         plan.scrollXPx = state.scrollXPx
+        if let auto = autoscroll {   // the display link keeps running while the view can still move; at a limit it rests
+            let movingY = (auto.vy < 0 && topPx > 0) || (auto.vy > 0 && topPx < plan.maxTopPx)
+            let movingX = (auto.vx < 0 && state.scrollXPx > 0) || (auto.vx > 0 && state.scrollXPx < plan.maxScrollXPx)
+            if movingY || movingX { frame.noteActiveAnimation() }
+        }
         let settledScrollX = state.scrollXPx
         plan.layoutRow = { row, snapshot in layoutOfRow(row, snapshot, settledScrollX) }
+        let decorationsForHits = decorations
+        plan.gutterBarOf = { row in decorationsForHits.gutterBar(overRow: row) }
 
         // The rows: the visible ones and one of overscan each side.
         let remainder = topPx % pitchPx
@@ -389,8 +535,22 @@ extension CodeView {
             switch map.row(atDisplay: display) {
             case .buffer(let row):
                 let range = snap.lineRange(row)
-                let styling = decorations.stylingOfLine(range)
-                let bytes = snap.utf8(in: range)
+                var styling = decorations.stylingOfLine(range)
+                var bytes = snap.utf8(in: range)
+                var rowMarked: CodeViewPlan.Row.Marked?
+                // Only the composing row is laid out with the marked text in it: one cache miss (`CV-AA`).
+                if let marked, marked.offset >= range.lowerBound, marked.offset <= range.upperBound, bytes.count <= Self.longLineBytes {
+                    let at = marked.offset - range.lowerBound
+                    let inserted = Array(marked.composition.text.utf8)
+                    bytes.insert(contentsOf: inserted, at: at)
+                    styling.foreground = Self.splittingParts(styling.foreground, at: at, inserting: inserted.count)
+                    styling.digest = CodeDecorations.digest(of: styling.foreground)
+                    let characters = marked.composition.text
+                    let low = marked.composition.selection.lowerBound, high = marked.composition.selection.upperBound
+                    let before = characters.prefix(low).utf8.count
+                    rowMarked = .init(at: at, length: inserted.count, caretBytes: before,
+                                      selected: before..<(before + characters.dropFirst(low).prefix(high - low).utf8.count))
+                }
                 let layout = lineLayout(bytes: bytes, knownHash: nil, parts: styling.foreground, digest: styling.digest,
                                         font: font, system: system, scale: scale, cache: cache, spaceAdvance: metrics.space,
                                         scrollXPx: state.scrollXPx, textViewPx: textViewPx, advancePx: advancePx)
@@ -405,7 +565,8 @@ extension CodeView {
                 let payload = decorations.lineDecoration(row: row)
                 plan.rows.append(.init(display: display, buffer: row, isVirtual: false, top: top, range: range, textStart: range.lowerBound,
                                        layout: layout, styling: styling, tint: payload?.background, bar: payload?.gutterBar,
-                                       label: label, labelWidthPx: labelWidth, labelColor: nil, virtualText: nil))
+                                       label: label, labelWidthPx: labelWidth, labelColor: nil, virtualText: nil,
+                                       tag: payload?.tag, anchorLine: row, marked: rowMarked))
             case .virtual(let group, let lineIndex, let gap):
                 let line = group.lines[lineIndex]
                 let layout = lineLayout(bytes: line.bytes, knownHash: line.hash, parts: line.styling.foreground, digest: line.styling.digest,
@@ -422,7 +583,8 @@ extension CodeView {
                 let start = gap < bufferRows ? snap.lineRange(gap).lowerBound : snap.utf8Count
                 plan.rows.append(.init(display: display, buffer: gap, isVirtual: true, top: top, range: start..<start, textStart: 0,
                                        layout: layout, styling: line.styling, tint: group.background, bar: group.gutterBar,
-                                       label: label, labelWidthPx: labelWidth, labelColor: line.marker?.color, virtualText: line.text))
+                                       label: label, labelWidthPx: labelWidth, labelColor: line.marker?.color, virtualText: line.text,
+                                       tag: group.tag, anchorLine: group.anchoredAfter ? max(0, gap - 1) : gap))
             }
             display += 1
         }
@@ -465,7 +627,57 @@ extension CodeView {
                 }, departed: nil))
             }
         }
+        // The selection a held drag has now, from the pointer and the scroll of this frame (`CV-AD`).
+        if autoscroll != nil, state.dragging, let auto = autoscroll {
+            let topPoint = Double(plan.originY), bottomPoint = Double(plan.originY + plan.heightPx - 1)
+            let y = min(max(auto.pointerY * scaleD, topPoint), bottomPoint) / scaleD
+            let offset = plan.offset(at: Point(x: Pixels(Float(auto.pointerX)), y: Pixels(Float(y))))
+            let live = plan.dragSelection(to: offset, origin: state.dragOriginLower..<state.dragOriginUpper,
+                                          granularity: state.dragGranularity)
+            plan.liveDragSelection = live
+            plan.selection = live.range
+            plan.head = live.head
+        }
+        // The caret's blink restarts when it moves, an edit lands, the marked text changes or the view gains focus (`CV-AC`).
+        if caretBlink == .on {
+            let moved = state.blinkSelection != plan.selection || state.blinkHead != plan.head || state.blinkVersion != snap.version
+                || state.blinkFocused != focused || state.blinkComposition != state.composition.text
+            if moved {
+                state.blinkSelection = plan.selection
+                state.blinkHead = plan.head
+                state.blinkVersion = snap.version
+                state.blinkFocused = focused
+                state.blinkComposition = state.composition.text
+                state.blinkEpoch = frame.timestamp
+            }
+        }
         return (plan, state)
+    }
+
+    /// `parts` (a line's foreground partition) with an unstyled stretch of `length` bytes inserted at byte `at`.
+    static func splittingParts(_ parts: [(bytes: Int, style: CodeStyleID?)], at: Int,
+                               inserting length: Int) -> [(bytes: Int, style: CodeStyleID?)] {
+        var out: [(bytes: Int, style: CodeStyleID?)] = []
+        out.reserveCapacity(parts.count + 2)
+        var position = 0
+        var done = false
+        for part in parts {
+            if !done && at == position {
+                out.append((length, nil))
+                done = true
+            }
+            if !done && at < position + part.bytes {
+                out.append((at - position, part.style))
+                out.append((length, nil))
+                out.append((position + part.bytes - at, part.style))
+                done = true
+            } else {
+                out.append(part)
+            }
+            position += part.bytes
+        }
+        if !done { out.append((length, nil)) }
+        return out
     }
 
     /// One line's layout, from the cache or shaped (a long line only in its column window). `knownHash` is the
@@ -508,6 +720,24 @@ extension CodeView {
     }
 
     // MARK: Paint
+
+    /// Whether the blink draws the caret at this frame's time (`CV-AC`): a pure function of `frame.timestamp` and the
+    /// epoch input and prepaint stored, so no state is written here. It also asks the timeline store for a frame at
+    /// the next toggle, and keeps retained paint from replaying a caret frozen in one phase.
+    @MainActor
+    func caretIsShown(_ id: GlobalElementID, pass: inout PaintPass) -> Bool {
+        guard caretBlink == .on else { return true }
+        let now = pass.frame.timestamp
+        let epoch = pass.readState(id, initial: CodeViewState()).blinkEpoch
+        let elapsed = now - epoch
+        guard elapsed >= 0 else { return true }
+        let halves = (elapsed / CodeCaretBlink.halfPeriod).rounded(.down)
+        let visible = Int(halves) % 2 == 0
+        pass.frame.animationStore.timeline.noteDeadline(atTimestamp: epoch + (halves + 1) * CodeCaretBlink.halfPeriod, owner: id,
+                                                              stateTable: pass.frame.stateTable)
+        pass.frame.taintRetention("codeCaretBlink")
+        return visible
+    }
 
     @MainActor
     func paintContent(_ id: GlobalElementID, bounds: Bounds<Pixels>, plan: CodeViewPlan, pass: inout PaintPass) {
@@ -553,7 +783,7 @@ extension CodeView {
                     let row = plan.rows[rowIndex]
                     rowIndex += 1
                     func x(_ byte: Int) -> Int {
-                        let local = byte - row.textStart
+                        let local = row.layoutByte(byte)
                         let points = row.layout.x(ofByte: local)
                             ?? (local < row.layout.windowStart ? row.layout.caretX.first : row.layout.caretX.last) ?? 0
                         return plan.textOriginX + Int((points * scaleD).rounded())
@@ -605,9 +835,24 @@ extension CodeView {
                         g += 1
                     }
                     frame.codeWork.glyphsEmitted += emitted
+                    // 6. The input method's marked text: underlined, the selected clause doubly.
+                    if let marked = row.marked {
+                        func xl(_ local: Int) -> Int {
+                            let points = row.layout.x(ofByte: local)
+                                ?? (local < row.layout.windowStart ? row.layout.caretX.first : row.layout.caretX.last) ?? 0
+                            return plan.textOriginX + Int((points * scaleD).rounded())
+                        }
+                        let thickness = max(1, Int(scaleD.rounded()))
+                        let bottom = row.top + plan.pitchPx
+                        pass.fill(rect(xl(marked.at), bottom - thickness, xl(marked.at + marked.length), bottom), color: tokens)
+                        if !marked.selected.isEmpty {
+                            pass.fill(rect(xl(marked.at + marked.selected.lowerBound), bottom - 2 * thickness,
+                                           xl(marked.at + marked.selected.upperBound), bottom), color: tokens)
+                        }
+                    }
                 }
                 // 7. The caret: a bar a point wide at the head, while the view has focus and nothing is selected.
-                if plan.selection.isEmpty, pass.isFocused(id), let caret = plan.caretPosition() {
+                if plan.selection.isEmpty, pass.isFocused(id), let caret = plan.caretPosition(), caretIsShown(id, pass: &pass) {
                     let width = max(1, Int(scaleD.rounded()))
                     pass.fill(rect(caret.x, caret.top, caret.x + width, caret.top + plan.pitchPx),
                               color: pass.resolve(theme.caret ?? theme.foreground))

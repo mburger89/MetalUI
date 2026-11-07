@@ -489,7 +489,7 @@ let codeWord: EventModifiers = .control
     // Stage .textComposition: marked text never reaches the buffer; its commit is an insert.
     let before = buffer.version
     #expect(window.setMarkedText("かな"))
-    #expect(buffer.version == before && window.window.testingComposition == nil, "marked text is not buffer text (run 2 draws it)")
+    #expect(buffer.version == before && window.window.testingComposition?.text == "かな", "marked text is the view's, not the buffer's")
     window.commitMarkedText("仮名")
     #expect(buffer.snapshot().line(3).hasPrefix("w仮名") || buffer.snapshot().line(3).hasPrefix("仮名w"), "the commit inserted: \(buffer.snapshot().line(3))")
     // Stage dispatchTextKey.
@@ -501,6 +501,8 @@ let codeWord: EventModifiers = .control
     window.window.setNeedsRedraw(); window.tick()
     window.scroll(at: pt(200, top + 100), byDeltaX: 0, deltaY: -pitch * 40)
     func picture() -> [String] { window.scene.glyphs.prefix(40).map { "\($0.bounds.origin.x),\($0.bounds.origin.y)" } }
+    caret(buffer, 45, 0)   // in view: marked text reveals a caret that is not
+    window.window.setNeedsRedraw(); window.tick()
     let scrolled = picture()
     #expect(scrolled != [] && scrolled.count == 40)
     #expect(window.setMarkedText("かな"))

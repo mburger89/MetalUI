@@ -64,9 +64,13 @@ final class CodeEditSession {
     let viewEditable: Bool
     let indentUsingSpaces: Bool
     let tabColumns: Int
+    /// The gutter-bar click callback (`CV-AB`), run from input.
+    let gutterClick: (@MainActor (CodeGutterHit) -> Void)?
 
     init(buffer: CodeBuffer, id: GlobalElementID, table: StateTable, plan: CodeViewPlan,
-         editable: Bool, indentUsingSpaces: Bool, tabColumns: Int) {
+         editable: Bool, indentUsingSpaces: Bool, tabColumns: Int,
+         gutterClick: (@MainActor (CodeGutterHit) -> Void)? = nil) {
+        self.gutterClick = gutterClick
         self.buffer = buffer
         self.id = id
         self.table = table
@@ -79,8 +83,14 @@ final class CodeEditSession {
     /// Whether edits apply: the view allows them and the buffer is not read-only.
     var isEditable: Bool { viewEditable && !buffer.isReadOnly }
 
-    /// Whether an input method has marked text (run 2: the composition lives in `CodeViewState`).
-    var isComposing: Bool { false }
+    /// Whether an input method has marked text (it lives in `CodeViewState`, never in the buffer, `CV-AA`).
+    var isComposing: Bool { !state().composition.text.isEmpty }
+
+    /// The marked text and its selection, `nil` when none.
+    var composition: TextComposition? {
+        let composition = state().composition
+        return composition.text.isEmpty ? nil : composition
+    }
 
     private func update(_ body: (inout CodeViewState) -> Void) {
         table.withState(id, initial: CodeViewState(), body)
@@ -92,14 +102,36 @@ final class CodeEditSession {
 
     // MARK: Focus and composition
 
-    /// The view lost focus: a composition does not survive it (`IM-I`). Run 2 stores one; today there is none.
+    /// The view lost focus (or a press, or an end): a composition does not survive it (`IM-I`). Nothing is
+    /// written when there is none.
     func dropComposition() {
-        // TODO(run 2): clear `CodeViewState.composition`.
+        guard isComposing else { return }
+        update { $0.composition = .none }
     }
 
-    /// Marked text from the input method. TODO(run 2): shown at the caret and committed through `insert`.
+    /// Marked text from the input method (`CV-AA`): shown at the caret (the selection's start, which a commit
+    /// replaces) through the caret line's layout alone, and never in the buffer or its edit stream until
+    /// `insert` commits it. An empty composition ends it; a view that cannot edit takes none.
     func compose(_ composition: TextComposition) {
-        _ = composition
+        guard isEditable else { return }
+        let text = String(composition.text.map { $0.isNewline ? " " : $0 })
+        guard !text.isEmpty else {
+            dropComposition()
+            return
+        }
+        let count = text.count
+        let lower = min(max(composition.selection.lowerBound, 0), count)
+        let upper = min(max(composition.selection.upperBound, lower), count)
+        let version = buffer.version
+        let anchor = buffer.primarySelection.range.lowerBound
+        update {
+            if $0.composition.text.isEmpty || $0.compositionVersion != version {
+                $0.compositionOffset = anchor
+                $0.compositionVersion = version
+            }
+            $0.composition = TextComposition(text: text, selection: lower..<upper)
+            $0.revealsCaret = true
+        }
     }
 
     // MARK: Pointer
@@ -107,6 +139,11 @@ final class CodeEditSession {
     /// A primary press at a view-local point: places the caret, selects a word (two clicks) or a line (three,
     /// or a press in the gutter); shift extends from the current anchor.
     func press(at point: Point<Pixels>, clickCount: Int, extend: Bool) {
+        if let click = gutterClick, let hit = plan.gutterHit(at: point) {   // a bar's press is the app's (`CV-AB`)
+            update { $0.dragging = false }
+            click(hit)
+            return
+        }
         let offset = plan.offset(at: point)
         var origin = offset..<offset
         var granularity: UInt8 = 0
@@ -128,25 +165,58 @@ final class CodeEditSession {
             $0.dragOriginLower = origin.lowerBound
             $0.dragOriginUpper = origin.upperBound
             $0.dragGranularity = granularity
+            $0.dragging = true
+            $0.autoscroll = nil
+            $0.composition = .none   // a press ends a composition, as a text field's does
             $0.goalX = nil
             $0.revealsCaret = false
         }
     }
 
-    /// The pointer moved with the button down: extends from the press by the press's unit.
-    func drag(to point: Point<Pixels>) {
+    /// Points a second an autoscroll never exceeds.
+    static let autoscrollMaximum = 2400.0
+
+    /// The pointer moved with the button down: extends from the press by the press's unit. Outside the view it
+    /// also starts, retunes or ends the autoscroll (`CV-AD`): the scroll is `start`, the offsets then and a
+    /// velocity written here from input, and every phase computes the offset from the frame's time.
+    func drag(to point: Point<Pixels>, at time: Double) {
         let st = state()
-        let offset = plan.offset(at: point)
-        let origin = st.dragOriginLower..<st.dragOriginUpper
-        switch st.dragGranularity {
-        case 0:
-            buffer.selections = [CodeSelection(anchor: origin.lowerBound, head: offset)]
-        default:
-            let unit = st.dragGranularity == 1 ? plan.unit(atWord: offset) : plan.unit(atLine: offset)
-            buffer.selections = unit.lowerBound < origin.lowerBound
-                ? [CodeSelection(anchor: origin.upperBound, head: unit.lowerBound)]
-                : [CodeSelection(anchor: origin.lowerBound, head: max(origin.upperBound, unit.upperBound))]
+        guard st.dragging else { return }
+        let scale = Double(plan.scale)
+        let top = Double(plan.originY) / scale, bottom = Double(plan.originY + plan.heightPx) / scale
+        let left = Double(plan.originX) / scale, right = Double(plan.originX + plan.widthPx) / scale
+        let x = Double(point.x.value), y = Double(point.y.value)
+        func speed(_ distance: Double) -> Double {
+            distance == 0 ? 0 : (distance < 0 ? -1 : 1) * min(Self.autoscrollMaximum, 60 + 20 * abs(distance))
         }
+        let vy = speed(y < top ? y - top : (y > bottom ? y - bottom : 0))
+        let vx = speed(x < left ? x - left : (x > right ? x - right : 0))
+        let inside = Point(x: point.x, y: Pixels(Float(min(max(y, top), bottom - 1 / scale))))
+        let offset = plan.offset(at: inside)
+        buffer.selections = [plan.dragSelection(to: offset, origin: st.dragOriginLower..<st.dragOriginUpper,
+                                                granularity: st.dragGranularity)]
+        let topPx = plan.topPx, scrollXPx = plan.scrollXPx
+        update { state in
+            if vy == 0 && vx == 0 {
+                state.autoscroll = nil
+            } else if var running = state.autoscroll, running.vy == vy, running.vx == vx {
+                running.pointerX = x
+                running.pointerY = y
+                state.autoscroll = running
+            } else {
+                state.autoscroll = CodeViewState.Autoscroll(start: time, baseTopPx: topPx, baseXPx: scrollXPx, vy: vy, vx: vx,
+                                                            pointerX: x, pointerY: y)
+            }
+        }
+    }
+
+    /// The button was released: an autoscroll ends and the selection it computed in the frames becomes the
+    /// buffer's (until now only the view's picture had it).
+    func endDrag() {
+        let st = state()
+        guard st.dragging else { return }
+        if st.autoscroll != nil, let selection = plan.liveDragSelection { buffer.selections = [selection] }
+        update { $0.dragging = false; $0.autoscroll = nil }
     }
 
     // MARK: Text
@@ -156,7 +226,7 @@ final class CodeEditSession {
         guard isEditable, !text.isEmpty else { return }
         let normalized = CodeEditing.normalizingLineBreaks(text, to: buffer.lineEnding.text)
         buffer.replaceSelections(with: normalized, origin: text.count == 1 ? .typing : .paste)
-        update { $0.goalX = nil; $0.revealsCaret = true }
+        update { $0.composition = .none; $0.goalX = nil; $0.revealsCaret = true }   // a commit ends the composition (`CV-AA`)
     }
 
     // MARK: Keys

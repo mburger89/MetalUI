@@ -3484,13 +3484,18 @@ public final class Window {
                   let target = region.handlers.textInput else { return false }
             let local = region.localPoint(mouse.position)   // `GX-P` item 3
             if let session = target.codeSession {
-                StateDispatch.dispatching(to: id) { session.drag(to: local) }   // ID-F: the dragged code view
+                StateDispatch.dispatching(to: id) { session.drag(to: local, at: mouse.timestamp ?? lastTick) }   // ID-F: the dragged code view
                 return true
             }
             setEditState(id, TextEditing.drag(to: target.boundary(atWindowX: Double(local.x.value),
                                                                   y: Double(local.y.value)),
                                              text: currentText(id, target), state: editState(id)))
             return true
+        case .mouseUp:
+            // The release ends a code view's drag and its autoscroll (`CV-AD`); it claims nothing.
+            guard let id = focusedElement, let session = lastFocusRegistry.textTarget(for: id)?.codeSession else { return false }
+            StateDispatch.dispatching(to: id) { session.endDrag() }   // ID-F: the released code view
+            return false
         case .textInput(let inserted):
             guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
             if let session = target.codeSession {
@@ -3505,7 +3510,7 @@ public final class Window {
         case .textComposition(let composition):
             guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
             if let session = target.codeSession {
-                session.compose(composition)
+                StateDispatch.dispatching(to: id) { session.compose(composition) }   // ID-F: the composing code view
                 return true
             }
             setEditState(id, TextEditing.compose(composition, state: editState(id)))

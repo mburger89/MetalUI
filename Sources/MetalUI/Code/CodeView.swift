@@ -42,6 +42,9 @@ public struct CodeView: Element, StyledElement {
     var indentsWithSpaces = false
     var scrollStateObject: CodeScrollState?
     var onScrollAction: (@MainActor (CodeScrollPosition) -> Void)?
+    var gutterClick: (@MainActor (CodeGutterHit) -> Void)?
+    var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
+    var caretBlink = CodeCaretBlink.on
 
     /// A view of `buffer` drawn with `decorations`, whose buffer must be the same.
     public init(buffer: CodeBuffer, decorations: CodeDecorations) {
@@ -111,6 +114,34 @@ public struct CodeView: Element, StyledElement {
         return copy
     }
 
+    /// Calls `action` when the primary button is pressed on a gutter bar (`CV-AB`): the bar of a
+    /// ``CodeLineDecoration`` or of a ``CodeVirtualRow``, including the bars beside a diff's removed lines. It
+    /// runs from input, never in a frame phase, so it may write state; the press then neither moves the caret
+    /// nor selects the line. A press in the gutter where no bar is drawn still selects the line.
+    public func onGutterBarClick(_ action: @escaping @MainActor (CodeGutterHit) -> Void) -> CodeView {
+        var copy = self
+        copy.gutterClick = action
+        return copy
+    }
+
+    /// A context menu for the gutter bars (`CV-AB`): a secondary press on a bar opens the menu `content` builds
+    /// for the ``CodeGutterHit``, evaluated at each open, in input (`MN-D`). A secondary press anywhere else
+    /// opens the view's own ``StyledElement/contextMenu(menuItems:)``, if it has one, and nothing otherwise.
+    public func gutterBarContextMenu<M: MenuContent>(
+        @MenuContentBuilder _ content: @escaping @MainActor (CodeGutterHit) -> M) -> CodeView {
+        var copy = self
+        copy.gutterMenu = { hit in MenuItems([content(hit)]) }
+        return copy
+    }
+
+    /// Whether the caret blinks while the view has focus; ``CodeCaretBlink/on`` by default. A blinking caret
+    /// costs two frames a second while the view is focused and idle (`CV-AC`); tests and screenshots turn it off.
+    public func codeCaretBlink(_ blink: CodeCaretBlink) -> CodeView {
+        var copy = self
+        copy.caretBlink = blink
+        return copy
+    }
+
     public struct Layout {
         /// The view's layout node.
         public var node: LayoutNodeID
@@ -176,7 +207,14 @@ public struct CodeView: Element, StyledElement {
         // The text stage's target: the session does the editing from input (`CV-W`); the caret rect is the input
         // method's area, under the view's own render effects (`GX-I`).
         let session = CodeEditSession(buffer: buffer, id: id, table: table, plan: plan, editable: isEditable,
-                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns)
+                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick)
+        if let menu = gutterMenu {
+            let existing = handlers.contextual
+            handlers.contextual = ContextualAttachment(locatedMenu: { [plan] point in
+                if let point, let hit = plan.gutterHit(at: point) { return menu(hit) }
+                return existing?.menu?(point) ?? MenuItems([])
+            }, help: existing?.help)
+        }
         let caret = plan.caretPosition()
         let scaleF = frame.scaleFactor
         let caretRect = Bounds(origin: Point(x: Pixels(Float(caret?.x ?? plan.originX) / scaleF),
@@ -218,4 +256,16 @@ extension Handlers {
             }, over: copy.keyboard?.clipboard), over: copy.keyboard)
         return copy
     }
+}
+
+/// Whether a ``CodeView``'s caret blinks (`CV-AC`).
+public enum CodeCaretBlink: Equatable, Sendable {
+    /// The caret is drawn for half a second, hidden for half a second, restarting when it moves or text changes;
+    /// the view schedules a frame at each toggle (two a second while it is focused and idle) and nothing else.
+    case on
+    /// A solid caret: no timer, for tests and screenshots.
+    case off
+
+    /// Seconds from one toggle to the next.
+    static let halfPeriod = 0.5
 }
