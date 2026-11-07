@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Metal
+import simd
 import MetalUICore
 import MetalUIShaderTypes
 @testable import MetalUIRender

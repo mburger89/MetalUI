@@ -148,7 +148,7 @@ private let wide = gxRect(0, 0, 100, 60)
     #expect(scene.rects.count == 1 && scene.images.isEmpty && scene.groups.isEmpty && scene.glyphs.isEmpty,
             "rects \(scene.rects.count) images \(scene.images.count) groups \(scene.groups.count)")
     #expect(scene.rects.first?.shapeKind == PrimitiveShape.continuousRoundedRectangle.rawValue)
-    #expect(scene.rects.first?.cornerRadii == Corners(all: ScaledPixels(20)))
+    #expect(scene.rects.first.map { [$0.cornerRadii.topLeft, $0.cornerRadii.topRight, $0.cornerRadii.bottomRight, $0.cornerRadii.bottomLeft] } == [20, 20, 20, 20])
     var circular = RoundedRectangle(cornerRadius: Pixels(20), style: .circular).fill(.accent)
     let other = Frame(contentSize: Size(width: Pixels(100), height: Pixels(60)), scaleFactor: 1)
     other.render(&circular)
@@ -200,11 +200,11 @@ private let wide = gxRect(0, 0, 100, 60)
     var root = RoundedRectangle(cornerRadius: Pixels(4)).strokeBorder(.accent, lineWidth: Pixels(10))
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(60)), scaleFactor: 1)
     frame.render(&root)
-    #expect(frame.finalizedScene().rects.first?.cornerRadii == Corners(all: ScaledPixels(4)), "the radius reaches the shader whole")
+    #expect(frame.finalizedScene().rects.first.map { [$0.cornerRadii.topLeft, $0.cornerRadii.bottomRight] } == [4, 4], "the radius reaches the shader whole")
     var circular = RoundedRectangle(cornerRadius: Pixels(4), style: .circular).strokeBorder(.accent, lineWidth: Pixels(10))
     let other = Frame(contentSize: Size(width: Pixels(100), height: Pixels(60)), scaleFactor: 1)
     other.render(&circular)
-    #expect(other.finalizedScene().rects.first?.cornerRadii == Corners(all: ScaledPixels(0)), "K11: the circular kind squares it on the CPU")
+    #expect(other.finalizedScene().rects.first.map { [$0.cornerRadii.topLeft, $0.cornerRadii.bottomRight] } == [0, 0], "K11: the circular kind squares it on the CPU")
 }
 
 /// **CC-H**. The raster cache keys carry the shape kind, so a shadow or blur of the continuous rect never reads the

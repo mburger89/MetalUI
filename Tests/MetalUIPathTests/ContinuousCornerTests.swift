@@ -73,10 +73,11 @@ private func continuousRect(_ w: Double, _ h: Double, _ tl: Double, _ tr: Double
                     tolerance: 1e-3), "TL 20 and TR 10: the start is the right edge between the radii (10 and 0 -> 35)")
 }
 
-/// A corner is G1 and G2-ish by construction: the three cubics meet, and the tangent at each joint is the same
-/// direction on both sides (the controls are collinear through it). For every room from the capsule's to the full reach.
-/// **Mutation**: `m1`/`m2` swapped breaks the A-B joint.
-@Test func aCornersCubicsMeetWithOneTangent() {
+/// The three cubics of a corner meet, turn by under 0.05 rad at a joint (SwiftUI's own are not exactly tangent: the
+/// probe's elements kink by 0.043 rad at the full reach, which the model keeps), start and end on their sides at the
+/// reach, and mirror each other across the diagonal when the two sides leave the same room. For every room from the
+/// capsule's to the full reach. **Mutation**: `m1`/`m2` swapped breaks the joint and the mirror.
+@Test func aCornersCubicsMeetAndMirror() {
     for room in stride(from: 20.0, through: 40.0, by: 2.5) {
         let c = ContinuousCorner.cubics(ContinuousCornerSpec(rx: 20, ry: 20, roomX: room, roomY: room))
         #expect(c.count == 3)
@@ -86,9 +87,15 @@ private func continuousRect(_ w: Double, _ h: Double, _ tl: Double, _ tr: Double
             let t1 = (x: a[3].x - a[2].x, y: a[3].y - a[2].y), t2 = (x: b[1].x - b[0].x, y: b[1].y - b[0].y)
             let cross = t1.x * t2.y - t1.y * t2.x
             let scale = (t1.x * t1.x + t1.y * t1.y).squareRoot() * (t2.x * t2.x + t2.y * t2.y).squareRoot()
-            #expect(abs(cross / scale) < 1e-4, "room \(room): the tangent at joint \(i) turns by \(cross / scale)")
+            #expect(abs(cross / scale) < 0.05, "room \(room): the tangent at joint \(i) turns by \(cross / scale)")
         }
-        #expect(abs(c[0][0].x - min(room, 20 * ContinuousCorner.extent)) < 1e-9, "the outer cubic starts at the reach")
+        let reach = min(room, 20 * ContinuousCorner.extent)
+        #expect(abs(c[0][0].x - reach) < 1e-9 && c[0][0].y == 0, "the outer cubic starts on the horizontal side at the reach")
+        #expect(abs(c[2][3].y - reach) < 1e-9 && c[2][3].x == 0, "and the last ends on the vertical side")
+        for k in 0..<4 {
+            #expect(abs(c[0][k].x - c[2][3 - k].y) < 1e-12 && abs(c[0][k].y - c[2][3 - k].x) < 1e-12, "room \(room): A and C mirror across the diagonal")
+            #expect(abs(c[1][k].x - c[1][3 - k].y) < 1e-12 && abs(c[1][k].y - c[1][3 - k].x) < 1e-12, "the middle cubic mirrors itself")
+        }
     }
 }
 
