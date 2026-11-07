@@ -773,10 +773,26 @@ extension CodeView {
                 pass.fill(rect(plan.originX, plan.rows[index].top, textRight, plan.rows[end].top + plan.pitchPx), color: pass.resolve(color))
                 index = end + 1
             }
+            // 2. The current line: the caret's row, while nothing is selected (`CV-AE`).
+            if let currentLine = theme.currentLine, plan.selection.isEmpty {
+                var r = from
+                while r < to {
+                    let row = plan.rows[r]
+                    if !row.isVirtual && plan.head >= row.range.lowerBound && plan.head <= row.range.upperBound {
+                        pass.fill(rect(plan.originX, row.top, textRight, row.top + plan.pitchPx), color: pass.resolve(currentLine))
+                        break
+                    }
+                    r += 1
+                }
+            }
+            let findVisitedBefore = decorations.findMatchesVisited
+            defer { frame.codeWork.findMatchesVisited += decorations.findMatchesVisited - findVisitedBefore }
             // The text region: backgrounds of runs, the selection and the glyphs.
             pass.clipped(to: rect(textLeft, viewTop, textRight, viewBottom), offsetBy: zero) {
                 let tokens = pass.resolve(theme.foreground)
                 let selectionColor = pass.resolve(theme.selection)
+                let findColor = pass.resolve(theme.findMatch), currentFindColor = pass.resolve(theme.currentFindMatch)
+                let currentMatch = decorations.currentMatch
                 var colors: [Hsla] = []
                 var rowIndex = from
                 while rowIndex < to {
@@ -794,6 +810,20 @@ extension CodeView {
                         pass.fill(rect(x(background.range.lowerBound), row.top, x(background.range.upperBound), row.top + plan.pitchPx),
                                   color: pass.resolve(background.color))
                         b += 1
+                    }
+                    // 3. Find matches: only this row's, found by a binary search of the sorted matches (`CV-AE`).
+                    if !row.isVirtual {
+                        let span = decorations.findSpan(in: row.range)
+                        var m = span.lowerBound
+                        while m < span.upperBound {
+                            let match = decorations.match(at: m)
+                            let lo = max(match.lowerBound, row.range.lowerBound), hi = min(match.upperBound, row.range.upperBound)
+                            if lo < hi {
+                                pass.fill(rect(x(lo), row.top, x(hi), row.top + plan.pitchPx),
+                                          color: m == currentMatch ? currentFindColor : findColor)
+                            }
+                            m += 1
+                        }
                     }
                     // 4. The selection, with the line break's tail past the end of a selected line (buffer rows only).
                     let selection = plan.selection

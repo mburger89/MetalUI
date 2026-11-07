@@ -66,11 +66,15 @@ final class CodeEditSession {
     let tabColumns: Int
     /// The gutter-bar click callback (`CV-AB`), run from input.
     let gutterClick: (@MainActor (CodeGutterHit) -> Void)?
+    /// The decorations whose find matches ⌘G steps through (`CV-AE`).
+    let decorations: CodeDecorations?
 
     init(buffer: CodeBuffer, id: GlobalElementID, table: StateTable, plan: CodeViewPlan,
          editable: Bool, indentUsingSpaces: Bool, tabColumns: Int,
-         gutterClick: (@MainActor (CodeGutterHit) -> Void)? = nil) {
+         gutterClick: (@MainActor (CodeGutterHit) -> Void)? = nil,
+         decorations: CodeDecorations? = nil) {
         self.gutterClick = gutterClick
+        self.decorations = decorations
         self.buffer = buffer
         self.id = id
         self.table = table
@@ -250,6 +254,14 @@ final class CodeEditSession {
             return CodeKeyOutcome(handled: true)
         case .selectAll:
             buffer.selections = [CodeSelection(anchor: 0, head: snap.utf8Count)]
+            update { $0.goalX = nil; $0.revealsCaret = false }
+            return CodeKeyOutcome(handled: true)
+        case .findNext, .findPrevious:
+            // Claimed only while matches exist, so the key keeps travelling for an app's own find (`CV-AE`).
+            guard let decorations, let match = decorations.stepCurrentMatch(forward: command == .findNext, from: selection.range) else {
+                return CodeKeyOutcome(handled: false)
+            }
+            buffer.select(match, reveal: true)   // centres it in every view of the buffer (`CV-V`)
             update { $0.goalX = nil; $0.revealsCaret = false }
             return CodeKeyOutcome(handled: true)
         case .copy:
