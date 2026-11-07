@@ -49,6 +49,8 @@ struct SymbolParent: Component {
 
 @Suite(.serialized) @MainActor
 struct RetainedSymbolImageTests {
+    #if os(macOS)
+    // Linux and Windows draw no symbol until the bundled icons land (`SYM-C`), so these two read nothing there.
     private func widths(_ window: TestWindow) -> [Float] { window.scene.images.map { $0.bounds.size.width } }
 
     /// An `imageScale` change misses every panel and re-measures: the quads go from 34 to 46 device pixels wide (`star` at 13 pt,
@@ -79,6 +81,8 @@ struct RetainedSymbolImageTests {
         let after = on.scene.textures.map { ObjectIdentifier($0) }
         #expect(after != before, "the filled star is a different raster")
     }
+
+    #endif
 
     @Test func theSymbolFieldsAreNamedInTheFingerprint() {
         var a = EnvironmentValues(), b = EnvironmentValues()
