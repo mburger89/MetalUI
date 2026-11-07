@@ -153,12 +153,22 @@ struct Rope: Sendable {
                         rem -= Int(ch.compact.scalars)
                         acc += ch.count
                     } else {
-                        var seen = 0
-                        for i in 0..<ch.count where !isContinuation(ch.bytes[i]) {
-                            if seen == rem { return acc + i }
-                            seen += 1
+                        // One pass over the chunk's bytes through a buffer pointer and a `while` loop: the
+                        // `for i in 0..<n where …` spelling over `ch.bytes[i]` allocated once per byte (found by
+                        // the `CodeView` allocation pin, `CV-Q`: 511 allocations for one `lineStart`).
+                        let found: Int? = ch.bytes.withUnsafeBufferPointer { bytes in
+                            var seen = 0
+                            var i = 0
+                            while i < bytes.count {
+                                if !isContinuation(bytes[i]) {
+                                    if seen == rem { return i }
+                                    seen += 1
+                                }
+                                i += 1
+                            }
+                            return nil
                         }
-                        return acc + ch.count
+                        return acc + (found ?? ch.count)
                     }
                 }
                 return acc
@@ -186,13 +196,20 @@ struct Rope: Sendable {
                         rem -= Int(ch.compact.utf16)
                         acc += ch.count
                     } else {
-                        var seen = 0
-                        for i in 0..<ch.count where !isContinuation(ch.bytes[i]) {
-                            let units = ch.bytes[i] >= 0xF0 ? 2 : 1
-                            if seen + units > rem { return acc + i }
-                            seen += units
+                        let found: Int? = ch.bytes.withUnsafeBufferPointer { bytes in
+                            var seen = 0
+                            var i = 0
+                            while i < bytes.count {
+                                if !isContinuation(bytes[i]) {
+                                    let units = bytes[i] >= 0xF0 ? 2 : 1
+                                    if seen + units > rem { return i }
+                                    seen += units
+                                }
+                                i += 1
+                            }
+                            return nil
                         }
-                        return acc + ch.count
+                        return acc + (found ?? ch.count)
                     }
                 }
                 return acc
@@ -220,11 +237,19 @@ struct Rope: Sendable {
                         rem -= Int(ch.compact.newlines)
                         acc += ch.count
                     } else {
-                        var seen = 0
-                        for i in 0..<ch.count where ch.bytes[i] == 0x0A {
-                            seen += 1
-                            if seen == rem { return acc + i + 1 }
+                        let found: Int? = ch.bytes.withUnsafeBufferPointer { bytes in
+                            var seen = 0
+                            var i = 0
+                            while i < bytes.count {
+                                if bytes[i] == 0x0A {
+                                    seen += 1
+                                    if seen == rem { return i + 1 }
+                                }
+                                i += 1
+                            }
+                            return nil
                         }
+                        if let found { return acc + found }
                     }
                 }
                 return acc

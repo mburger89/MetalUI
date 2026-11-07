@@ -479,3 +479,44 @@ private struct CodeCard: Component, @MainActor Equatable {
     window.scroll(at: pt(200, 100), byDeltaX: -4_000, deltaY: 0)
     #expect(decorations.shapedBytes > afterOpen && decorations.shapedBytes < afterOpen + 4_000, "a far scroll shapes one more window")
 }
+
+#if canImport(Darwin)
+import MetalUITestSupport
+
+/// Distinct lines of one byte length, so the glyph count of a row is the same at every scroll position.
+@MainActor func fixedWidthText(lines: Int) -> String {
+    var out = ""
+    out.reserveCapacity(lines * 24)
+    for i in 0..<lines { out += "row\(String(i + 1_000_000)) = \(i % 10)\n" }
+    return out
+}
+
+/// 6.2 — the heap allocations of a warm scroll frame do not grow with the file or the scroll position
+/// (Darwin, `malloc_logger`; differential, never an absolute number), line numbers off so a longer number is
+/// not a difference. At one position the two sizes differ only by the rope's height (2 against 3 levels), a
+/// few allocations per visible row, so the same-position pin is "within 20 per visible row"; the position
+/// pin is that 90 000 rows down costs what 600 rows down does (within the same bound again, not 150x more).
+/// An O(n) spelling (counting lines to the anchor, copying the text) is orders over both.
+/// **Mutation:** `makePlan` reading `snap.text` once per frame.
+@Test @MainActor func aWarmScrollFrameAllocatesTheSameAt1kAnd100kLinesAndAtAnyPosition() throws {
+    var counts: [String: Int] = [:]
+    let visible = Int((200 / codePitch(scale: 1)).rounded(.up)) + 1
+    for (lines, positions) in [(1_000, [0, 600]), (100_000, [0, 600, 90_000])] {
+        let buffer = CodeBuffer(fixedWidthText(lines: lines))
+        let window = try codeWindow(buffer: buffer, decorations: CodeDecorations(buffer: buffer), numbers: false)
+        let pitch = codePitch(scale: 1)
+        for position in positions {
+            window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -pitch * Float(position))
+            for _ in 0..<6 { window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -1) }   // warm: sub-row steps
+            counts["\(lines)@\(position)"] = try #require(countAllocations { window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -1) })
+        }
+    }
+    let bound = 20 * visible
+    for position in [0, 600] {
+        let a = counts["1000@\(position)"]!, b = counts["100000@\(position)"]!
+        #expect(abs(a - b) <= bound, "1k against 100k at \(position): \(a) vs \(b), bound \(bound)")
+    }
+    let deep = counts["100000@90000"]!, shallow = counts["100000@600"]!
+    #expect(abs(deep - shallow) <= 3 * bound, "90 000 rows down \(deep) against 600 rows down \(shallow)")
+}
+#endif
