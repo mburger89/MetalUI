@@ -14,17 +14,15 @@ import MetalUITestSupport
 private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — guard skipped"
 
-/// **G3.2 — `Image` has no system-name or asset initialiser** (spec §9: SF
-/// Symbols are out of the task's scope, and there is no asset catalog).
-/// `Image(systemName:)` and `Image("name")` each fail to compile; **control**:
-/// `Image(decorative:scale:)` over an `ImageBitmap`, resizable, with an
-/// interpolation, compiles — so the two failures are about the initialisers,
-/// not a broken fixture.
+/// **G3.2 (record 230: SF Symbols are offered, assets are not) - `Image` has a system-name initialiser but no asset one.**
+/// `Image(systemName:)` compiles from a plain import; `Image("name")` (an asset name) does not; **control**:
+/// `Image(decorative:scale:)` over an `ImageBitmap`, resizable, with an interpolation, compiles - so the failure is about
+/// the initialiser, not a broken fixture.
 ///
-/// Mutation: **MG3b** an `init(systemName:)` stub added to `Image` (the first
-/// arm compiles).
+/// Mutations: **MG3b** `init(systemName:)` deleted (the second arm stops compiling); **MG3c** an `init(_ name: String)`
+/// added (the asset arm compiles).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
-func anImageHasNoSystemNameOrAssetInitialiser() throws {
+func anImageHasASystemNameButNoAssetInitialiser() throws {
     let control = try typecheckFile("""
         @MainActor public func ok() {
             let bitmap = ImageBitmap(width: 1, height: 1, rgba: [0, 0, 0, 255])
@@ -32,7 +30,7 @@ func anImageHasNoSystemNameOrAssetInitialiser() throws {
         }
         """, importing: "MetalUI")
     let systemName = try typecheckFile("""
-        @MainActor public func bad() { _ = Image(systemName: "star") }
+        @MainActor public func ok() { _ = Image(systemName: "star") }
         """, importing: "MetalUI")
     let asset = try typecheckFile("""
         @MainActor public func bad() { _ = Image("star") }
@@ -45,10 +43,38 @@ func anImageHasNoSystemNameOrAssetInitialiser() throws {
         """)
 
     try #require(control.succeeded, "the positive control must compile:\n\(control.output)")
-    #expect(!systemName.succeeded, "Image(systemName:) must not compile:\n\(systemName.output)")
-    #expect(systemName.messages.contains("systemName"),
-            "rejected, but not for the systemName: initialiser:\n\(systemName.output)")
+    #expect(systemName.succeeded, "Image(systemName:) must compile from a plain import:\n\(systemName.output)")
     #expect(!asset.succeeded, "Image(_: String) must not compile:\n\(asset.output)")
-    #expect(asset.messages.contains("Image") || asset.messages.contains("decorative"),
+    #expect(asset.messages.contains("systemName") || asset.messages.contains("decorative"),
             "rejected, but not for the initialiser:\n\(asset.output)")
+}
+
+/// **SYM-B - every symbol spelling compiles from a plain import**: `Image(systemName:)`, `Image.symbolRenderingMode(_:)`, the
+/// `imageScale`, `symbolRenderingMode` and `symbolVariant` modifiers, `Image.Scale`'s cases, `SymbolRenderingMode`'s three
+/// cases, `SymbolVariants`' statics, chains and `contains`, and the `imageScale` and `symbolVariants` environment values.
+/// **Negatives**: `.palette` is not offered (`SYM-M`); `symbolRenderingMode` is no public environment key. Mutation: **MS2**
+/// one modifier made `internal` (the first arm stops compiling).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func everySymbolSpellingCompilesFromAPlainImport() throws {
+    let positive = try typecheckFile("""
+        @MainActor public func ok(_ values: EnvironmentValues) {
+            let scales: [Image.Scale] = [.small, .medium, .large]
+            let modes: [SymbolRenderingMode] = [.monochrome, .hierarchical, .multicolor]
+            let variants: [SymbolVariants] = [.none, .fill, .circle, .square, .rectangle, .slash, .circle.fill, .slash.fill.circle]
+            _ = (scales, modes, variants, variants[0].contains(.fill), values.imageScale, values.symbolVariants)
+            _ = Image(systemName: "star").symbolRenderingMode(.hierarchical).resizable()
+            _ = Image(systemName: "star").imageScale(.large).symbolVariant(.circle.fill).symbolRenderingMode(.multicolor)
+            _ = Image(systemName: "star").symbolRenderingMode(nil)
+        }
+        """, importing: "MetalUI")
+    let palette = try typecheckFile("""
+        @MainActor public func bad() { _ = Image(systemName: "star").symbolRenderingMode(.palette) }
+        """, importing: "MetalUI")
+    let key = try typecheckFile("""
+        @MainActor public func bad(_ values: EnvironmentValues) { _ = values.symbolRenderingMode }
+        """, importing: "MetalUI")
+    print("SYM-B spellings: positive succeeded=\(positive.succeeded) messages=[\(positive.messages)]; palette succeeded=\(palette.succeeded); key succeeded=\(key.succeeded)")
+    try #require(positive.succeeded, "every symbol spelling must compile:\n\(positive.output)")
+    #expect(!palette.succeeded && palette.messages.contains("palette"), "`.palette` must not exist:\n\(palette.output)")
+    #expect(!key.succeeded && key.messages.contains("symbolRenderingMode"), "no public environment key:\n\(key.output)")
 }

@@ -111,8 +111,18 @@ public struct PointerStyle: Sendable, Hashable {
     /// that cannot make the cursor (a size limit, a driver without colour
     /// cursors) leaves the current one.
     public static func image(_ image: Image, hotSpot: UnitPoint) -> PointerStyle {
-        let texture = image.bitmap.texture
-        let scale = image.scale
+        let texture: ImageTexture, scale: Float
+        switch image.content {
+        case .bitmap(let bitmap, let bitmapScale):
+            texture = bitmap.texture
+            scale = bitmapScale
+        case .symbol(let name):
+            // `SYM-L`: one raster of the symbol at the body font, scale 2, cached by the symbol cache so rebuilding the
+            // `Image` every frame is one cursor. A missing name leaves the arrow.
+            guard let raster = MainActor.assumeIsolated({ Image.platformRaster(forSymbol: name) }) else { return PointerStyle(.arrow) }
+            texture = raster.texture
+            scale = raster.scale
+        }
         func unit(_ value: Double) -> Float { value.isNaN ? 0 : Float(min(max(value, 0), 1)) }
         let width = Float(texture.width) / scale, height = Float(texture.height) / scale
         return PointerStyle(.image(PlatformCursorImage(
