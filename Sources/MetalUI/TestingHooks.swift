@@ -49,6 +49,11 @@ package struct BuildWork: Sendable, Equatable {
     package var lazyUnitsRealized = 0
     package var lazyLinesRealized = 0
     package var lazyUnbounded = 0
+    /// What the build's `CodeView`s did (`CV-Q`).
+    package var codeLinesShaped = 0
+    package var codeLinesPainted = 0
+    package var codeGlyphsEmitted = 0
+    package var codeHighlightRunsVisited = 0
 }
 
 extension Window {
@@ -94,7 +99,10 @@ extension Window {
                                retained: memos?.lastRetained ?? RetainedCounters(),
                                lazyUnitsRealized: frame.lazyWork.unitsRealized,
                                lazyLinesRealized: frame.lazyWork.linesRealized,
-                               lazyUnbounded: frame.lazyWork.unbounded))
+                               lazyUnbounded: frame.lazyWork.unbounded,
+                               codeLinesShaped: frame.codeWork.linesShaped, codeLinesPainted: frame.codeWork.linesPainted,
+                               codeGlyphsEmitted: frame.codeWork.glyphsEmitted,
+                               codeHighlightRunsVisited: frame.codeWork.highlightRunsVisited))
         }
     }
 }

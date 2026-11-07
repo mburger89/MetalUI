@@ -19,6 +19,18 @@ enum LazyWindow {
 }
 
 /// What a frame's lazy containers did (`LZ-I`): counted per build, never timed.
+/// A build's `CodeView` work (`CV-Q`), counted so the pins state work and never a clock.
+struct CodeWork: Equatable {
+    /// Lines shaped: a cache miss in both frames of the line-layout cache.
+    var linesShaped = 0
+    /// Rows painted: those intersecting the viewport.
+    var linesPainted = 0
+    /// Glyph sprites emitted for the rows' text.
+    var glyphsEmitted = 0
+    /// Highlight runs the line styling visited.
+    var highlightRunsVisited = 0
+}
+
 struct LazyWork: Equatable {
     /// Units realised.
     var unitsRealized = 0

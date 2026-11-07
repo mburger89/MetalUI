@@ -657,6 +657,10 @@ final class LifecycleStore {
         return (present + held).filter { $0.handle.map { !$0.isCancelled } ?? false }.count
     }
 
+    /// Queues `event` to run after this build, outside every phase (a `CodeView` asking its highlight
+    /// provider, `CV-K`): the same drain as a lifecycle action, with no scope behind it.
+    func enqueue(_ event: LifecycleEvent) { pending.append(event) }
+
     /// The events not yet run, emptied.
     func takeEvents() -> [LifecycleEvent] {
         defer { pending.removeAll(keepingCapacity: true) }

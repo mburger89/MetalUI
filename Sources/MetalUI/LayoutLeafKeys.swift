@@ -72,3 +72,11 @@ func builtInShapeLeafKey<S: Shape>(_ shape: S) -> ShapeLeafKey? {
         nil
     }
 }
+
+/// A `CodeView` (`CV-N`): a function of the proposal alone — greedy on both axes, a fixed nominal size on
+/// a nil axis. **It reads nothing of the buffer, the decorations or the font**, so a keystroke, a scroll or
+/// a highlight never invalidates an ancestor's memo.
+struct CodeViewLeafKey: Hashable {
+    static let nominalWidth = 480.0
+    static let nominalHeight = 320.0
+}

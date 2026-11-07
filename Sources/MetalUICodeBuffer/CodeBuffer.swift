@@ -88,8 +88,7 @@ public final class CodeBuffer {
 
     /// A buffer holding `text`. O(n).
     public init(_ text: String = "") {
-        var t = text
-        let built: (Rope, CodeLineEnding) = t.withUTF8 { (Rope(bytes: $0), Self.detectLineEnding($0)) }
+        let built = Self.build(text)
         rope = built.0
         lineEnding = built.1
         hadInvalidUTF8 = false
@@ -101,10 +100,22 @@ public final class CodeBuffer {
         let array = Array(bytes)
         let valid = array.withUnsafeBufferPointer { Self.isValidUTF8($0) }
         let source = valid ? array : Array(String(decoding: array, as: UTF8.self).utf8)
-        let built: (Rope, CodeLineEnding) = source.withUnsafeBufferPointer { (Rope(bytes: $0), Self.detectLineEnding($0)) }
+        let built = Self.build(bytes: source)
         rope = built.0
         lineEnding = built.1
         hadInvalidUTF8 = !valid
+    }
+
+    /// The rope and line ending of `text`. `nonisolated` so the closures are not main-actor closures: a model built
+    /// off the main thread (the demo stack-budget test builds trees on a 1 MB thread) would trap on their
+    /// dynamic isolation check.
+    private nonisolated static func build(_ text: String) -> (Rope, CodeLineEnding) {
+        var t = text
+        return t.withUTF8 { (Rope(bytes: $0), detectLineEnding($0)) }
+    }
+
+    private nonisolated static func build(bytes: [UInt8]) -> (Rope, CodeLineEnding) {
+        bytes.withUnsafeBufferPointer { (Rope(bytes: $0), detectLineEnding($0)) }
     }
 
     private nonisolated static func isValidUTF8(_ p: UnsafeBufferPointer<UInt8>) -> Bool {
