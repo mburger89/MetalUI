@@ -153,7 +153,12 @@ public final class CodeDecorations {
     @ObservationIgnored private var styles: [CodeStyle] = []
     @ObservationIgnored private var styleIDs: [CodeStyle: CodeStyleID] = [:]
     @ObservationIgnored private var layers: [RunTree<HighlightPayload>]
+    /// Whether a layer has ever been given a styled run since its last reset: a layer that has not is skipped.
+    @ObservationIgnored private var layerHasStyles: [Bool]
+    @ObservationIgnored private var anyLayerHasStyles = false
     @ObservationIgnored private var lines: RunTree<LineDecorationPayload>
+    /// The display rows: buffer rows and the read-only virtual lines between them (`CV-S`).
+    @ObservationIgnored let rowMap: CodeRowMap
     @ObservationIgnored private var cursor: CodeEditCursor
     @ObservationIgnored private var deltas: [RowDelta] = []
     @ObservationIgnored private var deltaBase: UInt64
@@ -170,7 +175,9 @@ public final class CodeDecorations {
         self.theme = CodeTheme()
         let count = buffer.utf8Count
         layers = CodeHighlightLayer.allCases.map { _ in RunTree(total: count, payload: .unknown) }
+        layerHasStyles = CodeHighlightLayer.allCases.map { _ in false }
         lines = RunTree(total: buffer.lineCount, payload: LineDecorationPayload())
+        rowMap = CodeRowMap(rowCount: buffer.lineCount)
         cursor = buffer.makeEditCursor()
         deltaBase = buffer.version
     }
@@ -203,7 +210,10 @@ public final class CodeDecorations {
             for edit in edits { apply(edit) }
         case .resync(let snapshot):
             for layer in layers { layer.reset(total: snapshot.utf8Count, payload: .unknown) }
+            layerHasStyles = layerHasStyles.map { _ in false }
+            anyLayerHasStyles = false
             lines.reset(total: snapshot.lineCount, payload: LineDecorationPayload())
+            rowMap.reset(rowCount: snapshot.lineCount)
             deltas.removeAll()
             deltaBase = snapshot.version
         }
@@ -232,6 +242,8 @@ public final class CodeDecorations {
         if removedRows > 0 || insertedRows > 0 {
             lines.splice(at: min(startRow + 1, lines.total), removing: min(removedRows, max(0, lines.total - startRow - 1)),
                          inserting: insertedRows, empty: LineDecorationPayload())
+            rowMap.splice(at: min(startRow + 1, rowMap.rowCount),
+                          removing: min(removedRows, max(0, rowMap.rowCount - startRow - 1)), inserting: insertedRows)
             deltas.append(RowDelta(version: edit.version, afterRow: startRow + 1, removed: removedRows, inserted: insertedRows))
             if deltas.count > 4096 {
                 let drop = deltas.count - 4096
@@ -255,6 +267,7 @@ public final class CodeDecorations {
         let mapped = lower..<max(lower, min(upper, tree.total))
         if mapped.isEmpty && !range.isEmpty { return }
         tree.set(mapped, to: HighlightPayload(style: nil, state: .valid))
+        if !runs.isEmpty { layerHasStyles[layer.rawValue] = true; anyLayerHasStyles = true }
         for run in runs {
             guard let a = buffer.map(run.range.lowerBound, from: version, bias: .after),
                   let b = buffer.map(run.range.upperBound, from: version, bias: .before) else { continue }
@@ -300,6 +313,72 @@ public final class CodeDecorations {
         revision &+= 1
     }
 
+    // MARK: Virtual rows
+
+    /// Replaces every virtual row with `rows`, whose anchors are buffer rows as of `version`; they are shifted
+    /// forward through the newlines added or removed since, like line decorations, in O(log n) per edit
+    /// (`CV-S`). Dropped if the edit log no longer reaches back. A group anchored inside rows an edit removes
+    /// goes with them; give the rows again after such an edit.
+    public func setVirtualRows(_ rows: [CodeVirtualRow], asOf version: UInt64) {
+        sync()
+        guard version >= deltaBase || version == buffer.version else { return }
+        let sizeThen = max(0, rowMap.rowCount - deltas.filter { $0.version > version }.reduce(0) { $0 + $1.inserted - $1.removed })
+        let ordered = rows.enumerated().sorted { ($0.element.anchor.gap, $0.offset) < ($1.element.anchor.gap, $1.offset) }
+        var groups: [(position: Int, group: VirtualGroup)] = []
+        groups.reserveCapacity(ordered.count)
+        for entry in ordered where !entry.element.lines.isEmpty {
+            groups.append((min(entry.element.anchor.gap, sizeThen), resolveVirtualGroup(entry.element)))
+        }
+        rowMap.build(rowCount: sizeThen, groups: groups)
+        for delta in deltas where delta.version > version {
+            let at = min(delta.afterRow, rowMap.rowCount)
+            rowMap.splice(at: at, removing: min(delta.removed, max(0, rowMap.rowCount - at)), inserting: delta.inserted)
+        }
+        revision &+= 1
+    }
+
+    /// The virtual lines now shown in all (test observability and the demo's readout).
+    public var virtualLineCount: Int {
+        sync()
+        return rowMap.virtualCount
+    }
+
+    /// A group's lines with their colours resolved against the style table.
+    private func resolveVirtualGroup(_ row: CodeVirtualRow) -> VirtualGroup {
+        var lines: [VirtualLine] = []
+        lines.reserveCapacity(row.lines.count)
+        for (index, raw) in row.lines.enumerated() {
+            var bytes = Array(raw.utf8)
+            if let cut = bytes.firstIndex(where: { $0 == 0x0A || $0 == 0x0D }) { bytes.removeSubrange(cut...) }
+            var styling = LineStyling()
+            if !bytes.isEmpty {
+                let runs = (index < row.styleRuns.count ? row.styleRuns[index] : []).sorted { $0.range.lowerBound < $1.range.lowerBound }
+                var position = 0
+                func add(_ count: Int, _ id: CodeStyleID?) {
+                    if let last = styling.foreground.last, last.style == id {
+                        styling.foreground[styling.foreground.count - 1].bytes += count
+                    } else {
+                        styling.foreground.append((count, id))
+                    }
+                }
+                for run in runs {
+                    let lo = max(run.range.lowerBound, position), hi = min(run.range.upperBound, bytes.count)
+                    guard lo < hi else { continue }
+                    if lo > position { add(lo - position, nil) }
+                    let resolved = style(run.style)
+                    add(hi - lo, resolved.foreground != nil ? run.style : nil)
+                    if let background = resolved.background { styling.backgrounds.append((lo..<hi, background)) }
+                    position = hi
+                }
+                if position < bytes.count { add(bytes.count - position, nil) }
+                styling.digest = Self.digest(of: styling.foreground)
+            }
+            lines.append(VirtualLine(text: String(decoding: bytes, as: UTF8.self), bytes: bytes, hash: codeHash(bytes),
+                                     styling: styling, marker: row.gutterMarker))
+        }
+        return VirtualGroup(lines: lines, gutterBar: row.gutterBar, background: row.background)
+    }
+
     /// The decoration of `row`, or `nil`.
     package func lineDecoration(row: Int) -> LineDecorationPayload? {
         guard let payload = lines.payload(at: row), !payload.isEmpty else { return nil }
@@ -329,21 +408,48 @@ public final class CodeDecorations {
     package func stylingOfLine(_ range: Range<Int>) -> LineStyling {
         var styling = LineStyling()
         guard !range.isEmpty else { return styling }
+        // No layer holds a styled run (the common case until a provider answers): one unstyled part, with
+        // no tree walk and no scratch arrays.
+        guard anyLayerHasStyles else {
+            styling.foreground = [(range.count, nil)]
+            styling.digest = Self.digest(ofUnstyled: range.count)
+            return styling
+        }
         var perLayer: [[(range: Range<Int>, payload: HighlightPayload)]] = []
-        var cuts = Set<Int>([range.lowerBound, range.upperBound])
-        for layer in layers {
-            let runs = layer.runs(in: range).filter { $0.payload.style != nil }
+        var cuts: [Int] = [range.lowerBound, range.upperBound]
+        var layerIndex = 0
+        while layerIndex < layers.count {
+            let runs: [(range: Range<Int>, payload: HighlightPayload)] = layerHasStyles[layerIndex]
+                ? layers[layerIndex].runs(in: range).filter { $0.payload.style != nil } : []
             runsVisited += runs.count
             perLayer.append(runs)
-            for run in runs { cuts.insert(run.range.lowerBound); cuts.insert(run.range.upperBound) }
+            var r = 0
+            while r < runs.count {
+                cuts.append(runs[r].range.lowerBound)
+                cuts.append(runs[r].range.upperBound)
+                r += 1
+            }
+            layerIndex += 1
         }
-        let points = cuts.sorted()
-        for i in 0..<(points.count - 1) {
-            let segment = points[i]..<points[i + 1]
+        cuts.sort()
+        var point = 0
+        while point + 1 < cuts.count {
+            let segment = cuts[point]..<cuts[point + 1]
+            point += 1
+            if segment.isEmpty { continue }
             var winner: CodeStyleID?
-            for runs in perLayer {   // ascending layer order: the last foreground wins
-                guard let run = runs.first(where: { $0.range.contains(segment.lowerBound) }), let id = run.payload.style else { continue }
-                if style(id).foreground != nil { winner = id }
+            var l = 0
+            while l < perLayer.count {   // ascending layer order: the last foreground wins
+                let runs = perLayer[l]
+                l += 1
+                var k = 0
+                while k < runs.count {
+                    if runs[k].range.contains(segment.lowerBound) {
+                        if let id = runs[k].payload.style, style(id).foreground != nil { winner = id }
+                        break
+                    }
+                    k += 1
+                }
             }
             if let last = styling.foreground.last, last.style == winner {
                 styling.foreground[styling.foreground.count - 1].bytes += segment.count
@@ -351,8 +457,7 @@ public final class CodeDecorations {
                 styling.foreground.append((segment.count, winner))
             }
         }
-        for (index, runs) in perLayer.enumerated() {
-            _ = index
+        for runs in perLayer {
             for run in runs {
                 guard let id = run.payload.style, let color = style(id).background else { continue }
                 if let last = styling.backgrounds.last, last.color == color, last.range.upperBound == run.range.lowerBound {
@@ -366,12 +471,22 @@ public final class CodeDecorations {
         return styling
     }
 
+    /// `digest(of:)` of the single unstyled part `[(bytes, nil)]`, without building the array.
+    nonisolated static func digest(ofUnstyled bytes: Int) -> UInt64 {
+        var digest: UInt64 = 0xCBF2_9CE4_8422_2325
+        digest = (digest ^ UInt64(bytes)) &* 0x0000_0100_0000_01B3
+        digest = (digest ^ 0) &* 0x0000_0100_0000_01B3
+        return digest
+    }
+
     /// A digest of a foreground partition: what a cached line layout depends on besides its text.
     nonisolated static func digest(of parts: [(bytes: Int, style: CodeStyleID?)]) -> UInt64 {
         var digest: UInt64 = 0xCBF2_9CE4_8422_2325
-        for part in parts {
-            digest = (digest ^ UInt64(part.bytes)) &* 0x0000_0100_0000_01B3
-            digest = (digest ^ UInt64(part.style.map { Int($0.rawValue) + 1 } ?? 0)) &* 0x0000_0100_0000_01B3
+        var i = 0
+        while i < parts.count {
+            digest = (digest ^ UInt64(parts[i].bytes)) &* 0x0000_0100_0000_01B3
+            digest = (digest ^ UInt64(parts[i].style.map { Int($0.rawValue) + 1 } ?? 0)) &* 0x0000_0100_0000_01B3
+            i += 1
         }
         return digest
     }

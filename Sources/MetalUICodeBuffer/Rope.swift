@@ -232,7 +232,10 @@ struct Rope: Sendable {
         while true {
             RopeStats.visit()
             if node.height == 0 {
-                for ch in node.chunks {
+                var k = 0
+                while k < node.chunks.count {
+                    let ch = node.chunks[k]
+                    k += 1
                     if Int(ch.compact.newlines) < rem {
                         rem -= Int(ch.compact.newlines)
                         acc += ch.count
@@ -255,7 +258,10 @@ struct Rope: Sendable {
                 return acc
             }
             var next: Node?
-            for c in node.children {
+            var k = 0
+            while k < node.children.count {
+                let c = node.children[k]
+                k += 1
                 if c.summary.newlines < rem { rem -= c.summary.newlines; acc += c.summary.utf8 } else { next = c; break }
             }
             guard let n = next else { return acc }
@@ -270,14 +276,20 @@ struct Rope: Sendable {
         while true {
             RopeStats.visit()
             if node.height == 0 {
-                for ch in node.chunks {
+                var k = 0
+                while k < node.chunks.count {
+                    let ch = node.chunks[k]
+                    k += 1
                     if rem < ch.count { return ch.bytes[rem] }
                     rem -= ch.count
                 }
                 preconditionFailure("byte offset out of range")
             }
             var next: Node?
-            for c in node.children {
+            var k = 0
+            while k < node.children.count {
+                let c = node.children[k]
+                k += 1
                 if rem < c.summary.utf8 { next = c; break }
                 rem -= c.summary.utf8
             }
@@ -317,7 +329,10 @@ struct Rope: Sendable {
             RopeStats.visit()
             var off = 0
             if node.height == 0 {
-                for ch in node.chunks {
+                var k = 0
+                while k < node.chunks.count {
+                    let ch = node.chunks[k]
+                    k += 1
                     let s = off, e = off + ch.count
                     off = e
                     if e <= lo { continue }
@@ -328,7 +343,10 @@ struct Rope: Sendable {
                 }
                 return true
             }
-            for c in node.children {
+            var k = 0
+            while k < node.children.count {
+                let c = node.children[k]
+                k += 1
                 let s = off, e = off + c.summary.utf8
                 off = e
                 if e <= lo { continue }

@@ -588,23 +588,37 @@ public struct Scene: Sendable {
         // (layer, order, sequence, kind, indexWithinKind)
         var merged: [(Int, MUIUInt, Int, PrimitiveKind, Int)] = []
         merged.reserveCapacity(rectCount + glyphCount + imageCount + surfaceCount + backdropCount + groupCount)
-        for i in 0..<rectCount {
+        // `while` loops and indexed `last`: a `for` over a range or an array, and `.last`, allocate once per
+        // element in a debug build, and this runs once per primitive per frame (`CV-R`).
+        var i = 0
+        while i < rectCount {
             merged.append((rectLayer[i], rects[i].order, rectSequence[i], .rect, i))
+            i += 1
         }
-        for i in 0..<glyphCount {
+        i = 0
+        while i < glyphCount {
             merged.append((glyphLayer[i], glyphs[i].order, glyphSequence[i], .glyph, i))
+            i += 1
         }
-        for i in 0..<imageCount {
+        i = 0
+        while i < imageCount {
             merged.append((imageLayer[i], images[i].order, imageSequence[i], .image, i))
+            i += 1
         }
-        for i in 0..<surfaceCount {
+        i = 0
+        while i < surfaceCount {
             merged.append((surfaceLayer[i], surfaces[i].order, surfaceSequence[i], .surface, i))
+            i += 1
         }
-        for i in 0..<backdropCount {
+        i = 0
+        while i < backdropCount {
             merged.append((backdropLayer[i], backdrops[i].order, backdropSequence[i], .backdrop, i))
+            i += 1
         }
-        for i in 0..<groupCount {
+        i = 0
+        while i < groupCount {
             merged.append((groupLayer[i], groups[i].order, groupSequence[i], .group, i))
+            i += 1
         }
         merged.sort { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) }
 
@@ -653,7 +667,10 @@ public struct Scene: Sendable {
         sortedSurfaceSequence.reserveCapacity(surfaceCount)
         sortedSurfaceLayer.reserveCapacity(surfaceCount)
 
-        for entry in merged {
+        var entryIndex = 0
+        while entryIndex < merged.count {
+            let entry = merged[entryIndex]
+            entryIndex += 1
             let kind = entry.3
             // Rebuild sequence AND layer in the SAME merged order as the
             // primitive arrays, so both stay aligned with them across repeated
@@ -713,7 +730,8 @@ public struct Scene: Sendable {
                 sortedGroupSequence.append(entry.2)
                 sortedGroupLayer.append(entry.0)
             }
-            if let last = runs.last, last.kind == kind, sameTexture {
+            if !runs.isEmpty, runs[runs.count - 1].kind == kind, sameTexture {
+                let last = runs[runs.count - 1]
                 runs[runs.count - 1] =
                     DrawRun(kind: kind, start: last.start, count: last.count + 1)
             } else {

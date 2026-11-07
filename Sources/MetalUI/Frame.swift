@@ -994,8 +994,10 @@ public final class Frame {
     /// `fill`/`draw` always passed before this stack existed.
     var activeClip: Bounds<Pixels> {
         guard clipBase > 0 else {
-            return clipStack.last?.clip ?? Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
-                                                  size: contentSize)
+            // Indexed, not `.last`: the generic accessor allocates a coroutine frame per call in a debug
+            // build, and this runs once per glyph (`CV-R`).
+            if !clipStack.isEmpty { return clipStack[clipStack.count - 1].clip }
+            return Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: contentSize)
         }
         return clipStack.count > clipBase ? clipStack[clipStack.count - 1].clip : Self.unboundedLocalClip
     }
@@ -1047,14 +1049,18 @@ public final class Frame {
     /// active, or when one is active but was pushed with no radii (every call
     /// site written before this existed).
     var activeClipRadii: Corners<Pixels> {
-        guard clipBase > 0 else { return clipStack.last?.radii ?? Corners(all: Pixels(0)) }
+        guard clipBase > 0 else {
+            if !clipStack.isEmpty { return clipStack[clipStack.count - 1].radii }   // indexed: see `activeClip`
+            return Corners(all: Pixels(0))
+        }
         return clipStack.count > clipBase ? clipStack[clipStack.count - 1].radii : Corners(all: Pixels(0))
     }
 
     /// The translation currently in effect, in logical points. Zero when no
     /// `clipped(to:offsetBy:)` block is active.
     var activeOffset: Point<Pixels> {
-        clipStack.last?.offset ?? Point(x: Pixels(0), y: Pixels(0))
+        if !clipStack.isEmpty { return clipStack[clipStack.count - 1].offset }   // indexed: see `activeClip`
+        return Point(x: Pixels(0), y: Pixels(0))
     }
 
     /// Layers, shaped exactly like `clipStack` above and for the same reason:
@@ -1064,7 +1070,16 @@ public final class Frame {
 
     /// Multiplicative opacity scopes used by native paint modifiers.
     private var opacityStack: [Float] = []
-    var activeOpacity: Float { opacityStack.reduce(1, *) }
+    var activeOpacity: Float {
+        // The same left-to-right product as `reduce(1, *)`, without its per-element generic call in a debug build.
+        var product: Float = 1
+        var i = 0
+        while i < opacityStack.count {
+            product *= opacityStack[i]
+            i += 1
+        }
+        return product
+    }
     func pushOpacity(_ opacity: Float) { opacityStack.append(opacity) }
     func popOpacity() { opacityStack.removeLast() }
 
@@ -3449,8 +3464,9 @@ public final class Frame {
                           y: ScaledPixels(Float(baselineY - packed.top))),
             size: Size(width: ScaledPixels(Float(packed.slot.width)),
                        height: ScaledPixels(Float(packed.slot.height))))
-        let dx = activeOffset.x.value * scaleFactor
-        let dy = activeOffset.y.value * scaleFactor
+        let offset = activeOffset
+        let dx = offset.x.value * scaleFactor
+        let dy = offset.y.value * scaleFactor
         let placedBounds = Bounds(
             origin: Point(x: ScaledPixels(bounds.origin.x.value + dx),
                           y: ScaledPixels(bounds.origin.y.value + dy)),

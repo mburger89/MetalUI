@@ -38,6 +38,8 @@ public struct CodeView: Element, StyledElement {
     var fontIsMonospaceDefault = true
     var showsNumbers = true
     var tabColumns = 4
+    var scrollStateObject: CodeScrollState?
+    var onScrollAction: (@MainActor (CodeScrollPosition) -> Void)?
 
     /// A view of `buffer` drawn with `decorations`, whose buffer must be the same.
     public init(buffer: CodeBuffer, decorations: CodeDecorations) {
@@ -67,6 +69,26 @@ public struct CodeView: Element, StyledElement {
     public func tabWidth(_ columns: Int) -> CodeView {
         var copy = self
         copy.tabColumns = max(1, columns)
+        return copy
+    }
+
+    /// Shares the view's scroll position with `state`: the view publishes where it is scrolled after each
+    /// change (a wheel, a drag, an edit above it), and scrolls to a value assigned to
+    /// ``CodeScrollState/position``. The vertical position is in display rows (`CV-T`).
+    public func scrollState(_ state: CodeScrollState) -> CodeView {
+        var copy = self
+        copy.scrollStateObject = state
+        return copy
+    }
+
+    /// Calls `action` after a frame in which the view scrolled by itself: a wheel, a drag, a clamp after the
+    /// text shrank, or an edit above that moved the reader's row. It runs outside every frame phase, so it may
+    /// write other state (another view's ``CodeScrollState/position``). A position assigned through
+    /// ``scrollState(_:)`` is **not** reported, which is what makes two views synced through this callback
+    /// settle instead of echoing.
+    public func onScroll(_ action: @escaping @MainActor (CodeScrollPosition) -> Void) -> CodeView {
+        var copy = self
+        copy.onScrollAction = action
         return copy
     }
 
@@ -137,6 +159,10 @@ public struct CodeView: Element, StyledElement {
                 plan.select(from: value.startLocation, to: value.location, clickCount: value.clickCount, in: buffer)
             }, priority: .normal))
         handlers = handlers.copyingSelection(of: buffer)
+        // One `.textArea` node, built only while an accessibility client is present (`CV-U`).
+        if frame.collectsAccessibility {
+            handlers.axNode.fillControl(role: .textArea, label: nil, value: plan.accessibilityText())
+        }
         layout.plan = plan
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
     }

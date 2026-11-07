@@ -24,6 +24,14 @@ struct CodeLineKey: Hashable {
     var windowEnd: Int
 }
 
+/// What a cached gutter number depends on.
+struct CodeNumberKey: Hashable {
+    var number: Int
+    var font: FontKey
+    var scaleBits: UInt32
+    var system: ObjectIdentifier
+}
+
 /// A laid-out line, relative to its own top-left (`CV-M`).
 final class CodeLineLayout {
     /// The glyphs at pixel offsets from the line's top-left (the baseline included).
@@ -85,6 +93,8 @@ final class CodeLineLayout {
 package final class CodeLineCache {
     private var current: [CodeLineKey: CodeLineLayout] = [:]
     private var previous: [CodeLineKey: CodeLineLayout] = [:]
+    private var numbersCurrent: [CodeNumberKey: CodeLineLayout] = [:]
+    private var numbersPrevious: [CodeNumberKey: CodeLineLayout] = [:]
     private weak var lastFrame: Frame?
     private var advances: [FontKey: (space: Double, digit: Double, height: Double)] = [:]
     /// Lines shaped since creation (a miss in both frames).
@@ -107,6 +117,43 @@ package final class CodeLineCache {
         lastFrame = frame
         previous = current
         current = [:]
+        numbersPrevious = numbersCurrent
+        numbersCurrent = [:]
+    }
+
+    /// The layout of the line number `n` (a gutter label), from this frame, the last, or shaped.
+    func number(_ n: Int, font: FontKey, system: any TextSystem, scale: Float, spaceAdvance: Double) -> CodeLineLayout {
+        let key = CodeNumberKey(number: n, font: font, scaleBits: scale.bitPattern, system: ObjectIdentifier(system))
+        func build() -> CodeLineLayout {
+            let digits = Array(String(n).utf8)
+            return buildCodeLine(bytes: digits[...], windowStart: 0, windowX: 0, parts: [(digits.count, nil)], partOffset: 0,
+                                 font: font, scale: scale, tabColumns: 0, spaceAdvance: spaceAdvance, system: system)
+        }
+        if let hit = numbersCurrent[key] {
+            if Self.verifies { verify(hit, build()) }
+            return hit
+        }
+        if let old = numbersPrevious[key] {
+            if Self.verifies { verify(old, build()) }
+            numbersCurrent[key] = old
+            return old
+        }
+        let made = build()
+        gutterShapedTotal += 1
+        numbersCurrent[key] = made
+        return made
+    }
+
+    /// The layout of a gutter marker's text (a virtual line's `+` or `-`).
+    func marker(_ text: String, font: FontKey, system: any TextSystem, scale: Float, spaceAdvance: Double) -> CodeLineLayout {
+        let bytes = Array(text.utf8)
+        let key = CodeLineKey(textHash: codeHash(bytes), byteCount: bytes.count, styleDigest: 1, font: font,
+                              scaleBits: scale.bitPattern, tabColumns: 0, system: ObjectIdentifier(system),
+                              windowStart: 0, windowEnd: 0)
+        return layout(key, gutter: true) {
+            buildCodeLine(bytes: bytes[...], windowStart: 0, windowX: 0, parts: [(bytes.count, nil)], partOffset: 0,
+                          font: font, scale: scale, tabColumns: 0, spaceAdvance: spaceAdvance, system: system)
+        }
     }
 
     /// The layout for `key`: a hit in this frame or the previous one, else `build()` (counted).
@@ -144,12 +191,23 @@ package final class CodeLineCache {
     }
 }
 
-/// FNV-1a over a line's bytes.
-@inline(__always)
-func codeHash(_ bytes: some Sequence<UInt8>) -> UInt64 {
-    var h: UInt64 = 0xCBF2_9CE4_8422_2325
-    for b in bytes { h = (h ^ UInt64(b)) &* 0x0000_0100_0000_01B3 }
-    return h
+/// FNV-1a over a line's bytes. A `while` over a buffer pointer: a `for` over the array allocates once per
+/// element in a debug build (`CV-R`).
+func codeHash(_ bytes: [UInt8]) -> UInt64 {
+    codeHash(bytes, 0, bytes.count)
+}
+
+/// FNV-1a over `bytes[start..<end]`.
+func codeHash(_ bytes: [UInt8], _ start: Int, _ end: Int) -> UInt64 {
+    bytes.withUnsafeBufferPointer { buffer in
+        var h: UInt64 = 0xCBF2_9CE4_8422_2325
+        var i = start
+        while i < end {
+            h = (h ^ UInt64(buffer[i])) &* 0x0000_0100_0000_01B3
+            i += 1
+        }
+        return h
+    }
 }
 
 /// Builds one line's layout (`CV-M`): `bytes` is the line (or its long-line window), split at tabs; each
