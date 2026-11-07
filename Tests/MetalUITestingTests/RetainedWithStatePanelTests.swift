@@ -403,11 +403,14 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
         "AnimatedColor.swift": (2, 0, 0, 0), "AnimatedStyle.swift": (2, 0, 0, 0), "FocusState.swift": (1, 0, 0, 0),
         "Frame.swift": (5, 0, 0, 0), "LazyCore.swift": (0, 1, 0, 0), "LazyGrid.swift": (0, 1, 0, 0), "List.swift": (3, 2, 0, 0), "ProposalScrollView.swift": (0, 0, 1, 0),
         "ScrollChrome.swift": (0, 1, 2, 0), "ScrollPosition.swift": (0, 0, 1, 0), "ScrollView.swift": (0, 0, 1, 0), "TestingHooks.swift": (1, 0, 0, 0),
-        "State.swift": (0, 0, 0, 1), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 1, 2, 0), "Window.swift": (5, 0, 0, 0),
+        "State.swift": (0, 0, 0, 1),
+        // `CodeView` (`CV-W`): the wheel's plain write and the session's one are input; the prepaint's is compared.
+        "Code/CodeEditSession.swift": (1, 0, 1, 0), "Code/CodeView.swift": (1, 1, 1, 0), "Code/CodeViewPlan.swift": (0, 0, 1, 0), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 1, 2, 0), "Window.swift": (5, 0, 0, 0),
     ]
     let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Sources/MetalUI")
-    let names = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".swift") }.sorted()
+    // Recursive since `CodeView` (`CV-W`): its sources live in `Code/` and wrote state unclassified before.
+    let names = try FileManager.default.subpathsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".swift") }.sorted()
     try #require(names.contains("StateTable.swift"), "the scan found the sources at \(dir.path)")
     var found: [String: (plain: Int, compared: Int, reads: Int, seeds: Int)] = [:]
     for name in names where name != "Passes.swift" && name != "StateTable.swift" {

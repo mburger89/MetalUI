@@ -87,9 +87,7 @@ final class CodeEditSession {
     }
 
     private func state() -> CodeViewState {
-        var copy = CodeViewState()
-        table.withState(id, initial: CodeViewState()) { copy = $0 }
-        return copy
+        table.readState(id, initial: CodeViewState())   // a read, not a write (`RW-J`)
     }
 
     // MARK: Focus and composition
