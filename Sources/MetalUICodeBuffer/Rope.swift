@@ -153,12 +153,22 @@ struct Rope: Sendable {
                         rem -= Int(ch.compact.scalars)
                         acc += ch.count
                     } else {
-                        var seen = 0
-                        for i in 0..<ch.count where !isContinuation(ch.bytes[i]) {
-                            if seen == rem { return acc + i }
-                            seen += 1
+                        // One pass over the chunk's bytes through a buffer pointer and a `while` loop: the
+                        // `for i in 0..<n where …` spelling over `ch.bytes[i]` allocated once per byte (found by
+                        // the `CodeView` allocation pin, `CV-R`: 511 allocations for one `lineStart`).
+                        let found: Int? = ch.bytes.withUnsafeBufferPointer { bytes in
+                            var seen = 0
+                            var i = 0
+                            while i < bytes.count {
+                                if !isContinuation(bytes[i]) {
+                                    if seen == rem { return i }
+                                    seen += 1
+                                }
+                                i += 1
+                            }
+                            return nil
                         }
-                        return acc + ch.count
+                        return acc + (found ?? ch.count)
                     }
                 }
                 return acc
@@ -186,13 +196,20 @@ struct Rope: Sendable {
                         rem -= Int(ch.compact.utf16)
                         acc += ch.count
                     } else {
-                        var seen = 0
-                        for i in 0..<ch.count where !isContinuation(ch.bytes[i]) {
-                            let units = ch.bytes[i] >= 0xF0 ? 2 : 1
-                            if seen + units > rem { return acc + i }
-                            seen += units
+                        let found: Int? = ch.bytes.withUnsafeBufferPointer { bytes in
+                            var seen = 0
+                            var i = 0
+                            while i < bytes.count {
+                                if !isContinuation(bytes[i]) {
+                                    let units = bytes[i] >= 0xF0 ? 2 : 1
+                                    if seen + units > rem { return i }
+                                    seen += units
+                                }
+                                i += 1
+                            }
+                            return nil
                         }
-                        return acc + ch.count
+                        return acc + (found ?? ch.count)
                     }
                 }
                 return acc
@@ -215,22 +232,36 @@ struct Rope: Sendable {
         while true {
             RopeStats.visit()
             if node.height == 0 {
-                for ch in node.chunks {
+                var k = 0
+                while k < node.chunks.count {
+                    let ch = node.chunks[k]
+                    k += 1
                     if Int(ch.compact.newlines) < rem {
                         rem -= Int(ch.compact.newlines)
                         acc += ch.count
                     } else {
-                        var seen = 0
-                        for i in 0..<ch.count where ch.bytes[i] == 0x0A {
-                            seen += 1
-                            if seen == rem { return acc + i + 1 }
+                        let found: Int? = ch.bytes.withUnsafeBufferPointer { bytes in
+                            var seen = 0
+                            var i = 0
+                            while i < bytes.count {
+                                if bytes[i] == 0x0A {
+                                    seen += 1
+                                    if seen == rem { return i + 1 }
+                                }
+                                i += 1
+                            }
+                            return nil
                         }
+                        if let found { return acc + found }
                     }
                 }
                 return acc
             }
             var next: Node?
-            for c in node.children {
+            var k = 0
+            while k < node.children.count {
+                let c = node.children[k]
+                k += 1
                 if c.summary.newlines < rem { rem -= c.summary.newlines; acc += c.summary.utf8 } else { next = c; break }
             }
             guard let n = next else { return acc }
@@ -245,14 +276,20 @@ struct Rope: Sendable {
         while true {
             RopeStats.visit()
             if node.height == 0 {
-                for ch in node.chunks {
+                var k = 0
+                while k < node.chunks.count {
+                    let ch = node.chunks[k]
+                    k += 1
                     if rem < ch.count { return ch.bytes[rem] }
                     rem -= ch.count
                 }
                 preconditionFailure("byte offset out of range")
             }
             var next: Node?
-            for c in node.children {
+            var k = 0
+            while k < node.children.count {
+                let c = node.children[k]
+                k += 1
                 if rem < c.summary.utf8 { next = c; break }
                 rem -= c.summary.utf8
             }
@@ -292,7 +329,10 @@ struct Rope: Sendable {
             RopeStats.visit()
             var off = 0
             if node.height == 0 {
-                for ch in node.chunks {
+                var k = 0
+                while k < node.chunks.count {
+                    let ch = node.chunks[k]
+                    k += 1
                     let s = off, e = off + ch.count
                     off = e
                     if e <= lo { continue }
@@ -303,7 +343,10 @@ struct Rope: Sendable {
                 }
                 return true
             }
-            for c in node.children {
+            var k = 0
+            while k < node.children.count {
+                let c = node.children[k]
+                k += 1
                 let s = off, e = off + c.summary.utf8
                 off = e
                 if e <= lo { continue }

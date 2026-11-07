@@ -105,6 +105,15 @@ public struct FrameWork: Sendable, Equatable {
     /// Lazy containers that realised everything: outside a scroller, in one of the other axis, under a `Deferred`,
     /// or holding an `if`, `switch` or `for` member (`LZ-I`).
     public var lazyUnbounded: Int
+    /// Lines the `CodeView`s shaped: a miss in the two-frame line-layout cache (`CV-M`). A scroll shapes the
+    /// rows that entered; a warm frame shapes none.
+    public var codeLinesShaped: Int
+    /// Rows the `CodeView`s painted: those intersecting the viewport.
+    public var codeLinesPainted: Int
+    /// Glyph sprites the `CodeView`s emitted for their text.
+    public var codeGlyphsEmitted: Int
+    /// Highlight runs the `CodeView`s' line styling visited.
+    public var codeHighlightRunsVisited: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -134,7 +143,9 @@ public struct FrameWork: Sendable, Equatable {
                 retainedGrafts: Int = 0, retainedGraftIneligible: Int = 0, retainedSkippedRequests: Int = 0,
                 retainedGraftedNodes: Int = 0, retainedIneligibleReasons: [String: Int] = [:],
                 retainedTranslationRefusedReasons: [String: Int] = [:],
-                lazyUnitsRealized: Int = 0, lazyLinesRealized: Int = 0, lazyUnbounded: Int = 0) {
+                lazyUnitsRealized: Int = 0, lazyLinesRealized: Int = 0, lazyUnbounded: Int = 0,
+                codeLinesShaped: Int = 0, codeLinesPainted: Int = 0, codeGlyphsEmitted: Int = 0,
+                codeHighlightRunsVisited: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -180,6 +191,10 @@ public struct FrameWork: Sendable, Equatable {
         self.lazyUnitsRealized = lazyUnitsRealized
         self.lazyLinesRealized = lazyLinesRealized
         self.lazyUnbounded = lazyUnbounded
+        self.codeLinesShaped = codeLinesShaped
+        self.codeLinesPainted = codeLinesPainted
+        self.codeGlyphsEmitted = codeGlyphsEmitted
+        self.codeHighlightRunsVisited = codeHighlightRunsVisited
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -226,6 +241,10 @@ public struct FrameWork: Sendable, Equatable {
                   retainedTranslationRefusedReasons: l.retainedTranslationRefusedReasons.merging(r.retainedTranslationRefusedReasons, uniquingKeysWith: +),
                   lazyUnitsRealized: l.lazyUnitsRealized + r.lazyUnitsRealized,
                   lazyLinesRealized: l.lazyLinesRealized + r.lazyLinesRealized,
-                  lazyUnbounded: l.lazyUnbounded + r.lazyUnbounded)
+                  lazyUnbounded: l.lazyUnbounded + r.lazyUnbounded,
+                  codeLinesShaped: l.codeLinesShaped + r.codeLinesShaped,
+                  codeLinesPainted: l.codeLinesPainted + r.codeLinesPainted,
+                  codeGlyphsEmitted: l.codeGlyphsEmitted + r.codeGlyphsEmitted,
+                  codeHighlightRunsVisited: l.codeHighlightRunsVisited + r.codeHighlightRunsVisited)
     }
 }

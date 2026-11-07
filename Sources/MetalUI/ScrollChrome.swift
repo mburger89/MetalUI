@@ -58,6 +58,14 @@ struct ScrollChrome {
         min(max(0, offset), max(0, content - viewport))
     }
 
+    /// The offsets after a wheel event of `delta` (`CV-O`), per axis, natural scrolling (content follows
+    /// the fingers, so the offset falls), each clamped to `0...maximum`. The one arithmetic of a scroller
+    /// that owns its offsets: `TextEditor`'s vertical arm and a `CodeView`'s two axes.
+    static func wheelOffset(x: Double, y: Double, delta: Point<Pixels>,
+                            maximum: (x: Double, y: Double)) -> (x: Double, y: Double) {
+        (min(max(x - Double(delta.x.value), 0), maximum.x), min(max(y - Double(delta.y.value), 0), maximum.y))
+    }
+
     /// A size's length along the scroll axis.
     func extent(_ size: Size<Pixels>) -> Double {
         Double(axis == .vertical ? size.height.value : size.width.value)
@@ -189,6 +197,18 @@ struct ScrollChrome {
     @MainActor
     func paintIndicator(_ id: GlobalElementID, bounds: Bounds<Pixels>, offset: Double,
                         contentNode: LayoutNodeID, pass: inout PaintPass) {
+        paintIndicator(bounds: bounds, offset: offset, content: extent(pass.bounds(of: contentNode).size),
+                       viewport: extent(bounds.size), lastScroll: pass.readState(id, initial: ScrollState()).lastScrollTime,   // `RW-H`
+                       pass: &pass)
+    }
+
+    /// The same indicator from numbers instead of a content node and a `ScrollState` (`CV-O`): the content
+    /// and viewport extents along the axis, the scroll offset, and when the wheel last moved the view. What
+    /// a scroller that owns its offset (a `CodeView`, later a two-axis `ScrollView`) paints with; each axis
+    /// is one call, so two axes are two.
+    @MainActor
+    func paintIndicator(bounds: Bounds<Pixels>, offset: Double, content: Double, viewport: Double,
+                        lastScroll: Double, pass: inout PaintPass) {
         // Checked first and unconditionally: `.hidden` must cost nothing at
         // all, not paint a suppressed-alpha rect, and must never reach
         // `noteActiveAnimation()` below — a hidden indicator that kept
@@ -201,15 +221,12 @@ struct ScrollChrome {
         case .hidden, .never: return
         case .automatic, .visible: break
         }
-        let content = extent(pass.bounds(of: contentNode).size)
-        let viewport = extent(bounds.size)
         let scrollable = max(0, content - viewport)
         // Nothing to scroll: no thumb, and — just as important for spec
         // §4.4 — no `noteActiveAnimation()` either. A scroller whose content
         // fits must cost exactly as little as a `Box`.
         guard scrollable > 0 else { return }
 
-        let lastScroll = pass.readState(id, initial: ScrollState()).lastScrollTime   // `RW-H`
         let age = pass.timestamp - lastScroll
         let alpha = age < 0.6 ? 1.0 : max(0, 1.0 - (age - 0.6) / 0.4)
         guard alpha > 0 else { return }

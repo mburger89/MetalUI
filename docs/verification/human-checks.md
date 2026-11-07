@@ -2351,3 +2351,17 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **CC2.** Parity frame 21 (`--expect 22`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam, thickening or shimmer along a corner, any difference from Metal at a rotated or `rotation3DEffect` rect? **Observed:**
 - [ ] **CC3.** A material and a `glassEffect` over a continuous shape (the probe cannot draw either): does the blur or glass edge follow the curve? A multi-member glass and a `clipShape(RoundedRectangle)` are still circular (divergence 90, carried). **Observed:**
 - [ ] **CC4.** A 200-rect list of rounded cards under scroll or animation on the Mac you care about: any frame-time cost from the continuous fill (4.48 against 3.00 ms on 10,000 overlapping rects)? **Observed:**
+
+## CV. The read-only code view - a generated 100 000-line file scrolls smoothly, with colours, bars, tints and virtual rows (Alloy gap G1; record 227; rulings `CV-J`..`CV-V`; decisions `docs/superpowers/2026-11-07-code-view-decisions.md`)
+
+*An agent cannot: the tests count work (rows shaped and painted, allocations, tree nodes visited) and read scene structure through the headless harness, but how scrolling and momentum feel on a trackpad, whether colours read in light and dark, what VoiceOver says and how sharp the text is at 1.25x are looks. Run `METALUI_CODE_DEMO=1 swift run MetalUIDemo` (and `-c release`).*
+
+- [ ] **CV1.** Scroll the main view from top to bottom with a trackpad (momentum on) and with the wheel, then sideways on a long line: does it stay smooth at every position (no stutter, no blank rows at the edge, no flash of unstyled text where the colours fill in), and do both scroll indicators fade in and out like a `ScrollView`'s? **Observed:**
+- [ ] **CV2.** Press "Line 50 000": does that line land in the middle of the main view and of the narrow side view, with its colours? Press "Insert a line at the top" while scrolled down: does the text you were reading stay exactly where it was (and the bars and tints with it)? **Observed:**
+- [ ] **CV3.** Look at a green hunk with its three red removed rows above it: are the red rows tinted across the full width with a red bar and a `-` in the number column, and no line number? Drag across them and copy: is only the real text selected and copied (the red rows never highlight)? **Observed:**
+- [ ] **CV4.** Scroll either view: does the other follow on the same rows with no lag, no jitter and no ping-pong at the end of the file? **Observed:**
+- [ ] **CV5.** Colours: the keyword, number, string and comment colours, the three author bars, the green tint and the selection colour, in light and in dark mode: are all readable, and the selection visible over a coloured token? **Observed:**
+- [ ] **CV6.** VoiceOver on the main view: does it announce a text area and read the visible rows (not the whole file, and without a long pause on a file with 20 KB lines)? It cannot read the selection or the caret (a named limit, `CV-U`). **Observed:**
+- [ ] **CV7.** On Windows at 125% and 150% and on Linux (SDL): is the text sharp (rows and glyphs on whole device pixels, no soft rows), do the gutter and bars line up, and does the wheel scroll both axes? **Observed:**
+- [ ] **CV8.** Memory: open the demo and read the process footprint before and after: is it near the file's 4 MB plus the screenful, not hundreds of MB? **Observed:**
+
