@@ -182,6 +182,22 @@ private struct CMRing: Shape {
     #expect(r.frame.groupsMasked >= 1, "a crossing is a masked group: \(r.frame.groupsMasked)")
 }
 
+/// **5b (`CM-B`).** Two rounded clips whose square box never reaches a corner cut are exact as they are and take no group: a
+/// 140 x 30 rounded strip crossing a 100 x 100 rounded panel from side to side, clear of both of its corners and of the panel's.
+/// The control, one end of the strip inside the panel, does take one. Mutation: the corner-cut test removed (`clipsCross` is
+/// the bare fallback test: the strip becomes a group).
+@Test @MainActor func aPairWhoseBoxMissesEveryCornerCutTakesNoGroup() throws {
+    func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixels> {
+        Bounds(origin: Point(x: px(x), y: px(y)), size: Size(width: px(w), height: px(h)))
+    }
+    let panel = bounds(50, 50, 100, 100), r20 = Corners(all: px(20)), r6 = Corners(all: px(6))
+    #expect(!Frame.clipsCross(panel, radii: r20, bounds(30, 85, 140, 30), radii: r6), "the strip spans the panel clear of the corners")
+    #expect(Frame.clipsCross(panel, radii: r20, bounds(60, 85, 140, 30), radii: r6), "one end inside: the strip's corner is inside the panel")
+    let strip = effectFrame(pureRed.frame(width: px(140), height: px(30)).clipShape(RoundedRectangle(cornerRadius: px(6)))
+        .frame(width: px(100), height: px(100)).clipShape(RoundedRectangle(cornerRadius: px(20))))
+    #expect(strip.groupsMasked == 0 && strip.maskScopesPushed == 0, "no group: \(strip.groupsMasked) \(strip.maskScopesPushed)")
+}
+
 // MARK: - 7. what takes no group
 
 /// **7 (`CM-A`, probe `CM7`).** A circle, a capsule, a rounded rectangle and a capsule-then-circle (C6) are the per-primitive

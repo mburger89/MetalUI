@@ -731,9 +731,14 @@ private func lfaVisible(_ image: MUIImage) -> String {
         .clipShape(RoundedRectangle(cornerRadius: px(6))).offset(x: px(x), y: px(y))
 }
 
+/// A scene's accent rects, then those of its group scenes (a crossing clip draws its content in a masked group, `CM-B`).
+@MainActor private func lfbAccentRects(_ scene: Scene) -> [MUIRect] {
+    effectRects(scene) + scene.groupScenes.flatMap { lfbAccentRects($0) }
+}
+
 /// Each accent rect's bounds and mask, in emission order.
 @MainActor private func lfbMasks(_ element: some Element) -> [String] {
-    effectRects(effectFrame(element, side: 400).finalizedScene()).map {
+    lfbAccentRects(effectFrame(element, side: 400).finalizedScene()).map {
         "\(fxDescribe($0.bounds)) m\(fxDescribe($0.contentMask)) r\($0.maskCornerRadii.topLeft)"
     }
 }
@@ -748,21 +753,26 @@ private func lfaVisible(_ image: MUIImage) -> String {
 /// Red on `0b400b4`: A's mask (70, 90) 20 × 40 — the inner `.offset`'s cut used
 /// C, a window-space clip, in the outer effect's pre-effect space, where A's
 /// clip lies at x −20…40 and C keeps only 20…40, then the pan moved that
-/// sliver right. Mutation **M-Y1**.
+/// sliver right. Mutation **M-Y1**. Since `CM-B` (divergence 92 retired) node B's rounded clip crosses the canvas's square
+/// edge and is no longer cut to the square box: its own clip stays whole, in a masked group whose mask is the canvas's clip
+/// (the right edge at x 320), so the pair is exact; node A, wholly inside, is unchanged.
 @Test @MainActor func aClipInsideNestedFlatteningEffectsIsCutOnlyByTheOutermostEntryClip() throws {
     let proposal = lfbMasks(lfbCanvas(zoom: 1, pan: (50, 20)) { lfbNode(-40, 10); lfbNode(220, 50) })
     try #require(proposal.count == 2, "proposal: two nodes: \(proposal)")
     #expect(proposal[0] == "\(lfaBounds(30, 90, 60, 40)) m\(lfaBounds(30, 90, 60, 40)) r6.0",
             "proposal A: its own clip, moved: \(proposal[0])")
-    #expect(proposal[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 30, 40))"),
-            "proposal B: its own clip cut by the canvas: \(proposal[1])")
+    #expect(proposal[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 60, 40)) r6.0"),
+            "proposal B: its own clip, whole (the canvas cuts it through the mask group): \(proposal[1])")
+    let crossed = effectFrame(lfbCanvas(zoom: 1, pan: (50, 20)) { lfbNode(-40, 10); lfbNode(220, 50) }, side: 400).finalizedScene()
+    let mask = try #require(crossed.groupMasks.first.flatMap { $0 }?.rects.first, "B is a masked group")
+    #expect(mask.contentMask.origin.x + mask.contentMask.size.width == 320, "the canvas's right edge: \(gxDescribe(mask.contentMask))")
 
     let legacy = lfbMasks(lfbCanvas(zoom: 1, pan: (50, 20)) { lfbLegacyNode(-40, 10); lfbLegacyNode(220, 50) })
     try #require(legacy.count == 2, "legacy: two nodes: \(legacy)")
     #expect(legacy[0] == "\(lfaBounds(30, 90, 60, 40)) m\(lfaBounds(30, 90, 60, 40)) r6.0",
             "legacy A: its own clip, moved: \(legacy[0])")
-    #expect(legacy[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 30, 40))"),
-            "legacy B: its own clip cut by the canvas: \(legacy[1])")
+    #expect(legacy[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 60, 40)) r6.0"),
+            "legacy B: its own clip, whole: \(legacy[1])")
 }
 
 /// **LF-b 2** (`GX-Y`). Zoom 1.5, pan (80, 20): node A's (−20, 70) 60 × 40
