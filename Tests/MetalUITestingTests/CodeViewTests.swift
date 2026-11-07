@@ -295,6 +295,30 @@ let codePrimary: EventModifiers = .control
     #expect(glyphColorAlphas(window, hue: 0.123) > 100, "the answer coloured the text: \(glyphColorAlphas(window, hue: 0.123))")
 }
 
+/// 4.1b — the provider is asked **outside every phase**, so its answer (an observed write) is in the same
+/// presented frame by the lifecycle drain's one settle build (`LC-E`), and an unanswered ask is not repeated
+/// while nothing changes. **Mutations:** the call made from `prepaint` itself leaves the open frame at one
+/// build (a phase-time write is stale); the dedupe removed asks on every redraw.
+@Test @MainActor func theProvidersAnswerIsInTheFrameThatAskedAndAnUnansweredAskIsNotRepeated() throws {
+    let buffer = CodeBuffer(codeText(lines: 1000))
+    let decorations = CodeDecorations(buffer: buffer)
+    let red = decorations.register(CodeStyle(foreground: Color(hue: 0.123, saturation: 0.8, brightness: 0.9)))
+    let provider = RecordingProvider(style: red)
+    decorations.highlightProvider = provider
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    #expect(window.frameWork.first?.builds == 2, "the open frame built once for the view and once after the answer: \(window.frameWork.first?.builds as Any)")
+    #expect(glyphColorAlphas(window, hue: 0.123) > 100, "and presented the coloured text")
+    // An unanswered ask is made once.
+    let silent = CodeBuffer(codeText(lines: 1000))
+    let silentDecorations = CodeDecorations(buffer: silent)
+    let quiet = RecordingProvider(style: silentDecorations.register(CodeStyle(foreground: .red)))
+    quiet.answers = false
+    silentDecorations.highlightProvider = quiet
+    let second = try codeWindow(buffer: silent, decorations: silentDecorations)
+    for _ in 0..<3 { second.window.setNeedsRedraw(); second.tick() }
+    #expect(quiet.calls.count == 1, "asked \(quiet.calls.count) times for rows nobody answered")
+}
+
 /// 4.2 — typing never flashes unstyled text: an edit marks the row stale, the old colour stays until the
 /// provider answers (here it does not), and the provider is asked for that row.
 @Test @MainActor func anEditKeepsTheOldColoursAndAsksAgain() throws {
