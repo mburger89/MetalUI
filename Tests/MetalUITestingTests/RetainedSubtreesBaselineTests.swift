@@ -74,10 +74,11 @@ func theBracketNodeDragRebuildsTheWholeWindow(arm: BracketArm) throws {
     #expect(f.layoutMemoMisses == 55)
     #expect(f.layoutMemoRootHits == 0)
     #expect(f.layoutSignatureNodes == 845)
-    // R4-5 PR C (`CM-B`, record 220): 182 -> 174 rects and 550 -> 437 glyphs in the root scene. The nodes whose rounded clip
-    // straddles the canvas's square clip are now exact, drawn in a masked group; the group scenes' contents are not the root's.
-    #expect(f.rects == 174)
-    #expect(f.glyphs == 437)
+    // R4-5 PR C (`CM-B`, record 220) moved the root scene to 174 rects and 437 glyphs: the nodes whose rounded clip straddles the
+    // canvas's square clip were drawn in a masked group. `CM-J` (record 230) draws them in the root again, exact as per-corner radii:
+    // to 180 rects and 516 glyphs (the nodes whose cut passes through a corner zone keep their group).
+    #expect(f.rects == 180)
+    #expect(f.glyphs == 516)
     #expect(f.images == 6)
     // The two changed wires: rasterized on the CPU every frame whatever retention does (`GX-B`).
     #expect(f.rasterizedPixels == 78312)
