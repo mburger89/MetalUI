@@ -18,19 +18,54 @@
 
 ## 3. Numbers
 
-`TODO(final)`: lines shaped on open and on a one-row scroll at 1k and 100k lines; allocations per warm scroll frame.
+Harness window 400 x 200 at 1x, Noto Sans 12 (pitch 17, 12 rows visible), macOS arm64 debug.
+
+| Measure | 1k lines | 100k lines |
+| --- | --- | --- |
+| Lines shaped on open | 13 (12 visible + 1 overscan) | 13 |
+| Rows painted on open | 12 | 12 |
+| Lines shaped by a one-row scroll | 1 | 1 |
+| Lines shaped by a warm frame | 0 | 0 |
+| Allocations, one warm 1 px scroll frame, line numbers off, top | 4380 | 4522 |
+| Allocations, same, 600 rows down | 5040 | 5077 |
+
+The same-position difference (142 and 37) is the rope's extra level; the pin is within 20 per visible row (260). Before `CV-R` the same frames allocated 7739 / 7881 at the top and 10821 / 18362 at 600 rows (one allocation per byte scanned by `Rope.lineStart`). A 20 KB line is shaped as one window: under 4000 bytes shaped on open, none for a 20 pt horizontal scroll. One edited line re-shapes one line (`aKeystrokeInTheBufferRelaysOutNothing`: 0 layout measure calls, 0 memo misses).
 
 ## 4. Mutations
 
-`TODO(final)`: the table (each applied alone to the committed tree in place, restored with `git checkout`; log `scratchpad/mut.log`).
+Each applied alone to the committed tree in place and restored with `git checkout` (script and log in the session scratchpad); the whole `CodeViewTests` run per mutation.
+
+| Mutation | Reddened |
+| --- | --- |
+| the cache key without the foreground digest | `aHighlightThatSplitsACachedLineRecoloursExactlyItsGlyphs` |
+| the key without the scale | `aScaleChangeShapesTheVisibleLinesAgain` |
+| pitch rounded up, not to nearest | `rowsAreWholeDevicePixelsAtAFractionalScale` |
+| visible count floors | `openingShapesOnlyTheVisibleRows`, the allocation pin |
+| no overscan below | `openingShapesOnlyTheVisibleRows` |
+| row loop over every row (3000, the naive spelling) | `openingShapesOnlyTheVisibleRows`, `theOpenCostIsTheSameAt1kAnd100kLines`, `scrollingOneRowShapesOneLine`, `theLineCacheKeepsOnlyTwoFramesOfLines`, the allocation pin |
+| horizontal clamp ignores measured widths | `theWheelScrollsBothAxesAndTheClampCountsMeasuredWidth` |
+| tab stop from the glyph count | `tabsStopOnMultiplesOfTheSpaceAdvance` |
+| line decorations not shifted | `lineDecorationsShiftInLogarithmicWork` |
+| the leaf key reads `buffer.version` | `aKeystrokeInTheBufferRelaysOutNothing` |
+| copy handler returns nothing | `draggingSelectsAndCopyWritesTheSelection` |
+| anchor kept as a row number | `linesInsertedAboveKeepTheTopRowInPlace` |
+| provider dedupe removed | first spelling reddened nothing (the test's provider answered synchronously, a broken instrument); `theProvidersAnswerIsInTheFrameThatAskedAndAnUnansweredAskIsNotRepeated` added with an unanswered provider, then red |
+| provider called from prepaint, not queued | likewise green at first (the phase-time write still showed in later frames); the same new test reddens it on the open frame's build count (Apple platforms) |
+| reveal does not centre | `revealCentresTheSelectionsLine` |
+| long lines shaped whole | `aLongLineIsShapedInAWindow` |
+| cache never rotates | `theLineCacheKeepsOnlyTwoFramesOfLines` |
+| decorations do not follow the buffer | `anEditKeepsTheOldColoursAndAsksAgain`, `lineDecorationsShiftInLogarithmicWork` |
+| `makePlan` copies the text each frame | the allocation pin |
+
+Findings from the first runs: a dedupe test needs an unanswered provider; a blank line repeated in a fixture is one cache entry (fixtures keep lines distinct); a scene's `order` is a layer index, not a sequence; the tab test's first text ("ab") was wider than a stop in a proportional face; a view scrolled to the top and text prepended at its anchor needs `bias: .before`; `Rope.lineStart` allocated per byte.
 
 ## 5. Results
 
-`TODO(final)`: `swift package clean`, native build, unfiltered `--no-parallel` summary and `FR-J no-argument frame: succeeded=`, `METALUI_VERIFY_RETAINED=1`, `METALUI_VERIFY_CODE_CACHE=1`.
+`TODO(final)`: see the report; `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_CODE_CACHE=1` over `CodeViewTests` both pass (26 tests; the allocation pin is skipped under them).
 
 ## 6. Linux (portable container)
 
-`TODO(final)`.
+`metalui-portable:db5aebc23d28`, fed by `git archive HEAD`: `swift build --build-tests` and `swift test --skip-build --no-parallel` pass: 859 tests in 10 suites (`MetalUITestingTests`, with the 26 `CodeViewTests`) and 9, 16, 73, 68, 49, 286, 154, 24 and 45 in the others. Off Apple the observation hop is asynchronous (`HT-I`), so the provider's same-frame pin runs on Apple only and the rest waits with `runUntilIdle`; the observation tests (`aBufferEditRedrawsTheWindowByObservation`) pass there. No stop condition arose.
 
 ## 7. Not in run 1 (`TODO(run 2)`)
 
