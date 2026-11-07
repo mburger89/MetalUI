@@ -119,9 +119,9 @@ struct HighlightPayload: Equatable {
 }
 
 /// What the line-decoration tree holds for a stretch of rows.
-struct LineDecorationPayload: Equatable {
-    var gutterBar: Color?
-    var background: Color?
+package struct LineDecorationPayload: Equatable {
+    package var gutterBar: Color?
+    package var background: Color?
     var isEmpty: Bool { gutterBar == nil && background == nil }
 }
 
@@ -159,6 +159,8 @@ public final class CodeDecorations {
     @ObservationIgnored private var deltaBase: UInt64
     @ObservationIgnored private var lastRequest: (rows: Range<Int>, version: UInt64, revision: UInt64)?
     @ObservationIgnored var lineCache = CodeLineCache()
+    /// The bytes of text the line cache has shaped since creation (test observability, `CV-M`).
+    package var shapedBytes: Int { lineCache.shapedBytesTotal }
     /// How many highlight runs ``stylingOfLine(_:)`` visited since reset (a counter, `CV-N`).
     @ObservationIgnored package var runsVisited = 0
 
@@ -195,7 +197,7 @@ public final class CodeDecorations {
 
     /// Brings the runs and decorations up to the buffer's version. Called before every read; it writes
     /// only unobserved storage, so a phase may call it.
-    func sync() {
+    package func sync() {
         switch cursor.drain() {
         case .edits(let edits):
             for edit in edits { apply(edit) }
@@ -299,7 +301,7 @@ public final class CodeDecorations {
     }
 
     /// The decoration of `row`, or `nil`.
-    func lineDecoration(row: Int) -> LineDecorationPayload? {
+    package func lineDecoration(row: Int) -> LineDecorationPayload? {
         guard let payload = lines.payload(at: row), !payload.isEmpty else { return nil }
         return payload
     }
@@ -316,15 +318,15 @@ public final class CodeDecorations {
 
     /// How a line's text is coloured: the winning foreground per stretch, tiling the line's bytes, and
     /// the backgrounds in layer order.
-    struct LineStyling {
-        var foreground: [(bytes: Int, style: CodeStyleID?)] = []
-        var backgrounds: [(range: Range<Int>, color: Color)] = []
+    package struct LineStyling {
+        package var foreground: [(bytes: Int, style: CodeStyleID?)] = []
+        package var backgrounds: [(range: Range<Int>, color: Color)] = []
         /// A digest of the foreground partition: what a cached layout depends on.
-        var digest: UInt64 = 0xCBF2_9CE4_8422_2325
+        package var digest: UInt64 = 0xCBF2_9CE4_8422_2325
     }
 
     /// The styling of the bytes `range` (one line, as byte offsets in the whole text).
-    func stylingOfLine(_ range: Range<Int>) -> LineStyling {
+    package func stylingOfLine(_ range: Range<Int>) -> LineStyling {
         var styling = LineStyling()
         guard !range.isEmpty else { return styling }
         var perLayer: [[(range: Range<Int>, payload: HighlightPayload)]] = []

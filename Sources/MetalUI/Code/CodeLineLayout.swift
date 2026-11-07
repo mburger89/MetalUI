@@ -89,6 +89,8 @@ final class CodeLineCache {
     private var advances: [FontKey: (space: Double, digit: Double, height: Double)] = [:]
     /// Lines shaped since creation (a miss in both frames).
     private(set) var shapedTotal = 0
+    /// The bytes of the lines shaped since creation (a long line counts its window only).
+    private(set) var shapedBytesTotal = 0
     /// Gutter labels shaped since creation.
     private(set) var gutterShapedTotal = 0
     /// Hits that were laid out fresh and compared (verify mode).
@@ -119,7 +121,7 @@ final class CodeLineCache {
             return old
         }
         let made = build()
-        if gutter { gutterShapedTotal += 1 } else { shapedTotal += 1 }
+        if gutter { gutterShapedTotal += 1 } else { shapedTotal += 1; shapedBytesTotal += key.byteCount }
         current[key] = made
         return made
     }

@@ -113,6 +113,10 @@ public struct CodeView: Element, StyledElement {
         }
         var handlers = self.handlers
         handlers.isFocusable = true
+        // A primary press focuses the view, as a canvas or a text field is (`FC-A`), so the copy key routes to it.
+        if handlers.keyboard?.focusInteractions == nil {
+            handlers.keyboard = KeyboardAttachment.interactions(.edit, over: handlers.keyboard)
+        }
         let table = frame.stateTable
         handlers.pointer = PointerAttachment.wheel({ [plan] event in
             let scale = Double(plan.scale)
