@@ -46,6 +46,7 @@ private func buildEveryProductionTree() {
     buildTheChromeDemo()   // window chrome (CW-P, spec "Demo")
     buildTheClipboardDemo()   // clipboard beyond text (CB-, spec §6)
     buildTheLazyContainersDemo()   // lazy containers (LZ-Q, spec section 6)
+    buildTheCodeViewDemo()         // the read-only code view (CV-, record 227)
     buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
     buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
     buildTheGroupFilterStrip()     // a filter over a group (GF-)
@@ -117,6 +118,13 @@ private func buildTheLazyContainersDemo() {
     _ = LazyDemoGridSection().content
     _ = LazyDemoCarouselSection().content
     _ = LazyDemoHGridSection().content
+}
+
+/// The code view demo's tree (a small model: the demo's 100 000-line file is built by the shared model
+/// when the demo window opens), in its own frame as `buildTheServicesDemo()`'s note says.
+@MainActor @inline(never)
+private func buildTheCodeViewDemo() {
+    _ = codeViewDemoContent(model: CodeViewDemoModel(lines: 120))
 }
 
 /// The Liquid Glass demo's tree and its container component, in its own frame.

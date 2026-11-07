@@ -100,6 +100,10 @@ func runDemo() throws {
     // `LazyHGrid`, each of 10 000 children with a live on-screen count.
     let lazyDemo = ProcessInfo.processInfo.environment["METALUI_LAZY_DEMO"] == "1"
 
+    // The read-only code view (`CV-`, record 227, human checks group CV): a generated 100 000-line file with syntax
+    // colours, author bars, diff tints and virtual rows of removed lines, and a second view scrolled with it.
+    let codeDemo = ProcessInfo.processInfo.environment["METALUI_CODE_DEMO"] == "1"
+
     // Liquid Glass (`LG-P`, `LG-V`, spec `2026-10-23-liquid-glass-design.md` section 6, human checks group LG):
     // regular, clear and tinted capsules, `.glass` and `.glassProminent` buttons and a container of three circles
     // with a spacing control, over a striped backdrop.
@@ -122,6 +126,10 @@ func runDemo() throws {
                                     content: liquidGlassDemoContent)
     } else if chromeDemo {
         window = try openChromeDemoWindow(app, title: "MetalUI — Window Chrome")
+    } else if codeDemo {
+        window = try app.openWindow(title: "MetalUI — Code View",
+                                    size: Size(width: Pixels(1100), height: Pixels(700)),
+                                    content: { codeViewDemoContent() })
     } else if lazyDemo {
         window = try app.openWindow(title: "MetalUI — Lazy Containers",
                                     size: Size(width: Pixels(920), height: Pixels(640)),

@@ -556,13 +556,16 @@ import MetalUITestSupport
     return out
 }
 
-/// 6.2 — the heap allocations of a warm scroll frame do not grow with the file or the scroll position
-/// (Darwin, `malloc_logger`; differential, never an absolute number), line numbers off so a longer number is
-/// not a difference. At one position the two sizes differ only by the rope's height (2 against 3 levels), a
-/// few allocations per visible row, so the same-position pin is "within 20 per visible row"; the position
-/// pin is that 90 000 rows down costs what 600 rows down does (within the same bound again, not 150x more).
-/// An O(n) spelling (counting lines to the anchor, copying the text) is orders over both.
-/// **Mutation:** `makePlan` reading `snap.text` once per frame.
+/// 6.2 — the heap allocations of a warm scroll frame do not grow with the file or the scroll position, and stay
+/// under a ceiling (Darwin, `malloc_logger`; line numbers off so a longer number is not a difference). Run 1
+/// measured 4380 / 4522 at the top and 5040 / 5077 at 600 rows down; run 2 (record 227 section 3) cut the
+/// per-element allocations a debug build makes for every `for` over an array, `.last` and `reduce` in the paint
+/// loop, the rope scans, `Frame`'s clip accessors and `Scene.finalize`: 764 at 1k and 100k lines, 777 / 778 at
+/// 600, 750 at 90 000 (an empty view's frame is 157 of them). So: the two sizes agree within 2 per visible row
+/// at one position, 90 000 rows down costs what 600 down does within 4 per visible row, and every cell stays
+/// under 900. An O(n) spelling (counting lines to the anchor, copying the text) is orders over all three.
+/// **Mutations:** `makePlan` reading `snap.text` once per frame; the glyph loop back to `for (i, glyph) in
+/// row.layout.glyphs.enumerated()`; `codeHash` back to a `for` over the bytes.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_VERIFY_CODE_CACHE"] != "1"
                && ProcessInfo.processInfo.environment["METALUI_VERIFY_RETAINED"] != "1",
                "the verify modes re-run every hit, so the counts are theirs"))
@@ -579,12 +582,15 @@ import MetalUITestSupport
             counts["\(lines)@\(position)"] = try #require(countAllocations { window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -1) })
         }
     }
-    let bound = 20 * visible
+    let bound = 2 * visible
     for position in [0, 600] {
         let a = counts["1000@\(position)"]!, b = counts["100000@\(position)"]!
         #expect(abs(a - b) <= bound, "1k against 100k at \(position): \(a) vs \(b), bound \(bound)")
     }
     let deep = counts["100000@90000"]!, shallow = counts["100000@600"]!
-    #expect(abs(deep - shallow) <= 3 * bound, "90 000 rows down \(deep) against 600 rows down \(shallow)")
+    #expect(abs(deep - shallow) <= 2 * bound, "90 000 rows down \(deep) against 600 rows down \(shallow)")
+    for (cell, count) in counts.sorted(by: { $0.key < $1.key }) {
+        #expect(count <= 900, "\(cell): \(count) allocations in one warm scroll frame (ceiling 900)")
+    }
 }
 #endif
