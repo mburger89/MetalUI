@@ -3929,7 +3929,14 @@ public final class Frame {
         }
         guard crossed else { return p }
         let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
-        let r = MUIRect(bounds: Self.unboundedMask, contentMask: entry.bounds, maskCornerRadii: entry.radii,
+        // Not `unboundedMask`: a ±1e6 quad interpolates its pre-projection position with a float32 error of ~0.06 px on a
+        // Vulkan or D3D12 rasterizer (Metal's interpolation hid it), so the mask's edge pixels differed from Metal's by up
+        // to 20/255 (`CM-I`). The quad is the entry clip grown by its own size: the clip's coverage is the whole shape.
+        let reach = max(Float(16), entry.bounds.size.width, entry.bounds.size.height)
+        let outline = MUIBounds(origin: MUIPoint(x: entry.bounds.origin.x - reach, y: entry.bounds.origin.y - reach),
+                                size: MUISize(width: entry.bounds.size.width + 2 * reach,
+                                              height: entry.bounds.size.height + 2 * reach))
+        let r = MUIRect(bounds: outline, contentMask: entry.bounds, maskCornerRadii: entry.radii,
                         background: MUIHsla(h: 0, s: 0, l: 1, a: 1), borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
                         cornerRadii: none, borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: 0,
                         shape: PrimitiveShape.roundedRectangle.rawValue)

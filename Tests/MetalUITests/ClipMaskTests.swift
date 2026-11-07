@@ -188,6 +188,15 @@ private struct CMRing: Shape {
     // One group per leaf: every fill is its own leaf through `processScopes`, so the scope's crossing token merges only the
     // primitives of one leaf array (a text draw's glyphs). Carried in record 220 section 4; each group's box is its leaf's.
     #expect(r.frame.groupsMasked == 2, "a masked group per leaf in the overlap: \(r.frame.groupsMasked)")
+    // `CM-I`: the mask rect's quad is the entry clip grown, never the +-1e6 plane. A quad that large interpolates its
+    // pre-projection position with a float32 error of ~0.06 px on Vulkan and D3D12 (parity frame 18: edge pixels off by 20/255).
+    // Mutation: `cutToEntryClip`'s `outline` back to `Self.unboundedMask`.
+    for mask in r.scene.groupMasks.compactMap({ $0 }) {
+        for rect in mask.rects {
+            #expect(rect.bounds.size.width < 10_000 && rect.bounds.size.height < 10_000,
+                    "a finite mask quad: \(rect.bounds.size)")
+        }
+    }
 }
 
 /// **6b (`CM-B`).** A crossing pair inside an offset moves with it: the mask's `contentMask` (the outer clip) was pushed inside
