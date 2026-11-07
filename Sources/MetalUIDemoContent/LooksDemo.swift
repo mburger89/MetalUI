@@ -371,7 +371,7 @@ func looksGroupOpacityStrip() -> some Element {
     }
 }
 
-/// **Q11** (a filter over a group, `GF-`). A blurred `GPUSurface` (the blur reaches the app's own pixels, divergence 167), a
+/// **Q11** (a filter over a group, `GF-`). A blurred `GPUSurface` (the blur reaches the app's own pixels, divergence 167, retired), a
 /// card that flips about its axis under a shadow (the shadow follows the projected card, divergence 1066; tap it), a shadowed
 /// group whose opacity animates on a tap (the shadow fades with the group as one), and a shadowed group holding an opacity
 /// group beside an unfaded square (mixed marks). **Its own frame**, and its two stateful cards are components built at

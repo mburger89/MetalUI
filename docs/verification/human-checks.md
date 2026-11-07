@@ -2342,3 +2342,12 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **DA3.** With the transcript pinned, expand and collapse a block above the viewport: does the last block stay at the bottom edge? Scrolled up, expand a block above the viewport: does the content you are reading stay put? **Observed:**
 - [ ] **DA4.** Resize the window taller and shorter while pinned and while scrolled up: pinned stays at the bottom, scrolled up keeps its place? **Observed:**
 - [ ] **DA5.** `ScrollViewReader.scrollTo(someEarlierBlock)` while pinned: does it release (the next append does not yank back), and `scrollTo(lastBlock, anchor: .bottom)` pin again? **Observed:**
+
+## CC. Continuous rounded corners - SwiftUI's curve, not a circle (record 226; rulings `CC-A`..`CC-I`; decisions `docs/superpowers/2026-11-07-continuous-corners-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-continuous-corners.swift` reads SwiftUI's Beziers and renders through `ImageRenderer`, the tests read Metal and SDL pixels offscreen, but side-by-side looks, a real window and a GPU on Linux or Windows are a person's. Not run.*
+
+- [ ] **CC1.** Put a default `RoundedRectangle(cornerRadius: 20)`, a `Capsule()` and a `strokeBorder` of widths 1, 6 and 20 beside the same views in a SwiftUI app: does the curve match (no flat spot where the corner meets the side, the capsule's ends not a semicircle), and does the thick border keep a square outer corner when its radius is smaller than half the width? **Observed:**
+- [ ] **CC2.** Parity frame 21 (`--expect 22`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam, thickening or shimmer along a corner, any difference from Metal at a rotated or `rotation3DEffect` rect? **Observed:**
+- [ ] **CC3.** A material and a `glassEffect` over a continuous shape (the probe cannot draw either): does the blur or glass edge follow the curve? A multi-member glass and a `clipShape(RoundedRectangle)` are still circular (divergence 90, carried). **Observed:**
+- [ ] **CC4.** A 200-rect list of rounded cards under scroll or animation on the Mac you care about: any frame-time cost from the continuous fill (4.48 against 3.00 ms on 10,000 overlapping rects)? **Observed:**

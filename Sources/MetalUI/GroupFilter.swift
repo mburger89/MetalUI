@@ -26,7 +26,7 @@ extension Frame {
     }
 
     /// Whether the CPU rasterizers cannot read `leaf` and its filter goes through an offscreen group (`GF-A`): a GPU
-    /// surface (divergence 167), a primitive under a projective record (1066), a primitive still inside an opacity
+    /// surface (divergence 167, retired), a primitive under a projective record (1066), a primitive still inside an opacity
     /// group once the shared marks are lifted, or a nested shadow or blur that is itself one of these.
     static func needsGPU(_ leaf: [CapturedPrimitive]) -> Bool {
         for q in leaf {

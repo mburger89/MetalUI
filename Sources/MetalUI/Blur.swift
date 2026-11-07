@@ -82,7 +82,7 @@ extension PaintPass {
 extension Frame {
     /// Paint inside a blur scope (`LK-K`): every leaf emitted in `body` is
     /// replaced by its blurred image; a leaf the CPU cannot read (a GPU surface,
-    /// divergence 167; a leaf under a projective effect, 1066; a leaf still inside
+    /// divergence 167, retired; a leaf under a projective effect, 1066; a leaf still inside
     /// an opacity group) goes through an offscreen group (`GF-A`, `GF-B`).
     /// `radius` in points; a radius ≤ 0 opens no scope, so the leaves draw
     /// unchanged. The clip in force cuts the image; clips pushed inside shape

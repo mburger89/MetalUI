@@ -113,7 +113,7 @@ inside a CPU-rasterized `.shadow`, `.blur` or `.compositingGroup()` under one is
 tint, by name (divergence 248; pin: `theDrawingGuideAMaterialIsOneBackdropAndDegradesUnderAShadow`,
 `aMaterialInsideBlurShadowOrCompositingGroupDrawsItsFlatTint`). A `Path` fill degrades the same
 way. With Reduce Transparency on, a material is an opaque grey instead (divergence 315; the last section below). A GPU surface drawn under `.blur(radius:)`
-is blurred with its siblings through an offscreen group (divergence 167).
+is blurred with its siblings through an offscreen group (SwiftUI's side for platform views is unmeasured; human check GF3).
 
 ## How do I draw into my own GPU surface?
 
@@ -470,7 +470,6 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 107: an accessibility frame under a rotation off a right angle is the transformed bounding box (40.31 square at 45° for a 33 × 24 view, SwiftUI reports 35.36).
 - divergence 108: a legacy element's render effects wrap the whole element.
 - divergence 166: a material is a blurred backdrop with a tint.
-- divergence 167: a GPU surface under `.blur(radius:)` is blurred offscreen; SwiftUI's side for platform views is unmeasured.
 - divergence 223: a view's `.opacity` written inside a `.shadow` fades the shadow's source, not the shadow.
 - divergence 222: a group holding a material, glass or GPU surface is not composited.
 - divergence 248: a material inside a CPU-rasterized shadow, blur or group draws its flat tint.

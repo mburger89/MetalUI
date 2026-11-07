@@ -1,6 +1,8 @@
-# Record 226: continuous rounded corners, outlines (round-4 item R4-5 PR F, run 1) - DRAFT
+# Record 226: continuous rounded corners, outlines (round-4 item R4-5 PR F, run 1)
 
-**Draft.** Run 1 of two. Branch `feat/continuous-corners` (from master `17b76c1b`), prefix `CC-` (new; no decisions document yet, no ledger edit yet: divergence 90, the rules shards, `decision-prefixes.md`, human checks group `CC`, CLAUDE.md/AGENTS.md and the counts line all wait for run 2). Plan: the planner's `cc-plan.md`; probe `docs/probes/swiftui-continuous-corners.swift`. What run 1 builds: SwiftUI's `.continuous` corner for **every outline** - a rounded rectangle or capsule fill, a `strokeBorder` and `stroke`, a material or glass backdrop, a shadow or blur silhouette, a `Path`, a hit test. What it does **not** touch: a `clipShape(RoundedRectangle)` or `.cornerRadius` clip is still circular (run 2, sign-encoded mask radii), and multi-member glass members.
+Run 1 of two, shipped alone. Branch `feat/continuous-corners` (from master `17b76c1b`, merged with `#222`), prefix `CC-`, decisions `docs/superpowers/2026-11-07-continuous-corners-decisions.md` (next `CC-J`). Class `D`; **divergence 90 narrowed** (**208 live after 167 is retired**, next label 227) to a continuous `clipShape`/`.cornerRadius` clip and multi-member glass, carried to run 2. Plan: the planner's `cc-plan.md`; probe `docs/probes/swiftui-continuous-corners.swift`. Human checks group `CC`. What run 1 builds: SwiftUI's `.continuous` corner for **every outline** - fill, capsule, `strokeBorder`/`stroke`, material and single-member glass, shadow and blur silhouettes, `Path`, hit test. It does not touch the clip stack or `mask_coverage` (user decision: kind 0's shader stays the base's).
+
+**Divergence 167 retired here too**, on the user's decision and without SwiftUI's side measured: PR #215's `GF-` work implements a GPU surface blurred with its siblings, the window arm `W1` (a layer-backed `NSViewRepresentable` under `.blur(radius: 6)`) was never run, `ImageRenderer` draws no platform view (`GF6`); human check `GF3` stays as the confirmation.
 
 ## 1. What SwiftUI does (probe, macOS 27.2, compiled, run twice, identical)
 
@@ -92,7 +94,7 @@ The full unfiltered run before these edits read 7 failures, exactly the first si
 
 ## 6. GPU cost (plan section 8 (ii), `docs/probes/continuous-corner-cost/run.sh`, Apple M6, `gpuEndTime - gpuStartTime`, median of 50 frames, 10,000 opaque overlapping rects in 2560x1440)
 
-**Stop condition 6 fired on the first design; the coordinator's decision was (a) its own fragment entry and (b) a cheaper distance, re-measured below.** The probe is `docs/probes/continuous-corner-cost/run.sh` (test `theGPUCostOfTheContinuousKind`, env-gated `METALUI_CORNER_COST=1`, Apple M6, `gpuEndTime - gpuStartTime`, median of 50 frames after 10 warm-up, 10,000 opaque overlapping rects in 2560x1440, two or three runs per arm, medians agree to 0.1 % on a quiet machine). Medians in ms (the 2.3x/4.3x row is what stop condition 6 read):
+**Stop condition 6 fired on the first design; the decision was (a) its own fragment entry and (b) a cheaper distance, re-measured below. The final cost (1.49x on `big`, 2.46x on `small`) was ACCEPTED by the user.** The probe is `docs/probes/continuous-corner-cost/run.sh` (test `theGPUCostOfTheContinuousKind`, env-gated `METALUI_CORNER_COST=1`, Apple M6, `gpuEndTime - gpuStartTime`, median of 50 frames after 10 warm-up, 10,000 opaque overlapping rects in 2560x1440, two or three runs per arm, medians agree to 0.1 % on a quiet machine). Medians in ms (the 2.3x/4.3x row is what stop condition 6 read):
 
 | Arm | `big` 96x64 r 20 | `small` 24x24 r 12 |
 | --- | --- | --- |
@@ -115,13 +117,13 @@ The full unfiltered run before these edits read 7 failures, exactly the first si
 - **llvmpipe Vulkan** (the `metalui-portable` image from `git archive HEAD`, llvmpipe LLVM 20.1.2): all 22 fixtures within tolerance. **Frame 21: outside sprites 228 px, max delta 1 (limit 1); inside backdrop quads 8448 px, max delta 1 (limit 3); inside glyph and image quads 0 px.** Frames 0-20 as before the change (max delta 1 outside, 3 inside).
 - Not run: Direct3D 12 (Windows CI is the judge).
 
-## 8. TODO(run 2)
+## 8. Carried: run 2
 
 - the clip stack's masks will need `mask_coverage` continuous in **`rect_fragment` and every other fragment**, which is outside the base-identical `rect_fragment` this run keeps: decide then whether the mask helper change (a sign test per helper) is allowed to touch kind 0's shader.
 
 - the clip stack: `ShapeGeometry.clip` for continuous (negated mask radii), `pushClip`, `Frame.intersect`/`clipsCross` on the continuous extent, the 19 `activeClipRadii` readers and every `max(0, ...)`, `mask_coverage`/`mask_coverage_scaled`/the transform outer mask in both shaders, `aContinuousClipCutsItsCurve` (rect, image and glyph content arms);
 - multi-member glass (`GlassMember` radii sign, `glass_member_sdf`/`glassMemberSDF`); `GlassReference` (the CPU twin) still draws kind 2 circular;
-- the ledger: divergence 90 (retired, or narrowed to the clip if run 2 is cut), `decisions` document and `decision-prefixes.md`, `drawing.md`/`sdl.md` paragraphs, human checks group `CC`, the inventory map rows, `api-overview.md`, `migration.md`, the README row, `Tasks.md`, CLAUDE.md/AGENTS.md and the counts line.
+- the ledger for run 1 is done (divergence 90 narrowed; decisions, shards, human checks `CC`, inventory rows, `api-overview.md`, `migration.md`, README, `Tasks.md`, CLAUDE.md/AGENTS.md); run 2 retires 90.
 - unmeasured: built-in control looks (a `Button`'s, a text field's corner) are not measurable through `ImageRenderer`; note, no row.
 
 ## 9. Verbatim summary lines (after the fragment-entry and distance change; head is this commit)
