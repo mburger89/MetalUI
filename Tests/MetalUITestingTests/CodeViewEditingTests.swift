@@ -244,18 +244,21 @@ let codeWord: EventModifiers = .control
 /// the platform's shortcut modifier is not consumed.
 /// **Mutation:** indenting only the first line, or outdenting more than one unit.
 @Test @MainActor func tabIndentsAndShiftTabOutdents() throws {
-    let (window, buffer) = try editingWindow("one\n  two\n\nthree\n")
+    let (window, buffer) = try editingWindow("one\n  two\n\nthree\n      six\n")
     window.typeKey(.tab)
     #expect(buffer.snapshot().line(0) == "\tone", "a tab at the caret")
     buffer.selections = [CodeSelection(anchor: 1, head: buffer.snapshot().offset(of: CodePoint(row: 3, column: 2)))]
     window.typeKey(.tab)
-    #expect(buffer.snapshot().text == "\t\tone\n\t  two\n\n\tthree\n",
+    #expect(buffer.snapshot().text == "\t\tone\n\t  two\n\n\tthree\n      six\n",
             "lines 0...3 indented, the blank one left alone: \(buffer.snapshot().text.debugDescription)")
     #expect(buffer.primarySelection.range.lowerBound == 2, "the selection start stays on the same character")
     window.typeKey(.tab, modifierFlags: .shift)
-    #expect(buffer.snapshot().text == "\tone\n  two\n\nthree\n", "one unit removed from each")
+    #expect(buffer.snapshot().text == "\tone\n  two\n\nthree\n      six\n", "one unit removed from each")
     window.typeKey(.tab, modifierFlags: .shift)
-    #expect(buffer.snapshot().text == "one\n  two\n\nthree\n".replacingOccurrences(of: "  two", with: "two"), "the second removes a tab and two spaces")
+    #expect(buffer.snapshot().text == "one\ntwo\n\nthree\n      six\n", "the second removes a tab and two spaces")
+    caret(buffer, 4, 8)
+    window.typeKey(.tab, modifierFlags: .shift)
+    #expect(buffer.snapshot().line(4) == "  six", "up to one tab width of spaces, four, not all six")
     let before = buffer.snapshot().text
     window.typeKey(.tab, modifierFlags: codePrimary)
     #expect(buffer.snapshot().text == before, "Tab with the shortcut modifier is not an indent")
@@ -375,14 +378,31 @@ let codeWord: EventModifiers = .control
 }
 
 /// 8.16 — select all selects the whole buffer and the view stays where it was (the caret is at the end, but the
-/// key does not reveal it).
-/// **Mutation:** select-all revealing the caret scrolls a 1000-line buffer to its end.
-@Test @MainActor func selectAllDoesNotScrollToTheEnd() throws {
-    let (window, buffer) = try editingWindow(codeText(lines: 1000))
+/// key does not reveal it); undo and typing do reveal, from wherever the wheel left the view.
+/// **Mutation:** select-all revealing the caret scrolls a 1000-line buffer to its end; undo (or an insert) that
+/// does not reveal leaves the view where the wheel put it.
+@Test @MainActor func selectAllStaysPutAndUndoAndTypingRevealTheCaret() throws {
+    let buffer = CodeBuffer(codeText(lines: 1000))
+    let scroll = CodeScrollState()
+    let window = try harnessWindow(size: sz(400, 200)) {
+        CodeView(buffer: buffer, decorations: CodeDecorations(buffer: buffer)).font(size: 12).scrollState(scroll)
+    }
+    let pitch = codePitch(scale: 1)
+    window.click(at: pt(60, 6))
+    buffer.selections = [CodeSelection(caret: 0)]
     window.typeKey("a", modifierFlags: codePrimary)
+    window.window.setNeedsRedraw(); window.tick()
     #expect(buffer.primarySelection.range == 0..<buffer.utf8Count)
-    let tint = window.scene.rects.filter { $0.bounds.size.width > 100 }
-    #expect(tint.first.map { $0.bounds.origin.y } == 0, "the selection still starts at the top of the view: \(tint.map(\.bounds))")
+    #expect(scroll.position.row == 0, "select all did not scroll to the end: row \(scroll.position.row)")
+    caret(buffer, 0, 0)
+    window.typeText("x")
+    window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -pitch * 40)
+    #expect(scroll.position.row > 30)
+    window.typeKey("z", modifierFlags: codePrimary)
+    #expect(buffer.snapshot().line(0).hasPrefix("let value0") && scroll.position.row == 0, "undo revealed the caret: row \(scroll.position.row)")
+    window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -pitch * 40)
+    window.typeText("y")
+    #expect(scroll.position.row == 0, "typing revealed the caret: row \(scroll.position.row)")
 }
 
 // MARK: Counted work
@@ -429,19 +449,19 @@ let codeWord: EventModifiers = .control
 /// 10.1 — a code target reaches every text stage of the window by its early branch and not through `TextEditing`
 /// (`CV-W`): a press places the caret (shift extends), a drag selects, a typed character is offered to `onKeyPress`
 /// first (and a handled one is swallowed), an input method's marked text never reaches the buffer and its commit
-/// is an insert, a key edits, Tab in does not select all, and losing focus leaves the view's own state alone.
+/// is an insert, a key edits, Tab in does not select all, and none of marked text, losing focus and Tab-in writes
+/// a `TextEditState` over the view's own state (an entry of another type replaces it, and the view is back at the top).
 /// **Mutation:** each early branch removed in turn, one test arm per stage: `.mouseDown` (the press falls to a
 /// `TextEditState` over a string the target does not have), `.mouseDragged`, `.textInput`, `.textComposition`,
 /// `dispatchTypedKeyPress` (the swallowed `q` is typed), `dispatchTextKey`, `dispatchFocusTraversal` (the
 /// select-all), `focusedElement.didSet` (the view's scroll is replaced by a fresh `TextEditState`'s slot).
 @Test @MainActor func aCodeTargetReachesEveryTextStage() throws {
     let buffer = CodeBuffer(codeText(lines: 300))
-    let scroll = CodeScrollState()
     var typedOffered = 0
     let window = try harnessWindow(size: sz(400, 300)) {
         VStack(spacing: 0) {
             Box().frame(width: Pixels(20), height: Pixels(20)).focusable().id("other")
-            CodeView(buffer: buffer, decorations: CodeDecorations(buffer: buffer)).font(size: 12).scrollState(scroll)
+            CodeView(buffer: buffer, decorations: CodeDecorations(buffer: buffer)).font(size: 12)
                 .onKeyPress("q") { typedOffered += 1; return .handled }
                 .frame(height: Pixels(200)).id("code")
         }
@@ -475,16 +495,24 @@ let codeWord: EventModifiers = .control
     // Stage dispatchTextKey.
     window.typeKey("a", modifierFlags: codePrimary)
     #expect(buffer.primarySelection.range == 0..<buffer.utf8Count)
-    // Stage focusedElement.didSet: losing focus leaves the view's state alone (the scroll it published).
+    // The view keeps its own state through the stages that would write a `TextEditState` over its id (a state
+    // entry of another type replaces it): scrolled away from the caret, none of marked text, blur or Tab-in moves it.
     caret(buffer, 0, 0)
+    window.window.setNeedsRedraw(); window.tick()
     window.scroll(at: pt(200, top + 100), byDeltaX: 0, deltaY: -pitch * 40)
-    let scrolled = scroll.position.row
-    #expect(scrolled > 30, "scrolled to \(scrolled)")
+    func picture() -> [String] { window.scene.glyphs.prefix(40).map { "\($0.bounds.origin.x),\($0.bounds.origin.y)" } }
+    let scrolled = picture()
+    #expect(scrolled != [] && scrolled.count == 40)
+    #expect(window.setMarkedText("かな"))
+    #expect(picture() == scrolled, "marked text left the scroll alone")
+    window.cancelMarkedText()
+    // Stage focusedElement.didSet.
     window.click(at: otherPoint)
     window.window.setNeedsRedraw(); window.tick()
-    #expect(scroll.position.row == scrolled, "blur left the scroll: \(scroll.position.row) vs \(scrolled)")
-    // Stage dispatchFocusTraversal: Tab back in selects nothing.
+    #expect(picture() == scrolled, "blur left the scroll")
+    // Stage dispatchFocusTraversal: Tab back in selects nothing and writes nothing over the view's state.
     let at = buffer.primarySelection
     window.typeKey(.tab)
     #expect(buffer.primarySelection == at, "Tab-in selection \(buffer.primarySelection) vs \(at)")
+    #expect(picture() == scrolled, "Tab-in left the scroll")
 }
