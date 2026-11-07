@@ -202,6 +202,7 @@ final class FrameWorkRecorder {
         pending.codeLinesPainted += work.codeLinesPainted
         pending.codeGlyphsEmitted += work.codeGlyphsEmitted
         pending.codeHighlightRunsVisited += work.codeHighlightRunsVisited
+        pending.codeFindMatchesVisited += work.codeFindMatchesVisited
         pending.rasterizedPixels += work.rasterizedPixels
         pending.blurredPixels += work.blurredPixels
     }

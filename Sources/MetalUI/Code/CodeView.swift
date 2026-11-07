@@ -207,7 +207,8 @@ public struct CodeView: Element, StyledElement {
         // The text stage's target: the session does the editing from input (`CV-W`); the caret rect is the input
         // method's area, under the view's own render effects (`GX-I`).
         let session = CodeEditSession(buffer: buffer, id: id, table: table, plan: plan, editable: isEditable,
-                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick)
+                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick,
+                                      decorations: decorations)
         if let menu = gutterMenu {
             let existing = handlers.contextual
             handlers.contextual = ContextualAttachment(locatedMenu: { [plan] point in

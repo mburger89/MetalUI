@@ -27,6 +27,8 @@ enum CodeCommand: Equatable {
     case newline
     case indent, outdent
     case selectAll, copy, cut, paste, undo, redo
+    /// ⌘G / ⇧⌘G: the next or previous find match (`CV-AE`).
+    case findNext, findPrevious
 }
 
 enum CodeEditing {
@@ -101,6 +103,7 @@ enum CodeEditing {
         case "c": return shift ? nil : .copy
         case "x": return shift ? nil : .cut
         case "v": return shift ? nil : .paste
+        case "g": return shift ? .findPrevious : .findNext
         case "z": return shift ? .redo : .undo
         case "y": return !mac && !shift ? .redo : nil
         default: return nil

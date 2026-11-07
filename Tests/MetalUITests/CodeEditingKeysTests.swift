@@ -70,3 +70,19 @@ private let left = TextEditing.leftArrow, right = TextEditing.rightArrow, up = T
     #expect(CodeEditing.normalizingLineBreaks("\r\n\r\n", to: "\n") == "\n\n")
     #expect(CodeEditing.normalizingLineBreaks("plain \u{1F600}", to: "\r\n") == "plain \u{1F600}")
 }
+
+/// 11.x — find stepping (`CV-AE`): ⌘G / ⇧⌘G on a Mac, ⌃G / ⌃⇧G elsewhere, and no other modifier.
+/// **Mutation:** the shift cases swapped steps the wrong way.
+@Test func theFindKeysFollowThePlatformConvention() {
+    let mac = TextEditing.Platform.mac
+    #expect(CodeEditing.command(for: key("g", .command), platform: mac) == .findNext)
+    #expect(CodeEditing.command(for: key("g", [.command, .shift]), platform: mac) == .findPrevious)
+    #expect(CodeEditing.command(for: key("G", [.command, .shift]), platform: mac) == .findPrevious)
+    #expect(CodeEditing.command(for: key("g", .control), platform: mac) == nil, "⌃G is not claimed on a Mac")
+    #expect(CodeEditing.command(for: key("g"), platform: mac) == nil, "a plain g is text")
+    #expect(CodeEditing.command(for: key("g", [.command, .option]), platform: mac) == nil)
+    let other = TextEditing.Platform.other
+    #expect(CodeEditing.command(for: key("g", .control), platform: other) == .findNext)
+    #expect(CodeEditing.command(for: key("g", [.control, .shift]), platform: other) == .findPrevious)
+    #expect(CodeEditing.command(for: key("g", .command), platform: other) == nil)
+}
