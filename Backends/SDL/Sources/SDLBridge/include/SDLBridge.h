@@ -19,10 +19,13 @@ typedef struct { int32_t x, y, width, height; } ReplayRegion;
 // by `run_count` runs from `run_start` of the frame's run array (the main runs come first, then each group's, in
 // post-order: a group's runs name only earlier groups). A run that draws a group is an image run whose records name
 // the texture `texture_count + group index`.
-typedef struct { float x, y; uint32_t width, height, run_start, run_count; uint32_t filter_kind; float sigma; float tint[4]; } ReplayGroup;
+typedef struct { float x, y; uint32_t width, height, run_start, run_count; uint32_t filter_kind; float sigma; float tint[4]; uint32_t mask_run_start, mask_run_count; } ReplayGroup;
 // A group's filter (ruling GF-E), `filter_kind`: 0 none, 1 blur, 2 shadow. After its pass the group's target goes through
 // L downsamples and two Gaussians at `sigma` (device pixels of the target; none when 0) and, for a shadow, a tint pass
 // writing `tint` (premultiplied) times the blurred alpha; the quad samples the result.
+// A group's mask (ruling CM-A): `mask_run_count` runs from `mask_run_start` of the same run array (after the group's own;
+// rects and images only) are drawn into a scratch of the group's size with the group's projection, and one pass multiplies
+// the group's target by the scratch's alpha (a destination-in blend), before the filter. 0 runs is no mask.
 // One surface's `drawText` glyphs (ruling DT-G): `count` glyph records from `start` (an index into the
 // frame's glyph buffer, the scene's own glyphs first), drawn into `target` (a surface target, `width` x
 // `height` texels) in one load-op pass after the atlas copy pass and before the scene's pass.
@@ -124,6 +127,11 @@ void mui_renderer_filter_counters(MUIRenderer *r, uint32_t out[3]);
 // Test hook (ruling GF-E): every filter intermediate allocation fails; a blur then draws its unfiltered target and a
 // shadow draws nothing.
 void mui_renderer_set_filter_hook(MUIRenderer *r, bool pool_fails);
+// The last frame's masked group work (ruling CM-A): `out` = mask passes, masks that degraded to an unmasked group (no
+// portable pipelines or no scratch target).
+void mui_renderer_mask_counters(MUIRenderer *r, uint32_t out[2]);
+// Test hook (ruling CM-A): every mask scratch allocation fails; a masked group then draws unmasked (counted as a failure).
+void mui_renderer_set_mask_hook(MUIRenderer *r, bool pool_fails);
 // The atlas bytes the last finished frame moved to the GPU (0 for a clean
 // atlas; the whole atlas for a new or resized one). A test recorder (RG-H).
 uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r);

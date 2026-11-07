@@ -266,6 +266,18 @@ extension Frame {
             return strictlyInside(moved, entry) ? .moved(moved) : .refused("maskStraddlesEntryClip")
         }
         var out = primitive
+        for k in out.groups.indices where out.groups[k].isMasked {
+            // A mask moves like the content, its own clip by the depth it was read at (`CM-A`); a kind the gate does not list
+            // (a path mask) refuses by name.
+            var unbounded = false
+            if case let .rect(r) = out.groups[k].mask[0].kind { unbounded = r.contentMask.size.width >= PrimitiveTransform.unboundedThreshold }
+            switch movedLeaf(out.groups[k].mask[0], dx: dx, dy: dy,
+                             emittedAt: unbounded ? entryDepth : out.groups[k].maskDepth,
+                             entryDepth: entryDepth, entry: entry) {
+            case .moved(let mask): out.groups[k].mask[0] = mask
+            case .refused(let reason): return .refused(reason)
+            }
+        }
         switch primitive.kind {
         case .rect(var r):
             guard let origin = exactMove(r.bounds.origin) else { return .refused("inexactTranslation") }

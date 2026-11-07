@@ -70,7 +70,7 @@ public struct Capsule: Shape, Hashable {
 }
 
 /// An ellipse inscribed in its frame — SwiftUI's `Ellipse()`, drawn by the
-/// renderer's ellipse kind (`TE-AE`). It cannot be a clip (divergence 91).
+/// renderer's ellipse kind (`TE-AE`). As a clip it is a masked group (`CM-A`).
 public struct Ellipse: Shape, Hashable {
     /// An ellipse.
     public init() {}
@@ -139,7 +139,7 @@ public struct RectangleCornerRadii: Hashable, Sendable {
 /// limit) the shape is that primitive, fill and stroke, and it can be a
 /// `clipShape`. A radius past that — legal in SwiftUI, where one corner may
 /// take most of a side the others leave free (probe X2) — is drawn as a
-/// ``Path``, rasterized on the CPU, which cannot be a clip (divergence 91).
+/// ``Path``, rasterized on the CPU; as a clip it is a masked group (`CM-A`).
 /// `.continuous` is drawn circular (divergence 90). Its outline starts on the
 /// right edge and runs down, as SwiftUI's does (probe UR1), so `trim` and
 /// dashes begin where SwiftUI's do.

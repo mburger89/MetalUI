@@ -211,34 +211,8 @@ private func overflowing() -> some ProposalElement {
     #expect(decoration(Circle()) != Decoration(), "a clip against none")
 }
 
-/// **2.19 (exit) — `clipShape` of an ellipse traps naming divergence 91**
-/// (`TE-AJ` item 4). SwiftUI clips to the ellipse (probe C5); every primitive's
-/// mask here is a rounded rectangle, so the explicit form of "not supportable
-/// yet" is a trap at the clip — a custom `Shape` can return an ellipse at run
-/// time, so the check cannot be in the type. Both vocabularies.
-///
-/// Mutation: **M2s** the trap removed (both children exit 0).
-@Test func clipShapeOfAnEllipseTrapsNamingDivergence91() async {
-    let proposal = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = Rectangle(width: Pixels(100), height: Pixels(60)).clipShape(Ellipse())
-            Frame(contentSize: Size(width: Pixels(100), height: Pixels(60)), scaleFactor: 1).render(&root)
-        }
-    }
-    let proposalStderr = String(decoding: proposal?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(proposalStderr.contains("divergence 91"), "proposal: \(proposalStderr)")
-
-    let legacy = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-        await MainActor.run {
-            var root = Box {
-                Box().cssWidth(Pixels(10)).cssHeight(Pixels(10)).background(.surface)
-            }.cssWidth(Pixels(100)).cssHeight(Pixels(60)).clipShape(Ellipse())
-            Frame(contentSize: Size(width: Pixels(100), height: Pixels(60)), scaleFactor: 1).render(&root)
-        }
-    }
-    let legacyStderr = String(decoding: legacy?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(legacyStderr.contains("divergence 91"), "legacy: \(legacyStderr)")
-}
+// 2.19 (`clipShapeOfAnEllipseTrapsNamingDivergence91`) is retired with divergence 91: an ellipse clip is a masked group
+// (`CM-A`), pinned by `anEllipseClipMasksItsCorners` in `ClipMaskTests.swift`; a path clip by `aPathClipMasksToItsWinding`.
 
 /// **2.20 — a rounded clip contained in a rounded clip keeps its radii**
 /// (`TE-AJ` item 5; probe C6: a capsule clip then a circle clip equals the
@@ -289,19 +263,19 @@ private func overflowing() -> some ProposalElement {
             "the bottom-right corner is rounded: not contained, the square box: \(roundedThere)")
 }
 
-/// **2.21 — divergence 92's pin: two rounded clips that cross intersect as the
-/// square box.** The true region needs a curve per overlapping corner; one
-/// mask per primitive cannot carry it (`TE-AJ` item 5). Rounded rects
-/// (0, 0, 100, 60) and (50, 0, 100, 60), radius 20: the box (50, 0, 50, 60),
-/// radii 0, in either order.
+/// **2.21 — two rounded clips that cross push the square box** (`TE-AJ` item 5). The true region needs a curve per overlapping
+/// corner, which one mask per primitive cannot carry; since `CM-B` (divergence 92 retired) the painter multiplies the content by
+/// the pair's exact coverage in a masked group (`twoCrossingRoundedClipsIntersectExactly`), and the pushed clip stays the box
+/// (hit testing and every primitive's own mask). Rounded rects (0, 0, 100, 60) and (50, 0, 100, 60), radius 20: the box
+/// (50, 0, 50, 60), radii 0, in either order, and `clipsCross` says so.
 ///
 /// Mutation: **M2u** return the inner radii unconditionally.
-@Test @MainActor func twoCrossingRoundedClipsIntersectAsTheSquareBox() throws {
+@Test @MainActor func twoCrossingRoundedClipsPushTheSquareBox() throws {
     let r20 = Corners(all: Pixels(20))
     let crossed = Frame.intersect(shapeBounds(0, 0, 100, 60), radii: r20, shapeBounds(50, 0, 100, 60),
                                   radii: r20)
     #expect(crossed.bounds == shapeBounds(50, 0, 50, 60) && crossed.radii == Corners(all: Pixels(0)),
-            "divergence 92: \(crossed)")
+            "the pushed clip: \(crossed)")
     // The mirror order crosses the same way.
     let mirrored = Frame.intersect(shapeBounds(50, 0, 100, 60), radii: r20, shapeBounds(0, 0, 100, 60),
                                    radii: r20)

@@ -274,13 +274,11 @@ import MetalUIText
             "the default outer clip has no rounding, so touching its edge costs nothing")
 }
 
-/// The documented fallback: a clip that TOUCHES (rather than sits strictly
-/// inside) a ROUNDED outer's edge falls back to SQUARE corners, because
-/// neither of `intersect(_:radii:_:radii:)`'s two exact cases applies —
-/// `outer` is rounded, and `inner` is not strictly inside it. Proves the
-/// approximation actually engages rather than only existing in the doc
-/// comment.
-@Test @MainActor func aClipTouchingARoundedOutersEdgeFallsBackToSquareCorners() throws {
+/// A clip that TOUCHES (rather than sits strictly inside) a ROUNDED outer's edge: neither of
+/// `intersect(_:radii:_:radii:)`'s exact cases applies, so the **pushed** clip is still the tighter box with SQUARE corners
+/// (hit testing, the primitive's own mask), and since `CM-B` (divergence 92 retired) the pair is drawn exactly through a masked
+/// group: the content's rect keeps the square mask and the group's mask scene holds the inner rounded rect cut by the outer.
+@Test @MainActor func aClipTouchingARoundedOutersEdgePushesTheSquareBoxAndIsMasked() throws {
     let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)),
                       scaleFactor: 1, stateTable: StateTable(),
                       shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
@@ -299,7 +297,11 @@ import MetalUIText
         }
     }
     let scene = frame.finalizedScene()
-    let r = try #require(scene.rects.first)
+    try #require(scene.groups.count == 1, "the pair is a masked group: \(scene.groups.count)")
+    let r = try #require(scene.groupScenes[0].rects.first)
     #expect(r.maskCornerRadii.topLeft == 0,
-            "neither exact case applies, so this falls back to the tighter box with square corners")
+            "neither exact case applies, so the pushed clip is the tighter box with square corners")
+    let mask = try #require(scene.groupMasks[0]?.rects.first)
+    #expect(mask.cornerRadii.topLeft == 5 && mask.maskCornerRadii.topLeft == 20,
+            "the mask is the inner rounded rect cut by the outer: \(mask.cornerRadii.topLeft) \(mask.maskCornerRadii.topLeft)")
 }

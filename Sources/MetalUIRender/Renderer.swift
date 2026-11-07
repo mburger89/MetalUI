@@ -95,6 +95,13 @@ public final class Renderer {
     private(set) var lastFilterAllocationFailures = 0
     /// Test hook (`GF-E`): every filter intermediate allocation fails.
     var filterPoolFailsAllocation = false
+    /// Mask passes of the last frame, one per masked group (`CM-A`): the mask scene drawn into a scratch target and the
+    /// group's target multiplied by its alpha.
+    private(set) var lastMaskPasses = 0
+    /// Masked groups of the last frame whose mask target could not be allocated and so drew unmasked (`CM-A`).
+    private(set) var lastMaskAllocationFailures = 0
+    /// Test hook (`CM-A`): every mask target allocation fails.
+    var maskPoolFailsAllocation = false
     /// Test hook (`GO-E`, as `backdropPoolFailsAllocation`): every group target allocation fails, so each group draws nothing.
     var groupPoolFailsAllocation = false
     /// Test hook (`BB-K`, test 2.7): every pool allocation fails, so each record draws its flat tint.
@@ -269,6 +276,7 @@ public final class Renderer {
         lastFrameTargetCopies = 0; lastBackdropTexturesMade = 0
         lastGroupPasses = 0; lastGroupTexturesMade = 0; lastGroupAllocationFailures = 0
         lastFilterPasses = 0; lastFilteredGroups = 0; lastFilterAllocationFailures = 0
+        lastMaskPasses = 0; lastMaskAllocationFailures = 0
         let state = backdropState ?? defaultBackdropState
         // **Offscreen groups first** (`GO-E`), post-order, each into its own pooled target; the parent's pass(es) then
         // sample them. The pool is the window's backdrop state, so a steady frame makes none.
@@ -419,6 +427,9 @@ public final class Renderer {
                                    projection: t)
             try encodeSinglePass(child, view: view, in: commandBuffer, surfaces: surfaces, groupTextures: inner, isGroup: true)
             lastGroupPasses += 1
+            if let mask = scene.groupMasks[index] {
+                try applyMask(mask, to: target, view: view, in: commandBuffer, surfaces: surfaces, state: state)
+            }
             let filter = scene.groupFilters[index]
             guard filter.kind != .none else {
                 made.append(target)
@@ -445,6 +456,39 @@ public final class Renderer {
             }
         }
         return made
+    }
+
+    /// A masked group's mask (`CM-A`): `mask` drawn into a scratch target of the group's size with the group's own
+    /// projection, then one pass over `target` (loaded, not cleared) that multiplies it by the scratch's alpha with a
+    /// destination-in blend through `group_tint_fragment` at tint (1, 1, 1, 1). The scratch goes back to the pool. When
+    /// it cannot be allocated the group stays unmasked (`lastMaskAllocationFailures`): the bounding clip still cuts it.
+    private func applyMask(_ mask: Scene, to target: any MTLTexture, view: SurfaceView, in commandBuffer: any MTLCommandBuffer,
+                           surfaces: [SurfaceID: any MTLTexture], state: BackdropFrameState) throws {
+        guard let scratch = state.acquire(device: device, width: target.width, height: target.height,
+                                          failing: maskPoolFailsAllocation) else {
+            lastMaskAllocationFailures += 1
+            return
+        }
+        let maskView = SurfaceView(colorTexture: scratch, viewport: view.viewport, projection: view.projection)
+        try encodeSinglePass(mask, view: maskView, in: commandBuffer, surfaces: surfaces, groupTextures: [], isGroup: true)
+        let pipelines = try backdropPipelines()
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = target
+        pass.colorAttachments[0].loadAction = .load
+        pass.colorAttachments[0].storeAction = .store
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+            state.release(scratch)
+            throw RendererError.encoderUnavailable
+        }
+        var constants = GroupTintPass(src: SIMD4(0, 0, Int32(target.width), Int32(target.height)),
+                                      tint: SIMD4<Float>(1, 1, 1, 1))
+        encoder.setRenderPipelineState(pipelines.mask)
+        withUnsafeBytes(of: &constants) { encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 0) }
+        encoder.setFragmentTexture(scratch, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+        state.release(scratch)
+        lastMaskPasses += 1
     }
 
     /// The pass sequence of a filtered group (`GF-E`), over the whole `target` (the box was padded by more than
@@ -970,10 +1014,11 @@ public final class Renderer {
         // A group's scenes sample textures of their own: they are part of this frame's set, so none is released
         // while a nested scene still names it (`GO-E`). Only the root's list is returned.
         var pending = scene.textures.map { (source: $0, forRoot: true) }
-        var stack = scene.groupScenes
+        var stack = scene.groupScenes + scene.groupMasks.compactMap { $0 }
         while let nested = stack.popLast() {
             pending.append(contentsOf: nested.textures.map { (source: $0, forRoot: false) })
             stack.append(contentsOf: nested.groupScenes)
+            stack.append(contentsOf: nested.groupMasks.compactMap { $0 })
         }
         for (source, forRoot) in pending {
             let key = ObjectIdentifier(source)

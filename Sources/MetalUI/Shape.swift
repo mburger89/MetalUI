@@ -52,8 +52,8 @@ public struct ShapeGeometry: Sendable, Equatable {
     }
 
     /// `path`, in the shape's (window-space) coordinates, filled by `style`
-    /// (`GX-D`): its hit test is its winding, and as a clip it traps
-    /// (divergence 91).
+    /// (`GX-D`): its hit test is its winding, and as a clip it is a masked
+    /// group (`CM-A`).
     public static func path(_ path: Path, style: FillStyle = FillStyle()) -> ShapeGeometry {
         ShapeGeometry(rect: path.boundingRect, kind: .path(path, style))
     }
@@ -68,23 +68,6 @@ public struct ShapeGeometry: Sendable, Equatable {
     var cornerRadii: Corners<Pixels> {
         if case let .roundedRectangle(radii, _) = kind { return radii }
         return Corners(all: Pixels(0))
-    }
-
-    /// The rect and radii a clip pushes (`TE-AJ` items 1–2). **An ellipse or
-    /// a path traps** (divergence 91, `TE-AJ` item 4, `GX-D`): every
-    /// primitive's mask is a rounded rectangle, and a custom `Shape` can return
-    /// either at run time, so the check is here, at the clip, not in the type.
-    var clipRegion: (bounds: Bounds<Pixels>, radii: Corners<Pixels>) {
-        switch kind {
-        case let .roundedRectangle(radii, _):
-            return (rect, radii)
-        case .ellipse:
-            preconditionFailure("clipShape(_:) of an ellipse cannot be drawn: every primitive's mask is "
-                                + "a rounded rectangle (divergence 91, TE-AJ item 4)")
-        case .path:
-            preconditionFailure("clipShape(_:) of a path cannot be drawn: every primitive's mask is "
-                                + "a rounded rectangle (divergence 91, GX-D)")
-        }
     }
 
     /// Whether `point` lies in this geometry — the hit test of a declared

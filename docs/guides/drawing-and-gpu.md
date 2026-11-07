@@ -16,8 +16,8 @@ Conform to `Shape` and write `path(in:)`, as in SwiftUI; the points are `Point<P
 rect's own space. `.fill` takes a colour or a `LinearGradient`, and `.shadow(color:radius:x:y:)`
 follows. A path is rasterized on the CPU, in device pixels after every effect, and reaches the
 renderer as an image, so it stays crisp under `scaleEffect` and a pan reuses its raster. A gradient is
-rasterized the same way and interpolates in Oklab. `clipShape` of a path traps (divergence 91);
-a rounded rectangle still clips.
+rasterized the same way and interpolates in Oklab. `clipShape` of a path or an ellipse clips through a masked
+group, and a rounded rectangle still clips per primitive.
 
 ```swift
 import MetalUI
@@ -462,7 +462,7 @@ The scene holds two backdrop records, the blob of three members and the standalo
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
 
-- divergence 91: `clipShape` of a path traps; a rounded rectangle clips.
+- divergence 224: a clip around a material or glass, a group over 8192 and a rounded entry clip on a filtered group keep their bounding box.
 - divergence 103: a GPU surface redraws on a new target or a changed `value:`, not on every body.
 - divergence 104: a shadow is per drawn leaf.
 - divergence 105: a shadow's blur is three box blurs approximating a Gaussian.

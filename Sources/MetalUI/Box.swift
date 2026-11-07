@@ -457,13 +457,13 @@ public struct Decoration: Sendable, Hashable {
     }
 
     /// The rect and radii this decoration clips its children to, or `nil`
-    /// for none: a `clipShape`'s geometry in `bounds` (an ellipse traps,
-    /// divergence 91), else `clipsContent`'s box rounded by `cornerRadius`.
+    /// for none: a `clipShape`'s geometry in `bounds` (an ellipse or path
+    /// carries a mask, `CM-A`), else `clipsContent`'s box rounded by `cornerRadius`.
     /// Read by both clip halves (`registerAndScope`, `paintDecoration`).
     @MainActor
-    func clipRegion(in bounds: Bounds<Pixels>) -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>)? {
-        if let clipShape { return clipShape.shape.geometry(in: bounds).clipRegion }
-        return clipsContent ? (bounds, Corners(all: cornerRadius)) : nil
+    func clipRegion(in bounds: Bounds<Pixels>) -> ClipRegion? {
+        if let clipShape { return clipShape.shape.geometry(in: bounds).clip(style: clipShape.style) }
+        return clipsContent ? ClipRegion(bounds: bounds, radii: Corners(all: cornerRadius), mask: nil) : nil
     }
 
     /// The six paint slots `escapesOpacity` can hold.

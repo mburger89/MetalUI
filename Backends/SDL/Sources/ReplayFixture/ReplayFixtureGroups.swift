@@ -34,16 +34,30 @@ public struct FixtureGroup: Equatable, Sendable {
     public var sigma: Float
     /// A shadow's colour, premultiplied (r, g, b, a).
     public var tint: [Float]
+    /// The mask the group's target is multiplied by (version 9, `CM-A`, `Scene.groupMasks`): rects and images only (no
+    /// group run), drawn into a scratch of the group's size under the group's projection. `nil` is no mask.
+    public var mask: FixtureBody?
     public init(x: UInt32, y: UInt32, width: UInt32, height: UInt32, body: FixtureBody,
-                filterKind: UInt32 = 0, sigma: Float = 0, tint: [Float] = [0, 0, 0, 0]) {
+                filterKind: UInt32 = 0, sigma: Float = 0, tint: [Float] = [0, 0, 0, 0], mask: FixtureBody? = nil) {
         self.x = x; self.y = y; self.width = width; self.height = height; self.body = body
-        self.filterKind = filterKind; self.sigma = sigma; self.tint = tint
+        self.filterKind = filterKind; self.sigma = sigma; self.tint = tint; self.mask = mask
     }
 
     /// What the bridge trusts, checked once (`GO-F`): the body's strides and runs, every image run's texture and every
     /// group quad naming a group **earlier** than this one (post-order), and transforms the body's table holds.
     func validate(index: Int, textureCount: Int, groupCount: Int) throws(FixtureError) {
         let name = "group \(index)"
+        try Self.validate(body, name: name, textureCount: textureCount, groupCount: groupCount, filterKind: filterKind,
+                          sigma: sigma, tint: tint, width: width, height: height)
+        if let mask {
+            // A mask draws rects and images of the shared texture list and nothing that is itself a group (`CM-A`).
+            try Self.validate(mask, name: "\(name) mask", textureCount: textureCount, groupCount: 0, filterKind: 0,
+                              sigma: 0, tint: [0, 0, 0, 0], width: width, height: height)
+        }
+    }
+
+    private static func validate(_ body: FixtureBody, name: String, textureCount: Int, groupCount: Int, filterKind: UInt32,
+                                 sigma: Float, tint: [Float], width: UInt32, height: UInt32) throws(FixtureError) {
         guard filterKind <= 2, sigma.isFinite, sigma >= 0, tint.count == 4, tint.allSatisfy({ $0.isFinite }) else {
             throw .invalid("\(name) filter \(filterKind) sigma \(sigma) tint \(tint) is not a filter")
         }
@@ -130,6 +144,21 @@ public struct FixtureGroupTree {
                 }
             }
             let filter = scene.groupFilters[index]
+            // The mask scene (`CM-A`): the same body form, its images naming the shared texture list.
+            let mask = scene.groupMasks[index].map { mask -> FixtureBody in
+                var maskImages = mask.images
+                for k in maskImages.indices { maskImages[k].texture = textureIndex(mask.textures[Int(maskImages[k].texture)]) }
+                return FixtureBody(rects: mask.rects.withUnsafeBytes { Array($0) },
+                                   glyphs: mask.glyphs.withUnsafeBytes { Array($0) },
+                                   images: maskImages.withUnsafeBytes { Array($0) },
+                                   transforms: mask.transforms.withUnsafeBytes { Array($0) },
+                                   runs: mask.drawList.compactMap { run in
+                                       switch run.kind {
+                                       case .rect, .glyph, .image: FixtureRun(scene: run)
+                                       case .group, .surface, .backdrop: nil
+                                       }
+                                   })
+            }
             groups.append(FixtureGroup(
                 x: UInt32(max(quad.bounds.origin.x, 0)), y: UInt32(max(quad.bounds.origin.y, 0)),
                 width: UInt32(quad.bounds.size.width), height: UInt32(quad.bounds.size.height),
@@ -138,7 +167,7 @@ public struct FixtureGroupTree {
                                   images: images.withUnsafeBytes { Array($0) },
                                   transforms: child.transforms.withUnsafeBytes { Array($0) }, runs: runs),
                 filterKind: filter.kind.rawValue, sigma: filter.sigma,
-                tint: [filter.tint.x, filter.tint.y, filter.tint.z, filter.tint.w]))
+                tint: [filter.tint.x, filter.tint.y, filter.tint.z, filter.tint.w], mask: mask))
             var flat = quad
             flat.texture = MUIUInt(groups.count - 1)
             quads.append(flat)
@@ -159,6 +188,10 @@ public struct FlatGroup: Equatable, Sendable {
     public var filterKind: UInt32 = 0
     public var sigma: Float = 0
     public var tint: [Float] = [0, 0, 0, 0]
+    /// The slice of the flat run array that draws the group's mask (version 9, `CM-A`), after the group's own runs;
+    /// `maskRunCount` 0 is no mask.
+    public var maskRunStart: UInt32 = 0
+    public var maskRunCount: UInt32 = 0
 }
 
 /// A frame's records and its groups' in one set of arrays (`GO-F`), for the C bridge, which uploads one buffer a kind:
@@ -190,9 +223,19 @@ public struct FlatFrame: Sendable {
             let imageShift = UInt32(images.count / Int(ReplayFixture.imageStride))
             append(group.body, transformShift: transformShift, rectShift: rectShift, glyphShift: glyphShift,
                    imageShift: imageShift, base: groupTextureBase, appendRecords: true)
+            let groupRunCount = UInt32(runs.count) - start
+            // The group's mask body follows its own records, every index shifted like any record's (`CM-A`).
+            let maskStart = UInt32(runs.count)
+            if let mask = group.mask {
+                append(mask, transformShift: UInt32(transforms.count / Int(ReplayFixture.transformStride)),
+                       rectShift: UInt32(rects.count / Int(ReplayFixture.rectStride)),
+                       glyphShift: UInt32(glyphs.count / Int(ReplayFixture.glyphStride)),
+                       imageShift: UInt32(images.count / Int(ReplayFixture.imageStride)), base: groupTextureBase, appendRecords: true)
+            }
             groups.append(FlatGroup(x: Float(group.x), y: Float(group.y), width: group.width, height: group.height,
-                                    runStart: start, runCount: UInt32(runs.count) - start,
-                                    filterKind: group.filterKind, sigma: group.sigma, tint: group.tint))
+                                    runStart: start, runCount: groupRunCount,
+                                    filterKind: group.filterKind, sigma: group.sigma, tint: group.tint,
+                                    maskRunStart: maskStart, maskRunCount: UInt32(runs.count) - maskStart))
         }
     }
 

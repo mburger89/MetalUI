@@ -32,11 +32,14 @@ final class BackdropPipelines {
     let copy: any MTLRenderPipelineState
     /// The shadow tint pass of a filtered group (`GF-E`).
     let tint: any MTLRenderPipelineState
+    /// The mask pass of a masked group (`CM-A`): `group_tint_fragment` at tint (1, 1, 1, 1) with a destination-in blend
+    /// (source factor zero, destination factor source alpha), so the target keeps its pixels times the mask's alpha.
+    let mask: any MTLRenderPipelineState
     let blurred: any MTLRenderPipelineState
     let flat: any MTLRenderPipelineState
 
     init(device: any MTLDevice, library: any MTLLibrary) throws {
-        func make(vertex: String, fragment: String, blend: Bool) throws -> any MTLRenderPipelineState {
+        func make(vertex: String, fragment: String, blend: Bool, destinationIn: Bool = false) throws -> any MTLRenderPipelineState {
             guard let vertexFn = library.makeFunction(name: vertex) else { throw RendererError.functionMissing(vertex) }
             guard let fragmentFn = library.makeFunction(name: fragment) else { throw RendererError.functionMissing(fragment) }
             let descriptor = MTLRenderPipelineDescriptor()
@@ -44,7 +47,15 @@ final class BackdropPipelines {
             descriptor.fragmentFunction = fragmentFn
             let attachment = descriptor.colorAttachments[0]!
             attachment.pixelFormat = Renderer.pixelFormat
-            if blend {
+            if destinationIn {
+                attachment.isBlendingEnabled = true
+                attachment.rgbBlendOperation = .add
+                attachment.alphaBlendOperation = .add
+                attachment.sourceRGBBlendFactor = .zero
+                attachment.sourceAlphaBlendFactor = .zero
+                attachment.destinationRGBBlendFactor = .sourceAlpha
+                attachment.destinationAlphaBlendFactor = .sourceAlpha
+            } else if blend {
                 attachment.isBlendingEnabled = true
                 attachment.rgbBlendOperation = .add
                 attachment.alphaBlendOperation = .add
@@ -59,6 +70,7 @@ final class BackdropPipelines {
         gaussian = try make(vertex: "backdrop_pass_vertex", fragment: "backdrop_gaussian_fragment", blend: false)
         copy = try make(vertex: "backdrop_pass_vertex", fragment: "backdrop_copy_fragment", blend: false)
         tint = try make(vertex: "backdrop_pass_vertex", fragment: "group_tint_fragment", blend: false)
+        mask = try make(vertex: "backdrop_pass_vertex", fragment: "group_tint_fragment", blend: false, destinationIn: true)
         blurred = try make(vertex: "backdrop_vertex", fragment: "backdrop_fragment", blend: true)
         flat = try make(vertex: "backdrop_vertex", fragment: "backdrop_flat_fragment", blend: true)
     }

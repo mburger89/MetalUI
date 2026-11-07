@@ -547,8 +547,8 @@ extension LayoutModifier: ModifierLayerKind {
                 result = inside()
             }
             return result!
-        case let .clipShape(shape):
-            let region = shape.geometry(in: bounds).clipRegion
+        case let .clipShape(shape, style):
+            let region = shape.geometry(in: bounds).clip(style: style)
             var result: R?
             pass.clipped(to: region.bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
                          cornerRadii: region.radii) {
@@ -592,10 +592,8 @@ extension LayoutModifier: ModifierLayerKind {
         case let .clip(cornerRadius):
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
                          cornerRadii: Corners(all: cornerRadius), inside)
-        case let .clipShape(shape):
-            let region = shape.geometry(in: bounds).clipRegion
-            pass.clipped(to: region.bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
-                         cornerRadii: region.radii, inside)
+        case let .clipShape(shape, style):
+            pass.clipped(to: shape.geometry(in: bounds).clip(style: style), inside)
         case let .border(token, width, cornerRadius):
             inside()
             let color = storedAnimatedColor(token, at: layerAnimationKey(id, "border.colour"), pass: pass)

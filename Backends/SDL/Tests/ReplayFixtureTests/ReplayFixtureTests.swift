@@ -29,7 +29,7 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func encodingIsLittleEndianWithMagicAndVersion() throws {
     let bytes = try sample().encoded()
     #expect(Array(bytes[0..<8]) == Array("MUIRPLY".utf8) + [0])
-    #expect(Array(bytes[8..<12]) == [8, 0, 0, 0])       // version (8 since GF-F)
+    #expect(Array(bytes[8..<12]) == [9, 0, 0, 0])       // version (9 since CM-A)
     #expect(Array(bytes[12..<16]) == [3, 0, 0, 0])      // width
     #expect(Array(bytes[20..<24]) == [120, 0, 0, 0])    // rect stride
     #expect(Array(bytes[24..<28]) == [88, 0, 0, 0])     // glyph stride
@@ -411,8 +411,8 @@ func asVersion6(_ v7: [UInt8], _ fixture: ReplayFixture) throws -> [UInt8] {
 /// version 1 stays refused. The old files are built from the new encoding by
 /// removing exactly the fields the old layouts lack. Mutation: bump
 /// `version` without the reader's older arms.
-@Test func theFixtureVersionIsEightAndOldVersionsStillLoad() throws {
-    #expect(ReplayFixture.version == 8)
+@Test func theFixtureVersionIsNineAndOldVersionsStillLoad() throws {
+    #expect(ReplayFixture.version == 9)
     let fixture = try sample()
     let v6 = try asVersion6(fixture.encoded(), fixture)
     #expect(try ReplayFixture(decoding: v6) == fixture, "version 6 (no group table) still loads")
@@ -446,9 +446,9 @@ func asVersion6(_ v7: [UInt8], _ fixture: ReplayFixture) throws -> [UInt8] {
     var v1 = v6
     v1[8] = 1
     #expect(throws: FixtureError.unsupportedVersion(1)) { try ReplayFixture(decoding: v1) }
-    var v9 = v6
-    v9[8] = 9
-    #expect(throws: FixtureError.unsupportedVersion(9)) { try ReplayFixture(decoding: v9) }
+    var v10 = v6
+    v10[8] = 10
+    #expect(throws: FixtureError.unsupportedVersion(10)) { try ReplayFixture(decoding: v10) }
 }
 
 /// **3.4** (ruling `BB-J`, `MV-C` item 4). A scene's backdrop run is recorded
@@ -543,7 +543,7 @@ func asVersion6(_ v7: [UInt8], _ fixture: ReplayFixture) throws -> [UInt8] {
 /// version-5 record keeps its whole tail through an encode and a decode.
 /// Mutations: widen with 0xFF; read a version-4 table at the new stride.
 @Test func theFixtureStrideIs256AndVersion4Widens() throws {
-    #expect(ReplayFixture.backdropStride == 256 && ReplayFixture.version == 8)
+    #expect(ReplayFixture.backdropStride == 256 && ReplayFixture.version == 9)
     // A version-4 stream built from the version-5 encoding: the stride field and the table
     // shrink to the first 96 bytes of each record.
     let fixture = try backdropFixture()
@@ -807,7 +807,7 @@ private func filteredFixture() throws -> ReplayFixture {
         let body = 4 * 4 + group.body.rects.count + group.body.glyphs.count + group.body.images.count + group.body.transforms.count
             + 4 + group.body.runs.count * 12
         v7 += bytes[cursor..<(cursor + body)]
-        cursor += body
+        cursor += body + 4   // version 9's hasMask word (0 here), which a version-7 file lacks
     }
     v7 += bytes[cursor...]
     v7[8] = 7
@@ -840,4 +840,94 @@ private func filteredFixture() throws -> ReplayFixture {
     let transformIndices = images.map { $0.filter >> 8 }
     #expect(transformIndices.contains(0), "the root's quad is unshifted: \(transformIndices)")
     #expect(transformIndices.contains(3), "the group's quad: record 2 of its table, shifted by the shadow group's one: \(transformIndices)")
+}
+
+// MARK: - A group's mask (ruling CM-A, version 9)
+
+/// One masked group and one unmasked: the masked group holds a rect under transform record 1 and its mask scene a rect under
+/// its own transform record (so the flat mask rect must name record 3: the root has none, the first group one, the mask one).
+private func maskedGroupScene() -> Scene {
+    var content = Scene()
+    content.insert(groupRect(1), transform: transformRecord(2))
+    content.finalize()
+    var mask = Scene()
+    mask.insert(groupRect(2), transform: transformRecord(9))
+    mask.finalize()
+    var plain = Scene()
+    plain.insert(groupRect(3))
+    plain.finalize()
+    let quad = MUIImage(bounds: groupBounds(0, 0, 8, 8), contentMask: groupBounds(0, 0, 8, 8),
+                        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0), opacity: 1, texture: 0,
+                        filter: MUIUInt(MUIImageFilterNearest.rawValue), order: 1)
+    var root = Scene()
+    root.insert(groupRect(0))
+    root.insert(quad, group: content, mask: mask)
+    root.insert(quad, group: plain)
+    root.finalize()
+    return root
+}
+
+private func maskedFixture() throws -> ReplayFixture {
+    try ReplayFixture(scene: maskedGroupScene(), atlas: GlyphAtlas(width: 1, height: 1), width: 8, height: 8,
+                      projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                      reference: [UInt8](repeating: 0, count: 8 * 8 * 4))
+}
+
+/// **CM-A.** A group's mask scene is recorded as a second nested body and survives the version-9 encoding; a version-8
+/// file (no `hasMask` word, so no mask body) loads every group unmasked with the bodies intact; a mask holding a group run
+/// is refused. Mutations: the writer omits the mask (the round trip loses it); the reader ignores `hasMask` (a version-8
+/// file misparses, or a masked file loses its mask).
+@Test func aGroupsMaskRoundTripsInVersionNineAndVersionEightLoadsUnmasked() throws {
+    let fixture = try maskedFixture()
+    try #require(fixture.groups.count == 2, "the masked group then the plain one: \(fixture.groups.count)")
+    let mask = try #require(fixture.groups[0].mask, "the first group records its mask")
+    #expect(mask.runs == [FixtureRun(kind: .rect, start: 0, count: 1)] && mask.transforms.count == 80)
+    #expect(fixture.groups[1].mask == nil)
+    let bytes = fixture.encoded()
+    #expect(try ReplayFixture(decoding: bytes) == fixture, "v9 round trip")
+    // Version 8: each group lacks the hasMask word and the mask body that follows its body.
+    let tableOffset = 8 + 4 + 28 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + fixture.images.count
+        + 4 + fixture.textures.reduce(0) { $0 + 8 + $1.pixels.count } + 4 + fixture.transforms.count + 4 + fixture.backdrops.count
+        + 4 + fixture.runs.count * 12
+    var v8: [UInt8] = Array(bytes[0..<(tableOffset + 4)])
+    var cursor = tableOffset + 4
+    for group in fixture.groups {
+        let body = 16 + 24 + 4 * 4 + group.body.rects.count + group.body.glyphs.count + group.body.images.count
+            + group.body.transforms.count + 4 + group.body.runs.count * 12
+        v8 += bytes[cursor..<(cursor + body)]
+        cursor += body + 4
+        if let mask = group.mask {
+            cursor += 4 * 4 + mask.rects.count + mask.glyphs.count + mask.images.count + mask.transforms.count + 4 + mask.runs.count * 12
+        }
+    }
+    v8 += bytes[cursor...]
+    v8[8] = 8
+    let old = try ReplayFixture(decoding: v8)
+    #expect(old.groups.count == 2 && old.groups.allSatisfy { $0.mask == nil }, "unmasked")
+    #expect(old.groups.map(\.body) == fixture.groups.map(\.body), "the bodies are intact")
+    var bad = fixture
+    bad.groups[0].mask?.runs = [FixtureRun(kind: .group, start: 0, count: 1)]
+    #expect(throws: FixtureError.self) { try bad.validate() }
+}
+
+/// **CM-A.** `FlatFrame` appends a group's mask body after the group's own records and runs, shifting its transform index
+/// like any record's (past the root's and the group's), and names the mask runs in `maskRunStart`/`maskRunCount`.
+/// Mutation: the mask's transform index not shifted (it reads the group's record).
+@Test func aFlatFrameShiftsAMaskScenesTransforms() throws {
+    let fixture = try maskedFixture()
+    let flat = FlatFrame(root: FixtureBody(rects: fixture.rects, glyphs: fixture.glyphs, images: fixture.images,
+                                           transforms: fixture.transforms, runs: fixture.runs),
+                         groups: fixture.groups, groupTextureBase: 3)
+    let rectStride = Int(ReplayFixture.rectStride)
+    let rects = flat.rects.withUnsafeBytes { raw in
+        (0..<flat.rects.count / rectStride).map { raw.loadUnaligned(fromByteOffset: $0 * rectStride, as: MUIRect.self) }
+    }
+    // The root rect, the masked group's rect, its mask's rect, the plain group's rect.
+    try #require(rects.count == 4, "\(rects.count) rects")
+    #expect(rects.map { $0.shape >> 8 } == [0, 1, 2, 0], "transform indices: \(rects.map { $0.shape >> 8 })")
+    let masked = flat.groups[0]
+    #expect(masked.maskRunCount == 1 && masked.maskRunStart == masked.runStart + masked.runCount,
+            "the mask's runs follow the group's: \(masked)")
+    #expect(flat.runs[Int(masked.maskRunStart)] == FixtureRun(kind: .rect, start: 2, count: 1), "the mask rect is flat record 2")
+    #expect(flat.groups[1].maskRunCount == 0)
 }

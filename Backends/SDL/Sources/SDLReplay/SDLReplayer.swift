@@ -134,7 +134,8 @@ public final class SDLReplayer {
         let cRuns = runs.map { ReplayRun(kind: $0.kind.rawValue, start: $0.start, count: $0.count) }
         let cGroups = groups.map {
             ReplayGroup(x: $0.x, y: $0.y, width: $0.width, height: $0.height, run_start: $0.runStart, run_count: $0.runCount,
-                        filter_kind: $0.filterKind, sigma: $0.sigma, tint: ($0.tint[0], $0.tint[1], $0.tint[2], $0.tint[3]))
+                        filter_kind: $0.filterKind, sigma: $0.sigma, tint: ($0.tint[0], $0.tint[1], $0.tint[2], $0.tint[3]),
+                        mask_run_start: $0.maskRunStart, mask_run_count: $0.maskRunCount)
         }
         var output = [UInt8](repeating: 0, count: Int(width) * Int(height) * 4)
         // Each texture's bytes pinned for the call: `replay_render` copies them.

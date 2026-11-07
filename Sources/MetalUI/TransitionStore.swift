@@ -760,6 +760,12 @@ final class PaintScope {
     var groupsOpacity = false
     /// The opacity in force where the group starts, which becomes the mark's alpha (`GO-A`).
     var entryOpacity: Float = 1
+    /// A composite scope that masks (`CM-A`): the shape's primitive, in the space the scope was entered in. Its leaves
+    /// leave it marked with this mask; `nil` for every other scope.
+    var mask: CapturedPrimitive?
+    /// The token of the group a flattening effect's crossing clips share (`CM-B`): one per scope, so every primitive whose
+    /// clip crosses the entry clip joins the same masked group. Made on first use.
+    lazy var crossingMaskToken = GroupToken()
 
     var capturing: Bool { kind == .transition || kind == .capture }
 
