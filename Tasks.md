@@ -195,4 +195,4 @@ Ranked from the carried/not-built sweep (decisions docs' Carried sections, the "
 - [ ] G4. A closable tab bar.
 - [ ] G5. A two-axis `ScrollView`.
 - [ ] G6. `defaultScrollAnchor(.bottom)`: stick-to-bottom on a `LazyVStack`.
-- [ ] G7. Frame timing and signposts for an external benchmark harness. (PR #TBD, branch feat/frame-signposts, record 222, `FP-A`..`FP-H`, `docs/frame-timing.md`) `Window.frameTiming`, a ring of per-frame samples (input, layout, prepaint, paint, commit, presented), macOS `OSSignposter` under `com.metalui`.
+- [ ] G7. Frame timing and signposts for an external benchmark harness. (PR #219, branch feat/frame-signposts, record 222, `FP-A`..`FP-H`, `docs/frame-timing.md`) `Window.frameTiming`, a ring of per-frame samples (input, layout, prepaint, paint, commit, presented), macOS `OSSignposter` under `com.metalui`.
