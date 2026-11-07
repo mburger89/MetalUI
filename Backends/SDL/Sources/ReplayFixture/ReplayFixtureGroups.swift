@@ -34,8 +34,8 @@ public struct FixtureGroup: Equatable, Sendable {
     public var sigma: Float
     /// A shadow's colour, premultiplied (r, g, b, a).
     public var tint: [Float]
-    /// The mask the group's target is multiplied by (version 9, `CM-A`, `Scene.groupMasks`): rects and images only (no
-    /// group run), drawn into a scratch of the group's size under the group's projection. `nil` is no mask.
+    /// The mask the group's target is multiplied by (version 9, `CM-A`, `Scene.groupMasks`): rects, glyphs and images (no
+    /// group run; a gradient text's mask is a glyph run, `TG-C`), drawn into a scratch of the group's size under the group's projection. `nil` is no mask.
     public var mask: FixtureBody?
     public init(x: UInt32, y: UInt32, width: UInt32, height: UInt32, body: FixtureBody,
                 filterKind: UInt32 = 0, sigma: Float = 0, tint: [Float] = [0, 0, 0, 0], mask: FixtureBody? = nil) {
@@ -50,7 +50,7 @@ public struct FixtureGroup: Equatable, Sendable {
         try Self.validate(body, name: name, textureCount: textureCount, groupCount: groupCount, filterKind: filterKind,
                           sigma: sigma, tint: tint, width: width, height: height)
         if let mask {
-            // A mask draws rects and images of the shared texture list and nothing that is itself a group (`CM-A`).
+            // A mask draws rects, glyphs and images of the shared texture list and nothing that is itself a group (`CM-A`).
             try Self.validate(mask, name: "\(name) mask", textureCount: textureCount, groupCount: 0, filterKind: 0,
                               sigma: 0, tint: [0, 0, 0, 0], width: width, height: height)
         }

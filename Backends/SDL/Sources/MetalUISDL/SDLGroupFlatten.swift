@@ -129,7 +129,7 @@ struct SDLGroupSet {
                 let runStart = mainRunCount + set.runs.count
                 append(child, childQuads: childQuads)
                 let runCount = mainRunCount + set.runs.count - runStart
-                // The group's mask scene (`CM-A`): rects and images only, appended after the group's own records and
+                // The group's mask scene (`CM-A`, `TG-C`): rects, glyphs and images, appended after the group's own records and
                 // runs with every index shifted like any record's; the bridge draws it into a scratch under the group's
                 // projection.
                 let maskStart = mainRunCount + set.runs.count

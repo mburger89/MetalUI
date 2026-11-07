@@ -35,6 +35,12 @@ private func scene<S: ShapeStyle>(_ style: S, atlas: GlyphAtlas, turned: Bool = 
     return renderFrame({
         ZStack(alignment: .topLeading) {
             Color(Hsla(h: 0, s: 0, l: 0, a: 1)).frame(width: px(Float(width)), height: px(Float(height)))
+            if turned {
+                // A black swatch turned on the black ground: invisible, but the root now holds a transform record before the
+                // group's mask glyphs, so their index must be shifted past it.
+                Color(Hsla(h: 0, s: 0, l: 0, a: 1)).frame(width: px(20), height: px(20)).rotationEffect(.degrees(30))
+                    .offset(x: px(170), y: px(30))
+            }
             Text("HIWMN").font(size: 40).foregroundStyle(style).padding(Edges(top: px(4), right: px(0), bottom: px(0), left: px(6)))
                 .rotationEffect(.degrees(turned ? 8 : 0))
         }
@@ -73,8 +79,8 @@ private func rgb(_ pixels: [UInt8], _ x: Int, _ y: Int) -> [Int] {
 
 /// **S2** (`TG-D`, `CM-A`). The same under `rotationEffect`: the mask scene's glyph records carry a transform record, which
 /// `SDLGroupSet.Builder.append` shifts past the root's and the group's like any record's. Mutation: the glyph's transform
-/// index not shifted (`SDLGroupFlatten.swift`: the mask glyphs read the wrong record and land unrotated, so the ink leaves
-/// the solid text's coverage).
+/// index not shifted (`SDLGroupFlatten.swift`: a black swatch turned before the text gives the root a record, so the unshifted
+/// mask glyphs read the swatch's rotation and the ink leaves the solid text's coverage).
 @MainActor
 @Test func aRotatedGradientTextMatchesTheRotatedSolidText() throws { try checkGradientText(turned: true) }
 

@@ -460,7 +460,8 @@ public final class Renderer {
 
     /// A masked group's mask (`CM-A`): `mask` drawn into a scratch target of the group's size with the group's own
     /// projection, then one pass over `target` (loaded, not cleared) that multiplies it by the scratch's alpha with a
-    /// destination-in blend through `group_tint_fragment` at tint (1, 1, 1, 1). The scratch goes back to the pool. When
+    /// destination-in blend through `group_tint_fragment` at tint (1, 1, 1, 1). The mask scene may hold rects, glyphs
+    /// and images (a gradient text's mask is its glyph run, `TG-C`). The scratch goes back to the pool. When
     /// it cannot be allocated the group stays unmasked (`lastMaskAllocationFailures`): the bounding clip still cuts it.
     private func applyMask(_ mask: Scene, to target: any MTLTexture, view: SurfaceView, in commandBuffer: any MTLCommandBuffer,
                            surfaces: [SurfaceID: any MTLTexture], state: BackdropFrameState) throws {

@@ -119,7 +119,7 @@ public struct Scene: Sendable {
     public private(set) var groupFilters: [GroupFilter] = []
 
     /// The mask each of ``groups`` multiplies its target by (after the content, before the filter), parallel to
-    /// ``groupScenes`` (`CM-A`): `nil` for an unmasked group. A mask scene holds only rects and images, finalized, in the
+    /// ``groupScenes`` (`CM-A`): `nil` for an unmasked group. A mask scene holds only rects, glyphs and images (a gradient text's mask is its glyph run, `TG-C`), finalized, in the
     /// content scene's coordinates; the renderer draws it into a scratch target and keeps the group's pixels times its
     /// alpha (`dst *= mask.a`).
     public private(set) var groupMasks: [Scene?] = []
@@ -297,7 +297,7 @@ public struct Scene: Sendable {
     public mutating func insert(_ quad: MUIImage, group: Scene, layer: Int = 0, transform: MUITransform? = nil,
                                 filter: GroupFilter = .none, mask: Scene? = nil) {
         precondition(mask.map { $0.groups.isEmpty && $0.backdrops.isEmpty && $0.surfaces.isEmpty } ?? true,
-                     "a group's mask scene holds only rects and images (CM-A)")
+                     "a group's mask scene holds only rects, glyphs and images (CM-A, TG-D)")
         var quad = quad
         let index = transformIndex(transform)
         quad.filter = (quad.filter & 0xFF) | index << 8

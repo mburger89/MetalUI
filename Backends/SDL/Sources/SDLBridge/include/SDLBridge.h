@@ -24,7 +24,7 @@ typedef struct { float x, y; uint32_t width, height, run_start, run_count; uint3
 // L downsamples and two Gaussians at `sigma` (device pixels of the target; none when 0) and, for a shadow, a tint pass
 // writing `tint` (premultiplied) times the blurred alpha; the quad samples the result.
 // A group's mask (ruling CM-A): `mask_run_count` runs from `mask_run_start` of the same run array (after the group's own;
-// rects and images only) are drawn into a scratch of the group's size with the group's projection, and one pass multiplies
+// rects, glyphs and images only) are drawn into a scratch of the group's size with the group's projection, and one pass multiplies
 // the group's target by the scratch's alpha (a destination-in blend), before the filter. 0 runs is no mask.
 // One surface's `drawText` glyphs (ruling DT-G): `count` glyph records from `start` (an index into the
 // frame's glyph buffer, the scene's own glyphs first), drawn into `target` (a surface target, `width` x
