@@ -242,6 +242,22 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var groupPoolFailsAllocation = false {
         didSet { mui_renderer_set_group_hook(renderer, groupPoolFailsAllocation) }
     }
+    private func filterCounter(_ index: Int) -> Int {
+        var counters: [UInt32] = [0, 0, 0]
+        mui_renderer_filter_counters(renderer, &counters)
+        return Int(counters[index])
+    }
+    /// Render passes the filtered groups of the last frame took (`GF-E`): L downsamples, two Gaussians when sigma is above
+    /// 0 and a shadow's tint pass.
+    package var lastFilterPasses: Int { filterCounter(0) }
+    /// Groups of the last frame that went through a filter (`GF-E`).
+    package var lastFilteredGroups: Int { filterCounter(1) }
+    /// Filtered groups of the last frame whose intermediate could not be made (`GF-E`).
+    package var lastFilterAllocationFailures: Int { filterCounter(2) }
+    /// Test hook (`GF-E`): every filter intermediate allocation fails; a blur draws its unfiltered target, a shadow nothing.
+    package var filterPoolFailsAllocation = false {
+        didSet { mui_renderer_set_filter_hook(renderer, filterPoolFailsAllocation) }
+    }
     /// The atlas bytes the last finished frame moved to the GPU (a test recorder, `RG-H`).
     package var lastAtlasBytes: Int { Int(mui_renderer_last_atlas_bytes(renderer)) }
     /// The bridge's renderer handle, for a test that drives `mui_renderer_finish` by hand.
@@ -327,7 +343,7 @@ public final class SDLWindowRenderer: WindowRenderer {
 
         let device = OpaquePointer(mui_renderer_device(renderer)!)
         let toDraw = surfaceTable.update(
-            references: scene.surfaceTargets, requests: surfaces,
+            references: scene.allSurfaceTargets(), requests: surfaces,
             create: { target in
                 guard let handle = mui_renderer_create_target(renderer, UInt32(target.width), UInt32(target.height))
                 else { return nil }
@@ -374,7 +390,9 @@ public final class SDLWindowRenderer: WindowRenderer {
 
         // Each surface target's handle, after the image textures' (`nil` where
         // a target has none — no run that reaches the bridge names it).
-        let surfaceHandles: [UnsafeMutableRawPointer?] = scene.surfaceTargets.map { surfaceTable.handle(for: $0.id) }
+        // The root's targets first, then those only a group scene samples (`GF-C`): the root's indices are unmoved.
+        let allTargets = scene.allSurfaceTargets()
+        let surfaceHandles: [UnsafeMutableRawPointer?] = allTargets.map { surfaceTable.handle(for: $0.id) }
         let textureOffset = UInt32(handles.count)
         var images = scene.images
         images.reserveCapacity(scene.images.count + scene.surfaces.count)
@@ -418,7 +436,11 @@ public final class SDLWindowRenderer: WindowRenderer {
             let set = SDLGroupSet(scene, counts: (rectRecords.count, glyphRecords.count,
                                                   imageRecords.count + scene.groups.count, transformRecords.count),
                                   mainRunCount: mainRunCount, groupTextureBase: UInt32(handles.count + surfaceHandles.count),
-                                  textureIndex: { indexOf[ObjectIdentifier($0)]! })
+                                  textureIndex: { indexOf[ObjectIdentifier($0)]! },
+                                  surfaceIndex: { id in
+                                      guard let k = allTargets.firstIndex(where: { $0.id == id }), surfaceHandles[k] != nil else { return nil }
+                                      return UInt32(handles.count + k)
+                                  })
             rectRecords += set.rects; glyphRecords += set.glyphs; imageRecords += set.rootQuads + set.images
             transformRecords += set.transforms
             allRuns += set.runs

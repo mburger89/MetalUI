@@ -4,7 +4,8 @@
 // side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
 // `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
-// Layout (little-endian, no padding), version 7 (ruling GO-F: offscreen opacity groups, after the runs; version 6,
+// Layout (little-endian, no padding), version 8 (ruling GF-F: each group carries a filter; versions 2-7 load with none;
+// version 7, ruling GO-F: offscreen opacity groups, after the runs; version 6,
 // ruling PJ-A: the 80-byte transform record with its
 // projective lane; version 5, LG-O: the 256-byte
 // backdrop record with the Liquid Glass tail; version 4, BB-J, backdrops at 96
@@ -22,7 +23,8 @@
 //   u32 transformByteCount, transform bytes (MUITransform records)   (version 3; 64 bytes a record until 5, 80 from 6)
 //   u32 backdropByteCount, backdrop bytes (MUIBackdrop records)      (version 4, 5)
 //   u32 runCount, runCount × (u32 kind, start, count)        (kind 4 = a group quad run, version 7)
-//   u32 groupCount, per group in post-order (version 7, GO-F): u32 x, y, width, height, then a nested body:
+//   u32 groupCount, per group in post-order (version 7, GO-F): u32 x, y, width, height, [version 8, GF-F: u32 filterKind
+//       (0 none, 1 blur, 2 shadow), f32 sigma, 4 x f32 tint,] then a nested body:
 //       u32 byteCount + bytes for rects, glyphs, images, transforms; u32 runCount, runCount × (kind, start, count)
 //       (textures are the top-level list; a group quad in an `images` array names its group by index)
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
@@ -77,7 +79,7 @@ public struct FixtureTexture: Equatable, Sendable {
 }
 
 public struct ReplayFixture: Equatable, Sendable {
-    public static let version: UInt32 = 7
+    public static let version: UInt32 = 8
     /// The oldest version ``init(decoding:)`` still reads (ruling `BB-J`):
     /// version 1 had no images and is re-recorded, never read.
     public static let oldestReadableVersion: UInt32 = 2
@@ -335,6 +337,8 @@ extension ReplayFixture {
         u32(UInt32(groups.count))
         for group in groups {
             u32(group.x); u32(group.y); u32(group.width); u32(group.height)
+            u32(group.filterKind); u32(group.sigma.bitPattern)
+            for value in group.tint { u32(value.bitPattern) }
             bytes(group.body.rects); bytes(group.body.glyphs); bytes(group.body.images); bytes(group.body.transforms)
             u32(UInt32(group.body.runs.count))
             for run in group.body.runs { u32(run.kind.rawValue); u32(run.start); u32(run.count) }
@@ -432,6 +436,12 @@ extension ReplayFixture {
             let groupCount = Int(try u32())
             for _ in 0..<groupCount {
                 let x = try u32(), y = try u32(), groupWidth = try u32(), groupHeight = try u32()
+                var filterKind: UInt32 = 0, sigma: Float = 0, tint: [Float] = [0, 0, 0, 0]
+                if version >= 8 {
+                    filterKind = try u32(); sigma = Float(bitPattern: try u32())
+                    tint = [Float(bitPattern: try u32()), Float(bitPattern: try u32()),
+                            Float(bitPattern: try u32()), Float(bitPattern: try u32())]
+                }
                 let rects = try bytes(Int(try u32())), glyphs = try bytes(Int(try u32()))
                 let images = try bytes(Int(try u32())), transforms = try bytes(Int(try u32()))
                 var groupRuns: [FixtureRun] = []
@@ -442,7 +452,8 @@ extension ReplayFixture {
                 }
                 groups.append(FixtureGroup(x: x, y: y, width: groupWidth, height: groupHeight,
                                            body: FixtureBody(rects: rects, glyphs: glyphs, images: images,
-                                                             transforms: transforms, runs: groupRuns)))
+                                                             transforms: transforms, runs: groupRuns),
+                                           filterKind: filterKind, sigma: sigma, tint: tint))
             }
         }
         let atlasWidth = try u32(), atlasHeight = try u32()

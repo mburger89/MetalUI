@@ -27,14 +27,26 @@ public struct FixtureGroup: Equatable, Sendable {
     public var width: UInt32
     public var height: UInt32
     public var body: FixtureBody
-    public init(x: UInt32, y: UInt32, width: UInt32, height: UInt32, body: FixtureBody) {
+    /// The filter the group's target goes through before its quad samples it (version 8, `GF-F`): 0 none, 1 blur, 2 shadow
+    /// (`Scene.GroupFilter.Kind`).
+    public var filterKind: UInt32
+    /// The Gaussian's standard deviation in device pixels of the target; 0 skips the blur passes.
+    public var sigma: Float
+    /// A shadow's colour, premultiplied (r, g, b, a).
+    public var tint: [Float]
+    public init(x: UInt32, y: UInt32, width: UInt32, height: UInt32, body: FixtureBody,
+                filterKind: UInt32 = 0, sigma: Float = 0, tint: [Float] = [0, 0, 0, 0]) {
         self.x = x; self.y = y; self.width = width; self.height = height; self.body = body
+        self.filterKind = filterKind; self.sigma = sigma; self.tint = tint
     }
 
     /// What the bridge trusts, checked once (`GO-F`): the body's strides and runs, every image run's texture and every
     /// group quad naming a group **earlier** than this one (post-order), and transforms the body's table holds.
     func validate(index: Int, textureCount: Int, groupCount: Int) throws(FixtureError) {
         let name = "group \(index)"
+        guard filterKind <= 2, sigma.isFinite, sigma >= 0, tint.count == 4, tint.allSatisfy({ $0.isFinite }) else {
+            throw .invalid("\(name) filter \(filterKind) sigma \(sigma) tint \(tint) is not a filter")
+        }
         guard width > 0, height > 0, width <= ReplayFixture.maxDimension, height <= ReplayFixture.maxDimension else {
             throw .invalid("\(name) size \(width)×\(height) outside 1...\(ReplayFixture.maxDimension)")
         }
@@ -117,13 +129,16 @@ public struct FixtureGroupTree {
                 case .surface, .backdrop: continue   // a group holds neither (`GO-C`)
                 }
             }
+            let filter = scene.groupFilters[index]
             groups.append(FixtureGroup(
                 x: UInt32(max(quad.bounds.origin.x, 0)), y: UInt32(max(quad.bounds.origin.y, 0)),
                 width: UInt32(quad.bounds.size.width), height: UInt32(quad.bounds.size.height),
                 body: FixtureBody(rects: child.rects.withUnsafeBytes { Array($0) },
                                   glyphs: child.glyphs.withUnsafeBytes { Array($0) },
                                   images: images.withUnsafeBytes { Array($0) },
-                                  transforms: child.transforms.withUnsafeBytes { Array($0) }, runs: runs)))
+                                  transforms: child.transforms.withUnsafeBytes { Array($0) }, runs: runs),
+                filterKind: filter.kind.rawValue, sigma: filter.sigma,
+                tint: [filter.tint.x, filter.tint.y, filter.tint.z, filter.tint.w]))
             var flat = quad
             flat.texture = MUIUInt(groups.count - 1)
             quads.append(flat)
@@ -140,6 +155,10 @@ public struct FlatGroup: Equatable, Sendable {
     public var height: UInt32
     public var runStart: UInt32
     public var runCount: UInt32
+    /// The group's filter (version 8, `GF-F`), as ``FixtureGroup`` holds it.
+    public var filterKind: UInt32 = 0
+    public var sigma: Float = 0
+    public var tint: [Float] = [0, 0, 0, 0]
 }
 
 /// A frame's records and its groups' in one set of arrays (`GO-F`), for the C bridge, which uploads one buffer a kind:
@@ -172,7 +191,8 @@ public struct FlatFrame: Sendable {
             append(group.body, transformShift: transformShift, rectShift: rectShift, glyphShift: glyphShift,
                    imageShift: imageShift, base: groupTextureBase, appendRecords: true)
             groups.append(FlatGroup(x: Float(group.x), y: Float(group.y), width: group.width, height: group.height,
-                                    runStart: start, runCount: UInt32(runs.count) - start))
+                                    runStart: start, runCount: UInt32(runs.count) - start,
+                                    filterKind: group.filterKind, sigma: group.sigma, tint: group.tint))
         }
     }
 
@@ -215,11 +235,10 @@ public struct FlatFrame: Sendable {
         for i in 0..<imageBytes.count / imageStride {
             imageBytes.withUnsafeMutableBytes { raw in
                 var image = raw.loadUnaligned(fromByteOffset: i * imageStride, as: MUIImage.self)
-                if quadRecords.contains(i) {
-                    image.texture += base
-                } else if appendRecords, image.filter >> 8 > 0 {
-                    image.filter += transformShift << 8
-                }
+                if quadRecords.contains(i) { image.texture += base }
+                // A record's transform index (a filtered group's quad drawn under a projective record included, `GF-C`)
+                // names its own scene's table; the root's is unshifted.
+                if appendRecords, image.filter >> 8 > 0 { image.filter += transformShift << 8 }
                 raw.storeBytes(of: image, toByteOffset: i * imageStride, as: MUIImage.self)
             }
         }

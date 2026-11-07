@@ -5,7 +5,8 @@
 // `backdrop_fragment`), and PASS_STAGE (a full-target triangle; with
 // DOWNSAMPLE_STAGE or GAUSSIAN_STAGE its fragment is one blur pass,
 // shaders.metal's `backdrop_pass_vertex`, `backdrop_downsample_fragment`,
-// `backdrop_gaussian_fragment`, statement for statement, TE-AD).
+// `backdrop_gaussian_fragment`, statement for statement, TE-AD), and TINT_STAGE (one more fragment over the same
+// triangle, a filtered group's shadow tint, `group_tint_fragment`, ruling GF-E).
 // Storage is float4 lanes: rectangle stride 8 lanes (128 bytes), glyph 6 (96),
 // image 4 (64, uploaded as recorded), transform 5 (80, `MUITransform`, rulings
 // GX-F and PJ-A: lane 4 is `(g, h, i, det3)`, `det3 == 0` the affine code). Uniforms occupy 16 and 64 bytes. See SDLBridge.c for the packing
@@ -40,7 +41,13 @@ PassVertexOut main(uint vertexID : SV_VertexID) {
 #else
 Texture2D<float4> source : register(t0, space2);
 SamplerState sourceSampler : register(s0, space2);
+#ifdef TINT_STAGE
+// A filtered group's shadow tint (ruling GF-E, shaders.metal's `GroupTintPass`): the source rectangle and the
+// premultiplied tint, 32 bytes.
+cbuffer Tint : register(b0, space3) { int4 tintSource; float4 tintColor; };
+#else
 cbuffer Pass : register(b0, space3) { int4 passSource; float passSigma; int passHorizontal; };
+#endif
 float4 fetch(int2 texel) {
     uint width, height;
     source.GetDimensions(width, height);
@@ -48,6 +55,10 @@ float4 fetch(int2 texel) {
 }
 float4 main(PassVertexOut input) : SV_Target0 {
     int2 p = int2(input.position.xy);
+#ifdef TINT_STAGE
+    int2 tintLast = tintSource.zw - 1;
+    return tintColor * fetch(tintSource.xy + min(p, tintLast)).a;
+#else
     int2 origin = passSource.xy;
     int2 last = passSource.zw - 1;
 #ifdef DOWNSAMPLE_STAGE
@@ -71,6 +82,7 @@ float4 main(PassVertexOut input) : SV_Target0 {
         sum += w * (fetch(origin + l) + fetch(origin + r));
     }
     return sum / total;
+#endif
 #endif
 }
 #endif

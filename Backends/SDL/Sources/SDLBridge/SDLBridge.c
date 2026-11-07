@@ -17,7 +17,7 @@ struct ReplayGPU {
     /* The backdrop blur's pipelines (ruling BB-D), made on the first frame that
        holds a backdrop (ensure_backdrop_pipelines): a renderer that never draws
        a material never loads their five shader stages. */
-    SDL_GPUGraphicsPipeline *backdrop, *downsample, *gaussian;
+    SDL_GPUGraphicsPipeline *backdrop, *downsample, *gaussian, *tint;
     SDL_GPUSampler *sampler;
     SDL_GPUSampler *point;          /* nearest, clamped: the blur passes' texel fetch */
     SDL_GPUTexture *target;
@@ -184,28 +184,28 @@ static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, int k
    full-target triangle (one sampler and the pass constants). Portable shaders
    only; made once, on first use. */
 static bool ensure_backdrop_pipelines(ReplayGPU *g) {
-    if (g->backdrop && g->downsample && g->gaussian) return true;
+    if (g->backdrop && g->downsample && g->gaussian && g->tint) return true;
     if (!g->portable || !g->shader_dir)
         return SDL_SetError("a backdrop needs the portable shaders (replay_create_portable)");
     SDL_GPUShader *quad_v = stage(g, NULL, NULL, "backdrop", false, 0, 3, 2);
     SDL_GPUShader *quad_f = quad_v ? stage(g, NULL, NULL, "backdrop", true, 2, 2, 1) : NULL;
     SDL_GPUGraphicsPipeline *backdrop = make_pipeline(g, quad_v, quad_f, true);
     if (!backdrop) return false;
-    SDL_GPUGraphicsPipeline *passes[2] = {NULL, NULL};
-    const char *names[2] = {"downsample", "gaussian"};
-    for (int i = 0; i < 2; i++) {
+    SDL_GPUGraphicsPipeline *passes[3] = {NULL, NULL, NULL};
+    const char *names[3] = {"downsample", "gaussian", "tint"};
+    for (int i = 0; i < 3; i++) {
         SDL_GPUShader *v = stage(g, NULL, NULL, "pass", false, 0, 0, 0);
         SDL_GPUShader *f = v ? stage(g, NULL, NULL, names[i], true, 1, 0, 1) : NULL;
         passes[i] = make_pipeline(g, v, f, false);
         if (!passes[i]) {
             char error[1024]; SDL_strlcpy(error, SDL_GetError(), sizeof(error));
             SDL_ReleaseGPUGraphicsPipeline(g->device, backdrop);
-            if (passes[0]) SDL_ReleaseGPUGraphicsPipeline(g->device, passes[0]);
+            for (int k = 0; k < i; k++) if (passes[k]) SDL_ReleaseGPUGraphicsPipeline(g->device, passes[k]);
             SDL_SetError("%s", error);
             return false;
         }
     }
-    g->backdrop = backdrop; g->downsample = passes[0]; g->gaussian = passes[1];
+    g->backdrop = backdrop; g->downsample = passes[0]; g->gaussian = passes[1]; g->tint = passes[2];
     return true;
 }
 
@@ -289,6 +289,7 @@ void replay_destroy(ReplayGPU *g) {
         if (g->backdrop) SDL_ReleaseGPUGraphicsPipeline(g->device, g->backdrop);
         if (g->downsample) SDL_ReleaseGPUGraphicsPipeline(g->device, g->downsample);
         if (g->gaussian) SDL_ReleaseGPUGraphicsPipeline(g->device, g->gaussian);
+        if (g->tint) SDL_ReleaseGPUGraphicsPipeline(g->device, g->tint);
         if (g->rect) SDL_ReleaseGPUGraphicsPipeline(g->device, g->rect);
         if (g->glyph) SDL_ReleaseGPUGraphicsPipeline(g->device, g->glyph);
         if (g->image) SDL_ReleaseGPUGraphicsPipeline(g->device, g->image);
@@ -367,13 +368,16 @@ typedef struct {
     uint32_t glass_records, glass_copies;
     /* Offscreen group passes made and groups dropped for want of a target, this frame (GO-F). */
     uint32_t group_passes, group_failures;
-    bool pool_fails, route_every_frame, sharp_fails, group_pool_fails;
+    /* Filter passes, groups filtered and filter allocation failures, this frame (GF-E). */
+    uint32_t filter_passes, filtered_groups, filter_failures;
+    bool pool_fails, route_every_frame, sharp_fails, group_pool_fails, filter_pool_fails;
 } BackdropState;
 
 static void backdrop_begin_frame(BackdropState *b) {
     b->splits = b->blurs = b->passes = b->copies = b->made = 0;
     b->glass_records = b->glass_copies = 0;
     b->group_passes = b->group_failures = 0;
+    b->filter_passes = b->filtered_groups = b->filter_failures = 0;
     b->used_count = 0;
 }
 
@@ -481,6 +485,83 @@ static bool blur_pass(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd,
     SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
     SDL_EndGPURenderPass(pass);
     b->passes += 1;
+    return true;
+}
+
+/* replay.hlsl's `Tint` cbuffer / shaders.metal's `GroupTintPass`: the source rectangle and the premultiplied tint, 32 bytes. */
+typedef struct { int32_t src[4]; float tint[4]; } TintConstants;
+
+/* The shadow tint pass of a filtered group (ruling GF-E): `tint` times the alpha of each texel of `source` inside
+   (0, 0, sw, sh), written to `target`. */
+static bool tint_pass(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *source,
+                      SDL_GPUTexture *target, int32_t sw, int32_t sh, const float tint[4]) {
+    SDL_GPUColorTargetInfo info = { .texture = target, .load_op = SDL_GPU_LOADOP_DONT_CARE, .store_op = SDL_GPU_STOREOP_STORE };
+    SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(cmd, &info, 1, NULL);
+    if (!pass) return false;
+    TintConstants constants = { .src = {0, 0, sw, sh}, .tint = {tint[0], tint[1], tint[2], tint[3]} };
+    SDL_BindGPUGraphicsPipeline(pass, g->tint);
+    SDL_GPUTextureSamplerBinding binding = { source, g->point };
+    SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
+    SDL_PushGPUFragmentUniformData(cmd, 0, &constants, sizeof(constants));
+    SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+    SDL_EndGPURenderPass(pass);
+    b->passes += 1;
+    return true;
+}
+
+/* A filtered group's pool slot (the test hook of `GF-E` fails it). */
+static int filter_acquire(ReplayGPU *g, BackdropState *b, uint32_t w, uint32_t h) {
+    return b->filter_pool_fails ? -1 : backdrop_acquire(g, b, w, h);
+}
+
+/* A filtered group's passes (ruling GF-E, `Renderer.filterGroup` in Metal): over the whole target `raw`, L downsamples,
+   a horizontal and a vertical Gaussian at sigma / 2^L when sigma is above 0 and, for a shadow, one tint pass. The box was
+   padded by more than three sigma of transparent pixels and is a whole multiple of 2^L on both sides, so clamping to the
+   target equals zero extension. `*out` receives the pool slot the quad samples (`raw` itself when nothing ran), -1 when an
+   intermediate could not be made or the pipelines are missing (the caller degrades by name). A false return is a failed
+   pass (an SDL error). Every intermediate goes back to the pool; `raw` is the caller's. */
+static bool filter_group(ReplayGPU *g, BackdropState *b, SDL_GPUCommandBuffer *cmd, int raw, const ReplayGroup *group,
+                         int *out) {
+    *out = -1;
+    if (!ensure_backdrop_pipelines(g)) return true;
+    float sigma = group->sigma > 0.0f ? group->sigma : 0.0f;
+    uint32_t levels = sigma > 0.0f ? mui_backdrop_levels(sigma) : 0;
+    int held[BACKDROP_MAX_LEVEL + 3];
+    uint32_t held_count = 0;
+#define GIVE_BACK(except) do { for (uint32_t k = 0; k < held_count; k++) if (held[k] != (except)) backdrop_release(b, held[k]); } while (0)
+    int source_slot = raw;
+    int32_t w = (int32_t)group->width, h = (int32_t)group->height;
+    for (uint32_t level = 0; level < levels; level++) {
+        int32_t nw = (w + 1) / 2, nh = (h + 1) / 2;
+        int slot = filter_acquire(g, b, (uint32_t)nw, (uint32_t)nh);
+        if (slot < 0) { GIVE_BACK(-2); return true; }
+        held[held_count++] = slot;
+        if (!blur_pass(g, b, cmd, g->downsample, b->slots[source_slot].texture, b->slots[slot].texture, 0, 0, w, h, 0, false)) return false;
+        source_slot = slot; w = nw; h = nh;
+    }
+    if (sigma > 0.0f) {
+        int scratch = filter_acquire(g, b, (uint32_t)w, (uint32_t)h);
+        if (scratch < 0) { GIVE_BACK(-2); return true; }
+        held[held_count++] = scratch;
+        int result = filter_acquire(g, b, (uint32_t)w, (uint32_t)h);
+        if (result < 0) { GIVE_BACK(-2); return true; }
+        held[held_count++] = result;
+        float level_sigma = sigma / (float)(1u << levels);
+        if (!blur_pass(g, b, cmd, g->gaussian, b->slots[source_slot].texture, b->slots[scratch].texture, 0, 0, w, h, level_sigma, true)) return false;
+        if (!blur_pass(g, b, cmd, g->gaussian, b->slots[scratch].texture, b->slots[result].texture, 0, 0, w, h, level_sigma, false)) return false;
+        source_slot = result;
+    }
+    if (group->filter_kind == 2) {
+        int tinted = filter_acquire(g, b, (uint32_t)w, (uint32_t)h);
+        if (tinted < 0) { GIVE_BACK(-2); return true; }
+        if (!tint_pass(g, b, cmd, b->slots[source_slot].texture, b->slots[tinted].texture, w, h, group->tint)) return false;
+        GIVE_BACK(-2);
+        *out = tinted;
+        return true;
+    }
+    GIVE_BACK(source_slot);
+    *out = source_slot;
+#undef GIVE_BACK
     return true;
 }
 
@@ -731,6 +812,28 @@ static bool render_groups(FrameDraw *f, BackdropState *b, SDL_GPUTexture **textu
         SDL_EndGPURenderPass(pass);
         b->group_passes += 1;
         textures[texture_count + i] = target;
+        if (group->filter_kind == 0) continue;
+        /* A filtered group (GF-E): the raw target goes back to the pool at once; the quad samples the result. A blur that
+           cannot filter draws the unfiltered target, a shadow nothing. */
+        b->filtered_groups += 1;
+        uint32_t before = b->passes;
+        int filtered = -1;
+        bool ran = filter_group(f->g, b, f->cmd, slot, group, &filtered);
+        b->filter_passes += b->passes - before;
+        b->passes = before;
+        if (!ran) return false;
+        if (filtered < 0) {
+            b->filter_failures += 1;
+            if (group->filter_kind == 2) {
+                backdrop_release(b, slot);
+                slots[i] = -1;
+                textures[texture_count + i] = NULL;
+            }
+        } else if (filtered != slot) {
+            backdrop_release(b, slot);
+            slots[i] = filtered;
+            textures[texture_count + i] = b->slots[filtered].texture;
+        }
     }
     return true;
 }
@@ -1374,6 +1477,12 @@ void mui_renderer_group_counters(MUIRenderer *r, uint32_t out[3]) {
 }
 
 void mui_renderer_set_group_hook(MUIRenderer *r, bool pool_fails) { r->backdrop.group_pool_fails = pool_fails; }
+
+void mui_renderer_filter_counters(MUIRenderer *r, uint32_t out[3]) {
+    out[0] = r->backdrop.filter_passes; out[1] = r->backdrop.filtered_groups; out[2] = r->backdrop.filter_failures;
+}
+
+void mui_renderer_set_filter_hook(MUIRenderer *r, bool pool_fails) { r->backdrop.filter_pool_fails = pool_fails; }
 
 void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[7]) {
     out[0] = r->backdrop.splits; out[1] = r->backdrop.blurs; out[2] = r->backdrop.passes;

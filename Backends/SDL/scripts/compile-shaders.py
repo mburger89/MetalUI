@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the eleven HLSL stages and reflect the exact bindings used by SDL."""
+"""Compile the twelve HLSL stages and reflect the exact bindings used by SDL."""
 import argparse
 import hashlib
 import json
@@ -14,14 +14,15 @@ out = root / "Shaders" / "compiled"
 out.mkdir(parents=True, exist_ok=True)
 compiler = str(args.shadercross.resolve())
 # (file name, stage, defines): the six stages of the three drawable kinds, then
-# the five of the backdrop blur (rulings BB-A, BB-D): the material's quad in
+# the five of the backdrop blur, then the filtered group's tint (ruling GF-E) (rulings BB-A, BB-D): the material's quad in
 # both stages, the shared full-target triangle and the two pass fragments.
 KINDS = {"rect": [], "glyph": ["-DGLYPH_STAGE"], "image": ["-DIMAGE_STAGE"], "backdrop": ["-DBACKDROP_STAGE"]}
 STAGES = [(f"{kind}.{stage}", stage, (["-DVERTEX_STAGE"] if stage == "vertex" else []) + defines)
           for kind, defines in KINDS.items() for stage in ("vertex", "fragment")]
 STAGES += [("pass.vertex", "vertex", ["-DVERTEX_STAGE", "-DPASS_STAGE"]),
            ("downsample.fragment", "fragment", ["-DPASS_STAGE", "-DDOWNSAMPLE_STAGE"]),
-           ("gaussian.fragment", "fragment", ["-DPASS_STAGE", "-DGAUSSIAN_STAGE"])]
+           ("gaussian.fragment", "fragment", ["-DPASS_STAGE", "-DGAUSSIAN_STAGE"]),
+           ("tint.fragment", "fragment", ["-DPASS_STAGE", "-DTINT_STAGE"])]
 for name, stage, defines in STAGES:
     spirv = out / f"{name}.spv"
     subprocess.run([compiler, str(root / "Shaders/replay.hlsl"), "-s", "HLSL", "-d", "SPIRV", "-t", stage, *defines, "-o", str(spirv)], check=True)
@@ -32,4 +33,4 @@ for name, stage, defines in STAGES:
     print(name, reflection)
 # CI compares this with the source, so a stale compiled/ fails loudly.
 (out / "SOURCE.sha256").write_text(hashlib.sha256((root / "Shaders/replay.hlsl").read_bytes()).hexdigest() + "  replay.hlsl\n")
-print("Compiled eleven stages to SPIR-V, DXIL, MSL, and reflection JSON:", out)
+print("Compiled twelve stages to SPIR-V, DXIL, MSL, and reflection JSON:", out)
