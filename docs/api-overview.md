@@ -366,8 +366,13 @@ and `foregroundStyle` keep their `Color`/gradient/`Material` overloads and take
 nearest wins, `nil` clears) tints `Color.accentColor` and every built-in control's
 accent — `.borderedProminent`, `Toggle`, `Slider`, `ProgressView`, a radio
 `Picker`, a `List` selection, focus rings, links — while `Color.accent` stays the
-theme's token (`SS-D`). `accentColor(_:)` is the deprecated alias. No
-`HierarchicalShapeStyle` (carried, `SS-G`).
+theme's token (`SS-D`). `accentColor(_:)` is the deprecated alias. A gradient
+`foregroundStyle` on `Text` (or a scope above it) paints across the glyphs' ink
+as one masked group per gradient (`TG-A`..`TG-E`, record 221; a material on
+text, `border`, `tint` and the text of `TextField`/`TextEditor`/`drawText` still
+lower to a colour, 975), and a level (`.secondary`) over a gradient parent keeps
+the gradient (`HY-A`, `TG-B`). `Text.foregroundColor` stays a public `Color?`
+but is computed over the style storage.
 
 **Theme-backed and dynamic (M).** `Color(.surface)` / `Color.surface` (the
 nine tokens as statics, bit-exact), `Color(_ hsla:)`, `Color(light:dark:)`

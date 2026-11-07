@@ -26,7 +26,7 @@ Rulings for divergence 119 (retired). Branch `feat/hierarchical-styles`, on `doc
 
 ## HY-D: what a sink reads
 
-`fill`, `stroke`, `strokeBorder`, `background(_:)`, `background(_:in:)`, `border`, `foregroundStyle` on a group, a `Text` and a `ProposalText`, and a bare shape's default fill all read the parent (`S1`..`S4`, `S6`, `T2`, `T3`, `T6`). A legacy `Box` fill or border, which stores its colour before any environment exists, resolves the level at paint (`HY-B`). A gradient parent reaches a level as its first stop (divergence 975; SwiftUI keeps the gradient, `P14l`, `P14r`); a `.tint` parent is the tint (`P15`).
+`fill`, `stroke`, `strokeBorder`, `background(_:)`, `background(_:in:)`, `border`, `foregroundStyle` on a group, a `Text` and a `ProposalText`, and a bare shape's default fill all read the parent (`S1`..`S4`, `S6`, `T2`, `T3`, `T6`). A legacy `Box` fill or border, which stores its colour before any environment exists, resolves the level at paint (`HY-B`). A gradient parent reaches a level as the gradient with every stop's opacity times the level's factor, as SwiftUI keeps it (`P14l`, `P14r`; built by `TG-B`, record 221, which amends this sentence: it was the first stop under divergence 975); a material parent keeps its representative colour; a `.tint` parent is the tint (`P15`).
 
 ## HY-E: unmeasured
 
