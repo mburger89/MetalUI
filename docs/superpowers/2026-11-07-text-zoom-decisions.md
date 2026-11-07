@@ -1,6 +1,6 @@
 # Text under transforms — decisions (prefix `TZ-`)
 
-Rulings for R4-5 PR E: text under a uniform `scaleEffect` is rasterized at the scale it is drawn at (**divergence 106 narrowed**), and a clip between two non-flattening effects is a masked group (**divergence 109 retired**; **224** and **1065** amended). Live 208 (209 - 1), next label 226 (no label is added). Branch `feat/text-zoom` (master `9116adff`). Record 222. Evidence: the probe `docs/probes/swiftui-text-under-transform.swift` (arms `Z0`..`Z7`, `NC0`..`NC5`; compiled `ImageRenderer`, 2026-11-07, two byte-identical runs). Next unused id: `TZ-G`. Supersedes `GX-L` (text "is resampled, not re-rasterized") and `GX-G`'s clip bullet (a clip between nested effects is its bounding box).
+Rulings for R4-5 PR E: text under a uniform `scaleEffect` is rasterized at the scale it is drawn at (**divergence 106 narrowed**), and a clip between two non-flattening effects is a masked group (**divergence 109 retired**; **224** and **1065** amended). Live 208 (209 - 1), next label 226 (no label is added). Branch `feat/text-zoom` (master `9116adff`). Record 223. Evidence: the probe `docs/probes/swiftui-text-under-transform.swift` (arms `Z0`..`Z7`, `NC0`..`NC5`; compiled `ImageRenderer`, 2026-11-07, two byte-identical runs). Next unused id: `TZ-G`. Supersedes `GX-L` (text "is resampled, not re-rasterized") and `GX-G`'s clip bullet (a clip between nested effects is its bounding box).
 
 ## TZ-A: a glyph is re-keyed where it enters the scene
 

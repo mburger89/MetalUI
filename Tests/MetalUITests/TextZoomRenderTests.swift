@@ -6,7 +6,7 @@ import MetalUIScene
 @testable import MetalUI
 @testable import MetalUIRender
 
-// R4-5 PR E lane 2 (`TZ-A`, record 222; probe `Z0`/`Z1`, which reproduces T15b): 20 pt text under `scaleEffect(2)` has the edge
+// R4-5 PR E lane 2 (`TZ-A`, record 223; probe `Z0`/`Z1`, which reproduces T15b): 20 pt text under `scaleEffect(2)` has the edge
 // sharpness of real 40 pt text, not of a bilinear upscale of the 20 pt raster. Sharpness is the count of partially covered
 // pixels (0 < alpha < 255): a re-rasterized glyph has a one-pixel anti-aliased edge, a resample has two.
 

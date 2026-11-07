@@ -80,7 +80,7 @@ func aMaskedClipInsideAnOccurrenceMissesWhenItMovesAndEqualsAFreshFrame() throws
     #expect(maskedBytes(moved) == maskedBytes(fresh), "equal to the retention-off window's frame")
 }
 
-// R4-5 PR E lane 1 (`TZ-B`, record 222): a clip between two rotations is a masked group too, so a replay re-groups it.
+// R4-5 PR E lane 1 (`TZ-B`, record 223): a clip between two rotations is a masked group too, so a replay re-groups it.
 private struct NestedClipCard: Component, @MainActor Equatable {
     var content: some ElementGroup {
         Color(.accent).frame(width: Pixels(100), height: Pixels(100)).rotationEffect(.degrees(30))

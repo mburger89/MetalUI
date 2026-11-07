@@ -7,7 +7,7 @@ import MetalUIText
 import MetalUITextSystem
 @testable import MetalUI
 
-// R4-5 PR E lane 2 (ruling prefix `TZ-`, record 222; probe `docs/probes/swiftui-text-under-transform.swift`, arms `Z0`..`Z7`):
+// R4-5 PR E lane 2 (ruling prefix `TZ-`, record 223; probe `docs/probes/swiftui-text-under-transform.swift`, arms `Z0`..`Z7`):
 // text under a flattening effect is rasterized at the scale it is drawn at, on a ladder of `2^(1/8)`, and re-keyed at
 // `Frame.insertIntoScene` (divergence 106 narrowed). Counts are work and geometry, never pixels (the render arm is
 // `TextZoomRenderTests`); nothing here sleeps.

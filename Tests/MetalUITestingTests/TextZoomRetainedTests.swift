@@ -5,7 +5,7 @@ import MetalUIScene
 import MetalUITesting
 import Testing
 
-// R4-5 PR E lane 2 (`TZ-A`, record 222): a retained zoom replays its paint through the live scopes, so its text is re-keyed at
+// R4-5 PR E lane 2 (`TZ-A`, record 223): a retained zoom replays its paint through the live scopes, so its text is re-keyed at
 // insert (`RZ-A`: the replayed glyphs are base glyphs, the scene is re-keyed when it is built). The differential is the
 // retained-zoom fixture (`ZoomFixture.swift`), whose nodes hold text under `scaleEffect`.
 

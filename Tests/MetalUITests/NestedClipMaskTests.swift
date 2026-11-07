@@ -6,7 +6,7 @@ import MetalUIScene
 @testable import MetalUI
 @testable import MetalUIRender
 
-// R4-5 PR E lane 1 (ruling prefix `TZ-`, record 222; probe `docs/probes/swiftui-text-under-transform.swift`, arms `NC0`..`NC5`):
+// R4-5 PR E lane 1 (ruling prefix `TZ-`, record 223; probe `docs/probes/swiftui-text-under-transform.swift`, arms `NC0`..`NC5`):
 // a clip between two non-flattening effects clips to the clip, not to its screen bounding box (divergence 109 retired). The
 // clip is a masked group (`CM-A`) whose mask is the clip emitted in the outer effect's space. Every render is 200 x 200, scale 1,
 // over a transparent target; the 60 x 60 clip sits at (70, 70)-(130, 130), centre (100, 100).

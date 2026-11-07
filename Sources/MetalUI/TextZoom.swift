@@ -4,7 +4,7 @@ import MetalUIPrimitives
 import MetalUIScene
 import MetalUITextSystem
 
-// R4-5 PR E lane 2 (ruling prefix `TZ-`, record 222; probe `docs/probes/swiftui-text-under-transform.swift`, arms `Z0`..`Z7`):
+// R4-5 PR E lane 2 (ruling prefix `TZ-`, record 223; probe `docs/probes/swiftui-text-under-transform.swift`, arms `Z0`..`Z7`):
 // text under a flattening effect (`scaleEffect`, a uniform scale) is rasterized at the scale it is drawn at, not resampled from the
 // device-scale bitmap (divergence 106 narrowed). Glyphs are emitted exactly as before, with the base key and slot; a glyph that reaches
 // `Frame.insertIntoScene` with bounds scaled by `f` is re-keyed there, the way a path is rasterized there at its final scale (`GX-B`).

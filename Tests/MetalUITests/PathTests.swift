@@ -374,7 +374,7 @@ struct GXEvenOddRing: Shape {
 // MARK: - 3.29 (divergence 106)
 
 // Retired pin: `aTextUnderScaleEffectIsResampledNotReRasterized` (text resampled under `scaleEffect`). Divergence 106 is narrowed
-// (`TZ-A`, record 222): see `TextZoomTests.aTextUnderScaleEffectIsReRasterizedAtTheEffectiveScale`.
+// (`TZ-A`, record 223): see `TextZoomTests.aTextUnderScaleEffectIsReRasterizedAtTheEffectiveScale`.
 
 // MARK: - 3.30 (divergence 97 amended)
 

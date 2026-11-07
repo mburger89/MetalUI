@@ -79,7 +79,7 @@ private func controls(_ window: Window) throws
 @MainActor
 @Test func theLooksLifecycleSectionCountsAppearancesDisappearancesAndChanges() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
-    // 1500, not 1400: the text-zoom strip (`TZ-`, record 222) made the demo taller, and a legacy flex column that overflows the
+    // 1500, not 1400: the text-zoom strip (`TZ-`, record 223) made the demo taller, and a legacy flex column that overflows the
     // window shrinks its children (the stepper's 20 x 12 halves this test finds by size).
     let (window, platform) = try makeFakeWindow(device: device, size: 1500, startsDisplayLink: true) {
         looksDemoContent()

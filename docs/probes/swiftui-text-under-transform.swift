@@ -1,5 +1,5 @@
 // SwiftUI probe: text under transforms and a clip between nested rotations
-// (R4-5 PR E; divergences 106 and 109; prefix TZ-, record 222).
+// (R4-5 PR E; divergences 106 and 109; prefix TZ-, record 223).
 //
 // HOW TO RUN (compiled; the `/usr/bin/swift` JIT form fails to link on macOS 27):
 //

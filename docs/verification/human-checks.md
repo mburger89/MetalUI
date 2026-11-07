@@ -2322,7 +2322,7 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **TG4.** Hover and select (drag over) gradient text inside a `TextField`-adjacent label: selection stays the selection colour (the field's own text is not a gradient, divergence 975's residue) and a `.foregroundStyle(.secondary)` below a gradient parent keeps the gradient dimmed, as SwiftUI's? **Observed:**
 - [ ] **TG5.** Parity frame 19 (`--expect 20`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam or halo at a letter's edge, any difference in the glyph coverage from Metal's? **Observed:**
 
-## TZ. Text under transforms - zoomed text is sharp and a clip between rotations turns like SwiftUI's (record 222; rulings `TZ-A`..`TZ-F`; decisions `docs/superpowers/2026-11-07-text-zoom-decisions.md`)
+## TZ. Text under transforms - zoomed text is sharp and a clip between rotations turns like SwiftUI's (record 223; rulings `TZ-A`..`TZ-F`; decisions `docs/superpowers/2026-11-07-text-zoom-decisions.md`)
 
 *An agent cannot: the probe `docs/probes/swiftui-text-under-transform.swift` measures SwiftUI through `ImageRenderer` (not the on-screen renderer), the tests read scene structure and Metal or SDL pixels offscreen, but a real window, a live zoom and a GPU on Linux or Windows are a person's. Not run.*
 
