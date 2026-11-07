@@ -135,7 +135,7 @@ private struct CMRing: Shape {
 /// The probe's CM2b: a 100 x 100 two-leaf block clipped to a radius-30 rounded rectangle, placed by padding at (50, 50) inside a
 /// 100 x 100 frame clipped the same way. Window coordinates: the outer box is (50, 50)-(150, 150), the inner (100, 100)-(200, 200),
 /// no effect between, so the inner clip is pushed through `pushClip`.
-@MainActor private func crossingByPadding() -> some Element {
+@MainActor private func crossingByPadding() -> some Element & ProposalElementGroup {
     twoLeavesSquare().clipShape(RoundedRectangle(cornerRadius: px(30)))
         .padding(Edges(top: px(50), right: px(0), bottom: px(0), left: px(50)))
         .frame(width: px(100), height: px(100), alignment: .topLeading)
@@ -143,7 +143,7 @@ private struct CMRing: Shape {
 }
 
 /// The probe's CM2: the same with an `.offset` between the clips, so the inner clip is pushed at a flattening effect's entry.
-@MainActor private func crossingByOffset() -> some Element {
+@MainActor private func crossingByOffset() -> some Element & ProposalElementGroup {
     twoLeavesSquare().clipShape(RoundedRectangle(cornerRadius: px(30)))
         .offset(x: px(50), y: px(50))
         .frame(width: px(100), height: px(100), alignment: .topLeading)
@@ -179,7 +179,18 @@ private struct CMRing: Shape {
     #expect(alpha(r.pixels, 102, 102) == 0, "the inner's corner is clear: \(pixel(r.pixels, 102, 102))")
     #expect(alpha(r.pixels, 147, 147) == 0, "the outer's corner is clear: \(pixel(r.pixels, 147, 147))")
     #expect(alpha(r.pixels, 125, 125) == 255, "the overlap draws: \(pixel(r.pixels, 125, 125))")
-    #expect(r.frame.groupsMasked >= 1, "a crossing is a masked group: \(r.frame.groupsMasked)")
+    #expect(r.frame.groupsMasked == 1, "both leaves share the scope's crossing group: \(r.frame.groupsMasked)")
+}
+
+/// **6b (`CM-B`).** A crossing pair inside an offset moves with it: the mask's `contentMask` (the outer clip) was pushed inside
+/// the offset, so the offset maps it (the mark's `innerMask` flag set by `processScopes`). Shifted 20 right, the inner corner and
+/// the outer corner are clear at their shifted places and a point inside the shifted overlap but outside the unshifted outer clip
+/// draws. Mutation: `processScopes` does not flag the marks' masks.
+@Test @MainActor func aCrossingPairInsideAnOffsetMovesWithIt() throws {
+    let r = try render(crossingByPadding().offset(x: px(20), y: px(0)))
+    #expect(alpha(r.pixels, 122, 102) == 0, "the inner's corner, shifted: \(pixel(r.pixels, 122, 102))")
+    #expect(alpha(r.pixels, 167, 147) == 0, "the outer's corner, shifted: \(pixel(r.pixels, 167, 147))")
+    #expect(alpha(r.pixels, 165, 125) == 255, "inside the shifted overlap, outside the unshifted outer: \(pixel(r.pixels, 165, 125))")
 }
 
 /// **5b (`CM-B`).** Two rounded clips whose square box never reaches a corner cut are exact as they are and take no group: a
