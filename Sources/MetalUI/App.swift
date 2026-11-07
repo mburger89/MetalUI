@@ -9,6 +9,7 @@ import MetalUIAppKit
 // geometry, unit and colour types its elements must name, the `Style` values
 // its modifiers write, the `Scene` its paint fills, and — since the window grew
 // an `onInput` hook — the `InputEvent` that hook is handed.
+@_exported import MetalUICodeBuffer
 @_exported import MetalUICore
 @_exported import MetalUILayout
 @_exported import MetalUIPlatform
