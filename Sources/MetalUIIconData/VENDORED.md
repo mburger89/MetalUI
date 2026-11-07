@@ -1,0 +1,9 @@
+# Vendored Lucide icons
+
+- Package: `lucide-static` **1.70.0** (npm registry, `https://registry.npmjs.org/lucide-static/-/lucide-static-1.70.0.tgz`, fetched 2026-11-07; the registry's `shasum` 5e8408d50248890e4262e79b8f7477056bbc2400 and sha512 integrity matched).
+- Tarball SHA-256: `3d1f09df1c468abe512ee6d6596db0dc773fa46c61050e365f0c5fee5120f16a`
+- Licence: **ISC**, with the icons derived from Feather (listed in the file) under the **MIT License (Cole Bemis)**; the tarball's `package/LICENSE` is copied verbatim to `LICENSE` (the generator refuses to run if it does not begin "ISC License" and carry the MIT portion).
+- Kept: 29 icons' geometry only, converted by `scripts/vendor-lucide.py` (run with `python3 -I`, reading the tarball with `tarfile`, nothing extracted or executed) to one path each of move / line / cubic / close opcodes on Lucide's 24 x 24 grid. Circles, rects, lines, polylines, polygons, quadratics, smooth curves and SVG elliptical arcs are all converted by the script, so neither the runtime nor `MetalUIPath` needs arc maths. 421 opcodes, 1504 coordinates, about 15 KB of source.
+- Icons: search, file, file-text, pencil, square-pen, file-plus, square-terminal, brain, sparkles, globe, user, circle-user, triangle-alert, x, circle-x, play, square, circle-stop, check, chevron-right, chevron-down, copy, undo-2, square-arrow-out-up-right, columns-2, cpu, circle, triangle, star.
+- Added: `LucideData.swift` (generated), imports nothing. The SF Symbol name table and the drawing are in `Sources/MetalUI/BundledSymbols.swift`.
+- Ruling: `SYM-I` (`docs/superpowers/2026-11-07-symbol-images-decisions.md`). To update, download one pinned release, verify its licence, pass its sha256 to the script and replace this file's version and hash.

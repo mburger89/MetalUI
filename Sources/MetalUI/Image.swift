@@ -34,6 +34,8 @@ public struct Image: ProposalElement {
     enum Content {
         case bitmap(ImageBitmap, scale: Float)
         case symbol(name: String)
+        /// A MetalUI-only vector icon (`Icon`, `SYM-I`).
+        case icon(Icon)
     }
 
     let content: Content
@@ -118,6 +120,13 @@ public struct Image: ProposalElement {
                                                      height: proposal.height ?? height))
             }
             return (node, ())
+        case .icon(let icon):
+            // `SYM-J`: the bundled-icon box (font size x scale factor), shared with a symbol drawn on the bundled route.
+            let plan = iconPlan(icon, in: pass.environment)
+            return (pass.requestNativeLeaf { proposal in Image.iconMeasurement(plan, isResizable: isResizable, proposal: proposal) }, ())
+        case .symbol(let name) where SymbolRoute.usesBundled:
+            let plan = bundledSymbolPlan(for: name, in: pass.environment)
+            return (pass.requestNativeLeaf { proposal in Image.iconMeasurement(plan, isResizable: isResizable, proposal: proposal) }, ())
         case .symbol(let name):
             // `SYM-D`: the symbol's own size (alignment-rect width, image height) and one baseline, or a 0 x 0 leaf
             // when the name is missing (probe S6). A resizable symbol answers its proposal as a bitmap does (S7).
@@ -137,6 +146,14 @@ public struct Image: ProposalElement {
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Void, pass: inout PrepaintPass) {
+        if case .symbol(let name) = content, SymbolRoute.usesBundled {
+            // `SYM-H`: the bundled route labels a symbol with SwiftUI's table for the resolved name; a name outside
+            // the table (no measured label) records nothing rather than an invented one.
+            guard let plan = bundledSymbolPlan(for: name, in: pass.environment), let resolved = plan.resolvedName,
+                  let label = SymbolAccessibilityLabels.table[resolved] else { return }
+            pass.frame.recordAccessibility(text: nil, declared: AXNode(role: .image, label: label), at: bounds, id: id)
+            return
+        }
         if case .symbol(let name) = content {
             guard let plan = symbolPlan(for: name, in: pass.environment),
                   let label = symbolLabel(for: plan) else { return }
@@ -155,6 +172,11 @@ public struct Image: ProposalElement {
         switch content {
         case .bitmap(let bitmap, _):
             pass.drawImage(bitmap.texture, in: bounds, filter: filter)
+        case .icon(let icon):
+            paintIcon(iconPlan(icon, in: pass.environment), bounds: bounds, pass: &pass)
+        case .symbol(let name) where SymbolRoute.usesBundled:
+            guard let plan = bundledSymbolPlan(for: name, in: pass.environment) else { return }
+            paintIcon(plan, bounds: bounds, pass: &pass)
         case .symbol(let name):
             let environment = pass.environment
             guard let plan = symbolPlan(for: name, in: environment) else { return }
