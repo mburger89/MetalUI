@@ -38,6 +38,13 @@ public struct MarkdownDocument: Sendable {
         append(text)
     }
 
+    /// The identity of this document's storage, with ``version`` an O(1) equality for a view (`BM-E`): two
+    /// documents with the same identity and version hold the same text, because a copy that appends takes
+    /// storage of its own first and a document that is the only holder appends in place (and raises its
+    /// version). The identity is only valid while a document holds the storage, which an equal-looking value
+    /// in a view's memo does.
+    package var identity: ObjectIdentifier { ObjectIdentifier(tail) }
+
     /// The document's top-level blocks, in order. Building the array is O(number of blocks); a block's `id`
     /// is its index.
     public var blocks: [MarkdownBlock] { finalBlocks + tailBlocks }
