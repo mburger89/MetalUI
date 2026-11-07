@@ -54,4 +54,8 @@ Each applied alone to the committed tree in place and restored with `git checkou
 
 ## 6. Verification
 
-VERIFICATION_PLACEHOLDER
+- `swift package clean`, `swift build --build-system native --build-tests`, `swift test --build-system native --no-parallel`, unfiltered: `✔ Test run with 5534 tests in 18 suites passed after 325.660 seconds.` and `FR-J no-argument frame: succeeded=true deprecations=2`. This branch adds 9 tests (8 in `CodeViewFindTests`, the one key-table test in `CodeEditingKeysTests`; the 10k case of the paint pin is an argument).
+- The same unfiltered run under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_CODE_CACHE=1`: `✔ Test run with 5534 tests in 18 suites passed after 334.108 seconds.`
+- Portable Docker, `metalui-portable:latest` fed by `git archive` of the head with the code (`swift build --build-tests` 45.9 s, then `swift test --skip-build --no-parallel`): `✔ Test run with 910 tests in 10 suites passed after 100.707 seconds.` (`MetalUITestingTests`; 9, 16, 73, 68, 53, 286, 154, 24 and 45 in the others). The container ran with `--rm`; no volume, image or archive was left behind.
+- `zsh docs/probes/closeout-inventory-check.sh` and `zsh docs/probes/closeout-undocumented.sh` print nothing.
+- **Not run:** the human checks `CV1`..`CV18` (an agent cannot: the colours in light and dark, the feel of a far jump), Linux SDL and Windows (the portable harness stands in for them), a release build, and the benchmark recipe of the plan.
