@@ -14,6 +14,9 @@
 struct ReplayGPU {
     SDL_GPUDevice *device;
     SDL_GPUGraphicsPipeline *rect, *glyph, *image;
+    /* The continuous rect (CC-): `rect_vertex` with `rect_continuous_fragment` (portable: continuous.fragment). A run of
+       kind-2 rects draws through it; kind 0's pipeline is the base's. */
+    SDL_GPUGraphicsPipeline *continuous;
     /* The backdrop blur's pipelines (ruling BB-D), made on the first frame that
        holds a backdrop (ensure_backdrop_pipelines): a renderer that never draws
        a material never loads their five shader stages. */
@@ -237,6 +240,13 @@ static ReplayGPU *create(const char *source, const char *directory, const char *
     if (!g->device) goto fail;
     g->rect = pipeline(g, source, KIND_RECT);
     if (!g->rect) goto fail;
+    {
+        SDL_GPUShader *v = shader(g, source, "rect_vertex", false, KIND_RECT);
+        SDL_GPUShader *f = v ? stage(g, source, "rect_continuous_fragment", "continuous", true, 0, 2, 0) : NULL;
+        if (v && !f) SDL_ReleaseGPUShader(g->device, v);
+        g->continuous = f ? make_pipeline(g, v, f, BLEND_OVER) : NULL;
+        if (!g->continuous) goto fail;
+    }
     g->glyph = pipeline(g, source, KIND_GLYPH);
     if (!g->glyph) goto fail;
     g->image = pipeline(g, source, KIND_IMAGE);
@@ -298,6 +308,7 @@ void replay_destroy(ReplayGPU *g) {
         if (g->tint) SDL_ReleaseGPUGraphicsPipeline(g->device, g->tint);
         if (g->mask) SDL_ReleaseGPUGraphicsPipeline(g->device, g->mask);
         if (g->rect) SDL_ReleaseGPUGraphicsPipeline(g->device, g->rect);
+        if (g->continuous) SDL_ReleaseGPUGraphicsPipeline(g->device, g->continuous);
         if (g->glyph) SDL_ReleaseGPUGraphicsPipeline(g->device, g->glyph);
         if (g->image) SDL_ReleaseGPUGraphicsPipeline(g->device, g->image);
         SDL_DestroyGPUDevice(g->device);
@@ -733,6 +744,7 @@ typedef struct {
     const void *backdrops;                   /* the CPU records (sigma) */
     const ReplayRegion *regions;
     uint32_t rect_records;                   /* the scene's; the flat rects follow */
+    const uint8_t *packed_rects;             /* the packed rect records (128 bytes): a run's pipeline reads its first shape word */
     const ReplayRun *runs; uint32_t run_count;
     uint32_t width, height;
     const float *projection;
@@ -748,7 +760,14 @@ static void draw_primitives(FrameDraw *f, SDL_GPURenderPass *pass, uint32_t kind
     if (!primitives) return;
     SDL_GPUBuffer *vertex_buffers[] = {f->buffers[BUF_QUAD], primitives, f->buffers[BUF_TRANSFORM]};
     SDL_GPUBuffer *fragment_buffers[] = {primitives, f->buffers[BUF_TRANSFORM]};
-    SDL_BindGPUGraphicsPipeline(pass, kind == KIND_GLYPH ? g->glyph : kind == KIND_IMAGE ? g->image : g->rect);
+    SDL_GPUGraphicsPipeline *chosen = kind == KIND_GLYPH ? g->glyph : kind == KIND_IMAGE ? g->image : g->rect;
+    if (kind == KIND_RECT && f->packed_rects) {
+        /* A run of continuous rects (`MUIShapeContinuousRect`, CC-): finalize starts a run at every change of that kind. */
+        uint32_t word;
+        memcpy(&word, f->packed_rects + (size_t)start * 128 + RECT_SHAPE_OFFSET, sizeof(word));
+        if ((word & 0xFF) == 2) chosen = g->continuous;
+    }
+    SDL_BindGPUGraphicsPipeline(pass, chosen);
     SDL_BindGPUVertexStorageBuffers(pass, 0, vertex_buffers, 3);
     SDL_BindGPUFragmentStorageBuffers(pass, 0, fragment_buffers, 2);
     if (kind == KIND_GLYPH) {
@@ -1076,7 +1095,7 @@ bool replay_render(ReplayGPU *g, uint32_t w, uint32_t h,
     SDL_EndGPUCopyPass(copy);
     FrameDraw frame = {
         .g = g, .cmd = cmd, .atlas = atlas_texture, .image_textures = image_textures, .images = images,
-        .backdrops = backdrops, .regions = regions, .rect_records = rect_records,
+        .backdrops = backdrops, .regions = regions, .rect_records = rect_records, .packed_rects = packed[0],
         .runs = runs, .run_count = main_run_count, .width = w, .height = h, .projection = projection,
         .viewport = {(float)w, (float)h, 0, 0}
     };
@@ -1460,7 +1479,7 @@ bool mui_renderer_finish(MUIRenderer *r,
 
     FrameDraw frame = {
         .g = r->gpu, .cmd = cmd, .atlas = r->atlas, .image_textures = (SDL_GPUTexture *const *)textures,
-        .images = images, .backdrops = backdrops, .regions = regions, .rect_records = rect_records,
+        .images = images, .backdrops = backdrops, .regions = regions, .rect_records = rect_records, .packed_rects = packed[0],
         .runs = runs, .run_count = main_run_count, .width = r->width, .height = r->height, .projection = projection,
         .viewport = {(float)r->width, (float)r->height, 0, 0}
     };

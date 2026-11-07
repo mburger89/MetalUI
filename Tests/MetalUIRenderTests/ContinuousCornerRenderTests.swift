@@ -113,7 +113,7 @@ private func exactCoverage(_ outline: ExactOutline, edges: [Int], width: Int, he
 /// a pixel is 8 levels), at radii whose curves are small, large and clipped by the room (r 100 in a 200 square is
 /// a circle-sized corner; r 20 in 120 x 40 is a capsule's; r 150 in 400 x 300 a capsule's with room to spare).
 @Test @MainActor func aContinuousRectDrawsItsCurve() throws {
-    for (w, h, r) in [(100.0, 60.0, 20.0), (400.0, 300.0, 150.0), (200.0, 200.0, 100.0), (120.0, 40.0, 20.0), (256.0, 256.0, 90.0), (100.0, 60.0, 22.0)] {
+    for (w, h, r) in [(100.0, 60.0, 20.0), (400.0, 300.0, 150.0), (200.0, 200.0, 100.0), (120.0, 40.0, 20.0), (256.0, 256.0, 90.0), (100.0, 60.0, 22.0), (520.0, 520.0, 256.0), (600.0, 520.0, 230.0)] {
         let iw = Int(w), ih = Int(h)
         let radii = Corners(all: ScaledPixels(Float(r)))
         let drawn = try alphas(rect(Float(w), Float(h), shape: .continuousRoundedRectangle, radii: radii, background: red), width: iw, height: ih)
@@ -206,4 +206,26 @@ private func exactCoverage(_ outline: ExactOutline, edges: [Int], width: Int, he
             #expect(Double(literal) == value, "\(file): \(name) is \(literal), ContinuousCorner has \(value)")
         }
     }
+}
+
+/// A run of rects breaks wherever the continuous kind changes, because the two kinds draw through different pipelines
+/// (kind 0's fragment shader stays the base's, record 226 section 7): circular, continuous, continuous, circular is three
+/// runs, circular, circular is one. **Mutation**: `Scene.finalize` not breaking at the kind reddens the first arm.
+@Test func aRunBreaksWhereTheContinuousKindChanges() {
+    func rect(_ shape: PrimitiveShape, _ x: Float) -> MUIRect {
+        MUIRect(bounds: Bounds(origin: Point(x: ScaledPixels(x), y: ScaledPixels(0)), size: Size(width: ScaledPixels(10), height: ScaledPixels(10))),
+                contentMask: Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)), size: Size(width: ScaledPixels(100), height: ScaledPixels(10))),
+                background: red, borderColor: .transparent, cornerRadii: Corners(all: ScaledPixels(3)),
+                borderWidths: Edges(all: ScaledPixels(0)), order: 0, shape: shape)
+    }
+    var mixed = Scene()
+    for (i, shape) in [PrimitiveShape.roundedRectangle, .continuousRoundedRectangle, .continuousRoundedRectangle, .roundedRectangle].enumerated() {
+        mixed.insert(rect(shape, Float(i) * 12))
+    }
+    mixed.finalize()
+    #expect(mixed.drawList.map(\.count) == [1, 2, 1], "\(mixed.drawList)")
+    var plain = Scene()
+    plain.insert(rect(.roundedRectangle, 0)); plain.insert(rect(.roundedRectangle, 12))
+    plain.finalize()
+    #expect(plain.drawList.map(\.count) == [2])
 }
