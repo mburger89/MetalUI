@@ -178,7 +178,7 @@ import Testing
 }
 
 /// **BM-H.** A table wraps its cells by default and, with `tableScrolls`, keeps them whole in a horizontal scroller
-/// (`fixedSize` on the cell). Mutation: the cells' `fixedSize` dropped (the scrolling table wraps).
+/// Mutation: the cells' `fixedSize` dropped was GREEN (the scroller proposes no width), so it was deleted; the scroller dropped instead reddens this.
 @Test @MainActor func aTableWrapsByDefaultAndScrollsWhenTheThemeAsks() throws {
     let source = "| a | b |\n|--|--|\n| a long cell with many words in it | another long cell with many more words |"
     let wrapped = try markdownWindow(source, width: 200)

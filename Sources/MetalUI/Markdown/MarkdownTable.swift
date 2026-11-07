@@ -32,7 +32,6 @@ struct MarkdownTable: Component, ProposalElementGroup, @MainActor Equatable {
             GridRow {
                 ForEach(Array(header.indices), id: \.self) { index in
                     MarkdownInlineLowering.text(header[index], theme: theme, font: theme.bodyFont, weight: .bold)
-                        .fixedSize(horizontal: scrolls, vertical: false)
                         .gridColumnAlignment(column(index))
                 }
             }
@@ -41,8 +40,7 @@ struct MarkdownTable: Component, ProposalElementGroup, @MainActor Equatable {
                 GridRow {
                     ForEach(Array(rows[row].indices), id: \.self) { index in
                         MarkdownInlineLowering.text(rows[row][index], theme: theme, font: theme.bodyFont)
-                            .fixedSize(horizontal: scrolls, vertical: false)
-                            .gridColumnAlignment(column(index))
+                                .gridColumnAlignment(column(index))
                     }
                 }
             }
