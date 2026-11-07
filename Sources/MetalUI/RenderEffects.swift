@@ -464,7 +464,7 @@ extension Frame {
         if let top = prepaintEffects.last {
             // The clip at this entry is in the enclosing effect's local space:
             // its bounding box in window space, cut by that effect's outer clip
-            // (divergence 109).
+            // (a masked group cuts the exact clip where this is not it, `TZ-B`).
             outerClip = clipDepth > clipBase
                 ? Self.intersect(top.outerClip, top.composed.boundingBox(of: activeClip))
                 : top.outerClip
@@ -548,15 +548,79 @@ extension Frame {
             : OuterMask(bounds: MUIBounds(activeClip.scaled(by: scaleFactor)),
                         radii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
                         depth: clipDepth)
-        let scope = PaintScope(kind: .effect, effect: RenderEffect(homography: device), entryClipDepth: clipDepth,
-                               flattens: flattens, outer: outer)
-        let savedBase = clipBase, savedFlatteningBase = flatteningClipBase
-        if flattens { flatteningClipBase = clipDepth } else { clipBase = clipDepth }
-        paintScopes.append(scope)
-        body()
-        paintScopes.removeLast()
-        clipBase = savedBase
-        flatteningClipBase = savedFlatteningBase
+        // A clip pushed between two non-flattening effects is cut exactly by a masked group (`TZ-B`, divergence 109 retired):
+        // the mask is the clip itself, emitted here, outside the new scope, and mapped by the enclosing effects on its way out.
+        // The scope's own outer mask below stays the screen box, a superset the mask multiplies.
+        guard !flattens, let mask = nestedClipMask() else { open(); return }
+        nestedClipMasks += 1
+        paintWithMask(primitive: mask, maskDepth: clipDepth, open)
+
+        func open() {
+            let scope = PaintScope(kind: .effect, effect: RenderEffect(homography: device), entryClipDepth: clipDepth,
+                                   flattens: flattens, outer: outer)
+            let savedBase = clipBase, savedFlatteningBase = flatteningClipBase
+            if flattens { flatteningClipBase = clipDepth } else { clipBase = clipDepth }
+            paintScopes.append(scope)
+            body()
+            paintScopes.removeLast()
+            clipBase = savedBase
+            flatteningClipBase = savedFlatteningBase
+        }
+    }
+
+    /// The clip in force as a mask for a non-flattening scope about to open (`TZ-B`), or `nil` when the box is already exact
+    /// or the mask cannot be emitted in the clip's space. Needs a clip pushed since the innermost open non-flattening effect
+    /// (`clipDepth > clipBase`, so it is in that effect's local space) and an enclosing non-flattening effect before any
+    /// barrier. `nil` when a scope that maps (a transition, a capture, a fade) opened after the clip was pushed:
+    /// a flattening effect is undone on the clip's way into the mask's space (`after`); any other scope there leaves the box (divergence 224). `nil` too when the composed map of
+    /// the open effects keeps the clip an axis-aligned rect and the clip has no rounded corner, since the box is then the
+    /// clip (a 90-degree turn).
+    func nestedClipMask() -> CapturedPrimitive? {
+        guard clipDepth > clipBase else { return nil }
+        var composed = Homography2D.identity, after = Homography2D.identity
+        var enclosed = false
+        for scope in paintScopes.reversed() {
+            if scope.kind == .barrier { break }
+            // A mask scope opened for the clip in force (a shape clip opens it just before pushing its bounding clip, a crossing
+            // pair just after) already cuts it exactly, through the effects, as an ellipse always did (`CM-A`).
+            if !enclosed, scope.kind == .composite, scope.mask != nil, scope.entryClipDepth >= clipDepth - 1 { return nil }
+            guard scope.kind == .effect || scope.kind == .transition || scope.kind == .capture || scope.kind == .fade else { continue }
+            if scope.entryClipDepth >= clipDepth {
+                // Opened after the clip was pushed: the clip is in the space it maps INTO. A flattening effect (a uniform scale and
+                // a translation) is undone; anything else cannot be, and the box stays.
+                guard scope.kind == .effect, scope.flattens else { return nil }
+                after = scope.effect.homography.concatenating(after)
+                continue
+            }
+            if scope.kind == .effect {
+                composed = scope.effect.homography.concatenating(composed)
+                if !scope.flattens { enclosed = true }
+            }
+        }
+        guard enclosed, after.determinant != 0 else { return nil }
+        let radii = activeClipRadii
+        let square = radii.topLeft == Pixels(0) && radii.topRight == Pixels(0)
+            && radii.bottomRight == Pixels(0) && radii.bottomLeft == Pixels(0)
+        let eps = 1e-9 * (abs(composed.a) + abs(composed.b) + abs(composed.c) + abs(composed.d))
+        let axisAligned = composed.isAffine
+            && ((abs(composed.b) <= eps && abs(composed.c) <= eps) || (abs(composed.a) <= eps && abs(composed.d) <= eps))
+        if square && axisAligned { return nil }
+        // The clip in the space the mask is emitted in: undone through the flattening effects opened since (`after`).
+        let device = MUIBounds(activeClip.scaled(by: scaleFactor))
+        let k = Float(after.a), undo = 1 / k
+        let clip = MUIBounds(origin: MUIPoint(x: (device.origin.x - Float(after.tx)) * undo, y: (device.origin.y - Float(after.ty)) * undo),
+                             size: MUISize(width: device.size.width * undo, height: device.size.height * undo))
+        // The content mask is the clip grown, finite (`CM-I`): a plane would interpolate the position coarsely.
+        let grow = max(16, clip.size.width, clip.size.height)
+        let grown = MUIBounds(origin: MUIPoint(x: clip.origin.x - grow, y: clip.origin.y - grow),
+                              size: MUISize(width: clip.size.width + 2 * grow, height: clip.size.height + 2 * grow))
+        let r = MUIRect(bounds: clip, contentMask: grown,
+                        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+                        background: MUIHsla(h: 0, s: 0, l: 1, a: 1), borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+                        cornerRadii: MUICorners(radii.scaled(by: scaleFactor * undo)),
+                        borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: 0,
+                        shape: PrimitiveShape.roundedRectangle.rawValue)
+        return CapturedPrimitive(kind: .rect(r), layer: activeLayer, innerMask: false)
     }
 
     /// A `Deferred`'s reset of the effect stack (`GX-G`), both phases: no open

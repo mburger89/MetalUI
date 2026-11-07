@@ -1,6 +1,6 @@
 # Record 224: `defaultScrollAnchor` (Alloy gap G6)
 
-Branch `feat/default-scroll-anchor` (master `4d4c59db`). Rulings `DSA-A`..`DSA-I` in `docs/superpowers/2026-11-07-default-scroll-anchor-decisions.md` (new prefix; next `DSA-J`). Class `A`; divergence 226 added (210 live, next label 227). Probe `docs/probes/swiftui-default-scroll-anchor.swift`. Human checks: group `DA`, not run.
+Branch `feat/default-scroll-anchor` (master `4d4c59db`). Rulings `DSA-A`..`DSA-I` in `docs/superpowers/2026-11-07-default-scroll-anchor-decisions.md` (new prefix; next `DSA-J`). Class `A`; divergence 226 added (209 live, next label 227). Probe `docs/probes/swiftui-default-scroll-anchor.swift`. Human checks: group `DA`, not run.
 
 ## 1. What SwiftUI does (probe, macOS 27.2)
 

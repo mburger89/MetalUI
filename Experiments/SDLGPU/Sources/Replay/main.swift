@@ -698,6 +698,49 @@ func gradientTextFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Sce
        atlas: atlas)
 }
 
+/// Frame 20 (rulings `TZ-A`, `TZ-B`, text under transforms): 16 pt text under `scaleEffect` 2, 1.5 and (a 32 pt label) 0.5, each re-keyed
+/// at `insertIntoScene` to the raster scale it is drawn at (a ladder of `2^(1/8)`), so the atlas holds glyph bitmaps at several
+/// scales and its starting size (256) is outgrown (`maximumExtent` 1024: growth is exercised, `GL-B`); the same text scaled then
+/// rotated (a transform record on re-keyed glyphs) and scaled inside `rotation3DEffect` (a projective record); a gradient text at
+/// `scaleEffect(2)` (the ink mask's glyphs re-keyed in a fresh scene); and the two nested clips of probe arms NC1 and NC2 (a clip
+/// between two 30-degree rotations, square and rounded: a masked group whose mask carries the outer rotation). Judged as frame
+/// 18's. No shader line moves (`TE-AD`): the glyph and mask pipelines run unchanged over a larger atlas.
+@MainActor
+func textZoomFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    let sweep = LinearGradient(colors: [Color(.accent), Color(Hsla(h: 0.08, s: 1, l: 0.5, a: 1))],
+                               startPoint: .leading, endPoint: .trailing)
+    func turned() -> some ProposalElementGroup {
+        Color(.accent).frame(width: Pixels(100), height: Pixels(100)).rotationEffect(.degrees(30))
+            .frame(width: Pixels(60), height: Pixels(60))
+    }
+    return renderFrame({
+        VStack(alignment: .leading, spacing: Pixels(14)) {
+            HStack(alignment: .top, spacing: Pixels(20)) {
+                Text("Zoom 2").font(size: 16).scaleEffect(2, anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Zoom 1.5").font(size: 16).scaleEffect(1.5, anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Half").font(size: 32).scaleEffect(0.5, anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Turn").font(size: 16).scaleEffect(2, anchor: .topLeading).rotationEffect(.degrees(-12), anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+            }
+            HStack(alignment: .top, spacing: Pixels(20)) {
+                Text("Flip").font(size: 16).scaleEffect(2, anchor: .topLeading)
+                    .rotation3DEffect(.degrees(35), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+                    .frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Gradient").font(size: 16).foregroundStyle(sweep).scaleEffect(2, anchor: .topLeading).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+                Text("Plain 16").font(size: 16).frame(width: Pixels(150), height: Pixels(56), alignment: .topLeading)
+            }
+            HStack(alignment: .top, spacing: Pixels(80)) {
+                turned().clipped().rotationEffect(.degrees(30)).padding(Edges(all: Pixels(40)))
+                turned().clipShape(RoundedRectangle(cornerRadius: Pixels(12))).rotationEffect(.degrees(30))
+                    .padding(Edges(all: Pixels(40)))
+            }
+        }
+        .offset(x: Pixels(14.25), y: Pixels(10.5))
+    }, size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))), scaleFactor: 1, textSystem: system,
+       atlas: atlas)
+}
+
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
 /// scale 1, through `PortableTextSystem` over Noto Sans.
 @MainActor
@@ -842,16 +885,18 @@ func run() throws {
     let filterAtlas = GlyphAtlas(width: 512, height: 512)
     let maskAtlas = GlyphAtlas(width: 512, height: 512)   // frame 18 (`CM-A`)
     let gradientAtlas = GlyphAtlas(width: 512, height: 512)   // frame 19 (`TG-C`)
+    let zoomAtlas = GlyphAtlas(width: 256, height: 256, maximumExtent: 1024)   // frame 20 (`TZ-A`): grown by the re-keyed rasters
     // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O) need the portable shaders: the adapted MSL has no backdrop stages.
     let portableShaders = portable
     let sizes = [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380), (640, 380), (720, 380), (720, 380)]
+                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380), (640, 380), (720, 380), (720, 380), (720, 380)]
     for (index, dimensions) in sizes.enumerated() {
         let (width, height) = dimensions
         let filters = index == 17
         let masks = index == 18
         let gradientText = index == 19
-        let groups = index == 16 || filters || masks || gradientText
+        let textZoom = index == 20
+        let groups = index == 16 || filters || masks || gradientText || textZoom
         let projection3D = index == 15
         let backdrops = index >= 9 && !projection3D && !groups
         let glass = index >= 12 && !projection3D && !groups
@@ -861,8 +906,10 @@ func run() throws {
         let shapes = index == 6
         let transforms = index == 7
         let looks = index == 8
-        let frameAtlas = gradientText ? gradientAtlas : masks ? maskAtlas : filters ? filterAtlas : groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = gradientText
+        let frameAtlas = textZoom ? zoomAtlas : gradientText ? gradientAtlas : masks ? maskAtlas : filters ? filterAtlas : groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = textZoom
+            ? try textZoomFrame(width: width, height: height, atlas: zoomAtlas)
+            : gradientText
             ? try gradientTextFrame(width: width, height: height, atlas: gradientAtlas)
             : masks
             ? try clipMaskFrame(width: width, height: height, atlas: maskAtlas)
@@ -895,7 +942,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(gradientText ? " (gradient text)" : masks ? " (masked groups)" : filters ? " (filtered groups)" : groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(textZoom ? " (text zoom)" : gradientText ? " (gradient text)" : masks ? " (masked groups)" : filters ? " (filtered groups)" : groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))

@@ -413,10 +413,12 @@ accessibility frame is the transformed frame's bounding box (107 at angles off
 a right angle). On the proposal vocabulary each is one `LayoutModifier` layer
 (`.rotationEffect`, `.scaleEffect`, `.offset` cases); on a `StyledElement`
 each returns `Self` and wraps the whole element whatever the written order
-(108). A clip between two nested rotations is its screen bounding box (109); a
+(108). A clip between two nested rotations clips to the clip (a masked group,
+`TZ-B`; 109 retired); a
 handler written outside a padding over an effect hits its own axis-aligned
-frame (41). Angle, factors, anchor and offset animate. Text and images under
-a scale or rotation are resampled, not re-rasterized (106); paths and shadows
+frame (41). Angle, factors, anchor and offset animate. Text under a uniform
+scale is re-rasterized at the scale it is drawn at (`TZ-A`); under a rotation, skew,
+non-uniform scale or projection it is resampled (106), as are images; paths and shadows
 are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 `rotation3DEffect`.
 

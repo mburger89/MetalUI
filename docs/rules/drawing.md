@@ -50,8 +50,10 @@ return `Self` into `Decoration.renderEffects`, around the whole element
 via `beginLeafGroup`/`endLeafGroup` — a new text-drawing site brackets its
 draw), silhouette on the CPU **unless the CPU cannot read the leaf** (a GPU surface, a leaf under a projective record, a leaf
 still inside an opacity group: an offscreen group the renderers filter, `GF-`, below), blur sigma = radius, a shadow never hits and a
-`Deferred` stops it; text and images under a scale are resampled, not
-re-rasterized (divergence 106). **A clip pushed inside a flattening effect (`.offset`, uniform
+`Deferred` stops it; **text under a flattening scale is re-keyed to the scale it is drawn at
+in `insertIntoScene`'s `.glyph` arm** (`TZ-A`, `TextZoom.swift`: a ladder of `2^(1/8)`, the scale `f` alone, 1/4 floor,
+256 px cap; rotation, skew, anisotropy and projection stay resampled, divergence 106) and **a clip between two
+non-flattening effects is a masked group** (`TZ-B`, `nestedClipMask()`; divergence 109 retired), images are resampled. **A clip pushed inside a flattening effect (`.offset`, uniform
 `.scaleEffect`) is local and, once mapped, cut by the clip at the effect's entry**
 (`flatteningClipBase`, `cutToEntryClip`; `GX-X`, record §73 §12); **a nested flattening
 effect opened before any clip is pushed inside the enclosing one has no entry clip of its own**
