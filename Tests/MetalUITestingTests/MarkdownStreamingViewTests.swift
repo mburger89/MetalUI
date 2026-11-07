@@ -136,3 +136,51 @@ private let verifyNote: Comment =
     let fresh = MarkdownDocument(parsing: replacement).blocks
     #expect(fresh.count == 2)
 }
+
+/// **Stop condition (plan), BM2, `BM-H`.** A horizontal scroller inside the vertical transcript **takes a vertical wheel
+/// for itself** (measured: the wheel over a fence, long lines or not, scrolls nothing). So the default theme has no
+/// scroller: `codeWraps` is true, and a vertical wheel over the fence scrolls the transcript. With `codeWraps = false`
+/// the fence scrolls sideways under a horizontal wheel and **swallows the vertical one: pinned wrong on purpose, the
+/// carried limitation**; a framework change that passes the wheel on would redden that arm and is a fix. In both arms
+/// a transcript wheeled back to its end follows the next tokens again (`defaultScrollAnchor(.bottom)` is unharmed).
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aHorizontalCodeScrollerSwallowsTheVerticalWheelSoTheDefaultHasNone() throws {
+    var source = "Intro paragraph above the code.\n\n```swift\n"
+    source += String(repeating: "let aVeryLongIdentifier = someFunction(argumentOne, argumentTwo, argumentThree, argumentFour)\n", count: 6)
+    source += "```\n\n"
+    for n in 0..<12 { source += "Filler paragraph number \(n) so that the reply is taller than the window.\n\n" }
+    source += "The end is near"
+    for wraps in [true, false] {
+        let model = MarkdownTranscriptModel(documents: [MarkdownDocument(parsing: source)])
+        model.theme.codeWraps = wraps
+        let window = try markdownTranscript(model, size: sz(420, 300))
+        markdownSettle(window, frames: 8)
+        func element(_ prefix: String) throws -> TestElement {
+            try #require(try window.elements(role: .staticText).first { ($0.value ?? "").hasPrefix(prefix) }, "no \(prefix)")
+        }
+        let end = try element("The end is near")
+        #expect(end.frame.origin.y.value + end.frame.size.height.value == 300, "pinned at the end: \(end.frame)")
+        window.scroll(at: pt(200, 8), byDeltaX: 0, deltaY: 100_000)   // over the intro text: to the top
+        markdownSettle(window, frames: 6)
+        let fence = try element("let aVeryLong")
+        let over = pt(60, fence.visibleFrame.origin.y.value + 10)
+        let intro0 = try element("Intro paragraph").frame.origin.y.value, x0 = fence.frame.origin.x.value
+        window.scroll(at: over, byDeltaX: 0, deltaY: -30)
+        markdownSettle(window, frames: 6)
+        let moved = try element("Intro paragraph").frame.origin.y.value - intro0
+        #expect(moved == (wraps ? -30 : 0), "wheel over the fence (codeWraps \(wraps)): the transcript moved \(moved)")
+        #expect(try element("let aVeryLong").frame.origin.x.value == x0)
+        if !wraps {
+            window.scroll(at: over, byDeltaX: -50, deltaY: 0)
+            markdownSettle(window, frames: 6)
+            #expect(try element("let aVeryLong").frame.origin.x.value == x0 - 50, "the horizontal wheel scrolled the fence")
+        }
+        window.scroll(at: pt(200, 8), byDeltaX: 0, deltaY: -1_000_000)
+        markdownSettle(window, frames: 6)
+        for _ in 0..<5 {
+            model.documents[0].append(" token token token token token token token token token")
+            markdownSettle(window, frames: 4)
+            let last = try element("The end is near")
+            #expect(last.frame.origin.y.value + last.frame.size.height.value == 300, "followed (codeWraps \(wraps)): \(last.frame)")
+        }
+    }
+}

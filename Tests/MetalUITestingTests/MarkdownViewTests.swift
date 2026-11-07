@@ -79,19 +79,19 @@ import Testing
 }
 
 /// **BM-H, test 11.** A code fence is a box of `lines x line height + 2 x padding`, as wide as the proposal; its lines
-/// are not wrapped and run past the box (inside a horizontal scroller); with `codeWraps` there is no scroller and the
-/// long line wraps inside the box. A highlighter run colours exactly its bytes, counted by glyphs of that colour, and
+/// are not wrapped and run past the box when the theme scrolls (`codeWraps = false`); by default there is no scroller
+/// and the long line wraps inside the box. A highlighter run colours exactly its bytes, counted by glyphs of that colour, and
 /// slices by UTF-8 bytes (a multibyte scalar before the run keeps the run on its glyphs). Mutations: `fixedSize`
 /// dropped from the column; runs sliced by `Character`.
 @Test @MainActor func aCodeFenceIsABoxOfItsLinesAndRunsColourTheirBytes() throws {
     let long = String(repeating: "abcdefghij", count: 30)
-    var wrapping = MarkdownTheme()
-    wrapping.codeWraps = true
+    var scrolling = MarkdownTheme()
+    scrolling.codeWraps = false
     let one = try markdownWindow("```\nx\n```")
     let oneBox = try #require(try one.elements(role: .group).first ?? one.elements(where: { $0.label == "Code" }).first)
     let lineHeight = oneBox.frame.size.height.value - 20   // padding 10 + 10
     #expect(lineHeight > 10)
-    let three = try markdownWindow("```\nl1\nl2\n\(long)\n```")
+    let three = try markdownWindow("```\nl1\nl2\n\(long)\n```", theme: scrolling)
     let box = try #require(try three.elements(where: { $0.label == "Code" }).first)
     #expect(box.frame.size.height.value == 3 * lineHeight + 20, "3 lines: \(box.frame.size.height.value)")
     #expect(box.frame.size.width.value == 300, "as wide as the proposal, not the longest line")
@@ -99,10 +99,10 @@ import Testing
     #expect(chunk.frame.size.width.value > 1000, "the long line is whole, past the box: \(chunk.frame.size.width.value)")
     #expect(chunk.frame.size.height.value == 3 * lineHeight, "no wrapping")
     #expect(chunk.visibleFrame.size.width.value <= 280, "the scroller clips the line to the box")
-    let wrapped = try markdownWindow("```\nl1\nl2\n\(long)\n```", theme: wrapping)
+    let wrapped = try markdownWindow("```\nl1\nl2\n\(long)\n```")   // the default theme wraps
     let wrappedChunk = try #require(try wrapped.elements(role: .staticText).first { ($0.value ?? "").hasPrefix("l1") })
     #expect(wrappedChunk.frame.size.width.value <= 280 && wrappedChunk.frame.size.height.value > 3 * lineHeight,
-            "codeWraps wraps inside the box: \(wrappedChunk.frame)")
+            "codeWraps (the default) wraps inside the box: \(wrappedChunk.frame)")
     // Colour: a run over `bb` colours exactly two glyphs, also after a multibyte scalar.
     let hue: Float = 0.321
     let colour = CodeStyle(foreground: Color(hue: Double(hue), saturation: 0.9, brightness: 0.9))

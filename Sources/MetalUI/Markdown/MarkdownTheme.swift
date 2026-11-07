@@ -35,8 +35,9 @@ public struct MarkdownTheme: Equatable, Sendable {
     public var codeBlockCornerRadius: Pixels
     /// The padding between a code block's box and its code.
     public var codeBlockPadding: Pixels
-    /// Whether a code block's long lines wrap. `false` (the default) keeps every line whole inside a horizontal
-    /// scroller; `true` has no scroller and wraps at the block's width.
+    /// Whether a code block's long lines wrap at the block's width. `true` is the default: `false` keeps every
+    /// line whole inside a horizontal scroller, and **a scroller takes a vertical wheel over it for itself**, so
+    /// the transcript around it does not scroll while the pointer is over the block (`BM-H`, carried).
     public var codeWraps: Bool
     /// Whether a fence's language name is shown above its code.
     public var showsCodeLanguage: Bool
@@ -62,6 +63,10 @@ public struct MarkdownTheme: Equatable, Sendable {
     public var quoteForeground: Color?
     /// The colour of the rules between a table's rows.
     public var tableRule: Color
+    /// Whether a table scrolls sideways when it is wider than its block. `false` is the default, for the reason
+    /// ``codeWraps`` is true: a horizontal scroller takes a vertical wheel for itself. A table that does not
+    /// scroll wraps its cells' text.
+    public var tableScrolls: Bool
     /// The space between a table's columns.
     public var tableColumnSpacing: Pixels
     /// The space between a table's rows.
@@ -80,7 +85,7 @@ public struct MarkdownTheme: Equatable, Sendable {
         codeForeground = nil
         codeBlockCornerRadius = Pixels(8)
         codeBlockPadding = Pixels(10)
-        codeWraps = false
+        codeWraps = true
         showsCodeLanguage = true
         codeCaptionFont = .caption
         blockSpacing = Pixels(10)
@@ -93,6 +98,7 @@ public struct MarkdownTheme: Equatable, Sendable {
         quotePadding = Pixels(10)
         quoteForeground = .secondary
         tableRule = .separator
+        tableScrolls = false
         tableColumnSpacing = Pixels(16)
         tableRowSpacing = Pixels(6)
         softBreak = .space

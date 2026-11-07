@@ -1,10 +1,11 @@
 import MetalUICore
 import MetalUIMarkdown
 
-/// A GFM table: a `Grid` in a horizontal scroller, columns aligned by the delimiter row (`BM-E`).
+/// A GFM table: a `Grid`, columns aligned by the delimiter row, in a horizontal scroller only when the theme asks
+/// (`BM-E`, `BM-H`).
 ///
 /// The header's cells are bold. A full-width rule follows the header and every body row but the last. Cell text
-/// does not wrap, so a wide table scrolls sideways instead of squeezing its columns.
+/// wraps in a table that does not scroll; in one that does it stays whole and the table scrolls sideways.
 struct MarkdownTable: Component, ProposalElementGroup, @MainActor Equatable {
     let alignments: [MarkdownTableAlignment]
     let header: [String]
@@ -25,26 +26,32 @@ struct MarkdownTable: Component, ProposalElementGroup, @MainActor Equatable {
         func column(_ index: Int) -> HorizontalAlignment {
             index < alignments.count ? Self.alignment(alignments[index]) : .leading
         }
-        return ProposalScrollView(.horizontal) {
-            Grid(alignment: .topLeading, horizontalSpacing: theme.tableColumnSpacing,
-                 verticalSpacing: theme.tableRowSpacing) {
+        let scrolls = theme.tableScrolls
+        let grid = Grid(alignment: .topLeading, horizontalSpacing: theme.tableColumnSpacing,
+                        verticalSpacing: theme.tableRowSpacing) {
+            GridRow {
+                ForEach(Array(header.indices), id: \.self) { index in
+                    MarkdownInlineLowering.text(header[index], theme: theme, font: theme.bodyFont, weight: .bold)
+                        .fixedSize(horizontal: scrolls, vertical: false)
+                        .gridColumnAlignment(column(index))
+                }
+            }
+            ForEach(Array(rows.indices), id: \.self) { row in
+                MarkdownTableRule(color: theme.tableRule)
                 GridRow {
-                    ForEach(Array(header.indices), id: \.self) { index in
-                        MarkdownInlineLowering.text(header[index], theme: theme, font: theme.bodyFont, weight: .bold)
-                            .fixedSize(horizontal: true, vertical: false)
+                    ForEach(Array(rows[row].indices), id: \.self) { index in
+                        MarkdownInlineLowering.text(rows[row][index], theme: theme, font: theme.bodyFont)
+                            .fixedSize(horizontal: scrolls, vertical: false)
                             .gridColumnAlignment(column(index))
                     }
                 }
-                ForEach(Array(rows.indices), id: \.self) { row in
-                    MarkdownTableRule(color: theme.tableRule)
-                    GridRow {
-                        ForEach(Array(rows[row].indices), id: \.self) { index in
-                            MarkdownInlineLowering.text(rows[row][index], theme: theme, font: theme.bodyFont)
-                                .fixedSize(horizontal: true, vertical: false)
-                                .gridColumnAlignment(column(index))
-                        }
-                    }
-                }
+            }
+        }
+        return VStack(alignment: .leading, spacing: Pixels(0)) {
+            if scrolls {
+                ProposalScrollView(.horizontal) { grid }
+            } else {
+                grid
             }
         }
     }
