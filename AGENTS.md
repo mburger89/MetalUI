@@ -67,7 +67,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-11-07, `feat/text-zoom` on master 9116adff, record 223): root 5355 tests in 14 suites passed (`--build-system native`, unfiltered, `--no-parallel`, after `swift package clean`; 0 failures, one environmental `PlatformTests` wheel-event failure in one of three runs; also with `METALUI_VERIFY_RETAINED=1`), 0 goldens; portable Docker (`git archive`) 809 + 9 + 16 + 73 + 68 + 49 + 286 + 154 + 24; `Backends/SDL` (Linux image) by filter `ReplayFixture|SDLGroup|SDLClipMask|SDLTextGradient` 40 and 15 passed; guards: record 221's count, this PR adds none, call sites not re-counted** (`FR-J no-argument frame: succeeded=true`). A count is stale the moment a test lands: re-measure (`swift package clean`, native build, unfiltered `--no-parallel` run, `--build-system native` for the guards). The dated history of every earlier count is frozen verbatim in `docs/record/159-counts-history-2026-10-27.md`; new milestones put their count in their own record, and this line is replaced, not appended to.
+- **Counts (2026-11-07, `feat/code-buffer`, record 225): root 5389 tests in 18 suites passed (`--build-system native`, unfiltered, `--no-parallel`, after `swift package clean`; 45 are `MetalUICodeBufferTests`; `FR-J no-argument frame: succeeded=true`; the guard tally in the next sentences is record 221's, not re-counted).
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
@@ -110,7 +110,7 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 
 ### Targets and import rules (each fails silently on macOS)
 
-Twenty-four one-way-dependent targets (`MetalUIPath`, `GX-B`, the last two
+Twenty-five one-way-dependent targets (`MetalUIPath`, `GX-B`, `MetalUICodeBuffer`, `CV-A`, the last two
 `MetalUIScaffold` and `MetalUICLI`, `SC-A`, and portable `MetalUITesting`, which imports
 only `MetalUI` and `MetalUIScene`, `HT-A`) plus `Tests/MetalUITestSupport`;
 `MetalUIDemoContent` holds the demo tree so tests can import it (`LR-S`).
@@ -118,6 +118,7 @@ Linux/Windows CI (`scene-linux`, `root-windows`) is the only place most of
 these violations show.
 
 - `MetalUILayout` imports only `MetalUICore` and declares no `Style` (`LR-FM`).
+- **`MetalUICodeBuffer` imports only `Observation`** (no Foundation, no `MetalUICore`; portable, own product, re-exported by `MetalUI`; `CV-A`).
 - `MetalUIScene` imports only `MetalUIShaderTypes` (`PS-A`); an initialiser
   that must stay unspellable outside the package is `package`, with a
   plain-import guard (`PS-D`, `PS-E`).

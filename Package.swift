@@ -24,6 +24,10 @@ var products: [Product] = [
         // (Backends/SDL; ruling RS-A).
         .library(name: "MetalUIPlatform", targets: ["MetalUIPlatform"]),
         .library(name: "MetalUICore", targets: ["MetalUICore"]),
+        // The text buffer behind a code view: a rope with snapshots, an edit
+        // stream, undo and a find engine (ruling CV-A). Imports only
+        // Observation, so an app can depend on it without any UI.
+        .library(name: "MetalUICodeBuffer", targets: ["MetalUICodeBuffer"]),
         // The framework itself, on every platform (ruling XP-A), and the
         // demo's content, which `Backends/SDL`'s demo draws (roadmap item 10).
         .library(name: "MetalUI", targets: ["MetalUI"]),
@@ -58,7 +62,7 @@ var products: [Product] = [
 
 var metalUIDependencies: [Target.Dependency] = [
     "MetalUICore", "MetalUILayout", "MetalUITextSystem", "MetalUIPlatform", "MetalUIPrimitives",
-    "MetalUIPath", "CStbImage",
+    "MetalUIPath", "MetalUICodeBuffer", "CStbImage",
 ]
 #if os(macOS)
 metalUIDependencies += ["MetalUIText", "MetalUIRender", "MetalUIAppKit"]
@@ -204,6 +208,12 @@ var targets: [Target] = [
         // its bytes are the same on every platform (`package` API only).
         .target(name: "MetalUIPath"),
         .testTarget(name: "MetalUIPathTests", dependencies: ["MetalUIPath"]),
+
+        // The code view's text buffer (ruling CV-A): a copy-on-write rope over
+        // UTF-8 chunks, an edit stream, undo, selections and a find engine.
+        // Imports only Observation (no Foundation, no MetalUICore); portable.
+        .target(name: "MetalUICodeBuffer"),
+        .testTarget(name: "MetalUICodeBufferTests", dependencies: ["MetalUICodeBuffer"]),
 
         // The C structs shared with the shaders; MetalUIScene imports them.
         .target(name: "MetalUIShaderTypes"),
