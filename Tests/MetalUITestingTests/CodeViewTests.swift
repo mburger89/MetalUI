@@ -559,7 +559,10 @@ import MetalUITestSupport
 /// pin is that 90 000 rows down costs what 600 rows down does (within the same bound again, not 150x more).
 /// An O(n) spelling (counting lines to the anchor, copying the text) is orders over both.
 /// **Mutation:** `makePlan` reading `snap.text` once per frame.
-@Test @MainActor func aWarmScrollFrameAllocatesTheSameAt1kAnd100kLinesAndAtAnyPosition() throws {
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_VERIFY_CODE_CACHE"] != "1"
+               && ProcessInfo.processInfo.environment["METALUI_VERIFY_RETAINED"] != "1",
+               "the verify modes re-run every hit, so the counts are theirs"))
+@MainActor func aWarmScrollFrameAllocatesTheSameAt1kAnd100kLinesAndAtAnyPosition() throws {
     var counts: [String: Int] = [:]
     let visible = Int((200 / codePitch(scale: 1)).rounded(.up)) + 1
     for (lines, positions) in [(1_000, [0, 600]), (100_000, [0, 600, 90_000])] {
