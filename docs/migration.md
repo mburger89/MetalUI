@@ -719,7 +719,7 @@ framework's. **Behaviour:** (1) a built-in shape's outline now starts where Swif
 capsule, circle or ellipse on the right edge, a rectangle top-left), not at the top edge, so a **dashed stroke's
 pattern starts there** (matching SwiftUI) and `trim` begins there; the filled and solid-stroked pixels are unchanged
 (within the rasterizer's rounding); (2) a custom `Shape` overriding `path(in:)` is unaffected. `UnevenRoundedRectangle`
-with a radius past half the shorter side draws as a path and cannot be a `clipShape` (divergence 91).
+with a radius past half the shorter side draws as a path and was, at record 184, unable to be a `clipShape` (since record 220 it is a path mask).
 
 ## The glyph atlas reclaims space (record 184)
 
@@ -787,3 +787,7 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 ## Record 219 (`Scene.groupFilters`, a filter over a group texture)
 
 **`Scene` gains `groupFilters`, `Scene.GroupFilter`, and `insert(_:group:layer:transform:filter:)`; a `WindowRenderer` that draws groups must run the filter** (a downsample chain, two Gaussians and, for a shadow, a tint pass over the group's target, then sample the result) or its filtered groups draw unfiltered. The new parameters have defaults, so a caller that never filters is unchanged; a group quad's `filter` bits 8...31 now hold a transform index (a filtered group drawn under a projective effect). `ReplayFixture` is version 8 (each group carries `filterKind`, `sigma`, `tint`; versions 2-7 still load), and `ReplayGroup` in `SDLBridge.h` gains three fields: a third-party caller of `mui_renderer_finish` adds them.
+
+## Record 220 (`Scene.groupMasks`, shape clips as masked groups)
+
+**`LayoutModifier.clipShape` gains a payload: `case clipShape(any Shape, style: FillStyle = FillStyle())`.** An external `case let .clipShape(shape)` pattern now binds a tuple; write `case let .clipShape(shape, style)` (or `.clipShape(let shape, _)`). `clipShape(_:style:)` is on the proposal path and the legacy `StyledElement` (`ClipShapeBox` carries the style), the one-argument spelling stays. `clipShape(Ellipse())`, `clipShape` of a `Path` or any shape whose geometry is a path, and two crossing rounded clips no longer trap or fall back to the square box: they paint through a masked group (divergences 91 and 92 retired). **`Scene` gains `groupMasks`, `[Scene?]` parallel to `groupScenes`, and `insert(_:group:layer:transform:filter:mask:)`**; a `WindowRenderer` that draws groups must multiply a masked group's target by the mask scene's alpha (draw the mask into a scratch of the group's size under the group's projection, then a destination-in blend `dst *= mask.a`) after the content and before any filter, or it draws the group unmasked (the bounding clip still cuts). The new parameter is defaulted, so a caller that never masks is unchanged. A mask scene holds only rects and images (a precondition). `ReplayFixture` is version 9 (each group may carry a mask body; versions 2-8 still load unmasked), and `ReplayGroup` in `SDLBridge.h` gains `mask_run_start` and `mask_run_count`: a third-party caller of `mui_renderer_finish` adds them. `UnevenRoundedRectangle` with a radius past half the shorter side, which could not be a `clipShape`, now is (a path mask).

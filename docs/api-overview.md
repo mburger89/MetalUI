@@ -148,7 +148,7 @@ Modifiers on proposal content (each one layer of one flat
 38), `.padding(Edges<Pixels>)`, `.fixedSize`, `.aspectRatio`/`.scaledToFit`/
 `.scaledToFill`, `.background(_ color:)`, `.background(alignment:content:)` (57,
 73), `.overlay(alignment:content:)` (73), `.border`, `.opacity` (46),
-`.clipShape`/`.clipped`/`.cornerRadius`/`.clip` (91, 92), `.allowsHitTesting`
+`.clipShape(_:style:)`/`.clipped`/`.cornerRadius`/`.clip` (an ellipse, a path or two crossing rounded clips is a masked group, `CM-A`, `CM-B`; 224), `.allowsHitTesting`
 (41, 44), `.contentShape`, `.onTap`, the gestures, the accessibility
 modifiers, `.font` and the text modifiers, `.transition`, `.animation(_:value:)`,
 `.transaction`, `.id`. On legacy content, `.layoutPriority`, `.fixedSize`,
@@ -318,7 +318,7 @@ layout origin; rasterized on the CPU in device pixels after every effect (crisp
 under `scaleEffect`), drawn as an image, cached by value. `FillStyle`
 (nonzero, even-odd, antialiased), `StrokeStyle` (width, `LineCap`,
 `LineJoin`, miter limit, dashes). A plain-width stroke of a built-in keeps the
-renderer's exact band. `clipShape` of a path traps (91); a stroke width snaps
+renderer's exact band. `clipShape` of a path (or an ellipse, an even-odd or a non-antialiased clip) paints through a masked group (`CM-A`; 224 where no mask can be built); a stroke width snaps
 (97). `Shape.trim(from:to:)` (`TrimmedShape`, animatable under `withAnimation`, `PG-F`) and
 `UnevenRoundedRectangle(cornerRadii:style:)`/`RectangleCornerRadii` (the SDF when its radii fit, a path past
 half the shorter side, `PG-G`); SwiftUI's start points for every built-in (`PG-H`). Not offered: SVG strings,

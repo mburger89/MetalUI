@@ -2302,3 +2302,12 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **GF3.** `W1` (not run, the screen was locked), the other half of divergence 167: a layer-backed `NSViewRepresentable` under `.blur(radius: 6)` in a real `NSHostingView` window against MetalUI's blurred `GPUSurface`, by window capture (`docs/probes/window-capture/`) on an unlocked screen: does SwiftUI blur a platform view at all? Retire 167 if it does, and say what MetalUI should do if it does not. **Observed:**
 - [ ] **GF4.** Tap the fading shadow card repeatedly: is the fade smooth, with no flash where the group starts or stops compositing? **Observed:**
 - [ ] **GF5.** Parity frame 17 (`--expect 18`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam at a group's box edge, any halo, any shadow offset by a pixel? **Observed:**
+
+## CM. Shape clips as masked groups - an ellipse, a path and crossing rounded clips look like SwiftUI's (record 220; rulings `CM-A`..`CM-H`; decisions `docs/superpowers/2026-11-07-clip-mask-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-clip-mask.swift` measures SwiftUI through `ImageRenderer`, the tests read scene structure and Metal or SDL pixels offscreen, but a real window, a real scroll and a GPU on Linux or Windows are a person's.*
+
+- [ ] **CM1.** Run the looks demo (`METALUI_LOOKS_DEMO=1`) and find the clip-mask strip: does the ellipse read as a smooth ellipse (no jagged or doubled edge), the triangle and the even-odd ring clip to their outlines (the ring's centre clear), and the crossing clips cut the inner corner by the outer's rounding? **Observed:**
+- [ ] **CM2.** Scroll a rounded `ScrollView` inside a rounded card so its content crosses the card's corner: is the corner exact while scrolling (no square corner flashing, no seam at the group's box edge)? **Observed:**
+- [ ] **CM3.** An ellipse-clipped avatar with a `.shadow`: is the shadow elliptical (not a box), and does it stay one soft shape while the avatar is hovered or resized? **Observed:**
+- [ ] **CM4.** Parity frame 18 (`--expect 19`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam or halo at a masked group's edge, any difference in the ellipse's anti-aliased edge from Metal's, any path raster misplaced? **Observed:**
