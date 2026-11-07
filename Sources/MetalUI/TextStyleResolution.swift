@@ -12,7 +12,8 @@ struct TextStyleRequest {
     var font: TextFontRequest = .inherit
     var weight: Font.Weight?
     var italic = false
-    var foreground: Color?
+    /// The text's own style (`TG-A`): a colour, a gradient or a material; `nil` inherits the environment's.
+    var foreground: ShapeStyleStorage?
     /// `Text.monospaced()` (ruling RT-E item 3): the system face's
     /// `.monospaced` design. Only a styled `Text` sets it (`RT-F` item 3).
     var monospaced = false
@@ -23,7 +24,11 @@ struct TextStyleRequest {
 /// `.multilineTextAlignment` above it wrote.
 struct ResolvedTextStyle: Equatable {
     var descriptor: FontDescriptor
+    /// The glyph colour: the style's colour, a gradient's first stop, a material's flat tint. Selection, links and
+    /// every reader that wants one colour read this.
     var foreground: Color
+    /// The gradient when the style is one (`TG-A`): the glyphs are then its mask, painted by `Frame.drawGradientInk`.
+    var gradient: GradientFill? = nil
     var lineLimit: TextLineLimit
     var truncation: TextTruncation
     var alignment: TextLineAlignment
@@ -32,7 +37,7 @@ struct ResolvedTextStyle: Equatable {
     /// resolves under a bare environment, for callers that measure a key they
     /// resolved themselves.
     static let unstyled = ResolvedTextStyle(descriptor: FontDescriptor(size: 13), foreground: .textPrimary,
-                                            lineLimit: TextLineLimit(), truncation: .tail, alignment: .leading)
+                                            gradient: nil, lineLimit: TextLineLimit(), truncation: .tail, alignment: .leading)
 }
 
 /// The default font — what a text resolves when neither it nor the
@@ -64,12 +69,34 @@ func resolveTextStyle(_ own: TextStyleRequest, in environment: EnvironmentValues
     let bold: Font.Weight? = environment.isBold && font.weightOverride == nil ? .bold : nil
     let descriptor = font.descriptor(weight: own.weight ?? environment.fontWeight ?? bold,
                                      italic: own.italic || environment.italic, monospaced: own.monospaced)
+    let (foreground, gradient) = resolveForeground(own.foreground, in: environment)
     return ResolvedTextStyle(
         descriptor: descriptor,
-        foreground: own.foreground ?? environment.foregroundStyle ?? .textPrimary,
+        foreground: foreground, gradient: gradient,
         lineLimit: environment.textLineLimit,
         truncation: environment.truncationMode.seam,
         alignment: environment.multilineTextAlignment.seam(in: environment.layoutDirection))
+}
+
+/// A text's colour and gradient (`TG-A`): `own ?? environment`, else the default `textPrimary`. A gradient is its first stop
+/// as the colour; a material is its flat tint (divergence 975). **A level the text wrote over nothing, under a gradient
+/// parent, is the parent's gradient at the level's factor** (`P14`, probe `TG9`).
+func resolveForeground(_ own: ShapeStyleStorage?, in environment: EnvironmentValues) -> (Color, GradientFill?) {
+    switch own ?? environment.foregroundStorage {
+    case nil:
+        return (.textPrimary, nil)
+    case let .color(color)?:
+        if own != nil, color.readsInheritedStyle, case let .gradient(parent)? = environment.foregroundStorage,
+           let factor = color.levelFactorOverParent(scheme: environment.colorScheme) {
+            let scaled = parent.scalingOpacity(by: factor)
+            return (scaled.gradient.stops.first?.color ?? .clear, scaled)
+        }
+        return (color, nil)
+    case let .gradient(fill)?:
+        return (fill.gradient.stops.first?.color ?? .clear, fill)
+    case let .material(material)?:
+        return (material.color, nil)
+    }
 }
 
 extension Text.TruncationMode {

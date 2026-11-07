@@ -19,7 +19,8 @@ struct TextRunRequest: Sendable, Hashable {
     var weight: Font.Weight?
     var italic: Bool?
     var monospaced: Bool?
-    var foreground: Color?
+    /// The run's own style (`TG-A`): a colour, or a gradient that paints across the ink of every run carrying it.
+    var foreground: ShapeStyleStorage?
     var background: Color?
     /// `isActive` false is an explicit "none" an outer underline does not
     /// override.
@@ -32,7 +33,8 @@ struct TextRunRequest: Sendable, Hashable {
     var link: String?
 
     init(string: String, font: TextFontRequest? = nil, weight: Font.Weight? = nil, italic: Bool? = nil,
-         monospaced: Bool? = nil, foreground: Color? = nil, background: Color? = nil,
+         monospaced: Bool? = nil, foreground: Color? = nil, foregroundStyle: ShapeStyleStorage? = nil,
+         background: Color? = nil,
          underline: Text.LineStyle? = nil, strikethrough: Text.LineStyle? = nil, kerning: Double? = nil,
          tracking: Double? = nil, baselineOffset: Double? = nil, link: String? = nil) {
         self.string = string
@@ -40,7 +42,7 @@ struct TextRunRequest: Sendable, Hashable {
         self.weight = weight
         self.italic = italic
         self.monospaced = monospaced
-        self.foreground = foreground
+        self.foreground = foregroundStyle ?? foreground.map { .color($0) }
         self.background = background
         self.underline = underline
         self.strikethrough = strikethrough
@@ -257,11 +259,18 @@ func plainTextForm(_ content: TextContent, own: TextStyleRequest, rich: TextRich
 /// at paint (they snap, `RT-L` item 2).
 struct TextRunPaint: Hashable, Sendable {
     var foreground: Color
+    /// The run's gradient when its foreground style is one (`TG-A`): `foreground` is then its first stop. Runs
+    /// with equal gradients share one ink group (probe `TG5`).
+    var gradient: GradientFill?
     var background: Color?
     /// The underline's colour when the run is underlined (its own colour,
     /// else the run's foreground, `RT-J` item 4).
     var underline: Color?
     var strikethrough: Color?
+    /// Whether a line follows the run's foreground, so a gradient run's line is part of its ink (probe `TG10`): the
+    /// line named no colour of its own.
+    var underlineFollowsInk = false
+    var strikethroughFollowsInk = false
     /// The dash patterns of the two lines (`TM-B`); meaningful only while the line is set.
     var underlinePattern: Text.LineStyle.Pattern = .solid
     var strikethroughPattern: Text.LineStyle.Pattern = .solid
@@ -303,7 +312,7 @@ func resolveRichText(_ content: TextContent, own: TextStyleRequest, rich: TextRi
         if length == 0, !styledRuns.isEmpty { continue }
         let request = TextStyleRequest(
             font: run.font ?? own.font, weight: run.weight ?? own.weight, italic: run.italic ?? own.italic,
-            foreground: run.foreground ?? own.foreground ?? (run.link != nil ? .accentColor : nil),
+            foreground: run.foreground ?? own.foreground ?? (run.link != nil ? .color(.accentColor) : nil),
             monospaced: run.monospaced ?? rich.monospaced ?? view.monospaced ?? false)
         let resolved = resolveTextStyle(request, in: environment)
         let style = TextRunStyle(font: system.resolveFont(resolved.descriptor),
@@ -313,9 +322,11 @@ func resolveRichText(_ content: TextContent, own: TextStyleRequest, rich: TextRi
         let underlineStyle = (run.underline ?? rich.underline ?? view.underline).flatMap { $0.isActive ? $0 : nil }
         let strikeStyle = (run.strikethrough ?? rich.strikethrough ?? view.strikethrough)
             .flatMap { $0.isActive ? $0 : nil }
-        let paint = TextRunPaint(foreground: resolved.foreground, background: run.background,
+        let paint = TextRunPaint(foreground: resolved.foreground, gradient: resolved.gradient, background: run.background,
                                  underline: underlineStyle.map { $0.color ?? resolved.foreground },
                                  strikethrough: strikeStyle.map { $0.color ?? resolved.foreground },
+                                 underlineFollowsInk: underlineStyle.map { $0.color == nil } ?? false,
+                                 strikethroughFollowsInk: strikeStyle.map { $0.color == nil } ?? false,
                                  underlinePattern: underlineStyle?.pattern ?? .solid,
                                  strikethroughPattern: strikeStyle?.pattern ?? .solid, link: run.link)
         string += run.string

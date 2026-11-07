@@ -143,8 +143,10 @@ extension Frame {
     /// was pushed inside the scope that is about to map it, and its transform's outer mask.
     static func flagMarkMasks(_ p: inout CapturedPrimitive, _ entryDepth: Int) {
         for k in p.groups.indices where p.groups[k].isMasked {
-            p.groups[k].mask[0].innerMask = p.groups[k].maskDepth > entryDepth
-            p.groups[k].mask[0].outerMaskInner = p.groups[k].mask[0].transform.map { $0.outerDepth > entryDepth } ?? false
+            for m in p.groups[k].mask.indices {
+                p.groups[k].mask[m].innerMask = p.groups[k].maskDepth > entryDepth
+                p.groups[k].mask[m].outerMaskInner = p.groups[k].mask[m].transform.map { $0.outerDepth > entryDepth } ?? false
+            }
         }
     }
 
@@ -152,14 +154,15 @@ extension Frame {
     /// overlap of their painted extents grown a pixel, and the pair drawn back as one quad the renderer multiplies by the
     /// mask's alpha. A lone plain rect that covers an ellipse mask is that ellipse instead (an exact shortcut); a group
     /// over the target limit is drawn per primitive under the bounding clip alone.
-    func insertMaskedGroup(_ children: [CapturedPrimitive], mask: CapturedPrimitive) {
-        if children.count == 1, children[0].groups.isEmpty, let baked = Self.bakingToEllipse(children[0], mask: mask) {
+    func insertMaskedGroup(_ children: [CapturedPrimitive], mask: [CapturedPrimitive], inkMask: Bool = false) {
+        if mask.count == 1, children.count == 1, children[0].groups.isEmpty,
+           let baked = Self.bakingToEllipse(children[0], mask: mask[0]) {
             masksBakedToEllipse += 1
             insertIntoScene(baked)
             return
         }
         var inner = collectingIntoFreshScene { insertLeaves(children) }
-        var maskScene = collectingIntoFreshScene { insertIntoScene(mask) }
+        var maskScene = collectingIntoFreshScene { for m in mask { insertIntoScene(m) } }
         guard let content = inner.paintedBounds(), let shape = maskScene.paintedBounds() else { return }
         let painted = (minX: max(content.minX, shape.minX), minY: max(content.minY, shape.minY),
                        maxX: min(content.maxX, shape.maxX), maxY: min(content.maxY, shape.maxY))
@@ -173,6 +176,26 @@ extension Frame {
         if x1 - x0 > Float(Self.maxGroupTargetSide) || y1 - y0 > Float(Self.maxGroupTargetSide) {
             // Too large for one target: drawn per primitive under the bounding clip alone, as before this existed.
             masksFlattenedOversize += 1
+            if inkMask, children.count == 1, case let .gradient(paint) = children[0].kind {
+                // A gradient text over the limit draws its ink in the gradient's first stop, as before this existed (`TG-E`): the
+                // glyphs, cut by the content's clip, at the stop's alpha times the content's opacity.
+                let alpha = (paint.stops.colors.count >= 4 ? paint.stops.colors[3] : 1) * paint.opacity
+                for var p in mask {
+                    switch p.kind {
+                    case var .glyph(g):
+                        g.contentMask = paint.contentMask; g.maskCornerRadii = paint.maskCornerRadii
+                        g.color.a = alpha
+                        p.kind = .glyph(g)
+                    case var .rect(r):
+                        r.contentMask = paint.contentMask; r.maskCornerRadii = paint.maskCornerRadii
+                        r.background.a = alpha
+                        p.kind = .rect(r)
+                    default: break
+                    }
+                    insertIntoScene(p)
+                }
+                return
+            }
             var flat = children
             for k in flat.indices { flat[k].bakeGroupAlpha() }
             insertLeaves(flat)

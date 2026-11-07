@@ -17,8 +17,8 @@ import MetalUICore
 /// `Color.primary` and `Color.secondary` are `@_disfavoredOverload` members (`HY-C`): the generic solution
 /// `S == HierarchicalShapeStyle` carries no disfavoured member and beats the concrete `Color` overload's
 /// solution that carries one. No sink's overloads changed. Write `Color.secondary`, a `Color` value or
-/// `foregroundColor(.secondary)` for the grey. A gradient or material parent is lowered to its first stop or flat
-/// tint before the factor applies (divergence 975); `foregroundStyle(_:_:)` and the instance members
+/// `foregroundColor(.secondary)` for the grey. A gradient parent keeps its gradient with every stop's opacity times the
+/// factor (`TG-`); a material parent is lowered to its flat tint before the factor applies (divergence 975); `foregroundStyle(_:_:)` and the instance members
 /// `ShapeStyle.secondary` stay carried (`SS-G`). Unlike SwiftUI's it is `Equatable`, so an erased level compares
 /// equal to itself and a retained subtree holding one stays retained (`AnyShapeStyle`).
 public struct HierarchicalShapeStyle: ShapeStyle, Equatable, Sendable {
@@ -67,7 +67,12 @@ public struct HierarchicalShapeStyle: ShapeStyle, Equatable, Sendable {
 
     /// This level over the style `environment` inherits, resolved (`HY-B`).
     public func resolve(in environment: EnvironmentValues) -> ResolvedShapeStyle {
-        ResolvedShapeStyle(.color(Color(level: level, over: environment.foregroundStyle)))
+        // A gradient parent keeps its gradient with every stop at the level's factor (`P14`, probe `TG9`); a material
+        // parent is lowered to its flat tint as before (divergence 975).
+        if case let .gradient(parent)? = environment.foregroundStorage {
+            return ResolvedShapeStyle(.gradient(parent.scalingOpacity(by: level.factor(overParent: true, scheme: environment.colorScheme))))
+        }
+        return ResolvedShapeStyle(.color(Color(level: level, over: environment.foregroundStyle)))
     }
 }
 

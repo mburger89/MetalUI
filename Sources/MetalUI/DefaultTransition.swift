@@ -111,11 +111,16 @@ extension Scene {
             return [captured]
         }
         var mark = GroupMark(token: GroupToken(), alpha: groups[index].opacity)
-        if let maskScene = groupMasks[index], let run = maskScene.drawList.first,
-           let shape = maskScene.capturedPrimitive(run.kind, at: run.start) {
-            // A masked group (`CM-A`): the ghost is masked again, by the primitive the mask scene drew (a path mask reads
-            // back as its raster image, which is what it had already become).
-            mark = GroupMark(token: GroupToken(), alpha: 1, mask: [shape])
+        if let maskScene = groupMasks[index] {
+            // A masked group (`CM-A`): the ghost is masked again, by every primitive the mask scene drew (a path mask reads
+            // back as its raster image, which is what it had already become; a gradient text's ink as its glyphs, `TG-D`).
+            var shapes: [CapturedPrimitive] = []
+            for run in maskScene.drawList {
+                for k in run.start..<(run.start + run.count) {
+                    if let shape = maskScene.capturedPrimitive(run.kind, at: k) { shapes.append(shape) }
+                }
+            }
+            if !shapes.isEmpty { mark = GroupMark(token: GroupToken(), alpha: 1, mask: shapes) }
         }
         var out: [CapturedPrimitive] = []
         for run in child.drawList {

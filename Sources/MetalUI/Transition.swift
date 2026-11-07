@@ -326,10 +326,12 @@ struct RenderEffect: Equatable {
         // cannot be mapped draws nothing, so its content does not draw unmasked.
         let geometry = RenderEffect(alpha: 1, homography: homography)
         for i in p.groups.indices where p.groups[i].isMasked {
-            guard let mapped = geometry.applyToShape(to: p.groups[i].mask[0], flattens: flattens, outer: outer) else {
-                return nil
+            for k in p.groups[i].mask.indices {
+                guard let mapped = geometry.applyToShape(to: p.groups[i].mask[k], flattens: flattens, outer: outer) else {
+                    return nil
+                }
+                p.groups[i].mask[k] = mapped
             }
-            p.groups[i].mask[0] = mapped
         }
         return p
     }
@@ -531,13 +533,17 @@ final class GroupToken: Sendable {}
 struct GroupMark {
     let token: GroupToken
     var alpha: Float
-    /// A masked group's mask (`CM-A`): empty for an opacity mark, one primitive (a white ellipse rect, or a path) in the
-    /// space the content was emitted in for a masked one. An array, because a struct cannot hold itself. A masked mark's
-    /// alpha is 1: an opacity outside a clip is per leaf (probe `CM6`, `CM-C`).
+    /// A masked group's mask (`CM-A`, `TG-D`): empty for an opacity mark; for a masked one the primitives, in the space the
+    /// content was emitted in, whose alpha the group is multiplied by: one for a shape clip (a white ellipse rect, or a
+    /// path) and **one per glyph and decoration rect for a gradient text's ink**. Every reader maps, moves or cuts each
+    /// element. A masked mark's alpha is 1: an opacity outside a clip is per leaf (probe `CM6`, `CM-C`).
     var mask: [CapturedPrimitive] = []
     /// The clip depth the mask's own clip (its `contentMask`) was read at: what `processScopes` compares with a scope's
     /// entry depth to set the mask's `innerMask`, as it does for a primitive's. Meaningless for an opacity mark.
     var maskDepth = 0
+    /// Whether the mask is a gradient text's ink (`TG-E`): over the target limit the group draws the ink in the gradient's
+    /// first stop (today's drawing) instead of the content, which would be a gradient box.
+    var inkMask = false
 
     /// Whether this mark multiplies the group's pixels by a shape (`CM-A`) rather than fading them (`GO-B`).
     var isMasked: Bool { !mask.isEmpty }

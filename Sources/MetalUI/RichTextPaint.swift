@@ -38,8 +38,22 @@ extension PaintPass {
                  color: resolve(background))
         }
 
+        // A gradient run's glyphs, and its lines that follow its foreground, are the ink of one masked group per gradient,
+        // spanning every run that carries that same gradient (`TG-C`, probe `TG5`); they are emitted after the rest.
+        var inkGroups: [(fill: GradientFill, ink: [CapturedPrimitive])] = []
+        func addInk(_ fill: GradientFill, _ primitive: CapturedPrimitive) {
+            if let i = inkGroups.firstIndex(where: { $0.fill == fill }) { inkGroups[i].ink.append(primitive) }
+            else { inkGroups.append((fill, [primitive])) }
+        }
+
         // (2) Glyphs, each in its run's colour.
-        for glyph in layout.glyphs { draw(glyph.glyph, color: foregrounds[glyph.run]) }
+        for glyph in layout.glyphs {
+            if let fill = paints[glyph.run].gradient {
+                if let primitive = frame.inkGlyph(glyph.glyph, color: foregrounds[glyph.run]) { addInk(fill, primitive) }
+            } else {
+                draw(glyph.glyph, color: foregrounds[glyph.run])
+            }
+        }
 
         // (3) Underlines, then strikethroughs (RT-J items 2–3a).
         var metrics: [FontKey: TextDecorationMetrics] = [:]
@@ -56,21 +70,23 @@ extension PaintPass {
             return (start + line.visibleMinX, start + line.visibleMaxX)
         }
         // A pending underline: its colour, x extent, centre and thickness.
-        var pending: (line: Int, color: Color, pattern: Text.LineStyle.Pattern, minX: Double, maxX: Double,
-                      centre: Double, thickness: Double)?
+        var pending: (line: Int, color: Color, pattern: Text.LineStyle.Pattern, ink: GradientFill?, minX: Double,
+                      maxX: Double, centre: Double, thickness: Double)?
         /// One decoration band over `[low, high]`: a single rect for a solid line, the pattern's segments
         /// otherwise, their cycle starting at the line's own start (`TM-D`).
         func band(_ pattern: Text.LineStyle.Pattern, line: Int, from low: Double, to high: Double, centre: Double,
-                  thickness: Double, color: Color) {
+                  thickness: Double, color: Color, ink: GradientFill?) {
             let resolved = resolve(color)
+            func put(_ box: Bounds<Pixels>) {
+                if let ink { addInk(ink, frame.inkRect(box, color: resolved)) } else { fill(box, color: resolved) }
+            }
             guard pattern != .solid else {
-                fill(rect(minX: low, maxX: high, minY: centre - thickness / 2, height: thickness), color: resolved)
+                put(rect(minX: low, maxX: high, minY: centre - thickness / 2, height: thickness))
                 return
             }
             for piece in linePatternSegments(pattern, unit: linePatternUnit(thickness: thickness),
                                              origin: x + lines[line].offsetX, from: low, to: high) {
-                fill(rect(minX: piece.min, maxX: piece.max, minY: centre - thickness / 2, height: thickness),
-                     color: resolved)
+                put(rect(minX: piece.min, maxX: piece.max, minY: centre - thickness / 2, height: thickness))
             }
         }
         func flushUnderline() {
@@ -80,7 +96,7 @@ extension PaintPass {
             let low = Swift.max(line.minX, extent.min), high = Swift.min(line.maxX, extent.max)
             guard high > low else { return }
             band(line.pattern, line: line.line, from: low, to: high, centre: line.centre,
-                 thickness: line.thickness, color: line.color)
+                 thickness: line.thickness, color: line.color, ink: line.ink)
         }
         for segment in layout.segments {
             guard let color = paints[segment.run].underline else {
@@ -90,15 +106,16 @@ extension PaintPass {
             let pattern = paints[segment.run].underlinePattern
             let face = decoration(segment.run)
             let centre = segment.baseline - face.underlinePosition
+            let ink = paints[segment.run].underlineFollowsInk ? paints[segment.run].gradient : nil
             if let current = pending, current.line == segment.line, current.color == color,
-               current.pattern == pattern {
+               current.pattern == pattern, current.ink == ink {
                 // Joined at the lowest position and the greatest thickness (`C9m`).
-                pending = (current.line, color, pattern, Swift.min(current.minX, segment.minX),
+                pending = (current.line, color, pattern, ink, Swift.min(current.minX, segment.minX),
                            Swift.max(current.maxX, segment.maxX), Swift.max(current.centre, centre),
                            Swift.max(current.thickness, face.underlineThickness))
             } else {
                 flushUnderline()
-                pending = (segment.line, color, pattern, segment.minX, segment.maxX, centre,
+                pending = (segment.line, color, pattern, ink, segment.minX, segment.maxX, centre,
                            face.underlineThickness)
             }
         }
@@ -111,8 +128,12 @@ extension PaintPass {
             guard high > low else { continue }
             let centre = segment.baseline - face.strikethroughPosition
             band(paints[segment.run].strikethroughPattern, line: segment.line, from: low, to: high, centre: centre,
-                 thickness: face.underlineThickness, color: color)
+                 thickness: face.underlineThickness,
+                 color: color, ink: paints[segment.run].strikethroughFollowsInk ? paints[segment.run].gradient : nil)
         }
+
+        // (4) One masked gradient group per gradient (`TG-C`).
+        for group in inkGroups { drawGradientInk(group.ink, fill: group.fill) }
     }
 }
 

@@ -233,6 +233,15 @@ extension Shape {
 /// geometry's own fill style when given.
 @MainActor
 func paintShapeFill(_ geometry: ShapeGeometry, color declared: Color?, style: FillStyle? = nil, pass: PaintPass) {
+    // A default fill under a gradient or material `foregroundStyle` is that gradient or material, as the explicit
+    // `fill(_:)` is (`TG-C`, probe `TG14`/`P14c`: SwiftUI fills a bare `Rectangle` with the gradient).
+    if declared == nil, let storage = pass.environment.foregroundStorage {
+        switch storage {
+        case let .gradient(fill): paintGradientFill(fill, geometry, style: style, pass: pass); return
+        case let .material(material): paintShapeMaterial(geometry, material: material, style: style, pass: pass); return
+        case .color: break
+        }
+    }
     let resolved = declared ?? pass.environment.foregroundStyle ?? .textPrimary
     let color = pass.resolve(resolved)
     if let (path, own) = geometry.pathAndStyle {

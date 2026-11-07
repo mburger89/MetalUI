@@ -376,7 +376,7 @@ extension CapturedPrimitive {
         var p = self
         p.layer = layer
         for k in p.groups.indices where p.groups[k].isMasked {
-            p.groups[k].mask[0] = p.groups[k].mask[0].replayed(mask: mask, layer: layer)
+            for m in p.groups[k].mask.indices { p.groups[k].mask[m] = p.groups[k].mask[m].replayed(mask: mask, layer: layer) }
         }
         if var t = p.transform {
             if !outerMaskInner { t.outerMask = mask; t.outerMaskRadii = square }
