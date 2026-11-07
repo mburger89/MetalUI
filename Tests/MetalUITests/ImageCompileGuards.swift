@@ -45,7 +45,7 @@ func anImageHasASystemNameButNoAssetInitialiser() throws {
     try #require(control.succeeded, "the positive control must compile:\n\(control.output)")
     #expect(systemName.succeeded, "Image(systemName:) must compile from a plain import:\n\(systemName.output)")
     #expect(!asset.succeeded, "Image(_: String) must not compile:\n\(asset.output)")
-    #expect(asset.messages.contains("Image") || asset.messages.contains("decorative"),
+    #expect(asset.messages.contains("systemName") || asset.messages.contains("decorative"),
             "rejected, but not for the initialiser:\n\(asset.output)")
 }
 

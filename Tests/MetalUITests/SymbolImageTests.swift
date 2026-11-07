@@ -203,3 +203,36 @@ private struct Mark: ProposalElement {
     #expect(first.texture === second.texture, "one identity across rebuilds")
     #expect(cursor("this.symbol.does.not.exist") == nil, "a missing name is not an image cursor")
 }
+
+// MARK: - the divergences' pins (227, 228, 229): wrong on purpose
+
+/// **Divergence 227's pin.** The AppKit raster of `star` at 13 pt, scale factor 2, has its ink in device rows 2..<30 and columns
+/// 2..<31; SwiftUI's own raster of the same symbol ends one row earlier, at 29 (probe S9, the 40 x 30 canvas ink boxes
+/// (5, 5)-(19.5, 18.5) pt against (5, 5)-(19.5, 19)). A reddening test may be a fix: the placement moved toward SwiftUI's.
+/// Mutation: **M227** the image drawn half a point higher (the bottom row reads 29).
+@Test @MainActor func anAppKitSymbolRasterSitsOneDeviceRowLowerThanSwiftUIs() throws {
+    let (_, scene) = render(40, 30, scaleFactor: 2, Image(systemName: "star").font(.system(size: 13)).foregroundStyle(Color(red: 0, green: 0, blue: 0)))
+    let texture = try #require(scene.textures.first)
+    var rows = Set<Int>(), columns = Set<Int>()
+    for y in 0..<texture.height { for x in 0..<texture.width where texture.pixels[(y * texture.width + x) * 4 + 3] > 5 { rows.insert(y); columns.insert(x) } }
+    #expect(rows.min() == 2 && rows.max() == 29 && columns.min() == 2 && columns.max() == 30,
+            "ink rows \(rows.min() ?? -1)...\(rows.max() ?? -1), columns \(columns.min() ?? -1)...\(columns.max() ?? -1); SwiftUI's last row is 28")
+}
+
+/// **Divergence 228's pin.** A symbol outside `SymbolAccessibilityLabels` is labelled with AppKit's description, which is the
+/// lower-case word SwiftUI capitalises: `bolt` reads "flash" where SwiftUI reads "Flash" (probe S8b's method; `heart` "love"
+/// against "Love"). Mutation: **M228** the description capitalised (reads "Flash", which equals SwiftUI's and fixes the row).
+@Test @MainActor func aSymbolOutsideTheLabelTableReadsAppKitsLowerCaseDescription() throws {
+    let (_, build) = try accessibilityBuild(HStack { Image(systemName: "bolt"); ProposalText("V") })
+    #expect(build.tree.nodes.values.contains { $0.role == .image && $0.label == "flash" }, "\(build.tree.readings)")
+}
+
+/// **Divergence 229's pin.** Under `.scaleEffect(2)` the symbol samples its unscaled raster (an image is resampled, `GX-`): the
+/// quad is 34 x 32 device pixels wide at scale factor 1 while the texture keeps the 17 x 16 of the unscaled star, where SwiftUI
+/// re-rasterises the vector. Mutation: **M229** nothing to mutate but the effect (a fix re-keys the raster to the scale and the
+/// texture reads 34 x 32).
+@Test @MainActor func aSymbolUnderScaleEffectSamplesItsUnscaledRaster() throws {
+    let (_, scene) = render(100, 100, Image(systemName: "star").font(.system(size: 13)).scaleEffect(2))
+    let texture = try #require(scene.textures.first), quad = try #require(scene.images.first)
+    #expect((texture.width, texture.height) == (17, 16) && quad.bounds.size.width == 34, "texture \(texture.width)x\(texture.height), quad \(quad.bounds.size.width) wide")
+}
