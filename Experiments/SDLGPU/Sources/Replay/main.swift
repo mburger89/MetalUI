@@ -520,6 +520,76 @@ func groupFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
        atlas: atlas)
 }
 
+/// Frame 17 (ruling `GF-F`, a filter over a group texture): six filtered groups, each of a leaf the CPU cannot read (an
+/// opacity group inside it, or a projective effect): a blur of sigma 2 (L = 0) of an overlap faded as a group and a word; a
+/// blur of sigma 12 (L = 2, the quad read through `BB-R`'s texel coordinate) of a faded overlap and a gradient raster; a
+/// shadow of sigma 3, tint black at 0.33 and a fractional offset (10.5, 7); a blurred group holding a projective rect; a
+/// filtered quad drawn under a projective record; a filtered group inside an opacity group. Each is rendered into its own
+/// target, filtered on the GPU and drawn back as a quad, so it judges the downsample, Gaussian and tint passes, the pool
+/// and the quad's read on every backend. Judged as frame 16's.
+@MainActor
+func groupFilterFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    func pair() -> some ProposalElementGroup {
+        ZStack(alignment: .topLeading) {
+            Color(.separator).frame(width: Pixels(60), height: Pixels(60)).offset(x: Pixels(30), y: Pixels(30))
+            Color(.accent).frame(width: Pixels(60), height: Pixels(60))
+        }
+        .frame(width: Pixels(90), height: Pixels(90), alignment: .topLeading)
+    }
+    func faded() -> some ProposalElementGroup { pair().compositingGroup().opacity(0.5) }
+    let shadowColor = Color.black.opacity(0.33)
+    return renderFrame({
+        VStack(spacing: Pixels(70)) {
+            HStack(spacing: Pixels(70)) {
+                ZStack(alignment: .topLeading) {
+                    faded()
+                    Text("Blur").font(size: 30).offset(x: Pixels(20.25), y: Pixels(30))
+                }
+                .frame(width: Pixels(110), height: Pixels(90), alignment: .topLeading)
+                .compositingGroup().blur(radius: Pixels(2))
+                ZStack(alignment: .topLeading) {
+                    faded()
+                    Circle().fill(LinearGradient(colors: [.accent, .separator], startPoint: .top, endPoint: .bottom))
+                        .frame(width: Pixels(60.5), height: Pixels(60)).offset(x: Pixels(50), y: Pixels(24))
+                }
+                .frame(width: Pixels(120), height: Pixels(90), alignment: .topLeading)
+                .compositingGroup().blur(radius: Pixels(12))
+                ZStack(alignment: .topLeading) {
+                    faded()
+                    RoundedRectangle(cornerRadius: Pixels(10)).fill(.textPrimary)
+                        .frame(width: Pixels(40.5), height: Pixels(30.25)).offset(x: Pixels(55), y: Pixels(55))
+                }
+                .frame(width: Pixels(100), height: Pixels(90), alignment: .topLeading)
+                .compositingGroup().shadow(color: shadowColor, radius: Pixels(3), x: Pixels(10.5), y: Pixels(7))
+            }
+            HStack(spacing: Pixels(60)) {
+                Color(.accent).frame(width: Pixels(110), height: Pixels(70.75))
+                    .rotation3DEffect(.degrees(40), axis: (x: 0, y: 1, z: 0))
+                    .blur(radius: Pixels(2))
+                ZStack(alignment: .topLeading) {
+                    faded()
+                    Color(.textPrimary).frame(width: Pixels(30.5), height: Pixels(30)).offset(x: Pixels(70), y: Pixels(20))
+                }
+                .frame(width: Pixels(100), height: Pixels(90), alignment: .topLeading)
+                .compositingGroup().blur(radius: Pixels(2))
+                .rotation3DEffect(.degrees(30), axis: (x: 0, y: 1, z: 0), perspective: 0.8)
+                ZStack(alignment: .topLeading) {
+                    faded()
+                    RoundedRectangle(cornerRadius: Pixels(10)).fill(.textPrimary)
+                        .frame(width: Pixels(40.5), height: Pixels(30.25)).offset(x: Pixels(55), y: Pixels(55))
+                }
+                .frame(width: Pixels(100), height: Pixels(90), alignment: .topLeading)
+                .compositingGroup().shadow(color: Color.black.opacity(0.4), radius: Pixels(3), x: Pixels(6.5), y: Pixels(5))
+                .compositingGroup().opacity(0.7)
+            }
+        }
+        .offset(x: Pixels(30.25), y: Pixels(40.5))
+    }, size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))), scaleFactor: 1, textSystem: system,
+       atlas: atlas)
+}
+
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
 /// scale 1, through `PortableTextSystem` over Noto Sans.
 @MainActor
@@ -659,15 +729,17 @@ func run() throws {
     let looksAtlas = GlyphAtlas(width: 512, height: 512)
     // Frame 15's word is PortableText's, into its own atlas (`PJ-A`).
     let projectionAtlas = GlyphAtlas(width: 512, height: 512)
-    // Frame 16's word is PortableText's, into its own atlas (`GO-F`).
+    // Frame 16's word is PortableText's, into its own atlas (`GO-F`); frame 17's likewise (`GF-F`).
     let groupAtlas = GlyphAtlas(width: 512, height: 512)
+    let filterAtlas = GlyphAtlas(width: 512, height: 512)
     // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O) need the portable shaders: the adapted MSL has no backdrop stages.
     let portableShaders = portable
     let sizes = [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380)]
+                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380), (640, 380)]
     for (index, dimensions) in sizes.enumerated() {
         let (width, height) = dimensions
-        let groups = index == 16
+        let filters = index == 17
+        let groups = index == 16 || filters
         let projection3D = index == 15
         let backdrops = index >= 9 && !projection3D && !groups
         let glass = index >= 12 && !projection3D && !groups
@@ -677,8 +749,10 @@ func run() throws {
         let shapes = index == 6
         let transforms = index == 7
         let looks = index == 8
-        let frameAtlas = groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = groups
+        let frameAtlas = filters ? filterAtlas : groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = filters
+            ? try groupFilterFrame(width: width, height: height, atlas: filterAtlas)
+            : groups
             ? try groupFrame(width: width, height: height, atlas: groupAtlas)
             : projection3D
             ? try projectionFrame(width: width, height: height, atlas: projectionAtlas)
@@ -705,7 +779,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(filters ? " (filtered groups)" : groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))
