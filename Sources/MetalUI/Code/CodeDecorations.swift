@@ -174,8 +174,16 @@ public final class CodeDecorations {
         self.buffer = buffer
         self.theme = CodeTheme()
         let count = buffer.utf8Count
-        layers = CodeHighlightLayer.allCases.map { _ in RunTree(total: count, payload: .unknown) }
-        layerHasStyles = CodeHighlightLayer.allCases.map { _ in false }
+        // Loops, not `map { }`: a main-actor closure traps its dynamic isolation check when a model is built off the
+        // main thread (the demo stack-budget test builds trees on a 1 MB thread).
+        var made: [RunTree<HighlightPayload>] = []
+        var styled: [Bool] = []
+        for _ in 0..<CodeHighlightLayer.allCases.count {
+            made.append(RunTree(total: count, payload: .unknown))
+            styled.append(false)
+        }
+        layers = made
+        layerHasStyles = styled
         lines = RunTree(total: buffer.lineCount, payload: LineDecorationPayload())
         rowMap = CodeRowMap(rowCount: buffer.lineCount)
         cursor = buffer.makeEditCursor()

@@ -38,7 +38,7 @@ public final class CodeViewDemoModel {
     public let mainScroll = CodeScrollState()
     /// The side view's scroll position.
     public let sideScroll = CodeScrollState()
-    let highlighter: CodeDemoHighlighter
+    let highlighter: CodeDemoHighlighter?
 
     /// The 100 000-line file with all of its decorations.
     public init(lines: Int = 100_000) {
@@ -47,6 +47,14 @@ public final class CodeViewDemoModel {
         highlighter = CodeDemoHighlighter(decorations: decorations)
         decorations.highlightProvider = highlighter
         decorate(lines: lines)
+    }
+
+    /// A model over `text` with no decorations at all: what the 1 MB stack-budget test builds the tree over (it runs
+    /// off the main thread, where the generated file's closures cannot run).
+    init(bare text: String) {
+        buffer = CodeBuffer(text)
+        decorations = CodeDecorations(buffer: buffer)
+        highlighter = nil
     }
 
     /// Distinct lines of Swift-looking code, so a line cache of content cannot collapse them.

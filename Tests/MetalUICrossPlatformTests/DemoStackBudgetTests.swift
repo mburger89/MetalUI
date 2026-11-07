@@ -120,11 +120,11 @@ private func buildTheLazyContainersDemo() {
     _ = LazyDemoHGridSection().content
 }
 
-/// The code view demo's tree (a small model: the demo's 100 000-line file is built by the shared model
-/// when the demo window opens), in its own frame as `buildTheServicesDemo()`'s note says.
+/// The code view demo's tree (over a bare model: the demo's 100 000-line file is built by the shared model when the demo window opens,
+/// and its generator runs main-actor closures, which trap off the main thread), in its own frame as `buildTheServicesDemo()`'s note says.
 @MainActor @inline(never)
 private func buildTheCodeViewDemo() {
-    _ = codeViewDemoContent(model: CodeViewDemoModel(lines: 120))
+    _ = codeViewDemoContent(model: CodeViewDemoModel(bare: "let x = 1\n"))
 }
 
 /// The Liquid Glass demo's tree and its container component, in its own frame.
