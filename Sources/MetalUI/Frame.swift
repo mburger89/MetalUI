@@ -399,7 +399,9 @@ public final class Frame {
         // for one scroller sum.
         for adjustment in scrollAnchorAdjustments {
             stateTable.withState(adjustment.scroller, initial: ScrollState()) {
-                $0.offset += adjustment.delta
+                // `DSA-E`: a scroller following its end is re-placed at the end by the next prepaint; an
+                // adjustment would only read as the user leaving it.
+                if !$0.anchor.following { $0.offset += adjustment.delta }
             }
         }
         // `SP-C`: the registry learns what the position bindings now hold, and reports scrollers a `scrollTo`

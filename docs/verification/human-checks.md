@@ -2321,3 +2321,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **TG3.** Resize a window holding a gradient label, and edit a counter text under a gradient (a digit changing width): any flicker, a one-frame flat colour, or a gradient that jumps? **Observed:**
 - [ ] **TG4.** Hover and select (drag over) gradient text inside a `TextField`-adjacent label: selection stays the selection colour (the field's own text is not a gradient, divergence 975's residue) and a `.foregroundStyle(.secondary)` below a gradient parent keeps the gradient dimmed, as SwiftUI's? **Observed:**
 - [ ] **TG5.** Parity frame 19 (`--expect 20`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam or halo at a letter's edge, any difference in the glyph coverage from Metal's? **Observed:**
+
+## DA. `defaultScrollAnchor` - a transcript starts at the bottom and follows it like SwiftUI's (Alloy gap G6; rulings `DSA-A`..`DSA-I`, record 224; decisions `docs/superpowers/2026-11-07-default-scroll-anchor-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-default-scroll-anchor.swift` reads SwiftUI's offsets through an offscreen hosting window and the tests read the headless harness, but how a streaming transcript looks and feels under a real trackpad (a flicker on append, a jump when a block above expands, momentum into the bottom) is a person's. Not run.*
+
+- [ ] **DA1.** In a window with a `ScrollView { LazyVStack { ForEach(blocks) } }.defaultScrollAnchor(.bottom)` of a few thousand variable-height blocks, appended every frame or two, does it open at the last block, and does the last block stay glued to the bottom edge while the blocks stream in, with no one-frame flash of older blocks or blank space? **Observed:**
+- [ ] **DA2.** Scroll up with the trackpad while blocks keep arriving: does the content under your eyes stay put (no creep, no jump)? Then scroll back to the bottom (including by momentum): does following resume without a click? **Observed:**
+- [ ] **DA3.** With the transcript pinned, expand and collapse a block above the viewport: does the last block stay at the bottom edge? Scrolled up, expand a block above the viewport: does the content you are reading stay put? **Observed:**
+- [ ] **DA4.** Resize the window taller and shorter while pinned and while scrolled up: pinned stays at the bottom, scrolled up keeps its place? **Observed:**
+- [ ] **DA5.** `ScrollViewReader.scrollTo(someEarlierBlock)` while pinned: does it release (the next append does not yank back), and `scrollTo(lastBlock, anchor: .bottom)` pin again? **Observed:**

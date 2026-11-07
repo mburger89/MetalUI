@@ -405,7 +405,7 @@ where Data.Element: Identifiable {
             return 0..<count
         }
         return Self.window(count: count, rowExtent: Double(rowHeight.value),
-                           offset: context.offset, viewport: context.viewportExtent,
+                           offset: context.windowOffset, viewport: context.viewportExtent,
                            origin: origin)
     }
 
@@ -826,7 +826,7 @@ extension List {
             ?? RowExtentIndex(count: count, declaredEstimate: estimate.map { Double($0.value) })
         let viewport = context.viewportExtent
         var total = index.totalExtent
-        let top = min(max(0, context.offset - origin), max(0, total - viewport))
+        let top = min(max(0, context.windowOffset - origin), max(0, total - viewport))
         var anchorIndex = index.index(containing: top)
         let anchorY = index.offset(of: anchorIndex)
         // After a rebuild the anchor sits at `anchorY` while the index puts it
