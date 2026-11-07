@@ -41,6 +41,16 @@ public final class MetalWindowRenderer: WindowRenderer {
     /// surfaces). `package` for the root package's tests (`MV-L` item 2).
     package private(set) var surfaceTable = SurfaceTargetTable<any MTLTexture>()
 
+    private var presentationObserver: (@MainActor @Sendable (UInt64, UInt64?) -> Void)?
+    /// Frames finished since the presentation observer was installed (`FP-F`).
+    private var observedFrames: UInt64 = 0
+
+    /// Reports each frame's drawable `presentedTime` to `observer` (`FP-F`), on the main actor.
+    public func setPresentationObserver(_ observer: (@MainActor @Sendable (UInt64, UInt64?) -> Void)?) {
+        presentationObserver = observer
+        observedFrames = 0
+    }
+
     /// Frames finished, ever — each draw context's `frameIndex`.
     private var finishedFrames: UInt64 = 0
 
@@ -116,8 +126,20 @@ public final class MetalWindowRenderer: WindowRenderer {
         } catch {
             return false
         }
-        surface.present(pending.frame, in: commandBuffer)
+        // `FP-F`: with an observer, the drawable's presented time comes back to the main actor under this
+        // frame's token; without one nothing is allocated.
+        var onPresented: (@Sendable (Double) -> Void)?
+        if let observer = presentationObserver {
+            let token = observedFrames
+            onPresented = { presentedTime in
+                // `presentedTime` is 0 for a frame that was never shown.
+                let at: UInt64? = presentedTime > 0 ? UInt64(presentedTime * 1_000_000_000) : nil
+                Task { @MainActor in observer(token, at) }
+            }
+        }
+        surface.present(pending.frame, in: commandBuffer, onPresented: onPresented)
         commandBuffer.commit()
+        observedFrames += 1
         // Recorded only once the frame is committed: a failed encode drops
         // the buffer and the draws in it, so an `.onDemand` surface must draw
         // again next frame rather than show a target nothing wrote (`MV-O`

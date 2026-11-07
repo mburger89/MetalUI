@@ -49,6 +49,19 @@ public protocol RenderSurface: AnyObject {
     /// (no drawable available); the caller skips the frame and stays dirty.
     func nextFrame() throws -> SurfaceFrame
     func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer)
+    /// ``present(_:in:)`` that also reports when the frame reached the screen (`FP-F`): `onPresented` gets the
+    /// drawable's `presentedTime` in seconds (`CACurrentMediaTime`'s clock; 0 when the frame was dropped), on
+    /// an arbitrary thread. The default presents without reporting.
+    func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer,
+                 onPresented: (@Sendable (_ presentedTime: Double) -> Void)?)
+}
+
+extension RenderSurface {
+    /// Presents without reporting (`FP-F`).
+    public func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer,
+                        onPresented: (@Sendable (_ presentedTime: Double) -> Void)?) {
+        present(frame, in: commandBuffer)
+    }
 }
 
 /// Why a surface could not supply a frame.
