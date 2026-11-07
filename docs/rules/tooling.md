@@ -39,7 +39,7 @@ macOS); queries read the accessibility tree (`element(label:)` also matches a st
 and `frame(ofID:)` is the laid-out rect before scroll and effects; presentations are read and
 answered at the seam, or driven through the tree where the option makes the window draw them
 (`presentsAlertsNatively`, `presentsMenusNatively`, `showsToolbarNatively`,
-`HeadlessPlatform.showsMenuBarNatively`); `FrameWork` counts a frame's work (benchmarks count work,
+`HeadlessPlatform.showsMenuBarNatively`); **while a native menu is presented `typeKey`/`typeText` deliver nothing (Escape dismisses it), as AppKit's modal tracking; raw `send` is unaffected (`HT-AA`)**; `FrameWork` counts a frame's work (benchmarks count work,
 never time). `frame(ofID:)` finds an `.id` on proposal content too: an `IdentifiedGroup` records the union of its nodes' rects in a recording frame only and is never a `scrollTo` target (`TW-A`…`TW-C`, record §108). `MetalUI` gains only `package` read-back hooks in `TestingHooks.swift` and
 `TestingMenuHooks.swift` (plain-import guards 3.1–3.4 pin them unreachable); no pixels, no GPU
 surface draws. `metalui new` generates a test target over it, and `Testing` is a refused name

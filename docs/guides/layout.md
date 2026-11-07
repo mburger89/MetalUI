@@ -217,6 +217,27 @@ The count an adaptive item packs is read from the grid's width one frame earlier
 shows one column and the next shows four (divergence 638). A `ForEach` element that yields two views is
 one cell holding both, where SwiftUI makes each view a cell (divergence 635).
 
+## Why do my buttons truncate next to a flexible child?
+
+In an `HStack` every child that can grow (`.frame(maxWidth: .infinity)`, a `WindowDragHandle`,
+a `Color`) is offered an equal share of what the fixed children leave, so a greedy sibling takes
+a share it does not need and the widest fixed children are squeezed to the rest (pin:
+`theLayoutGuideAGreedyChildDilutesItsSiblings`). SwiftUI does the same. Give the greedy child
+`.layoutPriority(-1)` and it gets only what is left after the others have their ideal widths
+(pin: `theLayoutGuideALowPriorityGreedyChildTakesOnlyTheRemainder`).
+
+```swift
+/// Two labels and a greedy filler: at priority -1 the filler takes the remainder only.
+@MainActor
+func layoutGreedyFiller() -> some Element {
+    HStack(spacing: Pixels(0)) {
+        ProposalText("A fairly long toolbar label").id("label")
+        Color.clear.frame(maxWidth: .infinity).layoutPriority(-1).id("filler")
+    }
+    .frame(width: Pixels(200))
+}
+```
+
 ## Divergences you will hit
 
 Each row is in [`divergences.md`](../divergences.md); the list is checked against it.
