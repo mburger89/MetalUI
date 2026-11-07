@@ -64,4 +64,4 @@ Findings from the first runs: the oracle's `rows` used `String.split(separator: 
 
 ## 6. Linux (portable container)
 
-(filled in below)
+`metalui-portable:latest` (Linux, Swift 6.4), fed by `git archive HEAD` over stdin (no host mount, container removed on exit): `swift build --build-tests` complete (82.85 s) and `swift test --skip-build --no-parallel` ran the new target with the others: `Test run with 45 tests in 4 suites passed after 3.551 seconds.` (the other runs in the same output: 68, 49, 286, 154 and 24 tests, all passed). `@Observable` in the Foundation-free module built and its observation tests passed on Linux. Windows could not be run locally: `root-windows` runs `swift build --build-tests` and `swift test --skip-build --no-parallel` over every declared target, and the new target and its tests are in the always-declared manifest list, so it builds and tests them without a workflow change.
