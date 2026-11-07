@@ -206,8 +206,14 @@ extension TestWindow {
 
     /// One key: committed text while a field has the caret and the key
     /// produces text with no ⌘ or ⌃ (`MetalHostView.keyDown`, SDL's
-    /// `producesText`), else a key press and release.
+    /// `producesText`), else a key press and release. While a natively
+    /// presented menu is open the key never reaches the window (`HT-AA`):
+    /// AppKit tracks the menu modally. Escape closes the menu.
     func deliverKey(_ characters: String, modifiers: EventModifiers) {
+        if presentedMenu != nil {
+            if characters == String(KeyEquivalent.escape.character) { try? dismissMenu() }
+            return
+        }
         if isTextInputActive, Self.producesText(characters),
            !modifiers.contains(.command), !modifiers.contains(.control) {
             send(.textInput(characters))
