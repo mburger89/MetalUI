@@ -84,6 +84,7 @@ import Testing
 /// slices by UTF-8 bytes (a multibyte scalar before the run keeps the run on its glyphs). Mutations: `fixedSize`
 /// dropped from the column; runs sliced by `Character`.
 @Test @MainActor func aCodeFenceIsABoxOfItsLinesAndRunsColourTheirBytes() throws {
+    #expect(MarkdownTheme().codeWraps && !MarkdownTheme().tableScrolls, "no horizontal scroller by default (BM-H)")
     let long = String(repeating: "abcdefghij", count: 30)
     var scrolling = MarkdownTheme()
     scrolling.codeWraps = false
@@ -110,6 +111,10 @@ import Testing
         let highlighter = RunHighlighter([MarkdownCodeRun(range: range, style: colour)])
         let window = try markdownWindow("```\n\(code)\n```", highlighter: highlighter)
         #expect(markdownGlyphs(window, hue: hue) == 2, "\(code): \(markdownGlyphs(window, hue: hue)) glyphs of the run colour")
+        // ... and they are the third and fourth glyphs of the line, left to right (`bb` in `aabbcc`).
+        let line = window.scene.glyphs.sorted { $0.bounds.origin.x < $1.bounds.origin.x }
+        let coloured = line.map { abs($0.color.h - hue) < 0.001 }
+        #expect(coloured == [false, false, true, true, false, false], "\(code): which glyphs carry the colour: \(coloured)")
         #expect(highlighter.calls == [.init(code: code, language: nil, isClosed: true)])
     }
 }
