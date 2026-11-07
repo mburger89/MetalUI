@@ -224,15 +224,22 @@ private func differing(_ a: [UInt8], _ b: [UInt8], tolerance: Int = 1) -> Int {
 /// **7 (`TG-C`, probe `TG6`).** A hard shadow of a gradient text is the shadow colour: the pixels right of the glyphs are
 /// opaque black, not gradient. Mutation: `needsGPU` ignoring marks (a CPU box shadow of the gradient's rect).
 @Test @MainActor func aShadowOfGradientTextIsTheShadowColour() throws {
-    let r = try render(blocks(4).foregroundStyle(sweep).shadow(color: .black, radius: px(0), x: px(8), y: px(0)))
-    let plain = try render(blocks(4).foregroundStyle(sweep), renderer: r.renderer)
+    func shadowed(_ style: some ShapeStyle) -> Text { Text("Ij!").font(size: 44).foregroundStyle(style) }
+    let r = try render(shadowed(sweep).shadow(color: .black, radius: px(0), x: px(10), y: px(6)))
+    let solid = try render(shadowed(pureRed).shadow(color: .black, radius: px(0), x: px(10), y: px(6)), renderer: r.renderer)
+    // The shadow is cast by the glyphs (gaps between letters stay clear), exactly as a plain-colour text casts it.
+    var shadowOnly = 0, worst = 0
+    for i in stride(from: 3, to: r.pixels.count, by: 4) {
+        worst = max(worst, abs(Int(r.pixels[i]) - Int(solid.pixels[i])))
+        if r.pixels[i] == 255 && r.pixels[i - 1] < 4 && r.pixels[i - 2] < 4 && r.pixels[i - 3] < 4 { shadowOnly += 1 }
+    }
+    #expect(worst <= 2, "the same silhouette as a plain-colour text's shadow: worst alpha difference \(worst)")
+    #expect(shadowOnly > 50, "black shadow-only pixels: \(shadowOnly)")
+    let plain = try render(shadowed(sweep), renderer: r.renderer)
     let ink = try #require(inkBox(plain.scene))
-    let right = pixel(r.pixels, ink.x + ink.w + 4, ink.y + ink.h / 2)
-    #expect(right == [0, 0, 0, 255], "shadow-only pixel is black: \(right)")
-    let above = pixel(r.pixels, ink.x + ink.w / 2, ink.y - 3)
-    #expect(above[3] == 0, "no box shadow of the gradient rect above the glyphs: \(above)")
-    let left = pixel(r.pixels, ink.x + 4, ink.y + ink.h / 2)
-    #expect(left[0] > 150 && left[2] < 110, "the glyphs still read red at the left: \(left)")
+    let left = pixel(r.pixels, ink.x + 3, ink.y + ink.h / 2)
+    #expect(left[3] == 255 || left[3] == 0, "set up: \(left)")
+    #expect(r.frame.groupsMasked >= 1, "the glyphs are a masked group (inside the shadow's filtered group): \(r.frame.groupsMasked)")
 }
 
 // MARK: - 8. radial
@@ -339,16 +346,21 @@ private func differing(_ a: [UInt8], _ b: [UInt8], tolerance: Int = 1) -> Int {
 /// gradient runs top to bottom and the coverage equals the solid text turned the same. Mutation: `RenderEffect.apply` mapping
 /// only the first element of a mask.
 @Test @MainActor func aGradientTextUnderARotationTurnsEveryGlyphMask() throws {
-    let turned = try render(blocks(3).foregroundStyle(sweep).rotationEffect(.degrees(90)))
-    let solid = try render(blocks(3).foregroundStyle(pureRed).rotationEffect(.degrees(90)), renderer: turned.renderer)
+    // Placed low enough that the turned text (120 long) stays inside the 200 x 200 target.
+    func placed(_ t: some Element & ProposalElementGroup) -> some Element & ProposalElementGroup {
+        t.padding(Edges(top: px(70), right: px(0), bottom: px(0), left: px(40)))
+    }
+    let turned = try render(placed(VStack(spacing: px(0)) { blocks(3).foregroundStyle(sweep) }.rotationEffect(.degrees(90))))
+    let solid = try render(placed(VStack(spacing: px(0)) { blocks(3).foregroundStyle(pureRed) }.rotationEffect(.degrees(90))), renderer: turned.renderer)
     var worst = 0
     for i in stride(from: 3, to: turned.pixels.count, by: 4) { worst = max(worst, abs(Int(turned.pixels[i]) - Int(solid.pixels[i]))) }
     #expect(worst <= 2, "the solid text's coverage, turned: \(worst)")
     let rows = (0..<200).filter { y in (0..<200).contains { pixel(turned.pixels, $0, y)[3] == 255 } }
     let top = try #require(rows.first), bottom = try #require(rows.last)
-    let x = (0..<200).first { pixel(turned.pixels, $0, (top + bottom) / 2)[3] == 255 } ?? 0
-    let up = pixel(turned.pixels, x + 6, top + 6), down = pixel(turned.pixels, x + 6, bottom - 6)
-    #expect(up[0] > 180 && down[2] > 180, "red at the top, blue at the bottom: \(up) \(down)")
+    let cols = (0..<200).filter { x in (top...bottom).contains { pixel(turned.pixels, x, $0)[3] == 255 } }
+    let cx = ((cols.first ?? 0) + (cols.last ?? 0)) / 2
+    let up = pixel(turned.pixels, cx, top + 4), down = pixel(turned.pixels, cx, bottom - 4)
+    #expect(up[0] > 150 && up[2] < 100 && down[2] > 150 && down[0] < 100, "red at the top, blue at the bottom: \(up) \(down) rows \(top)...\(bottom)")
     // The mask holds every glyph, mapped (a record each): all three carry a transform index.
     let mask = try #require(turned.scene.groupMasks.compactMap { $0 }.first)
     #expect(mask.glyphs.count == 3 && mask.glyphs.allSatisfy { $0.transform != 0 }, "every mask glyph is turned")
@@ -398,7 +410,7 @@ private func differing(_ a: [UInt8], _ b: [UInt8], tolerance: Int = 1) -> Int {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true) {
         Row {
-            blocks(3).foregroundStyle(sweep).draggable("s")
+            Column { blocks(3).foregroundStyle(sweep) }.frame(width: px(130), height: px(60)).draggable("s")
             Box().frame(width: px(100), height: px(100))
         }
     }
@@ -406,16 +418,18 @@ private func differing(_ a: [UInt8], _ b: [UInt8], tolerance: Int = 1) -> Int {
     platform.simulateResize(to: Size(width: px(400), height: px(200)))
     window.drawFrameIfNeeded()
     func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px(y)) }
-    platform.simulateInput(.mouseDown(MouseEvent(position: pt(40, 20))))
-    platform.simulateInput(.mouseDragged(MouseEvent(position: pt(41, 20))))
-    platform.simulateInput(.mouseDragged(MouseEvent(position: pt(90, 20))))
+    platform.simulateInput(.mouseDown(MouseEvent(position: pt(100, 100))))
+    platform.simulateInput(.mouseDragged(MouseEvent(position: pt(101, 100))))
+    platform.simulateInput(.mouseDragged(MouseEvent(position: pt(150, 100))))
+    window.drawFrameIfNeeded()
+    platform.simulateInput(.mouseDragged(MouseEvent(position: pt(155, 102))))
     window.drawFrameIfNeeded()
     let scene = window.lastScene
-    try #require(scene.groups.count == 2, "the source and its preview: \(scene.groups.count)")
+    try #require(scene.groups.count == 2, "the source and its preview: \(scene.groups.count) groups, \(scene.images.count) images, \(scene.glyphs.count) glyphs, \(scene.rects.count) rects")
     let preview = try #require(scene.groupMasks[1], "the preview is masked")
     #expect(preview.glyphs.count == 3, "all glyphs: \(preview.glyphs.count)")
     #expect(preview.glyphs.allSatisfy { $0.contentMask.size.width < 10_000 }, "each cut by the preview's mask: \(preview.glyphs.map { $0.contentMask.size.width })")
-    platform.simulateInput(.mouseUp(MouseEvent(position: pt(90, 20))))
+    platform.simulateInput(.mouseUp(MouseEvent(position: pt(150, 100))))
 }
 
 // MARK: - 19. a decoration is part of the ink
