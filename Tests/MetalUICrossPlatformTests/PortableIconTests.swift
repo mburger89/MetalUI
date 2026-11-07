@@ -1,5 +1,7 @@
+import Foundation
 import Testing
 import MetalUICore
+import MetalUIPortableText
 import MetalUILayout
 import MetalUIScene
 import MetalUIIconData
@@ -11,6 +13,17 @@ import MetalUIIconData
 // The box and baseline factors are the fit of `docs/probes/swiftui-symbol-images.swift` S1 and S2 (`SYM-J`).
 
 private let red = Color(red: 1, green: 0, blue: 0)
+
+private let fontURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    .deletingLastPathComponent().appendingPathComponent("Fonts/NotoSans-Regular.ttf")
+
+/// A frame over the portable text system (a `Frame` needs a `TextSystem` off Apple platforms, `XP-B`); no icon test draws text.
+@MainActor
+private func makeFrame(_ width: Float, _ height: Float, collectsAccessibility: Bool = false) -> Frame {
+    let system = PortableTextSystem(resolver: try! PortableFontResolver(defaultFont: [UInt8](Data(contentsOf: fontURL))))
+    return Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1, textSystem: system,
+                 collectsAccessibility: collectsAccessibility)
+}
 
 /// Runs `body` with the bundled route forced (a no-op off macOS).
 @MainActor
@@ -24,7 +37,7 @@ private func bundled<T>(_ body: @MainActor () throws -> T) rethrows -> T {
 @MainActor
 private func render<E: Element>(_ width: Float, _ height: Float, _ root: E) -> (Frame, Scene) {
     var root = root
-    let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1)
+    let frame = makeFrame(width, height)
     frame.render(&root)
     return (frame, frame.finalizedScene())
 }
@@ -68,7 +81,7 @@ private struct MeasuresAtNil: ProposalLayout {
 private func size<G: ProposalElementGroup>(_ content: G) -> SizeD {
     let record = SizeRecord()
     var root = ProposalLayoutContainer(MeasuresAtNil(record: record)) { content }
-    let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)), scaleFactor: 1)
+    let frame = makeFrame(200, 200)
     frame.render(&root)
     return record.size ?? SizeD(width: -1, height: -1)
 }
@@ -343,7 +356,7 @@ private let alloyNames = [
 @Test @MainActor func aBundledIconIsAnImageLabelledAndADecorativeOneIsNot() throws {
     func labels<E: Element>(_ root: E) -> [String] {
         var root = root
-        let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(60)), scaleFactor: 1, collectsAccessibility: true)
+        let frame = makeFrame(100, 60, collectsAccessibility: true)
         frame.render(&root)
         return frame.axEmissions.filter { $0.declared.role == .image }.compactMap(\.declared.label)
     }
