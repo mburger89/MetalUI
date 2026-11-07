@@ -336,6 +336,7 @@ private func looksPathsShadowsTransformsSection() -> some Element {
         looksProjectionStrip()
         looksGroupOpacityStrip()
         LooksGroupFilterStrip()
+        LooksClipMaskStrip()
     }
     .alignItems(.flexStart)
 }
@@ -420,6 +421,77 @@ func looksFilterPair() -> some ProposalElementGroup {
         Color(.accent).frame(width: Pixels(36), height: Pixels(36))
     }
     .frame(width: Pixels(54), height: Pixels(54), alignment: .topLeading)
+}
+
+/// **Q12** (shape clips as masked groups, `CM-`). An ellipse-clipped avatar under a shadow (the shadow is the ellipse's), a
+/// triangle path clip, an even-odd ring clip, two crossing rounded clips (the inner clip's corner is cut by the outer's),
+/// and an ellipse clip under a blur. **Its own frame, split into columns**, and a component, as the strip above it
+/// (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+struct LooksClipMaskStrip: Component {
+    var content: some ElementGroup {
+        looksClipMaskStrip()
+    }
+}
+
+@MainActor @inline(never)
+func looksClipMaskStrip() -> some Element {
+    Row(gap: Pixels(32)) {
+        looksClipEllipseColumn()
+        looksClipPathColumn()
+        looksClipCrossingColumn()
+    }
+}
+
+/// **Q12**: an ellipse clip with a shadow and one with a blur, in their own frame.
+@MainActor @inline(never)
+func looksClipEllipseColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("ellipse + shadow, blur").font(size: 11)
+        Row(gap: Pixels(16)) {
+            looksFilterPair().clipShape(Ellipse()).shadow(color: .textPrimary, radius: Pixels(0), x: Pixels(5), y: Pixels(5))
+            looksFilterPair().clipShape(Ellipse()).blur(radius: Pixels(2))
+        }
+    }
+}
+
+/// **Q12**: a nonzero triangle and an even-odd ring, in their own frame.
+@MainActor @inline(never)
+func looksClipPathColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("path, even-odd").font(size: 11)
+        Row(gap: Pixels(16)) {
+            looksFilterPair().clipShape(looksClipTriangle())
+            looksFilterPair().clipShape(looksClipRing(), style: FillStyle(eoFill: true))
+        }
+    }
+}
+
+/// **Q12**: two rounded clips that cross, in their own frame.
+@MainActor @inline(never)
+func looksClipCrossingColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("crossing clips").font(size: 11)
+        looksFilterPair().clipShape(RoundedRectangle(cornerRadius: Pixels(14)))
+            .padding(Edges(top: Pixels(24), right: Pixels(0), bottom: Pixels(0), left: Pixels(24)))
+            .frame(width: Pixels(54), height: Pixels(54), alignment: .topLeading)
+            .clipShape(RoundedRectangle(cornerRadius: Pixels(14)))
+    }
+}
+
+func looksClipTriangle() -> Path {
+    Path { path in
+        path.move(to: Point(x: Pixels(27), y: Pixels(1)))
+        path.addLine(to: Point(x: Pixels(53), y: Pixels(53)))
+        path.addLine(to: Point(x: Pixels(1), y: Pixels(53)))
+        path.closeSubpath()
+    }
+}
+
+func looksClipRing() -> Path {
+    Path { path in
+        path.addRect(Bounds(origin: Point(x: Pixels(1), y: Pixels(1)), size: Size(width: Pixels(52), height: Pixels(52))))
+        path.addRect(Bounds(origin: Point(x: Pixels(15), y: Pixels(15)), size: Size(width: Pixels(24), height: Pixels(24))))
+    }
 }
 
 /// **Q11.** A 50 x 60 card that flips 180 degrees about y on each tap under a shadow written outside the effect (the leaf is
