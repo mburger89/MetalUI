@@ -57,6 +57,8 @@ final class TimelineStore {
     /// a build handed in; weak, as the table's owner holds this store.
     private weak var stateTable: StateTable?
     private var pendingWake: (date: Date, cancel: () -> Void)?
+    /// Frames a non-timeline owner asked for this build (`noteDeadline`), joined with the timelines' entries in the one wake.
+    private var deadlines: [GlobalElementID: Date] = [:]
 
     /// How many timelines enclose the one being laid out — the depth in its
     /// key (`LC-C` item 2's reason).
@@ -194,11 +196,12 @@ final class TimelineStore {
         defer {
             touched.removeAll(keepingCapacity: true)
             occurrences.removeAll(keepingCapacity: true)
+            deadlines.removeAll(keepingCapacity: true)
         }
         if touched.count != cursors.count {
             cursors = cursors.filter { touched.contains($0.key) }
         }
-        let earliest = cursors.values.compactMap(\.next).min()
+        let earliest = (cursors.values.compactMap(\.next) + deadlines.values).min()
         guard let earliest else {
             pendingWake?.cancel()
             pendingWake = nil
@@ -225,5 +228,18 @@ final class TimelineStore {
             fire()
         }
         return { task.cancel() }
+    }
+}
+
+extension TimelineStore {
+    /// Asks for one frame at `timestamp` (the display link's clock) without a timeline and without
+    /// `noteActiveAnimation`: the one wake is set to the earliest of this build's deadlines and the timelines'
+    /// next entries (`CV-AC`, a code view's caret toggling twice a second). A deadline lives for the build that
+    /// noted it; the frame it wakes notes the next.
+    package func noteDeadline(atTimestamp timestamp: Double, owner: GlobalElementID, stateTable: StateTable) {
+        self.stateTable = stateTable   // the table a wake writes through, as a timeline's build hands it in
+        let date = self.date(at: timestamp)
+        if let known = deadlines[owner], known <= date { return }
+        deadlines[owner] = date
     }
 }

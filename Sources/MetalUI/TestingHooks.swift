@@ -127,7 +127,8 @@ extension Window {
     /// (`TextEditState.composition`), `nil` when nothing is focused, the focus
     /// is not a text target or nothing is marked (ruling `IM-D`). Read-only.
     package var testingComposition: TextComposition? {
-        guard let id = focusedElement, lastFocusRegistry.textTarget(for: id) != nil else { return nil }
+        guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return nil }
+        if let session = target.codeSession { return session.composition }   // the code view's, in its own state (`CV-AA`)
         var composition = TextComposition.none
         stateTable.withState(id, initial: TextEditState()) { composition = $0.composition }
         return composition.text.isEmpty ? nil : composition

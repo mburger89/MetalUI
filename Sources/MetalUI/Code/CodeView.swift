@@ -38,8 +38,13 @@ public struct CodeView: Element, StyledElement {
     var fontIsMonospaceDefault = true
     var showsNumbers = true
     var tabColumns = 4
+    var isEditable = true
+    var indentsWithSpaces = false
     var scrollStateObject: CodeScrollState?
     var onScrollAction: (@MainActor (CodeScrollPosition) -> Void)?
+    var gutterClick: (@MainActor (CodeGutterHit) -> Void)?
+    var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
+    var caretBlink = CodeCaretBlink.on
 
     /// A view of `buffer` drawn with `decorations`, whose buffer must be the same.
     public init(buffer: CodeBuffer, decorations: CodeDecorations) {
@@ -72,6 +77,23 @@ public struct CodeView: Element, StyledElement {
         return copy
     }
 
+    /// Whether typing, deleting, pasting, Return, Tab and undo change the buffer; on by default (`CV-W`). A view
+    /// that is not editable, like a view of a read-only buffer (``CodeBuffer/isReadOnly``), still selects,
+    /// copies, moves its caret and scrolls, and leaves Tab to move focus.
+    public func codeViewEditable(_ editable: Bool) -> CodeView {
+        var copy = self
+        copy.isEditable = editable
+        return copy
+    }
+
+    /// Whether Tab inserts spaces (up to the next tab stop of ``tabWidth(_:)``) and indents lines by that many;
+    /// off by default, where Tab inserts a tab character.
+    public func indentUsingSpaces(_ spaces: Bool) -> CodeView {
+        var copy = self
+        copy.indentsWithSpaces = spaces
+        return copy
+    }
+
     /// Shares the view's scroll position with `state`: the view publishes where it is scrolled after each
     /// change (a wheel, a drag, an edit above it), and scrolls to a value assigned to
     /// ``CodeScrollState/position``. The vertical position is in display rows (`CV-T`).
@@ -89,6 +111,34 @@ public struct CodeView: Element, StyledElement {
     public func onScroll(_ action: @escaping @MainActor (CodeScrollPosition) -> Void) -> CodeView {
         var copy = self
         copy.onScrollAction = action
+        return copy
+    }
+
+    /// Calls `action` when the primary button is pressed on a gutter bar (`CV-AB`): the bar of a
+    /// ``CodeLineDecoration`` or of a ``CodeVirtualRow``, including the bars beside a diff's removed lines. It
+    /// runs from input, never in a frame phase, so it may write state; the press then neither moves the caret
+    /// nor selects the line. A press in the gutter where no bar is drawn still selects the line.
+    public func onGutterBarClick(_ action: @escaping @MainActor (CodeGutterHit) -> Void) -> CodeView {
+        var copy = self
+        copy.gutterClick = action
+        return copy
+    }
+
+    /// A context menu for the gutter bars (`CV-AB`): a secondary press on a bar opens the menu `content` builds
+    /// for the ``CodeGutterHit``, evaluated at each open, in input (`MN-D`). A secondary press anywhere else
+    /// opens the view's own ``StyledElement/contextMenu(menuItems:)``, if it has one, and nothing otherwise.
+    public func gutterBarContextMenu<M: MenuContent>(
+        @MenuContentBuilder _ content: @escaping @MainActor (CodeGutterHit) -> M) -> CodeView {
+        var copy = self
+        copy.gutterMenu = { hit in MenuItems([content(hit)]) }
+        return copy
+    }
+
+    /// Whether the caret blinks while the view has focus; ``CodeCaretBlink/on`` by default. A blinking caret
+    /// costs two frames a second while the view is focused and idle (`CV-AC`); tests and screenshots turn it off.
+    public func codeCaretBlink(_ blink: CodeCaretBlink) -> CodeView {
+        var copy = self
+        copy.caretBlink = blink
         return copy
     }
 
@@ -154,10 +204,24 @@ public struct CodeView: Element, StyledElement {
             return true
         }, over: handlers.pointer)
         let buffer = self.buffer
-        handlers.gestures.append(GestureAttachment(
-            DragGesture(minimumDistance: Pixels(0)).onChanged { [plan] value in
-                plan.select(from: value.startLocation, to: value.location, clickCount: value.clickCount, in: buffer)
-            }, priority: .normal))
+        // The text stage's target: the session does the editing from input (`CV-W`); the caret rect is the input
+        // method's area, under the view's own render effects (`GX-I`).
+        let session = CodeEditSession(buffer: buffer, id: id, table: table, plan: plan, editable: isEditable,
+                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick)
+        if let menu = gutterMenu {
+            let existing = handlers.contextual
+            handlers.contextual = ContextualAttachment(locatedMenu: { [plan] point in
+                if let point, let hit = plan.gutterHit(at: point) { return menu(hit) }
+                return existing?.menu?(point) ?? MenuItems([])
+            }, help: existing?.help)
+        }
+        let caret = plan.caretPosition()
+        let scaleF = frame.scaleFactor
+        let caretRect = Bounds(origin: Point(x: Pixels(Float(caret?.x ?? plan.originX) / scaleF),
+                                             y: Pixels(Float(caret?.top ?? plan.originY) / scaleF)),
+                               size: Size(width: Pixels(1), height: Pixels(Float(plan.pitchPx) / scaleF)))
+        handlers.textInput = TextInputTarget(code: session,
+                                             caretRect: frame.effectBoundingBox(of: caretRect, ownEffects: decoration.renderEffects, bounds: bounds))
         handlers = handlers.copyingSelection(of: buffer)
         // One `.textArea` node, built only while an accessibility client is present (`CV-U`).
         if frame.collectsAccessibility {
@@ -192,4 +256,16 @@ extension Handlers {
             }, over: copy.keyboard?.clipboard), over: copy.keyboard)
         return copy
     }
+}
+
+/// Whether a ``CodeView``'s caret blinks (`CV-AC`).
+public enum CodeCaretBlink: Equatable, Sendable {
+    /// The caret is drawn for half a second, hidden for half a second, restarting when it moves or text changes;
+    /// the view schedules a frame at each toggle (two a second while it is focused and idle) and nothing else.
+    case on
+    /// A solid caret: no timer, for tests and screenshots.
+    case off
+
+    /// Seconds from one toggle to the next.
+    static let halfPeriod = 0.5
 }

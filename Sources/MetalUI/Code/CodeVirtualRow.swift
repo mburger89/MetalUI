@@ -36,6 +36,11 @@ public struct CodeVirtualRow: Sendable {
             case .after(let line): return max(0, line) + 1
             }
         }
+
+        var isAfter: Bool {
+            if case .after = self { return true }
+            return false
+        }
     }
 
     /// Where the lines sit, as of the `asOf` version they are given at.
@@ -51,10 +56,14 @@ public struct CodeVirtualRow: Sendable {
     public var background: Color?
     /// A marker drawn in the number column of every line; `nil` draws none.
     public var gutterMarker: CodeGutterMarker?
+    /// An app-defined identifier handed back in the ``CodeGutterHit`` of a click or context menu on this
+    /// row's gutter bar (the removed hunk's id, say); `nil` for none.
+    public var tag: UInt64?
 
     /// Virtual lines at `anchor`.
     public init(anchor: Anchor, lines: [String], styleRuns: [[CodeStyleRun]] = [], gutterBar: Color? = nil,
-                background: Color? = nil, gutterMarker: CodeGutterMarker? = nil) {
+                background: Color? = nil, gutterMarker: CodeGutterMarker? = nil, tag: UInt64? = nil) {
+        self.tag = tag
         self.anchor = anchor
         self.lines = lines
         self.styleRuns = styleRuns

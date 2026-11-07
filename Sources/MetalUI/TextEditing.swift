@@ -562,10 +562,25 @@ enum TextEditing {
 /// What `Window` needs to edit a `TextField` from input (ruling TI-B), built
 /// by the field in `prepaint` and carried on its `Handlers`. Geometry is the
 /// frame's: window points, scroll-view offsets applied.
-/// A closure in a class box (`SL-M`): one pointer where a closure is two.
-final class TextTargetHook<Closure> {
-    let call: Closure
-    init(call: Closure) { self.call = call }
+/// The optional parts of a `TextInputTarget` in **one** class box (`SL-M`, `CV-W`): Return's handler, a bound
+/// field's selection sink and a code view's edit session. Each used to be a box of its own; one pointer is what
+/// keeps `Handlers` at its pin (`handlersGainsOneReferenceMember`), and a new part lands here and not as a member.
+final class TextTargetHooks {
+    /// Return's handler (a single-line field).
+    let submit: (@MainActor () -> Void)?
+    /// A bound field's way to write its selection (`SL-B`): receives the range and the text it is in,
+    /// writes the binding, returns the value written.
+    let sink: (@MainActor (Range<Int>, String) -> AnyHashable)?
+    /// The editing session of a `CodeView` (`CV-W`): when set, `Window` routes every text stage to it and
+    /// not through `TextEditing`.
+    let code: CodeEditSession?
+
+    init(submit: (@MainActor () -> Void)?, sink: (@MainActor (Range<Int>, String) -> AnyHashable)?,
+         code: CodeEditSession? = nil) {
+        self.submit = submit
+        self.sink = sink
+        self.code = code
+    }
 }
 
 struct TextInputTarget {
@@ -578,17 +593,18 @@ struct TextInputTarget {
     /// Where the caret was drawn, for the input method's candidate window.
     var caretRect: Bounds<Pixels>
     var onChange: @MainActor (String) -> Void
-    /// Return's handler and the selection sink are class boxes, one pointer each,
-    /// so this target costs `Handlers` nothing it did not (`SL-M`: the 488-byte
-    /// pin of `handlersGainsOneReferenceMember`).
-    private var submitBox: TextTargetHook<@MainActor () -> Void>?
-    private var sinkBox: TextTargetHook<@MainActor (Range<Int>, String) -> AnyHashable>?
+    /// Return's handler, the selection sink and the code session share one class box, one pointer, so this
+    /// target costs `Handlers` nothing it did not (`SL-M`, `CV-W`: the pin of `handlersGainsOneReferenceMember`).
+    private var hooks: TextTargetHooks?
 
-    var onSubmit: (@MainActor () -> Void)? { submitBox?.call }
+    var onSubmit: (@MainActor () -> Void)? { hooks?.submit }
 
     /// A bound field's way to write its selection (`SL-B`): receives the range
     /// and the text it is in, writes the binding, returns the value written.
-    var selectionSink: (@MainActor (Range<Int>, String) -> AnyHashable)? { sinkBox?.call }
+    var selectionSink: (@MainActor (Range<Int>, String) -> AnyHashable)? { hooks?.sink }
+
+    /// The editing session when this target is a `CodeView`'s (`CV-W`).
+    var codeSession: CodeEditSession? { hooks?.code }
 
     // A multi-line field's (ruling TI-H); `lines` is nil for a `TextField`.
     var lines: TextLineModel? = nil
@@ -607,12 +623,22 @@ struct TextInputTarget {
         self.originX = originX
         self.caretRect = caretRect
         self.onChange = onChange
-        self.submitBox = onSubmit.map { TextTargetHook(call: $0) }
-        self.sinkBox = selectionSink.map { TextTargetHook(call: $0) }
+        self.hooks = onSubmit == nil && selectionSink == nil ? nil : TextTargetHooks(submit: onSubmit, sink: selectionSink)
         self.lines = lines
         self.originY = originY
         self.lineHeight = lineHeight
         self.maxScrollY = maxScrollY
+    }
+
+    /// A code view's target (`CV-W`): no string, no offsets; the session does the editing, `caretRect` is the
+    /// input method's area.
+    init(code session: CodeEditSession, caretRect: Bounds<Pixels>) {
+        self.text = ""
+        self.caretOffsets = []
+        self.originX = 0
+        self.caretRect = caretRect
+        self.onChange = { _ in }
+        self.hooks = TextTargetHooks(submit: nil, sink: nil, code: session)
     }
 
     /// The grapheme boundary under a window point: on the line under `y`

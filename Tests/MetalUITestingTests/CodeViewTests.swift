@@ -563,7 +563,8 @@ import MetalUITestSupport
 /// loop, the rope scans, `Frame`'s clip accessors and `Scene.finalize`: 764 at 1k and 100k lines, 777 / 778 at
 /// 600, 750 at 90 000 (an empty view's frame is 157 of them). So: the two sizes agree within 2 per visible row
 /// at one position, 90 000 rows down costs what 600 down does within 4 per visible row, and every cell stays
-/// under 830. An O(n) spelling (counting lines to the anchor, copying the text) is orders over all three.
+/// under 910 (830 before run 1 of editing: the focused view now draws a caret, one more primitive for
+/// `Scene.finalize` to sort, 845 measured; `CV-W`). An O(n) spelling (counting lines to the anchor, copying the text) is orders over all three.
 /// **Mutations:** `makePlan` reading `snap.text` once per frame; the glyph loop back to `for (i, glyph) in
 /// row.layout.glyphs.enumerated()`; `codeHash` back to a `for` over the bytes.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_VERIFY_CODE_CACHE"] != "1"
@@ -590,7 +591,7 @@ import MetalUITestSupport
     let deep = counts["100000@90000"]!, shallow = counts["100000@600"]!
     #expect(abs(deep - shallow) <= 2 * bound, "90 000 rows down \(deep) against 600 rows down \(shallow)")
     for (cell, count) in counts.sorted(by: { $0.key < $1.key }) {
-        #expect(count <= 830, "\(cell): \(count) allocations in one warm scroll frame (ceiling 830)")
+        #expect(count <= 910, "\(cell): \(count) allocations in one warm scroll frame (ceiling 910)")
     }
 }
 #endif

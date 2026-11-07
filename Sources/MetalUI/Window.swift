@@ -587,7 +587,12 @@ public final class Window {
             // `IM-I`): AppKit discards the input context's marked text and
             // sends nothing, so the stored composition is dropped here.
             guard let old = oldValue, old != focusedElement,
-                  lastFocusRegistry.textTarget(for: old) != nil else { return }
+                  let lost = lastFocusRegistry.textTarget(for: old) else { return }
+            // A code view keeps its composition in its own state, not a `TextEditState` (`CV-W`).
+            if let session = lost.codeSession {
+                session.dropComposition()
+                return
+            }
             stateTable.withState(old, initial: TextEditState()) { $0.composition = .none }
         }
     }
@@ -3462,6 +3467,12 @@ public final class Window {
             let id = lastHitboxes[index].id
             let local = lastHitboxes[index].localPoint(mouse.position)   // `GX-P` item 3
             focus(id)
+            if let session = target.codeSession {
+                StateDispatch.dispatching(to: id) {   // ID-F: the pressed code view
+                    session.press(at: local, clickCount: mouse.clickCount, extend: mouse.modifiers.contains(.shift))
+                }
+                return true
+            }
             setEditState(id, TextEditing.press(at: target.boundary(atWindowX: Double(local.x.value),
                                                                    y: Double(local.y.value)),
                                               clickCount: mouse.clickCount,
@@ -3472,19 +3483,36 @@ public final class Window {
             guard let id = active, let region = lastHitboxes.first(where: { $0.id == id }),
                   let target = region.handlers.textInput else { return false }
             let local = region.localPoint(mouse.position)   // `GX-P` item 3
+            if let session = target.codeSession {
+                StateDispatch.dispatching(to: id) { session.drag(to: local, at: mouse.timestamp ?? lastTick) }   // ID-F: the dragged code view
+                return true
+            }
             setEditState(id, TextEditing.drag(to: target.boundary(atWindowX: Double(local.x.value),
                                                                   y: Double(local.y.value)),
                                              text: currentText(id, target), state: editState(id)))
             return true
+        case .mouseUp:
+            // The release ends a code view's drag and its autoscroll (`CV-AD`); it claims nothing.
+            guard let id = focusedElement, let session = lastFocusRegistry.textTarget(for: id)?.codeSession else { return false }
+            StateDispatch.dispatching(to: id) { session.endDrag() }   // ID-F: the released code view
+            return false
         case .textInput(let inserted):
             guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
+            if let session = target.codeSession {
+                StateDispatch.dispatching(to: id) { session.insert(inserted) }   // ID-F: the typed-into code view
+                return true
+            }
             let (text, state) = TextEditing.insert(inserted, text: currentText(id, target), state: editState(id),
                                                    multiline: target.lines != nil)
             setEditState(id, state)
             applyEdit(id, target, text)
             return true
         case .textComposition(let composition):
-            guard let id = focusedElement, lastFocusRegistry.textTarget(for: id) != nil else { return false }
+            guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
+            if let session = target.codeSession {
+                StateDispatch.dispatching(to: id) { session.compose(composition) }   // ID-F: the composing code view
+                return true
+            }
             setEditState(id, TextEditing.compose(composition, state: editState(id)))
             return true
         default:
@@ -3498,8 +3526,10 @@ public final class Window {
     /// its text, as AppKit's fields do. A Tab with command, control or option
     /// is not traversal and falls through.
     private func dispatchFocusTraversal(_ event: InputEvent) -> Bool {
-        guard case .keyDown(let key) = event,
-              key.modifiers.isDisjoint(with: [.command, .control, .option]) else { return false }
+        // Control passes for a focused code view (`CV-W`): its Tab is an indent, so ⌃Tab is how focus leaves it.
+        let leavesCodeView = focusedElement.flatMap { lastFocusRegistry.textTarget(for: $0)?.codeSession } != nil
+        let foreign: Modifiers = leavesCodeView ? [.command, .option] : [.command, .control, .option]
+        guard case .keyDown(let key) = event, key.modifiers.isDisjoint(with: foreign) else { return false }
         let backward: Bool
         switch key.charactersIgnoringModifiers {
         case "\t": backward = key.modifiers.contains(.shift)
@@ -3515,7 +3545,8 @@ public final class Window {
             next = backward ? last : first
         }
         focus(next)
-        if let target = lastFocusRegistry.textTarget(for: next) {
+        // A code view is entered with its caret where it was, never with everything selected (`CV-W`).
+        if let target = lastFocusRegistry.textTarget(for: next), target.codeSession == nil {
             var state = editState(next)
             state.anchor = 0
             state.head = currentText(next, target).count
@@ -3561,9 +3592,9 @@ public final class Window {
     /// reaches `dispatchTextInput` byte for byte as before.
     private func dispatchTypedKeyPress(_ event: InputEvent) -> Bool {
         guard case .textInput(let text) = event, lastFocusRegistry.keyPressCount > 0,
-              let id = focusedElement, lastFocusRegistry.textTarget(for: id) != nil,
+              let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id),
               text.count == 1, let character = text.first,
-              editState(id).composition.text.isEmpty else { return false }
+              target.codeSession.map({ !$0.isComposing }) ?? editState(id).composition.text.isEmpty else { return false }
         let press = KeyPress(phase: .down, key: KeyEquivalent(character), characters: text, modifiers: [])
         return MetalUI.dispatchKeyPress(press, along: focusChain, in: lastFocusRegistry)
     }
@@ -3572,6 +3603,14 @@ public final class Window {
     private func dispatchTextKey(_ event: InputEvent) -> Bool {
         guard case .keyDown(let key) = event, let id = focusedElement,
               let target = lastFocusRegistry.textTarget(for: id) else { return false }
+        if let session = target.codeSession {
+            let outcome = StateDispatch.dispatching(to: id) {   // ID-F: the edited code view
+                session.key(key, clipboard: { [platformWindow] in platformWindow.readClipboard() })
+            }
+            guard outcome.handled else { return false }
+            if let copied = outcome.copied { platformWindow.writeClipboard(copied) }
+            return true
+        }
         let outcome = TextEditing.key(key, text: currentText(id, target), state: editState(id),
                                       clipboard: { [platformWindow] in platformWindow.readClipboard() },
                                       lines: target.lines)

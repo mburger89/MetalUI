@@ -22,10 +22,16 @@ final class VirtualGroup {
     let lines: [VirtualLine]
     let gutterBar: Color?
     let background: Color?
-    init(lines: [VirtualLine], gutterBar: Color?, background: Color?) {
+    /// The app's tag (`CodeVirtualRow.tag`).
+    let tag: UInt64?
+    /// Whether the group was given `.after(line:)`: its anchor line is the buffer row above the gap, not below it.
+    let anchoredAfter: Bool
+    init(lines: [VirtualLine], gutterBar: Color?, background: Color?, tag: UInt64? = nil, anchoredAfter: Bool = false) {
         self.lines = lines
         self.gutterBar = gutterBar
         self.background = background
+        self.tag = tag
+        self.anchoredAfter = anchoredAfter
     }
 }
 
