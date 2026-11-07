@@ -60,4 +60,8 @@ Findings from the first runs: the oracle's `rows` used `String.split(separator: 
 
 ## 5. Results (2026-11-07)
 
-See the commit message of the record's final commit and the summary lines pasted in section 6 when taken.
+`swift package clean`, then `swift build --build-system native --build-tests` and `swift test --build-system native --no-parallel`, unfiltered: `Test run with 5389 tests in 18 suites passed after 408.459 seconds.` and `FR-J no-argument frame: succeeded=true deprecations=2`. `MetalUICodeBufferTests` alone: `Test run with 45 tests in 4 suites passed`. `zsh docs/probes/closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+
+## 6. Linux (portable container)
+
+(filled in below)
