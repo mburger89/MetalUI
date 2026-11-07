@@ -80,6 +80,8 @@ public struct CodeTheme: Equatable, Sendable {
     public var background: Color
     /// The selection rectangles.
     public var selection: Color
+    /// The caret; `nil` draws it in ``foreground``.
+    public var caret: Color?
     /// The line numbers.
     public var gutterForeground: Color
     /// The gutter's fill; `nil` shows the view's.
@@ -90,7 +92,9 @@ public struct CodeTheme: Equatable, Sendable {
                 background: Color = Color(.surface),
                 selection: Color = Color.accentColor.opacity(0.3),
                 gutterForeground: Color = Color.textPrimary.opacity(0.4),
-                gutterBackground: Color? = nil) {
+                gutterBackground: Color? = nil,
+                caret: Color? = nil) {
+        self.caret = caret
         self.foreground = foreground
         self.background = background
         self.selection = selection

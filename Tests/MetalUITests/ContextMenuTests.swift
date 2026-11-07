@@ -990,8 +990,13 @@ private struct MenuCounter: Component {
 ///
 /// Key and focus scoping (ruling `KF-I`): the `onKeyPress` handlers, focus
 /// interactions and key-region flag ride one more class box, `keyboard` — 488.
+///
+/// The code view's edit session (`CV-W`) rides the text target's one hooks box, `TextTargetHooks`, which
+/// replaced the target's two (Return's handler and the selection sink): `TextInputTarget` lost a pointer and
+/// `Handlers` went from 488 to 480. Mutation: give the session a member of its own (a third box beside the
+/// hooks, or the session inline) and the size is 488 or more again.
 @Test func handlersGainsOneReferenceMember() {
-    #expect(MemoryLayout<Handlers>.size == 488, "Handlers: \(MemoryLayout<Handlers>.size)")
+    #expect(MemoryLayout<Handlers>.size == 480, "Handlers: \(MemoryLayout<Handlers>.size)")
 }
 
 /// **1.35** (C13c/C13, `MN-U`). Under `.allowsHitTesting(false)` a right press

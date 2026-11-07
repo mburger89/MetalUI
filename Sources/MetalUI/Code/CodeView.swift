@@ -38,6 +38,8 @@ public struct CodeView: Element, StyledElement {
     var fontIsMonospaceDefault = true
     var showsNumbers = true
     var tabColumns = 4
+    var isEditable = true
+    var indentsWithSpaces = false
     var scrollStateObject: CodeScrollState?
     var onScrollAction: (@MainActor (CodeScrollPosition) -> Void)?
 
@@ -69,6 +71,23 @@ public struct CodeView: Element, StyledElement {
     public func tabWidth(_ columns: Int) -> CodeView {
         var copy = self
         copy.tabColumns = max(1, columns)
+        return copy
+    }
+
+    /// Whether typing, deleting, pasting, Return, Tab and undo change the buffer; on by default (`CV-W`). A view
+    /// that is not editable, like a view of a read-only buffer (``CodeBuffer/isReadOnly``), still selects,
+    /// copies, moves its caret and scrolls, and leaves Tab to move focus.
+    public func codeViewEditable(_ editable: Bool) -> CodeView {
+        var copy = self
+        copy.isEditable = editable
+        return copy
+    }
+
+    /// Whether Tab inserts spaces (up to the next tab stop of ``tabWidth(_:)``) and indents lines by that many;
+    /// off by default, where Tab inserts a tab character.
+    public func indentUsingSpaces(_ spaces: Bool) -> CodeView {
+        var copy = self
+        copy.indentsWithSpaces = spaces
         return copy
     }
 
@@ -154,10 +173,17 @@ public struct CodeView: Element, StyledElement {
             return true
         }, over: handlers.pointer)
         let buffer = self.buffer
-        handlers.gestures.append(GestureAttachment(
-            DragGesture(minimumDistance: Pixels(0)).onChanged { [plan] value in
-                plan.select(from: value.startLocation, to: value.location, clickCount: value.clickCount, in: buffer)
-            }, priority: .normal))
+        // The text stage's target: the session does the editing from input (`CV-W`); the caret rect is the input
+        // method's area, under the view's own render effects (`GX-I`).
+        let session = CodeEditSession(buffer: buffer, id: id, table: table, plan: plan, editable: isEditable,
+                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns)
+        let caret = plan.caretPosition()
+        let scaleF = frame.scaleFactor
+        let caretRect = Bounds(origin: Point(x: Pixels(Float(caret?.x ?? plan.originX) / scaleF),
+                                             y: Pixels(Float(caret?.top ?? plan.originY) / scaleF)),
+                               size: Size(width: Pixels(1), height: Pixels(Float(plan.pitchPx) / scaleF)))
+        handlers.textInput = TextInputTarget(code: session,
+                                             caretRect: frame.effectBoundingBox(of: caretRect, ownEffects: decoration.renderEffects, bounds: bounds))
         handlers = handlers.copyingSelection(of: buffer)
         // One `.textArea` node, built only while an accessibility client is present (`CV-U`).
         if frame.collectsAccessibility {

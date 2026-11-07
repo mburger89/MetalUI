@@ -33,6 +33,15 @@ struct CodeViewState: Equatable {
     var reportedXPx = 0
     /// The `CodeScrollState.revision` last adopted; `nil` before the first frame, which adopts the state's value.
     var scrollRevisionSeen: UInt64?
+    /// Whether the next frame must scroll the caret into view: set by every key, edit and caret move from input,
+    /// left clear by the wheel and by a press so a scroll is not snapped back (`CV-X`).
+    var revealsCaret = false
+    /// The x, in points from the text origin, a run of vertical moves keeps returning to across short lines.
+    var goalX: Double?
+    /// The unit the last press selected (0 character, 1 word, 2 line) and its range, which a drag keeps (`CV-Y`).
+    var dragGranularity: UInt8 = 0
+    var dragOriginLower = 0
+    var dragOriginUpper = 0
 }
 
 /// One frame's geometry and laid-out rows (`CV-N`): built in prepaint, read by paint and by the pointer
@@ -73,7 +82,12 @@ final class CodeViewPlan {
     var topPx = 0, maxTopPx = 0
     var scrollXPx = 0, maxScrollXPx = 0
     var selection: Range<Int> = 0..<0
+    /// The primary selection's moving end.
+    var head = 0
     var spaceAdvance = 0.0
+    /// One buffer row's layout from the text now, through the line cache: what a key's vertical motion and caret
+    /// x read in input, where the frame's own rows may be older than the buffer (`CV-X`).
+    var layoutRow: (Int, CodeSnapshot) -> CodeLineLayout = { _, _ in fatalError("CodeViewPlan.layoutRow is set by makePlan") }
 
     init(snapshot: CodeSnapshot, font: FontKey) {
         self.snapshot = snapshot
@@ -85,11 +99,12 @@ final class CodeViewPlan {
 
     // MARK: Hit testing
 
-    /// The byte offset nearest `point` (view-local points). A virtual line resolves to the start of the buffer
+    /// The byte offset nearest `point`, in window points as the window's hit test hands them over (the rows and the
+    /// origin are in the same space). A virtual line resolves to the start of the buffer
     /// row it sits before: it is not text of the buffer.
     func offset(at point: Point<Pixels>) -> Int {
         guard !rows.isEmpty else { return 0 }
-        let y = originY + Int((Double(point.y.value) * Double(scale)).rounded(.down))
+        let y = Int((Double(point.y.value) * Double(scale)).rounded(.down))
         var index = 0
         if y >= rows[0].top {
             index = rows.count - 1
@@ -100,15 +115,37 @@ final class CodeViewPlan {
             }
         }
         let row = rows[index]
-        let x = originX + Int((Double(point.x.value) * Double(scale)).rounded(.down))
+        let x = Int((Double(point.x.value) * Double(scale)).rounded(.down))
         let local = Double(x - textOriginX) / Double(scale)
         let byte = min(max(0, row.layout.byte(atX: local)), row.range.count)
         return row.range.lowerBound + byte
     }
 
-    /// Whether `point` is in the gutter.
+    /// The device-pixel x of byte `byte` of `row`'s line, as the painter places it.
+    func xPx(_ row: Row, byte: Int) -> Int {
+        let local = byte - row.textStart
+        let points = row.layout.x(ofByte: local)
+            ?? (local < row.layout.windowStart ? row.layout.caretX.first : row.layout.caretX.last) ?? 0
+        return textOriginX + Int((points * Double(scale)).rounded())
+    }
+
+    /// Where the caret is drawn: its x and the top of its row, device pixels; `nil` when its row is not among
+    /// the frame's rows.
+    func caretPosition() -> (x: Int, top: Int)? {
+        var i = 0
+        while i < rows.count {
+            let row = rows[i]
+            i += 1
+            if !row.isVirtual && row.range.lowerBound <= head && head <= row.range.upperBound {
+                return (xPx(row, byte: head), row.top)
+            }
+        }
+        return nil
+    }
+
+    /// Whether `point` (window points) is in the gutter.
     func isInGutter(_ point: Point<Pixels>) -> Bool {
-        gutterPx > 0 && Int((Double(point.x.value) * Double(scale)).rounded(.down)) < gutterPx
+        gutterPx > 0 && Int((Double(point.x.value) * Double(scale)).rounded(.down)) - originX < gutterPx
     }
 
     /// The word, whitespace run or single symbol at `offset`, as a byte range.
@@ -138,26 +175,6 @@ final class CodeViewPlan {
         let line = snapshot.lineRange(row)
         let end = row + 1 < snapshot.lineCount ? snapshot.offset(of: CodePoint(row: row + 1, column: 0)) : snapshot.utf8Count
         return line.lowerBound..<end
-    }
-
-    /// Applies a press-and-drag from `start` to `end` to the buffer's selection: by character, by word
-    /// for a double click and by line for a triple click or a press in the gutter.
-    @MainActor
-    func select(from start: Point<Pixels>, to end: Point<Pixels>, clickCount: Int, in buffer: CodeBuffer) {
-        let a = offset(at: start), b = offset(at: end)
-        let byLine = isInGutter(start) || clickCount >= 3
-        let first: Range<Int>, last: Range<Int>
-        if byLine {
-            first = unit(atLine: a); last = unit(atLine: b)
-        } else if clickCount == 2 {
-            first = unit(atWord: a); last = unit(atWord: b)
-        } else {
-            buffer.selections = [CodeSelection(anchor: a, head: b)]
-            return
-        }
-        let forward = b >= a
-        buffer.selections = [forward ? CodeSelection(anchor: first.lowerBound, head: max(first.upperBound, last.upperBound))
-                                     : CodeSelection(anchor: first.upperBound, head: min(first.lowerBound, last.lowerBound))]
     }
 
     // MARK: Accessibility
@@ -237,7 +254,9 @@ extension CodeView {
         let digits = max(2, String(snap.lineCount).count)
         let digitPx = Int((metrics.digit * scaleD).rounded(.up))
         plan.gutterPx = showsNumbers ? digits * digitPx + 2 * plan.padPx : 0
-        plan.selection = buffer.primarySelection.range
+        let primary = buffer.primarySelection   // one read: each is an observed access
+        plan.selection = primary.range
+        plan.head = primary.head
         let textViewPx = max(1, plan.widthPx - plan.gutterPx - plan.padPx)
 
         var state = stored
@@ -289,10 +308,22 @@ extension CodeView {
         // `select(_:reveal: true)` centres the head's row (`CV-P`).
         let serial = buffer.revealSerial
         if let seen = state.revealSeen, seen != serial {
-            let head = snap.point(at: min(buffer.primarySelection.head, snap.utf8Count)).row
+            let head = snap.point(at: min(primary.head, snap.utf8Count)).row
             topPx = map.displayRow(ofBufferRow: head) * pitchPx - (plan.heightPx - pitchPx) / 2
         }
         state.revealSeen = serial
+        // A key or an edit asked for the caret to be in view (`CV-X`): the least scroll that shows its row.
+        let revealsCaret = state.revealsCaret
+        let headRow = snap.point(at: min(primary.head, snap.utf8Count)).row
+        if revealsCaret {
+            state.revealsCaret = false
+            let rowTop = map.displayRow(ofBufferRow: headRow) * pitchPx
+            if rowTop < topPx {
+                topPx = rowTop
+            } else if rowTop + pitchPx > topPx + plan.heightPx {
+                topPx = rowTop + pitchPx - plan.heightPx
+            }
+        }
         topPx = min(max(0, topPx), plan.maxTopPx)
         plan.topPx = topPx
         let firstRow = topPx / pitchPx
@@ -308,18 +339,48 @@ extension CodeView {
         state.anchorVersion = snap.version
         state.remainderPx = topPx - map.displayRow(ofBufferRow: anchorBuffer) * pitchPx
 
+        // One buffer row's layout from the text now, through the cache: the rows below, the caret's reveal and
+        // (kept on the plan) a key's vertical motion all go through it (`CV-X`).
+        let advancePx = max(1.0, metrics.space * scaleD)
+        let view = self
+        func layoutOfRow(_ row: Int, _ snapshot: CodeSnapshot, _ scrollXPx: Int) -> CodeLineLayout {
+            view.decorations.sync()
+            let range = snapshot.lineRange(row)
+            let styling = view.decorations.stylingOfLine(range)
+            return view.lineLayout(bytes: snapshot.utf8(in: range), knownHash: nil, parts: styling.foreground, digest: styling.digest,
+                                   font: font, system: system, scale: scale, cache: cache, spaceAdvance: metrics.space,
+                                   scrollXPx: scrollXPx, textViewPx: textViewPx, advancePx: advancePx)
+        }
+
         // Horizontal extent: estimated from the longest line, corrected upward by what was laid out.
+        var revealX: Int?
+        if revealsCaret {
+            let layout = layoutOfRow(headRow, snap, state.scrollXPx)
+            let local = min(primary.head, snap.utf8Count) - snap.lineRange(headRow).lowerBound
+            let points = layout.x(ofByte: local) ?? (local < layout.windowStart ? layout.caretX.first : layout.caretX.last) ?? 0
+            revealX = Int((points * scaleD).rounded())
+            state.measuredWidthPx = max(state.measuredWidthPx, revealX! + 1)
+        }
         let estimate = Int((Double(snap.longestLineScalars) * metrics.space * scaleD).rounded(.up))
         plan.maxScrollXPx = max(0, max(estimate, state.measuredWidthPx) + plan.padPx - textViewPx)
+        if let x = revealX {
+            let margin = Int((3 * advancePx).rounded())
+            if x < state.scrollXPx + margin {
+                state.scrollXPx = max(0, x - margin)
+            } else if x > state.scrollXPx + textViewPx - margin {
+                state.scrollXPx = x - textViewPx + margin
+            }
+        }
         state.scrollXPx = min(max(0, state.scrollXPx), plan.maxScrollXPx)
         plan.scrollXPx = state.scrollXPx
+        let settledScrollX = state.scrollXPx
+        plan.layoutRow = { row, snapshot in layoutOfRow(row, snapshot, settledScrollX) }
 
         // The rows: the visible ones and one of overscan each side.
         let remainder = topPx % pitchPx
         let visible = (plan.heightPx + remainder + pitchPx - 1) / pitchPx
         let lower = max(0, firstRow - 1), upper = min(displayRows, firstRow + visible + 1)
         var widest = 0
-        let advancePx = max(1.0, metrics.space * scaleD)
         let decorated = showsNumbers
         plan.rows.reserveCapacity(max(0, upper - lower))
         var display = lower
@@ -410,7 +471,7 @@ extension CodeView {
     /// One line's layout, from the cache or shaped (a long line only in its column window). `knownHash` is the
     /// hash of `bytes` when the caller has it (a virtual line's).
     @MainActor
-    private func lineLayout(bytes: [UInt8], knownHash: UInt64?, parts partsIn: [(bytes: Int, style: CodeStyleID?)], digest digestIn: UInt64,
+    func lineLayout(bytes: [UInt8], knownHash: UInt64?, parts partsIn: [(bytes: Int, style: CodeStyleID?)], digest digestIn: UInt64,
                             font: FontKey, system: any TextSystem, scale: Float, cache: CodeLineCache,
                             spaceAdvance: Double, scrollXPx: Int, textViewPx: Int, advancePx: Double) -> CodeLineLayout {
         var windowStart = 0, windowEnd = bytes.count
@@ -544,6 +605,12 @@ extension CodeView {
                         g += 1
                     }
                     frame.codeWork.glyphsEmitted += emitted
+                }
+                // 7. The caret: a bar a point wide at the head, while the view has focus and nothing is selected.
+                if plan.selection.isEmpty, pass.isFocused(id), let caret = plan.caretPosition() {
+                    let width = max(1, Int(scaleD.rounded()))
+                    pass.fill(rect(caret.x, caret.top, caret.x + width, caret.top + plan.pitchPx),
+                              color: pass.resolve(theme.caret ?? theme.foreground))
                 }
             }
             // 8. The gutter: numbers and markers, then the author bars.
