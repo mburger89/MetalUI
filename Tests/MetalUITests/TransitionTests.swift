@@ -882,13 +882,15 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
     if let g = glyphMid, let s = glyphSettled, let settled {
         let cx: Float = settled.bounds.origin.x + 25
         let cy: Float = settled.bounds.origin.y + 15
-        let halfSize: Bool = abs(g.bounds.size.width - s.bounds.size.width / 2) < 0.001
+        // `TZ-A` (record 222): the glyph is re-rasterized at the half-scale rung, so its drawn size is its own (smaller) slot,
+        // within the ink padding (two pixels) of half the settled size, placed about the same centre to within two pixels.
+        let halfSize: Bool = abs(g.bounds.size.width - s.bounds.size.width / 2) < 2.5
         let expectedX: Float = cx + (s.bounds.origin.x - cx) / 2
         let expectedY: Float = cy + (s.bounds.origin.y - cy) / 2
-        let aboutCentre: Bool = abs(g.bounds.origin.x - expectedX) < 0.001 && abs(g.bounds.origin.y - expectedY) < 0.001
+        let aboutCentre: Bool = abs(g.bounds.origin.x - expectedX) < 2.5 && abs(g.bounds.origin.y - expectedY) < 2.5
         #expect(halfSize && aboutCentre,
                 "the glyph scales ½ about the same centre: \(String(describing: g.bounds)) vs \(String(describing: s.bounds))")
-        #expect(g.atlasBounds.size.width == s.atlasBounds.size.width, "the glyph resamples the same atlas slot")
+        #expect(g.atlasBounds.size.width < s.atlasBounds.size.width, "the glyph is re-rasterized at the half rung, a smaller atlas slot")
     }
     #expect(midFrame.hitboxes.contains { $0.bounds.size.width == 50 && $0.bounds.size.height == 30 },
             "the hitbox is not scaled")

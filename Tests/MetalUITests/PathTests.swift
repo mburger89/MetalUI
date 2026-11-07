@@ -373,21 +373,8 @@ struct GXEvenOddRing: Shape {
 
 // MARK: - 3.29 (divergence 106)
 
-/// **3.29** (divergence 106, `GX-L`; pin, green on arrival). Text under a
-/// scale effect is RESAMPLED, not re-rasterized: under `scaleEffect(3)` every
-/// glyph keeps its atlas slot (the same size as unscaled) and draws it three
-/// times larger — SwiftUI re-rasterizes at the effective scale (T15b). A path
-/// is re-rasterized (3.11).
-@Test @MainActor func aTextUnderScaleEffectIsResampledNotReRasterized() throws {
-    let plain = effectFrame(Text("Aa").font(size: 12)).finalizedScene()
-    let scaled = effectFrame(Text("Aa").font(size: 12).scaleEffect(3)).finalizedScene()
-    try #require(!plain.glyphs.isEmpty && plain.glyphs.count == scaled.glyphs.count, "the same glyphs")
-    for (p, s) in zip(plain.glyphs, scaled.glyphs) {
-        #expect(s.atlasBounds.size.width == p.atlasBounds.size.width
-                && s.atlasBounds.size.height == p.atlasBounds.size.height, "the same atlas slot")
-        #expect(abs(s.bounds.size.width - 3 * p.bounds.size.width) < 1e-3, "drawn ×3: \(s.bounds.size.width)")
-    }
-}
+// Retired pin: `aTextUnderScaleEffectIsResampledNotReRasterized` (text resampled under `scaleEffect`). Divergence 106 is narrowed
+// (`TZ-A`, record 222): see `TextZoomTests.aTextUnderScaleEffectIsReRasterizedAtTheEffectiveScale`.
 
 // MARK: - 3.30 (divergence 97 amended)
 

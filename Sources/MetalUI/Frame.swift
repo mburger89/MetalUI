@@ -3562,6 +3562,14 @@ public final class Frame {
     /// Clips between two non-flattening effects drawn as a masked group (`TZ-B`): work counter, 0 for a tree with none.
     var nestedClipMasks = 0
 
+    /// Glyphs `insertIntoScene` drew from a raster at the scale they are drawn at (text under a `scaleEffect`), and those it
+    /// drew from their device-scale raster because the atlas refused the new one or knew no key for the slot (`TZ-A`,
+    /// `TZ-C`): work counters, 0 for a tree with no scaled text.
+    var glyphsRekeyed = 0
+    var glyphRekeyFallbacks = 0
+    /// Reads of the atlas's slot-to-key map by a glyph that was drawn at another scale (0 for text at its device scale).
+    var glyphRekeyLookups = 0
+
     /// Shadows and blurs this frame rendered through a filtered offscreen group, and those whose box exceeded the target
     /// limit and took the CPU raster instead (`GF-B`, `GF-G`): work counters, 0 for a tree the CPU can read.
     var filterGroups = 0
@@ -4058,7 +4066,7 @@ public final class Frame {
         let transform = primitive.transform?.record
         switch primitive.kind {
         case .rect(let rect): scene.insert(rect, layer: primitive.layer, transform: transform)
-        case .glyph(let glyph): scene.insert(glyph, layer: primitive.layer, transform: transform)
+        case .glyph(let glyph): scene.insert(rekeyedGlyph(glyph) ?? glyph, layer: primitive.layer, transform: transform)
         case .image(let image, let texture):
             scene.insert(image, texture: texture, layer: primitive.layer, transform: transform)
         case .surface(let quad, let target):

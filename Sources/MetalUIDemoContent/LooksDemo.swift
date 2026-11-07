@@ -338,6 +338,7 @@ private func looksPathsShadowsTransformsSection() -> some Element {
         LooksGroupFilterStrip()
         LooksClipMaskStrip()
         LooksTextGradientStrip()
+        LooksTextZoomStrip()
     }
     .alignItems(.flexStart)
 }
@@ -551,6 +552,76 @@ func looksGradientEffectsColumn() -> some Element {
         Text("Shadowed").font(size: 22).foregroundStyle(looksTextSweep)
             .shadow(color: .textPrimary, radius: Pixels(0), x: Pixels(3), y: Pixels(3))
         Text("Turned").font(size: 22).foregroundStyle(looksTextSweep).rotationEffect(.degrees(-8))
+    }
+}
+
+/// **Q14** (text under transforms, `TZ-`). 14 pt text at `scaleEffect` 2, 1.5 and 0.5 (re-rasterized at the scale it is drawn at,
+/// not stretched), a word that zooms 1 to 3 on each tap under `withAnimation` (a new raster per rung of a ladder, none per
+/// frame), and two clips between nested 30-degree rotations (the clip turns with the outer rotation, a square and a rounded
+/// one). **Its own frame, split into columns**, and a component, as the strips above it
+/// (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+struct LooksTextZoomStrip: Component {
+    var content: some ElementGroup {
+        looksTextZoomStrip()
+    }
+}
+
+@MainActor @inline(never)
+func looksTextZoomStrip() -> some Element {
+    Row(gap: Pixels(32)) {
+        looksZoomStaticColumn()
+        looksZoomAnimatedColumn()
+        looksZoomNestedClipColumn()
+    }
+}
+
+/// **Q14**: text at three scales, in their own frame.
+@MainActor @inline(never)
+func looksZoomStaticColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("scale 2, 1.5, 0.5").font(size: 11)
+        Text("Zoom").font(size: 14).scaleEffect(2, anchor: .topLeading).frame(width: Pixels(64), height: Pixels(36), alignment: .topLeading)
+        Text("Zoom").font(size: 14).scaleEffect(1.5, anchor: .topLeading).frame(width: Pixels(64), height: Pixels(28), alignment: .topLeading)
+        Text("Zoom").font(size: 28).scaleEffect(0.5, anchor: .topLeading).frame(width: Pixels(64), height: Pixels(18), alignment: .topLeading)
+    }
+}
+
+/// **Q14**: a word that zooms on a tap, in its own frame.
+@MainActor @inline(never)
+func looksZoomAnimatedColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("tap to zoom 1 to 3").font(size: 11)
+        LooksZoomingWord()
+    }
+}
+
+/// **Q14**: the nested rotated clips, in their own frame.
+@MainActor @inline(never)
+func looksZoomNestedClipColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("clip between rotations").font(size: 11)
+        Row(gap: Pixels(24)) {
+            looksZoomTurned().clipped().rotationEffect(.degrees(30)).padding(Edges(all: Pixels(14)))
+            looksZoomTurned().clipShape(RoundedRectangle(cornerRadius: Pixels(10))).rotationEffect(.degrees(30))
+                .padding(Edges(all: Pixels(14)))
+        }
+    }
+}
+
+@MainActor @inline(never)
+func looksZoomTurned() -> some ProposalElementGroup {
+    Color(.accent).frame(width: Pixels(60), height: Pixels(60)).rotationEffect(.degrees(30))
+        .frame(width: Pixels(36), height: Pixels(36))
+}
+
+/// **Q14.** A word that animates its scale 1 to 3 and back on each tap (`withAnimation(.easeInOut(duration: 1))`).
+struct LooksZoomingWord: Component {
+    @State var zoomed = false
+
+    var content: some ElementGroup {
+        Text("Zoom").font(size: 14).scaleEffect(zoomed ? 3 : 1, anchor: .topLeading)
+            .frame(width: Pixels(120), height: Pixels(56), alignment: .topLeading)
+            .onTapGesture { withAnimation(.easeInOut(duration: 1)) { zoomed.toggle() } }
     }
 }
 

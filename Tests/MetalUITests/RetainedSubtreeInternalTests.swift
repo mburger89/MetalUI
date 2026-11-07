@@ -57,6 +57,7 @@ private let frameChannels: [String: Channel] = [
     "filterGroups": .frameLocal, "filtersFlattenedOversize": .frameLocal,   // GF-B counters
     "maskScopesPushed": .frameLocal, "groupsMasked": .frameLocal, "masksBakedToEllipse": .frameLocal,   // CM-A counters
     "masksFlattenedBackdrop": .frameLocal, "masksFlattenedOversize": .frameLocal, "nestedClipMasks": .frameLocal,   // TZ-B
+    "glyphsRekeyed": .frameLocal, "glyphRekeyFallbacks": .frameLocal, "glyphRekeyLookups": .frameLocal,   // TZ-A
     // Tallies, prepaint's.
     "hoverRegionCount": .prepaintOnly, "pointerStyleRegionCount": .prepaintOnly, "keyRegionCount": .prepaintOnly,
     "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,
