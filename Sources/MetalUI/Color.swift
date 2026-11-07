@@ -85,6 +85,13 @@ public struct Color: Hashable, Sendable {
         return false
     }
 
+    /// The alpha factor of a level written over nothing (its level over a parent, times its `opacity(_:)`), `nil` for any other
+    /// colour: what a level over a gradient parent scales the gradient's stops by (`TG-A`).
+    func levelFactorOverParent(scheme: ColorScheme) -> Float? {
+        guard case let .hierarchical(level, nil) = provider else { return nil }
+        return level.factor(overParent: true, scheme: scheme) * Self.clamped(opacityFactor)
+    }
+
     /// A NaN stored as 0 (`CR-R` item 2); every other value as written.
     static func canonical(_ value: Float) -> Float { value.isNaN ? 0 : value }
 

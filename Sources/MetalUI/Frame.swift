@@ -3419,8 +3419,24 @@ public final class Frame {
     /// layer. One copy, so the two engines' glyphs cannot drift apart here.
     private func drawSprite(key: GlyphKey, pixelX: Int, baselineY: Int, color: Hsla,
                             rasterize: () -> GlyphImage) {
-        guard let packed = glyphAtlas.packed(for: key, rasterize: rasterize) else { return }
-        guard packed.slot.width > 0, packed.slot.height > 0 else { return }
+        guard let glyph = spriteGlyph(key: key, pixelX: pixelX, baselineY: baselineY, color: color, ink: false,
+                                      rasterize: rasterize) else { return }
+        if paintScopes.isEmpty {
+            retainLog?.noteDirect(CapturedPrimitive(kind: .glyph(glyph), layer: activeLayer, innerMask: false), depth: clipDepth)
+            scene.insert(glyph, layer: activeLayer)
+        } else {
+            insertThroughScopes(.glyph(glyph, layer: activeLayer, innerMask: false))
+        }
+    }
+
+    /// The glyph record `drawSprite` emits, or `nil` for a glyph with no ink. **`ink`** (`TG-C`) builds the record as one
+    /// element of a gradient text's mask: no clip of its own (the gradient content carries the clip, and the product is the
+    /// same whichever side cuts first, as for a shape mask, `CM-A`) and no opacity (the content carries the fade), the
+    /// colour's alpha as given.
+    private func spriteGlyph(key: GlyphKey, pixelX: Int, baselineY: Int, color: Hsla, ink: Bool,
+                             rasterize: () -> GlyphImage) -> MUIGlyph? {
+        guard let packed = glyphAtlas.packed(for: key, rasterize: rasterize) else { return nil }
+        guard packed.slot.width > 0, packed.slot.height > 0 else { return nil }
 
         let bounds = Bounds(
             origin: Point(x: ScaledPixels(Float(pixelX + packed.left)),
@@ -3433,17 +3449,29 @@ public final class Frame {
             origin: Point(x: ScaledPixels(bounds.origin.x.value + dx),
                           y: ScaledPixels(bounds.origin.y.value + dy)),
             size: bounds.size)
-        let glyph = MUIGlyph(bounds: placedBounds, slot: packed.slot,
-                             contentMask: activeClip.scaled(by: scaleFactor),
-                             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
-                             color: Hsla(h: color.h, s: color.s, l: color.l,
-                                         a: color.a * activeOpacity), order: 0)
-        if paintScopes.isEmpty {
-            retainLog?.noteDirect(CapturedPrimitive(kind: .glyph(glyph), layer: activeLayer, innerMask: false), depth: clipDepth)
-            scene.insert(glyph, layer: activeLayer)
-        } else {
-            insertThroughScopes(.glyph(glyph, layer: activeLayer, innerMask: false))
+        if ink {
+            let unbounded = Bounds(origin: Point(x: ScaledPixels(Self.unboundedMask.origin.x),
+                                                 y: ScaledPixels(Self.unboundedMask.origin.y)),
+                                   size: Size(width: ScaledPixels(Self.unboundedMask.size.width),
+                                              height: ScaledPixels(Self.unboundedMask.size.height)))
+            return MUIGlyph(bounds: placedBounds, slot: packed.slot, contentMask: unbounded,
+                            maskCornerRadii: Corners(all: ScaledPixels(0)), color: color, order: 0)
         }
+        return MUIGlyph(bounds: placedBounds, slot: packed.slot,
+                        contentMask: activeClip.scaled(by: scaleFactor),
+                        maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
+                        color: Hsla(h: color.h, s: color.s, l: color.l,
+                                    a: color.a * activeOpacity), order: 0)
+    }
+
+    /// One glyph as an element of a gradient text's ink mask (`TG-C`): `draw(_:color:)`'s sprite arithmetic, returned
+    /// instead of emitted, at alpha 1. The mask pass reads only coverage; `color` (the gradient's first stop) is what the
+    /// glyph draws in when the group is over the target limit and falls back to the first stop (`TG-E`).
+    func inkGlyph(_ glyph: TextGlyph, color: Hsla) -> CapturedPrimitive? {
+        guard let record = spriteGlyph(key: glyph.key, pixelX: glyph.pixelX, baselineY: glyph.baselineY,
+                                       color: Hsla(h: color.h, s: color.s, l: color.l, a: 1),
+                                       ink: true, rasterize: { textSystem.rasterize(glyph.key) }) else { return nil }
+        return CapturedPrimitive(kind: .glyph(record), layer: activeLayer, innerMask: false)
     }
 
     // MARK: - Transitions (plan task 13, lane 3, ruling `AN-AE`/`AN-AK`)
@@ -3846,7 +3874,7 @@ public final class Frame {
             for k in children.indices { children[k].groups.removeFirst() }
             i = j
             if mark.isMasked {
-                insertMaskedGroup(children, mask: mark.mask[0])
+                insertMaskedGroup(children, mask: mark.mask, inkMask: mark.inkMask)
             } else if mark.alpha >= 1 {
                 insertLeaves(children)
             } else if mark.alpha <= 0 {
@@ -3925,7 +3953,9 @@ public final class Frame {
         var p = cutContentToEntryClip(primitive, entry, crossed: &crossed)
         // The marks' masks go through the same cut; a crossing of theirs is the entry clip's too.
         for i in p.groups.indices where p.groups[i].isMasked {
-            p.groups[i].mask[0] = cutContentToEntryClip(p.groups[i].mask[0], entry, crossed: &crossed)
+            for m in p.groups[i].mask.indices {
+                p.groups[i].mask[m] = cutContentToEntryClip(p.groups[i].mask[m], entry, crossed: &crossed)
+            }
         }
         guard crossed else { return p }
         let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)

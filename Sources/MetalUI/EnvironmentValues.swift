@@ -342,10 +342,23 @@ public struct EnvironmentValues {
     /// How a multi-line text's lines sit in its box (ruling TE-J). `.leading`.
     public var multilineTextAlignment: TextAlignment = .leading
 
-    /// The glyph colour of a `Text` or `ProposalText` below that names none
-    /// (ruling TE-D). **Internal**: SwiftUI has no public key; written by
-    /// `.foregroundStyle(_:)`/`.foregroundColor(_:)`.
-    var foregroundStyle: Color?
+    /// The style of a `Text` or `ProposalText` below that names none and of the default fill of a shape below
+    /// (rulings TE-D, `TG-A`): a colour, a gradient or a material. **Internal**: SwiftUI has no public key;
+    /// written by `.foregroundStyle(_:)`/`.foregroundColor(_:)`. ``foregroundStyle`` is its colour.
+    var foregroundStorage: ShapeStyleStorage?
+
+    /// The glyph colour of a `Text` or `ProposalText` below that names none (ruling TE-D): ``foregroundStorage``'s
+    /// representative colour (a gradient's first stop, a material's flat tint). **Writing a colour replaces a
+    /// gradient or material written above it** (`TG-A`: one storage, so a colour below a gradient clears it).
+    /// **Internal**: SwiftUI has no public key.
+    var foregroundStyle: Color? {
+        get { foregroundStorage?.representativeColor }
+        set {
+            // Not `newValue.map { .color($0) }`: that closure carries a main-actor check, and a text's colour is set while a
+            // production tree is built (the one-megabyte-thread harness builds off the main thread).
+            if let newValue { foregroundStorage = .color(newValue) } else { foregroundStorage = nil }
+        }
+    }
 
     /// The tint `.tint(_:)` wrote (`SS-D`): what `Color.accentColor` resolves to and what the
     /// built-in controls paint their accent in. `nil`: the theme's accent. Internal, as SwiftUI's has no
@@ -510,7 +523,7 @@ struct EnvironmentFingerprint: Equatable {
     var lineLimit: Int?
     var truncationMode: Text.TruncationMode
     var multilineTextAlignment: TextAlignment
-    var foregroundStyle: Color?
+    var foregroundStyle: ShapeStyleStorage?
     var tint: Color?
     var fontWeight: Font.Weight?
     var italic: Bool
@@ -586,7 +599,7 @@ extension EnvironmentValues {
             accessibilityDisplay: accessibilityDisplay, legibilityWeight: legibilityWeight,
             titleBarInsets: titleBarInsets, windowSize: windowSize, colorScheme: colorScheme,
             controlSize: controlSize, font: font, lineLimit: lineLimit, truncationMode: truncationMode,
-            multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStyle, tint: tint,
+            multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStorage, tint: tint,
             fontWeight: fontWeight, italic: italic, isBold: isBold, textRich: textRich,
             textLineLimit: textLineLimit,
             fieldStyle: fieldStyles.field, editorStyle: fieldStyles.editor, theme: theme,

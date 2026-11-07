@@ -28,8 +28,18 @@ public struct ProposalText: ProposalElement {
         get { content.string }
         set { content = .plain(newValue) }
     }
-    /// The text's own colour; `nil` inherits the foreground style.
-    public var foregroundColor: Color?
+    /// The text's own colour; `nil` inherits the foreground style. Computed over ``foregroundStorage`` since `TG-A`, as
+    /// ``Text/foregroundColor``.
+    public var foregroundColor: Color? {
+        get { foregroundStorage?.representativeColor }
+        set {
+            // Not `newValue.map { .color($0) }`: that closure carries a main-actor check, and a text's colour is set while a
+            // production tree is built (the one-megabyte-thread harness builds off the main thread).
+            if let newValue { foregroundStorage = .color(newValue) } else { foregroundStorage = nil }
+        }
+    }
+    /// The text's own style (`TG-A`): a colour, a gradient or a material; `nil` inherits the environment's.
+    var foregroundStorage: ShapeStyleStorage?
     /// This text's own font request, weight and slope (ruling TE-B), as
     /// `Text`'s.
     var fontRequest: TextFontRequest = .inherit
@@ -63,7 +73,7 @@ public struct ProposalText: ProposalElement {
     /// A proposal-layout text leaf over `content`.
     init(content: TextContent) {
         self.content = content
-        foregroundColor = nil
+        foregroundStorage = nil
     }
 
     /// An explicit font: `.custom(family, size:)`, or `.system(size:)` for a
@@ -92,7 +102,7 @@ public struct ProposalText: ProposalElement {
     public struct Layout { var node: LayoutNodeID }
 
     var styleRequest: TextStyleRequest {
-        TextStyleRequest(font: fontRequest, weight: fontWeight, italic: isItalic, foreground: foregroundColor)
+        TextStyleRequest(font: fontRequest, weight: fontWeight, italic: isItalic, foreground: foregroundStorage)
     }
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
@@ -163,10 +173,14 @@ public struct ProposalText: ProposalElement {
         let laid = textLines(string, font: font, system: system, wrappingAt: width,
                              height: Double(bounds.size.height.value), style: style)
         let color = pass.resolve(style.foreground)
-        pass.drawGlyphs(system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
-                                           origin: (x: Double(bounds.origin.x.value),
-                                                    y: Double(bounds.origin.y.value)),
-                                           scaleFactor: pass.scaleFactor), color: color)
+        let glyphs = system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
+                                        origin: (x: Double(bounds.origin.x.value), y: Double(bounds.origin.y.value)),
+                                        scaleFactor: pass.scaleFactor)
+        if let gradient = style.gradient {
+            pass.drawGradientGlyphs(glyphs, fill: gradient, color: color)   // `TG-C`
+        } else {
+            pass.drawGlyphs(glyphs, color: color)
+        }
     }
 }
 
@@ -200,7 +214,7 @@ extension Text {
         result.fontRequest = fontRequest
         result.fontWeight = fontWeight
         result.isItalic = isItalic
-        result.foregroundColor = foregroundColor
+        result.foregroundStorage = foregroundStorage
         return result
     }
 }

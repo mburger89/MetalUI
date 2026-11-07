@@ -48,7 +48,7 @@ erase, use at every site; negative arms: a non-style `Resolved`, a forged `Resol
    there (divergence 976). The proposal-path `background(_:)` generic is `background(style, in: Rectangle())`, which resolves at paint.
 3. **A colour-only sink takes a representative colour** from a style that is not a colour: a gradient its first stop, a material its flat
    tint (`ShapeStyleStorage.representativeColor`). Sinks: `foregroundStyle` (text and the default fill, the environment's `foregroundStyle`
-   is a `Color?`), `border`, `tint` (divergence 975).
+   is a `Color?`), `border`, `tint` (divergence 975). **Amended by `TG-A`..`TG-E` (record 221): a gradient `foregroundStyle` on text no longer lowers**; the environment stores a `ShapeStyleStorage?` (`foregroundStorage`) and `foregroundStyle: Color?` is its representative-colour view; the sinks above keep the first stop or flat tint.
 4. `foregroundStyle(_:)` on a scope resolves against the environment at the scope (inherited tint, scheme), at layout, in the transform.
 
 ## SS-D: the tint
@@ -89,4 +89,4 @@ protocol of the new code nests a loop in a container inside a `Component` (`LK-X
 disfavoured so a leading-dot level binds the generic overload, `HY-C`); still carried: `foregroundStyle(_:_:)` and `(_:_:_:)`, whose probe is `P11`..`P13c`;
 the instance members `ShapeStyle.secondary`…; `ForegroundStyle`/`.foreground`; `ImagePaint`; the `ShapeStyle where Self == Color`
 statics (`SS-A` item 4); `AngularGradient`/`EllipticalGradient`; `ShapeStyle` shadows; a tint reaching the theme-only surfaces
-(`SS-D` item 4); `Text` gradient fills.
+(`SS-D` item 4). `Text` gradient fills were carried here and are built since `TG-A`..`TG-E` (record 221, divergence 975 narrowed; a material on text is still carried).

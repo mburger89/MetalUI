@@ -24,8 +24,9 @@ import MetalUILayout
 /// }
 /// ```
 ///
-/// A style that resolves to a colour paints text and the built-in controls as that colour; a gradient or
-/// material used as a foreground style paints its first stop's colour or its flat tint (divergence 975).
+/// A style that resolves to a colour paints text and the built-in controls as that colour; a gradient used as a
+/// text's foreground style paints across the glyphs' ink (`TG-`), and a material used as one paints its flat tint
+/// (divergence 975).
 public protocol ShapeStyle: Sendable {
     /// What this style resolves to: another style, ending in ``ResolvedShapeStyle`` or ``Color/Resolved``.
     associatedtype Resolved: ShapeStyle
@@ -41,7 +42,8 @@ public protocol ShapeStyle: Sendable {
 /// against the position's theme, scheme and tint — so the existing colour sites keep their fast path.
 enum ShapeStyleStorage: Hashable, Sendable {
     case color(Color)
-    case gradient(GradientFill)
+    /// Indirect so a `Text` holding one stays the size it was holding a `Color` (`TG-A`, stop condition S).
+    indirect case gradient(GradientFill)
     case material(Material)
 
     /// The colour a text, a control accent or a stroke-of-a-material takes from this style (`SS-C` item 3):
@@ -397,11 +399,12 @@ extension ElementGroup {
 extension ElementGroup {
     /// The glyph colour of every text below that names none, and the default fill of every shape below —
     /// SwiftUI's `foregroundStyle(_:)` over any ``ShapeStyle`` (`SS-C`). The style resolves against the
-    /// environment at this scope; a gradient or material, which text cannot paint, takes its first stop's
-    /// colour or flat tint (divergence 975). `foregroundStyle(.tint)` follows `.tint(_:)`.
+    /// environment at this scope. A gradient paints a text below across its glyphs' ink and a shape below as its
+    /// fill (`TG-`); a material paints a shape below as a material and a text below as its flat tint (divergence
+    /// 975). `foregroundStyle(.tint)` follows `.tint(_:)`.
     public func foregroundStyle<S: ShapeStyle>(_ style: S) -> EnvironmentScope<Self> {
         EnvironmentScope(content: self, write: .transform {
-            $0.foregroundStyle = shapeStyleStorage(style, in: $0).representativeColor
+            $0.foregroundStorage = shapeStyleStorage(style, in: $0)
         })
     }
 
@@ -429,17 +432,21 @@ extension ElementGroup {
 }
 
 extension Text {
-    /// This text's own glyph colour by any ``ShapeStyle`` (`SS-C`). A text stores its colour before any
+    /// This text's own glyph style by any ``ShapeStyle`` (`SS-C`). A text stores its style before any
     /// environment exists, so a custom composition resolves in a bare environment (divergence 976); a gradient
-    /// takes its first stop's colour (divergence 975).
+    /// paints across the glyphs' ink (`TG-`) and a material takes its flat tint (divergence 975).
     public func foregroundStyle<S: ShapeStyle>(_ style: S) -> Text {
-        foregroundStyle(style.builderStorage().representativeColor)
+        var copy = self
+        copy.foregroundStorage = style.builderStorage()
+        return copy
     }
 }
 
 extension ProposalText {
-    /// This text's own glyph colour by any ``ShapeStyle`` (`SS-C`); see ``Text/foregroundStyle(_:)``.
+    /// This text's own glyph style by any ``ShapeStyle`` (`SS-C`); see ``Text/foregroundStyle(_:)``.
     public func foregroundStyle<S: ShapeStyle>(_ style: S) -> ProposalText {
-        foregroundStyle(style.builderStorage().representativeColor)
+        var copy = self
+        copy.foregroundStorage = style.builderStorage()
+        return copy
     }
 }

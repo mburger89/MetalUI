@@ -657,6 +657,47 @@ func clipMaskFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
        atlas: atlas)
 }
 
+/// Frame 19 (rulings `TG-C`, `TG-D`, gradient `foregroundStyle` on text): a gradient label; a wrapped two-line gradient (one span
+/// over both lines); a rich text with one gradient run beside a coloured run; gradient text under `.shadow` (a filtered group
+/// over a masked group); under `rotationEffect` (a transform record in the mask scene); inside `compositingGroup().opacity(0.5)`;
+/// a radial gradient label; and a `Rectangle().foregroundStyle(g)` (a bare shape takes the gradient). Each gradient text is one
+/// masked group: the gradient raster over the glyphs' ink is the content, the glyph run is the mask scene, so this frame judges
+/// the destination-in pass with **glyph sprites** in the mask (the atlas bound inside a group's mask pass) on every backend.
+/// Judged as frame 18's; the mask glyph quads are glyph-sized (finite, `CM-I`).
+@MainActor
+func gradientTextFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    let sweep = LinearGradient(colors: [Color(.accent), Color(Hsla(h: 0.08, s: 1, l: 0.5, a: 1))],
+                               startPoint: .leading, endPoint: .trailing)
+    let vertical = LinearGradient(colors: [Color(Hsla(h: 0.33, s: 1, l: 0.35, a: 1)), Color(Hsla(h: 0.83, s: 1, l: 0.45, a: 1))],
+                                  startPoint: .top, endPoint: .bottom)
+    let radial = RadialGradient(colors: [Color(Hsla(h: 0.14, s: 1, l: 0.5, a: 1)), Color(Hsla(h: 0.6, s: 1, l: 0.4, a: 1))],
+                                center: .center, startRadius: Pixels(0), endRadius: Pixels(70))
+    func label(_ size: Double = 32) -> Text { Text("Gradient Text").font(size: size) }
+    return renderFrame({
+        VStack(alignment: .leading, spacing: Pixels(20)) {
+            HStack(alignment: .top, spacing: Pixels(30)) {
+                label().foregroundStyle(sweep)
+                Text("Wrapped gradient text over two lines").font(size: 22).foregroundStyle(vertical).frame(width: Pixels(150))
+                Text("\(Text("Rich ").foregroundStyle(sweep))\(Text("run ").foregroundStyle(Color(.separator)))\(Text("mix").foregroundStyle(sweep).underline())")
+                    .font(size: 26)
+            }
+            HStack(alignment: .top, spacing: Pixels(36)) {
+                label(26).foregroundStyle(sweep).shadow(color: Color.black.opacity(0.5), radius: Pixels(2), x: Pixels(6), y: Pixels(5))
+                label(26).foregroundStyle(sweep).rotationEffect(.degrees(-8))
+                label(26).foregroundStyle(sweep).compositingGroup().opacity(0.5)
+            }
+            HStack(alignment: .top, spacing: Pixels(50)) {
+                Text("Radial").font(size: 56).foregroundStyle(radial)
+                Rectangle().foregroundStyle(sweep).frame(width: Pixels(150), height: Pixels(50))
+            }
+        }
+        .offset(x: Pixels(20.25), y: Pixels(14.5))
+    }, size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))), scaleFactor: 1, textSystem: system,
+       atlas: atlas)
+}
+
 /// Frame 5 (ruling DC-B): the demo's tree, one frame at `width`×`height`,
 /// scale 1, through `PortableTextSystem` over Noto Sans.
 @MainActor
@@ -800,15 +841,17 @@ func run() throws {
     let groupAtlas = GlyphAtlas(width: 512, height: 512)
     let filterAtlas = GlyphAtlas(width: 512, height: 512)
     let maskAtlas = GlyphAtlas(width: 512, height: 512)   // frame 18 (`CM-A`)
+    let gradientAtlas = GlyphAtlas(width: 512, height: 512)   // frame 19 (`TG-C`)
     // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O) need the portable shaders: the adapted MSL has no backdrop stages.
     let portableShaders = portable
     let sizes = [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380), (640, 380), (720, 380)]
+                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380), (640, 380), (720, 380), (720, 380)]
     for (index, dimensions) in sizes.enumerated() {
         let (width, height) = dimensions
         let filters = index == 17
         let masks = index == 18
-        let groups = index == 16 || filters || masks
+        let gradientText = index == 19
+        let groups = index == 16 || filters || masks || gradientText
         let projection3D = index == 15
         let backdrops = index >= 9 && !projection3D && !groups
         let glass = index >= 12 && !projection3D && !groups
@@ -818,8 +861,10 @@ func run() throws {
         let shapes = index == 6
         let transforms = index == 7
         let looks = index == 8
-        let frameAtlas = masks ? maskAtlas : filters ? filterAtlas : groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = masks
+        let frameAtlas = gradientText ? gradientAtlas : masks ? maskAtlas : filters ? filterAtlas : groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = gradientText
+            ? try gradientTextFrame(width: width, height: height, atlas: gradientAtlas)
+            : masks
             ? try clipMaskFrame(width: width, height: height, atlas: maskAtlas)
             : filters
             ? try groupFilterFrame(width: width, height: height, atlas: filterAtlas)
@@ -850,7 +895,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(masks ? " (masked groups)" : filters ? " (filtered groups)" : groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(gradientText ? " (gradient text)" : masks ? " (masked groups)" : filters ? " (filtered groups)" : groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))

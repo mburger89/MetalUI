@@ -99,7 +99,7 @@ struct RetainedAmbientMissTests {
             ("windowSize", { $0.windowSize = Size(width: Pixels(7), height: Pixels(7)) }), ("colorScheme", { $0.colorScheme = $0.colorScheme == .light ? .dark : .light }),
             ("controlSize", { $0.controlSize = .large }), ("font", { $0.font = .title }), ("lineLimit", { $0.lineLimit = 3 }),
             ("truncationMode", { $0.truncationMode = .head }), ("multilineTextAlignment", { $0.multilineTextAlignment = .trailing }),
-            ("foregroundStyle", { $0.foregroundStyle = Color(red: 1, green: 0, blue: 0) }), ("tint", { $0.tint = Color(red: 0, green: 1, blue: 0) }), ("fontWeight", { $0.fontWeight = .heavy }),
+            ("foregroundStyle", { $0.foregroundStyle = .color(Color(red: 1, green: 0, blue: 0)) }), ("tint", { $0.tint = Color(red: 0, green: 1, blue: 0) }), ("fontWeight", { $0.fontWeight = .heavy }),
             ("italic", { $0.italic.toggle() }), ("isBold", { $0.isBold.toggle() }),
             ("textRich", { $0.textRich.kerning = 3 }), ("textLineLimit", { $0.textLineLimit = TextLineLimit(min: nil, max: 4) }),
             ("fieldStyle", { $0.fieldStyle = .plain }), ("editorStyle", { $0.editorStyle = .plain }),

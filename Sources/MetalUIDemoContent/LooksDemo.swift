@@ -337,6 +337,7 @@ private func looksPathsShadowsTransformsSection() -> some Element {
         looksGroupOpacityStrip()
         LooksGroupFilterStrip()
         LooksClipMaskStrip()
+        LooksTextGradientStrip()
     }
     .alignItems(.flexStart)
 }
@@ -491,6 +492,65 @@ func looksClipRing() -> Path {
     Path { path in
         path.addRect(Bounds(origin: Point(x: Pixels(1), y: Pixels(1)), size: Size(width: Pixels(52), height: Pixels(52))))
         path.addRect(Bounds(origin: Point(x: Pixels(15), y: Pixels(15)), size: Size(width: Pixels(24), height: Pixels(24))))
+    }
+}
+
+/// **Q13** (a gradient `foregroundStyle` on text, `TG-`). A label painted by a left-to-right gradient, a wrapped two-line text
+/// whose one gradient spans both lines, a rich text with a gradient run beside a coloured one, the label under a shadow (the
+/// shadow stays the shadow colour) and under a rotation, and a radial label. Each gradient text is one masked group: its glyph
+/// run is the mask. **Its own frame, split into columns**, and a component, as the strips above it
+/// (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+struct LooksTextGradientStrip: Component {
+    var content: some ElementGroup {
+        looksTextGradientStrip()
+    }
+}
+
+@MainActor @inline(never)
+func looksTextGradientStrip() -> some Element {
+    Row(gap: Pixels(32)) {
+        looksGradientLabelColumn()
+        looksGradientWrapColumn()
+        looksGradientEffectsColumn()
+    }
+}
+
+private let looksTextSweep = LinearGradient(colors: [Color(.accent), Color(Hsla(h: 0.08, s: 1, l: 0.5, a: 1))],
+                                            startPoint: .leading, endPoint: .trailing)
+
+/// **Q13**: a linear label and a radial one, in their own frame.
+@MainActor @inline(never)
+func looksGradientLabelColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("linear, radial").font(size: 11)
+        Text("Gradient").font(size: 28).foregroundStyle(looksTextSweep)
+        Text("Radial").font(size: 28).foregroundStyle(
+            RadialGradient(colors: [Color(Hsla(h: 0.14, s: 1, l: 0.5, a: 1)), Color(Hsla(h: 0.6, s: 1, l: 0.4, a: 1))],
+                           center: .center, startRadius: Pixels(0), endRadius: Pixels(40)))
+    }
+}
+
+/// **Q13**: a wrapped text (one span over both lines) and a rich text with a gradient run, in their own frame.
+@MainActor @inline(never)
+func looksGradientWrapColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("wrapped, rich").font(size: 11)
+        Text("A gradient over two wrapped lines").font(size: 16).frame(width: Pixels(120))
+            .foregroundStyle(LinearGradient(colors: [Color(Hsla(h: 0.33, s: 1, l: 0.35, a: 1)), Color(Hsla(h: 0.83, s: 1, l: 0.45, a: 1))],
+                                            startPoint: .top, endPoint: .bottom))
+        Text("\(Text("Rich ").foregroundStyle(looksTextSweep))\(Text("run ").foregroundStyle(Color(.separator)))\(Text("mix").foregroundStyle(looksTextSweep).underline())")
+            .font(size: 16)
+    }
+}
+
+/// **Q13**: gradient text under a shadow and under a rotation, in their own frame.
+@MainActor @inline(never)
+func looksGradientEffectsColumn() -> some Element {
+    Column(gap: Pixels(10)) {
+        Text("shadow, rotation").font(size: 11)
+        Text("Shadowed").font(size: 22).foregroundStyle(looksTextSweep)
+            .shadow(color: .textPrimary, radius: Pixels(0), x: Pixels(3), y: Pixels(3))
+        Text("Turned").font(size: 22).foregroundStyle(looksTextSweep).rotationEffect(.degrees(-8))
     }
 }
 

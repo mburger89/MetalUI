@@ -182,7 +182,7 @@ func textRunRequests(_ attributed: AttributedString) -> [TextRunRequest] {
     return attributed.runs.map { run in
         var request = TextRunRequest(string: String(attributed[run.range].characters))
         request.font = run[Keys.FontAttribute.self].map { .explicit($0) }
-        request.foreground = run[Keys.ForegroundColorAttribute.self]
+        if let color = run[Keys.ForegroundColorAttribute.self] { request.foreground = .color(color) }
         request.background = run[Keys.BackgroundColorAttribute.self]
         request.underline = run[Keys.UnderlineStyleAttribute.self]
         request.strikethrough = run[Keys.StrikethroughStyleAttribute.self]

@@ -114,8 +114,21 @@ public struct Text: Element, StyledElement {
     /// The colour the glyphs are tinted with. `nil` means the environment's
     /// foreground style, else ``ColorToken/textPrimary`` resolved against the
     /// frame's theme — so unthemed text cannot end up black in a dark window.
-    /// A `Color` since the colour work (`CR-E` item 3).
-    public var foregroundColor: Color?
+    /// A `Color` since the colour work (`CR-E` item 3). **Computed since `TG-A`** over ``foregroundStorage``: reading it
+    /// gives the style's representative colour (a gradient's first stop), writing it stores that colour and so replaces
+    /// a gradient written before it. Source-compatible (`docs/migration.md`).
+    public var foregroundColor: Color? {
+        get { foregroundStorage?.representativeColor }
+        set {
+            // Not `newValue.map { .color($0) }`: that closure carries a main-actor check, and a text's colour is set while a
+            // production tree is built (the one-megabyte-thread harness builds off the main thread).
+            if let newValue { foregroundStorage = .color(newValue) } else { foregroundStorage = nil }
+        }
+    }
+
+    /// This text's own style (`TG-A`): a colour, a gradient (painted across the glyphs' ink) or a material (its flat
+    /// tint). `nil` inherits the environment's.
+    var foregroundStorage: ShapeStyleStorage?
 
     /// A text leaf showing `content` verbatim, measured and drawn through the
     /// frame's text system (`TS-A`) — SwiftUI's `Text(_:)` over a
@@ -190,7 +203,7 @@ public struct Text: Element, StyledElement {
 
     /// What this text asked for itself, for `resolveTextStyle` (spec §3).
     var styleRequest: TextStyleRequest {
-        TextStyleRequest(font: fontRequest, weight: fontWeight, italic: isItalic, foreground: foregroundColor)
+        TextStyleRequest(font: fontRequest, weight: fontWeight, italic: isItalic, foreground: foregroundStorage)
     }
 
     public mutating func requestLayout(_ id: GlobalElementID,
@@ -445,8 +458,14 @@ public struct Text: Element, StyledElement {
                              style: textStyle)
         let color = pass.resolve(textStyle.foreground)
 
-        pass.drawGlyphs(system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
-                                           origin: (x: Double(origin.x.value), y: Double(origin.y.value)),
-                                           scaleFactor: pass.scaleFactor), color: color)
+        let glyphs = system.placeGlyphs(string, font: font, wrappingAt: width, options: laid.options,
+                                        origin: (x: Double(origin.x.value), y: Double(origin.y.value)),
+                                        scaleFactor: pass.scaleFactor)
+        // A gradient foreground style paints across the glyphs' ink (`TG-C`); a colour is today's call byte for byte.
+        if let gradient = textStyle.gradient {
+            pass.drawGradientGlyphs(glyphs, fill: gradient, color: color)
+        } else {
+            pass.drawGlyphs(glyphs, color: color)
+        }
     }
 }

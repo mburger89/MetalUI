@@ -27,7 +27,7 @@
 //       (0 none, 1 blur, 2 shadow), f32 sigma, 4 x f32 tint,] then a nested body:
 //       u32 byteCount + bytes for rects, glyphs, images, transforms; u32 runCount, runCount × (kind, start, count)
 //       (textures are the top-level list; a group quad in an `images` array names its group by index);
-//       [version 9, CM-A: u32 hasMask, and when 1 a second nested body in the same form (rects and images only), the
+//       [version 9, CM-A: u32 hasMask, and when 1 a second nested body in the same form (rects, glyphs and images), the
 //       group's mask: drawn into a scratch of the group's size, the group's target multiplied by its alpha]
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
 //   16 × f32 projection (column-major)

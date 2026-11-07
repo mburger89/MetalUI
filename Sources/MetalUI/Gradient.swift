@@ -130,6 +130,18 @@ enum GradientFill: Hashable, Sendable {
         }
     }
 
+    /// This gradient with every stop's opacity multiplied by `factor` (`HY-`, probe `P14`/`TG9`: a level over a gradient
+    /// parent keeps the gradient and scales its stops).
+    func scalingOpacity(by factor: Float) -> GradientFill {
+        func scaled(_ g: Gradient) -> Gradient {
+            Gradient(stops: g.stops.map { Gradient.Stop(color: $0.color.opacity(Double(factor)), location: $0.location) })
+        }
+        switch self {
+        case var .linear(g): g.gradient = scaled(g.gradient); return .linear(g)
+        case var .radial(g): g.gradient = scaled(g.gradient); return .radial(g)
+        }
+    }
+
     /// The gradient's geometry over `rect` (window points): unit points
     /// mapped onto the rectangle, radii in points.
     func axis(in rect: Bounds<Pixels>) -> GradientAxis {

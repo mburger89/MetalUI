@@ -2311,3 +2311,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **CM2.** Scroll a rounded `ScrollView` inside a rounded card so its content crosses the card's corner: is the corner exact while scrolling (no square corner flashing, no seam at the group's box edge)? **Observed:**
 - [ ] **CM3.** An ellipse-clipped avatar with a `.shadow`: is the shadow elliptical (not a box), and does it stay one soft shape while the avatar is hovered or resized? **Observed:**
 - [ ] **CM4.** Parity frame 18 (`--expect 19`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam or halo at a masked group's edge, any difference in the ellipse's anti-aliased edge from Metal's, any path raster misplaced? **Observed:**
+
+## TG. A gradient `foregroundStyle` on text - the gradient runs across the glyphs like SwiftUI's (record 221; rulings `TG-A`..`TG-G`; decisions `docs/superpowers/2026-11-07-text-gradient-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-text-gradient.swift` measures SwiftUI through `ImageRenderer`, the tests read scene structure and Metal or SDL pixels offscreen, but a real window, a hovered or resized text, and a GPU on Linux or Windows are a person's. Not run.*
+
+- [ ] **TG1.** Run the looks demo (`METALUI_LOOKS_DEMO=1`) and find the text-gradient strip: does the linear label run from the accent to orange across its letters (not a flat colour), the radial label centre on its ink, the wrapped text read as one continuous top-to-bottom gradient over both lines, and the rich text's gradient run (with its underline) share one gradient with the coloured run left alone? **Observed:**
+- [ ] **TG2.** Is the shadowed gradient label's shadow the shadow colour (no gradient in it) and the turned label's gradient turned with its letters, with no seam or halo at the letters' edges? **Observed:**
+- [ ] **TG3.** Resize a window holding a gradient label, and edit a counter text under a gradient (a digit changing width): any flicker, a one-frame flat colour, or a gradient that jumps? **Observed:**
+- [ ] **TG4.** Hover and select (drag over) gradient text inside a `TextField`-adjacent label: selection stays the selection colour (the field's own text is not a gradient, divergence 975's residue) and a `.foregroundStyle(.secondary)` below a gradient parent keeps the gradient dimmed, as SwiftUI's? **Observed:**
+- [ ] **TG5.** Parity frame 19 (`--expect 20`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam or halo at a letter's edge, any difference in the glyph coverage from Metal's? **Observed:**

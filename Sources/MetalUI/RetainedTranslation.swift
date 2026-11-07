@@ -269,13 +269,19 @@ extension Frame {
         for k in out.groups.indices where out.groups[k].isMasked {
             // A mask moves like the content, its own clip by the depth it was read at (`CM-A`); a kind the gate does not list
             // (a path mask) refuses by name.
-            var unbounded = false
-            if case let .rect(r) = out.groups[k].mask[0].kind { unbounded = r.contentMask.size.width >= PrimitiveTransform.unboundedThreshold }
-            switch movedLeaf(out.groups[k].mask[0], dx: dx, dy: dy,
-                             emittedAt: unbounded ? entryDepth : out.groups[k].maskDepth,
-                             entryDepth: entryDepth, entry: entry) {
-            case .moved(let mask): out.groups[k].mask[0] = mask
-            case .refused(let reason): return .refused(reason)
+            for m in out.groups[k].mask.indices {
+                var unbounded = false
+                switch out.groups[k].mask[m].kind {
+                case let .rect(r): unbounded = r.contentMask.size.width >= PrimitiveTransform.unboundedThreshold
+                case let .glyph(g): unbounded = g.contentMask.size.width >= PrimitiveTransform.unboundedThreshold
+                default: break
+                }
+                switch movedLeaf(out.groups[k].mask[m], dx: dx, dy: dy,
+                                 emittedAt: unbounded ? entryDepth : out.groups[k].maskDepth,
+                                 entryDepth: entryDepth, entry: entry) {
+                case .moved(let mask): out.groups[k].mask[m] = mask
+                case .refused(let reason): return .refused(reason)
+                }
             }
         }
         switch primitive.kind {

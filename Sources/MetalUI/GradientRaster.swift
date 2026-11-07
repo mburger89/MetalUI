@@ -101,7 +101,20 @@ extension Frame {
     /// the paint scopes, rasterized at `insertIntoScene`.
     func drawGradient(_ path: Path, mode: PathPaint.Mode, rect: Bounds<Pixels>, radii: Corners<Pixels>?,
                       axis: GradientAxis, stops: GradientStops) {
-        guard !path.isEmpty, activeOpacity > 0 else { return }
+        guard let primitive = gradientPrimitive(path, mode: mode, rect: rect, radii: radii, axis: axis, stops: stops)
+        else { return }
+        if paintScopes.isEmpty {
+            retainLog?.noteDirect(primitive, depth: clipDepth)
+            insertIntoScene(primitive)
+        } else {
+            insertThroughScopes(primitive)
+        }
+    }
+
+    /// The gradient `drawGradient` emits, returned instead (`TG-C`): `nil` for an empty path or a clear opacity.
+    func gradientPrimitive(_ path: Path, mode: PathPaint.Mode, rect: Bounds<Pixels>, radii: Corners<Pixels>?,
+                           axis: GradientAxis, stops: GradientStops) -> CapturedPrimitive? {
+        guard !path.isEmpty, activeOpacity > 0 else { return nil }
         let s = Double(scaleFactor)
         let local = Affine2D(a: s, d: s, tx: Double(activeOffset.x.value) * s, ty: Double(activeOffset.y.value) * s)
         let strip = radii.map {
@@ -114,13 +127,7 @@ extension Frame {
                                   local: local, opacity: activeOpacity,
                                   contentMask: MUIBounds(activeClip.scaled(by: scaleFactor)),
                                   maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)))
-        let primitive = CapturedPrimitive(kind: .gradient(paint), layer: activeLayer, innerMask: false)
-        if paintScopes.isEmpty {
-            retainLog?.noteDirect(primitive, depth: clipDepth)
-            insertIntoScene(primitive)
-        } else {
-            insertThroughScopes(primitive)
-        }
+        return CapturedPrimitive(kind: .gradient(paint), layer: activeLayer, innerMask: false)
     }
 
     /// A gradient's image (`LK-J` items 4–5): the strip when it applies, else
