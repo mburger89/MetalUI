@@ -1,8 +1,8 @@
-# Record 221: a gradient `foregroundStyle` on text (R4-5 PR D) — DRAFT (run 1)
+# Record 221: a gradient `foregroundStyle` on text (R4-5 PR D)
 
-Branch `feat/text-gradient` (master `d0cceec6`). Rulings `TG-A`..`TG-E` (new prefix; decisions doc `docs/superpowers/2026-11-0X-text-gradient-decisions.md` is run 2's). Divergence **975 narrowed, not retired**. Probe `docs/probes/swiftui-text-gradient.swift` (commit `65537362`). Plan: the reviewed R4-5 PR D plan; the deviations are in section 4.
+Branch `feat/text-gradient` (master `d0cceec6`). Rulings `TG-A`..`TG-G` in `docs/superpowers/2026-11-07-text-gradient-decisions.md` (new prefix; `TG-F` is the SDL half, `TG-G` the carried items; next `TG-H`). Divergence **975 narrowed, not retired** (209 live and next label 226, unchanged: no row was added, section 8). Probe `docs/probes/swiftui-text-gradient.swift` (commit `65537362`). Plan: the reviewed R4-5 PR D plan; the deviations are in section 4.
 
-TODO(run 2): decisions doc, ledger (975 text, `docs/divergences.md`, record 04 section), shards, `decision-prefixes.md`, human-checks group `TG`, SDL tests 22-23, parity frame 19, demo strip, `api-overview.md`, `migration.md` (`Text.foregroundColor` computed; `swift package clean`), README row, `Tasks.md`, `CLAUDE.md`/`AGENTS.md` counts.
+Two runs: run 1 built the engine and tests 1-21 (sections 1-5); run 2 the SDL half, parity frame 19, the demo strip, the ledger and the shards (sections 6-8).
 
 ## 1. What was measured (probe, compiled `ImageRenderer`, six byte-identical runs, 71 lines)
 
@@ -73,7 +73,7 @@ Read with the plan's test numbers: M1/M1b tests 1, 4, 9, 10, 11; M2/M6/M10 tests
 3. **The ink carries the representative colour at alpha 1** (`inkGlyph(_:color:)`, `inkRect(_:color:)`), as the plan said, so the oversize fallback can draw it: `GroupMark.inkMask` (new) selects that branch.
 4. **A `Color?` map closure in a setter traps off the main thread.** `Text.foregroundColor`, `ProposalText.foregroundColor`, `EnvironmentValues.foregroundStyle` and `TextRunRequest.init` first used `newValue.map { .color($0) }`; the closure carries a main-actor check and `everyProductionTreeBuildsOnAOneMegabyteThread` (which builds trees on a secondary thread) hit `SIGTRAP` in `ProposalText.foregroundColor.setter`. The setters are explicit `if let`. A new setter that runs while a tree is built must not use a closure.
 5. **Stop condition 5 fired for retained translation:** a moved `.equatable()` occurrence holding a gradient text is refused by the existing gate with `unlistedKind:gradient` (`FS-E`: the allow-list is rect, glyph, image, and a gradient fill has always been refused), not `innerScope`. It repaints and equals the retention-off frame (`aMovedOccurrenceHoldingGradientTextIsRefusedByNameAndEqualsAFreshFrame`); `movedLeaf`'s N-element loop is kept and unreachable (M24). Listing `.gradient` in the gate (moving `local` and the content mask by the translation) is a candidate for run 2 or later.
-6. **`GroupMark.mask` doc, `Scene.insert` precondition message and the `drawing.md` sentence** say "rects, glyphs and images" (TODO(run 2): the shard and the `Scene` doc comment; the `Scene` precondition text is not yet amended).
+6. **`GroupMark.mask` doc, `Scene.insert` precondition message ("rects, glyphs and images (CM-A, TG-D)"), `Scene.groupMasks` doc, `Renderer.applyMask` doc, the SDL header, fixture and flatten comments and the `drawing.md` sentence** say "rects, glyphs and images" (run 2).
 7. **`Text` size (stop condition S did not fire):** `MemoryLayout<ShapeStyleStorage?>.size` = `MemoryLayout<Color?>.size` = 24 (`GradientFill` is 41, so `.gradient` is `indirect` as planned); `MemoryLayout<Text>.size` is 1040 and the field is the same size it was, so no growth; `everyProductionTreeBuildsOnAOneMegabyteThread` passes.
 
 ## 5. Pins moved (each with its cause)
@@ -89,12 +89,34 @@ Read with the plan's test numbers: M1/M1b tests 1, 4, 9, 10, 11; M2/M6/M10 tests
 
 ## 6. Runs
 
-- [MEASURED] Root on the final head `swift package clean`, `swift build --build-system native --build-tests`, unfiltered `swift test --build-system native --no-parallel`: **`Test run with 5329 tests in 14 suites passed after 409.049 seconds`** (`FR-J no-argument frame: succeeded=true`; 0 `✘` lines). Record 220's line was 5305: 24 tests are new (`TextGradientTests` 20 including the two wrapped/shadow arms, `RetainedTextGradientTests` 3, `TextGradientCompileGuards` 1, minus the replaced pins, which keep their count). The same with `METALUI_VERIFY_RETAINED=1`: **`Test run with 5329 tests in 14 suites passed after 410.506 seconds`**. The first full run (head `9a107281`) failed 4: `everyProductionTreeBuildsOnAOneMegabyteThread` (section 4 item 4), the P14 pin, `noMaterialSiteBypassesFillMaterial`, `everyEnvironmentFieldIsInTheFingerprintOrDeclaredIrrelevant` (section 5).
-- [MEASURED] Stop condition R (a glyph-mask scratch renders empty or wrong on Metal) did not fire: `aGradientTextsCoverageIsTheSolidTexts` reads alpha within 1/255 of the solid text at every pixel, and the gradient equals a rectangle's within 1/255 (test 1). Stop condition 2 did not fire.
-- [MEASURED] `Backends/SDL` on macOS (AccessKit flags), by filter `SDLGroup|SDLClipMask|ReplayFixture`: builds, **39 and 13 tests passed**.
-- [MEASURED] Portable (`metalui-portable:latest`, `git archive` of the head): `swift build --build-tests` then `swift test --skip-build --no-parallel`: **802 tests in 10 suites** passed, plus 9, 16, 73, 68, 49, 286, 154 and 24 in the other targets. `RetainedTextGradientTests` run there with `harnessTextSystem`; the Metal pixel tests are Apple-only.
+- [MEASURED] Root on the final head (`swift package clean`, `swift build --build-system native --build-tests`, unfiltered `swift test --build-system native --no-parallel`): **`Test run with 5329 tests in 14 suites passed after 316.943 seconds`** (`FR-J no-argument frame: succeeded=true`; 0 `✘` lines). The same with `METALUI_VERIFY_RETAINED=1`: **`Test run with 5329 tests in 14 suites passed after 316.255 seconds`**. Record 220's line was 5305; 24 tests are new (`TextGradientTests` 20, `RetainedTextGradientTests` 3, `TextGradientCompileGuards` 1). Run 1's first full run (head `9a107281`) failed 4 (section 4 item 4, section 5).
+- [MEASURED] Stop condition R and stop condition 2 did not fire (`aGradientTextsCoverageIsTheSolidTexts`: alpha within 1/255 of solid text).
+- [MEASURED] `Backends/SDL` on macOS (AccessKit flags), filter `SDLTextGradient|ReplayFixture|SDLClipMask|SDLGroup`: **`Test run with 40 tests in 0 suites passed after 0.032 seconds`** and **`Test run with 15 tests in 0 suites passed after 0.443 seconds`** (the two SDL gradient tests and `aGlyphMaskBodyRoundTripsInVersionNine` are in them).
+- [MEASURED] Parity, SDL-over-MSL (`swift run -Xcc -I/opt/homebrew/include -Xlinker -L/opt/homebrew/lib Replay --portable --record`): frames 0-19 all `differing pixels=0, max channel delta=0`, frame 19 `720x380: 0 rects, 3 glyphs, 1 images, 0 transforms, 8 groups, 10 runs`; the draw-order control detects (283 px, delta 152).
+- [MEASURED] Parity on llvmpipe Vulkan (`metalui-portable`, the same 20 fixtures, `PortableReplay --driver vulkan --expect 20`): PASS over all 20; **frame 19 outside sprites 0 px max D0 (<=1), inside glyph and image quads 16901 px max D3 (<=8)**; frame 18 D1; frames 12 and 13 D3 against 3, unchanged. The tolerance regions needed no extension (`TG-F`).
+- [MEASURED] Portable (`metalui-portable`, `git archive` of the final head): **`Test run with 802 tests in 10 suites passed after 101.978 seconds`**, then 9, 16, 73, 68, 49, 286, 154 and 24 tests in the other targets, all passed (0 `✘`).
 - [MEASURED] `zsh docs/probes/closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
-- [NOT RUN] Parity (`Replay --portable`) frames 0-19, Linux Vulkan, Windows D3D12: run 2 / CI.
+- [NOT RUN] Windows D3D12 and real-hardware Vulkan parity (CI), window arms, every human check (group `TG`).
 
-## 7. Not done (run 2)
-SDL tests 22-23 (`SDLTextGradientTests`, `ReplayFixtureTests.aGlyphMaskBodyRoundTripsInVersionNine`), parity frame 19 (`--expect 20`), the demo strip, the decisions doc, the ledger and shards, human checks `TG`. [NOT RUN] Linux Vulkan and Windows D3D12, window arms, any human check.
+### 6a. SDL mutations (scratch `git worktree` of `4460a475`, reverted)
+
+| id | mutation | reddened |
+|---|---|---|
+| S1 | `SDLBridge.c` `render_groups`: the mask-run `draw_run` loop removed | `aGradientTextMatchesMetal`, `aRotatedGradientTextMatchesTheRotatedSolidText`, `aMaskedGroupMatchesMetal`, `aHalfTransparentMaskHalvesTheGroup`, `aMaskIsAppliedBeforeTheGroupsFilter` |
+| S2 | `SDLGroupFlatten.append`: the glyph transform shift removed | `aRotatedGradientTextMatchesTheRotatedSolidText` (the first spelling of the test was **green**: the root held no transform record, so the shift was 0; a rotated black swatch before the text fixed the instrument) |
+| S3 | `ReplayFixture` writer: `mask.glyphs` replaced by an empty word | `aGlyphMaskBodyRoundTripsInVersionNine` |
+| S4 | `FlatFrame.append`: the glyph shift removed | `aGlyphMaskBodyRoundTripsInVersionNine` |
+| S5 | `SDLGroupFlatten`: the mask `append` removed | both gradient tests, `aGroupsMaskRunsAreShifted`, `aMaskedGroupMatchesMetal`, `aHalfTransparentMaskHalvesTheGroup`, `aMaskIsAppliedBeforeTheGroupsFilter`, `aMaskThatCannotBeMadeDrawsTheGroupUnmaskedByName` |
+
+SDL stop condition F did not fire: the v9 reader and `validate` accept glyph runs in a mask body, so there is no v10. The oracle of the SDL test is the same tree in solid white: no channel exceeds the solid text's coverage, nothing is drawn where it is clear, the ink runs red to blue. A mid-sweep colour has green (the gradient interpolates in a different space), so no channel is pinned.
+
+## 7. Demo, docs, carried
+
+- Demo `LooksTextGradientStrip` (a `Component` over `looksTextGradientStrip()`, three `@inline(never)` columns), covered by `everyProductionTreeBuildsOnAOneMegabyteThread` in the unfiltered run.
+- Parity frame 19 `gradientTextFrame`, `--expect 20` on both lines of `sdl-gpu-linux.yml`.
+- Carried (`TG-G`): a moved `.equatable()` occurrence holding gradient text is refused by name (`unlistedKind:gradient`), `.gradient` is not on the allow-list; a counter whose digits change width can re-raster the strip.
+- Disk: the working disk filled mid-run; regenerable `.build` directories under the session scratchpad were deleted to continue.
+
+## 8. Divergence outcome
+
+**975 narrowed, not retired.** Removed from the row: a gradient `foregroundStyle` on text, a level over a gradient parent (`P14`), a bare shape's default fill. Kept: a material on text, `border` and `tint`, a material stroke, `TextField`/`TextEditor`/`drawText` text, a gradient text over 8192 on a side (ink in the first stop) and an unmasked degrade when the mask scratch cannot be made. The probe found no difference that needs a new row (the moved-occurrence refusal repaints equal to a fresh frame): **209 live and next label 226, unchanged.**
