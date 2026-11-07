@@ -156,6 +156,11 @@ private struct Mark: ProposalElement {
             "a colour change re-tints: \(cache.rastersMade) rasters, \(cache.tintsMade) tints")
     let resized = try frame(green, 30)
     #expect(cache.rastersMade == 2 && resized.width > recoloured.width, "a font change rasterises again: \(cache.rastersMade), \(resized.width) vs \(recoloured.width)")
+    // Two point sizes with one pixel box must not share a raster: the point size is part of the key.
+    let a = try frame(green, 13), made = cache.rastersMade
+    let b = try frame(green, 13.2)
+    try #require((a.width, a.height) == (b.width, b.height), "set up: 13 and 13.2 pt lay out the same box (\(a.width)x\(a.height) / \(b.width)x\(b.height))")
+    #expect(cache.rastersMade == made + 1 && a !== b, "a point size the box does not show still keys its own raster")
     #expect(cache.coverageCount <= SymbolRasterCache.capacity && cache.tintedCount <= SymbolRasterCache.capacity)
 }
 
