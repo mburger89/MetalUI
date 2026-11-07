@@ -14,7 +14,7 @@
 //
 // RECORDED 2026-11-07 by the G3 PR 0 session, macOS 27.2 (26B123), Apple Swift 6.4.2, compiled with
 // `xcrun swiftc` (no warnings that matter), run twice with stderr discarded, exit 0, stdout byte-identical
-// (`cmp` clean, 85 lines). No window was ordered front (S8 reads an `NSHostingView` inside a never-shown
+// (`cmp` clean, 95 lines). No window was ordered front (S8 reads an `NSHostingView` inside a never-shown
 // `NSWindow` after `AXEnhancedUserInterface`); nothing here needs an unlocked session. Verbatim:
 //
 //     S0 star vs star: 0 px; star vs star.fill: 215 px
@@ -69,6 +69,15 @@
 //     S5 order (bell): circle.fill->bell.circle.fill; fill.circle->bell.circle.fill; slash.fill->bell.slash.fill; fill.slash->bell.slash.fill; circle.slash->bell.slash.circle; slash.circle->bell.slash.circle; circle.slash.fill->bell.slash.circle.fill; fill.slash.circle->bell.slash.circle.fill; square.fill->bell.square.fill; rectangle.fill->base.fill
 //     S5 order (plus): circle.fill->plus.circle.fill; fill.circle->plus.circle.fill; slash.fill->base; fill.slash->base; circle.slash->other; slash.circle->other; circle.slash.fill->other; fill.slash.circle->other; square.fill->plus.square.fill; rectangle.fill->plus.rectangle.fill
 //     S5 order (mic): circle.fill->mic.circle.fill; fill.circle->mic.circle.fill; slash.fill->mic.slash.fill; fill.slash->mic.slash.fill; circle.slash->mic.slash.circle; slash.circle->mic.slash.circle; circle.slash.fill->mic.slash.circle.fill; fill.slash.circle->mic.slash.circle.fill; square.fill->mic.square.fill; rectangle.fill->base.fill
+//     S5b plus: circle.slash->plus.circle; rectangle.slash->plus.rectangle; circle.slash.fill->plus.circle.fill; rectangle.slash.fill->plus.rectangle.fill; slash.fill->plus; rectangle.fill->plus.rectangle.fill; square.slash.fill->plus.square.fill
+//     S5b bell: circle.slash->bell.slash.circle; rectangle.slash->bell.slash; circle.slash.fill->bell.slash.circle.fill; rectangle.slash.fill->bell.slash.fill; slash.fill->bell.slash.fill; rectangle.fill->bell.fill; square.slash.fill->bell.slash.fill
+//     S5b mic: circle.slash->mic.slash.circle; rectangle.slash->mic.slash; circle.slash.fill->mic.slash.circle.fill; rectangle.slash.fill->mic.slash.fill; slash.fill->mic.slash.fill; rectangle.fill->mic.fill; square.slash.fill->mic.slash.fill
+//     S5b star: circle.slash->star.slash; rectangle.slash->star.slash; circle.slash.fill->star.slash.fill; rectangle.slash.fill->star.slash.fill; slash.fill->star.slash.fill; rectangle.fill->star.rectangle.fill; square.slash.fill->star.slash.fill
+//     S5b checkmark: circle.slash->checkmark.circle; rectangle.slash->checkmark.rectangle; circle.slash.fill->checkmark.circle.fill; rectangle.slash.fill->checkmark.rectangle.fill; slash.fill->checkmark; rectangle.fill->checkmark.rectangle.fill; square.slash.fill->checkmark.square.fill
+//     S5b xmark: circle.slash->xmark.circle; rectangle.slash->xmark.rectangle; circle.slash.fill->xmark.circle.fill; rectangle.slash.fill->xmark.rectangle.fill; slash.fill->xmark; rectangle.fill->xmark.rectangle.fill; square.slash.fill->xmark.square.fill
+//     S5b magnifyingglass: circle.slash->magnifyingglass.circle; rectangle.slash->magnifyingglass; circle.slash.fill->magnifyingglass.circle.fill; rectangle.slash.fill->magnifyingglass; slash.fill->magnifyingglass; rectangle.fill->magnifyingglass; square.slash.fill->magnifyingglass
+//     S5b doc: circle.slash->doc.circle; rectangle.slash->doc; circle.slash.fill->doc.circle.fill; rectangle.slash.fill->doc.fill; slash.fill->doc.fill; rectangle.fill->doc.fill; square.slash.fill->doc.fill
+//     S5b chevron.right: circle.slash->chevron.right.circle; rectangle.slash->chevron.right; circle.slash.fill->chevron.right.circle.fill; rectangle.slash.fill->chevron.right; slash.fill->chevron.right; rectangle.fill->chevron.right; square.slash.fill->chevron.right.square.fill
 //     S6 missing name: size 0x0 (font 26: 0x0); render empty: true; baselines first 0 last 0 size 0x0; .frame(30,30): 30x30; resizable framed: 30x30
 //     S6 stderr text (0 chars): (none)
 //     S6 an empty-string name: size 0x0
@@ -82,6 +91,7 @@
 //     S8 magnifyingglass hidden: [AXGroup:nil]; accessibilityLabel("Custom"): [AXGroup:nil >AXImage:'Custom']; inside Button(action:){Image}: [AXGroup:nil >AXButton:'Search']
 //     S8 doc: [AXGroup:nil >AXImage:'Document']; NSImage.accessibilityDescription (nil in) = 'Document page'; ("X" in) = 'X'
 //     S8 doc hidden: [AXGroup:nil]; accessibilityLabel("Custom"): [AXGroup:nil >AXImage:'Custom']; inside Button(action:){Image}: [AXGroup:nil >AXButton:'Document']
+//     S8b SwiftUI label / NSImage.accessibilityDescription: star='Favorite'/'favorite'; magnifyingglass='Search'/'Search'; doc='Document'/'Document page'; doc.text='Plain Text Document'/'Text document'; pencil='Edit'/'edit'; square.and.pencil='Compose'/'compose'; doc.badge.plus='Document With A Plus Badge'/'Document with a plus badge'; terminal='Terminal Command Prompt'/'Terminal command-line prompt'; apple.terminal='Terminal Command-Line Prompt'/'Terminal command-line prompt'; brain='Human Brain'/'Human brain'; brain.head.profile='Head Profile Showing The Brain'/'Head profile showing the brain'; sparkles='Sparkle'/'sparkle'; globe='Globe'/'Globe'; person='Person Silhouette'/'Person silhouette'; person.crop.circle='Account'/'account'; exclamationmark.triangle='Warning'/'warning'; xmark='Close'/'Close'; xmark.circle='Close'/'close'; play='Play'/'play'; play.fill='Play'/'play'; stop='Stop Button Square'/'Stop button square'; stop.fill='Stop'/'Stop'; stop.circle='Stop Button In A Circle'/'Stop button in a circle'; checkmark='Selected'/'selected'; chevron.right='Forward'/'Forward'; chevron.down='Go Down'/'go down'; doc.on.doc='Copy'/'Document overlapping another document'; arrow.uturn.backward='Undo'/'undo'; arrow.up.right.square='Up-Right Arrow In A Square'/'Up-right arrow in a square'; rectangle.split.2x1='Rectangle Split Two By One'/'Rectangle split two by one'; cpu='Cpu Chip'/'CPU chip'; desktopcomputer='Computer'/'Computer'; brain.filled.head.profile='Head Profile With A Filled Brain'/'Head profile with a filled brain'; gearshape.2='Advanced'/'advanced'; ant='Report Issue'/'report issue'; star.fill='Favorite'/'favorite'; xmark.circle.fill='Close'/'Close'
 //     S9 star@13: origin 0: 315 px of 4800 (6.56%), max 217; origin 0.25: 377 px of 4800 (7.85%), max 145; origin 0.5: 315 px of 4800 (6.56%), max 217; separating (route@4 vs SwiftUI@4.5): 313 px, max 238; SwiftUI@4.25 vs SwiftUI@4: 348 px (0 = SwiftUI snaps the quarter point)
 //     S9 magnifyingglass@13: origin 0: 264 px of 4800 (5.5%), max 255; origin 0.25: 325 px of 4800 (6.77%), max 255; origin 0.5: 264 px of 4800 (5.5%), max 255; separating (route@4 vs SwiftUI@4.5): 284 px, max 255; SwiftUI@4.25 vs SwiftUI@4: 231 px (0 = SwiftUI snaps the quarter point)
 //     S9 doc.text@26: origin 0: 411 px of 4800 (8.56%), max 255; origin 0.25: 764 px of 4800 (15.92%), max 199; origin 0.5: 408 px of 4800 (8.5%), max 255; separating (route@4 vs SwiftUI@4.5): 617 px, max 255; SwiftUI@4.25 vs SwiftUI@4: 663 px (0 = SwiftUI snaps the quarter point)
@@ -120,6 +130,8 @@
 //   S5  `star` + `.fill` = `star.fill` (0 px); `.circle.fill` and `.fill.circle` both give `xmark.circle.fill`; a variant with no such
 //       name falls back to the base (or to the base's `.fill` when only the fill exists); chained order of the
 //       *name* is slash, then circle/square/rectangle, then fill (`bell.slash.circle.fill`); an explicit name is kept.
+//   S5b when the full name does not exist, words drop with priority slash > shape > fill (`star` + `.circle.slash` is `star.slash` though
+//       `star.circle` exists; `doc` + `.rectangle.slash.fill` is `doc.fill`; `plus` + `.slash.fill` is `plus`).
 //   S6  a missing name is a 0 x 0 leaf with an empty render and NO stderr diagnostic.
 //   S7  resizable fills the proposal; `scaledToFit` of the 15 x 14 ideal box fills 40 x 40.
 //   S8  an `.image` node labelled with a SwiftUI-own title-cased name ('Favorite', 'Search', 'Document') that is NOT
@@ -131,6 +143,16 @@
 //       shapes agree; the placement does not: the route sits about one device pixel lower, and no constant
 //       offset in +-1 pt closes the gap (best 0.6% to 8.4%, still hundreds of px). SwiftUI itself does NOT snap
 //       the quarter point (S9, last column: 231 to 663 px). So the symbol is not drawn from the integer-size NSImage.
+//   S8b SwiftUI's label for each Alloy name is in the S8b line (title-cased, and not always the NSImage description: `doc.on.doc` is
+//       'Copy', `pencil` 'Edit'); `SymbolAccessibilityLabels` in MetalUI is that table.
+//   S9 BOUNDED PLACEMENT ATTEMPT (scratch, not an arm; ten symbols at 13 pt, 40 x 30 pt canvas, pixels off by more than 16):
+//       plain `NSImage.draw(in:)` 1796 px (3.7%); `draw(in:from:operation:fraction:respectFlipped:hints:)` with a high interpolation hint,
+//       with `respectFlipped`, and a device-snapped rect all give the same 1796; a flipped context 3733; `cgImage(forProposedRect:context:hints:)`
+//       with a ctm hint 1175+ (worse); drawing the 4x configuration down 1676. A per-symbol best translation exists (+-1 pt, 0.125 steps)
+//       and differs per symbol (star (0,-0.375) 21 px, chevron.right (0,-1) 2 px, globe (0,0) 161 px), so no constant offset or baseline
+//       rule closes the gap; a uniform scale search (0.94..1.06) and weights/sizes around the nominal do not either. Over 14 symbols
+//       at dy -0.5 / 0: 13 pt 1.6% / 1.8%, 17 pt 2.5% / 2.1%, 26 pt 3.7% / 3.5% of a 60 x 50 pt canvas. The plain draw at the layout
+//       rect (dy 0) ships; the residue is an edge-coverage difference.
 //   S10 AppKit symbol images are NOT vector in a PDF context: `Do:Form` x2, `Do:Image` x1, one `f`, zero m/l/c
 //       (the bitmap control gives the same Form/Image pair; the CGContext path control gives m/l/f). There is no
 //       outline to extract this way; the vector route is carried.
@@ -376,6 +398,31 @@ let weightPairs: [(String, Font.Weight, NSFont.Weight)] = [("regular", .regular,
     }
 }
 
+/// S5b: which variant is dropped when the full name does not exist. For each base and chain, the existing names formed from
+/// the chain's words (any subset, canonical order slash, shape, fill) and which of them the render equals.
+@MainActor func s5b() {
+    let chains: [(String, SymbolVariants, [String])] = [
+        ("circle.slash", .circle.slash, ["slash", "circle"]), ("rectangle.slash", .rectangle.slash, ["slash", "rectangle"]),
+        ("circle.slash.fill", .circle.slash.fill, ["slash", "circle", "fill"]), ("rectangle.slash.fill", .rectangle.slash.fill, ["slash", "rectangle", "fill"]),
+        ("slash.fill", .slash.fill, ["slash", "fill"]), ("rectangle.fill", .rectangle.fill, ["rectangle", "fill"]), ("square.slash.fill", .square.slash.fill, ["slash", "square", "fill"])]
+    var lines: [String] = []
+    for base in ["plus", "bell", "mic", "star", "checkmark", "xmark", "magnifyingglass", "doc", "chevron.right"] {
+        var parts: [String] = []
+        for (label, v, words) in chains {
+            var cands: [String] = []
+            for mask in 0..<(1 << words.count) {
+                let sub = words.enumerated().filter { mask & (1 << $0.offset) != 0 }.map(\.element)
+                let name = sub.isEmpty ? base : base + "." + sub.joined(separator: ".")
+                if exists(name) { cands.append(name) }
+            }
+            let hits = cands.filter { px(Image(systemName: base).symbolVariant(v), Image(systemName: $0)) == 0 }
+            parts.append("\(label)->\(hits.isEmpty ? "none-of-\(cands.count)" : hits.joined(separator: "|"))")
+        }
+        lines.append("S5b \(base): " + parts.joined(separator: "; "))
+    }
+    lines.forEach { print($0) }
+}
+
 func permutations(_ a: [String]) -> [[String]] {
     if a.count <= 1 { return [a] }
     var out: [[String]] = []
@@ -450,6 +497,26 @@ func kv(_ o: NSObject, _ key: String) -> Any? {
         print("S8 \(name): [\(tree(Image(systemName: name)))]; NSImage.accessibilityDescription (nil in) = \(desc.map { "'\($0)'" } ?? "nil"); (\"X\" in) = \(described.map { "'\($0)'" } ?? "nil")")
         print("S8 \(name) hidden: [\(tree(Image(systemName: name).accessibilityHidden(true)))]; accessibilityLabel(\"Custom\"): [\(tree(Image(systemName: name).accessibilityLabel("Custom")))]; inside Button(action:){Image}: [\(tree(Button(action: {}) { Image(systemName: name) }))]")
     }
+}
+
+/// S8b: SwiftUI's accessibility label for every Alloy name (and the "agent" candidates), read as S8 reads one.
+@MainActor func s8b() {
+    func label<V: View>(_ v: V) -> String {
+        let hv = NSHostingView(rootView: v.frame(width: 40, height: 40))
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: true)
+        win.isReleasedWhenClosed = false
+        win.contentView = hv
+        hv.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        var lines: [String] = []
+        axTree(hv, 0, &lines)
+        return lines.first(where: { $0.hasPrefix(">AXImage") }).map { String($0.dropFirst(">AXImage:".count)) } ?? "(no image node)"
+    }
+    var out: [String] = []
+    for name in alloy + ["cpu", "desktopcomputer", "brain.filled.head.profile", "gearshape.2", "ant", "star.fill", "xmark.circle.fill"] where exists(name) {
+        out.append("\(name)=\(label(Image(systemName: name)))/\(NSImage(systemSymbolName: name, accessibilityDescription: nil)!.accessibilityDescription.map { "'\($0)'" } ?? "nil")")
+    }
+    print("S8b SwiftUI label / NSImage.accessibilityDescription: " + out.joined(separator: "; "))
 }
 
 /// Coverage route: NSImage into a transparent RGBA bitmap at scale 2, then composite black coverage over white.
@@ -661,6 +728,6 @@ extension String { var nonEmpty: String? { isEmpty ? nil : self } }
 
 @MainActor func main() {
     _ = NSApplication.shared
-    s0(); s1(); s2(); s3(); s4(); s5(); s6(); s7(); s8(); s9(); s9b(); s10(); s11()
+    s0(); s1(); s2(); s3(); s4(); s5(); s5b(); s6(); s7(); s8(); s8b(); s9(); s9b(); s10(); s11()
 }
 MainActor.assumeIsolated { main() }
