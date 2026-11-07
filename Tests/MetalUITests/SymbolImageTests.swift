@@ -121,8 +121,13 @@ private struct Mark: ProposalElement {
 /// **Test 13 - the baseline (S2, H2).** `star` at 26 pt has a first baseline of 27 (`height - alignmentRect.minY`), so beside a
 /// 13-baseline mark in `HStack(.firstTextBaseline)` the mark sits at y = 27 - 13 = 14 and the star at 0; at 13 pt (baseline
 /// 13) both sit at 0. Mutation: **M13** the baseline measured from the other edge (`alignmentRect.minY`, which reads 5).
+/// The expected value comes from AppKit at run time (the rule, not this Mac's metrics): SF Symbol metrics move with the
+/// OS (CI's Xcode 27.1 runner read 13 / 35 where macOS 27.2 reads 14 / 36). The mark's own baseline is 13.
 @Test @MainActor func aSymbolsBaselineIsItsHeightMinusTheAlignmentRectsBottom() throws {
-    for (points, expected) in [(26.0, 14.0), (13.0, 0.0), (48.0, 36.0)] {
+    for points in [26.0, 13.0, 48.0] {
+        let image = try #require(NSImage(systemSymbolName: "star", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: points, weight: .regular, scale: .medium)))
+        let expected = max(0, Double(image.size.height - image.alignmentRect.minY) - 13)
         let mark = MarkRecord()
         let (frame, _) = render(200, 100, HStack(alignment: .firstTextBaseline, spacing: Pixels(0)) {
             Image(systemName: "star").font(.system(size: points))
@@ -130,7 +135,7 @@ private struct Mark: ProposalElement {
         }.frame(width: Pixels(200), height: Pixels(100), alignment: .top))
         _ = frame
         let y = try #require(mark.bounds).origin.y.value
-        #expect(Double(y) == expected, "star@\(points): the mark sits at \(y), S2 says \(expected)")
+        #expect(abs(Double(y) - expected) <= 0.5, "star@\(points): the mark sits at \(y), S2's rule says \(expected)")
     }
 }
 
