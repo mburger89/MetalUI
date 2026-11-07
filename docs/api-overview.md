@@ -337,7 +337,7 @@ it returns `Self`): an enclosing `.shadow` or `.blur` sees the group as one
 leaf — one shadow of the union drawn below the whole group, one blur of the
 composite. Alone it changes nothing; render only; **an opacity outside it composites
 the group** through one offscreen pass on both renderers (`GO-A`; 205 retired; a shadow or
-blur outside an opacity group still sees faded leaves, 221; a group holding a material,
+blur outside an opacity group is cast by, or blurs, the unfaded composite, `GF-A`; a group holding a material,
 glass or GPU surface is not composited, 222). Shadow, blur, path and gradient rasters are cached
 translation-free, so a whole-device-pixel move or pan reuses them (`PF-A`).
 Not offered: `drawingGroup`, inner shadows.
@@ -1119,7 +1119,7 @@ and `VectorArithmetic` (169; a zero-duration keyframe reads its target, 171);
 `stroke` and `background` overloads in both vocabularies, rasterized on the CPU
 through the image path with a one-texel strip fast path, no shader change —
 `LK-J`), `.blur(radius:)` (per leaf, sigma = radius, the shadow pipeline in colour;
-a GPU surface leaf draws unblurred, 167; `LK-K`) and `Material` (`ultraThinMaterial`
+a GPU surface leaf is blurred offscreen, 167; `LK-K`, `GF-A`) and `Material` (`ultraThinMaterial`
 … `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **tint over a real
 backdrop blur** of what is already drawn beneath it, GPU surfaces included, on both
 renderers (item C21, record §94: sigma 52 pt, rounded rectangle or ellipse, clip,

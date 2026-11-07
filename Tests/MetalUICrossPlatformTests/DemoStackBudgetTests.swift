@@ -56,6 +56,9 @@ private func buildEveryProductionTree() {
 @MainActor @inline(never)
 private func buildTheGroupFilterStrip() {
     _ = looksGroupFilterStrip()
+    _ = LooksGroupFilterStrip().content
+    _ = looksFilterSurfaceColumn()
+    _ = looksFilterMixedColumn()
     _ = LooksShadowFlipCard().content
     _ = LooksFadingShadowCard().content
 }

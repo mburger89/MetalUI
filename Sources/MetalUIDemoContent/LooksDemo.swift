@@ -335,7 +335,7 @@ private func looksPathsShadowsTransformsSection() -> some Element {
         }
         looksProjectionStrip()
         looksGroupOpacityStrip()
-        looksGroupFilterStrip()
+        LooksGroupFilterStrip()
     }
     .alignItems(.flexStart)
 }
@@ -373,33 +373,53 @@ func looksGroupOpacityStrip() -> some Element {
 /// group whose opacity animates on a tap (the shadow fades with the group as one), and a shadowed group holding an opacity
 /// group beside an unfaded square (mixed marks). **Its own frame**, and its two stateful cards are components built at
 /// layout (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+struct LooksGroupFilterStrip: Component {
+    var content: some ElementGroup {
+        looksGroupFilterStrip()
+    }
+}
+
 @MainActor @inline(never)
 func looksGroupFilterStrip() -> some Element {
-    func pair() -> some ProposalElementGroup {
-        ZStack(alignment: .topLeading) {
-            Color(.separator).frame(width: Pixels(36), height: Pixels(36)).offset(x: Pixels(18), y: Pixels(18))
-            Color(.accent).frame(width: Pixels(36), height: Pixels(36))
-        }
-        .frame(width: Pixels(54), height: Pixels(54), alignment: .topLeading)
-    }
-    return Row(gap: Pixels(36)) {
-        Column(gap: Pixels(4)) {
-            Text("blurred surface").font(size: 11)
-            GPUSurface(redraw: .onDemand) { ctx in ctx.clear(red: 0.15, green: 0.45, blue: 0.95, alpha: 1) }
-                .frame(width: Pixels(48), height: Pixels(48)).blur(radius: Pixels(3))
-        }
+    Row(gap: Pixels(36)) {
+        looksFilterSurfaceColumn()
         Column(gap: Pixels(4)) { Text("flipping shadow").font(size: 11); LooksShadowFlipCard() }
         Column(gap: Pixels(4)) { Text("fading shadow").font(size: 11); LooksFadingShadowCard() }
-        Column(gap: Pixels(4)) {
-            Text("mixed marks").font(size: 11)
-            ZStack(alignment: .topLeading) {
-                pair().compositingGroup().opacity(0.5)
-                Color(.textPrimary).frame(width: Pixels(18), height: Pixels(18)).offset(x: Pixels(44), y: Pixels(30))
-            }
-            .frame(width: Pixels(62), height: Pixels(54), alignment: .topLeading)
-            .compositingGroup().shadow(radius: Pixels(4), x: Pixels(4), y: Pixels(4))
-        }
+        looksFilterMixedColumn()
     }
+}
+
+/// **Q11**: the blurred surface of ``looksGroupFilterStrip()``, in its own frame.
+@MainActor @inline(never)
+func looksFilterSurfaceColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("blurred surface").font(size: 11)
+        GPUSurface(redraw: .onDemand) { ctx in ctx.clear(red: 0.15, green: 0.45, blue: 0.95, alpha: 1) }
+            .frame(width: Pixels(48), height: Pixels(48)).blur(radius: Pixels(3))
+    }
+}
+
+/// **Q11**: the mixed-marks group of ``looksGroupFilterStrip()``, in its own frame.
+@MainActor @inline(never)
+func looksFilterMixedColumn() -> some Element {
+    Column(gap: Pixels(4)) {
+        Text("mixed marks").font(size: 11)
+        ZStack(alignment: .topLeading) {
+            looksFilterPair().compositingGroup().opacity(0.5)
+            Color(.textPrimary).frame(width: Pixels(18), height: Pixels(18)).offset(x: Pixels(44), y: Pixels(30))
+        }
+        .frame(width: Pixels(62), height: Pixels(54), alignment: .topLeading)
+        .compositingGroup().shadow(radius: Pixels(4), x: Pixels(4), y: Pixels(4))
+    }
+}
+
+@MainActor @inline(never)
+func looksFilterPair() -> some ProposalElementGroup {
+    ZStack(alignment: .topLeading) {
+        Color(.separator).frame(width: Pixels(36), height: Pixels(36)).offset(x: Pixels(18), y: Pixels(18))
+        Color(.accent).frame(width: Pixels(36), height: Pixels(36))
+    }
+    .frame(width: Pixels(54), height: Pixels(54), alignment: .topLeading)
 }
 
 /// **Q11.** A 50 x 60 card that flips 180 degrees about y on each tap under a shadow written outside the effect (the leaf is
