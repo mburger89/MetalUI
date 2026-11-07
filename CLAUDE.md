@@ -67,7 +67,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-11-07, `feat/lucide-icons`, record 232): root 5559 tests in 19 suites passed (`--build-system native`, unfiltered, `--no-parallel`, after `swift package clean`; 0 failures); `FR-J no-argument frame: succeeded=true`; the same run under `METALUI_VERIFY_RETAINED=1` also 5559 passed; portable Docker 911 in `MetalUITestingTests`; record 230 added two guards (`anImageHasASystemNameButNoAssetInitialiser` renamed, `everySymbolSpellingCompilesFromAPlainImport` new), the tally is record 221's plus those, not re-counted.
+- **Counts (2026-11-07, `feat/suggestion-overlay`, record 234): root 5582 tests in 19 suites passed (`--build-system native`, unfiltered, `--no-parallel`, after `swift package clean`; 0 failures); `FR-J no-argument frame: succeeded=true`; the same run under `METALUI_VERIFY_RETAINED=1` also 5582 passed; guards: this branch adds none, the tally is record 232's, not re-counted.** A count is stale the moment a test lands: re-measure.
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.

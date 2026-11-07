@@ -210,20 +210,26 @@ private extension Bounds where Unit == Pixels {
     #expect(m.picked == ["/compact"], "the overlay took the press, not the sibling: \(m.picked)")
 }
 
-/// 9 - nothing drawn or hit while the binding is false; it appears when set.
+/// 9 - nothing drawn or hit while the binding is false; it appears when set (from input: a
+/// state write outside input does not wake a window on every platform).
 /// Mutation: ignore the binding.
 @Test @MainActor func nothingIsDrawnOrHitWhileNotPresented() throws {
     let m = ComposerModel()
     m.shown = false
-    let window = try settledWindow { composer(m) }
+    let window = try settledWindow {
+        VStack(spacing: 0) {
+            Button { m.shown.toggle() } label: { Text("toggle").frame(width: Pixels(100), height: Pixels(24)) }
+            composer(m)
+        }
+    }
     #expect((try? window.element(label: "/help")) == nil, "no row in the tree")
     let drawn = window.scene.glyphs.count
-    m.shown = true
+    try window.click(try window.element(label: "toggle"))
     window.tick()
     window.tick()
     #expect((try? window.element(label: "/help")) != nil, "shown once set")
     #expect(window.scene.glyphs.count > drawn, "and drawn")
-    m.shown = false
+    try window.click(try window.element(label: "toggle"))
     window.tick()
     window.tick()
     #expect((try? window.element(label: "/help")) == nil)

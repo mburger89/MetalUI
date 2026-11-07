@@ -689,6 +689,17 @@ scrolls and effects, a rotated space reporting the unrotated frame, a name nobod
 reading `.global` (`OV-E`, `OV-M`); `GeometryProxy.frame(in:)`, `DragGesture(coordinateSpace:)`,
 `SpatialTapGesture(coordinateSpace:)` and `onTapGesture(coordinateSpace:)` accept it, and
 `onContinuousHover(coordinateSpace:perform:)` (default `.local`) reports in it (`OV-F`, `OV-H`).
+**Suggestion overlay** (M, `SOC-A`..`SOC-D`, record 234): `.suggestionOverlay(isPresented:edge:alignment:spacing:content:)`
+on both vocabularies shows `content` `spacing` (4) off this element's frame on `edge`'s side
+(`VerticalEdge`, default `.top`), its `alignment` edge flush with the element's, flipped or capped
+where it would leave the window and clamped horizontally. It takes **no focus and no key** and is
+**never dismissed by input** (the app writes `isPresented`; route ↑ ↓ Return Tab Esc with
+`.onKeyPress` on the field); a press on it keeps the focused field focused and never reaches what
+lies beneath, rows and a `ScrollView` work, and its nodes are ordinary siblings, not a popover.
+**Image types** (M, `SOC-E`..`SOC-H`): `ContentType.image`/`.png`/`.tiff`/`.jpeg`,
+`Clipboard.readData(of:)` (by type or parent, no format conversion) and `ImageData`
+(`dropDestination(for: ImageData.self)`, `Clipboard.read(ImageData.self)`; told the format that
+arrived); a dropped image file is a `URL`.
 **MetalUI-only**: `EnvironmentValues.windowSize` — the window's content size, drawn chrome
 included, read-only (`OV-G`, `OV-O`; SwiftUI has none). **Presentation**: `.popover` takes
 SwiftUI's `attachmentAnchor: PopoverAttachmentAnchor` (`.rect(.bounds)` default, `.rect(.rect(r))`,
