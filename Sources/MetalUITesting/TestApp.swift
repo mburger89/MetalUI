@@ -198,6 +198,10 @@ final class FrameWorkRecorder {
         pending.lazyUnitsRealized += work.lazyUnitsRealized
         pending.lazyLinesRealized += work.lazyLinesRealized
         pending.lazyUnbounded += work.lazyUnbounded
+        pending.codeLinesShaped += work.codeLinesShaped
+        pending.codeLinesPainted += work.codeLinesPainted
+        pending.codeGlyphsEmitted += work.codeGlyphsEmitted
+        pending.codeHighlightRunsVisited += work.codeHighlightRunsVisited
         pending.rasterizedPixels += work.rasterizedPixels
         pending.blurredPixels += work.blurredPixels
     }

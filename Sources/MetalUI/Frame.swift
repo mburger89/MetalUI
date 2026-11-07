@@ -164,6 +164,8 @@ public final class Frame {
 
     /// What this frame's lazy containers realised (`LZ-I`, a work counter, never time).
     var lazyWork = LazyWork()
+    /// What this build's `CodeView`s shaped, painted and emitted (`CV-Q`).
+    var codeWork = CodeWork()
 
     /// Element work of this frame's phases (`SB-`, work counters, never time): group
     /// members entered in the build (`GlobalElementID.enteringGroupMember`), elements

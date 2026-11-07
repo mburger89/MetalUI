@@ -2427,7 +2427,8 @@ public final class Window {
             // where it is, so the next frame does not scroll it back.
             if id == cover.id, let target = cover.handlers.textInput, target.lines != nil {
                 stateTable.withState(cover.id, initial: TextEditState()) {
-                    $0.scrollY = min(max($0.scrollY - Double(event.delta.y.value), 0), target.maxScrollY)
+                    $0.scrollY = ScrollChrome.wheelOffset(x: 0, y: $0.scrollY, delta: event.delta,
+                                                          maximum: (0, target.maxScrollY)).y   // `CV-O`
                     $0.revealsCaret = false
                 }
                 return true
