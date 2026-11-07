@@ -48,6 +48,16 @@ private func buildEveryProductionTree() {
     buildTheLazyContainersDemo()   // lazy containers (LZ-Q, spec section 6)
     buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
     buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
+    buildTheGroupFilterStrip()     // a filter over a group (GF-)
+}
+
+/// The looks demo's filtered-group strip and its two stateful cards (components built at layout), in its own frame
+/// (`GF-`; the asserts compiler arm of record 219).
+@MainActor @inline(never)
+private func buildTheGroupFilterStrip() {
+    _ = looksGroupFilterStrip()
+    _ = LooksShadowFlipCard().content
+    _ = LooksFadingShadowCard().content
 }
 
 /// The looks demo's 3D strip and its flip card (a `Component` built at layout), in its own frame as

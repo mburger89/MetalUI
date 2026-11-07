@@ -335,6 +335,7 @@ private func looksPathsShadowsTransformsSection() -> some Element {
         }
         looksProjectionStrip()
         looksGroupOpacityStrip()
+        looksGroupFilterStrip()
     }
     .alignItems(.flexStart)
 }
@@ -364,6 +365,72 @@ func looksGroupOpacityStrip() -> some Element {
             .frame(width: Pixels(64), height: Pixels(54), alignment: .topLeading)
             .compositingGroup().opacity(0.6)
         }
+    }
+}
+
+/// **Q11** (a filter over a group, `GF-`). A blurred `GPUSurface` (the blur reaches the app's own pixels, divergence 167), a
+/// card that flips about its axis under a shadow (the shadow follows the projected card, divergence 1066; tap it), a shadowed
+/// group whose opacity animates on a tap (the shadow fades with the group as one), and a shadowed group holding an opacity
+/// group beside an unfaded square (mixed marks). **Its own frame**, and its two stateful cards are components built at
+/// layout (`everyProductionTreeBuildsOnAOneMegabyteThread`).
+@MainActor @inline(never)
+func looksGroupFilterStrip() -> some Element {
+    func pair() -> some ProposalElementGroup {
+        ZStack(alignment: .topLeading) {
+            Color(.separator).frame(width: Pixels(36), height: Pixels(36)).offset(x: Pixels(18), y: Pixels(18))
+            Color(.accent).frame(width: Pixels(36), height: Pixels(36))
+        }
+        .frame(width: Pixels(54), height: Pixels(54), alignment: .topLeading)
+    }
+    return Row(gap: Pixels(36)) {
+        Column(gap: Pixels(4)) {
+            Text("blurred surface").font(size: 11)
+            GPUSurface(redraw: .onDemand) { ctx in ctx.clear(red: 0.15, green: 0.45, blue: 0.95, alpha: 1) }
+                .frame(width: Pixels(48), height: Pixels(48)).blur(radius: Pixels(3))
+        }
+        Column(gap: Pixels(4)) { Text("flipping shadow").font(size: 11); LooksShadowFlipCard() }
+        Column(gap: Pixels(4)) { Text("fading shadow").font(size: 11); LooksFadingShadowCard() }
+        Column(gap: Pixels(4)) {
+            Text("mixed marks").font(size: 11)
+            ZStack(alignment: .topLeading) {
+                pair().compositingGroup().opacity(0.5)
+                Color(.textPrimary).frame(width: Pixels(18), height: Pixels(18)).offset(x: Pixels(44), y: Pixels(30))
+            }
+            .frame(width: Pixels(62), height: Pixels(54), alignment: .topLeading)
+            .compositingGroup().shadow(radius: Pixels(4), x: Pixels(4), y: Pixels(4))
+        }
+    }
+}
+
+/// **Q11.** A 50 x 60 card that flips 180 degrees about y on each tap under a shadow written outside the effect (the leaf is
+/// projective, so the shadow is a filtered group, `GF-A`).
+struct LooksShadowFlipCard: Component {
+    @State var flipped = false
+
+    var content: some ElementGroup {
+        Box()
+            .frame(width: Pixels(50), height: Pixels(60))
+            .background(.accent)
+            .rotation3DEffect(.degrees(flipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+            .shadow(radius: Pixels(4), x: Pixels(4), y: Pixels(4))
+            .onTapGesture { withAnimation(.easeInOut(duration: 0.8)) { flipped.toggle() } }
+    }
+}
+
+/// **Q11.** A shadowed two-square group whose opacity animates between 1 and 0.3 on each tap: the CPU shadow is rastered once
+/// and the fade costs no raster (`GF-A`).
+struct LooksFadingShadowCard: Component {
+    @State var faded = false
+
+    var content: some ElementGroup {
+        ZStack(alignment: .topLeading) {
+            Color(.separator).frame(width: Pixels(36), height: Pixels(36)).offset(x: Pixels(18), y: Pixels(18))
+            Color(.accent).frame(width: Pixels(36), height: Pixels(36))
+        }
+        .frame(width: Pixels(54), height: Pixels(54), alignment: .topLeading)
+        .compositingGroup().opacity(faded ? 0.3 : 1)
+        .shadow(radius: Pixels(4), x: Pixels(4), y: Pixels(4))
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.6)) { faded.toggle() } }
     }
 }
 
