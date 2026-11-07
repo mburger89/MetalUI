@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-AA`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-AB`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -840,3 +840,29 @@ are unchanged, so the display link pauses on the same frames on AppKit and SDL.
 **Cost if wrong.** A caller that read `needsRedraw` to learn a fade or a held press was in progress
 reads `hasActiveAnimations` (the fade) and has no public reading for a pending timer; none was found
 outside the tests updated here.
+
+## HT-AA — A natively presented menu swallows keys (2026-11-06)
+
+**Ruling.** Report: MetalCreator, measured on real AppKit: with a pull-down `Menu` open (native
+`NSMenu`, tracked modally) six presses of A/D/P, each a `.keyboardShortcut` on a hidden button, never
+reached the window; the tool never changed. The headless harness fired the shortcut and left the menu
+open (`HT-X` 1: a requirement answers as the platform does).
+1. **`TestWindow.typeKey`/`typeText` deliver nothing while `presentedMenu != nil`** (`deliverKey`'s
+   first line), and deliver again once the menu is chosen or dismissed. `presentedMenu` is non-`nil`
+   only with `presentsMenusNatively` on, so a drawn menu (SDL's answer) is unaffected. Raw
+   `send(_:)` stays raw: it is the escape hatch and reaches the window as written.
+2. **Escape closes the menu (`dismissMenu()`) and is not delivered. ASSUMED, not measured**: it is
+   AppKit's documented menu-tracking behaviour and the only key the ruling gives an effect.
+   **A menu's own key equivalents select nothing. ASSUMED**: tracking is modal, so a ⌘C shown beside
+   "Copy" in an open context menu is not tested by the harness; a test chooses by title.
+3. **SDL read, not changed.** `SDLPlatform.presentMenu` answers `false` (`MN-C` item 3): `Window`
+   draws the menu in its own tree and keys reach the window like any key, so the bug does not exist
+   there; `aDrawnMenuDoesNotSwallowKeys` pins the headless mirror of that answer.
+
+**Mutations** (`HarnessMenuTests`): `deliverKey` without the `presentedMenu != nil` early return
+reddens `aKeyIsSwallowedWhileAMenuIsOpenAndFiresAfterIt` and `escapeClosesAnOpenMenuAndSelectsNothing`;
+the Escape arm removed reddens `escapeClosesAnOpenMenuAndSelectsNothing` only.
+
+**Cost if wrong.** A test that typed a key to an open menu and expected the shortcut to fire now
+sees nothing; it dismisses the menu first (`dismissMenu()`). If AppKit's Escape or equivalents differ
+from the assumption, the harness is a step ahead of or behind it until measured.

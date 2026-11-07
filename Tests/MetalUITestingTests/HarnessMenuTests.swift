@@ -252,3 +252,56 @@ import Testing
     let native = try themedApp(MenuModel()).1
     #expect(throws: TestHarnessError.self) { try native.element(label: "Theme") }
 }
+
+/// `HT-AA` — a pull-down `Menu` is tracked modally by AppKit, so a key (here a
+/// hidden button's `.keyboardShortcut`) never reaches the window while it is
+/// open, and fires again once it is closed. Mutation: `deliverKey` without its
+/// `presentedMenu != nil` early return.
+@Test @MainActor func aKeyIsSwallowedWhileAMenuIsOpenAndFiresAfterIt() throws {
+    let m = MenuModel()
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            Menu("Options") { Button("A") { m.log.append("menu-a") } }
+            Button("Hidden") { m.log.append("shortcut") }.keyboardShortcut("p", modifiers: [])
+        }
+    }
+    window.typeKey("p")
+    #expect(m.log == ["shortcut"], "the separating arm: with no menu the shortcut fires")
+    m.log = []
+    try window.click(window.element(label: "Options"))
+    #expect(window.presentedMenu != nil)
+    window.typeKey("p")
+    window.typeText("pp")
+    #expect(m.log.isEmpty)
+    #expect(window.presentedMenu != nil, "an ordinary key leaves the menu open")
+    try window.dismissMenu()
+    window.typeKey("p")
+    #expect(m.log == ["shortcut"])
+}
+
+/// `HT-AA` item 2 — Escape closes the menu and is not delivered; a menu's own
+/// key equivalent selects nothing. Mutation: the Escape arm removed.
+@Test @MainActor func escapeClosesAnOpenMenuAndSelectsNothing() throws {
+    let m = MenuModel()
+    let window = try harnessWindow { contextTree(m) }
+    try window.rightClick(window.element(label: "Target"))
+    window.typeKey("c", modifierFlags: .command)
+    #expect(m.log.isEmpty, "a menu key equivalent is not a choice")
+    #expect(window.presentedMenu != nil)
+    window.typeKey(.escape)
+    #expect(window.presentedMenu == nil)
+    #expect(m.log.isEmpty)
+}
+
+/// `HT-AA` — a drawn menu (`presentsMenusNatively` off, SDL) is not modal at
+/// the platform: keys still reach the window.
+@Test @MainActor func aDrawnMenuDoesNotSwallowKeys() throws {
+    let m = MenuModel()
+    let window = try harnessWindow(options: .init(presentsMenusNatively: false)) {
+        VStack(spacing: 0) {
+            Button("Hidden") { m.log.append("shortcut") }.keyboardShortcut("p", modifiers: [])
+        }
+    }
+    window.typeKey("p")
+    #expect(m.log == ["shortcut"])
+}

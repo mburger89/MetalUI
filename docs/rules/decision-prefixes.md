@@ -34,7 +34,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `TK-` (test hygiene: sheet-test skip, Linux flake, SDL launch drops:
   `2026-10-31-test-hygiene-decisions.md`, next `TK-E`), `PG-` (path operations: `trimmedPath`/`trim`, `strokedPath`, `addRelativeArc`,
   `Transform2D`, `UnevenRoundedRectangle`: `2026-10-31-path-ops-decisions.md`, next `PG-I`), `HT-` (test harness, `MetalUITesting`:
-  `2026-10-09-test-harness-decisions.md`, next `HT-AA`), `OV-` (overlays and coordinates:
+  `2026-10-09-test-harness-decisions.md`, next `HT-AB`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-P`), `FI-` (`ForEach` identity:
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
