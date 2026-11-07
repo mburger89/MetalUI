@@ -910,6 +910,61 @@ private func maskedFixture() throws -> ReplayFixture {
     #expect(throws: FixtureError.self) { try bad.validate() }
 }
 
+/// A masked group whose mask scene holds a glyph run under its own transform record (a gradient text, `TG-C`): the glyph's
+/// flat transform index must name record 2 (the root has none, the group one, the mask one).
+private func glyphMaskedScene() -> Scene {
+    var content = Scene()
+    content.insert(groupRect(1), transform: transformRecord(2))
+    content.finalize()
+    var glyph = MUIGlyph()
+    glyph.bounds = groupBounds(1, 1, 4, 4)
+    glyph.atlasBounds = groupBounds(0, 0, 4, 4)
+    glyph.contentMask = groupBounds(0, 0, 8, 8)
+    glyph.color = MUIHsla(h: 0, s: 0, l: 1, a: 1)
+    var mask = Scene()
+    mask.insert(glyph, transform: transformRecord(9))
+    mask.insert(glyph)
+    mask.finalize()
+    let quad = MUIImage(bounds: groupBounds(0, 0, 8, 8), contentMask: groupBounds(0, 0, 8, 8),
+                        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0), opacity: 1, texture: 0,
+                        filter: MUIUInt(MUIImageFilterNearest.rawValue), order: 1)
+    var root = Scene()
+    root.insert(groupRect(0))
+    root.insert(quad, group: content, mask: mask)
+    root.finalize()
+    return root
+}
+
+/// **TG-C.** A group's mask body may hold glyph runs (a gradient text: the glyph run is the mask), and the version-9 encoding
+/// already carries them: no format change. The round trip keeps the mask's glyph records and its two runs; the flat frame
+/// appends the mask glyphs after the root's and shifts a glyph's transform index past the root's and the group's. A mask
+/// holding a group run is still refused. Mutations: the writer dropping `mask.glyphs` (the round trip loses them and the
+/// fixture differs); `FlatFrame.Builder` not shifting a mask glyph's transform index (the flat glyph names the group's record).
+@Test func aGlyphMaskBodyRoundTripsInVersionNine() throws {
+    let fixture = try ReplayFixture(scene: glyphMaskedScene(), atlas: GlyphAtlas(width: 4, height: 4), width: 8, height: 8,
+                                    projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                                    reference: [UInt8](repeating: 0, count: 8 * 8 * 4))
+    let mask = try #require(fixture.groups.first?.mask, "the group records its mask")
+    #expect(mask.runs == [FixtureRun(kind: .glyph, start: 0, count: 2)], "one glyph run of two glyphs: \(mask.runs)")
+    #expect(mask.glyphs.count == 2 * Int(ReplayFixture.glyphStride) && mask.rects.isEmpty, "the mask holds glyphs only")
+    try fixture.validate()
+    let decoded = try ReplayFixture(decoding: fixture.encoded())
+    #expect(decoded == fixture, "v9 round trip")
+    #expect(decoded.groups[0].mask?.glyphs == mask.glyphs, "the mask glyph bytes survive")
+    let flat = FlatFrame(root: FixtureBody(rects: fixture.rects, glyphs: fixture.glyphs, images: fixture.images,
+                                           transforms: fixture.transforms, runs: fixture.runs),
+                         groups: fixture.groups, groupTextureBase: 1)
+    let glyphStride = Int(ReplayFixture.glyphStride)
+    let glyphs = flat.glyphs.withUnsafeBytes { raw in
+        (0..<flat.glyphs.count / glyphStride).map { raw.loadUnaligned(fromByteOffset: $0 * glyphStride, as: MUIGlyph.self) }
+    }
+    try #require(glyphs.count == 2, "\(glyphs.count) flat glyphs: the mask's two")
+    #expect(glyphs.map(\.transform) == [2, 0], "the transformed mask glyph names flat record 2, the plain one none: \(glyphs.map(\.transform))")
+    var bad = fixture
+    bad.groups[0].mask?.runs = [FixtureRun(kind: .group, start: 0, count: 1)]
+    #expect(throws: FixtureError.self) { try bad.validate() }
+}
+
 /// **CM-A.** `FlatFrame` appends a group's mask body after the group's own records and runs, shifting its transform index
 /// like any record's (past the root's and the group's), and names the mask runs in `maskRunStart`/`maskRunCount`.
 /// Mutation: the mask's transform index not shifted (it reads the group's record).
