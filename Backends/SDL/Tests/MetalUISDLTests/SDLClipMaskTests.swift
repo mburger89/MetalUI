@@ -140,7 +140,9 @@ private func near(_ a: [Int], _ b: [Int], _ t: Int = 1) -> Bool { zip(a, b).allS
     #expect(set.rects.count == 2, "the group's rect and the mask's")
     #expect(set.rects.map { $0.shape >> 8 } == [2, 3], "transform indices past the root's one and the group's: \(set.rects.map { $0.shape >> 8 })")
     #expect(set.transforms.count == 2)
-    #expect(set.runs[Int(group.mask_run_start) - scene.drawList.count].start == UInt32(scene.rects.count + 1))
+    let maskRun = Int(group.mask_run_start) - scene.drawList.count
+    try #require(set.runs.indices.contains(maskRun), "the mask's run is in the shared run array: \(set.runs.count) runs")
+    #expect(set.runs[maskRun].start == UInt32(scene.rects.count + 1))
 }
 
 /// **S5** (`CM-A`). A mask whose scratch cannot be made (the hook; without portable shaders the same branch) draws the group
