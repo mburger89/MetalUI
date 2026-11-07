@@ -129,20 +129,7 @@ private let linear1 = Animation.linear(duration: 1)
 
 // MARK: - 3.22 (LK-K item 5, divergence 167)
 
-/// **3.22** (`LK-K` item 5, divergence 167). A GPU surface under a blur is
-/// drawn unblurred: its quad still reaches the scene (one surface), beside the
-/// blurred colour leaf (one image). Mutation: drop the surface.
-@Test @MainActor func aSurfaceLeafUnderBlurIsDrawnUnblurred() throws {
-    let scene = lkScene(VStack(spacing: 0) {
-        GPUSurface(value: 1) { _ in }.frame(width: px(40), height: px(40))
-        square(lkBlack)
-    }.blur(radius: px(4)), side: 200)
-    #expect(scene.surfaces.count == 1, "the surface, unblurred: \(scene.surfaces.count)")
-    #expect(gxImages(scene).count == 1, "the colour leaf, blurred: \(gxImages(scene).count)")
-    if let surface = scene.surfaces.first {
-        #expect(gxDescribe(surface.bounds) == "(80.0, 60.0, 40.0×40.0)", "in place: \(gxDescribe(surface.bounds))")
-    }
-}
+// 3.22 (`LK-K` item 5, divergence 167) is `aSurfaceUnderBlurIsBlurredOffscreen` since GF-A (GroupFilterTests.swift).
 
 // MARK: - 3.23 (LK-K item 6)
 

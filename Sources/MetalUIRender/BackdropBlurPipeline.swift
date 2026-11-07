@@ -10,6 +10,13 @@ struct BackdropBlurPass {
     var horizontal: Int32
 }
 
+/// The constants the shadow tint pass reads (`GroupTintPass` in `shaders.metal`): the source rectangle and the
+/// premultiplied tint. 32 bytes.
+struct GroupTintPass {
+    var src: SIMD4<Int32>
+    var tint: SIMD4<Float>
+}
+
 /// The pipelines of a material's backdrop (rulings `BB-A`, `BB-D`, `BB-S`): the
 /// blur passes, the blurred quad, its flat-tint fallback (`BB-I`) and the copy
 /// of the frame target to the drawable (`BB-C`). The pass pipelines write
@@ -23,6 +30,8 @@ final class BackdropPipelines {
     let downsample: any MTLRenderPipelineState
     let gaussian: any MTLRenderPipelineState
     let copy: any MTLRenderPipelineState
+    /// The shadow tint pass of a filtered group (`GF-E`).
+    let tint: any MTLRenderPipelineState
     let blurred: any MTLRenderPipelineState
     let flat: any MTLRenderPipelineState
 
@@ -49,6 +58,7 @@ final class BackdropPipelines {
         downsample = try make(vertex: "backdrop_pass_vertex", fragment: "backdrop_downsample_fragment", blend: false)
         gaussian = try make(vertex: "backdrop_pass_vertex", fragment: "backdrop_gaussian_fragment", blend: false)
         copy = try make(vertex: "backdrop_pass_vertex", fragment: "backdrop_copy_fragment", blend: false)
+        tint = try make(vertex: "backdrop_pass_vertex", fragment: "group_tint_fragment", blend: false)
         blurred = try make(vertex: "backdrop_vertex", fragment: "backdrop_fragment", blend: true)
         flat = try make(vertex: "backdrop_vertex", fragment: "backdrop_flat_fragment", blend: true)
     }

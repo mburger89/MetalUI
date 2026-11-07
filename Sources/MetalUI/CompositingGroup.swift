@@ -20,10 +20,10 @@ extension ProposalElementGroup {
     /// drawn back at that opacity (`GO-A`). Alone, or with no shadow, blur or
     /// opacity below 1 outside it, it changes nothing (CG4). **Render only**: no
     /// layout change (CG3), no hit region, nothing published, nothing animates.
-    /// Not composited (divergence 221): a shadow or blur written outside an
-    /// opacity group still sees its leaves faded one by one; (divergence 222): a
-    /// group holding a material or glass fades its primitives one by one and keeps
-    /// the live backdrop. A `Deferred` inside is not part of the group (its content
+    /// A shadow or blur written outside an opacity group is cast by, or blurs,
+    /// the **unfaded** composite and then fades with it as one (`GF-A`; divergence
+    /// 221 retired, probe `GF0`); (divergence 222): a group holding a material or
+    /// glass fades its primitives one by one and keeps the live backdrop. A `Deferred` inside is not part of the group (its content
     /// is never shadowed, blurred or faded from outside). One layer, one identity
     /// level (`MC-C`).
     public func compositingGroup() -> ModifiedContent<ProposalBase, LayoutModifier> {

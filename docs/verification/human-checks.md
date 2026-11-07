@@ -2292,3 +2292,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **GO2.** The same on Linux (Vulkan) and Windows (Direct3D 12), and parity frame 16 (`--expect 17`) in CI: any seam at the group's box edge, any pixel of the box showing as a halo? **Observed:**
 - [ ] **GO3.** Fade a group in and out (a `.transition(.opacity)` on a `compositingGroup()`): is the fade smooth with no pop where the group starts or ends compositing (opacity 1 draws inline, below 1 offscreen)? **Observed:**
 - [ ] **GO4.** `W1`/`W2`: the `GO0` pair in a real `NSHostingView` window against MetalUI's, by window capture (`docs/probes/window-capture/`) on an unlocked screen: does SwiftUI composite the group in a live window as `ImageRenderer` reads, and does a plain `.opacity` on a container stay per leaf there? **Observed:**
+
+## GF. A filter over a group - a shadow or blur over an offscreen group looks like SwiftUI's (record 219; rulings `GF-A`..`GF-H`; decisions `docs/superpowers/2026-11-06-group-filter-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-group-filter.swift` measures SwiftUI through `ImageRenderer` (a locked screen, no platform view), the tests read scene structure and Metal or SDL pixels offscreen, but a real window on a GPU, a real flip or fade over time and a platform view's blur are looks.*
+
+- [ ] **GF1.** Run the looks demo (`METALUI_LOOKS_DEMO=1`) on Metal, Linux Vulkan and Windows Direct3D 12: does the blurred surface read as one soft square, the flipping card's shadow follow the projected card, the fading shadow fade with its group as one (no darker shadow showing through the faded squares), and the mixed-marks group cast one shadow under both its parts? **Observed:**
+- [ ] **GF2.** Tap the flipping shadow card: is there a visible pop in the shadow's softness when the flip starts (the CPU triple box becomes a GPU Gaussian, divergence 105)? **Observed:**
+- [ ] **GF3.** `W1` (not run, the screen was locked), the other half of divergence 167: a layer-backed `NSViewRepresentable` under `.blur(radius: 6)` in a real `NSHostingView` window against MetalUI's blurred `GPUSurface`, by window capture (`docs/probes/window-capture/`) on an unlocked screen: does SwiftUI blur a platform view at all? Retire 167 if it does, and say what MetalUI should do if it does not. **Observed:**
+- [ ] **GF4.** Tap the fading shadow card repeatedly: is the fade smooth, with no flash where the group starts or stops compositing? **Observed:**
+- [ ] **GF5.** Parity frame 17 (`--expect 18`) on Linux Vulkan and Windows Direct3D 12 in CI: any seam at a group's box edge, any halo, any shadow offset by a pixel? **Observed:**

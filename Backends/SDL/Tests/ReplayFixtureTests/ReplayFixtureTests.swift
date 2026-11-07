@@ -29,7 +29,7 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 @Test func encodingIsLittleEndianWithMagicAndVersion() throws {
     let bytes = try sample().encoded()
     #expect(Array(bytes[0..<8]) == Array("MUIRPLY".utf8) + [0])
-    #expect(Array(bytes[8..<12]) == [7, 0, 0, 0])       // version (7 since GO-F)
+    #expect(Array(bytes[8..<12]) == [8, 0, 0, 0])       // version (8 since GF-F)
     #expect(Array(bytes[12..<16]) == [3, 0, 0, 0])      // width
     #expect(Array(bytes[20..<24]) == [120, 0, 0, 0])    // rect stride
     #expect(Array(bytes[24..<28]) == [88, 0, 0, 0])     // glyph stride
@@ -405,14 +405,14 @@ func asVersion6(_ v7: [UInt8], _ fixture: ReplayFixture) throws -> [UInt8] {
     return v6
 }
 
-/// **3.6** (ruling `BB-J`, `LG-O`, `PJ-A`, `GO-F`). The version is 7; a fixture written before it —
+/// **3.6** (ruling `BB-J`, `LG-O`, `PJ-A`, `GO-F`). The version is 8; a fixture written before it —
 /// version 5 (64-byte transform records), version 4 (96-byte backdrop records), version 3 (no backdrop stride, no backdrop table) and version 2 (no
 /// transform stride or table either) — still loads, to the same fixture;
 /// version 1 stays refused. The old files are built from the new encoding by
 /// removing exactly the fields the old layouts lack. Mutation: bump
 /// `version` without the reader's older arms.
-@Test func theFixtureVersionIsSevenAndOldVersionsStillLoad() throws {
-    #expect(ReplayFixture.version == 7)
+@Test func theFixtureVersionIsEightAndOldVersionsStillLoad() throws {
+    #expect(ReplayFixture.version == 8)
     let fixture = try sample()
     let v6 = try asVersion6(fixture.encoded(), fixture)
     #expect(try ReplayFixture(decoding: v6) == fixture, "version 6 (no group table) still loads")
@@ -446,9 +446,9 @@ func asVersion6(_ v7: [UInt8], _ fixture: ReplayFixture) throws -> [UInt8] {
     var v1 = v6
     v1[8] = 1
     #expect(throws: FixtureError.unsupportedVersion(1)) { try ReplayFixture(decoding: v1) }
-    var v8 = v6
-    v8[8] = 8
-    #expect(throws: FixtureError.unsupportedVersion(8)) { try ReplayFixture(decoding: v8) }
+    var v9 = v6
+    v9[8] = 9
+    #expect(throws: FixtureError.unsupportedVersion(9)) { try ReplayFixture(decoding: v9) }
 }
 
 /// **3.4** (ruling `BB-J`, `MV-C` item 4). A scene's backdrop run is recorded
@@ -543,7 +543,7 @@ func asVersion6(_ v7: [UInt8], _ fixture: ReplayFixture) throws -> [UInt8] {
 /// version-5 record keeps its whole tail through an encode and a decode.
 /// Mutations: widen with 0xFF; read a version-4 table at the new stride.
 @Test func theFixtureStrideIs256AndVersion4Widens() throws {
-    #expect(ReplayFixture.backdropStride == 256 && ReplayFixture.version == 7)
+    #expect(ReplayFixture.backdropStride == 256 && ReplayFixture.version == 8)
     // A version-4 stream built from the version-5 encoding: the stride field and the table
     // shrink to the first 96 bytes of each record.
     let fixture = try backdropFixture()
@@ -749,4 +749,95 @@ private func groupTreeScene() -> Scene {
     }
     #expect(images.map(\.texture) == [3 + 1, 3 + 0], "group quads name base + index: \(images.map(\.texture))")
     #expect(flat.runs.allSatisfy { $0.kind != .group }, "group runs are image runs for the bridge")
+}
+
+// MARK: - A group's filter (ruling GF-F, version 8)
+
+/// A scene with one filtered group (a shadow of sigma 3, tint 0.1/0.2/0.3/0.4) holding a rect under a transform record, and
+/// a second, unfiltered one holding a filtered group's quad under a transform record of the group's own table.
+private func filteredGroupScene() -> Scene {
+    var inner = Scene()
+    inner.insert(groupRect(1), transform: transformRecord(2))
+    inner.finalize()
+    let quad = MUIImage(bounds: groupBounds(0, 0, 8, 8), contentMask: groupBounds(0, 0, 8, 8),
+                        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0), opacity: 1, texture: 0,
+                        filter: MUIUInt(MUIImageFilterLinear.rawValue), order: 1)
+    var outer = Scene()
+    outer.insert(groupRect(3), transform: transformRecord(5))
+    outer.insert(quad, group: inner, transform: transformRecord(7),
+                 filter: Scene.GroupFilter(kind: .shadow, sigma: 3, tint: SIMD4<Float>(0.1, 0.2, 0.3, 0.4)))
+    outer.finalize()
+    var root = Scene()
+    root.insert(groupRect(0))
+    root.insert(quad, group: outer, filter: Scene.GroupFilter(kind: .blur, sigma: 2, tint: .zero))
+    root.finalize()
+    return root
+}
+
+private func filteredFixture() throws -> ReplayFixture {
+    try ReplayFixture(scene: filteredGroupScene(), atlas: GlyphAtlas(width: 1, height: 1), width: 8, height: 8,
+                      projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+                      reference: [UInt8](repeating: 0, count: 8 * 8 * 4))
+}
+
+/// **GF-F.** A group's filter is recorded (kind, sigma, premultiplied tint) in post-order and survives the version-8
+/// encoding; a version-7 file (the six filter words a group lacks) loads with the filter none. Mutations: the writer omits
+/// the filter (the round trip loses it); the reader reads the words from a version-7 file (it misparses the body).
+@Test func aGroupsFilterRoundTripsInVersionEightAndVersionSevenLoadsWithNone() throws {
+    let fixture = try filteredFixture()
+    try #require(fixture.groups.count == 2, "the shadow group then the blur group: \(fixture.groups.count)")
+    #expect(fixture.groups[0].filterKind == 2 && fixture.groups[0].sigma == 3 && fixture.groups[0].tint == [0.1, 0.2, 0.3, 0.4])
+    #expect(fixture.groups[1].filterKind == 1 && fixture.groups[1].sigma == 2)
+    let bytes = fixture.encoded()
+    #expect(try ReplayFixture(decoding: bytes) == fixture, "v8 round trip")
+    // Version 7: each group lacks the six filter words after (x, y, width, height).
+    var v7: [UInt8] = []
+    var cursor = 0
+    func u32(at offset: Int) -> Int { Int(bytes[offset]) | Int(bytes[offset + 1]) << 8 | Int(bytes[offset + 2]) << 16 | Int(bytes[offset + 3]) << 24 }
+    // The group table starts after the root runs: find it by the encoding's own layout.
+    let tableOffset = 8 + 4 + 28 + 4 + fixture.rects.count + 4 + fixture.glyphs.count + 4 + fixture.images.count
+        + 4 + fixture.textures.reduce(0) { $0 + 8 + $1.pixels.count } + 4 + fixture.transforms.count + 4 + fixture.backdrops.count
+        + 4 + fixture.runs.count * 12
+    try #require(u32(at: tableOffset) == 2, "set up: the group count sits where the layout says")
+    v7 += bytes[0..<(tableOffset + 4)]
+    cursor = tableOffset + 4
+    for group in fixture.groups {
+        v7 += bytes[cursor..<(cursor + 16)]
+        cursor += 16 + 24
+        let body = 4 * 4 + group.body.rects.count + group.body.glyphs.count + group.body.images.count + group.body.transforms.count
+            + 4 + group.body.runs.count * 12
+        v7 += bytes[cursor..<(cursor + body)]
+        cursor += body
+    }
+    v7 += bytes[cursor...]
+    v7[8] = 7
+    let old = try ReplayFixture(decoding: v7)
+    #expect(old.groups.count == 2 && old.groups.allSatisfy { $0.filterKind == 0 && $0.sigma == 0 }, "filter none")
+    #expect(old.groups.map(\.body) == fixture.groups.map(\.body), "the bodies are intact")
+    var bad = fixture
+    bad.groups[0].filterKind = 3
+    #expect(throws: FixtureError.self) { try bad.validate() }
+}
+
+/// **GF-F.** `FlatFrame` carries each group's filter, and shifts the transform index of a group quad by its own
+/// scene's transforms like any record's, while the root's quads stay unshifted (the filtered quad drawn under a projective
+/// record, `GF-C`). Mutation: the group quad's index not shifted.
+@Test func aFlatFrameCarriesTheFilterAndShiftsAGroupQuadsTransform() throws {
+    let fixture = try filteredFixture()
+    let flat = FlatFrame(root: FixtureBody(rects: fixture.rects, glyphs: fixture.glyphs, images: fixture.images,
+                                           transforms: fixture.transforms, runs: fixture.runs),
+                         groups: fixture.groups, groupTextureBase: 3)
+    #expect(flat.groups.map(\.filterKind) == [2, 1] && flat.groups.map(\.sigma) == [3, 2], "filters: \(flat.groups)")
+    #expect(flat.groups[0].tint == [0.1, 0.2, 0.3, 0.4])
+    let imageStride = Int(ReplayFixture.imageStride)
+    let images = flat.images.withUnsafeBytes { raw in
+        (0..<flat.images.count / imageStride).map { raw.loadUnaligned(fromByteOffset: $0 * imageStride, as: MUIImage.self) }
+    }
+    // The root's quad (blur group, index 1): no transform. The outer group's quad (shadow group, index 0) names the outer
+    // group's record 2 (its second: the rect's, then the quad's), shifted past the inner group's... the inner group is
+    // first in post-order and holds one record, so the outer group's records start at flat index 1.
+    try #require(images.count == 2, "a quad in the root and a quad in the blur group: \(images.count)")
+    let transformIndices = images.map { $0.filter >> 8 }
+    #expect(transformIndices.contains(0), "the root's quad is unshifted: \(transformIndices)")
+    #expect(transformIndices.contains(3), "the group's quad: record 2 of its table, shifted by the shadow group's one: \(transformIndices)")
 }

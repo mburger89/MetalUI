@@ -19,7 +19,10 @@ typedef struct { int32_t x, y, width, height; } ReplayRegion;
 // by `run_count` runs from `run_start` of the frame's run array (the main runs come first, then each group's, in
 // post-order: a group's runs name only earlier groups). A run that draws a group is an image run whose records name
 // the texture `texture_count + group index`.
-typedef struct { float x, y; uint32_t width, height, run_start, run_count; } ReplayGroup;
+typedef struct { float x, y; uint32_t width, height, run_start, run_count; uint32_t filter_kind; float sigma; float tint[4]; } ReplayGroup;
+// A group's filter (ruling GF-E), `filter_kind`: 0 none, 1 blur, 2 shadow. After its pass the group's target goes through
+// L downsamples and two Gaussians at `sigma` (device pixels of the target; none when 0) and, for a shadow, a tint pass
+// writing `tint` (premultiplied) times the blurred alpha; the quad samples the result.
 // One surface's `drawText` glyphs (ruling DT-G): `count` glyph records from `start` (an index into the
 // frame's glyph buffer, the scene's own glyphs first), drawn into `target` (a surface target, `width` x
 // `height` texels) in one load-op pass after the atlas copy pass and before the scene's pass.
@@ -115,6 +118,12 @@ void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[7]);
 void mui_renderer_group_counters(MUIRenderer *r, uint32_t out[3]);
 // Test hook (ruling GO-F): every group target allocation fails, so each group draws nothing.
 void mui_renderer_set_group_hook(MUIRenderer *r, bool pool_fails);
+// The last frame's filtered group work (ruling GF-E): `out` = filter passes (L downsamples, two Gaussians when sigma is
+// above 0, and a shadow's tint pass), groups filtered, filter allocation failures.
+void mui_renderer_filter_counters(MUIRenderer *r, uint32_t out[3]);
+// Test hook (ruling GF-E): every filter intermediate allocation fails; a blur then draws its unfiltered target and a
+// shadow draws nothing.
+void mui_renderer_set_filter_hook(MUIRenderer *r, bool pool_fails);
 // The atlas bytes the last finished frame moved to the GPU (0 for a clean
 // atlas; the whole atlas for a new or resized one). A test recorder (RG-H).
 uint64_t mui_renderer_last_atlas_bytes(MUIRenderer *r);

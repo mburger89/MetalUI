@@ -522,17 +522,5 @@ private struct TapCounter: ProposalElement {
     #expect(abs(scene.backdrops[0].opacity - 0.5) < 0.001, "faded by its opacity: \(scene.backdrops[0].opacity)")
 }
 
-/// **GO-C / divergence 221.** A shadow written outside an opacity group still sees the group's leaves faded one by
-/// one: the group is still composited (one group quad) and the shadow is cast from the faded silhouette. Mutation:
-/// `shadowItem` without baking (the shadow would keep the unfaded silhouette).
-@Test @MainActor func aShadowOutsideAnOpacityGroupStillCompositesTheGroup() throws {
-    let scene = effectFrame(overlap().compositingGroup().opacity(0.5)
-        .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene()
-    try #require(scene.groups.count == 1, "the group composites: \(scene.groups.count)")
-    let shadows = gxImages(scene)
-    try #require(shadows.count == 1, "one shadow of the union: \(shadows.count)")
-    // The silhouette is the faded leaves': its alpha is the shadow colour's times 0.5 (not the unfaded 1).
-    #expect(gxAlpha(shadows[0], 85, 85) < 200, "faded silhouette: \(gxAlpha(shadows[0], 85, 85))")
-    let blurred = effectFrame(overlap().compositingGroup().opacity(0.5).blur(radius: px(4))).finalizedScene()
-    #expect(blurred.groups.isEmpty && blurred.images.count == 1, "a blur rasterizes the faded leaves: \(blurred.groups.count) groups")
-}
+// `aShadowOutsideAnOpacityGroupStillCompositesTheGroup` is `aShadowOutsideAnOpacityGroupCastsTheCompositesShadow` since GF-A
+// (GroupFilterTests.swift): divergence 221 is retired.

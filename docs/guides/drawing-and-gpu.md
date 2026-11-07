@@ -72,8 +72,8 @@ func drawingGroupedRoot() -> some Element {
 `.compositingGroup()` alone changes nothing, and an opacity written outside it composites the
 group: the content renders into an offscreen target and is drawn back at that opacity, so two
 overlapping squares at `.opacity(0.5)` read the top colour over the backdrop, not one through the
-other (the group's own shadow and blur are still per leaf under it, divergence 221, and a group
-holding a material, glass or GPU surface fades per primitive, 222). SwiftUI's `drawingGroup()` and inner shadows are not offered. Under a
+other (a shadow or blur written outside it is cast by, or blurs, the unfaded composite and fades with it as one, and a group
+holding a material, glass or GPU surface fades per primitive, 222; a view's `.opacity` written inside a shadow fades the shadow's source, divergence 223). SwiftUI's `drawingGroup()` and inner shadows are not offered. Under a
 non-uniform scale both axes blur by one radius (divergence 105), and text and images under a scale
 are resampled rather than re-rasterized (divergence 106).
 
@@ -113,7 +113,7 @@ inside a CPU-rasterized `.shadow`, `.blur` or `.compositingGroup()` under one is
 tint, by name (divergence 248; pin: `theDrawingGuideAMaterialIsOneBackdropAndDegradesUnderAShadow`,
 `aMaterialInsideBlurShadowOrCompositingGroupDrawsItsFlatTint`). A `Path` fill degrades the same
 way. With Reduce Transparency on, a material is an opaque grey instead (divergence 315; the last section below). A GPU surface drawn under `.blur(radius:)`
-stays unblurred while its siblings blur (divergence 167).
+is blurred with its siblings through an offscreen group (divergence 167).
 
 ## How do I draw into my own GPU surface?
 
@@ -471,8 +471,8 @@ Each row is in [`divergences.md`](../divergences.md); the list is checked agains
 - divergence 108: a legacy element's render effects wrap the whole element.
 - divergence 109: a clip between two nested rotations becomes its bounding box.
 - divergence 166: a material is a blurred backdrop with a tint.
-- divergence 167: a GPU surface under `.blur(radius:)` is drawn unblurred.
-- divergence 221: a shadow or blur outside an opacity group sees the faded leaves one by one.
+- divergence 167: a GPU surface under `.blur(radius:)` is blurred offscreen; SwiftUI's side for platform views is unmeasured.
+- divergence 223: a view's `.opacity` written inside a `.shadow` fades the shadow's source, not the shadow.
 - divergence 222: a group holding a material, glass or GPU surface is not composited.
 - divergence 248: a material inside a CPU-rasterized shadow, blur or group draws its flat tint.
 - divergence 295: an empty `Text` measures one line tall.

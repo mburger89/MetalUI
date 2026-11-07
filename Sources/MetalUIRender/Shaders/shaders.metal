@@ -866,6 +866,27 @@ fragment float4 backdrop_copy_fragment(
     return frame.read(uint2(in.position.xy));
 }
 
+// A filtered group's shadow tint (`GF-E`): the premultiplied tint times the group's alpha at the texel, read
+// inside the source rectangle (the Gaussian's output). Like the pass shaders above it reads `[[position]]`, which a
+// group's content shaders never do (`GO-E`).
+struct GroupTintPass {
+    /// Source rectangle in the source texture: origin x, y, size w, h.
+    int4   src;
+    /// The shadow colour, premultiplied.
+    float4 tint;
+};
+
+fragment float4 group_tint_fragment(
+    BlurVertexOut in [[stage_in]],
+    constant GroupTintPass &pass [[buffer(0)]],
+    texture2d<float, access::read> source [[texture(0)]]
+) {
+    int2 p = int2(in.position.xy);
+    int2 last = pass.src.zw - 1;
+    float a = source.read(uint2(pass.src.xy + min(p, last))).a;
+    return pass.tint * a;
+}
+
 vertex RectVertexOut backdrop_vertex(
     uint vertexID   [[vertex_id]],
     uint instanceID [[instance_id]],

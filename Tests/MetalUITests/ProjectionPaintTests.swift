@@ -106,19 +106,8 @@ private func star(_ side: Double) -> Path {
 
 // MARK: - 21, 22: what a projective effect cannot carry
 
-/// **D1066.** A shadow outside a projective effect casts nothing from it (its CPU silhouette is flat); the same shadow outside
-/// an affine effect still casts. Mutation: cast from every leaf in `processScopes`' shadow arm.
-@Test @MainActor func aShadowOutsideAProjectiveEffectCastsNothingFromIt() throws {
-    func shadowImages<E: Element>(_ element: E) -> Int {
-        gxImages(effectFrame(element).finalizedScene()).count
-    }
-    let affine = shadowImages(Color(.accent).frame(width: px(60), height: px(40)).rotationEffect(.degrees(20))
-        .shadow(color: .textPrimary, radius: px(3), x: px(2), y: px(2)))
-    let projective = shadowImages(Color(.accent).frame(width: px(60), height: px(40))
-        .rotation3DEffect(.degrees(40), axis: yAxis).shadow(color: .textPrimary, radius: px(3), x: px(2), y: px(2)))
-    #expect(affine == 1, "control: the affine effect's leaf is shadowed")
-    #expect(projective == 0, "divergence 1066: nothing cast from a projected leaf")
-}
+// D1066 (a shadow or blur outside a projective effect casts or blurs nothing) is `aProjectiveLeafCastsAShadowOffscreen` and
+// `aProjectiveLeafUnderBlurIsBlurred` since GF-A (GroupFilterTests.swift): divergence 1066 is retired.
 
 /// **D1067.** A material under a projective effect draws its flat tint, not a backdrop record; under an affine effect it is a
 /// backdrop. Mutation: skip the degrade in `processScopes`.
