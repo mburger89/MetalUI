@@ -522,7 +522,7 @@ extension PaintPass {
                                      glass: GlassBox? = nil, glassPress: Float = 0,
                                      background: Hsla?,
                                      border: (color: Hsla, widths: Edges<Pixels>)?,
-                                     clip: (bounds: Bounds<Pixels>, radii: Corners<Pixels>)?,
+                                     clip: ClipRegion?,
                                      content: () -> Void) {
         if let gradient {
             // A legacy gradient background (`LK-J` item 8): under the corner
@@ -544,8 +544,7 @@ extension PaintPass {
             fill(bounds, color: background, cornerRadii: radii)
         }
         if let clip {
-            clipped(to: clip.bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
-                    cornerRadii: clip.radii) {
+            clipped(to: clip) {
                 content()
             }
         } else {

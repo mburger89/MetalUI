@@ -461,9 +461,9 @@ public struct Decoration: Sendable, Hashable {
     /// divergence 91), else `clipsContent`'s box rounded by `cornerRadius`.
     /// Read by both clip halves (`registerAndScope`, `paintDecoration`).
     @MainActor
-    func clipRegion(in bounds: Bounds<Pixels>) -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>)? {
-        if let clipShape { return clipShape.shape.geometry(in: bounds).clipRegion }
-        return clipsContent ? (bounds, Corners(all: cornerRadius)) : nil
+    func clipRegion(in bounds: Bounds<Pixels>) -> ClipRegion? {
+        if let clipShape { return clipShape.shape.geometry(in: bounds).clip(style: clipShape.style) }
+        return clipsContent ? ClipRegion(bounds: bounds, radii: Corners(all: cornerRadius), mask: nil) : nil
     }
 
     /// The six paint slots `escapesOpacity` can hold.

@@ -1309,10 +1309,25 @@ public final class Frame {
     /// **unless** (since plan task 11 part 2, `TE-AJ` item 5) one rounded
     /// rect lies exactly inside the other (case 3 below), when the contained
     /// one's radii are the exact answer. Two that cross still get the square
-    /// box: divergence 92, pinned by `twoCrossingRoundedClipsIntersectAsTheSquareBox`.
+    /// box here; the painter masks the difference away (divergence 92 retired, `CM-B`).
     static func intersect(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
                           _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
         -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>) {
+        let result = intersectReportingCrossing(outer, radii: outerRadii, inner, radii: innerRadii)
+        return (result.bounds, result.radii)
+    }
+
+    /// Whether two clips take ``intersect(_:radii:_:radii:)``'s last square fallback with some rounding in play: the one case
+    /// whose answer is not exact (divergence 92), which a mask of the second clip makes exact (`CM-B`).
+    static func clipsCross(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
+                           _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>) -> Bool {
+        intersectReportingCrossing(outer, radii: outerRadii, inner, radii: innerRadii).crosses
+    }
+
+    /// ``intersect(_:radii:_:radii:)`` and whether it fell to the square box between two clips of which one is rounded.
+    private static func intersectReportingCrossing(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
+                                                   _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
+        -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>, crosses: Bool) {
         let bounds = intersect(outer, inner)
 
         let containedNonStrict =
@@ -1325,7 +1340,7 @@ public final class Frame {
         let outerIsSquare = outerRadii.topLeft == Pixels(0) && outerRadii.topRight == Pixels(0) &&
             outerRadii.bottomRight == Pixels(0) && outerRadii.bottomLeft == Pixels(0)
         if outerIsSquare && containedNonStrict {
-            return (bounds, innerRadii)
+            return (bounds, innerRadii, false)
         }
 
         let strictlyInside =
@@ -1335,7 +1350,7 @@ public final class Frame {
                 < outer.origin.x.value + outer.size.width.value &&
             inner.origin.y.value + inner.size.height.value
                 < outer.origin.y.value + outer.size.height.value
-        if strictlyInside { return (bounds, innerRadii) }
+        if strictlyInside { return (bounds, innerRadii, false) }
 
         // 3. (plan task 11 part 2, `TE-AJ` item 5, run AFTER the two cases
         //    above so every answer they gave stands — `TE-AQ` item 12) An
@@ -1347,13 +1362,16 @@ public final class Frame {
         //    clip then a circle clip equals the circle alone) is the case the
         //    square fallback drew wrong.
         if Self.roundedRect(inner, radii: innerRadii, liesInside: outer, radii: outerRadii) {
-            return (bounds, innerRadii)
+            return (bounds, innerRadii, false)
         }
         if Self.roundedRect(outer, radii: outerRadii, liesInside: inner, radii: innerRadii) {
-            return (bounds, outerRadii)
+            return (bounds, outerRadii, false)
         }
-        // Two rounded clips that CROSS: the square box (divergence 92).
-        return (bounds, Corners(all: Pixels(0)))
+        // Two rounded clips that CROSS: the square box, unless a mask makes it exact (divergence 92, `CM-B`).
+        func square(_ c: Corners<Pixels>) -> Bool {
+            c.topLeft == Pixels(0) && c.topRight == Pixels(0) && c.bottomRight == Pixels(0) && c.bottomLeft == Pixels(0)
+        }
+        return (bounds, Corners(all: Pixels(0)), !(square(outerRadii) && square(innerRadii)))
     }
 
     /// Whether `rect`'s rounded region lies inside `container`'s: each of
@@ -3470,6 +3488,15 @@ public final class Frame {
     var groupsBaked = 0
     var groupsFlattenedOversize = 0
 
+    /// Mask scopes pushed, offscreen groups multiplied by a shape clip, lone rects drawn as the ellipse that clips them, and
+    /// masked groups kept to the bounding clip because they held a backdrop or exceeded the target limit (`CM-A`): work
+    /// counters, 0 for a tree with no ellipse or path clip and no crossing rounded clips.
+    var maskScopesPushed = 0
+    var groupsMasked = 0
+    var masksBakedToEllipse = 0
+    var masksFlattenedBackdrop = 0
+    var masksFlattenedOversize = 0
+
     /// Shadows and blurs this frame rendered through a filtered offscreen group, and those whose box exceeded the target
     /// limit and took the CPU raster instead (`GF-B`, `GF-G`): work counters, 0 for a tree the CPU can read.
     var filterGroups = 0
@@ -3702,6 +3729,7 @@ public final class Frame {
                 for i in group.indices {
                     group[i].innerMask = group[i].maskDepth(emittedAt: emitted?[i] ?? depth) > scope.entryClipDepth
                     group[i].outerMaskInner = group[i].transform.map { $0.outerDepth > scope.entryClipDepth } ?? false
+                    if !group[i].groups.isEmpty { Self.flagMarkMasks(&group[i], scope.entryClipDepth) }
                 }
                 if scope.capturing { scope.captures.append(contentsOf: group) }
                 if let shadow = scope.shadow {
@@ -3748,7 +3776,7 @@ public final class Frame {
                     if group.isEmpty { continue }
                 }
                 if scope.kind == .effect, scope.flattens, let entry = scope.outer {
-                    for i in group.indices { group[i] = Self.cutToEntryClip(group[i], entry) }
+                    for i in group.indices { group[i] = Self.cutToEntryClip(group[i], entry, in: scope) }
                 }
                 next.append((group, emitted))
             }
@@ -3782,7 +3810,9 @@ public final class Frame {
             var children = Array(primitives[i..<j])
             for k in children.indices { children[k].groups.removeFirst() }
             i = j
-            if mark.alpha >= 1 {
+            if mark.isMasked {
+                insertMaskedGroup(children, mask: mark.mask[0])
+            } else if mark.alpha >= 1 {
                 insertLeaves(children)
             } else if mark.alpha <= 0 {
                 continue
@@ -3800,6 +3830,11 @@ public final class Frame {
     /// Inserts a finalized filtered group's quad into the frame's scene (`GF-B`).
     func insertGroupQuad(_ quad: MUIImage, group: Scene, layer: Int, transform: MUITransform?, filter: Scene.GroupFilter) {
         scene.insert(quad, group: group, layer: layer, transform: transform, filter: filter)
+    }
+
+    /// Inserts a finalized masked group's quad into the frame's scene (`CM-A`).
+    func insertMaskedQuad(_ quad: MUIImage, group: Scene, mask: Scene, layer: Int) {
+        scene.insert(quad, group: group, layer: layer, mask: mask)
     }
 
     /// `body`'s scene insertions collected into a fresh `Scene` instead of the frame's (`GF-B`); not finalized.
@@ -3845,7 +3880,32 @@ public final class Frame {
     /// transform's outer mask (`outerMaskInner`) — cut by `entry`, the clip in
     /// force at the scope's entry, in the space the scope maps into. Any other
     /// mask was read at or outside the entry and already is that clip.
-    private static func cutToEntryClip(_ primitive: CapturedPrimitive, _ entry: OuterMask) -> CapturedPrimitive {
+    ///
+    /// A mask pushed inside the scope that **crosses** the entry clip (both rounded, neither inside the other) is not cut
+    /// to their square box: it stays as it is and the primitive joins the scope's crossing-mask group, whose mask is the
+    /// entry clip, so the pair intersects exactly (`CM-B`, divergence 92 retired).
+    private static func cutToEntryClip(_ primitive: CapturedPrimitive, _ entry: OuterMask,
+                                       in scope: PaintScope) -> CapturedPrimitive {
+        var crossed = false
+        var p = cutContentToEntryClip(primitive, entry, crossed: &crossed)
+        // The marks' masks go through the same cut; a crossing of theirs is the entry clip's too.
+        for i in p.groups.indices where p.groups[i].isMasked {
+            p.groups[i].mask[0] = cutContentToEntryClip(p.groups[i].mask[0], entry, crossed: &crossed)
+        }
+        guard crossed else { return p }
+        let none = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
+        let r = MUIRect(bounds: Self.unboundedMask, contentMask: entry.bounds, maskCornerRadii: entry.radii,
+                        background: MUIHsla(h: 0, s: 0, l: 1, a: 1), borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+                        cornerRadii: none, borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: 0,
+                        shape: PrimitiveShape.roundedRectangle.rawValue)
+        let mask = CapturedPrimitive(kind: .rect(r), layer: p.layer, innerMask: false)
+        p.groups.insert(GroupMark(token: scope.crossingMaskToken, alpha: 1, mask: [mask], maskDepth: scope.entryClipDepth),
+                        at: 0)
+        return p
+    }
+
+    private static func cutContentToEntryClip(_ primitive: CapturedPrimitive, _ entry: OuterMask,
+                                              crossed: inout Bool) -> CapturedPrimitive {
         func cut(_ mask: MUIBounds, _ radii: MUICorners) -> (MUIBounds, MUICorners) {
             func bounds(_ b: MUIBounds) -> Bounds<Pixels> {
                 Bounds(origin: Point(x: Pixels(b.origin.x), y: Pixels(b.origin.y)),
@@ -3854,6 +3914,10 @@ public final class Frame {
             func corners(_ c: MUICorners) -> Corners<Pixels> {
                 Corners(topLeft: Pixels(c.topLeft), topRight: Pixels(c.topRight),
                         bottomRight: Pixels(c.bottomRight), bottomLeft: Pixels(c.bottomLeft))
+            }
+            if clipsCross(bounds(entry.bounds), radii: corners(entry.radii), bounds(mask), radii: corners(radii)) {
+                crossed = true
+                return (mask, radii)
             }
             let (b, r) = intersect(bounds(entry.bounds), radii: corners(entry.radii), bounds(mask), radii: corners(radii))
             return (MUIBounds(origin: MUIPoint(x: b.origin.x.value, y: b.origin.y.value),

@@ -350,10 +350,15 @@ extension Frame {
         let union = snapshot.dropFirst().reduce(first.screenBounds) { $0.union($1.screenBounds) }
         let mask = effect.map(union)
         let layer = (scene.highestLayer ?? 0) + 1
+        var replayed: [CapturedPrimitive] = []
         for primitive in snapshot {
             guard let moved = effect.apply(to: primitive, flattens: true, outer: nil) else { continue }
-            insertIntoScene(moved.replayed(mask: mask, layer: layer))
+            var p = moved.replayed(mask: mask, layer: layer)
+            // Opacity marks draw faded by their colours, as ever; a mask (`CM-A`) is kept, so the preview shows the clipped shape.
+            p.bakeOpacityMarks()
+            replayed.append(p)
         }
+        insertLeaves(replayed)
     }
 
     /// The preview's opacity — MetalUI's reading of `P18`/`P18b` (`DN-J` item 2).
@@ -370,6 +375,9 @@ extension CapturedPrimitive {
         let square = MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0)
         var p = self
         p.layer = layer
+        for k in p.groups.indices where p.groups[k].isMasked {
+            p.groups[k].mask[0] = p.groups[k].mask[0].replayed(mask: mask, layer: layer)
+        }
         if var t = p.transform {
             if !outerMaskInner { t.outerMask = mask; t.outerMaskRadii = square }
             p.transform = t

@@ -41,8 +41,9 @@ public enum LayoutModifier: Sendable {
     case clip(cornerRadius: Pixels = Pixels(0))
     /// SwiftUI's `clipShape(_:)` (plan task 11, part 2, `TE-AJ` item 1): the
     /// shape's geometry in the layer's bounds, pushed as `.clip` pushes its
-    /// rounded rect. An ellipse geometry traps (divergence 91).
-    case clipShape(any Shape)
+    /// rounded rect. An ellipse or path geometry is a masked group (`CM-A`, divergences 91 and 92 retired); `style` is
+    /// the fill rule and anti-aliasing of the clip (SwiftUI's `clipShape(_:style:)`).
+    case clipShape(any Shape, style: FillStyle = FillStyle())
     /// A border over the content (a `Color` since `CR-W`).
     case border(Color, width: Pixels, cornerRadius: Pixels = Pixels(0))
     case opacity(Float)

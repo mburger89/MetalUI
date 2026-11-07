@@ -355,7 +355,7 @@ private let linear1 = Animation.linear(duration: 1)
 /// `RoundedRectangle` (a rounded-rectangle geometry); its radii carry through.
 @Test @MainActor func anUnevenRectangleIsARoundedRectangleGeometryWhenSmall() {
     let geometry = UnevenRoundedRectangle(topLeadingRadius: 12, bottomTrailingRadius: 6).geometry(in: wide)
-    let region = geometry.clipRegion
+    let region = geometry.clip()
     #expect(region.radii.topLeft == 12 && region.radii.bottomRight == 6 && region.radii.topRight == 0)
     #expect(UnevenRoundedRectangle(cornerRadii: RectangleCornerRadii(topLeading: 1))
         == UnevenRoundedRectangle(topLeadingRadius: 1))

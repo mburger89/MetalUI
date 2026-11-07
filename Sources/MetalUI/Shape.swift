@@ -70,23 +70,6 @@ public struct ShapeGeometry: Sendable, Equatable {
         return Corners(all: Pixels(0))
     }
 
-    /// The rect and radii a clip pushes (`TE-AJ` items 1–2). **An ellipse or
-    /// a path traps** (divergence 91, `TE-AJ` item 4, `GX-D`): every
-    /// primitive's mask is a rounded rectangle, and a custom `Shape` can return
-    /// either at run time, so the check is here, at the clip, not in the type.
-    var clipRegion: (bounds: Bounds<Pixels>, radii: Corners<Pixels>) {
-        switch kind {
-        case let .roundedRectangle(radii, _):
-            return (rect, radii)
-        case .ellipse:
-            preconditionFailure("clipShape(_:) of an ellipse cannot be drawn: every primitive's mask is "
-                                + "a rounded rectangle (divergence 91, TE-AJ item 4)")
-        case .path:
-            preconditionFailure("clipShape(_:) of a path cannot be drawn: every primitive's mask is "
-                                + "a rounded rectangle (divergence 91, GX-D)")
-        }
-    }
-
     /// Whether `point` lies in this geometry — the hit test of a declared
     /// `.contentShape(_:)` (plan task 12 part 1, ruling `IX-L`). Half-open on
     /// the rect's max edges, as `Bounds.contains` is; inside a rounded corner's

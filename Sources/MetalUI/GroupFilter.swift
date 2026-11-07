@@ -17,7 +17,7 @@ extension Frame {
     /// nothing after its first frame.
     static func liftSharedMarks(_ leaf: inout [CapturedPrimitive]) -> [GroupMark] {
         var lifted: [GroupMark] = []
-        while let first = leaf.first?.groups.first,
+        while let first = leaf.first?.groups.first, !first.isMasked,
               leaf.allSatisfy({ $0.groups.first?.token === first.token && $0.groups[0].alpha == first.alpha }) {
             lifted.append(first)
             for i in leaf.indices { leaf[i].groups.removeFirst() }

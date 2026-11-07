@@ -320,11 +320,27 @@ struct RenderEffect: Equatable {
     ///   when `outerMaskInner`, and under a non-flattening one becomes its
     ///   bounding box cut by the scope's own outer mask (divergence 109).
     func apply(to primitive: CapturedPrimitive, flattens: Bool, outer: OuterMask?) -> CapturedPrimitive? {
+        guard var p = applyToShape(to: primitive, flattens: flattens, outer: outer) else { return nil }
+        guard p.groups.contains(where: \.isMasked) else { return p }
+        // The masks of the marks move with the content, by the same map and none of the fade (`CM-A`). A mask that
+        // cannot be mapped draws nothing, so its content does not draw unmasked.
+        let geometry = RenderEffect(alpha: 1, homography: homography)
+        for i in p.groups.indices where p.groups[i].isMasked {
+            guard let mapped = geometry.applyToShape(to: p.groups[i].mask[0], flattens: flattens, outer: outer) else {
+                return nil
+            }
+            p.groups[i].mask[0] = mapped
+        }
+        return p
+    }
+
+    /// ``apply(to:flattens:outer:)`` without the marks' masks.
+    private func applyToShape(to primitive: CapturedPrimitive, flattens: Bool, outer: OuterMask?) -> CapturedPrimitive? {
         var p = primitive
         if p.transform == nil && flattens {
             // A primitive in an opacity group is faded as the group is, by its outermost mark (`GO-B`), never by its colours.
-            let a: Float = p.groups.isEmpty ? alpha : 1
-            if !p.groups.isEmpty { p.groups[0].alpha *= alpha }
+            let a: Float = p.fadesByOutermostMark ? 1 : alpha
+            if p.fadesByOutermostMark { p.groups[0].alpha *= alpha }
             switch p.kind {
             case .rect(var r):
                 r.bounds = map(r.bounds)
@@ -515,6 +531,16 @@ final class GroupToken: Sendable {}
 struct GroupMark {
     let token: GroupToken
     var alpha: Float
+    /// A masked group's mask (`CM-A`): empty for an opacity mark, one primitive (a white ellipse rect, or a path) in the
+    /// space the content was emitted in for a masked one. An array, because a struct cannot hold itself. A masked mark's
+    /// alpha is 1: an opacity outside a clip is per leaf (probe `CM6`, `CM-C`).
+    var mask: [CapturedPrimitive] = []
+    /// The clip depth the mask's own clip (its `contentMask`) was read at: what `processScopes` compares with a scope's
+    /// entry depth to set the mask's `innerMask`, as it does for a primitive's. Meaningless for an opacity mark.
+    var maskDepth = 0
+
+    /// Whether this mark multiplies the group's pixels by a shape (`CM-A`) rather than fading them (`GO-B`).
+    var isMasked: Bool { !mask.isEmpty }
 }
 
 /// One primitive as a paint scope receives it — what a transition's ghost and
@@ -638,18 +664,33 @@ struct CapturedPrimitive {
 
     mutating func multiplyAlpha(_ alpha: Float) {
         guard alpha != 1 else { return }
-        // In an opacity group the group is faded, not its pixels (`GO-B`).
-        if !groups.isEmpty { groups[0].alpha *= alpha; return }
+        // In an opacity group the group is faded, not its pixels (`GO-B`); in a masked one the leaves are (`CM-C`).
+        if fadesByOutermostMark { groups[0].alpha *= alpha; return }
         multiplyColourAlpha(alpha)
     }
+
+    /// Whether an enclosing fade is multiplied into the outermost mark (an opacity group's) and not into the colours: a
+    /// masked group's mark carries no alpha, so a fade outside it fades each leaf (`CM-C`).
+    var fadesByOutermostMark: Bool { groups.first.map { !$0.isMasked } ?? false }
 
     /// Multiplies every mark into the colours and drops them: the primitive as it draws when nothing composites it (a
     /// single leaf, an oversize group, the belt at `insertIntoScene`, a CPU raster's input; `GO-C`).
     mutating func bakeGroupAlpha() {
         guard !groups.isEmpty else { return }
+        // A mask is dropped with its mark: the bounding clip it sat under still cuts the primitive (`CM-A`).
         var alpha: Float = 1
         for mark in groups { alpha *= mark.alpha }
         groups = []
+        multiplyColourAlpha(alpha)
+    }
+
+    /// Multiplies every **opacity** mark into the colours and drops it, keeping the masks (`CM-A`): a drag preview fades its
+    /// primitives one by one but still draws the clip shape.
+    mutating func bakeOpacityMarks() {
+        guard groups.contains(where: { !$0.isMasked }) else { return }
+        var alpha: Float = 1
+        for mark in groups where !mark.isMasked { alpha *= mark.alpha }
+        groups.removeAll { !$0.isMasked }
         multiplyColourAlpha(alpha)
     }
 

@@ -110,7 +110,13 @@ extension Scene {
             captured.transform = capturedTransform(index: Int(quad.filter >> 8))
             return [captured]
         }
-        let mark = GroupMark(token: GroupToken(), alpha: groups[index].opacity)
+        var mark = GroupMark(token: GroupToken(), alpha: groups[index].opacity)
+        if let maskScene = groupMasks[index], let run = maskScene.drawList.first,
+           let shape = maskScene.capturedPrimitive(run.kind, at: run.start) {
+            // A masked group (`CM-A`): the ghost is masked again, by the primitive the mask scene drew (a path mask reads
+            // back as its raster image, which is what it had already become).
+            mark = GroupMark(token: GroupToken(), alpha: 1, mask: [shape])
+        }
         var out: [CapturedPrimitive] = []
         for run in child.drawList {
             for k in run.start..<(run.start + run.count) {

@@ -705,9 +705,19 @@ public struct PaintPass {
                         offsetBy offset: Point<Pixels>,
                         cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
                         _ body: () -> Void) {
-        frame.pushClip(bounds, offset: offset, radii: cornerRadii)
-        defer { frame.popClip() }
-        body()
+        frame.paintClipped(bounds, offset: offset, radii: cornerRadii, body)
+    }
+
+    /// A shape clip (`CM-A`): the bounding clip of `region`, inside a mask scope when the shape needs a mask (an ellipse,
+    /// a path); a rounded rectangle is exactly `clipped(to:offsetBy:cornerRadii:_:)` at a zero offset.
+    func clipped(to region: ClipRegion, _ body: () -> Void) {
+        let zero = Point(x: Pixels(0), y: Pixels(0))
+        guard let mask = region.mask else {
+            return clipped(to: region.bounds, offsetBy: zero, cornerRadii: region.radii, body)
+        }
+        frame.paintWithMask(mask) {
+            clipped(to: region.bounds, offsetBy: zero, cornerRadii: region.radii, body)
+        }
     }
 
     /// Runs `body` with the layer hoisted to the root layer and the clip

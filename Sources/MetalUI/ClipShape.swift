@@ -9,9 +9,15 @@ extension ProposalElementGroup {
     /// `clipShape(_:)` (probes C2, C7). One paint-only layer, like
     /// ``clip(cornerRadius:)``: it changes no layout (C8), and a hitbox inside
     /// is clipped to the geometry's **bounding rect** (MetalUI's existing rule,
-    /// `TE-AQ` item 4). An ellipse geometry traps (divergence 91).
-    public func clipShape<S: Shape>(_ shape: S) -> ModifiedContent<ProposalBase, LayoutModifier> {
-        _wrapLayout(.clipShape(shape))
+    /// `TE-AQ` item 4). A rounded rectangle, circle or capsule is the per-primitive
+    /// mask it always was; an **ellipse, a path, an even-odd or a non-antialiased
+    /// `style`** paints its content into an offscreen group multiplied by the
+    /// shape's coverage (`CM-A`, probe `CM0`, divergence 91 retired). An opacity
+    /// outside the clip fades each leaf (`CM6`); a shadow of the clipped view is the
+    /// shape's (`CM3`); a material inside keeps the bounding box (divergence 224).
+    public func clipShape<S: Shape>(_ shape: S, style: FillStyle = FillStyle())
+        -> ModifiedContent<ProposalBase, LayoutModifier> {
+        _wrapLayout(.clipShape(shape, style: style))
     }
 
     /// Clips this subtree to its bounds — SwiftUI's `clipped()` (probe C3);
@@ -34,10 +40,11 @@ extension StyledElement {
     /// the legacy `clipShape(_:)` (`TE-AJ` item 2). A `Decoration` field,
     /// returning `Self`: no layer and no identity level. `& Hashable` because
     /// `Decoration` is `Hashable` (`TE-AQ` item 3); every built-in shape is.
-    /// It clips hitboxes as ``clipped()`` does, snaps under animation, and an
-    /// ellipse geometry traps (divergence 91).
-    public func clipShape<S: Shape & Hashable>(_ shape: S) -> Self {
-        decorating { $0.clipShape = ClipShapeBox(shape) }
+    /// It clips hitboxes as ``clipped()`` does (to the bounding rect), snaps under
+    /// animation, and draws an ellipse, path or non-default `style` as a masked
+    /// group (`CM-A`).
+    public func clipShape<S: Shape & Hashable>(_ shape: S, style: FillStyle = FillStyle()) -> Self {
+        decorating { $0.clipShape = ClipShapeBox(shape, style: style) }
     }
 }
 
@@ -45,18 +52,21 @@ extension StyledElement {
 /// `Sendable, Hashable` (`TE-AQ` item 3).
 struct ClipShapeBox: Sendable, Hashable {
     let shape: any Shape & Hashable
+    let style: FillStyle
 
-    init(_ shape: some Shape & Hashable) {
+    init(_ shape: some Shape & Hashable, style: FillStyle = FillStyle()) {
         self.shape = shape
+        self.style = style
     }
 
     static func == (lhs: ClipShapeBox, rhs: ClipShapeBox) -> Bool {
-        sameShape(lhs.shape, rhs.shape)
+        lhs.style == rhs.style && sameShape(lhs.shape, rhs.shape)
     }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(ObjectIdentifier(type(of: shape)))
         shape.hash(into: &hasher)
+        hasher.combine(style)
     }
 }
 

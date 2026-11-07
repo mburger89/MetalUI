@@ -118,6 +118,12 @@ public struct Scene: Sendable {
     /// (`GF-C`). ``GroupFilter/none`` for an opacity group.
     public private(set) var groupFilters: [GroupFilter] = []
 
+    /// The mask each of ``groups`` multiplies its target by (after the content, before the filter), parallel to
+    /// ``groupScenes`` (`CM-A`): `nil` for an unmasked group. A mask scene holds only rects and images, finalized, in the
+    /// content scene's coordinates; the renderer draws it into a scratch target and keeps the group's pixels times its
+    /// alpha (`dst *= mask.a`).
+    public private(set) var groupMasks: [Scene?] = []
+
     /// Per-instance affines (ruling GX-F), in first-use order; a primitive
     /// names entry `i` by storing `i + 1` (``insert(_:layer:transform:)``):
     /// `MUIRect.shape` and `MUIImage.filter` bits 8…31, `MUIGlyph.transform`.
@@ -287,9 +293,11 @@ public struct Scene: Sendable {
     /// ``groupScenes``; **every group has its own** (no sharing), and the quad is
     /// untransformed unless a `transform` is given (the group content carries its own transforms inside `group`).
     /// `group` must be finalized. A `transform` (`GF-C`) is the quad's record (a filtered group drawn under a
-    /// projective effect, `PJ-G`); `filter` runs over the group's target before the quad samples it.
+    /// projective effect, `PJ-G`); `filter` runs over the group's target before the quad samples it. A `mask` (`CM-A`) multiplies the target by its alpha first.
     public mutating func insert(_ quad: MUIImage, group: Scene, layer: Int = 0, transform: MUITransform? = nil,
-                                filter: GroupFilter = .none) {
+                                filter: GroupFilter = .none, mask: Scene? = nil) {
+        precondition(mask.map { $0.groups.isEmpty && $0.backdrops.isEmpty && $0.surfaces.isEmpty } ?? true,
+                     "a group's mask scene holds only rects and images (CM-A)")
         var quad = quad
         let index = transformIndex(transform)
         quad.filter = (quad.filter & 0xFF) | index << 8
@@ -297,6 +305,7 @@ public struct Scene: Sendable {
         groups.append(quad)
         groupScenes.append(group)
         groupFilters.append(filter)
+        groupMasks.append(mask)
         groupSequence.append(nextSequence)
         groupLayer.append(layer)
         nextSequence += 1
@@ -488,6 +497,7 @@ public struct Scene: Sendable {
         groups.removeAll(keepingCapacity: true)
         groupScenes.removeAll(keepingCapacity: true)
         groupFilters.removeAll(keepingCapacity: true)
+        groupMasks.removeAll(keepingCapacity: true)
         surfaceTargets.removeAll(keepingCapacity: true)
         transforms.removeAll(keepingCapacity: true)
         drawList.removeAll(keepingCapacity: true)
@@ -620,6 +630,7 @@ public struct Scene: Sendable {
         var sortedGroups: [MUIImage] = []
         var sortedGroupScenes: [Scene] = []
         var sortedGroupFilters: [GroupFilter] = []
+        var sortedGroupMasks: [Scene?] = []
         var sortedGroupSequence: [Int] = []
         var sortedGroupLayer: [Int] = []
         // Device boxes of the backdrops in the run being built (ruling BB-E),
@@ -698,6 +709,7 @@ public struct Scene: Sendable {
                 sortedGroups.append(groups[entry.4])
                 sortedGroupScenes.append(groupScenes[entry.4])
                 sortedGroupFilters.append(groupFilters[entry.4])
+                sortedGroupMasks.append(groupMasks[entry.4])
                 sortedGroupSequence.append(entry.2)
                 sortedGroupLayer.append(entry.0)
             }
@@ -727,6 +739,7 @@ public struct Scene: Sendable {
         groups = sortedGroups
         groupScenes = sortedGroupScenes
         groupFilters = sortedGroupFilters
+        groupMasks = sortedGroupMasks
         groupSequence = sortedGroupSequence
         groupLayer = sortedGroupLayer
         drawList = runs
