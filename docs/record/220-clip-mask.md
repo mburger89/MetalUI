@@ -114,7 +114,7 @@ Every site that edits a primitive's geometry or its clip, and what it does with 
 - [MEASURED] `Backends/SDL` on macOS (AccessKit flags), by filter `SDLClipMaskTests|ReplayFixtureTests`: **5 tests (SDLClipMaskTests) and 39 tests (ReplayFixtureTests) passed**. The whole target exits mid-run on this Mac at `aFailedBlurTextureDrawsTheFlatTint` (the same on master) and was not run in one process.
 - [MEASURED] Parity on SDL-over-MSL (`Replay --portable`), frames 0-18: **`differing pixels=0, max channel delta=0` on every frame, outside and inside sprites max delta 0**, including the new **frame 18** (`720x380: 0 rects, 0 glyphs, 0 images, 0 transforms, 10 groups, 10 runs`); the draw-order mutation control still detects (283 differing pixels). Stop condition 6 (destination-in not byte-equal) did not fire. Linux Vulkan and Windows D3D12 not run (CI only).
 - [MEASURED] `zsh docs/probes/closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
-- [MEASURED] Portable (`metalui-portable:latest`, from a `git archive` of the final head): see the line the finishing commit adds below.
+- [MEASURED] Portable (`metalui-portable:latest`, from a `git archive` of the final head): **799 tests in 10 suites passed** in `MetalUITestingTests` (91.752 s), plus 9, 16, 73, 68, 49, 286, 154 and 24 in the other targets (`swift build --build-tests` then `swift test --skip-build --no-parallel` over a `git archive` of `92465734`).
 
 ## 7. The SDL/D3D12 half (run 2, `CM-G`)
 
