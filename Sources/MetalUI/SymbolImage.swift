@@ -4,8 +4,8 @@ import MetalUIScene
 
 // `Image(systemName:)` (record 230, prefix `SYM-`): the request, the name resolution, the shared plan layout and paint
 // read, the diagnostics and the accessibility labels. The raster route is `SymbolRasterAppKit.swift`, behind
-// `canImport(MetalUIAppKit)`; **on any other platform every name is missing** (an empty 0 x 0 leaf) until the bundled
-// icons land (PR 2, `SYM-I`).
+// `canImport(MetalUIAppKit)`; **any other platform draws the bundled Lucide icons** (`BundledSymbols.swift`, record 232,
+// `SYM-I`), and so does macOS under the `SymbolRoute.forcesBundled` test seam.
 
 /// Resolves the symbol name that `variants` select (probes `S5`, `S5b`): the name with `.slash`, then the shape
 /// (`.circle`, `.square`, `.rectangle`), then `.fill` appended, **dropping words with the priority slash, shape,
@@ -72,8 +72,8 @@ extension Image {
     /// A symbol from the platform's catalogue — SwiftUI's `Image(systemName:)` (`SYM-B`). Its size is the font's:
     /// the point size and weight of the font in the environment, scaled by `imageScale`, laid out as SwiftUI lays
     /// the same symbol out (probe `S1`: the alignment rect's width, the image's height), with a first and last baseline
-    /// (`S2`). **macOS draws the platform's own SF Symbols; on Linux and Windows every name is missing until the
-    /// bundled icons land (`SYM-I`).** A name that does not exist is a 0 x 0 leaf that draws nothing and logs nothing
+    /// (`S2`). **macOS draws the platform's own SF Symbols; Linux and Windows draw the bundled Lucide icon a name is mapped to,
+    /// in a square box fitted to the SF numbers (`SYM-I`, `SYM-J`; divergences 230, 231).** A name that does not exist is a 0 x 0 leaf that draws nothing and logs nothing
     /// (probe `S6`). The image is labelled for accessibility with SwiftUI's own label for the name (`SYM-H`).
     public init(systemName: String) {
         content = .symbol(name: systemName)
@@ -149,8 +149,8 @@ enum SymbolAccessibilityLabels {
 }
 
 #if !canImport(MetalUIAppKit)
-/// The platform side of `Image(systemName:)` on a platform without the AppKit raster route: every name is missing
-/// (`SYM-C`; the bundled icons are PR 2).
+/// The AppKit side of `Image(systemName:)` where AppKit is not importable: never reached (`SymbolRoute.usesBundled` is
+/// always true there), so every answer is "missing" (`SYM-C`, `SYM-N`).
 @MainActor
 enum SymbolBackend {
     static func exists(_ name: String) -> Bool { false }

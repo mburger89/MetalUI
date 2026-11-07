@@ -267,7 +267,7 @@ traps naming `GX-D`), `ShapeGeometry` (`.roundedRectangle`, `.ellipse`,
 `Circle`, `Capsule`, `Ellipse`, `ShapeView` (`.fill`, `.stroke`,
 `.strokeBorder`, each also with a `FillStyle`/`StrokeStyle`),
 `.background(_:in:)`; `Image` (`.resizable`, `.interpolation` — 93),
-`Image.Interpolation`, `ContentMode`; **`Image(systemName:)`** with `Image.Scale`/`imageScale`, `SymbolRenderingMode` (no `.palette`)/`symbolRenderingMode`, `SymbolVariants`/`symbolVariant` (A; macOS draws SF Symbols through AppKit, Linux and Windows draw nothing until the bundled icons, divergences 227-229, `SYM-`); `ImageBitmap` (M, the portable image
+`Image.Interpolation`, `ContentMode`; **`Image(systemName:)`** with `Image.Scale`/`imageScale`, `SymbolRenderingMode` (no `.palette`)/`symbolRenderingMode`, `SymbolVariants`/`symbolVariant` (A; macOS draws SF Symbols through AppKit, Linux and Windows draw a bundled Lucide icon for a mapped name, divergences 227-231, `SYM-`); **`Icon`** with `Icon.Layer` (`.stroke(width:cap:join:)`/`.fill(_:)`, `.primary`/`.secondary`), `Icon.bundled(_:)`, `Image(icon:label:)` and `Image(decorative:)` over an `Icon` (M; vector layers of `Path`s, `MetalUIIconData`); `ImageBitmap` (M, the portable image
 type). **Decoding** (`PX-B`…`PX-E`): `ImageBitmap(contentsOfFile:)`,
 `ImageBitmap(data:)` and `ImageBitmap(resource:withExtension:subdirectory:bundle:)`
 (M) decode PNG and JPEG with MetalUI's own decoder (stb_image, vendored as

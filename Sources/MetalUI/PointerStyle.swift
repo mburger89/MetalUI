@@ -116,6 +116,9 @@ public struct PointerStyle: Sendable, Hashable {
         case .bitmap(let bitmap, let bitmapScale):
             texture = bitmap.texture
             scale = bitmapScale
+        case .icon:
+            // `SYM-L`: an icon is paths with no raster to hand a cursor (carried, `SYM-M`); the arrow stays.
+            return PointerStyle(.arrow)
         case .symbol(let name):
             // `SYM-L`: one raster of the symbol at the body font, scale 2, cached by the symbol cache so rebuilding the
             // `Image` every frame is one cursor. A missing name leaves the arrow.
