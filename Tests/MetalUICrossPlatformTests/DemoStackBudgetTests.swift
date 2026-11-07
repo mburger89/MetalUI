@@ -50,6 +50,7 @@ private func buildEveryProductionTree() {
     buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
     buildTheGroupFilterStrip()     // a filter over a group (GF-)
     buildTheClipMaskStrip()        // shape clips as masked groups (CM-)
+    buildTheTextZoomStrip()        // text under transforms (TZ-)
 }
 
 /// The looks demo's filtered-group strip and its two stateful cards (components built at layout), in its own frame
@@ -72,6 +73,17 @@ private func buildTheClipMaskStrip() {
     _ = looksClipEllipseColumn()
     _ = looksClipPathColumn()
     _ = looksClipCrossingColumn()
+}
+
+/// The looks demo's text-zoom strip, split into its columns, each in its own frame (`TZ-`).
+@MainActor @inline(never)
+private func buildTheTextZoomStrip() {
+    _ = looksTextZoomStrip()
+    _ = LooksTextZoomStrip().content
+    _ = looksZoomStaticColumn()
+    _ = looksZoomAnimatedColumn()
+    _ = looksZoomNestedClipColumn()
+    _ = LooksZoomingWord().content
 }
 
 /// The looks demo's 3D strip and its flip card (a `Component` built at layout), in its own frame as

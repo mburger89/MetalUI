@@ -122,7 +122,13 @@ func theBracketNodeDragIsCountedAfterPrepaintReplay(arm: BracketArm) throws {
     /// `accessibility: false` never activates an accessibility client, so no ledger holds accessibility records.
     init(_ window: TestWindow, accessibility: Bool = true) throws {
         func bytes<T>(_ array: [T]) -> Data { array.withUnsafeBytes { Data($0) } }
-        rects = bytes(window.scene.rects); glyphs = bytes(window.scene.glyphs); images = bytes(window.scene.images)
+        // Verify mode (`RK-N`) builds a replayed frame whose scene is discarded before the fresh one is presented, and a glyph
+        // re-keyed at insert (`TZ-A`) packs its raster when a scene first holds it, so the two windows' atlases can pack the same
+        // rasters in another order: the slot's size and the glyph's every other field are still compared, its origin in an
+        // atlas of its own is not (an origin names no pixel two atlases share).
+        var glyphRecords = window.scene.glyphs
+        if rsVerifying { for i in glyphRecords.indices { glyphRecords[i].atlasBounds.origin = MUIPoint(x: 0, y: 0) } }
+        rects = bytes(window.scene.rects); glyphs = bytes(glyphRecords); images = bytes(window.scene.images)
         counts = [window.scene.rects.count, window.scene.glyphs.count, window.scene.images.count]
         tree = accessibility ? try window.accessibilityTree : nil
         hitboxes = window.window.testingHitboxFingerprints

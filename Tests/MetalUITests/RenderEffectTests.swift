@@ -444,24 +444,10 @@ private let linear1 = Animation.linear(duration: 1)
     #expect(effectRecord(ring, in: bordered) != nil, "the border is rotated too")
 }
 
-// MARK: - 2.24 (divergence 109)
+// MARK: - 2.24 (divergence 109, retired)
 
-/// **2.24** (divergence 109). A clip between two nested rotations becomes its
-/// screen bounding box: the 40 × 20 clip under the outer 90° is the 20 × 40
-/// rect about the same centre, and that is the composed record's outer mask.
-/// Mutation **M2u**: the middle clip dropped.
-@Test @MainActor func aClipBetweenTwoNestedRotationsIsItsScreenBoundingBox() throws {
-    let scene = effectFrame(fxBar(40, 20).rotationEffect(deg90).clipped().rotationEffect(deg90)).finalizedScene()
-    let r = try #require(effectRects(scene).first)
-    let record = try #require(effectRecord(r, in: scene), "a record")
-    let cx = r.bounds.origin.x + 20, cy = r.bounds.origin.y + 10
-    let expected = MUIBounds(origin: MUIPoint(x: cx - 10, y: cy - 20), size: MUISize(width: 20, height: 40))
-    #expect(abs(record.outerMask.origin.x - expected.origin.x) < 1e-3
-                && abs(record.outerMask.origin.y - expected.origin.y) < 1e-3
-                && abs(record.outerMask.size.width - 20) < 1e-3 && abs(record.outerMask.size.height - 40) < 1e-3,
-            "the outer mask is the clip's screen bounding box: \(fxDescribe(record.outerMask))")
-    #expect(fxMatches(record, .rotation(radians: Double.pi, about: Double(cx), Double(cy))), "180° in all")
-}
+// `aClipBetweenTwoNestedRotationsIsItsScreenBoundingBox` is replaced by `NestedClipMaskTests` (`TZ-B`): the clip between two
+// rotations is exact, and the quarter-turn pin lives there as `aClipBetweenRightAngleRotationsTakesNoGroup`.
 
 // MARK: - 2.25 (MC-C)
 
