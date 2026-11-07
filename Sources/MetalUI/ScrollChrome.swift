@@ -38,6 +38,8 @@ struct ScrollChrome {
     /// offset is then **logical**, the distance from the leading (right) edge, so a larger offset moves the
     /// content to the right. Set by the scroller from the environment at its site; vertical never.
     var mirrored = false
+    /// The scroller's `defaultScrollAnchor` declarations (`DSA-A`); empty for a scroller with none.
+    var anchors = DefaultScrollAnchors()
 
     /// `0 ... max(0, content - viewport)`.
     ///
@@ -75,7 +77,7 @@ struct ScrollChrome {
     /// Whether two stored scroll states are the same value (`RW-H`): the compared write's `unchanged:`.
     static func sameScrollState(_ a: ScrollState, _ b: ScrollState) -> Bool {
         a.offset == b.offset && a.viewportExtent == b.viewportExtent && a.lastScrollTime == b.lastScrollTime
-            && a.glide == b.glide
+            && a.glide == b.glide && a.anchor == b.anchor
     }
 
     /// The offset a phase of the frame stamped `now` sees (`SP-F`): the stored one, or the animated value of
@@ -136,7 +138,10 @@ struct ScrollChrome {
                 $0.offset = step.offset
                 if step.finished { $0.glide = nil } else { gliding = true }
             }
-            $0.offset = Self.clamp(offset: $0.offset, content: content, viewport: viewport)
+            if !anchors.isEmpty {   // `DSA-D`: the anchor decides the offset the clamp then bounds
+                $0.offset = anchoredOffset($0.offset, content: content, viewport: viewport, memory: &$0.anchor)
+            }
+            $0.offset = clampOffset($0.offset, content: content, viewport: viewport)
             resolved = $0.offset
             // The half `ScrollState.viewportExtent`'s own doc names: this is
             // the only writer, and it is what lets NEXT frame's `requestLayout`
@@ -163,7 +168,7 @@ struct ScrollChrome {
         let viewport = extent(bounds.size)
         let content = extent(pass.bounds(of: contentNode).size)
         let stored = Self.currentOffset(pass.readState(id, initial: ScrollState()), now: pass.frame.timestamp)   // `RW-H`
-        return Self.clamp(offset: stored, content: content, viewport: viewport)
+        return clampOffset(stored, content: content, viewport: viewport)
     }
 
     /// The fading overlay scroll indicator: a thumb sized and positioned to

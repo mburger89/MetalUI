@@ -70,6 +70,9 @@ public struct ScrollState: Sendable {
     /// in all three phases against the frame's one timestamp, so layout, prepaint and paint agree.
     var glide: ScrollGlide?
 
+    /// What a `defaultScrollAnchor` remembers between frames (`DSA-D`); untouched for a scroller with none.
+    var anchor = ScrollAnchorMemory()
+
     /// A scroll state; every field defaults to an unscrolled, unmeasured view.
     public init(offset: Double = 0, lastScrollTime: Double = -.infinity, viewportExtent: Double = 0) {
         self.offset = offset
@@ -124,6 +127,15 @@ public struct ScrollContext: Sendable, Equatable {
     /// therefore set it truthfully rather than defaulting it, and there is no
     /// default for exactly that reason.
     public var axis: ScrollAxis
+
+    /// Whether the scroller is pinned to the END of its content this frame (a `defaultScrollAnchor` at the
+    /// trailing edge, `DSA-C`): a windowing reader (a lazy container, a `List`) then windows around the end of
+    /// its own extent instead of around `offset`, which is the end of LAST frame's content.
+    var followsEnd = false
+
+    /// The offset a windowing reader clamps into its own extent: `offset`, or past every extent when the
+    /// scroller follows its end.
+    var windowOffset: Double { followsEnd ? Double.greatestFiniteMagnitude : offset }
 
     /// A scroll context for a scroller along `axis`.
     public init(offset: Double, viewportExtent: Double, axis: ScrollAxis) {
@@ -210,6 +222,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// The `scrollPosition(id:anchor:)` binding, if any (`SP-A`).
     var position: ScrollPositionBinding?
 
+    /// The `defaultScrollAnchor` declarations, if any (`DSA-A`).
+    var defaultAnchors = DefaultScrollAnchors()
+
     /// A scroller over `content` along `axis`; `elementID` names it for its
     /// scroll state. Its viewport fills its proposal on the scrolling axis
     /// (`LR-BB`).
@@ -255,7 +270,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// why, and for what the fold deliberately left alone.
     var chrome: ScrollChrome {
         ScrollChrome(axis: axis, cornerRadius: cornerRadius,
-                     indicatorVisibility: indicatorVisibility)
+                     indicatorVisibility: indicatorVisibility, anchors: defaultAnchors)
     }
 
     public mutating func requestLayout(_ id: GlobalElementID,
@@ -283,9 +298,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // it) sees none of it. `withScrollContext` is generic over its
         // closure's result, so the subtree's own return value threads
         // straight out with no local IUO to hoist it through.
-        let (children, inner) = pass.withScrollContext(
-            ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
-        ) {
+        var context = ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
+        context.followsEnd = chrome.layoutFollowsEnd(scrollState, raw: rawOffset)   // `DSA-C`
+        let (children, inner) = pass.withScrollContext(context) {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
 

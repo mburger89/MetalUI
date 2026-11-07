@@ -196,5 +196,5 @@ Ranked from the carried/not-built sweep (decisions docs' Carried sections, the "
 - [ ] G3. `Image(systemName:)` plus portable vector icons.
 - [ ] G4. A closable tab bar.
 - [ ] G5. A two-axis `ScrollView`.
-- [ ] G6. `defaultScrollAnchor(.bottom)`: stick-to-bottom on a `LazyVStack`.
+- [ ] G6. `defaultScrollAnchor(.bottom)`: stick-to-bottom on a `LazyVStack`. (PR #221, branch feat/default-scroll-anchor, record 224, `DSA-A`..`DSA-I`, divergence 226, next label 227) `ScrollView`/`ProposalScrollView` `.defaultScrollAnchor(_:)` and `(_:for:)` with `ScrollAnchorRole`; measured against SwiftUI (probe `swiftui-default-scroll-anchor.swift`): `.bottom` starts at the end and follows while the scroller is at it, a wheel up releases, scrolling back re-pins; the pin is decided in layout (`ScrollContext.followsEnd`), so a lazy window is at the end in the frame the rows land; applies on the scroll view itself, not an ancestor (226).
 - [ ] G7. Frame timing and signposts for an external benchmark harness. (PR #219, branch feat/frame-signposts, record 222, `FP-A`..`FP-H`, `docs/frame-timing.md`) `Window.frameTiming`, a ring of per-frame samples (input, layout, prepaint, paint, commit, presented), macOS `OSSignposter` under `com.metalui`.

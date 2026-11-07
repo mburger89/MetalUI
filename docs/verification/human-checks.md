@@ -2332,3 +2332,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **TZ4.** The two clips between 30-degree rotations: do the square and the rounded clip turn with the outer rotation (square and rounded corners, no axis-aligned box showing the inner content's corners)? **Observed:**
 - [ ] **TZ5.** Rotated text (`rotationEffect`) is still the upright raster resampled (divergence 106's residue): is it visibly softer than SwiftUI's at 30 degrees, and acceptable? **Observed:**
 - [ ] **TZ6.** Parity frame 20 (`--expect 21`) on Linux Vulkan and Windows Direct3D 12 in CI: any glyph halo, a missing glyph after the atlas grows, any difference from Metal's at the nested clips' edges? **Observed:**
+
+## DA. `defaultScrollAnchor` - a transcript starts at the bottom and follows it like SwiftUI's (Alloy gap G6; rulings `DSA-A`..`DSA-I`, record 224; decisions `docs/superpowers/2026-11-07-default-scroll-anchor-decisions.md`)
+
+*An agent cannot: the probe `docs/probes/swiftui-default-scroll-anchor.swift` reads SwiftUI's offsets through an offscreen hosting window and the tests read the headless harness, but how a streaming transcript looks and feels under a real trackpad (a flicker on append, a jump when a block above expands, momentum into the bottom) is a person's. Not run.*
+
+- [ ] **DA1.** In a window with a `ScrollView { LazyVStack { ForEach(blocks) } }.defaultScrollAnchor(.bottom)` of a few thousand variable-height blocks, appended every frame or two, does it open at the last block, and does the last block stay glued to the bottom edge while the blocks stream in, with no one-frame flash of older blocks or blank space? **Observed:**
+- [ ] **DA2.** Scroll up with the trackpad while blocks keep arriving: does the content under your eyes stay put (no creep, no jump)? Then scroll back to the bottom (including by momentum): does following resume without a click? **Observed:**
+- [ ] **DA3.** With the transcript pinned, expand and collapse a block above the viewport: does the last block stay at the bottom edge? Scrolled up, expand a block above the viewport: does the content you are reading stay put? **Observed:**
+- [ ] **DA4.** Resize the window taller and shorter while pinned and while scrolled up: pinned stays at the bottom, scrolled up keeps its place? **Observed:**
+- [ ] **DA5.** `ScrollViewReader.scrollTo(someEarlierBlock)` while pinned: does it release (the next append does not yank back), and `scrollTo(lastBlock, anchor: .bottom)` pin again? **Observed:**
