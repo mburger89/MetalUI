@@ -78,6 +78,142 @@ static float ellipse_sdf(float2 p, float2 h) {
     return dot(n, n) < 1.0 ? -d : d;
 }
 
+// ---------------------------------------------------------------------------
+// Continuous corners (divergence 90, ruling CC-, record 226)
+//
+// SwiftUI's `.continuous` corner, read from `Path.forEach` (probe
+// `swiftui-continuous-corners.swift`, CC1..CC4: the model below agrees with
+// SwiftUI's own Beziers to 7.5e-6 absolute). In corner-local axes `u` along the
+// horizontal side and `v` along the vertical side, measured from the corner, in
+// units of the radius r, a corner is three cubics:
+//   A (horizontal): (tx,0) (c1(tx),0) (c2(tx),0) (K0,K1)
+//   B (middle)    : (K0,K1) (M1,M2) (M2,M1) (K1,K0)
+//   C (vertical)  : (K1,K0) (0,c2(ty)) (0,c1(ty)) (0,ty)
+// with `tx = min(roomX / r, EXTENT)`, `ty` likewise, `c1(t) = A1 + B1 t`,
+// `c2(t) = A2 + B2 t`. A side's room is `side * r / (r + neighbour's r)`: half
+// the side between equal corners, all of it beside a square one.
+//
+// The distance is the nearest point of the three cubics by a fixed 4-sample seed
+// per cubic and four Newton steps (three left 3e-4 r near a cubic's flat end, the 0.05 px a capsule's
+// tip showed at r 150; four leave 5e-7 r) (`+ - * / sqrt` only, as `ellipse_sdf`), and
+// the two straight rays beyond the curve; the sign is the side of the tangent at
+// the nearest curve point. The curve lies within 0.0138 r of the circular corner
+// of the same r (probe arithmetic, every tx, ty), so `rect_sdf` is computed
+// first and the curve only where `|rect_sdf| <= 0.02 r + band`. **The same
+// statements and constants in `replay.hlsl`'s `continuous*` functions** (TE-AD).
+// ---------------------------------------------------------------------------
+
+constant float CC_EXTENT = 1.528664947;
+constant float CC_K0 = 0.631493986;
+constant float CC_K1 = 0.074911401;
+constant float CC_M1 = 0.372824013;
+constant float CC_M2 = 0.169060007;
+constant float CC_A1 = 0.716953795;
+constant float CC_B1 = 0.243046205;
+constant float CC_A2 = 0.728435369;
+constant float CC_B2 = 0.091564631;
+
+static float2 cc_point(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return a * (u * u * u) + b * (3.0 * u * u * t) + c * (3.0 * u * t * t) + d * (t * t * t);
+}
+
+static float2 cc_tangent(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return (b - a) * (3.0 * u * u) + (c - b) * (6.0 * u * t) + (d - c) * (3.0 * t * t);
+}
+
+static float2 cc_accel(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return ((c - b * 2.0 + a) * u + (d - c * 2.0 + b) * t) * 6.0;
+}
+
+/// The nearest point of one cubic to `q`: distance, point, tangent.
+struct CCNearest {
+    float distance;
+    float2 point;
+    float2 tangent;
+};
+
+static CCNearest cc_nearest(float2 a, float2 b, float2 c, float2 d, float2 q) {
+    float t = 0.125;
+    float best = 1.0e30;
+    for (int i = 0; i < 4; i++) {
+        float s = 0.125 + 0.25 * float(i);
+        float2 e = cc_point(a, b, c, d, s) - q;
+        float dd = dot(e, e);
+        if (dd < best) { best = dd; t = s; }
+    }
+    for (int i = 0; i < 4; i++) {
+        float2 e = cc_point(a, b, c, d, t) - q;
+        float2 v = cc_tangent(a, b, c, d, t);
+        float g = dot(v, e);
+        float h = max(dot(v, v) + dot(cc_accel(a, b, c, d, t), e), 0.25 * dot(v, v));
+        t = clamp(t - g / max(h, 1.0e-12), 0.0, 1.0);
+    }
+    CCNearest n;
+    n.point = cc_point(a, b, c, d, t);
+    n.tangent = cc_tangent(a, b, c, d, t);
+    n.distance = length(n.point - q);
+    return n;
+}
+
+/// Signed distance from `p` (centre-relative) to the continuous rounded
+/// rectangle of half size `halfSize` whose nearest corner has radius `r` and
+/// neighbours `rH` (across the horizontal side) and `rV` (across the vertical
+/// side). Exact where `|rect_sdf| <= 0.02 r + band`, the circular `rect_sdf`
+/// elsewhere (at most 0.0138 r off, so the caller's coverage has already
+/// saturated). A corner with `r <= 0` is square: `square` takes the Chebyshev
+/// distance (a border band's square outer corner, probe CC5b), else the box's.
+static float continuous_corner_sdf(float2 p, float2 halfSize, float r, float rH, float rV,
+                                   float band, bool square) {
+    if (r <= 0.0) {
+        float2 e = abs(p) - halfSize;
+        if (square) { return max(e.x, e.y); }
+        return length(max(e, 0.0)) + min(max(e.x, e.y), 0.0);
+    }
+    float dc = rect_sdf(p, halfSize, r);
+    if (abs(dc) > 0.02 * r + band) { return dc; }
+    float2 q = halfSize - abs(p);
+    float ex = min(2.0 * halfSize.x * r / (r + max(rH, 0.0)), CC_EXTENT * r);
+    float ey = min(2.0 * halfSize.y * r / (r + max(rV, 0.0)), CC_EXTENT * r);
+    float tx = ex / r;
+    float ty = ey / r;
+    float2 a0 = float2(ex, 0.0);
+    float2 a1 = float2((CC_A1 + CC_B1 * tx) * r, 0.0);
+    float2 a2 = float2((CC_A2 + CC_B2 * tx) * r, 0.0);
+    float2 k = float2(CC_K0, CC_K1) * r;
+    float2 kk = float2(CC_K1, CC_K0) * r;
+    float2 c1 = float2(0.0, (CC_A2 + CC_B2 * ty) * r);
+    float2 c2 = float2(0.0, (CC_A1 + CC_B1 * ty) * r);
+    float2 c3 = float2(0.0, ey);
+    CCNearest na = cc_nearest(a0, a1, a2, k, q);
+    CCNearest nb = cc_nearest(k, float2(CC_M1, CC_M2) * r, float2(CC_M2, CC_M1) * r, kk, q);
+    CCNearest nc = cc_nearest(kk, c1, c2, c3, q);
+    CCNearest n = na;
+    if (nb.distance < n.distance) { n = nb; }
+    if (nc.distance < n.distance) { n = nc; }
+    float u = min(n.distance, min(length(float2(max(ex - q.x, 0.0), q.y)),
+                                  length(float2(q.x, max(ey - q.y, 0.0)))));
+    bool inside;
+    if (q.x >= ex) { inside = q.y >= 0.0; }
+    else if (q.y >= ey) { inside = q.x >= 0.0; }
+    else if (q.x < 0.0 || q.y < 0.0) { inside = false; }
+    else { inside = n.tangent.x * (q.y - n.point.y) - n.tangent.y * (q.x - n.point.x) < 0.0; }
+    return inside ? -u : u;
+}
+
+/// `continuous_corner_sdf` for the corner `p` lies in, its radii less `shrink`
+/// (a border band's inset curve, probe CC5: `strokeBorder(w)` is the stroke of
+/// the shape inset by w/2, whose radii are `r - w/2`).
+static float continuous_rect_sdf(float2 p, float2 halfSize, MUICorners radii, float shrink,
+                                 float band, bool square) {
+    float r  = pick_corner_radius(p, radii) - shrink;
+    float rH = pick_corner_radius(float2(-p.x, p.y), radii) - shrink;
+    float rV = pick_corner_radius(float2(p.x, -p.y), radii) - shrink;
+    return continuous_corner_sdf(p, halfSize, r, rH, rV, band, square);
+}
+
 // Antialiased coverage of `p` inside an axis-aligned, optionally rounded mask,
 // in the same pixel space as `[[position]]`.
 //
@@ -285,6 +421,26 @@ static float4 rect_shade(MUIRect r, float2 pixelPosition, float s) {
             innerAlpha = 0.0;
         } else {
             float d = ellipse_sdf(p, inset);
+            outerAlpha = saturate(0.5 - (d - w * 0.5) * s);
+            innerAlpha = saturate(0.5 - (d + w * 0.5) * s);
+        }
+    } else if ((r.shape & 0xFF) == MUIShapeContinuousRect) {
+        // A rounded rectangle with SwiftUI's continuous corners (divergence 90,
+        // CC-); `cornerRadii` are per corner. Its border is the same band the
+        // ellipse draws, `strokeBorder(w)` = the stroke of the shape inset by
+        // w/2 (probe CC5, 0 px apart on four (r, w) pairs), one width,
+        // `borderWidths.top`: the band of half-width w/2 around the inset
+        // curve, a corner whose inset radius is not positive left square.
+        float w = r.borderWidths.top;
+        float2 inset = halfSize - w * 0.5;
+        if (w <= 0.0) {
+            outerAlpha = saturate(0.5 - continuous_rect_sdf(p, halfSize, r.cornerRadii, 0.0, 0.5 / s, false) * s);
+            innerAlpha = outerAlpha;
+        } else if (min(inset.x, inset.y) <= 0.0) {
+            outerAlpha = saturate(0.5 - continuous_rect_sdf(p, halfSize, r.cornerRadii, 0.0, 0.5 / s, false) * s);
+            innerAlpha = 0.0;
+        } else {
+            float d = continuous_rect_sdf(p, inset, r.cornerRadii, w * 0.5, w * 0.5 + 0.5 / s, true);
             outerAlpha = saturate(0.5 - (d - w * 0.5) * s);
             innerAlpha = saturate(0.5 - (d + w * 0.5) * s);
         }
@@ -1004,6 +1160,9 @@ static float glass_sdf(MUIBackdrop b, float2 p) {
         float2 halfSize = float2(b.bounds.size.width, b.bounds.size.height) * 0.5;
         float2 rel = p - (float2(b.bounds.origin.x, b.bounds.origin.y) + halfSize);
         if ((b.shape & 0xFFu) == MUIShapeEllipse) { return ellipse_sdf(rel, halfSize); }
+        if ((b.shape & 0xFFu) == MUIShapeContinuousRect) {
+            return continuous_rect_sdf(rel, halfSize, b.cornerRadii, 0.0, max(b.band, 0.0) + 2.0, false);
+        }
         return rect_sdf(rel, halfSize, pick_corner_radius(rel, b.cornerRadii));
     }
     float d = glass_member_sdf(b, 0u, p);

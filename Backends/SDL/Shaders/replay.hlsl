@@ -284,6 +284,99 @@ float ellipseSDF(float2 p, float2 h) {
 float cornerRadius(float2 p, float4 corners) {
     return p.x < 0 ? (p.y < 0 ? corners.x : corners.w) : (p.y < 0 ? corners.y : corners.z);
 }
+// shaders.metal's continuous corners (divergence 90, ruling CC-): the same
+// statements and constants, so Metal, Vulkan and Direct3D agree at the parity
+// tolerance (TE-AD). See `continuous_corner_sdf` there for the model.
+static const float CC_EXTENT = 1.528664947;
+static const float CC_K0 = 0.631493986;
+static const float CC_K1 = 0.074911401;
+static const float CC_M1 = 0.372824013;
+static const float CC_M2 = 0.169060007;
+static const float CC_A1 = 0.716953795;
+static const float CC_B1 = 0.243046205;
+static const float CC_A2 = 0.728435369;
+static const float CC_B2 = 0.091564631;
+float2 ccPoint(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return a * (u * u * u) + b * (3.0 * u * u * t) + c * (3.0 * u * t * t) + d * (t * t * t);
+}
+float2 ccTangent(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return (b - a) * (3.0 * u * u) + (c - b) * (6.0 * u * t) + (d - c) * (3.0 * t * t);
+}
+float2 ccAccel(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return ((c - b * 2.0 + a) * u + (d - c * 2.0 + b) * t) * 6.0;
+}
+struct CCNearest {
+    float distance;
+    float2 point;
+    float2 tangent;
+};
+CCNearest ccNearest(float2 a, float2 b, float2 c, float2 d, float2 q) {
+    float t = 0.125;
+    float best = 1.0e30;
+    for (int i = 0; i < 4; i++) {
+        float s = 0.125 + 0.25 * float(i);
+        float2 e = ccPoint(a, b, c, d, s) - q;
+        float dd = dot(e, e);
+        if (dd < best) { best = dd; t = s; }
+    }
+    for (int i = 0; i < 4; i++) {
+        float2 e = ccPoint(a, b, c, d, t) - q;
+        float2 v = ccTangent(a, b, c, d, t);
+        float g = dot(v, e);
+        float h = max(dot(v, v) + dot(ccAccel(a, b, c, d, t), e), 0.25 * dot(v, v));
+        t = clamp(t - g / max(h, 1.0e-12), 0.0, 1.0);
+    }
+    CCNearest n;
+    n.point = ccPoint(a, b, c, d, t);
+    n.tangent = ccTangent(a, b, c, d, t);
+    n.distance = length(n.point - q);
+    return n;
+}
+float continuousCornerSDF(float2 p, float2 halfSize, float r, float rH, float rV, float band, bool square) {
+    if (r <= 0.0) {
+        float2 e = abs(p) - halfSize;
+        if (square) { return max(e.x, e.y); }
+        return length(max(e, 0.0)) + min(max(e.x, e.y), 0.0);
+    }
+    float dc = rectSDF(p, halfSize, r);
+    if (abs(dc) > 0.02 * r + band) { return dc; }
+    float2 q = halfSize - abs(p);
+    float ex = min(2.0 * halfSize.x * r / (r + max(rH, 0.0)), CC_EXTENT * r);
+    float ey = min(2.0 * halfSize.y * r / (r + max(rV, 0.0)), CC_EXTENT * r);
+    float tx = ex / r;
+    float ty = ey / r;
+    float2 a0 = float2(ex, 0.0);
+    float2 a1 = float2((CC_A1 + CC_B1 * tx) * r, 0.0);
+    float2 a2 = float2((CC_A2 + CC_B2 * tx) * r, 0.0);
+    float2 k = float2(CC_K0, CC_K1) * r;
+    float2 kk = float2(CC_K1, CC_K0) * r;
+    float2 c1 = float2(0.0, (CC_A2 + CC_B2 * ty) * r);
+    float2 c2 = float2(0.0, (CC_A1 + CC_B1 * ty) * r);
+    float2 c3 = float2(0.0, ey);
+    CCNearest na = ccNearest(a0, a1, a2, k, q);
+    CCNearest nb = ccNearest(k, float2(CC_M1, CC_M2) * r, float2(CC_M2, CC_M1) * r, kk, q);
+    CCNearest nc = ccNearest(kk, c1, c2, c3, q);
+    CCNearest n = na;
+    if (nb.distance < n.distance) { n = nb; }
+    if (nc.distance < n.distance) { n = nc; }
+    float u = min(n.distance, min(length(float2(max(ex - q.x, 0.0), q.y)),
+                                  length(float2(q.x, max(ey - q.y, 0.0)))));
+    bool inside;
+    if (q.x >= ex) { inside = q.y >= 0.0; }
+    else if (q.y >= ey) { inside = q.x >= 0.0; }
+    else if (q.x < 0.0 || q.y < 0.0) { inside = false; }
+    else { inside = n.tangent.x * (q.y - n.point.y) - n.tangent.y * (q.x - n.point.x) < 0.0; }
+    return inside ? -u : u;
+}
+float continuousRectSDF(float2 p, float2 halfSize, float4 radii, float shrink, float band, bool square) {
+    float r  = cornerRadius(p, radii) - shrink;
+    float rH = cornerRadius(float2(-p.x, p.y), radii) - shrink;
+    float rV = cornerRadius(float2(p.x, -p.y), radii) - shrink;
+    return continuousCornerSDF(p, halfSize, r, rH, rV, band, square);
+}
 float maskCoverage(float2 p, float4 bounds, float4 radii) {
     float2 halfSize = bounds.zw * 0.5;
     float2 rel = p - bounds.xy - halfSize;
@@ -342,6 +435,21 @@ float4 rectShade(uint base, float2 pixelPosition, float s) {
             outerAlpha = saturate(0.5 - (d - w * 0.5) * s);
             innerAlpha = saturate(0.5 - (d + w * 0.5) * s);
         }
+    } else if ((asuint(primitives[base + 7].y) & 0xFF) == 2) {
+        // shaders.metal's continuous-rect branch (CC-): the band of an inset curve.
+        float w = widths.x;
+        float2 inset = halfSize - w * 0.5;
+        if (w <= 0.0) {
+            outerAlpha = saturate(0.5 - continuousRectSDF(p, halfSize, primitives[base + 5], 0.0, 0.5 / s, false) * s);
+            innerAlpha = outerAlpha;
+        } else if (min(inset.x, inset.y) <= 0.0) {
+            outerAlpha = saturate(0.5 - continuousRectSDF(p, halfSize, primitives[base + 5], 0.0, 0.5 / s, false) * s);
+            innerAlpha = 0.0;
+        } else {
+            float d = continuousRectSDF(p, inset, primitives[base + 5], w * 0.5, w * 0.5 + 0.5 / s, true);
+            outerAlpha = saturate(0.5 - (d - w * 0.5) * s);
+            innerAlpha = saturate(0.5 - (d + w * 0.5) * s);
+        }
     } else {
         float radius = cornerRadius(p, primitives[base + 5]);
         outerAlpha = saturate(0.5 - rectSDF(p, halfSize, radius) * s);
@@ -366,6 +474,9 @@ float backdropCoverage(uint base, float2 pixelPosition, float s) {
     float2 p = pixelPosition - (bounds.xy + halfSize);
     if ((asuint(primitives[base + 5].y) & 0xFF) == 1) {
         return saturate(0.5 - ellipseSDF(p, halfSize) * s);
+    }
+    if ((asuint(primitives[base + 5].y) & 0xFF) == 2) {
+        return saturate(0.5 - continuousRectSDF(p, halfSize, primitives[base + 3], 0.0, 0.5 / s, false) * s);
     }
     float radius = cornerRadius(p, primitives[base + 3]);
     return saturate(0.5 - rectSDF(p, halfSize, radius) * s);
@@ -400,6 +511,9 @@ float glassSDF(uint base, uint flags, float2 p) {
         float2 halfSize = whole.zw * 0.5;
         float2 rel = p - (whole.xy + halfSize);
         if ((asuint(primitives[base + 5].y) & 0xFF) == 1) { return ellipseSDF(rel, halfSize); }
+        if ((asuint(primitives[base + 5].y) & 0xFF) == 2) {
+            return continuousRectSDF(rel, halfSize, primitives[base + 3], 0.0, max(primitives[base + 6].z, 0.0) + 2.0, false);
+        }
         return rectSDF(rel, halfSize, cornerRadius(rel, primitives[base + 3]));
     }
     float blendK = primitives[base + 7].x;

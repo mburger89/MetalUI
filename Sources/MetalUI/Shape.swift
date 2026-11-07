@@ -11,10 +11,12 @@ import MetalUILayout
 /// How a rounded rectangle's corners are drawn — SwiftUI's spelling and its
 /// default, `.continuous`.
 ///
-/// **`.continuous` is drawn `.circular`** (divergence 90, `TE-AG` item 2):
-/// the renderer's rounded-rect distance is circular, and Apple's continuous
-/// curve has no closed form it carries (probe S3: 196 px apart at r 20 on
-/// 100×60). The case exists so SwiftUI code spells the same.
+/// **`.continuous` is SwiftUI's curve** (`CC-`, record 226; it was drawn
+/// circular under divergence 90, `TE-AG` item 2): three cubics a corner, read
+/// from SwiftUI's own paths (probe `swiftui-continuous-corners.swift`, 7.5e-6
+/// apart) and drawn by the renderer's own distance (`PrimitiveShape.continuousRoundedRectangle`),
+/// by the CPU `Path`, and by every silhouette and hit test. Where the clip
+/// stack cannot yet carry it a continuous clip is still circular (`CC-` run 2).
 public enum RoundedCornerStyle: Sendable, Hashable {
     case circular
     case continuous
@@ -73,8 +75,9 @@ public struct ShapeGeometry: Sendable, Equatable {
     /// Whether `point` lies in this geometry — the hit test of a declared
     /// `.contentShape(_:)` (plan task 12 part 1, ruling `IX-L`). Half-open on
     /// the rect's max edges, as `Bounds.contains` is; inside a rounded corner's
-    /// square the point must lie within the corner's circle (a `.continuous`
-    /// corner is tested circular, as it draws — divergence 90); an ellipse
+    /// square the point must lie within the corner's circle, or for a
+    /// `.continuous` corner inside its curve (the winding of its path, `CC-`, as
+    /// SwiftUI's `Path.contains` does, probe CC8); an ellipse
     /// tests `(dx/a)² + (dy/b)² ≤ 1`; a path tests its winding under its fill
     /// style (`GX-D`).
     func contains(_ point: Point<Pixels>) -> Bool {
@@ -91,7 +94,11 @@ public struct ShapeGeometry: Sendable, Equatable {
             guard a > 0, b > 0 else { return false }
             let dx = (x - (minX + a)) / a, dy = (y - (minY + b)) / b
             return dx * dx + dy * dy <= 1
-        case let .roundedRectangle(radii, _):
+        case let .roundedRectangle(radii, style):
+            if style == .continuous, radii.topLeft.value > 0 || radii.topRight.value > 0
+                || radii.bottomRight.value > 0 || radii.bottomLeft.value > 0 {
+                return Path(self).contains(point)
+            }
             func outside(_ r: Float, _ cx: Float, _ cy: Float, _ inCorner: Bool) -> Bool {
                 guard r > 0, inCorner else { return false }
                 let dx = x - cx, dy = y - cy
@@ -122,10 +129,18 @@ public struct ShapeGeometry: Sendable, Equatable {
                              kind: moved)
     }
 
-    /// The primitive kind the renderer draws (`MUIRect.shape`).
+    /// The primitive kind the renderer draws (`MUIRect.shape`): a continuous
+    /// rounded rectangle with any nonzero radius is its own kind (`CC-`); all
+    /// four radii zero is a plain rectangle, whatever the style.
     var primitiveShape: PrimitiveShape {
-        if case .ellipse = kind { return .ellipse }
-        return .roundedRectangle
+        switch kind {
+        case .ellipse: return .ellipse
+        case let .roundedRectangle(radii, .continuous)
+            where radii.topLeft.value > 0 || radii.topRight.value > 0
+                || radii.bottomRight.value > 0 || radii.bottomLeft.value > 0:
+            return .continuousRoundedRectangle
+        default: return .roundedRectangle
+        }
     }
 }
 

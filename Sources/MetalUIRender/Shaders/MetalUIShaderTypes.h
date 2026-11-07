@@ -50,9 +50,15 @@ typedef struct {
     MUIUInt shape;
 } MUIRect;
 
+// `MUIShapeContinuousRect` (divergence 90, ruling CC-): a rounded rectangle with
+// SwiftUI's continuous corners, per-corner `cornerRadii`, the band of
+// `borderWidths.top` as its border (like the ellipse). It adds a value to the
+// byte `MUIRect.shape` and `MUIBackdrop.shape` already hold: no struct, stride or
+// fixture byte moves, and kind 0 runs today's statements.
 typedef enum {
-    MUIShapeRoundedRect = 0,
-    MUIShapeEllipse     = 1
+    MUIShapeRoundedRect     = 0,
+    MUIShapeEllipse         = 1,
+    MUIShapeContinuousRect  = 2
 } MUIShape;
 
 // A material's backdrop (ruling BB-A, BB-B): the blurred pixels already drawn

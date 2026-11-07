@@ -263,13 +263,27 @@ extension Frame {
         case let .rect(r):
             contentMask = (r.contentMask, r.maskCornerRadii)
             let ellipse = r.shapeKind == PrimitiveShape.ellipse.rawValue
+            let continuous = r.shapeKind == PrimitiveShape.continuousRoundedRectangle.rawValue
             mask = .empty
             if r.background.a > 0 {
-                mask = RasterMath.scale(fill(RasterMath.roundedRect(r.bounds, r.cornerRadii, ellipse: ellipse), .nonZero, m),
+                mask = RasterMath.scale(fill(RasterMath.outline(r.bounds, r.cornerRadii, kind: r.shapeKind), .nonZero, m),
                                         by: r.background.a)
             }
             let w = r.borderWidths
-            if r.borderColor.a > 0, max(w.top, w.right, w.bottom, w.left) > 0 {
+            if continuous, r.borderColor.a > 0, w.top > 0 {
+                // The band the shader draws: the stroke, `borderWidths.top` wide, of the outline inset by half of it
+                // (probe CC5); an inset past the centre is the whole shape.
+                let inset = w.top / 2
+                let covering = r.bounds.size.width - 2 * inset <= 0 || r.bounds.size.height - 2 * inset <= 0
+                let ring: AlphaMask
+                if covering { ring = fill(RasterMath.continuousOutline(r.bounds, r.cornerRadii), .nonZero, m) } else {
+                    ring = PathRaster.stroke(RasterMath.continuousOutline(r.bounds, r.cornerRadii, shrink: inset),
+                                             style: StrokeParameters(width: Double(w.top)), transform: m.pathAffine,
+                                             clip: clip, rasterizer: &rasterizer, scratch: &cache.scratch)
+                    cache.noteRasterized(rasterizer.lastRasterizedPixels)
+                }
+                mask = AlphaCompositor.union(mask, RasterMath.scale(ring, by: r.borderColor.a))
+            } else if r.borderColor.a > 0, max(w.top, w.right, w.bottom, w.left) > 0 {
                 var ring = RasterMath.roundedRect(r.bounds, r.cornerRadii, ellipse: ellipse)
                 let inner = MUIBounds(origin: MUIPoint(x: r.bounds.origin.x + w.left, y: r.bounds.origin.y + w.top),
                                       size: MUISize(width: max(0, r.bounds.size.width - w.left - w.right),

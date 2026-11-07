@@ -1,5 +1,6 @@
 import MetalUICore
 import MetalUILayout
+import MetalUIPath
 
 // SwiftUI's built-in shapes (plan task 11, part 2; ruling `TE-AG` item 2).
 // `Rectangle` is in `NativeElements.swift` (`TE-AH`). Every built-in is
@@ -8,7 +9,7 @@ import MetalUILayout
 /// A rectangle with rounded corners — SwiftUI's
 /// `RoundedRectangle(cornerRadius:style:)`. The radius clamps to half the
 /// shorter side and a negative one is 0 (probes S4, S5); `.continuous`, the
-/// default, is drawn circular (divergence 90).
+/// default, is SwiftUI's curve (`CC-`).
 public struct RoundedRectangle: Shape, Hashable {
     /// The corner radius, clamped to half the shorter side.
     public var cornerRadius: Pixels
@@ -53,8 +54,8 @@ public struct Circle: Shape, Hashable {
 }
 
 /// A capsule — SwiftUI's `Capsule(style:)`: a rounded rectangle whose radius
-/// is half the shorter side (S6). `.continuous`, the default, is drawn
-/// circular (divergence 90).
+/// is half the shorter side (S6). `.continuous`, the default, is SwiftUI's curve
+/// (`CC-`).
 public struct Capsule: Shape, Hashable {
     public var style: RoundedCornerStyle
 
@@ -108,26 +109,20 @@ public struct RectangleCornerRadii: Hashable, Sendable {
     }
 
     /// These radii fitted to a `width` × `height` rectangle by SwiftUI's rule
-    /// (probes UR1–UR3, X1, Y1–Y7, ruling `PG-G`): a negative radius is 0; on
-    /// each side whose two radii sum past its length, the smaller one stays
-    /// (when it is under half the side) and the larger shrinks to fill the
-    /// rest, or both become half the side; a corner takes the smaller of its
-    /// two sides' answers. A single radius may therefore exceed half the
-    /// shorter side (`TL` 45 on 100×60 stays 45).
+    /// (probes UR1–UR3, X1, Y1–Y7, ruling `PG-G`; the order of the sides from probe
+    /// CC3, `CC-`): a negative radius is 0; on each side whose two radii sum past
+    /// its length, the smaller one stays (when it is under half the side) and the
+    /// larger shrinks to fill the rest, or both become half the side. **The
+    /// horizontal sides are fitted first (top, then bottom), then the vertical
+    /// ones (right, then left), each on the radii the earlier sides left** — not
+    /// all four at once, which differed from SwiftUI on 39 of 847 random sets
+    /// (CC3c). A single radius may therefore exceed half the shorter side (`TL` 45
+    /// on 100×60 stays 45).
     func fitted(width: Double, height: Double) -> Corners<Double> {
-        func fit(_ a: Double, _ b: Double, _ side: Double) -> (Double, Double) {
-            guard side > 0 else { return (0, 0) }
-            guard a + b > side else { return (a, b) }
-            let m = min(a, b)
-            if m >= side / 2 { return (side / 2, side / 2) }
-            return a < b ? (a, side - a) : (side - b, b)
-        }
-        let tl = max(0, Double(topLeading.value)), tr = max(0, Double(topTrailing.value))
-        let br = max(0, Double(bottomTrailing.value)), bl = max(0, Double(bottomLeading.value))
-        let top = fit(tl, tr, width), bottom = fit(bl, br, width)
-        let left = fit(tl, bl, height), right = fit(tr, br, height)
-        return Corners(topLeft: min(top.0, left.0), topRight: min(top.1, right.0),
-                       bottomRight: min(bottom.1, right.1), bottomLeft: min(bottom.0, left.1))
+        let f = ContinuousCorner.fit(width: width, height: height, topLeft: Double(topLeading.value),
+                                     topRight: Double(topTrailing.value), bottomRight: Double(bottomTrailing.value),
+                                     bottomLeft: Double(bottomLeading.value))
+        return Corners(topLeft: f.topLeft, topRight: f.topRight, bottomRight: f.bottomRight, bottomLeft: f.bottomLeft)
     }
 }
 
@@ -140,7 +135,7 @@ public struct RectangleCornerRadii: Hashable, Sendable {
 /// `clipShape`. A radius past that — legal in SwiftUI, where one corner may
 /// take most of a side the others leave free (probe X2) — is drawn as a
 /// ``Path``, rasterized on the CPU; as a clip it is a masked group (`CM-A`).
-/// `.continuous` is drawn circular (divergence 90). Its outline starts on the
+/// `.continuous` is SwiftUI's curve (`CC-`; the renderer draws it when each corner's curve stays in its quadrant, else it is a `Path`). Its outline starts on the
 /// right edge and runs down, as SwiftUI's does (probe UR1), so `trim` and
 /// dashes begin where SwiftUI's do.
 public struct UnevenRoundedRectangle: Shape, Hashable {
@@ -166,12 +161,21 @@ public struct UnevenRoundedRectangle: Shape, Hashable {
                   style: style)
     }
 
-    /// The fitted radii in `rect`, and whether the SDF can draw them.
+    /// The fitted radii in `rect`, and whether the SDF can draw them: for `.circular`
+    /// when every one is at most half the shorter side; for `.continuous` when every
+    /// corner's curve stays within its quadrant (`ContinuousCorner.fitsQuadrants`,
+    /// `CC-`).
     private func fitted(in rect: Bounds<Pixels>) -> (radii: Corners<Pixels>, isSDF: Bool) {
         let w = Double(rect.size.width.value), h = Double(rect.size.height.value)
         let f = cornerRadii.fitted(width: w, height: h)
         let limit = max(0, min(w, h) / 2)
-        let sdf = f.topLeft <= limit && f.topRight <= limit && f.bottomRight <= limit && f.bottomLeft <= limit
+        let sdf: Bool
+        if style == .continuous {
+            sdf = ContinuousCorner.fitsQuadrants(width: w, height: h, topLeft: f.topLeft, topRight: f.topRight,
+                                                 bottomRight: f.bottomRight, bottomLeft: f.bottomLeft)
+        } else {
+            sdf = f.topLeft <= limit && f.topRight <= limit && f.bottomRight <= limit && f.bottomLeft <= limit
+        }
         return (Corners(topLeft: Pixels(Float(f.topLeft)), topRight: Pixels(Float(f.topRight)),
                         bottomRight: Pixels(Float(f.bottomRight)), bottomLeft: Pixels(Float(f.bottomLeft))), sdf)
     }

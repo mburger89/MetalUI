@@ -397,7 +397,8 @@ func paintStyledStroke<S: Shape>(_ shape: S, _ geometry: ShapeGeometry, bounds: 
 /// One stroke layer (`TE-AI`). **strokeBorder(w)**: one `MUIRect` over the
 /// geometry's rect, border `w`, a clear background, each outer radius kept
 /// when at least `w/2` and else 0 (probe K11: a square outer corner), the
-/// inner radius the shader's `max(r − w, 0)`. **stroke(w)**: the same over
+/// inner radius the shader's `max(r − w, 0)` (a continuous rectangle is its own
+/// kind, whose band is the inset curve's, `CC-`). **stroke(w)**: the same over
 /// the rect outset by `w/2`, each radius `r > 0 ? r + w/2 : 0` (K1, K6, K7,
 /// K12) — which is at least `w/2`, so the strokeBorder rule keeps it. An
 /// ellipse takes the ellipse kind, whose band is the inset ellipse's stroke
@@ -418,8 +419,12 @@ func paintShapeStroke(_ geometry: ShapeGeometry, color: Color, width: Pixels, ou
                         bottomRight: grown(radii.bottomRight), bottomLeft: grown(radii.bottomLeft))
     }
     func kept(_ r: Pixels) -> Pixels { r.value >= w / 2 ? r : Pixels(0) }
-    radii = Corners(topLeft: kept(radii.topLeft), topRight: kept(radii.topRight),
-                    bottomRight: kept(radii.bottomRight), bottomLeft: kept(radii.bottomLeft))
+    // A continuous rect keeps its radii whole: the shader's band is the inset curve's, and a
+    // corner whose inset radius is not positive is left square there (probe CC5b).
+    if geometry.primitiveShape != .continuousRoundedRectangle {
+        radii = Corners(topLeft: kept(radii.topLeft), topRight: kept(radii.topRight),
+                        bottomRight: kept(radii.bottomRight), bottomLeft: kept(radii.bottomLeft))
+    }
     pass.fill(rect, color: .transparent, cornerRadii: radii, borderColor: pass.resolve(color),
               borderWidths: Edges(all: width), shape: geometry.primitiveShape)
 }

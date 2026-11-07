@@ -503,6 +503,29 @@ let red = Color(.sRGB, red: 1, green: 0, blue: 0)
         print("CC3order \(order) one pass fails \(bad)/\(cases.count), two passes fail \(bad2)/\(cases.count)")
     }
 
+    // CC3c: does the CIRCULAR UnevenRoundedRectangle fit the same way? Its arcs are one cubic per corner (chord = r sqrt 2).
+    func circRadii(_ els: [El]) -> [Double]? {
+        var cur = CGPoint.zero, out: [Double] = []
+        for e in els { switch e {
+            case .move(let a), .line(let a): cur = a
+            case .curve(let a, _, _): out.append(hypot(a.x - cur.x, a.y - cur.y) / 2.0.squareRoot()); cur = a
+            case .close: break } }
+        return out.count == 4 ? [out[2], out[3], out[0], out[1]] : nil
+    }
+    var seqMismatch = 0, simMismatch = 0, usable = 0
+    for (rect, rr, _) in cases {
+        let sw = read(UnevenRoundedRectangle(cornerRadii: .init(topLeading: rr[0], bottomLeading: rr[3], bottomTrailing: rr[2], topTrailing: rr[1]), style: .circular).path(in: rect))
+        guard let got = circRadii(sw), rr.allSatisfy({ $0 > 0 }) else { continue }
+        usable += 1
+        func fit(_ a: Double, _ b: Double, _ side: Double) -> (Double, Double) { pairClamp(a, b, side) }
+        let seq = resolveByEdges(rect.width, rect.height, rr, order: [0, 2, 1, 3])
+        let top = fit(rr[0], rr[1], rect.width), bottom = fit(rr[3], rr[2], rect.width), left = fit(rr[0], rr[3], rect.height), right = fit(rr[1], rr[2], rect.height)
+        let sim = [min(top.0, left.0), min(top.1, right.0), min(bottom.1, right.1), min(bottom.0, left.1)]
+        if zip(got, seq).contains(where: { abs($0 - $1) > 1e-3 }) { seqMismatch += 1 }
+        if zip(got, sim).contains(where: { abs($0 - $1) > 1e-3 }) { simMismatch += 1 }
+    }
+    print("CC3c circular UnevenRoundedRectangle, \(usable) random all-positive radii: horizontal-then-vertical rule mismatches \(seqMismatch), simultaneous (the shipped fitted(width:height:)) mismatches \(simMismatch)")
+
     print("--- CC4: elliptical cornerSize")
     for (rx, ry) in [(30.0, 10.0), (10, 30), (60, 20), (20, 50), (40, 40)] {
         let sw = read(Path(roundedRect: R, cornerSize: CGSize(width: rx, height: ry), style: .continuous))

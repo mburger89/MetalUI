@@ -1770,7 +1770,7 @@ extension StyledElement {
     /// **configures a hit region and creates none** (`OM-AB`): on an element
     /// with no pointer target it is written and never read. Focus registration
     /// and the accessibility frame keep the element's own box. A `.continuous`
-    /// rounded rectangle hit-tests circular, as it draws (divergence 90). The
+    /// rounded rectangle hit-tests inside its curve (`CC-`). The
     /// region is still intersected with the active clip's rect, as every hitbox
     /// is (divergence 43). `eoFill` and the `kind:` forms are not offered.
     ///
