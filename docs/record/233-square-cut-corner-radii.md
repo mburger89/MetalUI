@@ -1,4 +1,6 @@
-# 230. A square clip cutting a rounded one (CM-J)
+# 233. A square clip cutting a rounded one (CM-J)
+
+Renumbered from 230 on merge: record 230 is `230-symbol-images.md` (merged first), and 231/232 are held by in-flight branches.
 
 MetalCreator (b0fa5ae5) saw masked groups for node views: `background(in: RoundedRectangle).clipShape(RoundedRectangle)` inside a canvas under a square `.clipped()` viewport. Headless reproduction: a node wholly inside the viewport makes 0 groups, at scale 1 and 2, plain, under `.offset`, under `scaleEffect`, in a `ScrollView`; a node **straddling** the viewport edge (square outer clip, rounded inner clip, the cut through the node) made 3 masked groups for a 3-leaf node (MetalCreator: 7, one per clipped leaf), at every scale and with or without `scaleEffect`. Not the continuous corners of #224 (`.circular` changed nothing).
 

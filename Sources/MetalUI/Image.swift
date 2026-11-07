@@ -18,10 +18,9 @@ import MetalUIScene
 /// A proposal leaf like `Rectangle`: it registers no hitbox, focus entry or
 /// **accessibility record** (decorative, as its name says — a labelled image,
 /// `init(_:scale:label:)`, records one, plan task 12 part 2), and snaps under
-/// animation. **Not offered** (spec §9):
-/// SF Symbols (`Image(systemName:)`, out of the task's scope), asset names,
-/// `Image(nsImage:)`, cap insets and tiling, rendering modes
-/// (guard `anImageHasNoSystemNameOrAssetInitialiser`).
+/// animation. ``init(systemName:)`` draws a platform symbol (record 230, `SymbolImage.swift`).
+/// **Not offered** (spec §9): asset names, `Image(nsImage:)`, cap insets and tiling,
+/// rendering modes of a bitmap (guard `anImageHasASystemNameButNoAssetInitialiser`).
 public struct Image: ProposalElement {
     /// SwiftUI's four interpolation qualities. `.none` samples the nearest
     /// texel; `.low`, `.medium` and `.high` are bilinear, SwiftUI's own answer
@@ -31,8 +30,15 @@ public struct Image: ProposalElement {
         case none, low, medium, high
     }
 
-    let bitmap: ImageBitmap
-    let scale: Float
+    /// What the image draws: pixels MetalUI holds, or a symbol of the platform's catalogue (`SYM-B`).
+    enum Content {
+        case bitmap(ImageBitmap, scale: Float)
+        case symbol(name: String)
+    }
+
+    let content: Content
+    /// `Image.symbolRenderingMode(_:)`, over the environment's mode (a symbol only).
+    var symbolMode: SymbolRenderingMode?
     var isResizable = false
     var interpolationQuality: Interpolation = .low
 
@@ -43,8 +49,7 @@ public struct Image: ProposalElement {
     public init(decorative bitmap: ImageBitmap, scale: Float) {
         precondition(scale.isFinite && scale > 0,
                      "Image scale must be finite and positive (SA-J), got \(scale)")
-        self.bitmap = bitmap
-        self.scale = scale
+        self.content = .bitmap(bitmap, scale: scale)
     }
 
     /// SwiftUI's `Image(_:scale:label:)`, with `ImageBitmap` for `CGImage` and
@@ -76,7 +81,10 @@ public struct Image: ProposalElement {
 
     /// Whether this image was built `decorative:` — an accessibility modifier
     /// written over it publishes nothing (I4, `AccessibilityModifier`).
-    var isDecorative: Bool { accessibilityLabelText == nil }
+    var isDecorative: Bool {
+        if case .symbol = content { return false }
+        return accessibilityLabelText == nil
+    }
 
     /// Answers the proposal instead of the point size; a nil axis still
     /// answers the point size (probe I2).
@@ -99,27 +107,67 @@ public struct Image: ProposalElement {
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Void) {
-        let width = Double(bitmap.width) / Double(scale)
-        let height = Double(bitmap.height) / Double(scale)
         let isResizable = isResizable
-        let node = pass.requestNativeLeaf { proposal in
-            guard isResizable else { return LayoutMeasurement(size: SizeD(width: width, height: height)) }
-            return LayoutMeasurement(size: SizeD(width: proposal.width ?? width,
-                                                 height: proposal.height ?? height))
+        switch content {
+        case .bitmap(let bitmap, let scale):
+            let width = Double(bitmap.width) / Double(scale)
+            let height = Double(bitmap.height) / Double(scale)
+            let node = pass.requestNativeLeaf { proposal in
+                guard isResizable else { return LayoutMeasurement(size: SizeD(width: width, height: height)) }
+                return LayoutMeasurement(size: SizeD(width: proposal.width ?? width,
+                                                     height: proposal.height ?? height))
+            }
+            return (node, ())
+        case .symbol(let name):
+            // `SYM-D`: the symbol's own size (alignment-rect width, image height) and one baseline, or a 0 x 0 leaf
+            // when the name is missing (probe S6). A resizable symbol answers its proposal as a bitmap does (S7).
+            let plan = symbolPlan(for: name, in: pass.environment)
+            let node = pass.requestNativeLeaf { proposal in
+                guard let plan else { return LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
+                let m = plan.metrics
+                guard isResizable else {
+                    return LayoutMeasurement(size: SizeD(width: m.width, height: m.height),
+                                             firstBaseline: m.baseline, lastBaseline: m.baseline)
+                }
+                return LayoutMeasurement(size: SizeD(width: proposal.width ?? m.width, height: proposal.height ?? m.height))
+            }
+            return (node, ())
         }
-        return (node, ())
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Void, pass: inout PrepaintPass) {
+        if case .symbol(let name) = content {
+            guard let plan = symbolPlan(for: name, in: pass.environment),
+                  let label = symbolLabel(for: plan) else { return }
+            pass.frame.recordAccessibility(text: nil, declared: AXNode(role: .image, label: label), at: bounds, id: id)
+            return
+        }
         guard let label = accessibilityLabelText else { return }
         pass.frame.recordAccessibility(text: nil, declared: AXNode(role: .image, label: label), at: bounds, id: id)
     }
 
     /// One quad over `bounds`, stretched — the texture's pixel size never
-    /// enters here (`PaintPass.drawImage`).
+    /// enters here (`PaintPass.drawImage`). A symbol is rasterised for `bounds` at the frame's scale
+    /// (`SymbolRasterCache`, `SYM-C`) in the foreground colour (`SYM-E`).
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
-        pass.drawImage(bitmap.texture, in: bounds, filter: filter)
+        switch content {
+        case .bitmap(let bitmap, _):
+            pass.drawImage(bitmap.texture, in: bounds, filter: filter)
+        case .symbol(let name):
+            let environment = pass.environment
+            guard let plan = symbolPlan(for: name, in: environment) else { return }
+            let scale = Double(pass.scaleFactor)
+            let width = Int((Double(bounds.size.width.value) * scale).rounded())
+            let height = Int((Double(bounds.size.height.value) * scale).rounded())
+            guard width > 0, height > 0 else { return }
+            let (foreground, _) = resolveForeground(nil, in: environment)
+            let rgba = pass.resolve(foreground).toRgba()
+            guard let texture = SymbolBackend.texture(plan.spec, metrics: plan.metrics, mode: plan.mode, color: rgba,
+                                                      pixelWidth: width, pixelHeight: height, stretched: isResizable,
+                                                      deviceScale: pass.scaleFactor) else { return }
+            pass.drawImage(texture, in: bounds, filter: .linear)
+        }
     }
 }

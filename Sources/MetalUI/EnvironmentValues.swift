@@ -304,6 +304,16 @@ public struct EnvironmentValues {
     /// for that scheme (`CR-K`, `CR-S`) — in it. Reading it never writes.
     public var colorScheme: ColorScheme = .light
 
+    /// SwiftUI's `imageScale` (`SYM-B`): the scale an `Image(systemName:)` below draws at. `.medium`.
+    public var imageScale: Image.Scale = .medium
+
+    /// SwiftUI's `symbolVariants` (`SYM-B`): the variants an `Image(systemName:)` below appends to its name.
+    /// `.none` by default.
+    public var symbolVariants: SymbolVariants = .none
+
+    /// What `symbolRenderingMode(_:)` wrote (`nil`: monochrome). Internal: SwiftUI has no public key.
+    var symbolRenderingMode: SymbolRenderingMode?
+
     /// The size controls below should take — SwiftUI's `controlSize` (ruling
     /// EV-AC). `.regular` in a bare value (V0); written by `.controlSize(_:)` or
     /// `.environment(\.controlSize, _)`, nearest writer winning (Z1).
@@ -518,6 +528,9 @@ struct EnvironmentFingerprint: Equatable {
     var titleBarInsets: Edges<Pixels>
     var windowSize: Size<Pixels>
     var colorScheme: ColorScheme
+    var imageScale: Image.Scale
+    var symbolVariants: SymbolVariants
+    var symbolRenderingMode: SymbolRenderingMode?
     var controlSize: ControlSize
     var font: Font?
     var lineLimit: Int?
@@ -561,6 +574,9 @@ extension EnvironmentFingerprint {
         if titleBarInsets != other.titleBarInsets { out.append("titleBarInsets") }
         if windowSize != other.windowSize { out.append("windowSize") }
         if colorScheme != other.colorScheme { out.append("colorScheme") }
+        if imageScale != other.imageScale { out.append("imageScale") }
+        if symbolVariants != other.symbolVariants { out.append("symbolVariants") }
+        if symbolRenderingMode != other.symbolRenderingMode { out.append("symbolRenderingMode") }
         if controlSize != other.controlSize { out.append("controlSize") }
         if font != other.font { out.append("font") }
         if lineLimit != other.lineLimit { out.append("lineLimit") }
@@ -598,6 +614,7 @@ extension EnvironmentValues {
             accessibilityReduceTransparency: accessibilityReduceTransparency,
             accessibilityDisplay: accessibilityDisplay, legibilityWeight: legibilityWeight,
             titleBarInsets: titleBarInsets, windowSize: windowSize, colorScheme: colorScheme,
+            imageScale: imageScale, symbolVariants: symbolVariants, symbolRenderingMode: symbolRenderingMode,
             controlSize: controlSize, font: font, lineLimit: lineLimit, truncationMode: truncationMode,
             multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStorage, tint: tint,
             fontWeight: fontWeight, italic: italic, isBold: isBold, textRich: textRich,

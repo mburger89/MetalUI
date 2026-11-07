@@ -762,6 +762,10 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 
 **Compiles; one spelling may need a keyword, one set of values differs.** `Shape` is now `Animatable`, as SwiftUI's is, so a custom `Shape` can declare `animatableData` and animate it under `withAnimation` (a shape that declares none snaps, as before). **In Swift 6 write `nonisolated var animatableData`** (divergence 215): SwiftUI's own spelling errors here because MetalUI's `Shape` is main-actor. A third-party `Shape` that declares nothing compiles unchanged; `any Shape` gained an associated type, which no existing member use notices. **A keyframe track's value must be `Animatable`** (SwiftUI's rule): `Double`, `CGFloat`, `Angle`, `Float` (a MetalUI extra) and every SwiftUI conformer are; a type that conforms to `VectorArithmetic` only must add `: Animatable` (its `animatableData` is itself by default). **`TrimmedShape.animatableData`** is the base's data then the two fractions times 128, as SwiftUI's; a read of the data sees the scale. A retarget of an animating shape restarts the whole vector at rest (divergence 216); the `@Animatable` macro is not offered. Write `swift package clean` after pulling (a conformance added to a public protocol and a stored property on `AnimationStore`).
 
+## Record 230 (Alloy gap G3 PRs 0-1): `Image(systemName:)`
+
+**Compiles; `swift package clean` after pulling.** `Image` stores a content enum (a bitmap or a symbol name) instead of an `ImageBitmap`, and `EnvironmentValues` gained `imageScale`, `symbolVariants` (public) and a rendering-mode field (internal), all three in the retained fingerprint: a stale build directory crashes or reads a wrong value. The guard `anImageHasNoSystemNameOrAssetInitialiser` is `anImageHasASystemNameButNoAssetInitialiser`. On Linux and Windows `Image(systemName:)` compiles and draws nothing (a 0 x 0 leaf) until the bundled icons land.
+
 ## See also
 
 - [`api-overview.md`](api-overview.md) — the public surface by area.
