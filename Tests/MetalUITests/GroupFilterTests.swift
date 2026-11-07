@@ -211,3 +211,24 @@ private func groups(_ scene: Scene, _ kind: Scene.GroupFilter.Kind) -> [Int] {
     #expect(abs(mid.groups[ghost[0]].opacity - 0.5) < 0.001, "faded by the default fade: \(mid.groups[ghost[0]].opacity)")
     #expect(mid.groupScenes[ghost[0]].surfaces.count == 1, "the surface inside")
 }
+
+// MARK: - Divergence 223
+
+/// **Divergence 223** (probe `GF1`), pinned wrong on purpose. SwiftUI applies a **view's** `.opacity(0.5)` written inside a
+/// `.shadow` after the shadow (the leaf and its shadow fade as one, `(255, 128, 128)` at the leaf's pixel), and a **colour's**
+/// alpha before it. MetalUI multiplies a view's opacity into the leaf's colours, so the shadow's silhouette follows the
+/// leaf's alpha (model S: the shadow is half as dense, and shows through the translucent leaf). Only a
+/// `compositingGroup()` gives the F reading (T1). A fix would move this opacity into a mark, not the colours.
+@Test @MainActor func aViewsOpacityInsideAShadowFadesTheShadowsSourceNotTheShadow() throws {
+    func scene(_ opacity: Float) -> Scene {
+        effectFrame(Color(.accent).frame(width: px(40), height: px(40)).opacity(opacity)
+            .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene()
+    }
+    let full = scene(1), half = scene(0.5)
+    try #require(gxImages(full).count == 1 && gxImages(half).count == 1, "one shadow each")
+    let want = gxAlpha(gxImages(full)[0], 125, 125)
+    try #require(want > 200, "set up: the control casts at the shadow-only pixel: \(want)")
+    let got = gxAlpha(gxImages(half)[0], 125, 125)
+    #expect(abs(got * 2 - want) <= 2, "model S: the shadow is half as dense (SwiftUI's F keeps it dense): \(got) for \(want)")
+    #expect(half.groups.isEmpty, "no group: the opacity is in the colours")
+}

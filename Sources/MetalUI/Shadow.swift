@@ -22,6 +22,9 @@ extension ProposalElementGroup {
     /// ``ColorToken/shadow`` (black at 0.33, SH2). **Render only**: no layout
     /// change (SH8), no hit region (H5), nothing published (X6). Colour,
     /// radius and offset animate. One layer, one identity level (`MC-C`).
+    /// A GPU surface casts its own pixels' shadow and a leaf under a projective effect casts the projected
+    /// one, through an offscreen group (`GF-A`; divergence 104 narrowed, 1066 retired); a view's `.opacity`
+    /// written inside a shadow fades the shadow's source rather than the shadow (divergence 223).
     /// `color` is any `Color` since the colour work (`CR-E`).
     public func shadow(color: Color = .shadow, radius: Pixels, x: Pixels = Pixels(0),
                        y: Pixels = Pixels(0)) -> ModifiedContent<ProposalBase, LayoutModifier> {
@@ -310,8 +313,8 @@ extension Frame {
         case .backdrop:
             preconditionFailure("flatteningBackdrop turned a backdrop into its flat tint rect (BB-H)")
         case let .surface(s, _):
-            // A surface's pixels live on the GPU: its silhouette is its quad
-            // (divergence 104).
+            // A surface's pixels live on the GPU: a leaf holding one takes the offscreen group (`GF-A`); the
+            // oversize fallback (`GF-G`) falls back to its quad (divergence 104).
             contentMask = (s.contentMask, s.maskCornerRadii)
             mask = RasterMath.scale(fill(RasterMath.roundedRect(s.bounds, MUICorners(topLeft: 0, topRight: 0,
                                                                                     bottomRight: 0, bottomLeft: 0)),

@@ -16,8 +16,10 @@ extension ProposalElementGroup {
     /// equal to `radius` (B1, divergence 105's three-box approximation); the
     /// image grows by the blur's reach and a clip outside cuts it (B5).
     /// **Render only**: no layout change (B4), no hit region, nothing
-    /// published. A GPU surface (`GPUSurface`, `MetalView`) inside is drawn
-    /// unblurred (divergence 167). The radius animates; a radius ≤ 0 draws the
+    /// published. A GPU surface (`GPUSurface`, `MetalView`) inside is blurred
+    /// too, through an offscreen group the renderer filters (`GF-A`; divergence
+    /// 167 reworded: SwiftUI's side for platform views is unmeasured), as is a
+    /// leaf under a projective effect (divergence 1066 retired). The radius animates; a radius ≤ 0 draws the
     /// content unchanged; a non-finite one traps. One layer, one identity
     /// level (`MC-C`).
     public func blur(radius: Pixels) -> ModifiedContent<ProposalBase, LayoutModifier> {
@@ -79,7 +81,9 @@ extension PaintPass {
 
 extension Frame {
     /// Paint inside a blur scope (`LK-K`): every leaf emitted in `body` is
-    /// replaced by its blurred image, except a GPU surface (divergence 167).
+    /// replaced by its blurred image; a leaf the CPU cannot read (a GPU surface,
+    /// divergence 167; a leaf under a projective effect, 1066; a leaf still inside
+    /// an opacity group) goes through an offscreen group (`GF-A`, `GF-B`).
     /// `radius` in points; a radius ≤ 0 opens no scope, so the leaves draw
     /// unchanged. The clip in force cuts the image; clips pushed inside shape
     /// the leaf. Pushes no effect scope (`effectScopesPushed` unmoved).
@@ -169,8 +173,9 @@ extension Frame {
 
     /// One captured primitive in colour (premultiplied) in final device
     /// pixels — the shadow's `silhouette` with all four channels: `map` takes
-    /// its creation space to the final one. A GPU surface reads nothing
-    /// (divergence 167; a surface alone in a leaf never gets here).
+    /// its creation space to the final one. A GPU surface reads nothing: a leaf
+    /// holding one never gets here but takes the offscreen group (`GF-A`); the
+    /// oversize fallback (`GF-G`) draws what the CPU can read.
     private func colourRaster(_ q: CapturedPrimitive, map: Affine2D, clip: RasterRect,
                               cache: RasterCache) -> RGBALayer {
         let m = map.concatenating(q.transform?.affine ?? .identity)
