@@ -8,11 +8,12 @@
 #   branch  kinds 0 and 2 with this branch's shaders;
 #   base    kind 0 with the base commit's shaders (kind 2 is a value the base's shader does not know), the branch's
 #           Swift otherwise: the arm that shows whether the kind-0 path regressed.
-# The base arm puts the base's two shader files in place and restores them (git checkout of the branch's), so run it on a
+# The base arm puts the base's shaders.metal in place and restores them (git checkout of the branch's), so run it on a
 # clean tree. The test is Tests/MetalUIRenderTests/ContinuousCornerCostTests.swift, env-gated (METALUI_CORNER_COST=1).
 set -e
 base=${1:-$(git merge-base HEAD origin/master)}
-files=(Sources/MetalUIRender/Shaders/shaders.metal Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h)
+# Only shaders.metal goes back: the header's extra enum value is not referenced by the base's shader, and the tests need it.
+files=(Sources/MetalUIRender/Shaders/shaders.metal)
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 run() { METALUI_CORNER_COST=1 METALUI_CORNER_COST_KINDS=$1 swift test --build-system native --no-parallel --filter theGPUCostOfTheContinuousKind 2>&1 | grep '^COST'; }
 echo "== branch shaders, kinds 0 and 2"
