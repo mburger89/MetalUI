@@ -67,7 +67,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-11-07, `feat/code-buffer`, record 225): root 5389 tests in 18 suites passed (`--build-system native`, unfiltered, `--no-parallel`, after `swift package clean`; 45 are `MetalUICodeBufferTests`; `FR-J no-argument frame: succeeded=true`; the guard tally in the next sentences is record 221's, not re-counted).
+- **Counts (2026-11-07, `feat/code-view`, record 227): root 5470 tests in 18 suites passed (`--build-system native`, unfiltered, `--no-parallel`, after `swift package clean`; 0 failures; 45 are `MetalUICodeBufferTests`, 44 are the code view's (`CodeViewTests`, `CodeViewVirtualRowsTests`, `CodeRowMapTests`, `CodeViewCoreTextTests`, `CodeViewDemoTests`); `FR-J no-argument frame: succeeded=true`; the same run under `METALUI_VERIFY_RETAINED=1 METALUI_VERIFY_CODE_CACHE=1` is in record 227 section 7.5; the guard tally in the next sentences is record 221's, not re-counted: this branch adds no guard).
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
