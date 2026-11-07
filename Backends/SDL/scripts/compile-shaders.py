@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the twelve HLSL stages and reflect the exact bindings used by SDL."""
+"""Compile the thirteen HLSL stages and reflect the exact bindings used by SDL."""
 import argparse
 import hashlib
 import json
@@ -23,6 +23,8 @@ STAGES += [("pass.vertex", "vertex", ["-DVERTEX_STAGE", "-DPASS_STAGE"]),
            ("downsample.fragment", "fragment", ["-DPASS_STAGE", "-DDOWNSAMPLE_STAGE"]),
            ("gaussian.fragment", "fragment", ["-DPASS_STAGE", "-DGAUSSIAN_STAGE"]),
            ("tint.fragment", "fragment", ["-DPASS_STAGE", "-DTINT_STAGE"])]
+# One more fragment stage (CC-, record 226): the rect fragment with the continuous distance. Its vertex is rect.vertex.
+STAGES += [("continuous.fragment", "fragment", ["-DCONTINUOUS_STAGE"])]
 for name, stage, defines in STAGES:
     spirv = out / f"{name}.spv"
     subprocess.run([compiler, str(root / "Shaders/replay.hlsl"), "-s", "HLSL", "-d", "SPIRV", "-t", stage, *defines, "-o", str(spirv)], check=True)
@@ -33,4 +35,4 @@ for name, stage, defines in STAGES:
     print(name, reflection)
 # CI compares this with the source, so a stale compiled/ fails loudly.
 (out / "SOURCE.sha256").write_text(hashlib.sha256((root / "Shaders/replay.hlsl").read_bytes()).hexdigest() + "  replay.hlsl\n")
-print("Compiled twelve stages to SPIR-V, DXIL, MSL, and reflection JSON:", out)
+print("Compiled thirteen stages to SPIR-V, DXIL, MSL, and reflection JSON:", out)

@@ -263,7 +263,7 @@ exist as elements (rulings `GT-B`…`GT-D`, `GT-I`).
 `Shape` (`geometry(in:)` and, since paths, shadows and transforms, SwiftUI's
 `path(in:)` — both defaulted, implement either; one implementing neither
 traps naming `GX-D`), `ShapeGeometry` (`.roundedRectangle`, `.ellipse`,
-`.path`), `Rectangle`, `RoundedRectangle`/`RoundedCornerStyle` (90),
+`.path`), `Rectangle`, `RoundedRectangle`/`RoundedCornerStyle` (`.continuous` is SwiftUI's curve, `CC-`; a continuous clip is still circular, 90),
 `Circle`, `Capsule`, `Ellipse`, `ShapeView` (`.fill`, `.stroke`,
 `.strokeBorder`, each also with a `FillStyle`/`StrokeStyle`),
 `.background(_:in:)`; `Image` (`.resizable`, `.interpolation` — 93),
@@ -1126,7 +1126,7 @@ and `VectorArithmetic` (169; a zero-duration keyframe reads its target, 171);
 `stroke` and `background` overloads in both vocabularies, rasterized on the CPU
 through the image path with a one-texel strip fast path, no shader change —
 `LK-J`), `.blur(radius:)` (per leaf, sigma = radius, the shadow pipeline in colour;
-a GPU surface leaf is blurred offscreen, 167; `LK-K`, `GF-A`) and `Material` (`ultraThinMaterial`
+a GPU surface leaf is blurred offscreen, 167 retired; `LK-K`, `GF-A`) and `Material` (`ultraThinMaterial`
 … `ultraThickMaterial`, `bar`) as `.background`/`fill` — a **tint over a real
 backdrop blur** of what is already drawn beneath it, GPU surfaces included, on both
 renderers (item C21, record §94: sigma 52 pt, rounded rectangle or ellipse, clip,

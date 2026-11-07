@@ -685,6 +685,11 @@ public struct Scene: Sendable {
             switch kind {
             case .rect:
                 start = sortedRects.count
+                // A run of continuous rects (`MUIShapeContinuousRect`, `CC-`) draws through its own pipeline, so a run
+                // breaks wherever that kind changes (kind 0's fragment shader stays the base's, record 226 section 7).
+                if let previous = sortedRects.last {
+                    sameTexture = (previous.shape & 0xFF == 2) == (rects[entry.4].shape & 0xFF == 2)
+                }
                 sortedRects.append(rects[entry.4])
                 sortedRectSequence.append(entry.2)
                 sortedRectLayer.append(entry.0)

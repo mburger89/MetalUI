@@ -24,8 +24,8 @@ import MetalUIPath
 ///
 /// **`clockwise` reads in y-up terms**, as SwiftUI's does: `clockwise: false`
 /// from 0° to 90° sweeps through the below-right quadrant (PA3). An open
-/// subpath fills as if closed (PA6). `.continuous` rounded corners are drawn
-/// circular (divergence 90).
+/// subpath fills as if closed (PA6). `.continuous` rounded corners are
+/// SwiftUI's curve (`CC-`).
 public struct Path: Shape, Equatable, Sendable {
     var storage: PathGeometry
 
@@ -174,16 +174,22 @@ public struct Path: Shape, Equatable, Sendable {
         for rect in rects { addRect(rect, transform: transform) }
     }
 
-    /// A closed rounded-rectangle subpath with `cornerSize` corners, each
-    /// clamped to half its side. `.continuous` is drawn circular
-    /// (divergence 90).
+    /// A closed rounded-rectangle subpath with `cornerSize` corners. `.circular`
+    /// clamps each to half its side; `.continuous` is SwiftUI's curve (three cubics
+    /// a corner, `CC-`) and scales the pair together, keeping its ratio, until it
+    /// fits half the sides (probe CC4).
     public nonisolated mutating func addRoundedRect(in rect: Bounds<Pixels>, cornerSize: Size<Pixels>,
                                         style: RoundedCornerStyle = .continuous,
                                         transform: Transform2D = .identity) {
         addTransformed(transform) {
-            $0.addRoundedRect(x: Double(rect.origin.x.value), y: Double(rect.origin.y.value),
-                              width: Double(rect.size.width.value), height: Double(rect.size.height.value),
-                              rx: Double(cornerSize.width.value), ry: Double(cornerSize.height.value))
+            let x = Double(rect.origin.x.value), y = Double(rect.origin.y.value)
+            let w = Double(rect.size.width.value), h = Double(rect.size.height.value)
+            let rx = Double(cornerSize.width.value), ry = Double(cornerSize.height.value)
+            if style == .continuous {
+                $0.addContinuousRoundedRect(x: x, y: y, width: w, height: h, rx: rx, ry: ry)
+            } else {
+                $0.addRoundedRect(x: x, y: y, width: w, height: h, rx: rx, ry: ry)
+            }
         }
     }
 
@@ -314,7 +320,8 @@ public struct Path: Shape, Equatable, Sendable {
 extension Path {
     /// The outline of a rounded rectangle or an ellipse geometry, for
     /// `Shape.path(in:)`'s default (`GX-D`): per-corner circular quarter arcs
-    /// as cubics, the same corners the renderer's SDF draws.
+    /// as cubics, or three cubics a `.continuous` corner (`CC-`) — the same
+    /// corners the renderer's SDF draws.
     nonisolated init(_ geometry: ShapeGeometry) {
         self.init()
         let r = geometry.rect
@@ -325,7 +332,15 @@ extension Path {
             storage.addEllipse(x: x, y: y, width: w, height: h)
         case let .path(path, _):
             storage = path.storage
-        case let .roundedRectangle(radii, _):
+        case let .roundedRectangle(radii, style):
+            if style == .continuous, radii.topLeft.value > 0 || radii.topRight.value > 0
+                || radii.bottomRight.value > 0 || radii.bottomLeft.value > 0 {
+                storage.addContinuousRoundedRect(x: x, y: y, width: w, height: h,
+                                                 topLeft: Double(radii.topLeft.value), topRight: Double(radii.topRight.value),
+                                                 bottomRight: Double(radii.bottomRight.value),
+                                                 bottomLeft: Double(radii.bottomLeft.value))
+                return
+            }
             let k = Path.cornerKappa
             let tl = Double(radii.topLeft.value), tr = Double(radii.topRight.value)
             let br = Double(radii.bottomRight.value), bl = Double(radii.bottomLeft.value)

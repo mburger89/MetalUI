@@ -69,14 +69,19 @@ import MetalUIRender
 ///
 /// Mutation: **M2j** the radius kept.
 @Test @MainActor func aStrokeBorderWiderThanTwiceTheRadiusHasASquareOuterCorner() throws {
-    let rr3 = paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(3))
+    let rr3 = paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(3), style: .circular)
         .strokeBorder(.accent, lineWidth: Pixels(10)))
     try #require(rr3.count == 1, "\(rr3)")
     #expect(rr3[0].radii == [0, 0, 0, 0], "K11: \(rr3[0])")
-    let rr20 = paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(20))
+    let rr20 = paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(20), style: .circular)
         .strokeBorder(.accent, lineWidth: Pixels(10)))
     try #require(rr20.count == 1, "\(rr20)")
     #expect(rr20[0].radii == [20, 20, 20, 20] && rr20[0].rect == [0, 0, 100, 60], "\(rr20[0])")
+    // The continuous kind (the default, CC-) keeps the radius whole: its shader squares the corner whose inset radius
+    // is not positive (probe CC5b), so the CPU rule does not apply (`aContinuousStrokeKeepsItsRadii`).
+    let cc3 = paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(3)).strokeBorder(.accent, lineWidth: Pixels(10)))
+    try #require(cc3.count == 1, "\(cc3)")
+    #expect(cc3[0].radii == [3, 3, 3, 3] && cc3[0].kind == PrimitiveShape.continuousRoundedRectangle.rawValue, "CC5b: \(cc3[0])")
 }
 
 /// **2.11 — a stroke of zero or negative width draws nothing** (probe K9:

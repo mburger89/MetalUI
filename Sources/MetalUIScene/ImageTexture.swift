@@ -72,4 +72,9 @@ public enum PrimitiveShape: UInt32, Sendable, Hashable {
     /// The ellipse inscribed in the bounds; the corner radii are ignored and
     /// the top border width is the band SwiftUI's `strokeBorder` draws.
     case ellipse = 1
+    /// A rectangle with SwiftUI's continuous corners at each `cornerRadii` entry
+    /// (divergence 90, `CC-`): three cubics a corner, a side's room shared by
+    /// radius. The top border width is the band of the inset curve, as for the
+    /// ellipse.
+    case continuousRoundedRectangle = 2
 }

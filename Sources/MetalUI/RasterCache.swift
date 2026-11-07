@@ -440,6 +440,30 @@ enum RasterMath {
         return Path(geometry).storage
     }
 
+    /// A rect primitive's outline in local device pixels by its shape kind
+    /// (`MUIRect.shape & 0xFF`): the ellipse, a continuous rounded rectangle
+    /// (`CC-`) or the circular one.
+    static func outline(_ b: MUIBounds, _ radii: MUICorners, kind: UInt32) -> PathGeometry {
+        if kind == PrimitiveShape.continuousRoundedRectangle.rawValue { return continuousOutline(b, radii) }
+        return roundedRect(b, radii, ellipse: kind == PrimitiveShape.ellipse.rawValue)
+    }
+
+    /// A continuous rounded rectangle's outline (`CC-`) in `b` shrunk by `shrink` on every side, each radius
+    /// less `shrink` and not below 0 — SwiftUI's `inset(by:)`. The shader's border band is this outline
+    /// stroked `2 × shrink` wide (probe CC5).
+    static func continuousOutline(_ b: MUIBounds, _ radii: MUICorners, shrink: Float = 0) -> PathGeometry {
+        let x = Double(b.origin.x + shrink), y = Double(b.origin.y + shrink)
+        let w = Double(max(0, b.size.width - 2 * shrink)), h = Double(max(0, b.size.height - 2 * shrink))
+        let tl = Double(max(0, radii.topLeft - shrink)), tr = Double(max(0, radii.topRight - shrink))
+        let br = Double(max(0, radii.bottomRight - shrink)), bl = Double(max(0, radii.bottomLeft - shrink))
+        var g = PathGeometry()
+        if tl == 0, tr == 0, br == 0, bl == 0 { g.addRect(x: x, y: y, width: w, height: h) } else {
+            g.addContinuousRoundedRect(x: x, y: y, width: w, height: h, topLeft: tl, topRight: tr, bottomRight: br,
+                                       bottomLeft: bl)
+        }
+        return g
+    }
+
     /// The coverage of a rounded-rect mask under `map`, inside `clip`.
     static func maskCoverage(_ b: MUIBounds, _ radii: MUICorners, map: Affine2D, clip: RasterRect,
                              cache: RasterCache) -> AlphaMask {

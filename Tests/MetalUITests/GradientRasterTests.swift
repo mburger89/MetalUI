@@ -49,12 +49,18 @@ private let diagonal = LinearGradient(colors: [lkRed, lkBlue], startPoint: .topL
     #expect(wide[0].texture.width == 40 && wide[0].texture.height == 1,
             "40 × 1: \(wide[0].texture.width) × \(wide[0].texture.height)")
 
-    let rounded = gxImages(lkScene(RoundedRectangle(cornerRadius: px(8)).fill(vertical)
+    let rounded = gxImages(lkScene(RoundedRectangle(cornerRadius: px(8), style: .circular).fill(vertical)
         .frame(width: px(40), height: px(100)), side: 200))
     try #require(rounded.count == 1, "one image")
     #expect(rounded[0].texture.width == 1 && rounded[0].image.maskCornerRadii.topLeft == 8
                 && gxDescribe(rounded[0].image.contentMask) == "(80.0, 50.0, 40.0×100.0)",
             "a strip masked by the rect's radii: \(rounded[0].texture.width), \(rounded[0].image.maskCornerRadii)")
+    // A continuous rounded rectangle (the default, CC-) is not a circular mask over a strip: it is rasterized in full.
+    let continuous = gxImages(lkScene(RoundedRectangle(cornerRadius: px(8)).fill(vertical)
+        .frame(width: px(40), height: px(100)), side: 200))
+    try #require(continuous.count == 1, "one image")
+    #expect(continuous[0].texture.width > 1 && continuous[0].image.maskCornerRadii.topLeft == 0,
+            "the continuous curve is in the raster, not a circular mask: \(continuous[0].texture.width)")
 }
 
 // MARK: - 3.12 (LK-J item 5)

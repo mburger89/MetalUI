@@ -47,6 +47,9 @@ public final class Renderer {
     public let commandQueue: any MTLCommandQueue
 
     private let rectPipeline: any MTLRenderPipelineState
+    /// `rect_vertex` with `rect_continuous_fragment` (`CC-`): a run of kind-2 rects. Kind 0's pipeline is the base's
+    /// (record 226 section 7: the continuous distance inside `rect_fragment` cost the circular kind 9 %).
+    private let continuousRectPipeline: any MTLRenderPipelineState
     private let glyphPipeline: any MTLRenderPipelineState
     private let imagePipeline: any MTLRenderPipelineState
     private let unitVertexBuffer: any MTLBuffer
@@ -217,6 +220,7 @@ public final class Renderer {
         }
 
         self.rectPipeline = try makePipeline(vertex: "rect_vertex", fragment: "rect_fragment")
+        self.continuousRectPipeline = try makePipeline(vertex: "rect_vertex", fragment: "rect_continuous_fragment")
         self.glyphPipeline = try makePipeline(vertex: "glyph_vertex", fragment: "glyph_fragment")
         self.imagePipeline = try makePipeline(vertex: "image_vertex", fragment: "image_fragment")
 
@@ -873,7 +877,9 @@ public final class Renderer {
                              viewport: inout MUISize,
                              projection: inout simd_float4x4,
                              transforms: any MTLBuffer) throws {
-        encoder.setRenderPipelineState(rectPipeline)
+        // `Scene.finalize` starts a run at every change of the continuous kind, so the first rect names the run's.
+        let continuous = rects.first.map { $0.shapeKind == PrimitiveShape.continuousRoundedRectangle.rawValue } ?? false
+        encoder.setRenderPipelineState(continuous ? continuousRectPipeline : rectPipeline)
 
         // The rect array goes through an `MTLBuffer`, not `setVertexBytes`.
         //

@@ -215,8 +215,8 @@ private func size(_ w: Double, _ h: Double) -> SizeD { SizeD(width: w, height: h
 }
 
 /// **2.4 — an `Ellipse` emits the renderer's ellipse kind** over its whole
-/// frame (probe S2's ellipse fills 100×60; `TE-AE`); a rounded rectangle emits
-/// kind 0.
+/// frame (probe S2's ellipse fills 100×60; `TE-AE`); a circular rounded rectangle emits
+/// kind 0 (a continuous one kind 2, `CC-`).
 ///
 /// Mutation: **M2d** `Ellipse` as a rounded rectangle.
 @Test @MainActor func anEllipseEmitsTheEllipseKind() throws {
@@ -224,9 +224,10 @@ private func size(_ w: Double, _ h: Double) -> SizeD { SizeD(width: w, height: h
     try #require(ellipse.count == 1, "\(ellipse)")
     #expect(ellipse[0].kind == PrimitiveShape.ellipse.rawValue && ellipse[0].rect == [0, 0, 100, 60],
             "\(ellipse[0])")
-    let capsule = paintedShapes(100, 60, Capsule())
+    let capsule = paintedShapes(100, 60, Capsule(style: .circular))
     try #require(capsule.count == 1)
     #expect(capsule[0].kind == PrimitiveShape.roundedRectangle.rawValue)
+    #expect(paintedShapes(100, 60, Capsule())[0].kind == PrimitiveShape.continuousRoundedRectangle.rawValue, "CC-")
 }
 
 // MARK: - 2.5, 2.6 the fill
@@ -275,20 +276,22 @@ private func size(_ w: Double, _ h: Double) -> SizeD { SizeD(width: w, height: h
 
 // MARK: - 2.14 divergence 90
 
-/// **2.14 — divergence 90's pin: `.continuous` is the default and is drawn
-/// circular.** SwiftUI's default style is `.continuous` and differs from
-/// `.circular` by 196 px at r 20 on 100×60 (probe S3); MetalUI keeps the
-/// spelling and the default, and draws both alike — the renderer's rounded
-/// rect is circular (`TE-AG` item 2).
+/// **2.14 — `.continuous` is the default and is drawn as SwiftUI's curve.** SwiftUI's default style is
+/// `.continuous` and differs from `.circular` by 196 px at r 20 on 100×60 (probe S3); MetalUI keeps the
+/// spelling and the default and, since `CC-` (record 226, retiring the pin that drew both circular), emits the
+/// continuous kind for it: the painted shapes differ, the default equals the explicit `.continuous`, the capsule
+/// likewise (S3: 230 px apart).
 ///
 /// Mutation: **M2n** the default `.circular`.
-@Test @MainActor func theContinuousStyleIsTheDefaultAndIsDrawnCircular() {
+@Test @MainActor func theContinuousStyleIsTheDefaultAndDrawsItsCurve() {
     #expect(RoundedRectangle(cornerRadius: Pixels(20)).style == .continuous, "S3's default")
     #expect(Capsule().style == .continuous, "S3's capsule default")
-    #expect(paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(20)))
-                == paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(20), style: .circular)),
-            "divergence 90: continuous drawn circular")
-    #expect(paintedShapes(100, 60, Capsule()) == paintedShapes(100, 60, Capsule(style: .circular)))
+    let continuous = paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(20), style: .continuous))
+    #expect(paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(20))) == continuous, "the default is .continuous")
+    #expect(continuous != paintedShapes(100, 60, RoundedRectangle(cornerRadius: Pixels(20), style: .circular)),
+            "continuous is no longer drawn circular")
+    #expect(paintedShapes(100, 60, Capsule()) == paintedShapes(100, 60, Capsule(style: .continuous)))
+    #expect(paintedShapes(100, 60, Capsule()) != paintedShapes(100, 60, Capsule(style: .circular)))
 }
 
 // MARK: - 2.22, 2.23 backgrounds and overlays in a shape

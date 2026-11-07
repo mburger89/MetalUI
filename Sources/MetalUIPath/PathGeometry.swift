@@ -183,8 +183,8 @@ package struct PathGeometry: Hashable, Sendable {
     }
 
     /// A rectangle with elliptical corners of radii (rx, ry), each clamped to
-    /// half its side — circular quarter arcs as cubics (divergence 90: a
-    /// `.continuous` corner is drawn circular too).
+    /// half its side — circular quarter arcs as cubics (a `.continuous` corner
+    /// is `addContinuousRoundedRect`, `CC-`).
     package mutating func addRoundedRect(x: Double, y: Double, width: Double, height: Double,
                                          rx: Double, ry: Double) {
         let rx = max(0, min(rx, width / 2)), ry = max(0, min(ry, height / 2))

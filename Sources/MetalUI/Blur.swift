@@ -82,7 +82,7 @@ extension PaintPass {
 extension Frame {
     /// Paint inside a blur scope (`LK-K`): every leaf emitted in `body` is
     /// replaced by its blurred image; a leaf the CPU cannot read (a GPU surface,
-    /// divergence 167; a leaf under a projective effect, 1066; a leaf still inside
+    /// divergence 167, retired; a leaf under a projective effect, 1066; a leaf still inside
     /// an opacity group) goes through an offscreen group (`GF-A`, `GF-B`).
     /// `radius` in points; a radius ≤ 0 opens no scope, so the leaves draw
     /// unchanged. The clip in force cuts the image; clips pushed inside shape
@@ -195,12 +195,25 @@ extension Frame {
         case let .rect(r):
             contentMask = (r.contentMask, r.maskCornerRadii)
             let ellipse = r.shapeKind == PrimitiveShape.ellipse.rawValue
-            let outline = RasterMath.roundedRect(r.bounds, r.cornerRadii, ellipse: ellipse)
+            let continuous = r.shapeKind == PrimitiveShape.continuousRoundedRectangle.rawValue
+            let outline = RasterMath.outline(r.bounds, r.cornerRadii, kind: r.shapeKind)
             layer = .empty
             if r.background.a > 0 { layer = RGBALayer(mask: fill(outline), color: hsla(r.background)) }
             let w = r.borderWidths
             let widest = max(w.top, w.right, w.bottom, w.left)
-            if r.borderColor.a > 0, widest > 0 {
+            if continuous, r.borderColor.a > 0, w.top > 0 {
+                // The shader's band: the stroke of the outline inset by half the width (probe CC5).
+                let inset = w.top / 2
+                let covering = r.bounds.size.width - 2 * inset <= 0 || r.bounds.size.height - 2 * inset <= 0
+                let ring: AlphaMask
+                if covering { ring = fill(outline) } else {
+                    ring = PathRaster.stroke(RasterMath.continuousOutline(r.bounds, r.cornerRadii, shrink: inset),
+                                             style: StrokeParameters(width: Double(w.top)), transform: m.pathAffine,
+                                             clip: clip, rasterizer: &rasterizer, scratch: &cache.scratch)
+                    cache.noteRasterized(rasterizer.lastRasterizedPixels)
+                }
+                layer = layer.under(RGBALayer(mask: ring, color: hsla(r.borderColor)))
+            } else if r.borderColor.a > 0, widest > 0 {
                 var ring = outline
                 let inner = MUIBounds(origin: MUIPoint(x: r.bounds.origin.x + w.left, y: r.bounds.origin.y + w.top),
                                       size: MUISize(width: max(0, r.bounds.size.width - w.left - w.right),

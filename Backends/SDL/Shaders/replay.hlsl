@@ -1,4 +1,4 @@
-// Portable replay shaders. Compile six times: VERTEX_STAGE or not, times
+// Portable replay shaders (CONTINUOUS_STAGE, CC-: the rect fragment with the continuous distance, one more stage). Compile six times: VERTEX_STAGE or not, times
 // no kind define (rects), GLYPH_STAGE or IMAGE_STAGE; and, since the backdrop
 // blur (rulings BB-A, BB-D, BB-J), five more: BACKDROP_STAGE in both stages
 // (a material's blurred quad, shaders.metal's `backdrop_vertex` and
@@ -284,6 +284,138 @@ float ellipseSDF(float2 p, float2 h) {
 float cornerRadius(float2 p, float4 corners) {
     return p.x < 0 ? (p.y < 0 ? corners.x : corners.w) : (p.y < 0 ? corners.y : corners.z);
 }
+#if defined(CONTINUOUS_STAGE) || defined(BACKDROP_STAGE)
+// shaders.metal's continuous corners (divergence 90, ruling CC-): the same
+// statements and constants, so Metal, Vulkan and Direct3D agree at the parity
+// tolerance (TE-AD). See `continuous_corner_sdf` there for the model.
+static const float CC_EXTENT = 1.528664947;
+static const float CC_K0 = 0.631493986;
+static const float CC_K1 = 0.074911401;
+static const float CC_M1 = 0.372824013;
+static const float CC_M2 = 0.169060007;
+static const float CC_A1 = 0.716953795;
+static const float CC_B1 = 0.243046205;
+static const float CC_A2 = 0.728435369;
+static const float CC_B2 = 0.091564631;
+float2 ccPoint(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return a * (u * u * u) + b * (3.0 * u * u * t) + c * (3.0 * u * t * t) + d * (t * t * t);
+}
+float2 ccTangent(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return (b - a) * (3.0 * u * u) + (c - b) * (6.0 * u * t) + (d - c) * (3.0 * t * t);
+}
+struct CCNearest {
+    float distance;
+    float2 nearest;
+    float2 tangent;
+};
+CCNearest ccNearest(float2 a, float2 b, float2 c, float2 d, float2 q) {
+    float t = 0.1666667;
+    float best = 1.0e30;
+    for (int i = 0; i < 3; i++) {
+        float s = 0.1666667 + 0.3333333 * float(i);
+        float2 e = ccPoint(a, b, c, d, s) - q;
+        float dd = dot(e, e);
+        if (dd < best) { best = dd; t = s; }
+    }
+    for (int i = 0; i < 3; i++) {
+        float2 e = ccPoint(a, b, c, d, t) - q;
+        float2 v = ccTangent(a, b, c, d, t);
+        t = clamp(t - dot(v, e) / max(dot(v, v), 1.0e-12), 0.0, 1.0);
+    }
+    CCNearest n;
+    n.nearest = ccPoint(a, b, c, d, t);
+    n.tangent = ccTangent(a, b, c, d, t);
+    n.distance = length(n.nearest - q);
+    return n;
+}
+
+float2 ccAccel(float2 a, float2 b, float2 c, float2 d, float t) {
+    float u = 1.0 - t;
+    return ((c - b * 2.0 + a) * u + (d - c * 2.0 + b) * t) * 6.0;
+}
+
+/// `ccNearest` for a point deep inside or out (a wide border's band): Newton with the curvature term, four steps, where
+/// Gauss-Newton from a 4-sample seed falls short by up to 9 levels (the r 30 border 24 case of the tests).
+CCNearest ccNearestDeep(float2 a, float2 b, float2 c, float2 d, float2 q) {
+    float t = 0.125;
+    float best = 1.0e30;
+    for (int i = 0; i < 4; i++) {
+        float s = 0.125 + 0.25 * float(i);
+        float2 e = ccPoint(a, b, c, d, s) - q;
+        float dd = dot(e, e);
+        if (dd < best) { best = dd; t = s; }
+    }
+    for (int i = 0; i < 4; i++) {
+        float2 e = ccPoint(a, b, c, d, t) - q;
+        float2 v = ccTangent(a, b, c, d, t);
+        float g = dot(v, e);
+        float h = max(dot(v, v) + dot(ccAccel(a, b, c, d, t), e), 0.25 * dot(v, v));
+        t = clamp(t - g / max(h, 1.0e-12), 0.0, 1.0);
+    }
+    CCNearest n;
+    n.nearest = ccPoint(a, b, c, d, t);
+    n.tangent = ccTangent(a, b, c, d, t);
+    n.distance = length(n.nearest - q);
+    return n;
+}
+float continuousCornerSDF(float2 p, float2 halfSize, float r, float rH, float rV, float band, bool square) {
+    if (r <= 0.0) {
+        float2 e = abs(p) - halfSize;
+        if (square) { return max(e.x, e.y); }
+        return length(max(e, 0.0)) + min(max(e.x, e.y), 0.0);
+    }
+    float dc = rectSDF(p, halfSize, r);
+    if (abs(dc) > 0.02 * r + band) { return dc; }
+    float2 q = halfSize - abs(p);
+    float ex = min(2.0 * halfSize.x * r / (r + max(rH, 0.0)), CC_EXTENT * r);
+    float ey = min(2.0 * halfSize.y * r / (r + max(rV, 0.0)), CC_EXTENT * r);
+    float tx = ex / r;
+    float ty = ey / r;
+    float2 a0 = float2(ex, 0.0);
+    float2 a1 = float2((CC_A1 + CC_B1 * tx) * r, 0.0);
+    float2 a2 = float2((CC_A2 + CC_B2 * tx) * r, 0.0);
+    float2 k = float2(CC_K0, CC_K1) * r;
+    float2 kk = float2(CC_K1, CC_K0) * r;
+    float2 c1 = float2(0.0, (CC_A2 + CC_B2 * ty) * r);
+    float2 c2 = float2(0.0, (CC_A1 + CC_B1 * ty) * r);
+    float2 c3 = float2(0.0, ey);
+    // The corner's cubics are searched one at a time: the tangent at each joint decides which one is nearest (the
+    // curve is convex, and a point in the narrow wedge of the joint's 0.043 rad kink clamps to the joint on either).
+    float2 b1 = float2(CC_M1, CC_M2) * r;
+    float2 b2 = float2(CC_M2, CC_M1) * r;
+    CCNearest n;
+    if (abs(dc) > 0.2 * r) {
+        // Deep inside or out (a wide border's band): the joints' tangents no longer pick the nearest cubic, so search all three.
+        n = ccNearestDeep(a0, a1, a2, k, q);
+        CCNearest m = ccNearestDeep(k, b1, b2, kk, q);
+        if (m.distance < n.distance) { n = m; }
+        m = ccNearestDeep(kk, c1, c2, c3, q);
+        if (m.distance < n.distance) { n = m; }
+    } else if (dot(q - k, float2(k.x - a2.x, k.y)) <= 0.0) {
+        n = ccNearest(a0, a1, a2, k, q);
+    } else if (dot(q - kk, kk - b2) <= 0.0) {
+        n = ccNearest(k, b1, b2, kk, q);
+    } else {
+        n = ccNearest(kk, c1, c2, c3, q);
+    }
+    float u = min(n.distance, min(length(float2(max(ex - q.x, 0.0), q.y)),
+                                  length(float2(q.x, max(ey - q.y, 0.0)))));
+    bool inside;
+    if (q.x >= ex) { inside = q.y >= 0.0; }
+    else if (q.y >= ey) { inside = q.x >= 0.0; }
+    else if (q.x < 0.0 || q.y < 0.0) { inside = false; }
+    else { inside = n.tangent.x * (q.y - n.nearest.y) - n.tangent.y * (q.x - n.nearest.x) < 0.0; }
+    return inside ? -u : u;
+}
+float continuousRectSDF(float2 p, float2 halfSize, float4 radii, float shrink, float band, bool square) {
+    float r  = cornerRadius(p, radii) - shrink;
+    float rH = cornerRadius(float2(-p.x, p.y), radii) - shrink;
+    float rV = cornerRadius(float2(p.x, -p.y), radii) - shrink;
+    return continuousCornerSDF(p, halfSize, r, rH, rV, band, square);
+}
+#endif
 float maskCoverage(float2 p, float4 bounds, float4 radii) {
     float2 halfSize = bounds.zw * 0.5;
     float2 rel = p - bounds.xy - halfSize;
@@ -353,6 +485,37 @@ float4 rectShade(uint base, float2 pixelPosition, float s) {
     float4 color = lerp(hslaToRGBA(primitives[base + 4]), hslaToRGBA(primitives[base + 3]), borderMix);
     return float4(color.rgb * color.a, color.a) * outerAlpha;
 }
+#ifdef CONTINUOUS_STAGE
+// shaders.metal's `rect_shade_continuous` (CC-): `rectShade` for the continuous kind, its own stage so the
+// circular kind's shader stays the base's.
+float4 rectShadeContinuous(uint base, float2 pixelPosition, float s) {
+    float4 bounds = primitives[base];
+    float2 halfSize = bounds.zw * 0.5;
+    float2 p = pixelPosition - (bounds.xy + halfSize);
+    float4 widths = primitives[base + 6]; // top, right, bottom, left
+    float outerAlpha;
+    float innerAlpha;
+    {
+        // shaders.metal's continuous-rect branch (CC-): the band of an inset curve.
+        float w = widths.x;
+        float2 inset = halfSize - w * 0.5;
+        if (w <= 0.0) {
+            outerAlpha = saturate(0.5 - continuousRectSDF(p, halfSize, primitives[base + 5], 0.0, 0.5 / s, false) * s);
+            innerAlpha = outerAlpha;
+        } else if (min(inset.x, inset.y) <= 0.0) {
+            outerAlpha = saturate(0.5 - continuousRectSDF(p, halfSize, primitives[base + 5], 0.0, 0.5 / s, false) * s);
+            innerAlpha = 0.0;
+        } else {
+            float d = continuousRectSDF(p, inset, primitives[base + 5], w * 0.5, w * 0.5 + 0.5 / s, true);
+            outerAlpha = saturate(0.5 - (d - w * 0.5) * s);
+            innerAlpha = saturate(0.5 - (d + w * 0.5) * s);
+        }
+    }
+    float borderMix = outerAlpha > 0 ? saturate(innerAlpha / outerAlpha) : 0;
+    float4 color = lerp(hslaToRGBA(primitives[base + 4]), hslaToRGBA(primitives[base + 3]), borderMix);
+    return float4(color.rgb * color.a, color.a) * outerAlpha;
+}
+#endif
 #endif
 #endif
 #ifdef BACKDROP_STAGE
@@ -366,6 +529,9 @@ float backdropCoverage(uint base, float2 pixelPosition, float s) {
     float2 p = pixelPosition - (bounds.xy + halfSize);
     if ((asuint(primitives[base + 5].y) & 0xFF) == 1) {
         return saturate(0.5 - ellipseSDF(p, halfSize) * s);
+    }
+    if ((asuint(primitives[base + 5].y) & 0xFF) == 2) {
+        return saturate(0.5 - continuousRectSDF(p, halfSize, primitives[base + 3], 0.0, 0.5 / s, false) * s);
     }
     float radius = cornerRadius(p, primitives[base + 3]);
     return saturate(0.5 - rectSDF(p, halfSize, radius) * s);
@@ -400,6 +566,9 @@ float glassSDF(uint base, uint flags, float2 p) {
         float2 halfSize = whole.zw * 0.5;
         float2 rel = p - (whole.xy + halfSize);
         if ((asuint(primitives[base + 5].y) & 0xFF) == 1) { return ellipseSDF(rel, halfSize); }
+        if ((asuint(primitives[base + 5].y) & 0xFF) == 2) {
+            return continuousRectSDF(rel, halfSize, primitives[base + 3], 0.0, max(primitives[base + 6].z, 0.0) + 2.0, false);
+        }
         return rectSDF(rel, halfSize, cornerRadius(rel, primitives[base + 3]));
     }
     float blendK = primitives[base + 7].x;
@@ -569,7 +738,11 @@ float4 main(VertexOut input) : SV_Target0 {
     uint transformIndex = asuint(primitives[base + 7].y) >> 8;
     if (transformIndex == 0) {
         float clip = maskCoverage(input.pixelPosition, primitives[base + 1], primitives[base + 2]);
+#ifdef CONTINUOUS_STAGE
+        return rectShadeContinuous(base, input.pixelPosition, 1.0) * clip;
+#else
         return rectShade(base, input.pixelPosition, 1.0) * clip;
+#endif
     }
     uint record = (transformIndex - 1) * 5;
     float s = transforms[record + 1].z;
@@ -581,7 +754,11 @@ float4 main(VertexOut input) : SV_Target0 {
     }
     float clip = maskCoverageScaled(input.pixelPosition, primitives[base + 1], primitives[base + 2], s)
                * maskCoverage(screen, transforms[record + 2], transforms[record + 3]);
+#ifdef CONTINUOUS_STAGE
+    return rectShadeContinuous(base, input.pixelPosition, s) * clip;
+#else
     return rectShade(base, input.pixelPosition, s) * clip;
+#endif
 #endif
 }
 #endif
