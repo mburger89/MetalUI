@@ -1195,3 +1195,16 @@ no product, imports nothing, `GX-B`), and
 ## Frame timing — M
 
 `Window.frameTiming: FrameTiming?` (off by default), `FrameTiming` (a ring of `FrameTimingSample`s, `samples`, `last`, `framesRecorded`, `removeAll()`, `onFrame`, `onPresented`, `FrameTiming.now()`, optional `os` signposts under `com.metalui`), `FrameTimingSample` and `FrameInputKind`; the renderer seam `WindowRenderer.setPresentationObserver(_:)`; the headless renderer's `reportsPresentation` and `deliverPresentations(at:)`. MetalUI-only (`FP-A`..`FP-H`, record 222); guide [`frame-timing.md`](frame-timing.md).
+
+## Code buffer — M
+
+`MetalUICodeBuffer` (also re-exported by `MetalUI`; imports only `Observation`, so it builds on Linux and Windows) is the text model behind a code view: all offsets are UTF-8 bytes (`CV-C`).
+
+- `CodeBuffer(_ text:)`, `CodeBuffer(utf8:)` (O(n); invalid bytes become U+FFFD and set `hadInvalidUTF8`), `lineEnding`, `isReadOnly`, `version` (observable, +1 per edit event), `utf8Count`, `lineCount`, `snapshot()`.
+- Editing: `replace(_:with:origin:)`, `transaction { }`, `replaceSelections(with:origin:)`, `undo()`, `redo()`, `canUndo`, `canRedo`, `breakUndoCoalescing()`, `undoByteLimit`. Typing and deletion coalesce into one undo step; undo restores the selections from before the step.
+- Selections: `selections` (sorted, merged, observable), `primarySelection`, `select(_:reveal:)`, `revealSerial`. Edits move them (`CV-D`).
+- Outside edits: `applyExternalEdits(_:expectingVersion:)` (highest range first, off the undo stack, throws `CodeBufferError`) and `applyExternalReplacement(_:expectingVersion:)` (a line diff for a reload). Undo steps an external edit touches are dropped (`CV-F`).
+- The stream: `makeEditCursor()`, `CodeEditCursor.drain()` giving `CodeEditBatch.edits` or `.resync`, `map(_:from:bias:)`. A `CodeEdit` carries the replaced byte and scalar ranges, tree-sitter points and the new text, in pre-edit coordinates.
+- `CodeSnapshot` (O(1), `Sendable`): `text`, `text(in:)`, `utf8(in:)`, `line(_:)`, `lineRange(_:)`, `offset(of:)`, `point(at:)`, scalar and UTF-16 conversions, `longestLineScalars`, `ranges(of:options:limit:)`.
+
+Typical use: keep one `CodeBuffer` per open file; make an edit cursor and `drain()` it when `version` changes (an autosave, a CRDT feed); hand `snapshot()` to a background parser; apply an agent's patch with `applyExternalEdits(_:expectingVersion:)`; search with `snapshot().ranges(of:options:limit:)` when the query changes.
