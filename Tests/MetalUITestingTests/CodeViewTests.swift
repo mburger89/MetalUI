@@ -255,3 +255,227 @@ let codePrimary: EventModifiers = .control
         #expect(abs(row - target) <= (target == 990 ? 6 : 0), "target \(target), middle row \(row), \(expected)")
     }
 }
+
+// MARK: - Decorations
+
+/// A provider that records what it was asked and colours whole rows, answering synchronously unless told not to.
+@MainActor final class RecordingProvider: CodeHighlightProvider {
+    var calls: [Range<Int>] = []
+    var style: CodeStyleID
+    var answers = true
+    init(style: CodeStyleID) { self.style = style }
+    func decorations(_ decorations: CodeDecorations, needHighlightsForRows rows: Range<Int>, in snapshot: CodeSnapshot) {
+        calls.append(rows)
+        guard answers else { return }
+        let lo = snapshot.lineRange(rows.lowerBound).lowerBound, hi = snapshot.lineRange(rows.upperBound - 1).upperBound
+        let runs = rows.map { CodeStyleRun(range: snapshot.lineRange($0), style: style) }.filter { !$0.range.isEmpty }
+        decorations.setHighlights(runs, in: lo..<hi, layer: .syntax, asOf: snapshot.version)
+    }
+}
+
+@MainActor func glyphColorAlphas(_ window: TestWindow, hue: Float) -> Int {   // glyphs of one text colour
+    window.scene.glyphs.filter { abs($0.color.h - hue) < 0.001 }.count
+}
+
+/// 4.1 — the provider is asked once, after the frame and outside every phase (its answer is an `@Observable`
+/// write, which a phase would lose), for the rows it is missing; its answer colours the glyphs in the same
+/// tick; and nothing asks again while nothing changes.
+/// **Mutation:** the request raised from `prepaint` itself (not queued) is a phase-time write and the colour
+/// never reaches the frame; the dedupe removed asks every frame.
+@Test @MainActor func theProviderIsAskedOnceAfterTheFrameAndItsAnswerColoursTheText() throws {
+    let buffer = CodeBuffer(codeText(lines: 1000))
+    let decorations = CodeDecorations(buffer: buffer)
+    let red = decorations.register(CodeStyle(foreground: Color(hue: 0.123, saturation: 0.8, brightness: 0.9)))
+    let provider = RecordingProvider(style: red)
+    decorations.highlightProvider = provider
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(provider.calls.count == 1, "asked \(provider.calls)")
+    #expect(provider.calls.first?.lowerBound == 0)
+    #expect(glyphColorAlphas(window, hue: 0.123) > 100, "the answer coloured the text: \(glyphColorAlphas(window, hue: 0.123))")
+}
+
+/// 4.2 — typing never flashes unstyled text: an edit marks the row stale, the old colour stays until the
+/// provider answers (here it does not), and the provider is asked for that row.
+@Test @MainActor func anEditKeepsTheOldColoursAndAsksAgain() throws {
+    let buffer = CodeBuffer(codeText(lines: 1000))
+    let decorations = CodeDecorations(buffer: buffer)
+    let red = decorations.register(CodeStyle(foreground: Color(hue: 0.123, saturation: 0.8, brightness: 0.9)))
+    let provider = RecordingProvider(style: red)
+    decorations.highlightProvider = provider
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    window.window.setNeedsRedraw(); window.tick()
+    let before = glyphColorAlphas(window, hue: 0.123)
+    provider.answers = false
+    provider.calls = []
+    let start = buffer.snapshot().offset(of: CodePoint(row: 3, column: 0))
+    buffer.replace(start..<start, with: "xx")
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(glyphColorAlphas(window, hue: 0.123) >= before, "the row keeps its colour: \(before) -> \(glyphColorAlphas(window, hue: 0.123))")
+    #expect(provider.calls.count == 1 && provider.calls[0].contains(3), "asked \(provider.calls)")
+}
+
+/// 4.3 — highlights given for an older version are mapped forward through the edits since: a run on row 5
+/// given at version v lands on the same text after 3 lines were inserted above.
+/// **Mutation:** `setHighlights` ignoring `asOf` puts the colour 3 rows too high.
+@Test @MainActor func highlightsGivenForAnOlderVersionAreMappedForward() throws {
+    let buffer = CodeBuffer(codeText(lines: 100))
+    let decorations = CodeDecorations(buffer: buffer)
+    let style = decorations.register(CodeStyle(foreground: Color(hue: 0.5, saturation: 1, brightness: 1)))
+    let version = buffer.version
+    let row5 = buffer.snapshot().lineRange(5)
+    buffer.replace(0..<0, with: "a\nb\nc\n")
+    decorations.setHighlights([CodeStyleRun(range: row5, style: style)], in: 0..<buffer.snapshot().utf8Count - 6, layer: .syntax, asOf: version)
+    let now = buffer.snapshot()
+    let styled = decorations.stylingOfLine(now.lineRange(8)).foreground
+    let early = decorations.stylingOfLine(now.lineRange(5)).foreground
+    #expect(styled.contains { $0.style == style }, "row 8 carries the run: \(styled)")
+    #expect(!early.contains { $0.style == style }, "row 5 does not: \(early)")
+}
+
+/// 4.4 — line decorations shift with newlines above them, in a number of tree nodes that does not grow with
+/// the row count (a counter; 1k against 100k rows). **Mutation:** an array-backed store moving every later
+/// decoration visits O(n) entries; the tree's difference stays inside the constant.
+@Test @MainActor func lineDecorationsShiftInLogarithmicWork() throws {
+    var visited: [Int] = []
+    for lines in [1_000, 100_000] {
+        let buffer = CodeBuffer(String(repeating: "x\n", count: lines))
+        let decorations = CodeDecorations(buffer: buffer)
+        let decos = stride(from: 10, to: lines - 2, by: 3).map {
+            CodeLineDecoration(lines: $0..<($0 + 1), gutterBar: Color(hue: 0.3, saturation: 1, brightness: 1))
+        }
+        decorations.setLineDecorations(decos, asOf: buffer.version)
+        decorations.sync()
+        let start = buffer.snapshot().offset(of: CodePoint(row: 5, column: 0))
+        let before = RunTreeStats.nodesVisited
+        buffer.replace(start..<start, with: "\n")
+        decorations.sync()
+        visited.append(RunTreeStats.nodesVisited - before)
+        #expect(decorations.lineDecoration(row: 11)?.gutterBar != nil, "row 10 moved to 11")
+        #expect(decorations.lineDecoration(row: 14)?.gutterBar != nil, "row 13 moved to 14")
+        #expect(decorations.lineDecoration(row: 10) == nil)
+    }
+    #expect(visited[1] - visited[0] <= 40, "nodes visited for one newline: \(visited) at 1k and 100k rows")
+}
+
+/// 4.5 — the annotations layer is drawn as a background under the syntax text: a rectangle over the run's
+/// bytes on its row, while the syntax layer's foreground still colours the glyphs.
+@Test @MainActor func annotationBackgroundsSitUnderSyntaxText() throws {
+    let buffer = CodeBuffer(codeText(lines: 100))
+    let decorations = CodeDecorations(buffer: buffer)
+    let author = decorations.register(CodeStyle(background: Color(hue: 0.9, saturation: 1, brightness: 1).opacity(0.43)))
+    let syntax = decorations.register(CodeStyle(foreground: Color(hue: 0.123, saturation: 0.8, brightness: 0.9)))
+    let row = buffer.snapshot().lineRange(2)
+    decorations.setHighlights([CodeStyleRun(range: row, style: author)], in: row, layer: .annotations, asOf: buffer.version)
+    decorations.setHighlights([CodeStyleRun(range: row, style: syntax)], in: row, layer: .syntax, asOf: buffer.version)
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    let rect = try #require(tintRects(window, alpha: 0.43).first)
+    let colored = window.scene.glyphs.filter { abs($0.color.h - 0.123) < 0.001 }
+    #expect(!colored.isEmpty, "the syntax colour reaches the glyphs")
+    // A scene draws its rects before its glyphs, so a background rect is under the text by construction.
+    #expect(rect.bounds.origin.y == 2 * codePitch(scale: 1), "the run background is on row 2: \(rect.bounds.origin.y)")
+    #expect(rect.bounds.size.height == codePitch(scale: 1))
+}
+
+// MARK: - The leaf, retention, observation
+
+private struct CodeCard: Component, @MainActor Equatable {
+    let buffer: CodeBuffer
+    let decorations: CodeDecorations
+    var content: some ElementGroup { CodeView(buffer: buffer, decorations: decorations).font(size: 12) }
+    static func == (l: CodeCard, r: CodeCard) -> Bool { l.buffer === r.buffer && l.decorations === r.decorations }
+}
+
+/// 5.1 — the leaf's measure reads nothing of the buffer: a keystroke re-lays-out no ancestor (the whole
+/// layout is restored from the memo), and two views of different buffers and faces measure the same.
+/// **Mutation:** the measure closure reading `buffer.utf8Count` makes the leaf unkeyable, so the memo misses
+/// on the edit and `layoutMeasureCalls` is not 0.
+@Test @MainActor func aKeystrokeInTheBufferRelaysOutNothing() throws {
+    let buffer = CodeBuffer(codeText(lines: 100))
+    let decorations = CodeDecorations(buffer: buffer)
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            Text("title")
+            CodeView(buffer: buffer, decorations: decorations).font(size: 12).frame(height: Pixels(120))
+        }
+    }
+    for _ in 0..<2 { window.window.setNeedsRedraw(); window.tick() }
+    window.resetFrameWork()
+    buffer.replace(0..<0, with: "x")
+    window.window.setNeedsRedraw(); window.tick()
+    let w = totalWork(window)
+    #expect(w.layoutMeasureCalls == 0, "measure calls \(w.layoutMeasureCalls): the leaf's key must cover its closure")
+    #expect(w.layoutMemoMisses == 0 && w.layoutMemoRootHits >= 1, "memo misses \(w.layoutMemoMisses), root hits \(w.layoutMemoRootHits)")
+    #expect(w.codeLinesShaped == 1, "one edited line re-shaped: \(w.codeLinesShaped)")
+}
+
+@Test @MainActor func twoViewsOfDifferentBuffersAndFacesMeasureTheSame() throws {
+    let a = CodeBuffer("short"), b = CodeBuffer(codeText(lines: 5000))
+    let da = CodeDecorations(buffer: a), db = CodeDecorations(buffer: b)
+    let window = try harnessWindow(size: sz(300, 400)) {
+        VStack(spacing: 0) {
+            CodeView(buffer: a, decorations: da).font(size: 11).id("a")
+            CodeView(buffer: b, decorations: db).font(size: 30).tabWidth(8).id("b")
+        }
+    }
+    let fa = try window.frame(ofID: "a"), fb = try window.frame(ofID: "b")
+    #expect(fa.size == fb.size, "\(fa.size) vs \(fb.size)")
+}
+
+/// 5.2 — an unfocused `CodeView` inside an `.equatable()` component replays its paint and prepaint, and an
+/// edit to the buffer (an observed read) still repaints it (Stop condition: `METALUI_VERIFY_RETAINED=1` is
+/// run over this test, which also compares every replay against a fresh run).
+@Test @MainActor func anUnfocusedCodeViewIsRetainedAndAnEditRepaintsIt() throws {
+    let buffer = CodeBuffer(codeText(lines: 300))
+    let decorations = CodeDecorations(buffer: buffer)
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            Box().frame(width: Pixels(20), height: Pixels(20)).focusable()
+            CodeCard(buffer: buffer, decorations: decorations).equatable().frame(height: Pixels(150))
+        }
+    }
+    for _ in 0..<2 { window.window.setNeedsRedraw(); window.tick() }
+    window.resetFrameWork()
+    window.window.setNeedsRedraw(); window.tick()
+    let idle = totalWork(window)
+    #expect(idle.retainedHits >= 1, "hits \(idle.retainedHits), misses \(idle.retainedMisses), ineligible \(idle.retainedIneligibleReasons)")
+    #expect(idle.codeLinesShaped == 0)
+    let glyphs = window.scene.glyphs.count
+    buffer.replace(0..<0, with: String(repeating: "wide text wide text wide text ", count: 3) + "\n")
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(window.scene.glyphs.count > glyphs, "the edit repainted the retained view: \(glyphs) -> \(window.scene.glyphs.count)")
+}
+
+/// 5.3 — an edit alone redraws the window: no `setNeedsRedraw`, the observation does it (on Linux and Windows
+/// the hop is asynchronous, so the wait is `runUntilIdle`).
+@Test @MainActor func aBufferEditRedrawsTheWindowByObservation() async throws {
+    let buffer = CodeBuffer(codeText(lines: 100))
+    let decorations = CodeDecorations(buffer: buffer)
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    let glyphs = window.scene.glyphs.count
+    buffer.replace(0..<0, with: String(repeating: "wide text wide text wide text ", count: 3) + "\n")
+    try await window.runUntilIdle()
+    #expect(window.scene.glyphs.count > glyphs, "\(glyphs) -> \(window.scene.glyphs.count)")
+    let tinted = decorations.register(CodeStyle(background: Color(hue: 0.9, saturation: 1, brightness: 1).opacity(0.47)))
+    decorations.setHighlights([CodeStyleRun(range: 0..<5, style: tinted)], in: 0..<5, layer: .annotations, asOf: buffer.version)
+    try await window.runUntilIdle()
+    #expect(tintRects(window, alpha: 0.47).count == 1, "a decoration write redraws too")
+}
+
+// MARK: - Long lines, allocations
+
+/// 6.1 — a 20 KB line is shaped in a column window, not whole: the bytes shaped on open are a small fraction
+/// of the line, and scrolling horizontally shapes a new window only past the 256-column margin.
+@Test @MainActor func aLongLineIsShapedInAWindow() throws {
+    let long = (0..<3000).map { "tok\($0 % 997) " }.joined()   // ~20 KB, distinct
+    #expect(long.utf8.count > 18_000)
+    let buffer = CodeBuffer("short\n" + long + "\nshort\n")
+    let decorations = CodeDecorations(buffer: buffer)
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    #expect(decorations.shapedBytes < 4_000, "shaped \(decorations.shapedBytes) bytes of a 20 KB line")
+    let afterOpen = decorations.shapedBytes
+    window.scroll(at: pt(200, 100), byDeltaX: -20, deltaY: 0)
+    #expect(decorations.shapedBytes - afterOpen == 0, "a 20 pt scroll stays inside the window")
+    window.scroll(at: pt(200, 100), byDeltaX: -4_000, deltaY: 0)
+    #expect(decorations.shapedBytes > afterOpen && decorations.shapedBytes < afterOpen + 4_000, "a far scroll shapes one more window")
+}

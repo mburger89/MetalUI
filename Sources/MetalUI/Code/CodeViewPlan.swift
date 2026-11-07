@@ -189,7 +189,7 @@ extension CodeView {
         if let version = state.anchorVersion {
             if version == snap.version {
                 anchorRow = snap.point(at: min(state.anchorOffset, snap.utf8Count)).row
-            } else if let moved = buffer.map(state.anchorOffset, from: version, bias: .after) {
+            } else if let moved = buffer.map(state.anchorOffset, from: version, bias: .before) {   // text inserted at the anchor stays in view
                 anchorRow = snap.point(at: min(moved, snap.utf8Count)).row
             } else {
                 anchorRow = state.anchorRow
