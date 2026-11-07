@@ -188,3 +188,13 @@ Ranked from the carried/not-built sweep (decisions docs' Carried sections, the "
 - [ ] R4-6. Viewport unknown at build: 13, 124, 636, 638. Only if an app hits it.
 - [ ] R4-7. `List` without a `ScrollView`, and non-data `List`: 84. Large; on its own.
 - Carried until an app asks: retained-replay arms (records 156/157: outer scale + moving offset, EL-D/E/F/I, MA-D), layout struct reshape, run-time shader graphics stages/cache (RC-L/M), Liquid Glass path SDF, precise-scroll momentum (TP-L), GPU surface blur pass, `metalui bundle` extras, HSplitView probe; publishing items (BS-G/H) are the user's call.
+
+## Alloy gaps (Alloy, an LLM-first code editor targeting Zed-level typing latency and scroll frame times; reported 2026-11-07)
+
+- [ ] G1. `CodeView` (a read/edit code surface).
+- [ ] G2. Block markdown.
+- [ ] G3. `Image(systemName:)` plus portable vector icons.
+- [ ] G4. A closable tab bar.
+- [ ] G5. A two-axis `ScrollView`.
+- [ ] G6. `defaultScrollAnchor(.bottom)`: stick-to-bottom on a `LazyVStack`.
+- [ ] G7. Frame timing and signposts for an external benchmark harness. (PR #219, branch feat/frame-signposts, record 222, `FP-A`..`FP-H`, `docs/frame-timing.md`) `Window.frameTiming`, a ring of per-frame samples (input, layout, prepaint, paint, commit, presented), macOS `OSSignposter` under `com.metalui`.

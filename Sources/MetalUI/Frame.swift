@@ -699,6 +699,8 @@ public final class Frame {
     /// `private(set)`, not `private`: a lifecycle test reads it from inside an
     /// action to prove the action runs outside the build (ruling `LC-E`).
     private(set) var isRendering = false
+    /// The window's frame instrumentation, stamped at the end of layout, prepaint and paint (`FP-B`); `nil` off.
+    var timing: FrameTiming?
 
     /// The values every scope starts from: `Window.environment`, set by
     /// `Window.drawFrameIfNeeded` on the line after it builds this frame. A
@@ -4259,6 +4261,7 @@ public final class Frame {
         let controlsBounds = controls.map { bounds(of: $0.node) }
         if let controlsBounds { recordElementBounds(WindowControlsStrip.rootID, controlsBounds) }
 
+        timing?.stampLayoutEnd()   // `FP-B`
         var prepaintPass = PrepaintPass(frame: self)
         // The root's `prepaint` is called here, not through `prepaintGroup`, so
         // `Element.prepaintGroup`'s `display: none` check cannot reach it: a
@@ -4329,6 +4332,7 @@ public final class Frame {
         // against a case that cannot occur, and would additionally hold the
         // bracket open across `stateTable.sweep()` below, which is not scene
         // construction.
+        timing?.stampPrepaintEnd()   // `FP-B`
         glyphAtlas.beginFrame()
         var paintPass = PaintPass(frame: self)
         if !hiddenNodes.contains(root) {
@@ -4368,6 +4372,7 @@ public final class Frame {
         paintMenuPanel()  // an open in-window menu, above the preview (MN-F item 2)
         paintTooltip()  // a tooltip, above everything (MN-P item 2)
         paintAlertPanel()  // the drawn alert, above the menu and the tooltip (SV-J item 2)
+        timing?.stampPaintEnd()   // `FP-B`
         glyphAtlas.endFrame()
         textSystem.endFrame()
         applyScrollResolutions()

@@ -132,6 +132,8 @@ private let frameChannels: [String: Channel] = [
     "axEffectChain": .frameLocal,
     // C14-h (`RL-I`): the effect chain each hitbox was registered under, kept only while a prepaint log records.
     "hitboxChains": .frameLocal,
+    // FP-B: the window's frame instrumentation, stamped at the end of three phases; a clock read, never replayed.
+    "timing": .frameLocal,
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {

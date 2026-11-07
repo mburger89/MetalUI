@@ -640,9 +640,27 @@ public protocol WindowRenderer: AnyObject {
     /// parameter; one with no surface support may ignore it and composites
     /// nothing for surface runs.
     func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool
+
+    /// Asks the renderer to report when each frame it finishes reaches the screen (ruling `FP-F`), for
+    /// `FrameTiming`. `nil` stops reporting. Installing an observer restarts the count: `frameToken` is the
+    /// 0-based number of frames ``finishFrame(scene:atlas:surfaces:)`` has finished (answered `true`) **since the
+    /// observer was installed**. `presentedAt` is nanoseconds on `DispatchTime.now().uptimeNanoseconds`'s clock,
+    /// or `nil` when the frame was dropped without being shown.
+    ///
+    /// The observer runs on the main actor, never inside `finishFrame`, once per frame, usually a frame or two
+    /// after the frame was committed.
+    ///
+    /// **Defaulted, and the default reports nothing** (`FP-F`): a renderer with no presentation callback (SDL_GPU,
+    /// which exposes none) keeps `FrameTiming/presented` `nil`, which is the honest answer; a third-party
+    /// conformer compiles unchanged.
+    func setPresentationObserver(_ observer: (@MainActor @Sendable (_ frameToken: UInt64, _ presentedAt: UInt64?) -> Void)?)
 }
 
 extension WindowRenderer {
+    /// Reports no presentation times (`FP-F`).
+    public func setPresentationObserver(
+        _ observer: (@MainActor @Sendable (_ frameToken: UInt64, _ presentedAt: UInt64?) -> Void)?) {}
+
     /// A frame with no app surfaces — so every existing **caller** compiles
     /// (`MV-F` item 1).
     public func finishFrame(scene: Scene, atlas: GlyphAtlas) -> Bool {

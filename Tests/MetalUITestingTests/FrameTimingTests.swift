@@ -1,0 +1,283 @@
+import Foundation
+import MetalUI
+import MetalUIScene
+import MetalUITesting
+import MetalUITestSupport
+import Observation
+import Testing
+
+// Frame instrumentation (ruling `FP-A`..`FP-H`): `Window.frameTiming`, `FrameTiming`, `FrameTimingSample`. Portable:
+// the headless platform has the same stamps as a real one. No test sleeps or compares a wall-clock threshold; the
+// instrument is read for ORDER, COUNT and IDENTITY.
+
+/// A model a view reads and an `onFrame` callback writes.
+@Observable @MainActor private final class TimingModel {
+    var width: Float = 20
+    var show = false
+}
+
+/// A focusable box counting its key presses in a `@State`: a key press that dirties the window.
+private struct TimingKeyBox: Component {
+    @State var presses = 0
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(20 + Float(presses)), height: Pixels(20)).background(.accent)
+            .focusable()
+            .onKeyPress("a") { presses += 1; return .handled }
+    }
+}
+
+@MainActor private func timedWindow(_ timing: FrameTiming?, hasKeyBox: Bool = true) throws -> TestWindow {
+    let window = try harnessWindow { VStack(spacing: 0) { TimingKeyBox() } }
+    window.window.frameTiming = timing
+    window.typeKey(.tab)   // focus the box; the frame this draws is recorded too when timing is set
+    return window
+}
+
+/// The phases in order AND each stamped: a stamp never taken stays at the frame's start, which a real phase
+/// (microseconds of work) is strictly after.
+private func ordered(_ s: FrameTimingSample) -> Bool {
+    s.buildStart < s.layoutEnd && s.layoutEnd < s.prepaintEnd && s.prepaintEnd < s.paintEnd && s.paintEnd < s.commit
+}
+
+/// 1.1 — a key then a tick: one sample, input kind `.key`, the input no later than the frame start, every phase in
+/// order, and frame indices counting up. Mutations: the layout and prepaint stamps swapped; `commitFrame` not
+/// writing the ring; the input kind of a key mapped to `.text`.
+@Test @MainActor func aKeyThenATickRecordsOneOrderedSample() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    let before = timing.samples.count
+    window.typeKey("a")
+    let samples = timing.samples
+    #expect(samples.count == before + 1, "one frame, one sample")
+    let sample = try #require(samples.last)
+    #expect(sample.inputKind == .key)
+    #expect(sample.inputCount >= 1)
+    let received = try #require(sample.inputReceived)
+    let stamp = try #require(sample.inputTimestamp)
+    #expect(stamp <= received && received <= sample.buildStart, "input <= receive <= frame start")
+    #expect(ordered(sample), "buildStart <= layoutEnd <= prepaintEnd <= paintEnd <= commit")
+    #expect(sample.presented == nil, "the headless renderer reports no presentation")
+    #expect(samples.map(\.frameIndex) == Array(samples.first!.frameIndex ..< samples.first!.frameIndex + UInt64(samples.count)))
+    window.typeKey("a")
+    #expect(timing.samples.last!.frameIndex == sample.frameIndex + 1, "indices count up")
+    #expect(sample.inputToCommit != nil && sample.frameDuration == sample.commit - sample.buildStart)
+}
+
+/// 1.2 — a frame no input caused has no input; an event that left the window clean does not become a later
+/// frame's input; the earliest of two dirtying events wins and both are counted. Mutations: `settleInput` ignoring
+/// `dirtied`; the later event replacing the pending one.
+@Test @MainActor func inputAttributionIsTheEarliestDirtyingEvent() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.window.setNeedsRedraw()
+    window.tick()
+    #expect(try #require(timing.last).inputKind == nil, "a state-less redraw has no input")
+
+    // Modifiers unchanged: handled without dirtying anything.
+    window.send(.modifiersChanged([]))
+    window.window.setNeedsRedraw()
+    window.tick()
+    #expect(try #require(timing.last).inputKind == nil, "a clean event is not carried to the next frame")
+
+    window.send(.keyDown(KeyEvent(charactersIgnoringModifiers: "a", characters: "a", timestamp: 0)))
+    window.send(.mouseMoved(MouseEvent(position: pt(10, 10))))
+    window.tick()
+    let sample = try #require(timing.last)
+    #expect(sample.inputKind == .key, "the earliest event wins")
+    #expect(sample.inputCount == 2)
+}
+
+/// 1.3 — every event family maps to its kind. Mutation: `.scrollWheel` mapped to `.pointer`.
+@Test @MainActor func inputKindsFollowTheEventFamily() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.window.onInput = { _ in true }
+    let events: [(InputEvent, FrameInputKind)] = [
+        (.textInput("x"), .text),
+        (.scrollWheel(ScrollEvent(position: pt(5, 5), delta: pt(0, 3))), .wheel),
+        (.mouseDown(MouseEvent(position: pt(5, 5))), .pointer),
+        (.keyUp(KeyEvent(charactersIgnoringModifiers: "q", characters: "q", timestamp: 0)), .key),
+    ]
+    for (event, kind) in events {
+        window.send(event)
+        window.tick()
+        #expect(try #require(timing.last).inputKind == kind, "\(event)")
+    }
+}
+
+/// 1.4 — an event timestamp on the stamp clock (AppKit's `NSEvent.timestamp`) is the attribution time; one off it
+/// (a test's, SDL's) falls back to the receive time. Mutation: the plausibility window removed.
+@Test @MainActor func aPlatformTimestampOnOurClockIsUsedAndOtherwiseTheReceiveTime() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    let earlier = Double(FrameTiming.now()) / 1e9 - 0.004
+    window.send(.keyDown(KeyEvent(charactersIgnoringModifiers: "q", characters: "q", timestamp: earlier)))
+    window.tick()
+    var sample = try #require(timing.last)
+    let received = try #require(sample.inputReceived), stamp = try #require(sample.inputTimestamp)
+    #expect(stamp < received && received - stamp >= 3_000_000, "stamped at the event's own, earlier time")
+    window.send(.keyDown(KeyEvent(charactersIgnoringModifiers: "q", characters: "q", timestamp: 12.5)))
+    window.tick()
+    sample = try #require(timing.last)
+    #expect(sample.inputTimestamp == sample.inputReceived, "an off-clock timestamp falls back to the receive time")
+}
+
+/// 1.5 — the ring keeps the newest `capacity` samples, oldest first, and keeps counting. Mutations: the slot index
+/// not wrapped (`% capacity` dropped); `samples` returning slot order.
+@Test @MainActor func theRingWrapsAndKeepsTheNewest() throws {
+    let timing = FrameTiming(capacity: 4)
+    let window = try timedWindow(timing)
+    for _ in 0..<10 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(timing.framesRecorded == 11, "10 ticks plus the Tab frame")
+    let samples = timing.samples
+    #expect(samples.map(\.frameIndex) == [7, 8, 9, 10], "the last four, oldest first")
+    #expect(timing.last?.frameIndex == 10)
+    timing.removeAll()
+    #expect(timing.samples.isEmpty && timing.last == nil && timing.framesRecorded == 11)
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(timing.samples.map(\.frameIndex) == [11], "indices keep counting")
+}
+
+/// A box whose width is a `@State` the test writes through the binding it captures at build: a write that reaches
+/// the window synchronously, as input's does (an `@Observable` write reaches a Linux window one main-actor hop
+/// later).
+@MainActor private final class WidthHolder { var binding: Binding<Float>?; var show: Binding<Bool>? }
+private struct WidthBox: Component {
+    let holder: WidthHolder
+    let builds: BuildLog?
+    var onAppearWrite: Bool = false
+    @State var width: Float = 20
+    @State var show = false
+    var content: some ElementGroup {
+        let _ = holder.binding = $width
+        let _ = holder.show = $show
+        let _ = builds?.times.append(FrameTiming.now())
+        Box().frame(width: Pixels(width), height: Pixels(10)).background(.accent)
+        if show {
+            Box().frame(width: Pixels(5), height: Pixels(5)).onAppear { if onAppearWrite { width = 40 } }
+        }
+    }
+}
+
+/// 1.6 — `onFrame` runs after the frame (the frame is already counted and committed), outside any phase, and a
+/// write it makes schedules the next frame, which shows it. Mutations: `deliverFrame` moved before the commit;
+/// the callback run inside the build.
+@Test @MainActor func onFrameRunsAfterTheFrameAndItsWriteIsNotStale() throws {
+    let holder = WidthHolder()
+    let timing = FrameTiming()
+    let window = try harnessWindow { VStack(spacing: 0) { WidthBox(holder: holder, builds: nil) } }
+    window.window.frameTiming = timing
+    var seen: [(frames: Int, committed: UInt64, dirty: Bool)] = []
+    timing.onFrame = { sample in
+        seen.append((window.framesDrawn, sample.commit, window.window.needsRedraw))
+        if let width = holder.binding, width.wrappedValue == 20 { width.wrappedValue = 30 }   // a write after the frame
+    }
+    window.window.setNeedsRedraw()
+    window.tick()
+    let first = try #require(seen.first)
+    #expect(first.frames == window.framesDrawn, "framesDrawn was already advanced: the frame is over")
+    #expect(first.committed == timing.samples.last!.commit && first.committed > 0)
+    #expect(first.dirty == false, "nothing had dirtied the window before the write")
+    #expect(window.window.needsRedraw, "the callback's write scheduled the next frame")
+    window.tick()
+    #expect(rects(window, height: 10).map { $0.bounds.size.width } == [30], "and that frame shows it")
+    #expect(seen.count == 2)
+}
+
+@MainActor private final class BuildLog { var times: [UInt64] = [] }
+
+/// 1.7 — a frame that builds twice (an `onAppear` write) keeps the LAST build's stamps, in order: its layout ended
+/// after the second build's content was evaluated. Mutation: the layout stamp taken once (first build only).
+@Test @MainActor func aFrameThatBuildsTwiceKeepsTheLastBuildsStamps() throws {
+    let holder = WidthHolder()
+    let builds = BuildLog()
+    let timing = FrameTiming()
+    let window = try harnessWindow {
+        VStack(spacing: 0) { WidthBox(holder: holder, builds: builds, onAppearWrite: true) }
+    }
+    window.window.frameTiming = timing
+    builds.times = []
+    // The box with the `onAppear` appears in this frame; its write forces a second build inside it.
+    holder.show?.wrappedValue = true
+    window.tick()
+    #expect(builds.times.count >= 2, "the onAppear write must have forced a second build")
+    let sample = try #require(timing.last)
+    #expect(ordered(sample))
+    #expect(sample.layoutEnd >= builds.times.last!, "layoutEnd belongs to the second build")
+    #expect(sample.buildStart <= builds.times.first!, "buildStart precedes the first")
+}
+
+/// 1.8 — the presented time lands in the ring slot of the right frame, later, from outside any frame; where the
+/// renderer reports none it stays `nil`. Attaching a timing after frames were drawn maps tokens by base.
+/// Mutations: the token not offset by the base; the sample updated before the commit; `onPresented` not called.
+@Test @MainActor func presentationReachesTheRightFrameLater() throws {
+    let window = try harnessWindow { VStack(spacing: 0) { TimingKeyBox() } }
+    window.window.setNeedsRedraw(); window.tick()   // frames drawn before the timing exists
+    let renderer = window.platformWindow.headlessRenderer
+    renderer.reportsPresentation = true
+    let timing = FrameTiming()
+    var announced: [UInt64] = []
+    timing.onPresented = { announced.append($0.frameIndex) }
+    window.window.frameTiming = timing
+    for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(timing.samples.map(\.presented) == [nil, nil, nil], "not reported yet")
+    renderer.deliverPresentations(at: 5_000)
+    #expect(timing.samples.map(\.presented) == [5_000, 5_000, 5_000])
+    #expect(announced == [0, 1, 2])
+    window.window.setNeedsRedraw(); window.tick()
+    renderer.deliverPresentations(at: 9_000)
+    #expect(timing.samples.map(\.presented) == [5_000, 5_000, 5_000, 9_000], "frame 3 only")
+    // Detached, then attached again: the renderer counts from 0 again and the base maps it to frame 4.
+    window.window.frameTiming = nil
+    window.window.setNeedsRedraw(); window.tick()
+    window.window.frameTiming = timing
+    window.window.setNeedsRedraw(); window.tick()
+    renderer.deliverPresentations(at: 11_000)
+    #expect(timing.samples.map(\.presented) == [5_000, 5_000, 5_000, 9_000, 11_000], "frame 4 only")
+    // A renderer that reports nothing leaves `presented` nil.
+    let quiet = FrameTiming()
+    renderer.reportsPresentation = false
+    window.window.frameTiming = quiet
+    window.window.setNeedsRedraw(); window.tick()
+    renderer.deliverPresentations(at: 1)
+    #expect(quiet.samples.map(\.presented) == [nil])
+}
+
+/// 1.9 — signposts are an opt-in of the timing: requested, they are on where `os` exists; frames record the same
+/// either way. Mutation: `emitsSignposts` always false.
+@Test @MainActor func signpostsAreOnlyEmittedWhenAskedFor() throws {
+    #expect(FrameTiming().emitsSignposts == false)
+    let loud = FrameTiming(emitsSignposts: true)
+    #if canImport(os)
+    #expect(loud.emitsSignposts)
+    #else
+    #expect(!loud.emitsSignposts)
+    #endif
+    let window = try timedWindow(loud)
+    window.typeKey("a")
+    #expect(ordered(try #require(loud.last)) && loud.last?.inputKind == .key)
+}
+
+#if canImport(Darwin)
+/// 1.10 — the instrument costs no allocation: a frame and an input with no timing allocate exactly what the same
+/// frame and input allocate with a timing recording (the ring is allocated up front), and a window with no timing
+/// has recorded nothing. Mutations: the ring write appending to an array; the disabled path allocating.
+@Test @MainActor func recordingAndNotRecordingAllocateTheSame() throws {
+    let off = try timedWindow(nil)
+    let on = try timedWindow(FrameTiming())
+    func work(_ window: TestWindow) {
+        window.window.setNeedsRedraw()
+        window.send(.modifiersChanged([]))
+        window.tick()
+    }
+    // Warm both windows' caches, then measure the same steady frames.
+    for _ in 0..<4 { work(off); work(on) }
+    var offCounts: [Int] = [], onCounts: [Int] = []
+    for _ in 0..<5 {
+        offCounts.append(try #require(countAllocations { work(off) }))
+        onCounts.append(try #require(countAllocations { work(on) }))
+    }
+    #expect(offCounts.min() == onCounts.min(), "off \(offCounts) vs on \(onCounts)")
+    #expect(off.window.frameTiming == nil)
+}
+#endif
