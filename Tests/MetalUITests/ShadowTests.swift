@@ -311,20 +311,7 @@ func visibleBounds(_ image: MUIImage) -> MUIBounds {
 
 // MARK: - 3.27 (divergence 104)
 
-/// **3.27** (divergence 104). A `MetalView` surface's shadow is its quad: its
-/// pixels live on the GPU, so the silhouette is the whole 50 × 30 quad, solid,
-/// offset (10, 10). Mutation **M3z**: the surface skipped.
-@Test @MainActor func aMetalViewsShadowIsItsQuad() throws {
-    let scene = effectFrame(GPUSurface(redraw: .onDemand) { _ in }.frame(width: px(50), height: px(30))
-        .shadow(color: .textPrimary, radius: px(0), x: px(10), y: px(10))).finalizedScene()
-    let images = gxImages(scene)
-    try #require(images.count == 1 && scene.surfaces.count == 1, "one shadow, one quad")
-    let quad = scene.surfaces[0].bounds
-    #expect(images[0].image.bounds.origin.x == quad.origin.x + 10 && images[0].image.bounds.origin.y == quad.origin.y + 10
-            && images[0].image.bounds.size.width == 50 && images[0].image.bounds.size.height == 30,
-            "the quad, offset: \(gxDescribe(images[0].image.bounds)) for \(gxDescribe(quad))")
-    #expect(gxTexel(images[0].texture, 25, 15)[3] == 255, "solid")
-}
+// 3.27 (divergence 104, a `MetalView`'s shadow is its quad) is `aSurfacesShadowFollowsItsPixels` since GF-A (GroupFilterTests.swift).
 
 // MARK: - 3.28 (the looks demo)
 

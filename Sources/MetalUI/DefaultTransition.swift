@@ -29,17 +29,7 @@ extension Scene {
     /// scope-mapping paths read, and a ghost maps on the CPU with no outer mask.
     @MainActor
     func capturedPrimitive(_ kind: PrimitiveKind, at index: Int) -> CapturedPrimitive? {
-        func transform(index t: Int) -> PrimitiveTransform? {
-            guard t > 0, t <= transforms.count else { return nil }
-            let record = transforms[t - 1]
-            let projective = record.det3 != 0
-            let homography = Homography2D(a: Double(record.a), b: Double(record.b), c: Double(record.c), d: Double(record.d),
-                                          tx: Double(record.tx), ty: Double(record.ty),
-                                          g: projective ? Double(record.g) : 0, h: projective ? Double(record.h) : 0,
-                                          i: projective ? Double(record.i) : 1)
-            return PrimitiveTransform(homography: homography, outerMask: record.outerMask,
-                                      outerMaskRadii: record.outerMaskRadii, outerDepth: 0)
-        }
+        func transform(index t: Int) -> PrimitiveTransform? { capturedTransform(index: t) }
         var primitive: CapturedPrimitive
         switch kind {
         case .rect:
@@ -70,13 +60,57 @@ extension Scene {
         return primitive
     }
 
+    /// Transform record `t` (1-based, 0 is none) as a value (`GX-G`).
+    @MainActor
+    func capturedTransform(index t: Int) -> PrimitiveTransform? {
+        guard t > 0, t <= transforms.count else { return nil }
+        let record = transforms[t - 1]
+        let projective = record.det3 != 0
+        let homography = Homography2D(a: Double(record.a), b: Double(record.b), c: Double(record.c), d: Double(record.d),
+                                      tx: Double(record.tx), ty: Double(record.ty),
+                                      g: projective ? Double(record.g) : 0, h: projective ? Double(record.h) : 0,
+                                      i: projective ? Double(record.i) : 1)
+        return PrimitiveTransform(homography: homography, outerMask: record.outerMask,
+                                  outerMaskRadii: record.outerMaskRadii, outerDepth: 0)
+    }
+
     /// Offscreen group `index`'s content as captured primitives in paint order (`GO-G`), each marked with one fresh
     /// token at the quad's opacity, so a ghost of a removed unit fades the group as one group. A group inside the group
     /// expands in place, its marks inside this one's.
     @MainActor
     func capturedGroup(at index: Int) -> [CapturedPrimitive] {
-        let mark = GroupMark(token: GroupToken(), alpha: groups[index].opacity)
         let child = groupScenes[index]
+        let filter = groupFilters[index]
+        if filter.kind != .none {
+            // A filtered group (`GF-D`) is one shadow or blur item over its content, so the ghost goes through the
+            // same route again (CPU where it can, the GPU where it cannot).
+            let quad = groups[index]
+            var content: [CapturedPrimitive] = []
+            for run in child.drawList {
+                for k in run.start..<(run.start + run.count) {
+                    if run.kind == .group { content.append(contentsOf: child.capturedGroup(at: k)) }
+                    else if let primitive = child.capturedPrimitive(run.kind, at: k) { content.append(primitive) }
+                }
+            }
+            let layer = layer(of: .group, at: index)
+            let item: CapturedPrimitive.Kind
+            if filter.kind == .shadow {
+                let a = filter.tint.w
+                let rgba = Rgba(r: a > 0 ? filter.tint.x / a : 0, g: a > 0 ? filter.tint.y / a : 0,
+                                b: a > 0 ? filter.tint.z / a : 0, a: a)
+                item = .shadow(ShadowPaint(leaf: content, color: rgba.toHsla(), radius: Double(filter.sigma), dx: 0, dy: 0,
+                                           local: .identity, contentMask: quad.contentMask,
+                                           maskCornerRadii: quad.maskCornerRadii, entryDepth: 0))
+            } else {
+                item = .blur(BlurPaint(leaf: content, radius: Double(filter.sigma), local: .identity,
+                                       contentMask: quad.contentMask, maskCornerRadii: quad.maskCornerRadii,
+                                       entryDepth: 0, alpha: quad.opacity))
+            }
+            var captured = CapturedPrimitive(kind: item, layer: layer, innerMask: false)
+            captured.transform = capturedTransform(index: Int(quad.filter >> 8))
+            return [captured]
+        }
+        let mark = GroupMark(token: GroupToken(), alpha: groups[index].opacity)
         var out: [CapturedPrimitive] = []
         for run in child.drawList {
             for k in run.start..<(run.start + run.count) {

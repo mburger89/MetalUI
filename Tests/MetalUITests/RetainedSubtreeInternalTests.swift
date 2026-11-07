@@ -54,6 +54,7 @@ private let frameChannels: [String: Channel] = [
     "transactionTop": .keyed, "transactionDepth": .keyed, "lifecycleDepth": .buildOnly,
     "effectScopesPushed": .frameLocal, "compositeScopesPushed": .frameLocal,
     "groupsComposited": .frameLocal, "groupsBaked": .frameLocal, "groupsFlattenedOversize": .frameLocal,   // GO-C counters
+    "filterGroups": .frameLocal, "filtersFlattenedOversize": .frameLocal,   // GF-B counters
     // Tallies, prepaint's.
     "hoverRegionCount": .prepaintOnly, "pointerStyleRegionCount": .prepaintOnly, "keyRegionCount": .prepaintOnly,
     "focusOnPressCount": .prepaintOnly, "resignRegionCount": .prepaintOnly,
