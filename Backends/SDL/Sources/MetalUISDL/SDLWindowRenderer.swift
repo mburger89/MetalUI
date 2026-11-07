@@ -258,6 +258,19 @@ public final class SDLWindowRenderer: WindowRenderer {
     package var filterPoolFailsAllocation = false {
         didSet { mui_renderer_set_filter_hook(renderer, filterPoolFailsAllocation) }
     }
+    private func maskCounter(_ index: Int) -> Int {
+        var counters: [UInt32] = [0, 0]
+        mui_renderer_mask_counters(renderer, &counters)
+        return Int(counters[index])
+    }
+    /// Mask passes of the last frame, one per masked group (`CM-A`); 0 on a frame with no mask.
+    package var lastMaskPasses: Int { maskCounter(0) }
+    /// Masked groups of the last frame that drew unmasked, by name (`CM-A`): no portable pipelines or no scratch target.
+    package var lastMaskFailures: Int { maskCounter(1) }
+    /// Test hook (`CM-A`, as `filterPoolFailsAllocation`): every mask scratch allocation fails; the group draws unmasked.
+    package var maskPoolFailsAllocation = false {
+        didSet { mui_renderer_set_mask_hook(renderer, maskPoolFailsAllocation) }
+    }
     /// The atlas bytes the last finished frame moved to the GPU (a test recorder, `RG-H`).
     package var lastAtlasBytes: Int { Int(mui_renderer_last_atlas_bytes(renderer)) }
     /// The bridge's renderer handle, for a test that drives `mui_renderer_finish` by hand.

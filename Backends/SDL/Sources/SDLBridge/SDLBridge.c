@@ -18,6 +18,8 @@ struct ReplayGPU {
        holds a backdrop (ensure_backdrop_pipelines): a renderer that never draws
        a material never loads their five shader stages. */
     SDL_GPUGraphicsPipeline *backdrop, *downsample, *gaussian, *tint;
+    /* A masked group's mask pass (ruling CM-A): the pass vertex and the `tint` stage over a destination-in blend. */
+    SDL_GPUGraphicsPipeline *mask;
     SDL_GPUSampler *sampler;
     SDL_GPUSampler *point;          /* nearest, clamped: the blur passes' texel fetch */
     SDL_GPUTexture *target;
@@ -136,8 +138,11 @@ static SDL_GPUShader *shader(ReplayGPU *g, const char *source, const char *entry
 }
 
 /* A graphics pipeline over two stages into B8G8R8A8: premultiplied source-over
-   when `blend` (the primitives), a plain write when not (the blur passes). */
-static SDL_GPUGraphicsPipeline *make_pipeline(ReplayGPU *g, SDL_GPUShader *v, SDL_GPUShader *f, bool blend) {
+   for BLEND_OVER (the primitives), a plain write for BLEND_NONE (the blur passes), and for BLEND_DST_IN (ruling CM-A) a
+   destination-in blend (source factor zero, destination factor source alpha, colour and alpha), so a pass multiplies
+   what it draws over by the source's alpha. */
+enum { BLEND_NONE = 0, BLEND_OVER = 1, BLEND_DST_IN = 2 };
+static SDL_GPUGraphicsPipeline *make_pipeline(ReplayGPU *g, SDL_GPUShader *v, SDL_GPUShader *f, int blend) {
     if (!v || !f) {
         if (v) SDL_ReleaseGPUShader(g->device, v);
         if (f) SDL_ReleaseGPUShader(g->device, f);
@@ -146,13 +151,13 @@ static SDL_GPUGraphicsPipeline *make_pipeline(ReplayGPU *g, SDL_GPUShader *v, SD
     SDL_GPUColorTargetDescription target = {
         .format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM,
         .blend_state = {
-            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .src_color_blendfactor = blend == BLEND_DST_IN ? SDL_GPU_BLENDFACTOR_ZERO : SDL_GPU_BLENDFACTOR_ONE,
+            .dst_color_blendfactor = blend == BLEND_DST_IN ? SDL_GPU_BLENDFACTOR_SRC_ALPHA : SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
             .color_blend_op = SDL_GPU_BLENDOP_ADD,
-            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .src_alpha_blendfactor = blend == BLEND_DST_IN ? SDL_GPU_BLENDFACTOR_ZERO : SDL_GPU_BLENDFACTOR_ONE,
+            .dst_alpha_blendfactor = blend == BLEND_DST_IN ? SDL_GPU_BLENDFACTOR_SRC_ALPHA : SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
             .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
-            .enable_blend = blend
+            .enable_blend = blend != BLEND_NONE
         }
     };
     SDL_GPUGraphicsPipelineCreateInfo info = {
@@ -174,7 +179,7 @@ static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, int k
     if (!v) return NULL;
     SDL_GPUShader *f = shader(g, source, fragment, true, kind);
     if (!f) { SDL_ReleaseGPUShader(g->device, v); return NULL; }
-    return make_pipeline(g, v, f, true);
+    return make_pipeline(g, v, f, BLEND_OVER);
 }
 
 /* The backdrop blur's three pipelines (ruling BB-D, replay.hlsl's BACKDROP_STAGE
@@ -184,19 +189,20 @@ static SDL_GPUGraphicsPipeline *pipeline(ReplayGPU *g, const char *source, int k
    full-target triangle (one sampler and the pass constants). Portable shaders
    only; made once, on first use. */
 static bool ensure_backdrop_pipelines(ReplayGPU *g) {
-    if (g->backdrop && g->downsample && g->gaussian && g->tint) return true;
+    if (g->backdrop && g->downsample && g->gaussian && g->tint && g->mask) return true;
     if (!g->portable || !g->shader_dir)
         return SDL_SetError("a backdrop needs the portable shaders (replay_create_portable)");
     SDL_GPUShader *quad_v = stage(g, NULL, NULL, "backdrop", false, 0, 3, 2);
     SDL_GPUShader *quad_f = quad_v ? stage(g, NULL, NULL, "backdrop", true, 2, 2, 1) : NULL;
-    SDL_GPUGraphicsPipeline *backdrop = make_pipeline(g, quad_v, quad_f, true);
+    SDL_GPUGraphicsPipeline *backdrop = make_pipeline(g, quad_v, quad_f, BLEND_OVER);
     if (!backdrop) return false;
-    SDL_GPUGraphicsPipeline *passes[3] = {NULL, NULL, NULL};
-    const char *names[3] = {"downsample", "gaussian", "tint"};
-    for (int i = 0; i < 3; i++) {
+    /* The fourth pass is the mask's: the `tint` stage again, over the destination-in blend (ruling CM-A). */
+    SDL_GPUGraphicsPipeline *passes[4] = {NULL, NULL, NULL, NULL};
+    const char *names[4] = {"downsample", "gaussian", "tint", "tint"};
+    for (int i = 0; i < 4; i++) {
         SDL_GPUShader *v = stage(g, NULL, NULL, "pass", false, 0, 0, 0);
         SDL_GPUShader *f = v ? stage(g, NULL, NULL, names[i], true, 1, 0, 1) : NULL;
-        passes[i] = make_pipeline(g, v, f, false);
+        passes[i] = make_pipeline(g, v, f, i == 3 ? BLEND_DST_IN : BLEND_NONE);
         if (!passes[i]) {
             char error[1024]; SDL_strlcpy(error, SDL_GetError(), sizeof(error));
             SDL_ReleaseGPUGraphicsPipeline(g->device, backdrop);
@@ -205,7 +211,7 @@ static bool ensure_backdrop_pipelines(ReplayGPU *g) {
             return false;
         }
     }
-    g->backdrop = backdrop; g->downsample = passes[0]; g->gaussian = passes[1]; g->tint = passes[2];
+    g->backdrop = backdrop; g->downsample = passes[0]; g->gaussian = passes[1]; g->tint = passes[2]; g->mask = passes[3];
     return true;
 }
 
@@ -290,6 +296,7 @@ void replay_destroy(ReplayGPU *g) {
         if (g->downsample) SDL_ReleaseGPUGraphicsPipeline(g->device, g->downsample);
         if (g->gaussian) SDL_ReleaseGPUGraphicsPipeline(g->device, g->gaussian);
         if (g->tint) SDL_ReleaseGPUGraphicsPipeline(g->device, g->tint);
+        if (g->mask) SDL_ReleaseGPUGraphicsPipeline(g->device, g->mask);
         if (g->rect) SDL_ReleaseGPUGraphicsPipeline(g->device, g->rect);
         if (g->glyph) SDL_ReleaseGPUGraphicsPipeline(g->device, g->glyph);
         if (g->image) SDL_ReleaseGPUGraphicsPipeline(g->device, g->image);
@@ -370,7 +377,9 @@ typedef struct {
     uint32_t group_passes, group_failures;
     /* Filter passes, groups filtered and filter allocation failures, this frame (GF-E). */
     uint32_t filter_passes, filtered_groups, filter_failures;
-    bool pool_fails, route_every_frame, sharp_fails, group_pool_fails, filter_pool_fails;
+    /* Mask passes made and masks that degraded to an unmasked group, this frame (CM-A). */
+    uint32_t mask_passes, mask_failures;
+    bool pool_fails, route_every_frame, sharp_fails, group_pool_fails, filter_pool_fails, mask_pool_fails;
 } BackdropState;
 
 static void backdrop_begin_frame(BackdropState *b) {
@@ -378,6 +387,7 @@ static void backdrop_begin_frame(BackdropState *b) {
     b->glass_records = b->glass_copies = 0;
     b->group_passes = b->group_failures = 0;
     b->filter_passes = b->filtered_groups = b->filter_failures = 0;
+    b->mask_passes = b->mask_failures = 0;
     b->used_count = 0;
 }
 
@@ -812,6 +822,36 @@ static bool render_groups(FrameDraw *f, BackdropState *b, SDL_GPUTexture **textu
         SDL_EndGPURenderPass(pass);
         b->group_passes += 1;
         textures[texture_count + i] = target;
+        if (group->mask_run_count > 0) {
+            /* A masked group (ruling CM-A, `Renderer.applyMask` in Metal): the mask runs drawn into a scratch of the group's
+               size with the group's own projection, then one load pass over the target multiplying it by the scratch's
+               alpha (the destination-in `g->mask`, tint 1). Without the portable pipelines, or a scratch, the group stays
+               unmasked: the bounding clip still cuts it. Before the filter, so a shadow and a blur see the masked group. */
+            int scratch = (b->mask_pool_fails || !ensure_backdrop_pipelines(f->g))
+                ? -1 : backdrop_acquire(f->g, b, group->width, group->height);
+            if (scratch < 0) {
+                b->mask_failures += 1;
+            } else {
+                FrameDraw masking = inner;
+                masking.runs = f->runs + group->mask_run_start; masking.run_count = group->mask_run_count;
+                SDL_GPURenderPass *mask_pass = begin_segment(&masking, b->slots[scratch].texture, SDL_GPU_LOADOP_CLEAR);
+                if (!mask_pass) return false;
+                for (uint32_t k = 0; k < masking.run_count; k++) draw_run(&masking, mask_pass, &masking.runs[k]);
+                SDL_EndGPURenderPass(mask_pass);
+                SDL_GPUColorTargetInfo info = { .texture = target, .load_op = SDL_GPU_LOADOP_LOAD, .store_op = SDL_GPU_STOREOP_STORE };
+                SDL_GPURenderPass *over = SDL_BeginGPURenderPass(f->cmd, &info, 1, NULL);
+                if (!over) return false;
+                TintConstants constants = { .src = {0, 0, (int32_t)group->width, (int32_t)group->height}, .tint = {1, 1, 1, 1} };
+                SDL_BindGPUGraphicsPipeline(over, f->g->mask);
+                SDL_GPUTextureSamplerBinding binding = { b->slots[scratch].texture, f->g->point };
+                SDL_BindGPUFragmentSamplers(over, 0, &binding, 1);
+                SDL_PushGPUFragmentUniformData(f->cmd, 0, &constants, sizeof(constants));
+                SDL_DrawGPUPrimitives(over, 3, 1, 0, 0);
+                SDL_EndGPURenderPass(over);
+                backdrop_release(b, scratch);
+                b->mask_passes += 1;
+            }
+        }
         if (group->filter_kind == 0) continue;
         /* A filtered group (GF-E): the raw target goes back to the pool at once; the quad samples the result. A blur that
            cannot filter draws the unfiltered target, a shadow nothing. */
@@ -1483,6 +1523,10 @@ void mui_renderer_filter_counters(MUIRenderer *r, uint32_t out[3]) {
 }
 
 void mui_renderer_set_filter_hook(MUIRenderer *r, bool pool_fails) { r->backdrop.filter_pool_fails = pool_fails; }
+void mui_renderer_set_mask_hook(MUIRenderer *r, bool pool_fails) { r->backdrop.mask_pool_fails = pool_fails; }
+void mui_renderer_mask_counters(MUIRenderer *r, uint32_t out[2]) {
+    out[0] = r->backdrop.mask_passes; out[1] = r->backdrop.mask_failures;
+}
 
 void mui_renderer_backdrop_counters(MUIRenderer *r, uint32_t out[7]) {
     out[0] = r->backdrop.splits; out[1] = r->backdrop.blurs; out[2] = r->backdrop.passes;

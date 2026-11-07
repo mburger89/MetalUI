@@ -4,7 +4,7 @@
 // side builds wherever SDL3 does. Primitive records are the real `MUIRect` /
 // `MUIGlyph` bytes, in host order — little-endian on every supported target.
 //
-// Layout (little-endian, no padding), version 8 (ruling GF-F: each group carries a filter; versions 2-7 load with none;
+// Layout (little-endian, no padding), version 9 (ruling CM-A: each group may carry a mask body; versions 2-8 load unmasked; version 8, ruling GF-F: each group carries a filter; versions 2-7 load with none;
 // version 7, ruling GO-F: offscreen opacity groups, after the runs; version 6,
 // ruling PJ-A: the 80-byte transform record with its
 // projective lane; version 5, LG-O: the 256-byte
@@ -26,7 +26,9 @@
 //   u32 groupCount, per group in post-order (version 7, GO-F): u32 x, y, width, height, [version 8, GF-F: u32 filterKind
 //       (0 none, 1 blur, 2 shadow), f32 sigma, 4 x f32 tint,] then a nested body:
 //       u32 byteCount + bytes for rects, glyphs, images, transforms; u32 runCount, runCount × (kind, start, count)
-//       (textures are the top-level list; a group quad in an `images` array names its group by index)
+//       (textures are the top-level list; a group quad in an `images` array names its group by index);
+//       [version 9, CM-A: u32 hasMask, and when 1 a second nested body in the same form (rects and images only), the
+//       group's mask: drawn into a scratch of the group's size, the group's target multiplied by its alpha]
 //   u32 atlasWidth, atlasHeight, atlasWidth × atlasHeight R8 bytes
 //   16 × f32 projection (column-major)
 //   width × height × 4 BGRA8 reference bytes
@@ -79,7 +81,7 @@ public struct FixtureTexture: Equatable, Sendable {
 }
 
 public struct ReplayFixture: Equatable, Sendable {
-    public static let version: UInt32 = 8
+    public static let version: UInt32 = 9
     /// The oldest version ``init(decoding:)`` still reads (ruling `BB-J`):
     /// version 1 had no images and is re-recorded, never read.
     public static let oldestReadableVersion: UInt32 = 2
@@ -342,6 +344,14 @@ extension ReplayFixture {
             bytes(group.body.rects); bytes(group.body.glyphs); bytes(group.body.images); bytes(group.body.transforms)
             u32(UInt32(group.body.runs.count))
             for run in group.body.runs { u32(run.kind.rawValue); u32(run.start); u32(run.count) }
+            if let mask = group.mask {
+                u32(1)
+                bytes(mask.rects); bytes(mask.glyphs); bytes(mask.images); bytes(mask.transforms)
+                u32(UInt32(mask.runs.count))
+                for run in mask.runs { u32(run.kind.rawValue); u32(run.start); u32(run.count) }
+            } else {
+                u32(0)
+            }
         }
         u32(atlasWidth); u32(atlasHeight); out += atlas
         for value in projection { u32(value.bitPattern) }
@@ -450,10 +460,22 @@ extension ReplayFixture {
                     guard let kind = FixtureRun.Kind(rawValue: raw) else { throw .badRunKind(raw) }
                     groupRuns.append(FixtureRun(kind: kind, start: try u32(), count: try u32()))
                 }
+                var mask: FixtureBody?
+                if version >= 9, try u32() != 0 {
+                    let maskRects = try bytes(Int(try u32())), maskGlyphs = try bytes(Int(try u32()))
+                    let maskImages = try bytes(Int(try u32())), maskTransforms = try bytes(Int(try u32()))
+                    var maskRuns: [FixtureRun] = []
+                    for _ in 0..<Int(try u32()) {
+                        let raw = try u32()
+                        guard let kind = FixtureRun.Kind(rawValue: raw) else { throw .badRunKind(raw) }
+                        maskRuns.append(FixtureRun(kind: kind, start: try u32(), count: try u32()))
+                    }
+                    mask = FixtureBody(rects: maskRects, glyphs: maskGlyphs, images: maskImages, transforms: maskTransforms, runs: maskRuns)
+                }
                 groups.append(FixtureGroup(x: x, y: y, width: groupWidth, height: groupHeight,
                                            body: FixtureBody(rects: rects, glyphs: glyphs, images: images,
                                                              transforms: transforms, runs: groupRuns),
-                                           filterKind: filterKind, sigma: sigma, tint: tint))
+                                           filterKind: filterKind, sigma: sigma, tint: tint, mask: mask))
             }
         }
         let atlasWidth = try u32(), atlasHeight = try u32()
