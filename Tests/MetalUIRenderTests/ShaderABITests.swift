@@ -122,7 +122,7 @@ import MetalUIShaderTypes
         background: MUIHsla(h: 0, s: 0, l: 0, a: 0), borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
         cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
-        order: 9, shape: 1)
+        order: 9, shape: UInt32(MUIShapeContinuousRect.rawValue))
     var image = MUIImage(
         bounds: MUIBounds(origin: MUIPoint(x: 11, y: 12), size: MUISize(width: 13, height: 14)),
         contentMask: MUIBounds(origin: MUIPoint(x: 21, y: 22), size: MUISize(width: 23, height: 24)),
@@ -163,7 +163,14 @@ import MetalUIShaderTypes
     #expect(v[10] == 43)     // order
     #expect(v[11] == 120)    // sizeof(MUIRect)
     #expect(v[12] == 9)      // MUIRect.order
-    #expect(v[13] == 1)      // MUIRect.shape
+    #expect(v[13] == 2)      // MUIRect.shape: `MUIShapeContinuousRect` (CC-), the new enum value
+}
+
+/// Swift's `PrimitiveShape` and the shaders' `MUIShape` are one enum: a value one side adds is the other's too (CC-).
+@Test func theShapeKindsAreTheShadersEnum() {
+    #expect(PrimitiveShape.roundedRectangle.rawValue == UInt32(MUIShapeRoundedRect.rawValue))
+    #expect(PrimitiveShape.ellipse.rawValue == UInt32(MUIShapeEllipse.rawValue))
+    #expect(PrimitiveShape.continuousRoundedRectangle.rawValue == UInt32(MUIShapeContinuousRect.rawValue))
 }
 
 /// 1.12 (ruling GX-F) — `MUITransform` is 64 bytes, four `float4` lanes, and

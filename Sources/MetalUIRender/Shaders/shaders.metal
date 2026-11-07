@@ -131,7 +131,7 @@ static float2 cc_accel(float2 a, float2 b, float2 c, float2 d, float t) {
 /// The nearest point of one cubic to `q`: distance, point, tangent.
 struct CCNearest {
     float distance;
-    float2 point;
+    float2 nearest;
     float2 tangent;
 };
 
@@ -152,9 +152,9 @@ static CCNearest cc_nearest(float2 a, float2 b, float2 c, float2 d, float2 q) {
         t = clamp(t - g / max(h, 1.0e-12), 0.0, 1.0);
     }
     CCNearest n;
-    n.point = cc_point(a, b, c, d, t);
+    n.nearest = cc_point(a, b, c, d, t);
     n.tangent = cc_tangent(a, b, c, d, t);
-    n.distance = length(n.point - q);
+    n.distance = length(n.nearest - q);
     return n;
 }
 
@@ -199,7 +199,7 @@ static float continuous_corner_sdf(float2 p, float2 halfSize, float r, float rH,
     if (q.x >= ex) { inside = q.y >= 0.0; }
     else if (q.y >= ey) { inside = q.x >= 0.0; }
     else if (q.x < 0.0 || q.y < 0.0) { inside = false; }
-    else { inside = n.tangent.x * (q.y - n.point.y) - n.tangent.y * (q.x - n.point.x) < 0.0; }
+    else { inside = n.tangent.x * (q.y - n.nearest.y) - n.tangent.y * (q.x - n.nearest.x) < 0.0; }
     return inside ? -u : u;
 }
 

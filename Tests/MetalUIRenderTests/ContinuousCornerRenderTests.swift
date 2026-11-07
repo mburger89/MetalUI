@@ -188,3 +188,22 @@ private func exactCoverage(_ outline: ExactOutline, edges: [Int], width: Int, he
                                background: .transparent, borderColor: red), width: 60, height: 60)
     #expect(maxGap(fill, wide) <= 1, "a border at least as wide as the shape covers the shape")
 }
+
+/// The curve's constants are written four times: `ContinuousCorner` (the CPU outline), `shaders.metal` and
+/// `replay.hlsl` (the two renderers' distances). Each is read back from the source text and pinned to the Swift one,
+/// so a constant edited in one place fails here, not as a parity delta on Vulkan. **Mutation**: any digit of one
+/// constant in `replay.hlsl` alone.
+@Test func theCurvesConstantsAreTheSameInEveryRenderer() throws {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let expected: [(String, Double)] = [("CC_EXTENT", ContinuousCorner.extent), ("CC_K0", ContinuousCorner.k0), ("CC_K1", ContinuousCorner.k1),
+                                        ("CC_M1", ContinuousCorner.m1), ("CC_M2", ContinuousCorner.m2), ("CC_A1", ContinuousCorner.a1),
+                                        ("CC_B1", ContinuousCorner.b1), ("CC_A2", ContinuousCorner.a2), ("CC_B2", ContinuousCorner.b2)]
+    for file in ["Sources/MetalUIRender/Shaders/shaders.metal", "Backends/SDL/Shaders/replay.hlsl"] {
+        let text = try String(contentsOf: root.appendingPathComponent(file), encoding: .utf8)
+        for (name, value) in expected {
+            let range = try #require(text.range(of: "\(name) = "), "\(file) declares \(name)")
+            let literal = text[range.upperBound...].prefix { $0 != ";" }
+            #expect(Double(literal) == value, "\(file): \(name) is \(literal), ContinuousCorner has \(value)")
+        }
+    }
+}

@@ -115,6 +115,7 @@
 //   CC3order [3, 1, 2, 0] one pass fails 186/2000, two passes fail 186/2000
 //   CC3order [3, 2, 0, 1] one pass fails 106/2000, two passes fail 106/2000
 //   CC3order [3, 2, 1, 0] one pass fails 148/2000, two passes fail 148/2000
+//   CC3c circular UnevenRoundedRectangle, 847 random all-positive radii: horizontal-then-vertical rule mismatches 0, simultaneous (the shipped fitted(width:height:)) mismatches 39
 //   --- CC4: elliptical cornerSize
 //   CC4 cornerSize 30.0x10.0: max err 1.33e-08 | SwiftUI TL rx,ry 30.000, 10.000
 //   CC4 cornerSize 10.0x30.0: max err 6.44e-07 | SwiftUI TL rx,ry 10.000, 30.000
@@ -148,7 +149,8 @@
 // READING. The corner is READ, not fitted: SwiftUI's own Beziers (Path.forEach) agree with the MODEL to 7.5e-6 absolute
 // (6.5e-8 of r) over the RoundedRectangle grid, the Capsules, the UnevenRoundedRectangle grid, 2000 random uneven radii
 // (rule: horizontal sides first, then vertical, pairClamp, rooms by radius ratio: 0 failures; the other 23 edge orders fail
-// 38..186) and the elliptical cornerSize (the pair scales together to fit half the sides, keeping its ratio).
+// 38..186; CC3c: the CIRCULAR UnevenRoundedRectangle fits the same way, 0 of 847, and MetalUI's shipped simultaneous fit missed
+// 39) and the elliptical cornerSize (the pair scales together to fit half the sides, keeping its ratio).
 // THE RASTERISER caveat (CC0 INSTRUMENT): the shape fill of a RoundedRectangle is NOT rasterised like the same cubics as a
 // generic Path at 1x (240 px, gap 36), so pixel equality with a Path is unreachable; the exact-area metric reads the
 // MODEL at 2.72 pt2 (scale 8; noise floor of the same comparison for the circular corner 0.65 pt2), circular 18.2, superellipse

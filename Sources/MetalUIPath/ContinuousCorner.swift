@@ -85,8 +85,13 @@ package enum ContinuousCorner {
     /// Whether the renderer's distance can draw these **fitted** radii: it folds a point into the quadrant
     /// of its corner, so every corner's curve (its reach along each side, `reach`) must stay within that
     /// quadrant. Equal radii up to half the shorter side always do; a corner that takes most of a side the
-    /// others leave free does not, and is a `Path` (`PG-G`). A corner reaches at least its radius, so a
-    /// `true` answer also means no radius needs the shape's clamp to half the shorter side.
+    /// others leave free does not, and is a `Path` (`PG-G`). **A reach past the half by `d` is allowed when the
+    /// curve's tail beyond the centre line is under 0.01 px off its straight side**: the outer cubic ends at a
+    /// distance `d` from its end `y = r t` with an offset `k1 d^3 / (27 (t - c1(t))^3 r^2)` (its second control
+    /// arm lies on the side, so the offset is cubic in the distance), which for the full reach is `0.033 d^3 / r^2`:
+    /// a 100 x 60 card with 20 radii (reach 30.57 on a half of 30) stays the renderer's by a factor of 600.
+    /// A corner reaches at least its radius, so a `true` answer also means no radius needs the shape's clamp to
+    /// half the shorter side.
     package static func fitsQuadrants(width: Double, height: Double, topLeft: Double, topRight: Double,
                                       bottomRight: Double, bottomLeft: Double) -> Bool {
         func fits(_ r: Double, _ otherH: Double, _ otherV: Double) -> Bool {
@@ -94,7 +99,13 @@ package enum ContinuousCorner {
             let c = ContinuousCornerSpec(rx: r, ry: r, roomX: room(side: width, r: r, other: otherH),
                                          roomY: room(side: height, r: r, other: otherV))
             let reached = reach(c)
-            return reached.x <= width / 2 * (1 + 1e-9) && reached.y <= height / 2 * (1 + 1e-9)
+            func tail(_ reach: Double, _ half: Double) -> Bool {
+                let d = reach - half
+                guard d > 0 else { return true }
+                let t = reach / r, lever = t - (a1 + b1 * t)
+                return d <= 0.25 * r && k1 * d * d * d <= 0.01 * 27 * lever * lever * lever * r * r
+            }
+            return tail(reached.x, width / 2) && tail(reached.y, height / 2)
         }
         return fits(topLeft, topRight, bottomLeft) && fits(topRight, topLeft, bottomRight)
             && fits(bottomRight, bottomLeft, topRight) && fits(bottomLeft, bottomRight, topLeft)

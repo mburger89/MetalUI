@@ -335,7 +335,7 @@ private let linear1 = Animation.linear(duration: 1)
 /// a path (the first expectation reddens), or none (the second).
 @Test @MainActor func anUnevenRectangleUsesTheSDFWhenItCanAndAPathWhenItMust() throws {
     let small = UnevenRoundedRectangle(topLeadingRadius: 30, bottomLeadingRadius: 10, bottomTrailingRadius: 20,
-                                       topTrailingRadius: 0)
+                                       topTrailingRadius: 0, style: .circular)
     let fill = effectFrame(small.fill(.accent).frame(width: Pixels(100), height: Pixels(60))).finalizedScene()
     try #require(fill.rects.count == 1 && fill.images.isEmpty, "\(fill.rects.count) rects, \(fill.images.count) images")
     let radii = fill.rects[0].cornerRadii
@@ -343,7 +343,7 @@ private let linear1 = Animation.linear(duration: 1)
     let border = effectFrame(small.strokeBorder(.accent, lineWidth: Pixels(2)).frame(width: Pixels(100), height: Pixels(60)))
         .finalizedScene()
     #expect(border.rects.count == 1 && border.images.isEmpty, "strokeBorder: the band")
-    let big = UnevenRoundedRectangle(topLeadingRadius: 45)
+    let big = UnevenRoundedRectangle(topLeadingRadius: 45, style: .circular)
     let path = effectFrame(big.fill(.accent).frame(width: Pixels(100), height: Pixels(60))).finalizedScene()
     #expect(path.rects.isEmpty && path.images.count == 1, "a 45 radius on a 60-high rect is a path")
     let stroked = effectFrame(big.stroke(.accent, lineWidth: Pixels(2)).frame(width: Pixels(100), height: Pixels(60)))

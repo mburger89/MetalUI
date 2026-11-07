@@ -657,6 +657,61 @@ func clipMaskFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
        atlas: atlas)
 }
 
+/// Frame 21 (ruling `CC-`, continuous rounded corners): the new rect kind (`MUIShapeContinuousRect = 2`) on every
+/// pipeline through `renderFrame`, the production path, so the geometry's `primitiveShape` picks the kind. Fills at radius
+/// 8, 20 and 60 and a capsule (the clipped room regime, probe CC1/CC2); `strokeBorder` of width 1, 6 and 20 (the inset
+/// curve's band, CC5; the 20 on radius 24 leaves a square outer corner); the same shapes turned (`rotationEffect`, the
+/// scaled distance) and under `rotation3DEffect` (the projective scale); and a material over a stripe field, whose
+/// backdrop record carries kind 2 (`backdrop_coverage` runs `rect_shade`'s continuous branch). Fractional placement keeps the edges antialiased. Judged as frame 7's are; this is the
+/// frame that holds Metal, SPIR-V and DXIL to the same closest-point arithmetic (`CC-`, stop condition 5).
+@MainActor
+func continuousCornersFrame(width: Int, height: Int, atlas: GlyphAtlas) throws -> Scene {
+    let system = PortableTextSystem(resolver: try PortableFontResolver(
+        defaultFont: repositoryFont("NotoSans-Regular.ttf")))
+    return renderFrame({
+        ZStack(alignment: .topLeading) {
+            HStack(spacing: Pixels(0)) {
+                Color(.accent).frame(width: Pixels(40), height: Pixels(130))
+                Color(.separator).frame(width: Pixels(40), height: Pixels(130))
+                Color(.accent).frame(width: Pixels(40), height: Pixels(130))
+                Color(.separator).frame(width: Pixels(40), height: Pixels(130))
+                Color(.accent).frame(width: Pixels(40), height: Pixels(130))
+            }
+            .offset(x: Pixels(372), y: Pixels(236))
+            VStack(alignment: .leading, spacing: Pixels(22)) {
+                HStack(spacing: Pixels(22)) {
+                    RoundedRectangle(cornerRadius: Pixels(8)).fill(.accent).frame(width: Pixels(80.5), height: Pixels(50.25))
+                    RoundedRectangle(cornerRadius: Pixels(20)).fill(.accent).frame(width: Pixels(120.25), height: Pixels(70.5))
+                    RoundedRectangle(cornerRadius: Pixels(60)).fill(.accent).frame(width: Pixels(200), height: Pixels(130.25))
+                    Capsule().fill(.accent).frame(width: Pixels(80.5), height: Pixels(130))
+                }
+                HStack(spacing: Pixels(22)) {
+                    RoundedRectangle(cornerRadius: Pixels(24)).strokeBorder(.accent, lineWidth: Pixels(1))
+                        .frame(width: Pixels(100.5), height: Pixels(70.25))
+                    RoundedRectangle(cornerRadius: Pixels(24)).strokeBorder(.accent, lineWidth: Pixels(6))
+                        .frame(width: Pixels(100.5), height: Pixels(70.25))
+                    RoundedRectangle(cornerRadius: Pixels(24)).strokeBorder(.accent, lineWidth: Pixels(20))
+                        .frame(width: Pixels(100.5), height: Pixels(70.25))
+                    Capsule().stroke(.accent, lineWidth: Pixels(5)).frame(width: Pixels(120), height: Pixels(60))
+                }
+                HStack(spacing: Pixels(40)) {
+                    RoundedRectangle(cornerRadius: Pixels(26)).fill(.accent)
+                        .frame(width: Pixels(120), height: Pixels(80.5))
+                        .rotationEffect(.degrees(25))
+                    RoundedRectangle(cornerRadius: Pixels(22)).strokeBorder(.accent, lineWidth: Pixels(8))
+                        .frame(width: Pixels(110), height: Pixels(80))
+                        .rotation3DEffect(.degrees(40), axis: (x: 0, y: 1, z: 0), perspective: 0.8)
+                    RoundedRectangle(cornerRadius: Pixels(28)).fill(.regularMaterial)
+                        .frame(width: Pixels(150.5), height: Pixels(90.25))
+                        .offset(x: Pixels(10), y: Pixels(-6))
+                }
+            }
+            .offset(x: Pixels(18.25), y: Pixels(12.5))
+        }
+    }, size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))), scaleFactor: 1, textSystem: system,
+       atlas: atlas)
+}
+
 /// Frame 19 (rulings `TG-C`, `TG-D`, gradient `foregroundStyle` on text): a gradient label; a wrapped two-line gradient (one span
 /// over both lines); a rich text with one gradient run beside a coloured run; gradient text under `.shadow` (a filtered group
 /// over a masked group); under `rotationEffect` (a transform record in the mask scene); inside `compositingGroup().opacity(0.5)`;
@@ -885,18 +940,20 @@ func run() throws {
     let filterAtlas = GlyphAtlas(width: 512, height: 512)
     let maskAtlas = GlyphAtlas(width: 512, height: 512)   // frame 18 (`CM-A`)
     let gradientAtlas = GlyphAtlas(width: 512, height: 512)   // frame 19 (`TG-C`)
+    let cornersAtlas = GlyphAtlas(width: 256, height: 256)   // frame 21 (`CC-`)
     let zoomAtlas = GlyphAtlas(width: 256, height: 256, maximumExtent: 1024)   // frame 20 (`TZ-A`): grown by the re-keyed rasters
     // Frames 9–11 (ruling BB-J) and 12–14 (ruling LG-O) need the portable shaders: the adapted MSL has no backdrop stages.
     let portableShaders = portable
     let sizes = [(640, 380), (420, 360), (640, 380), (640, 380), (640, 380), (920, 560), (640, 380),
-                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380), (640, 380), (720, 380), (720, 380), (720, 380)]
+                 (640, 380), (640, 380), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (320, 200), (640, 380), (640, 380), (640, 380), (720, 380), (720, 380), (720, 380), (640, 380)]
     for (index, dimensions) in sizes.enumerated() {
         let (width, height) = dimensions
         let filters = index == 17
         let masks = index == 18
         let gradientText = index == 19
         let textZoom = index == 20
-        let groups = index == 16 || filters || masks || gradientText || textZoom
+        let continuousCorners = index == 21
+        let groups = index == 16 || filters || masks || gradientText || textZoom || continuousCorners
         let projection3D = index == 15
         let backdrops = index >= 9 && !projection3D && !groups
         let glass = index >= 12 && !projection3D && !groups
@@ -906,8 +963,10 @@ func run() throws {
         let shapes = index == 6
         let transforms = index == 7
         let looks = index == 8
-        let frameAtlas = textZoom ? zoomAtlas : gradientText ? gradientAtlas : masks ? maskAtlas : filters ? filterAtlas : groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
-        let scene = textZoom
+        let frameAtlas = continuousCorners ? cornersAtlas : textZoom ? zoomAtlas : gradientText ? gradientAtlas : masks ? maskAtlas : filters ? filterAtlas : groups ? groupAtlas : projection3D ? projectionAtlas : backdrops ? shapesAtlas : looks ? looksAtlas : transforms ? transformsAtlas : shapes ? shapesAtlas : demo ? demoAtlas : portable ? portableAtlas : atlas
+        let scene = continuousCorners
+            ? try continuousCornersFrame(width: width, height: height, atlas: cornersAtlas)
+            : textZoom
             ? try textZoomFrame(width: width, height: height, atlas: zoomAtlas)
             : gradientText
             ? try gradientTextFrame(width: width, height: height, atlas: gradientAtlas)
@@ -942,7 +1001,7 @@ func run() throws {
         let frameFixture = try ReplayFixture(scene: scene, atlas: frameAtlas, width: UInt32(width), height: UInt32(height),
                                              projection: floats(projection), reference: metal)
         let parity = frameFixture.parity(of: sdl)
-        let line = "frame \(index)\(textZoom ? " (text zoom)" : gradientText ? " (gradient text)" : masks ? " (masked groups)" : filters ? " (filtered groups)" : groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
+        let line = "frame \(index)\(continuousCorners ? " (continuous corners)" : textZoom ? " (text zoom)" : gradientText ? " (gradient text)" : masks ? " (masked groups)" : filters ? " (filtered groups)" : groups ? " (offscreen opacity groups)" : projection3D ? " (3D render effects)" : glass ? " (liquid glass)" : backdrops ? " (backdrop blur)" : looks ? " (gradients and blur)" : transforms ? " (transforms)" : shapes ? " (shapes and images)" : demo ? " (demo tree)" : portable ? " (portable text)" : "") \(width)x\(height): \(scene.rects.count) rects, \(scene.glyphs.count) glyphs, \(scene.images.count) images, \(scene.transforms.count) transforms, \(scene.groups.count) groups, \(scene.drawList.count) runs; differing pixels=\(delta.pixels), max channel delta=\(delta.maxDelta); outside sprites max Δ\(parity.outside.maxDelta), inside sprites max Δ\(parity.inside.maxDelta)"
         print(line); report.append(line)
         try savePNG(metal, width: width, height: height, path: output.appendingPathComponent("metal-\(index).png"))
         try savePNG(sdl, width: width, height: height, path: output.appendingPathComponent("sdl-\(index).png"))

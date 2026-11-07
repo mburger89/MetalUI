@@ -79,11 +79,16 @@ private func tinted(_ scene: Scene) -> [MUIRect] { scene.rects.filter { $0.backg
 /// radii, a circle the ellipse. Mutation: encode an ellipse as
 /// `MUIShapeRoundedRect`.
 @Test @MainActor func theBackdropShapeIsTheFilledRoundedRectOrEllipse() throws {
-    let rounded = lkScene(RoundedRectangle(cornerRadius: px(9)).fill(.thickMaterial)
+    let rounded = lkScene(RoundedRectangle(cornerRadius: px(9), style: .circular).fill(.thickMaterial)
+        .frame(width: px(40), height: px(20)), side: 100)
+    let continuous = lkScene(RoundedRectangle(cornerRadius: px(9)).fill(.thickMaterial)
         .frame(width: px(40), height: px(20)), side: 100)
     let circle = lkScene(Ellipse().fill(.thickMaterial).frame(width: px(30), height: px(20)), side: 100)
     let rr = try #require(rounded.backdrops.first), ell = try #require(circle.backdrops.first)
     #expect(rr.shape & 0xFF == MUIShapeRoundedRect.rawValue, "rounded rectangle: \(rr.shape)")
+    let cc = try #require(continuous.backdrops.first)
+    #expect(cc.shape & 0xFF == MUIShapeContinuousRect.rawValue && cc.cornerRadii.topLeft == 9,
+            "the default (continuous) rounded rectangle is its own kind, CC-: \(cc.shape)")
     #expect(rr.cornerRadii.topLeft == 9 && rr.cornerRadii.bottomRight == 9, "radii: \(rr.cornerRadii)")
     #expect(ell.shape & 0xFF == MUIShapeEllipse.rawValue, "ellipse: \(ell.shape)")
     #expect(rr.bounds.size.width == 40 && rr.bounds.size.height == 20, "bounds: \(rr.bounds)")
