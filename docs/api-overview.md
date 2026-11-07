@@ -1196,6 +1196,15 @@ no product, imports nothing, `GX-B`), and
 
 `Window.frameTiming: FrameTiming?` (off by default), `FrameTiming` (a ring of `FrameTimingSample`s, `samples`, `last`, `framesRecorded`, `removeAll()`, `onFrame`, `onPresented`, `FrameTiming.now()`, optional `os` signposts under `com.metalui`), `FrameTimingSample` and `FrameInputKind`; the renderer seam `WindowRenderer.setPresentationObserver(_:)`; the headless renderer's `reportsPresentation` and `deliverPresentations(at:)`. MetalUI-only (`FP-A`..`FP-H`, record 222); guide [`frame-timing.md`](frame-timing.md).
 
+## Block Markdown — M
+
+`MetalUIMarkdown` (also re-exported by `MetalUI`; imports nothing, so it builds on Linux and Windows) parses the block structure of Markdown, such as a chat reply, into values. The parse is CommonMark 0.31 block structure as cmark-gfm reads it plus GFM tables, not SwiftUI's (SwiftUI has no block Markdown); link reference definitions, HTML blocks, task-list boxes, footnotes and math read as paragraph text (`BM-B`). A view for it comes in a later PR; today it is the model.
+
+- `MarkdownDocument()`, `MarkdownDocument(parsing:)`, `append(_:)`, `blocks`, `version`. `append` re-parses only the last top-level block (plus the one above it while the text ends in a half-typed structure line, `BM-C`), so streaming a reply token by token costs the length of its last block, not of the reply; the result always equals parsing the whole text. A copy of a document shares the tail bytes until one copy appends.
+- `MarkdownBlock` (`id`, `kind`): `id` is the block's ordinal among its siblings and never changes while the document grows, even when the block changes kind (`BM-D`). `MarkdownBlock.Kind`: `.paragraph(String)`, `.heading(level:text:)`, `.codeBlock(language:code:isClosed:)`, `.blockQuote([MarkdownBlock])`, `.list(ordered:start:tight:items:)`, `.thematicBreak`, `.table(alignments:header:rows:)`. Text is raw inline Markdown (a paragraph's lines are joined with `"\n"`); `MarkdownTableAlignment` is `.none`, `.left`, `.center`, `.right`.
+
+Typical use: keep one `MarkdownDocument` per reply, `append` each streamed token, and render `blocks` (the last one changes; the rest are stable).
+
 ## Code buffer — M
 
 `MetalUICodeBuffer` (also re-exported by `MetalUI`; imports only `Observation`, so it builds on Linux and Windows) is the text model behind a code view: all offsets are UTF-8 bytes (`CV-C`).
