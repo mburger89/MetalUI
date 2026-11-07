@@ -85,8 +85,21 @@ private func foundationOutput(_ nodes: [FoundationNode]) -> String {
     }.joined(separator: " ")
 }
 
+/// The plain text Foundation would show for a block's raw inline Markdown. MetalUI's inline parser keeps a
+/// line break as the "\n" it was written with (SwiftUI's inline-only parse), so a soft break is turned into
+/// the space Foundation reports before parsing; a hard break (two trailing spaces or a backslash) stays, and
+/// the spaces before it go (the inline-only parse keeps whitespace as written, `.full` drops it).
 private func plain(_ inline: String) -> String {
-    parseInlineMarkdown(inline).map(\.text).joined()
+    let lines = inline.split(separator: "\n", omittingEmptySubsequences: false)
+    var source = ""
+    for (i, line) in lines.enumerated() {
+        let spaced = line.hasSuffix("  ")
+        var text = Substring(line)
+        if spaced { while text.hasSuffix(" ") { text = text.dropLast() } }
+        source += text
+        if i < lines.count - 1 { source += spaced || line.hasSuffix("\\") ? "\n" : " " }
+    }
+    return parseInlineMarkdown(source).map(\.text).joined()
 }
 
 private func ourCanonical(_ blocks: [MarkdownBlock]) -> String {

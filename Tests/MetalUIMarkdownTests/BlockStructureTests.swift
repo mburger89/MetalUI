@@ -44,7 +44,7 @@ import Testing
         #expect(parse("  ```js\n  a\n   b\n c\n  ```") == "code(js,closed)'a¶ b¶c'")
         #expect(parse("    a\n     b\n\n    c\n\n\n") == "code(-,closed)'a¶ b¶¶c'")
         #expect(parse("a\n    b") == "p'a¶b'")  // indented code cannot interrupt a paragraph
-        #expect(parse("```\n```\nx") == "p'x'")  // an empty fence has no text
+        #expect(parse("```\n```\nx") == "code(-,closed)'' p'x'")  // an empty fence is a block with no code
     }
 
     @Test func blockQuotesAndThematicBreaks() {
