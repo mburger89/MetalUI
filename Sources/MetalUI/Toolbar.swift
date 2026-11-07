@@ -151,6 +151,9 @@ extension Image: ToolbarButtonLabel {
         switch content {
         case .bitmap(let bitmap, _):
             return (accessibilityLabelText ?? "", bitmap.texture)
+        case .icon:
+            // `SYM-L`: an icon has no raster for a native toolbar (carried, `SYM-M`): its label alone.
+            return (accessibilityLabelText ?? "", nil)
         case .symbol(let name):
             // `SYM-L`: the symbol's black raster at the body font, scale 2; a missing name has no image.
             let raster = Image.platformRaster(forSymbol: name)
