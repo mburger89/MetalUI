@@ -91,6 +91,12 @@ public struct CodeTheme: Equatable, Sendable {
     public var gutterForeground: Color
     /// The gutter's fill; `nil` shows the view's.
     public var gutterBackground: Color?
+    /// The background of every find match (``CodeDecorations/findMatches``), under the selection.
+    public var findMatch: Color
+    /// The background of the current find match (``CodeDecorations/currentMatch``); distinct from ``findMatch``.
+    public var currentFindMatch: Color
+    /// A tint across the row of the caret while nothing is selected; `nil` (the default) draws none.
+    public var currentLine: Color?
 
     /// A theme; the defaults follow the window's theme.
     public init(foreground: Color = .textPrimary,
@@ -98,7 +104,13 @@ public struct CodeTheme: Equatable, Sendable {
                 selection: Color = Color.accentColor.opacity(0.3),
                 gutterForeground: Color = Color.textPrimary.opacity(0.4),
                 gutterBackground: Color? = nil,
-                caret: Color? = nil) {
+                caret: Color? = nil,
+                findMatch: Color = Color.yellow.opacity(0.35),
+                currentFindMatch: Color = Color.orange.opacity(0.65),
+                currentLine: Color? = nil) {
+        self.findMatch = findMatch
+        self.currentFindMatch = currentFindMatch
+        self.currentLine = currentLine
         self.caret = caret
         self.foreground = foreground
         self.background = background
@@ -179,6 +191,11 @@ public final class CodeDecorations {
     package var shapedBytes: Int { lineCache.shapedBytesTotal }
     /// How many highlight runs ``stylingOfLine(_:)`` visited since reset (a counter, `CV-N`).
     @ObservationIgnored package var runsVisited = 0
+    /// The find matches: sorted, disjoint, in the coordinates of the buffer's version at the last ``sync()`` (`CV-AE`).
+    @ObservationIgnored private var matches: [Range<Int>] = []
+    @ObservationIgnored private var currentIndex: Int?
+    /// How many matches ``findSpan(in:)`` and the edit mapping looked at (a counter, `CV-AE`).
+    @ObservationIgnored package var findMatchesVisited = 0
 
     /// Decorations of `buffer`, with no highlights.
     public init(buffer: CodeBuffer) {
@@ -233,6 +250,8 @@ public final class CodeDecorations {
             anyLayerHasStyles = false
             lines.reset(total: snapshot.lineCount, payload: LineDecorationPayload())
             rowMap.reset(rowCount: snapshot.lineCount)
+            matches.removeAll()   // the log no longer reaches back: the matches' coordinates are unknown (`CV-AE`)
+            currentIndex = nil
             deltas.removeAll()
             deltaBase = snapshot.version
         }
@@ -240,6 +259,7 @@ public final class CodeDecorations {
 
     private func apply(_ edit: CodeEdit) {
         let removed = edit.range.count, added = edit.newText.utf8.count
+        mapFindMatches(through: edit, removed: removed, added: added)
         for layer in layers {
             layer.splice(at: edit.range.lowerBound, removing: removed, inserting: added, empty: .unknown)
             // The run an edit lands in is stale; it keeps its colour until the provider answers.
@@ -268,6 +288,146 @@ public final class CodeDecorations {
                 let drop = deltas.count - 4096
                 deltaBase = deltas[drop - 1].version
                 deltas.removeFirst(drop)
+            }
+        }
+    }
+
+    // MARK: Find matches
+
+    /// The ranges the app's find found, as UTF-8 offsets into the text **now**, left to right (`CV-AE`). The view
+    /// paints them under the selection in ``CodeTheme/findMatch`` and follows every edit itself: a match entirely
+    /// before an edit stays, one after it shifts by the edit's delta, and one the edit touches is dropped, so a match
+    /// is never drawn at coordinates from before an edit. A value is sorted and thinned to disjoint ranges on the
+    /// way in (``CodeSnapshot/ranges(of:options:limit:)`` already gives that). The find bar stays the app's: it runs
+    /// the search (O(n), when the query changes) and assigns the result here.
+    public var findMatches: [Range<Int>] {
+        get {
+            sync()
+            _ = revision
+            return matches
+        }
+        set {
+            sync()
+            let current = currentIndex.flatMap { $0 < matches.count ? matches[$0] : nil }
+            var sorted = newValue
+            var ordered = true
+            var i = 1
+            while i < sorted.count { if sorted[i].lowerBound < sorted[i - 1].lowerBound { ordered = false; break }; i += 1 }
+            if !ordered { sorted.sort { $0.lowerBound < $1.lowerBound } }
+            var kept: [Range<Int>] = []
+            kept.reserveCapacity(sorted.count)
+            let total = buffer.utf8Count
+            i = 0
+            while i < sorted.count {
+                let m = sorted[i]
+                i += 1
+                guard m.lowerBound >= 0, !m.isEmpty, m.upperBound <= total else { continue }
+                if let last = kept.last, m.lowerBound < last.upperBound { continue }
+                kept.append(m)
+            }
+            matches = kept
+            currentIndex = current.flatMap { index(of: $0) }
+            revision &+= 1
+        }
+    }
+
+    /// The index in ``findMatches`` of the current match, which the view draws in ``CodeTheme/currentFindMatch``
+    /// and ⌘G / ⇧⌘G move; `nil` for none. An index outside the matches reads as `nil`. Follows edits with the
+    /// matches (it becomes `nil` when an edit drops the match it names).
+    public var currentMatch: Int? {
+        get {
+            sync()
+            _ = revision
+            return currentIndex
+        }
+        set {
+            sync()
+            currentIndex = newValue.flatMap { $0 >= 0 && $0 < matches.count ? $0 : nil }
+            revision &+= 1
+        }
+    }
+
+    /// The index of exactly `range` in the matches, `nil` when it is not one.
+    private func index(of range: Range<Int>) -> Int? {
+        let at = firstMatch(endingAfter: range.lowerBound)
+        return at < matches.count && matches[at] == range ? at : nil
+    }
+
+    /// The first match whose end is past `offset` (the sorted, disjoint matches have sorted ends): O(log m).
+    private func firstMatch(endingAfter offset: Int) -> Int {
+        var lo = 0, hi = matches.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            findMatchesVisited += 1
+            if matches[mid].upperBound > offset { hi = mid } else { lo = mid + 1 }
+        }
+        return lo
+    }
+
+    /// The matches that touch `bytes` (one row), as indices into the matches: O(log m) to find the first and the
+    /// number of matches in the row to walk (`CV-AE`). Paint calls it per shown row, never for all matches.
+    package func findSpan(in bytes: Range<Int>) -> Range<Int> {
+        guard !matches.isEmpty else { return 0..<0 }
+        let first = firstMatch(endingAfter: bytes.lowerBound)
+        var end = first
+        while end < matches.count && matches[end].lowerBound < bytes.upperBound {
+            end += 1
+            findMatchesVisited += 1
+        }
+        return first..<end
+    }
+
+    /// The match at `index` (from ``findSpan(in:)``).
+    package func match(at index: Int) -> Range<Int> { matches[index] }
+
+    /// Moves the current match to the next (or previous) one from `selection`, wrapping, and returns its range.
+    /// From the current match when the selection is exactly it; otherwise from the selection: the first match
+    /// starting at or after its end (the last one ending at or before its start). `nil` when there are none.
+    package func stepCurrentMatch(forward: Bool, from selection: Range<Int>) -> Range<Int>? {
+        sync()
+        guard !matches.isEmpty else { return nil }
+        let count = matches.count
+        var target: Int
+        if let current = currentIndex, current < count, matches[current] == selection {
+            target = forward ? current + 1 : current - 1
+        } else if forward {
+            // The first match starting at or after the selection's end (one around a caret is behind it).
+            target = firstMatch(endingAfter: selection.upperBound)
+            while target < count && matches[target].lowerBound < selection.upperBound { target += 1 }
+        } else {
+            // The last match ending at or before the selection's start.
+            target = firstMatch(endingAfter: selection.lowerBound) - 1
+        }
+        target = (target % count + count) % count
+        currentIndex = target
+        revision &+= 1
+        return matches[target]
+    }
+
+    /// Follows one edit: a match ending at or before it stays, one starting at or after its end shifts by the
+    /// delta, the rest (the edit touches them) are dropped, and the current index follows. O(log m) to find the
+    /// span and O(matches after it) to shift, once per edit and never per frame.
+    private func mapFindMatches(through edit: CodeEdit, removed: Int, added: Int) {
+        guard !matches.isEmpty else { return }
+        let start = edit.range.lowerBound, end = edit.range.upperBound
+        let delta = added - removed
+        let first = firstMatch(endingAfter: start)   // the first match not entirely before the edit
+        var after = first
+        while after < matches.count && matches[after].lowerBound < end { after += 1; findMatchesVisited += 1 }
+        // An insertion at a match's start leaves it after the edit (`lowerBound >= end` with an empty range).
+        let dropped = after - first
+        if dropped > 0 {
+            matches.removeSubrange(first..<after)
+            if let current = currentIndex {
+                currentIndex = current < first ? current : (current < after ? nil : current - dropped)
+            }
+        }
+        if delta != 0 {
+            var i = first
+            while i < matches.count {
+                matches[i] = (matches[i].lowerBound + delta)..<(matches[i].upperBound + delta)
+                i += 1
+                findMatchesVisited += 1
             }
         }
     }

@@ -29,6 +29,8 @@ struct CodeWork: Equatable {
     var glyphsEmitted = 0
     /// Highlight runs the line styling visited.
     var highlightRunsVisited = 0
+    /// Find matches the paint looked at: those in the shown rows, never all of them (`CV-AE`).
+    var findMatchesVisited = 0
 }
 
 struct LazyWork: Equatable {

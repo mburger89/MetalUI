@@ -114,6 +114,9 @@ public struct FrameWork: Sendable, Equatable {
     public var codeGlyphsEmitted: Int
     /// Highlight runs the `CodeView`s' line styling visited.
     public var codeHighlightRunsVisited: Int
+    /// Find matches the `CodeView`s' paint looked at: those in the shown rows, so a view of 10 000 matches visits
+    /// the handful in the viewport (`CV-AE`).
+    public var codeFindMatchesVisited: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -145,7 +148,7 @@ public struct FrameWork: Sendable, Equatable {
                 retainedTranslationRefusedReasons: [String: Int] = [:],
                 lazyUnitsRealized: Int = 0, lazyLinesRealized: Int = 0, lazyUnbounded: Int = 0,
                 codeLinesShaped: Int = 0, codeLinesPainted: Int = 0, codeGlyphsEmitted: Int = 0,
-                codeHighlightRunsVisited: Int = 0) {
+                codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0) {
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -195,6 +198,7 @@ public struct FrameWork: Sendable, Equatable {
         self.codeLinesPainted = codeLinesPainted
         self.codeGlyphsEmitted = codeGlyphsEmitted
         self.codeHighlightRunsVisited = codeHighlightRunsVisited
+        self.codeFindMatchesVisited = codeFindMatchesVisited
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -245,6 +249,7 @@ public struct FrameWork: Sendable, Equatable {
                   codeLinesShaped: l.codeLinesShaped + r.codeLinesShaped,
                   codeLinesPainted: l.codeLinesPainted + r.codeLinesPainted,
                   codeGlyphsEmitted: l.codeGlyphsEmitted + r.codeGlyphsEmitted,
-                  codeHighlightRunsVisited: l.codeHighlightRunsVisited + r.codeHighlightRunsVisited)
+                  codeHighlightRunsVisited: l.codeHighlightRunsVisited + r.codeHighlightRunsVisited,
+                  codeFindMatchesVisited: l.codeFindMatchesVisited + r.codeFindMatchesVisited)
     }
 }
