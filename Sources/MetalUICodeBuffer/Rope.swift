@@ -155,7 +155,7 @@ struct Rope: Sendable {
                     } else {
                         // One pass over the chunk's bytes through a buffer pointer and a `while` loop: the
                         // `for i in 0..<n where …` spelling over `ch.bytes[i]` allocated once per byte (found by
-                        // the `CodeView` allocation pin, `CV-Q`: 511 allocations for one `lineStart`).
+                        // the `CodeView` allocation pin, `CV-R`: 511 allocations for one `lineStart`).
                         let found: Int? = ch.bytes.withUnsafeBufferPointer { bytes in
                             var seen = 0
                             var i = 0

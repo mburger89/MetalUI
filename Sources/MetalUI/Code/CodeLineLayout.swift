@@ -82,7 +82,7 @@ final class CodeLineLayout {
 
 /// The two-frame cache (`CV-M`): the entries used by the current frame, and those the previous one used.
 @MainActor
-final class CodeLineCache {
+package final class CodeLineCache {
     private var current: [CodeLineKey: CodeLineLayout] = [:]
     private var previous: [CodeLineKey: CodeLineLayout] = [:]
     private weak var lastFrame: Frame?
@@ -99,7 +99,7 @@ final class CodeLineCache {
     static let verifies: Bool = ProcessInfo.processInfo.environment["METALUI_VERIFY_CODE_CACHE"] == "1"
 
     /// The entries held (test observability).
-    var count: Int { current.count + previous.count }
+    package var count: Int { current.count + previous.count }
 
     /// Rotates the two frames when `frame` is not the one the last call served.
     func begin(_ frame: Frame) {

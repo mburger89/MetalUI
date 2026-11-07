@@ -158,7 +158,7 @@ public final class CodeDecorations {
     @ObservationIgnored private var deltas: [RowDelta] = []
     @ObservationIgnored private var deltaBase: UInt64
     @ObservationIgnored private var lastRequest: (rows: Range<Int>, version: UInt64, revision: UInt64)?
-    @ObservationIgnored var lineCache = CodeLineCache()
+    @ObservationIgnored package var lineCache = CodeLineCache()
     /// The bytes of text the line cache has shaped since creation (test observability, `CV-M`).
     package var shapedBytes: Int { lineCache.shapedBytesTotal }
     /// How many highlight runs ``stylingOfLine(_:)`` visited since reset (a counter, `CV-N`).

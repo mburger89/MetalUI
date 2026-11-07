@@ -377,6 +377,43 @@ let codePrimary: EventModifiers = .control
     #expect(rect.bounds.size.height == codePitch(scale: 1))
 }
 
+/// 4.6 — a highlight that splits a line the cache already holds re-colours exactly the glyphs of its range:
+/// the foreground partition is in the cache key, so the line is laid out again with its two parts.
+/// **Mutation:** the key without the digest returns the old one-part layout and colours the whole row.
+@Test @MainActor func aHighlightThatSplitsACachedLineRecoloursExactlyItsGlyphs() throws {
+    let buffer = CodeBuffer(String(repeating: "let value = 1\n", count: 20))
+    let decorations = CodeDecorations(buffer: buffer)
+    let style = decorations.register(CodeStyle(foreground: Color(hue: 0.123, saturation: 0.8, brightness: 0.9)))
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    #expect(glyphColorAlphas(window, hue: 0.123) == 0)
+    decorations.setHighlights([CodeStyleRun(range: 0..<3, style: style)], in: 0..<3, layer: .syntax, asOf: buffer.version)
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(glyphColorAlphas(window, hue: 0.123) == 3, "the three glyphs of `let`: \(glyphColorAlphas(window, hue: 0.123))")
+}
+
+/// 4.7 — a scale change re-shapes the visible lines (the scale is in the cache key; a glyph key carries the
+/// scale it was rasterized for). **Mutation:** the key without the scale serves 1x glyphs at 2x.
+@Test @MainActor func aScaleChangeShapesTheVisibleLinesAgain() throws {
+    let buffer = CodeBuffer(codeText(lines: 100))
+    let window = try codeWindow(buffer: buffer, decorations: CodeDecorations(buffer: buffer))
+    window.resetFrameWork()
+    window.setScaleFactor(2)
+    window.tick()
+    #expect(totalWork(window).codeLinesShaped >= 5, "shaped \(totalWork(window).codeLinesShaped) after the scale changed")
+}
+
+/// 4.8 — the cache keeps two frames, not every line ever seen: after 300 one-row scrolls it holds a few
+/// screens of entries. **Mutation:** a cache that never rotates holds all 300 rows.
+@Test @MainActor func theLineCacheKeepsOnlyTwoFramesOfLines() throws {
+    let buffer = CodeBuffer(codeText(lines: 2000))
+    let decorations = CodeDecorations(buffer: buffer)
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    let pitch = codePitch(scale: 1)
+    for _ in 0..<300 { window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -pitch) }
+    let visible = Int((200 / pitch).rounded(.up))
+    #expect(decorations.lineCache.count <= 2 * (2 * (visible + 3)), "entries held: \(decorations.lineCache.count)")
+}
+
 // MARK: - The leaf, retention, observation
 
 private struct CodeCard: Component, @MainActor Equatable {
