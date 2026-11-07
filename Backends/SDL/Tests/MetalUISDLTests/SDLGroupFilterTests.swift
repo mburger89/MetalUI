@@ -127,7 +127,12 @@ private func near(_ a: [Int], _ b: [Int], _ t: Int = 1) -> Bool { zip(a, b).allS
     inner.insert(MUIImage(bounds: bounds(40, 40, 20, 20), contentMask: bounds(40, 40, 20, 20), maskCornerRadii: square, opacity: 1,
                           texture: 0, filter: MUIUInt(MUIImageFilterNearest.rawValue), order: 0), surface: target)
     inner.finalize()
-    let scene = frame(Scene.GroupFilter(kind: .blur, sigma: 0, tint: .zero), inner: inner)
+    var scene = Scene()
+    scene.insert(rect(0, 0, 200, 200, hue: 0, lightness: 1, order: 0))
+    // An ordinary image first, so the frame holds a texture handle and a surface handle offset by it is not index 0.
+    scene.insert(quad(150, 150, 10, 10, order: 1), texture: ImageTexture(width: 1, height: 1, straightRGBA: [0, 255, 0, 255]))
+    scene.insert(quad(20, 20, 64, 64, order: 2), group: inner, filter: Scene.GroupFilter(kind: .blur, sigma: 0, tint: .zero))
+    scene.finalize()
     try #require(scene.surfaces.isEmpty && scene.surfaceTargets.isEmpty && scene.groupScenes[0].surfaceTargets == [target], "set up: only the group references it")
     let request = SurfaceDrawRequest(target: target, scaleFactor: 1, time: 0, policy: .onDemand, value: nil) { ctx in
         ctx.clear(red: 0, green: 0, blue: 1, alpha: 1)
@@ -136,5 +141,6 @@ private func near(_ a: [Int], _ b: [Int], _ t: Int = 1) -> Bool { zip(a, b).allS
     try #require(r.finishFrame(scene: scene, atlas: GlyphAtlas(width: 16, height: 16), surfaces: [request]))
     let pixels = try r.readPixels(width: side, height: side)
     #expect(near(rgb(pixels, 50, 50), [0, 0, 255]), "the surface's fill inside the group: \(rgb(pixels, 50, 50))")
+    #expect(near(rgb(pixels, 155, 155), [0, 255, 0]), "the ordinary image still draws: \(rgb(pixels, 155, 155))")
     #expect(r.surfaceTargetsCreated == 1 && r.surfaceTargetsReleased == 0, "the target is kept")
 }
