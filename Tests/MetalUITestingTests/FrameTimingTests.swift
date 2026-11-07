@@ -138,18 +138,39 @@ private func ordered(_ s: FrameTimingSample) -> Bool {
     #expect(timing.samples.map(\.frameIndex) == [11], "indices keep counting")
 }
 
+/// A box whose width is a `@State` the test writes through the binding it captures at build: a write that reaches
+/// the window synchronously, as input's does (an `@Observable` write reaches a Linux window one main-actor hop
+/// later).
+@MainActor private final class WidthHolder { var binding: Binding<Float>?; var show: Binding<Bool>? }
+private struct WidthBox: Component {
+    let holder: WidthHolder
+    let builds: BuildLog?
+    var onAppearWrite: Bool = false
+    @State var width: Float = 20
+    @State var show = false
+    var content: some ElementGroup {
+        let _ = holder.binding = $width
+        let _ = holder.show = $show
+        let _ = builds?.times.append(FrameTiming.now())
+        Box().frame(width: Pixels(width), height: Pixels(10)).background(.accent)
+        if show {
+            Box().frame(width: Pixels(5), height: Pixels(5)).onAppear { if onAppearWrite { width = 40 } }
+        }
+    }
+}
+
 /// 1.6 — `onFrame` runs after the frame (the frame is already counted and committed), outside any phase, and a
 /// write it makes schedules the next frame, which shows it. Mutations: `deliverFrame` moved before the commit;
 /// the callback run inside the build.
 @Test @MainActor func onFrameRunsAfterTheFrameAndItsWriteIsNotStale() throws {
-    let model = TimingModel()
+    let holder = WidthHolder()
     let timing = FrameTiming()
-    let window = try harnessWindow { VStack(spacing: 0) { Box().frame(width: Pixels(model.width), height: Pixels(10)).background(.accent) } }
+    let window = try harnessWindow { VStack(spacing: 0) { WidthBox(holder: holder, builds: nil) } }
     window.window.frameTiming = timing
     var seen: [(frames: Int, committed: UInt64, dirty: Bool)] = []
     timing.onFrame = { sample in
         seen.append((window.framesDrawn, sample.commit, window.window.needsRedraw))
-        if model.width == 20 { model.width = 30 }   // a write after the frame
+        if let width = holder.binding, width.wrappedValue == 20 { width.wrappedValue = 30 }   // a write after the frame
     }
     window.window.setNeedsRedraw()
     window.tick()
@@ -163,32 +184,23 @@ private func ordered(_ s: FrameTimingSample) -> Bool {
     #expect(seen.count == 2)
 }
 
-/// A component whose content, evaluated inside layout, logs the stamp clock: the build's own time.
-private struct TimingBuildProbe: Component {
-    let model: TimingModel
-    let builds: BuildLog
-    var content: some ElementGroup {
-        let _ = builds.times.append(FrameTiming.now())
-        Box().frame(width: Pixels(model.width), height: Pixels(10)).background(.accent)
-        if model.show {
-            Box().frame(width: Pixels(5), height: Pixels(5)).onAppear { model.width = 40 }
-        }
-    }
-}
 @MainActor private final class BuildLog { var times: [UInt64] = [] }
 
 /// 1.7 — a frame that builds twice (an `onAppear` write) keeps the LAST build's stamps, in order: its layout ended
 /// after the second build's content was evaluated. Mutation: the layout stamp taken once (first build only).
 @Test @MainActor func aFrameThatBuildsTwiceKeepsTheLastBuildsStamps() throws {
-    let model = TimingModel()
+    let holder = WidthHolder()
     let builds = BuildLog()
     let timing = FrameTiming()
-    let window = try harnessWindow { VStack(spacing: 0) { TimingBuildProbe(model: model, builds: builds) } }
+    let window = try harnessWindow {
+        VStack(spacing: 0) { WidthBox(holder: holder, builds: builds, onAppearWrite: true) }
+    }
     window.window.frameTiming = timing
     builds.times = []
-    model.show = true   // the box appears in this frame; its onAppear writes, so the frame builds again
+    // The box with the `onAppear` appears in this frame; its write forces a second build inside it.
+    holder.show?.wrappedValue = true
     window.tick()
-    _ = try #require(builds.times.count >= 2 ? true : nil, "the onAppear write must have forced a second build")
+    #expect(builds.times.count >= 2, "the onAppear write must have forced a second build")
     let sample = try #require(timing.last)
     #expect(ordered(sample))
     #expect(sample.layoutEnd >= builds.times.last!, "layoutEnd belongs to the second build")
