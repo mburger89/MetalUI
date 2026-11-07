@@ -25,7 +25,10 @@ import Testing
     func keep(_ proxy: ScrollViewProxy) -> Bool { self.proxy = proxy; return true }
 }
 
+/// Frames after a model write. The write is announced explicitly (`setNeedsRedraw`): off Apple the harness does not
+/// turn an `@Observable` write into a dirty window by itself (`AnyElementResetRetainedTests` does the same).
 @MainActor private func settle(_ window: TestWindow, frames: Int = 8) {
+    window.window.setNeedsRedraw()
     for _ in 0..<frames { window.tick() }
 }
 
