@@ -229,3 +229,30 @@ private func exactCoverage(_ outline: ExactOutline, edges: [Int], width: Int, he
     plain.finalize()
     #expect(plain.drawList.map(\.count) == [2])
 }
+
+/// The transformed branch of `rect_continuous_fragment` (the scaled distance): a 50 x 30 kind-2 rect of radius 10 under
+/// a scale of 2 is the 100 x 60 rect of radius 20, within the antialiasing's few levels, and is far from the circular
+/// kind under the same transform. **Mutation**: `rect_continuous_fragment`'s transformed return shading with the
+/// circular `rect_shade` reddens it.
+@Test @MainActor func aTransformedContinuousRectUsesTheContinuousDistance() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    func drawn(_ shape: PrimitiveShape, scaled: Bool) throws -> [Int] {
+        var scene = Scene()
+        let w: Float = scaled ? 50 : 100, h: Float = scaled ? 30 : 60, r: Float = scaled ? 10 : 20
+        let rect = MUIRect(bounds: Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)), size: Size(width: ScaledPixels(w), height: ScaledPixels(h))),
+                           contentMask: Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)), size: Size(width: ScaledPixels(w), height: ScaledPixels(h))),
+                           background: red, borderColor: .transparent, cornerRadii: Corners(all: ScaledPixels(r)),
+                           borderWidths: Edges(all: ScaledPixels(0)), order: 0, shape: shape)
+        let record = MUITransform(a: 2, b: 0, c: 0, d: 2, tx: 0, ty: 0, pixelScale: 2, _reserved: 0,
+                                  outerMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 100, height: 60)),
+                                  outerMaskRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0))
+        scene.insert(rect, transform: scaled ? record : nil)
+        scene.finalize()
+        let pixels = try renderer.renderOffscreen(scene, size: Size(width: DevicePixels(100), height: DevicePixels(60)))
+        return (0..<6000).map { Int(pixels[$0 * 4 + 3]) }
+    }
+    let reference = try drawn(.continuousRoundedRectangle, scaled: false)
+    #expect(maxGap(try drawn(.continuousRoundedRectangle, scaled: true), reference) <= 4, "the scaled continuous rect is the unscaled one")
+    #expect(differing(try drawn(.roundedRectangle, scaled: true), reference) > 20, "the circular kind under the transform is not")
+}
