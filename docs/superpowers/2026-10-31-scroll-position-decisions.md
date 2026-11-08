@@ -98,6 +98,8 @@ sections out in sequence and pins nothing (divergence 915). `LazyVGrid`/`LazyHGr
 
 ## SP-K - Carried: two-axis scrolling, `ScrollView([.horizontal, .vertical])`
 
+**Superseded by `XS-` (`2026-11-07-two-axis-scroll-decisions.md`, Alloy gap G5, record 236): the per-axis wheel routing is built (PR 1); the two-axis scroller itself is planned (PR 2/3).** The text below is the ruling as it stood.
+
 **Ruling.** Not built. `ScrollAxis` is a public closed `enum` (`.vertical`, `.horizontal`); `[.horizontal, .vertical]` needs an `OptionSet` (a source break for every `switch`), a two-component `ScrollState`, a
 kernel viewport that answers both axes unspecified (`requestNativeScrollViewport(child:axis:)` takes one), two scroll regions and a two-axis wheel, and `ScrollContext`/`ScrollerFrame`/lazy planning (all one-axis by
 `MP-M`) a second dimension. That is not cheap, and the one-axis nesting `ScrollView(.horizontal) { ScrollView { } }` is not the same. **Cost if wrong.** A canvas/grid app nests two scrollers.

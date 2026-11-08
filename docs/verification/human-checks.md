@@ -2401,8 +2401,18 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 *An agent cannot: the tests read the accessibility tree, frames and glyph colours of a headless window, and count work; how the stream looks on screen at the bottom of a transcript, how the wheel feels over a block, what VoiceOver says and how the colours read in light and dark are looks. Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` (also under SDL).*
 
 - [ ] **BM1.** Let the demo stream a reply (it starts on its own; "Stream another reply" streams more) while the window is pinned at the bottom: does the newest text appear without flicker, and does the bottom edge stay put (no jump when a paragraph wraps to a new line, a list starts, the fence opens and the table arrives)? Is the half-typed structure (a lone `-`, `#`, `|`) tolerable for a frame? **Observed:**
-- [ ] **BM2.** Wheel vertically over the code block and over the table (wrapping on, the default): does the transcript scroll under the pointer? Switch "Wrap code" off: the block gets a horizontal scroller; does a horizontal wheel scroll the block, and does a vertical wheel over it scroll nothing (`BM-H`, the carried limitation: the transcript stops while the pointer is over the block)? Is that acceptable for Alloy or does it need the framework fix? **Observed:**
+- [ ] **BM2.** Wheel vertically over the code block and over the table (wrapping on, the default): does the transcript scroll under the pointer? Switch "Wrap code" off: the block gets a horizontal scroller; does a horizontal wheel scroll the block, and does a vertical wheel over it scroll the transcript (since record 236 / `XS-F` it does; before, `BM-H` carried the transcript stopping while the pointer was over the block)? **Observed:**
 - [ ] **BM3.** VoiceOver (macOS) over a reply: are headings read as headings (the level is not published), list items read in order (ordered markers read, bullets do not), the code block as a group named "swift" whose lines are readable, links as links, table cells in reading order? **Observed:**
 - [ ] **BM4.** Click the link in the first paragraph: does it open `https://example.com` in the browser? **Observed:**
 - [ ] **BM5.** Light and dark: the quote bar and text, the code box and the highlighter's colours, inline code spans, the table rules, the headings. Do the defaults read well, or does `MarkdownTheme()` need other tokens? **Observed:**
+
+## XS. Per-axis wheel routing - a code block in a transcript no longer eats the wheel (Alloy gap G5, PR 1; record 236; rulings `XS-E`..`XS-G`; decisions `docs/superpowers/2026-11-07-two-axis-scroll-decisions.md`)
+
+Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a trackpad and then a Magic Mouse. Nothing here is seen by the suite (momentum in particular: the probe could not deliver it).
+
+- [ ] **XS1.** Over the code block, wheel vertically: does the transcript scroll under the pointer (it used to stop)? Scroll sideways: does the block scroll and the transcript stay? **Observed:**
+- [ ] **XS2.** A diagonal two-finger swipe over the block that starts mostly sideways: does it stay with the block for the whole swipe and its glide, with no vertical drift of the transcript? Mostly vertical: does it stay with the transcript, with no sideways drift of the block? Compare with a SwiftUI `ScrollView` pair if in doubt. **Observed:**
+- [ ] **XS3.** Scroll a tall block (or a tall inner list) to its end and keep going: does the transcript take over at the edge, mid-gesture too, and does the first swipe back go to the block again? **Observed:**
+- [ ] **XS4.** A mouse with a plain wheel (and a horizontal wheel or shift): vertical over the block moves the transcript, sideways moves the block. **Observed:**
+- [ ] **XS5.** On Linux/Windows (SDL): a touchpad and a wheel mouse do the same as XS1-XS4. **Observed:**
 

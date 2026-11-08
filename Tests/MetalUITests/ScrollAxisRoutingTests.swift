@@ -249,8 +249,9 @@ private func verticalInVertical(innerHeight: Float) -> some Element {
 }
 
 /// **R11** (`XS-E`, probe `N6b`). A same-axis inner scroller whose content fits its viewport passes the wheel to the
-/// outer. Mutation: take by the declared axes (`scrollAxes`) instead of `scrollTakes`: the fitting inner takes it,
-/// the outer stays 0. The control: an overflowing inner keeps it (probe `N6c`).
+/// outer. Mutation: take by the declared axes (`scrollAxes`) instead of `scrollTakes` AND ignore the room: the
+/// fitting inner takes it, the outer stays 0 (swapping `scrollTakes` alone stays green: a scroller whose content fits has no
+/// room either, so the room test says the same thing, `LR-X`). The control: an overflowing inner keeps it (probe `N6c`).
 @Test @MainActor func aFittingSameAxisInnerScrollerPassesTheWheelUp() throws {
     let (fitting, platform) = try windowFor { verticalInVertical(innerHeight: 60) }
     platform.simulateInput(phaseless(onInner, dy: -30))
