@@ -2674,7 +2674,13 @@ public final class Window {
 
     /// The open menu — native or in-window — or `nil` (`MN-C`, `MN-F`). On
     /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
-    var menuSession: MenuSession?
+    var menuSession: MenuSession? {
+        didSet { menuSessionDidChange(from: oldValue) }   // MN-AK: a code-driven menu's binding
+    }
+
+    /// `reconcileMenuBindings` is running (`MN-AK`): a native menu's `popUp` is modal, and a frame the platform
+    /// builds inside it must not open the same menu again.
+    var reconcilingMenuBindings = false
 
     // MARK: Presentations and hover (platform services, `SV-K`, `SV-N`)
 
