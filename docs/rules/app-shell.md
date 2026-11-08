@@ -41,7 +41,9 @@ window's shortcut pipeline is the one shortcut path** (`Button` first, commands
 one stage after, AppKit offering a ⌘- or ⌃-key to it before the main menu,
 once; a ⌃-key not while composing — `MN-J`, `MN-AI`). `.popover` is an anchored presentation root, flipped then clamped
 inside the window, no arrow, dismissed from input; `.help` is the accessibility
-hint plus a drawn, tick-timed tooltip. The new handler member `contextual` is
+hint plus a drawn, tick-timed tooltip; `.help { location in String? }` (M, `MN-AJ`) is
+a model-driven one, asked in input per pointer move, restarting the delay when the text changes, no
+accessibility. The new handler member `contextual` is
 non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility
 role/request needs a row on both bridges**; a new `StyledElement` modifier
 cannot follow a legacy `.popover` (divergence 115).
