@@ -779,6 +779,15 @@ final class StateTable {
         return text.hasPrefix("$anim") || text.hasPrefix("$ax") || text.hasPrefix("$focus")
     }
 
+    /// The entries the open (unswept) frame read or re-noted, and the journals emptied (`RW-O`): verify mode takes an
+    /// abandoned replayed build's set this way before it builds the frame again, since only a completed frame sweeps.
+    func takeUnsweptJournals() -> Set<GlobalElementID> {
+        let taken = Set(readJournal).union(markJournal)
+        readJournal.removeAll(keepingCapacity: true)
+        markJournal.removeAll(keepingCapacity: true)
+        return taken
+    }
+
     /// Appends `id` to the read journal and the graft journal (`RW-D`). No version moves and nothing is tainted.
     func noteRead(_ id: GlobalElementID) {
         guard contentMemos.retainsSubtrees, !Self.ownsItsChannel(id) else { return }
