@@ -46,7 +46,17 @@ public struct MarkdownTheme: Equatable, Sendable {
     /// default. Pressing it writes the block's whole code, as plain text, to the window's clipboard
     /// (``EnvironmentValues/clipboard``). The button is an overlay: it changes neither the block's size nor the
     /// shaping of its text, and a block nested in a list or a quote has one too.
+    ///
+    /// After a press the button shows a checkmark and its accessibility label reads "Copied" for 1.5 seconds,
+    /// then it reverts; a press during that time starts the 1.5 seconds again (`BM-L`).
     public var showsCodeCopyButton: Bool
+    /// When set, each code block's copy button carries the accessibility identifier `"<prefix><index>"` (`BM-L`).
+    /// `index` is the block's 0-based position among the document's **code blocks**, in source order, nested
+    /// ones (in a list or a quote) included; paragraphs, headings and other blocks are not counted. The index
+    /// is stable while the document only grows or is re-rendered, and a code block that streams in takes the
+    /// next index. A ``MarkdownBlockView`` used alone numbers its own blocks from 0. `nil`, the default, writes
+    /// no identifier: MetalUI never makes one up.
+    public var codeCopyButtonIdentifierPrefix: String?
     /// The font of a code block's language caption.
     public var codeCaptionFont: Font
     /// The space between two sibling blocks (and between two items of a loose list).
@@ -94,6 +104,7 @@ public struct MarkdownTheme: Equatable, Sendable {
         codeWraps = true
         showsCodeLanguage = true
         showsCodeCopyButton = false
+        codeCopyButtonIdentifierPrefix = nil
         codeCaptionFont = .caption
         blockSpacing = Pixels(10)
         listItemSpacing = Pixels(3)

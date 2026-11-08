@@ -1,6 +1,6 @@
 # Block markdown - decisions (prefix `BM-`)
 
-Rulings for Alloy gap G2, block markdown for chat replies. Plan: four PRs, the pure parser first. Branch `feat/markdown-parser` from master `b0fa5ae5`; record 231 (230 is the symbol-images line). Class `M` (MetalUI-only; SwiftUI has no block Markdown): no divergence added or retired (labels untouched). **Next unused id: `BM-K`.** `BM-A`..`BM-D` are PRs 1 and 2, the parser and streaming append (record 231); `BM-E`..`BM-J` are PRs 3 and 4, the views, theme, code fences, tables and demo (record 235, branch `feat/markdown-views` from master `1fa45020`).
+Rulings for Alloy gap G2, block markdown for chat replies. Plan: four PRs, the pure parser first. Branch `feat/markdown-parser` from master `b0fa5ae5`; record 231 (230 is the symbol-images line). Class `M` (MetalUI-only; SwiftUI has no block Markdown): no divergence added or retired (labels untouched). **Next unused id: `BM-M`.** `BM-A`..`BM-D` are PRs 1 and 2, the parser and streaming append (record 231); `BM-E`..`BM-J` are PRs 3 and 4, the views, theme, code fences, tables and demo (record 235, branch `feat/markdown-views` from master `1fa45020`).
 
 ## BM-A: a pure portable target that imports nothing
 
@@ -87,3 +87,24 @@ the fence's **whole** `code` (not a chunk) as text through `\.clipboard` (`CB-S`
 target, not a `Button` (a `Button` is not proposal content and cannot sit in the fence's proposal overlay); it has no
 pressed or hover look.  A fence still streaming copies the code so far.
 **Cost if wrong.** An app wanting a different glyph, label or position wraps the fence itself; a pressed look is carried.
+
+## BM-L: copy button identifiers and "Copied" feedback
+
+**Question.** Alloy gap G15: tests found the copy button only by its label, and a press gave no sign it worked.
+**Ruling.** (1) `MarkdownTheme.codeCopyButtonIdentifierPrefix: String?`, `nil` by default (a closure would make the
+theme uncomparable, `BM-G`). Set, each button carries `accessibilityIdentifier("\(prefix)\(index)")`, `index` the block's
+0-based position among the document's **code blocks** (paragraphs and the rest are not counted), in source order,
+nested ones in a list or quote included. The count is derived, not stored: `MarkdownView` and the quote, list and item
+components hand each child the number of code blocks before it (`codeBase`), so the same document gives the same
+indices on every render and a streamed fence takes the next one. It is only counted when a prefix is set (else every
+base is 0 and equality ignores it). A `MarkdownBlockView` used alone numbers from 0. `nil` writes no identifier.
+(2) Feedback is always on, no theme flag: after a press that wrote the clipboard, the glyph is `checkmark` (Lucide
+`check` off Apple) and the accessibility label "Copied" for 1.5 s, then `doc.on.doc` and "Copy code". The button is its own
+component, `MarkdownCopyButton`, holding `@State presses` bumped from the tap and the accessibility action, so the fence
+and its chunks are not rebuilt. The timer is the existing trigger `phaseAnimator` (`GS-H`): phases `idle, pressed,
+copied`, `copied`'s animation `.linear(duration: 1.5)` is the hold, the window's clock drives it and it raises
+`noteActiveAnimation()` while running, so tests tick. **`pressed` exists because** a trigger change while the animator is
+in `copied` re-enters `copied` with a hold of 0 (`PhaseStepping.enter`: equal phases hold nothing) and the window would
+end at once; `pressed` (held 0, drawn like `copied`) is what a second press restarts through.
+**Cost if wrong.** An app wanting no feedback has no flag (add `showsCodeCopyFeedback` if asked); a failed clipboard write
+shows no feedback.
