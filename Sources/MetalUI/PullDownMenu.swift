@@ -24,9 +24,12 @@ final class MenuPresenter {
     /// (`MA-B`).
     /// `initialHighlight` is the row an in-window panel opens highlighted
     /// and scrolled to — a menu picker's selection (`SV-Q`).
+    /// `isPresented` is a code-driven menu's binding, written `true` once it
+    /// is open (`MN-AK`).
     func openPullDown(_ id: GlobalElementID, isEnabled: Bool, initialHighlight: Int? = nil,
-                      content: @escaping @MainActor () -> MenuItems) {
-        window?.openPullDownMenu(id, isEnabled: isEnabled, initialHighlight: initialHighlight, content: content)
+                      isPresented: Binding<Bool>? = nil, content: @escaping @MainActor () -> MenuItems) {
+        window?.openPullDownMenu(id, isEnabled: isEnabled, initialHighlight: initialHighlight,
+                                 isPresented: isPresented, content: content)
     }
 }
 
@@ -47,6 +50,19 @@ extension Menu: Element, StyledElement {
         }
         button.style = style
         button.decoration = decoration
+        // A code-driven menu notes its binding in layout, as a presentation
+        // scope does (`MN-AK`): the window reconciles it after the frame.
+        if let isPresented {
+            let first = pass.frame.tree.nodeCount
+            let content = content
+            let isEnabled = pass.frame.environmentTop.isEnabled
+            let (node, inner) = button.requestLayout(id, pass: &pass)
+            pass.frame.notePresentation(isPresented: isPresented,
+                                        request: .menu(isEnabled: isEnabled,
+                                                       content: { MenuItems([content()]) }),
+                                        owner: id, span: (first, pass.frame.tree.nodeCount - 1))
+            return (node, LayoutState(button: button, inner: inner))
+        }
         let (node, inner) = button.requestLayout(id, pass: &pass)
         return (node, LayoutState(button: button, inner: inner))
     }
@@ -63,12 +79,14 @@ extension Menu: Element, StyledElement {
         let presenter = pass.frame.menuPresenter
         let isEnabled = pass.frame.environmentTop.isEnabled
         let content = content
+        let isPresented = isPresented
         // The menu's own render effects open inside its button's registration,
         // after this line, so they are passed in (`MA-G`).
         pass.frame.recordPresentationAnchor(id, bounds: bounds, ownEffects: decoration.renderEffects)
         var composed = handlers
         composed.onClick = { [weak presenter] in
-            presenter?.openPullDown(id, isEnabled: isEnabled, content: { MenuItems([content()]) })
+            presenter?.openPullDown(id, isEnabled: isEnabled, isPresented: isPresented,
+                                    content: { MenuItems([content()]) })
         }
         composed.axNode.menuButtonHint = true   // M1: AXMenuButton (MN-H item 2)
         layout.button.handlers = composed
@@ -87,11 +105,68 @@ extension Window {
     /// panel below it — the context menu's own path (`MN-C`, `MN-F`), its items
     /// evaluated now, under `id`'s dispatch. The corner is of the label's drawn
     /// bounds, render effects included (`MA-B`). Nothing without an anchor.
+    /// A code-driven menu's `isPresented` (`MN-AK`) rides on the session and is
+    /// written `true` once the menu is open. Returns whether it opened.
+    @discardableResult
     func openPullDownMenu(_ id: GlobalElementID, isEnabled: Bool, initialHighlight: Int? = nil,
-                          content: @escaping @MainActor () -> MenuItems) {
-        guard let bounds = lastPresentationAnchors[id] else { return }
+                          isPresented: Binding<Bool>? = nil,
+                          content: @escaping @MainActor () -> MenuItems) -> Bool {
+        guard let bounds = lastPresentationAnchors[id] else { return false }
         let record = ContextMenuRecord(attachment: ContextualAttachment(menu: content, help: nil),
                                        isEnabled: isEnabled, bounds: bounds)
-        _ = openContextMenu(of: id, record, initialHighlight: initialHighlight)
+        guard openContextMenu(of: id, record, initialHighlight: initialHighlight) else { return false }
+        if let isPresented {
+            menuSession?.pullDownBinding = PullDownBinding(owner: id, isPresented: isPresented)
+            StateDispatch.dispatching(to: id) { if !isPresented.wrappedValue { isPresented.wrappedValue = true } }
+        }
+        return true
+    }
+
+    /// A session that left (or was replaced by another menu's) closes its
+    /// binding (`MN-AK`): `false`, written from the input that ended it. A
+    /// session that merely changed — a hover, a submenu — keeps its owner and
+    /// writes nothing.
+    func menuSessionDidChange(from old: MenuSession?) {
+        guard let bound = old?.pullDownBinding, menuSession?.pullDownBinding?.owner != bound.owner else { return }
+        StateDispatch.dispatching(to: bound.owner) {
+            if bound.isPresented.wrappedValue { bound.isPresented.wrappedValue = false }
+        }
+    }
+
+    /// After the frame (`MN-AK`; `reconcilePresentations`' place, outside every
+    /// phase): a code-driven menu whose binding reads `true` and is not the
+    /// open one is opened; the open one whose binding reads `false`, or whose
+    /// `Menu` left the tree, is closed. An open that cannot happen (disabled,
+    /// no items, no anchor) writes `false` back so the binding does not lie.
+    func reconcileMenuBindings() {
+        guard !reconcilingMenuBindings else { return }
+        reconcilingMenuBindings = true
+        defer { reconcilingMenuBindings = false }
+        let records = presentations.records.filter { if case .menu = $0.request { true } else { false } }
+        if let bound = menuSession?.pullDownBinding {
+            let live = records.first { $0.owner == bound.owner }
+            if live == nil || bound.isPresented.wrappedValue == false { closePullDownSession() }
+        }
+        for record in records where record.isPresented.wrappedValue
+            && menuSession?.pullDownBinding?.owner != record.owner {
+            guard case .menu(let isEnabled, let content) = record.request else { continue }
+            let opened = isEnabled && StateDispatch.dispatching(to: record.owner) {
+                openPullDownMenu(record.owner, isEnabled: isEnabled, isPresented: record.isPresented, content: content)
+            }
+            if !opened {
+                StateDispatch.dispatching(to: record.owner) { record.isPresented.wrappedValue = false }
+            }
+            break   // one menu is open at a time
+        }
+    }
+
+    /// Closes the code-driven session: a native one is told to go (the platform
+    /// ignores a menu it is not tracking, and its late outcome is stale), a drawn
+    /// one is dropped. The session's own binding is already `false` here.
+    private func closePullDownSession() {
+        guard let session = menuSession else { return }
+        if session.isNative { dismissPresentationOnPlatform(token: session.token) }
+        menuSession = nil
+        setNeedsRedraw()
     }
 }
