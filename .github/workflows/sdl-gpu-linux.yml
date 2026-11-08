@@ -254,7 +254,7 @@ jobs:
       - name: Install SDL3 (prebuilt VC package)
         run: |
           $zip = "$env:RUNNER_TEMP\sdl3.zip"
-          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip -MaximumRetryCount 10 -RetryIntervalSec 30
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
           "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV

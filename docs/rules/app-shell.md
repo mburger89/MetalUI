@@ -155,7 +155,7 @@ measured below it (`SG-F`). A `Component`'s prepaint record is one heap box (`Co
 `KeyboardModifier` layer, `ClipboardAttachment` a class box in `KeyboardAttachment`'s fifth field, `Handlers` stays nineteen).
 **One stage, `dispatchClipboardKey`, after `onKey` and before the context-menu key and every shortcut** (`CB-B`): exact
 `EventModifiers.primary` + C/X/V for an element holding focus or an ancestor of it, innermost first; the Keymap, `onKeyPress` and a
-focused text field (whose path is untouched, `CB-M`) still win; the Edit menu needs no code (AppKit's `cut:`/`copy:`/`paste:` and the
+focused text field still win — except that **a focused field's ⌘V is offered to the innermost `pasteDestination` on its chain first** (`Window.offerPasteToDestinationBeforeTheField`, called from `dispatchTextKey`): accepted, the field does nothing; declined or none, it pastes text (`CB-T`, so an image-only clipboard reaches a destination); the Edit menu needs no code (AppKit's `cut:`/`copy:`/`paste:` and the
 drawn bar already send these keys). A copy writes **the first item**, one representation per exported type, the text fallback being the
 type's own `.utf8PlainText` entry (`CB-C`; since `CP-` every item, divergence 456); a paste walks the **destination's** `importedContentTypes()` against the
 platform's list and **declines** (the next stage runs) unless the action ran (`CB-P`). **Four defaultless `PlatformWindow` requirements**
