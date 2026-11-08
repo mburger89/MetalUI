@@ -2432,3 +2432,13 @@ Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a t
 - [ ] **TBS4.** With a dozen tabs, scroll the strip with a trackpad swipe (sideways) and with the wheel (vertical should scroll the page beneath, not the strip); press the demo's next-tab key at the end of the strip: does the selected tab glide into view? **Observed:**
 - [ ] **TBS5.** VoiceOver: is the strip a group named Tabs, each tab a button announced with its title, selected state and "edited", and each x a "Close <title>" button? Is a real tab-group role missed? **Observed:**
 - [ ] **TBS6.** Linux and Windows (SDL): the x is the bundled Lucide icon; is it crisp at 9 points beside the 12-point title? **Observed:**
+
+## EC. The caret after an external text change, the offsets binding, a paste destination under a focused field (Alloy gaps G11 and G10; record 241; rulings `SL-P`, `SL-Q`, `CB-S`; decisions `docs/superpowers/2026-10-12-text-selection-decisions.md`, `docs/superpowers/2026-10-14-clipboard-types-decisions.md`)
+
+*An agent cannot: the tests type through the headless window and read the text; where the caret is drawn after the change, whether the reveal scrolls a long editor to it and a real clipboard's image reaching a destination are looks. Run any app with a `TextEditor` whose text a button rewrites (the Alloy composer is the real case).*
+
+- [ ] **EC1.** Focus a `TextEditor` and a `TextField` mid-text, then rewrite the bound text from a button (a longer text, a shorter one, an appended mention). Is the caret drawn at the end of the new text on the very next frame, not at the old offset for one frame? Does typing continue there? **Observed:**
+- [ ] **EC2.** In a tall `TextEditor` scrolled to the top, append text from code past the visible area: does the editor scroll to the caret at the end? **Observed:**
+- [ ] **EC3.** With a selection binding attached (`selection:` or `selectedOffsets:`), repeat EC1: the caret stays where the binding says (clamped), as SwiftUI's does. **Observed:**
+- [ ] **EC4.** Copy a screenshot (image only) and press the paste key in a focused `TextEditor` under a `pasteDestination(for: ImageData.self)`: does the destination run and the text stay unchanged? Copy text and paste: does the text arrive? Copy a Finder file (a URL) under an `ImageData`-only destination: text of the path or nothing, never an image? **Observed:**
+

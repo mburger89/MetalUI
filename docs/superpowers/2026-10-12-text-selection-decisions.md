@@ -10,7 +10,7 @@ SwiftUI's side: `docs/probes/swiftui-text-selection.swift` (arms C, P, R, W, F, 
 byte-identical; recorded in its header). gpui's side, where SwiftUI has nothing, is recalled
 (`EntityInputHandler`, no binding) and rests no ruling.
 
-**Next unused id: `SL-P`.**
+**Next unused id: `SL-R`.**
 
 ## SL-A — The API is SwiftUI's `TextSelection` and `selection:` initialisers; no `selectAll()` hook
 
@@ -169,3 +169,54 @@ equal to the field's own selection ends no group; (5) a write while composing is
 group, and the commit's `insert` continues a typing group for one grapheme and is its own step for
 several. Not changed. Amendment to `SL-H`: SwiftUI evidence for the held write is `IM-G` (divergence
 326; SwiftUI publishes during composition and applies a write at once). Documented in `docs/testing.md`.
+
+
+## SL-P — A text replaced from outside moves the caret to the end (no selection binding); with one the binding wins
+
+**Question.** A focused `TextEditor`/`TextField` whose bound text is replaced from code (autocomplete "/com" ->
+"/compact ", an `@path` mention appended) kept its old caret offset, so the next key landed mid-text ("/comXpact ").
+**Measured** (`docs/probes/swiftui-text-external-replace.swift`, macOS 27.0.1, Swift 6.4, compiled, one arm per
+process, run twice, byte-identical; 26 arms plus 10 bound arms): without a selection binding, SwiftUI's `TextField` and
+`TextEditor` agree on every row: the text after the replacement and one typed X is the new text with X **at its end**
+whenever the text changed: extend at the caret `/com`@4 -> `/compact ` gives `/compact X`; extend under a mid caret
+`ab cd`@2 -> `abXY cd` gives `abXY cdX` (not after the inserted XY); rewrite earlier text (`foo bar`@7 -> `FOO bar`, and
+under a caret at 3 -> `goo bar`) gives `FOO barX`/`goo barX`; insert before the caret gives `AAfoo barX`; append under a mid
+caret gives `foo bar @pathX`; shrink with the caret at the end, past it (`hello world`@8 -> `hel`) or inside the kept text
+(@2 -> `hello`) gives `helloX`/`helX`/`helloX`; cleared gives `X`; unrelated and longer gives `completely differentX`.
+**Only identical text keeps the caret** (`hello`@2 -> `hello` gives `heXllo`). It is not "clamp the old offset" (the
+shrink-inside row) and not "end only when the edit is not at the caret" (the extend rows). **With a selection binding
+attached** SwiftUI keeps the old offset, clamped (`/com`@4 -> `/comXpact `, `ab cd`@2 -> `abXXY cd`, `hello world`@8 ->
+`helX`): the binding is not rewritten by the replacement and wins.
+**Ruling.** `TextEditState.seenText` is the text the state last saw: set by every edit, undo and redo (`recording`,
+`restored`) and otherwise by the frame. `TextEditing.followExternalText` runs where `reconcile` runs, in the same
+compared `withState(unchanged: ==)` of `TextEditor.prepaint`/`TextField.prepaint` (the table of
+`everyStateWriteSiteIsClassified` is unchanged: one site, now always taken, the `if selectionWriter != nil` became
+`if bound ... else follow`): when `seenText` differs from the text, anchor and head go to the end, the typing group and the
+goal column end and the caret is revealed. The first text seen is a baseline (no move). Composition holds the move back as
+it does a binding's write (`SL-H`). No `@Observable` is written; the write is the editor's own state, compared, in the
+phase, as the scroll's and the binding reconcile are, and a field's own keystroke writes nothing there (`recording` already
+stored `seenText`). **Cost**: an unbound field now takes the compared write each prepaint (one equality test; a change only
+on a replacement or the first frame); the undo history is dropped lazily as before (`synced`), so an undo pressed after a
+replacement and before any edit still restores the older snapshot (unchanged, and SwiftUI's undo is not measurable, `SL-O`).
+A binding that transforms or rejects an edit (a constant binding, a filter) is a replacement too: the caret goes to the end,
+as it does in SwiftUI. Pinned by `aReplacedTextPutsTheCaretWhereSwiftUIPutsIt` (13 rows x field and editor),
+`aSelectionBindingKeepsTheOldOffsetAcrossAReplacement` (the bound arms), `theFieldsOwnEditsNeverMoveTheCaretToTheEnd` and
+`consecutiveReplacementsEachMoveTheCaret`. Mutations in record 241.
+
+## SL-Q — `selectedOffsets`: the selection binding as Character offsets, the macOS 14 spelling
+
+**Question (Alloy G11).** `TextEditing.reconcile` guarded `#available(macOS 15, *)`, so the selection binding did
+nothing on macOS 14. **Measured by reading**: the guard is not incidental. `TextSelection` itself is
+`@available(macOS 15, *)` (`SL-L`: `Indices.multiSelection(RangeSet<String.Index>)`, `RangeSet` being the standard
+library's from macOS 15, and SwiftUI's `TextSelection` is macOS 15 too), so no `TextSelection` value can exist on 14 and the
+cast the guard protects is the only thing it protects; the package deploys to macOS 14 (`Package.swift`).
+**Ruling.** Keep `TextSelection` as it is and add a MetalUI-only binding with no `RangeSet`:
+`TextField(_:text:selectedOffsets:)` and `TextEditor(_:text:selectedOffsets:)` over `Binding<Range<Int>?>`, Character
+offsets into the current text, empty is the caret. The erased state already holds any `Hashable`: `reconcile` tries
+`Range<Int>` first (no availability question at all) and `TextSelection` behind `#available(macOS 15, *)` second; the
+writer returns the `Range<Int>`; everything else (`SL-B`..`SL-J`: echo-free, next-frame apply, `nil` ignored, composition
+holds, clamped) is shared. An insertion at the caret is the app editing `text` and writing the caret after it. Negative
+bounds clamp to 0. Class M (no divergence: SwiftUI has no such spelling). **Test**: the harness cannot run macOS 14, so
+`theOffsetsInitialisersCarryNoAvailabilityGate` reads the sources (no `@available` above the two initialisers, the
+offsets cast before the macOS 15 branch), and `ExternalTextCaretTests` is written with no `@available`, so it fails to
+compile if either initialiser gains one (mutation checked: "only available in macOS 15 or newer").

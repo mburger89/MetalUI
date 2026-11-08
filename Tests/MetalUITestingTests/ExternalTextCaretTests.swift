@@ -184,8 +184,9 @@ private func theOffsetsBindingReadsAndWritesTheCaretAndTheSelection(kind: Kind) 
 /// 6 — **no availability check stands on the offsets path.** The two `selectedOffsets` initialisers
 /// and the `Range<Int>` branch of `reconcile` carry no `@available` and no `#available(macOS 15`
 /// before the branch; the harness cannot run macOS 14, so the source is the proof (`SL-Q`).
-/// **Mutation:** add `@available(macOS 15, *)` to either initialiser, or move the `Range<Int>` cast
-/// after the `#available`.
+/// **Mutation:** `@available(macOS 15, *)` on the editor's initialiser fails the build of this file's tests
+/// ("only available in macOS 15"); the source-order check is a convention, not a hazard (the offsets cast
+/// is the first branch so the common path asks no availability question).
 @Test func theOffsetsInitialisersCarryNoAvailabilityGate() throws {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().appendingPathComponent("Sources/MetalUI")
@@ -202,4 +203,32 @@ private func theOffsetsBindingReadsAndWritesTheCaretAndTheSelection(kind: Kind) 
     let offsetsBranch = try #require(reconcile.range(of: "binding.base as? Range<Int>"))
     let gate = try #require(reconcile.range(of: "#available(macOS 15, *), let value = binding.base as? TextSelection"))
     #expect(offsetsBranch.lowerBound < gate.lowerBound, "the offsets cast is tried before the macOS 15 check")
+}
+
+// MARK: Focus gating
+
+/// 7 — **only a focused field follows**: a field that lost focus forgets the text it saw, so a text replaced
+/// while it was away does not turn the click that focuses it into "a replacement" (the caret would jump from
+/// the clicked place to the end). Focus A, type, Tab to B, replace A's text, click near A's start, type: the
+/// key lands at the click. **Mutation:** drop the `guard focused` in `followExternalText` (the key lands at the end).
+@Test @MainActor
+private func aReplacementWhileAFieldWasUnfocusedDoesNotMoveALaterClick() throws {
+    let model = ExtModel("seed")
+    var other = ""
+    let window = try harnessWindow {
+        VStack(spacing: 8) {
+            TextField("Title", text: model.textBinding)
+            TextField("Other", text: Binding(get: { other }, set: { other = $0 }))
+        }
+    }
+    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    try window.focus(window.element(label: "Title"))
+    window.typeText("a")
+    window.typeKey(.tab)
+    model.text = "0123456789"
+    window.tick()
+    let frame = try window.element(label: "Title").frame
+    window.click(at: Point(x: Pixels(frame.origin.x.value + 3), y: Pixels(frame.origin.y.value + frame.size.height.value / 2)))
+    window.typeText("Y")
+    #expect(model.text.hasPrefix("Y0") || model.text.hasPrefix("0Y"), "the key landed at the click: \(model.text)")
 }

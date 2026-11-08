@@ -1,3 +1,4 @@
+import Foundation
 import MetalUI
 import MetalUIPlatform
 import MetalUITesting
@@ -129,4 +130,24 @@ private func aFieldWithNoDestinationStillPastesText() throws {
     window.setClipboard(text: "!")
     window.typeKey("v", modifierFlags: .primary)
     #expect(m.text == "hello!")
+}
+
+/// 6 — the real image type: a PNG on the clipboard (`ImageData`, `SOC-H`) under `pasteDestination(for: ImageData.self)`
+/// on a focused editor reaches the destination with its format, and the text stays (Alloy's case).
+/// **Mutation:** as 1.
+@Test @MainActor
+private func aPngOnTheClipboardReachesAnImageDataDestinationOfAFocusedEditor() throws {
+    let m = PasteModel()
+    var received: [[ImageData]] = []
+    let binding = Binding<String>(get: { m.text }, set: { m.text = $0 })
+    let window = try harnessWindow {
+        TextEditor("Note", text: binding).pasteDestination(for: ImageData.self) { received.append($0) }
+    }
+    try window.focus(window.element(label: "Note"))
+    window.typeKey(.end)
+    let png = ImageData(data: Data([0x89, 0x50, 0x4e, 0x47, 1, 2]), contentType: .png)
+    window.setClipboard(items: [png])
+    window.typeKey("v", modifierFlags: .primary)
+    #expect(received == [[png]])
+    #expect(m.text == "hello")
 }

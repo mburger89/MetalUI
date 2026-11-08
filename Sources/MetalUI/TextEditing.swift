@@ -339,10 +339,16 @@ enum TextEditing {
     /// the caret goes to the end, as SwiftUI's `TextField` and `TextEditor` do
     /// (probe `swiftui-text-external-replace.swift`), however the text changed; an
     /// identical text keeps it. The first text seen is a baseline, not a change.
-    /// Composition holds the move back, as it does a binding's write (`SL-H`).
-    /// `true` when the caret moved.
+    /// Composition holds the move back, as it does a binding's write (`SL-H`). **Only a focused
+    /// field follows**: an unfocused one forgets the text it saw, so a click or Tab that focuses
+    /// it later is not mistaken for a replacement, and an unfocused field leaves a fresh state
+    /// (a field that left the tree and returned reads `TextEditState()`). `true` when the caret moved.
     @discardableResult
-    static func followExternalText(text: String, state: inout TextEditState) -> Bool {
+    static func followExternalText(text: String, focused: Bool, state: inout TextEditState) -> Bool {
+        guard focused else {
+            state.seenText = nil
+            return false
+        }
         guard let seen = state.seenText else {
             state.seenText = text
             return false

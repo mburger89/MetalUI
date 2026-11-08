@@ -326,6 +326,7 @@ public struct TextEditor: Element, StyledElement {
         // A text replaced from outside moves the caret to the end when there is no
         // selection binding (`SL-P`; with one the binding wins). The same compared write.
         let bound = selectionWriter != nil
+        let focused = pass.frame.focusedElement == id   // the pre-clearing answer is enough here (`SL-P`)
         do {
             let selection = self.selection, text = self.text
             pass.withState(id, initial: TextEditState(), unchanged: ==) { stored in   // compared (`RW-J`)
@@ -333,7 +334,7 @@ public struct TextEditor: Element, StyledElement {
                     TextEditing.reconcile(binding: selection, text: text, state: &stored)
                     if stored.reported == nil { stored.reported = stored.clamped(to: text.count).selection }
                 } else {
-                    TextEditing.followExternalText(text: text, state: &stored)
+                    TextEditing.followExternalText(text: text, focused: focused, state: &stored)
                 }
                 state = stored
             }

@@ -19,7 +19,12 @@ selection after an input that changed it (against `currentText`, under `StateDis
 applies a binding value that differs from the last one published (`seenBinding`); nil is never an
 instruction, a write is held back while composing, a stale index clamps, and a write ends the typing
 group but touches no undo stack (`SL-B`…`SL-I`). A field focused from code keeps its stored caret and
-focus or resign writes nothing (divergences 265, 266). `TextInputTarget` keeps `Handlers` pinned (488, then 480
+focus or resign writes nothing (divergences 265, 266). **`selectedOffsets:`** (`Binding<Range<Int>?>`, Character offsets, MetalUI-only) is the same
+binding without `RangeSet`, so it is the macOS 14 spelling (`SL-Q`): `reconcile` tries the `Range<Int>` cast before the `#available(macOS 15, *)` one, and a new
+selection spelling must not add an availability gate to that path. **A text replaced from outside moves the caret to the end of a field with no selection binding**
+(`SL-P`; SwiftUI's measured rule: any change, only identical text keeps it; with a binding the old offset stays, clamped): `TextEditState.seenText` is set by every own
+edit (`recording`, `restored`), so only a replacement differs, and `followExternalText` runs in the same compared `withState` as `reconcile` — a new text-producing path
+must set `seenText` or the next frame jumps the caret. `TextInputTarget` keeps `Handlers` pinned (488, then 480
 once its boxes merged into `TextTargetHooks`, `CV-W`) through class-boxed closures (`SL-M`); the demo is `METALUI_SELECTION_DEMO=1`, a root of its own (`SL-N`).
 
 **Text.** `Text`/`ProposalText` measure and draw **only through
