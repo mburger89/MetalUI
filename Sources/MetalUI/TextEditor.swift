@@ -115,6 +115,25 @@ public struct TextEditor: Element, StyledElement {
                   onSelectionChange: { selection.wrappedValue = $0 })
     }
 
+    /// Bound to `text` and to the selection as Character offsets into it — MetalUI-only
+    /// (ruling `SL-Q`), and **not** macOS 15: `TextSelection` is `RangeSet`'s, which the
+    /// standard library has from macOS 15, while this spelling is plain `Range<Int>` and
+    /// runs on macOS 14. The offsets are `Character` (grapheme) positions in the current
+    /// `text`; empty is the caret. It behaves as the `TextSelection` binding does
+    /// (`SL-B`..`SL-J`): the editor writes it after each input that moved the selection and
+    /// applies a value written there on the next frame, a `nil` is the editor's own
+    /// selection, a stale range clamps into the text. Both writes happen in input, never in
+    /// a phase. Insert at the caret by editing `text` and writing the caret after the
+    /// insertion: `text.insert(contentsOf: s, at: i); caret = (i + s.count)..<(i + s.count)`.
+    public init(_ placeholder: String = "", text: Binding<String>, selectedOffsets: Binding<Range<Int>?>) {
+        self.init(placeholder, text: text.wrappedValue, onChange: { text.wrappedValue = $0 })
+        self.selection = selectedOffsets.wrappedValue.map { AnyHashable($0) }
+        self.selectionWriter = { range, _ in
+            selectedOffsets.wrappedValue = range
+            return AnyHashable(range)
+        }
+    }
+
     /// The controlled spelling of the selection binding (`SL-A`): shows `text` and
     /// `selection` and reports each edit to `onChange` and each selection the
     /// field makes to `onSelectionChange`.
@@ -304,11 +323,18 @@ public struct TextEditor: Element, StyledElement {
         // A bound selection (`SL-B`, `SL-D`): a value the field did not publish is
         // applied before the geometry reads the state; the baseline lets the first
         // input publish only a real change. Same phase-time write as the scroll's.
-        if selectionWriter != nil {
+        // A text replaced from outside moves the caret to the end when there is no
+        // selection binding (`SL-P`; with one the binding wins). The same compared write.
+        let bound = selectionWriter != nil
+        do {
             let selection = self.selection, text = self.text
             pass.withState(id, initial: TextEditState(), unchanged: ==) { stored in   // compared (`RW-J`)
-                TextEditing.reconcile(binding: selection, text: text, state: &stored)
-                if stored.reported == nil { stored.reported = stored.clamped(to: text.count).selection }
+                if bound {
+                    TextEditing.reconcile(binding: selection, text: text, state: &stored)
+                    if stored.reported == nil { stored.reported = stored.clamped(to: text.count).selection }
+                } else {
+                    TextEditing.followExternalText(text: text, state: &stored)
+                }
                 state = stored
             }
         }

@@ -40,6 +40,10 @@ struct TextEditState: Equatable, Sendable {
     /// The selection range last applied from, or published to, the binding
     /// (`SL-B`); a differing selection is what an input publishes.
     var reported: Range<Int>?
+    /// The text this state last saw (`SL-P`): what the last edit, undo or redo
+    /// produced, else what the last frame showed. A differing text was replaced from
+    /// outside the field. `nil` until the field has seen any.
+    var seenText: String?
 
     var selection: Range<Int> { min(anchor, head)..<max(anchor, head) }
 
@@ -306,11 +310,20 @@ enum TextEditing {
         }
         guard state.composition.text.isEmpty else { return false }
         guard ErasedSelection(value: binding) != state.seenBinding else { return false }
-        guard #available(macOS 15, *), let value = binding.base as? TextSelection else { return false }
-        state.seenBinding = ErasedSelection(value: binding)
-        guard let converted = TextSelection.offsets(of: value, in: text) else { return false }
+        // Character offsets (`SL-Q`) need no availability; a `TextSelection` is macOS 15 (`SL-L`).
+        let converted: Range<Int>
+        if let offsets = binding.base as? Range<Int> {
+            state.seenBinding = ErasedSelection(value: binding)
+            converted = min(offsets.lowerBound, offsets.upperBound)..<max(offsets.lowerBound, offsets.upperBound)
+        } else if #available(macOS 15, *), let value = binding.base as? TextSelection {
+            state.seenBinding = ErasedSelection(value: binding)
+            guard let offsets = TextSelection.offsets(of: value, in: text) else { return false }
+            converted = offsets
+        } else {
+            return false
+        }
         let count = text.count
-        let r = min(converted.lowerBound, count)..<min(converted.upperBound, count)
+        let r = max(0, min(converted.lowerBound, count))..<max(0, min(converted.upperBound, count))
         if r != state.clamped(to: count).selection {
             state.anchor = r.lowerBound
             state.head = r.upperBound
@@ -319,6 +332,30 @@ enum TextEditing {
             state.revealsCaret = true
         }
         state.reported = r
+        return true
+    }
+
+    /// A text the caller replaced under a field with no selection binding (`SL-P`):
+    /// the caret goes to the end, as SwiftUI's `TextField` and `TextEditor` do
+    /// (probe `swiftui-text-external-replace.swift`), however the text changed; an
+    /// identical text keeps it. The first text seen is a baseline, not a change.
+    /// Composition holds the move back, as it does a binding's write (`SL-H`).
+    /// `true` when the caret moved.
+    @discardableResult
+    static func followExternalText(text: String, state: inout TextEditState) -> Bool {
+        guard let seen = state.seenText else {
+            state.seenText = text
+            return false
+        }
+        guard seen != text else { return false }
+        guard state.composition.text.isEmpty else { return false }
+        state.seenText = text
+        let count = text.count
+        state.anchor = count
+        state.head = count
+        state.history.openGroup = nil
+        state.goalX = nil
+        state.revealsCaret = true
         return true
     }
 
@@ -376,6 +413,7 @@ enum TextEditing {
         history.openGroup = kind == .other ? nil : kind
         history.lastText = newText
         state.history = history
+        state.seenText = newText   // our own edit, not a replacement from outside (`SL-P`)
         return state
     }
 
@@ -402,6 +440,7 @@ enum TextEditing {
         state.head = snapshot.head
         state.history.openGroup = nil
         state.history.lastText = snapshot.text
+        state.seenText = snapshot.text
         return state
     }
 
