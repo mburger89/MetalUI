@@ -40,4 +40,4 @@ Not covered by a mutation: `reconcilingMenuBindings` (re-entry needs a nested fr
 
 ## 5. Verification
 
-COUNTS_PLACEHOLDER
+Native, unfiltered, `--no-parallel` after `swift package clean`: `Test run with 5685 tests in 26 suites passed after 644.649 seconds` (0 failures; the same 5685 under `METALUI_VERIFY_RETAINED=1`, `387.089 seconds`), `FR-J no-argument frame: succeeded=true`. A first run before the demo was reverted failed only `everyProductionTreeBuildsOnAOneMegabyteThread` (SIGBUS, section 2). Portable container (`git archive HEAD` into `docker run --rm -i metalui-portable:latest`): `Test run with 973 tests in 11 suites passed`, then 9, 16, 73, 68, 53, 25, 290, 165, 24, 45 (an earlier archive failed two tests that wrote an `@Observable` from the test and ticked; off Apple they now settle through `runUntilIdle()`). Closeout scripts `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. `M5` was re-run after that change and still reddens.
