@@ -479,7 +479,7 @@ private struct SchemeAnimated: Component {
     #expect(window.needsRedraw == false)
 }
 
-/// **2.12** (`CR-L` item 5, amended by `PK-A`). After the first frame, a preference flipped from
+/// **2.12** (`CR-L` item 5, amended by `CR-AC`). After the first frame, a preference flipped from
 /// input applies in the same frame: the frame that collects it builds a second time in the new scheme
 /// (at most once) and presents that, then the window is clean. It used to paint one frame in the old
 /// scheme and settle on the next (a visible flash).

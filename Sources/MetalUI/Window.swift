@@ -1708,7 +1708,7 @@ public final class Window {
         // of the effective scheme is applied now and the half runs once more
         // inside this `beginFrame()` (at most once: the second build's own
         // collected preference is only recorded), so no frame is presented in the old
-        // scheme (it was the first frame's only until `PK-A`: a later change painted one
+        // scheme (it was the first frame's only until `CR-AC`: a later change painted one
         // frame in the old scheme and settled on the next). The
         // first build is adopted in full — nothing is discarded or rolled back
         // (`StateTable`, `AnimationStore`, focus, scroll requests and surfaces

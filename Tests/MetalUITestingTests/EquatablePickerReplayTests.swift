@@ -109,7 +109,7 @@ func aRetainingWindowWithASegmentedPickerEqualsARetentionOffWindow(shape: EPShap
 
 
 /// A scheme switch reaches a segmented `Picker`'s selected fill in the frame that collects the tree's `.preferredColorScheme`
-/// (`PK-A`; it was one frame late), with retention on and off alike: one redraw after each switch is the settled fill.
+/// (`CR-AC`; it was one frame late), with retention on and off alike: one redraw after each switch is the settled fill.
 /// Mutation: `Window.drawFrameIfNeeded`'s second build restricted to the first frame reddens it.
 @Test(.enabled(if: !rsVerifying, "verify mode paints a hit as a miss"), arguments: [true, false]) @MainActor
 func aSchemeSwitchReachesASegmentedPickersFillInTheSameFrame(retain: Bool) throws {

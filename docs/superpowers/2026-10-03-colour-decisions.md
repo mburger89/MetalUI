@@ -17,7 +17,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-AC`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-AD`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -918,3 +918,13 @@ content scrolls nowhere, so the bottom row would be cut — resize it.
 
 **Cost if wrong.** Item 1: a demo label could regress unseen until a human
 runs S2/S3.
+
+## CR-AC — A changed tree preference re-runs the build in the same frame, at most once, and the second build snaps (extends `CR-Q` and `CR-Z` past the first frame; `CR-L` item 5 amended; record 243)
+
+**Rule.** `Window.drawFrameIfNeeded` runs the second build (`buildAndAdoptFrame(..., snapsEveryChange: true)`) on **every** frame whose first build collects a changed tree `.preferredColorScheme` that changes the effective scheme, not only on a window's first frame. `updateColorScheme` writes `colorScheme` (and re-selects the theme) before the second build stamps `rootEnvironment.colorScheme`; the second build's own collected preference is only recorded, so the re-run happens at most once and cannot loop; `needsRedraw` is cleared, so the window settles in one tick and posts no further frame. Nothing is written during paint.
+
+**Why.** A later preference change used to build light, present, dirty the window and settle on the next frame: one presented frame in the old scheme, a visible flash that SwiftUI does not show. MetalCreator read it as "a skipped panel is stale" (a segmented `Picker`'s selected fill, the only scheme-dependent colour in its panel): the frame trails with retention on and off were identical, so retention was not involved.
+
+**Consequence: the second build snaps.** A value animated on the scheme, or a transition on a scheme-dependent conditional, does not animate across a later preference flip; it was already so on the first frame (`CR-Z`). This matches SwiftUI, which does not animate a `preferredColorScheme` flip without `withAnimation`. A flip that carries a transaction is not animated either (not measured).
+
+**Pins.** `aLaterPreferenceChangeAppliesInTheSameFrame` (`Tests/MetalUITests/ColorSchemeTests.swift`; replaces `aLaterPreferenceChangeAppliesOnTheNextFrame`) and `aSchemeSwitchReachesASegmentedPickersFillInTheSameFrame(retain:)` (`Tests/MetalUITestingTests/EquatablePickerReplayTests.swift`, retention on and off). Mutation: restoring `framesDrawn == 0` on the condition reddens both and the picture differentials in that file.

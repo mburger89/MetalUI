@@ -14,7 +14,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Z`), `MN-` (menus, popovers, tooltips:
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AK`), `CR-` (colour, colour scheme, palette:
-  `2026-10-03-colour-decisions.md`, next `CR-AC`), `LC-` (lifecycle modifiers:
+  `2026-10-03-colour-decisions.md`, next `CR-AD`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AQ`), `PE-` (controls in
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
