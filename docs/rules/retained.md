@@ -81,7 +81,7 @@ sighting are writes (`RW-F`), **except a `@State` seed, which is neither** (`FV-
 declarer (its anchor replays from the ledger, `RW-K`). **Still miss or refuse, by name:** a focused field, a typed character, a wheel or drag, a
 selection change, `scrollTo`, an open popover, alert or dialog, a `GPUSurface` (`surface`, carried `RW-L`), `.continuous` always.
 `FrameWork.retainedIneligibleReasons` counts the three ineligible counters by channel name (`RW-M`); `METALUI_VERIFY_RETAINED=1` also traps
-`unrecordedRead` and `writeMissed` (`RW-O`). **A read a record does not name is a stale replay**: a new framework read of state goes through
+`unrecordedRead` and `writeMissed` (`RW-O`; **the replayed build is compared with its own unswept journals, and the entries it created are deleted before the fresh build**, `RW-U`). **A read a record does not name is a stale replay**: a new framework read of state goes through
 `readState`/`peek`, never a private store. Orbit with panels: element requests 115 to 6, prepaints 117 to 7, ineligible 1/2/1 to 0/0/0. One
 public `MetalUITesting` field, no divergence (labels 515–524 untouched), no SwiftUI probe. The demo's panel strip is `METALUI_RETAINED_DEMO=1`.
 
