@@ -696,6 +696,14 @@ where it would leave the window and clamped horizontally. It takes **no focus an
 **never dismissed by input** (the app writes `isPresented`; route ↑ ↓ Return Tab Esc with
 `.onKeyPress` on the field); a press on it keeps the focused field focused and never reaches what
 lies beneath, rows and a `ScrollView` work, and its nodes are ordinary siblings, not a popover.
+**Tab strip** (M, `TBS-A`..`TBS-I`, record 238): `TabStrip(selection:tabs:)` over `TabStripItem(id:title:icon:isDirty:isClosable:accent:)`,
+an editor's closable tab bar. A click on a tab writes `selection`; the × (on a hovered or selected tab) and a middle click call
+`.onCloseTab { id in }` and select nothing (the app removes the tab); a drag of more than 4 points calls
+`.onMoveTab { from, to in }` once at the release, `to` being the index after `insert(remove(at: from), at: to)`. A dirty tab shows a
+dot where the × goes until hovered; `accent` draws a short bar in that colour. Tabs are 96...220 wide (the title truncates) and the
+strip scrolls sideways past the bar, scrolling the selected tab into view whenever `selection` changes. **No key is bound** (⌃Tab,
+⌘1-9 are the app's, writing `selection`). `Equatable` over its data (`.equatable()` replays; closures are not compared).
+Accessibility: a "Tabs" group of buttons titled with the file (selected, valued "edited" when dirty) and "Close <title>" buttons.
 **Image types** (M, `SOC-E`..`SOC-H`): `ContentType.image`/`.png`/`.tiff`/`.jpeg`,
 `Clipboard.readData(of:)` (by type or parent, no format conversion) and `ImageData`
 (`dropDestination(for: ImageData.self)`, `Clipboard.read(ImageData.self)`; told the format that

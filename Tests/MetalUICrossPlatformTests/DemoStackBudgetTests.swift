@@ -48,6 +48,7 @@ private func buildEveryProductionTree() {
     buildTheLazyContainersDemo()   // lazy containers (LZ-Q, spec section 6)
     buildTheCodeViewDemo()         // the read-only code view (CV-, record 227)
     buildTheMarkdownDemo()         // the block Markdown transcript (BM-, record 235)
+    buildTheTabStripDemo()         // the tab strip (TBS-, record 238)
     buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
     buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
     buildTheGroupFilterStrip()     // a filter over a group (GF-)
@@ -134,6 +135,13 @@ private func buildTheCodeViewDemo() {
 private func buildTheMarkdownDemo() {
     _ = markdownDemoContent()
     _ = MarkdownDemoBar().content
+}
+
+/// The tab strip demo's tree, in its own frame. Its two components read the demo's observable model, which traps off the main
+/// thread (as the Markdown transcript's does), so only the root is built here.
+@MainActor @inline(never)
+private func buildTheTabStripDemo() {
+    _ = tabStripDemoContent()
 }
 
 /// The Liquid Glass demo's tree and its container component, in its own frame.
