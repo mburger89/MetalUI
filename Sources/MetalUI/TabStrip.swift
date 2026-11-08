@@ -24,10 +24,20 @@ public struct TabStripItem<ID: Hashable> {
     /// A colour drawn as a short bar before the title, for example the colour of the session that changed the file; `nil`
     /// draws none.
     public var accent: Color?
+    /// The accessibility identifier of the tab's button, as `.accessibilityIdentifier(_:)` on it would set (AppKit
+    /// `AXIdentifier`, AccessKit `author_id`), for a test or automation client to find the tab by; `nil` sets none. Never
+    /// derived from ``id`` (`TBS-J`).
+    public var accessibilityIdentifier: String?
+    /// The accessibility identifier of the tab's close button, set the same way; `nil` sets none (`TBS-J`).
+    public var closeAccessibilityIdentifier: String?
 
-    /// A tab identified by `id` and titled `title`.
+    /// A tab identified by `id` and titled `title`, with the optional accessibility identifiers of its button and of its
+    /// close button.
     public init(id: ID, title: String, icon: Image? = nil, isDirty: Bool = false, isClosable: Bool = true,
-                accent: Color? = nil) {
+                accent: Color? = nil, accessibilityIdentifier: String? = nil,
+                closeAccessibilityIdentifier: String? = nil) {
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.closeAccessibilityIdentifier = closeAccessibilityIdentifier
         self.id = id
         self.title = title
         self.icon = icon
@@ -39,7 +49,8 @@ public struct TabStripItem<ID: Hashable> {
     /// Whether `other` draws and behaves as this item does (the icon by what it draws, bitmaps by texture identity).
     @MainActor func isSame(as other: TabStripItem<ID>) -> Bool {
         guard id == other.id, title == other.title, isDirty == other.isDirty, isClosable == other.isClosable,
-              accent == other.accent else { return false }
+              accent == other.accent, accessibilityIdentifier == other.accessibilityIdentifier,
+              closeAccessibilityIdentifier == other.closeAccessibilityIdentifier else { return false }
         switch (icon, other.icon) {
         case (nil, nil): return true
         case (let a?, let b?): return a.isSameDrawing(as: b)
@@ -319,7 +330,12 @@ struct TabStripLabel<ID: Hashable>: Component {
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { select() }
         return VStack(spacing: Pixels(0)) {
-            if item.isDirty { body.accessibilityValue("edited") } else { body }
+            if let identifier = item.accessibilityIdentifier {
+                if item.isDirty { body.accessibilityIdentifier(identifier).accessibilityValue("edited") }
+                else { body.accessibilityIdentifier(identifier) }
+            } else {
+                if item.isDirty { body.accessibilityValue("edited") } else { body }
+            }
         }
     }
 }
@@ -335,7 +351,7 @@ struct TabStripCloseSlot<ID: Hashable>: Component {
     var content: some ElementGroup {
         let showsClose = showsClose, showsDot = showsDot, isHovered = isHovered, item = item, close = close
         let hover = $isHovered
-        return ZStack {
+        let body = ZStack {
             if showsDot {
                 Circle().fill(Color(.textPrimary).opacity(0.7)).frame(width: Pixels(8), height: Pixels(8))
             } else if showsClose {
@@ -353,5 +369,8 @@ struct TabStripCloseSlot<ID: Hashable>: Component {
         .accessibilityAddTraits(.isButton)
         .accessibilityHidden(!item.isClosable)
         .accessibilityAction { if item.isClosable { close() } }
+        return VStack(spacing: Pixels(0)) {
+            if let identifier = item.closeAccessibilityIdentifier { body.accessibilityIdentifier(identifier) } else { body }
+        }
     }
 }
