@@ -210,7 +210,9 @@ private func theOffsetsBindingReadsAndWritesTheCaretAndTheSelection(kind: Kind) 
 /// 7 — **only a focused field follows**: a field that lost focus forgets the text it saw, so a text replaced
 /// while it was away does not turn the click that focuses it into "a replacement" (the caret would jump from
 /// the clicked place to the end). Focus A, type, Tab to B, replace A's text, click near A's start, type: the
-/// key lands at the click. **Mutation:** drop the `guard focused` in `followExternalText` (the key lands at the end).
+/// key lands at the click. **Mutation:** in `followExternalText` keep the focus gate but drop the reset
+/// (`state.seenText = nil`) — the key lands at the end; dropping the gate altogether reddens
+/// `ConditionalIdentityTests`' `aFocusedTextFieldInsideAToggledIfLosesFocusAndStartsFresh` instead.
 @Test @MainActor
 private func aReplacementWhileAFieldWasUnfocusedDoesNotMoveALaterClick() throws {
     let model = ExtModel("seed")

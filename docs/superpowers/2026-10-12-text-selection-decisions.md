@@ -193,7 +193,13 @@ compared `withState(unchanged: ==)` of `TextEditor.prepaint`/`TextField.prepaint
 `everyStateWriteSiteIsClassified` is unchanged: one site, now always taken, the `if selectionWriter != nil` became
 `if bound ... else follow`): when `seenText` differs from the text, anchor and head go to the end, the typing group and the
 goal column end and the caret is revealed. The first text seen is a baseline (no move). Composition holds the move back as
-it does a binding's write (`SL-H`). No `@Observable` is written; the write is the editor's own state, compared, in the
+it does a binding's write (`SL-H`). **Only a focused field follows** (`pass.frame.focusedElement == id`, the pre-clearing
+answer, since `PrepaintPass.isFocused` is paint-only): an unfocused field resets `seenText` to `nil`, so a click or Tab that
+focuses it after the text changed under it is not a replacement (its press placed the caret; a jump to the end would
+override it) and a field that left the tree and returned reads `TextEditState()`
+(`aFocusedTextFieldInsideAToggledIfLosesFocusAndStartsFresh` is why). A text replaced while the field is unfocused moves no
+caret, and a field then focused from code keeps its stored caret (divergence 265/266 unchanged). Pinned by
+`aReplacementWhileAFieldWasUnfocusedDoesNotMoveALaterClick`. No `@Observable` is written; the write is the editor's own state, compared, in the
 phase, as the scroll's and the binding reconcile are, and a field's own keystroke writes nothing there (`recording` already
 stored `seenText`). **Cost**: an unbound field now takes the compared write each prepaint (one equality test; a change only
 on a replacement or the first frame); the undo history is dropped lazily as before (`synced`), so an undo pressed after a

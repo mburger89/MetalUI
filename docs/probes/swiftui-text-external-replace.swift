@@ -11,7 +11,34 @@
 // caret at offset `caret` (Right to collapse, then Left); write `new` through the binding from
 // outside (a spin after); type X; print the resulting text, so "foX..." shows where the caret was.
 //
-// RECORDED: see RESULT below.
+// RECORDED 2026-11-07 (Alloy gaps G11/G10 lane), macOS 27.0.1, Apple Swift 6.4, compiled form, every arm its
+// own process, run twice, stdout byte-identical (36 lines). `F-` is a TextField, `E-` a TextEditor, `BF-`/`BE-`
+// the same with a selection binding attached. The text printed is the field's text after the replacement and one
+// typed X, so X's place is the caret.
+//
+//   F-/E-extend-at-caret-end        '/com'@4 -> '/compact '          /compact X
+//   F-/E-extend-at-caret-mid        'ab cd'@2 -> 'abXY cd'           abXY cdX
+//   F-/E-rewrite-earlier-same-length 'foo bar'@7 -> 'FOO bar'        FOO barX
+//   F-/E-rewrite-earlier-mid-caret  'foo bar'@3 -> 'goo bar'         goo barX
+//   F-/E-insert-before-caret        'foo bar'@7 -> 'AAfoo bar'       AAfoo barX
+//   F-/E-append-caret-mid           'foo bar'@3 -> 'foo bar @path'   foo bar @pathX
+//   F-/E-append-caret-end           'foo bar'@7 -> 'foo bar @path'   foo bar @pathX
+//   F-/E-shrink-caret-end           'hello world'@11 -> 'hello'      helloX
+//   F-/E-shrink-caret-mid-beyond    'hello world'@8 -> 'hel'         helX
+//   F-/E-shrink-caret-mid-within    'hello world'@2 -> 'hello'       helloX
+//   F-/E-identical                  'hello'@2 -> 'hello'             heXllo
+//   F-/E-clear                      'hello'@3 -> ''                  X
+//   F-/E-unrelated-longer           'abc'@1 -> 'completely different' completely differentX
+//   BF-/BE-extend-at-caret-end      (binding attached)               /comXpact
+//   BF-/BE-extend-at-caret-mid      (binding attached)               abXXY cd
+//   BF-/BE-rewrite-earlier-mid-caret (binding attached)              gooX bar
+//   BF-/BE-append-caret-mid         (binding attached)               fooX bar @path
+//   BF-/BE-shrink-caret-mid-beyond  (binding attached)               helX
+//
+// RESULT. TextField and TextEditor agree on every row. Without a selection binding the caret goes to the END of
+// the new text whenever the text changed (even when the edit was at the caret, even when the old offset still lies
+// inside the new text); only identical text keeps it. With a selection binding attached the old offset stays,
+// clamped to the new text (the binding is not rewritten by the replacement). Read by ruling SL-P.
 
 import SwiftUI
 import AppKit

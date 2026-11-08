@@ -315,6 +315,10 @@ the key is consumed and the field does nothing. Declined (`false`, nothing it im
 `CB-F`) or no destination: the field pastes text as before, and an image-only clipboard with no text pastes nothing. Only
 the innermost destination is asked (`CB-P`). **Cost**: a field under a `pasteDestination` reads the clipboard's items on
 every ⌘V (one read; a field without a destination is as before).
-Pinned by `anImageOnlyClipboardReachesThePasteDestinationOfAFocusedField` (editor, container, field),
+**Amends `CB-M`:** a focused field's own paste no longer always beats an ancestor's `pasteDestination`: a destination whose
+type imports the text type (`Graph`, a `String` destination) takes a text clipboard; `ClipboardTypesTests`'
+`aFocusedTextFieldKeepsItsOwnCopyCutPasteUnderACopyableAncestor` (1.8) now uses a destination for `Blob`, which declines.
+Copy and cut are unchanged (the field's own). Pinned by `anImageOnlyClipboardReachesThePasteDestinationOfAFocusedField` (editor, container, field),
+`aPngOnTheClipboardReachesAnImageDataDestinationOfAFocusedEditor`,
 `aTextClipboardPastesTextWhenTheDestinationImportsNothingOnIt`, `aClipboardWithBothPrefersTheDestinationThatAccepts`,
 `aDeclinedPasteFallsThroughToTheFieldsText`, `aFieldWithNoDestinationStillPastesText`.
