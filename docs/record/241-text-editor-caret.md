@@ -34,3 +34,8 @@ Branch `feat/text-editor-caret` (origin/master `7ac6e929`). Rulings `SL-P`, `SL-
 | the offer answers `true` whenever a destination exists | `aClipboardWithBothPrefersTheDestinationThatAccepts`, `aDeclinedPasteFallsThroughToTheFieldsText`, `aTextClipboardPastesTextWhenTheDestinationImportsNothingOnIt` (3) |
 | `followExternalText` without the focus gate | `aFocusedTextFieldInsideAToggledIfLosesFocusAndStartsFresh` |
 | the focus gate kept, the unfocused reset dropped | `aReplacementWhileAFieldWasUnfocusedDoesNotMoveALaterClick` |
+
+## 5. Verification
+
+Native, unfiltered, `--no-parallel` after `swift package clean`: `Test run with 5688 tests in 26 suites passed after 469.345 seconds` (0 failures; the same count under `METALUI_VERIFY_RETAINED=1`, `455.383 seconds`), `FR-J no-argument frame: succeeded=true`. (A first full run found the two failures section 2 describes, a pinned `CB-M` test and the fresh-state test; the numbers above are after the fixes.) Portable container (`git archive HEAD` over stdin to `docker run --rm -i metalui-portable:latest`): `swift build --build-tests` complete; `Test run with 976 tests in 11 suites passed` (`MetalUITestingTests`), then 9, 16, 73, 68, 53, 25, 290, 165, 24 and 45, all passed. `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
+
