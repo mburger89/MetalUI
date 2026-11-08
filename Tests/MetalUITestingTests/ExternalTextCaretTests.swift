@@ -192,10 +192,11 @@ private func theOffsetsBindingReadsAndWritesTheCaretAndTheSelection(kind: Kind) 
         .deletingLastPathComponent().appendingPathComponent("Sources/MetalUI")
     for name in ["TextField.swift", "TextEditor.swift"] {
         let lines = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
-            .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            .split(whereSeparator: \.isNewline).map(String.init)  // "\r\n" is one Character: a CRLF checkout (Windows) never splits on "\n"
         let index = try #require(lines.firstIndex { $0.contains("selectedOffsets: Binding<Range<Int>?>") }, "\(name) has the initialiser")
         var above = index - 1
         while above >= 0, lines[above].trimmingCharacters(in: .whitespaces).hasPrefix("///") { above -= 1 }
+        try #require(above >= 0, "\(name): the initialiser is not the first line")
         #expect(!lines[above].contains("@available"), "\(name): the initialiser's attributes carry no availability")
         #expect(!lines[index].contains("@available"))
     }
