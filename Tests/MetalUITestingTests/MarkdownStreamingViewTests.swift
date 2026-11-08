@@ -95,7 +95,7 @@ private let verifyNote: Comment =
     #expect(work.retainedIneligible == 0, "\(work.retainedIneligibleReasons)")
     #expect(work.retainedPrepaintIneligible == 0 && work.retainedGraftIneligible == 0,
             "\(work.retainedPrepaintIneligible) prepaint, \(work.retainedGraftIneligible) graft")
-    #expect(work.contentEvaluations == 0, "nothing re-evaluates: \(work.contentEvaluations)")
+    #expect(work.contentEvaluations == 0 && work.contentRefusals == 0, "nothing re-evaluates or is refused: \(work.contentEvaluations), \(work.contentRefusals)")
 }
 
 @Observable @MainActor final class MarkdownSourceModel { var text = "" }
