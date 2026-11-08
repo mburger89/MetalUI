@@ -32,10 +32,15 @@ private func tabStripDemoRoot() -> some Element {
 public final class TabStripDemoModel {
     /// One open file.
     public struct File: Identifiable {
+        /// The tab's id.
         public var id: Int
+        /// The file name, the tab's title.
         public var name: String
+        /// Whether the file has unsaved edits (the dirty dot).
         public var isDirty = false
+        /// Whether the tab can be closed.
         public var isClosable = true
+        /// The colour of the session that changed the file, if any.
         public var accent: Color?
     }
 
@@ -87,6 +92,7 @@ public final class TabStripDemoModel {
     }
 }
 
+/// The model the tab strip demo shares between its strip and its buttons.
 @MainActor public let tabStripDemoModel = TabStripDemoModel()
 
 /// The strip over the shared model.
