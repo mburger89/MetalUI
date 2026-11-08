@@ -17,10 +17,16 @@ final class ContextualAttachment {
     let menu: (@MainActor (Point<Pixels>?) -> MenuItems)?
     /// The tooltip and accessibility help (`MN-P`, lane 3).
     let help: String?
+    /// The model-driven tooltip's text (`MN-AJ`): asked at each pointer move,
+    /// in input, with the pointer in the region's local space; `nil` is no
+    /// tooltip there. Mutually exclusive with `help` (the later modifier wins).
+    let helpProvider: (@MainActor (Point<Pixels>) -> String?)?
 
-    init(locatedMenu menu: (@MainActor (Point<Pixels>?) -> MenuItems)?, help: String?) {
+    init(locatedMenu menu: (@MainActor (Point<Pixels>?) -> MenuItems)?, help: String?,
+         helpProvider: (@MainActor (Point<Pixels>) -> String?)? = nil) {
         self.menu = menu
         self.help = help
+        self.helpProvider = helpProvider
     }
 
     /// An attachment whose menu takes no location (a pull-down `Menu`'s).
@@ -35,13 +41,15 @@ final class ContextualAttachment {
     /// `existing` with its menu replaced by `content`.
     static func menu<M: MenuContent>(_ content: @escaping @MainActor () -> M,
                                      over existing: ContextualAttachment?) -> ContextualAttachment {
-        ContextualAttachment(locatedMenu: { _ in MenuItems([content()]) }, help: existing?.help)
+        ContextualAttachment(locatedMenu: { _ in MenuItems([content()]) }, help: existing?.help,
+                             helpProvider: existing?.helpProvider)
     }
 
     /// `existing` with its menu replaced by the located `content` (`CI-R`).
     static func locatedMenu<M: MenuContent>(_ content: @escaping @MainActor (Point<Pixels>?) -> M,
                                             over existing: ContextualAttachment?) -> ContextualAttachment {
-        ContextualAttachment(locatedMenu: { MenuItems([content($0)]) }, help: existing?.help)
+        ContextualAttachment(locatedMenu: { MenuItems([content($0)]) }, help: existing?.help,
+                             helpProvider: existing?.helpProvider)
     }
 }
 

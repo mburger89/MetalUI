@@ -1987,6 +1987,7 @@ public final class Window {
             rootEnvironment.accessibilityDisplay = accessibilityDisplaySettings  // AD-E, the same stamp
             rootEnvironment.colorScheme = colorScheme  // CR-J, the same stamp
             rootEnvironment.stampURLOpener(urlOpener)  // LI-D: an identity reading, holds the platform window weakly
+            rootEnvironment.stampClipboardSource(clipboardSource)  // CB-S: the same identity stamp
             rootEnvironment.fileDialogs = fileDialogs  // SV-D item 4, the same stamp (holds self weakly)
             rootEnvironment.titleBarInsets = effectiveTitleBarInsets  // AS-E item 4, the same stamp
             rootEnvironment.windowSize = frame.contentSize  // OV-G, OV-O: the size the frame is built with
@@ -2673,7 +2674,13 @@ public final class Window {
 
     /// The open menu — native or in-window — or `nil` (`MN-C`, `MN-F`). On
     /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
-    var menuSession: MenuSession?
+    var menuSession: MenuSession? {
+        didSet { menuSessionDidChange(from: oldValue) }   // MN-AK: a code-driven menu's binding
+    }
+
+    /// `reconcileMenuBindings` is running (`MN-AK`): a native menu's `popUp` is modal, and a frame the platform
+    /// builds inside it must not open the same menu again.
+    var reconcilingMenuBindings = false
 
     // MARK: Presentations and hover (platform services, `SV-K`, `SV-N`)
 
@@ -2705,6 +2712,8 @@ public final class Window {
     lazy var clipboardAccess = ClipboardAccess(platform: platformWindow)
     /// What a link click's default action asks to open a URL (`LI-D`): holds the platform window weakly.
     lazy var urlOpener = URLOpener(platformWindow: platformWindow)
+    /// The weak handle `EnvironmentValues.clipboard` reads (`CB-S`).
+    lazy var clipboardSource = ClipboardSource(platformWindow: platformWindow)
 
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.
@@ -3644,7 +3653,7 @@ public final class Window {
     private func dispatchTextKey(_ event: InputEvent) -> Bool {
         guard case .keyDown(let key) = event, let id = focusedElement,
               let target = lastFocusRegistry.textTarget(for: id) else { return false }
-        // A paste destination on the chain is offered ⌘V first (`CB-S`): an image-only clipboard
+        // A paste destination on the chain is offered ⌘V first (`CB-T`): an image-only clipboard
         // would otherwise find the field's text paste and never reach it.
         if offerPasteToDestinationBeforeTheField(event) { return true }
         if let session = target.codeSession {

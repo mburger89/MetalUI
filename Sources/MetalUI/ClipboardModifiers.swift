@@ -155,7 +155,7 @@ extension Window {
 
     /// ⌘V on a focused text field or editor, offered to the innermost `pasteDestination` on the
     /// focus chain (the field's own, or an ancestor's) **before** the field pastes its text
-    /// (ruling `CB-S`): `true` when the destination ran, and the field then does nothing; `false`
+    /// (ruling `CB-T`): `true` when the destination ran, and the field then does nothing; `false`
     /// when there is none or it declined (nothing it imports, or its validator emptied the list),
     /// and the field pastes text as before. The same walk and `ClipboardAttachment.paste` as
     /// `dispatchClipboardKey`'s ⌘V, which a text field's own paste reached too late to matter.

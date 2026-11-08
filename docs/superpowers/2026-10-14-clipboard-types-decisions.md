@@ -1,7 +1,7 @@
 # Clipboard beyond text — decisions
 
 Rulings for item S3 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
-MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-T`.**
+MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-U`.**
 Spec: [`specs/2026-10-14-clipboard-types-design.md`](specs/2026-10-14-clipboard-types-design.md).
 Record: `../record/115-clipboard-types.md` (Record phase). Branch `feat/clipboard-types` from
 `fb9a7e42`. Divergence labels reserved 455–464: **455 taken** (`CB-G`), **456 taken** (`CB-C`).
@@ -299,8 +299,26 @@ declining closure has no effect of its own.
 **Cost if wrong.** A paste closure that later runs the validator before importing would call it on an empty clipboard;
 the new test reddens first.
 
+## CB-S — `EnvironmentValues.clipboard`: the window's clipboard from inside the view tree
 
-## CB-S — ⌘V in a focused text field is offered to a paste destination first
+**Question.** `Window.clipboard` is reachable only outside the view tree and `.copyable` covers a key on a focused
+element, so a "Copy" button's action (Alloy gap G2b: a copy button on a Markdown code fence) had no way to write.
+`CP-A` ruled `@Environment(\.clipboard)` not built, on the ground that SwiftUI has none.
+**Ruling.** Built, class `M`, reversing `CP-A`'s "not built" (its premise stands: SwiftUI has no such API, so the doc
+comment says so and the inventory row is `M`; `CP-A`'s cost-if-wrong is the cost it names). `EnvironmentValues.clipboard`
+is a **get-only** `Clipboard`. The window stamps a `ClipboardSource` (a class holding the `PlatformWindow` weakly)
+at its root exactly as it stamps `URLOpener` (`LI-D`): `setCustom(…, reading: .object(ObjectIdentifier(source)))`, an
+identity reading, so the fingerprint (`custom`) compares it stably per window and no stored property is added to
+`EnvironmentValues` (`everyEnvironmentFieldIsInTheFingerprintOrDeclaredIrrelevant` unchanged). `Clipboard` gained a second
+form: `Window.clipboard` keeps the platform strongly, the environment's reaches it through the source, so a stored
+environment value retains nothing and, outside a window or after it closed, is a **no-op clipboard** (`write` false,
+reads `nil`, `itemCount` 0). Two windows stamp two sources, so each writes its own. Writing is input-only by
+documentation (as `Window.clipboard`): the value cannot tell a phase from an action, so a phase write is the caller's
+error, not blocked.
+**Cost if wrong.** A phase that writes the clipboard does so every frame. If a custom environment key is ever refused
+by a retained position, this stamp would too; `theEnvironmentClipboardDoesNotBreakEquatableReplay` reddens first.
+
+## CB-T — ⌘V in a focused text field is offered to a paste destination first
 
 **Question (Alloy G10).** `dispatchTextKey` (the focused field's editing keys, `TI-B`) runs before
 `dispatchClipboardKey` (`CB-B`), and a `TextEditor`'s ⌘V handles the key itself, so an image-only clipboard never reached a

@@ -39,9 +39,11 @@ open) goes to the platform through the defaultless `PlatformWindow.presentMenu`
 `Platform.setMenuBar` (every AppKit app gets the standard main menu); **the
 window's shortcut pipeline is the one shortcut path** (`Button` first, commands
 one stage after, AppKit offering a ⌘- or ⌃-key to it before the main menu,
-once; a ⌃-key not while composing — `MN-J`, `MN-AI`). `.popover` is an anchored presentation root, flipped then clamped
+once; a ⌃-key not while composing — `MN-J`, `MN-AI`). **A `Menu` opened from code** (`Menu(isPresented:)`, `.menuPresented(_:)`, `MN-AK`, class M) is a `PresentationRequest.menu` record noted in layout and opened by `Window.reconcileMenuBindings` after the frame through the click path's own `openPullDownMenu`; every way a session ends passes `menuSession`'s `didSet`, which writes the binding `false` from input. `.popover` is an anchored presentation root, flipped then clamped
 inside the window, no arrow, dismissed from input; `.help` is the accessibility
-hint plus a drawn, tick-timed tooltip. The new handler member `contextual` is
+hint plus a drawn, tick-timed tooltip; `.help { location in String? }` (M, `MN-AJ`) is
+a model-driven one, asked in input per pointer move, restarting the delay when the text changes, no
+accessibility. The new handler member `contextual` is
 non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility
 role/request needs a row on both bridges**; a new `StyledElement` modifier
 cannot follow a legacy `.popover` (divergence 115).
@@ -153,7 +155,7 @@ measured below it (`SG-F`). A `Component`'s prepaint record is one heap box (`Co
 `KeyboardModifier` layer, `ClipboardAttachment` a class box in `KeyboardAttachment`'s fifth field, `Handlers` stays nineteen).
 **One stage, `dispatchClipboardKey`, after `onKey` and before the context-menu key and every shortcut** (`CB-B`): exact
 `EventModifiers.primary` + C/X/V for an element holding focus or an ancestor of it, innermost first; the Keymap, `onKeyPress` and a
-focused text field still win — except that **a focused field's ⌘V is offered to the innermost `pasteDestination` on its chain first** (`Window.offerPasteToDestinationBeforeTheField`, called from `dispatchTextKey`): accepted, the field does nothing; declined or none, it pastes text (`CB-S`, so an image-only clipboard reaches a destination); the Edit menu needs no code (AppKit's `cut:`/`copy:`/`paste:` and the
+focused text field still win — except that **a focused field's ⌘V is offered to the innermost `pasteDestination` on its chain first** (`Window.offerPasteToDestinationBeforeTheField`, called from `dispatchTextKey`): accepted, the field does nothing; declined or none, it pastes text (`CB-T`, so an image-only clipboard reaches a destination); the Edit menu needs no code (AppKit's `cut:`/`copy:`/`paste:` and the
 drawn bar already send these keys). A copy writes **the first item**, one representation per exported type, the text fallback being the
 type's own `.utf8PlainText` entry (`CB-C`; since `CP-` every item, divergence 456); a paste walks the **destination's** `importedContentTypes()` against the
 platform's list and **declines** (the next stage runs) unless the action ran (`CB-P`). **Four defaultless `PlatformWindow` requirements**
@@ -164,7 +166,7 @@ identifier is the pasteboard type; **SDL's mime is a pure table plus `applicatio
 lookup by mime, a pointer into the box, one cleanup that frees (`CB-H`, `CB-Q`) — no Swift closure, no actor hop, so any thread is safe;
 zero-byte representations are dropped, an all-empty write keeps the clipboard (`CB-I`). Enablement is by presence, not the validator
 (divergence 455, provisional until `CB1`). `Window.clipboard` is the MetalUI-only imperative API, no public initialiser (`CB-J`); an AppKit
-test uses a private `NSPasteboard(name:)`, never `.general` (`CB-K`). Not built: `@Environment(\.clipboard)` (SwiftUI has none on macOS, `CP-A`), multi-item and `PasteButton`
+test uses a private `NSPasteboard(name:)`, never `.general` (`CB-K`). **`EnvironmentValues.clipboard` is built (M, `CB-S`, record 240)**: get-only, the window stamps a weak `ClipboardSource` at its root like `URLOpener` (an identity reading, no new stored property, replay unaffected), a stored value retains no window and is a no-op clipboard outside one, and it is written from input only. Not built: multi-item and `PasteButton`
 and lazy export are built since `CP-` (below). The demo is `METALUI_CLIPBOARD_DEMO=1`.
 
 **Clipboard extras (`CP-`, record §142).** `PasteButton` (SwiftUI's two initialisers, no label, class A/D) is a `Button` underneath (no new role, no bridge row), enabled

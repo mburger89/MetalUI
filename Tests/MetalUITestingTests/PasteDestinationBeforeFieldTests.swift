@@ -4,7 +4,7 @@ import MetalUIPlatform
 import MetalUITesting
 import Testing
 
-// Alloy gap G10 (ruling `CB-S`, record 241): ⌘V in a focused `TextEditor`/`TextField` is offered to the innermost
+// Alloy gap G10 (ruling `CB-T`, record 242): ⌘V in a focused `TextEditor`/`TextField` is offered to the innermost
 // `pasteDestination` on the focus chain (the field's own or an ancestor's) BEFORE the field pastes its text. An
 // image-only clipboard therefore reaches the destination; one it declines (no matching type, or its validator
 // empties the list) falls through to the field's text paste. `Graph` (own type plus a text fallback) and `Blob`

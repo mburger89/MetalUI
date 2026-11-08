@@ -20,6 +20,8 @@ precedent used.
 
 ## CP-A — `@Environment(\.clipboard)`: not built, and why
 
+**Superseded by `CB-S` (record 240): built as a MetalUI-only value for Alloy's fence copy button.** The text below is the original ruling.
+
 **Question.** CB-N lists it as additive. Does SwiftUI have it?
 **Ruling.** **No SwiftUI macOS API exists** (`-DNEG1`: `EnvironmentValues` has no `clipboard`; `grep -i
 clipboard` over SwiftUI's and SwiftUICore's macOS interfaces finds nothing). Not built, no invented spelling;

@@ -188,6 +188,9 @@ public struct Menu<Label: ElementGroup, Content: MenuContent> {
     public var handlers: Handlers = Handlers()
     /// The menu's items, evaluated at each open (`MN-D` item 4).
     let content: @MainActor () -> Content
+    /// The binding a code-driven menu keeps in step with its open state
+    /// (`MN-AK`), or `nil`: set by `init(isPresented:…)` or `menuPresented(_:)`.
+    var isPresented: Binding<Bool>?
     /// The button's label.
     var label: Label
 

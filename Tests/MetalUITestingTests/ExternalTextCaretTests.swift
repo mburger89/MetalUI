@@ -4,7 +4,7 @@ import MetalUIPlatform
 import MetalUITesting
 import Testing
 
-// Alloy gaps G11 (the caret bug) and its macOS 14 selection API (ruling `SL-P`, `SL-Q`; record 241).
+// Alloy gaps G11 (the caret bug) and its macOS 14 selection API (ruling `SL-P`, `SL-Q`; record 242).
 // A focused `TextField`/`TextEditor` whose bound text is replaced from outside moves its caret to the
 // END, as SwiftUI's do (probe `docs/probes/swiftui-text-external-replace.swift`, recorded in `SL-P`), so
 // the next typed key lands after the replacement ("/compact X", not "/comXpact "). With a selection

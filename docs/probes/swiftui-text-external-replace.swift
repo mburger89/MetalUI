@@ -1,6 +1,6 @@
 // SwiftUI probe: a FOCUSED TextField / TextEditor whose bound text is replaced from outside
 // (autocomplete "/com" -> "/compact ", an appended @path mention). Where does the caret land, so
-// that the next typed key goes where? (ruling SL-P, record 241)
+// that the next typed key goes where? (ruling SL-P, record 242)
 //
 // HOW TO RUN (compiled form, one arm per process; harness of swiftui-text-selection.swift):
 //
