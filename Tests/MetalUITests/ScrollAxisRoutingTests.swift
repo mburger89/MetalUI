@@ -62,7 +62,7 @@ private func offsets(_ window: Window) throws -> (outer: Double, inner: Double) 
 private func lastScrollTimes(_ window: Window) throws -> (outer: Double, inner: Double) {
     let regions = window.lastScrollRegions
     try #require(regions.count == 2)
-    func stamp(_ id: GlobalElementID) -> Double { window.stateTable.peek(id, as: ScrollState.self)?.lastScrollTime ?? 0 }
+    func stamp(_ id: GlobalElementID) -> Double { window.stateTable.peek(id, as: ScrollState.self)?.lastScrollTime ?? -.infinity }
     return (stamp(regions[0].id), stamp(regions[1].id))
 }
 
@@ -245,7 +245,7 @@ private func verticalInVertical(innerHeight: Float) -> some Element {
     platform.simulateInput(phaseless(onInner, timestamp: 9))
     settle(window)
     let stamps = try lastScrollTimes(window)
-    #expect(stamps.inner == 9 && stamps.outer == 0, "\(stamps)")
+    #expect(stamps.inner == 9 && stamps.outer == -.infinity, "\(stamps)")
 }
 
 /// **R11** (`XS-E`, probe `N6b`). A same-axis inner scroller whose content fits its viewport passes the wheel to the

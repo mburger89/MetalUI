@@ -36,8 +36,9 @@ public struct MarkdownTheme: Equatable, Sendable {
     /// The padding between a code block's box and its code.
     public var codeBlockPadding: Pixels
     /// Whether a code block's long lines wrap at the block's width. `true` is the default: `false` keeps every
-    /// line whole inside a horizontal scroller, and **a scroller takes a vertical wheel over it for itself**, so
-    /// the transcript around it does not scroll while the pointer is over the block (`BM-H`, carried).
+    /// line whole inside a horizontal scroller. A vertical wheel over that scroller passes to the transcript around it
+    /// (a one-axis scroller scrolls only the axis it declares, `XS-F`), a horizontal wheel scrolls the block. Wrapping stays
+    /// the default (`BM-H`): a streaming reply keeps a long line's tail visible.
     public var codeWraps: Bool
     /// Whether a fence's language name is shown above its code.
     public var showsCodeLanguage: Bool
@@ -64,8 +65,8 @@ public struct MarkdownTheme: Equatable, Sendable {
     /// The colour of the rules between a table's rows.
     public var tableRule: Color
     /// Whether a table scrolls sideways when it is wider than its block. `false` is the default, for the reason
-    /// ``codeWraps`` is true: a horizontal scroller takes a vertical wheel for itself. A table that does not
-    /// scroll wraps its cells' text.
+    /// ``codeWraps`` is true (a table that does not scroll wraps its cells' text). A vertical wheel over a scrolling table
+    /// passes to the transcript (`XS-F`).
     public var tableScrolls: Bool
     /// The space between a table's columns.
     public var tableColumnSpacing: Pixels

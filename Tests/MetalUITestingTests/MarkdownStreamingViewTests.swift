@@ -138,13 +138,13 @@ private let verifyNote: Comment =
     #expect(fresh.count == 2)
 }
 
-/// **Stop condition (plan), BM2, `BM-H`.** A horizontal scroller inside the vertical transcript **takes a vertical wheel
-/// for itself** (measured: the wheel over a fence, long lines or not, scrolls nothing). So the default theme has no
-/// scroller: `codeWraps` is true, and a vertical wheel over the fence scrolls the transcript. With `codeWraps = false`
-/// the fence scrolls sideways under a horizontal wheel and **swallows the vertical one: pinned wrong on purpose, the
-/// carried limitation**; a framework change that passes the wheel on would redden that arm and is a fix. In both arms
-/// a transcript wheeled back to its end follows the next tokens again (`defaultScrollAnchor(.bottom)` is unharmed).
-@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aHorizontalCodeScrollerSwallowsTheVerticalWheelSoTheDefaultHasNone() throws {
+/// **Stop condition (plan), BM2, `BM-H`, moved by `XS-F`.** A horizontal scroller inside the vertical transcript used to take a
+/// vertical wheel for itself (the wheel over a fence scrolled nothing); the wheel now goes to the nearest scroller that scrolls its
+/// axis, so a vertical wheel over a fence passes to the transcript whether the fence wraps or scrolls, and the horizontal wheel
+/// still scrolls the fence (`codeWraps = false`). The defaults are unchanged (`codeWraps` true). In both arms a transcript wheeled
+/// back to its end follows the next tokens again (`defaultScrollAnchor(.bottom)` is unharmed). The pin before: `moved == 0` for
+/// `codeWraps = false`, the carried limitation (probe `swiftui-two-axis-scroll.swift` N1).
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aHorizontalCodeScrollerPassesTheVerticalWheelToTheTranscript() throws {
     var source = "Intro paragraph above the code.\n\n```swift\n"
     source += String(repeating: "let aVeryLongIdentifier = someFunction(argumentOne, argumentTwo, argumentThree, argumentFour)\n", count: 6)
     source += "```\n\n"
@@ -168,7 +168,7 @@ private let verifyNote: Comment =
         window.scroll(at: over, byDeltaX: 0, deltaY: -30)
         markdownSettle(window, frames: 6)
         let moved = try element("Intro paragraph").frame.origin.y.value - intro0
-        #expect(moved == (wraps ? -30 : 0), "wheel over the fence (codeWraps \(wraps)): the transcript moved \(moved)")
+        #expect(moved == -30, "wheel over the fence (codeWraps \(wraps)): the transcript moved \(moved)")
         #expect(try element("let aVeryLong").frame.origin.x.value == x0)
         if !wraps {
             window.scroll(at: over, byDeltaX: -50, deltaY: 0)
