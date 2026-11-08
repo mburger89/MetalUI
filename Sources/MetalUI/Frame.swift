@@ -193,7 +193,7 @@ public final class Frame {
 
     /// Each resolved request's scroller and the offset it moves to, in
     /// resolution order — applied after paint (`applyScrollResolutions`).
-    private var scrollResolutions: [(scroller: GlobalElementID, offset: Double, animation: Animation?)] = []
+    private var scrollResolutions: [(scroller: GlobalElementID, offset: Double, cross: Double?, animation: Animation?)] = []
 
     /// Notes `id`'s typed key. Callers check `notesScrollKeys` first.
     func noteScrollKey(_ id: GlobalElementID, _ key: AnyHashable) {
@@ -232,7 +232,7 @@ public final class Frame {
 
     /// Each anchor adjustment noted this frame, by scroller (ruling `VL-G`
     /// item 2) — applied after paint, after the absolute resolutions.
-    private var scrollAnchorAdjustments: [(scroller: GlobalElementID, delta: Double)] = []
+    private var scrollAnchorAdjustments: [(scroller: GlobalElementID, delta: Double, cross: Bool)] = []
 
     /// Notes that `scroller`'s stored offset must move by `delta` after this
     /// frame so that what is on screen stays put (ruling `VL-G` item 2): a
@@ -244,9 +244,9 @@ public final class Frame {
     /// stored offset when there is none) — so a resolution computed in this
     /// frame's coordinates lands in the next frame's. A zero or non-finite
     /// delta is never recorded, so a steady list asks for no frame.
-    func noteScrollAnchorAdjustment(scroller: GlobalElementID, delta: Double) {
+    func noteScrollAnchorAdjustment(scroller: GlobalElementID, delta: Double, cross: Bool = false) {
         guard delta != 0, delta.isFinite else { return }
-        scrollAnchorAdjustments.append((scroller, delta))
+        scrollAnchorAdjustments.append((scroller, delta, cross))
     }
 
     // MARK: - `scrollPosition(id:)` (item R3-4, `SP-A`...`SP-E`)
@@ -308,7 +308,12 @@ public final class Frame {
         guard let scroller = activeScrollerFrame else { return }
         let offset = Self.scrollOffset(bringing: target, into: scroller,
                                        anchor: scrollRequests[index].anchor)
-        scrollResolutions.append((scroller.scrollerID, offset, scrollRequests[index].animation))
+        // `XS-I`: a two-axis scroller resolves the horizontal axis by the same rule over its cross slot (probe `T1`-`T5`).
+        var cross: Double?
+        if scroller.cross != nil, let horizontal = scroller.along(.horizontal) {
+            cross = Self.scrollOffset(bringing: target, into: horizontal, anchor: scrollRequests[index].anchor)
+        }
+        scrollResolutions.append((scroller.scrollerID, offset, cross, scrollRequests[index].animation))
     }
 
     /// Matches every unresolved request against `id` and its ancestors — the
@@ -372,6 +377,25 @@ public final class Frame {
         return ScrollChrome.clamp(offset: offset, content: scroller.contentExtent, viewport: viewport)
     }
 
+    /// One slot's landing of a `scrollTo` (`XS-I`): a glide from where the slot is when it ran under `withAnimation` (`SP-F`), else
+    /// the offset itself. The one body for the primary slot and the cross slot.
+    private static func land(_ target: Double, animation: Animation?, at now: Double,
+                             offset: inout Double, glide: inout ScrollGlide?) {
+        if let animation, target != offset {
+            // `SP-F`: glide from where the scroller is to the target; the next frame's clock starts it.
+            // A refinement of the same target (a lazy container's second resolution, `VL-P`) leaves the
+            // glide running instead of restarting its clock.
+            if let running = glide, running.to == target, running.animation == animation {
+                // keep it
+            } else {
+                glide = ScrollGlide(from: offset, to: target, start: now, animation: animation)
+            }
+        } else {
+            glide = nil
+        }
+        if glide == nil { offset = target }
+    }
+
     /// Writes each resolved scroller's offset, then adds each anchor
     /// adjustment (`VL-G` item 2) — after paint, so the frame that
     /// resolved a request paints the old offset consistently with its
@@ -381,19 +405,12 @@ public final class Frame {
     private func applyScrollResolutions() {
         for resolution in scrollResolutions {
             stateTable.withState(resolution.scroller, initial: ScrollState()) {
-                if let animation = resolution.animation, resolution.offset != $0.offset {
-                    // `SP-F`: glide from where the scroller is to the target; the next frame's clock starts it.
-                    // A refinement of the same target (a lazy container's second resolution, `VL-P`) leaves the
-                    // glide running instead of restarting its clock.
-                    if let running = $0.glide, running.to == resolution.offset, running.animation == animation {
-                        // keep it
-                    } else {
-                        $0.glide = ScrollGlide(from: $0.offset, to: resolution.offset, start: timestamp, animation: animation)
-                    }
-                } else {
-                    $0.glide = nil
+                Self.land(resolution.offset, animation: resolution.animation, at: timestamp,
+                          offset: &$0.offset, glide: &$0.glide)
+                if let cross = resolution.cross {   // `XS-I`: the same landing for the horizontal slot
+                    Self.land(cross, animation: resolution.animation, at: timestamp,
+                              offset: &$0.cross.offset, glide: &$0.cross.glide)
                 }
-                if $0.glide == nil { $0.offset = resolution.offset }
             }
         }
         // `VL-G` item 2: after the absolute writes, so a resolution and an
@@ -403,7 +420,9 @@ public final class Frame {
             stateTable.withState(adjustment.scroller, initial: ScrollState()) {
                 // `DSA-E`: a scroller following its end is re-placed at the end by the next prepaint; an
                 // adjustment would only read as the user leaving it.
-                if !$0.anchor.following { $0.offset += adjustment.delta }
+                if adjustment.cross {
+                    if !$0.cross.anchor.following { $0.cross.offset += adjustment.delta }
+                } else if !$0.anchor.following { $0.offset += adjustment.delta }
             }
         }
         // `SP-C`: the registry learns what the position bindings now hold, and reports scrollers a `scrollTo`
@@ -1616,13 +1635,20 @@ public final class Frame {
     /// (`takes`) and which way the offset can still move (`room`). The built-in scrollers call this after resolving their offset.
     func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis,
                               takes: Bool, room: ScrollRoom) {
-        let mirrored = axis == .horizontal && environmentTop.layoutDirection == .rightToLeft   // `LD-E`
+        let set = Axis.Set(axis == .horizontal ? .horizontal : .vertical)
+        registerScrollRegion(bounds, id: id, axis: axis, axes: set, takes: takes ? set : [], room: takes ? room : [])
+    }
+
+    /// The same for a scroller on `axes` (`XS-E`): `takes` is the subset whose content exceeds the viewport and `room` the
+    /// directions open on those axes. `axis` stays the primary axis (`Hitbox.scroll`), vertical for a two-axis scroller.
+    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, axes: Axis.Set,
+                              takes: Axis.Set, room: ScrollRoom) {
+        let mirrored = axes.contains(.horizontal) && environmentTop.layoutDirection == .rightToLeft   // `LD-E`
         let box = insertHitbox(bounds, id: id, opaque: true, scroll: axis)
         if mirrored { hitboxes[box.index].scrollMirrored = true }
-        let set = Axis.Set(axis == .horizontal ? .horizontal : .vertical)
-        hitboxes[box.index].scrollAxes = set
-        if takes { hitboxes[box.index].scrollTakes = set }
-        hitboxes[box.index].scrollRoom = takes ? room : []
+        hitboxes[box.index].scrollAxes = axes
+        hitboxes[box.index].scrollTakes = takes
+        hitboxes[box.index].scrollRoom = takes.isEmpty ? [] : room
     }
 
     /// Hitboxes registered this frame, in prepaint order — **the one list**.
@@ -3160,6 +3186,10 @@ public final class Frame {
     func requestNativeScrollViewport(child: LayoutNodeID,
                                      axis: ProposalStackAxis) -> LayoutNodeID {
         tree.newNativeScrollViewport(child: child, axis: axis)
+    }
+
+    func requestNativeScrollViewport(child: LayoutNodeID, horizontal: Bool, vertical: Bool) -> LayoutNodeID {
+        tree.newNativeScrollViewport(child: child, horizontal: horizontal, vertical: vertical)   // `XS-B`
     }
 
     func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
@@ -4735,7 +4765,8 @@ extension Frame {
             values = [s.axis == .vertical ? 1 : 0, Double(s.contentOrigin.x.value), Double(s.contentOrigin.y.value),
                       Double(s.viewport.origin.x.value), Double(s.viewport.origin.y.value),
                       Double(s.viewport.size.width.value), Double(s.viewport.size.height.value), s.offset,
-                      s.contentExtent, s.mirrored ? 1 : 0]   // `LD-E`: appended, so the indices above stand
+                      s.contentExtent, s.mirrored ? 1 : 0,   // `LD-E`: appended, so the indices above stand
+                      s.cross?.offset ?? 0, s.cross?.contentExtent ?? 0]   // `XS-L`: indices 10 and 11, a two-axis scroller's horizontal slot
         }
         return PrepaintExtras(effects: effects, hitTestingDisabled: hitTestingDisabledDepth,
                               keyboardHidden: keyboardHiddenDepth,

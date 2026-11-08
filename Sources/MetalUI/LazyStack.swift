@@ -212,7 +212,7 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
         var pins: [LazyPin] = []
         var pinnedUnits: Set<Int> = []
         let sequenceNodeCount = nodes.count
-        if !pinnedViews.isEmpty, plan.mode == .bounded, let index = plan.index, let context = pass.scrollContext {
+        if !pinnedViews.isEmpty, plan.mode == .bounded, let index = plan.index, let context = pass.scrollContext?.along(scrollAxis) {
             let spans = table.sectionSpans().filter { !$0.all.isEmpty }
             let top = context.followsEnd ? Swift.max(0, index.totalExtent - context.viewportExtent)
                 : context.offset - (stored?.offset ?? 0)

@@ -450,6 +450,44 @@ let PN7 = CGPoint(x: 205, y: 150)
             p.append(rd(h, detail: true))
         }
     }
+    // L1e..L1g (PR 2, `XS-B`): the SCG2 shapes of swiftui-stack-algorithms.swift re-measured in THIS harness, to settle the
+    // disagreement L1b left: the content's frame in the scroll view's own coordinate space (`vp`) and in the window (`.global`),
+    // with the viewport fixed by `.frame(100x100)` inside a 300x300 window (L1e) and by the window itself (L1f, L1g).
+    for (nm, axes) in [("both", B), ("vertical", [.vertical] as Axis.Set), ("horizontal", [.horizontal] as Axis.Set)] {
+        let box = Box(); var global = CGRect.zero
+        arm("L1e \(nm) 50x30 in .frame(100x100) in a 300x300 window", view: ScrollView(axes) {
+            Color.blue.frame(width: 50, height: 30)
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named("vp")) }) { box.frames["c"] = $0 }
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { box.frames["g"] = $0 }
+        }.frame(width: 100, height: 100).coordinateSpace(.named("vp"))) { w, h, p in
+            let r = box.frames["c"] ?? .zero; global = box.frames["g"] ?? .zero
+            p.append("content in vp (\(f(r.minX)),\(f(r.minY))) \(f(r.width))x\(f(r.height)), in window (\(f(global.minX)),\(f(global.minY)))")
+            p.append(rd(h, detail: true))
+        }
+    }
+    for (nm, axes) in [("both", B), ("vertical", [.vertical] as Axis.Set)] {
+        let box = Box()
+        arm("L1f \(nm) 50x30 in a 100x100 window, coordinate space on the scroll view", size: CGSize(width: 100, height: 100), view: ScrollView(axes) {
+            Color.blue.frame(width: 50, height: 30)
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named("vp")) }) { box.frames["c"] = $0 }
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { box.frames["g"] = $0 }
+        }.coordinateSpace(.named("vp"))) { w, h, p in
+            let r = box.frames["c"] ?? .zero, g = box.frames["g"] ?? .zero
+            p.append("content in vp (\(f(r.minX)),\(f(r.minY))) \(f(r.width))x\(f(r.height)), in window (\(f(g.minX)),\(f(g.minY)))")
+            p.append(rd(h, detail: true))
+        }
+    }
+    do {   // L1g: where the AppKit document view actually sits against the SwiftUI content, as pixels (the document view's frame in the window)
+        let box = Box()
+        arm("L1g both 50x30 in .frame(100x100): document view frame in window space", view: ScrollView(B) {
+            Color.blue.frame(width: 50, height: 30).onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { box.frames["g"] = $0 }
+        }.frame(width: 100, height: 100)) { w, h, p in
+            let s = scrollViews(in: h).first
+            let d = s?.documentView.map { $0.convert($0.bounds, to: nil) } ?? .zero
+            let g = box.frames["g"] ?? .zero
+            p.append("scroll view frame in window \(s.map { "\($0.convert($0.bounds, to: nil))" } ?? "-") | document view in window \(d) | content in window (\(f(g.minX)),\(f(g.minY))) \(f(g.width))x\(f(g.height))")
+        }
+    }
     do {
         let box = Box()
         arm("L3 ScrollView([]) 500x500 in 300x300", view: ScrollView([]) { Color.blue.frame(width: 500, height: 500).cap(box, "c") }.coordinateSpace(.named("vp"))) { w, h, p in

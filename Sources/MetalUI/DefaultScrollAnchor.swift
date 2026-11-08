@@ -90,8 +90,12 @@ extension ScrollChrome {
     /// Whether this scroller's content should be windowed around its END this layout (`ScrollContext.followsEnd`).
     /// `raw` is the stored offset a wheel may have moved since the last prepaint.
     func layoutFollowsEnd(_ state: ScrollState, raw: Double) -> Bool {
+        layoutFollowsEnd(memory: state.anchor, raw: raw)
+    }
+
+    /// `layoutFollowsEnd` over one axis's memory (`XS-J`): the primary's `state.anchor` or the cross slot's, one rule.
+    func layoutFollowsEnd(memory: ScrollAnchorMemory, raw: Double) -> Bool {
         guard !anchors.isEmpty else { return false }
-        let memory = state.anchor
         if !memory.initialDone {
             return (anchors.initialFraction(axis) ?? 0) >= 1 || (anchors.alignmentFraction(axis) ?? 0) >= 1
         }
