@@ -39,7 +39,7 @@ The `.equatable()`-replay arm was first red for a real reason (finding 1) before
 
 ## 5. Counts
 
-COUNTS
+Native, unfiltered, `--no-parallel` after `swift package clean`: `Test run with 5684 tests in 26 suites passed after 534.335 seconds` (0 failures; the same count under `METALUI_VERIFY_RETAINED=1`, 465.705 seconds), `FR-J no-argument frame: succeeded=true`; closeout scripts print nothing. A first run read `5562 tests in 25 suites` (a stray second `swift test` shared its log); it was discarded and repeated. The replay arm `theCopyButtonIsAnOverlayAndPressingItDoesNotReshapeTheFence` counts shaping only when not verifying (`rsVerifying`), as the other replay tests do: under verify mode every frame re-evaluates. Portable container `metalui-portable:latest` (`git archive HEAD` over stdin to `docker run --rm -i`): `swift build --build-tests` complete (255.75 s); `Test run with 972 tests in 11 suites passed` (`MetalUITestingTests`, was 961), then 9, 16, 73, 68, 53, 25, 290, 165, 24 and 45, all passed.
 
 ## 6. Carried
 
