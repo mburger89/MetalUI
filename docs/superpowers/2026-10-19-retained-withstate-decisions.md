@@ -5,7 +5,7 @@ Rulings for item C14b-3 of the gpui-gap priority list (user request 2026-10-02; 
 Record: `../record/121-retained-withstate.md` (Record phase). Branch `perf/retained-withstate` from `f557d339`. Divergence labels
 reserved 515–524: **none taken**. One public declaration (`FrameWork.retainedIneligibleReasons`, `MetalUITesting`, class `M`, `RW-M`/`RW-N`), nothing else. No SwiftUI-facing claim, so no probe is owed (`RW-N`).
 
-**Next unused id: `RW-U`.**
+**Next unused id: `RW-V`.**
 
 ## RW-A — The slice: read-only state, scroll, list, unfocused field, closed-popover anchors; surfaces and open presentations carried
 
@@ -279,3 +279,10 @@ reddens them; it does not (nothing is refused on those arms), `aPlainWithStateWr
 instruments. The release orbit frame is **-27.5 %** (3.125 to 2.267 ms, three alternating runs, dated, never pinned); the fourteen images read 0 px; verify mode over the
 whole suite ran with no trap.
 **Cost if wrong.** A `ListOrigin` compared write that lies, or a read the journal drops, survives the RW pins: the existing list tests and verify mode's `unrecordedRead` are the net.
+
+## RW-U — Verify mode compares a replayed build with its own journals and starts the fresh build from the same table
+
+**Question.** MetalCreator's `panningEvaluatesOnlyTheSurface` trapped `unrecordedRead` under `METALUI_VERIFY_RETAINED=1` on a `ScrollView { List }`'s `ScrollState`. Was a replay missing a read?
+**Ruling.** No: the instrument was wrong. An abandoned verify frame returns before `Frame.render`'s sweep, so `lastReadJournal`/`lastMarkJournal` (`RW-O`, `RW-S`) held the frame *before* it, and an entry first met in the replayed frame (a panel shown beside a replayed sibling) was flagged. (1) `StateTable.takeUnsweptJournals()` takes the open journals as the replayed set and empties them, so the fresh build's sweep leaves only its own reads. (2) With that fixed, the same frames trapped a scene difference (68 rects against 22): the first build's `List` window was unbounded, the second found the measured viewport the first wrote. `StateTable.discardEntries(createdSince:)` deletes the entries the first build created (not `$ax`) before the fresh build, so both start from the same table and the scene comparison stays on; the recreated entries' compared writes are not a `writeMissed` (`comparedWriteIDs`, verify only). A skip of the comparison on any frame that creates state was refused: first-sighting frames are where a replay bug most likely hides. Existing entries the first build wrote (versions, extents) are still seen by the second build, as before.
+**Cost if wrong.** A rollback that removed an entry a record names would make the fresh build differ for a reason that is not a replay bug; the suite under verify mode (record 244) is the net.
+

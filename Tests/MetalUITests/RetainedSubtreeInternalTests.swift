@@ -165,7 +165,7 @@ private let frameChannels: [String: Channel] = [
 private let stateTableChannels: [String: Channel] = [
     "storage": .ledger, "marked": .recorded, "versionCounter": .ledger, "contentMemos": .recorded,
     "markJournal": .recorded, "readJournal": .recorded, "lastReadJournal": .frameLocal, "lastMarkJournal": .frameLocal,
-    "comparedWriteCount": .frameLocal, "retainLog": .frameLocal, "generation": .frameLocal, "aliasedStateBoxes": .buildOnly,
+    "comparedWriteCount": .frameLocal, "comparedWriteIDs": .frameLocal, "retainLog": .frameLocal, "generation": .frameLocal, "aliasedStateBoxes": .buildOnly,
     "producedSlots": .buildOnly, "previouslyProducedSlots": .buildOnly, "subtreeResetScans": .buildOnly,
     "absentSlots": .buildOnly, "namedPositions": .buildOnly, "previousNamedPositions": .buildOnly,
     "producedNames": .buildOnly, "departedNames": .buildOnly, "windowedParents": .buildOnly,
