@@ -114,6 +114,8 @@ private let alloyNames = [
     "brain.head.profile", "sparkles", "globe", "person", "person.crop.circle", "exclamationmark.triangle", "xmark", "xmark.circle",
     "play", "play.fill", "stop", "stop.fill", "stop.circle", "checkmark", "chevron.right", "chevron.down", "doc.on.doc",
     "arrow.uturn.backward", "arrow.up.right.square", "rectangle.split.2x1", "cpu",
+    "checklist", "questionmark.bubble", "list.bullet.clipboard", "puzzlepiece.extension", "info.circle", "paperclip", "photo",
+    "gearshape",
 ]
 
 // MARK: - 3: the catalogue
@@ -121,10 +123,10 @@ private let alloyNames = [
 /// **Test 3 - every Alloy name is a bundled icon (`SYM-I`).** Each name of the set resolves to an `Icon` with at least one
 /// layer whose coordinates (control points included) are finite and inside the 24 x 24 view box, and whose path has ink; the
 /// `.fill` names add a fill layer under the stroke and the others do not; `robot` (which exists nowhere) and a `.fill` of an
-/// open outline are `nil`. The vendored data itself: 29 icons, each with ops for its coordinates. Mutations: **M3a** one table
+/// open outline are `nil`. The vendored data itself: 37 icons, each with ops for its coordinates. Mutations: **M3a** one table
 /// row dropped (`cpu`): the count and that name's arm redden; **M3b** the fill layer dropped from `play.fill`.
 @Test @MainActor func everyAlloyNameIsABundledIconInsideItsViewBox() throws {
-    try #require(alloyNames.count == 30, "the Alloy set is 30 names")
+    try #require(alloyNames.count == 38, "the Alloy set is 38 names")
     for name in alloyNames {
         let icon = try #require(Icon.bundled(name), "\(name) has no bundled icon")
         #expect(!icon.layers.isEmpty, "\(name): layers")
@@ -137,7 +139,7 @@ private let alloyNames = [
                     "\(name): path bounds (\(x0), \(y0))-(\(x1), \(y1)) leave the view box")
         }
     }
-    let data = try #require(LucideIcons.names.count == 29 ? LucideIcons.names : nil, "29 vendored icons: \(LucideIcons.names.count)")
+    let data = try #require(LucideIcons.names.count == 37 ? LucideIcons.names : nil, "37 vendored icons: \(LucideIcons.names.count)")
     for name in data {
         let icon = try #require(LucideIcons.data(named: name), "\(name) vendored but unreadable")
         let args = icon.ops.reduce(0) { $0 + [2, 2, 6, 0][Int($1)] }

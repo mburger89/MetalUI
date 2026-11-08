@@ -30,6 +30,8 @@ ICONS = [
     "globe", "user", "circle-user", "triangle-alert", "x", "circle-x", "play", "square", "circle-stop", "check",
     "chevron-right", "chevron-down", "copy", "undo-2", "square-arrow-out-up-right", "columns-2", "cpu", "circle",
     "triangle", "star",
+    # Record 232 addendum: eight more Alloy names.
+    "list-checks", "message-circle-question", "clipboard-list", "puzzle", "info", "paperclip", "image", "settings",
 ]
 
 ARITY = {"M": 2, "L": 2, "H": 1, "V": 1, "C": 6, "S": 4, "Q": 4, "T": 2, "A": 7, "Z": 0}

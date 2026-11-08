@@ -58,3 +58,8 @@ Reddened on the way to green (the first runs): test 3 found the vendor script's 
 ## 7. Carried
 
 Icons as cursors and native toolbar images; `Label(_:systemImage:)` (PR 3); `.palette`; Lucide icons beyond the 29 (the script takes a list, a row in the table and in `alloyNames`); the human check `SYM7` (the Linux VM and Windows).
+
+## 8. Addendum 2026-11-07: eight more icons (branch `feat/more-lucide-icons`)
+
+Same pinned `lucide-static` 1.70.0 tarball (sha256 `3d1f09df...120f16a`, re-verified before the run; downloaded to a scratch directory, read by `scripts/vendor-lucide.py` only, deleted afterwards). `ICONS` gains `list-checks`, `message-circle-question`, `clipboard-list`, `puzzle`, `info`, `paperclip`, `image`, `settings` (37 icons, 596 opcodes, 2254 coordinates, `LucideData.swift` 21.8 KB). The table gains `checklist`, `questionmark.bubble`, `list.bullet.clipboard`, `puzzlepiece.extension`, `info.circle`, `paperclip`, `photo`, `gearshape` (each checked with `NSImage(systemSymbolName:)` on macOS 27.2: all exist; all eight Lucide icons exist in 1.70.0; none skipped). **No `.fill` variants**: none of the eight is a single closed outline (`info` and `settings` have open strokes and cut-outs; a fill under the stroke would blot them), so `symbolVariant(.fill)` falls back to the base name. `alloyNames` in test 3 is 38 names and the vendored count 37. Mutation: dropping the `gearshape` row reddens `everyAlloyNameIsABundledIconInsideItsViewBox`. Section 7's "beyond the 29" now reads "beyond the 37".
+
