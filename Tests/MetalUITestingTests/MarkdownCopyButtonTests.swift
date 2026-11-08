@@ -110,12 +110,12 @@ private let nestedSource = "```\none\n```\n\npara\n\n- item\n\n  ```\n  two\n  `
     #expect(try #require(try buttons(window).first).label == "Copy code")
 }
 
-/// **BM-L, test 6.** The press still writes the whole code, and the feedback does not shape the fence's code again.
-/// (Covered by `BM-K` tests 1 and 4, which stay green; this pins the accessibility action as well.)
+/// **BM-L, test 6.** The accessibility press action (a screen reader's press) copies the code and shows "Copied" too.
+/// Mutation: the action closure writes the clipboard without bumping `presses`.
 @Test @MainActor func theAccessibilityActionAlsoShowsFeedback() throws {
     let window = try buttonWindow("```\ncode\n```", prefix: nil)
     let button = try #require(try buttons(window).first)
-    try window.click(button)
+    #expect(try window.performAccessibilityAction(.press, on: button))
     window.advanceFrames(2)
     #expect(window.platformWindow.clipboard == "code")
     #expect(try #require(try buttons(window).first).label == "Copied")
