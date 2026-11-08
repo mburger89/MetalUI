@@ -73,12 +73,25 @@ public struct ScrollState: Sendable {
     /// What a `defaultScrollAnchor` remembers between frames (`DSA-D`); untouched for a scroller with none.
     var anchor = ScrollAnchorMemory()
 
+    /// The horizontal axis of a two-axis scroller (`XS-C`): its offset, viewport extent, glide and anchor memory. The fields
+    /// above are the PRIMARY axis, which is vertical for a two-axis scroller; a one-axis scroller never touches this.
+    var cross = ScrollAxisSlot()
+
     /// A scroll state; every field defaults to an unscrolled, unmeasured view.
     public init(offset: Double = 0, lastScrollTime: Double = -.infinity, viewportExtent: Double = 0) {
         self.offset = offset
         self.lastScrollTime = lastScrollTime
         self.viewportExtent = viewportExtent
     }
+}
+
+/// What a two-axis scroller stores for its horizontal axis (`XS-C`): the four per-axis fields of `ScrollState`
+/// (`lastScrollTime` stays shared, one stamp lights both thumbs).
+struct ScrollAxisSlot: Sendable, Equatable {
+    var offset = 0.0
+    var viewportExtent = 0.0
+    var glide: ScrollGlide?
+    var anchor = ScrollAnchorMemory()
 }
 
 /// A `scrollTo` made under `withAnimation`, running (`SP-F`, `AN-` family): the offset moves from `from` to `to`
@@ -133,6 +146,21 @@ public struct ScrollContext: Sendable, Equatable {
     /// its own extent instead of around `offset`, which is the end of LAST frame's content.
     var followsEnd = false
 
+    /// The horizontal axis of a two-axis scroller (`XS-H`); `nil` for a one-axis one. `axis` and the fields above are the
+    /// primary axis, which is vertical for a two-axis scroller.
+    var cross: ScrollAxisContext?
+
+    /// The context along `axis`, or `nil` when the scroller does not scroll that way (`XS-H`): `self` along its own axis, the
+    /// horizontal slot of a two-axis scroller along `.horizontal`. A lazy container windows against `along(its axis)`, so
+    /// a `LazyVStack` and a `LazyHStack` inside one two-axis scroller each follow their own axis.
+    func along(_ other: ScrollAxis) -> ScrollContext? {
+        if other == axis { return self }
+        guard other == .horizontal, let cross else { return nil }
+        var horizontal = ScrollContext(offset: cross.offset, viewportExtent: cross.viewportExtent, axis: .horizontal)
+        horizontal.followsEnd = cross.followsEnd
+        return horizontal
+    }
+
     /// The offset a windowing reader clamps into its own extent: `offset`, or past every extent when the
     /// scroller follows its end.
     var windowOffset: Double { followsEnd ? Double.greatestFiniteMagnitude : offset }
@@ -143,6 +171,13 @@ public struct ScrollContext: Sendable, Equatable {
         self.viewportExtent = viewportExtent
         self.axis = axis
     }
+}
+
+/// The horizontal slot of a two-axis scroller's `ScrollContext` (`XS-H`).
+struct ScrollAxisContext: Sendable, Equatable {
+    var offset: Double
+    var viewportExtent: Double
+    var followsEnd: Bool
 }
 
 /// A clipped, scrollable viewport over content taller (or wider) than itself.
@@ -174,8 +209,14 @@ public struct ScrollContext: Sendable, Equatable {
 /// an `if` takes one slot whether or not it has content). Until then the offset
 /// was handed to the trailing sibling and naming that sibling was the remedy.
 public struct ScrollView<Content: ElementGroup>: Element {
-    /// The axis the content scrolls along.
-    public var axis: ScrollAxis
+    /// The axes the content scrolls along, SwiftUI's `axes` (`XS-A`): `.vertical` unless the initialiser says otherwise.
+    public var axes: Axis.Set
+    /// The axis the content scrolls along: `.horizontal` for a horizontal-only scroller, `.vertical` otherwise (a two-axis
+    /// scroller's primary axis is vertical, `XS-C`). Set it to move a one-axis scroller; `axes` is the full answer.
+    public var axis: ScrollAxis {
+        get { axes == .horizontal ? .horizontal : .vertical }
+        set { axes = newValue == .horizontal ? .horizontal : .vertical }
+    }
     public var elementID: ElementID?
     /// The scrolled content.
     public var content: Content
@@ -230,7 +271,17 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// (`LR-BB`).
     public init(_ axis: ScrollAxis = .vertical, elementID: ElementID? = nil,
                 @ElementBuilder content: () -> Content) {
-        self.axis = axis
+        self.axes = axis == .horizontal ? .horizontal : .vertical
+        self.elementID = elementID
+        self.content = content()
+    }
+
+    /// A scroller over `content` along `axes`, SwiftUI's `ScrollView(_ axes:)` (`XS-A`): `[.horizontal, .vertical]` scrolls both
+    /// ways. `@_disfavoredOverload`, so `ScrollView(.horizontal)` keeps meaning ``ScrollAxis``; an array literal or an
+    /// `Axis.Set` value picks this one. `[]` scrolls nothing and sizes its content to the viewport (probe `L3`).
+    @_disfavoredOverload
+    public init(_ axes: Axis.Set, elementID: ElementID? = nil, @ElementBuilder content: () -> Content) {
+        self.axes = axes
         self.elementID = elementID
         self.content = content()
     }
@@ -269,8 +320,8 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// `LR-BD`). **Computed, not stored** — see `ScrollChrome`'s own doc for
     /// why, and for what the fold deliberately left alone.
     var chrome: ScrollChrome {
-        ScrollChrome(axis: axis, cornerRadius: cornerRadius,
-                     indicatorVisibility: indicatorVisibility, anchors: defaultAnchors)
+        ScrollChrome(axis: axis, cornerRadius: cornerRadius, indicatorVisibility: indicatorVisibility,
+                     anchors: defaultAnchors, crossAxis: axes == [.horizontal, .vertical])
     }
 
     public mutating func requestLayout(_ id: GlobalElementID,
@@ -300,6 +351,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // straight out with no local IUO to hoist it through.
         var context = ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
         context.followsEnd = chrome.layoutFollowsEnd(scrollState, raw: rawOffset)   // `DSA-C`
+        if chrome.crossAxis { context.cross = chrome.crossContext(scrollState, now: pass.frame.timestamp) }   // `XS-H`
         let (children, inner) = pass.withScrollContext(context) {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
@@ -361,7 +413,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                         inner: Content.GroupLayout,
                                         pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         var declaredContent = Style()
-        declaredContent.flexDirection = axis == .vertical ? .column : .row
+        declaredContent.flexDirection = axes == .horizontal ? .row : .column   // SC3: a VStack whatever the axes
         // Structure from the declared style, lengths from the animated one
         // (ruling LR-AS). Neither `flexDirection` nor anything else on this style
         // is animatable, so the two are equal today; the split is kept because
@@ -373,11 +425,13 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                                children: children, site: .scrollView)
 
         var viewportStyle = Style()
-        viewportStyle.flexDirection = axis == .vertical ? .column : .row
+        viewportStyle.flexDirection = axes == .horizontal ? .row : .column
         (viewportStyle, _) = animated(viewportStyle, Decoration(), for: scrollViewViewportAnimID(for: id),
                                       pass: &pass)
-        let node = pass.frame.requestNativeScrollViewport(
-            child: contentNode, axis: axis == .vertical ? .vertical : .horizontal)
+        let node = axes.isOneAxis
+            ? pass.frame.requestNativeScrollViewport(child: contentNode, axis: axis == .vertical ? .vertical : .horizontal)
+            : pass.frame.requestNativeScrollViewport(child: contentNode, horizontal: axes.contains(.horizontal),
+                                                     vertical: axes.contains(.vertical))   // `XS-B`
         _ = pass.recordLoweredItem(node, animated: viewportStyle, declared: Style(), site: .scrollView,
                                    contentAlignment: .topLeading, kind: .leaf)
         return (node, Layout(node: node, contentNode: contentNode, inner: inner))
@@ -387,9 +441,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var chrome = self.chrome
-        chrome.mirrored = axis == .horizontal && pass.frame.environmentTop.layoutDirection == .rightToLeft   // `LD-E`
-        let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
-                                           pass: pass)
+        chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
+        let (offset, crossOffset) = chrome.resolvedOffsets(id, bounds: bounds, contentNode: layout.contentNode,
+                                                           pass: pass)
         // Registered OUTSIDE `clipped(to:offsetBy:)`, using the bounds handed
         // in rather than anything computed inside the block: `bounds` here is
         // this viewport's rect in its PARENT's space, and being outside the
@@ -410,17 +464,20 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`
         // with the fix reverted, a wheel at (100, 120) reached the OUTER
         // scroller and one at (100, 170) still reached the inner one.
-        pass.registerScrollRegion(bounds, id: id, axis: axis, chrome: chrome, offset: offset,
-                                  contentSize: pass.bounds(of: layout.contentNode).size)
+        if !axes.isEmpty {   // `ScrollView([])` scrolls nothing and registers nothing (probe `L3`)
+            pass.registerScrollRegion(bounds, id: id, axis: axis, chrome: chrome, offset: offset, cross: crossOffset,
+                                      contentSize: pass.bounds(of: layout.contentNode).size)
+        }
         // `DD-F` item 2: the content prepaints inside this scroller's frame.
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,
                                      viewport: bounds, offset: offset,
                                      contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size),
-                                     tracksPosition: position != nil, mirrored: chrome.mirrored)
+                                     tracksPosition: position != nil, mirrored: chrome.mirrored,
+                                     cross: chrome.crossAxis ? chrome.crossFrame(offset: crossOffset, bounds: bounds, contentSize: pass.bounds(of: layout.contentNode).size) : nil)
         var result: Content.GroupPrepaint!
         let noteMark = pass.frame.scrollTargetNoteCount
-        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset),
+        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset, cross: crossOffset),
                     cornerRadii: Corners(all: cornerRadius)) {
             pass.inScroller(scroller) {
                 result = content.prepaintGroup(layout: &layout.inner, pass: &pass)
@@ -434,15 +491,15 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
         var chrome = self.chrome
-        chrome.mirrored = axis == .horizontal && pass.frame.environmentTop.layoutDirection == .rightToLeft   // `LD-E`
-        let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
-                                           pass: pass)
+        chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
+        let (offset, crossOffset) = chrome.resolvedOffsets(id, bounds: bounds, contentNode: layout.contentNode,
+                                                           pass: pass)
         // The clip is rounded to `cornerRadius` — the same curve the caller's
         // wrapping background (typically a `Box(decoration:)`) paints, so a
         // row scrolled to the very top or bottom is cut by the same curve
         // rather than painting square into a corner the background left
         // transparent. Ruling CL-A.
-        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset),
+        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset, cross: crossOffset),
                     cornerRadii: Corners(all: cornerRadius)) {
             content.paintGroup(layout: &layout.inner, prepaint: &prepaint, pass: &pass)
         }
@@ -459,8 +516,13 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // what leaves the thumb inside the rounded corner without leaving it
         // subject to the scroll. Being outside here and clipped by nothing at
         // all was a reported defect — see `ScrollChrome.paintIndicator`.
-        chrome.paintIndicator(id, bounds: bounds, offset: offset,
+        chrome.paintIndicator(id, bounds: bounds, offset: offset, cross: crossOffset,
                               contentNode: layout.contentNode, pass: &pass)
     }
 }
 
+
+extension Axis.Set {
+    /// Exactly `.horizontal` or exactly `.vertical`: the sets whose scroller takes today's one-axis path (`XS-A`).
+    var isOneAxis: Bool { self == .horizontal || self == .vertical }
+}

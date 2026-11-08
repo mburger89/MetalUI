@@ -136,12 +136,19 @@ extension ReplayKey {
 }
 
 extension PrepaintExtras {
-    /// These extras but for the scroller's offset (the vector's index 7), which K2 moves (`FS-D`).
+    /// Sets aside the scroller's offsets: index 7, the primary's, and index 10, a two-axis scroller's horizontal one (`XS-L`) -
+    /// the two numbers K2 moves (`FS-D`). The one place the indices are named.
+    mutating func zeroScrollOffsets() {
+        if scroller.count > 7 { scroller[7] = 0 }
+        if scroller.count > 10 { scroller[10] = 0 }
+    }
+
+    /// These extras but for the scroller's offsets, which K2 moves (`FS-D`).
     func equalIgnoringScrollOffset(_ other: PrepaintExtras) -> Bool {
         guard scroller.count == other.scroller.count else { return false }
         guard scroller.count > 7 else { return self == other }
         var a = self, b = other
-        a.scroller[7] = 0; b.scroller[7] = 0
+        a.zeroScrollOffsets(); b.zeroScrollOffsets()
         return a == b
     }
 }
@@ -170,7 +177,7 @@ extension PrepaintKey {
         normalized.offset = ambient.offset
         guard normalized == ambient, extras.scroller.count == new.extras.scroller.count else { return nil }
         var was = extras, now = new.extras
-        if was.scroller.count > 7 { was.scroller[7] = 0; now.scroller[7] = 0 }
+        was.zeroScrollOffsets(); now.zeroScrollOffsets()
         guard was.effects != now.effects else { return nil }
         var restWas = was, restNow = now
         restWas.effects = []; restNow.effects = []

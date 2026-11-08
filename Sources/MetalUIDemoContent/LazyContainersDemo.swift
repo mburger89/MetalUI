@@ -14,6 +14,9 @@ import Observation
 /// 5. (R3-4, group SP of the human checks) a `LazyVStack` of 40 sections with `pinnedViews`, the topmost row
 ///    bound with `scrollPosition(id:)`, three buttons that scroll by writing the binding under `withAnimation`,
 ///    and a `@Bindable` text field that renames the headers.
+/// 6. (Alloy gap G5, group XS of the human checks) a `LazyVStack` of 10 000 rows 640 wide in a
+///    `ProposalScrollView([.horizontal, .vertical])`: it windows on the vertical offset while both thumbs and the
+///    horizontal axis scroll (a two-axis pane, `XS-H`).
 ///
 /// **The human looks** (`docs/verification/human-checks.md` group LZ, LZ1-LZ5): the counters never exceed the
 /// viewport plus overscan while the scrollers move, a fast scroll of the variable rows does not jump or
@@ -25,19 +28,19 @@ import Observation
 @MainActor
 public func lazyContainersDemoContent() -> some Element {
     lazyDemoComposer(LazyDemoStackSection(), LazyDemoGridSection(), LazyDemoCarouselSection(),
-                     LazyDemoHGridSection(), LazyDemoPinnedSection())
+                     LazyDemoHGridSection(), LazyDemoPinnedSection(), LazyDemoTwoAxisSection())
 }
 
 /// Two rows of two sections under a title.
 @MainActor
-func lazyDemoComposer<A: ElementGroup, B: ElementGroup, C: ElementGroup, D: ElementGroup, E: ElementGroup>(
-    _ a: A, _ b: B, _ c: C, _ d: D, _ e: E) -> some Element {
+func lazyDemoComposer<A: ElementGroup, B: ElementGroup, C: ElementGroup, D: ElementGroup, E: ElementGroup,
+                      F: ElementGroup>(_ a: A, _ b: B, _ c: C, _ d: D, _ e: E, _ f: F) -> some Element {
     VStack(alignment: .leading, spacing: Pixels(12)) {
         ProposalText("Lazy containers: 10 000 children each, realised near the viewport")
             .font(size: 20)
         HStack(spacing: Pixels(12)) { a; b }
         HStack(spacing: Pixels(12)) { c; d }
-        HStack(spacing: Pixels(12)) { e }
+        HStack(spacing: Pixels(12)) { e; f }
     }
     .padding(Edges(all: Pixels(16)))
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -121,6 +124,29 @@ struct LazyDemoCarouselSection: Component {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: Pixels(110), maxHeight: .infinity)
+        }
+    }
+}
+
+/// Section 6: a two-axis pane (`XS-H`): a lazy column of rows wider than the pane in a scroller that scrolls both ways. The
+/// stack windows on the vertical offset only, so the counter stays at the viewport plus overscan while the pane moves sideways.
+struct LazyDemoTwoAxisSection: Component {
+    @State private var live = 0
+    var content: some ProposalElementGroup {
+        lazyDemoFrame("LazyVStack, both axes", live: live) {
+            ProposalScrollView([.horizontal, .vertical]) {
+                LazyVStack(alignment: .leading, spacing: Pixels(2)) {
+                    ForEach(0..<10_000) { index in
+                        ProposalText("Row \(index): a line wider than the pane, to scroll sideways")
+                            .frame(width: Pixels(640), height: Pixels(24), alignment: .leading)
+                            .background(.surfaceSecondary)
+                            .onAppear { live += 1 }
+                            .onDisappear { live -= 1 }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.surface)
         }
     }
 }

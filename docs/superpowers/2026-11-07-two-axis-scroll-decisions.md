@@ -1,18 +1,18 @@
 # Two-axis scrolling and per-axis wheel routing - decisions (prefix `XS-`)
 
-Alloy gap G5. Branch `feat/scroll-axis-routing` from master `c6779ba4` (then merged with `dc20b918`); record 236. Probe `docs/probes/swiftui-two-axis-scroll.swift` (PR 0, recorded 2026-11-07). **PR 1 (this branch) builds `XS-E`..`XS-G` on ONE-axis scrollers; `XS-A`..`XS-D` and `XS-H`..`XS-N` are the plan for PR 2/3 and are not built.** `SP-K` (two-axis scrolling "not built") is superseded by this document. Class `A` (SwiftUI-aligned); no divergence added by PR 1. Next unused id: `XS-P`.
+Alloy gap G5. Branch `feat/scroll-axis-routing` (PR 1, record 236) from master `c6779ba4` (then merged with `dc20b918`); branch `feat/two-axis-scroll` (PRs 2 and 3, record 237). Probe `docs/probes/swiftui-two-axis-scroll.swift` (PR 0, recorded 2026-11-07; arms `L1e`-`L1g` added in PR 2). **PR 1 built `XS-E`..`XS-G` on ONE-axis scrollers; PRs 2 and 3 (record 237) build `XS-A`..`XS-D` and `XS-H`..`XS-M` and add `XS-P`..`XS-U`.** `SP-K` (two-axis scrolling "not built") is superseded by this document. Class `A` (SwiftUI-aligned); **no divergence added** (the two rulings that go beyond a reading, `XS-R` and `XS-S`, are stated assumptions with human checks). Next unused id: `XS-V`.
 
-## XS-A: API, no source break (planned, PR 2)
+## XS-A: API, no source break (built, PR 2)
 
-`public init(_ axes: Axis.Set, elementID:content:)` on `ScrollView` and `ProposalScrollView`, `@_disfavoredOverload`; `public var axes: Axis.Set` (SwiftUI's), `axis: ScrollAxis` stays as a computed view of it. `ScrollAxis` stays a closed enum. `axes == [.horizontal]` or `[.vertical]` takes today's one-axis path byte for byte. Stop condition: `@_disfavoredOverload` leaving `ScrollView(.horizontal)` ambiguous.
+`public init(_ axes: Axis.Set, elementID:content:)` on `ScrollView` and `ProposalScrollView`, `@_disfavoredOverload`; a stored `public var axes: Axis.Set` (SwiftUI's) replaces the stored `axis`, which is now a computed get/set over it: `.horizontal` for exactly `[.horizontal]`, `.vertical` for everything else (a two-axis scroller's PRIMARY axis is vertical, `XS-C`). `ScrollAxis` stays a closed enum. `ScrollView(.horizontal)` still resolves to `ScrollAxis` (stop condition 3 not triggered: guard `everySpellingOfTheScrollAxesCompilesFromAPlainImport`, mutation: `@_disfavoredOverload` removed), an array literal, a set value and `[]` to `Axis.Set`. `axes == [.horizontal]` or `[.vertical]` takes today's one-axis path byte for byte (`aOneAxisSetIsTheScrollerTheScrollAxisSpellingIs`: rects, hitbox fields, `NativeLayoutWork`). A stored property on a public type: `swift package clean` (`docs/migration.md`).
 
-## XS-B: kernel (planned, PR 2)
+## XS-B: kernel (built, PR 2)
 
-A both-axes case of the private native scroll viewport: content proposed `nil x nil`, the viewport answers the proposal on both axes. **The centring of small content is NOT ruled**: this probe read (0, 0) in an AppKit-backed scroller (L1b) against SCG2's (25, 35) in the layout probe; PR 2 re-measures before it rules.
+`LayoutTree.NativeNode.scrollViewport(axis:)` now holds a private `ScrollViewportAxes` (`horizontal`, `vertical`, `both`, `neither`); `newNativeScrollViewport(child:axis:)` maps to the first two (the memo signature tags 0 and 1 are the ones it always mixed) and the new `package` `newNativeScrollViewport(child:horizontal:vertical:)` reaches `both` (tag 2, content proposed `nil x nil`, the viewport answers its proposal on both axes and the content's answer where there is none) and `neither` (tag 3, `ScrollView([])`: the content is proposed the parent's proposal, placed at the viewport's size, probe `L3`). `LayoutPass.requestNativeScrollViewport(child:axis:)` is untouched. **Small content sits at (0, 0), not centred: `XS-P`.**
 
-## XS-C, XS-D: state and chrome per axis (planned, PR 2)
+## XS-C, XS-D: state and chrome per axis (built, PR 2)
 
-`ScrollState` keeps the vertical axis as the primary and gains a cross slot; one chrome core over `inout` slot fields, never copied; an indicator per axis with the shared corner shortened. `ScrollChrome.wheelOffset` is not used on the window path (the write is deliberately unbounded, the prepaint write-back is the clamp).
+`ScrollState` keeps `offset`, `viewportExtent`, `glide` and `anchor` as the primary slot (vertical for a two-axis scroller) and gains an internal `cross: ScrollAxisSlot` (the same four, horizontal); `lastScrollTime` stays shared. `ScrollChrome` gains `crossAxis`/`crossMirrored`, `crossChrome` (the horizontal axis as a one-axis chrome) and **one core**, `resolveSlot(offset:glide:anchor:viewportExtent:content:viewport:now:)` over the fields of a slot, called for the primary and, through `crossChrome`, for the cross slot: the glide step, the default anchor, the clamp and the write-back are one body (`resolvedOffsets`; `resolvedOffset` is its `.primary`). `translation(offset:cross:)` is the primary's plus `crossChrome`'s. The indicator is the numeric `paintIndicator` once per axis (`trackInset:` defaults to 0, so `CodeView` and every one-axis scroller are byte-identical); **where both thumbs show, each track stops `ScrollChrome.cornerInset` = 8 points short of the shared corner and the thumb and its travel are computed on the shortened track (`XS-T`)**. `ScrollChrome.wheelOffset` is not used on the window path (`XS-U`).
 
 ## XS-E: the hitbox carries what the wheel chain needs (built)
 
@@ -26,9 +26,19 @@ The plan was "split the components between scrollers, handlers see the remainder
 
 `ScrollLatch.lock: Axis?`: the dominant component (`|dy| >= |dx|` vertical, a tie vertical) of the first event of the scroll that carried a delta, kept through the momentum stage (A4, A4c, A5). **A phaseless event is decided by itself** (A3, A3c), not "never locked" as planned. **The lock applies to one-axis scrollers** (A8, A8b, A8c: a vertical-only scroller under an x-dominant gesture does not move; it reads the dominant component, not its own). `.onScrollWheel` handlers keep the raw event (R6). A plain SDL wheel is phaseless and so decided per event; SDL precise streams get synthesized phases and lock (checked in PR 3, Z9). Momentum is unmeasured (the synthetic momentum events moved nothing in the probe, M0): the lock through momentum follows the latch, not a reading.
 
-## XS-H..XS-M: context, scrollTo, anchor, scroll position, retained, accessibility (planned, PR 3)
+## XS-H..XS-M: context, scrollTo, anchor, scroll position, retained, accessibility (built, PR 3)
 
-As the plan, plus the probe's facts: T (anchor x/y per axis, `.top` centres x, nil is least distance per axis, T5), **T7: `scrollTo` a target inside a nested inner scroller moves ONLY the inner (the outer stays) in SwiftUI**, S5 (the `defaultScrollAnchor` pin is released PER AXIS), P1 (`scrollPosition(id:)` on row ids tracks y and ignores a dx-only wheel), R1 (right-to-left opens at the right edge, sign mirrored). A9 is unreadable here (legacy scrollers).
+**XS-H.** `ScrollContext` gains an internal `cross: ScrollAxisContext?` and `along(_:)`, `ScrollerFrame` an internal `cross: Cross?`, `isCross` and `along(_:)`: along a scroller's own axis they are `self`, along `.horizontal` a two-axis scroller answers the numbers of its cross slot as a horizontal frame, otherwise `nil`. `LazyLinePlanner.plan`/`prepaint`/`resolveScrollRequests` and the pinned views of `LazyVStack` read `along(their axis)`, so a `LazyVStack` windows on the vertical offset and a `LazyHStack` on the horizontal one inside the same scroller. `List` reads the primary (vertical) and needs no change. An anchor adjustment (`VL-G`) carries the slot (`noteScrollAnchorAdjustment(scroller:delta:cross:)`; **not pinned by a test**: a `LazyHStack` of variable columns in a two-axis scroller is not built as a fixture).
+
+**XS-I.** `resolveScrollRequest` resolves the primary axis as before and, for a two-axis scroller, the horizontal one by the same `scrollOffset(bringing:into:anchor:)` over `scroller.along(.horizontal)`; `applyScrollResolutions` lands each slot with one `land` (a glide under `withAnimation`, else the offset). `.top` centres x (T3), no anchor is the least distance per axis (T4, T5). **A target inside a nested scroller moves the nearest one only (T7)**: `activeScrollerFrame` is already the nearest, so nothing changed; the "nearest per axis" of the plan is refuted.
+
+**XS-J.** The cross slot has its own `ScrollAnchorMemory` and runs the same `anchoredOffset` through `crossChrome`; `layoutFollowsEnd(memory:raw:)` is per slot and published in `ScrollContext.cross`. The pin releases per axis (S5): a wheel on x leaves the y pin following (`defaultScrollAnchorWorksPerAxisInATwoAxisScroller`). `DSA-E` applies per slot.
+
+**XS-K.** `scrollPosition(id:)` tracks the primary (vertical) axis because `ScrollerFrame.axis` is vertical; `Window.scroll` reports `didScroll` for the primary slot only, so a dx-only wheel leaves the binding alone (P1).
+
+**XS-L.** `PrepaintExtras.scroller` gains indices 10 (the cross offset) and 11 (the cross content extent), always appended (0, 0 for a one-axis scroller); `zeroScrollOffsets()` sets aside indices 7 and 10 at the three sites that compared the vector. A diagonally scrolled settled card replays translated (`aDiagonallyScrolledTwoAxisScrollerReplaysItsCardsTranslated`). `Hitbox.fingerprint` already carried `scrollAxes`/`scrollTakes`/`scrollRoom` (PR 1).
+
+**XS-M.** MetalUI exposes no scroll area or scroll action to accessibility, and two-axis adds none; the absence is carried.
 
 ## XS-N: Markdown defaults (recommendation, belongs to `BM-`)
 
@@ -37,3 +47,31 @@ Keep `codeWraps = true` (a streaming long line keeps its tail visible); flip `ta
 ## XS-O: the instrument
 
 Events go through `NSWindow.sendEvent` from `CGEvent` scroll events, the window at the screen origin (`NSEvent(cgEvent:)` has no window and a screen-based location); D0 shows `sendEvent` and `hitTest` delivery agree. Momentum events cannot be delivered this way (M0), and the thumbs are always visible on a legacy-scroller machine (A9).
+
+## XS-P: small content in a two-axis viewport sits at the leading corner (built, PR 2; re-measured)
+
+The probe's L1b read (0, 0) against `swiftui-stack-algorithms.swift` SCG2's (25, 35). PR 2 re-measured in the hosted-window harness of this probe, three framings: `L1e` (`.frame(100x100)` in a 300x300 window, coordinate space outside), `L1f` (a 100x100 window, coordinate space on the scroll view) and `L1g` (the document view's frame in WINDOW space, i.e. pixels): content in the scroll view (0, 0) in all three and the document view at the viewport's top-left corner (50x30); the single-axis controls in the same arms read (25, 0) vertical and (0, 35) horizontal (the viewport narrower than its `.frame`, centred by the frame: the existing SC2 pins). **Ruled: (0, 0), not centred.** SCG2's (25, 35) is a layout-harness reading of the same SwiftUI that paints at the corner here; the pixels are what a user sees. Kernel pin: `aTwoAxisViewportProposesNothingToItsContentAndAnswersTheProposalOnBothAxes`. No divergence (the pixels agree).
+
+## XS-Q: `ScrollView([])` (built, PR 2)
+
+Nothing scrolls: the viewport is the `neither` node (`XS-B`), the content is sized to the viewport (probe `L3`: a 500x500 child reads 300x300), the scroller registers no scroll region (so a wheel over it passes on, **a stated assumption**: the probe read that the wheel moves nothing, not whether SwiftUI's empty `NSScrollView` swallows it) and paints no thumb. `aViewportWithNoAxesSizesItsContentToTheViewport`.
+
+## XS-R: the lock through momentum (assumption)
+
+`ScrollLatch.lock` is kept through the momentum stage (XS-G): momentum events cannot be delivered in the probe (M0, A6, A6b, N10). Not measured; human check `XS8`.
+
+## XS-S: the thumbs of a two-axis scroller (assumption)
+
+One `lastScrollTime` stamp lights both thumbs. Whether SwiftUI flashes only the axis that moved (A9) is unreadable on a legacy-scroller machine (both always visible). Not measured; human check `XS7`.
+
+## XS-T: indicator geometry (MetalUI's own choice)
+
+The system draws SwiftUI's thumbs; MetalUI's is drawn. Where both axes scroll each track is shortened by 8 points at the shared corner (`ScrollChrome.cornerInset`), the thumb is `max(20, track * viewport/content)` and the travel `offset/scrollable * (track - thumb)` on that track; with one scrollable axis the track is the viewport and the formulas are the one-axis ones, byte for byte. `aTwoAxisScrollerPaintsOneThumbPerAxisWithTheCornerInset`.
+
+## XS-U: the window path does not use `ScrollChrome.wheelOffset` (ruling)
+
+`Window.scroll` writes `offset -= delta` with no bound on either slot and the prepaint write-back is the clamp (`resolveSlot` for both), as for one axis: `wheelOffset` needs a maximum the window does not have (pinned by `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`, `aProposalScrollViewClampsAStoredOffsetPastTheEndAndWritesItBack`, and for the cross slot `aTwoAxisScrollerMovesEachAxisAndClampsAndWritesBackBoth`).
+
+## XS-F addendum (PR 2): the two-axis scroller swallows at its edge (built)
+
+`PrepaintPass.registerScrollRegion(_:id:axis:chrome:offset:cross:contentSize:)` declares a two-axis region with `scrollAxes` both, `scrollTakes` the axes whose content exceeds the viewport and `scrollRoom` open BOTH ways on each taken axis, so it never passes a wheel up at its edge (probe `N9c`-`N9f`) but does when the content fits on the wheel's axis (capability). `aTwoAxisScrollerSwallowsTheWheelAtItsEdgeAndAFittingOneLetsItThrough`. `Window.dispatchScrollChain` takes the wheel when `region.scroll == axis || region.scrollAxes.contains(axis)`, and `scroll(_:by:along:)` writes the slot the wheel's axis names (the primary slot for the primary axis and for an all-zero event, `cross` otherwise).

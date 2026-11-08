@@ -591,10 +591,24 @@ public final class LayoutTree {
     /// scroll offset during prepaint and paint.
     public func newNativeScrollViewport(child: LayoutNodeID,
                                         axis: ProposalStackAxis) -> LayoutNodeID {
+        newNativeScrollViewport(child: child, axes: axis == .horizontal ? .horizontal : .vertical)
+    }
+
+    /// The viewport of a scroller that scrolls on `horizontal` and `vertical` (`XS-B`). One axis registers exactly the
+    /// node `newNativeScrollViewport(child:axis:)` does (its signature and measurements do not move); BOTH propose the
+    /// content `nil x nil`, answer the proposal on both axes (a nil proposal: the content's answer) and place the content at
+    /// the viewport's origin at its own answer: small content sits at the leading corner, probe `L1b`, `L1e`-`L1g`. Neither
+    /// axis is a one-axis viewport with nothing to scroll: it proposes the viewport's proposal on both (`ScrollView([])`).
+    package func newNativeScrollViewport(child: LayoutNodeID, horizontal: Bool, vertical: Bool) -> LayoutNodeID {
+        newNativeScrollViewport(child: child, axes: horizontal && vertical ? .both : horizontal ? .horizontal
+                                : vertical ? .vertical : .neither)
+    }
+
+    private func newNativeScrollViewport(child: LayoutNodeID, axes: ScrollViewportAxes) -> LayoutNodeID {
         _ = nativeNode(child)
         let id = appendNode(children: [child])
         recordParent(id, of: [child])
-        nativeNodes[id.index] = .scrollViewport(axis: axis)
+        nativeNodes[id.index] = .scrollViewport(axis: axes)
         return id
     }
 
@@ -1243,9 +1257,10 @@ public final class LayoutTree {
             let child = children(id)[0]
             let childProposal = scrollContentProposal(for: axis, parent: proposal)
             let measurement = measureNative(child, proposal: childProposal, run: run)
+            // `ScrollView([])` (probe `L3`): nothing scrolls, so the content is the viewport's size, not its own.
+            let size = axis == .neither ? SizeD(width: bounds.width, height: bounds.height) : measurement.size
             place(child,
-                  LayoutRect(x: bounds.x, y: bounds.y,
-                             width: measurement.size.width, height: measurement.size.height),
+                  LayoutRect(x: bounds.x, y: bounds.y, width: size.width, height: size.height),
                   childProposal)
         case .linearStack(let axis, let spacing, let alignment, let baseline):
             // CN-E: at a nil cross proposal the stack reports its first-pass
@@ -1340,10 +1355,12 @@ public final class LayoutTree {
         }
     }
 
-    private func scrollContentProposal(for axis: ProposalStackAxis, parent: ProposedSize) -> ProposedSize {
+    private func scrollContentProposal(for axis: ScrollViewportAxes, parent: ProposedSize) -> ProposedSize {
         switch axis {
         case .horizontal: ProposedSize(width: nil, height: parent.height)
         case .vertical: ProposedSize(width: parent.width, height: nil)
+        case .both: ProposedSize(width: nil, height: nil)
+        case .neither: parent
         }
     }
 
@@ -1351,7 +1368,7 @@ public final class LayoutTree {
     /// the scrolling axis (`resolvedViewportDimension`), and the CONTENT's
     /// answer on the other — SC2 `.vertical` over 50×30 at 100×100 answers
     /// 50×100, SC4 over 500×500 answers 500×100.
-    private func scrollViewportSize(axis: ProposalStackAxis, proposal: ProposedSize, content: SizeD) -> SizeD {
+    private func scrollViewportSize(axis: ScrollViewportAxes, proposal: ProposedSize, content: SizeD) -> SizeD {
         switch axis {
         case .vertical:
             SizeD(width: content.width,
@@ -1359,6 +1376,9 @@ public final class LayoutTree {
         case .horizontal:
             SizeD(width: resolvedViewportDimension(proposal.width, content: content.width),
                   height: content.height)
+        case .both, .neither:   // `XS-B`: the proposal on both axes, the content's answer where there is none (probe `L1a`, `L2a`, `L2b`, `L3`)
+            SizeD(width: resolvedViewportDimension(proposal.width, content: content.width),
+                  height: resolvedViewportDimension(proposal.height, content: content.height))
         }
     }
 
@@ -2038,6 +2058,9 @@ public struct ProposalAnchor: Sendable, Hashable {
     }
 }
 
+/// The axes a scroll viewport node scrolls on (`XS-B`): the two one-axis cases are the node it always was.
+private enum ScrollViewportAxes: Equatable { case horizontal, vertical, both, neither }
+
 private enum NativeNode {
     case leaf(ProposalMeasureFunction)
     case overlay(alignment: ProposalAlignment)
@@ -2050,7 +2073,7 @@ private enum NativeNode {
     case aspectRatio(ratio: Double?, contentMode: AspectRatioContentMode)
     case layoutPriority(Double)
     case spacer(minLength: Double)
-    case scrollViewport(axis: ProposalStackAxis)
+    case scrollViewport(axis: ScrollViewportAxes)
     /// `spacing` nil is the platform default, decided per pair (CN-H).
     case linearStack(axis: ProposalStackAxis, spacing: Double?, alignment: ProposalAlignment,
                      baseline: ProposalTextBaseline?)
@@ -2450,7 +2473,13 @@ extension LayoutTree {
             case .vertical?: h.mix(2)
             }
         case .scrollViewport(let axis):
-            h.mix(10); h.mix(axis == .horizontal ? 0 : 1)
+            h.mix(10)
+            switch axis {   // `XS-B`: the two one-axis tags are the ones the viewport has always mixed
+            case .horizontal: h.mix(0)
+            case .vertical: h.mix(1)
+            case .both: h.mix(2)
+            case .neither: h.mix(3)
+            }
             guard mixChildren(&h, children, signatures) else { return nil }
         case .linearStack(let axis, let spacing, let alignment, let baseline):
             h.mix(11); h.mix(axis == .horizontal ? 0 : 1); h.mix(spacing); h.mix(alignment.signatureTag)

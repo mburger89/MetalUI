@@ -395,14 +395,14 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
 /// **Test 14** (`RW-C`): every `withState(` call in `Sources/MetalUI` is spelled plain, with `unchanged:` or as a `readState`,
 /// and the count per file equals the table below (spec §2), so a new framework site must choose one of the three. The first
 /// number is the plain `withState`s, the second the compared ones, the third the `readState`s, the fourth the seeding `mark(_:seeding:)`
-/// calls (`FV-B`: a bind that creates an entry is neither a write nor a read; `State.swift` has the one, `State.bind`).
+/// calls (`XS-D`: `ScrollChrome` reads the scroll state in paint three times, the thumbs' stamp, the primary offset and the two-axis scroller's cross offset, and writes it once, compared; `FV-B`: a bind that creates an entry is neither a write nor a read; `State.swift` has the one, `State.bind`).
 /// Comment lines and the declarations in `Passes.swift`/`StateTable.swift` are not call sites. **Mutation:** a plain `withState(` added to any file (or a conversion
 /// reverted) moves that file's row; a second `mark(_, seeding:)` in any file moves the `seeds` column.
 @Test func everyStateWriteSiteIsClassified() throws {
     let expected: [String: (plain: Int, compared: Int, reads: Int, seeds: Int)] = [
         "AnimatedColor.swift": (2, 0, 0, 0), "AnimatedStyle.swift": (2, 0, 0, 0), "FocusState.swift": (1, 0, 0, 0),
         "Frame.swift": (5, 0, 0, 0), "LazyCore.swift": (0, 1, 0, 0), "LazyGrid.swift": (0, 1, 0, 0), "List.swift": (3, 2, 0, 0), "ProposalScrollView.swift": (0, 0, 1, 0),
-        "ScrollChrome.swift": (0, 1, 2, 0), "ScrollPosition.swift": (0, 0, 1, 0), "ScrollView.swift": (0, 0, 1, 0), "TestingHooks.swift": (1, 0, 0, 0),
+        "ScrollChrome.swift": (0, 1, 3, 0), "ScrollPosition.swift": (0, 0, 1, 0), "ScrollView.swift": (0, 0, 1, 0), "TestingHooks.swift": (1, 0, 0, 0),
         "State.swift": (0, 0, 0, 1),
         // `CodeView` (`CV-W`): the wheel's plain write and the session's one are input; the prepaint's is compared; the plan reads the
         // scroll fade and the caret's blink epoch in paint (`CV-AC`), and an autoscroll's offsets are computed from input's state (`CV-AD`), written nowhere in a phase.
