@@ -214,7 +214,7 @@ public struct CodeView: Element, StyledElement {
             handlers.contextual = ContextualAttachment(locatedMenu: { [plan] point in
                 if let point, let hit = plan.gutterHit(at: point) { return menu(hit) }
                 return existing?.menu?(point) ?? MenuItems([])
-            }, help: existing?.help)
+            }, help: existing?.help, helpProvider: existing?.helpProvider)
         }
         let caret = plan.caretPosition()
         let scaleF = frame.scaleFactor
