@@ -111,14 +111,14 @@ private let modes: [Bool] = [true, false]
 }
 
 /// Writing `false` while the menu is open closes it. Mutation: the close branch of `reconcileMenuBindings` removed.
-@Test(arguments: modes) @MainActor func writingFalseDismissesAnOpenMenu(native: Bool) throws {
+@Test(arguments: modes) @MainActor func writingFalseDismissesAnOpenMenu(native: Bool) async throws {
     let m = ComposerModel()
     let w = try window(native) { composer(m) }
     try w.click(w.element(label: "Slash"))
     #expect(try isOpen(w, native: native))
     let token = native ? w.presentedMenu?.token : nil
     m.open = false
-    w.tick()
+    try await w.runUntilIdle()   // an external write reaches the window on the next turn off Apple
     #expect(try !isOpen(w, native: native))
     if native {
         #expect(w.platformWindow.dismissedPresentations.contains(try #require(token)), "the platform was told")
@@ -145,7 +145,7 @@ private let modes: [Bool] = [true, false]
 
 /// A menu in a `ViewThatFits` candidate: the chosen one opens, an unchosen one with its binding `true` does not.
 /// Mutation: no `fitNotes` entry in `notePresentation` for the menu's record (the second expectation).
-@Test(arguments: modes) @MainActor func aMenuInAViewThatFitsCandidateStillWorks(native: Bool) throws {
+@Test(arguments: modes) @MainActor func aMenuInAViewThatFitsCandidateStillWorks(native: Bool) async throws {
     let m = ComposerModel()
     let other = ComposerModel()
     let w = try window(native, size: sz(300, 100)) {
@@ -158,7 +158,7 @@ private let modes: [Bool] = [true, false]
         }
     }
     other.open = true
-    w.tick()
+    try await w.runUntilIdle()
     #expect(try !isOpen(w, native: native), "the unchosen candidate's menu does not open")
     #expect(other.open && other.writes.isEmpty, "its binding is left alone: no open was attempted, none written back")
     try w.click(w.element(label: "Slash"))
@@ -190,7 +190,7 @@ private let modes: [Bool] = [true, false]
 }
 
 /// The `Menu` leaving the tree while its menu is open closes it and writes `false`.
-@Test(arguments: modes) @MainActor func aMenuThatLeavesTheTreeIsClosed(native: Bool) throws {
+@Test(arguments: modes) @MainActor func aMenuThatLeavesTheTreeIsClosed(native: Bool) async throws {
     let m = ComposerModel()
     let shown = ComposerModel()
     shown.open = true
@@ -203,7 +203,7 @@ private let modes: [Bool] = [true, false]
     try w.click(w.element(label: "Slash"))
     #expect(try isOpen(w, native: native))
     shown.open = false
-    w.tick()
+    try await w.runUntilIdle()
     #expect(try !isOpen(w, native: native))
     #expect(!m.open)
 }
