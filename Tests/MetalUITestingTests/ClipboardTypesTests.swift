@@ -241,6 +241,9 @@ private let primary: EventModifiers = .control
 
 /// 1.8 — a focused text field keeps its own copy, cut and paste under a `copyable` ancestor
 /// (`CB-M`; `TI-D` unmoved). Mutation: order the stage before `dispatchTextKey`.
+/// **Amended by `CB-T`:** the ancestor's destination was for `Graph`, which imports the text type too, so since a
+/// destination is offered ⌘V first it would take the text; it now imports `Blob` (not on the clipboard, so it
+/// declines and the field pastes). `PasteDestinationBeforeFieldTests` pins the new order.
 @Test @MainActor func aFocusedTextFieldKeepsItsOwnCopyCutPasteUnderACopyableAncestor() throws {
     let m = ClipboardModel()
     m.text = "abc"
@@ -249,7 +252,7 @@ private let primary: EventModifiers = .control
             TextField("", text: m.text) { m.text = $0 }.frame(width: Pixels(200), height: Pixels(24))
         }
         .copyable([m.graph])
-        .pasteDestination(for: Graph.self) { m.pasted.append($0) }
+        .pasteDestination(for: Blob.self) { _ in m.pasted.append([]) }
     }
     window.typeKey(.tab)
     window.typeKey("a", modifierFlags: primary)

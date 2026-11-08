@@ -115,6 +115,7 @@ F	text-modifiers	A	swiftui-text-semantics.swift	L1	aLineLimitCapsLinesAndAnswers
 F	text-input	M	-	-	-	-	TI-A TI-B TI-D TI-G TI-H	TextField/TextEditor controlled initialisers, submit, undo, paging: MetalUI's own text-input surface
 F	text-selection	A	swiftui-text-selection.swift	W1	aTextSelectionHasSwiftUIsThreeShapes	265 266	SL-A SL-B SL-C SL-D SL-E SL-F SL-G SL-L	TextSelection (indices, isInsertion, init(range:)/(insertionPoint:)/(ranges:)) and TextField/TextEditor(_:text:selection:) over Binding<TextSelection?>: SwiftUI's spellings, macOS 15 like SwiftUI (SL-L); a write is applied on the next frame, nil is ignored, stale indices clamp, multi-selection acts on its first range (arms C P R W F S); the focus defaults and the write at focus/resign differ (265, 266)
 F	text-selection-controlled	M	-	-	-	-	SL-A	The controlled spellings of the selection binding (selection: value plus onChange/onSelectionChange), beside the controlled text initialisers (DD-E's pattern): MetalUI-only
+F	text-selection-offsets	M	-	-	-	-	SL-Q	TextField/TextEditor(_:text:selectedOffsets:) over Binding<Range<Int>?>: the selection binding as Character offsets, on macOS 14 where TextSelection (RangeSet, macOS 15) is not; MetalUI-only; the same two-way echo-free rules as the TextSelection binding
 F	text-input-binding	M	-	-	-	-	DD-E	TextField(_:text:)/TextEditor(_:text:) over Binding<String>, forwarding to the controlled initialisers; MetalUI-only evidence: no probe arm exercises TextField(text:)/TextEditor(text:) (data-and-scrolling's B4 is a Binding built outside any view), so the forwarding is pinned by aTextFieldBoundToStateUpdatesItOnEveryEdit alone; the Binding surface itself is the binding family's (B4/B5)
 F	shapes	A	swiftui-shapes-and-rendering.swift	S1	everyBuiltInShapeAnswersItsProposalAndACircleTheSmallerSquare	90	TE-AC TE-AG TE-AH TE-AE	Shape/ShapeGeometry/Rectangle/RoundedRectangle/Circle/Capsule/Ellipse/ShapeView/.fill/.stroke/.strokeBorder; continuous corners drawn as SwiftUI's curve (CC-); a continuous clip is still circular (90)
 F	clip-shape	A	swiftui-shapes-and-rendering.swift	C3	clippedAndCornerRadiusClipOnTheProposalPath	224	TE-AJ CM-A CM-B	.clipShape/.clipped/.cornerRadius/.clip on proposal content: one clip layer; an ellipse, path or crossing clip is a masked group (91); crossing rounded clips square (92)
@@ -176,6 +177,7 @@ F	drop-delegate-surface	D	swiftui-drop-delegate.swift	F8	theOuterOfTwoDropModifi
 F	drop-delegate-seam	M	-	-	-	-	DE-H	PlatformWindow.setDropOperation(_:) (defaultless) and PlatformDropOperation (none, copy, move): what the window tells the platform a drag over it would do; AppKit answers its NSDragOperation from it, SDL ignores it, the headless window records it
 F	context-menus	A	swiftui-menus-popovers.swift	C1	aRightPressOverAContextMenuPresentsItsItemsToThePlatform	110 114	MN-B MN-C MN-D MN-E MN-F MN-U MN-V MN-AE	.contextMenu on both vocabularies (ContextualModifier) and the closed MenuContent vocabulary (Button/Toggle/Menu/Divider/Text items, MenuContentBuilder, MenuItems, Menu's declaration): a native NSMenu or a drawn in-window menu, evaluated at each open; a secondary press only opens menus (110); a painted cover does not block (114)
 F	menu-bar	A	swiftui-commands.swift	PLAIN	theDefaultMenuBarHasTheStandardMenus	-	MN-I MN-J MN-K MN-X MN-AA MN-AF	App.commands(content:) with CommandMenu/CommandGroup/CommandGroupPlacement/CommandsBuilder/CommandItems and Platform.setMenuBar/PlatformMenuBar: the standard menus as NSApp.mainMenu on AppKit (Edit items reach the focused field as its keys), on SDL setMenuBar answers false and every window draws a 25-point bar above the toolbar strip (divergence 195, SG-A); a command's shortcut fires after the window's own stages, once
+F	menu-is-presented	M	-	-	-	-	MN-AK	Menu(isPresented:content:label:), Menu(_:isPresented:content:) (both title spellings) and .menuPresented(_:) (Alloy gap G9, record 241): open a Menu from code with the same anchor and native-or-drawn path as a click on its label; writing true from input opens it after the frame, any dismissal writes false, writing false closes it; MetalUI-only, SwiftUI has no way to open a Menu from code
 F	pull-down-menu	A	swiftui-menus-popovers.swift	M1	aPullDownMenuPublishesAsAMenuButtonAndOpensBelowItself	-	MN-H MN-AD MN-AF	Menu("Title") { } as a view: Button's chrome and keys opening its items at its bottom-leading corner (native on AppKit, the drawn panel elsewhere), published as a menu button
 F	popovers	A	swiftui-menus-popovers.swift	P1	thePopoverSitsOnItsArrowEdgeOfTheAnchor	111 112	MN-L MN-M MN-N MN-O MN-X MN-Y MN-Z MN-AG	.popover(isPresented:arrowEdge:content:) and .popover(item:arrowEdge:content:) on both vocabularies (PopoverModifier, one identity level): anchored to the wrapped element, on arrowEdge's side (nil is .top, P7), flipped and clamped inside the window (111), no arrow (112); an outside press dismisses and passes on, the anchor's is consumed, Escape before the keymap; a non-modal .popover node
 F	help	A	swiftui-menus-popovers.swift	H1	helpPublishesTheSameTreeAsAccessibilityHint	113	MN-P MN-U MN-V MN-AG	.help(_:) on both vocabularies: accessibilityHint's declaration (H1-H5) plus a tooltip drawn by the window after 1.0 s of display-link time (113)
@@ -581,6 +583,8 @@ M	MetalUI	TextField.swift	TextField	init	.*onSelectionChange.*	text-selection-co
 M	MetalUI	TextEditor.swift	TextEditor	init	.*onSelectionChange.*	text-selection-controlled
 M	MetalUI	TextEditor.swift	TextEditor	init	.*Binding<TextSelection\?>.*	text-selection
 M	MetalUI	TextField.swift	TextField	init	.*Binding<TextSelection\?>.*	text-selection
+M	MetalUI	TextField.swift	TextField	init	.*selectedOffsets.*	text-selection-offsets
+M	MetalUI	TextEditor.swift	TextEditor	init	.*selectedOffsets.*	text-selection-offsets
 M	MetalUI	TextFieldStyle.swift	.*	.*	.*	field-style
 M	MetalUI	TextEditor.swift	TextEditor	textEditorStyle	.*	field-style
 M	MetalUI	TextField.swift	TextField	textFieldStyle	.*	field-style
@@ -676,6 +680,7 @@ M	MetalUI	Transferable.swift	.*	.*	.*	transferable
 M	MetalUI	DragAndDrop.swift	.*	.*	.*	drag-and-drop
 M	MetalUI	ContextMenu.swift	(StyledElement|ProposalElementGroup)	contextMenu	.*Point<Pixels>[?].*	input-apis-gestures-metalui
 M	MetalUI	ContextMenu.swift	.*	.*	.*	context-menus
+M	MetalUI	MenuIsPresented.swift	.*	.*	.*	menu-is-presented
 M	MetalUI	MenuContent.swift	.*	.*	.*	context-menus
 M	MetalUI	DividerView.swift	Divider	(Layout|requestProposalLayout|prepaint|paint)	.*	divider-view
 M	MetalUI	SplitView.swift	-	(HSplitView|VSplitView)	.*	split-view

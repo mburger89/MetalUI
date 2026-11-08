@@ -2675,7 +2675,13 @@ public final class Window {
 
     /// The open menu — native or in-window — or `nil` (`MN-C`, `MN-F`). On
     /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
-    var menuSession: MenuSession?
+    var menuSession: MenuSession? {
+        didSet { menuSessionDidChange(from: oldValue) }   // MN-AK: a code-driven menu's binding
+    }
+
+    /// `reconcileMenuBindings` is running (`MN-AK`): a native menu's `popUp` is modal, and a frame the platform
+    /// builds inside it must not open the same menu again.
+    var reconcilingMenuBindings = false
 
     // MARK: Presentations and hover (platform services, `SV-K`, `SV-N`)
 
@@ -3648,6 +3654,9 @@ public final class Window {
     private func dispatchTextKey(_ event: InputEvent) -> Bool {
         guard case .keyDown(let key) = event, let id = focusedElement,
               let target = lastFocusRegistry.textTarget(for: id) else { return false }
+        // A paste destination on the chain is offered ⌘V first (`CB-T`): an image-only clipboard
+        // would otherwise find the field's text paste and never reach it.
+        if offerPasteToDestinationBeforeTheField(event) { return true }
         if let session = target.codeSession {
             let outcome = StateDispatch.dispatching(to: id) {   // ID-F: the edited code view
                 session.key(key, clipboard: { [platformWindow] in platformWindow.readClipboard() })

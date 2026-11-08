@@ -153,6 +153,23 @@ extension Window {
         return false
     }
 
+    /// ⌘V on a focused text field or editor, offered to the innermost `pasteDestination` on the
+    /// focus chain (the field's own, or an ancestor's) **before** the field pastes its text
+    /// (ruling `CB-T`): `true` when the destination ran, and the field then does nothing; `false`
+    /// when there is none or it declined (nothing it imports, or its validator emptied the list),
+    /// and the field pastes text as before. The same walk and `ClipboardAttachment.paste` as
+    /// `dispatchClipboardKey`'s ⌘V, which a text field's own paste reached too late to matter.
+    func offerPasteToDestinationBeforeTheField(_ event: InputEvent) -> Bool {
+        guard case .keyDown(let key) = event, lastFocusRegistry.clipboardRegionCount > 0,
+              key.modifiers == .primary, key.charactersIgnoringModifiers.lowercased() == "v" else { return false }
+        for id in focusChain {
+            guard let paste = lastFocusRegistry.clipboardHandler(for: id)?.paste else { continue }
+            let items = clipboard.items
+            return StateDispatch.dispatching(to: id) { paste(items) }
+        }
+        return false
+    }
+
     /// What the focus chain can do with the clipboard now (`CB-G`).
     var chainClipboardCommands: ClipboardCommands {
         var result: ClipboardCommands = []

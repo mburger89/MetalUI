@@ -26,6 +26,12 @@ struct ContextMenuRecord {
     let bounds: Bounds<Pixels>
 }
 
+/// A code-driven `Menu`'s binding and the element it was declared by (`MN-AK`).
+struct PullDownBinding {
+    let owner: GlobalElementID
+    let isPresented: Binding<Bool>
+}
+
 /// The window's open menu (`MN-C`, `MN-F`).
 struct MenuSession {
     /// One open level of an in-window menu: the root, then each open submenu.
@@ -171,6 +177,10 @@ struct MenuSession {
     /// and ← and → on a level with nothing to enter or leave, switch to that
     /// menu.
     var barIndex: Int?
+    /// The code-driven `Menu` (`MN-AK`) this is the pull-down of, with the binding it keeps in step; `nil` for
+    /// any other menu. When the session ends or another menu replaces it, `Window.menuSessionDidChange` writes
+    /// the binding `false`.
+    var pullDownBinding: PullDownBinding?
 
     /// The numbered items of `nodes` (`MN-C`): ids depth-first from `next`,
     /// every item disabled when `enabled` is false (C9), each action recorded

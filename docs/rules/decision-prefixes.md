@@ -13,7 +13,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Z`), `MN-` (menus, popovers, tooltips:
-  `2026-10-02-menus-popovers-decisions.md`, next `MN-AK`), `CR-` (colour, colour scheme, palette:
+  `2026-10-02-menus-popovers-decisions.md`, next `MN-AL`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AD`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AQ`), `PE-` (controls in
@@ -40,7 +40,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
   `2026-10-10-backdrop-blur-decisions.md`, next `BB-U`), `WD-` (window drag:
   `2026-10-12-window-drag-decisions.md`, next `WD-L`), `SL-` (text selection:
-  `2026-10-12-text-selection-decisions.md`, next `SL-O`), `GT-` (text over a GPU surface:
+  `2026-10-12-text-selection-decisions.md`, next `SL-R`), `GT-` (text over a GPU surface:
   `2026-10-12-surface-text-decisions.md`, next `GT-J`), `GC-` (continuing press cancel:
   `2026-10-12-continuing-press-cancel-decisions.md`, next `GC-H`), `RF-` (resign on press:
   `2026-10-12-resign-on-press-decisions.md`, next `RF-J`), `MT-` (material follow-ups:
@@ -57,7 +57,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
   `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-T`), `CB-` (clipboard beyond text:
-  `2026-10-14-clipboard-types-decisions.md`, next `CB-T`), `IC-` (image cursors, headless SDL launch:
+  `2026-10-14-clipboard-types-decisions.md`, next `CB-U`), `IC-` (image cursors, headless SDL launch:
   `2026-10-14-cursors-headless-decisions.md`, next `IC-S`), `IH-` (header-only image read and bounded decode:
   `2026-10-14-image-info-decisions.md`, next `IH-Q`), `PN-` (pan path rasters:
   `2026-10-14-pan-rasters-decisions.md`, next `PN-L`), `PA-` (layout and build allocations:

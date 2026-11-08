@@ -1,7 +1,7 @@
 # Clipboard beyond text — decisions
 
 Rulings for item S3 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**),
-MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-T`.**
+MetalCreator's SDL-port gap 7. Prefix `CB-`. **Next unused: `CB-U`.**
 Spec: [`specs/2026-10-14-clipboard-types-design.md`](specs/2026-10-14-clipboard-types-design.md).
 Record: `../record/115-clipboard-types.md` (Record phase). Branch `feat/clipboard-types` from
 `fb9a7e42`. Divergence labels reserved 455–464: **455 taken** (`CB-G`), **456 taken** (`CB-C`).
@@ -317,3 +317,26 @@ documentation (as `Window.clipboard`): the value cannot tell a phase from an act
 error, not blocked.
 **Cost if wrong.** A phase that writes the clipboard does so every frame. If a custom environment key is ever refused
 by a retained position, this stamp would too; `theEnvironmentClipboardDoesNotBreakEquatableReplay` reddens first.
+
+## CB-T — ⌘V in a focused text field is offered to a paste destination first
+
+**Question (Alloy G10).** `dispatchTextKey` (the focused field's editing keys, `TI-B`) runs before
+`dispatchClipboardKey` (`CB-B`), and a `TextEditor`'s ⌘V handles the key itself, so an image-only clipboard never reached a
+`pasteDestination` on the editor or its container; the key was consumed by a text paste of nothing.
+**Measured.** SwiftUI's order was not measured: a pasteboard-less `NSHostingView` probe cannot say which of a field's own
+paste and a `pasteDestination` runs first with a real pasteboard, and the screen-locked `CB-` arm R never ran. Recorded as
+MetalUI's rule, no divergence label.
+**Ruling.** `Window.offerPasteToDestinationBeforeTheField` (in `ClipboardModifiers.swift`; `Clipboard.swift` untouched)
+walks the focus chain exactly as `dispatchClipboardKey`'s ⌘V does (primary alone, the innermost attachment that has a
+`paste`) and runs it from `dispatchTextKey` before the field's own handling, a code view's included. Accepted (`true`):
+the key is consumed and the field does nothing. Declined (`false`, nothing it imports or the validator emptied the list,
+`CB-F`) or no destination: the field pastes text as before, and an image-only clipboard with no text pastes nothing. Only
+the innermost destination is asked (`CB-P`). **Cost**: a field under a `pasteDestination` reads the clipboard's items on
+every ⌘V (one read; a field without a destination is as before).
+**Amends `CB-M`:** a focused field's own paste no longer always beats an ancestor's `pasteDestination`: a destination whose
+type imports the text type (`Graph`, a `String` destination) takes a text clipboard; `ClipboardTypesTests`'
+`aFocusedTextFieldKeepsItsOwnCopyCutPasteUnderACopyableAncestor` (1.8) now uses a destination for `Blob`, which declines.
+Copy and cut are unchanged (the field's own). Pinned by `anImageOnlyClipboardReachesThePasteDestinationOfAFocusedField` (editor, container, field),
+`aPngOnTheClipboardReachesAnImageDataDestinationOfAFocusedEditor`,
+`aTextClipboardPastesTextWhenTheDestinationImportsNothingOnIt`, `aClipboardWithBothPrefersTheDestinationThatAccepts`,
+`aDeclinedPasteFallsThroughToTheFieldsText`, `aFieldWithNoDestinationStillPastesText`.
