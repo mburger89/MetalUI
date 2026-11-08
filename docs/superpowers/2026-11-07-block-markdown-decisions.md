@@ -71,5 +71,19 @@ A heading is `.accessibilityAddTraits(.isHeader)` (role `.heading`, label the te
 
 ## BM-J: carried, not in v1
 
-Link reference definitions and reference links, HTML blocks, task-list checkboxes, footnotes and math (`BM-B`); text selection across blocks (static `Text` has none on master; carried to whatever adds `textSelection`); a copy accessory on code blocks (the app wraps `MarkdownBlockView` for `.codeBlock` and copies `code`; a built-in accessory closure would make the view uncomparable); the heading level in the accessibility tree (no API); a keyed leaf for rich `Text`, so the unchanged rich blocks of a streaming reply stop being re-measured (`BM-E`; owes a key, a covering test and `METALUI_VERIFY_LAYOUT_MEMO=1`); a horizontal scroller that passes a vertical wheel on (`BM-H`); a table role in the accessibility tree.
+Link reference definitions and reference links, HTML blocks, task-list checkboxes, footnotes and math (`BM-B`); text selection across blocks (static `Text` has none on master; carried to whatever adds `textSelection`); a copy accessory **closure** on code blocks (a closure would make the view uncomparable; the built-in button is `BM-K`, and an app that wants its own still wraps `MarkdownBlockView` for `.codeBlock`); the heading level in the accessibility tree (no API); a keyed leaf for rich `Text`, so the unchanged rich blocks of a streaming reply stop being re-measured (`BM-E`; owes a key, a covering test and `METALUI_VERIFY_LAYOUT_MEMO=1`); a horizontal scroller that passes a vertical wheel on (`BM-H`); a table role in the accessibility tree.
 
+
+## BM-K: the code fence copy button
+
+**Question.** Alloy wants a copy affordance on each fence without wrapping `MarkdownBlockView` (`BM-J` carried it, because
+a closure on the view is uncomparable).
+**Ruling.** `MarkdownTheme.showsCodeCopyButton: Bool`, default `false`: a theme value, so the fence stays `.equatable()`
+over stored values (`BM-G`). When on, each fence, nested in a list or quote or not, shows an `Image(systemName:
+"doc.on.doc")` at its top trailing corner, an **overlay** (it changes neither the fence's size nor its text's
+place), labelled "Copy code" for accessibility, with the `isButton` trait and an accessibility action. A press writes
+the fence's **whole** `code` (not a chunk) as text through `\.clipboard` (`CB-S`), read by the fence as an
+`@Environment`, which the retained record compares as a reading, not a stored property. The button is a drawn tap
+target, not a `Button` (a `Button` is not proposal content and cannot sit in the fence's proposal overlay); it has no
+pressed or hover look.  A fence still streaming copies the code so far.
+**Cost if wrong.** An app wanting a different glyph, label or position wraps the fence itself; a pressed look is carried.

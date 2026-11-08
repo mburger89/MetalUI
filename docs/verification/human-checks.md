@@ -2405,6 +2405,7 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **BM3.** VoiceOver (macOS) over a reply: are headings read as headings (the level is not published), list items read in order (ordered markers read, bullets do not), the code block as a group named "swift" whose lines are readable, links as links, table cells in reading order? **Observed:**
 - [ ] **BM4.** Click the link in the first paragraph: does it open `https://example.com` in the browser? **Observed:**
 - [ ] **BM5.** Light and dark: the quote bar and text, the code box and the highlighter's colours, inline code spans, the table rules, the headings. Do the defaults read well, or does `MarkdownTheme()` need other tokens? **Observed:**
+- [ ] **BM6.** (record 240, `BM-K`/`CB-S`) The demo's code blocks show a small copy glyph at the top right corner. Click it, then paste into another app (TextEdit, a terminal): is the whole block, every line and nothing else, what lands? Is the glyph legible on the box in light and dark, big enough to hit, and does the cursor/hover tell you it is clickable (it has no hover look; is that tolerable)? Do the code lines stay put when it is pressed? **Observed:**
 
 ## XS. Per-axis wheel routing and the two-axis scroller - a code block in a transcript no longer eats the wheel (Alloy gap G5, PRs 1-3; records 236 and 237; rulings `XS-E`..`XS-G`; decisions `docs/superpowers/2026-11-07-two-axis-scroll-decisions.md`)
 

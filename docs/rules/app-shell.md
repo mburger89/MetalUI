@@ -164,7 +164,7 @@ identifier is the pasteboard type; **SDL's mime is a pure table plus `applicatio
 lookup by mime, a pointer into the box, one cleanup that frees (`CB-H`, `CB-Q`) — no Swift closure, no actor hop, so any thread is safe;
 zero-byte representations are dropped, an all-empty write keeps the clipboard (`CB-I`). Enablement is by presence, not the validator
 (divergence 455, provisional until `CB1`). `Window.clipboard` is the MetalUI-only imperative API, no public initialiser (`CB-J`); an AppKit
-test uses a private `NSPasteboard(name:)`, never `.general` (`CB-K`). Not built: `@Environment(\.clipboard)` (SwiftUI has none on macOS, `CP-A`), multi-item and `PasteButton`
+test uses a private `NSPasteboard(name:)`, never `.general` (`CB-K`). **`EnvironmentValues.clipboard` is built (M, `CB-S`, record 240)**: get-only, the window stamps a weak `ClipboardSource` at its root like `URLOpener` (an identity reading, no new stored property, replay unaffected), a stored value retains no window and is a no-op clipboard outside one, and it is written from input only. Not built: multi-item and `PasteButton`
 and lazy export are built since `CP-` (below). The demo is `METALUI_CLIPBOARD_DEMO=1`.
 
 **Clipboard extras (`CP-`, record §142).** `PasteButton` (SwiftUI's two initialisers, no label, class A/D) is a `Button` underneath (no new role, no bridge row), enabled
