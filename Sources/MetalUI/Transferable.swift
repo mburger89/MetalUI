@@ -110,6 +110,21 @@ public struct ContentType: Hashable, Sendable, CustomStringConvertible {
     public static let json = ContentType("public.json", conformingTo: [.text], filenameExtensions: ["json"],
                                        localizedDescription: "JSON")
 
+    /// `public.image`: any image format — UTType's `.image`. Conforms to ``data``. The parent
+    /// ``png``, ``tiff`` and ``jpeg`` conform to, so `hasContent(of: .image)` is true for
+    /// any of them (ruling `SOC-F`). A file importing both MetalUI and UniformTypeIdentifiers
+    /// spells `ContentType.image` where `.image` is ambiguous (as `.json`).
+    public static let image = ContentType("public.image", conformingTo: [.data], localizedDescription: "Image")
+    /// `public.png`, named `png`. Conforms to ``image``.
+    public static let png = ContentType("public.png", conformingTo: [.image], filenameExtensions: ["png"],
+                                        localizedDescription: "PNG image")
+    /// `public.tiff`, named `tiff` then `tif`. Conforms to ``image``.
+    public static let tiff = ContentType("public.tiff", conformingTo: [.image],
+                                         filenameExtensions: ["tiff", "tif"], localizedDescription: "TIFF image")
+    /// `public.jpeg`, named `jpg` then `jpeg`. Conforms to ``image``.
+    public static let jpeg = ContentType("public.jpeg", conformingTo: [.image],
+                                         filenameExtensions: ["jpg", "jpeg"], localizedDescription: "JPEG image")
+
     /// `public.directory`: a file-system directory, a folder or a package —
     /// UTType's `.directory` (ruling `SV-AM`). Conforms to ``item`` only, not
     /// to ``data``. An open dialog allowing it, or a type conforming to it,

@@ -747,18 +747,17 @@ private func lfaVisible(_ image: MUIImage) -> String {
     try #require(proposal.count == 2, "proposal: two nodes: \(proposal)")
     #expect(proposal[0] == "\(lfaBounds(30, 90, 60, 40)) m\(lfaBounds(30, 90, 60, 40)) r6.0",
             "proposal A: its own clip, moved: \(proposal[0])")
-    #expect(proposal[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 60, 40)) r6.0"),
-            "proposal B: its own clip, whole (the canvas cuts it through the mask group): \(proposal[1])")
+    #expect(proposal[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 30, 40)) r6.0"),
+            "proposal B: its rect whole, its mask cut by the canvas's square edge, the kept corners round (CM-J): \(proposal[1])")
     let crossed = effectFrame(lfbCanvas(zoom: 1, pan: (50, 20)) { lfbNode(-40, 10); lfbNode(220, 50) }, side: 400).finalizedScene()
-    let mask = try #require(crossed.groupMasks.first.flatMap { $0 }?.rects.first, "B is a masked group")
-    #expect(mask.contentMask.origin.x + mask.contentMask.size.width == 320, "the canvas's right edge: \(gxDescribe(mask.contentMask))")
+    #expect(crossed.groups.isEmpty, "no masked group: the cut misses B's corner zones (CM-J): \(crossed.groups.count)")
 
     let legacy = lfbMasks(lfbCanvas(zoom: 1, pan: (50, 20)) { lfbLegacyNode(-40, 10); lfbLegacyNode(220, 50) })
     try #require(legacy.count == 2, "legacy: two nodes: \(legacy)")
     #expect(legacy[0] == "\(lfaBounds(30, 90, 60, 40)) m\(lfaBounds(30, 90, 60, 40)) r6.0",
             "legacy A: its own clip, moved: \(legacy[0])")
-    #expect(legacy[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 60, 40)) r6.0"),
-            "legacy B: its own clip, whole: \(legacy[1])")
+    #expect(legacy[1].hasPrefix("\(lfaBounds(290, 130, 60, 40)) m\(lfaBounds(290, 130, 30, 40)) r6.0"),
+            "legacy B: its rect whole, its mask cut: \(legacy[1])")
 }
 
 /// **LF-b 2** (`GX-Y`). Zoom 1.5, pan (80, 20): node A's (−20, 70) 60 × 40

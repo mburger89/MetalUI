@@ -35,7 +35,18 @@ import MetalUIPlatform
 /// 2.2 — a mime with no entry and no `application/x-` prefix is listed and readable by its mime
 /// identifier, never dropped. Mutation: drop unknown mimes (return an empty identifier).
 @Test func aForeignMimeIsListedAndReadableByItsMimeIdentifier() {
-    #expect(ClipboardMime.identifier(forMime: "image/png") == "mime:image/png")
-    #expect(ClipboardMime.mime(forIdentifier: "mime:image/png") == "image/png")
+    #expect(ClipboardMime.identifier(forMime: "image/webp") == "mime:image/webp")
+    #expect(ClipboardMime.mime(forIdentifier: "mime:image/webp") == "image/webp")
     #expect(ClipboardMime.identifier(forMime: "text/plain;charset=UTF-8") == "public.utf8-plain-text")
+}
+
+/// 2.3 (`SOC-G`) — the three image types the clipboard reads are the table's, not foreign: SDL's
+/// `image/png`, `image/jpeg` and `image/tiff` list as `public.png`, `public.jpeg` and
+/// `public.tiff`, which `ContentType` knows conform to `public.image`. Mutation: delete a row
+/// (the mime reads as `mime:image/...`, which conforms to nothing).
+@Test func theImageMimesAreTheBuiltInImageTypes() {
+    for (identifier, mime) in [("public.png", "image/png"), ("public.jpeg", "image/jpeg"), ("public.tiff", "image/tiff")] {
+        #expect(ClipboardMime.mime(forIdentifier: identifier) == mime)
+        #expect(ClipboardMime.identifier(forMime: mime) == identifier)
+    }
 }

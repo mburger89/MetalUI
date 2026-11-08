@@ -29,6 +29,8 @@ enum PresentationPlacement {
     case popover(anchor: Bounds<Pixels>, edge: Edge)
     /// An overlay with its `anchor` unit point at `point` (`OverlayPlacement`).
     case overlay(point: Point<Pixels>, anchor: UnitPoint)
+    /// A suggestion list against the declarer's frame (`SuggestionPlacement`, `SOC-A`).
+    case suggestion(anchor: Bounds<Pixels>, edge: VerticalEdge, alignment: HorizontalAlignment, spacing: Float)
 }
 
 /// A popover's chrome hoisted above everything and placed against `anchor`
@@ -114,9 +116,13 @@ struct AnchoredPresentation<Content: Element>: Element {
         pass.deferred {
             let frame = pass.frame
             _ = frame.insertHitbox(bounds, id: id, opaque: true)   // `MN-Z`
-            frame.registerOpenPopover(OpenPopover(id: owner, bounds: bounds,
-                                                  anchor: frame.presentationAnchors[owner] ?? anchor,
-                                                  consumesAnchorPress: consumesAnchorPress, dismiss: dismiss))
+            // A suggestion overlay is not in the dismissal stack: nothing dismisses it from input
+            // (`SOC-B`); its opaque hitbox above is all it needs to be a layer.
+            if case .suggestion = placement {} else {
+                frame.registerOpenPopover(OpenPopover(id: owner, bounds: bounds,
+                                                      anchor: frame.presentationAnchors[owner] ?? anchor,
+                                                      consumesAnchorPress: consumesAnchorPress, dismiss: dismiss))
+            }
             if var background = layout.backgroundContent {
                 let backgroundBounds = frame.bounds(of: background.node)
                 frame.recordElementBounds(background.id, backgroundBounds)   // as the group default does
@@ -210,6 +216,10 @@ extension LayoutPass {
                                              children: [node])
         case .overlay(let point, let anchor):
             return frame.requestNativeLayout(OverlayPlacement(point: point, anchor: anchor, window: window),
+                                             children: [node])
+        case .suggestion(let anchor, let edge, let alignment, let spacing):
+            return frame.requestNativeLayout(SuggestionPlacement(anchor: anchor, edge: edge, alignment: alignment,
+                                                                 spacing: spacing, window: window),
                                              children: [node])
         }
     }

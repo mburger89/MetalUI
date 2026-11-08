@@ -452,3 +452,58 @@ private struct CMRing: Shape {
     let a = pixel(clipped.pixels, 100, 100), b = pixel(plain.pixels, 100, 100)
     #expect(zip(a, b).allSatisfy { abs($0 - $1) <= 1 }, "per leaf, like the plain opacity: \(a) vs \(b)")
 }
+
+// MARK: - 23. a rectangular clip cutting a rounded one (`CM-J`)
+
+/// A 100 x 60 node, radius 20, whose left edge is at `x` inside a 200 x 200 viewport that clips squarely, optionally under a
+/// flattening `scaleEffect` (the canvas zoom). Two leaves, so the clip is not the lone-rect shortcut.
+@MainActor private func straddlingNode(x: Float, width: Float = 100, zoomed: Bool = false) -> some Element & ProposalElementGroup {
+    let node = VStack(alignment: .leading, spacing: px(0)) {
+        pureRed.frame(width: px(width), height: px(20))
+        pureBlue.frame(width: px(width), height: px(40))
+    }
+    .frame(width: px(width), height: px(60), alignment: .topLeading)
+    .background(pureBlue, in: RoundedRectangle(cornerRadius: px(20)))
+    .clipShape(RoundedRectangle(cornerRadius: px(20)))
+    .offset(x: px(x), y: px(20))
+    return Color.clear.overlay(alignment: .topLeading) {
+        ZStack(alignment: .topLeading) { node }.scaleEffect(zoomed ? 1.0000001 : 1, anchor: .topLeading)
+    }
+    .clipped()
+}
+
+/// **23 (`CM-J`, MetalCreator's canvas culling).** A node straddling a square viewport clip, the cut outside its corner
+/// zones, is one rounded rect with per-corner radii: no group, the kept corners still round and the cut side square.
+/// Mutation: `boxCornerRadii` returns `nil` (the square fallback: groups, and square kept corners).
+@Test @MainActor func aSquareCutOutsideTheCornerZonesTakesNoGroupAndKeepsTheRoundedCorners() throws {
+    for zoomed in [false, true] {
+        let r = try render(straddlingNode(x: 130, zoomed: zoomed))
+        #expect(r.frame.groupsMasked == 0 && r.scene.groups.isEmpty, "zoomed \(zoomed): \(r.frame.groupsMasked) groups")
+        #expect(alpha(r.pixels, 131, 21) < 10, "zoomed \(zoomed): the kept top-left corner is round")
+        #expect(alpha(r.pixels, 131, 78) < 10, "zoomed \(zoomed): the kept bottom-left corner is round")
+        #expect(alpha(r.pixels, 199, 21) == 255, "zoomed \(zoomed): the cut side is square")
+        #expect(alpha(r.pixels, 199, 78) == 255, "zoomed \(zoomed): the cut side is square, bottom")
+        #expect(alpha(r.pixels, 165, 50) == 255, "zoomed \(zoomed): the middle is filled: \(alpha(r.pixels, 165, 50))")
+        #expect(alpha(r.pixels, 199, 50) == 255, "zoomed \(zoomed): the cut edge is filled: \(alpha(r.pixels, 199, 50))")
+    }
+}
+
+/// A cut that passes through a corner zone is not expressible per corner: it still groups, and the arc is exact.
+@Test @MainActor func aSquareCutThroughACornerZoneStillTakesTheMaskedGroup() throws {
+    let r = try render(straddlingNode(x: 100, width: 110))
+    #expect(r.frame.groupsMasked >= 1, "the cut passes through the right corner zones: \(r.frame.groupsMasked)")
+    #expect(alpha(r.pixels, 199, 21) < 255, "the arc is cut through, not squared")
+}
+
+/// The clip rule itself: `intersect` gives the kept corners' radii when the cut misses the zones, and a crossing otherwise.
+@Test @MainActor func theBoxOfASquareCutKeepsTheRoundedCornersItContains() {
+    func bounds(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixels> {
+        Bounds(origin: Point(x: px(x), y: px(y)), size: Size(width: px(w), height: px(h)))
+    }
+    let square = Corners(all: px(0)), r20 = Corners(all: px(20))
+    let viewport = bounds(0, 0, 200, 200)
+    let kept = Frame.intersect(viewport, radii: square, bounds(130, 20, 100, 60), radii: r20)
+    #expect(kept.radii.topLeft == px(20) && kept.radii.bottomLeft == px(20) && kept.radii.topRight == px(0) && kept.radii.bottomRight == px(0))
+    #expect(!Frame.clipsCross(viewport, radii: square, bounds(130, 20, 100, 60), radii: r20))
+    #expect(Frame.clipsCross(viewport, radii: square, bounds(100, 20, 110, 60), radii: r20))
+}

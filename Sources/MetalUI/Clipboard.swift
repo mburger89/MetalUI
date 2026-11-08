@@ -11,7 +11,7 @@ extension ContentType {
     /// The built-in type named `identifier`, if it is one (`CB-F`: an offered
     /// type carries its parents so a `.data` destination reads a `.json` item).
     static func builtIn(_ identifier: String) -> ContentType? {
-        [ContentType.item, .data, .text, .plainText, .utf8PlainText, .url, .fileURL, .json]
+        [ContentType.item, .data, .text, .plainText, .utf8PlainText, .url, .fileURL, .json, .image, .png, .tiff, .jpeg]
             .first { $0.identifier == identifier }
     }
 }
@@ -129,6 +129,20 @@ public struct Clipboard {
             identifier == type.identifier
                 || (ContentType.builtIn(identifier)?.conforms(to: type) ?? false)
         }
+    }
+
+    /// The bytes of item 0 stored as `type` or as a type that conforms to it, the first such
+    /// type in the platform's order (`SOC-G`); `nil` when the clipboard holds none, or its
+    /// bytes are empty. `readData(of: .image)` takes whichever image the source listed first
+    /// (use ``read(_:)`` with ``ImageData`` to learn which); `readData(of: .png)` takes PNG
+    /// only: nothing converts between formats. Mirrors ``hasContent(of:)``. MetalUI-only
+    /// (class `M`).
+    public func readData(of type: ContentType) -> Data? {
+        let item = self.item
+        for offered in item.types where offered.satisfies(type.identifier) {
+            if let bytes = item.load(offered.identifier), !bytes.isEmpty { return Data(bytes) }
+        }
+        return nil
     }
 
     /// Every clipboard item as a lazily read `DropItem` (`CB-F`, `CP-D`), in clipboard order.
