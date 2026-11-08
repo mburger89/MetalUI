@@ -211,8 +211,11 @@ public struct CodeView: Element, StyledElement {
                                       decorations: decorations)
         if let menu = gutterMenu {
             let existing = handlers.contextual
+            // The menu's point is relative to the region's origin (`CI-R` item 3); the plan hits in the view's
+            // bounds space, like the press's (`CV-AF`): add the origin back.
+            let origin = bounds.origin
             handlers.contextual = ContextualAttachment(locatedMenu: { [plan] point in
-                if let point, let hit = plan.gutterHit(at: point) { return menu(hit) }
+                if let point, let hit = plan.gutterHit(at: Point(x: point.x + origin.x, y: point.y + origin.y)) { return menu(hit) }
                 return existing?.menu?(point) ?? MenuItems([])
             }, help: existing?.help, helpProvider: existing?.helpProvider)
         }
