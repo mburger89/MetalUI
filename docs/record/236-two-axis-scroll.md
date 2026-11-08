@@ -30,4 +30,10 @@ Branch `feat/scroll-axis-routing` (master `c6779ba4`, merged with `dc20b918`). R
 
 Whole-to-dominant (no split, no `remaining` set); a two-axis scroller swallows at its edge while a one-axis one chains; `scrollTo` into a nested inner moves the nearest only; small-content centring to be re-measured; the lock through momentum is an assumption.
 
+## 6. Verification
+
+Native, unfiltered, `--no-parallel` after `swift package clean`: `Test run with 5640 tests in 26 suites passed` (0 failures; the same under `METALUI_VERIFY_RETAINED=1`), `FR-J no-argument frame: succeeded=true`. Portable container (`git archive HEAD` over stdin to `docker run --rm -i metalui-portable`): `swift build --build-tests` complete; `MetalUITestingTests` 946 tests in 11 suites, then 286, 165 and 24, all passed (the moved BM2 pin among them). Closeout scripts print nothing. A first native run printed 17 issues in the bracket-node-drag and `aClipInsideNestedFlatteningEffects` tests and the next run of the same tree passed: unexplained, recorded as a flake.
+
+Mutations (`ScrollAxisRoutingTests`, applied to `Window.swift`/`ScrollLatch.swift`, restored with `git checkout`): a scroller claiming whatever its axis reddens R1, R2, R4, R7, R8, R11, R12 and R5; `dominantAxis` zero->vertical reddens R10; always vertical reddens R2, R3, R4, R7, R9; nil for non-zero reddens R1, R2, R4, R5, R7, R8, R9, R11, R12; dropping the lock reddens R5; zeroing dx before handlers reddens R6; ignoring `scrollMirrored` reddens R7; ignoring a handler's claim reddens R8; the editor claiming every axis reddens R9; ignoring the room reddens R12; dropping the fallback reddens R13. **Swapping `scrollTakes` for `scrollAxes` alone leaves everything green** (a fitting scroller has no room either); with the room ignored as well, R11 and R12 redden.
+
 Human checks: group `XS`. Counts: see the `CLAUDE.md` line.
