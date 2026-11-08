@@ -80,7 +80,7 @@ members (the eighteenth, `pointer`, one box for the wheel closure and the style,
 **Environment (`EV-`).** `EnvironmentScope` is layout- and
 identity-transparent; nearest writer wins; **a modifier written after a scope
 sits outside it** (`EV-X`). `theme` is readable only in `PaintPass`.
-`@Environment` unbound silently reads defaults. `Window.environment` writes
+`@Environment` unbound silently reads defaults. **An `@Environment` whose value type is not `Equatable` (or a class) is an uncomparable reading and its `.equatable()` component never replays** (`EE-B`; `EnvironmentReading.of` reads the getter's result, so a stamped custom reading does not help): `EnvironmentValues.clipboard`'s `Clipboard` is `Equatable` by window for that reason (`CB-S`). `Window.environment` writes
 always dirty — write from input. `theme`, `displayScale`,
 `controlActiveState` and `accessibilityReduceMotion` are stamped by
 `Window`/`Frame`, not sourced from `Window.environment`.
