@@ -2433,3 +2433,15 @@ Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a t
 - [ ] **TBS4.** With a dozen tabs, scroll the strip with a trackpad swipe (sideways) and with the wheel (vertical should scroll the page beneath, not the strip); press the demo's next-tab key at the end of the strip: does the selected tab glide into view? **Observed:**
 - [ ] **TBS5.** VoiceOver: is the strip a group named Tabs, each tab a button announced with its title, selected state and "edited", and each x a "Close <title>" button? Is a real tab-group role missed? **Observed:**
 - [ ] **TBS6.** Linux and Windows (SDL): the x is the bundled Lucide icon; is it crisp at 9 points beside the 12-point title? **Observed:**
+
+## HL. Model-driven tooltip - a graph canvas explains the socket under the pointer (MetalCreator gap; record 239; ruling `MN-AJ`; decisions `docs/superpowers/2026-10-02-menus-popovers-decisions.md`)
+
+*An agent cannot: the tests read the shown text and the clock of a headless window; whether the bubble feels right while the pointer sweeps across many small targets, and where it lands next to the cursor, are looks.*
+
+Run MetalCreator (or any app with a `.help { location in ... }` surface under `.allowsHitTesting(false)` children).
+
+- [ ] **HL1.** Rest the pointer on a socket dot: does its tooltip appear after about a second, below the pointer? Slide to the next dot: does the old bubble vanish at once and the new one come after another second (no flicker, no stale text)? **Observed:**
+- [ ] **HL2.** Move within one dot's hit area: does the bubble stay still while the pointer moves slightly (it does not follow, it is placed once)? **Observed:**
+- [ ] **HL3.** Click a socket while its bubble shows (starts a wire): does it hide and stay hidden while you drag? On release over another socket, does that socket's text come back after the delay? **Observed:**
+- [ ] **HL4.** Wheel/pinch over the canvas, then press a key: each hides it. Move off the canvas to a panel with its own `.help`: does the old one go and the panel's come after the delay? **Observed:**
+- [ ] **HL5.** (`MN-AJ` item 6, unmeasured) With a bubble showing, move the pointer out of the window entirely: does it stay up? (It does by the code; if it looks wrong, add `.pointerExited` to the hide arm.) **Observed:**

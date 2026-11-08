@@ -77,6 +77,14 @@ enum BundledSymbols {
         "square.fill": Entry(lucide: "square", filled: true),
         "triangle": Entry(lucide: "triangle"),
         "triangle.fill": Entry(lucide: "triangle", filled: true),
+        "checklist": Entry(lucide: "list-checks"),
+        "questionmark.bubble": Entry(lucide: "message-circle-question"),
+        "list.bullet.clipboard": Entry(lucide: "clipboard-list"),
+        "puzzlepiece.extension": Entry(lucide: "puzzle"),
+        "info.circle": Entry(lucide: "info"),
+        "paperclip": Entry(lucide: "paperclip"),
+        "photo": Entry(lucide: "image"),
+        "gearshape": Entry(lucide: "settings"),
     ]
 
     static func exists(_ name: String) -> Bool { table[name] != nil }
