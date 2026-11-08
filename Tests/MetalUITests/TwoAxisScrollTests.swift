@@ -197,3 +197,59 @@ private func fullyRendered<E: Element>(_ element: inout E, width: Float, height:
     let (hiddenFrame, _) = fullyRendered(&hidden, width: 100, height: 100, stateTable: scrolledState(y: 70, x: 50))
     #expect(thumbs(hiddenFrame).isEmpty && !hiddenFrame.hasActiveAnimations, "hidden costs nothing")
 }
+
+// MARK: - X8
+
+/// An outer vertical scroller 200 tall over 600 (a 150 box, the inner at y 150..250, a 350 box) around a two-axis inner 200 x 100
+/// over `width` x `height`; the pointer is on the inner.
+@MainActor
+private func twoAxisInner(width: Float, height: Float) -> some Element {
+    ScrollView(.vertical) {
+        Column {
+            Box().frame(width: px(200), height: px(150))
+            ScrollView(both) { Column { Box().frame(width: px(width), height: px(height)) } }
+                .frame(width: px(200), height: px(100))
+            Box().frame(width: px(200), height: px(350))
+        }
+    }
+}
+
+/// (outer y, inner y, inner x): the outer registers first.
+@MainActor
+private func nested(_ window: Window) throws -> (outer: Double, innerY: Double, innerX: Double) {
+    let regions = window.lastScrollRegions
+    try #require(regions.count == 2, "outer and inner each register one region")
+    let outer = window.stateTable.peek(regions[0].id, as: ScrollState.self)
+    let inner = window.stateTable.peek(regions[1].id, as: ScrollState.self)
+    return (outer?.offset ?? 0, inner?.offset ?? 0, inner?.cross.offset ?? 0)
+}
+
+/// **X8** (`XS-F`, probe `N9`, `N9c`-`N9f`). A two-axis scroller does NOT chain at its edge, while a one-axis one does: with room the
+/// vertical wheel stays in a two-axis inner (inner y 30, outer 0); parked at its bottom (400) the wheel still does not reach the
+/// outer (outer 0, the stored y banks and is clamped back); a horizontal wheel moves the inner's x. Capability decides, not type: an
+/// inner whose content fits on y (500 x 100 in 200 x 100) passes the vertical wheel up (outer 30). **Mutation:** `registerScrollRegion`
+/// giving the two-axis region the primary slot's room (`primary.room`) instead of both directions: at the bottom the outer moves.
+@Test @MainActor func aTwoAxisScrollerSwallowsTheWheelAtItsEdgeAndAFittingOneLetsItThrough() throws {
+    let at = pt(100, 180)
+    let (window, platform) = try windowFor(size: 200) { twoAxisInner(width: 500, height: 500) }
+    platform.simulateInput(wheel(at, dy: -30)); settle(window)
+    var o = try nested(window)
+    #expect(o.outer == 0 && o.innerY == 30, "with room the inner keeps it: \(o)")
+    platform.simulateInput(wheel(at, dx: -20)); settle(window)
+    o = try nested(window)
+    #expect(o.outer == 0 && o.innerX == 20 && o.innerY == 30, "dx moves the inner's x: \(o)")
+    let inner = try #require(window.lastScrollRegions.last).id
+    window.stateTable.withState(inner, initial: ScrollState()) { $0.offset = 400 }
+    settle(window)
+    platform.simulateInput(wheel(at, dy: -40)); settle(window)
+    o = try nested(window)
+    #expect(o.outer == 0 && o.innerY == 400, "at its edge a two-axis scroller swallows the wheel: \(o)")
+
+    let (fitting, fittingPlatform) = try windowFor(size: 200) { twoAxisInner(width: 500, height: 100) }
+    fittingPlatform.simulateInput(wheel(at, dy: -30)); settle(fitting)
+    o = try nested(fitting)
+    #expect(o.outer == 30 && o.innerY == 0, "content that fits on y passes the vertical wheel up: \(o)")
+    fittingPlatform.simulateInput(wheel(at, dx: -20)); settle(fitting)
+    o = try nested(fitting)
+    #expect(o.outer == 30 && o.innerX == 20, "and keeps the horizontal one: \(o)")
+}
