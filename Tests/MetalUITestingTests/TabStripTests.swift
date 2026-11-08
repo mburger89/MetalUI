@@ -313,3 +313,70 @@ import Testing
     #expect(strip(Image(systemName: "doc")) != strip(Image(systemName: "star")))
     #expect(strip(nil) != strip(Image(systemName: "doc")))
 }
+
+/// 13 - `TBS-J`: a tab's identifier is on its button and its close identifier on its close button (found by identifier, with
+/// the label, role and press unchanged); a nil identifier leaves the node's identifier nil. Mutation: drop the
+/// `.accessibilityIdentifier` write in `TabStripLabel` or in `TabStripCloseSlot`.
+@Test @MainActor func aTabAndItsCloseButtonCarryTheirOwnIdentifiers() throws {
+    var items = plainTabs
+    items[0] = TabStripItem(id: "a", title: "main.swift", accessibilityIdentifier: "tab-a", closeAccessibilityIdentifier: "tab-close-a")
+    items[1] = TabStripItem(id: "b", title: "b.swift", isDirty: true, accessibilityIdentifier: "tab-b", closeAccessibilityIdentifier: "tab-close-b")
+    items[2] = TabStripItem(id: "c", title: "c.swift", closeAccessibilityIdentifier: "tab-close-c")
+    let m = StripModel(tabs: items)
+    let window = try stripWindow(m)
+    for (id, title) in [("a", "main.swift"), ("b", "b.swift")] {
+        let tab = try window.element(identifier: "tab-\(id)")
+        #expect(tab.label == title && tab.role == .button)
+        let close = try window.element(identifier: "tab-close-\(id)")
+        #expect(close.label == "Close \(title)" && close.role == .button)
+    }
+    #expect(try window.element(identifier: "tab-b").value == "edited", "the dirty value survives the identifier")
+    #expect(try window.element(label: "c.swift").identifier == nil, "no identifier is derived from the id")
+    #expect(try window.element(identifier: "tab-close-c").label == "Close c.swift", "either identifier is independent")
+    #expect((try? window.element(identifier: "tab-c")) == nil)
+    let pressed = try window.performAccessibilityAction(.press, on: window.element(identifier: "tab-close-a"))
+    try #require(pressed)
+    #expect(m.closed == ["a"])
+}
+
+/// 14 - nil identifiers leave the tree as before: no node of a plain strip has one. Mutation: write `""` for nil.
+@Test @MainActor func aStripWithoutIdentifiersHasNoneInItsTree() throws {
+    let window = try stripWindow(StripModel(tabs: plainTabs))
+    for title in ["Tabs", "main.swift", "b.swift", "c.swift", "Close main.swift", "Close b.swift", "Close c.swift"] {
+        #expect(try window.element(label: title).identifier == nil, "\(title)")
+    }
+}
+
+/// 15 - an identifier belongs to its item: after another tab is reordered or removed it is still on its own tab, and a
+/// changed identifier rebuilds an `.equatable()` strip. Mutation: `isSame` ignoring the identifiers (the last arm), or
+/// identifiers assigned by position.
+@Test @MainActor func anIdentifierStaysWithItsItem() throws {
+    func item(_ id: String) -> TabStripItem<String> {
+        TabStripItem(id: id, title: "\(id).swift", accessibilityIdentifier: "tab-\(id)", closeAccessibilityIdentifier: "tab-close-\(id)")
+    }
+    let m = StripModel(tabs: ["a", "b", "c"].map(item))
+    let window = try harnessWindow(size: sz(500, 100)) {
+        VStack(spacing: 0) {
+            TabStrip(selection: m.binding, tabs: m.tabs).equatable()
+            Spacer()
+        }
+    }
+    window.tick(); window.tick()
+    func check(_ ids: [String]) throws {
+        for id in ids {
+            #expect(try window.element(identifier: "tab-\(id)").label == "\(id).swift", "tab-\(id)")
+            #expect(try window.element(identifier: "tab-close-\(id)").label == "Close \(id).swift", "tab-close-\(id)")
+        }
+    }
+    try check(["a", "b", "c"])
+    m.tabs.append(m.tabs.removeFirst())
+    window.window.setNeedsRedraw(); window.tick(); window.tick()
+    try check(["b", "c", "a"])
+    m.tabs.remove(at: 0)
+    window.window.setNeedsRedraw(); window.tick(); window.tick()
+    try check(["c", "a"])
+    #expect((try? window.element(identifier: "tab-b")) == nil)
+    m.tabs[0].accessibilityIdentifier = "renamed"
+    window.window.setNeedsRedraw(); window.tick(); window.tick()
+    #expect(try window.element(identifier: "renamed").label == "c.swift")
+}

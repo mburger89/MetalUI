@@ -2032,6 +2032,7 @@ public final class Window {
             }
             return frame
         }
+        let entriesBeforeBuild = retainedVerifiesFromEnvironment ? stateTable.entryIDs() : []   // verify mode: what the first build creates (`RW-F`)
         var frame = buildFrame()
         if !frame.redoEntries.isEmpty {
             // What the abandoned attempt consumed and the redo must see again (`RK-D`, `RK-M`): the parked
@@ -2049,8 +2050,16 @@ public final class Window {
             // same checkpoint, and compare what both held after the root's paint, naming the channel.
             let replayed = frame.verifySnapshot
             let replayedCounters = memos.buildCounters
-            let replayedReads = Set(stateTable.lastReadJournal).union(stateTable.lastMarkJournal)     // `RW-O`: what the replayed frame read or re-noted
-            let replayedWrites = stateTable.comparedWriteCount
+            // `RW-O`: what the replayed frame read or re-noted. An abandoned frame returns before `Frame.render`'s sweep, so
+            // its journals are still the open ones (`lastReadJournal` holds the frame BEFORE it: an entry first met in this
+            // frame, such as a scroller that just appeared beside a replayed sibling, was flagged as unrecorded); they are
+            // emptied so the fresh run's sweep leaves only its own reads.
+            let replayedReads = stateTable.takeUnsweptJournals()
+            let replayedWriteIDs = stateTable.comparedWriteIDs.count
+            // A first sighting (a panel shown in the frame that replays a sibling) leaves entries the second build would
+            // find: a `List`'s measured viewport, a scroller's extent, so its window bounds rows the first build's did not.
+            // They are deleted, and both builds start from the same table with the scene comparison on.
+            let recreated = stateTable.discardEntries(createdSince: entriesBeforeBuild)
             let firstFrame = frame
             memos.resetBuildCounters()
             scrollRequests.restore(pendingScrollRequests)
@@ -2064,9 +2073,10 @@ public final class Window {
             // `RW-O`: a read the fresh run made that the replay did not stand for, and a compared write the fresh run made
             // that the replay skipped, are findings by name.
             for id in stateTable.lastReadJournal where !replayedReads.contains(id) {
-                preconditionFailure("METALUI_VERIFY_RETAINED: unrecordedRead \(sbPath(id).suffix(80)): a fresh run read an entry the replayed frame's records do not name")
+                preconditionFailure("METALUI_VERIFY_RETAINED: unrecordedRead \(sbPath(id)): a fresh run read an entry the replayed frame's records do not name")
             }
-            if stateTable.comparedWriteCount > replayedWrites {   // the replayed frame's own writes are stored, so the rebuild finds them unchanged
+            // The replayed frame's own writes are stored, so the rebuild finds them unchanged; an entry it created is rebuilt, and written again.
+            if stateTable.comparedWriteIDs[replayedWriteIDs...].contains(where: { !recreated.contains($0) }) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: writeMissed: a fresh run wrote a compared state the replay skipped")
             }
             if let replayed, let fresh = frame.verifySnapshot, let difference = replayed.difference(from: fresh) {

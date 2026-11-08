@@ -123,3 +123,47 @@ private func describe(_ events: [InputEvent]) -> [String] {
     window.writeClipboard("MetalUI TI-A clipboard")
     #expect(window.readClipboard() == "MetalUI TI-A clipboard")
 }
+
+/// KF-AB: keys during a composition are the input method's. Mutation: drop the
+/// `suppressesKey` line in `SDLPlatform`'s key case.
+@MainActor
+@Test func keysAreNotForwardedWhileAnInputMethodComposes() throws {
+    #expect(SDLWindow.suppressesKey(composing: true, modifiers: []))
+    #expect(SDLWindow.suppressesKey(composing: true, modifiers: [.shift]))
+    #expect(!SDLWindow.suppressesKey(composing: true, modifiers: [.control]))
+    #expect(!SDLWindow.suppressesKey(composing: true, modifiers: [.command]))
+    #expect(!SDLWindow.suppressesKey(composing: false, modifiers: []))
+
+    let (platform, window) = try hiddenWindow()
+    platform.pumpEvents()
+    var received: [InputEvent] = []
+    window.onInput = { received.append($0); return true }
+    func push(_ kind: Int, text: String? = nil, keycode: UInt32 = 0, modifiers: Int = 0) {
+        var event = MUIEvent()
+        event.kind = UInt32(kind); event.window_id = window.id
+        event.keycode = keycode; event.modifiers = UInt32(modifiers)
+        if let text { text.withCString { event.text = $0; #expect(mui_push_event(&event)) } }
+        else { #expect(mui_push_event(&event)) }
+    }
+    let down: UInt32 = 0x4000_0051, esc: UInt32 = 0x1B
+    window.setTextInputArea(caret)
+    push(MUI_EVENT_TEXT_EDITING, text: "ni")
+    push(MUI_EVENT_KEY_DOWN, keycode: down)
+    push(MUI_EVENT_KEY_UP, keycode: down)
+    push(MUI_EVENT_KEY_DOWN, keycode: esc)
+    push(MUI_EVENT_KEY_DOWN, keycode: 0x63, modifiers: MUI_MOD_CONTROL)   // ctrl-c still a key
+    platform.pumpEvents()
+    #expect(describe(received) == ["compose(ni,0..<0)", "key(63)"], "\(describe(received))")
+    #expect(window.isComposing)
+    received = []
+    push(MUI_EVENT_TEXT_INPUT, text: "你")                                  // commit
+    push(MUI_EVENT_KEY_DOWN, keycode: down)
+    platform.pumpEvents()
+    #expect(describe(received) == ["text(你)", "key(f701)"], "keys again after the commit")
+    received = []
+    push(MUI_EVENT_TEXT_EDITING, text: "ni")
+    push(MUI_EVENT_TEXT_EDITING, text: "")                                   // cancel
+    push(MUI_EVENT_KEY_DOWN, keycode: down)
+    platform.pumpEvents()
+    #expect(describe(received) == ["compose(ni,0..<0)", "compose(,0..<0)", "key(f701)"], "and after a cancel")
+}
