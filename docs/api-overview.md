@@ -697,7 +697,8 @@ where it would leave the window and clamped horizontally. It takes **no focus an
 **never dismissed by input** (the app writes `isPresented`; route ↑ ↓ Return Tab Esc with
 `.onKeyPress` on the field); a press on it keeps the focused field focused and never reaches what
 lies beneath, rows and a `ScrollView` work, and its nodes are ordinary siblings, not a popover.
-**Tab strip** (M, `TBS-A`..`TBS-I`, record 238): `TabStrip(selection:tabs:)` over `TabStripItem(id:title:icon:isDirty:isClosable:accent:)`,
+**Tab strip** (M, `TBS-A`..`TBS-J`, records 238 and 246): `TabStrip(selection:tabs:)` over `TabStripItem(id:title:icon:isDirty:isClosable:accent:accessibilityIdentifier:closeAccessibilityIdentifier:)`
+(the last two, `TBS-J`, are the identifiers of the tab button and its close button; `nil` sets none and none is derived from `id`),
 an editor's closable tab bar. A click on a tab writes `selection`; the × (on a hovered or selected tab) and a middle click call
 `.onCloseTab { id in }` and select nothing (the app removes the tab); a drag of more than 4 points calls
 `.onMoveTab { from, to in }` once at the release, `to` being the index after `insert(remove(at: from), at: to)`. A dirty tab shows a

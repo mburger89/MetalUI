@@ -1,6 +1,6 @@
 # Tab strip - decisions (prefix `TBS-`)
 
-Alloy gap G4: a closable, reorderable tab strip for an editor's file panel. Branch `feat/tab-strip` from master `7523f587`; record 238. Class `M` (SwiftUI's `TabView` is a page switcher with no closable strip). No divergence added. Next unused: `TBS-J`.
+Alloy gap G4: a closable, reorderable tab strip for an editor's file panel. Branch `feat/tab-strip` from master `7523f587`; record 238. Class `M` (SwiftUI's `TabView` is a page switcher with no closable strip). No divergence added. Next unused: `TBS-K`.
 
 ## TBS-A: the API (agreed with the app)
 
@@ -37,3 +37,7 @@ No tab roles exist (`AccessibilityRole` has none, and a new role owes both bridg
 ## TBS-I: look
 
 Bar `.surfaceSecondary`; the selected tab `.background` (the panel it fronts) with `textPrimary` text, the others `textPrimary` at 0.62 with a 0.06 wash while hovered; a `.separator` hairline after each tab and under the bar; title 12 points, one line, tail truncation; the accent a 3 x 14 bar before the icon. All tokens, so light and dark follow the theme.
+
+## TBS-J: per-tab accessibility identifiers (Alloy G13, record 246)
+
+`TabStripItem` gains `accessibilityIdentifier: String?` (the tab's button) and `closeAccessibilityIdentifier: String?` (its close button), each a trailing defaulted `init` parameter of the same name, so every earlier spelling compiles. Each is written through `.accessibilityIdentifier(_:)` on the node it names, so it reaches the AX tree (AppKit `AXIdentifier`, AccessKit `author_id`) as on any button; `nil` writes nothing and the tree is as before. No identifier is derived from `id` (an `ID` need not be a string, and SwiftUI invents none; the app spells `tab-<id>` and `tab-close-<id>` itself). Both take part in `isSame(as:)`, so a changed identifier rebuilds an `.equatable()` strip. The close identifier is set even on a non-closable tab's hidden button (inert there, as its label is).
