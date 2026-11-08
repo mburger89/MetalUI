@@ -77,6 +77,19 @@ public struct Image: ProposalElement {
         self.init(bitmap.oriented(orientation), scale: scale, label: label)
     }
 
+    /// Whether this draws as `other` does: the same symbol name, icon or bitmap texture, with the same options (`TS-` equality).
+    func isSameDrawing(as other: Image) -> Bool {
+        guard symbolMode == other.symbolMode, isResizable == other.isResizable,
+              interpolationQuality == other.interpolationQuality,
+              accessibilityLabelText == other.accessibilityLabelText else { return false }
+        switch (content, other.content) {
+        case (.symbol(let a), .symbol(let b)): return a == b
+        case (.icon(let a), .icon(let b)): return a == b
+        case (.bitmap(let a, let sa), .bitmap(let b, let sb)): return a.texture === b.texture && sa == sb
+        default: return false
+        }
+    }
+
     /// `label`'s string for a labelled image; `nil` for a decorative one, which
     /// publishes nothing, even labelled or tapped (I2, I4, I5).
     var accessibilityLabelText: String?
