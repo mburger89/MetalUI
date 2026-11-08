@@ -39,4 +39,4 @@ MetalCreator draws its graph canvas (nodes, socket dots, wires) under `.allowsHi
 
 ## 5. Verification
 
-Native, unfiltered, `--no-parallel` after `swift package clean`: `Test run with 5669 tests in 26 suites passed after 572.673 seconds` (0 failures; `FR-J no-argument frame: succeeded=true`); under `METALUI_VERIFY_RETAINED=1`: `Test run with 5669 tests in 26 suites passed after 832.278 seconds`. Master's 5660 + 9 new. The closeout inventory and undocumented scripts print nothing.
+Native, unfiltered, `--no-parallel` after `swift package clean`: `Test run with 5669 tests in 26 suites passed after 572.673 seconds` (0 failures; `FR-J no-argument frame: succeeded=true`); under `METALUI_VERIFY_RETAINED=1`: `Test run with 5669 tests in 26 suites passed after 832.278 seconds`. Master's 5660 + 9 new. Portable container (`git archive HEAD` over stdin to `docker run --rm -i metalui-portable:latest`): `swift build --build-tests` complete (122.17 s); `Test run with 957 tests in 11 suites passed` (`MetalUITestingTests`, including the 9 new), then 9, 16, 73, 68, 53, 25, 290, 165, 24, 45 tests, all passed. The closeout inventory and undocumented scripts print nothing.
