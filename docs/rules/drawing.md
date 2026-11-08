@@ -181,8 +181,8 @@ built-in tokens keep the exhaustive switch. **The window stamps
 dirties every draw) and selects `lightTheme`/`darkTheme`**; `.preferredColorScheme`
 is window-wide, collected during the element walk, and reaches the platform
 through the defaultless `PlatformWindow.setPreferredColorScheme(_:)` (SDL records
-only, `CR-M`). A scheme from the tree is in the first presented frame: two
-ordinary builds, the second snapping every change (`CR-Q`, `CR-Z`). `Appearance`
+only, `CR-M`). A scheme from the tree is in the frame that collects it, the first or a later one: two
+ordinary builds, the second snapping every change and run at most once (`CR-Q`, `CR-Z`, `CR-AC`). `Appearance`
 is a typealias of `ColorScheme`. **The presentation layer is tagged `CGColorSpace.sRGB`, never Display P3** (`LS-A`, record 200: every colour is a gamma sRGB number on a `bgra8Unorm` drawable, so a P3 tag is a wrong tag; `theLayerColourSpaceIsSRGB`); `.displayP3` stays unoffered (`LS-B`), and a new GPU consumer of the drawable assumes sRGB-encoded bytes.
 
 **Hot paths (`HP-`, record §111).** P1, value-identical, no public API, no divergence: every change leaves the fourteen images
