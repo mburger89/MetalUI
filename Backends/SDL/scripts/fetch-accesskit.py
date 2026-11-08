@@ -39,6 +39,24 @@ def log(message):
     print(message, file=sys.stderr)
 
 
+def download(url, path, attempts=8):
+    """`urlretrieve` with retries: GitHub release downloads from CI runners
+    return transient 5xx (2026-11-08: repeated HTTP 503/504)."""
+    import time, urllib.error
+    for attempt in range(1, attempts + 1):
+        try:
+            urllib.request.urlretrieve(url, path)
+            return
+        except (urllib.error.URLError, OSError) as error:
+            if os.path.exists(path):
+                os.remove(path)
+            if attempt == attempts:
+                raise
+            delay = 15 * attempt
+            log(f"download failed ({error}); retry {attempt}/{attempts - 1} in {delay}s")
+            time.sleep(delay)
+
+
 def fetch(root):
     """Unpacks the release under `root` (building the library if needed);
     returns (include directory, static library path)."""
@@ -49,7 +67,7 @@ def fetch(root):
     if not os.path.isdir(source):
         if not os.path.exists(archive):
             log(f"downloading {URL}")
-            urllib.request.urlretrieve(URL, archive)
+            download(URL, archive)
         digest = hashlib.sha256(open(archive, "rb").read()).hexdigest()
         if digest != SHA256:
             os.remove(archive)
