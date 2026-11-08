@@ -383,3 +383,36 @@ import MetalUITesting
     #expect(window.presentedMenu == nil, "a bar-less gutter row: no menu")
     #expect(clicks.value.isEmpty, "a secondary press is not a click")
 }
+
+/// 14.2b — the gutter menu hits the bar wherever the view sits (`CV-AF`, Alloy G12): the context-menu path hands the
+/// builder a point relative to the region's origin, the plan hits in the view's bounds space, so a view below a
+/// 50 pt spacer and inside a 30 pt leading inset opened nothing. The press path (14.1) was right at any offset.
+/// **Mutation:** the menu closure handing the region-relative point to `gutterHit(at:)` unconverted.
+@Test @MainActor func aContextMenuOnAGutterBarHitsTheBarWhereverTheViewSits() throws {
+    let menus = Cell<[CodeGutterHit]>([]), clicks = Cell<[CodeGutterHit]>([])
+    let buffer = CodeBuffer(codeText(lines: 40))
+    let decorations = CodeDecorations(buffer: buffer)
+    decorations.setLineDecorations([CodeLineDecoration(lines: 10..<20, gutterBar: .red, background: nil, tag: 7)],
+                                   asOf: buffer.version)
+    let window = try harnessWindow(size: sz(400, 600)) {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: 50)
+            HStack(spacing: 0) {
+                Color.clear.frame(width: 30)
+                CodeView(buffer: buffer, decorations: decorations).font(size: 12).codeCaretBlink(.off)
+                    .onGutterBarClick { clicks.value.append($0) }
+                    .gutterBarContextMenu { hit in Button("Revert \(hit.tag ?? 0)") { menus.value.append(hit) } }
+            }
+        }
+    }
+    let bar = try #require(gutterBars(window).first)
+    window.click(at: pt(bar.x, bar.y))
+    #expect(clicks.value.map(\.tag) == [7], "the press hits the bar at this offset: \(clicks.value)")
+    window.rightClick(at: pt(bar.x, bar.y))
+    #expect(window.presentedMenu?.items.map(\.title) == ["Revert 7"], "\(window.presentedMenu?.items.map(\.title) as Any)")
+    try window.chooseMenuItem("Revert 7")
+    #expect(menus.value.map(\.tag) == [7])
+    // Off the bar column, still no menu.
+    window.rightClick(at: pt(bar.x + 150, bar.y))
+    #expect(window.presentedMenu == nil)
+}
