@@ -692,6 +692,9 @@ final class StateTable {
     /// The compared `withState`s that found a changed value and wrote (`RW-O`): verify mode reads it to find a write a
     /// replay skipped. Never reset; a window reads a difference.
     private(set) var comparedWriteCount: Int = 0
+    /// The ids of those writes in order, kept only in verify mode: a rebuild that recreates a rolled-back entry writes it
+    /// again, which is not a write the replay skipped (`discardEntries`).
+    private(set) var comparedWriteIDs: [GlobalElementID] = []
 
     /// Read-modify-write the state at `id`, creating it from `initial` on first
     /// access, and **mark it as still live**.
@@ -779,6 +782,19 @@ final class StateTable {
         return text.hasPrefix("$anim") || text.hasPrefix("$ax") || text.hasPrefix("$focus")
     }
 
+    /// The ids of every stored entry (verify mode snapshots them before a build).
+    func entryIDs() -> Set<GlobalElementID> { Set(storage.keys) }
+
+    /// Verify mode: deletes the entries a build created, so the fresh build starts from the table the first one did (`RW-O`).
+    /// The window-retained slots (`$ax`) stay. Their liveness mark goes with them; the next build marks what it reads.
+    func discardEntries(createdSince before: Set<GlobalElementID>) -> Set<GlobalElementID> {
+        for id in storage.keys where !before.contains(id) && !Self.isWindowRetained(id) { doomedKeys.append(id) }
+        let discarded = Set(doomedKeys)
+        for id in doomedKeys { storage.removeValue(forKey: id); marked.remove(id) }
+        doomedKeys.removeAll(keepingCapacity: true)
+        return discarded
+    }
+
     /// The entries the open (unswept) frame read or re-noted, and the journals emptied (`RW-O`): verify mode takes an
     /// abandoned replayed build's set this way before it builds the frame again, since only a completed frame sweeps.
     func takeUnsweptJournals() -> Set<GlobalElementID> {
@@ -847,6 +863,7 @@ final class StateTable {
         }
         // The body already ran: the plain write stores its result without running it again.
         comparedWriteCount += 1
+        if retainedVerifiesFromEnvironment { comparedWriteIDs.append(id) }
         let result = value
         withState(id, initial: result) { $0 = result }
         noteLiveRead(id)   // the write taints every open window; a prepaint-only taint still leaves a paint record, which owes the entry its liveness

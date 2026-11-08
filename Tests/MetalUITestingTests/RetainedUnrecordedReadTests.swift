@@ -117,8 +117,8 @@ private struct URRoot: Component {
 /// One arm per child process. `late` shows the panel after the window has settled (the frame it first appears in also
 /// replays the canvas: the trap), `early` has it from the first frame, `hover` and `scrolled` act on the panel first.
 /// Mutations: `replayedReads` back to `Set(stateTable.lastReadJournal).union(stateTable.lastMarkJournal)` (`unrecordedRead`),
-/// and `createdEntries` forced `false` (`a replayed prepaint differs`: the first build's unbounded list window, 68 rects against
-/// 22), each redden `late`, `hover` and `scrolled`; `early`, which has no first sighting beside a replay, is the control.
+/// and the `discardEntries` rollback removed (`a replayed prepaint differs`: the first build's unbounded list window, 68 rects
+/// against 22), each redden `late`, `hover` and `scrolled`; `early`, which has no first sighting beside a replay, is the control.
 @Test(.serialized, arguments: ["late", "early", "hover", "scrolled"]) @MainActor
 func aPanelFirstShownBesideAReplayedSiblingVerifies(arm: String) async {
     setTestEnvironment("UR_ARM", arm)
