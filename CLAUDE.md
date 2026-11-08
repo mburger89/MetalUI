@@ -67,7 +67,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-11-07, `feat/scroll-axis-routing` on master `dc20b918`, record 236): root 5640 tests in 26 suites passed (`--build-system native`, unfiltered, `--no-parallel`, after `swift package clean`; 0 failures; also 5640 in 26 under `METALUI_VERIFY_RETAINED=1`); `FR-J no-argument frame: succeeded=true`; portable Docker see record 236; the guard tally is record 221's, not re-counted (13 new tests, no guard). A first native run of this tree printed `5537 tests in 18 suites failed … 17 issues` (the bracket-node-drag tests and `aClipInsideNestedFlatteningEffects`); the next run of the same tree passed and the failing tests pass filtered: recorded as an unexplained flake, not a finding).
+- **Counts (2026-11-07, `feat/two-axis-scroll` merged with master `7523f587`, record 237): root 5660 tests in 26 suites passed (`--build-system native`, unfiltered, `--no-parallel`, after `swift package clean`; 0 failures; also 5660 in 26 under `METALUI_VERIFY_RETAINED=1`); `FR-J no-argument frame: succeeded=true`; portable Docker see record 237; the guard tally is record 221's plus one (`everySpellingOfTheScrollAxesCompilesFromAPlainImport`: one test, two call sites), not re-counted. 20 new tests. The one first-run failure was `everyStateWriteSiteIsClassified` (`ScrollChrome.swift` reads 3, was 2), reclassified.).
 - **Read the printed counts, never the exit status.** Native prints one
   summary line ("in 3 suites"); the default build system may print several
   (sum them). Thirteen env-gated oracle/measure/build tests count while skipped.
