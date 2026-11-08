@@ -2432,3 +2432,12 @@ Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a t
 - [ ] **TBS4.** With a dozen tabs, scroll the strip with a trackpad swipe (sideways) and with the wheel (vertical should scroll the page beneath, not the strip); press the demo's next-tab key at the end of the strip: does the selected tab glide into view? **Observed:**
 - [ ] **TBS5.** VoiceOver: is the strip a group named Tabs, each tab a button announced with its title, selected state and "edited", and each x a "Close <title>" button? Is a real tab-group role missed? **Observed:**
 - [ ] **TBS6.** Linux and Windows (SDL): the x is the bundled Lucide icon; is it crisp at 9 points beside the 12-point title? **Observed:**
+
+## MIP. A `Menu` opened from code - a composer's `/model` opens the model menu (Alloy gap G9; record 241; ruling `MN-AK`; decisions `docs/superpowers/2026-10-02-menus-popovers-decisions.md`)
+
+*An agent cannot: the suite drives a headless platform that answers `presentMenu` at once; whether a real `NSMenu.popUp` opened from the frame's tail tracks properly is a look. There is no demo: the menus demo's tree sits at the 1 MB thread budget (`everyProductionTreeBuildsOnAOneMegabyteThread` went SIGBUS with one extra section), so build a throwaway app (`metalui new`) with `@State var open = false`, `Button("Open model menu") { open = true }` and `Menu("Model", isPresented: $open) { Button("Sonnet") {}; Button("Opus") {} }`, on macOS and under SDL.*
+
+- [ ] **MIP1.** macOS: press "Open model menu" (mouse, then Space on the focused button). Does the native menu open below the "Model" label exactly as a click on "Model" does, the app staying responsive, no second menu stacking and no hitch or flicker in the frame that opened it (`popUp` is modal inside `beginFrame`; `MN-AK` item 8)? Choose an item, then open again, then dismiss with Escape and with an outside click: does it open every time? **Observed:**
+- [ ] **MIP2.** SDL (Linux/Windows): the same; the drawn panel opens below the label, Escape and an outside click close it, and the next press of the button opens it again. **Observed:**
+- [ ] **MIP3.** With the menu open, hover items and open nothing else; click the "Model" label itself: does it behave as a click on any pull-down (closes on SDL, re-opens on macOS)? **Observed:**
+

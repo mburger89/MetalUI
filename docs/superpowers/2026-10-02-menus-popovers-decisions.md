@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AJ`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AL`.** (`MN-AJ` is the `feat/help-provider` branch's, record 239; `MN-AK` is below.) (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1232,3 +1232,44 @@ through the input context, but with no marked text the context only turns it
 into `doCommand(by:)`, which delivers the same key-down.
 
 **Cost if wrong.** One condition in one method.
+
+## MN-AK — A `Menu` opened from code: `Menu(isPresented:)` and `.menuPresented(_:)` (Alloy gap G9; record 241; class `M`, no divergence)
+
+**Ruling.**
+
+1. `Menu(isPresented:content:label:)`, `Menu(_:isPresented:content:)` (the `LocalizedStringKey` and the `StringProtocol`
+   spellings) and `Menu.menuPresented(_:)` keep a `Binding<Bool>` in step with a pull-down's open state. **MetalUI-only
+   (class `M`)**: SwiftUI has no way to open a `Menu` from code, so the doc comments say so. `Menu` exists in one
+   vocabulary, so there is one set. A `Menu` used as a submenu item ignores the binding.
+2. **Writing `true` from input opens the menu as a click on its label does** — `openPullDownMenu`, the click path's own
+   function: the label's last-recorded drawn bounds (`MA-B`), bottom-leading corner, `presentMenu` natively where the
+   platform shows menus, the drawn panel elsewhere. It opens **after the frame that read `true`**, in
+   `reconcilePresentations`' place (`SV-K` item 3, `LC-E`): the `Menu` notes a `PresentationRequest.menu` record in layout
+   (`notePresentation`, the `ViewThatFits` retraction `VF-D` and the graft audit's `presentationRecords` count come with
+   it) and `Window.reconcileMenuBindings` runs from `reconcilePresentations`. Nothing is written in a phase; the open is
+   the next frame's input-equivalent path, as a dialog's.
+3. **Menus take no slot in the presentation registry**: a menu record is skipped by the dialog/alert `present` and a menu
+   open neither waits for nor blocks a dialog. One menu is open per window, so the first record reading `true` opens.
+4. **Any dismissal writes `false`.** The open session carries `pullDownBinding` (owner id and binding) and
+   `Window.menuSession`'s `didSet` calls `menuSessionDidChange(from:)`: a session that ended, or was replaced by a session
+   of another owner, writes the old one's binding `false` under `StateDispatch.dispatching(to: owner)` — from the input that
+   ended it (item chosen, Escape, an outside press, the native menu's `.menuAction` with no item, a resize, losing key, an
+   alert). A hover or a submenu keeps the owner and writes nothing. A write is made only when the binding reads `true`.
+5. A click on the label (or Space/Return, an accessibility press) opens through the same function and writes `true` once
+   the menu is up; an open that fails (no items, no anchor) writes nothing.
+6. **Writing `false` while open closes it** (`reconcileMenuBindings`): a drawn session is dropped, a native one is told
+   through `dismissPresentation(token:)` and dropped (its late `.menuAction` is stale and runs nothing). AppKit's `popUp` is
+   modal, so on a real Mac a `false` cannot arrive while the native menu is shown; `AppKitPlatform.dismissPresentation`
+   ignores a token it is not tracking. The headless platform records the token and `TestWindow.presentedMenu` is `nil` after
+   it. The `Menu` leaving the tree (a conditional, an unchosen `ViewThatFits` candidate) closes its open menu the same way.
+7. **An open that cannot happen writes `false` back** (disabled, no items, no anchor) so the binding does not lie. A record
+   in an unchosen `ViewThatFits` candidate is retracted before reconciling: its binding is left alone.
+8. `reconcilingMenuBindings` guards re-entry: a native `popUp` is a nested run loop inside `beginFrame`, and a frame built
+   inside it must not open the same menu twice. That path is a human check (`MIP` group, no demo: the menus demo has no stack headroom) — no agent sees a real `NSMenu`.
+
+**Reasoning.** A pull-down is an imperative session on `Window`, not an element, so the binding is a presentation request
+in the dialog sense, not a popover's per-frame content. The dialogs' record-and-reconcile shape gives retraction, retained-
+graft ineligibility and "after the frame, outside every phase" for free. The close side needs no polling: every way a session
+ends passes through `menuSession`'s setter.
+
+**Cost if wrong.** Two functions in `PullDownMenu.swift` and a `didSet`; the `.menu` request case is skipped by `present`.

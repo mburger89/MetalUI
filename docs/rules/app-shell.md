@@ -39,7 +39,7 @@ open) goes to the platform through the defaultless `PlatformWindow.presentMenu`
 `Platform.setMenuBar` (every AppKit app gets the standard main menu); **the
 window's shortcut pipeline is the one shortcut path** (`Button` first, commands
 one stage after, AppKit offering a ⌘- or ⌃-key to it before the main menu,
-once; a ⌃-key not while composing — `MN-J`, `MN-AI`). `.popover` is an anchored presentation root, flipped then clamped
+once; a ⌃-key not while composing — `MN-J`, `MN-AI`). **A `Menu` opened from code** (`Menu(isPresented:)`, `.menuPresented(_:)`, `MN-AK`, class M) is a `PresentationRequest.menu` record noted in layout and opened by `Window.reconcileMenuBindings` after the frame through the click path's own `openPullDownMenu`; every way a session ends passes `menuSession`'s `didSet`, which writes the binding `false` from input. `.popover` is an anchored presentation root, flipped then clamped
 inside the window, no arrow, dismissed from input; `.help` is the accessibility
 hint plus a drawn, tick-timed tooltip. The new handler member `contextual` is
 non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility

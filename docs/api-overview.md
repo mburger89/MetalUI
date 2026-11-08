@@ -888,6 +888,13 @@ defaultless `PlatformWindow.presentMenu(_:at:)`; the choice returns as
 **Pull-down (A).** `Menu("Title") { }` as a view: a button that opens its items
 below itself, published as a menu button.
 
+**Opening a `Menu` from code (M, `MN-AK`, Alloy gap G9).** `Menu(isPresented: $open) { } label: { }`,
+`Menu("Model", isPresented: $open) { }` and `Menu("Model") { }.menuPresented($open)`: writing `true` from input (a key
+press, a submit, a button's action) opens the menu exactly as a click on its label does, at the same anchor and by the same
+native-or-drawn path, after the frame that read it; every dismissal (an item chosen, Escape, an outside click, the native
+menu closing) writes `false`; a click on the label writes `true`; writing `false` while it is open closes it. A menu that
+cannot open (disabled, empty) writes `false` back. SwiftUI has no such API. A `Menu` used as a submenu item ignores it.
+
 **Menu bar (A / M).** `App.commands { CommandMenu("Name") { }; CommandGroup(after:/before:/replacing:) { } }`
 with `CommandGroupPlacement` (`.appInfo`, `.newItem`, `.undoRedo`, `.pasteboard`, …).
 Every AppKit app installs the standard main menu (About, Hide, Quit, File ▸ Close,
