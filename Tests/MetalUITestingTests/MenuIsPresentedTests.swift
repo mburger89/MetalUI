@@ -160,7 +160,7 @@ private let modes: [Bool] = [true, false]
     other.open = true
     w.tick()
     #expect(try !isOpen(w, native: native), "the unchosen candidate's menu does not open")
-    #expect(other.writes == [false] || other.writes.isEmpty, "and is not left lying")
+    #expect(other.open && other.writes.isEmpty, "its binding is left alone: no open was attempted, none written back")
     try w.click(w.element(label: "Slash"))
     #expect(try isOpen(w, native: native), "the chosen candidate's menu opens")
 }
