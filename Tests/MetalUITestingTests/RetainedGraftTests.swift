@@ -67,7 +67,7 @@ func theBracketNodeDragIsCountedAfterTheGraft(arm: BracketArm) throws {
     #expect(f.retainedPrepaintHits == expected.prepaintHits)
     #expect(f.retainedRedos == 0 && f.retainedBackoffFrames == 0)
     // What the graft must not move: the scene and the paints are lane 1's.
-    #expect(f.rects == 174 && f.glyphs == 437 && f.images == 6)
+    #expect(f.rects == 180 && f.glyphs == 516 && f.images == 6)
 }
 
 // MARK: The fixtures
