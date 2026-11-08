@@ -2406,7 +2406,7 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **BM4.** Click the link in the first paragraph: does it open `https://example.com` in the browser? **Observed:**
 - [ ] **BM5.** Light and dark: the quote bar and text, the code box and the highlighter's colours, inline code spans, the table rules, the headings. Do the defaults read well, or does `MarkdownTheme()` need other tokens? **Observed:**
 
-## XS. Per-axis wheel routing - a code block in a transcript no longer eats the wheel (Alloy gap G5, PR 1; record 236; rulings `XS-E`..`XS-G`; decisions `docs/superpowers/2026-11-07-two-axis-scroll-decisions.md`)
+## XS. Per-axis wheel routing and the two-axis scroller - a code block in a transcript no longer eats the wheel (Alloy gap G5, PRs 1-3; records 236 and 237; rulings `XS-E`..`XS-G`; decisions `docs/superpowers/2026-11-07-two-axis-scroll-decisions.md`)
 
 Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a trackpad and then a Magic Mouse. Nothing here is seen by the suite (momentum in particular: the probe could not deliver it).
 
@@ -2415,6 +2415,12 @@ Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a t
 - [ ] **XS3.** Scroll a tall block (or a tall inner list) to its end and keep going: does the transcript take over at the edge, mid-gesture too, and does the first swipe back go to the block again? **Observed:**
 - [ ] **XS4.** A mouse with a plain wheel (and a horizontal wheel or shift): vertical over the block moves the transcript, sideways moves the block. **Observed:**
 - [ ] **XS5.** On Linux/Windows (SDL): a touchpad and a wheel mouse do the same as XS1-XS4. **Observed:**
+- [ ] **XS6.** (PR 2-3, record 237) `METALUI_LAZY_DEMO=1 swift run MetalUIDemo`, the "LazyVStack, both axes" pane: two-finger drag diagonally: does it move one axis at a time (the dominant one, locked for the whole swipe)? Both thumbs appear, each stopping short of the shared corner; the counter stays near the viewport plus overscan while the pane moves sideways. **Observed:**
+- [ ] **XS7.** (`XS-S`, unmeasured) Scroll the two-axis pane vertically only: do BOTH thumbs light and fade together, or should only the vertical one? Compare with a SwiftUI two-axis `ScrollView` on a machine with overlay scrollers. **Observed:**
+- [ ] **XS8.** (`XS-R`, unmeasured) Flick the two-axis pane mostly vertically and let it glide: does the momentum stay on the vertical axis (no sideways drift), as in SwiftUI? **Observed:**
+- [ ] **XS9.** A two-axis pane nested in a vertical scroller: scroll to its bottom edge and keep going: the outer must NOT take over (a two-axis scroller swallows, `N9c`); a one-axis one does. **Observed:**
+- [ ] **XS10.** Right-to-left (`.environment(\.layoutDirection, .rightToLeft)`) two-axis pane: opens at the right edge; sideways scrolling follows the fingers; vertical is unaffected. **Observed:**
+- [ ] **XS11.** `scrollTo` and `.defaultScrollAnchor(.bottomTrailing)` on a two-axis pane land on both axes; `ScrollView([])` shows its content and scrolls nothing (does a wheel over it pass to an outer scroller, `XS-Q`?). **Observed:**
 
 ## TBS. Tab strip - an editor's closable, reorderable file tabs (Alloy gap G4; record 238; rulings `TBS-A`..`TBS-I`; decisions `docs/superpowers/2026-11-07-tab-strip-decisions.md`)
 

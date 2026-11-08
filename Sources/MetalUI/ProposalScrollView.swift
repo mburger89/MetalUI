@@ -8,8 +8,14 @@ import MetalUILayout
 /// ``ProposalElementGroup``, and its viewport/content relationship is solved
 /// by `LayoutTree`'s proposal engine rather than the CSS flex engine.
 public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
-    /// The axis the content scrolls along.
-    public var axis: ScrollAxis
+    /// The axes the content scrolls along, SwiftUI's `axes` (`XS-A`).
+    public var axes: Axis.Set
+    /// The axis the content scrolls along: `.horizontal` for a horizontal-only scroller, `.vertical` otherwise (a two-axis
+    /// scroller's primary axis is vertical, `XS-C`).
+    public var axis: ScrollAxis {
+        get { axes == .horizontal ? .horizontal : .vertical }
+        set { axes = newValue == .horizontal ? .horizontal : .vertical }
+    }
     public var elementID: ElementID?
     /// The scrolled content.
     public var content: Content
@@ -26,7 +32,16 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     /// for its scroll state.
     public init(_ axis: ScrollAxis = .vertical, elementID: ElementID? = nil,
                 @ProposalContentBuilder content: () -> Content) {
-        self.axis = axis
+        self.axes = axis == .horizontal ? .horizontal : .vertical
+        self.elementID = elementID
+        self.content = content()
+    }
+
+    /// A scroller over proposal `content` along `axes` (`XS-A`): `[.horizontal, .vertical]` scrolls both ways.
+    /// `@_disfavoredOverload`, so `ProposalScrollView(.horizontal)` keeps meaning ``ScrollAxis``.
+    @_disfavoredOverload
+    public init(_ axes: Axis.Set, elementID: ElementID? = nil, @ProposalContentBuilder content: () -> Content) {
+        self.axes = axes
         self.elementID = elementID
         self.content = content()
     }
@@ -72,6 +87,7 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         defer { position?.endLayout(pass: &pass) }
         var context = ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
         context.followsEnd = chrome.layoutFollowsEnd(scrollState, raw: rawOffset)   // `DSA-C`
+        if chrome.crossAxis { context.cross = chrome.crossContext(scrollState, now: pass.frame.timestamp) }   // `XS-H`
         let (children, contentLayout) = pass.withScrollContext(context) {
             content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
         }
@@ -91,10 +107,10 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
             contentNode = pass.requestNativeLinearStack(children: children, axis: .vertical,
                                                          spacing: nil)
         }
-        let node = pass.requestNativeScrollViewport(
-            child: contentNode,
-            axis: contentAxis
-        )
+        let node = axes.isOneAxis
+            ? pass.requestNativeScrollViewport(child: contentNode, axis: contentAxis)
+            : pass.requestNativeScrollViewport(child: contentNode, horizontal: axes.contains(.horizontal),
+                                               vertical: axes.contains(.vertical))   // `XS-B`
         return (node, Layout(node: node.layoutNodeID, contentNode: contentNode.layoutNodeID,
                             content: contentLayout))
     }
@@ -105,28 +121,31 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     /// what the fold deliberately left alone. Until stage 3 these seven members
     /// lived here as private copies, untested and already drifting.
     var chrome: ScrollChrome {
-        ScrollChrome(axis: axis, cornerRadius: cornerRadius,
-                     indicatorVisibility: indicatorVisibility, anchors: defaultAnchors)
+        ScrollChrome(axis: axis, cornerRadius: cornerRadius, indicatorVisibility: indicatorVisibility,
+                     anchors: defaultAnchors, crossAxis: axes == [.horizontal, .vertical])
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var chrome = self.chrome
-        chrome.mirrored = axis == .horizontal && pass.frame.environmentTop.layoutDirection == .rightToLeft   // `LD-E`
-        let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
-                                           pass: pass)
-        pass.registerScrollRegion(bounds, id: id, axis: axis, chrome: chrome, offset: offset,
-                                  contentSize: pass.bounds(of: layout.contentNode).size)
+        chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
+        let (offset, crossOffset) = chrome.resolvedOffsets(id, bounds: bounds, contentNode: layout.contentNode,
+                                                           pass: pass)
+        if !axes.isEmpty {   // `ScrollView([])` scrolls nothing and registers nothing (probe `L3`)
+            pass.registerScrollRegion(bounds, id: id, axis: axis, chrome: chrome, offset: offset, cross: crossOffset,
+                                      contentSize: pass.bounds(of: layout.contentNode).size)
+        }
         // `DD-F` item 2: the content prepaints inside this scroller's frame.
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,
                                      viewport: bounds, offset: offset,
                                      contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size),
-                                     tracksPosition: position != nil, mirrored: chrome.mirrored)
+                                     tracksPosition: position != nil, mirrored: chrome.mirrored,
+                                     cross: chrome.crossAxis ? chrome.crossFrame(offset: crossOffset, bounds: bounds, contentSize: pass.bounds(of: layout.contentNode).size) : nil)
         var result: Content.GroupPrepaint!
         let noteMark = pass.frame.scrollTargetNoteCount
-        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset),
+        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset, cross: crossOffset),
                      cornerRadii: Corners(all: cornerRadius)) {
             pass.inScroller(scroller) {
                 result = content.prepaintGroup(layout: &layout.content, pass: &pass)
@@ -140,10 +159,10 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
         var chrome = self.chrome
-        chrome.mirrored = axis == .horizontal && pass.frame.environmentTop.layoutDirection == .rightToLeft   // `LD-E`
-        let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
-                                           pass: pass)
-        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset),
+        chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
+        let (offset, crossOffset) = chrome.resolvedOffsets(id, bounds: bounds, contentNode: layout.contentNode,
+                                                           pass: pass)
+        pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset, cross: crossOffset),
                      cornerRadii: Corners(all: cornerRadius)) {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         }
@@ -152,7 +171,7 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         // `-offset` translation and scroll away with the content.
         // `ScrollChrome.paintIndicator` pushes its own clip at the same bounds
         // and radii with a ZERO offset.
-        chrome.paintIndicator(id, bounds: bounds, offset: offset,
+        chrome.paintIndicator(id, bounds: bounds, offset: offset, cross: crossOffset,
                               contentNode: layout.contentNode, pass: &pass)
     }
 }

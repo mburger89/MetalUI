@@ -179,7 +179,7 @@ extension PrepaintKey {
         for member in ambient.differences(from: other.ambient) { why.append("ledgerKey.ambient.\(member)") }
         if extras != other.extras {
             var x = extras, y = other.extras
-            if x.scroller.count > 7, y.scroller.count > 7 { x.scroller[7] = 0; y.scroller[7] = 0 }
+            if x.scroller.count > 7, y.scroller.count > 7 { x.zeroScrollOffsets(); y.zeroScrollOffsets() }
             if x != y {
                 if x.effects != y.effects { why.append("ledgerKey.extras.effects") }
                 if x.scroller != y.scroller { why.append("ledgerKey.extras.scroller") }

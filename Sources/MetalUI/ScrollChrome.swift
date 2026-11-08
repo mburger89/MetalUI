@@ -40,6 +40,42 @@ struct ScrollChrome {
     var mirrored = false
     /// The scroller's `defaultScrollAnchor` declarations (`DSA-A`); empty for a scroller with none.
     var anchors = DefaultScrollAnchors()
+    /// Whether the scroller ALSO scrolls horizontally (`XS-D`): `axis` is then `.vertical`, the primary slot of `ScrollState`, and
+    /// the horizontal axis lives in `ScrollState.cross`. `false` for every one-axis scroller, whose paths do not read it.
+    var crossAxis = false
+    /// `mirrored` for the horizontal (cross) axis of a two-axis scroller (`LD-E`); `mirrored` itself stays the primary's.
+    var crossMirrored = false
+
+    /// Sets both mirrored flags from the environment (`LD-E`): the horizontal axis, whichever slot it is in, lays out right-to-left.
+    mutating func resolveLayoutDirection(rightToLeft: Bool) {
+        mirrored = axis == .horizontal && rightToLeft
+        crossMirrored = crossAxis && rightToLeft
+    }
+
+    /// The horizontal slot of the `ScrollContext` a two-axis scroller publishes (`XS-H`): the glide-aware raw offset, last frame's
+    /// viewport extent and whether the axis follows its end (`XS-J`, per axis).
+    func crossContext(_ state: ScrollState, now: Double) -> ScrollAxisContext {
+        let raw = Self.currentCrossOffset(state, now: now)
+        return ScrollAxisContext(offset: raw, viewportExtent: state.cross.viewportExtent,
+                                 followsEnd: crossChrome.layoutFollowsEnd(memory: state.cross.anchor, raw: raw))
+    }
+
+    /// The horizontal slot of the `ScrollerFrame` a two-axis scroller prepaints its content in (`XS-H`).
+    func crossFrame(offset: Double, bounds: Bounds<Pixels>, contentSize: Size<Pixels>) -> ScrollerFrame.Cross {
+        let horizontal = crossChrome
+        return ScrollerFrame.Cross(offset: offset, contentExtent: horizontal.extent(contentSize), mirrored: crossMirrored)
+    }
+
+    /// The horizontal axis of a two-axis scroller as a one-axis chrome (`XS-D`): the SAME code reads its slot, so the cross axis
+    /// has no copy of the clamp, the anchor or the glide to drift from the primary's.
+    var crossChrome: ScrollChrome {
+        var chrome = self
+        chrome.axis = .horizontal
+        chrome.crossAxis = false
+        chrome.mirrored = crossMirrored
+        chrome.crossMirrored = false
+        return chrome
+    }
 
     /// `0 ... max(0, content - viewport)`.
     ///
@@ -82,10 +118,18 @@ struct ScrollChrome {
     /// reveals what is to its left.
     func translation(offset: Double) -> Point<Pixels> { delta(mirrored ? offset : -offset) }
 
+    /// The translation of a two-axis scroller (`XS-D`): the primary's plus the horizontal axis's, each from the one-axis rule.
+    func translation(offset: Double, cross: Double) -> Point<Pixels> {
+        let primary = translation(offset: offset)
+        guard crossAxis else { return primary }
+        let horizontal = crossChrome.translation(offset: cross)
+        return Point(x: Pixels(primary.x.value + horizontal.x.value), y: Pixels(primary.y.value + horizontal.y.value))
+    }
+
     /// Whether two stored scroll states are the same value (`RW-H`): the compared write's `unchanged:`.
     static func sameScrollState(_ a: ScrollState, _ b: ScrollState) -> Bool {
         a.offset == b.offset && a.viewportExtent == b.viewportExtent && a.lastScrollTime == b.lastScrollTime
-            && a.glide == b.glide && a.anchor == b.anchor
+            && a.glide == b.glide && a.anchor == b.anchor && a.cross == b.cross
     }
 
     /// The offset a phase of the frame stamped `now` sees (`SP-F`): the stored one, or the animated value of
@@ -93,6 +137,11 @@ struct ScrollChrome {
     /// resolved the request, so a landed glide equals the stored target.
     static func currentOffset(_ state: ScrollState, now: Double) -> Double {
         state.glide?.value(at: now).offset ?? state.offset
+    }
+
+    /// The horizontal axis's offset of a two-axis scroller at `now` (`XS-C`): `currentOffset` for the cross slot.
+    static func currentCrossOffset(_ state: ScrollState, now: Double) -> Double {
+        state.cross.glide?.value(at: now).offset ?? state.cross.offset
     }
 
     // Two overloads, one per pass type, rather than one function taking a
@@ -134,30 +183,60 @@ struct ScrollChrome {
     @MainActor
     func resolvedOffset(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                         contentNode: LayoutNodeID, pass: PrepaintPass) -> Double {
+        resolvedOffsets(id, bounds: bounds, contentNode: contentNode, pass: pass).primary
+    }
+
+    /// Both axes' offsets (`XS-D`): the primary's, and the horizontal axis's when `crossAxis` is set (0 otherwise). **One core
+    /// resolves each slot** (`resolveSlot`), so the cross axis gets the glide, the anchor, the clamp and the write-back the
+    /// primary has always had, and a copy of that code cannot drift from it.
+    @MainActor
+    func resolvedOffsets(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                         contentNode: LayoutNodeID, pass: PrepaintPass) -> (primary: Double, cross: Double) {
+        let contentSize = pass.bounds(of: contentNode).size
         let viewport = extent(bounds.size)
-        let content = extent(pass.bounds(of: contentNode).size)
-        var resolved: Double = 0
+        let content = extent(contentSize)
+        let horizontal = crossChrome
+        let crossViewport = crossAxis ? horizontal.extent(bounds.size) : 0
+        let crossContent = crossAxis ? horizontal.extent(contentSize) : 0
+        var resolved: Double = 0, crossResolved: Double = 0
         let now = pass.frame.timestamp
         var gliding = false
         // A compared write (`RW-H`): a settled scroller re-stores what is there, which bumps no version and taints nothing.
         pass.withState(id, initial: ScrollState(), unchanged: Self.sameScrollState) {
-            if let glide = $0.glide {   // `SP-F`: the animated value is the stored one, and a landed glide ends
-                let step = glide.value(at: now)
-                $0.offset = step.offset
-                if step.finished { $0.glide = nil } else { gliding = true }
-            }
-            if !anchors.isEmpty {   // `DSA-D`: the anchor decides the offset the clamp then bounds
-                $0.offset = anchoredOffset($0.offset, content: content, viewport: viewport, memory: &$0.anchor)
-            }
-            $0.offset = clampOffset($0.offset, content: content, viewport: viewport)
+            gliding = resolveSlot(offset: &$0.offset, glide: &$0.glide, anchor: &$0.anchor, viewportExtent: &$0.viewportExtent,
+                                  content: content, viewport: viewport, now: now)
             resolved = $0.offset
-            // The half `ScrollState.viewportExtent`'s own doc names: this is
-            // the only writer, and it is what lets NEXT frame's `requestLayout`
-            // read a viewport extent at all.
-            $0.viewportExtent = viewport
+            if crossAxis {
+                if horizontal.resolveSlot(offset: &$0.cross.offset, glide: &$0.cross.glide, anchor: &$0.cross.anchor,
+                                          viewportExtent: &$0.cross.viewportExtent, content: crossContent,
+                                          viewport: crossViewport, now: now) { gliding = true }
+                crossResolved = $0.cross.offset
+            }
         }
         if gliding { pass.frame.noteActiveAnimation() }   // keeps the display link running, never dirties
-        return resolved
+        return (resolved, crossResolved)
+    }
+
+    /// One axis's resolution of one prepaint, over the fields of its slot (`XS-D`): the glide step (`SP-F`), the default anchor
+    /// (`DSA-D`), the clamp, and the viewport extent `requestLayout` reads back next frame. Returns whether a glide is still
+    /// running. `self` is the chrome of THAT axis (`crossChrome` for the horizontal slot of a two-axis scroller).
+    func resolveSlot(offset: inout Double, glide: inout ScrollGlide?, anchor: inout ScrollAnchorMemory,
+                     viewportExtent: inout Double, content: Double, viewport: Double, now: Double) -> Bool {
+        var gliding = false
+        if let running = glide {   // `SP-F`: the animated value is the stored one, and a landed glide ends
+            let step = running.value(at: now)
+            offset = step.offset
+            if step.finished { glide = nil } else { gliding = true }
+        }
+        if !anchors.isEmpty {   // `DSA-D`: the anchor decides the offset the clamp then bounds
+            offset = anchoredOffset(offset, content: content, viewport: viewport, memory: &anchor)
+        }
+        offset = clampOffset(offset, content: content, viewport: viewport)
+        // The half `ScrollState.viewportExtent`'s own doc names: this is
+        // the only writer, and it is what lets NEXT frame's `requestLayout`
+        // read a viewport extent at all.
+        viewportExtent = viewport
+        return gliding
     }
 
     /// **This one clamps on read and does NOT write back, unlike the prepaint
@@ -179,6 +258,20 @@ struct ScrollChrome {
         return clampOffset(stored, content: content, viewport: viewport)
     }
 
+    /// Both axes' offsets for paint (`XS-D`): the primary's as above, and the horizontal axis's, clamped on read the same way.
+    @MainActor
+    func resolvedOffsets(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                         contentNode: LayoutNodeID, pass: PaintPass) -> (primary: Double, cross: Double) {
+        let primary = resolvedOffset(id, bounds: bounds, contentNode: contentNode, pass: pass)
+        guard crossAxis else { return (primary, 0) }
+        let horizontal = crossChrome
+        let state = pass.readState(id, initial: ScrollState())   // `RW-H`
+        let contentSize = pass.bounds(of: contentNode).size
+        let stored = Self.currentCrossOffset(state, now: pass.frame.timestamp)
+        return (primary, horizontal.clampOffset(stored, content: horizontal.extent(contentSize),
+                                                viewport: horizontal.extent(bounds.size)))
+    }
+
     /// The fading overlay scroll indicator: a thumb sized and positioned to
     /// the viewport/content ratio, opaque for 0.6s after a scroll and then
     /// ramped linearly to invisible over the next 0.4s.
@@ -195,12 +288,29 @@ struct ScrollChrome {
     /// it did until `HT-Z`, made a frozen clock's window dirty forever, so
     /// `TestWindow.runUntilIdle()` threw `.notIdle` after every scroll.
     @MainActor
-    func paintIndicator(_ id: GlobalElementID, bounds: Bounds<Pixels>, offset: Double,
+    func paintIndicator(_ id: GlobalElementID, bounds: Bounds<Pixels>, offset: Double, cross: Double = 0,
                         contentNode: LayoutNodeID, pass: inout PaintPass) {
-        paintIndicator(bounds: bounds, offset: offset, content: extent(pass.bounds(of: contentNode).size),
-                       viewport: extent(bounds.size), lastScroll: pass.readState(id, initial: ScrollState()).lastScrollTime,   // `RW-H`
-                       pass: &pass)
+        let size = pass.bounds(of: contentNode).size
+        let lastScroll = pass.readState(id, initial: ScrollState()).lastScrollTime   // `RW-H`
+        guard crossAxis else {
+            paintIndicator(bounds: bounds, offset: offset, content: extent(size), viewport: extent(bounds.size),
+                           lastScroll: lastScroll, pass: &pass)
+            return
+        }
+        // `XS-D`: one indicator per axis from the one numeric painter; where both thumbs show, each track stops short of the
+        // shared corner so they do not meet. One stamp lights both (A9 is unmeasured: a stated assumption).
+        let horizontal = crossChrome
+        let both = extent(size) > extent(bounds.size) && horizontal.extent(size) > horizontal.extent(bounds.size)
+        let inset = both ? Self.cornerInset : 0
+        paintIndicator(bounds: bounds, offset: offset, content: extent(size), viewport: extent(bounds.size),
+                       lastScroll: lastScroll, trackInset: inset, pass: &pass)
+        horizontal.paintIndicator(bounds: bounds, offset: cross, content: horizontal.extent(size),
+                                  viewport: horizontal.extent(bounds.size), lastScroll: lastScroll, trackInset: inset,
+                                  pass: &pass)
     }
+
+    /// How far a two-axis scroller's tracks stop short of the corner they share, in points (`XS-D`).
+    static let cornerInset = 8.0
 
     /// The same indicator from numbers instead of a content node and a `ScrollState` (`CV-O`): the content
     /// and viewport extents along the axis, the scroll offset, and when the wheel last moved the view. What
@@ -208,7 +318,7 @@ struct ScrollChrome {
     /// is one call, so two axes are two.
     @MainActor
     func paintIndicator(bounds: Bounds<Pixels>, offset: Double, content: Double, viewport: Double,
-                        lastScroll: Double, pass: inout PaintPass) {
+                        lastScroll: Double, trackInset: Double = 0, pass: inout PaintPass) {
         // Checked first and unconditionally: `.hidden` must cost nothing at
         // all, not paint a suppressed-alpha rect, and must never reach
         // `noteActiveAnimation()` below — a hidden indicator that kept
@@ -239,8 +349,9 @@ struct ScrollChrome {
         // stayed as a comment instead of a condition that cannot fail.
         pass.frame.noteActiveAnimation()   // `HT-Z` item 1: a fade, not a change
 
-        let thumb = max(20, viewport * (viewport / content))
-        let travel = (offset / scrollable) * (viewport - thumb)
+        let track = viewport - trackInset   // `XS-D`: shorter by the corner it shares with the other axis's thumb
+        let thumb = max(20, track * (viewport / content))
+        let travel = (offset / scrollable) * (track - thumb)
 
         var color = pass.theme[.scrollIndicator]
         color.a *= Float(alpha)
@@ -314,6 +425,35 @@ struct ScrollerFrame {
     /// Whether the scroller lays its content out right-to-left (`LD-E`): `offset` is the distance from the
     /// content's right edge and `logicalStart(of:)` measures from there.
     var mirrored = false
+    /// The horizontal slot of a two-axis scroller (`XS-H`); `nil` for a one-axis one. `axis`, `offset`, `contentExtent` and
+    /// `mirrored` above are the primary axis, vertical for a two-axis scroller.
+    var cross: Cross?
+    /// Whether this frame IS the horizontal slot of a two-axis scroller, from `along(.horizontal)`: what a write to the
+    /// scroller's state (`scrollTo`, an anchor adjustment) uses to pick the slot.
+    var isCross = false
+
+    /// What a two-axis scroller's horizontal axis adds to its frame.
+    struct Cross {
+        var offset: Double
+        var contentExtent: Double
+        var mirrored: Bool
+    }
+
+    /// The frame along `other`, or `nil` when the scroller does not scroll that way (`XS-H`). Along its own axis it is `self`;
+    /// along `.horizontal` a two-axis scroller answers a one-axis horizontal frame over the cross slot, so every reader that
+    /// asks "my axis" (`LazyHStack`, `scrollTo`'s cross resolution) reads the right numbers and nothing else.
+    func along(_ other: ScrollAxis) -> ScrollerFrame? {
+        if other == axis { return self }
+        guard other == .horizontal, let cross else { return nil }
+        var frame = self
+        frame.axis = .horizontal
+        frame.offset = cross.offset
+        frame.contentExtent = cross.contentExtent
+        frame.mirrored = cross.mirrored
+        frame.cross = nil
+        frame.isCross = true
+        return frame
+    }
 
     /// A layout-space rect's start along the scroller's axis, from the content's **leading** edge: from
     /// `contentOrigin` normally, from the content's right edge when mirrored (`LD-E`). What every

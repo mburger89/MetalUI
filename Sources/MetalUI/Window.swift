@@ -2453,15 +2453,16 @@ public final class Window {
             if let scroller = here.last(where: { lastHitboxes[$0].scroll != nil }) {
                 let region = lastHitboxes[scroller]
                 guard let axis else {
-                    scroll(region, by: event)
+                    scroll(region, by: event, along: nil)
                     return true
                 }
-                if region.scroll == axis {
+                let axes = Axis.Set(axis == .horizontal ? .horizontal : .vertical)
+                // `XS-F`: a two-axis scroller declares both (`scrollAxes`); `scroll` is its primary axis.
+                if region.scroll == axis || region.scrollAxes.contains(axes) {
                     let component = axis == .horizontal ? event.delta.x.value : event.delta.y.value
-                    let grows = region.scrollMirrored ? component > 0 : component < 0
-                    let axes = Axis.Set(axis == .horizontal ? .horizontal : .vertical)
+                    let grows = axis == .horizontal && region.scrollMirrored ? component > 0 : component < 0
                     if region.scrollTakes.contains(axes), component == 0 || region.scrollRoom.allows(growing: grows, on: axis) {
-                        scroll(region, by: event)
+                        scroll(region, by: event, along: axis)
                         return true
                     }
                     if fallback == nil { fallback = scroller }
@@ -2470,7 +2471,7 @@ public final class Window {
             cursor = id.parent
         }
         if let fallback {
-            scroll(lastHitboxes[fallback], by: event)
+            scroll(lastHitboxes[fallback], by: event, along: axis)
             return true
         }
         return cover.opaque
@@ -2504,37 +2505,48 @@ public final class Window {
 
     /// Moves `region`'s stored offset by the wheel's component on its axis.
     /// See `applyScroll` for why the write is unbounded.
-    private func scroll(_ region: Hitbox, by event: ScrollEvent) {
-        guard let axis = region.scroll else { return }
+    private func scroll(_ region: Hitbox, by event: ScrollEvent, along wheelAxis: ScrollAxis?) {
+        guard let primary = region.scroll else { return }
+        // `XS-C`: the wheel's axis picks the slot. A two-axis scroller's primary is vertical, its cross slot horizontal; a
+        // one-axis scroller (and an all-zero event) always writes the primary one.
+        let axis = wheelAxis ?? primary
+        let isCross = axis != primary
         let componentDelta = axis == .horizontal ? event.delta.x : event.delta.y
         var moved = 0.0
-        defer { scrollRequests.positions.didScroll(region.id, offset: moved) }   // `SP-C`: from input
+        // `SP-C`: from input - and only the primary axis, which is the one a `scrollPosition` binding follows (`XS-K`, probe `P1`).
+        defer { if !isCross { scrollRequests.positions.didScroll(region.id, offset: moved) } }
         stateTable.withState(region.id, initial: ScrollState()) {
-            $0.glide = nil   // the user's wheel ends an animated `scrollTo` where it stands (`SP-F`)
             // Natural scrolling: a positive scrollingDelta means content moves
             // in the positive direction (the user's fingers moved that way),
-            // so the offset — how far the content has scrolled away from its
-            // start — decreases.
+            // so the offset - how far the content has scrolled away from its
+            // start - decreases.
             // `LD-E`: a right-to-left horizontal scroller's offset is logical (from the right edge), so
             // content following the fingers to the right is an offset that grows.
-            $0.offset += region.scrollMirrored ? Double(componentDelta.value) : -Double(componentDelta.value)
-            moved = $0.offset
+            let signed = axis == .horizontal && region.scrollMirrored ? Double(componentDelta.value) : -Double(componentDelta.value)
+            if isCross {
+                $0.cross.glide = nil   // the user's wheel ends an animated `scrollTo` where it stands (`SP-F`)
+                $0.cross.offset += signed
+            } else {
+                $0.glide = nil   // the user's wheel ends an animated `scrollTo` where it stands (`SP-F`)
+                $0.offset += signed
+                moved = $0.offset
+            }
             // Stamped from the EVENT's own timestamp, not `lastTick`. The
             // display link pauses while the window is clean (spec §4.4), so
-            // after an idle period `lastTick` is however many seconds stale —
+            // after an idle period `lastTick` is however many seconds stale -
             // a wheel event arriving then would be stamped with that stale
             // instant, and the next frame's `age = timestamp - lastScrollTime`
             // would already exceed the fade duration, suppressing the
             // indicator on the very frame meant to show it. `event.timestamp`
             // and `PaintPass.timestamp` (from the display link) share
-            // `mach_absolute_time`'s base, so the subtraction stays valid —
+            // `mach_absolute_time`'s base, so the subtraction stays valid -
             // and `lastTick` is not a usable stand-in for "now" in either
             // direction: it is the display link's *target* presentation
             // instant (spec §4.4), so while the link is running it sits
             // roughly one frame interval AHEAD of the event's own timestamp,
             // and while paused it is however many seconds behind. The event's
             // own timestamp is the only one of the two that is actually
-            // current.
+            // current. One stamp for both axes of a two-axis scroller.
             $0.lastScrollTime = event.timestamp
         }
     }

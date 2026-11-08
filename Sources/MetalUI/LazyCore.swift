@@ -105,7 +105,7 @@ enum LazyLinePlanner {
     static func plan(lineCount count: Int, key: (Int) -> AnyHashable, stored: LazyOrigin?, origin: Double,
                      context: ScrollContext?, axis: ScrollAxis) -> LazyLinePlan {
         let storedIndex = stored?.extents as? RowExtentIndex<AnyHashable>
-        guard let context, context.axis == axis else {
+        guard let context = context?.along(axis) else {   // `XS-H`: a two-axis scroller's horizontal slot for a horizontal container
             if let storedIndex, storedIndex.count != count { storedIndex.rebuild(ids: (0..<count).lazy.map(key)) }
             return LazyLinePlan(mode: .unbounded, window: 0..<count, anchorLine: 0, anchorOffset: 0,
                                 trailing: 0, index: storedIndex, anchor: nil)
@@ -201,7 +201,7 @@ enum LazyLinePlanner {
                          realised: [(line: Int, extent: Double)], builtWindow: Range<Int>, builtCold: Bool,
                          anchor: (index: Int, y: Double)?, pass: PrepaintPass)
         -> (index: RowExtentIndex<AnyHashable>?, adjustment: Double) {
-        guard let scroller = pass.frame.activeScrollerFrame, scroller.axis == axis else { return (nil, 0) }
+        guard let scroller = pass.frame.activeScrollerFrame?.along(axis) else { return (nil, 0) }   // `XS-H`
         let vertical = axis == .vertical
         let origin = scroller.logicalStart(of: bounds)   // `LD-E`: from the leading edge
         let cross = Double(vertical ? bounds.size.width.value : bounds.size.height.value)
@@ -224,7 +224,7 @@ enum LazyLinePlanner {
         var adjustment = 0.0
         if let anchor {
             adjustment = extents.offset(of: anchor.index) - anchor.y
-            pass.frame.noteScrollAnchorAdjustment(scroller: scroller.scrollerID, delta: adjustment)
+            pass.frame.noteScrollAnchorAdjustment(scroller: scroller.scrollerID, delta: adjustment, cross: scroller.isCross)
         }
         let fresh: Range<Int>
         if scroller.viewportExtent > 0 {
@@ -276,7 +276,7 @@ enum LazyLinePlanner {
                     let logical = index.offset(of: position) - adjustment
                     let lineExtent = index.extent(at: position)
                     // `LD-E`: a right-to-left horizontal container counts its lines from its right edge.
-                    let mirrored = !vertical && (pass.frame.activeScrollerFrame?.mirrored ?? false)
+                    let mirrored = !vertical && (pass.frame.activeScrollerFrame?.along(axis)?.mirrored ?? false)
                     let along = vertical ? Double(bounds.origin.y.value) + logical
                         : mirrored ? Double(bounds.origin.x.value + bounds.size.width.value) - logical - lineExtent
                         : Double(bounds.origin.x.value) + logical

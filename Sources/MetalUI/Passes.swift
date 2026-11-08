@@ -144,6 +144,12 @@ public struct LayoutPass {
         ProposalNodeID(frame.requestNativeScrollViewport(child: child.layoutNodeID, axis: axis))
     }
 
+    /// The two-axis (or no-axis) viewport of `ProposalScrollView([.horizontal, .vertical])` (`XS-B`); not public: a custom
+    /// element has no use for it that the one-axis spelling above does not cover.
+    func requestNativeScrollViewport(child: ProposalNodeID, horizontal: Bool, vertical: Bool) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeScrollViewport(child: child.layoutNodeID, horizontal: horizontal, vertical: vertical))
+    }
+
     /// Registers a native linear stack for the proposal-layout migration.
     ///
     /// `spacing` nil is SwiftUI's platform default, 8 between views and none
@@ -368,22 +374,37 @@ public struct PrepaintPass {
     /// The built-in scrollers' registration (`XS-E`): the region plus whether the wheel can still move it, from the offset
     /// this frame resolved. The public spelling above declares both directions open, so a custom scroller passes nothing on.
     func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis,
-                              chrome: ScrollChrome, offset: Double, contentSize: Size<Pixels>) {
-        let viewport = chrome.extent(bounds.size), content = chrome.extent(contentSize)
-        let maximum = content - viewport
-        let takes = maximum > 0.01
-        var room: ScrollRoom = []
-        if takes {
+                              chrome: ScrollChrome, offset: Double, cross: Double = 0, contentSize: Size<Pixels>) {
+        // One rule per axis (`XS-E`, `XS-D`): the primary's, and the horizontal axis's from the cross chrome.
+        func slot(_ chrome: ScrollChrome, offset: Double) -> (takes: Bool, room: ScrollRoom) {
+            let viewport = chrome.extent(bounds.size), content = chrome.extent(contentSize)
+            let maximum = content - viewport
+            guard maximum > 0.01 else { return (false, []) }
+            var room: ScrollRoom = []
             let decrease = offset > 0.01, increase = offset < maximum - 0.01
-            if axis == .horizontal {
+            if chrome.axis == .horizontal {
                 if decrease { room.insert(.decreaseX) }
                 if increase { room.insert(.increaseX) }
             } else {
                 if decrease { room.insert(.decreaseY) }
                 if increase { room.insert(.increaseY) }
             }
+            return (true, room)
         }
-        frame.registerScrollRegion(bounds, id: id, axis: axis, takes: takes, room: room)
+        let primary = slot(chrome, offset: offset)
+        guard chrome.crossAxis else {
+            frame.registerScrollRegion(bounds, id: id, axis: axis, takes: primary.takes, room: primary.room)
+            return
+        }
+        // `XS-F`: a two-axis scroller does not chain at its edge (probe `N9c`-`N9f`): it is open both ways on every axis it takes.
+        let horizontal = slot(chrome.crossChrome, offset: cross)
+        var room: ScrollRoom = []
+        if primary.takes { room.formUnion(.both(on: .vertical)) }
+        if horizontal.takes { room.formUnion(.both(on: .horizontal)) }
+        var takes: Axis.Set = []
+        if primary.takes { takes.insert(.vertical) }
+        if horizontal.takes { takes.insert(.horizontal) }
+        frame.registerScrollRegion(bounds, id: id, axis: axis, axes: [.horizontal, .vertical], takes: takes, room: room)
     }
 
     /// Registers a hitbox for `id` at `bounds`, returning a handle to it.
