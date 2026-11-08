@@ -479,12 +479,13 @@ private struct SchemeAnimated: Component {
     #expect(window.needsRedraw == false)
 }
 
-/// **2.12** (`CR-L` item 5). After the first frame, a preference flipped from
-/// input applies on the next frame: that frame builds light and leaves the
-/// window dirty, the one after builds dark, then the window is clean.
-/// Mutation: never re-dirty on a changed preference.
+/// **2.12** (`CR-L` item 5, amended by `PK-A`). After the first frame, a preference flipped from
+/// input applies in the same frame: the frame that collects it builds a second time in the new scheme
+/// (at most once) and presents that, then the window is clean. It used to paint one frame in the old
+/// scheme and settle on the next (a visible flash).
+/// Mutation: the second build restricted to the first frame (`framesDrawn == 0`) reddens this.
 @MainActor
-@Test func aLaterPreferenceChangeAppliesOnTheNextFrame() throws {
+@Test func aLaterPreferenceChangeAppliesInTheSameFrame() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = SchemeLog()
     let flag = Flag()
@@ -497,12 +498,9 @@ private struct SchemeAnimated: Component {
 
     flip(platform)
     window.drawFrameIfNeeded()
-    #expect(log.reads.last == .light, "the frame that collects the preference was built light")
-    #expect(window.needsRedraw, "a changed preference re-dirties")
-    window.drawFrameIfNeeded()
-    #expect(log.reads.last == .dark)
+    #expect(log.reads.last == .dark, "the frame that collects the preference was presented dark")
     #expect(fills(window.lastScene, darkHalfRGBA), "\(describe(window.lastScene))")
-    #expect(window.needsRedraw == false)
+    #expect(window.needsRedraw == false, "settled in one tick")
 }
 
 /// **2.13** (`CR-L` item 4, probe `P8b`). Clearing the preference returns to

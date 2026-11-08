@@ -86,11 +86,9 @@ func aSkippedPanelWithASegmentedPickerDrawsWhatARebuildDraws(variant: EPVariant,
     #expect(other.query == "ab", "the query field took the typing: \(other.query)")
     let steady = picture(w)
     // Rebuild everything: another appearance, then back.
-    // A tree `.preferredColorScheme` reaches dynamic colours one frame after the build that collects it (`Window.updateColorScheme`
-    // dirties the window; the next frame paints in the new scheme), so each switch is drawn twice, as a display link would.
-    other.alt = true; w.window.setNeedsRedraw(); w.tick(); w.window.setNeedsRedraw(); w.tick()
+    other.alt = true; w.window.setNeedsRedraw(); w.tick()
     #expect(picture(w) != steady, "the other theme draws differently: the rebuild instrument moves")
-    other.alt = false; w.window.setNeedsRedraw(); w.tick(); w.window.setNeedsRedraw(); w.tick()
+    other.alt = false; w.window.setNeedsRedraw(); w.tick()
     let rebuilt = picture(w)
     if steady != rebuilt {
         let n = min(steady.count, rebuilt.count)
@@ -110,30 +108,25 @@ func aRetainingWindowWithASegmentedPickerEqualsARetentionOffWindow(shape: EPShap
 }
 
 
-/// The scheme lag is not retention's: a retaining window and a retention-off one draw the selected segment identically at every
-/// frame of a scheme round trip, the first frame after each switch still in the old scheme (`MetalCreator` read that frame as
-/// "the skipped panel is stale").
-@Test(.enabled(if: !rsVerifying, "verify mode paints a hit as a miss")) @MainActor
-func aSchemeSwitchReachesASegmentedPickersFillOneFrameLateWithOrWithoutRetention() throws {
-    var trails: [[String]] = []
-    for retain in [true, false] {
-        let model = EPModel(), other = EPModel()
-        let w = try TestWindow(size: sz(300, 120), textSystem: harnessTextSystem) {
-            VStack(spacing: 0) { EPRoot(model: model, other: other, shape: .labelsHidden) }
-        }
-        w.window.testingRetainedSubtrees = retain
-        var trail: [String] = []
-        func fill() {
-            let r = w.scene.rects.filter { $0.bounds.size.height == 24 && $0.bounds.size.width < 100 && $0.background.a > 0 }
-            trail.append(r.map { "\($0.background.l)/\($0.background.a)" }.joined(separator: ","))
-        }
-        func frame() { w.window.setNeedsRedraw(); w.tick(); fill() }
-        for _ in 0..<4 { frame() }
-        other.alt = true; frame(); frame()
-        other.alt = false; frame(); frame()
-        trails.append(trail)
+/// A scheme switch reaches a segmented `Picker`'s selected fill in the frame that collects the tree's `.preferredColorScheme`
+/// (`PK-A`; it was one frame late), with retention on and off alike: one redraw after each switch is the settled fill.
+/// Mutation: `Window.drawFrameIfNeeded`'s second build restricted to the first frame reddens it.
+@Test(.enabled(if: !rsVerifying, "verify mode paints a hit as a miss"), arguments: [true, false]) @MainActor
+func aSchemeSwitchReachesASegmentedPickersFillInTheSameFrame(retain: Bool) throws {
+    let model = EPModel(), other = EPModel()
+    let w = try TestWindow(size: sz(300, 120), textSystem: harnessTextSystem) {
+        VStack(spacing: 0) { EPRoot(model: model, other: other, shape: .labelsHidden) }
     }
-    #expect(trails[0] == trails[1], "retaining \(trails[0]) vs off \(trails[1])")
-    #expect(trails[0][3] == trails[0][7] && trails[0][4] != trails[0][5] && trails[0][6] != trails[0][7] && trails[0][5] != trails[0][3],
-            "light, then dark a frame late, then light a frame late: \(trails[0])")
+    w.window.testingRetainedSubtrees = retain
+    var trail: [String] = []
+    func frame() {
+        w.window.setNeedsRedraw(); w.tick()
+        let r = w.scene.rects.filter { $0.bounds.size.height == 24 && $0.bounds.size.width < 100 && $0.background.a > 0 }
+        trail.append(r.map { "\($0.background.l)/\($0.background.a)" }.joined(separator: ","))
+    }
+    for _ in 0..<4 { frame() }
+    other.alt = true; frame(); frame()
+    other.alt = false; frame(); frame()
+    #expect(trail[4] == trail[5] && trail[4] != trail[3], "dark in the switching frame: \(trail)")
+    #expect(trail[6] == trail[7] && trail[6] == trail[3], "light in the switching frame: \(trail)")
 }
