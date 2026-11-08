@@ -2354,17 +2354,18 @@ public final class Window {
         // that left the frame falls back to the pointer, for good.
         if ScrollLatch.isGestureEvent(event), var latch = scrollLatch {
             if let cover = latchedScrollCover(latch) {
+                latch.lockIfNeeded(from: event)   // `XS-G`
                 let claimed = dispatchScrollChain(event, cover: cover, candidates: lastHitboxes.indices.filter {
                     let region = lastHitboxes[$0]
                     return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
                         && region.layer == cover.layer
-                })
+                }, lock: latch.lock)
                 scrollLatch = latch.advance(with: event) ? latch : nil
                 return claimed
             }
             scrollLatch = nil
         }
-        let (claimed, cover) = applyScrollAtPointer(event)
+        let (claimed, cover) = applyScrollAtPointer(event, lock: event.phase == .began ? ScrollLatch.dominantAxis(of: event) : nil)
         if event.phase == .began {
             scrollLatch = cover.map { ScrollLatch(cover: $0, event: event) }   // replaces any latch
         }
@@ -2383,7 +2384,7 @@ public final class Window {
     /// of the one ranking at the event's position, and whether the chain
     /// claimed. The cover is returned (`nil` when nothing was under the
     /// pointer) for the latch.
-    private func applyScrollAtPointer(_ event: ScrollEvent) -> (claimed: Bool, cover: Hitbox?) {
+    private func applyScrollAtPointer(_ event: ScrollEvent, lock: Axis?) -> (claimed: Bool, cover: Hitbox?) {
         let point = event.position
         guard let topIndex = topmostHitbox(in: lastHitboxes, at: point, where: {
             $0.opaque || $0.handlers.pointer?.scrollWheel != nil
@@ -2406,21 +2407,30 @@ public final class Window {
             return (region.scroll != nil || region.handlers.pointer?.scrollWheel != nil)
                 && region.layer == cover.layer && region.contains(point)
         }
-        return (dispatchScrollChain(event, cover: cover, candidates: candidates), cover)
+        return (dispatchScrollChain(event, cover: cover, candidates: candidates, lock: lock), cover)
     }
 
     /// Walks the cover's chain over `candidates` (the regions on the cover's
     /// layer — those containing the pointer on the pointer path, all of them
     /// on the latched one): at each id, the wheel handlers innermost first,
     /// the multi-line editor at the cover, then the id's scroller.
-    private func dispatchScrollChain(_ event: ScrollEvent, cover: Hitbox, candidates: [Int]) -> Bool {
+    private func dispatchScrollChain(_ event: ScrollEvent, cover: Hitbox, candidates: [Int], lock: Axis?) -> Bool {
         let point = event.position
+        // `XS-F`, `XS-G`: the wheel goes WHOLE to one axis, the locked one or else the dominant component of this event
+        // (probe `A3`, `A4`, `A8`, `N3`: SwiftUI's scrollers take the dominant axis only, one-axis scrollers too). `nil` is
+        // an all-zero event (a terminal phase): it keeps its old answer, the innermost scroller's stamp.
+        let axis: ScrollAxis? = ScrollLatch.dominantAxis(of: event) == nil ? nil
+            : (lock ?? ScrollLatch.dominantAxis(of: event)).map { $0 == .horizontal ? ScrollAxis.horizontal : .vertical }
+        // The innermost scroller on the axis that had no room, taken only when no scroller above can (`XS-F`: the end of a
+        // one-axis scroller passes the wheel up, probe `N8`; with nobody above it stays the old banking-and-clamping target).
+        var fallback: Int?
         var cursor: GlobalElementID? = cover.id
         while let id = cursor {
             let here = candidates.filter { lastHitboxes[$0].id == id }
             for index in here.reversed() {
                 let region = lastHitboxes[index]
                 guard let handler = region.handlers.pointer?.scrollWheel else { continue }
+                // Handlers keep the raw event (`XS-G`): the lock is for scrollers only.
                 var local = event
                 let p = region.localPoint(point)
                 local.location = Point(x: Pixels(p.x.value - region.origin.x.value),
@@ -2429,8 +2439,10 @@ public final class Window {
             }
             // A multi-line text field scrolls its own content (ruling TI-H): the
             // wheel moves its `scrollY` within its content and leaves the caret
-            // where it is, so the next frame does not scroll it back.
-            if id == cover.id, let target = cover.handlers.textInput, target.lines != nil {
+            // where it is, so the next frame does not scroll it back. It takes the
+            // vertical axis only (`XS-F`): a horizontal wheel goes on to the
+            // scroller around it.
+            if id == cover.id, let target = cover.handlers.textInput, target.lines != nil, axis != .horizontal {
                 stateTable.withState(cover.id, initial: TextEditState()) {
                     $0.scrollY = ScrollChrome.wheelOffset(x: 0, y: $0.scrollY, delta: event.delta,
                                                           maximum: (0, target.maxScrollY)).y   // `CV-O`
@@ -2439,10 +2451,27 @@ public final class Window {
                 return true
             }
             if let scroller = here.last(where: { lastHitboxes[$0].scroll != nil }) {
-                scroll(lastHitboxes[scroller], by: event)
-                return true
+                let region = lastHitboxes[scroller]
+                guard let axis else {
+                    scroll(region, by: event)
+                    return true
+                }
+                if region.scroll == axis {
+                    let component = axis == .horizontal ? event.delta.x.value : event.delta.y.value
+                    let grows = region.scrollMirrored ? component > 0 : component < 0
+                    let axes = Axis.Set(axis == .horizontal ? .horizontal : .vertical)
+                    if region.scrollTakes.contains(axes), component == 0 || region.scrollRoom.allows(growing: grows, on: axis) {
+                        scroll(region, by: event)
+                        return true
+                    }
+                    if fallback == nil { fallback = scroller }
+                }
             }
             cursor = id.parent
+        }
+        if let fallback {
+            scroll(lastHitboxes[fallback], by: event)
+            return true
         }
         return cover.opaque
     }

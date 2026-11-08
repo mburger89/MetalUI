@@ -19,6 +19,10 @@ struct ScrollLatch {
     var fingerInFlight: Bool
     /// From the first momentum event until its `.ended`/`.cancelled`.
     var momentumInFlight: Bool
+    /// The axis this scroll is locked to (`XS-G`): the dominant component of the first event that carried a delta
+    /// (`|dy| >= |dx|` is vertical), kept through the momentum stage. SwiftUI's `NSScrollView` does the same
+    /// (probe `A4`, `A4c`, `A5`). `nil` until such an event; a phaseless event is never latched, so it is never locked.
+    var lock: Axis?
     /// The last event seen (position, modifiers, precision and timestamp are
     /// what a synthesized terminal event repeats).
     var last: ScrollEvent
@@ -30,6 +34,20 @@ struct ScrollLatch {
         self.fingerInFlight = true
         self.momentumInFlight = false
         self.last = event
+        self.lock = Self.dominantAxis(of: event)
+    }
+
+    /// The component a wheel event is mostly about: vertical when `|dy| >= |dx|` (a tie is vertical, probe `A7`), `nil` for
+    /// a zero delta. SwiftUI delivers a phaseless diagonal event to this axis alone too (probe `A3`, `N3`).
+    static func dominantAxis(of event: ScrollEvent) -> Axis? {
+        let x = abs(event.delta.x.value), y = abs(event.delta.y.value)
+        if x == 0, y == 0 { return nil }
+        return y >= x ? .vertical : .horizontal
+    }
+
+    /// Takes the lock from `event` when none is held yet.
+    mutating func lockIfNeeded(from event: ScrollEvent) {
+        if lock == nil { lock = Self.dominantAxis(of: event) }
     }
 
     /// Whether `event` is one the latch dispatches (`IF-G` item 2): a

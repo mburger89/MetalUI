@@ -7,7 +7,7 @@ import Observation
 /// `MarkdownDocument.append`, the way a model's tokens arrive. The reply holds every block kind (headings, inline
 /// styles and a link, bullet and ordered lists with nesting, a quote, a rule, a highlighted Swift fence and a table).
 /// A button streams another reply; a toggle switches long code lines between wrapping and the horizontal scroller
-/// (which takes a vertical wheel for itself, `BM-H`).
+/// (a vertical wheel over it scrolls the transcript, `XS-F`).
 ///
 /// **The human looks** (group BM): no flicker or jump at the bottom while a reply streams; a vertical wheel over a
 /// code block or a table scrolls the transcript (wrapping on); a horizontal wheel scrolls the unwrapped block; links
