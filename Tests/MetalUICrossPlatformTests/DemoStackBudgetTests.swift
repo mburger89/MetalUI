@@ -47,6 +47,7 @@ private func buildEveryProductionTree() {
     buildTheClipboardDemo()   // clipboard beyond text (CB-, spec §6)
     buildTheLazyContainersDemo()   // lazy containers (LZ-Q, spec section 6)
     buildTheCodeViewDemo()         // the read-only code view (CV-, record 227)
+    buildTheMarkdownDemo()         // the block Markdown transcript (BM-, record 235)
     buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
     buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
     buildTheGroupFilterStrip()     // a filter over a group (GF-)
@@ -125,6 +126,14 @@ private func buildTheLazyContainersDemo() {
 @MainActor @inline(never)
 private func buildTheCodeViewDemo() {
     _ = codeViewDemoContent(model: CodeViewDemoModel(bare: "let x = 1\n"))
+}
+
+/// The Markdown transcript demo's tree and its bar (a component built at layout), in its own frame. The transcript
+/// component reads the demo's shared model, a main-actor global, so only its value is built here.
+@MainActor @inline(never)
+private func buildTheMarkdownDemo() {
+    _ = markdownDemoContent()
+    _ = MarkdownDemoBar().content
 }
 
 /// The Liquid Glass demo's tree and its container component, in its own frame.

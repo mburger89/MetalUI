@@ -104,6 +104,10 @@ func runDemo() throws {
     // colours, author bars, diff tints and virtual rows of removed lines, and a second view scrolled with it.
     let codeDemo = ProcessInfo.processInfo.environment["METALUI_CODE_DEMO"] == "1"
 
+    // Block Markdown (`BM-`, record 235, human checks group BM): a chat transcript anchored at the bottom whose last
+    // reply streams in a few characters at a time, with a highlighted fence, a table and a wrap toggle.
+    let markdownDemo = ProcessInfo.processInfo.environment["METALUI_MARKDOWN_DEMO"] == "1"
+
     // Liquid Glass (`LG-P`, `LG-V`, spec `2026-10-23-liquid-glass-design.md` section 6, human checks group LG):
     // regular, clear and tinted capsules, `.glass` and `.glassProminent` buttons and a container of three circles
     // with a spacing control, over a striped backdrop.
@@ -130,6 +134,10 @@ func runDemo() throws {
         window = try app.openWindow(title: "MetalUI — Code View",
                                     size: Size(width: Pixels(1100), height: Pixels(700)),
                                     content: { codeViewDemoContent() })
+    } else if markdownDemo {
+        window = try app.openWindow(title: "MetalUI — Markdown",
+                                    size: Size(width: Pixels(720), height: Pixels(640)),
+                                    content: markdownDemoContent)
     } else if lazyDemo {
         window = try app.openWindow(title: "MetalUI — Lazy Containers",
                                     size: Size(width: Pixels(920), height: Pixels(640)),
