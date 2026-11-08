@@ -10,6 +10,12 @@ import Testing
 
 enum EPShape: CaseIterable { case titled, labelsHidden, inHStack, untitledScrolled }
 
+private func epTheme(_ base: Theme, surface: UInt32, text: UInt32) -> Theme {
+    var t = base; t.surface = Hsla.rgb(surface); t.textPrimary = Hsla.rgb(text); return t
+}
+let epLight = epTheme(.light, surface: 0xf4eedd, text: 0x223344)
+let epDark = epTheme(.dark, surface: 0x2a3a55, text: 0xfafad2)
+
 enum EPMode: String, CaseIterable, Hashable { case one, two, three }
 
 @Observable @MainActor final class EPModel { var mode: EPMode = .one; var query = ""; var tick = 0; var alt = false }
@@ -43,7 +49,7 @@ struct EPRoot: Component {
             Text("count \(other.tick)")
             TextField("query", text: Binding(get: { other.query }, set: { other.query = $0 }))
             EPPanel(model: model, other: other, shape: shape).equatable()
-        }.theme(other.alt ? Theme.dark : Theme.light)
+        }.theme(other.alt ? epDark : epLight).preferredColorScheme(other.alt ? .dark : .light)
     }
 }
 
@@ -80,9 +86,11 @@ func aSkippedPanelWithASegmentedPickerDrawsWhatARebuildDraws(variant: EPVariant,
     #expect(other.query == "ab", "the query field took the typing: \(other.query)")
     let steady = picture(w)
     // Rebuild everything: another appearance, then back.
-    other.alt = true; w.window.setNeedsRedraw(); w.tick()
+    // A tree `.preferredColorScheme` reaches dynamic colours one frame after the build that collects it (`Window.updateColorScheme`
+    // dirties the window; the next frame paints in the new scheme), so each switch is drawn twice, as a display link would.
+    other.alt = true; w.window.setNeedsRedraw(); w.tick(); w.window.setNeedsRedraw(); w.tick()
     #expect(picture(w) != steady, "the other theme draws differently: the rebuild instrument moves")
-    other.alt = false; w.window.setNeedsRedraw(); w.tick()
+    other.alt = false; w.window.setNeedsRedraw(); w.tick(); w.window.setNeedsRedraw(); w.tick()
     let rebuilt = picture(w)
     if steady != rebuilt {
         let n = min(steady.count, rebuilt.count)
@@ -99,4 +107,33 @@ func aRetainingWindowWithASegmentedPickerEqualsARetentionOffWindow(shape: EPShap
         return VStack(spacing: 0) { EPRoot(model: m, other: o, shape: shape) }
     }
     for _ in 0..<3 { pair.redraw(); try pair.compare("steady") }
+}
+
+
+/// The scheme lag is not retention's: a retaining window and a retention-off one draw the selected segment identically at every
+/// frame of a scheme round trip, the first frame after each switch still in the old scheme (`MetalCreator` read that frame as
+/// "the skipped panel is stale").
+@Test(.enabled(if: !rsVerifying, "verify mode paints a hit as a miss")) @MainActor
+func aSchemeSwitchReachesASegmentedPickersFillOneFrameLateWithOrWithoutRetention() throws {
+    var trails: [[String]] = []
+    for retain in [true, false] {
+        let model = EPModel(), other = EPModel()
+        let w = try TestWindow(size: sz(300, 120), textSystem: harnessTextSystem) {
+            VStack(spacing: 0) { EPRoot(model: model, other: other, shape: .labelsHidden) }
+        }
+        w.window.testingRetainedSubtrees = retain
+        var trail: [String] = []
+        func fill() {
+            let r = w.scene.rects.filter { $0.bounds.size.height == 24 && $0.bounds.size.width < 100 && $0.background.a > 0 }
+            trail.append(r.map { "\($0.background.l)/\($0.background.a)" }.joined(separator: ","))
+        }
+        func frame() { w.window.setNeedsRedraw(); w.tick(); fill() }
+        for _ in 0..<4 { frame() }
+        other.alt = true; frame(); frame()
+        other.alt = false; frame(); frame()
+        trails.append(trail)
+    }
+    #expect(trails[0] == trails[1], "retaining \(trails[0]) vs off \(trails[1])")
+    #expect(trails[0][3] == trails[0][7] && trails[0][4] != trails[0][5] && trails[0][6] != trails[0][7] && trails[0][5] != trails[0][3],
+            "light, then dark a frame late, then light a frame late: \(trails[0])")
 }
