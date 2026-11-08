@@ -2386,3 +2386,13 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 - [ ] **SYM5.** VoiceOver on `Image(systemName: "doc.on.doc")`: "Copy, image"? A name outside the table (`bolt`) reads "flash" in lower case (divergence 228). **Observed:**
 - [ ] **SYM6.** (Superseded by SYM7 once PR 2 is merged: before it, Linux and Windows drew nothing.) **Observed:**
 - [ ] **SYM7.** The bundled Lucide icons (record 232; rulings `SYM-I`, `SYM-J`; divergences 230, 231). On the Linux VM and on Windows (SDL), draw `Image(systemName:)` for the 30 Alloy names at body, `.title` and 48 pt, regular and `.bold()`, light and dark, at 1x and 2x: are they crisp (strokes whole-pixel at 1x where the box allows), the same weight beside text as the macOS symbols, sat on the text's baseline in an `HStack(alignment: .firstTextBaseline)`, and is `play.fill` a solid triangle the size of `play`? Then `Icon.bundled("cpu")` under `.symbolRenderingMode(.hierarchical)` (monochrome, divergence 231) and a custom two-level `Icon` (secondary at half). **Observed:**
+
+## SOC. Suggestion overlay and image types - a composer's list while typing, an image from the clipboard (Alloy gaps; record 234; rulings `SOC-A`..`SOC-H`; decisions `docs/superpowers/2026-11-07-suggestion-overlay-decisions.md`)
+
+*An agent cannot: the tests drive a headless window; how the list looks over a real field, a real mouse press and a real clipboard are looks and platform facts.*
+
+- [ ] **SOC1.** A `TextField` at the bottom of a window with a `.suggestionOverlay` of five rows (`ForEach` of `Button`s with a background): type `/` and keep typing, press up/down/Return/Esc with an `onKeyPress` that routes them: does the field keep its caret and blink, do the other keys type, does the list sit above the field and flip below when the window is dragged short? **Observed:**
+- [ ] **SOC2.** Click a row with the mouse: does the row run and the field keep its caret (no focus ring flicker)? Click outside: does the list stay (the app owns it)? Scroll the wheel over a list in a `ScrollView`: does it scroll and not the view beneath? **Observed:**
+- [ ] **SOC3.** VoiceOver: are the rows reachable as ordinary buttons beside the field, not announced as a popover? **Observed:**
+- [ ] **SOC4.** Copy an image (a screenshot to the clipboard on macOS; an image from a browser on Linux; a snipping-tool capture on Windows) and read it with `Clipboard.readData(of: .png)` and `read(ImageData.self)`: macOS and Linux should answer PNG or TIFF; Windows is expected to list nothing (SDL does not translate `CF_DIB`). Drag a `.png` file and a browser image onto `dropDestination(for: URL.self)` and `(for: ImageData.self)`: the file is a `URL`, the browser image (macOS only) is `ImageData`. **Observed:**
+

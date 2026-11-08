@@ -44,6 +44,9 @@ package enum ClipboardMime {
         ("public.plain-text", "text/plain"),
         ("public.json", "application/json"),
         ("public.url", "text/uri-list"),
+        ("public.png", "image/png"),
+        ("public.jpeg", "image/jpeg"),
+        ("public.tiff", "image/tiff"),
         ("public.data", "application/octet-stream"),
     ]
     private static let customPrefix = "application/x-"
