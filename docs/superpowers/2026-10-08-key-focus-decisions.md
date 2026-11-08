@@ -1032,3 +1032,11 @@ app command's ⌘-key — MetalCreator's palette and viewport both carry one.
 4. **The lane C count is 2975** (the implementation commit's message said
    2974); with C12, 2976.
 
+## KF-AB — Keys during an IME composition (Alloy G14, record 247)
+
+Next unused id: `KF-AC`.
+
+1. **macOS follows AppKit's input-context-first order, and `Window` adds no gate.** `MetalHostView.keyDown` offers a non-⌘ key to `inputContext.handleEvent` while text input is on, so a key the real IME consumes (candidate ↑/↓, Esc cancelling) never reaches `onInput`. A key the IME declines reaches `Window`, and SwiftUI delivers such a key to `onKeyPress` with marked text present: probe `docs/probes/swiftui-onkeypress-marked-text.swift` (marked text in the field editor, ↓ and Esc posted, both heard). **Limit: no real IME was attached**, so the probe shows delivery of a declined key, not what a real IME consumes. A `Window`-level gate would make macOS diverge from SwiftUI; pinned by `aKeyThatReachesWindowDuringACompositionStillReachesOnKeyPress`.
+2. **SDL suppresses keys while composing.** SDL sends key events and `TEXT_EDITING` separately, so keys the IME consumes still arrived. `SDLWindow` keeps `isComposing` (non-empty `TEXT_EDITING` text since the last commit, cancel or text input off) and does not forward a key-down or key-up without control or command (`SDLWindow.suppressesKey(composing:modifiers:)`). Neither the Keymap nor `onKeyPress` nor the field sees them; they resume after the composition ends.
+3. **Rejected: `KeyPress.isComposing`.** A property would leave every handler to remember to check it, and SwiftUI has none.
+

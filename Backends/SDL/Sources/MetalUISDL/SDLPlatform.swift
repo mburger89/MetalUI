@@ -835,10 +835,13 @@ public final class SDLWindow: PlatformWindow {
 
     /// The caret `setTextInputArea` last set; nil while text input is off.
     private(set) var textInputCaret: Bounds<Pixels>?
+    /// Non-empty `TEXT_EDITING` text since the last commit or cancel (`KF-AB`).
+    private(set) var isComposing = false
 
     public func setTextInputArea(_ caret: Bounds<Pixels>?) {
         guard caret != textInputCaret else { return }
         textInputCaret = caret
+        if caret == nil { isComposing = false }
         let raw = UnsafeMutableRawPointer(handle)
         if let caret {
             _ = mui_window_start_text_input(raw, Int32(caret.origin.x.value.rounded(.down)),
@@ -937,6 +940,13 @@ public final class SDLWindow: PlatformWindow {
     /// Whether a key-down is one SDL will also send as `SDL_EVENT_TEXT_INPUT`
     /// — a printable keycode with no control or command — and so, while text
     /// input is on, not a key (ruling TI-A).
+    /// Whether a key event belongs to the input method (ruling `KF-AB`): SDL sends key events
+    /// and `TEXT_EDITING` separately, so while marked text is non-empty a key without control
+    /// or command (↑ ↓ Esc, Return choosing a candidate) is not forwarded to `Window`.
+    nonisolated static func suppressesKey(composing: Bool, modifiers: Modifiers) -> Bool {
+        composing && modifiers.isDisjoint(with: [.control, .command])
+    }
+
     nonisolated static func producesText(keycode: UInt32, modifiers: Modifiers) -> Bool {
         guard modifiers.isDisjoint(with: [.control, .command]) else { return false }
         return keycode >= 0x20 && keycode < 0x7F
@@ -1563,10 +1573,13 @@ public final class SDLWindow: PlatformWindow {
             handleDrop(event)
         case Int(MUI_EVENT_TEXT_INPUT):
             guard textInputCaret != nil, let text = event.text else { return }
+            isComposing = false   // a commit ends the composition
             _ = onInput?(.textInput(String(cString: text)))
         case Int(MUI_EVENT_TEXT_EDITING):
             guard textInputCaret != nil, let text = event.text else { return }
-            _ = onInput?(.textComposition(SDLKeys.composition(String(cString: text),
+            let marked = String(cString: text)
+            isComposing = !marked.isEmpty
+            _ = onInput?(.textComposition(SDLKeys.composition(marked,
                                                              start: Int(event.start), length: Int(event.length))))
         case Int(MUI_EVENT_WHEEL):
             // SDL 3.4 has no scroll phase, momentum or precise flag (`CI-I` item 6): the delta is lines,
@@ -1577,6 +1590,8 @@ public final class SDLWindow: PlatformWindow {
             _ = onInput?(.modifiersChanged(modifiers))
         case Int(MUI_EVENT_KEY_DOWN), Int(MUI_EVENT_KEY_UP):
             if textInputCaret != nil, Self.producesText(keycode: event.keycode, modifiers: modifiers) { return }
+            // KF-AB: while the input method composes, its keys are its own.
+            if Self.suppressesKey(composing: isComposing, modifiers: modifiers) { return }
             let keys = SDLKeys.characters(forKeycode: event.keycode, modifiers: modifiers)
             let key = KeyEvent(charactersIgnoringModifiers: keys.ignoringModifiers,
                                characters: keys.characters, modifiers: modifiers,
