@@ -205,4 +205,4 @@ Ranked from the carried/not-built sweep (decisions docs' Carried sections, the "
 - [ ] G9. Programmatic Menu (PR #239, branch feat/menu-is-presented, record 241, `MN-AK`, class M, no divergence): `Menu(isPresented:)`, `Menu(_:isPresented:)` and `.menuPresented(_:)` open a `Menu` from code (a composer's `/model`); human checks MIP1-MIP3 not run.
 - [ ] G10. Image paste into a focused TextEditor (destination before text paste). Not started.
 - [ ] G11. `TextEditor(text:selection:)` on macOS 14. Not started.
-- [ ] G12. `CodeView.gutterBarContextMenu` opened only at the window origin (branch fix/gutter-context-menu-offset, record 245, `CV-AF`, class M, no divergence): the menu closure now converts the region-relative point to bounds space. PR pending.
+- [ ] G12. `CodeView.gutterBarContextMenu` opened only at the window origin (branch fix/gutter-context-menu-offset, record 245, `CV-AF`, class M, no divergence): the menu closure now converts the region-relative point to bounds space. PR #243.
