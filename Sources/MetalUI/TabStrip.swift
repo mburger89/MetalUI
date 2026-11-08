@@ -173,6 +173,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
         return to
     }
 
+    /// The strip: a bar of tabs in a horizontal scroller over a rule (`TBS-B`).
     public var content: some ElementGroup {
         let tabs = tabs, selection = selection, closeHandler = closeHandler, moveHandler = moveHandler
         let selected = selection.wrappedValue

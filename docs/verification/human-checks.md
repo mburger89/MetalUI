@@ -2416,3 +2416,13 @@ Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a t
 - [ ] **XS4.** A mouse with a plain wheel (and a horizontal wheel or shift): vertical over the block moves the transcript, sideways moves the block. **Observed:**
 - [ ] **XS5.** On Linux/Windows (SDL): a touchpad and a wheel mouse do the same as XS1-XS4. **Observed:**
 
+## TBS. Tab strip - an editor's closable, reorderable file tabs (Alloy gap G4; record 238; rulings `TBS-A`..`TBS-I`; decisions `docs/superpowers/2026-11-07-tab-strip-decisions.md`)
+
+*An agent cannot: the tests read frames, rects and the accessibility tree of a headless window; how the strip looks beside a real editor, how a drag feels under a real mouse and what VoiceOver says are looks. Run `METALUI_TABS_DEMO=1 swift run MetalUIDemo` (also under SDL).*
+
+- [ ] **TBS1.** Light and dark: does the strip read as a native editor tab bar (the selected tab the colour of the panel under it, hairlines between tabs, the title legible at 12 points, the unselected tabs quieter)? Hover a tab: is the wash visible but light? **Observed:**
+- [ ] **TBS2.** Hover a clean tab and click the x; hover a dirty tab (the dot becomes the x) and click it; middle-click a tab. Does each close exactly the one under the pointer and leave the selection to the demo's handler? Does the x hover wash sit centred? **Observed:**
+- [ ] **TBS3.** Drag a tab across its neighbours slowly and fast: does the accent bar track the landing edge, does the dimmed tab read as the one in hand, and does releasing reorder once? Drag within the tab and release: nothing. **Observed:**
+- [ ] **TBS4.** With a dozen tabs, scroll the strip with a trackpad swipe (sideways) and with the wheel (vertical should scroll the page beneath, not the strip); press the demo's next-tab key at the end of the strip: does the selected tab glide into view? **Observed:**
+- [ ] **TBS5.** VoiceOver: is the strip a group named Tabs, each tab a button announced with its title, selected state and "edited", and each x a "Close <title>" button? Is a real tab-group role missed? **Observed:**
+- [ ] **TBS6.** Linux and Windows (SDL): the x is the bundled Lucide icon; is it crisp at 9 points beside the 12-point title? **Observed:**

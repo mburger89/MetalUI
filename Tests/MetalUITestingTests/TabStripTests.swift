@@ -104,6 +104,36 @@ import Testing
     #expect(m.closed.isEmpty)
 }
 
+/// 4b - a tab with no slot is 18 points narrower than the same title with one: the next tab starts 18 points sooner.
+/// Mutation: build the slot regardless of `isClosable`/`isDirty` (its accessibility button is hidden, its click does nothing,
+/// so only the width shows it).
+@Test @MainActor func aTabWithNoSlotIsEighteenPointsNarrower() throws {
+    let title = "a-fairly-long-file-name.swift"
+    let items = [TabStripItem(id: "a", title: title), TabStripItem(id: "b", title: title + "2", isClosable: false),
+                 TabStripItem(id: "c", title: title + "3")]
+    let window = try stripWindow(StripModel(tabs: items), width: 800)
+    let a = try tabFrame(window, title), b = try tabFrame(window, title + "2"), c = try tabFrame(window, title + "3")
+    #expect(b.origin.x.value - a.origin.x.value == a.size.width.value + 18, "a has a slot: \(a) \(b)")
+    #expect(c.origin.x.value - b.origin.x.value == b.size.width.value, "b has none: \(b) \(c)")
+}
+
+/// The 16 x 16 close buttons drawn (a hover wash rect, clear or not, sits behind each).
+@MainActor private func closeButtons(_ window: TestWindow) -> Int {
+    window.scene.rects.filter { $0.bounds.size.width == 16 && $0.bounds.size.height == 16 }.count
+}
+
+/// 4c - the close button shows on the selected tab and on a hovered one, and nowhere else. Mutation: never show it, or
+/// always.
+@Test @MainActor func theCloseButtonShowsOnTheSelectedAndTheHoveredTab() throws {
+    let m = StripModel(tabs: plainTabs)
+    let window = try stripWindow(m)
+    #expect(closeButtons(window) == 1, "only the selected tab's")
+    window.hover(at: try body(window, "c.swift")); window.tick()
+    #expect(closeButtons(window) == 2, "and the hovered tab's")
+    window.exitPointer(); window.tick()
+    #expect(closeButtons(window) == 1)
+}
+
 /// The dot a dirty tab shows: an 8 x 8 rect.
 @MainActor private func dots(_ window: TestWindow) -> Int {
     window.scene.rects.filter { $0.bounds.size.width == 8 && $0.bounds.size.height == 8 }.count
@@ -264,4 +294,22 @@ import Testing
     let left = try #require(seen.first(where: bar))
     #expect(left.bounds.origin.x == 0, "leading edge of a: \(left.bounds)")
     #expect(!window.scene.rects.contains(where: bar), "the marker goes with the drag")
+}
+
+/// 13 - an icon takes 14 points and the 6 between it and the title, and the strip's equality sees a changed icon.
+/// Mutation: drop the icon from `TabStripLabel`, or `isSame` treating any two icons as equal.
+@Test @MainActor func anIconWidensTheTabAndCountsInEquality() throws {
+    let title = "a-fairly-long-file-name.swift"
+    let items = [TabStripItem(id: "a", title: title), TabStripItem(id: "b", title: title + "2", icon: Image(systemName: "doc"))]
+    let window = try stripWindow(StripModel(tabs: items), width: 800)
+    let a = try tabFrame(window, title), b = try tabFrame(window, title + "2")
+    #expect(b.size.width.value - a.size.width.value > 19.5 && b.size.width.value - a.size.width.value < 20.5 + 10,
+            "the icon and its gap (plus the longer title): \(a.size.width) \(b.size.width)")
+    let m = StripModel(tabs: items)
+    func strip(_ icon: Image?) -> TabStrip<String> {
+        TabStrip(selection: m.binding, tabs: [TabStripItem(id: "a", title: "x", icon: icon)])
+    }
+    #expect(strip(Image(systemName: "doc")) == strip(Image(systemName: "doc")))
+    #expect(strip(Image(systemName: "doc")) != strip(Image(systemName: "star")))
+    #expect(strip(nil) != strip(Image(systemName: "doc")))
 }
