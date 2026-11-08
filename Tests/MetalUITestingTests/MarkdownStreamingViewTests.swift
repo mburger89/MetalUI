@@ -1,3 +1,4 @@
+import Foundation
 import MetalUI
 import MetalUIMarkdown
 import MetalUIScene
@@ -183,4 +184,26 @@ private let verifyNote: Comment =
             #expect(last.frame.origin.y.value + last.frame.size.height.value == 300, "followed (codeWraps \(wraps)): \(last.frame)")
         }
     }
+}
+
+/// **Stop condition (plan), timed, not pinned.** The wall clock of one streamed token on a 4 KB paragraph full of inline
+/// markup (the whole frame: build, layout, paint, headless renderer, portable text system), read with
+/// `METALUI_MEASURE_MARKDOWN=1 swift test -c release --filter theCostOfATokenOnA4KBRichParagraph`. Dated in record 235;
+/// the plan's line is about 1 ms for the re-measure; nothing here asserts a time.
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_MEASURE_MARKDOWN"] == "1", "a timing, set METALUI_MEASURE_MARKDOWN=1"))
+@MainActor func theCostOfATokenOnA4KBRichParagraph() throws {
+    var source = ""
+    while source.utf8.count < 4096 { source += "Words with **bold**, `code`, *italic* and a [link](https://x.org/a) in a long sentence. " }
+    let model = MarkdownTranscriptModel(documents: [MarkdownDocument(parsing: source)])
+    let window = try markdownTranscript(model, size: sz(420, 500))
+    markdownSettle(window, frames: 8)
+    let clock = ContinuousClock()
+    let tokens = 60
+    let start = clock.now
+    for _ in 0..<tokens {
+        model.documents[0].append(" tok")
+        window.window.setNeedsRedraw(); window.tick()
+    }
+    let elapsed = clock.now - start
+    print("MEASURE-MARKDOWN: \(elapsed / tokens) per streamed token on a \(source.utf8.count)-byte rich paragraph")
 }
