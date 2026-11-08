@@ -74,12 +74,33 @@ func importClipboardItem<T: Transferable>(_ item: DropItem, as type: T.Type) -> 
 /// value itself lists. MetalUI-only (class `M`): SwiftUI has no imperative
 /// clipboard (apps use `NSPasteboard`). Reach it as ``Window/clipboard``.
 ///
-/// Run from input. A `Clipboard` has no public initialiser.
+/// Run from input. A `Clipboard` has no public initialiser. Read it from a view with
+/// ``EnvironmentValues/clipboard`` (`CB-S`).
 @MainActor
 public struct Clipboard {
-    let platform: any PlatformWindow
+    /// Held strongly by ``Window/clipboard`` (a window's own handle), weakly by the environment's (`CB-S`).
+    private nonisolated(unsafe) let strongPlatform: (any PlatformWindow)?   // only read on the main actor
+    private let source: ClipboardSource?
+    /// What `==` compares (`CB-S`): the window's platform for ``Window/clipboard``, the window's stamped source for
+    /// the environment's, `nil` for the no-op one.
+    private nonisolated let identity: ObjectIdentifier?
 
-    init(platform: any PlatformWindow) { self.platform = platform }
+    init(platform: any PlatformWindow) {
+        strongPlatform = platform
+        source = nil
+        identity = ObjectIdentifier(platform)
+    }
+
+    /// A clipboard that reaches its window through `source`, which holds it weakly, so one kept in a stored
+    /// environment does not retain the window; `nil` is the no-op clipboard (`CB-S`).
+    nonisolated init(weakly source: ClipboardSource?) {
+        strongPlatform = nil
+        self.source = source
+        identity = source.map { ObjectIdentifier($0) }
+    }
+
+    /// The window's platform; `nil` for the no-op clipboard or once the window is gone.
+    var platform: (any PlatformWindow)? { strongPlatform ?? source?.platformWindow }
 
     /// Replaces the clipboard with `item`: one representation per type it
     /// exports, most preferred first (list `.utf8PlainText` after your own type
@@ -98,7 +119,7 @@ public struct Clipboard {
     @discardableResult
     public func write<T: Transferable>(_ items: [T]) -> Bool {
         let encoded = items.compactMap { $0.clipboardItem(lazily: false) }
-        guard !encoded.isEmpty else { return false }
+        guard !encoded.isEmpty, let platform else { return false }
         return platform.writeClipboard(items: encoded)
     }
 
@@ -117,11 +138,11 @@ public struct Clipboard {
 
     /// How many items the clipboard holds (`CP-D`): `0` when empty, `1` for text or any
     /// single-item copy. MetalUI-only (class `M`).
-    public var itemCount: Int { platform.clipboardItems().count }
+    public var itemCount: Int { platform?.clipboardItems().count ?? 0 }
 
     /// The identifiers of the types the clipboard holds (item 0's), most preferred first
     /// as the platform lists them.
-    public var contentTypes: [String] { platform.clipboardTypeIdentifiers() }
+    public var contentTypes: [String] { platform?.clipboardTypeIdentifiers() ?? [] }
 
     /// Whether the clipboard holds `type` or a type that conforms to it.
     public func hasContent(of type: ContentType) -> Bool {
@@ -147,7 +168,7 @@ public struct Clipboard {
 
     /// Every clipboard item as a lazily read `DropItem` (`CB-F`, `CP-D`), in clipboard order.
     var items: [DropItem] {
-        let platform = self.platform
+        guard let platform else { return [] }
         return platform.clipboardItems().enumerated().map { index, identifiers in
             DropItem(types: identifiers.map { ContentType.builtIn($0)?.pasteboardType ?? PasteboardType(identifier: $0) },
                      load: { [platform] identifier in platform.readClipboard(item: index, identifier: identifier) })
@@ -157,7 +178,7 @@ public struct Clipboard {
     /// The clipboard's item 0 as one `DropItem` (`CB-F`): the platform's identifiers,
     /// lazily read.
     var item: DropItem {
-        let platform = self.platform
+        guard let platform else { return DropItem(types: [], load: { _ in nil }) }
         let types = platform.clipboardTypeIdentifiers().map { identifier in
             ContentType.builtIn(identifier)?.pasteboardType ?? PasteboardType(identifier: identifier)
         }
@@ -167,10 +188,48 @@ public struct Clipboard {
     }
 }
 
+/// Two clipboards are equal when they reach the same window (`CB-S`), so a component that reads
+/// ``EnvironmentValues/clipboard`` stays replayable (`EE-A`: an environment reading must compare). All no-op
+/// clipboards are equal.
+extension Clipboard: Equatable {
+    public nonisolated static func == (l: Clipboard, r: Clipboard) -> Bool { l.identity == r.identity }
+}
+
 extension Window {
     /// This window's clipboard (ruling `CB-J`), for code outside a view: the
     /// same calls `copyable`, `cuttable` and `pasteDestination` make. MetalUI-only.
     public var clipboard: Clipboard { Clipboard(platform: platformWindow) }
+}
+
+/// The window a ``Clipboard`` read from the environment writes to, held weakly (`CB-S`): the window stamps
+/// one at its root, as it does a `URLOpener` (`LI-D`), and the stamp is an identity reading.
+@MainActor
+final class ClipboardSource {
+    private(set) weak var platformWindow: (any PlatformWindow)?
+
+    init(platformWindow: any PlatformWindow) { self.platformWindow = platformWindow }
+}
+
+struct ClipboardSourceKey: EnvironmentKey {
+    static var defaultValue: ClipboardSource? { nil }
+}
+
+extension EnvironmentValues {
+    /// The hosting window's clipboard, for an action that copies (a "Copy" button): `@Environment(\.clipboard)
+    /// var clipboard`, then `clipboard.write("text")` in the action. **MetalUI-only (class `M`): SwiftUI has no
+    /// environment clipboard** (apps use `UIPasteboard`/`NSPasteboard`); this is ``Window/clipboard`` reachable
+    /// from inside the view tree (`CB-S`). Read-only: the window supplies it. The value holds the window
+    /// weakly, so a stored environment keeps nothing alive, and **outside a window, or after it closed, it is a
+    /// no-op clipboard** (`write` answers `false`, reads answer `nil`, `itemCount` is `0`). Write from input
+    /// (an action, a key handler), never from a phase: a build or paint that writes the clipboard is a side
+    /// effect on every frame, as for ``Window/clipboard``. Two windows' environments hold their own.
+    public var clipboard: Clipboard { Clipboard(weakly: self[ClipboardSourceKey.self]) }
+
+    /// The window's clipboard source, stamped at the root (`CB-S`): an identity reading, so it never makes a
+    /// position uncomparable.
+    mutating func stampClipboardSource(_ source: ClipboardSource) {
+        setCustom(ClipboardSourceKey.self, source, reading: .object(ObjectIdentifier(source)))
+    }
 }
 
 /// What `copyable`, `cuttable` and `pasteDestination` attach to an element:

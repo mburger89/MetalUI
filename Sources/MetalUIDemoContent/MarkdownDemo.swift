@@ -178,6 +178,7 @@ struct MarkdownDemoTranscript: Component {
         let model = markdownDemoModel
         var theme = MarkdownTheme()
         theme.codeWraps = model.codeWraps
+        theme.showsCodeCopyButton = true   // BM-K: human check BM6
         let shown = theme
         return ProposalScrollView {
             LazyVStack(alignment: .leading, spacing: Pixels(14)) {
