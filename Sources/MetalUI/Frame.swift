@@ -1609,9 +1609,20 @@ public final class Frame {
     /// used to be `insertHitbox`'s alone and this function's omission of it was
     /// a live routing defect. See `insertHitbox`.
     func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
+        registerScrollRegion(bounds, id: id, axis: axis, takes: true, room: .both(on: axis))   // `XS-E`: a custom scroller passes nothing on
+    }
+
+    /// The scroll region with what the wheel chain needs (`XS-E`): whether the content exceeds the viewport on the axis
+    /// (`takes`) and which way the offset can still move (`room`). The built-in scrollers call this after resolving their offset.
+    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis,
+                              takes: Bool, room: ScrollRoom) {
         let mirrored = axis == .horizontal && environmentTop.layoutDirection == .rightToLeft   // `LD-E`
         let box = insertHitbox(bounds, id: id, opaque: true, scroll: axis)
         if mirrored { hitboxes[box.index].scrollMirrored = true }
+        let set = Axis.Set(axis == .horizontal ? .horizontal : .vertical)
+        hitboxes[box.index].scrollAxes = set
+        if takes { hitboxes[box.index].scrollTakes = set }
+        hitboxes[box.index].scrollRoom = takes ? room : []
     }
 
     /// Hitboxes registered this frame, in prepaint order — **the one list**.

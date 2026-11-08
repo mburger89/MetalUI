@@ -410,7 +410,8 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`
         // with the fix reverted, a wheel at (100, 120) reached the OUTER
         // scroller and one at (100, 170) still reached the inner one.
-        pass.registerScrollRegion(bounds, id: id, axis: axis)
+        pass.registerScrollRegion(bounds, id: id, axis: axis, chrome: chrome, offset: offset,
+                                  contentSize: pass.bounds(of: layout.contentNode).size)
         // `DD-F` item 2: the content prepaints inside this scroller's frame.
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,

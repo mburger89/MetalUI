@@ -116,7 +116,8 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         chrome.mirrored = axis == .horizontal && pass.frame.environmentTop.layoutDirection == .rightToLeft   // `LD-E`
         let offset = chrome.resolvedOffset(id, bounds: bounds, contentNode: layout.contentNode,
                                            pass: pass)
-        pass.registerScrollRegion(bounds, id: id, axis: axis)
+        pass.registerScrollRegion(bounds, id: id, axis: axis, chrome: chrome, offset: offset,
+                                  contentSize: pass.bounds(of: layout.contentNode).size)
         // `DD-F` item 2: the content prepaints inside this scroller's frame.
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
                                      contentOrigin: pass.bounds(of: layout.contentNode).origin,

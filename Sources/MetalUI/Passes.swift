@@ -365,6 +365,27 @@ public struct PrepaintPass {
         frame.registerScrollRegion(bounds, id: id, axis: axis)
     }
 
+    /// The built-in scrollers' registration (`XS-E`): the region plus whether the wheel can still move it, from the offset
+    /// this frame resolved. The public spelling above declares both directions open, so a custom scroller passes nothing on.
+    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis,
+                              chrome: ScrollChrome, offset: Double, contentSize: Size<Pixels>) {
+        let viewport = chrome.extent(bounds.size), content = chrome.extent(contentSize)
+        let maximum = content - viewport
+        let takes = maximum > 0.01
+        var room: ScrollRoom = []
+        if takes {
+            let decrease = offset > 0.01, increase = offset < maximum - 0.01
+            if axis == .horizontal {
+                if decrease { room.insert(.decreaseX) }
+                if increase { room.insert(.increaseX) }
+            } else {
+                if decrease { room.insert(.decreaseY) }
+                if increase { room.insert(.increaseY) }
+            }
+        }
+        frame.registerScrollRegion(bounds, id: id, axis: axis, takes: takes, room: room)
+    }
+
     /// Registers a hitbox for `id` at `bounds`, returning a handle to it.
     ///
     /// Design spec §3.2, and §8.1 of the framework spec before it: registration

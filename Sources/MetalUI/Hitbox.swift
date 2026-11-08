@@ -151,6 +151,19 @@ struct Hitbox {
     /// logical offset the other way (`Window.scroll`). `false` for everything else.
     var scrollMirrored = false
 
+    /// The axes a scroller declares (`XS-E`): the one it scrolls on, as a set. Empty for everything that is not a scroller.
+    /// **On the hitbox, not on `Handlers`** (its size pins are 480/488): a scroller's wheel routing reads it where it already
+    /// holds the record.
+    var scrollAxes: Axis.Set = []
+
+    /// The declared axes whose content exceeds the viewport, computed in prepaint after the offset is resolved (`XS-E`):
+    /// a scroller whose content fits does not take a wheel, it passes it on (probe `N6`, `N6b`).
+    var scrollTakes: Axis.Set = []
+
+    /// Which way the scroller can still move, from the same prepaint (`XS-E`): at its end in the wheel's direction it passes
+    /// the wheel to the scroller above (probe `N8`, `N8b`: a one-axis scroller chains at its edge).
+    var scrollRoom: ScrollRoom = []
+
     /// Whether `point` lands in this hitbox — **the single region test** (ruling
     /// `IX-D` item 1): `topmostOpaqueHitbox(in:at:)`, the gesture arena's
     /// ancestor membership and `Window.applyScroll`'s wheel chain all call it,
@@ -176,6 +189,29 @@ struct Hitbox {
         guard let inverse = transform?.inverse else { return point }
         // Behind the eye (`PJ-C`) a point has no local position: nothing is hit there, so the window point stands.
         return inverse.apply(point) ?? point
+    }
+}
+
+/// Which directions a scroller can still move in, per axis (`XS-E`): a bit for "the offset can fall" and one for "can
+/// grow", on each axis. Set in prepaint from the resolved offset and the content and viewport extents; read by the wheel chain.
+struct ScrollRoom: OptionSet, Hashable {
+    let rawValue: UInt8
+    static let decreaseX = ScrollRoom(rawValue: 1 << 0)
+    static let increaseX = ScrollRoom(rawValue: 1 << 1)
+    static let decreaseY = ScrollRoom(rawValue: 1 << 2)
+    static let increaseY = ScrollRoom(rawValue: 1 << 3)
+    /// Both directions on `axis`: what a scroller that does not report its room (the public `registerScrollRegion`) declares.
+    static func both(on axis: ScrollAxis) -> ScrollRoom {
+        axis == .horizontal ? [.decreaseX, .increaseX] : [.decreaseY, .increaseY]
+    }
+    /// Whether the scroller can move its offset in the direction (`grows`: the offset increases) on `axis`.
+    func allows(growing grows: Bool, on axis: ScrollAxis) -> Bool {
+        switch (axis, grows) {
+        case (.horizontal, true): return contains(.increaseX)
+        case (.horizontal, false): return contains(.decreaseX)
+        case (.vertical, true): return contains(.increaseY)
+        case (.vertical, false): return contains(.decreaseY)
+        }
     }
 }
 
@@ -282,7 +318,7 @@ extension Hitbox {
             if value.displayStyle == .optional, value.children.isEmpty { continue }
             members.append(label)
         }
-        return "\(id)|\(bounds)|\(layer)|\(opaque)|\(String(describing: scroll))|\(scrollMirrored)|\(origin)|"
+        return "\(id)|\(bounds)|\(layer)|\(opaque)|\(String(describing: scroll))|\(scrollMirrored)|\(scrollAxes.rawValue)|\(scrollTakes.rawValue)|\(scrollRoom.rawValue)|\(origin)|"
             + "\(String(describing: shape))|\(String(describing: transform))|\(contextualEnabled)|"
             + members.joined(separator: ",")
     }
