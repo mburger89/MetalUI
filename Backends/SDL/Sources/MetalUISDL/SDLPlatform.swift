@@ -1329,15 +1329,32 @@ public final class SDLWindow: PlatformWindow {
         return applied
     }
 
+    /// Every `setTitleBarMetrics(height:controlsLeading:)` pair, in order (ruling `AS-R`).
+    public private(set) var titleBarMetricsRequests: [(height: Float?, controlsLeading: Float?)] = []
+    /// The pair last asked for; `nil` fields keep the system value.
+    private var titleBarMetrics: (height: Float?, controlsLeading: Float?) = (nil, nil)
+
+    /// Stores the pair and answers `true` (ruling `AS-R`): the band is drawn by `Window`, so SDL has
+    /// nothing to move — ``titleBarInsets`` follows `height`, and under macOS `controlsLeading` the drawn
+    /// cluster's left inset. A right-hand cluster (Windows, Linux) ignores `controlsLeading`.
+    public func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool {
+        titleBarMetricsRequests.append((height, controlsLeading))
+        titleBarMetrics = (height, controlsLeading)
+        return true
+    }
+
     /// The band `Window` keeps clear while the hidden style is applied and the window is not fullscreen
-    /// (ruling `CW-D`): 32 points, plus the edge of the cluster of window buttons `Window` draws — 138 on
-    /// the right on Linux and Windows, 70 on the left through macOS. Zero otherwise.
+    /// (ruling `CW-D`): 32 points (the app's `height`, `AS-R`), plus the edge of the cluster of window
+    /// buttons `Window` draws — 138 on the right on Linux and Windows, 70 on the left through macOS (the
+    /// app's `controlsLeading` + 62 there: 52 of circles and a 10-point margin). Zero otherwise.
     public var titleBarInsets: Edges<Pixels> {
         guard isBorderless, !isFullscreen else { return Edges(all: Pixels(0)) }
+        let band = titleBarMetrics.height ?? 32
         #if os(macOS)
-        return Edges(top: Pixels(32), right: Pixels(0), bottom: Pixels(0), left: Pixels(70))
+        return Edges(top: Pixels(band), right: Pixels(0), bottom: Pixels(0),
+                     left: Pixels(titleBarMetrics.controlsLeading.map { $0 + 62 } ?? 70))
         #else
-        return Edges(top: Pixels(32), right: Pixels(138), bottom: Pixels(0), left: Pixels(0))
+        return Edges(top: Pixels(band), right: Pixels(138), bottom: Pixels(0), left: Pixels(0))
         #endif
     }
 

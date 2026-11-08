@@ -518,6 +518,15 @@ final class FakePlatformWindow: PlatformWindow {
         return titleBarPressResult
     }
 
+    /// Every `setTitleBarMetrics` pair, in order (`AS-R`).
+    private(set) var titleBarMetricsRequests: [(height: Float?, controlsLeading: Float?)] = []
+    /// What `setTitleBarMetrics` answers; `true` by default.
+    var titleBarMetricsResult = true
+    func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool {
+        titleBarMetricsRequests.append((height, controlsLeading))
+        return titleBarMetricsResult
+    }
+
     /// How many times `Window` asked the platform to move the window for a
     /// `WindowDragGesture` (`WD-E`).
     private(set) var windowDrags = 0

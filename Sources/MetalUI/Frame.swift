@@ -800,7 +800,8 @@ public final class Frame {
             values.theme = theme   // tokens only; `colorScheme` untouched (`CR-K` item 3)
         case .preferredColorScheme:
             break   // values unchanged: a preference is reported, not written (`CR-L` item 1)
-        case .navigationTitle, .navigationDocument, .onOpenURL, .navigationSubtitle, .windowDismissBehavior:
+        case .navigationTitle, .navigationDocument, .onOpenURL, .navigationSubtitle, .windowDismissBehavior,
+             .windowTitleBarMetrics:
             break   // values unchanged: window preferences are reported (`AS-D` item 6, `AS-G` item 1)
         case .presentationBackground:
             break   // values unchanged: reported into the presentation's slot (`BG-B`)
@@ -846,6 +847,8 @@ public final class Frame {
     var collectedNavigationSubtitle: String?
     /// The first `.windowDismissBehavior` reported in post-order (`AE-C`, probe `D2`…`D4`).
     var collectedDismissBehavior: WindowInteractionBehavior?
+    /// The first `.windowTitleBarMetrics` reported in post-order (`AS-R`).
+    var collectedTitleBarMetrics: TitleBarMetrics?
     /// The first `.navigationDocument` reported in post-order (`AS-D` item 3).
     var collectedNavigationDocument: URL?
     /// Every `.onOpenURL` present this build, in post-order (`AS-G` item 2).

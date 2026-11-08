@@ -74,6 +74,25 @@ extension ElementGroup {
         EnvironmentScope(content: self, write: .windowDismissBehavior(behavior))
     }
 
+    /// The title-bar band's height and the window buttons' left inset while this content is present, under
+    /// `windowStyle: .hiddenTitleBar` (ruling `AS-R`, MetalUI-only: SwiftUI has no spelling). On AppKit the
+    /// three traffic lights are centred vertically in a band `height` points tall and the first one's left
+    /// edge is `controlsLeading` points from the window's left (the system's is about 9, and 32 tall);
+    /// `EnvironmentValues.titleBarInsets` then reads `top` as `height` and `left` as the zoom button's moved
+    /// right edge. A `nil` argument keeps the system value of that field; both `nil` is the system layout.
+    /// **Ignored under the standard title bar**, in full screen (where the system lays the buttons out) and
+    /// where the platform cannot (it answers `false`). SDL draws its own buttons: `height` is the band, and
+    /// under macOS the drawn circles are centred in it at `controlsLeading`; the right-hand cluster of
+    /// Windows and Linux ignores `controlsLeading`. Takes effect in the frame after the build that reports
+    /// it (the insets of the reporting build were already stamped). **Precedence is post-order, as the
+    /// title's**: an inner modifier beats an enclosing one, the first sibling beats the second; the system
+    /// layout is back when the content leaves.
+    public func windowTitleBarMetrics(height: Pixels? = nil, controlsLeading: Pixels? = nil)
+        -> EnvironmentScope<Self> {
+        EnvironmentScope(content: self, write: .windowTitleBarMetrics(
+            TitleBarMetrics(height: height?.value, controlsLeading: controlsLeading?.value)))
+    }
+
     /// The file this window represents while this content is present —
     /// SwiftUI's `navigationDocument(_:)` (ruling `AS-D` item 3, probe `N3`,
     /// `N4`): AppKit's proxy icon and path menu (`NSWindow.representedURL`).

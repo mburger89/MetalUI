@@ -37,6 +37,13 @@ public struct WindowStyle: Sendable, Equatable {
     var platformStyle: PlatformTitleBarStyle { kind == .hiddenTitleBar ? .hidden : .standard }
 }
 
+/// What `.windowTitleBarMetrics` asks for (ruling `AS-R`); `nil` fields keep the system value.
+struct TitleBarMetrics: Equatable, Sendable {
+    var height: Float?
+    var controlsLeading: Float?
+    var isEmpty: Bool { height == nil && controlsLeading == nil }
+}
+
 /// One `.onOpenURL` present in a build: the action and the element it is
 /// dispatched to (`AS-G` item 2).
 struct OpenURLHandler {
@@ -68,6 +75,11 @@ struct WindowShellState {
     /// The last build's `.navigationSubtitle` / `.windowDismissBehavior` (`AE-C`).
     var treeSubtitle: String?
     var treeDismiss: WindowInteractionBehavior?
+    /// The last build's `.windowTitleBarMetrics` (`AS-R`), what the platform was last sent (empty initially)
+    /// and whether it honoured that.
+    var treeTitleBarMetrics: TitleBarMetrics?
+    var sentTitleBarMetrics = TitleBarMetrics()
+    var titleBarMetricsHonoured = false
     /// What the platform was last sent: the subtitle (initially none) and whether dismissing is allowed.
     var sentSubtitle = ""
     var sentDismissEnabled = true
@@ -157,6 +169,8 @@ extension Window {
         shell.treeDocument = frame.collectedNavigationDocument
         shell.treeSubtitle = frame.collectedNavigationSubtitle
         shell.treeDismiss = frame.collectedDismissBehavior
+        shell.treeTitleBarMetrics = frame.collectedTitleBarMetrics
+        reconcileTitleBarMetrics()
         shell.openURLHandlers = frame.openURLHandlers
         reconcileTitleAndDocument()
     }
@@ -183,6 +197,20 @@ extension Window {
         shell.sentTitleBarStyle = style
         let applied = platformWindow.setTitleBarStyle(style)
         shell.titleBarStyleApplied = applied && style == .hidden
+        reconcileTitleBarMetrics()
+        setNeedsRedraw()
+    }
+
+    /// Sends the effective title-bar metrics when they changed (ruling `AS-R`): the last build's while the
+    /// hidden style is applied, empty otherwise — so the standard style clears them and a removed
+    /// modifier restores the system layout. A change redraws, the insets having moved.
+    func reconcileTitleBarMetrics() {
+        let wanted = shell.titleBarStyleApplied ? shell.treeTitleBarMetrics ?? TitleBarMetrics() : TitleBarMetrics()
+        guard wanted != shell.sentTitleBarMetrics else { return }
+        shell.sentTitleBarMetrics = wanted
+        shell.titleBarMetricsHonoured = platformWindow.setTitleBarMetrics(height: wanted.height,
+                                                                          controlsLeading: wanted.controlsLeading)
+            && !wanted.isEmpty
         setNeedsRedraw()
     }
 

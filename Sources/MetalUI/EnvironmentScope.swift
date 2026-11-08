@@ -27,6 +27,9 @@ enum EnvironmentWrite {
     /// dismiss behavior after it (post-order, probe `D2`…`D4`).
     case navigationSubtitle(String)
     case windowDismissBehavior(WindowInteractionBehavior)
+    /// `.windowTitleBarMetrics(height:controlsLeading:)` (ruling `AS-R`): reported after its content builds
+    /// (post-order), the first one winning.
+    case windowTitleBarMetrics(TitleBarMetrics)
     case onOpenURL(@MainActor (URL) -> Void)
     /// `.presentationBackground(...)` (rulings `BG-B`): changes no value; reports after its content builds,
     /// into the slot an enclosing presentation's bracket opened.
@@ -138,6 +141,10 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
         case .windowDismissBehavior(let behavior):
             let result = body()
             if frame.collectedDismissBehavior == nil { frame.collectedDismissBehavior = behavior }
+            return result
+        case .windowTitleBarMetrics(let metrics):
+            let result = body()
+            if frame.collectedTitleBarMetrics == nil { frame.collectedTitleBarMetrics = metrics }
             return result
         case .navigationDocument(let url):
             let result = body()
