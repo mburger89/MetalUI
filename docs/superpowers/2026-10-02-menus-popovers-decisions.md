@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AJ`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AK`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1232,3 +1232,46 @@ through the input context, but with no marked text the context only turns it
 into `doCommand(by:)`, which delivers the same key-down.
 
 **Cost if wrong.** One condition in one method.
+
+---
+
+## MN-AJ — A model-driven tooltip: `.help { location in String? }` (MetalCreator gap; amends MN-P item 2, MN-U unchanged; record 239)
+
+**Ruling.**
+
+1. `StyledElement.help(_ text: @escaping @MainActor (Point<Pixels>) -> String?)`
+   and the `ProposalElementGroup` twin (one `ContextualModifier`, as
+   `help(_:)`'s) attach a text *provider* to the element's contextual region
+   (`ContextualAttachment.helpProvider`, a sibling of `help`). Class `M`: SwiftUI
+   has no pointer-dependent `help`; no divergence. The region is the same one
+   `.help("…")` registers, so it sits inside the `allowsHitTesting` gate
+   (`MN-U` stands) and is found by the same lookup (`MN-V` item 3). The app
+   whose model does the hit testing puts the provider on the one
+   hit-testing surface.
+2. The provider runs **in input only**: `trackTooltip` calls it on each pointer
+   move (move or drag) over the region, under `StateDispatch.dispatching(to:)`
+   the declaring element (`ID-F`), with the pointer in the region's local
+   space (as the located context menu's location, `CI-R`). Never in layout,
+   prepaint, paint or the tooltip's own timer tick.
+3. Moving within the region: a text equal to the one last answered keeps the
+   phase (pending timer not restarted, shown bubble kept, spent stays spent);
+   a different text, including `nil`, replaces it: the bubble is hidden at
+   once (a redraw is requested) and a non-nil text starts a pending phase with
+   the usual 1.0 s delay, `nil` is idle. After a press hid it, the bubble comes back when the
+   text at the pointer changes (a static `.help` only after leaving).
+4. Press, wheel, key, a menu opening, the window leaving key and leaving the
+   region hide it as for any tooltip; placement is `TooltipPlacement.origin`
+   at the latest pointer, unchanged.
+5. A later `.help(_:)` replaces an earlier provider and the reverse; a
+   `.contextMenu` keeps either. **Accessibility records nothing**: the text
+   is a function of a point and an accessibility node has no pointer, so no
+   hint is declared (a static `.help` beside it still publishes its own).
+6. Unmeasured and left as is: `.pointerExited` (the pointer leaving the window)
+   does not hide a shown tooltip for any `.help`, static or provided.
+
+**Reasoning.** MetalCreator draws its graph under `.allowsHitTesting(false)`
+and hit-tests in its model; `MN-U` (SwiftUI's behaviour) rules out `.help` on
+the drawn children, and a per-point text is the one thing a single surface can
+say.
+
+**Cost if wrong.** One attachment field and one branch of `trackTooltip`.
