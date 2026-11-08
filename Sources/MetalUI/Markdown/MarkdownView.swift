@@ -56,9 +56,11 @@ public struct MarkdownView: Component, ProposalElementGroup, @MainActor Equatabl
         case .document(let document): blocks = document.blocks
         case .string(let string): blocks = memo.document(for: string).blocks
         }
+        let pairs = markdownCodeBases(blocks, start: 0, enabled: theme.codeCopyButtonIdentifierPrefix != nil)
         return VStack(alignment: .leading, spacing: theme.blockSpacing) {
-            ForEach(blocks, id: \.id) { block in
-                MarkdownBlockView(block, theme: theme, highlighter: highlighter, depth: 0).equatable()
+            ForEach(pairs, id: \.block.id) { pair in
+                MarkdownBlockView(pair.block, theme: theme, highlighter: highlighter, depth: 0,
+                                  codeBase: pair.base).equatable()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

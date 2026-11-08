@@ -154,6 +154,8 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
     let isClosed: Bool
     let theme: MarkdownTheme
     let highlighter: (any MarkdownCodeHighlighter)?
+    /// This fence's position among the document's code blocks (`BM-L`), the suffix of the button's identifier.
+    let codeIndex: Int
     /// Read by the copy button's action (`BM-K`); an environment reading, so the fence stays comparable by its
     /// stored values (`EE-A`).
     @Environment(\.clipboard) var clipboard
@@ -187,15 +189,8 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
         }
         .overlay(alignment: .topTrailing) {
             if copyButton {
-                Image(systemName: "doc.on.doc")
-                    .font(theme.codeCaptionFont)
-                    .foregroundColor(Color.secondary)
-                    .padding(Pixels(6))
-                    .onTapGesture { clipboard.write(code) }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Copy code")
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityAction { clipboard.write(code) }
+                MarkdownCopyButton(code: code, clipboard: clipboard, font: theme.codeCaptionFont,
+                                   identifier: theme.codeCopyButtonIdentifierPrefix.map { "\($0)\(codeIndex)" })
             }
         }
         .accessibilityElement(children: .contain)
@@ -203,7 +198,7 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
     }
 
     static func == (l: MarkdownCodeFence, r: MarkdownCodeFence) -> Bool {
-        l.code == r.code && l.language == r.language && l.isClosed == r.isClosed && l.theme == r.theme
+        l.codeIndex == r.codeIndex && l.code == r.code && l.language == r.language && l.isClosed == r.isClosed && l.theme == r.theme
             && markdownHighlighterIdentity(l.highlighter) == markdownHighlighterIdentity(r.highlighter)
     }
 }
@@ -212,4 +207,44 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
 func markdownHighlighterIdentity(_ highlighter: (any MarkdownCodeHighlighter)?) -> ObjectIdentifier? {
     guard let highlighter else { return nil }
     return ObjectIdentifier(highlighter)
+}
+
+/// The fence's copy button (`BM-K`, `BM-L`). Its own component, so a press writes this `@State` and rebuilds the
+/// button alone, never the fence's chunks. The press bumps `presses` from input; a trigger `phaseAnimator` shows the
+/// "copied" phase for the animation's 1.5 s (`GS-H`) on the window's clock, which tests drive with ticks, and a press
+/// during the window restarts it.
+struct MarkdownCopyButton: Component, ProposalElementGroup {
+    /// How long the checkmark and "Copied" stay.
+    static let feedbackSeconds = 1.5
+
+    /// `pressed` is held for no time and draws like `copied`: a trigger that changes while `copied` is showing
+    /// re-enters the phase it is already in with a hold of 0 (`enter` in `PhaseStepping`), which would end the
+    /// window at once; entering `pressed` first, from `copied`, restarts the 1.5 s.
+    enum Phase: CaseIterable { case idle, pressed, copied }
+
+    let code: String
+    let clipboard: Clipboard
+    let font: Font
+    let identifier: String?
+    @State private var presses = 0
+
+    var content: some ProposalElementGroup {
+        let code = code, clipboard = clipboard, font = font, identifier = identifier
+        let copy = {
+            if clipboard.write(code) { presses += 1 }
+        }
+        return Box().phaseAnimator(Phase.allCases, trigger: presses) { _, phase in
+            let copied = phase != .idle
+            let button = Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .font(font)
+                .foregroundColor(Color.secondary)
+                .padding(Pixels(6))
+                .onTapGesture { copy() }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(copied ? "Copied" : "Copy code")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { copy() }
+            return identifier.map { button.accessibilityIdentifier($0) } ?? button
+        } animation: { phase in phase == .copied ? .linear(duration: Self.feedbackSeconds) : nil }
+    }
 }
