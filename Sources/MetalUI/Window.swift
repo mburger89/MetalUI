@@ -3653,6 +3653,9 @@ public final class Window {
     private func dispatchTextKey(_ event: InputEvent) -> Bool {
         guard case .keyDown(let key) = event, let id = focusedElement,
               let target = lastFocusRegistry.textTarget(for: id) else { return false }
+        // A paste destination on the chain is offered ⌘V first (`CB-T`): an image-only clipboard
+        // would otherwise find the field's text paste and never reach it.
+        if offerPasteToDestinationBeforeTheField(event) { return true }
         if let session = target.codeSession {
             let outcome = StateDispatch.dispatching(to: id) {   // ID-F: the edited code view
                 session.key(key, clipboard: { [platformWindow] in platformWindow.readClipboard() })
