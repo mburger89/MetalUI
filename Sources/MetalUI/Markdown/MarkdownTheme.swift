@@ -42,6 +42,11 @@ public struct MarkdownTheme: Equatable, Sendable {
     public var codeWraps: Bool
     /// Whether a fence's language name is shown above its code.
     public var showsCodeLanguage: Bool
+    /// Whether each code block shows a small copy button at its top trailing corner (`BM-K`). `false` is the
+    /// default. Pressing it writes the block's whole code, as plain text, to the window's clipboard
+    /// (``EnvironmentValues/clipboard``). The button is an overlay: it changes neither the block's size nor the
+    /// shaping of its text, and a block nested in a list or a quote has one too.
+    public var showsCodeCopyButton: Bool
     /// The font of a code block's language caption.
     public var codeCaptionFont: Font
     /// The space between two sibling blocks (and between two items of a loose list).
@@ -88,6 +93,7 @@ public struct MarkdownTheme: Equatable, Sendable {
         codeBlockPadding = Pixels(10)
         codeWraps = true
         showsCodeLanguage = true
+        showsCodeCopyButton = false
         codeCaptionFont = .caption
         blockSpacing = Pixels(10)
         listItemSpacing = Pixels(3)

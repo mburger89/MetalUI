@@ -154,6 +154,9 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
     let isClosed: Bool
     let theme: MarkdownTheme
     let highlighter: (any MarkdownCodeHighlighter)?
+    /// Read by the copy button's action (`BM-K`); an environment reading, so the fence stays comparable by its
+    /// stored values (`EE-A`).
+    @Environment(\.clipboard) var clipboard
 
     var content: some ProposalElementGroup {
         let runs = highlighter?.highlight(code: code, language: language, isClosed: isClosed) ?? []
@@ -165,6 +168,8 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
             }
         }
         let caption = theme.showsCodeLanguage ? language : nil
+        let copyButton = theme.showsCodeCopyButton
+        let clipboard = clipboard, code = code
         return VStack(alignment: .leading, spacing: Pixels(6)) {
             if let caption {
                 ProposalText(verbatim: caption).font(theme.codeCaptionFont).foregroundColor(Color.secondary)
@@ -179,6 +184,19 @@ struct MarkdownCodeFence: Component, ProposalElementGroup, @MainActor Equatable 
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: theme.codeBlockCornerRadius).fill(theme.codeBlockBackground)
+        }
+        .overlay(alignment: .topTrailing) {
+            if copyButton {
+                Image(systemName: "doc.on.doc")
+                    .font(theme.codeCaptionFont)
+                    .foregroundColor(Color.secondary)
+                    .padding(Pixels(6))
+                    .onTapGesture { clipboard.write(code) }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Copy code")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { clipboard.write(code) }
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(language ?? "Code")

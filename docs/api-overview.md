@@ -452,8 +452,9 @@ type `application/x-<identifier>` with each byte outside `[a-z0-9.+-]` percent-e
 `PasteButton(payloadType:onPaste:)` (A) and `PasteButton(supportedContentTypes:payloadAction:)` (D: `DropItem` stands for `NSItemProvider`)
 are a control composed over `Button` (`CP-B`, divergence 717): enabled while some clipboard item offers a type the payload imports,
 redrawn by the platform's change handler only while a button is on screen (`CP-G`), a click delivers every importable item
-once; no label (SwiftUI's takes none, probe `-DNEG2`). `@Environment(\.clipboard)` is **not built**: SwiftUI has no such macOS
-API (probe `-DNEG1`, `CP-A`); `Window.clipboard` is the route from code. The seam gains `ClipboardItem`, `ClipboardPayload`,
+once; no label (SwiftUI's takes none, probe `-DNEG2`). `EnvironmentValues.clipboard` (M, `CB-S`) is the same `Clipboard` from inside a view: `@Environment(\.clipboard) var clipboard`, then
+`clipboard.write("text")` in an action. SwiftUI has no such macOS API (probe `-DNEG1`, `CP-A`); it is read-only, holds the window weakly and is a
+no-op clipboard outside a window; write it from input, never a phase. The seam gains `ClipboardItem`, `ClipboardPayload`,
 `ClipboardBytes` and four defaultless `PlatformWindow` requirements (`CP-E`, M).
 
 **Input for viewports and canvases** (`CI-`, record §81;
@@ -1241,9 +1242,9 @@ Typical use: keep one `MarkdownDocument` per reply, `append` each streamed token
 
 - `MarkdownView(_ document: MarkdownDocument)` and `MarkdownView(_ source: String)`. Hold a document and `append` per token (O(token)), or pass the whole string: when a later string extends the earlier one only the added text is parsed. Equality is O(1) (the document's identity and version, the theme, the highlighter's identity), so `.equatable()` skips a settled reply. Each block is its own equatable component: a token changes the last block alone, in a transcript of 10 or of 200 replies alike (2 content evaluations).
 - `MarkdownBlockView(_ block: MarkdownBlock)`: one block, public so an app can put blocks straight into its own `LazyVStack` (`ForEach(document.blocks, id: \.id) { MarkdownBlockView($0).equatable() }`).
-- `.markdownTheme(_:)` with a `MarkdownTheme` **value** (fonts, heading fonts, code and quote and table colours, spacing, `codeWraps`, `tableScrolls`, `softBreak`), never an environment key, so settled blocks stay replayable. `MarkdownSoftBreak` is `.space` (default) or `.lineBreak`.
+- `.markdownTheme(_:)` with a `MarkdownTheme` **value** (fonts, heading fonts, code and quote and table colours, spacing, `codeWraps`, `tableScrolls`, `softBreak`, `showsCodeCopyButton`), never an environment key, so settled blocks stay replayable. `MarkdownSoftBreak` is `.space` (default) or `.lineBreak`.
 - `.codeHighlighter(_:)` with a `MarkdownCodeHighlighter` (`highlight(code:language:isClosed:) -> [MarkdownCodeRun]`, a pure read, called once per changed fence and compared by identity); `MarkdownCodeRun` is a UTF-8 `range` and a `CodeStyle`. Code is cut into chunks of at most 32 lines, so streaming a long fence shapes the last chunk only.
-- Links open through `\.openURL`; headings are accessibility headings (no level is published); a code block is an accessibility group named by its language. **Not in v1:** text selection, a copy accessory, reference links, HTML blocks, task-list boxes. **Code wraps and tables do not scroll by default**: a horizontal scroller takes a vertical wheel for itself, so `codeWraps = false` / `tableScrolls = true` stop the transcript from scrolling while the pointer is over the block. Demo: `METALUI_MARKDOWN_DEMO=1`.
+- Links open through `\.openURL`; headings are accessibility headings (no level is published); a code block is an accessibility group named by its language. `showsCodeCopyButton` (default off, `BM-K`, record 240) puts a copy glyph (label "Copy code") over each fence's top trailing corner that writes the whole fence through `\.clipboard`. **Not in v1:** text selection, a copy accessory closure, reference links, HTML blocks, task-list boxes. **Code wraps and tables do not scroll by default**: a horizontal scroller takes a vertical wheel for itself, so `codeWraps = false` / `tableScrolls = true` stop the transcript from scrolling while the pointer is over the block. Demo: `METALUI_MARKDOWN_DEMO=1`.
 
 ## Code buffer — M
 
