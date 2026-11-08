@@ -35,6 +35,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         public var showsToolbarNatively: Bool
         /// What `setTitleBarStyle` answers: `true` (AppKit) or `false` (SDL).
         public var appliesTitleBarStyle: Bool
+        /// What `setTitleBarMetrics` answers: `true` (AppKit, SDL) or `false` for a platform that keeps
+        /// the system band (`AS-R`).
+        public var appliesTitleBarMetrics: Bool
         /// What `beginExternalDrag` answers: `false` (SDL) keeps a drag in the
         /// window.
         public var externalDragResult: Bool
@@ -90,7 +93,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
                     accessibilityDisplaySettings: AccessibilityDisplaySettings = AccessibilityDisplaySettings(playAnimatedImages: true),
                     usesWindowDragRegions: Bool = false, hasNativeWindowControls: Bool = true,
                     isZoomed: Bool = false, hiddenTitleBarInsets: Edges<Pixels>? = nil,
-                    clipboardExportsLazily: Bool = true) {
+                    clipboardExportsLazily: Bool = true, appliesTitleBarMetrics: Bool = true) {
+            self.appliesTitleBarMetrics = appliesTitleBarMetrics
             self.appearance = appearance
             self.scaleFactor = scaleFactor
             self.presentsMenusNatively = presentsMenusNatively
@@ -212,6 +216,39 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public private(set) var representedPaths: [String?] = []
     /// Every `setTitleBarStyle` argument, in order.
     public private(set) var titleBarStyles: [PlatformTitleBarStyle] = []
+    /// Every `setTitleBarMetrics` pair, in order (`AS-R`).
+    public private(set) var titleBarMetricsRequests: [(height: Float?, controlsLeading: Float?)] = []
+    /// The style last applied, and the metrics last accepted, so the hidden insets can be recomputed.
+    private var appliedTitleBarStyle = PlatformTitleBarStyle.standard
+    private var acceptedTitleBarMetrics: (height: Float?, controlsLeading: Float?) = (nil, nil)
+
+    /// The width of the three window buttons, `leading` to the zoom button's right edge (AppKit, measured).
+    public static let controlsClusterWidth: Float = 60
+
+    /// Recomputes ``titleBarInsets`` from ``Options/hiddenTitleBarInsets`` and the accepted metrics (`AS-R`):
+    /// `top` is the chosen height, and where the buttons sit on the left (`left > 0`) the inset moves them,
+    /// `left` becoming `leading + controlsClusterWidth`. A right-hand cluster ignores the inset. Zero under
+    /// the standard style. Does nothing without `hiddenTitleBarInsets`, which a test sets by hand.
+    private func recomputeHiddenInsets() {
+        guard options.appliesTitleBarStyle, var insets = options.hiddenTitleBarInsets else { return }
+        if appliedTitleBarStyle != .hidden { titleBarInsets = Edges(all: Pixels(0)); return }
+        if let height = acceptedTitleBarMetrics.height { insets.top = Pixels(height) }
+        if let leading = acceptedTitleBarMetrics.controlsLeading, insets.left.value > 0 {
+            insets.left = Pixels(leading + Self.controlsClusterWidth)
+        }
+        titleBarInsets = insets
+    }
+
+    /// Records the pair and, where ``Options/appliesTitleBarMetrics``, recomputes the hidden insets
+    /// (`AS-R`); answers that option.
+    public func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool {
+        titleBarMetricsRequests.append((height, controlsLeading))
+        guard options.appliesTitleBarMetrics else { return false }
+        acceptedTitleBarMetrics = (height, controlsLeading)
+        recomputeHiddenInsets()
+        return true
+    }
+
     /// Every `performTitleBarPress` click count, in order.
     public private(set) var titleBarPresses: [Int] = []
     /// How many times `Window` asked the platform to move the window for a
@@ -398,9 +435,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// Records the style and answers ``Options/appliesTitleBarStyle``.
     public func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool {
         titleBarStyles.append(style)
-        if options.appliesTitleBarStyle, let hidden = options.hiddenTitleBarInsets {
-            titleBarInsets = style == .hidden ? hidden : Edges(all: Pixels(0))
-        }
+        appliedTitleBarStyle = style
+        recomputeHiddenInsets()
         return options.appliesTitleBarStyle
     }
 

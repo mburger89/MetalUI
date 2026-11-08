@@ -436,6 +436,26 @@ public protocol PlatformWindow: AnyObject {
     /// answers `false` (its system title bar drags itself).
     func performTitleBarPress(clickCount: Int) -> Bool
 
+    /// Asks for an app-chosen title-bar band and window-button inset under the hidden style, and answers
+    /// whether the platform honours it (ruling `AS-R`, MetalUI-only: SwiftUI has no spelling). `height` is the
+    /// band's height in points and `controlsLeading` the window buttons' left edge; `nil` keeps the system
+    /// value of that field, `(nil, nil)` clears both. **`Window` calls it only while the hidden style is
+    /// applied and only when the pair changes**, and clears it before the standard style; a conformer that
+    /// is asked while its style is standard stores the pair and shows it from the next hidden style.
+    /// ``titleBarInsets`` then reports `top` as `height` and `left` as the buttons' moved right edge.
+    ///
+    /// AppKit centres the three buttons vertically in the band and moves them to the inset by repositioning
+    /// the title-bar container view and the buttons (what Electron's `trafficLightPosition` does; it relies
+    /// on `standardWindowButton(_:).superview.superview` being the container) and keeps them there across
+    /// resize, key changes, a toolbar and full screen (`AS-R`). SDL draws its own buttons: `top` follows
+    /// `height`, and under macOS the drawn cluster is centred in the band at the inset; the right-hand
+    /// cluster of Windows and Linux ignores `controlsLeading`. A platform that cannot answers `false` and
+    /// keeps the system band.
+    ///
+    /// **Migration** (`docs/migration.md`): a conformer outside this repository adds
+    /// `func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool { false }`.
+    func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool
+
     // **Migration** (`WD-E`, `docs/migration.md`): a conformer outside this
     // repository adds `func performWindowDrag() -> Bool { false }`.
 

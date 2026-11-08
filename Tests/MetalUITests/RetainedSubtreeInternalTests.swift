@@ -78,7 +78,7 @@ private let frameChannels: [String: Channel] = [
     "environmentTop": .keyed, "storedRootEnvironment": .frameLocal, "isRendering": .frameLocal,
     "colorSchemePreferenceDepth": .buildOnly, "mainColorSchemePreference": .buildOnly,
     "presentationColorSchemePreference": .buildOnly, "collectedNavigationTitle": .buildOnly,
-    "collectedNavigationSubtitle": .buildOnly, "collectedDismissBehavior": .buildOnly,
+    "collectedNavigationSubtitle": .buildOnly, "collectedDismissBehavior": .buildOnly, "collectedTitleBarMetrics": .buildOnly,
     "collectedNavigationDocument": .buildOnly, "openURLHandlers": .buildOnly,
     // Presentation extras (`BG-B`, record 144): the popover bracket's collected fill and its depth, read inside
     // `AnchoredPresentation.requestLayout` only; an open popover is retention-ineligible by name (`BG-F`).

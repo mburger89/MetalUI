@@ -82,6 +82,7 @@ private func conformer(pair: String, transparency: String = transparencyPair,
         func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool { false }
         var titleBarInsets: Edges<Pixels> { Edges(all: Pixels(0)) }
         func performTitleBarPress(clickCount: Int) -> Bool { false }
+        func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool { false }
         func performWindowDrag() -> Bool { false }
         func setSubtitle(_ subtitle: String) {}
         func setDismissEnabled(_ enabled: Bool) {}

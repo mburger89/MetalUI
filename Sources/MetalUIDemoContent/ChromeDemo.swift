@@ -25,6 +25,10 @@ public func chromeDemoContent() -> some Element {
     }
     .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity), alignment: .topLeading)
     .background(.background)
+    // The band and the buttons' inset the app chose (`AS-R`, group TBH): 68 and 27 while "Metrics" is on,
+    // the system layout when it is off.
+    .windowTitleBarMetrics(height: chromeDemoModel.titleBarMetrics ? Pixels(68) : nil,
+                           controlsLeading: chromeDemoModel.titleBarMetrics ? Pixels(27) : nil)
 }
 
 /// The demo window's size: 900 × 560.
@@ -54,6 +58,8 @@ public final class ChromeDemoModel {
     public var search = ""
     /// Whether the window drags from empty space in the body (`BG-G`); on at launch.
     public var backgroundDrag = true
+    /// Whether the app-chosen title-bar band (68) and buttons' inset (27) are on (`AS-R`); on at launch.
+    public var titleBarMetrics = true
     /// Applies `backgroundDrag` to the demo's window (set by ``openChromeDemoWindow(_:title:startsDisplayLink:)``).
     var applyBackgroundDrag: (@MainActor (Bool) -> Void)?
 
@@ -66,6 +72,7 @@ public final class ChromeDemoModel {
         taps = 0
         search = ""
         backgroundDrag = true
+        titleBarMetrics = true
     }
 }
 
@@ -107,6 +114,9 @@ struct ChromeDemoBody: Component {
         Column(gap: Pixels(8)) {
             Text("Window chrome").font(size: 22)
             Text("Drag the empty bar or the handle at its end; resize from any edge or corner.")
+            Button("Title bar metrics: \(chromeDemoModel.titleBarMetrics ? "on" : "off")") {
+                chromeDemoModel.titleBarMetrics.toggle()
+            }
             Text("Button presses: \(chromeDemoModel.presses), taps: \(chromeDemoModel.taps), search: “\(chromeDemoModel.search)”")
             ChromeDemoBackground()
         }

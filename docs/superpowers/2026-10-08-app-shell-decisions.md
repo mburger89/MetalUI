@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba`. Spec:
 [`specs/2026-10-08-app-shell-design.md`](specs/2026-10-08-app-shell-design.md).
 Record: `../record/87-app-shell.md` (written in the Record phase).
 
-**Next unused id: `AS-R`.**
+**Next unused id: `AS-S`.**
 
 ## Final spellings (MetalCreator swaps its stopgaps by these names)
 
@@ -880,3 +880,66 @@ test (`simulateOpenURLs` before `App(platform:)`) received nothing.
 
 **Cost if wrong.** An app that needs a pre-initialiser URL would need `App` to
 queue; additive.
+
+## AS-R — The app chooses the hidden title bar's band height and the window buttons' left inset (MetalCreator gap AS-a)
+
+**Finding (probe, record 249).** AppKit has no API for either number. Every system route gives a fixed
+per-style height and leaves the buttons at the system x: an empty `NSToolbar` is 52 (`.unified`), 40
+(`.unifiedCompact`), 48 (`.expanded`), 88 (`.preference`, the only style that centres the buttons) and a
+60-point custom item changes nothing under `.unified`; a `.bottom` `NSTitlebarAccessoryViewController` grows
+the band but keeps the buttons top-aligned at centre y 16, x 9. The only route to band 68, centre y 34, close
+x 27 is placing by hand, as Electron's `trafficLightPosition` does: resize the title-bar container view and
+move the three buttons. AppKit resets that on the first `setFrame`, on a toolbar change, on full screen and on
+a `title` change, so a hook is part of the feature.
+
+**Ruling.**
+
+1. **API (class M, no SwiftUI spelling).** `.windowTitleBarMetrics(height: Pixels? = nil, controlsLeading:
+   Pixels? = nil)` on content, a window preference collected like `.windowDismissBehavior` (an
+   `EnvironmentScope` case, reported **post-order**, the first report wins, so an inner modifier beats an
+   enclosing one). It is a modifier, not a `WindowStyle` case, so `.hiddenTitleBar` stays a constant. `nil`
+   keeps the system value of that field. **Ignored under the standard title bar**, in full screen and where the
+   platform answers `false`.
+2. **Platform.** `PlatformWindow.setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool`,
+   defaultless. `Window` sends the last build's pair only while the hidden style is applied, only when it
+   changes, and `(nil, nil)` when the style leaves or the modifier does; the answer feeds the drawn cluster
+   only (`titleBarMetricsHonoured`). It takes effect in the frame after the reporting build, as every window
+   preference whose value is read by the platform after the build.
+3. **AppKit** (`AppKitTitleBarPlacement.swift`, `TitleBarPlacement`). The container is set to `(0, hostHeight −
+   height, hostWidth, height)`, the titlebar view to its bounds, each button's y to `(band − buttonHeight) / 2`
+   and its x to `leading + (its system offset from the close button)`, so the system spacing is kept. **This
+   relies on the private view hierarchy** `standardWindowButton(_:).superview` (`NSTitlebarView`) `.superview`
+   (`NSTitlebarContainerView`), exactly what Electron's `trafficLightPosition` relies on; without that shape
+   the placement does nothing and the system layout stands. The hook is installed only under the hidden style
+   with a field set, and: (a) KVO on the three buttons' and the two views' `frame`, **deferred one run-loop
+   pass** (a synchronous re-place inside the observer crashes in AppKit's layout) and coalesced; (b) **every
+   write guarded by equality** (a write re-fires the observer; measured 1.9 million calls without it); (c)
+   **nothing is written in full screen** (placing there put the buttons at y 2094); (d) a notification
+   backstop (`didResize`, `didEndLiveResize`, `didExitFullScreen`, `didBecomeKey`, `didResignKey`); (e) a
+   toolbar change schedules a re-place. Giving the system layout back (clear, `.standard`, a field dropped)
+   resizes the window one point wider and back without display, the only thing measured to make AppKit lay the
+   title bar out afresh (`needsLayout`, `layoutSubtreeIfNeeded` and `layoutIfNeeded` do not). The geometry is
+   re-reported (`syncSurfaceGeometry`) when the placement is installed, changed or removed.
+4. **Insets.** `titleBarInsets.top` is the chosen height (`contentLayoutRect` keeps the system value, the
+   container having been resized by hand); `.left` is the zoom button's right edge **read back** from the moved
+   button. A system toolbar added under a placed band does not change the band reported.
+5. **SDL** draws its own buttons: `top` follows `height`; under macOS the drawn circles are centred in the
+   band at `controlsLeading` (`left` = leading + 62, the cluster's 52 and a 10-point margin; the default
+   leading 8 gives the old 70); the right-hand cluster of Windows and Linux follows the height and ignores the
+   inset. **Headless** answers as AppKit does: `top` = height, `left` = leading + 60 (the measured close-to-zoom
+   reach) where the buttons are on the left; `Options.appliesTitleBarMetrics` makes it refuse.
+6. Pinned by `TitleBarMetricsTests` (headless, portable) and, in `AppKitAppShellTests`,
+   `appKitTitleBarMetricsCentreTheButtonsAndReportTheBandAndEdge`,
+   `appKitTitleBarMetricsSurviveResizeAndTitleChange`, `appKitTitleBarMetricsApplyPerFieldAndClear` and
+   `theTitleBarPlacementsHookPiecesEachHold`. Mutations: record 249. Human group `TBH`.
+7. **A test that moves real windows installs AppKit's event signal first.** The four AppKit tests resize and
+   re-key real windows; in the unfiltered run that window-server traffic ended the process with exit 0 and no
+   summary line (first in `appKitTitleBarMetricsApplyPerFieldAndClear`, then, with a nested drain added, in the
+   next AppKit test; 4 reruns, deterministic; with the four tests skipped the run passed). They now run
+   `-[NSApplication run]` once and stop it at once (`appKitEventSignal`, the `SDLPlatform` fix of record §61 §9)
+   and end with a nested run-loop drain; the unfiltered run then passes (5745).
+
+**Cost if wrong.** An OS release that reshapes the title-bar views makes `views(of:)` answer `nil`: the
+placement then does nothing and the band reads the system value. The deferral and equality guard are the
+measured part; they do not depend on the hierarchy.
+

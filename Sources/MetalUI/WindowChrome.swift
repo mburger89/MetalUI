@@ -72,7 +72,9 @@ extension Window {
         guard insets.top.value > 0 else { return nil }
         let onRight = !(insets.left.value > 0 && insets.right.value <= 0)
         return WindowControlsSpec(
-            onRight: onRight, bandHeight: insets.top.value, isZoomed: platformWindow.isZoomed,
+            onRight: onRight, bandHeight: insets.top.value,
+            leading: shell.titleBarMetricsHonoured ? shell.sentTitleBarMetrics.controlsLeading : nil,
+            isZoomed: platformWindow.isZoomed,
             minimize: { [weak self] in self?.minimize() },
             toggleZoom: { [weak self] in self?.toggleZoom() },
             close: { [weak self] in self?.performClose() })

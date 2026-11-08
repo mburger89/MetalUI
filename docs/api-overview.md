@@ -840,7 +840,8 @@ whose "Final spellings" table is the short form).
   `.navigationTitle(Text)`/`(LocalizedStringKey)` (A; the plain string, `AE-A`),
   `.navigationSubtitle(_:)` (A; `NSWindow.subtitle`, outer beats inner, SDL shows
   none, `AE-B`), `.windowDismissBehavior(_:)` (A; `.disabled` disables the close
-  button and the user's close, `AE-D`) and
+  button and the user's close, `AE-D`), `.windowTitleBarMetrics(height:controlsLeading:)`
+  (M; the hidden title bar's band and the window buttons' left inset, `AS-R`) and
   `.navigationDocument(_ url: URL)` (A; the proxy icon, never the title) in
   the tree win while present; `Window.representedURL` and
   `Window.isDocumentEdited` (M; AppKit's edited dot). SDL records the edited

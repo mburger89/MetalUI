@@ -116,6 +116,47 @@ func insetsAreBandPlusClusterPerPlatformAndZeroInFullscreen() throws {
     #expect(window.titleBarInsets == Edges(all: Pixels(0)))
 }
 
+/// **AS-R 1.** `setTitleBarMetrics` records each pair and answers `true`, whatever the driver. Mutation: answer
+/// `false` or record nothing -> red.
+@MainActor
+@Test func theSDLWindowRecordsAndAcceptsTitleBarMetrics() throws {
+    let (_, window) = try chromePlatform()
+    #expect(window.setTitleBarMetrics(height: 68, controlsLeading: 27) == true)
+    #expect(window.setTitleBarMetrics(height: nil, controlsLeading: nil) == true)
+    #expect(window.titleBarMetricsRequests.count == 2)
+    #expect(window.titleBarMetricsRequests[0].height == 68 && window.titleBarMetricsRequests[0].controlsLeading == 27)
+    #expect(window.titleBarMetricsRequests[1].height == nil)
+}
+
+/// **AS-R 2.** Under the hidden style `top` follows the app's height; under macOS `left` is the leading plus
+/// the drawn circles and their margin (27 + 62) and Linux/Windows keep their 138 right cluster; clearing gives
+/// 32 and 70 back; zero in fullscreen and under `.standard`. Mutation: `top` keeps 32, or `left` ignores the
+/// leading -> red.
+@MainActor
+@Test(.enabled(if: windowManagerDriver, "the offscreen video driver cannot change a border or hit-test a window"))
+func theHiddenInsetsFollowTheAppsHeightAndLeading() throws {
+    let (_, window) = try chromePlatform()
+    _ = window.setTitleBarStyle(.hidden)
+    _ = window.setTitleBarMetrics(height: 68, controlsLeading: 27)
+    #if os(macOS)
+    #expect(window.titleBarInsets == Edges(top: Pixels(68), right: Pixels(0), bottom: Pixels(0), left: Pixels(89)))
+    #else
+    #expect(window.titleBarInsets == Edges(top: Pixels(68), right: Pixels(138), bottom: Pixels(0), left: Pixels(0)))
+    #endif
+    _ = window.setTitleBarMetrics(height: nil, controlsLeading: nil)
+    #if os(macOS)
+    #expect(window.titleBarInsets == Edges(top: Pixels(32), right: Pixels(0), bottom: Pixels(0), left: Pixels(70)))
+    #else
+    #expect(window.titleBarInsets == Edges(top: Pixels(32), right: Pixels(138), bottom: Pixels(0), left: Pixels(0)))
+    #endif
+    _ = window.setTitleBarMetrics(height: 68, controlsLeading: 27)
+    window.fullscreenOverride = true
+    #expect(window.titleBarInsets == Edges(all: Pixels(0)), "fullscreen has no band")
+    window.fullscreenOverride = false
+    _ = window.setTitleBarStyle(.standard)
+    #expect(window.titleBarInsets == Edges(all: Pixels(0)))
+}
+
 /// **2.5** (`CW-S`). The platform has no native window buttons (`Window` draws them).
 @MainActor
 @Test func theWindowHasNoNativeControls() throws {

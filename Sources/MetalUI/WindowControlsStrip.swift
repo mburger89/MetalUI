@@ -19,6 +19,8 @@ struct WindowControlsSpec {
     let onRight: Bool
     /// The band's height: the strip's.
     let bandHeight: Float
+    /// The left-hand cluster's left inset when the app chose one (`AS-R`); `nil` is the default, 8.
+    var leading: Float? = nil
     /// Whether the window is zoomed: the zoom button reads "Restore".
     let isZoomed: Bool
     let minimize: @MainActor () -> Void
@@ -34,6 +36,8 @@ enum WindowControlsStrip {
     static let rightWidth: Float = 138
     /// The left-hand cluster's width, macOS through SDL: AppKit's 70-point reach (`CW-D`).
     static let leftWidth: Float = 70
+    /// The left-hand cluster's default left inset (`AS-R` replaces it).
+    static let defaultLeading: Float = 8
     /// The macOS-style circle's diameter.
     static let circle: Float = 12
     /// The strip's root: a window-owned **named** root, `$windowcontrols`, at cursor index 3 beside the
@@ -44,7 +48,7 @@ enum WindowControlsStrip {
 
     /// The cluster's rect in a window `width` points wide.
     static func rect(for spec: WindowControlsSpec, windowWidth: Float) -> LayoutRect {
-        let clusterWidth = Double(spec.onRight ? rightWidth : leftWidth)
+        let clusterWidth = Double(spec.onRight ? rightWidth : leftWidth + (spec.leading.map { $0 - defaultLeading } ?? 0))
         return LayoutRect(x: spec.onRight ? Double(windowWidth) - clusterWidth : 0, y: 0,
                           width: clusterWidth, height: Double(spec.bandHeight))
     }
@@ -71,7 +75,8 @@ enum WindowControlsStrip {
                 round(Color(red: 0.996, green: 0.737, blue: 0.180), "Minimise", spec.minimize)
                 round(Color(red: 0.157, green: 0.784, blue: 0.251), zoomName, spec.toggleZoom)
             }
-            .padding(Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: Pixels(8))))
+            .padding(Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0),
+                           left: Pixels(spec.leading ?? defaultLeading))))
     }
 
     /// A flat button: its glyph centred in 46 x `bandHeight`, `.surface` behind it.

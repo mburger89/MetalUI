@@ -610,6 +610,34 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// — reaches `onResize`.
     private var contentLayoutObservation: NSKeyValueObservation?
 
+    /// The pair `setTitleBarMetrics` last stored (`AS-R`) and the hook that keeps it placed; the hook
+    /// exists only under the hidden style with at least one field set.
+    private(set) var titleBarMetrics: (height: Float?, controlsLeading: Float?) = (nil, nil)
+    private(set) var titleBarPlacement: TitleBarPlacement?
+
+    /// Stores the pair and, under the hidden style, installs, updates or removes the placement (ruling
+    /// `AS-R`); answers `true`. Re-reports the geometry, the insets having moved without the layout rect.
+    func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool {
+        titleBarMetrics = (height, controlsLeading)
+        reconcileTitleBarPlacement()
+        return true
+    }
+
+    private func reconcileTitleBarPlacement() {
+        let wanted = titleBarStyle == .hidden && (titleBarMetrics.height != nil || titleBarMetrics.controlsLeading != nil)
+        let height = titleBarMetrics.height.map { CGFloat($0) }
+        let leading = titleBarMetrics.controlsLeading.map { CGFloat($0) }
+        let had = titleBarPlacement != nil
+        if wanted {
+            if let placement = titleBarPlacement { placement.update(height: height, leading: leading) }
+            else { titleBarPlacement = TitleBarPlacement(window: window, height: height, leading: leading) }
+        } else {
+            titleBarPlacement?.remove()
+            titleBarPlacement = nil
+        }
+        if wanted || had { syncSurfaceGeometry() }
+    }
+
     /// SwiftUI's flags for `.windowStyle(.hiddenTitleBar)` (probe `H0`):
     /// `.fullSizeContentView`, a transparent title bar, a hidden title —
     /// `.standard` restores all three — and answers `true` (ruling `AS-E`
@@ -637,6 +665,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
             window.titleVisibility = .visible
         }
         if window.frame != frame { window.setFrame(frame, display: true) }
+        reconcileTitleBarPlacement()
         return true
     }
 
@@ -650,7 +679,10 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         let band = window.frame.height - window.contentLayoutRect.height
         guard band > 0 else { return zero }
         let left = window.standardWindowButton(.zoomButton).map { $0.convert($0.bounds, to: nil).maxX } ?? 0
-        return Edges(top: Pixels(Float(band)), right: Pixels(0), bottom: Pixels(0), left: Pixels(Float(left)))
+        // The app's band when it chose one (`AS-R`): the container is resized by hand, so `contentLayoutRect`
+        // keeps the system value.
+        let top = titleBarPlacement != nil ? titleBarMetrics.height ?? Float(band) : Float(band)
+        return Edges(top: Pixels(top), right: Pixels(0), bottom: Pixels(0), left: Pixels(Float(left)))
     }
 
     /// Drags the window with the mouse-down being dispatched —
@@ -1280,6 +1312,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         // window.
         let content = window.contentLayoutRect.size
         toolbarController.apply(toolbar, to: window)
+        titleBarPlacement?.schedule()   // a toolbar resets the title bar's layout (AS-R)
         if titleBarStyle == .standard, window.contentLayoutRect.size != content { window.setContentSize(content) }
         return true
     }

@@ -28,6 +28,7 @@ let windowMembers: [(name: String, spelling: String)] = [
     ("titleBarInsets", "var titleBarInsets: Edges<Pixels> { Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: Pixels(0)) }"),
     ("performTitleBarPress", "func performTitleBarPress(clickCount: Int) -> Bool { false }"),
     ("performWindowDrag", "func performWindowDrag() -> Bool { false }"),
+    ("setTitleBarMetrics", "func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool { false }"),
     ("setSubtitle", "func setSubtitle(_ subtitle: String) {}"),
     ("setDismissEnabled", "func setDismissEnabled(_ enabled: Bool) {}"),
 ]

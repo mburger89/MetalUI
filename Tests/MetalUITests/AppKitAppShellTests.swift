@@ -393,3 +393,191 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     platform.simulateOpenURLs(["metalcreator://x"])
     #expect(opened == [["file:///tmp/a"], ["metalcreator://x"]], "parked, then delivered: \(opened)")
 }
+
+// MARK: - AS-R — the app-chosen title-bar band and buttons' inset
+
+/// Installs AppKit's event-queue signal blocks once per process, as `SDLPlatform` does (record §61 §9): runs
+/// `-[NSApplication run]` and stops it at once. Without them HIToolbox's event thread wakes the main thread by
+/// queueing a `CFRunLoopStop` of the main run loop; the title-bar tests move real windows (live resizes, key
+/// changes), and one such stop reaching Swift Testing's outermost loop ended the whole run with exit 0 and no
+/// summary line (measured: the unfiltered run died in the next AppKit test). Skipped when AppKit already runs.
+@MainActor private let appKitEventSignal: Void = {
+    guard let app = NSApp, !app.isRunning else { return }
+    let main = CFRunLoopGetMain()
+    CFRunLoopPerformBlock(main, CFRunLoopMode.commonModes.rawValue) {
+        app.stop(nil)
+        if let wake = NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [],
+                                         timestamp: 0, windowNumber: 0, context: nil,
+                                         subtype: 0, data1: 0, data2: 0) {
+            app.postEvent(wake, atStart: true)
+        }
+    }
+    CFRunLoopWakeUp(main)
+    app.run()
+}()
+
+/// Runs the main run loop for `seconds` so a deferred placement lands (a single pass is enough; the bound is
+/// generous and nothing waits on a condition). Each test ends with one, too: the window-server traffic of
+/// moving real windows queues a `CFRunLoopStop` on the main loop that is harmless in a nested run and ends the
+/// process (exit 0, no summary) when it reaches Swift Testing's outermost loop (record §61 §9).
+@MainActor private func drainRunLoop(_ seconds: Double = 0.05) {
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: seconds))
+}
+
+/// One button's frame in window coordinates, top-down: `(minX, centreY)`.
+@MainActor private func buttonPlace(_ type: NSWindow.ButtonType, in window: NSWindow) throws -> (x: CGFloat, centreY: CGFloat) {
+    let button = try #require(window.standardWindowButton(type))
+    let rect = button.convert(button.bounds, to: nil)
+    return (rect.minX, window.frame.height - rect.maxY + rect.height / 2)
+}
+
+/// A window under the hidden style, metrics (68, 27) applied.
+@MainActor private func placedWindow(_ name: String, height: Float? = 68, leading: Float? = 27) throws
+    -> (AppKitWindow, NSWindow) {
+    let (_, appKit, nsWindow) = try shellWindow(name)
+    _ = appKitEventSignal
+    #expect(appKit.setTitleBarStyle(.hidden))
+    #expect(appKit.setTitleBarMetrics(height: height, controlsLeading: leading))
+    return (appKit, nsWindow)
+}
+
+/// **AS-R 1.** The three buttons centre in the chosen band and the close button's left edge is the chosen
+/// inset, keeping the system spacing; the insets read the band and the zoom button's moved right edge (read
+/// back, not computed); a click still reaches the zoom button (its frame holds the click point and
+/// `performClick` runs its action). Mutations: `titleBarInsets` keeps `frame − contentLayoutRect` (top reads
+/// the system band); the placement centres by `height / 2` of the system band (centre ≠ 34).
+@MainActor
+@Test func appKitTitleBarMetricsCentreTheButtonsAndReportTheBandAndEdge() throws {
+    let (appKit, nsWindow) = try placedWindow("AS-R 1")
+    let close = try buttonPlace(.closeButton, in: nsWindow)
+    let zoom = try buttonPlace(.zoomButton, in: nsWindow)
+    #expect(close.x == 27 && close.centreY == 34 && zoom.centreY == 34, "\(close) \(zoom)")
+    let zoomButton = try #require(nsWindow.standardWindowButton(.zoomButton))
+    let zoomRight = zoomButton.convert(zoomButton.bounds, to: nil).maxX
+    #expect(appKit.titleBarInsets.top == px(68))
+    #expect(appKit.titleBarInsets.left == px(Float(zoomRight)) && zoomRight > 27 + 40, "zoom right \(zoomRight)")
+    // Hit testing and performClick on the moved button.
+    let centre = zoomButton.convert(NSPoint(x: zoomButton.bounds.midX, y: zoomButton.bounds.midY), to: nil)
+    #expect(nsWindow.contentView?.superview?.hitTest(centre) === zoomButton, "the moved button takes the click")
+    let counter = Counter()
+    let target = ClickTarget(counter)
+    let (oldTarget, oldAction) = (zoomButton.target, zoomButton.action)
+    zoomButton.target = target
+    zoomButton.action = #selector(ClickTarget.hit(_:))
+    zoomButton.performClick(nil)
+    zoomButton.target = oldTarget
+    zoomButton.action = oldAction
+    #expect(counter.count == 1, "performClick runs the moved button's action")
+    nsWindow.close()
+    drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
+}
+
+@MainActor private final class ClickTarget: NSObject {
+    let counter: Counter
+    init(_ counter: Counter) { self.counter = counter }
+    @objc func hit(_ sender: Any?) { counter.count += 1 }
+}
+
+/// **AS-R 2.** The placement survives what resets AppKit's layout: five live `setFrame`s and a `title`
+/// change (which fires no notification: only the frame observers see it). Mutations: remove the frame
+/// observers (the title arm reddens); defer nothing and re-place synchronously (the process crashes in
+/// AppKit's layout, run it to see).
+@MainActor
+@Test func appKitTitleBarMetricsSurviveResizeAndTitleChange() throws {
+    let (_, nsWindow) = try placedWindow("AS-R 2")
+    for _ in 0..<5 {
+        var frame = nsWindow.frame
+        frame.size.width += 20
+        frame.size.height += 10
+        nsWindow.setFrame(frame, display: true)
+        drainRunLoop()
+    }
+    var close = try buttonPlace(.closeButton, in: nsWindow)
+    #expect(close.x == 27 && close.centreY == 34, "after resizes: \(close)")
+    nsWindow.title = "A new title"
+    drainRunLoop()
+    close = try buttonPlace(.closeButton, in: nsWindow)
+    #expect(close.x == 27 && close.centreY == 34, "after the title: \(close)")
+    nsWindow.close()
+    drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
+}
+
+/// **AS-R 3.** Only the set fields move: a height alone centres vertically and leaves x; a leading alone
+/// leaves y. Clearing both gives the system layout back (x 9, centre 16 — a resize of AppKit's own), the
+/// insets read the system band again, and `.standard` clears a set pair. Mutation: `remove()` skips the
+/// relayout (the clear arm stays at 27 / 34).
+@MainActor
+@Test func appKitTitleBarMetricsApplyPerFieldAndClear() throws {
+    let (appKit, nsWindow) = try placedWindow("AS-R 3", height: 68, leading: nil)
+    var close = try buttonPlace(.closeButton, in: nsWindow)
+    #expect(close.centreY == 34 && close.x < 27, "height only: \(close)")
+    _ = appKit.setTitleBarMetrics(height: nil, controlsLeading: 27)
+    drainRunLoop()
+    close = try buttonPlace(.closeButton, in: nsWindow)
+    #expect(close.x == 27 && close.centreY < 34, "leading only: \(close)")
+    let band = nsWindow.frame.height - nsWindow.contentLayoutRect.height
+    _ = appKit.setTitleBarMetrics(height: nil, controlsLeading: nil)
+    drainRunLoop()
+    close = try buttonPlace(.closeButton, in: nsWindow)
+    #expect(close.x < 27 && close.centreY == band / 2, "cleared: \(close), band \(band)")
+    #expect(appKit.titleBarPlacement == nil)
+    _ = appKit.setTitleBarMetrics(height: 68, controlsLeading: 27)
+    #expect(appKit.titleBarInsets.top == px(68))
+    #expect(appKit.setTitleBarStyle(.standard))
+    #expect(appKit.titleBarPlacement == nil && appKit.titleBarInsets == Edges(all: px(0)))
+    close = try buttonPlace(.closeButton, in: nsWindow)
+    #expect(close.x < 27, "the standard style restores the system layout: \(close)")
+    nsWindow.close()
+    drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
+}
+
+/// **AS-R 4** (the hook's pieces, on `TitleBarPlacement` itself). (a) A settled placement writes nothing: the
+/// write counter stays put over further run-loop turns — an unguarded write re-fires the observers and loops.
+/// Mutation: drop the equality guards (the counter climbs). (b) Full screen is skipped: with the check
+/// answering `true` a reset stays reset; with `false` it is placed. Mutation: drop the guard. (c) The
+/// notification backstop re-places with the frame observers off. Mutation: remove the notification observers.
+@MainActor
+@Test func theTitleBarPlacementsHookPiecesEachHold() throws {
+    let (_, appKit, nsWindow) = try shellWindow("AS-R 4")
+    _ = appKitEventSignal
+    _ = appKit.setTitleBarStyle(.hidden)
+    var fullScreen = false
+    let placement = try #require(TitleBarPlacement(window: nsWindow, height: 68, leading: 27,
+                                                   isFullScreen: { fullScreen }))
+    drainRunLoop()
+    let settled = placement.writeCount
+    drainRunLoop(0.1)
+    #expect(placement.writeCount == settled, "(a) no writes once placed: \(settled) → \(placement.writeCount)")
+    #expect(settled > 0)
+
+    func reset() throws {
+        for type in TitleBarPlacement.buttons {
+            let button = try #require(nsWindow.standardWindowButton(type))
+            button.setFrameOrigin(NSPoint(x: button.frame.minX - 18, y: button.frame.minY + 10))
+        }
+        drainRunLoop()
+    }
+    fullScreen = true
+    try reset()
+    placement.schedule()
+    drainRunLoop()
+    #expect(try buttonPlace(.closeButton, in: nsWindow).x < 27 + 1 - 18 + 1, "(b) not placed in full screen")
+    fullScreen = false
+    placement.schedule()
+    drainRunLoop()
+    #expect(try buttonPlace(.closeButton, in: nsWindow).x == 27, "(b) placed again outside it")
+    placement.remove()
+
+    let backstop = try #require(TitleBarPlacement(window: nsWindow, height: 68, leading: 27, observesFrames: false))
+    try reset()
+    #expect(try buttonPlace(.closeButton, in: nsWindow).x != 27)
+    for name in [NSWindow.didResizeNotification, NSWindow.didExitFullScreenNotification, NSWindow.didBecomeKeyNotification] {
+        try reset()
+        NotificationCenter.default.post(name: name, object: nsWindow)
+        drainRunLoop()
+        #expect(try buttonPlace(.closeButton, in: nsWindow).x == 27, "(c) \(name.rawValue) re-places")
+    }
+    backstop.remove()
+    nsWindow.close()
+    drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
+}

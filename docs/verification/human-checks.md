@@ -2463,3 +2463,15 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **EC3.** With a selection binding attached (`selection:` or `selectedOffsets:`), repeat EC1: the caret stays where the binding says (clamped), as SwiftUI's does. **Observed:**
 - [ ] **EC4.** Copy a screenshot (image only) and press the paste key in a focused `TextEditor` under a `pasteDestination(for: ImageData.self)`: does the destination run and the text stay unchanged? Copy text and paste: does the text arrive? Copy a Finder file (a URL) under an `ImageData`-only destination: text of the path or nothing, never an image? **Observed:**
 
+## TBH. Hidden title bar with an app-chosen band and buttons' inset (MetalCreator gap AS-a; record 249; ruling `AS-R`; decisions `docs/superpowers/2026-10-08-app-shell-decisions.md`)
+
+*An agent cannot: the tests move the real buttons of a window that is never key and never full screen and read their frames; key changes of an active app, full screen enter and exit, a live drag-resize and how it looks are human. Run `METALUI_CHROME_DEMO=1 swift run MetalUIDemo` and the window opens with a 68-point band and the buttons at x 27; the "Title bar metrics" button switches it.*
+
+- [ ] **TBH1.** The three traffic lights are vertically centred in the 68-point band, the close button's left edge about 27 points from the window's left (the system's is about 9), the spacing between the three as in a normal window. Hover them (the symbols appear) and click minimise and zoom. **Observed:**
+- [ ] **TBH2.** Click another window and back, three times: the buttons stay where they are, grey when inactive and coloured when active, with no jump. **Observed:**
+- [ ] **TBH3.** Drag the window's edge and corner slowly for several seconds (a live resize), including over a very narrow width: the buttons do not flicker or jump to the system position, even for one frame. **Observed:**
+- [ ] **TBH4.** Enter full screen (green button or ctrl-cmd-F): the system lays the buttons out in the menu-bar reveal as for any window, and `titleBarInsets` reads zero (the demo's band disappears). Move the mouse to the top to reveal them. Exit: the buttons return to centre y 34, x 27 with no stray frame. **Observed:**
+- [ ] **TBH5.** Press the demo's "Title bar metrics" button off and on: off gives the system layout (small band, buttons at the corner), on gives the 68 band again, the bar below the buttons growing and shrinking with it. **Observed:**
+- [ ] **TBH6.** Set the system appearance to dark and repeat TBH1 and TBH4: the band's backdrop and the buttons read correctly in a dark window. **Observed:**
+- [ ] **TBH7.** Change the window title from the demo's button while the window is key and not: the buttons do not move. **Observed:**
+
