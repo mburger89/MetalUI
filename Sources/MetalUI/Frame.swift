@@ -1427,7 +1427,64 @@ public final class Frame {
         func square(_ c: Corners<Pixels>) -> Bool {
             c.topLeft == Pixels(0) && c.topRight == Pixels(0) && c.bottomRight == Pixels(0) && c.bottomLeft == Pixels(0)
         }
-        return (bounds, Corners(all: Pixels(0)), !(square(outerRadii) && square(innerRadii)))
+        if square(outerRadii) && square(innerRadii) { return (bounds, Corners(all: Pixels(0)), false) }
+        // A square clip against a rounded one whose cut misses every corner zone, or meets only whole ones at a corner of the
+        // box, is one rounded rect with per-corner radii (`CM-J`): no mask. (Two rounded clips keep `CM-B`'s mask.)
+        if square(outerRadii) || square(innerRadii),
+           let radii = Self.boxCornerRadii(bounds, outer, outerRadii, inner, innerRadii) { return (bounds, radii, false) }
+        return (bounds, Corners(all: Pixels(0)), true)
+    }
+
+    /// The per-corner radii of the box `box` = `outer` ∩ `inner` when that box is exactly the intersection of the two
+    /// rounded rects (`CM-J`), else `nil`. Each corner zone (the `r`-square of a rounded corner) the box overlaps must lie in
+    /// the box whole, at one of its corners and with room for `r` (`min(side) / 2 >= r`): the box then takes that corner's
+    /// radius. A corner zone the box overlaps without containing (the cut passes through the arc) is not expressible.
+    private static func boxCornerRadii(_ box: Bounds<Pixels>, _ outer: Bounds<Pixels>, _ outerRadii: Corners<Pixels>,
+                                       _ inner: Bounds<Pixels>, _ innerRadii: Corners<Pixels>) -> Corners<Pixels>? {
+        let bx0 = box.origin.x.value, by0 = box.origin.y.value
+        let bx1 = bx0 + box.size.width.value, by1 = by0 + box.size.height.value
+        let room = min(box.size.width.value, box.size.height.value) / 2
+        let eps: Float = 1e-3
+        var tl: Float = 0, tr: Float = 0, br: Float = 0, bl: Float = 0
+        var ok = true
+        func assign(_ slot: inout Float, _ r: Float) {
+            if slot != 0, abs(slot - r) > eps { ok = false }
+            slot = max(slot, r)
+        }
+        for (rect, radii) in [(outer, outerRadii), (inner, innerRadii)] {
+            let x0 = rect.origin.x.value, y0 = rect.origin.y.value
+            let x1 = x0 + rect.size.width.value, y1 = y0 + rect.size.height.value
+            let limit = max(0, min(rect.size.width.value, rect.size.height.value) / 2)
+            // (corner x, corner y, direction x, direction y, radius, slot index)
+            let corners: [(Float, Float, Float, Float, Float, Int)] = [
+                (x0, y0, 1, 1, radii.topLeft.value, 0), (x1, y0, -1, 1, radii.topRight.value, 1),
+                (x1, y1, -1, -1, radii.bottomRight.value, 2), (x0, y1, 1, -1, radii.bottomLeft.value, 3),
+            ]
+            for (cx, cy, dx, dy, requested, index) in corners {
+                let r = min(max(requested, 0), limit)
+                guard r > 0 else { continue }
+                let sx0 = min(cx, cx + dx * r), sx1 = max(cx, cx + dx * r)
+                let sy0 = min(cy, cy + dy * r), sy1 = max(cy, cy + dy * r)
+                let ox0 = max(sx0, bx0), ox1 = min(sx1, bx1), oy0 = max(sy0, by0), oy1 = min(sy1, by1)
+                guard ox1 > ox0, oy1 > oy0 else { continue }
+                // Whether the overlap reaches outside the disc at all: if not, it is exact as it is.
+                let centreX = cx + dx * r, centreY = cy + dy * r
+                let farX = max(abs(ox0 - centreX), abs(ox1 - centreX)), farY = max(abs(oy0 - centreY), abs(oy1 - centreY))
+                guard farX * farX + farY * farY > r * r + 1e-3 else { continue }
+                // The whole zone in the box, at the box's own corner of the same name.
+                let whole = bx0 <= sx0 + eps && bx1 >= sx1 - eps && by0 <= sy0 + eps && by1 >= sy1 - eps
+                let atCorner = abs((dx > 0 ? bx0 : bx1) - cx) <= eps && abs((dy > 0 ? by0 : by1) - cy) <= eps
+                guard whole, atCorner, room >= r - eps else { return nil }
+                switch index {
+                case 0: assign(&tl, r)
+                case 1: assign(&tr, r)
+                case 2: assign(&br, r)
+                default: assign(&bl, r)
+                }
+            }
+        }
+        guard ok else { return nil }
+        return Corners(topLeft: Pixels(tl), topRight: Pixels(tr), bottomRight: Pixels(br), bottomLeft: Pixels(bl))
     }
 
     /// Whether `rect`'s rounded region lies inside `container`'s: each of
