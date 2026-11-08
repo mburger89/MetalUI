@@ -1216,6 +1216,16 @@ no product, imports nothing, `GX-B`), and
 
 Typical use: keep one `MarkdownDocument` per reply, `append` each streamed token, and render `blocks` (the last one changes; the rest are stable).
 
+## Markdown views — M
+
+`MarkdownView`, `MarkdownBlockView`, `MarkdownTheme` and the code highlighter hook (in `MetalUI`; record 235, rulings `BM-E`..`BM-J`) draw a `MarkdownDocument` as a stack of blocks, built from existing views. SwiftUI has no block Markdown, so this is MetalUI-only; the parse is cmark-gfm's block structure, and the inline styles are `Text`'s own Markdown (bold, italic, strikethrough, code, links).
+
+- `MarkdownView(_ document: MarkdownDocument)` and `MarkdownView(_ source: String)`. Hold a document and `append` per token (O(token)), or pass the whole string: when a later string extends the earlier one only the added text is parsed. Equality is O(1) (the document's identity and version, the theme, the highlighter's identity), so `.equatable()` skips a settled reply. Each block is its own equatable component: a token changes the last block alone, in a transcript of 10 or of 200 replies alike (2 content evaluations).
+- `MarkdownBlockView(_ block: MarkdownBlock)`: one block, public so an app can put blocks straight into its own `LazyVStack` (`ForEach(document.blocks, id: \.id) { MarkdownBlockView($0).equatable() }`).
+- `.markdownTheme(_:)` with a `MarkdownTheme` **value** (fonts, heading fonts, code and quote and table colours, spacing, `codeWraps`, `tableScrolls`, `softBreak`), never an environment key, so settled blocks stay replayable. `MarkdownSoftBreak` is `.space` (default) or `.lineBreak`.
+- `.codeHighlighter(_:)` with a `MarkdownCodeHighlighter` (`highlight(code:language:isClosed:) -> [MarkdownCodeRun]`, a pure read, called once per changed fence and compared by identity); `MarkdownCodeRun` is a UTF-8 `range` and a `CodeStyle`. Code is cut into chunks of at most 32 lines, so streaming a long fence shapes the last chunk only.
+- Links open through `\.openURL`; headings are accessibility headings (no level is published); a code block is an accessibility group named by its language. **Not in v1:** text selection, a copy accessory, reference links, HTML blocks, task-list boxes. **Code wraps and tables do not scroll by default**: a horizontal scroller takes a vertical wheel for itself, so `codeWraps = false` / `tableScrolls = true` stop the transcript from scrolling while the pointer is over the block. Demo: `METALUI_MARKDOWN_DEMO=1`.
+
 ## Code buffer — M
 
 `MetalUICodeBuffer` (also re-exported by `MetalUI`; imports only `Observation`, so it builds on Linux and Windows) is the text model behind a code view: all offsets are UTF-8 bytes (`CV-C`).
