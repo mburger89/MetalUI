@@ -2433,6 +2433,18 @@ Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a t
 - [ ] **TBS5.** VoiceOver: is the strip a group named Tabs, each tab a button announced with its title, selected state and "edited", and each x a "Close <title>" button? Is a real tab-group role missed? **Observed:**
 - [ ] **TBS6.** Linux and Windows (SDL): the x is the bundled Lucide icon; is it crisp at 9 points beside the 12-point title? **Observed:**
 
+## HL. Model-driven tooltip - a graph canvas explains the socket under the pointer (MetalCreator gap; record 239; ruling `MN-AJ`; decisions `docs/superpowers/2026-10-02-menus-popovers-decisions.md`)
+
+*An agent cannot: the tests read the shown text and the clock of a headless window; whether the bubble feels right while the pointer sweeps across many small targets, and where it lands next to the cursor, are looks.*
+
+Run MetalCreator (or any app with a `.help { location in ... }` surface under `.allowsHitTesting(false)` children).
+
+- [ ] **HL1.** Rest the pointer on a socket dot: does its tooltip appear after about a second, below the pointer? Slide to the next dot: does the old bubble vanish at once and the new one come after another second (no flicker, no stale text)? **Observed:**
+- [ ] **HL2.** Move within one dot's hit area: does the bubble stay still while the pointer moves slightly (it does not follow, it is placed once)? **Observed:**
+- [ ] **HL3.** Click a socket while its bubble shows (starts a wire): does it hide and stay hidden while you drag? On release over another socket, does that socket's text come back after the delay? **Observed:**
+- [ ] **HL4.** Wheel/pinch over the canvas, then press a key: each hides it. Move off the canvas to a panel with its own `.help`: does the old one go and the panel's come after the delay? **Observed:**
+- [ ] **HL5.** (`MN-AJ` item 6, unmeasured) With a bubble showing, move the pointer out of the window entirely: does it stay up? (It does by the code; if it looks wrong, add `.pointerExited` to the hide arm.) **Observed:**
+
 ## MIP. A `Menu` opened from code - a composer's `/model` opens the model menu (Alloy gap G9; record 241; ruling `MN-AK`; decisions `docs/superpowers/2026-10-02-menus-popovers-decisions.md`)
 
 *An agent cannot: the suite drives a headless platform that answers `presentMenu` at once; whether a real `NSMenu.popUp` opened from the frame's tail tracks properly is a look. There is no demo: the menus demo's tree sits at the 1 MB thread budget (`everyProductionTreeBuildsOnAOneMegabyteThread` went SIGBUS with one extra section), so build a throwaway app (`metalui new`) with `@State var open = false`, `Button("Open model menu") { open = true }` and `Menu("Model", isPresented: $open) { Button("Sonnet") {}; Button("Opus") {} }`, on macOS and under SDL.*

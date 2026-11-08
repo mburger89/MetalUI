@@ -33,6 +33,33 @@ extension StyledElement {
             handlers.contextual = ContextualAttachment(locatedMenu: handlers.contextual?.menu, help: text)
         }
     }
+
+    /// A model-driven tooltip — **MetalUI-only** (class M, `MN-AJ`; SwiftUI has no
+    /// `help` that depends on where the pointer is).
+    ///
+    /// For an element whose children are not hit-testable because the app's
+    /// model does the hit testing (a graph canvas drawn under
+    /// `.allowsHitTesting(false)`): `text` is called with the pointer in this
+    /// element's local space and answers the tooltip for that point, `nil` for
+    /// none. It runs **in input, never in a phase** — on each pointer move over
+    /// the element, in this element's dispatch (`ID-F`) — so it may read models
+    /// and `@State`. While the pointer moves, a text that differs from the one
+    /// pending or shown hides the bubble and restarts the usual 1.0 s delay for
+    /// the new text (as moving between two `.help` elements does); the same
+    /// text keeps it. A press, wheel, key, leaving or the window leaving key
+    /// hide it as for any tooltip; after a press it returns when the text at
+    /// the pointer changes. Placement is `help(_:)`'s. The element needs to be
+    /// hit-testable itself (`MN-U` stands); a later `.help` or `.contextMenu`
+    /// combines as `help(_:)`'s do.
+    ///
+    /// **Accessibility** records nothing: the text is a function of a point,
+    /// and an accessibility node has no pointer.
+    public func help(_ text: @escaping @MainActor (_ location: Point<Pixels>) -> String?) -> Self {
+        handling { handlers in
+            handlers.contextual = ContextualAttachment(locatedMenu: handlers.contextual?.menu, help: nil,
+                                                       helpProvider: text)
+        }
+    }
 }
 
 extension ProposalElementGroup {
@@ -41,6 +68,14 @@ extension ProposalElementGroup {
     /// (`MN-Q`), at the same position `accessibilityHint(_:)`'s wrapper takes.
     public func help(_ text: String) -> ContextualModifier<Self> {
         ContextualModifier(content: self, attachment: ContextualAttachment(locatedMenu: nil, help: text))
+    }
+
+    /// `StyledElement.help(_:)`'s model-driven spelling on the proposal path
+    /// (`MN-AJ`); the wrapper as `help(_:)`'s.
+    public func help(_ text: @escaping @MainActor (_ location: Point<Pixels>) -> String?)
+        -> ContextualModifier<Self> {
+        ContextualModifier(content: self,
+                           attachment: ContextualAttachment(locatedMenu: nil, help: nil, helpProvider: text))
     }
 }
 
@@ -109,6 +144,18 @@ struct TooltipTracker {
     var phase = Phase.idle
     /// The latest pointer position inside the region.
     var pointer = Point(x: Pixels(0), y: Pixels(0))
+    /// The text a model-driven region (`MN-AJ`) last answered, `nil` when it
+    /// answered none (or the region is a static one).
+    var providedText: String?
+
+    /// The text the phase is about — pending or shown; `nil` otherwise.
+    var phaseText: String? {
+        switch phase {
+        case .pending(_, let text, _): text
+        case .shown(_, let tooltip): tooltip.text
+        case .idle, .spent: nil
+        }
+    }
 
     /// The region the phase is about, if any.
     var region: GlobalElementID? {
@@ -159,18 +206,36 @@ extension Window {
                 tooltipTracker.hide()
                 return
             }
-            let index = contextualTarget(at: mouse.position, where: { $0.help != nil })
+            let index = contextualTarget(at: mouse.position, where: { $0.help != nil || $0.helpProvider != nil })
             let region = index.map { lastHitboxes[$0] }
-            if let region, region.id == tooltipTracker.region {
-                tooltipTracker.pointer = mouse.position
-                return
+            // A model-driven region (`MN-AJ`) is asked in this event, in the
+            // region's dispatch, with the pointer in its local space.
+            var text = region?.handlers.contextual?.help
+            if let region, let provider = region.handlers.contextual?.helpProvider {
+                let inRegion = region.localPoint(mouse.position)
+                let location = Point(x: inRegion.x - region.origin.x, y: inRegion.y - region.origin.y)
+                text = StateDispatch.dispatching(to: region.id) { provider(location) }
+                if region.id == tooltipTracker.region, text == tooltipTracker.providedText {
+                    tooltipTracker.pointer = mouse.position
+                    return
+                }
+                tooltipTracker.providedText = text
+            } else {
+                tooltipTracker.providedText = nil
+                if let region, region.id == tooltipTracker.region {
+                    tooltipTracker.pointer = mouse.position
+                    return
+                }
             }
+            let hadBubble = tooltipTracker.visible != nil
             tooltipTracker.pointer = mouse.position
-            if let region, let text = region.handlers.contextual?.help {
+            if let region, let text {
                 tooltipTracker.phase = .pending(region: region.id, text: text, since: nil)
             } else {
                 tooltipTracker.phase = .idle
             }
+            if hadBubble { setNeedsRedraw() }
+
         // A pinch hides as a press does (spec §1.4 item 2).
         case .mouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown, .magnify, .rotate:
             tooltipTracker.hide()

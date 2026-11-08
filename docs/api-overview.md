@@ -918,7 +918,11 @@ proposed the panel's size and placed by the alignment, cut to the panel, under a
 
 **Tooltips (A / D 113).** `.help("text")` publishes `accessibilityHint`'s tree on
 both bridges and shows a drawn tooltip after 1.0 s of display-link time, hidden by
-a press, wheel, key or leaving.
+a press, wheel, key or leaving. `.help { location in String? }` (M, `MN-AJ`) is a model-driven
+tooltip for a hit-testing surface whose app does its own hit testing under
+`.allowsHitTesting(false)` children: the closure gets the pointer in the element's local space,
+runs in input on each pointer move (never in a phase), a changed text hides the bubble and restarts
+the delay, `nil` shows none, and it publishes no accessibility hint.
 
 ## Dialogs, alerts and hover — A / D / M
 
