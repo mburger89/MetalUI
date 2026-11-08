@@ -8,7 +8,19 @@ import Testing
 // offset at index 7 and, appended, a two-axis scroller's horizontal offset and extent at 10 and 11; K2 (`FS-D`) translates a settled
 // occurrence by the offset it moved, so BOTH offsets are set aside when two keys are compared.
 
-/// **Z8** (`XS-L`). Six equatable cards in a 60 x 100 two-axis scroller (the cards are 80 wide, so both axes scroll) are wheeled
+/// A card of text and a bar: no handler, no menu (a card with a context menu refuses translation under any scroller).
+struct XSCard: Component, @MainActor Equatable {
+    let title: String
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text(title).frame(width: Pixels(80), height: Pixels(14))
+            Box().frame(width: Pixels(60), height: Pixels(8)).background(.accent)
+        }
+    }
+    static func == (l: XSCard, r: XSCard) -> Bool { l.title == r.title }
+}
+
+/// **Z8** (`XS-L`). Six equatable cards (`XSCard`) in a 60 x 100 two-axis scroller (the cards are 80 wide, so both axes scroll) are wheeled
 /// down, across, down, back and down: after every step the retaining window equals the retention-off one (scene, hitboxes,
 /// tallies), the cards replayed their prepaint (`retainedPrepaintHits > 0`: a differential that replays nothing proves
 /// nothing) and no translation was refused. **Mutation:** `PrepaintExtras.zeroScrollOffsets` not zeroing index 10 (the horizontal
@@ -20,7 +32,7 @@ func aDiagonallyScrolledTwoAxisScrollerReplaysItsCardsTranslated() async throws 
         VStack(spacing: 0) {
             ScrollView([.horizontal, .vertical]) {
                 VStack(spacing: 4) {
-                    for index in 0..<6 { RPCard(title: "c\(index)", shade: 1, log: side.log).equatable() }
+                    for index in 0..<6 { XSCard(title: "c\(index)").equatable() }
                 }
             }
             .frame(width: Pixels(60), height: Pixels(100))
@@ -32,14 +44,14 @@ func aDiagonallyScrolledTwoAxisScrollerReplaysItsCardsTranslated() async throws 
     var xSteps = 0, xHits = 0, ySteps = 0, yHits = 0, refused = 0
     for (index, step) in [(0, -10), (-6, 0), (0, -15), (3, 0), (0, 8), (-4, 0)].enumerated() {
         let dx = Float(step.0), dy = Float(step.1)
-        for w in [pair.on, pair.off] { w.scroll(at: pt(30, 50), byDeltaX: dx, deltaY: dy) }
+        for w in [pair.on, pair.off] { w.scroll(at: pt(80, 50), byDeltaX: dx, deltaY: dy) }
+        let f = pair.on.lastFrameWork   // the frame the wheel itself drew
         await rsSettle()
         pair.redraw()
-        let f = try #require(pair.frames.last)
         if dx != 0 { xSteps += 1; xHits += f.retainedPrepaintHits } else { ySteps += 1; yHits += f.retainedPrepaintHits }
         refused += f.retainedTranslationRefused
         try pair.compare("step \(index) (\(dx), \(dy))")
     }
-    #expect(yHits > 0 && xHits > 0, "the cards replay translated after a vertical (\(yHits) over \(ySteps)) and a horizontal (\(xHits) over \(xSteps)) step")
+    #expect(yHits == 3 * 6 && xHits == 3 * 6, "the cards replay translated after a vertical (\(yHits) over \(ySteps)) and a horizontal (\(xHits) over \(xSteps)) step: six cards per step")
     #expect(refused == 0, "no translation is refused: \(refused)")
 }

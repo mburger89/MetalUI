@@ -217,11 +217,10 @@ private func storedOffsets(_ window: Window) throws -> (y: Double, x: Double) {
 
 /// **Z4** (`XS-I`, probe `T1`-`T5`). `scrollTo` into a two-axis scroller resolves BOTH axes by the one-axis rule: cell (5,5) is at
 /// content (150, 150) 30 x 30 in a 100 x 100 viewport, so `.topLeading` lands at (150, 150), `.center` at `150 - 0.5 * 70` =
-/// (115, 115), `.top` (anchor x 0.5, y 0) at x 115, y 150 (probe `T3`: `.top` centres x), `.bottomTrailing` at (80, 80) and no
-/// anchor, from the origin, at the least distance: `150 + 30 - 100` = (80, 80); from there the cell (5,1) (x 150..180 ahead of the
-/// viewport's 80..180? no: x 30..60 is behind it) moves x to 30 and leaves y (visible: 30..60 against 80..180? behind it too).
-/// Cell (9,9) bottom-aligns to the clamp (200, 200). **Mutation:** the cross resolution dropped in `resolveScrollRequest`
-/// (`cross` always `nil`): x stays 0 in every row.
+/// (115, 115), `.top` (anchor x 0.5, y 0) at x 115, y 150 (probe `T3`: `.top` centres x), `.bottomTrailing` at (80, 80); with no
+/// anchor, from the origin, the least distance `150 + 30 - 100` = (80, 80), cell (9,9) the clamp (200, 200), cell (1,5) (row 1 is
+/// visible on y) moves x only (80, 0) and cell (5,0) (column 0 is visible on x) moves y only (0, 80).
+/// **Mutation:** the cross resolution dropped in `resolveScrollRequest` (`cross` always `nil`): x stays 0 in every row.
 @Test @MainActor func scrollToResolvesBothAxesOfATwoAxisScroller() throws {
     let holder = Proxy()
     let window = try gridWindow(holder)
