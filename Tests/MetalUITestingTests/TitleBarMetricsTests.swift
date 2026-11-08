@@ -113,8 +113,10 @@ private struct MetricsPage: Component {
 }
 
 /// **AS-R 6**: the modifier leaving the tree restores the system layout. Mutation: keep the last metrics
-/// when the build reports none.
-@Test @MainActor func theModifierLeavingRestoresTheSystemLayout() throws {
+/// when the build reports none. `async` and settled with `runUntilIdle()`, not two ticks: off macOS a
+/// Swift Testing `@MainActor` test need not run on the process's main thread, so `markDirtyFromObservation`
+/// takes its main-actor-hop branch and the `@Observable` write dirties the window a turn later.
+@Test @MainActor func theModifierLeavingRestoresTheSystemLayout() async throws {
     let toggle = MetricsToggle()
     let log = MetricsLog()
     let app = try TestApp(textSystem: harnessTextSystem)
@@ -124,7 +126,7 @@ private struct MetricsPage: Component {
     window.tick(); window.tick()
     #expect(log.last?.top == Pixels(68))
     toggle.on = false
-    window.tick(); window.tick()
+    try await window.runUntilIdle()
     #expect(log.last == Edges(top: Pixels(32), right: Pixels(0), bottom: Pixels(0), left: Pixels(69)))
     let requests = window.platformWindow.titleBarMetricsRequests
     #expect(requests.count == 2 && requests[1].height == nil && requests[1].controlsLeading == nil)
