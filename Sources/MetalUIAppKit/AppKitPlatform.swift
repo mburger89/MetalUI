@@ -630,7 +630,11 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         let had = titleBarPlacement != nil
         if wanted {
             if let placement = titleBarPlacement { placement.update(height: height, leading: leading) }
-            else { titleBarPlacement = TitleBarPlacement(window: window, height: height, leading: leading) }
+            else {
+                titleBarPlacement = TitleBarPlacement(window: window, height: height, leading: leading)
+                // A reset the deferred placement undoes changes the insets after they were read (`AS-R` item 6).
+                titleBarPlacement?.onReplaced = { [weak self] in self?.syncSurfaceGeometry() }
+            }
         } else {
             titleBarPlacement?.remove()
             titleBarPlacement = nil
