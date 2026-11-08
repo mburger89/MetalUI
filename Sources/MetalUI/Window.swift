@@ -1704,11 +1704,12 @@ public final class Window {
         // window-owned store updated from it.
         var (frame, scene) = buildAndAdoptFrame(scaleFactor: drawScaleFactor)
 
-        // The tree's colour-scheme preference (rulings `CR-L`, `CR-Q`). After
-        // the first frame a change applies on the next one: `updateColorScheme`
-        // dirties through `colorScheme`'s guard. On the FIRST frame a change
+        // The tree's colour-scheme preference (rulings `CR-L`, `CR-Q`). On EVERY frame a change
         // of the effective scheme is applied now and the half runs once more
-        // inside this `beginFrame()`, so no light flash is presented. The
+        // inside this `beginFrame()` (at most once: the second build's own
+        // collected preference is only recorded), so no frame is presented in the old
+        // scheme (it was the first frame's only until `CR-AC`: a later change painted one
+        // frame in the old scheme and settled on the next). The
         // first build is adopted in full — nothing is discarded or rolled back
         // (`StateTable`, `AnimationStore`, focus, scroll requests and surfaces
         // saw an ordinary frame); only the second is published and encoded.
@@ -1718,7 +1719,7 @@ public final class Window {
         // so the presented frame equals one build in the target scheme
         // (test 2.11b).
         let schemeBefore = colorScheme
-        if applyTreeColorSchemePreference(of: frame), framesDrawn == 0, colorScheme != schemeBefore {
+        if applyTreeColorSchemePreference(of: frame), colorScheme != schemeBefore {
             // The second build re-derives every "another frame" request the
             // first made; the scheme change that dirtied is consumed by it.
             needsRedraw = false
@@ -2684,7 +2685,13 @@ public final class Window {
 
     /// The open menu — native or in-window — or `nil` (`MN-C`, `MN-F`). On
     /// `Window`, never in `StateTable`, so no id path or reserved slot moves.
-    var menuSession: MenuSession?
+    var menuSession: MenuSession? {
+        didSet { menuSessionDidChange(from: oldValue) }   // MN-AK: a code-driven menu's binding
+    }
+
+    /// `reconcileMenuBindings` is running (`MN-AK`): a native menu's `popUp` is modal, and a frame the platform
+    /// builds inside it must not open the same menu again.
+    var reconcilingMenuBindings = false
 
     // MARK: Presentations and hover (platform services, `SV-K`, `SV-N`)
 
@@ -3657,6 +3664,9 @@ public final class Window {
     private func dispatchTextKey(_ event: InputEvent) -> Bool {
         guard case .keyDown(let key) = event, let id = focusedElement,
               let target = lastFocusRegistry.textTarget(for: id) else { return false }
+        // A paste destination on the chain is offered ⌘V first (`CB-T`): an image-only clipboard
+        // would otherwise find the field's text paste and never reach it.
+        if offerPasteToDestinationBeforeTheField(event) { return true }
         if let session = target.codeSession {
             let outcome = StateDispatch.dispatching(to: id) {   // ID-F: the edited code view
                 session.key(key, clipboard: { [platformWindow] in platformWindow.readClipboard() })

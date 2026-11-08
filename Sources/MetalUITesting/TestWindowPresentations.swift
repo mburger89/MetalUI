@@ -39,7 +39,8 @@ extension TestWindow {
     /// the drawn menu through the tree).
     public var presentedMenu: PlatformMenu? {
         guard platformWindow.options.presentsMenusNatively, let menu = platformWindow.presentedMenus.last?.menu,
-              !answered.menus.contains(menu.token) else { return nil }
+              !answered.menus.contains(menu.token),
+              !platformWindow.dismissedPresentations.contains(menu.token) else { return nil }   // MN-AK: closed from code
         return menu
     }
 

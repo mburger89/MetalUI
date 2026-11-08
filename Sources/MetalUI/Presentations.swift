@@ -110,6 +110,14 @@ enum PresentationRequest {
                     complete: @MainActor (FileDialogOutcome) -> Void)
     /// An alert whose content is evaluated at presentation (`SV-I` item 4).
     case alert(@MainActor () -> AlertContent)
+    /// A `Menu` the code opens (`MN-AK`): reconciled by `reconcileMenuBindings`, not presented as a sheet —
+    /// no slot in flight, so it neither waits for nor blocks a dialog.
+    case menu(isEnabled: Bool, content: @MainActor () -> MenuItems)
+}
+
+extension PresentationRequest {
+    /// Whether this is a code-driven `Menu` (`MN-AK`) rather than a dialog or alert.
+    var isMenu: Bool { if case .menu = self { true } else { false } }
 }
 
 /// An alert's evaluated content: what the platform shows and what each
@@ -248,8 +256,9 @@ extension Window {
                 dismissPresentationOnPlatform(token: token)
             }
         }
+        reconcileMenuBindings()
         guard presentations.inFlight == nil,
-              let record = presentations.records.first(where: \.isShown) else { return }
+              let record = presentations.records.first(where: { $0.isShown && !$0.request.isMenu }) else { return }
         present(record)
     }
 
@@ -269,6 +278,8 @@ extension Window {
                     complete(.failed(.unavailable))
                 }
             }
+        case .menu:
+            break   // reconciled by `reconcileMenuBindings`, never presented here
         case .alert(let make):
             let content = make()
             presentations.inFlight = .scope(key: record.key, token: token, record: record, alert: content)

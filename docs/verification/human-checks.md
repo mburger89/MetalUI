@@ -2445,3 +2445,21 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **HL3.** Click a socket while its bubble shows (starts a wire): does it hide and stay hidden while you drag? On release over another socket, does that socket's text come back after the delay? **Observed:**
 - [ ] **HL4.** Wheel/pinch over the canvas, then press a key: each hides it. Move off the canvas to a panel with its own `.help`: does the old one go and the panel's come after the delay? **Observed:**
 - [ ] **HL5.** (`MN-AJ` item 6, unmeasured) With a bubble showing, move the pointer out of the window entirely: does it stay up? (It does by the code; if it looks wrong, add `.pointerExited` to the hide arm.) **Observed:**
+
+## MIP. A `Menu` opened from code - a composer's `/model` opens the model menu (Alloy gap G9; record 241; ruling `MN-AK`; decisions `docs/superpowers/2026-10-02-menus-popovers-decisions.md`)
+
+*An agent cannot: the suite drives a headless platform that answers `presentMenu` at once; whether a real `NSMenu.popUp` opened from the frame's tail tracks properly is a look. There is no demo: the menus demo's tree sits at the 1 MB thread budget (`everyProductionTreeBuildsOnAOneMegabyteThread` went SIGBUS with one extra section), so build a throwaway app (`metalui new`) with `@State var open = false`, `Button("Open model menu") { open = true }` and `Menu("Model", isPresented: $open) { Button("Sonnet") {}; Button("Opus") {} }`, on macOS and under SDL.*
+
+- [ ] **MIP1.** macOS: press "Open model menu" (mouse, then Space on the focused button). Does the native menu open below the "Model" label exactly as a click on "Model" does, the app staying responsive, no second menu stacking and no hitch or flicker in the frame that opened it (`popUp` is modal inside `beginFrame`; `MN-AK` item 8)? Choose an item, then open again, then dismiss with Escape and with an outside click: does it open every time? **Observed:**
+- [ ] **MIP2.** SDL (Linux/Windows): the same; the drawn panel opens below the label, Escape and an outside click close it, and the next press of the button opens it again. **Observed:**
+- [ ] **MIP3.** With the menu open, hover items and open nothing else; click the "Model" label itself: does it behave as a click on any pull-down (closes on SDL, re-opens on macOS)? **Observed:**
+
+## EC. The caret after an external text change, the offsets binding, a paste destination under a focused field (Alloy gaps G11 and G10; record 242; rulings `SL-P`, `SL-Q`, `CB-T`; decisions `docs/superpowers/2026-10-12-text-selection-decisions.md`, `docs/superpowers/2026-10-14-clipboard-types-decisions.md`)
+
+*An agent cannot: the tests type through the headless window and read the text; where the caret is drawn after the change, whether the reveal scrolls a long editor to it and a real clipboard's image reaching a destination are looks. Run any app with a `TextEditor` whose text a button rewrites (the Alloy composer is the real case).*
+
+- [ ] **EC1.** Focus a `TextEditor` and a `TextField` mid-text, then rewrite the bound text from a button (a longer text, a shorter one, an appended mention). Is the caret drawn at the end of the new text on the very next frame, not at the old offset for one frame? Does typing continue there? **Observed:**
+- [ ] **EC2.** In a tall `TextEditor` scrolled to the top, append text from code past the visible area: does the editor scroll to the caret at the end? **Observed:**
+- [ ] **EC3.** With a selection binding attached (`selection:` or `selectedOffsets:`), repeat EC1: the caret stays where the binding says (clamped), as SwiftUI's does. **Observed:**
+- [ ] **EC4.** Copy a screenshot (image only) and press the paste key in a focused `TextEditor` under a `pasteDestination(for: ImageData.self)`: does the destination run and the text stay unchanged? Copy text and paste: does the text arrive? Copy a Finder file (a URL) under an `ImageData`-only destination: text of the path or nothing, never an image? **Observed:**
+
