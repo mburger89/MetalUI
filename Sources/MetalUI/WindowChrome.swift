@@ -120,6 +120,6 @@ extension Window {
         guard band > 0 || !handles.isEmpty || background != nil else { return [] }
         shell.chrome.carveCount += 1
         return ChromeRegions.compute(hitboxes: lastHitboxes, bandHeight: band, windowWidth: size.width.value,
-                                     background: background)
+                                     background: background, inert: lastInertChromeBlockers)
     }
 }

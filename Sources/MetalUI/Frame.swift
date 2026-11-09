@@ -1661,6 +1661,12 @@ public final class Frame {
     /// `GlobalElementID` for anything that must outlive one.
     private(set) var hitboxes: [Hitbox] = []
 
+    /// Window-space rects of **disabled** controls that would have registered a blocking hitbox (`AS-S`):
+    /// chrome-only, never hit-tested, so `EV-E` stands. `ChromeRegions` carves them out of the drag regions
+    /// and `answerUnclaimedTitleBarPress` does nothing over one, as a disabled native control does not move
+    /// the window. Recorded beside the hitboxes and replayed with the prepaint ledger.
+    private(set) var inertChromeBlockers: [Bounds<Pixels>] = []
+
     /// Pointer-disable scopes are inherited by descendants during prepaint.
     /// Keyboard registration stays outside this gate: disabling hit testing is
     /// a pointer decision, not an instruction to discard a focused control's
@@ -1790,6 +1796,18 @@ public final class Frame {
                 (index: hitboxes.count - 1, raw: translated, clip: activeClip))
         }
         return HitboxID(index: hitboxes.count - 1)
+    }
+
+    /// Notes the window rect of a disabled control for the chrome (`AS-S`): clipped like a hitbox, and under a
+    /// render effect the clip at the effect's entry (`ChromeRegions.blockerRect`'s rule: one pixel too many).
+    func noteInertChromeBlocker(_ bounds: Bounds<Pixels>) {
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
+        let rect = prepaintEffects.last?.outerClip ?? Self.intersect(activeClip, translated)
+        inertChromeBlockers.append(rect)
+        prepaintLog?.inertBlockers.append(rect)
     }
 
     /// Records a click target — an **opaque hitbox carrying a handler set** —
@@ -2014,6 +2032,12 @@ public final class Frame {
         pointerHandlers.pointer = nil
         // Nor the keyboard box (`KF-I`): the key/press region below carries it.
         pointerHandlers.keyboard = nil
+        // A disabled element that would have blocked: a chrome-only record, no hitbox (`AS-S`, `EV-E` kept).
+        if !enabled, hitTestingDisabledDepth == 0,
+           handlers.isPointerTarget || handlers.hasDraggable || handlers.dropDestination != nil
+            || handlers.contextual != nil {
+            noteInertChromeBlocker(Self.hitRegion(bounds, inset: handlers.contentShapeInset))
+        }
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             // A declared `.contentShape(_:)` (plan task 12 part 1, `IX-L`) is
             // the shape's geometry in the same (inset) region, here and nowhere
@@ -4842,6 +4866,8 @@ extension Frame {
             stateTable.withState(Self.axRetentionSlot(for: id), initial: node) { $0 = node }
             prepaintLog?.allowedStateWrites -= 1
         }
+        inertChromeBlockers.append(contentsOf: l.inertBlockers)
+        prepaintLog?.inertBlockers.append(contentsOf: l.inertBlockers)
         for (id, action) in l.pressOnly {
             accessibilityPressOnly[id] = action
             prepaintLog?.pressOnly.append((id, action))

@@ -355,6 +355,7 @@ extension PrepaintLedger {
         copy.axNodes = moved.accessibility?.nodes ?? axNodes
         copy.axNodeLocals = moved.accessibility?.nodeLocals ?? axNodeLocals
         copy.pressOnly = pressOnly
+        copy.inertBlockers = inertBlockers
         copy.contextMenus = contextMenus
         copy.elementBounds = moved.elementBounds
         copy.anchors = anchors
@@ -428,6 +429,7 @@ extension Frame {
     /// (their closures or geometry hold positions the move does not reach), and one the ambient clip may have cut.
     func movedPrepaintLedger(_ ledger: PrepaintLedger, shift: LayoutShift, clip: [Float]) -> TranslationOutcome<LedgerTranslation> {
         if !ledger.pressOnly.isEmpty { return .refused("pressOnly") }
+        if !ledger.inertBlockers.isEmpty { return .refused("inertChromeBlockers") }
         if !ledger.contextMenus.isEmpty { return .refused("contextMenus") }
         if !ledger.anchors.isEmpty { return .refused("presentationAnchor") }
         guard clip.count >= 4 else { return .refused("unkeyedClip") }

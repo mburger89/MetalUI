@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba`. Spec:
 [`specs/2026-10-08-app-shell-design.md`](specs/2026-10-08-app-shell-design.md).
 Record: `../record/87-app-shell.md` (written in the Record phase).
 
-**Next unused id: `AS-S`.**
+**Next unused id: `AS-T`.**
 
 ## Final spellings (MetalCreator swaps its stopgaps by these names)
 
@@ -948,14 +948,38 @@ a `title` change, so a hook is part of the feature.
    is called by the deferred pass when it wrote anything (an equality-guarded no-op reports nothing, so no
    loop) and `AppKitWindow` wires it to `syncSurfaceGeometry()`. Pinned by
    `appKitTitleBarInsetsArePublishedAgainAfterTheReplacement`; mutation (drop the call): it reddens. Record 250.
-9. **Carried, not changed: a disabled control in the band does not carve its hit area** (all backends).
+9. **Decided: match macOS, a disabled control in the band moves nothing (`AS-S`)** (was carried; all backends).
    `registerHandlers` inserts no hitbox for a disabled element (`EV-E`: a blocker would eat an enabled
    ancestor's click), so `ChromeRegions.blocks` never sees it: on SDL the band region covers it (a press
    drags), and on AppKit the press is unclaimed and `answerUnclaimedTitleBarPress` (`AS-J`) drags. Not new with
    `AS-R` (it held at the system height); the taller band only widens the surface. Native macOS does not drag
    from a disabled `NSButton`. Fixing it needs a chrome-only "inert blocker" list beside the hitboxes, touching
-   the `EV-E` gate and both backends: a design question, left to the owner.
+   the `EV-E` gate and both backends. Done in `AS-S`.
 
 **Cost if wrong.** An OS release that reshapes the title-bar views makes `views(of:)` answer `nil`: the
 placement then does nothing and the band reads the system value. The deferral and equality guard are the
 measured part; they do not depend on the hierarchy.
+
+## AS-S — A disabled control in the title bar band is not draggable (closes `AS-R` item 9; record 251)
+
+**Ruling.** Native macOS controls answer NO to `mouseDownCanMoveWindow` enabled or not, so a press on a disabled
+control moves nothing. `EV-E` is unchanged: a disabled element registers no hitbox, takes no click and eats no
+enabled ancestor's click.
+
+1. **A chrome-only record beside the hitboxes.** Where `registerHandlers` skips a disabled element that would have
+   blocked (a pointer target, a draggable, a drop destination or a contextual region, under no
+   `allowsHitTesting(false)`), `Frame.noteInertChromeBlocker` records its clipped window rect (the clip at the
+   effect's entry under a render effect, as `ChromeRegions.blockerRect`). `Window.lastInertChromeBlockers` keeps
+   the last frame's list. Nothing hit-tests it.
+2. **SDL.** `ChromeRegions.compute(..., inert:)` carves the band (minus a backdrop, as for any blocker), the
+   handles and the background with every inert rect. An inert rect has no rank, so it carves every handle it
+   overlaps (one pixel too many, never too few).
+3. **AppKit and headless.** `answerUnclaimedTitleBarPress` returns first when the press is inside an inert rect:
+   no `performTitleBarPress`, so no drag and no double-click zoom or minimize. This also covers the background
+   press (`BG-G`). The headless platform follows because the logic is `Window`'s.
+4. **Retained.** The rects ride the prepaint journal (`PrepaintLog.inertBlockers`) into the ledger and are replayed
+   as recorded; a translated replay refuses by name (`inertChromeBlockers`, as `pressOnly`), and the verify snapshot
+   compares them.
+5. Pinned by `DisabledControlChromeTests`. Mutations: record 251.
+
+**Next unused id: `AS-T`.**

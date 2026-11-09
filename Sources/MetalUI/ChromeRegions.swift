@@ -19,7 +19,8 @@ enum ChromeRegions {
     /// result that the cap cut short drops the background whole and carves again without it, so an
     /// over-fragmented background is never a partial one, and the band and the handles keep what they had.
     static func compute(hitboxes: [Hitbox], bandHeight: Float, windowWidth: Float,
-                        background: Bounds<Pixels>? = nil) -> [Bounds<Pixels>] {
+                        background: Bounds<Pixels>? = nil,
+                        inert: [Bounds<Pixels>] = []) -> [Bounds<Pixels>] {
         // The one ranking's key, `(layer, registration index)` (`topmostHitbox`); a higher one is above.
         func rank(_ index: Int) -> (Int, Int) { (hitboxes[index].layer, index) }
         let blockerIndices = hitboxes.indices.filter { blocks(hitboxes[$0]) }
@@ -28,7 +29,7 @@ enum ChromeRegions {
             // The band has no element: everything carves it but a backdrop (`CW-V`), content the bar floats over.
             let band = Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
                               size: Size(width: Pixels(windowWidth), height: Pixels(bandHeight)))
-            let carving = blockerIndices.map { blockerRect(hitboxes[$0]) }.filter {
+            let carving = (blockerIndices.map { blockerRect(hitboxes[$0]) } + inert).filter {
                 !isBackdrop($0, bandHeight: bandHeight, windowWidth: windowWidth)
             }
             ranked.append((band, carving))
@@ -36,13 +37,14 @@ enum ChromeRegions {
         // A handle under a render effect has its bounds in local space: not a candidate (conservative).
         for index in hitboxes.indices where isHandle(hitboxes[index]) && hitboxes[index].transform == nil {
             // Only a blocker ranked above the handle's own hitbox carves it (`CW-V`).
-            let above = blockerIndices.filter { rank($0) > rank(index) }.map { blockerRect(hitboxes[$0]) }
+            // A disabled control has no rank (`AS-S`): it carves every handle it overlaps.
+            let above = blockerIndices.filter { rank($0) > rank(index) }.map { blockerRect(hitboxes[$0]) } + inert
             ranked.append((hitboxes[index].bounds, above))
         }
         guard let background else {
             return ChromeHitMap.carve(ranked: ranked, limit: ChromeHitSnapshot.maximumRegions).rects
         }
-        let everyBlocker = blockerIndices.map { blockerRect(hitboxes[$0]) }
+        let everyBlocker = blockerIndices.map { blockerRect(hitboxes[$0]) } + inert
         let withBackground = ChromeHitMap.carve(ranked: ranked + [(background, everyBlocker)],
                                                 limit: ChromeHitSnapshot.maximumRegions)
         if withBackground.truncated == 0 { return withBackground.rects }
