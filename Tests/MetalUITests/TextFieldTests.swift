@@ -285,7 +285,7 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
 }
 
 /// TI-C's paint, read off the frame's scene (fake window at scale 1, so scene
-/// units are points): the placeholder at 45 % of the text colour's alpha, a
+/// units are points): the placeholder in `Color.secondary` (text colour at 0.588 alpha, `VT-I`), a
 /// 1-point caret only while focused and collapsed, the selection behind the
 /// text in the accent at 30 %, and the composition's 1-point underline.
 @Test @MainActor func aFieldPaintsItsPlaceholderCaretSelectionAndComposition() throws {
@@ -296,7 +296,7 @@ private func caretX(_ window: Window, at boundary: Int) throws -> Float {
     let theme = window.theme
     var scene = window.lastScene
     let text = theme[.textPrimary]
-    #expect(!scene.glyphs.isEmpty && scene.glyphs.allSatisfy { abs($0.color.a - text.a * 0.45) < 1e-6 },
+    #expect(!scene.glyphs.isEmpty && scene.glyphs.allSatisfy { abs($0.color.a - text.a * 0.588) < 1e-3 },
             "an empty field paints its placeholder, dimmed")
     func caretRects(_ scene: Scene) -> [MUIRect] {
         scene.rects.filter { $0.bounds.size.width == 1 && $0.background.a == text.a }
