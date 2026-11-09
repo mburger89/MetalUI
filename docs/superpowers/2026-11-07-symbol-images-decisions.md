@@ -1,7 +1,7 @@
 # Symbol images - decisions (prefix `SYM-`)
 
 Rulings for Alloy gap G3, `Image(systemName:)`. Record 230. PR 0 is the probe (`SYM-A`); PR 1 (`SYM-B`..`SYM-M`) is the shared API and the
-macOS raster route, built after the coordinator ruled on the two stop conditions the probe reached. **Next unused id: `SYM-P`.**
+macOS raster route, built after the coordinator ruled on the two stop conditions the probe reached. **Next unused id: `SYM-Q`.**
 
 ## SYM-A: the probe's verdicts
 
@@ -113,3 +113,7 @@ The vector route (no outline exists in AppKit, S10), `Label(_:systemImage:)` (PR
 ## SYM-O: carried by PR 2
 
 An icon or bundled symbol as a cursor or native toolbar image (paths have no raster to hand `PointerStyle.image` or `_toolbarLabel`: the arrow and the label alone stay), a monochrome-only fill rule for open outlines, `.palette`, multi-level bundled icons, Lucide icons beyond the 29, and re-fitting the box if a later probe reads a different macOS.
+
+## SYM-P: a `.circle` SF name with no Lucide circled form is the script's ring composite (record 252, Alloy gap G16)
+
+`eye`, `eye.slash`, `eye.circle` and `eye.slash.circle` draw on Linux and Windows. `eye` and `eye.slash` are Lucide `eye` and `eye-off`. Lucide 1.70.0 has no circled eye (its eye icons are `eye`, `eye-off`, `eye-closed`, `eye-dashed`, `scan-eye`), so `scripts/vendor-lucide.py` builds `eye-circle` and `eye-off-circle` from its `COMPOSITES` table of (synthetic name, inner Lucide icon, scale): Lucide's own `circle` (cx 12, cy 12, r 10) followed by the inner icon's coordinates scaled about (12, 12) by **0.5**, baked into one path. The stroke width is not scaled (the ring and glyph share Lucide's 2, as SF's circled symbols share one weight). 0.5 is the largest simple factor that leaves a visible gap: the off-eye's slash reaches (7, 7) to (17, 17), 8.1 from the centre with its cap against a ring whose inner edge is at 9; 0.6 would touch. No runtime change (`MetalUIIconData` stays pure data, `BundledSymbols.Entry` is unchanged); a later `.circle` request adds a row. This is a MetalUI choice. Divergence 230 already covers the look (a mapped SF name draws Lucide art in a fitted box), so no new label.

@@ -85,6 +85,10 @@ enum BundledSymbols {
         "paperclip": Entry(lucide: "paperclip"),
         "photo": Entry(lucide: "image"),
         "gearshape": Entry(lucide: "settings"),
+        "eye": Entry(lucide: "eye"),
+        "eye.slash": Entry(lucide: "eye-off"),
+        "eye.circle": Entry(lucide: "eye-circle"),
+        "eye.slash.circle": Entry(lucide: "eye-off-circle"),
     ]
 
     static func exists(_ name: String) -> Bool { table[name] != nil }
