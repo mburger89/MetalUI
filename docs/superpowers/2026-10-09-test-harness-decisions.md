@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-AB`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-AC`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -866,3 +866,33 @@ the Escape arm removed reddens `escapeClosesAnOpenMenuAndSelectsNothing` only.
 **Cost if wrong.** A test that typed a key to an open menu and expected the shortcut to fire now
 sees nothing; it dismisses the menu first (`dismissMenu()`). If AppKit's Escape or equivalents differ
 from the assumption, the harness is a step ahead of or behind it until measured.
+
+## HT-AB — A test window renders to pixels through a macOS-only target (2026-11-09)
+
+**Ruling.** Alloy gap G25: README screenshots of a headless `TestWindow` without the desktop.
+`Renderer.renderOffscreen` drew every glyph blank because the window's `GlyphAtlas` was unreachable
+(`Window.glyphAtlas` internal, `HeadlessWindowRenderer.finishFrame` dropped it).
+1. **Portable half, in `MetalUITesting`.** `HeadlessWindowRenderer.lastAtlas` keeps the atlas of the
+   last presented frame (the window's own object, shared), and `TestWindow.glyphAtlas` reads it. Two
+   read-only properties, no import change (`HT-A` holds). This alone is Alloy's fallback: an app may
+   `upload(testWindow.glyphAtlas!)` and call `renderOffscreen(testWindow.scene, ...)` itself.
+2. **Helper, in a new macOS-only target `MetalUITestingSnapshot`** (library product, test targets only,
+   in the manifest's `#if os(macOS)` list, `PC-A`): `TestWindow.snapshot() throws -> CGImage`,
+   `snapshotPNG() throws -> Data`, `SnapshotError`. It depends on `MetalUITesting` and `MetalUIRender`;
+   no existing macOS-only target did, and Metal, CoreGraphics and ImageIO cannot enter the portable
+   one. Size is content size times the window's scale factor (there is no `scale:` argument: the
+   scale is the window's, set at `TestWindow(scaleFactor:)`, so scene and image cannot disagree).
+   sRGB, premultiplied, transparent where nothing paints. A fresh `Renderer` per call, so no state
+   leaks between snapshots.
+3. **Why both, not the fallback alone.** The fallback makes every app re-derive the device-pixel size,
+   the BGRA-to-CGImage wrap and the PNG encoding, and expose a `Renderer` to its tests. The helper
+   costs one target. Two properties are the seam the helper stands on and stay public.
+4. **Linux and Windows: out of scope.** SDL_GPU has no offscreen readback path in `MetalUITesting`;
+   an app there reads `scene` for structure and takes screenshots with the real window
+   (`docs/probes/window-capture/`) or its own SDL_GPU readback (`MetalUISDLGPU`, `GB-` rulings).
+   `snapshot()` does not exist off macOS.
+
+**Mutation** (`TestWindowSnapshotTests`): `snapshot()` passing an empty `GlyphAtlas` reddens `aSnapshotIsPointsTimesScaleWithTheRectangleAndTheText` (both scales, the glyph arm only); record 253.
+
+**Cost if wrong.** A caller wanting a scale other than the window's opens the window at that scale.
+The snapshot reads the last presented frame, so a test ticks first.

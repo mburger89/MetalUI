@@ -1202,6 +1202,8 @@ input by point and by element in XCUITest's names (`click`, `typeText`,
 that count work, and an input-method driver beside `typeText` (M; `IM-A`, record §102: `setMarkedText(_:selectedRange:)`, `commitMarkedText()`, `commitMarkedText(_:)`, `cancelMarkedText()`, `markedText`, `markedSelection`, sending the platforms' own composition events through `onInput`) and the clipboard read-backs (M; `CB-K`: `clipboardRepresentations`, `setClipboard(_:)`, `setClipboard(text:)`). SwiftUI tests UI out of process, so this is MetalUI-only.
 How an app uses it: [`testing.md`](testing.md).
 
+On macOS the separate library `MetalUITestingSnapshot` adds `TestWindow.snapshot() -> CGImage` and `snapshotPNG() -> Data` (the last presented frame through the Metal renderer, text included; `TestWindow.glyphAtlas` and `HeadlessWindowRenderer.lastAtlas` are the portable half; class M, ruling `HT-AB`, record §253).
+
 A complete app that uses only this surface, with its own tests over `MetalUITesting`: [`Examples/Jotter`](../Examples/Jotter/README.md) (a separate package, no new API; record §136).
 
 ## Backends and infrastructure — M
