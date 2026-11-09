@@ -6,7 +6,7 @@ import MetalUIPlatform
 import MetalUIScene
 @testable import MetalUI
 
-// Alloy gap G18, the keys (`VT-F`, record 253): Return, ⇧Return and Enter submit a vertical `TextField`, ⌥↩ and ⌃↩ (Alt+Enter
+// Alloy gap G18, the keys (`VT-F`, record 255): Return, ⇧Return and Enter submit a vertical `TextField`, ⌥↩ and ⌃↩ (Alt+Enter
 // elsewhere) insert a line break, ⌘↩ passes on, and a paste keeps its newlines. SwiftUI's table is the probe's arm K
 // (`docs/probes/swiftui-vertical-text-field.swift`).
 

@@ -83,6 +83,10 @@ public final class HeadlessWindowRenderer: WindowRenderer {
         for token in tokens { presentationObserver(token, time ?? FrameTiming.now()) }
     }
 
+    /// The glyph atlas of the last presented frame (the window's own, shared, not a copy), or `nil` before one:
+    /// what a renderer needs beside ``lastScene`` to draw the frame's text (`HT-AB`).
+    public private(set) var lastAtlas: GlyphAtlas?
+
     /// A renderer answering `scaleFactor` from ``beginFrame()``.
     public init(scaleFactor: Float = 1) {
         self.scaleFactor = scaleFactor
@@ -107,6 +111,7 @@ public final class HeadlessWindowRenderer: WindowRenderer {
     /// answers `true`.
     public func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool {
         lastScene = scene
+        lastAtlas = atlas
         // The sum of the rects' areas, as a renderer that uploads one region per rect moves (`RG-H`).
         lastAtlasUploadPixels = atlas.dirtyRects.reduce(0) { $0 + $1.width * $1.height }
         atlas.clearDirtyRect()

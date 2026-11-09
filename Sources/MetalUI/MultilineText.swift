@@ -5,7 +5,7 @@ import MetalUITextSystem
 /// The geometry and the line-by-line drawing `TextEditor` and a vertical `TextField` share (`VT-A`): one
 /// reading of the text's display lines, the caret's reveal and the clamped scroll, and one paint loop over
 /// those lines, so the two draw, scroll and aim a press identically. Extracted from `TextEditor` without
-/// changing its scene (record 253, the byte comparison of its scenes before and after).
+/// changing its scene (record 255, the byte comparison of its scenes before and after).
 enum MultilineText {
     struct Geometry {
         var display: String

@@ -2477,7 +2477,7 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 
 
 
-## VT. A vertical `TextField` - the composer (Alloy gap G18; record 253; rulings `VT-D`, `VT-E`, `VT-F`; decisions `docs/superpowers/2026-11-09-vertical-text-field-decisions.md`)
+## VT. A vertical `TextField` - the composer (Alloy gap G18; record 255; rulings `VT-D`, `VT-E`, `VT-F`; decisions `docs/superpowers/2026-11-09-vertical-text-field-decisions.md`)
 
 *An agent cannot: the tests drive the headless window and read the field's height, its stored scroll and the target; how the window routes a real trackpad's wheel to a focused field and its outer scroll view, how an unfocused field looks and the clip's edge are looks. Build any app with `TextField("Message", text: $draft, axis: .vertical).lineLimit(1...8).onSubmit { send() }` inside a `ScrollView`.*
 

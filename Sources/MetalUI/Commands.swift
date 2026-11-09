@@ -353,7 +353,8 @@ struct MenuBarModel {
                                         shortcut: node.shortcut.map {
                                             PlatformKeyEquivalent(key: String($0.key.character).lowercased(),
                                                                   modifiers: $0.modifiers)
-                                        })
+                                        },
+                                        accessibilityIdentifier: node.accessibilityIdentifier, help: node.help)
             }
         }
     }

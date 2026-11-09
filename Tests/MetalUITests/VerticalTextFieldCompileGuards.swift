@@ -1,7 +1,7 @@
 import Testing
 import MetalUITestSupport
 
-// Alloy gap G18 (`VT-A`, `VT-C`, record 253): what an EXTERNAL module may write with a vertical `TextField`.
+// Alloy gap G18 (`VT-A`, `VT-C`, record 255): what an EXTERNAL module may write with a vertical `TextField`.
 //
 // `typecheckFile` against a PLAIN `import MetalUI` (ruling SA-P). **A guard skips silently when
 // `.build/<triple>/debug/Modules` is absent** (CLAUDE.md, "Guards"); grep the log for `VERTICAL FIELD GUARD` to know it ran.

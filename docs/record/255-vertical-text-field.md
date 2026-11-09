@@ -1,4 +1,4 @@
-# 253. The vertical `TextField` (Alloy gap G18, `VT-A`..`VT-H`)
+# 255. The vertical `TextField` (Alloy gap G18, `VT-A`..`VT-H`)
 
 Branch `feat/vertical-text-field` (master `12ca12d4`), two commits: layout, paint, scroll and the wheel; then the keys and the docs. Decisions `docs/superpowers/2026-11-09-vertical-text-field-decisions.md`; probe `docs/probes/swiftui-vertical-text-field.swift` (arms S E F R W K P, recorded 2026-11-09 on macOS 27.2 / Swift 6.4.2, compiled, run twice byte-identical, md5 `b3e9f1c21b1f74447fa7b7940d00575e`). Class `A`; divergences 232-234 and 237-240 (213 live becomes 220, next label 241; 235 and 236 are older rows).
 

@@ -4,7 +4,7 @@ import MetalUIScene
 import MetalUITesting
 import Testing
 
-// Alloy gap G18 (`VT-D`, record 253): a vertical `TextField` reads its edit state in prepaint and paint with `readState` (a read,
+// Alloy gap G18 (`VT-D`, record 255): a vertical `TextField` reads its edit state in prepaint and paint with `readState` (a read,
 // not a write) and writes its caret reveal compared, so an unfocused one retains like the one-line field (`RW-`), and a focused
 // one that scrolls equals a retention-off window frame for frame.
 

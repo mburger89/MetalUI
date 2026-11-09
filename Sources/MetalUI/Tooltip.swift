@@ -203,7 +203,7 @@ extension Window {
         case .mouseMoved(let mouse), .mouseDragged(let mouse), .rightMouseDragged(let mouse),
              .otherMouseDragged(let mouse):
             guard menuSession == nil else {
-                tooltipTracker.hide()
+                trackMenuRowTooltip(at: mouse.position)
                 return
             }
             let index = contextualTarget(at: mouse.position, where: { $0.help != nil || $0.helpProvider != nil })
@@ -242,6 +242,31 @@ extension Window {
         default:
             break
         }
+    }
+
+    /// The tooltip of an open in-window menu's row (`MN-AL`): a move over a
+    /// row whose `Button` declared `.help` starts the usual timer for that row
+    /// (a disabled row too, as a disabled element explains itself); a move
+    /// onto another row restarts it, onto none hides it. A native menu draws
+    /// none here (AppKit shows its own from `toolTip`); other events hide as
+    /// for any tooltip.
+    private func trackMenuRowTooltip(at point: Point<Pixels>) {
+        guard let session = menuSession, !session.isNative,
+              let levelIndex = session.level(at: point),
+              let row = session.levels[levelIndex].row(at: point),
+              session.levels[levelIndex].items.indices.contains(row),
+              let text = session.levels[levelIndex].items[row].help else {
+            if tooltipTracker.region != nil {
+                tooltipTracker.phase = .idle
+                setNeedsRedraw()
+            }
+            return
+        }
+        let region = Self.menuPanelID(level: levelIndex, row: row)
+        tooltipTracker.pointer = point
+        if region == tooltipTracker.region { return }
+        tooltipTracker.phase = .pending(region: region, text: text, since: nil)
+        setNeedsRedraw()
     }
 
     /// Advances the tooltip's timer to a display-link tick (`MN-P` item 2):

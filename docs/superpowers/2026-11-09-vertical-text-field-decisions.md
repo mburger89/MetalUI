@@ -1,6 +1,6 @@
 # `TextField(axis: .vertical)` and `lineLimit` ranges - decisions (prefix `VT-`)
 
-Alloy gap G18. Branch `feat/vertical-text-field` (master `12ca12d4`), record 253. Probe `docs/probes/swiftui-vertical-text-field.swift` (arms S, E, F, R, W, K, P; recorded 2026-11-09, macOS 27.2, Swift 6.4.2, run twice byte-identical). Class `A` (SwiftUI-aligned); divergences 232-238 (see `VT-G`). **Next unused id: `VT-I`.** Out of scope, and carried to later PRs: the placeholder colour, `prompt:`, the `TabStrip` ink.
+Alloy gap G18. Branch `feat/vertical-text-field` (master `12ca12d4`), record 255. Probe `docs/probes/swiftui-vertical-text-field.swift` (arms S, E, F, R, W, K, P; recorded 2026-11-09, macOS 27.2, Swift 6.4.2, run twice byte-identical). Class `A` (SwiftUI-aligned); divergences 232-238 (see `VT-G`). **Next unused id: `VT-I`.** Out of scope, and carried to later PRs: the placeholder colour, `prompt:`, the `TabStrip` ink.
 
 An Alloy chat composer is a text field that is one line tall when empty, grows with what is typed up to eight lines, and then scrolls inside itself while Return sends the message. SwiftUI spells it `TextField("Message", text: $draft, axis: .vertical).lineLimit(1...8)`.
 

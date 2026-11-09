@@ -13,7 +13,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Z`), `MN-` (menus, popovers, tooltips:
-  `2026-10-02-menus-popovers-decisions.md`, next `MN-AL`), `CR-` (colour, colour scheme, palette:
+  `2026-10-02-menus-popovers-decisions.md`, next `MN-AM`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AD`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AQ`), `PE-` (controls in
@@ -34,7 +34,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `TK-` (test hygiene: sheet-test skip, Linux flake, SDL launch drops:
   `2026-10-31-test-hygiene-decisions.md`, next `TK-E`), `PG-` (path operations: `trimmedPath`/`trim`, `strokedPath`, `addRelativeArc`,
   `Transform2D`, `UnevenRoundedRectangle`: `2026-10-31-path-ops-decisions.md`, next `PG-I`), `HT-` (test harness, `MetalUITesting`:
-  `2026-10-09-test-harness-decisions.md`, next `HT-AB`), `OV-` (overlays and coordinates:
+  `2026-10-09-test-harness-decisions.md`, next `HT-AC`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-P`), `FI-` (`ForEach` identity:
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
@@ -137,4 +137,4 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
 
 **Tab strip (`TBS-`, record 238).** Class `M`; Alloy gap G4, no divergence added; decisions `2026-11-07-tab-strip-decisions.md`, next `TBS-K`. `TBS-A` the API, `TBS-B` structure and the width layout, `TBS-C` the strip owns the pointer and the app the data and keys, `TBS-D` the close slot and dirty dot, `TBS-E` reorder, `TBS-F` equality, `TBS-G` overflow, `TBS-H` accessibility, `TBS-I` look, `TBS-J` per-tab accessibility identifiers (record 246).
 
-**Vertical `TextField` (`VT-`, record 253).** Class `A`; Alloy gap G18; divergences 232-238; decisions `2026-11-09-vertical-text-field-decisions.md`, next `VT-I`. `VT-A` the API and the `MultilineText` extraction (`TextEditor`'s scene byte-identical), `VT-B` the height (`VerticalFieldMetrics`: lines between the `lineLimit` bounds, a floor only with a lower bound, exact in between), `VT-C` `lineLimit` written on the field, `VT-D` geometry, paint and the compared scroll write (unfocused draws from the top), `VT-E` the wheel, `VT-F` the keys (`TextEditing.KeyMode`), `VT-G` divergences, `VT-H` carried.
+**Vertical `TextField` (`VT-`, record 255).** Class `A`; Alloy gap G18; divergences 232-238; decisions `2026-11-09-vertical-text-field-decisions.md`, next `VT-I`. `VT-A` the API and the `MultilineText` extraction (`TextEditor`'s scene byte-identical), `VT-B` the height (`VerticalFieldMetrics`: lines between the `lineLimit` bounds, a floor only with a lower bound, exact in between), `VT-C` `lineLimit` written on the field, `VT-D` geometry, paint and the compared scroll write (unfocused draws from the top), `VT-E` the wheel, `VT-F` the keys (`TextEditing.KeyMode`), `VT-G` divergences, `VT-H` carried.

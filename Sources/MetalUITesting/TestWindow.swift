@@ -107,6 +107,10 @@ public final class TestWindow {
     /// The last presented frame's scene, in device pixels.
     public var scene: Scene { platformWindow.headlessRenderer.lastScene }
 
+    /// The glyph atlas of the last presented frame, or `nil` before one: pair it with ``scene`` to draw the
+    /// frame's text (`HT-AB`; ``HeadlessWindowRenderer/lastAtlas``).
+    public var glyphAtlas: GlyphAtlas? { platformWindow.headlessRenderer.lastAtlas }
+
     /// Fires one display-link tick at ``now``: the window draws if anything
     /// changed or an animation runs.
     public func tick() {

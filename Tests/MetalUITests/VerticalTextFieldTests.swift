@@ -6,7 +6,7 @@ import MetalUIPlatform
 import MetalUIScene
 @testable import MetalUI
 
-// Alloy gap G18 (rulings `VT-A`..`VT-H`, `docs/superpowers/2026-11-09-vertical-text-field-decisions.md`, record 253):
+// Alloy gap G18 (rulings `VT-A`..`VT-H`, `docs/superpowers/2026-11-09-vertical-text-field-decisions.md`, record 255):
 // `TextField(_:text:axis: .vertical)` with `lineLimit` ranges, the scroll inside it, the wheel and the keys. Every SwiftUI
 // number is the probe's (`docs/probes/swiftui-vertical-text-field.swift`, arms S, R, W, K); the font is 13 pt, so a line
 // is 16 points and a bordered field adds 8.
@@ -395,7 +395,7 @@ private func wheel(_ platform: FakePlatformWindow, over hit: Hitbox, _ dy: Float
 
 /// **19** (`VT-A`): `TextEditor`'s drawing is what it was before `MultilineText` was extracted (the scene of three texts, empty,
 /// short and 30 lines, unfocused, focused, selected, scrolled to the end and composing, was compared byte for byte before and
-/// after, record 253). Pinned here by its lines' and caret's geometry: the caret is 1 by 16 at line 1's top, the selection
+/// after, record 255). Pinned here by its lines' and caret's geometry: the caret is 1 by 16 at line 1's top, the selection
 /// rect starts at the line's top.
 ///
 /// Mutation M19: every line's y shifted by 1 in `MultilineText.paintLines` reddens it.
