@@ -116,9 +116,34 @@ private let alloyNames = [
     "arrow.uturn.backward", "arrow.up.right.square", "rectangle.split.2x1", "cpu",
     "checklist", "questionmark.bubble", "list.bullet.clipboard", "puzzlepiece.extension", "info.circle", "paperclip", "photo",
     "gearshape",
+    // Record 252 (G16): the eye forms; the two circled ones are the script's ring composites (`SYM-P`).
+    "eye", "eye.slash", "eye.circle", "eye.slash.circle",
 ]
 
 // MARK: - 3: the catalogue
+
+/// **Record 252 - the circled eyes are a ring plus the inner glyph (`SYM-P`).** The vendored path of `eye-circle` and
+/// `eye-off-circle` is two subpaths: the first (up to the first close) spans Lucide's `circle` (2...22 on both axes); every
+/// coordinate after it lies inside radius 10 of the centre (the unscaled glyph, 2...22 wide, would touch the ring) and has ink.
+/// Mutations: **M252a** `eye-off` dropped from the generator's list (the name no longer resolves); **M252b** the composite
+/// scale set to 1.0 or the ring dropped: this test.
+@Test @MainActor func aCircledEyeIsARingWithTheGlyphInsideIt() throws {
+    for (sf, vendored) in [("eye.circle", "eye-circle"), ("eye.slash.circle", "eye-off-circle")] {
+        _ = try #require(Icon.bundled(sf), "\(sf) has no bundled icon")
+        let data = try #require(LucideIcons.data(named: vendored), "\(vendored) not vendored")
+        let closeAt = try #require(data.ops.firstIndex(of: 3), "\(vendored): no close")
+        let ringCoords = data.ops[...closeAt].reduce(0) { $0 + [2, 2, 6, 0][Int($1)] }
+        let ring = data.coords[..<ringCoords].enumerated()
+        let xs = ring.filter { $0.offset % 2 == 0 }.map(\.element), ys = ring.filter { $0.offset % 2 == 1 }.map(\.element)
+        #expect(xs.min() == 2 && xs.max() == 22 && ys.min() == 2 && ys.max() == 22, "\(vendored): the first subpath is the ring")
+        let rest = Array(data.coords[ringCoords...])
+        try #require(!rest.isEmpty && rest.count % 2 == 0, "\(vendored): the glyph has geometry")
+        for i in stride(from: 0, to: rest.count, by: 2) {
+            let (dx, dy) = (rest[i] - 12, rest[i + 1] - 12)
+            #expect((dx * dx + dy * dy).squareRoot() < 10, "\(vendored): glyph point (\(rest[i]), \(rest[i + 1])) is not inside the ring")
+        }
+    }
+}
 
 /// **Test 3 - every Alloy name is a bundled icon (`SYM-I`).** Each name of the set resolves to an `Icon` with at least one
 /// layer whose coordinates (control points included) are finite and inside the 24 x 24 view box, and whose path has ink; the
@@ -126,7 +151,7 @@ private let alloyNames = [
 /// open outline are `nil`. The vendored data itself: 37 icons, each with ops for its coordinates. Mutations: **M3a** one table
 /// row dropped (`cpu`): the count and that name's arm redden; **M3b** the fill layer dropped from `play.fill`.
 @Test @MainActor func everyAlloyNameIsABundledIconInsideItsViewBox() throws {
-    try #require(alloyNames.count == 38, "the Alloy set is 38 names")
+    try #require(alloyNames.count == 42, "the Alloy set is 42 names")
     for name in alloyNames {
         let icon = try #require(Icon.bundled(name), "\(name) has no bundled icon")
         #expect(!icon.layers.isEmpty, "\(name): layers")
@@ -139,7 +164,7 @@ private let alloyNames = [
                     "\(name): path bounds (\(x0), \(y0))-(\(x1), \(y1)) leave the view box")
         }
     }
-    let data = try #require(LucideIcons.names.count == 37 ? LucideIcons.names : nil, "37 vendored icons: \(LucideIcons.names.count)")
+    let data = try #require(LucideIcons.names.count == 41 ? LucideIcons.names : nil, "41 vendored icons: \(LucideIcons.names.count)")
     for name in data {
         let icon = try #require(LucideIcons.data(named: name), "\(name) vendored but unreadable")
         let args = icon.ops.reduce(0) { $0 + [2, 2, 6, 0][Int($1)] }
