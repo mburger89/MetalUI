@@ -122,14 +122,21 @@ enum TextEditing {
 
     // MARK: Keys
 
+    /// What kind of field a key edits (`VT-F`): the one-line `TextField`, the `TextEditor`, or a vertical
+    /// `TextField`. The last two have display lines; they differ in Return.
+    enum KeyMode: Sendable { case singleLine, editor, verticalField }
+
     /// One key, per TI-D's table; with `lines` the field is multi-line
     /// (ruling TI-H): return inserts a line break (not with the shortcut
     /// modifier, ⌘↩/⌃↩, which passes on — `KF-Z` item 2), up and down move between
     /// display lines at a remembered x, and the line keys work on the display
-    /// line.
+    /// line. **`mode` `.verticalField` (`VT-F`)**: Return, ⇧Return and Enter submit and never insert (unclaimed
+    /// without an `onSubmit`); ⌥↩ and ⌃↩ on a Mac, Alt+Enter elsewhere, insert a line break; the shortcut
+    /// modifier's Return passes on as in an editor. `nil` reads the mode from `lines`.
     static func key(_ key: KeyEvent, text: String, state: TextEditState,
                     clipboard: () -> String?, platform: Platform = platform,
-                    lines: TextLineModel? = nil) -> KeyOutcome {
+                    lines: TextLineModel? = nil, mode: KeyMode? = nil) -> KeyOutcome {
+        let mode = mode ?? (lines == nil ? .singleLine : .editor)
         let characters = Array(text)
         var state = synced(state.clamped(to: characters.count), with: text)
         let goalX = state.goalX
@@ -171,7 +178,7 @@ enum TextEditing {
             case "v":
                 guard let pasted = clipboard(), !pasted.isEmpty else { return KeyOutcome(state: state, handled: true) }
                 let (newText, newState) = replace(state.selection,
-                                                  with: lines == nil ? singleLine(pasted) : lineBreaksNormalized(pasted),
+                                                  with: mode == .singleLine ? singleLine(pasted) : lineBreaksNormalized(pasted),
                                                   in: characters, state: state)
                 return KeyOutcome(state: recording(.other, from: text, state, to: newText, newState),
                                   text: newText, handled: true)
@@ -236,7 +243,15 @@ enum TextEditing {
             // Pinned by `aDeclinedCommandReturnInATextEditorReachesTheWindowsOnInput`.
             case "\r" where mods.contains(shortcut), "\u{3}" where mods.contains(shortcut):
                 return unhandled
+            // A vertical field submits on Return, ⇧Return and Enter, and inserts the break only on ⌥↩ or ⌃↩ (a Mac) or
+            // Alt+Enter (elsewhere), as SwiftUI's does (probe K, `VT-F`).
             case "\r", "\u{3}":
+                if mode == .verticalField {
+                    let newline: Modifiers = platform == .mac ? [.option, .control] : .option
+                    guard !mods.isDisjoint(with: newline) else {
+                        return KeyOutcome(state: state, submitted: true, handled: true)
+                    }
+                }
                 let (newText, newState) = replace(state.selection, with: "\n", in: characters, state: state)
                 if !state.selection.isEmpty { state.history.openGroup = nil }
                 return KeyOutcome(state: recording(.typing, from: text, state, to: newText, newState),
@@ -619,12 +634,16 @@ final class TextTargetHooks {
     /// The editing session of a `CodeView` (`CV-W`): when set, `Window` routes every text stage to it and
     /// not through `TextEditing`.
     let code: CodeEditSession?
+    /// Whether this is a vertical `TextField` (`VT-F`, `VT-E`), not a `TextEditor`: Return submits, and the wheel is taken
+    /// only while it is focused and has room.
+    let vertical: Bool
 
     init(submit: (@MainActor () -> Void)?, sink: (@MainActor (Range<Int>, String) -> AnyHashable)?,
-         code: CodeEditSession? = nil) {
+         code: CodeEditSession? = nil, vertical: Bool = false) {
         self.submit = submit
         self.sink = sink
         self.code = code
+        self.vertical = vertical
     }
 }
 
@@ -651,6 +670,10 @@ struct TextInputTarget {
     /// The editing session when this target is a `CodeView`'s (`CV-W`).
     var codeSession: CodeEditSession? { hooks?.code }
 
+    /// Whether the lines are a vertical `TextField`'s, not a `TextEditor`'s (`VT-F`): in the one hooks box, as a new part of
+    /// a target goes (`Handlers` stays pinned).
+    var verticalField: Bool { hooks?.vertical ?? false }
+
     // A multi-line field's (ruling TI-H); `lines` is nil for a `TextField`.
     var lines: TextLineModel? = nil
     /// Window y of line 0's top — the content's top minus the scroll.
@@ -662,13 +685,15 @@ struct TextInputTarget {
     init(text: String, caretOffsets: [Double], originX: Double, caretRect: Bounds<Pixels>,
          onChange: @escaping @MainActor (String) -> Void, onSubmit: (@MainActor () -> Void)?,
          selectionSink: (@MainActor (Range<Int>, String) -> AnyHashable)? = nil,
-         lines: TextLineModel? = nil, originY: Double = 0, lineHeight: Double = 0, maxScrollY: Double = 0) {
+         lines: TextLineModel? = nil, originY: Double = 0, lineHeight: Double = 0, maxScrollY: Double = 0,
+         verticalField: Bool = false) {
         self.text = text
         self.caretOffsets = caretOffsets
         self.originX = originX
         self.caretRect = caretRect
         self.onChange = onChange
-        self.hooks = onSubmit == nil && selectionSink == nil ? nil : TextTargetHooks(submit: onSubmit, sink: selectionSink)
+        self.hooks = onSubmit == nil && selectionSink == nil && !verticalField ? nil
+            : TextTargetHooks(submit: onSubmit, sink: selectionSink, vertical: verticalField)
         self.lines = lines
         self.originY = originY
         self.lineHeight = lineHeight

@@ -1473,6 +1473,11 @@ behaviour noticed and not explained. None blocks task 2.
    Plan task 4. **Closed by `FR-J`**: `frame()` is a deprecated no-op on both
    paths, guarded by `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`.
    `.frame(alignment:)` alone still compiles.
+10. **A flexible `.frame(minHeight:maxHeight:)` under `.fixedSize(horizontal: false, vertical: true)` does not clamp its child** (found 2026-11-09 by the vertical `TextField`'s probe F, Alloy gap G18, divergence 240,
+    `VT-G`). SwiftUI's growing-editor recipe `TextEditor.frame(minHeight: 16, maxHeight: 128).fixedSize(horizontal: false, vertical: true)` is 16, 96 and 128 at 1, 8 and 20 lines. In
+    `LayoutTree.placeNative`'s `.frame` case `framedProposal(placementProposal)` is nil under `fixedSize`, so the child is placed at its ideal: a 20-line `TextEditor` is 320 here.
+    Pinned wrong on purpose by `aFlexibleFrameUnderFixedSizeDoesNotClampItsChildToTheMaximum`; **not fixed in G18**, owner a kernel follow-up. This is a probe-run row, so `CLAUDE.md`'s
+    "probed, and the kernel disagrees" list is no longer empty.
 
 **Fixed, not carried:** priority through `.overlay` (L2). The second pass's
 kernel read 0; `SA-D` now looks through overlay attachments.
