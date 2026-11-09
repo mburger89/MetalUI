@@ -27,7 +27,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-08-accesskit-window-show-decisions.md`, next `WS-I`), `RT-`
   (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), `LK-` (controls and looks:
   `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), `AS-` (app shell:
-  `2026-10-08-app-shell-decisions.md`, next `AS-S`), `KF-` (key and focus:
+  `2026-10-08-app-shell-decisions.md`, next `AS-T`), `KF-` (key and focus:
   `2026-10-08-key-focus-decisions.md`, next `KF-AC`), `PF-` (shadow cache, `compositingGroup()`:
   `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:

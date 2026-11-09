@@ -510,6 +510,9 @@ public final class Window {
     /// window, which is the hazard named at `StyledElement.onClick(_:)`.
     private(set) var lastHitboxes: [Hitbox] = []
 
+    /// The last frame's disabled controls' window rects, chrome-only (`AS-S`); never hit-tested.
+    private(set) var lastInertChromeBlockers: [Bounds<Pixels>] = []
+
     /// The named-space stack each of `lastHitboxes` registered under, by index
     /// (`OV-E` item 3): hover and gestures resolve `.named` through it. Empty
     /// for a frame with no `coordinateSpace(_:)`; hit testing never reads it.
@@ -2086,6 +2089,7 @@ public final class Window {
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes
+        lastInertChromeBlockers = frame.inertChromeBlockers   // AS-S
         lastHitboxNamedSpaces = frame.hitboxNamedSpaces   // OV-E item 3
         lastNamedSpaceSnapshots = frame.namedSpaceSnapshots
         lastHoverRegionCount = frame.hoverRegionCount   // SV-U

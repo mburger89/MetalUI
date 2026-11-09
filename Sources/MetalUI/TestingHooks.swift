@@ -251,6 +251,7 @@ extension Window {
             case "elementBounds": ledger.elementBounds.removeAll()
             case "contextMenus": ledger.contextMenus.removeAll()
             case "pressOnly": ledger.pressOnly.removeAll()
+            case "inertBlockers": ledger.inertBlockers.removeAll()
             default: preconditionFailure("unknown ledger channel \(channel)")
             }
         }

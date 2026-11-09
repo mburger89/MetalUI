@@ -33,7 +33,7 @@ final class PrepaintLog {
     }
 
     struct Marks: Equatable {
-        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0
+        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0, inertBlockers = 0
     }
 
     var recorders: [PrepaintRecorder] = []
@@ -42,6 +42,8 @@ final class PrepaintLog {
     /// Lock-step with `axNodes`: the pre-effect rect of each node, `nil` outside an effect (`AT-A`).
     var axNodeLocals: [AXLocalRects?] = []
     var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
+    /// Disabled controls' chrome-only rects (`AS-S`).
+    var inertBlockers: [Bounds<Pixels>] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Presentation anchors recorded under the prepaint, window-space (`RW-K`).
@@ -58,7 +60,8 @@ final class PrepaintLog {
     var current: Marks {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
               contextMenus: contextMenus.count, elementBounds: elementBounds.count, lives: lives.count,
-              anchors: anchors.count, geometry: geometry.count, modifiers: modifiers.count)
+              anchors: anchors.count, geometry: geometry.count, modifiers: modifiers.count,
+              inertBlockers: inertBlockers.count)
     }
 
     /// Marks every open recorder as unable to leave a ledger, naming the first reason.
@@ -148,6 +151,8 @@ final class PrepaintLedger {
     var axNodes: [(GlobalElementID, AXNode)] = []
     var axNodeLocals: [AXLocalRects?] = []
     var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
+    /// Disabled controls' chrome-only rects, replayed as recorded (`AS-S`); a translation refuses.
+    var inertBlockers: [Bounds<Pixels>] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Presentation anchors, window-space, replayed through `Frame.replayPresentationAnchor` (`RW-K`).
@@ -508,6 +513,7 @@ extension Frame {
         ledger.axNodes = Array(log.axNodes[from.axNodes..<to.axNodes])
         ledger.axNodeLocals = Array(log.axNodeLocals[from.axNodes..<to.axNodes])
         ledger.pressOnly = Array(log.pressOnly[from.pressOnly..<to.pressOnly])
+        ledger.inertBlockers = Array(log.inertBlockers[from.inertBlockers..<to.inertBlockers])
         ledger.contextMenus = Array(log.contextMenus[from.contextMenus..<to.contextMenus])
         ledger.elementBounds = Array(log.elementBounds[from.elementBounds..<to.elementBounds])
         ledger.anchors = Array(log.anchors[from.anchors..<to.anchors])
@@ -578,6 +584,7 @@ struct RetainedVerifySnapshot {
     let tallies: RegionTallies
     let contextMenus: Set<GlobalElementID>
     let pressOnly: Set<GlobalElementID>
+    let inertBlockers: [String]
     let bounds: [GlobalElementID: Bounds<Pixels>]
     /// Every node the tree holds, line by line (`RK-N`): children, kernel case, leaf key, spacer axis, parent, grid marks and
     /// the rect and measured width of the layout, so a graft that registered anything differently from a build is a
@@ -616,6 +623,7 @@ struct RetainedVerifySnapshot {
         if tallies != other.tallies { return "region tallies \(tallies) vs \(other.tallies)" }
         if contextMenus != other.contextMenus { return "context menus" }
         if pressOnly != other.pressOnly { return "press-only actions" }
+        if inertBlockers != other.inertBlockers { return "inert chrome blockers" }
         if bounds != other.bounds { return "element bounds" }
         if tree != other.tree {
             let first = zip(tree, other.tree).enumerated().first { $0.element.0 != $0.element.1 }
@@ -644,7 +652,7 @@ extension Frame {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
             },
             axNodes: Set(axNodes.keys), tallies: regionTallies, contextMenus: Set(contextMenuRecords.keys),
-            pressOnly: Set(accessibilityPressOnly.keys), bounds: elementBounds, tree: tree.structureDigest(),
+            pressOnly: Set(accessibilityPressOnly.keys), inertBlockers: inertChromeBlockers.map { "\($0)" }, bounds: elementBounds, tree: tree.structureDigest(),
             channels: stateTable.buildChannels(animation: animationStore))
     }
 }

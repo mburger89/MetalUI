@@ -245,6 +245,8 @@ extension Window {
     /// regions (SDL, `CW-E`) has moved it already, so it is not asked.
     func answerUnclaimedTitleBarPress(_ event: InputEvent) {
         guard case .mouseDown(let mouse) = event, active == nil, !hasGestureArena else { return }
+        // A disabled control moves nothing, as a native one does not (`AS-S`): no drag, no double-click action.
+        if lastInertChromeBlockers.contains(where: { $0.contains(mouse.position) }) { return }
         if shell.windowStyle == .hiddenTitleBar, shell.titleBarStyleApplied,
            mouse.position.y.value < effectiveTitleBarInsets.top.value {
             _ = platformWindow.performTitleBarPress(clickCount: mouse.clickCount)

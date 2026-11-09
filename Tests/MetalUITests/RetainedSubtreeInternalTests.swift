@@ -112,6 +112,8 @@ private let frameChannels: [String: Channel] = [
     "elidedNodes": .frameLocal, "elidedIDs": .prepaintOnly,
     // Surfaces.
     "surfaceRequests": .ledger,
+    // `AS-S`: a disabled control's chrome-only rect, journalled into the ledger and replayed with it.
+    "inertChromeBlockers": .ledger,
     // The drawn overlays and the drag preview: owned by the window, painted at the root.
     "dragSourceID": .frameLocal, "menuPanelLevels": .frameLocal, "menuRowsPainted": .frameLocal,
     "pickerTitleWidths": .frameLocal, "alertPanel": .frameLocal, "dragPreviewTranslation": .frameLocal,
