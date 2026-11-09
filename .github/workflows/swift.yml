@@ -21,7 +21,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# SwiftPM build output is cached per job (.github/actions/swift-cache). To rule a
+# SwiftPM build output is cached per job (.github/actions/swift-cache); to rule a
 # stale cache out of a strange build error, rerun with workflow_dispatch
 # no_cache=true, or put "[no cache]" in the pull request title (or a pushed
 # head commit message).
