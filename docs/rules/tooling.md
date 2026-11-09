@@ -43,7 +43,7 @@ answered at the seam, or driven through the tree where the option makes the wind
 never time). `frame(ofID:)` finds an `.id` on proposal content too: an `IdentifiedGroup` records the union of its nodes' rects in a recording frame only and is never a `scrollTo` target (`TW-A`…`TW-C`, record §108). `MetalUI` gains only `package` read-back hooks in `TestingHooks.swift` and
 `TestingMenuHooks.swift` (plain-import guards 3.1–3.4 pin them unreachable); no pixels, no GPU
 surface draws. `metalui new` generates a test target over it, and `Testing` is a refused name
-(`HT-V`). MetalUI-only by class `M`: SwiftUI tests out of process.
+(`HT-V`). MetalUI-only by class `M`: SwiftUI tests out of process. **A test window renders to pixels through `MetalUITestingSnapshot`, a macOS-only target (`TestWindow.snapshot()`/`snapshotPNG()`), over the portable `TestWindow.glyphAtlas`/`HeadlessWindowRenderer.lastAtlas`; the harness itself still imports no Metal (`HT-AB`).**
 
 **Developer guides (`DG-`, record §103, `docs/guides/README.md`).** Six task-led guides (layout, state
 and identity, input, presentations and the app shell, drawing and GPU, cross-platform) for an author

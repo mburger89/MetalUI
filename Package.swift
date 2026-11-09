@@ -352,6 +352,9 @@ var targets: [Target] = [
 #if os(macOS)
 products += [
         .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
+        // `TestWindow.snapshot()` / `snapshotPNG()` (ruling HT-AB): a headless window to pixels
+        // through the Metal renderer. macOS only; a test target's dependency, like `MetalUITesting`.
+        .library(name: "MetalUITestingSnapshot", targets: ["MetalUITestingSnapshot"]),
 
 ]
 
@@ -412,6 +415,12 @@ targets += [
         // LR-S). In no product: it is demo content, not framework API. It makes
         // the non-test targets nine; CLAUDE.md's "eight" is the Docs phase's.
         .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI", "MetalUIDemoContent"]),
+        // A headless `TestWindow` rendered to pixels (ruling HT-AB): `MetalUITesting` stays portable
+        // (HT-A), so the Metal, CoreGraphics and ImageIO half is its own macOS-only target.
+        .target(name: "MetalUITestingSnapshot",
+                dependencies: ["MetalUI", "MetalUIScene", "MetalUITesting", "MetalUIRender"]),
+        .testTarget(name: "MetalUITestingSnapshotTests",
+                    dependencies: ["MetalUITestingSnapshot", "MetalUITesting", "MetalUI", "MetalUIScene"]),
 
 ]
 #endif
