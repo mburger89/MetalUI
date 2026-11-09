@@ -60,11 +60,18 @@ public struct PlatformMenuItem: Sendable, Equatable {
     public var shortcut: PlatformKeyEquivalent?
     /// The standard command the platform runs for this item, if any.
     public var standardAction: StandardMenuAction?
+    /// The `.accessibilityIdentifier` the item's `Button` declared, for a test
+    /// or automation client to find it by (`MN-AL`); `nil` when none.
+    public var accessibilityIdentifier: String?
+    /// The `.help` text the item's `Button` declared (`MN-AL`): a tooltip,
+    /// kept when the item is disabled; `nil` when none.
+    public var help: String?
 
-    /// An item; enabled, off, with no shortcut and no standard action unless
-    /// given.
+    /// An item; enabled, off, with no shortcut, standard action, identifier or
+    /// help unless given.
     public init(id: Int, kind: Kind, title: String, isEnabled: Bool = true, isOn: Bool = false,
-                shortcut: PlatformKeyEquivalent? = nil, standardAction: StandardMenuAction? = nil) {
+                shortcut: PlatformKeyEquivalent? = nil, standardAction: StandardMenuAction? = nil,
+                accessibilityIdentifier: String? = nil, help: String? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -72,6 +79,8 @@ public struct PlatformMenuItem: Sendable, Equatable {
         self.isOn = isOn
         self.shortcut = shortcut
         self.standardAction = standardAction
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.help = help
     }
 }
 
@@ -91,6 +100,19 @@ public struct PlatformMenu: Sendable, Equatable {
         self.token = token
         self.title = title
         self.items = items
+    }
+
+    /// The item whose `accessibilityIdentifier` is `identifier`, searched
+    /// depth-first through submenus (`MN-AL`); `nil` when none.
+    public func item(accessibilityIdentifier identifier: String) -> PlatformMenuItem? {
+        func search(_ items: [PlatformMenuItem]) -> PlatformMenuItem? {
+            for item in items {
+                if item.accessibilityIdentifier == identifier { return item }
+                if case .submenu(let children) = item.kind, let found = search(children) { return found }
+            }
+            return nil
+        }
+        return search(items)
     }
 }
 

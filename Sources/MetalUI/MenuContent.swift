@@ -31,6 +31,10 @@ struct MenuNode {
     var isOn = false
     var shortcut: KeyboardShortcut?
     var run: (@MainActor () -> Void)?
+    /// The item's declared `.accessibilityIdentifier` (`MN-AL`).
+    var accessibilityIdentifier: String?
+    /// The item's declared `.help` text (`MN-AL`).
+    var help: String?
 }
 
 /// What a menu item is evaluated in: the menu's environment, of which only
@@ -122,7 +126,9 @@ extension Button: MenuContent where Label == Text {
     /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         _MenuNodes([MenuNode(kind: .action, title: box.content.first.string, isEnabled: context.isEnabled,
-                             shortcut: shortcut, run: handlers.onClick ?? action)])
+                             shortcut: shortcut, run: handlers.onClick ?? action,
+                             accessibilityIdentifier: handlers.axNode.declarations.identifier,
+                             help: handlers.contextual?.help)])
     }
 }
 
@@ -134,7 +140,9 @@ extension Toggle: MenuContent where Label == Text {
         let binding = isOn
         let on = binding.wrappedValue
         return _MenuNodes([MenuNode(kind: .toggle, title: label.string, isEnabled: context.isEnabled,
-                                    isOn: on, run: { binding.wrappedValue = !on })])
+                                    isOn: on, run: { binding.wrappedValue = !on },
+                                    accessibilityIdentifier: handlers.axNode.declarations.identifier,
+                                    help: handlers.contextual?.help)])
     }
 }
 

@@ -151,6 +151,28 @@ private let appName = ProcessInfo.processInfo.processName
             && menu.items[0].action == #selector(AppKitMenuTarget.choose(_:)))
 }
 
+/// **MN-AL.** The `NSMenuItem` carries the item's identifier (`identifier` and
+/// `accessibilityIdentifier()`) and its help as `toolTip`, a disabled item's
+/// too; an item with neither has none. Mutation: drop the `toolTip` line (the
+/// tooltip expectations redden) or the `setAccessibilityIdentifier` line (the
+/// accessibility one).
+@MainActor
+@Test func anAppKitMenuItemCarriesItsIdentifierAndHelp() throws {
+    let menu = AppKitMenuBuilder.menu(from: PlatformMenu(token: 1, items: [
+        PlatformMenuItem(id: 1, kind: .action, title: "Fork", accessibilityIdentifier: "fork-1", help: "Fork it"),
+        PlatformMenuItem(id: 2, kind: .action, title: "Rename", isEnabled: false,
+                         accessibilityIdentifier: "rename-1", help: "Nothing to rename"),
+        PlatformMenuItem(id: 3, kind: .action, title: "Plain"),
+    ]), target: AppKitMenuTarget())
+    try #require(menu.items.count == 3)
+    #expect(menu.items[0].toolTip == "Fork it")
+    #expect(menu.items[1].toolTip == "Nothing to rename" && !menu.items[1].isEnabled)
+    #expect(menu.items[2].toolTip == nil && menu.items[2].accessibilityIdentifier() == "")
+    #expect(menu.items[0].identifier?.rawValue == "fork-1")
+    #expect(menu.items[0].accessibilityIdentifier() == "fork-1")
+    #expect(menu.items[1].accessibilityIdentifier() == "rename-1")
+}
+
 /// **2.2** (`MN-C` item 4). `presentMenu` answers `true`, pops the menu up at
 /// the point in the host view (flipped, so MetalUI's point unchanged), and the
 /// item the user chose arrives as `.menuAction(token, item)` **only after

@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AL`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AM`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1316,3 +1316,35 @@ graft ineligibility and "after the frame, outside every phase" for free. The clo
 ends passes through `menuSession`'s setter.
 
 **Cost if wrong.** Two functions in `PullDownMenu.swift` and a `didSet`; the `.menu` request case is skipped by `present`.
+
+
+## MN-AL — A menu `Button`'s `.accessibilityIdentifier` and `.help` reach its menu item (Alloy gap G24; record 253; class `M`, no divergence)
+
+**Ruling.**
+
+1. `PlatformMenuItem` gains `accessibilityIdentifier: String?` and `help: String?` (defaulted `nil`, so every conformer's and
+   test's existing construction compiles) and `PlatformMenu.item(accessibilityIdentifier:)`, a depth-first lookup. `MenuNode`
+   carries the same two; `Button` and `Toggle` as menu content fill them from `handlers.axNode.declarations.identifier` and
+   `handlers.contextual?.help`, so `.accessibilityIdentifier(_:)` and `.help(_:)` written on the item carry through for
+   `Menu { }`, `.contextMenu { }` and `App.commands` alike (all three number through the same `MenuNode`s). A submenu `Menu`
+   item, a `Text` item and a `Picker`'s options carry none. The model-driven `.help { location in }` (`MN-AJ`) has no text
+   without a point and carries nothing.
+2. **A disabled item keeps its help**: nothing in the numbering gates `help` on `isEnabled`.
+3. **AppKit** sets `NSMenuItem.toolTip` (AppKit shows it on hover, a disabled item's too) and both `identifier` and
+   `setAccessibilityIdentifier(_:)`. **Headless** records the `PlatformMenu`, so `TestWindow.presentedMenu` exposes both and
+   `presentedMenu?.item(accessibilityIdentifier:)` finds an item by id (`HT-X`: the honest answer is the value itself).
+4. **The drawn menu (SDL)**: each row's accessibility node carries `identifier` (AccessKit `author_id`) and `hint`
+   (`description`) through the existing bridge, and `trackTooltip`'s open-menu branch, which used to hide the tooltip, now runs
+   the usual 1.0 s tooltip over an in-window row with help (its region is the row's accessibility id; moving to another row
+   restarts it, to a row with none hides it; a press, wheel or key hides as ever). A native menu draws none from here.
+5. **SwiftUI** (probe `docs/probes/swiftui-menu-item-id-help.swift`, macOS 27.2): `.help` reaches `NSMenuItem.toolTip`, a
+   disabled item's too — matched. `.accessibilityIdentifier` does **not** reach the item (`accessibilityIdentifier()` is empty,
+   `identifier` is SwiftUI's own `menuAction:`): MetalUI carries it because Alloy asks for it; nothing contradicts it, so class
+   `M`, not a divergence.
+
+**Reasoning.** The two values already live on the element's handlers; the menu vocabulary only dropped them when it lowered to
+`MenuNode`. Both platforms' existing channels (`toolTip`, AX `hint`/`identifier`, the tick-timed tooltip) take them without a new
+mechanism.
+
+**Cost if wrong.** Two fields on `PlatformMenuItem`, two on `MenuNode`, four lines in the lowering, one in `AppKitMenus.fill`,
+two in `appendMenuPanel` and one function in `Tooltip.swift`.
