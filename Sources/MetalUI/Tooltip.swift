@@ -27,9 +27,14 @@ extension StyledElement {
     /// (`MN-V` item 3): a covering pointer target hides it, a disabled element
     /// still explains itself, `.allowsHitTesting(false)` shows none (`MN-U`).
     /// No pointer target is added. Returns `Self` — no identity level.
+    ///
+    /// **An empty string is no help** (`MN-AM`; SwiftUI has no `String?`
+    /// overload, and an empty `toolTip` shows nothing on macOS): no tooltip, no
+    /// menu-item or toolbar help, no accessibility hint written — and a
+    /// `.help` outside it replaces an inner one's tooltip with none.
     public func help(_ text: String) -> Self {
         handling { handlers in
-            handlers.axNode.declarations.hint = text
+            if !text.isEmpty { handlers.axNode.declarations.hint = text }
             handlers.contextual = ContextualAttachment(locatedMenu: handlers.contextual?.menu, help: text)
         }
     }
@@ -215,6 +220,7 @@ extension Window {
                 let inRegion = region.localPoint(mouse.position)
                 let location = Point(x: inRegion.x - region.origin.x, y: inRegion.y - region.origin.y)
                 text = StateDispatch.dispatching(to: region.id) { provider(location) }
+                if text?.isEmpty == true { text = nil }   // MN-AM: an empty answer is no tooltip
                 if region.id == tooltipTracker.region, text == tooltipTracker.providedText {
                     tooltipTracker.pointer = mouse.position
                     return
