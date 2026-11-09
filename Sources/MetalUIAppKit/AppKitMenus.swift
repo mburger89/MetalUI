@@ -62,6 +62,11 @@ enum AppKitMenuBuilder {
                 built.tag = item.id
                 built.isEnabled = item.isEnabled
                 built.state = item.isOn ? .on : .off
+                built.toolTip = item.help   // MN-AL: AppKit shows it on hover, a disabled item's too
+                if let identifier = item.accessibilityIdentifier {
+                    built.identifier = NSUserInterfaceItemIdentifier(identifier)
+                    built.setAccessibilityIdentifier(identifier)
+                }
                 configure(built, item)
                 menu.addItem(built)
             }
