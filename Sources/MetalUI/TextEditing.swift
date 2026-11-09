@@ -122,14 +122,21 @@ enum TextEditing {
 
     // MARK: Keys
 
+    /// What kind of field a key edits (`VT-F`): the one-line `TextField`, the `TextEditor`, or a vertical
+    /// `TextField`. The last two have display lines; they differ in Return.
+    enum KeyMode: Sendable { case singleLine, editor, verticalField }
+
     /// One key, per TI-D's table; with `lines` the field is multi-line
     /// (ruling TI-H): return inserts a line break (not with the shortcut
     /// modifier, ⌘↩/⌃↩, which passes on — `KF-Z` item 2), up and down move between
     /// display lines at a remembered x, and the line keys work on the display
-    /// line.
+    /// line. **`mode` `.verticalField` (`VT-F`)**: Return, ⇧Return and Enter submit and never insert (unclaimed
+    /// without an `onSubmit`); ⌥↩ and ⌃↩ on a Mac, Alt+Enter elsewhere, insert a line break; the shortcut
+    /// modifier's Return passes on as in an editor. `nil` reads the mode from `lines`.
     static func key(_ key: KeyEvent, text: String, state: TextEditState,
                     clipboard: () -> String?, platform: Platform = platform,
-                    lines: TextLineModel? = nil) -> KeyOutcome {
+                    lines: TextLineModel? = nil, mode: KeyMode? = nil) -> KeyOutcome {
+        let mode = mode ?? (lines == nil ? .singleLine : .editor)
         let characters = Array(text)
         var state = synced(state.clamped(to: characters.count), with: text)
         let goalX = state.goalX
@@ -171,7 +178,7 @@ enum TextEditing {
             case "v":
                 guard let pasted = clipboard(), !pasted.isEmpty else { return KeyOutcome(state: state, handled: true) }
                 let (newText, newState) = replace(state.selection,
-                                                  with: lines == nil ? singleLine(pasted) : lineBreaksNormalized(pasted),
+                                                  with: mode == .singleLine ? singleLine(pasted) : lineBreaksNormalized(pasted),
                                                   in: characters, state: state)
                 return KeyOutcome(state: recording(.other, from: text, state, to: newText, newState),
                                   text: newText, handled: true)
@@ -236,7 +243,15 @@ enum TextEditing {
             // Pinned by `aDeclinedCommandReturnInATextEditorReachesTheWindowsOnInput`.
             case "\r" where mods.contains(shortcut), "\u{3}" where mods.contains(shortcut):
                 return unhandled
+            // A vertical field submits on Return, ⇧Return and Enter, and inserts the break only on ⌥↩ or ⌃↩ (a Mac) or
+            // Alt+Enter (elsewhere), as SwiftUI's does (probe K, `VT-F`).
             case "\r", "\u{3}":
+                if mode == .verticalField {
+                    let newline: Modifiers = platform == .mac ? [.option, .control] : .option
+                    guard !mods.isDisjoint(with: newline) else {
+                        return KeyOutcome(state: state, submitted: true, handled: true)
+                    }
+                }
                 let (newText, newState) = replace(state.selection, with: "\n", in: characters, state: state)
                 if !state.selection.isEmpty { state.history.openGroup = nil }
                 return KeyOutcome(state: recording(.typing, from: text, state, to: newText, newState),

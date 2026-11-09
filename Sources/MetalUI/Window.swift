@@ -3696,7 +3696,8 @@ public final class Window {
         }
         let outcome = TextEditing.key(key, text: currentText(id, target), state: editState(id),
                                       clipboard: { [platformWindow] in platformWindow.readClipboard() },
-                                      lines: target.lines)
+                                      lines: target.lines,
+                                      mode: target.lines == nil ? .singleLine : target.verticalField ? .verticalField : .editor)
         guard outcome.handled else { return false }
         setEditState(id, outcome.state)
         if let copied = outcome.copied { platformWindow.writeClipboard(copied) }

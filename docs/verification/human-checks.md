@@ -2475,3 +2475,15 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **TBH6.** Set the system appearance to dark and repeat TBH1 and TBH4: the band's backdrop and the buttons read correctly in a dark window. **Observed:**
 - [ ] **TBH7.** Change the window title from the demo's button while the window is key and not: the buttons do not move. **Observed:**
 
+
+
+## VT. A vertical `TextField` - the composer (Alloy gap G18; record 253; rulings `VT-D`, `VT-E`, `VT-F`; decisions `docs/superpowers/2026-11-09-vertical-text-field-decisions.md`)
+
+*An agent cannot: the tests drive the headless window and read the field's height, its stored scroll and the target; how the window routes a real trackpad's wheel to a focused field and its outer scroll view, how an unfocused field looks and the clip's edge are looks. Build any app with `TextField("Message", text: $draft, axis: .vertical).lineLimit(1...8).onSubmit { send() }` inside a `ScrollView`.*
+
+- [ ] **VT1.** (assumption H1, divergence 236) Type or paste a dozen lines so the field scrolls inside itself, click into it and roll the wheel or trackpad: does the text scroll under the pointer, and at its first or last line does the outer `ScrollView` take over without a hitch? Click outside it and roll over it: does only the outer view move? **Observed:**
+- [ ] **VT2.** (assumption H2, divergence 236) Scroll the field's text with the wheel, click another field, look at the first one: does it show its first lines (not the lines you scrolled to), as SwiftUI's does? Click back in: does it come back at the caret? **Observed:**
+- [ ] **VT3.** (the 2-point clip, divergence 236) With the field overflowing and focused, are the glyphs of the top and bottom line cut a little inside the border (about 2 points) and not at the border or beyond it? No scroll indicator is drawn. Check `.textFieldStyle(.plain)` too. **Observed:**
+- [ ] **VT4.** Return sends (the draft is submitted once and not changed), Shift-Return and the keypad Enter too; Option-Return and Control-Return add a line break. Cmd-Return does nothing. On Linux or Windows: Enter sends, Shift-Enter sends, Alt-Enter adds a line break, Ctrl-Enter is left to the app. **Observed:**
+- [ ] **VT5.** Typing the eighth, ninth and tenth line grows the field one line each up to eight and then keeps the caret in view as it scrolls, with no flicker of the field's height. Delete back: it shrinks one line at a time down to one. **Observed:**
+- [ ] **VT6.** Replace the text from code (a button that clears it, one that sets a long text): the field shrinks to one line on clear; on a long text it shows the end with the caret there (SwiftUI does not scroll, divergence 235). **Observed:**
