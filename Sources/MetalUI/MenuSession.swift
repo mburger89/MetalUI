@@ -209,7 +209,8 @@ struct MenuSession {
                     actions[id] = MenuItemAction(run: run, declaringID: declaringID, isEnabled: isEnabled)
                 }
                 return PlatformMenuItem(id: id, kind: .action, title: node.title, isEnabled: isEnabled,
-                                        isOn: node.isOn, shortcut: shortcut)
+                                        isOn: node.isOn, shortcut: shortcut,
+                                        accessibilityIdentifier: node.accessibilityIdentifier, help: node.help)
             }
         }
     }
@@ -666,6 +667,8 @@ extension Window {
                     role: isToggle ? .menuItemCheckBox : .menuItem, label: item.title,
                     value: isToggle ? (item.isOn ? "1" : "0") : nil, isEnabled: item.isEnabled,
                     actions: item.isEnabled ? .press : [], children: children)
+                tree.nodes[rowID]?.identifier = item.accessibilityIdentifier   // MN-AL
+                tree.nodes[rowID]?.hint = item.help
                 let frame = level.rowFrame(row)
                 tree.geometry[rowID] = AccessibilityGeometry(frame: frame, visibleFrame: frame,
                                                              layer: Int.max, order: Int.max)

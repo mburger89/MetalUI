@@ -892,7 +892,7 @@ from the assumption, the harness is a step ahead of or behind it until measured.
    (`docs/probes/window-capture/`) or its own SDL_GPU readback (`MetalUISDLGPU`, `GB-` rulings).
    `snapshot()` does not exist off macOS.
 
-**Mutation** (`TestWindowSnapshotTests`): `snapshot()` passing an empty `GlyphAtlas` reddens `aSnapshotIsPointsTimesScaleWithTheRectangleAndTheText` (both scales, the glyph arm only); record 253.
+**Mutation** (`TestWindowSnapshotTests`): `snapshot()` passing an empty `GlyphAtlas` reddens `aSnapshotIsPointsTimesScaleWithTheRectangleAndTheText` (both scales, the glyph arm only); record 254.
 
 **Cost if wrong.** A caller wanting a scale other than the window's opens the window at that scale.
 The snapshot reads the last presented frame, so a test ticks first.

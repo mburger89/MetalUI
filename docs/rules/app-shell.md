@@ -43,7 +43,7 @@ once; a ⌃-key not while composing — `MN-J`, `MN-AI`). **A `Menu` opened from
 inside the window, no arrow, dismissed from input; `.help` is the accessibility
 hint plus a drawn, tick-timed tooltip; `.help { location in String? }` (M, `MN-AJ`) is
 a model-driven one, asked in input per pointer move, restarting the delay when the text changes, no
-accessibility. The new handler member `contextual` is
+accessibility. **A menu `Button`'s (or `Toggle`'s) `.accessibilityIdentifier` and `.help` ride `MenuNode` into `PlatformMenuItem.accessibilityIdentifier`/`help`** (AppKit `toolTip` + identifier, drawn row AX `identifier`/`hint` + the tick-timed tooltip, a disabled item keeps its help; `MN-AL`, record 253). The new handler member `contextual` is
 non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility
 role/request needs a row on both bridges**; a new `StyledElement` modifier
 cannot follow a legacy `.popover` (divergence 115).

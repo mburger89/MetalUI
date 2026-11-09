@@ -1,4 +1,4 @@
-# 253. A test window to pixels (Alloy gap G25, `HT-AB`)
+# 254. A test window to pixels (Alloy gap G25, `HT-AB`) (renumbered from 253: G24 merged first as record 253)
 
 Branch `feat/test-window-snapshot`. Alloy wants README screenshots of a headless `TestWindow` with no desktop. Blocked: `Window.glyphAtlas` internal and `HeadlessWindowRenderer.finishFrame` dropped the atlas, so `Renderer.renderOffscreen(scene, size:)` drew blank text.
 

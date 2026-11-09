@@ -57,6 +57,24 @@ import Testing
     #expect(m.log.isEmpty)
 }
 
+/// MN-AL — the presented menu record exposes a `Button`'s `.accessibilityIdentifier`
+/// and `.help` (a disabled item's too), so a test finds an item by id.
+/// Mutation: drop `accessibilityIdentifier:`/`help:` from `Button._menuNodes`.
+@Test @MainActor func aPresentedMenuItemIsFoundByIdentifierAndKeepsItsHelp() throws {
+    let window = try harnessWindow {
+        Button("Target") {}
+            .contextMenu {
+                Button("Fork") {}.accessibilityIdentifier("fork-7").help("Fork it")
+                Button("Rename") {}.accessibilityIdentifier("rename-7").help("Nothing to rename").disabled(true)
+            }
+    }
+    try window.rightClick(window.element(label: "Target"))
+    let menu = try #require(window.presentedMenu)
+    #expect(menu.item(accessibilityIdentifier: "fork-7")?.help == "Fork it")
+    let rename = try #require(menu.item(accessibilityIdentifier: "rename-7"))
+    #expect(!rename.isEnabled && rename.help == "Nothing to rename")
+}
+
 /// 2.14 — a submenu item is chosen by its path of titles. Mutation: the path
 /// walk stops at depth 1.
 @Test @MainActor func aSubmenuItemIsChosenByPath() throws {
