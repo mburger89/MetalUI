@@ -502,6 +502,31 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
 }
 
+/// **AS-R 6.** The insets are republished after the deferred re-placement: a live resize makes AppKit reset
+/// the buttons, the host's resize reports the geometry (and so the insets) mid-reset, and only the placement
+/// that follows puts the buttons back. The last insets any `onResize` saw must be the settled ones (87 =
+/// 27 + the system spacing, not the system's ~78). Mutation: drop the `onReplaced` call (or its wiring in
+/// `reconcileTitleBarPlacement`): the last published left stays at the reset value.
+@MainActor
+@Test func appKitTitleBarInsetsArePublishedAgainAfterTheReplacement() throws {
+    let (appKit, nsWindow) = try placedWindow("AS-R 6")
+    var published: [Float] = []
+    appKit.onResize = { [unowned appKit] _, _ in published.append(appKit.titleBarInsets.left.value) }
+    let settled = appKit.titleBarInsets.left.value
+    #expect(settled > 27 + 40)
+    for _ in 0..<3 {
+        var frame = nsWindow.frame
+        frame.size.width += 20
+        nsWindow.setFrame(frame, display: true)
+        drainRunLoop()
+        #expect(appKit.titleBarInsets.left.value == settled)
+        #expect(published.last == settled, "the last published left \(String(describing: published.last)) vs \(settled)")
+    }
+    appKit.onResize = nil
+    nsWindow.close()
+    drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
+}
+
 /// **AS-R 3.** Only the set fields move: a height alone centres vertically and leaves x; a leading alone
 /// leaves y. Clearing both gives the system layout back (x 9, centre 16 — a resize of AppKit's own), the
 /// insets read the system band again, and `.standard` clears a set pair. Mutation: `remove()` skips the

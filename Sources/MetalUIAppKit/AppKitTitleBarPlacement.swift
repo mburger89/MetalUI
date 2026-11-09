@@ -33,6 +33,10 @@ final class TitleBarPlacement {
     private(set) var writeCount = 0
     /// How many times ``place()`` ran past its guards.
     private(set) var placeCount = 0
+    /// Called after a deferred re-placement that moved something (`AS-R` item 6): the window's insets read
+    /// the buttons' frames, so a reset that was read before the re-placement left them stale. `init` and
+    /// `update(height:leading:)` place synchronously and their caller republishes.
+    var onReplaced: (() -> Void)?
 
     static let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
     static let backstopNotifications: [Notification.Name] = [
@@ -96,8 +100,11 @@ final class TitleBarPlacement {
         pending = true
         RunLoop.main.perform(inModes: [.common]) { [weak self] in
             MainActor.assumeIsolated {
-                self?.pending = false
-                self?.place()
+                guard let self else { return }
+                self.pending = false
+                let before = self.writeCount
+                self.place()
+                if self.writeCount != before { self.onReplaced?() }
             }
         }
     }

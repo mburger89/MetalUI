@@ -938,8 +938,24 @@ a `title` change, so a hook is part of the feature.
    next AppKit test; 4 reruns, deterministic; with the four tests skipped the run passed). They now run
    `-[NSApplication run]` once and stop it at once (`appKitEventSignal`, the `SDLPlatform` fix of record §61 §9)
    and end with a nested run-loop drain; the unfiltered run then passes (5745).
+8. **The insets are republished after the deferred re-placement** (MetalCreator, macOS 27, height 68 /
+   leading 27: `left` 87 at launch, about 78 after one live resize, 87 again after leaving full screen). Cause:
+   `titleBarInsets` is computed on demand from the zoom button's frame and `Window` stamps it only when a
+   frame is built, which `onResize` triggers. A live resize resets the buttons to the system layout; the
+   host's resize reports the geometry then (left 78, the system zoom edge), and the deferred placement puts the
+   buttons back one run-loop pass later with nothing reporting again, so the app kept the stale 78 (full
+   screen worked because `didExitFullScreen` resizes after the buttons are placed). `TitleBarPlacement.onReplaced`
+   is called by the deferred pass when it wrote anything (an equality-guarded no-op reports nothing, so no
+   loop) and `AppKitWindow` wires it to `syncSurfaceGeometry()`. Pinned by
+   `appKitTitleBarInsetsArePublishedAgainAfterTheReplacement`; mutation (drop the call): it reddens. Record 250.
+9. **Carried, not changed: a disabled control in the band does not carve its hit area** (all backends).
+   `registerHandlers` inserts no hitbox for a disabled element (`EV-E`: a blocker would eat an enabled
+   ancestor's click), so `ChromeRegions.blocks` never sees it: on SDL the band region covers it (a press
+   drags), and on AppKit the press is unclaimed and `answerUnclaimedTitleBarPress` (`AS-J`) drags. Not new with
+   `AS-R` (it held at the system height); the taller band only widens the surface. Native macOS does not drag
+   from a disabled `NSButton`. Fixing it needs a chrome-only "inert blocker" list beside the hitboxes, touching
+   the `EV-E` gate and both backends: a design question, left to the owner.
 
 **Cost if wrong.** An OS release that reshapes the title-bar views makes `views(of:)` answer `nil`: the
 placement then does nothing and the band reads the system value. The deferral and equality guard are the
 measured part; they do not depend on the hierarchy.
-
