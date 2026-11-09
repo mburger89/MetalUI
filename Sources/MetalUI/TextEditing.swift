@@ -619,12 +619,16 @@ final class TextTargetHooks {
     /// The editing session of a `CodeView` (`CV-W`): when set, `Window` routes every text stage to it and
     /// not through `TextEditing`.
     let code: CodeEditSession?
+    /// Whether this is a vertical `TextField` (`VT-F`, `VT-E`), not a `TextEditor`: Return submits, and the wheel is taken
+    /// only while it is focused and has room.
+    let vertical: Bool
 
     init(submit: (@MainActor () -> Void)?, sink: (@MainActor (Range<Int>, String) -> AnyHashable)?,
-         code: CodeEditSession? = nil) {
+         code: CodeEditSession? = nil, vertical: Bool = false) {
         self.submit = submit
         self.sink = sink
         self.code = code
+        self.vertical = vertical
     }
 }
 
@@ -651,6 +655,10 @@ struct TextInputTarget {
     /// The editing session when this target is a `CodeView`'s (`CV-W`).
     var codeSession: CodeEditSession? { hooks?.code }
 
+    /// Whether the lines are a vertical `TextField`'s, not a `TextEditor`'s (`VT-F`): in the one hooks box, as a new part of
+    /// a target goes (`Handlers` stays pinned).
+    var verticalField: Bool { hooks?.vertical ?? false }
+
     // A multi-line field's (ruling TI-H); `lines` is nil for a `TextField`.
     var lines: TextLineModel? = nil
     /// Window y of line 0's top — the content's top minus the scroll.
@@ -662,13 +670,15 @@ struct TextInputTarget {
     init(text: String, caretOffsets: [Double], originX: Double, caretRect: Bounds<Pixels>,
          onChange: @escaping @MainActor (String) -> Void, onSubmit: (@MainActor () -> Void)?,
          selectionSink: (@MainActor (Range<Int>, String) -> AnyHashable)? = nil,
-         lines: TextLineModel? = nil, originY: Double = 0, lineHeight: Double = 0, maxScrollY: Double = 0) {
+         lines: TextLineModel? = nil, originY: Double = 0, lineHeight: Double = 0, maxScrollY: Double = 0,
+         verticalField: Bool = false) {
         self.text = text
         self.caretOffsets = caretOffsets
         self.originX = originX
         self.caretRect = caretRect
         self.onChange = onChange
-        self.hooks = onSubmit == nil && selectionSink == nil ? nil : TextTargetHooks(submit: onSubmit, sink: selectionSink)
+        self.hooks = onSubmit == nil && selectionSink == nil && !verticalField ? nil
+            : TextTargetHooks(submit: onSubmit, sink: selectionSink, vertical: verticalField)
         self.lines = lines
         self.originY = originY
         self.lineHeight = lineHeight

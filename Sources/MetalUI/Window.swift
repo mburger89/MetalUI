@@ -2458,7 +2458,22 @@ public final class Window {
             // where it is, so the next frame does not scroll it back. It takes the
             // vertical axis only (`XS-F`): a horizontal wheel goes on to the
             // scroller around it.
-            if id == cover.id, let target = cover.handlers.textInput, target.lines != nil, axis != .horizontal {
+            // A vertical `TextField` takes the vertical wheel only while it is focused and has room in the wheel's
+            // direction; at its edge, or unfocused, the wheel continues up the chain (`VT-E`, `XS-F`'s one-axis rule),
+            // where a `TextEditor` keeps swallowing it.
+            if id == cover.id, let target = cover.handlers.textInput, target.verticalField {
+                let scroll = editState(cover.id).scrollY
+                let grows = event.delta.y.value < 0
+                if axis == .vertical, focusedElement == cover.id,
+                   grows ? scroll < target.maxScrollY : scroll > 0 {
+                    stateTable.withState(cover.id, initial: TextEditState()) {
+                        $0.scrollY = ScrollChrome.wheelOffset(x: 0, y: $0.scrollY, delta: event.delta,
+                                                              maximum: (0, target.maxScrollY)).y   // `CV-O`
+                        $0.revealsCaret = false
+                    }
+                    return true
+                }
+            } else if id == cover.id, let target = cover.handlers.textInput, target.lines != nil, axis != .horizontal {
                 stateTable.withState(cover.id, initial: TextEditState()) {
                     $0.scrollY = ScrollChrome.wheelOffset(x: 0, y: $0.scrollY, delta: event.delta,
                                                           maximum: (0, target.maxScrollY)).y   // `CV-O`
