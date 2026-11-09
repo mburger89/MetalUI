@@ -20,6 +20,7 @@ on:
       - "Backends/SDL/**"
       - "Sources/MetalUIPlatform/**"
       - ".github/workflows/sdl-gpu-linux.yml"
+      - ".github/actions/swift-cache/**"
       # The root manifest declares the backend (PX-H) and the scaffold the
       # consumer tests generate (PX-J).
       - "Package.swift"
@@ -56,6 +57,7 @@ on:
       - "Backends/SDL/**"
       - "Sources/MetalUIPlatform/**"
       - ".github/workflows/sdl-gpu-linux.yml"
+      - ".github/actions/swift-cache/**"
       # The root manifest declares the backend (PX-H) and the scaffold the
       # consumer tests generate (PX-J).
       - "Package.swift"
@@ -86,6 +88,23 @@ on:
       - "Sources/MetalUIPath/**"
       - "Tests/Fonts/**"
   workflow_dispatch:
+    inputs:
+      no_cache:
+        description: "Skip restoring the SwiftPM build cache (rule out a stale cache); the run still saves a fresh one"
+        type: boolean
+        default: false
+
+# A new push to a pull request cancels that PR's superseded run. Master pushes
+# are keyed by sha, so they never cancel one another.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# SwiftPM build output is cached per job (.github/actions/swift-cache). To rule a
+# stale cache out of a strange build error, rerun with workflow_dispatch
+# no_cache=true, or put "[no cache]" in the pull request title (or a pushed
+# head commit message). The Linux jobs run SwiftPM in Docker, so their scratch
+# paths are bind-mounted from .ci-cache/ on the host.
 
 jobs:
   record:
@@ -96,6 +115,10 @@ jobs:
         working-directory: Experiments/SDLGPU
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/swift-cache
+        with:
+          name: sdl-record
+          paths: Experiments/SDLGPU/.build
       - name: Install SDL3
         run: brew install sdl3
       - name: Compiled shaders match replay.hlsl
@@ -134,6 +157,12 @@ jobs:
           name: fixtures
           path: Experiments/SDLGPU/fixtures
       - uses: docker/setup-buildx-action@v4
+      - run: mkdir -p .ci-cache/build .ci-cache/root .ci-cache/jotter
+      - uses: ./.github/actions/swift-cache
+        with:
+          name: sdl-linux-${{ matrix.arch }}
+          paths: .ci-cache
+          extra: ${{ hashFiles('Backends/SDL/linux/Dockerfile') }}
       - name: Build image (Swift, SDL3 from source, Mesa, AccessKit)
         uses: docker/build-push-action@v7
         with:
@@ -150,7 +179,7 @@ jobs:
           # The whole repo: Backends/SDL depends on the root package. No flags:
           # SDL3 and AccessKit are on the image's default paths (PX-I item 5).
           # METALUI_REQUIRE_GPU=1: a missing GPU is a failure, not a skip (ruling GA-L).
-          docker run --rm -e METALUI_REQUIRE_GPU=1 -v "$PWD":/work -w /work/Backends/SDL metalui-portable bash -ec '
+          docker run --rm -e METALUI_REQUIRE_GPU=1 -v "$PWD":/work -v "$PWD/.ci-cache/build":/tmp/build -w /work/Backends/SDL metalui-portable bash -ec '
             vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
             swift build --scratch-path /tmp/build
             swift test --scratch-path /tmp/build
@@ -163,7 +192,7 @@ jobs:
         # generates a package depending on a file:// copy of this checkout and
         # runs plain `swift build` (PX-L item 3).
         run: |
-          docker run --rm -v "$PWD":/work -w /work metalui-portable bash -ec '
+          docker run --rm -v "$PWD":/work -v "$PWD/.ci-cache/root":/tmp/root -w /work metalui-portable bash -ec '
             git config --global --add safe.directory "*"
             METALUI_RUN_SDL_CONSUMER_BUILD_TEST=1 swift test --filter aCrossPlatformPackage --scratch-path /tmp/root
           '
@@ -186,7 +215,7 @@ jobs:
         # window opened. xprop's own pretty-printer prints nothing for an icon over about 250
         # pixels (WI-A), so check.sh asks for the raw values.
         run: |
-          docker run --rm -v "$PWD":/work -w /work/Backends/SDL metalui-portable bash -ec '
+          docker run --rm -v "$PWD":/work -v "$PWD/.ci-cache/build":/tmp/build -w /work/Backends/SDL metalui-portable bash -ec '
             swift build --scratch-path /tmp/build --product IconCheck
             bin=$(swift build --scratch-path /tmp/build --show-bin-path)
             Xvfb :99 -screen 0 1280x1024x24 >/dev/null 2>&1 &
@@ -206,7 +235,7 @@ jobs:
         # traits its manifest turns on for Linux; the image's offscreen video driver is enough
         # because its tests run a headless TestWindow.
         run: |
-          docker run --rm -v "$PWD":/work -w /work/Examples/Jotter metalui-portable bash -ec '
+          docker run --rm -v "$PWD":/work -v "$PWD/.ci-cache/jotter":/tmp/jotter -w /work/Examples/Jotter metalui-portable bash -ec '
             swift build --build-tests --scratch-path /tmp/jotter
             swift test --skip-build --scratch-path /tmp/jotter
           '
@@ -251,10 +280,24 @@ jobs:
         with:
           swift-version: swift-6.4.0-release
           swift-build: 6.4.0-RELEASE
+      - uses: ./.github/actions/swift-cache
+        with:
+          name: sdl-windows
+          paths: Backends/SDL/.build
+      # The SDL3 and AccessKit release downloads (GitHub release 503s, PR #246): cached, so a warm run
+      # does not touch the network. Keyed by the pinned versions; fetch-accesskit.py skips what exists.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}\sdl3.zip
+            Backends/SDL/.accesskit
+          key: downloads-${{ runner.os }}-sdl${{ env.SDL_VERSION }}-${{ hashFiles('Backends/SDL/scripts/fetch-accesskit.py') }}
       - name: Install SDL3 (prebuilt VC package)
         run: |
           $zip = "$env:RUNNER_TEMP\sdl3.zip"
-          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip -MaximumRetryCount 10 -RetryIntervalSec 30
+          if (-not (Test-Path $zip)) {
+            Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip -MaximumRetryCount 10 -RetryIntervalSec 30
+          }
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
           "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV
