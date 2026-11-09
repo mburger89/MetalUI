@@ -239,6 +239,10 @@ jobs:
             swift build --build-tests --scratch-path /tmp/jotter
             swift test --skip-build --scratch-path /tmp/jotter
           '
+      # Docker ran as root: hand .ci-cache back so the cache's post step can tar it.
+      - name: Hand the build cache back to the runner user
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" .ci-cache
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
