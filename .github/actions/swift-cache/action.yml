@@ -60,7 +60,7 @@ runs:
         restore-keys: ${{ steps.key.outputs.restore }}
     # A fresh checkout stamps every source file with "now", so the build system sees every input
     # as changed and rebuilds everything the restored cache holds. Stamp each file with a time
-    # derived from its CONTENT instead (fixed epoch + crc32): an unchanged file keeps its mtime
+    # derived from its CONTENT instead (fixed epoch + 24 bits of MD5): an unchanged file keeps its mtime
     # across checkouts, an edited one (even to the same size) gets a different one.
     - name: Content-derived source mtimes
       shell: bash
