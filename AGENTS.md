@@ -67,6 +67,6 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-11-09, `feat/vertical-text-field` on master 12ca12d4 + record 255): root 5779 tests in 26 suites passed (`--build-system native`, unfiltered, `--no-parallel`; 0 failures), 0 goldens; `FR-J no-argument frame: succeeded=true`; the vertical-field guard ran (`VERTICAL FIELD GUARD 21 positive: succeeded=true`); under `METALUI_VERIFY_RETAINED=1` the Markdown copy-button tests crash on master too (record 255) and the rest pass; under `METALUI_VERIFY_LAYOUT_MEMO=1` three Markdown tests fail on master too; the portable image not re-run.**
+- **Counts (2026-11-09, `fix/placeholder-tabstrip-contrast` on master 2f0b43c5 + record 257): root 5793 tests in 26 suites passed (`--build-system native`, unfiltered, `--no-parallel`; 0 failures), 0 goldens; `FR-J no-argument frame: succeeded=true`; guards not re-counted; the portable image not re-run; divergences unchanged (220 live, next label 241).**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.

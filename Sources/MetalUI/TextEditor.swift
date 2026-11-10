@@ -48,6 +48,8 @@ public struct TextEditor: Element, StyledElement {
 
     /// Shown, dimmed, while `text` is empty.
     public var placeholder: String
+    /// The placeholder's own colour (`VT-I`); `nil` is ``Color/secondary``. Internal: MetalUI's `TextEditor` has no `prompt:`.
+    var placeholderColor: Color?
     /// The text shown; the editor never changes it itself.
     public var text: String
     /// Called with the edited text after each edit.
@@ -356,6 +358,7 @@ public struct TextEditor: Element, StyledElement {
         let focused = pass.isFocused(id)
         let textColor = pass.resolve(foregroundColor ?? .textPrimary)
         MultilineText.paintLines(g, placeholder: placeholder, font: font, system: system, textColor: textColor,
+                                 placeholderColor: MultilineText.placeholderColor(placeholderColor, in: pass.environment),
                                  wrapWidth: Double(bounds.size.width.value), clip: bounds, cull: bounds,
                                  focused: focused, pass: &pass)
     }
