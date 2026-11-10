@@ -59,19 +59,15 @@ runs:
     - name: Content-derived source mtimes
       shell: bash
       run: |
-        python3 - <<'PY'
-        import os, zlib
-        skip = {".git", ".build", ".ci-cache", ".accesskit", "docs"}
-        for root, dirs, files in os.walk("."):
-            dirs[:] = [d for d in dirs if d not in skip]
-            for f in files:
-                path = os.path.join(root, f)
-                try:
-                    if os.path.islink(path):
-                        continue
-                    with open(path, "rb") as h:
-                        t = 1577836800 + zlib.crc32(h.read()) % 100000000
-                    os.utime(path, (t, t))
-                except OSError:
-                    pass
-        PY
+        # perl, not python: the swift:6.4-noble container has no python3.
+        perl -MFile::Find -MDigest::MD5 -e '
+          my %skip = map { $_ => 1 } qw(.git .build .ci-cache .accesskit docs);
+          find({ no_chdir => 1,
+                 preprocess => sub { grep { !$skip{$_} } @_ },
+                 wanted => sub {
+                   return if -l $_ || !-f _;
+                   open(my $h, "<:raw", $_) or return;
+                   my $t = 1577836800 + hex(substr(Digest::MD5->new->addfile($h)->hexdigest, 0, 6));
+                   close $h;
+                   utime($t, $t, $_);
+                 } }, ".");'
