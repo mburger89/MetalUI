@@ -138,3 +138,67 @@ private func same(_ a: Hsla, _ b: Hsla) -> Bool {
         #expect(ratio >= 4.5, "\(scheme) hovered: \(ratio)")
     }
 }
+
+// `TBS-L` (Alloy gap G30, record 262): an unselected tab's ink is `Theme.textSecondary` when the theme sets it, else `textPrimary` at 0.64.
+
+@MainActor private func unselectedTabInk(_ window: TestWindow) throws -> Hsla {
+    let frame = try window.element(label: "b.swift").frame
+    let glyphs = window.scene.glyphs.filter { $0.bounds.origin.x >= frame.origin.x.value
+        && $0.bounds.origin.x <= frame.origin.x.value + frame.size.width.value }
+    let c = try #require(glyphs.first, "tab b's title").color
+    return Hsla(h: c.h, s: c.s, l: c.l, a: c.a)
+}
+@MainActor private func tabStripWindow(_ scheme: ColorScheme = .light) throws -> TestWindow {
+    let window = try harnessWindow(size: sz(500, 100), colorScheme: scheme) {
+        VStack(spacing: 0) {
+            TabStrip(selection: .constant("a"), tabs: [TabStripItem(id: "a", title: "main.swift"), TabStripItem(id: "b", title: "b.swift")])
+            Spacer()
+        }
+    }
+    window.tick(); window.tick()
+    return window
+}
+private let tabOverride = Hsla(h: 0.08, s: 0.9, l: 0.4, a: 1)
+
+/// 6 - no `textSecondary`: the unselected ink is `textPrimary` at 0.64 exactly (`TBS-K` unchanged). Mutation: **M6** the ink back on the
+/// derived `Color.secondary` (0.588 light) reddens it.
+@Test @MainActor func withoutAnOverrideTheUnselectedInkIsTextPrimaryAt064() throws {
+    for scheme in [ColorScheme.light, .dark] {
+        var want = (scheme == .dark ? Theme.dark : Theme.light).textPrimary
+        want.a *= 0.64
+        #expect(same(try unselectedTabInk(try tabStripWindow(scheme)), want), "\(scheme)")
+    }
+}
+
+/// 7 - a theme with `textSecondary` set paints the unselected ink as that colour (both variants). Mutation: **M7** the override ignored.
+@Test @MainActor func aThemesTextSecondaryIsTheUnselectedInk() throws {
+    for scheme in [ColorScheme.light, .dark] {
+        let window = try harnessWindow(size: sz(500, 100), colorScheme: scheme) {
+            VStack(spacing: 0) {
+                TabStrip(selection: .constant("a"), tabs: [TabStripItem(id: "a", title: "main.swift"), TabStripItem(id: "b", title: "b.swift")])
+                Spacer()
+            }
+        }
+        var theme = scheme == .dark ? Theme.dark : Theme.light
+        theme.textSecondary = tabOverride
+        if scheme == .dark { window.window.darkTheme = theme } else { window.window.lightTheme = theme }
+        window.window.setNeedsRedraw(); window.tick(); window.tick()
+        #expect(same(try unselectedTabInk(window), tabOverride), "\(scheme)")
+    }
+}
+
+/// 8 - assigning the theme at runtime repaints the ink, and clearing the override restores 0.64. Mutation: **M7** as above.
+@Test @MainActor func switchingTheTextSecondaryRepaintsTheUnselectedInk() throws {
+    let window = try tabStripWindow()
+    var base = Theme.light.textPrimary
+    base.a *= 0.64
+    #expect(same(try unselectedTabInk(window), base), "before")
+    var themed = Theme.light
+    themed.textSecondary = tabOverride
+    window.window.lightTheme = themed
+    window.tick()
+    #expect(same(try unselectedTabInk(window), tabOverride), "after the assignment")
+    window.window.lightTheme = .light
+    window.tick()
+    #expect(same(try unselectedTabInk(window), base), "after clearing")
+}
