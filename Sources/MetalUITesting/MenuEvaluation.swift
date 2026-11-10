@@ -34,6 +34,24 @@ public struct MenuEvaluation {
         return found.item
     }
 
+    /// The first item, depth-first through submenus, whose
+    /// `.accessibilityIdentifier` is `identifier`. Throws
+    /// ``TestHarnessError/noMenuItem(_:)`` for none (ruling `HT-AC`).
+    public func item(accessibilityIdentifier identifier: String) throws -> PlatformMenuItem {
+        guard let found = MenuPath.resolve(accessibilityIdentifier: identifier, in: items) else {
+            throw TestHarnessError.noMenuItem(MenuPath.described(identifier))
+        }
+        return found.item
+    }
+
+    /// Runs the command item whose identifier is `identifier`, as
+    /// ``perform(_:)`` runs one by path (ruling `HT-AC`).
+    public func perform(accessibilityIdentifier identifier: String) throws {
+        let item = try MenuPath.command(accessibilityIdentifier: identifier, in: items)
+        guard let action = actions[item.id] else { throw TestHarnessError.noMenuItem(MenuPath.described(identifier)) }
+        action()
+    }
+
     /// Runs the command item at `path`. Throws
     /// ``TestHarnessError/noMenuItem(_:)`` for none or a non-command item and
     /// ``TestHarnessError/disabledMenuItem(_:)`` for a disabled one.

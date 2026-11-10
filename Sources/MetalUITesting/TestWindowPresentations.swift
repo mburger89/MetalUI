@@ -106,6 +106,22 @@ extension TestWindow {
         tick()
     }
 
+    /// Chooses the item of the presented menu whose `.accessibilityIdentifier`
+    /// is `identifier` — searched depth-first through submenus, the first
+    /// match taken — then draws. Throws as ``chooseMenuItem(_:)`` does:
+    /// ``TestHarnessError/nothingPresented(_:)`` with no menu,
+    /// ``TestHarnessError/noMenuItem(_:)`` for no such command item (its path
+    /// reads `["accessibilityIdentifier \"id\""]`) and
+    /// ``TestHarnessError/disabledMenuItem(_:)`` for a disabled one, or one
+    /// inside a disabled submenu (ruling `HT-AC`).
+    public func chooseMenuItem(accessibilityIdentifier identifier: String) throws {
+        guard let menu = presentedMenu else { throw TestHarnessError.nothingPresented("menu") }
+        let item = try MenuPath.command(accessibilityIdentifier: identifier, in: menu.items)
+        answered.menus.insert(menu.token)
+        send(.menuAction(MenuActionEvent(menu: menu.token, item: item.id)))
+        tick()
+    }
+
     /// Dismisses the presented menu with no choice, then draws. Throws
     /// ``TestHarnessError/nothingPresented(_:)`` with no menu.
     public func dismissMenu() throws {
@@ -146,6 +162,33 @@ enum MenuPath {
         guard case .submenu(let children) = item.kind,
               let found = resolve(rest, in: children) else { return nil }
         return (found.item, item.isEnabled && found.isEnabled)
+    }
+
+    /// The first item, depth-first, whose identifier is `identifier`, and
+    /// whether it and every submenu above it are enabled (`HT-AC`).
+    static func resolve(accessibilityIdentifier identifier: String,
+                        in items: [PlatformMenuItem]) -> (item: PlatformMenuItem, isEnabled: Bool)? {
+        for item in items where item.kind != .separator {
+            if item.accessibilityIdentifier == identifier { return (item, item.isEnabled) }
+            if case .submenu(let children) = item.kind,
+               let found = resolve(accessibilityIdentifier: identifier, in: children) {
+                return (found.item, item.isEnabled && found.isEnabled)
+            }
+        }
+        return nil
+    }
+
+    /// How an error names a lookup by identifier.
+    static func described(_ identifier: String) -> [String] { ["accessibilityIdentifier \"\(identifier)\""] }
+
+    /// The enabled command item whose identifier is `identifier`.
+    static func command(accessibilityIdentifier identifier: String,
+                        in items: [PlatformMenuItem]) throws -> PlatformMenuItem {
+        let reported = described(identifier)
+        guard let (item, isEnabled) = resolve(accessibilityIdentifier: identifier, in: items),
+              item.kind == .action else { throw TestHarnessError.noMenuItem(reported) }
+        guard isEnabled else { throw TestHarnessError.disabledMenuItem(reported) }
+        return item
     }
 
     /// The enabled command item at `path`; `reportedAs` names it in an error.
