@@ -156,6 +156,12 @@ final class RetainLog {
         }
     }
 
+    /// An occurrence is returning from paint without emitting, the frame being abandoned for a redo (`RK-AF`): every open
+    /// recorder encloses the hole.
+    func noteRedoHole() {
+        for recorder in recorders { recorder.redoHole = true }
+    }
+
     func noteDirect(_ primitive: CapturedPrimitive, depth: Int) {
         noteBoundary(0, [([primitive], nil)], depth)
     }
@@ -171,6 +177,8 @@ final class SubtreeRecorder {
     var entryHeight = 0
     /// Whether any leaf of this occurrence passed a paint scope opened inside it (`FS-D`).
     var passedInnerScope = false
+    /// Whether an occurrence nested in this one returned from paint without emitting (`RK-AF`): the record would hold a hole.
+    var redoHole = false
     var from = RetainLog.Marks()
     var before = LedgerSnapshot()
     /// `TransitionStore.ranges.count` and the scene's emission sequence where the paint window opened (`XF-H` item 8).
@@ -883,6 +891,14 @@ extension Frame {
         let (to, after) = closeRecorderWindow(recorder)
         let log = retainLog!
         log.recorders.removeAll { $0 === recorder }
+        // `RK-AF`: an occurrence nested in this one returned from its paint without emitting its leaves because the frame is
+        // abandoned for a redo (`noteRedoHole`). What this recorder holds is a hole, not the occurrence's paint: storing it
+        // would replay the hole in the redo and every later frame, and verify mode would compare it with a complete fresh
+        // run. Nothing is stored or compared (a standing record stays); the redo records the occurrence whole.
+        if recorder.redoHole {
+            if log.recorders.isEmpty { retainLog = nil }
+            return
+        }
         let from = recorder.from, before = recorder.before
         let record = RetainedRecord(key: key)
         var seen = Set<GlobalElementID>()

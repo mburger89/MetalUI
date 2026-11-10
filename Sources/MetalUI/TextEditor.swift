@@ -48,6 +48,8 @@ public struct TextEditor: Element, StyledElement {
 
     /// Shown, dimmed, while `text` is empty.
     public var placeholder: String
+    /// The placeholder's own colour (`VT-I`); `nil` is ``Color/secondary``. Internal: MetalUI's `TextEditor` has no `prompt:`.
+    var placeholderColor: Color?
     /// The text shown; the editor never changes it itself.
     public var text: String
     /// Called with the edited text after each edit.
@@ -263,55 +265,12 @@ public struct TextEditor: Element, StyledElement {
         return TextLineModel(lines: lines)
     }
 
-    struct Geometry {
-        var display: String
-        var displayLines: TextLineModel
-        var textLines: TextLineModel
-        var caretIndex: Int
-        var selection: Range<Int>
-        var composition: Range<Int>?
-        var lineHeight: Double
-        var contentX: Double
-        var contentY: Double
-        var scrollY: Double
-        var maxScrollY: Double
-        var revealed: Bool
-    }
+    typealias Geometry = MultilineText.Geometry
 
     @MainActor
     func geometry(bounds: Bounds<Pixels>, state: TextEditState, system: any TextSystem,
                   font: FontKey) -> Geometry {
-        let state = state.clamped(to: text.count)
-        let characters = Array(text)
-        let width = Double(bounds.size.width.value), height = Double(bounds.size.height.value)
-        let lineHeight = TextField.lineHeight(font: font, system: system)
-        let textLines = Self.lineModel(text, width: width, font: font, system: system)
-        var display = text, displayLines = textLines
-        var caretIndex = state.head, selection = state.selection
-        var composition: Range<Int>?
-        if !state.composition.text.isEmpty {
-            let marked = Array(state.composition.text)
-            let start = state.selection.lowerBound
-            display = String(characters[..<start]) + String(marked) + String(characters[state.selection.upperBound...])
-            displayLines = Self.lineModel(display, width: width, font: font, system: system)
-            composition = start..<(start + marked.count)
-            caretIndex = start + min(state.composition.selection.upperBound, marked.count)
-            selection = caretIndex..<caretIndex
-        }
-        let contentHeight = Double(displayLines.lines.count) * lineHeight
-        let maxScrollY = max(0, contentHeight - height)
-        var scrollY = min(max(state.scrollY, 0), maxScrollY)
-        if state.revealsCaret {
-            let top = Double(displayLines.lineIndex(of: caretIndex)) * lineHeight
-            if top < scrollY { scrollY = top }
-            if top + lineHeight > scrollY + height { scrollY = top + lineHeight - height }
-            scrollY = min(max(scrollY, 0), maxScrollY)
-        }
-        return Geometry(display: display, displayLines: displayLines, textLines: textLines,
-                        caretIndex: caretIndex, selection: selection, composition: composition,
-                        lineHeight: lineHeight, contentX: Double(bounds.origin.x.value),
-                        contentY: Double(bounds.origin.y.value), scrollY: scrollY, maxScrollY: maxScrollY,
-                        revealed: state.revealsCaret)
+        MultilineText.geometry(text: text, bounds: bounds, state: state, system: system, font: font)
     }
 
     // MARK: Phases
@@ -398,52 +357,9 @@ public struct TextEditor: Element, StyledElement {
         let g = geometry(bounds: bounds, state: state, system: system, font: font)
         let focused = pass.isFocused(id)
         let textColor = pass.resolve(foregroundColor ?? .textPrimary)
-        let characters = Array(g.display)
-        let top = g.contentY - g.scrollY, bottom = Double(bounds.origin.y.value + bounds.size.height.value)
-        func rect(_ x0: Double, _ x1: Double, y: Double, height: Double) -> Bounds<Pixels> {
-            Bounds(origin: Point(x: Pixels(Float(g.contentX + x0)), y: Pixels(Float(y))),
-                   size: Size(width: Pixels(Float(max(0, x1 - x0))), height: Pixels(Float(height))))
-        }
-        pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0))) {
-            if g.display.isEmpty {
-                var color = textColor
-                color.a *= 0.45
-                pass.drawGlyphs(system.placeGlyphs(placeholder, font: font,
-                                                   wrappingAt: max(Double(bounds.size.width.value), smallestWrapWidth),
-                                                   origin: (x: g.contentX, y: top), scaleFactor: pass.scaleFactor),
-                                color: color)
-            }
-            var selectionColor = pass.resolve(.accentColor)
-            selectionColor.a *= 0.3
-            for (index, line) in g.displayLines.lines.enumerated() {
-                let y = top + Double(index) * g.lineHeight
-                guard y + g.lineHeight > Double(bounds.origin.y.value), y < bottom else { continue }
-                // The selection on this line; a selected line break shows as a
-                // short tail past the line's end, as AppKit's text views do.
-                let lower = max(g.selection.lowerBound, line.range.lowerBound)
-                let upper = min(g.selection.upperBound, line.range.upperBound)
-                if lower < upper || (line.endsInHardBreak && g.selection.contains(line.range.upperBound)) {
-                    let x0 = line.offsets[max(lower, line.range.lowerBound) - line.range.lowerBound]
-                    var x1 = line.offsets[min(max(upper, lower), line.range.upperBound) - line.range.lowerBound]
-                    if line.endsInHardBreak && g.selection.contains(line.range.upperBound) { x1 += 4 }
-                    pass.fill(rect(x0, x1, y: y, height: g.lineHeight), color: selectionColor)
-                }
-                pass.drawGlyphs(system.placeGlyphs(String(characters[line.range]), font: font, wrappingAt: nil,
-                                                   origin: (x: g.contentX, y: y), scaleFactor: pass.scaleFactor),
-                                color: textColor)
-                if let marked = g.composition {
-                    let a = max(marked.lowerBound, line.range.lowerBound), b = min(marked.upperBound, line.range.upperBound)
-                    if a < b {
-                        pass.fill(rect(line.offsets[a - line.range.lowerBound], line.offsets[b - line.range.lowerBound],
-                                       y: y + g.lineHeight - 1, height: 1), color: textColor)
-                    }
-                }
-            }
-            if focused && g.selection.isEmpty {
-                let line = g.displayLines.lineIndex(of: g.caretIndex)
-                let x = g.displayLines.x(of: g.caretIndex)
-                pass.fill(rect(x, x + 1, y: top + Double(line) * g.lineHeight, height: g.lineHeight), color: textColor)
-            }
-        }
+        MultilineText.paintLines(g, placeholder: placeholder, font: font, system: system, textColor: textColor,
+                                 placeholderColor: MultilineText.placeholderColor(placeholderColor, in: pass.environment),
+                                 wrapWidth: Double(bounds.size.width.value), clip: bounds, cull: bounds,
+                                 focused: focused, pass: &pass)
     }
 }

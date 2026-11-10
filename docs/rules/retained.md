@@ -44,7 +44,7 @@ field in `AmbientKey`. The demo is `METALUI_RETAINED_DEMO=1`.
 the one ranking's order, focus, accessibility records and nodes, press-only actions, context menus, element bounds, tallies) replayed
 while its key is equal; **a paint-time ambient (SB-AA) that differs for a replayed prepaint abandons the frame after paint and
 `Window.buildAndAdoptFrame` builds it again once with every replay off** (the redo; `AnimationStore.checkpoint`/`rollbackBuild`, 8
-builds of window backoff, a per-entry doubling quarantine): **a store a build mutates non-idempotently owes a `rollbackBuild`**. A
+builds of window backoff, a per-entry doubling quarantine): **a store a build mutates non-idempotently owes a `rollbackBuild`**. **An occurrence that returns from paint for a redo marks its enclosing recorders, which store nothing** (`RK-AF`, `noteRedoHole`): it painted nothing, so their record would hold the hole. A
 render-effect translation replays through the live scopes (translated replay; a hitbox clip that depended on it refuses, `RK-G`, `RK-S`).
 **The graft:** an unchanged occurrence skips its build recursion (`RetainedGraft`): its layout rows come from a recorded
 `LayoutSegment` (`LayoutTree.graft`, every table restamped), the `StateTable` events its build made are applied again through the

@@ -2,7 +2,8 @@ import MetalUICore
 import MetalUILayout
 import MetalUITextSystem
 
-/// A single line of editable text (roadmap item 14, rulings TI-B…TI-D).
+/// A single line of editable text (roadmap item 14, rulings TI-B…TI-D), or with `axis: .vertical` a field that
+/// grows with its text between the bounds `lineLimit` sets and scrolls inside itself past the upper one (`VT-`).
 ///
 /// **Controlled**: it shows `text` and calls `onChange` with every edit; the
 /// caller stores the new value and passes it back. Selection, the input
@@ -23,6 +24,12 @@ import MetalUITextSystem
 /// `.separator` border, corner radius 6 and the control focus ring — 24 points
 /// tall at 13 pt. `.textFieldStyle(.plain)` draws the bare field, one line
 /// tall. Disabled, the chrome stays and the text dims to a third.
+///
+/// **Vertical (`init(_:text:axis:)`, SwiftUI's `TextField(_:text:axis:)`, `VT-A`..`VT-H`).** `.lineLimit(1...8)` makes it
+/// one line tall to eight, `.lineLimit(3...)` at least three; with no limit it grows without bound. It wraps at
+/// its width, answers the height its lines need (a smaller proposal is answered as asked down to the lower
+/// bound's height), keeps its caret in view as it scrolls and takes the wheel while focused and with room.
+/// Return submits (`onSubmit`) and ⌥↩ or ⌃↩ (Alt+Enter off a Mac) inserts a line break. A horizontal field ignores `lineLimit`.
 public struct TextField: Element, StyledElement {
     public var style: Style
     public var decoration: Decoration
@@ -31,6 +38,9 @@ public struct TextField: Element, StyledElement {
 
     /// Shown, dimmed, while `text` is empty.
     public var placeholder: String
+    /// The placeholder's own colour, from a `prompt:` `Text`'s style (`VT-J`); `nil` is ``Color/secondary``, never the
+    /// field's `foregroundColor`.
+    var placeholderColor: Color?
     /// The text shown; the field never changes it itself.
     public var text: String
     /// Called with the edited text after each edit.
@@ -52,6 +62,10 @@ public struct TextField: Element, StyledElement {
     /// The field's own style (ruling `MD-B` item 2); `nil` reads the
     /// environment's, `.automatic` by default.
     var fieldStyle: TextFieldStyle?
+    /// The axis the text grows along (`VT-A`); `.horizontal`, the default, is the one-line field.
+    var axis: Axis = .horizontal
+    /// The field's own `lineLimit`, which wins over the environment's (`VT-C`); `nil` reads the environment.
+    var ownLineLimit: TextLineLimit?
 
     /// The explicit font's family; computed over the request (TE-F item 2).
     public var fontFamily: String? {
@@ -86,6 +100,91 @@ public struct TextField: Element, StyledElement {
     /// ```
     public init(_ placeholder: String, text: Binding<String>) {
         self.init(placeholder, text: text.wrappedValue, onChange: { text.wrappedValue = $0 })
+    }
+
+    /// A controlled field that grows along `axis` (SwiftUI's `TextField(_:text:axis:)`, `VT-A`): `.vertical` wraps its
+    /// text at its width and is as tall as its lines between the `lineLimit` bounds, scrolling inside past the upper one.
+    public init(_ placeholder: String, text: String, axis: Axis,
+                onChange: @escaping @MainActor (String) -> Void) {
+        self.init(placeholder, text: text, onChange: onChange)
+        self.axis = axis
+    }
+
+    /// Bound to `text`, growing along `axis` (SwiftUI's `TextField(_:text:axis:)`, `VT-A`): the vertical field a chat
+    /// composer is, one line tall to the `lineLimit` upper bound and scrolling inside past it.
+    ///
+    /// ```swift
+    /// TextField("Message", text: $draft, axis: .vertical).lineLimit(1...8)
+    /// ```
+    public init(_ placeholder: String, text: Binding<String>, axis: Axis) {
+        self.init(placeholder, text: text)
+        self.axis = axis
+    }
+
+    /// Bound to `text` and to a `TextSelection`, growing along `axis` (`VT-A`); the selection binding is
+    /// `init(_:text:selection:)`'s.
+    @available(macOS 15, *)
+    public init(_ placeholder: String, text: Binding<String>, selection: Binding<TextSelection?>, axis: Axis) {
+        self.init(placeholder, text: text, selection: selection)
+        self.axis = axis
+    }
+
+    /// Bound to `text` and to the selection as Character offsets, growing along `axis` — MetalUI-only, as
+    /// `init(_:text:selectedOffsets:)` is (`VT-A`, `SL-Q`).
+    public init(_ placeholder: String, text: Binding<String>, selectedOffsets: Binding<Range<Int>?>, axis: Axis) {
+        self.init(placeholder, text: text, selectedOffsets: selectedOffsets)
+        self.axis = axis
+    }
+
+    /// SwiftUI's `TextField(_:text:prompt:)` (`VT-J`): `prompt`'s plain string is the placeholder and its style, a flat colour or a
+    /// hierarchical level (a gradient lowers to its first stop), is the placeholder's colour; the field's text stays plain
+    /// (`TM-H`). A `nil` prompt shows `title`, in the default placeholder colour.
+    ///
+    /// ```swift
+    /// TextField("Name", text: $name, prompt: Text("Your name").foregroundStyle(.tertiary))
+    /// ```
+    public init(_ title: String, text: Binding<String>, prompt: Text?) {
+        self.init(title, text: text)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:prompt:axis:)` (`VT-J`): a growing field with a `prompt`.
+    public init(_ title: String, text: Binding<String>, prompt: Text?, axis: Axis) {
+        self.init(title, text: text, axis: axis)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:selection:prompt:)` (`VT-J`): `init(_:text:selection:)` with a `prompt`.
+    @available(macOS 15, *)
+    public init(_ title: String, text: Binding<String>, selection: Binding<TextSelection?>, prompt: Text?) {
+        self.init(title, text: text, selection: selection)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:selection:prompt:axis:)` (`VT-J`): a growing field with a selection binding and a `prompt`.
+    @available(macOS 15, *)
+    public init(_ title: String, text: Binding<String>, selection: Binding<TextSelection?>, prompt: Text?, axis: Axis) {
+        self.init(title, text: text, selection: selection, axis: axis)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:selectedOffsets:prompt:)` (`VT-K`): `init(_:text:selectedOffsets:)` with a `prompt`, routed as
+    /// `selection:prompt:` is (`VT-J`). MetalUI-only like the offsets spelling, and not macOS 15.
+    public init(_ title: String, text: Binding<String>, selectedOffsets: Binding<Range<Int>?>, prompt: Text?) {
+        self.init(title, text: text, selectedOffsets: selectedOffsets)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:selectedOffsets:prompt:axis:)` (`VT-K`): a growing field with an offsets binding and a `prompt`.
+    public init(_ title: String, text: Binding<String>, selectedOffsets: Binding<Range<Int>?>, prompt: Text?, axis: Axis) {
+        self.init(title, text: text, selectedOffsets: selectedOffsets, axis: axis)
+        applyPrompt(prompt)
+    }
+
+    private mutating func applyPrompt(_ prompt: Text?) {
+        guard let prompt else { return }
+        placeholder = prompt.string
+        placeholderColor = prompt.foregroundColor
     }
 
     /// Bound to `text` and to a `TextSelection` (SwiftUI's
@@ -168,6 +267,46 @@ public struct TextField: Element, StyledElement {
         return copy
     }
 
+    /// At most `number` lines (`nil`: no limit) — `lineLimit(_:)` written on the field (`VT-C`), as
+    /// `textFieldStyle(_:)` is: it wins over a container's and returns a `TextField`, so `.onSubmit` still
+    /// chains. Only a vertical field reads it.
+    public func lineLimit(_ number: Int?) -> TextField {
+        var copy = self
+        copy.ownLineLimit = TextLineLimit(min: nil, max: number)
+        return copy
+    }
+
+    /// At most `limit` lines; with `reservesSpace`, always `limit` lines tall (`VT-C`).
+    public func lineLimit(_ limit: Int, reservesSpace: Bool) -> TextField {
+        var copy = self
+        copy.ownLineLimit = TextLineLimit(min: reservesSpace ? limit : nil, max: limit)
+        return copy
+    }
+
+    /// Between `limit`'s bounds: at least the lower bound's height, at most the upper's (`VT-C`).
+    public func lineLimit(_ limit: ClosedRange<Int>) -> TextField {
+        var copy = self
+        copy.ownLineLimit = TextLineLimit(min: limit.lowerBound, max: limit.upperBound)
+        return copy
+    }
+
+    /// At least `limit.lowerBound` lines tall, no upper bound (`VT-C`).
+    public func lineLimit(_ limit: PartialRangeFrom<Int>) -> TextField {
+        var copy = self
+        copy.ownLineLimit = TextLineLimit(min: limit.lowerBound, max: nil)
+        return copy
+    }
+
+    /// At most `limit.upperBound` lines (`VT-C`).
+    public func lineLimit(_ limit: PartialRangeThrough<Int>) -> TextField {
+        var copy = self
+        copy.ownLineLimit = TextLineLimit(min: nil, max: limit.upperBound)
+        return copy
+    }
+
+    /// Whether this field grows along the vertical axis (`VT-A`).
+    var isVertical: Bool { axis == .vertical }
+
     /// The style this field draws in: its own, else the environment's
     /// (`MD-B` item 2).
     func resolvedStyle(in environment: EnvironmentValues) -> TextFieldStyle {
@@ -229,15 +368,28 @@ public struct TextField: Element, StyledElement {
         // orders its children by their answer at ∞ (`CN-B`), serves the field
         // after its hugging siblings; `nil` asks for the ideal, the text's
         // natural width plus the chrome's horizontal insets (`SZ`: text + 12).
+        let vertical = isVertical
+        let limit = ownLineLimit ?? pass.environment.textLineLimit
         let node = pass.lowerLegacyLeaf(style, declared: style, site: .textField) {
             pass.frame.requestNativeLeaf { proposal in
                 MainActor.assumeIsolated {
                     let width = proposal.width
                         ?? Self.naturalWidth(text: text, placeholder: placeholder, font: key, system: system)
                             + 2 * insets.horizontal
+                    let lineHeight = Self.lineHeight(font: key, system: system)
+                    guard vertical else {
+                        return LayoutMeasurement(size: SizeD(width: width, height: lineHeight + 2 * insets.vertical))
+                    }
+                    // A vertical field (`VT-B`): the lines it wraps into at the width it is given (unwrapped at nil or
+                    // infinity), between the `lineLimit` bounds.
+                    let lines = VerticalFieldMetrics.displayLines(text: text, placeholder: placeholder,
+                                                                  width: proposal.width, horizontalInset: insets.horizontal,
+                                                                  font: key, system: system)
                     return LayoutMeasurement(size: SizeD(width: width,
-                                                         height: Self.lineHeight(font: key, system: system)
-                                                            + 2 * insets.vertical))
+                                                         height: VerticalFieldMetrics.height(
+                                                            displayLines: lines, lineHeight: lineHeight,
+                                                            verticalInset: insets.vertical, limit: limit,
+                                                            proposal: proposal.height)))
                 }
             }
         }
@@ -314,6 +466,10 @@ public struct TextField: Element, StyledElement {
                 state = stored
             }
         }
+        if isVertical {
+            prepaintVertical(id, bounds: bounds, state: state, focused: focused, pass: &pass)
+            return
+        }
         // Text, caret and scroll are laid out in the chrome's content rect
         // (`MD-D` item 3); the hitbox, focus and accessibility keep `bounds`.
         let geometry = geometry(bounds: FieldChrome.contentRect(bounds, chromeInsets(in: pass.environment)),
@@ -346,6 +502,44 @@ public struct TextField: Element, StyledElement {
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
     }
 
+    /// A vertical field's prepaint (`VT-D`): the editor's line model in the chrome's content rect, the scroll that
+    /// keeps the caret in view written back compared (an unfocused field reads 0 and writes nothing), and a target
+    /// that carries the lines, so the line keys, a press and the wheel read what is drawn.
+    private func prepaintVertical(_ id: GlobalElementID, bounds: Bounds<Pixels>, state: TextEditState,
+                                  focused: Bool, pass: inout PrepaintPass) {
+        let system = pass.frame.textSystem
+        let content = FieldChrome.contentRect(bounds, chromeInsets(in: pass.environment))
+        let g = MultilineText.geometry(text: text, bounds: content, state: state, system: system,
+                                       font: resolvedFont(in: pass.environment, system: system), focused: focused)
+        if focused && (g.scrollY != state.scrollY || g.revealed) {
+            pass.withState(id, initial: TextEditState(), unchanged: ==) {   // compared (`RW-J`)
+                $0.scrollY = g.scrollY
+                $0.revealsCaret = false
+            }
+        }
+        let offset = pass.frame.activeOffset
+        let originX = g.contentX + Double(offset.x.value)
+        let originY = g.contentY - g.scrollY + Double(offset.y.value)
+        let caretLine = g.displayLines.lineIndex(of: g.caretIndex)
+        let caretRect = Bounds(origin: Point(x: Pixels(Float(originX + g.displayLines.x(of: g.caretIndex))),
+                                             y: Pixels(Float(originY + Double(caretLine) * g.lineHeight))),
+                               size: Size(width: Pixels(1), height: Pixels(Float(g.lineHeight))))
+        let caretArea = pass.frame.effectBoundingBox(of: caretRect, ownEffects: decoration.renderEffects,
+                                                     bounds: bounds)   // under render effects (`GX-I`)
+        var handlers = self.handlers
+        handlers.isFocusable = true
+        var textLines = g.textLines
+        textLines.lineHeight = g.lineHeight
+        textLines.visibleHeight = Double(content.size.height.value)
+        handlers.textInput = TextInputTarget(
+            text: text, caretOffsets: [], originX: originX, caretRect: caretArea,
+            onChange: onChange, onSubmit: submit, selectionSink: selectionWriter, lines: textLines, originY: originY,
+            lineHeight: g.lineHeight, maxScrollY: g.maxScrollY, verticalField: true)
+        // The role stays a text field (`VT-D`); `DA-C` as above.
+        handlers.axNode.fillControl(role: .textField, label: placeholder.isEmpty ? nil : placeholder, value: text)
+        pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
+    }
+
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void,
                                pass: inout PaintPass) {
@@ -370,6 +564,10 @@ public struct TextField: Element, StyledElement {
     /// The text, selection, marked-text underline and caret, in the chrome's
     /// content rect (`MD-D` item 3) — unchanged text-input drawing (`TI-`).
     private func paintText(_ id: GlobalElementID, bounds outer: Bounds<Pixels>, pass: inout PaintPass) {
+        if isVertical {
+            paintVerticalText(id, bounds: outer, pass: &pass)
+            return
+        }
         let system = pass.textSystem
         let font = resolvedFont(in: pass.environment, system: system)
         let state = pass.readState(id, initial: TextEditState())   // a read, not a write (`RW-J`)
@@ -383,6 +581,7 @@ public struct TextField: Element, StyledElement {
         if !pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered {
             textColor.a *= FieldChrome.disabledTextFactor
         }
+        let dim = (!pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered) ? FieldChrome.disabledTextFactor : 1
         let x0 = g.contentX - g.scrollX
         func rect(_ from: Double, _ to: Double, y: Double, height: Double) -> Bounds<Pixels> {
             Bounds(origin: Point(x: Pixels(Float(x0 + from)), y: Pixels(Float(y))),
@@ -401,8 +600,7 @@ public struct TextField: Element, StyledElement {
                                y: g.lineY, height: g.lineHeight), color: selectionColor)
             }
             let showsPlaceholder = g.display.isEmpty
-            var color = textColor
-            if showsPlaceholder { color.a *= 0.45 }
+            let color = showsPlaceholder ? MultilineText.placeholderColor(placeholderColor, in: pass.environment, dim: dim) : textColor
             pass.drawGlyphs(system.placeGlyphs(showsPlaceholder ? placeholder : g.display, font: font,
                                                wrappingAt: nil, origin: (x: x0, y: g.lineY),
                                                scaleFactor: pass.scaleFactor), color: color)
@@ -415,5 +613,32 @@ public struct TextField: Element, StyledElement {
                 pass.fill(rect(caret, caret + 1, y: g.lineY, height: g.lineHeight), color: textColor)
             }
         }
+    }
+
+    /// A vertical field's lines in the chrome's content rect (`VT-D`): the editor's line loop, clipped across to the
+    /// content width and down to the bounds inset by 2 points (the clip AppKit's field editor sits in, probe R), with no
+    /// scroll indicator. Unfocused it draws from the top and keeps its stored scroll.
+    private func paintVerticalText(_ id: GlobalElementID, bounds outer: Bounds<Pixels>, pass: inout PaintPass) {
+        let system = pass.textSystem
+        let font = resolvedFont(in: pass.environment, system: system)
+        let state = pass.readState(id, initial: TextEditState())   // a read, not a write (`RW-J`)
+        let insets = chromeInsets(in: pass.environment)
+        let content = FieldChrome.contentRect(outer, insets)
+        let focused = pass.isFocused(id)
+        let g = MultilineText.geometry(text: text, bounds: content, state: state, system: system, font: font,
+                                       focused: focused)
+        var textColor = pass.resolve(foregroundColor ?? .textPrimary)
+        if !pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered {
+            textColor.a *= FieldChrome.disabledTextFactor
+        }
+        let inset = Float(min(2, insets.vertical))
+        let clip = Bounds(origin: Point(x: content.origin.x, y: Pixels(outer.origin.y.value + inset)),
+                          size: Size(width: content.size.width,
+                                     height: Pixels(max(0, outer.size.height.value - 2 * inset))))
+        let dim = (!pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered) ? FieldChrome.disabledTextFactor : 1
+        MultilineText.paintLines(g, placeholder: placeholder, font: font, system: system, textColor: textColor,
+                                 placeholderColor: MultilineText.placeholderColor(placeholderColor, in: pass.environment, dim: dim),
+                                 wrapWidth: Double(content.size.width.value), clip: clip, cull: clip,
+                                 focused: focused, pass: &pass)
     }
 }

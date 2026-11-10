@@ -201,3 +201,37 @@ struct ValueTestBrand: ThemeColorKey {
     static let defaultValue = Color(light: Color(red: 0.1, green: 0.2, blue: 0.3),
                                     dark: Color(red: 0.7, green: 0.6, blue: 0.5))
 }
+
+/// A hierarchical level over the environment's inherited style, resolved as `HierarchicalShapeStyle.resolve(in:)` does.
+private func levelColor(_ level: HierarchicalShapeStyle.Level, _ e: EnvironmentValues) -> Color.Resolved {
+    Color(level: level, over: e.foregroundStyle).resolve(in: e)
+}
+
+/// `CR-AD` (Alloy gaps G21, G27): `Theme.textSecondary` / `textTertiary` unset leave `Color.secondary` and the hierarchical levels at the
+/// derived alpha ratios (the probe `swiftui-text-levels.swift` readings: 0.588 / 0.648 and 0.306 / 0.292 of the primary); set, they are the
+/// theme's colour, bit for bit, in each scheme. Mutations: `Theme.textLevel` ignoring the override reddens the set arms; `.themeLevel`
+/// resolving to `textPrimary` unscaled reddens the unset arms.
+@Test func theTextLevelOverridesReplaceTheDerivedLevelsAndUnsetKeepsThem() {
+    for (scheme, base, secondary, tertiary) in [(ColorScheme.light, Theme.light, Float(0.588), Float(0.306)), (.dark, .dark, 0.648, 0.292)] {
+        let text = base.textPrimary.toRgba()
+        let e = colourEnvironment(scheme, base)
+        expectResolved(Color.secondary.resolve(in: e), text.r, text.g, text.b, text.a * secondary, "unset secondary \(scheme)")
+        expectResolved(levelColor(.secondary, e), text.r, text.g, text.b, text.a * secondary, "unset .secondary \(scheme)")
+        expectResolved(levelColor(.tertiary, e), text.r, text.g, text.b, text.a * tertiary, "unset .tertiary \(scheme)")
+        var themed = base
+        themed.textSecondary = .rgb(0x6272A4)
+        themed.textTertiary = .rgb(0x586E75, alpha: 0.9)
+        let t = colourEnvironment(scheme, themed)
+        let s = Hsla.rgb(0x6272A4).toRgba(), r = Hsla.rgb(0x586E75, alpha: 0.9).toRgba()
+        expectResolved(Color.secondary.resolve(in: t), s.r, s.g, s.b, s.a, "set secondary \(scheme)")
+        expectResolved(levelColor(.secondary, t), s.r, s.g, s.b, s.a, "set .secondary \(scheme)")
+        expectResolved(levelColor(.tertiary, t), r.r, r.g, r.b, r.a, "set .tertiary \(scheme)")
+        // Over an explicit parent a level stays a factor of the parent, the override unused.
+        var parented = t
+        parented.foregroundStyle = .red
+        let red = Color.red.resolve(in: parented)
+        expectResolved(levelColor(.secondary, parented), red.red, red.green, red.blue, red.opacity * 0.5, "over a parent \(scheme)")
+        // `Color.secondary` stays the themed grey under any parent.
+        expectResolved(Color.secondary.resolve(in: parented), s.r, s.g, s.b, s.a, "Color.secondary under a parent \(scheme)")
+    }
+}

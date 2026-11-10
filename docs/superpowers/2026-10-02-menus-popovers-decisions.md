@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AM`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AN`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1348,3 +1348,25 @@ mechanism.
 
 **Cost if wrong.** Two fields on `PlatformMenuItem`, two on `MenuNode`, four lines in the lowering, one in `AppKitMenus.fill`,
 two in `appendMenuPanel` and one function in `Tooltip.swift`.
+
+## MN-AM — An empty `.help` is no help (Alloy gap G26; amends MN-P, MN-AJ and MN-AL; record 258; class `M`, no divergence)
+
+**Ruling.**
+
+1. `.help("")` behaves as not calling `.help`: `ContextualAttachment.help` is `nil` for an empty string, so there is no drawn
+   tooltip (it used to start the 1.0 s timer and draw an empty panel), `PlatformMenuItem.help` and `PlatformToolbarItem.help` are
+   `nil`, and `.help` writes no accessibility hint (`AXHelp`, AccessKit `description`) for it. A `.help { location in }` provider
+   answering `""` is `nil` (`MN-AJ`). Inner-then-outer `.help("x").help("")` shows no tooltip (the outer replaces the inner's
+   attachment); the inner's hint is not cleared, as the empty string writes nothing.
+2. **AppKit**: `NSMenuItem.toolTip` and `NSToolbarItem.toolTip` are set to `nil`, never `""`, also when a `PlatformMenuItem`
+   or `PlatformToolbarItem` is built directly with an empty `help`. AppKit rebuilds a menu at each open, so an item whose help
+   went from "x" to "" has no stale tip.
+3. SwiftUI has no `help(_: String?)`; an empty `toolTip` shows nothing on macOS. Not measured with a probe here (the tooltip
+   window is not observable in a locked session, divergence 113); the ruling follows AppKit's documented behaviour.
+   Before this ruling: the element tooltip (window-drawn, every backend) was an empty bubble; AppKit menu and toolbar
+   `toolTip = ""` showed nothing already; the hint was `""`.
+
+**Mutation** (`EmptyHelpTests`, `HelpProviderTests`, `AppKitMenuTests`): removing the `isEmpty` normalisation in
+`ContextualAttachment.init` reddens `anEmptyHelpIsNilOnTheMenuItemAndShowsNoTooltip`; `help` writing the hint unconditionally
+reddens it too (its `hint == nil` arm); removing the provider's `isEmpty` line reddens `aProviderAnsweringEmptyShowsNoTooltip`;
+removing the AppKit check reddens `anEmptyHelpLeavesNoAppKitToolTip`.

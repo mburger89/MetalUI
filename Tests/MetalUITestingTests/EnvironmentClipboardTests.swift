@@ -181,7 +181,7 @@ private let copyLabel = "Copy code"
     meter.reset()
     try window.click(button)
     markdownSettle(window, frames: 3)
-    // Under `METALUI_VERIFY_RETAINED=1` every frame re-evaluates on purpose, so only the replaying run can count shaping.
-    if !rsVerifying { #expect(meter.measuredStrings.filter { $0.contains("let a") }.isEmpty, "the press re-measured the code: \(meter.measuredStrings)") }
+    // Under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1` every frame re-evaluates on purpose, so only the plain run can count shaping (`BM-M`).
+    if !rsVerifying && !layoutMemoVerifying { #expect(meter.measuredStrings.filter { $0.contains("let a") }.isEmpty, "the press re-measured the code: \(meter.measuredStrings)") }
     #expect(window.platformWindow.clipboard == "let a = 1\nlet b = 2")
 }
