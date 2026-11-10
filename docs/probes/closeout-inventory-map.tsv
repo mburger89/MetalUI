@@ -587,6 +587,7 @@ M	MetalUI	TextAttributes.swift	.*	.*	.*	attributed-text
 M	MetalUI	Text.swift	Text	\+	.*	text-concatenation
 M	MetalUI	Text.swift	.*	.*	.*	text
 M	MetalUI	TextSelection.swift	.*	.*	.*	text-selection
+M	MetalUI	TextField.swift	TextField	init	.*selectedOffsets.*prompt: Text\?.*	text-selection-offsets
 A	MetalUI	TextField.swift	TextField	init	.*prompt: Text\?.*	text-field-prompt
 M	MetalUI	TextField.swift	TextField	init	.*axis: Axis.*	vertical-text-field
 M	MetalUI	TextField.swift	TextField	lineLimit	.*	vertical-text-field

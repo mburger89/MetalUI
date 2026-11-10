@@ -168,6 +168,19 @@ public struct TextField: Element, StyledElement {
         applyPrompt(prompt)
     }
 
+    /// `TextField(_:text:selectedOffsets:prompt:)` (`VT-K`): `init(_:text:selectedOffsets:)` with a `prompt`, routed as
+    /// `selection:prompt:` is (`VT-J`). MetalUI-only like the offsets spelling, and not macOS 15.
+    public init(_ title: String, text: Binding<String>, selectedOffsets: Binding<Range<Int>?>, prompt: Text?) {
+        self.init(title, text: text, selectedOffsets: selectedOffsets)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:selectedOffsets:prompt:axis:)` (`VT-K`): a growing field with an offsets binding and a `prompt`.
+    public init(_ title: String, text: Binding<String>, selectedOffsets: Binding<Range<Int>?>, prompt: Text?, axis: Axis) {
+        self.init(title, text: text, selectedOffsets: selectedOffsets, axis: axis)
+        applyPrompt(prompt)
+    }
+
     private mutating func applyPrompt(_ prompt: Text?) {
         guard let prompt else { return }
         placeholder = prompt.string

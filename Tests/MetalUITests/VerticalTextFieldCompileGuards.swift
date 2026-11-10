@@ -43,3 +43,32 @@ func lineLimitOnAVerticalFieldKeepsItAFieldAndChainsWithOnSubmit() throws {
                  "the two arms must disagree, or the guard measures nothing:\n\(positive.output)\n\(control.output)")
     #expect(positive.succeeded, "the vertical field's spellings compile:\n\(positive.output)")
 }
+
+/// **22** (`VT-K`, Alloy gap G29). `selectedOffsets:` and `prompt:` combine, with and without `axis:`, from an external module.
+/// The separating arm swaps the order (`prompt:` before `selectedOffsets:`), which does not compile.
+///
+/// Mutation M22: the two `selectedOffsets:prompt:` initialisers deleted makes the positive arm fail.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func selectedOffsetsAndPromptCombineFromAnExternalModule() throws {
+    let positive = try typecheckFile("""
+        @MainActor public func fields() {
+            let t = Binding<String>.constant("")
+            let o = Binding<Range<Int>?>.constant(nil)
+            let _: TextField = TextField("x", text: t, selectedOffsets: o, prompt: Text("p").foregroundColor(.red), axis: .vertical)
+            let _: TextField = TextField("x", text: t, selectedOffsets: o, prompt: Text("p"))
+            let _: TextField = TextField("x", text: t, selectedOffsets: o, prompt: nil)
+        }
+        """, importing: "MetalUI")
+    show("22 positive", positive)
+    let control = try typecheckFile("""
+        @MainActor public func swapped() {
+            let t = Binding<String>.constant("")
+            let o = Binding<Range<Int>?>.constant(nil)
+            let _: TextField = TextField("x", text: t, prompt: Text("p"), selectedOffsets: o)
+        }
+        """, importing: "MetalUI")
+    show("22 control", control)
+    try #require(positive.succeeded != control.succeeded,
+                 "the two arms must disagree, or the guard measures nothing:\n\(positive.output)\n\(control.output)")
+    #expect(positive.succeeded, "the offsets-and-prompt spellings compile:\n\(positive.output)")
+}
