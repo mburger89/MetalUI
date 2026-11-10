@@ -17,7 +17,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-AD`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-AE`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -928,3 +928,17 @@ runs S2/S3.
 **Consequence: the second build snaps.** A value animated on the scheme, or a transition on a scheme-dependent conditional, does not animate across a later preference flip; it was already so on the first frame (`CR-Z`). This matches SwiftUI, which does not animate a `preferredColorScheme` flip without `withAnimation`. A flip that carries a transaction is not animated either (not measured).
 
 **Pins.** `aLaterPreferenceChangeAppliesInTheSameFrame` (`Tests/MetalUITests/ColorSchemeTests.swift`; replaces `aLaterPreferenceChangeAppliesOnTheNextFrame`) and `aSchemeSwitchReachesASegmentedPickersFillInTheSameFrame(retain:)` (`Tests/MetalUITestingTests/EquatablePickerReplayTests.swift`, retention on and off). Mutation: restoring `framesDrawn == 0` on the condition reddens both and the picture differentials in that file.
+
+## CR-AD — `Theme.textSecondary` / `textTertiary` override the derived text levels; the derived ratios are SwiftUI's (Alloy gaps G21 and G27; amends divergence 116; record 259)
+
+**Rule.**
+
+1. **API.** `Theme` gains `public var textSecondary: Hsla?` and `textTertiary: Hsla?` (default `nil`, trailing defaulted `init` parameters, so every existing theme compiles). They are plain stored properties: part of `==` and the hash, so a change repaints by the existing `Window.theme` guard, and a runtime `window.lightTheme`/`darkTheme` assignment (or a `lightTheme[...]`-style edit of a copy) updates them like any key.
+2. **One resolution function.** `Theme.textLevel(_:scheme:)` is the single source: the override when set (used directly, its own alpha, no factor), else `textPrimary` with its alpha times the level's label factor (`HierarchicalShapeStyle.Level.factor(overParent: false)`). Both readers call it: the hierarchical level over no parent (`.hierarchical(_, over: nil)` with no inherited style) and `Color.secondary`, now a `Provider.themeLevel(.secondary)` colour (ignores the inherited style, as before). A placeholder that resolves through `Color.secondary` therefore follows the overrides with no change of its own. There is no `Color.tertiary` (SwiftUI has none); `.tertiary` text is the hierarchical level.
+3. **A level over an explicit parent is unchanged**: still the parent times 0.5 / 0.25 (`HY-A`); the override is the colour over *nothing*.
+4. **The derived defaults are SwiftUI's, and are not changed** (probe `docs/probes/swiftui-text-levels.swift`, macOS 27.2): `secondaryLabelColor` is alpha 0.4980 light / 0.5490 dark, `tertiaryLabelColor` 0.2588 / 0.2471, `quaternaryLabelColor` 0.0980 / 0.0980, over a primary `labelColor` of 0.8471; the ratios 0.5880 / 0.6481, 0.3056 / 0.2917, 0.1157 are `Level.factor`'s constants to the digit. MetalUI applies the ratio to an *opaque* `textPrimary`, so its absolute alpha (0.588) is higher than SwiftUI's (0.498): the same weight relative to the primary and more contrast, not less. Alloy's 0.588 measurement is that ratio; a palette that needs more contrast sets `textSecondary`.
+5. **A theme switch repaints, it does not rebuild.** Colours resolve at paint against the frame's theme; an `.equatable()` panel's content closure runs 0 times across a `lightTheme` assignment (retention on and off), the next frame replays, and the retained decision misses on `environment.theme` (`TH-A`, `retained.md`) so the replayed paint is the new colours.
+
+**Pins.** `theTextLevelOverridesReplaceTheDerivedLevelsAndUnsetKeepsThem` (`ColorValueTests`), `TextLevelThemeTests` (unset derived, set override in light and dark, runtime assignment inside an `.equatable()` panel with a build count of 0, scheme flip). Mutations: `textLevel` ignoring `textSecondary` reddens all but the unset arm; `Color.secondary` and the hierarchical level reading `textPrimary` bare reddens the unset arm and the rest; `Window.lightTheme`'s `theme = lightTheme` removed reddens the runtime-assignment test and `aSetOverrideIsUsedDirectly`.
+
+**Cost if wrong.** Item 4: an app that wanted SwiftUI's absolute 0.498 over a non-black text colour sets `textSecondary` itself.
