@@ -67,6 +67,6 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-- **Counts (2026-11-09, `fix/placeholder-tabstrip-contrast` on master 2f0b43c5 + record 257): root 5793 tests in 26 suites passed (`--build-system native`, unfiltered, `--no-parallel`; 0 failures), 0 goldens; `FR-J no-argument frame: succeeded=true`; guards not re-counted; the portable image not re-run; divergences unchanged (220 live, next label 241).**
+- **Counts (2026-11-09, `feat/textfield-offsets-prompt` on master 1b281127 + record 261): root 5805 tests in 26 suites passed (`--build-system native`, unfiltered, `--no-parallel`; 0 failures), 0 goldens; `FR-J no-argument frame: succeeded=true`; guards 21 and 22 ran (`VERTICAL FIELD GUARD 22 positive: succeeded=true`); other guards not re-counted; the portable image not re-run; divergences unchanged (220 live, next label 241).**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.
