@@ -11,7 +11,7 @@
 #   - "[no cache]" in the pull request title, or in a pushed head commit message.
 # A bypassed run builds cold and still saves, so it replaces the suspect cache.
 name: Swift build cache
-description: Cache SwiftPM build directories, with a bypass.
+description: Cache SwiftPM build directories, with a bypass and stable source mtimes.
 inputs:
   name:
     description: Job name, part of the cache key.
