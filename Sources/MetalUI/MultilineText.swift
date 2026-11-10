@@ -62,11 +62,21 @@ enum MultilineText {
                         revealed: reveals)
     }
 
+    /// The placeholder's colour (`VT-I`): `own` (a `prompt:` `Text`'s style) else ``Color/secondary``, SwiftUI's
+    /// `placeholderTextColor`; resolved with no inherited style, so the field's own `foregroundStyle` never reaches it.
+    /// `dim` is the disabled field's factor.
+    static func placeholderColor(_ own: Color?, in environment: EnvironmentValues, dim: Float = 1) -> Hsla {
+        var color = (own ?? Color.secondary).resolved(theme: environment.theme, scheme: environment.colorScheme,
+                                                       tint: environment.tint, inherited: nil)
+        color.a *= dim
+        return color
+    }
+
     /// The placeholder, the selection, the glyphs of each display line, the marked-text underline and the caret, clipped
     /// to `clip`; a line wholly outside `cull` is skipped. `wrapWidth` wraps the placeholder.
     @MainActor
     static func paintLines(_ g: Geometry, placeholder: String, font: FontKey, system: any TextSystem,
-                           textColor: Hsla, wrapWidth: Double, clip: Bounds<Pixels>, cull: Bounds<Pixels>,
+                           textColor: Hsla, placeholderColor: Hsla, wrapWidth: Double, clip: Bounds<Pixels>, cull: Bounds<Pixels>,
                            focused: Bool, pass: inout PaintPass) {
         let characters = Array(g.display)
         let top = g.contentY - g.scrollY, bottom = Double(cull.origin.y.value + cull.size.height.value)
@@ -76,8 +86,7 @@ enum MultilineText {
         }
         pass.clipped(to: clip, offsetBy: Point(x: Pixels(0), y: Pixels(0))) {
             if g.display.isEmpty {
-                var color = textColor
-                color.a *= 0.45
+                let color = placeholderColor
                 pass.drawGlyphs(system.placeGlyphs(placeholder, font: font,
                                                    wrappingAt: max(wrapWidth, smallestWrapWidth),
                                                    origin: (x: g.contentX, y: top), scaleFactor: pass.scaleFactor),
