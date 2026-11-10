@@ -115,10 +115,6 @@ jobs:
         working-directory: Experiments/SDLGPU
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/swift-cache
-        with:
-          name: sdl-record
-          paths: Experiments/SDLGPU/.build
       - name: Install SDL3
         run: brew install sdl3
       - name: Compiled shaders match replay.hlsl
