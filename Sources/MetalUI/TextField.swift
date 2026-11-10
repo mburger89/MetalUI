@@ -38,6 +38,9 @@ public struct TextField: Element, StyledElement {
 
     /// Shown, dimmed, while `text` is empty.
     public var placeholder: String
+    /// The placeholder's own colour, from a `prompt:` `Text`'s style (`VT-J`); `nil` is ``Color/secondary``, never the
+    /// field's `foregroundColor`.
+    var placeholderColor: Color?
     /// The text shown; the field never changes it itself.
     public var text: String
     /// Called with the edited text after each edit.
@@ -131,6 +134,44 @@ public struct TextField: Element, StyledElement {
     public init(_ placeholder: String, text: Binding<String>, selectedOffsets: Binding<Range<Int>?>, axis: Axis) {
         self.init(placeholder, text: text, selectedOffsets: selectedOffsets)
         self.axis = axis
+    }
+
+    /// SwiftUI's `TextField(_:text:prompt:)` (`VT-J`): `prompt`'s plain string is the placeholder and its style, a flat colour or a
+    /// hierarchical level (a gradient lowers to its first stop), is the placeholder's colour; the field's text stays plain
+    /// (`TM-H`). A `nil` prompt shows `title`, in the default placeholder colour.
+    ///
+    /// ```swift
+    /// TextField("Name", text: $name, prompt: Text("Your name").foregroundStyle(.tertiary))
+    /// ```
+    public init(_ title: String, text: Binding<String>, prompt: Text?) {
+        self.init(title, text: text)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:prompt:axis:)` (`VT-J`): a growing field with a `prompt`.
+    public init(_ title: String, text: Binding<String>, prompt: Text?, axis: Axis) {
+        self.init(title, text: text, axis: axis)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:selection:prompt:)` (`VT-J`): `init(_:text:selection:)` with a `prompt`.
+    @available(macOS 15, *)
+    public init(_ title: String, text: Binding<String>, selection: Binding<TextSelection?>, prompt: Text?) {
+        self.init(title, text: text, selection: selection)
+        applyPrompt(prompt)
+    }
+
+    /// `TextField(_:text:selection:prompt:axis:)` (`VT-J`): a growing field with a selection binding and a `prompt`.
+    @available(macOS 15, *)
+    public init(_ title: String, text: Binding<String>, selection: Binding<TextSelection?>, prompt: Text?, axis: Axis) {
+        self.init(title, text: text, selection: selection, axis: axis)
+        applyPrompt(prompt)
+    }
+
+    private mutating func applyPrompt(_ prompt: Text?) {
+        guard let prompt else { return }
+        placeholder = prompt.string
+        placeholderColor = prompt.foregroundColor
     }
 
     /// Bound to `text` and to a `TextSelection` (SwiftUI's
@@ -527,6 +568,7 @@ public struct TextField: Element, StyledElement {
         if !pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered {
             textColor.a *= FieldChrome.disabledTextFactor
         }
+        let dim = (!pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered) ? FieldChrome.disabledTextFactor : 1
         let x0 = g.contentX - g.scrollX
         func rect(_ from: Double, _ to: Double, y: Double, height: Double) -> Bounds<Pixels> {
             Bounds(origin: Point(x: Pixels(Float(x0 + from)), y: Pixels(Float(y))),
@@ -545,8 +587,7 @@ public struct TextField: Element, StyledElement {
                                y: g.lineY, height: g.lineHeight), color: selectionColor)
             }
             let showsPlaceholder = g.display.isEmpty
-            var color = textColor
-            if showsPlaceholder { color.a *= 0.45 }
+            let color = showsPlaceholder ? MultilineText.placeholderColor(placeholderColor, in: pass.environment, dim: dim) : textColor
             pass.drawGlyphs(system.placeGlyphs(showsPlaceholder ? placeholder : g.display, font: font,
                                                wrappingAt: nil, origin: (x: x0, y: g.lineY),
                                                scaleFactor: pass.scaleFactor), color: color)
@@ -581,7 +622,9 @@ public struct TextField: Element, StyledElement {
         let clip = Bounds(origin: Point(x: content.origin.x, y: Pixels(outer.origin.y.value + inset)),
                           size: Size(width: content.size.width,
                                      height: Pixels(max(0, outer.size.height.value - 2 * inset))))
+        let dim = (!pass.environment.isEnabled && resolvedStyle(in: pass.environment).isBordered) ? FieldChrome.disabledTextFactor : 1
         MultilineText.paintLines(g, placeholder: placeholder, font: font, system: system, textColor: textColor,
+                                 placeholderColor: MultilineText.placeholderColor(placeholderColor, in: pass.environment, dim: dim),
                                  wrapWidth: Double(content.size.width.value), clip: clip, cull: clip,
                                  focused: focused, pass: &pass)
     }

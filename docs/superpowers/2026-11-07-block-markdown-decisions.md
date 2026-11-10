@@ -108,3 +108,9 @@ in `copied` re-enters `copied` with a hold of 0 (`PhaseStepping.enter`: equal ph
 end at once; `pressed` (held 0, drawn like `copied`) is what a second press restarts through.
 **Cost if wrong.** An app wanting no feedback has no flag (add `showsCodeCopyFeedback` if asked); a failed clipboard write
 shows no feedback.
+
+## BM-M: the work-counting markdown tests do not run under `METALUI_VERIFY_LAYOUT_MEMO=1`
+
+**Question.** Under `METALUI_VERIFY_LAYOUT_MEMO=1` three tests failed: `aTokenCostsTheLastBlockWhateverTheTranscriptHolds`, `appendingToAnOpenFenceShapesOneChunk` (`BM-E`, `BM-H`) and `theCopyButtonIsAnOverlayAndPressingItDoesNotReshapeTheFence` (`BM-K`).
+**Ruling.** They pin the bytes the text system shaped, and verify mode recomputes every layout-memo hit by design, so the measure is the recompute's, not the memo's. They failed identically on the commit before `BM-K`/`BM-L` landed (checked at `36881e55^`): not a regression, never run in that mode. Each is now `.enabled(if: !rsVerifying && !layoutMemoVerifying, …)` with the reason stated, as `AnimatableComponentTests` and `StyledTextSeamTests` already do. `METALUI_VERIFY_RETAINED=1` already skipped them (`rsVerifying`); they run in the plain suite, where the memo is the thing measured. The verify mode itself is not weakened: the same documents still go through the recompute, and the new ungated `aTranscriptThatGrowsByBlocksDrawsWhatAFreshWindowDraws` (`RK-AF`) reads what is drawn in all three modes.
+**Cost if wrong.** A regression in the work a token costs is only seen by the plain run.

@@ -65,4 +65,12 @@ Off a Mac (class `M`, MetalUI's own): Alt+Enter inserts a line break, Ctrl+Enter
 
 ## VT-H: carried
 
-The placeholder colour (`NSColor.placeholderTextColor` is `secondaryLabelColor`: black at 0.498 / white at 0.549, and a `prompt:` `Text`'s colour is honoured while the field's `foregroundStyle` is not, probe P), `prompt:`, the `TabStrip` ink, kernel finding K, the horizontal field's ⌥Return / ⌘Return, a select-all after submit and the autoscroll of a selection drag past a vertical field's edge are for later PRs. Human checks `VT1`-`VT6`.
+(Settled in record 257: `VT-I`, `VT-J`.) The placeholder colour (`NSColor.placeholderTextColor` is `secondaryLabelColor`: black at 0.498 / white at 0.549, and a `prompt:` `Text`'s colour is honoured while the field's `foregroundStyle` is not, probe P), `prompt:`, the `TabStrip` ink, kernel finding K, the horizontal field's ⌥Return / ⌘Return, a select-all after submit and the autoscroll of a selection drag past a vertical field's edge are for later PRs. Human checks `VT1`-`VT6`.
+
+## VT-I: the placeholder colour (Alloy contrast gap, record 257)
+
+The placeholder of a `TextField` and a `TextEditor` is `Color.secondary` (divergence 116's rule: `textPrimary` at 0.588 light, 0.648 dark), which is SwiftUI's `NSColor.placeholderTextColor` (`secondaryLabelColor`, black 0.498 / white 0.549, probe P). It is resolved with **no inherited style** (`MultilineText.placeholderColor`), so the field's own `foregroundColor` / `foregroundStyle` never reaches it, as in SwiftUI. Contrast against the theme's `surface`: 4.479 light (was 2.925 at `foregroundColor ?? textPrimary` x 0.45), 6.741 dark (was 3.949). A disabled bordered field still dims it by `FieldChrome.disabledTextFactor`. `TextEditor` (MetalUI-only placeholder) takes the same default. No divergence: SwiftUI's row for the colour is 116 itself.
+
+## VT-J: `prompt:`
+
+`TextField(_:text:prompt:)`, `(_:text:prompt:axis:)` and, macOS 15, `(_:text:selection:prompt:)` and `(_:text:selection:prompt:axis:)`, each `prompt: Text?` after SwiftUI's. A non-nil prompt's plain `string` is the placeholder (the title then only labels; it is not drawn) and its `foregroundColor` is the placeholder's colour: a flat colour as is, a hierarchical level (`.secondary`, `.tertiary`) as `textPrimary` at the level's alpha (the level over nothing, not over the field's style), a gradient its first stop, a material its flat tint (`representativeColor`; the same lowering `TM-H` keeps for field text). A prompt with no style is the default. The label-closure spellings (`init(text:prompt:label:)`) are not added; the field's text stays plain (`TM-H`). Not added: a divergence row, since 975 already lists `TextField`/`TextEditor` text as lowered.
