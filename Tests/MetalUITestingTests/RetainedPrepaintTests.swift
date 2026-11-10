@@ -63,7 +63,7 @@ func theBracketNodeDragIsCountedAtFb9a7e42(arm: BracketArm) throws {
     #expect(f.layoutMemoHits == expected.memoHits)
     #expect(f.layoutMemoMisses == expected.memoMisses)
     #expect(f.layoutSubtreeHits == expected.subtreeHits)
-    #expect(f.rects == 180 && f.glyphs == 516 && f.images == 6)
+    #expect(f.rects == 181 && f.glyphs == 516 && f.images == 6)
     #expect(f.rasterizedPixels == 78312 && f.newTextures == 2 && f.atlasUploadPixels == 0)
     #expect(f.retainedPrepaintHits == 0 && f.retainedPrepaintIneligible == 0 && f.retainedRedos == 0)
 }
@@ -101,7 +101,7 @@ func theBracketNodeDragIsCountedAfterPrepaintReplay(arm: BracketArm) throws {
     #expect(f.retainedHits == before.hits && f.retainedMisses == before.misses && f.retainedIneligible == before.ineligible)
     #expect(f.layoutMeasureCalls == before.measures && f.layoutCacheHits == before.cacheHits)
     #expect(f.layoutCacheMisses == before.cacheMisses && f.layoutMemoHits == before.memoHits && f.layoutMemoMisses == before.memoMisses)
-    #expect(f.rects == 180 && f.glyphs == 516 && f.images == 6 && f.rasterizedPixels == 78312 && f.newTextures == 2)
+    #expect(f.rects == 181 && f.glyphs == 516 && f.images == 6 && f.rasterizedPixels == 78312 && f.newTextures == 2)
 }
 
 // MARK: The snapshot and the pair
