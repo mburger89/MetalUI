@@ -323,3 +323,111 @@ import Testing
     window.typeKey("p")
     #expect(m.log == ["shortcut"])
 }
+
+// MARK: - HT-AC: choosing by accessibility identifier (Alloy gap G26)
+
+/// A context menu with identified items at depth 0 and in a submenu, a
+/// disabled identified item, a disabled submenu holding one, and a plain item.
+@MainActor private func identifiedTree(_ m: MenuModel) -> some Element {
+    Button("Target") {}
+        .contextMenu {
+            Button("Fork") { m.log.append("fork") }.accessibilityIdentifier("fork-1")
+            Menu("More") {
+                Button("Deep") { m.log.append("deep") }.accessibilityIdentifier("deep-1")
+            }
+            Button("Gone") { m.log.append("gone") }.accessibilityIdentifier("gone-1").disabled(true)
+            Menu("Locked") {
+                Button("Inner") { m.log.append("inner") }.accessibilityIdentifier("inner-1")
+            }.disabled(true)
+            Button("Plain") { m.log.append("plain") }
+        }
+}
+
+/// HT-AC 1 — an item is chosen by identifier and runs, one inside a submenu
+/// too (depth-first). Mutation: `MenuPath.resolve(accessibilityIdentifier:)`
+/// without the `.submenu` recursion reddens the `deep-1` expectation; the
+/// `.menuAction` sent with `item: nil` reddens both.
+@Test @MainActor func anItemIsChosenByIdentifierIncludingInASubmenu() throws {
+    let m = MenuModel()
+    let window = try harnessWindow { identifiedTree(m) }
+    try window.rightClick(window.element(label: "Target"))
+    try window.chooseMenuItem(accessibilityIdentifier: "fork-1")
+    #expect(m.log == ["fork"])
+    #expect(window.presentedMenu == nil)
+    try window.rightClick(window.element(label: "Target"))
+    try window.chooseMenuItem(accessibilityIdentifier: "deep-1")
+    #expect(m.log == ["fork", "deep"])
+}
+
+/// HT-AC 2 — no match throws `.noMenuItem`, a disabled item (or one in a
+/// disabled submenu) throws `.disabledMenuItem`, a submenu is no command, and
+/// a refused choice runs and answers nothing; with no menu, `.nothingPresented`.
+/// Mutation: drop the `isEnabled` guard in `command(accessibilityIdentifier:)`
+/// (the two disabled expectations redden). Dropping the
+/// ancestor term of `resolve` reddens nothing: `.disabled` on a `Menu` already disables its items (equivalent mutant).
+@Test @MainActor func choosingByIdentifierRefusesTheWayChoosingByTitleDoes() throws {
+    let m = MenuModel()
+    let window = try harnessWindow { identifiedTree(m) }
+    #expect(throws: TestHarnessError.nothingPresented("menu")) {
+        try window.chooseMenuItem(accessibilityIdentifier: "fork-1")
+    }
+    try window.rightClick(window.element(label: "Target"))
+    #expect(throws: TestHarnessError.noMenuItem(["accessibilityIdentifier \"nope\""])) {
+        try window.chooseMenuItem(accessibilityIdentifier: "nope")
+    }
+    #expect(throws: TestHarnessError.disabledMenuItem(["accessibilityIdentifier \"gone-1\""])) {
+        try window.chooseMenuItem(accessibilityIdentifier: "gone-1")
+    }
+    #expect(throws: TestHarnessError.disabledMenuItem(["accessibilityIdentifier \"inner-1\""])) {
+        try window.chooseMenuItem(accessibilityIdentifier: "inner-1")
+    }
+    #expect(m.log.isEmpty)
+    #expect(window.presentedMenu != nil, "a refused choice answers nothing")
+}
+
+/// HT-AC 3 — `MenuEvaluation` finds and runs an item by identifier, in a
+/// submenu too. Mutation: `perform(accessibilityIdentifier:)` resolving the
+/// title instead (nothing is found).
+@Test @MainActor func menuEvaluationFindsAndRunsAnItemByIdentifier() throws {
+    let m = MenuModel()
+    let menu = MenuEvaluation {
+        Button("Save") { m.log.append("save") }.accessibilityIdentifier("save-1")
+        Menu("More") { Button("Deep") { m.log.append("deep") }.accessibilityIdentifier("deep-1") }
+        Button("Gone") { m.log.append("gone") }.accessibilityIdentifier("gone-1").disabled(true)
+    }
+    #expect(try menu.item(accessibilityIdentifier: "deep-1").title == "Deep")
+    try menu.perform(accessibilityIdentifier: "save-1")
+    try menu.perform(accessibilityIdentifier: "deep-1")
+    #expect(m.log == ["save", "deep"])
+    #expect(throws: TestHarnessError.disabledMenuItem(["accessibilityIdentifier \"gone-1\""])) {
+        try menu.perform(accessibilityIdentifier: "gone-1")
+    }
+    #expect(throws: TestHarnessError.noMenuItem(["accessibilityIdentifier \"x\""])) {
+        try menu.perform(accessibilityIdentifier: "x")
+    }
+}
+
+/// HT-AC 4 — a menu-bar command is performed by identifier from a fresh
+/// evaluation (any menu, any depth) and every window draws; no match throws.
+/// Mutation: `performMenuBarItem(accessibilityIdentifier:)` not drawing (the
+/// frame count), or searching `menus.first` only (the Edit expectation).
+@Test @MainActor func aMenuBarCommandIsPerformedByIdentifier() throws {
+    let m = MenuModel()
+    let app = try TestApp(textSystem: harnessTextSystem)
+    app.app.commands {
+        CommandMenu("Theme") { Toggle("Dark", isOn: m.darkBinding).accessibilityIdentifier("dark-1") }
+        CommandMenu("Edit") {
+            Menu("Deeper") { Button("Go") { m.log.append("go") }.accessibilityIdentifier("go-1") }
+        }
+    }
+    let window = try app.openWindow(size: sz(400, 300)) { Text(m.dark ? "dark" : "light") }
+    let drawn = window.framesDrawn
+    try app.performMenuBarItem(accessibilityIdentifier: "dark-1")
+    #expect(m.dark)
+    #expect(window.framesDrawn == drawn + 1)
+    try app.performMenuBarItem(accessibilityIdentifier: "go-1")
+    #expect(m.log == ["go"])
+    #expect(throws: TestHarnessError.noMenuItem(["accessibilityIdentifier \"none\""])) {
+        try app.performMenuBarItem(accessibilityIdentifier: "none")
+    }
+}

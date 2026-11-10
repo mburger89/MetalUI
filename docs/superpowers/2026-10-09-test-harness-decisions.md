@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-AC`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-AD`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -896,3 +896,28 @@ from the assumption, the harness is a step ahead of or behind it until measured.
 
 **Cost if wrong.** A caller wanting a scale other than the window's opens the window at that scale.
 The snapshot reads the last presented frame, so a test ticks first.
+
+## HT-AC — Menu items are chosen by accessibility identifier too (Alloy gap G26; record 258; class `M`, no divergence)
+
+**Ruling.**
+
+1. `TestWindow.chooseMenuItem(accessibilityIdentifier:)`, `TestApp.performMenuBarItem(accessibilityIdentifier:)` and
+   `MenuEvaluation.item(accessibilityIdentifier:)` / `perform(accessibilityIdentifier:)` are the id spellings of the title
+   ones (`HT-H`), over the identifiers `MN-AL` carries. The search is depth-first through submenus (the menu bar: through every
+   menu in order) and takes the first match, as the title walk takes the first title.
+2. The refusals are the title variant's: no menu presented throws `nothingPresented("menu")`; no such item, or a match that is
+   a submenu, a separator or (menu bar) a standard item throws `noMenuItem`; a match that is disabled, or inside a disabled
+   submenu, throws `disabledMenuItem`; a refused choice answers nothing and runs nothing. No new `TestHarnessError` case
+   (the enum is exhaustive for callers): the error's path is `["accessibilityIdentifier \"<id>\""]`.
+3. `TestWindow.chooseMenuItem(_:)` keeps its variadic title spelling; the label tells the two overloads apart.
+   `PlatformMenu.item(accessibilityIdentifier:)` (`MN-AL`) stays the read-only lookup that ignores enablement.
+
+**Reasoning.** An app that sets `.accessibilityIdentifier("fork-<uuid>")` on a menu item (G24) has no title to assert on when
+the title is user data; the id is the stable name. Enablement and depth follow the title path so the two cannot disagree.
+
+**Mutation** (`HarnessMenuTests`): dropping the `.submenu` recursion in `MenuPath.resolve(accessibilityIdentifier:)` reddens
+`anItemIsChosenByIdentifierIncludingInASubmenu`, `choosingByIdentifierRefusesTheWayChoosingByTitleDoes`,
+`menuEvaluationFindsAndRunsAnItemByIdentifier`, `aMenuBarCommandIsPerformedByIdentifier`; dropping the `isEnabled` guard reddens the
+second and third; not drawing after a menu-bar id command reddens `aMenuBarCommandIsPerformedByIdentifier`.
+
+**Cost if wrong.** Two items sharing an identifier choose the first, silently.

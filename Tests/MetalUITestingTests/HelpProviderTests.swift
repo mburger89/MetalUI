@@ -192,3 +192,14 @@ private let inA = pt(110, 150), inA2 = pt(130, 120), inB = pt(180, 150), inNothi
     window.advance(by: 1.1)
     #expect(shown(window) == "B")
 }
+
+/// MN-AM 2 — a provider answering `""` shows no tooltip, as `nil` does.
+/// Mutation: drop the `isEmpty` line after the provider call (the bubble shows "").
+@Test @MainActor func aProviderAnsweringEmptyShowsNoTooltip() throws {
+    let window = try harnessWindow {
+        Box().frame(width: Pixels(200), height: Pixels(100)).background(.accent).help { _ in "" }
+    }
+    window.hover(at: inA)
+    window.advance(by: 2)
+    #expect(shown(window) == nil)
+}
