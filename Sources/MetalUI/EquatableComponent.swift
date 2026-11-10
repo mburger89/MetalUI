@@ -174,16 +174,27 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
             return
         }
         let frame = pass.frame
-        if phase.abandoned { return }   // the frame is being redone (`RK-C`)
+        if phase.abandoned {   // the frame is being redone (`RK-C`)
+            frame.retainLog?.noteRedoHole()
+            return
+        }
         switch frame.retainedPaintDecision(phase) {
         case .hit(let record):
             frame.replayPaint(record, translated: phase.translatedPaint, scene: phase.translatedScene)
         case .plain:
-            if phase.replayed != nil || phase.grafted { frame.requestRedo(phase.entry); return }
+            if phase.replayed != nil || phase.grafted {
+                frame.requestRedo(phase.entry)
+                frame.retainLog?.noteRedoHole()
+                return
+            }
             component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
         case .record(let recorder, let key, let old):
             // A replayed prepaint left no element state to paint from: the frame is redone (`RK-C`).
-            if phase.replayed != nil || phase.grafted { frame.requestRedo(phase.entry); return }
+            if phase.replayed != nil || phase.grafted {
+                frame.requestRedo(phase.entry)
+                frame.retainLog?.noteRedoHole()
+                return
+            }
             frame.openRecorderWindow(recorder)
             phase.entry.paintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)

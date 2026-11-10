@@ -10,7 +10,7 @@ import Testing
 // work (content evaluations, bytes shaped, bytes parsed), never time, and equal for 10 and for 200 replies.
 
 private let verifyNote: Comment =
-    "METALUI_VERIFY_RETAINED=1 builds a replayed frame twice and presents the second: the counts this test pins are not its to read"
+    "METALUI_VERIFY_RETAINED=1 builds a replayed frame twice and presents the second, and METALUI_VERIFY_LAYOUT_MEMO=1 recomputes every layout hit: the counts this test pins are not theirs to read (BM-M)"
 
 /// One token appended to the last reply of a transcript of `replies` replies of 20 blocks each: the frame's work, the
 /// bytes the text system measured, and the accessibility id of the last paragraph before and after.
@@ -41,7 +41,7 @@ private let verifyNote: Comment =
 /// layout-memo key (`IV-`) and taints the reply's ancestors: counted, equal for both N, carried (`BM-J`). Mutations:
 /// `.equatable()` dropped from the blocks in `MarkdownView` (every block of the reply evaluates); block ids hashed
 /// from the text (the last paragraph's identity moves per token).
-@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aTokenCostsTheLastBlockWhateverTheTranscriptHolds() throws {
+@Test(.enabled(if: !rsVerifying && !layoutMemoVerifying, verifyNote)) @MainActor func aTokenCostsTheLastBlockWhateverTheTranscriptHolds() throws {
     let paragraph = "The last paragraph of reply 777 is still streaming".utf8.count
     for rich in [false, true] {
         let small = try streamOneToken(replies: 10, rich: rich)
@@ -61,7 +61,7 @@ private let verifyNote: Comment =
 /// **BM-H, test 14.** Appending to an open fence shapes the last chunk and no more: a fence of 69 and one of 485 lines
 /// (the last chunk is 5 lines in both) shape the same bytes, no measured string is longer than 32 lines, and the
 /// highlighter is asked once for the changed fence. Mutation: one `Text` per fence (a measured string of 485 lines).
-@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func appendingToAnOpenFenceShapesOneChunk() throws {
+@Test(.enabled(if: !rsVerifying && !layoutMemoVerifying, verifyNote)) @MainActor func appendingToAnOpenFenceShapesOneChunk() throws {
     func lines(_ s: String) -> Int { s.split(separator: "\n", omittingEmptySubsequences: false).count }
     var results: [(bytes: Int, longest: Int)] = []
     for count in [69, 485] {
@@ -206,4 +206,24 @@ private let verifyNote: Comment =
     }
     let elapsed = clock.now - start
     print("MEASURE-MARKDOWN: \(elapsed / tokens) per streamed token on a \(source.utf8.count)-byte rich paragraph")
+}
+
+/// **RK-AF, test 1.** A transcript that grows by whole blocks draws what a fresh window of the grown document draws: the
+/// earlier blocks, grafted and moved by the growth, are not lost from the enclosing record. Found by
+/// `METALUI_VERIFY_RETAINED=1` trapping in `indicesAreStableWhileTheDocumentGrows` (a hole of 10 of 16 leaves). Not
+/// gated: it reads what is drawn, which every verify mode leaves alone. Mutation: the `redoHole` early return of
+/// `finishRetainedPaint` removed (the grown window draws 2 glyphs and 2 rects, the fresh 8 and 4).
+@Test @MainActor func aTranscriptThatGrowsByBlocksDrawsWhatAFreshWindowDraws() throws {
+    let before = "```\na\n```\n\ntext\n\n```\nb\n```"
+    let added = "\n\n```\nc\n```\n\n```\nd"
+    let model = MarkdownTranscriptModel(documents: [MarkdownDocument(parsing: before)])
+    let grown = try markdownTranscript(model)
+    markdownSettle(grown, frames: 3)
+    model.documents[0].append(added)
+    markdownSettle(grown, frames: 7)
+    let fresh = try markdownTranscript(MarkdownTranscriptModel(documents: [MarkdownDocument(parsing: before + added)]))
+    markdownSettle(fresh, frames: 10)
+    #expect(fresh.scene.glyphs.count == 8, "the fresh window draws a, text, b, c, d")
+    #expect(grown.scene.glyphs.count == fresh.scene.glyphs.count, "glyphs \(grown.scene.glyphs.count) vs \(fresh.scene.glyphs.count)")
+    #expect(grown.scene.rects.count == fresh.scene.rects.count, "rects \(grown.scene.rects.count) vs \(fresh.scene.rects.count)")
 }
