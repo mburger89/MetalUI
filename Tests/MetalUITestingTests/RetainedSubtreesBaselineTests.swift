@@ -77,7 +77,8 @@ func theBracketNodeDragRebuildsTheWholeWindow(arm: BracketArm) throws {
     // R4-5 PR C (`CM-B`, record 220) moved the root scene to 174 rects and 437 glyphs: the nodes whose rounded clip straddles the
     // canvas's square clip were drawn in a masked group. `CM-J` (record 233) draws them in the root again, exact as per-corner radii:
     // to 180 rects and 516 glyphs (the nodes whose cut passes through a corner zone keep their group).
-    #expect(f.rects == 180)
+    // The demo's selected segmented-picker segment draws a hairline border rect (`SD-C`, record 260): 181.
+    #expect(f.rects == 181)
     #expect(f.glyphs == 516)
     #expect(f.images == 6)
     // The two changed wires: rasterized on the CPU every frame whatever retention does (`GX-B`).

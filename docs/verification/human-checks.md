@@ -2122,6 +2122,7 @@ Run `METALUI_LAZY_DEMO=1 swift run MetalUIDemo` and use the fifth section (botto
 *An agent cannot: window capture was denied in the authoring session, so the native look is unsampled (`SD-A`).*
 
 - [ ] **SD1.** In the dark appearance, a segmented `Picker` (`METALUI_CONTROLS_DEMO=1 swift run MetalUIDemo`) shows its selected segment as a visibly *lighter* pill than the track, the unselected segments flush with the track, next to a SwiftUI/AppKit segmented control in the same appearance (lighter-pill-on-darker-track, as AppKit draws it). In light it is a white pill on the grey track, as before. **Observed:**
+- [ ] **SD2.** (`SD-C`, record 260) A selected segment of a segmented `Picker` has a faint 1-pixel outline in light and dark, next to a SwiftUI/AppKit segmented control (which draws a hairline and a soft shadow: MetalUI draws only the hairline). In a theme whose page equals `.surface` (Solarized Light: base3 page and surface, base2 track) the pill is still readable as selected. Unselected segments have no outline. **Observed:**
 
 ## PH. Pointer extras - one-way resize cursors and a hidden pointer (round 3 item R3-10 part 2; decisions `docs/superpowers/2026-11-01-pointer-extras-decisions.md`, record 188; provisional letter)
 

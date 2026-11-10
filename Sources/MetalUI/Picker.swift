@@ -282,6 +282,13 @@ final class PickerScope {
     /// selected. Chosen by scheme from existing tokens, so a custom `Theme` needs no new token.
     static let selectedSegmentFill = Color(light: .surface, dark: Color.textPrimary.opacity(0.18))
 
+    /// The selected segment's hairline edge (`SD-C`, Alloy G23/G28): a 1-pixel border inside the
+    /// pill in `.textPrimary` at 0.10 in a light scheme and 0.12 in a dark one, the alphas of
+    /// AppKit's `separatorColor` (black 0.10 / white 0.12, probe `swiftui-segmented-thumb.swift`),
+    /// so the pill keeps an outline when the page, `.surface` and the track nearly coincide. No
+    /// shadow: AppKit's could not be sampled and `Decoration` has none.
+    static let selectedSegmentEdge = Color(light: Color.textPrimary.opacity(0.10), dark: Color.textPrimary.opacity(0.12))
+
     static var stack: [PickerScope?] = []
     static var current: PickerScope? { stack.last ?? nil }
 
@@ -584,7 +591,8 @@ public struct TaggedElement<Content: Element>: Element {
             row.padding.right = .pixels(Pixels(12))
             lead.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(24))))
             chrome = Box(style: row,
-                         decoration: Decoration(background: selected ? PickerScope.selectedSegmentFill : nil, cornerRadius: Pixels(5)),
+                         decoration: Decoration(background: selected ? PickerScope.selectedSegmentFill : nil, cornerRadius: Pixels(5),
+                                                    border: selected ? BorderStyle(PickerScope.selectedSegmentEdge, width: Pixels(1)) : nil),
                          content: Pair(Box(style: lead), content))
         case .menu:
             // Unreachable: a menu option records itself before any chrome.

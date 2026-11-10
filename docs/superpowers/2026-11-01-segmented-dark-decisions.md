@@ -2,7 +2,7 @@
 
 Rulings for the selected segment of a segmented `Picker` in the dark theme (MetalFlow's report: it read as *less* selected). Prefix `SD-`. Branch `fix/segmented-dark`. Code:
 `Sources/MetalUI/Picker.swift` (`PickerScope.selectedSegmentFill`, `TaggedElement.makeChrome`); tests: `Tests/MetalUITests/SegmentedPickerFillTests.swift`; probe:
-`docs/probes/swiftui-segmented-dark.swift`. Record: `../record/187-segmented-dark.md`. **Next unused: `SD-C`.** No divergence label was taken (SD-B).
+`docs/probes/swiftui-segmented-dark.swift`. Record: `../record/187-segmented-dark.md`. **Next unused: `SD-D`.** No divergence label was taken (SD-B).
 
 ## SD-A - the probe, and what could not be sampled
 
@@ -30,7 +30,31 @@ a `Window` whose theme and scheme disagree (a dark theme under a light scheme, `
 
 **Cost if wrong.** A dark selected pill a few grey levels off native; one constant to retune.
 
-## Mutations
+## SD-C - the selected segment's hairline edge (Alloy G23, G28)
+
+**Measurement** (`docs/probes/swiftui-segmented-thumb.swift`, record 260). Pixel readback of the native control did not work again: `cacheDisplay(in:to:)` on macOS 27 returns only an alpha-mask
+draw (the SwiftUI hosting view's selected segment is blank, an `NSSegmentedControl`'s pill is a flat text-colour layer at alpha 0.20 over the 0.08 track), with no stroke or halo visible in
+the row or column samples, and `CGWindowListCreateImage` no longer compiles (ScreenCaptureKit only). So **neither a stroke nor a shadow was sampled or ruled out**; the semantic colours are the evidence:
+`separatorColor` black 0.10 (light) / white 0.12 (dark), `controlColor` white 1.0 / white 0.247, `controlBackgroundColor` and `windowBackgroundColor` #FFFFFF / #1E1E1E.
+
+**Ruling.** `PickerScope.selectedSegmentEdge = Color(light: textPrimary x 0.10, dark: textPrimary x 0.12)`, drawn as a 1-pixel `Decoration.border` (inside the pill, emitted after its content, `OM-V`) on
+the selected segment only. No shadow (AppKit's is unmeasured and `Decoration` has none; a shadow would need a wrapper element or a new primitive), no new drawable capability, no `Theme` token (alphas of
+`.textPrimary`, as `SD-B`), no layout change, the thumb fill unchanged. `TabStrip` does not use this paint.
+
+**Contrast (reported, not faked; WCAG ratios of the edge composited on the thumb).** A hairline at AppKit's alpha does not reach 3:1 in light. Default light: edge vs thumb 1.23, vs page `#F5F5F7` 1.13
+(thumb vs track 1.24, as Alloy measured). Default dark: edge vs page 3.24, vs thumb 1.33 (thumb vs track 1.68). Solarized Light (page = surface = base3 `#FDF6E3`, track base2, text base00 `#657B83`): edge vs
+page 1.12 (the test prints 1.1208). So the edge gives the pill an outline where its fill equals the page, but it does **not** meet non-text 3:1 in either light case; a theme that needs that sets a darker
+`.textPrimary` or `.surfaceSecondary`. Pinned only as "differs from the page" (> 1.05).
+
+**Mutations** (each alone, restored).
+
+| # | Mutation | Reddened |
+|---|---|---|
+| SD-M3 | drop `border:` from the segmented chrome `Decoration` | `theSelectedSegmentDrawsAHairlineEdgeAtItsRect`, `anUnselectedSegmentHasNoEdge`, `theEdgeSeparatesTheThumbFromAPageEqualToSurface` |
+| SD-M4 | edge alpha 0.5 | `theSelectedSegmentDrawsAHairlineEdgeAtItsRect` |
+| SD-M5 | `border:` on every segment | `anUnselectedSegmentHasNoEdge`, `theSelectedSegmentDrawsAHairlineEdgeAtItsRect` |
+
+## Mutations (SD-B)
 
 Applied to `PickerScope.selectedSegmentFill`, one at a time.
 
