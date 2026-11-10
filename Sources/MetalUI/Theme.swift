@@ -90,6 +90,14 @@ public struct Theme: Sendable, Hashable {
     public var separator: Hsla
     /// The primary text colour.
     public var textPrimary: Hsla
+    /// The colour of the secondary text level (`CR-AD`, Alloy gap G21/G27): `.secondary` text, the
+    /// hierarchical `.secondary` over no parent and `Color.secondary` use it directly. `nil` (the default)
+    /// derives the level from ``textPrimary`` at SwiftUI's secondary-to-primary alpha ratio, 0.588 light
+    /// and 0.648 dark (divergence 116). A level over an explicit parent style stays a factor of that parent.
+    public var textSecondary: Hsla?
+    /// The colour of the tertiary text level (`CR-AD`): as ``textSecondary``, derived at 0.306 light and
+    /// 0.292 dark when `nil`.
+    public var textTertiary: Hsla?
     /// The scroll indicator's thumb.
     public var scrollIndicator: Hsla
     /// The dimming behind a modal presentation.
@@ -109,10 +117,12 @@ public struct Theme: Sendable, Hashable {
 
     /// A theme from one colour per token. `shadow` is trailing and defaulted
     /// (ruling `GX-Q`), so a theme written before the token existed compiles
-    /// unchanged and gets SwiftUI's default.
+    /// unchanged and gets SwiftUI's default. `textSecondary` and `textTertiary` are
+    /// trailing and `nil` the same way (`CR-AD`): the levels derive from `textPrimary`.
     public init(background: Hsla, surface: Hsla, surfaceSecondary: Hsla,
                 accent: Hsla, separator: Hsla, textPrimary: Hsla, scrollIndicator: Hsla,
-                scrim: Hsla, shadow: Hsla = Theme.defaultShadow) {
+                scrim: Hsla, shadow: Hsla = Theme.defaultShadow,
+                textSecondary: Hsla? = nil, textTertiary: Hsla? = nil) {
         self.background = background
         self.surface = surface
         self.surfaceSecondary = surfaceSecondary
@@ -122,6 +132,8 @@ public struct Theme: Sendable, Hashable {
         self.scrollIndicator = scrollIndicator
         self.scrim = scrim
         self.shadow = shadow
+        self.textSecondary = textSecondary
+        self.textTertiary = textTertiary
     }
 
     /// The colour this theme gives `token`.
@@ -137,6 +149,19 @@ public struct Theme: Sendable, Hashable {
         case .scrim:            scrim
         case .shadow:           shadow
         }
+    }
+
+    /// The colour of text `level` over no parent style (`CR-AD`): the override for the secondary and tertiary
+    /// levels when set, else ``textPrimary`` with its alpha times the level's label factor in `scheme`.
+    func textLevel(_ level: HierarchicalShapeStyle.Level, scheme: ColorScheme) -> Hsla {
+        switch level {
+        case .secondary: if let override = textSecondary { return override }
+        case .tertiary: if let override = textTertiary { return override }
+        default: break
+        }
+        var base = textPrimary
+        base.a *= level.factor(overParent: false, scheme: scheme)
+        return base
     }
 
     /// The colour this theme gives the app palette key `key` (ruling

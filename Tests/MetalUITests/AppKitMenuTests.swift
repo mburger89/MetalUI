@@ -450,3 +450,19 @@ private let appName = ProcessInfo.processInfo.processName
     view.undo(nil)
     #expect(log.entries == ["key[⌘z]", "key[⌘z]"], "a menu click delivers the key")
 }
+
+
+/// **MN-AM.** An empty help is no `toolTip`, and an item rebuilt with its help
+/// changed from "x" to "" has none (AppKit rebuilds the menu at each open).
+/// Mutation: drop the `isEmpty` check at the `toolTip` line (both redden).
+@MainActor
+@Test func anEmptyHelpLeavesNoAppKitToolTip() throws {
+    func tip(_ help: String?) -> String? {
+        AppKitMenuBuilder.menu(from: PlatformMenu(token: 1, items: [
+            PlatformMenuItem(id: 1, kind: .action, title: "Fork", help: help),
+        ]), target: AppKitMenuTarget()).items.first?.toolTip
+    }
+    #expect(tip("x") == "x")
+    #expect(tip("") == nil, "x changed to empty clears the tip")
+    #expect(tip(nil) == nil)
+}

@@ -172,7 +172,7 @@ final class AppKitToolbarController: NSObject, NSToolbarDelegate, NSTextFieldDel
     /// when it differs from what the field shows, so an edit's caret survives
     /// its own echo (`MD-J` item 4).
     private func update(_ item: NSToolbarItem, with description: PlatformToolbarItem) {
-        item.toolTip = description.help
+        item.toolTip = description.help?.isEmpty == false ? description.help : nil   // MN-AM
         item.isEnabled = description.isEnabled
         switch description.control {
         case .button(let title, let image):

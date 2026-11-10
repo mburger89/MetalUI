@@ -55,6 +55,8 @@ public struct Color: Hashable, Sendable {
         /// was written over, with any level of its own stripped; `nil` takes the position's inherited
         /// `foregroundStyle` at resolution, else the theme's text colour at the level's own alpha.
         indirect case hierarchical(HierarchicalShapeStyle.Level, over: Color?)
+        /// The theme's text colour at a level, ignoring any inherited style (`CR-AD`): `Color.secondary`.
+        case themeLevel(HierarchicalShapeStyle.Level)
     }
 
     var provider: Provider
@@ -236,9 +238,10 @@ public struct Color: Hashable, Sendable {
                 base = parent.resolved(theme: theme, scheme: scheme, tint: tint, depth: depth + 1)
                 base.a *= level.factor(overParent: true, scheme: scheme)
             } else {
-                base = theme[.textPrimary]
-                base.a *= level.factor(overParent: false, scheme: scheme)
+                base = theme.textLevel(level, scheme: scheme)
             }
+        case let .themeLevel(level):
+            base = theme.textLevel(level, scheme: scheme)
         }
         if opacityFactor != 1 { base.a *= Self.clamped(opacityFactor) }
         return base
@@ -308,11 +311,10 @@ public struct Color: Hashable, Sendable {
     /// SwiftUI's is the system label colour, black/white at 0.8471).
     @_disfavoredOverload
     public static let primary = Color(ColorToken.textPrimary)
-    /// The secondary content colour: `textPrimary` at SwiftUI's secondary to
-    /// primary alpha ratio, 0.588 light and 0.648 dark (divergence 116).
+    /// The secondary content colour: the theme's ``Theme/textSecondary`` when set, else `textPrimary` at
+    /// SwiftUI's secondary to primary alpha ratio, 0.588 light and 0.648 dark (divergence 116, `CR-AD`).
     @_disfavoredOverload
-    public static let secondary = Color(light: Color(ColorToken.textPrimary).opacity(0.588),
-                                        dark: Color(ColorToken.textPrimary).opacity(0.648))
+    public static let secondary = Color(provider: .themeLevel(.secondary))
     /// The accent colour: the tint a `.tint(_:)` above wrote, else the theme's
     /// `accent` (divergence 116 — SwiftUI's is the user's system accent; `SS-D`).
     /// ``accent`` is the theme's token and ignores the tint.

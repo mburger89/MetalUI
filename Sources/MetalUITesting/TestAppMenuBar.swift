@@ -26,6 +26,25 @@ extension TestApp {
         }
         let item = try MenuPath.command(Array(path.dropFirst()), in: menu.items, reportedAs: path)
         guard item.standardAction == nil else { throw TestHarnessError.noMenuItem(path) }
+        runMenuBarCommand(item, of: bar)
+    }
+
+    /// Performs the menu-bar command whose `.accessibilityIdentifier` is
+    /// `identifier` — searched depth-first through every menu and submenu from
+    /// a fresh evaluation, the first match taken — then draws as
+    /// ``performMenuBarItem(_:)`` does, and throws as it does (its path reads
+    /// `["accessibilityIdentifier \"id\""]`; ruling `HT-AC`).
+    public func performMenuBarItem(accessibilityIdentifier identifier: String) throws {
+        let reported = MenuPath.described(identifier)
+        guard let bar = platform.menuBar else { throw TestHarnessError.noMenuItem(reported) }
+        let menus = bar.content()
+        let item = try MenuPath.command(accessibilityIdentifier: identifier,
+                                        in: menus.map { PlatformMenuItem(id: 0, kind: .submenu($0.items), title: $0.title) })
+        guard item.standardAction == nil else { throw TestHarnessError.noMenuItem(reported) }
+        runMenuBarCommand(item, of: bar)
+    }
+
+    private func runMenuBarCommand(_ item: PlatformMenuItem, of bar: PlatformMenuBar) {
         bar.perform(item.id)
         for window in windows {
             window.window.setNeedsRedraw()

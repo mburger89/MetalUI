@@ -13,8 +13,8 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Z`), `MN-` (menus, popovers, tooltips:
-  `2026-10-02-menus-popovers-decisions.md`, next `MN-AM`), `CR-` (colour, colour scheme, palette:
-  `2026-10-03-colour-decisions.md`, next `CR-AD`), `LC-` (lifecycle modifiers:
+  `2026-10-02-menus-popovers-decisions.md`, next `MN-AN`), `CR-` (colour, colour scheme, palette:
+  `2026-10-03-colour-decisions.md`, next `CR-AE`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AQ`), `PE-` (controls in
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
@@ -34,7 +34,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `TK-` (test hygiene: sheet-test skip, Linux flake, SDL launch drops:
   `2026-10-31-test-hygiene-decisions.md`, next `TK-E`), `PG-` (path operations: `trimmedPath`/`trim`, `strokedPath`, `addRelativeArc`,
   `Transform2D`, `UnevenRoundedRectangle`: `2026-10-31-path-ops-decisions.md`, next `PG-I`), `HT-` (test harness, `MetalUITesting`:
-  `2026-10-09-test-harness-decisions.md`, next `HT-AC`), `OV-` (overlays and coordinates:
+  `2026-10-09-test-harness-decisions.md`, next `HT-AD`), `OV-` (overlays and coordinates:
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-P`), `FI-` (`ForEach` identity:
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:

@@ -25,7 +25,7 @@ final class ContextualAttachment {
     init(locatedMenu menu: (@MainActor (Point<Pixels>?) -> MenuItems)?, help: String?,
          helpProvider: (@MainActor (Point<Pixels>) -> String?)? = nil) {
         self.menu = menu
-        self.help = help
+        self.help = help?.isEmpty == true ? nil : help   // MN-AM: an empty help is no help
         self.helpProvider = helpProvider
     }
 
