@@ -57,6 +57,8 @@ public struct Color: Hashable, Sendable {
         indirect case hierarchical(HierarchicalShapeStyle.Level, over: Color?)
         /// The theme's text colour at a level, ignoring any inherited style (`CR-AD`): `Color.secondary`.
         case themeLevel(HierarchicalShapeStyle.Level)
+        /// The theme's ``Theme/textSecondary`` when set, else `textPrimary` at this opacity (`TBS-L`): the unselected `TabStrip` ink.
+        case secondaryOverrideOrPrimary(Float)
     }
 
     var provider: Provider
@@ -242,6 +244,13 @@ public struct Color: Hashable, Sendable {
             }
         case let .themeLevel(level):
             base = theme.textLevel(level, scheme: scheme)
+        case let .secondaryOverrideOrPrimary(opacity):
+            if let override = theme.textSecondary {
+                base = override
+            } else {
+                base = theme.textPrimary
+                base.a *= Self.clamped(opacity)
+            }
         }
         if opacityFactor != 1 { base.a *= Self.clamped(opacityFactor) }
         return base
@@ -315,6 +324,8 @@ public struct Color: Hashable, Sendable {
     /// SwiftUI's secondary to primary alpha ratio, 0.588 light and 0.648 dark (divergence 116, `CR-AD`).
     @_disfavoredOverload
     public static let secondary = Color(provider: .themeLevel(.secondary))
+    /// The unselected `TabStrip` tab ink (`TBS-L`): ``Theme/textSecondary`` when set, else `textPrimary` at 0.64 (`TBS-K`).
+    static let tabStripUnselectedInk = Color(provider: .secondaryOverrideOrPrimary(0.64))
     /// The accent colour: the tint a `.tint(_:)` above wrote, else the theme's
     /// `accent` (divergence 116 — SwiftUI's is the user's system accent; `SS-D`).
     /// ``accent`` is the theme's token and ignores the tint.

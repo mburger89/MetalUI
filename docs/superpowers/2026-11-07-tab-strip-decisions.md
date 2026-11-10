@@ -45,3 +45,10 @@ Bar `.surfaceSecondary`; the selected tab `.background` (the panel it fronts) wi
 ## TBS-K: the unselected ink at 0.64 (Alloy contrast gap, record 257)
 
 An unselected tab's ink is `textPrimary` at **0.64**, up from 0.62, so it reaches WCAG AA text contrast (4.5:1) on the bar (`.surfaceSecondary`) with the 0.06 hover wash: light 4.903 at rest and 4.669 hovered (4.606 and 4.399 at 0.62), dark 5.548 and 4.920 (5.308 and 4.723). The close glyph and dirty dot are drawn in the same ink, so they are at least 4.67:1, well over the 3:1 non-text bar. The selected tab (full `textPrimary` on `.background`) and every geometry are unchanged.
+
+## TBS-L: the unselected ink follows `Theme.textSecondary` (Alloy gap G30, record 262)
+
+An unselected tab's ink is the theme's `Theme.textSecondary` when it is set (`CR-AD`), else exactly `textPrimary` at 0.64 (`TBS-K`). The colour resolves at paint (`Color.tabStripUnselectedInk`, a private-provider `Color`), so a runtime theme switch only repaints and each scheme's variant is honoured. With no override the derived `Color.secondary` is **not** used: its alpha (0.588 light) is lower than 0.64 and would lose `TBS-K`'s 4.5:1. The close glyph and dirty dot share the ink. The selected tab is unchanged. A theme that sets `textSecondary` owns the contrast of its colour on the bar.
+
+**The segmented `Picker` is a non-change:** its unselected labels stay full `textPrimary`, as AppKit's `NSSegmentedControl` draws them in `labelColor`; no code was touched there.
+

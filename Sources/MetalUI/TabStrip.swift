@@ -266,7 +266,7 @@ struct TabStripTab<ID: Hashable>: Component {
         let isSelected = isSelected, isHovered = isHovered, hover = $isHovered, size = $tabWidth, tabWidth = tabWidth
         let item = item, close = close, width = width
         let dragChanged = dragChanged, dragEnded = dragEnded, dragCancelled = dragCancelled
-        let ink = isSelected ? Color(.textPrimary) : Color(.textPrimary).opacity(0.64)
+        let ink = isSelected ? Color(.textPrimary) : Color.tabStripUnselectedInk
         let fill = isSelected ? Color(.background) : (isHovered ? Color(.textPrimary).opacity(0.06) : Color.clear)
         return TabStripWidthLayout()() {
             HStack(spacing: Pixels(0)) {
