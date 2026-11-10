@@ -15,11 +15,11 @@ on:
         type: boolean
         default: false
 
-# A new push to a pull request cancels that PR's superseded run. Master pushes
-# are keyed by sha, so they never cancel one another.
+# A new push to a pull request (or a non-master branch) cancels its superseded run.
+# Master pushes are keyed by sha, so they never cancel one another.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/master' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 # SwiftPM build output is cached per job (.github/actions/swift-cache); to rule a
 # stale cache out of a strange build error, rerun with workflow_dispatch
