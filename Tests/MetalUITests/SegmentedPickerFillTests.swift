@@ -146,3 +146,94 @@ private func borderedRects(_ appearance: Appearance, theme: Theme? = nil) throws
     print("SD-C solarized edge-vs-page contrast: \(ratio)")
     #expect(ratio > 1.05, "the edge differs from the page (\(ratio):1; 3:1 is not reachable at AppKit's alpha)")
 }
+
+// MARK: - SD-D: the edge is the theme colour key `SegmentedThumbEdge` (Alloy G31)
+
+private let edgeOverride = Hsla(h: 0.58, s: 0.85, l: 0.30, a: 0.70)
+
+/// The edge colour of a three-segment picker in a window with no `.theme` modifier, so the window's own
+/// `lightTheme`/`darkTheme` is what applies.
+@MainActor
+private func edgeInWindow(_ window: Window) throws -> Hsla {
+    window.drawFrameIfNeeded()
+    let edge = try #require(window.lastScene.rects.first { $0.borderWidths.top > 0 }, "the selected segment draws an edge")
+    return ixHsla(edge.borderColor)
+}
+
+@MainActor
+private func plainPickerWindow(_ appearance: Appearance) throws -> Window {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let (window, _) = try makeFakeWindow(device: device, size: 400, appearance: appearance) {
+        controlRoot {
+            Picker("Size", selection: .constant(1)) {
+                Text("S").tag(0)
+                Text("M").tag(1)
+                Text("L").tag(2)
+            }.pickerStyle(.segmented)
+        }
+    }
+    return window
+}
+
+/// With no override the default edge is exactly today's `SD-C` colour, resolved from the theme in force:
+/// `textPrimary` at 0.10 (light) / 0.12 (dark), bit-for-bit. Mutation: **M1** the default's alphas changed (0.5)
+/// reddens it.
+@Test @MainActor func theDefaultEdgeIsTextPrimaryAtTheSDCAlphas() throws {
+    for (appearance, alpha) in [(Appearance.light, Float(0.10)), (.dark, Float(0.12))] {
+        let window = try plainPickerWindow(appearance)
+        let got = try edgeInWindow(window)
+        var want = window.theme.textPrimary
+        want.a *= alpha
+        #expect(ixSame(got, want), "\(appearance): textPrimary x \(alpha)")
+    }
+}
+
+/// The default stays theme-relative: a theme with a different `textPrimary` gets that colour at the same alphas.
+/// Mutation: **M2** the default a fixed black/white at the alphas (not `textPrimary`) reddens it.
+@Test @MainActor func theDefaultEdgeFollowsAThemesTextPrimary() throws {
+    let ink = Hsla(h: 0.33, s: 0.7, l: 0.4, a: 1)
+    for (appearance, alpha) in [(Appearance.light, Float(0.10)), (.dark, Float(0.12))] {
+        var theme = appearance == .dark ? Theme.dark : Theme.light
+        theme.textPrimary = ink
+        let (bordered, _, _) = try borderedRects(appearance, theme: theme)
+        let edge = try #require(bordered.first)
+        var want = ink
+        want.a *= alpha
+        #expect(ixSame(ixHsla(edge.borderColor), want), "\(appearance): the custom textPrimary at \(alpha)")
+    }
+}
+
+/// `theme[SegmentedThumbEdge.self] = c` paints `c` in both schemes (through `.theme`, and through the window's
+/// `lightTheme`/`darkTheme`). Mutation: **M3** the picker painting the old literal colour reddens it.
+@Test @MainActor func anOverrideOfTheEdgeKeyIsThePaintedEdge() throws {
+    for appearance in [Appearance.light, .dark] {
+        var theme = appearance == .dark ? Theme.dark : Theme.light
+        theme[SegmentedThumbEdge.self] = Color(edgeOverride)
+        let (bordered, _, _) = try borderedRects(appearance, theme: theme)
+        let edge = try #require(bordered.first)
+        #expect(ixSame(ixHsla(edge.borderColor), edgeOverride), "\(appearance): .theme(_:)")
+
+        let window = try plainPickerWindow(appearance)
+        if appearance == .dark { window.darkTheme = theme } else { window.lightTheme = theme }
+        #expect(ixSame(try edgeInWindow(window), edgeOverride), "\(appearance): window theme")
+    }
+}
+
+/// Changing the override at runtime repaints the edge (and clearing it restores the default): resolution is at paint,
+/// so a theme switch needs no rebuild. Mutation: **M4** the colour resolved once at build (a captured
+/// `Hsla`) reddens it.
+@Test @MainActor func changingTheEdgeOverrideRepaintsTheEdge() throws {
+    let window = try plainPickerWindow(.light)
+    var base = window.theme.textPrimary
+    base.a *= 0.10
+    #expect(ixSame(try edgeInWindow(window), base), "before")
+    var themed = Theme.light
+    themed[SegmentedThumbEdge.self] = Color(edgeOverride)
+    window.lightTheme = themed
+    #expect(ixSame(try edgeInWindow(window), edgeOverride), "after the assignment")
+    themed[SegmentedThumbEdge.self] = Color(Hsla(h: 0.1, s: 0.9, l: 0.5, a: 0.4))
+    window.lightTheme = themed
+    #expect(ixSame(try edgeInWindow(window), Hsla(h: 0.1, s: 0.9, l: 0.5, a: 0.4)), "after a second change")
+    window.lightTheme = .light
+    #expect(ixSame(try edgeInWindow(window), base), "after clearing")
+}

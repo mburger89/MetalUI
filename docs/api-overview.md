@@ -379,7 +379,7 @@ nine tokens as statics, bit-exact), `Color(_ hsla:)`, `Color(light:dark:)`
 (MetalUI-only; resolves against the element's `colorScheme`, `CR-O`), and an
 app palette: a `ThemeColorKey` type with a `defaultValue`, read with
 `Color(Key.self)` and overridden per theme with `theme[Key.self] = …`
-(`CR-N`; SwiftUI's answer is an asset catalog). `PaintPass.resolve(_:)` turns
+(`CR-N`; SwiftUI's answer is an asset catalog). The framework's one built-in key is `SegmentedThumbEdge`, the segmented `Picker`'s selected-segment edge (`SD-D`). `PaintPass.resolve(_:)` turns
 any `Color` into the `Hsla` a custom `paint` draws, against the element's
 scoped theme and scheme (`CR-H`).
 
