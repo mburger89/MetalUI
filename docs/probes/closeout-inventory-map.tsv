@@ -552,6 +552,7 @@ M	MetalUI	Passes.swift	LayoutPass	(requestNative.*)	.*	kernel-registrars
 M	MetalUI	Passes.swift	PaintPass	resolve	.*	color-theme-backed
 M	MetalUI	Passes.swift	.*	.*	.*	passes
 M	MetalUI	Picker.swift	PickerStyle	menu	.*	menu-picker
+M	MetalUI	Picker.swift	SegmentedThumbEdge	.*	.*	theme-palette
 M	MetalUI	Picker.swift	.*	.*	.*	picker
 M	MetalUI	ProposalLayoutContainer.swift	.*	.*	.*	proposal-layout
 M	MetalUI	ProposalScrollView.swift	.*	.*	.*	scroll

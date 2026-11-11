@@ -262,6 +262,21 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     }
 }
 
+/// The colour of the 1-pixel edge the selected segment of a segmented `Picker` draws inside its
+/// pill (MetalUI-only, ruling `SD-D`, Alloy G31). The default is the `SD-C` colour:
+/// `Theme.textPrimary` at 0.10 in a light scheme and 0.12 in a dark one, the alphas of AppKit's
+/// `separatorColor`. Both halves are token-relative colours, resolved at paint against the
+/// element's theme, so the default follows a theme's `textPrimary`. An app that needs a stronger
+/// edge (for example 3:1 non-text contrast) overrides it per theme variant:
+///
+/// ```swift
+/// window.lightTheme[SegmentedThumbEdge.self] = Color(.textPrimary).opacity(0.45)
+/// ```
+public enum SegmentedThumbEdge: ThemeColorKey {
+    /// `.textPrimary` at 0.10 (light) or 0.12 (dark).
+    public static let defaultValue = Color(light: Color.textPrimary.opacity(0.10), dark: Color.textPrimary.opacity(0.12))
+}
+
 /// The innermost `Picker`'s selection, style and option order, read by each
 /// `TaggedElement` inside it during layout (`DD-V` item 2).
 ///
@@ -282,12 +297,9 @@ final class PickerScope {
     /// selected. Chosen by scheme from existing tokens, so a custom `Theme` needs no new token.
     static let selectedSegmentFill = Color(light: .surface, dark: Color.textPrimary.opacity(0.18))
 
-    /// The selected segment's hairline edge (`SD-C`, Alloy G23/G28): a 1-pixel border inside the
-    /// pill in `.textPrimary` at 0.10 in a light scheme and 0.12 in a dark one, the alphas of
-    /// AppKit's `separatorColor` (black 0.10 / white 0.12, probe `swiftui-segmented-thumb.swift`),
-    /// so the pill keeps an outline when the page, `.surface` and the track nearly coincide. No
-    /// shadow: AppKit's could not be sampled and `Decoration` has none.
-    static let selectedSegmentEdge = Color(light: Color.textPrimary.opacity(0.10), dark: Color.textPrimary.opacity(0.12))
+    /// The selected segment's hairline edge (`SD-C`, `SD-D`): the app palette colour
+    /// ``SegmentedThumbEdge``, so a theme can override it; its default is the `SD-C` colour.
+    static let selectedSegmentEdge = Color(SegmentedThumbEdge.self)
 
     static var stack: [PickerScope?] = []
     static var current: PickerScope? { stack.last ?? nil }

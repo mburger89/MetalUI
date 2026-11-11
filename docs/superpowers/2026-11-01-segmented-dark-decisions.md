@@ -54,6 +54,24 @@ page 1.12 (the test prints 1.1208). So the edge gives the pill an outline where 
 | SD-M4 | edge alpha 0.5 | `theSelectedSegmentDrawsAHairlineEdgeAtItsRect` |
 | SD-M5 | `border:` on every segment | `anUnselectedSegmentHasNoEdge`, `theSelectedSegmentDrawsAHairlineEdgeAtItsRect` |
 
+## SD-D - the edge is a theme colour key, `SegmentedThumbEdge` (Alloy G31)
+
+**Ruling.** `PickerScope.selectedSegmentEdge` is `Color(SegmentedThumbEdge.self)`, a public `ThemeColorKey` enum (`CR-N`, class M, no divergence). Its `defaultValue` is the `SD-C` colour,
+`Color(light: Color.textPrimary.opacity(0.10), dark: Color.textPrimary.opacity(0.12))`, so the default appearance is unchanged. `Color.textPrimary` is a token colour and `opacity(_:)` stores a factor
+applied after resolution, so each half resolves **against the theme in force at paint** and the default still follows a theme's `textPrimary` (no scheme-dependent provider was needed). Apps override it
+per variant: `window.lightTheme[SegmentedThumbEdge.self] = c` (also `App.lightTheme`/`darkTheme`, `.theme(_:)`). Resolution is at paint, so a theme switch only repaints. Motivation: Alloy needs a
+stronger edge for 3:1 non-text contrast, which `SD-C` showed AppKit's alphas cannot reach.
+
+**Cost if wrong.** One key; removing it falls back to the `SD-C` constant.
+
+**Mutations** (each alone, restored).
+
+| # | Mutation | Reddened |
+|---|---|---|
+| SD-M6 | default alphas 0.5 | `theDefaultEdgeIsTextPrimaryAtTheSDCAlphas`, `theDefaultEdgeFollowsAThemesTextPrimary`, `theSelectedSegmentDrawsAHairlineEdgeAtItsRect` |
+| SD-M7 | default a fixed black/white at the alphas | `theDefaultEdgeFollowsAThemesTextPrimary`, `changingTheEdgeOverrideRepaintsTheEdge`, `theDefaultEdgeIsTextPrimaryAtTheSDCAlphas`, `theSelectedSegmentDrawsAHairlineEdgeAtItsRect` |
+| SD-M8 | picker paints a literal (the old non-key colour) | `anOverrideOfTheEdgeKeyIsThePaintedEdge`, `changingTheEdgeOverrideRepaintsTheEdge` |
+
 ## Mutations (SD-B)
 
 Applied to `PickerScope.selectedSegmentFill`, one at a time.
