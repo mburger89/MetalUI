@@ -8,6 +8,23 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:
+    inputs:
+      no_cache:
+        description: "Skip restoring the SwiftPM build cache (rule out a stale cache); the run still saves a fresh one"
+        type: boolean
+        default: false
+
+# A new push to a pull request (or a non-master branch) cancels its superseded run.
+# Master pushes are keyed by sha, so they never cancel one another.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/master' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+# SwiftPM build output is cached for the slow jobs (.github/actions/swift-cache); to rule a
+# stale cache out of a strange build error, rerun with workflow_dispatch
+# no_cache=true, or put "[no cache]" in the pull request title (or a pushed
+# head commit message).
 
 jobs:
   build:
@@ -21,6 +38,12 @@ jobs:
     # (theTypecheckGuardsRanWhereTheyAreRequired).
     steps:
     - uses: actions/checkout@v7
+    - uses: ./.github/actions/swift-cache
+      with:
+        name: macos-build
+        paths: |
+          .build
+          Examples/Jotter/.build
     - name: Build
       run: swift build -v --build-system native --build-tests
     - name: Run tests
@@ -81,6 +104,11 @@ jobs:
       with:
         swift-version: swift-6.4.0-release
         swift-build: 6.4.0-RELEASE
+    - uses: ./.github/actions/swift-cache
+      with:
+        name: root-windows
+        paths: |
+          .build
     - name: Build every portable target and its tests
       run: |
         swift build --build-tests
@@ -150,6 +178,11 @@ jobs:
       with:
         swift-version: swift-6.4.0-release
         swift-build: 6.4.0-RELEASE
+    - uses: ./.github/actions/swift-cache
+      with:
+        name: portable-windows
+        paths: |
+          Tests/PortableTests/.build
     - name: Run portable tests
       working-directory: Tests/PortableTests
       run: |

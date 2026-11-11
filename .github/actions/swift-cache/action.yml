@@ -1,0 +1,79 @@
+# Restores and (in the job's post step) saves SwiftPM build output.
+#
+# Key:   v1-<os>-<arch>-<name>-<swift toolchain>-<hash of every Package.resolved>-<UTC date>
+# Falls back to the newest cache with the same hash, then the same name and
+# toolchain whatever the hash. GitHub serves the current ref's caches before the
+# base branch's, so a PR branch restores its own newest cache, then master's.
+# The date, not the commit sha, ends the key: a cache is immutable, so a per-sha key
+# would store a new multi-hundred-MB entry on every push and push the repo past its
+# 10 GB cache limit (evicting the Docker layer cache). With a day key the first run of a
+# day saves, every later run that day (master's entry is visible to PRs) restores it
+# exactly and saves nothing; its build is incremental from that morning's tree.
+# To purge a bad cache for good bump the `v1` below (or `gh cache delete`).
+#
+# BYPASS (a stale cache shows up as the "impossible" build errors CLAUDE.md lists
+# under `swift package clean`): rule it out with ONE rerun that skips the restore.
+#   - workflow_dispatch with the `no_cache` input set to true, or
+#   - "[no cache]" in the pull request title, or in a pushed head commit message.
+# A bypassed run builds cold and still saves, so it replaces the suspect cache.
+name: Swift build cache
+description: Cache SwiftPM build directories, with a bypass and stable source mtimes.
+inputs:
+  name:
+    description: Job name, part of the cache key.
+    required: true
+  paths:
+    description: Newline-separated directories to cache.
+    required: true
+  extra:
+    description: Anything else the cached output depends on (for example a Dockerfile hash).
+    default: ""
+runs:
+  using: composite
+  steps:
+    - id: key
+      shell: bash
+      env:
+        NO_CACHE_INPUT: ${{ github.event.inputs.no_cache }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        HEAD_MSG: ${{ github.event.head_commit.message }}
+        NAME: ${{ inputs.name }}
+        EXTRA: ${{ inputs.extra }}
+        OS_ARCH: ${{ runner.os }}-${{ runner.arch }}
+        RESOLVED: ${{ hashFiles('Package.resolved', '**/Package.resolved') }}
+      run: |
+        swift_id=$(swift --version 2>&1 | head -n 1 | tr -c 'A-Za-z0-9.\n' '-' || true)
+        base="v1-$OS_ARCH-$NAME-$swift_id$EXTRA"
+        if [ "$NO_CACHE_INPUT" = "true" ] || [[ "$PR_TITLE" == *"[no cache]"* ]] || [[ "$HEAD_MSG" == *"[no cache]"* ]]; then
+          echo "::notice::swift-cache: bypassed (no_cache); building cold"
+          # No restore key and a key no earlier run can have: a miss, then a fresh save.
+          echo "key=$base-nocache-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+          echo "restore=" >> "$GITHUB_OUTPUT"
+        else
+          echo "key=$base-$RESOLVED-$(date -u +%F)" >> "$GITHUB_OUTPUT"
+          { echo "restore<<EOF"; echo "$base-$RESOLVED-"; echo "$base-"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+        fi
+    - uses: actions/cache@v4
+      with:
+        path: ${{ inputs.paths }}
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: ${{ steps.key.outputs.restore }}
+    # A fresh checkout stamps every source file with "now", so the build system sees every input
+    # as changed and rebuilds everything the restored cache holds. Stamp each file with a time
+    # derived from its CONTENT instead (fixed epoch + 24 bits of MD5): an unchanged file keeps its mtime
+    # across checkouts, an edited one (even to the same size) gets a different one.
+    - name: Content-derived source mtimes
+      shell: bash
+      run: |
+        # perl, not python: the swift:6.4-noble container has no python3.
+        perl -MFile::Find -MDigest::MD5 -e '
+          my %skip = map { $_ => 1 } qw(.git .build .ci-cache .accesskit docs);
+          find({ no_chdir => 1,
+                 preprocess => sub { grep { !$skip{$_} } @_ },
+                 wanted => sub {
+                   return if -l $_ || !-f _;
+                   open(my $h, "<:raw", $_) or return;
+                   my $t = 1577836800 + hex(substr(Digest::MD5->new->addfile($h)->hexdigest, 0, 6));
+                   close $h;
+                   utime($t, $t, $_);
+                 } }, ".");'
