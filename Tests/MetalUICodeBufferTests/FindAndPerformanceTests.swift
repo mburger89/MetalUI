@@ -100,6 +100,21 @@ private func naiveFind(_ hay: [UInt8], _ query: String, fold: Bool, whole: Bool,
         }
     }
 
+    /// `CV-AI`: a built chunk is at most 480 bytes (480 + the 32-byte array header = the 512-byte malloc
+    /// class, not 640), and at least 440 on average. Fails at the old target of 512 (chunks of 512).
+    @Test func builtChunksLeaveRoomForTheArrayHeaderInTheirMallocClass() throws {
+        for text in [String(repeating: "abcdefghi\n", count: 10_000), fixtureText(lines: 20_000)] {
+            let bytes = Array(text.utf8)
+            let chunks = bytes.withUnsafeBufferPointer { Rope.chunkify($0) }
+            let longest = chunks.map(\.count).max() ?? 0
+            #expect(longest <= 480, "longest built chunk \(longest) bytes")
+            // The 20 KB line in the fixture is cut like any other text, so the average holds throughout.
+            #expect(chunks.count * 440 <= bytes.count, "\(chunks.count) chunks of \(bytes.count) bytes")
+        }
+        let ascii = Array(String(repeating: "a", count: 100_000).utf8)
+        #expect(ascii.withUnsafeBufferPointer { Rope.chunkify($0) }.count == 212, "ceil(100000 / 472)")
+    }
+
     @Test func aKeystrokeVisitsLogarithmicallyManyNodes() throws {
         let a = worstEdit(Self.small, edits: 400, seed: 5)
         let b = worstEdit(Self.large, edits: 400, seed: 6)
