@@ -197,6 +197,57 @@ public final class LayoutTree {
     /// ids need distinct generations (C-3).
     public init(generation: UInt64) { self.generation = generation }
 
+    /// What a built tree held, for seeding the next frame's tree (`HP-K`, G33 (b)).
+    package struct CapacityHint: Equatable {
+        package var nodes = 0
+        package var nativeNodes = 0
+        package var leafKeys = 0
+        package var spacingMarks = 0
+        package var nativeParents = 0
+        package init() {}
+    }
+
+    /// An empty tree whose per-node storage is reserved from `hint`: a frame's tree is
+    /// rebuilt from nothing, so without this its arrays and dictionaries regrow
+    /// (`_copyOrMoveAndResize`) to about the size the last frame's reached. Reserves only;
+    /// nothing is carried (`HP-K`).
+    package init(generation: UInt64, reserving hint: CapacityHint) {
+        self.generation = generation
+        // Guarded: `reserveCapacity(0)` on an empty store can still allocate (the allocation-count pins read it).
+        if hint.nodes > 0 {
+            childLists.reserveCapacity(hint.nodes)
+            layouts.reserveCapacity(hint.nodes)
+            measuredWidths.reserveCapacity(hint.nodes)
+        }
+        if hint.nativeNodes > 0 { nativeNodes.reserveCapacity(hint.nativeNodes) }
+        if hint.leafKeys > 0 { leafKeys.reserveCapacity(hint.leafKeys) }
+        if hint.spacingMarks > 0 { spacingMarks.reserveCapacity(hint.spacingMarks) }
+        if hint.nativeParents > 0 { nativeParents.reserveCapacity(hint.nativeParents) }
+    }
+
+    /// The counts a finished tree holds: the next tree's ``CapacityHint``.
+    package var capacityHint: CapacityHint {
+        var hint = CapacityHint()
+        hint.nodes = childLists.count
+        hint.nativeNodes = nativeNodes.count
+        hint.leafKeys = leafKeys.count
+        hint.spacingMarks = spacingMarks.count
+        hint.nativeParents = nativeParents.count
+        return hint
+    }
+
+    /// The smallest capacity among the reserved stores, as a hint: what this tree
+    /// started with, for the test that pins the seeding.
+    package var capacities: CapacityHint {
+        var hint = CapacityHint()
+        hint.nodes = min(childLists.capacity, layouts.capacity, measuredWidths.capacity)
+        hint.nativeNodes = nativeNodes.capacity
+        hint.leafKeys = leafKeys.capacity
+        hint.spacingMarks = spacingMarks.capacity
+        hint.nativeParents = nativeParents.capacity
+        return hint
+    }
+
     /// The number of nodes registered since the last reset.
     public var nodeCount: Int { childLists.count }
 

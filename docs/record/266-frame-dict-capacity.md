@@ -1,0 +1,8 @@
+# 266. Per-frame maps reserve the previous frame's count (Alloy gap G33 (b), `HP-K`)
+
+Branch `perf/frame-dict-capacity` (master `74628b2e`). Decision `HP-K` in `docs/superpowers/2026-10-13-hot-paths-decisions.md`. Class `M`; no public API, no divergence added or retired (220 live, next label 241).
+
+- **Cause.** An Alloy Instruments profile of 200 keystrokes showed 310 samples in `_NativeDictionary._copyOrMoveAndResize`: `Window.buildAndAdoptFrame` makes a new `Frame` (and `LayoutTree`) per build, so each map regrows from empty to the size the last frame reached.
+- **Change.** `FrameCapacityHints` (internal, counts only) is read from the adopted frame (`Frame.capacityHints()`) into `Window.frameCapacityHints` and passed to the next `Frame.init(capacityHints:)`, which calls `reserveCapacity` only. `LayoutTree.init(generation:reserving:)` and `FocusRegistry.init(reserving:)` carry the rest. Nothing is reused, so nothing leaks between frames.
+- **Measured (a probe on 300 rows of `Button` + tappable `Text`, a throwaway Mirror dump).** Tree: `childLists`/`layouts`/`measuredWidths`/`nativeNodes` 2101 each, `nativeParents` 2100, `leafKeys` 900, `spacingMarks` 900. `Frame.hitboxes` 600, `focusRegistry.focusable`/`keyHandlers`/`tabOrder` 300 each, `lowering.items`/`order` 1200, `elementBounds` 1501 (only when recorded). `axEmissions` 900 (an array appended once, not reserved). Everything else on the frame was under 20.
+- **Tests** (`Tests/MetalUITests/FrameCapacityHintsTests.swift`): `theSecondFrameReservesWhatTheFirstFrameHeld` (fails with every start capacity 0 when the window stops passing the hint), `aFrameWithNoHintStartsEmpty`.

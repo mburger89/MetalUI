@@ -396,6 +396,10 @@ public final class Window {
 
     /// The most recent frame's `Frame.elementBounds` — empty unless
     /// `recordsElementBounds`. Captured alongside `lastScene`, for its reason.
+    /// What the last adopted frame's hot stores held (`HP-K`): the next frame's reservation.
+    private(set) var frameCapacityHints = FrameCapacityHints()
+    /// The capacities the last adopted frame started with, which the test reads.
+    private(set) var lastFrameStartCapacities = FrameCapacityHints()
     private(set) var lastElementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
 
     /// Raw input, for whatever no element claimed.
@@ -1977,7 +1981,8 @@ public final class Window {
                               animationStore: animationStore,
                               surfaceRegistry: surfaceRegistry,
                               collectsAccessibility: accessibility.isActive,
-                              recordsElementBounds: recordsElementBounds)
+                              recordsElementBounds: recordsElementBounds,
+                              capacityHints: frameCapacityHints)   // `HP-K`
             frame.timing = frameTiming   // `FP-B`: the phase stamps
             frame.clipboardAccess = clipboardAccess   // CP-D
             frame.pointerOwner = lastMousePosition.flatMap { topmostHitboxOwner(at: $0) }   // BY-D
@@ -2109,6 +2114,8 @@ public final class Window {
         lastMenuBarTitles = frame.drewMenuBar ? frame.menuBarTitles ?? [] : []   // SG-A
         lastMenuBarTitleFrames = frame.drewMenuBar ? frame.menuBarTitleFrames : []
         lastElementBounds = frame.elementBounds
+        frameCapacityHints = frame.capacityHints()   // `HP-K` (G33 (b)): the next frame reserves this much
+        lastFrameStartCapacities = frame.startCapacities
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
         lastAccessibilityPressOnly = frame.accessibilityPressOnly

@@ -1,6 +1,6 @@
 # Hot paths - decisions
 
-Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-K`.**
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-L`.**
 Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
 `../record/111-hot-paths.md`. Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
 reserved 415-424: none taken (none yet).
@@ -138,3 +138,14 @@ cache key is pinned per component where it is built. `aRichTextPlacementMemoKeyH
 plain key's components were pinned already (`aChangedFractionalOriginOrScaleRecomputesPlacement`); the requested `FontKey` in the
 plain key is covered by the oracle comparison only (named, not mutation-pinned). **Cost if wrong.** A rich `Text` scrolled
 vertically draws at its previous position. Record 111 s7.
+
+## HP-K - Per-frame maps reserve the previous frame's count (G33 (b), record 266)
+
+**Question.** An Alloy profile (200 keystrokes) put 310 samples in `_NativeDictionary._copyOrMoveAndResize`: a `Frame` and its
+`LayoutTree` are made new every frame, so every map regrows from empty. **Ruling.** The window captures a `FrameCapacityHints`
+(counts only) when it adopts a frame and passes it to the next `Frame.init`, which **reserves** that much and nothing else:
+`LayoutTree` (`childLists`, `layouts`, `measuredWidths`, `nativeNodes`, `leafKeys`, `spacingMarks`, `nativeParents`),
+`FocusRegistry` (`focusable`, `keyHandlers`, `tabOrder`), `hitboxes`, `lowering.items`/`order`, and `elementBounds`/`axNodes` when
+recorded. Storage is never reused, so no state crosses frames; maps that stay small (presentation anchors and spaces, context menus, scroll keys,
+named spaces, AX press-only) are left alone. A window that shrinks reserves the large count for one frame only. **Evidence.**
+`theSecondFrameReservesWhatTheFirstFrameHeld`. **Cost if wrong.** A wasted allocation, never a wrong frame.
