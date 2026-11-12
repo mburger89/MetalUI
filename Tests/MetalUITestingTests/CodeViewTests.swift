@@ -695,3 +695,51 @@ import MetalUITestSupport
     #expect(!redraws { decorations.setHighlights([], in: 0..<3, layer: .syntax, asOf: buffer.version) }, "the same again")
     #expect(redraws { decorations.setHighlights([CodeStyleRun(range: 0..<3, style: style)], in: 0..<3, layer: .syntax, asOf: buffer.version) }, "a run")
 }
+
+// MARK: Row lookups and the row cache (`CV-AH`, record 265)
+
+/// (b) — repainting with nothing changed computes no line styling and scans no rows for highlights: both are
+/// answered from the row caches. **Red before:** every frame recomputes both (counters rise each repaint).
+@Test @MainActor func anIdleRepaintRecomputesNeitherStylingNorRowScans() throws {
+    let buffer = CodeBuffer(codeText(lines: 300))
+    let decorations = CodeDecorations(buffer: buffer)
+    let style = decorations.register(CodeStyle(foreground: Color(hue: 0.123, saturation: 0.8, brightness: 0.9)))
+    let provider = RecordingProvider(style: style)
+    decorations.highlightProvider = provider
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    for _ in 0..<2 { window.window.setNeedsRedraw(); window.tick() }
+    let styled = decorations.stylingComputations, scanned = decorations.needingHighlightScans
+    #expect(styled > 0 && scanned > 0, "the first frames did the work: \(styled), \(scanned)")
+    for _ in 0..<5 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(decorations.stylingComputations == styled, "styling recomputed: \(decorations.stylingComputations) vs \(styled)")
+    #expect(decorations.needingHighlightScans == scanned, "rows rescanned: \(decorations.needingHighlightScans) vs \(scanned)")
+}
+
+/// (c) — an edit and a `setHighlights` each invalidate the caches, and the result follows the change.
+/// **Mutation:** a cache keyed on the range alone keeps answering the old styling.
+@Test @MainActor func anEditAndNewHighlightsInvalidateTheRowCaches() throws {
+    let buffer = CodeBuffer(codeText(lines: 50))
+    let decorations = CodeDecorations(buffer: buffer)
+    let style = decorations.register(CodeStyle(foreground: Color(hue: 0.5, saturation: 1, brightness: 1)))
+    let snap = buffer.snapshot()
+    let row = snap.lineRange(4)
+    #expect(!decorations.stylingOfLine(row).foreground.contains { $0.style == style })
+    #expect(decorations.rowsNeedingHighlights(in: 0..<10, snapshot: snap) != nil)
+    let scans = decorations.needingHighlightScans
+    #expect(decorations.rowsNeedingHighlights(in: 0..<10, snapshot: snap) != nil)
+    #expect(decorations.needingHighlightScans == scans, "the second ask is cached")
+    // New highlights for rows 0..<10.
+    let runs = (0..<10).map { CodeStyleRun(range: snap.lineRange($0), style: style) }.filter { !$0.range.isEmpty }
+    decorations.setHighlights(runs, in: 0..<snap.lineRange(9).upperBound, layer: .syntax, asOf: snap.version)
+    #expect(decorations.stylingOfLine(row).foreground.contains { $0.style == style }, "setHighlights invalidated the styling")
+    #expect(decorations.rowsNeedingHighlights(in: 0..<10, snapshot: snap) == nil, "and the rows needing highlights")
+    // An edit on row 2 shifts row 4 and marks row 2 stale.
+    let at = snap.lineRange(2).lowerBound
+    buffer.replace(at..<at, with: "zz\n")
+    decorations.sync()
+    let now = buffer.snapshot()
+    #expect(decorations.stylingOfLine(now.lineRange(5)).foreground.contains { $0.style == style }, "row 4 moved to row 5")
+    #expect(decorations.stylingOfLine(now.lineRange(2)).foreground.allSatisfy { $0.style == nil }, "the inserted row is unstyled")
+    let needing = decorations.rowsNeedingHighlights(in: 0..<10, snapshot: now)
+    #expect(needing != nil && needing!.contains(2), "the edited row is stale again: \(String(describing: needing))")
+}
