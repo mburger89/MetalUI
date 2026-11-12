@@ -128,6 +128,10 @@ public struct CodeTheme: Equatable, Sendable {
 @MainActor
 public protocol CodeHighlightProvider: AnyObject {
     /// `rows` (buffer rows) need highlights in ``CodeHighlightLayer/syntax``. `snapshot` is the text now.
+    ///
+    /// Answer with a range covering the rows: either `lineRange(rows.lowerBound).lowerBound ..< lineRange(rows.upperBound - 1).upperBound`
+    /// (newline of the last row left out) or one through its newline is fine, and a blank last row counts as
+    /// answered by the first. See ``CodeDecorations/setHighlights(_:in:layer:asOf:)``.
     func decorations(_ decorations: CodeDecorations, needHighlightsForRows rows: Range<Int>, in snapshot: CodeSnapshot)
 }
 
@@ -437,14 +441,38 @@ public final class CodeDecorations {
     /// Sets the highlights of `range` in `layer` to `runs`, all given as of `version` of the buffer; they
     /// are mapped forward through the edits since. The range's gaps become "no style, valid". If the edit
     /// log no longer reaches back to `version`, the call is dropped and the rows are asked for again.
+    ///
+    /// A row is answered when its content bytes (``CodeSnapshot/lineRange(_:)``, newline excluded) lie in
+    /// `range`. A blank row has no content, so it is answered by a `range` that reaches through its newline, or
+    /// ends at its start when it is the last row of the request in flight (the bounds
+    /// `lineRange(first).lowerBound ..< lineRange(last - 1).upperBound`, an empty range at a blank row
+    /// included). A `range` ending earlier leaves the later rows to be asked for again. A call that would change
+    /// nothing (an empty range, or no runs over bytes already "no style, valid") neither redraws nor re-asks.
     public func setHighlights(_ runs: [CodeStyleRun], in range: Range<Int>, layer: CodeHighlightLayer = .syntax,
                               asOf version: UInt64) {
         sync()
         let tree = layers[layer.rawValue]
         guard let lower = buffer.map(range.lowerBound, from: version, bias: .after),
               let upper = buffer.map(range.upperBound, from: version, bias: .before) else { return }
-        let mapped = lower..<max(lower, min(upper, tree.total))
+        var mapped = lower..<max(lower, min(upper, tree.total))
         if mapped.isEmpty && !range.isEmpty { return }
+        // An answer that ends where the last requested row's content ends covers that row, even when the row is
+        // blank and its only byte is the newline `lineRange` leaves out (`CV-AG`).
+        if let request = lastRequest, request.version == buffer.version, request.rows.upperBound > 0 {
+            let snapshot = buffer.snapshot()
+            let row = request.rows.upperBound - 1
+            if row < snapshot.lineCount {
+                let content = snapshot.lineRange(row)
+                if content.isEmpty, mapped.lowerBound <= content.lowerBound, mapped.upperBound == content.upperBound,
+                   content.upperBound < tree.total {
+                    mapped = mapped.lowerBound..<(content.upperBound + 1)
+                }
+            }
+        }
+        // Nothing to store, or the stored bytes already read "no style, valid" and no run restyles them: no
+        // change, so no redraw and no new ask (`CV-AG`).
+        if mapped.isEmpty { return }
+        if runs.isEmpty, tree.runs(in: mapped).allSatisfy({ $0.payload == HighlightPayload(style: nil, state: .valid) }) { return }
         tree.set(mapped, to: HighlightPayload(style: nil, state: .valid))
         if !runs.isEmpty { layerHasStyles[layer.rawValue] = true; anyLayerHasStyles = true }
         for run in runs {
