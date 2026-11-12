@@ -2932,8 +2932,10 @@ public final class Frame {
          surfaceRegistry: SurfaceRegistry = SurfaceRegistry(),
          collectsAccessibility: Bool = false,
          reportsUnlowerableFields: Bool = false,
-         recordsElementBounds: Bool = false) {
-        self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
+         recordsElementBounds: Bool = false,
+         capacityHints: FrameCapacityHints = FrameCapacityHints()) {
+        self.tree = LayoutTree(generation: Frame.nextTreeGeneration, reserving: capacityHints.tree)
+        self.focusRegistry = FocusRegistry(reserving: capacityHints.focus)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
         self.scaleFactor = scaleFactor
@@ -2973,6 +2975,32 @@ public final class Frame {
         self.collectsAccessibility = collectsAccessibility
         self.reportsUnlowerableFields = reportsUnlowerableFields
         self.recordsElementBounds = recordsElementBounds
+        // `HP-K` (G33 (b)): reserve only. Every store below is still empty and still rebuilt from nothing.
+        if capacityHints.hitboxes > 0 { hitboxes.reserveCapacity(capacityHints.hitboxes) }
+        if capacityHints.loweringItems > 0 {
+            lowering.items.reserveCapacity(capacityHints.loweringItems)
+            lowering.order.reserveCapacity(capacityHints.loweringItems)
+        }
+        if recordsElementBounds, capacityHints.elementBounds > 0 { elementBounds.reserveCapacity(capacityHints.elementBounds) }
+        if collectsAccessibility, capacityHints.axNodes > 0 { axNodes.reserveCapacity(capacityHints.axNodes) }
+        self.startCapacities = currentCapacities()
+    }
+
+    /// The capacities this frame's hot stores started with (`HP-K`); read by the test that pins the seeding.
+    private(set) var startCapacities = FrameCapacityHints()
+
+    /// How many entries each hot per-frame store holds now: what the window hands the next frame to reserve.
+    func capacityHints() -> FrameCapacityHints {
+        FrameCapacityHints(tree: tree.capacityHint, focus: focusRegistry.countHint, hitboxes: hitboxes.count,
+                           loweringItems: lowering.items.count, elementBounds: elementBounds.count,
+                           axNodes: axNodes.count)
+    }
+
+    /// The capacities the hot stores have now (not their counts).
+    private func currentCapacities() -> FrameCapacityHints {
+        FrameCapacityHints(tree: tree.capacities, focus: focusRegistry.capacityHint, hitboxes: hitboxes.capacity,
+                           loweringItems: min(lowering.items.capacity, lowering.order.capacity),
+                           elementBounds: elementBounds.capacity, axNodes: axNodes.capacity)
     }
 
     // MARK: - Lowering diagnostics (plan task 7, rulings LR-C, LR-D)
@@ -4994,4 +5022,16 @@ extension Frame {
             outerClip: transform.outerClip)
         return out
     }
+}
+
+/// How large each hot per-frame store grew in the previous frame (`HP-K`, G33 (b)). The window captures it when it
+/// adopts a frame and hands it to the next, which only **reserves** that much: a frame's maps are rebuilt from
+/// nothing every frame, and regrowing them from empty (`_copyOrMoveAndResize`) was the cost. Nothing is carried.
+struct FrameCapacityHints: Equatable {
+    var tree = LayoutTree.CapacityHint()
+    var focus = FocusRegistry.Hint()
+    var hitboxes = 0
+    var loweringItems = 0
+    var elementBounds = 0
+    var axNodes = 0
 }

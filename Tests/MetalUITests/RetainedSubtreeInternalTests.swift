@@ -136,6 +136,8 @@ private let frameChannels: [String: Channel] = [
     "hitboxChains": .frameLocal,
     // FP-B: the window's frame instrumentation, stamped at the end of three phases; a clock read, never replayed.
     "timing": .frameLocal,
+    // G33 (b) (`HP-K`): the capacities the frame's hot stores started with, read by a test; never replayed.
+    "startCapacities": .frameLocal,
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {

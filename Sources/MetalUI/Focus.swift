@@ -31,6 +31,25 @@ public typealias KeyHandler = @MainActor (KeyEvent) -> Bool
 /// `LayoutTree` — which is what makes "was the focused element produced this
 /// frame" answerable at all (see `Frame.resolveFocus()`).
 struct FocusRegistry {
+    init() {}
+
+    /// Reserved from the last frame's counts (`HP-K`): reserves only.
+    init(reserving hint: Hint) {
+        if hint.focusable > 0 { focusable.reserveCapacity(hint.focusable) }
+        if hint.keyHandlers > 0 { keyHandlers.reserveCapacity(hint.keyHandlers) }
+        if hint.tabOrder > 0 { tabOrder.reserveCapacity(hint.tabOrder) }
+    }
+
+    /// What a registry held, for the next frame's (`HP-K`).
+    struct Hint: Equatable {
+        var focusable = 0
+        var keyHandlers = 0
+        var tabOrder = 0
+    }
+
+    var countHint: Hint { Hint(focusable: focusable.count, keyHandlers: keyHandlers.count, tabOrder: tabOrder.count) }
+    var capacityHint: Hint { Hint(focusable: focusable.capacity, keyHandlers: keyHandlers.capacity, tabOrder: tabOrder.capacity) }
+
     /// Every id that declared `.focusable()` this frame. Membership is what
     /// lets an id **hold** focus: `resolveFocus` clears a focused id that is
     /// not in here.
