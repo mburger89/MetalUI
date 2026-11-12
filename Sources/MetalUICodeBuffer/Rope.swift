@@ -43,10 +43,13 @@ final class Node: @unchecked Sendable {
 struct Rope: Sendable {
     /// No chunk is longer than this; one is split before it grows past it.
     static let maxChunk = 768
-    /// A built or split chunk aims at this many bytes.
-    static let targetChunk = 512
+    /// A built or split chunk aims at this many bytes. A chunk is a `ContiguousArray` with a 32-byte
+    /// header, and malloc rounds a block up to a size class (512, 640, 768...): 512 payload bytes fill a
+    /// 640-byte block (1.25x). 472 plus the few bytes a scalar or CRLF cut can add stays within 480, so
+    /// header and payload fill the 512-byte class (1.07x) (`CV-AI`).
+    static let targetChunk = 472
     /// Two neighbouring chunks that fit in this many bytes are merged after a deletion.
-    static let mergeLimit = 512
+    static let mergeLimit = 472
     /// A node holds at most this many entries; one that grows past it splits.
     static let maxEntries = 16
     /// A split or a build fills nodes to about this many entries.
