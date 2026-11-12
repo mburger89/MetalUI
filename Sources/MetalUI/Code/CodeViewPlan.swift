@@ -529,12 +529,27 @@ extension CodeView {
         var widest = 0
         let decorated = showsNumbers
         plan.rows.reserveCapacity(max(0, upper - lower))
+        // The buffer rows the window shows, found with one seek and a forward scan (`CV-AH`).
+        var windowFirst = Int.max, windowLast = -1
+        if lower < upper {
+            for edge in [lower, upper - 1] {
+                switch map.row(atDisplay: edge) {
+                case .buffer(let row): windowFirst = min(windowFirst, row); windowLast = max(windowLast, row)
+                case .virtual(_, _, let gap): windowFirst = min(windowFirst, gap); windowLast = max(windowLast, gap)
+                }
+            }
+        }
+        let windowRanges = windowLast >= windowFirst ? snap.lineRanges(rows: windowFirst..<(windowLast + 1)) : []
+        func rangeOf(_ row: Int) -> Range<Int> {
+            let at = row - windowFirst
+            return at >= 0 && at < windowRanges.count ? windowRanges[at] : snap.lineRange(row)
+        }
         var display = lower
         while display < upper {
             let top = plan.originY + (display - firstRow) * pitchPx - remainder
             switch map.row(atDisplay: display) {
             case .buffer(let row):
-                let range = snap.lineRange(row)
+                let range = rangeOf(row)
                 var styling = decorations.stylingOfLine(range)
                 var bytes = snap.utf8(in: range)
                 var rowMarked: CodeViewPlan.Row.Marked?
@@ -580,7 +595,7 @@ extension CodeView {
                     label = made
                     labelWidth = Int((made.width * scaleD).rounded())
                 }
-                let start = gap < bufferRows ? snap.lineRange(gap).lowerBound : snap.utf8Count
+                let start = gap < bufferRows ? rangeOf(gap).lowerBound : snap.utf8Count
                 plan.rows.append(.init(display: display, buffer: gap, isVirtual: true, top: top, range: start..<start, textStart: 0,
                                        layout: layout, styling: line.styling, tint: group.background, bar: group.gutterBar,
                                        label: label, labelWidthPx: labelWidth, labelColor: line.marker?.color, virtualText: line.text,

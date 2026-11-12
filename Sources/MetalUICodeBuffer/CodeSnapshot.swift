@@ -51,11 +51,36 @@ public struct CodeSnapshot: Sendable {
     /// in CRLF. Empty when `row` is out of range.
     public func lineRange(_ row: Int) -> Range<Int> {
         guard row >= 0, row < lineCount else { return utf8Count..<utf8Count }
-        let start = rope.lineStart(row: row)
-        guard row + 1 < lineCount else { return start..<utf8Count }
-        var end = rope.lineStart(row: row + 1) - 1
-        if end > start, rope.byte(at: end - 1) == 0x0D { end -= 1 }
-        return start..<end
+        return lineRanges(rows: row..<(row + 1))[0]
+    }
+
+    /// ``lineRange(_:)`` of every row in `rows` (clamped to the text's rows), in order: one seek to the first
+    /// row and a forward scan, so a window of N rows costs O(depth + N) rope nodes, not N seeks (`CV-AH`).
+    package func lineRanges(rows: Range<Int>) -> [Range<Int>] {
+        let lo = max(0, rows.lowerBound), hi = min(lineCount, rows.upperBound)
+        guard lo < hi else { return [] }
+        let wanted = hi - lo
+        var result = [Range<Int>]()
+        result.reserveCapacity(wanted)
+        var position = rope.lineStart(row: lo)
+        var rowStart = position
+        var previousWasCR = false
+        rope.forEachSlice(position, utf8Count) { bytes in
+            for byte in bytes {
+                if byte == 0x0A {
+                    result.append(rowStart..<(previousWasCR ? position - 1 : position))
+                    if result.count == wanted { return false }
+                    rowStart = position + 1
+                    previousWasCR = false
+                } else {
+                    previousWasCR = byte == 0x0D
+                }
+                position += 1
+            }
+            return true
+        }
+        if result.count < wanted { result.append(rowStart..<utf8Count) }   // the last row has no terminator
+        return result
     }
 
     /// The text of line `row` without its terminator; empty when `row` is out of range.
@@ -66,7 +91,17 @@ public struct CodeSnapshot: Sendable {
     public func offset(of point: CodePoint) -> Int {
         let row = max(0, min(point.row, lineCount - 1))
         let start = rope.lineStart(row: row)
-        let end = row + 1 < lineCount ? rope.lineStart(row: row + 1) - 1 : utf8Count
+        var end = utf8Count
+        if row + 1 < lineCount {   // up to the row's `\n`, one forward scan from its start
+            var position = start
+            rope.forEachSlice(start, utf8Count) { bytes in
+                for byte in bytes {
+                    if byte == 0x0A { end = position; return false }
+                    position += 1
+                }
+                return true
+            }
+        }
         return start + max(0, min(point.column, end - start))
     }
 
