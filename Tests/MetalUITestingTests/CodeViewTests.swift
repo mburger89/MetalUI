@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Observation
 import MetalUI
 import MetalUIScene
 import MetalUITesting
@@ -595,3 +596,102 @@ import MetalUITestSupport
     }
 }
 #endif
+
+// MARK: - Blank rows and highlight answers (G32, `CV-AG`)
+
+/// A provider that answers through a closure and counts its asks.
+@MainActor final class ClosureProvider: CodeHighlightProvider {
+    var calls: [Range<Int>] = []
+    let answer: (CodeDecorations, Range<Int>, CodeSnapshot) -> Void
+    init(_ answer: @escaping (CodeDecorations, Range<Int>, CodeSnapshot) -> Void) { self.answer = answer }
+    func decorations(_ decorations: CodeDecorations, needHighlightsForRows rows: Range<Int>, in snapshot: CodeSnapshot) {
+        calls.append(rows)
+        answer(decorations, rows, snapshot)
+    }
+}
+
+/// The documented bounds: first row's start to the last row's content end, the newline left out.
+@MainActor func lineBoundsAnswer(_ decorations: CodeDecorations, _ rows: Range<Int>, _ snapshot: CodeSnapshot) {
+    let lo = snapshot.lineRange(rows.lowerBound).lowerBound, hi = snapshot.lineRange(rows.upperBound - 1).upperBound
+    decorations.setHighlights([], in: lo..<hi, layer: .syntax, asOf: snapshot.version)
+}
+
+@MainActor func countedAsks(text: String, answer: @escaping (CodeDecorations, Range<Int>, CodeSnapshot) -> Void,
+                            frames: Int = 6, height: Float = 200) throws -> [Range<Int>] {
+    let buffer = CodeBuffer(text)
+    let decorations = CodeDecorations(buffer: buffer)
+    let provider = ClosureProvider(answer)
+    decorations.highlightProvider = provider
+    let window = try codeWindow(buffer: buffer, decorations: decorations, height: height)
+    for _ in 0..<frames { window.window.setNeedsRedraw(); window.tick() }
+    return provider.calls
+}
+
+/// G32 — a provider answering with `lineRange` bounds while the row at the visible boundary is blank is asked
+/// once, not after every frame. **Red before:** the blank row's newline byte stays unknown and every answer
+/// bumped the revision, so the same ask came back each frame (6 asks in 6 frames).
+@Test @MainActor func aBlankRowAtTheVisibleBoundaryIsAnsweredByLineBounds() throws {
+    let calls = try countedAsks(text: "x\n" + String(repeating: "\n", count: 500), answer: lineBoundsAnswer)
+    #expect(calls.count == 1, "asked \(calls.count) times: \(calls)")
+}
+
+/// G32 — a blank row at the end of the file, and one in the middle, behave the same. **Red before:** the end case
+/// asked on every frame.
+@Test @MainActor func blankRowsInTheMiddleAndAtTheEndAreAnswered() throws {
+    let end = try countedAsks(text: "a\n\nb\n\n\n", answer: lineBoundsAnswer)
+    #expect(end.count == 1, "end of file: asked \(end)")
+    let middle = try countedAsks(text: "a\n\n\nb\nc\n", answer: lineBoundsAnswer)
+    #expect(middle.count == 1, "middle: asked \(middle)")
+    let empty = try countedAsks(text: "\n\n\n", answer: lineBoundsAnswer)
+    #expect(empty.count == 1, "only blank rows: asked \(empty)")
+    // An empty range at a blank row's start is the whole answer for a single blank row.
+    let single = try countedAsks(text: "a\n\nb\n", answer: { decorations, rows, snapshot in
+        let start = snapshot.lineRange(rows.lowerBound).lowerBound
+        decorations.setHighlights([], in: start..<start, layer: .syntax, asOf: snapshot.version)
+        if rows.count > 1 { lineBoundsAnswer(decorations, rows, snapshot) }
+    })
+    #expect(single.count == 1, "empty range at a blank row: asked \(single)")
+}
+
+/// G32 — a provider that answers through the newlines (the workaround) is asked once too.
+@Test @MainActor func anAnswerThroughTheNewlinesStillWorks() throws {
+    let calls = try countedAsks(text: "x\n" + String(repeating: "\n", count: 500), answer: { decorations, rows, snapshot in
+        let lo = snapshot.lineRange(rows.lowerBound).lowerBound
+        let hi = min(snapshot.lineRange(rows.upperBound - 1).upperBound + 1, snapshot.utf8Count)
+        decorations.setHighlights([], in: lo..<hi, layer: .syntax, asOf: snapshot.version)
+    })
+    #expect(calls.count == 1, "asked \(calls.count) times")
+}
+
+/// G32 — a partial answer leaves the later rows missing, so they are asked for again (the rule is not "any answer
+/// settles everything"). **Mutation:** treating every answer as covering the whole request stops the second ask.
+@Test @MainActor func aPartialAnswerAsksAgainForTheMissingRows() throws {
+    var answered = false
+    let calls = try countedAsks(text: "a\n\n\nb\nc\n", answer: { decorations, rows, snapshot in
+        guard !answered else { return }
+        answered = true
+        let lo = snapshot.lineRange(rows.lowerBound).lowerBound
+        decorations.setHighlights([], in: lo..<snapshot.lineRange(rows.lowerBound).upperBound + 1, layer: .syntax, asOf: snapshot.version)
+    })
+    #expect(calls.count >= 2, "asked \(calls)")
+    #expect(calls.dropFirst().first.map { $0.lowerBound > 0 } == true, "the second ask starts after the answered row: \(calls)")
+}
+
+/// G32 — `setHighlights` that changes nothing does not redraw (`revision` is what the views observe), and one that
+/// changes something does. **Red before:** the empty range and the repeat both redrew.
+@Test @MainActor func aHighlightCallThatChangesNothingDoesNotRedraw() {
+    let buffer = CodeBuffer("abc\ndef\n")
+    let decorations = CodeDecorations(buffer: buffer)
+    let style = decorations.register(CodeStyle(foreground: .red))
+    func redraws(_ body: () -> Void) -> Bool {
+        final class Flag: @unchecked Sendable { var fired = false }
+        let flag = Flag()
+        withObservationTracking({ _ = decorations.findMatches }, onChange: { flag.fired = true })
+        body()
+        return flag.fired
+    }
+    #expect(!redraws { decorations.setHighlights([], in: 2..<2, layer: .syntax, asOf: buffer.version) }, "an empty range")
+    #expect(redraws { decorations.setHighlights([], in: 0..<3, layer: .syntax, asOf: buffer.version) }, "first mark valid")
+    #expect(!redraws { decorations.setHighlights([], in: 0..<3, layer: .syntax, asOf: buffer.version) }, "the same again")
+    #expect(redraws { decorations.setHighlights([CodeStyleRun(range: 0..<3, style: style)], in: 0..<3, layer: .syntax, asOf: buffer.version) }, "a run")
+}
