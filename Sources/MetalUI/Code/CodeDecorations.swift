@@ -195,6 +195,16 @@ public final class CodeDecorations {
     package var shapedBytes: Int { lineCache.shapedBytesTotal }
     /// How many highlight runs ``stylingOfLine(_:)`` visited since reset (a counter, `CV-N`).
     @ObservationIgnored package var runsVisited = 0
+    /// How many times a line's styling was computed rather than answered from the row cache (a counter, `CV-AH`).
+    @ObservationIgnored package var stylingComputations = 0
+    /// How many times ``rowsNeedingHighlights(in:snapshot:)`` scanned rows rather than answered from its cache (`CV-AH`).
+    @ObservationIgnored package var needingHighlightScans = 0
+    /// The buffer version the layers reflect: set by ``sync()``.
+    @ObservationIgnored private var appliedVersion: UInt64 = 0
+    @ObservationIgnored private var rowCacheKey: (version: UInt64, revision: UInt64)?
+    @ObservationIgnored private var stylingCache: [Range<Int>: LineStyling] = [:]
+    @ObservationIgnored private var needingCache: (rows: Range<Int>, result: Range<Int>?)?
+    private static let rowCacheLimit = 512
     /// The find matches: sorted, disjoint, in the coordinates of the buffer's version at the last ``sync()`` (`CV-AE`).
     @ObservationIgnored private var matches: [Range<Int>] = []
     @ObservationIgnored private var currentIndex: Int?
@@ -259,6 +269,7 @@ public final class CodeDecorations {
             deltas.removeAll()
             deltaBase = snapshot.version
         }
+        appliedVersion = buffer.version
     }
 
     private func apply(_ edit: CodeEdit) {
@@ -640,8 +651,28 @@ public final class CodeDecorations {
         package var digest: UInt64 = 0xCBF2_9CE4_8422_2325
     }
 
-    /// The styling of the bytes `range` (one line, as byte offsets in the whole text).
+    /// The styling of the bytes `range` (one line, as byte offsets in the whole text). Answered from the row
+    /// cache while the synced version and the revision are the ones it was made at (`CV-AH`).
     package func stylingOfLine(_ range: Range<Int>) -> LineStyling {
+        refreshRowCaches()
+        if let hit = stylingCache[range] { return hit }
+        let made = computeStylingOfLine(range)
+        if stylingCache.count >= Self.rowCacheLimit { stylingCache.removeAll(keepingCapacity: true) }
+        stylingCache[range] = made
+        return made
+    }
+
+    /// Drops the row caches when the buffer version the layers are synced to, or the revision, moved.
+    private func refreshRowCaches() {
+        if rowCacheKey?.version != appliedVersion || rowCacheKey?.revision != revision {
+            rowCacheKey = (appliedVersion, revision)
+            stylingCache.removeAll(keepingCapacity: true)
+            needingCache = nil
+        }
+    }
+
+    private func computeStylingOfLine(_ range: Range<Int>) -> LineStyling {
+        stylingComputations += 1
         var styling = LineStyling()
         guard !range.isEmpty else { return styling }
         // No layer holds a styled run (the common case until a provider answers): one unstyled part, with
@@ -743,19 +774,25 @@ public final class CodeDecorations {
 
     /// The buffer rows in `rows` that have a stretch unknown or stale in the syntax layer: the range from
     /// the first to the last, `nil` when every row is known.
-    func rowsNeedingHighlights(in rows: Range<Int>, snapshot: CodeSnapshot) -> Range<Int>? {
+    package func rowsNeedingHighlights(in rows: Range<Int>, snapshot: CodeSnapshot) -> Range<Int>? {
+        refreshRowCaches()
+        if let cached = needingCache, cached.rows == rows { return cached.result }
+        needingHighlightScans += 1
         let tree = layers[CodeHighlightLayer.syntax.rawValue]
         var first: Int?, last = 0
-        for row in max(0, rows.lowerBound)..<min(snapshot.lineCount, rows.upperBound) {
-            let bytes = snapshot.lineRange(row)
+        let lo = max(0, rows.lowerBound), hi = min(snapshot.lineCount, rows.upperBound)
+        let ranges = snapshot.lineRanges(rows: lo..<max(lo, hi))
+        for (offset, bytes) in ranges.enumerated() {
             let probe = bytes.isEmpty ? bytes.lowerBound..<min(bytes.lowerBound + 1, tree.total) : bytes
             let missing = tree.runs(in: probe).contains { $0.payload.state != .valid }
             if missing {
-                if first == nil { first = row }
-                last = row
+                if first == nil { first = lo + offset }
+                last = lo + offset
             }
         }
-        return first.map { $0..<(last + 1) }
+        let result = first.map { $0..<(last + 1) }
+        needingCache = (rows, result)
+        return result
     }
 
     /// Whether the provider should be called for `rows` now: it has not been asked the same since the last
