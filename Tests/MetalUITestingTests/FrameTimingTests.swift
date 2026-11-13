@@ -68,6 +68,7 @@ private func ordered(_ s: FrameTimingSample) -> Bool {
 /// `dirtied`; the later event replacing the pending one.
 @Test @MainActor func inputAttributionIsTheEarliestDirtyingEvent() throws {
     let timing = FrameTiming()
+    timing.lateClaimWindow = 0   // `FP-K`: a frame beyond the bound; the late claim has its own tests (1.16)
     let window = try timedWindow(timing)
     window.window.setNeedsRedraw()
     window.tick()
@@ -405,4 +406,89 @@ private func readTrace(_ path: String) -> [String] {
         first.traceSink?("one"); second.traceSink?("two"); first.traceSink?("three")
         #expect(readTrace(path) == [FrameTiming.traceHeader, "one", "two", "three"])
     }
+}
+
+// MARK: Late and re-entrant attribution (`FP-K`)
+
+/// 1.16 — an input whose handler returns with the window clean but whose effects dirty it before the next frame
+/// (an observation hop, an asynchronous flush) is that frame's input and reaches the trace. Fails before `FP-K`:
+/// `settleInput` dropped it. Mutation: the late candidate never claimed in `beginFrame`.
+@Test @MainActor func anInputWhoseEffectsDirtyTheWindowAfterItsHandlerIsStillThatFramesInput() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    window.window.onInput = { _ in false }
+    window.send(.modifiersChanged([]))   // leaves the window clean, as an unclaimed key does
+    #expect(window.window.needsRedraw == false)
+    window.window.setNeedsRedraw()   // the effect lands after the handler returned
+    window.tick()
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    #expect(timing.last?.inputKind == .key)
+    #expect(lines.contains { $0.hasPrefix("metalui-latency ") && $0.contains(" key ") }, "\(lines)")
+}
+
+/// 1.17 — a handler that dispatches another event re-entrantly keeps the outer event as the candidate: the inner
+/// one (clean) used to replace it and the outer one's defer then settled nothing. Fails before `FP-K`.
+@Test @MainActor func aReentrantDispatchDoesNotClobberTheOuterInput() throws {
+    let timing = FrameTiming()
+    timing.lateClaimWindow = 0   // isolate the nesting from the late claim
+    let window = try timedWindow(timing)
+    window.window.onInput = { [unowned window] event in
+        guard case .keyDown = event else { return false }   // inner: unclaimed, so clean
+        window.send(.modifiersChanged([]))
+        return true   // outer: claimed, so the window is dirtied
+    }
+    window.send(.keyDown(KeyEvent(charactersIgnoringModifiers: "z", characters: "z", timestamp: 0)))
+    window.tick()
+    let sample = try #require(timing.last)
+    #expect(sample.inputKind == .key)
+    #expect(sample.inputCount == 1)
+}
+
+/// 1.18 — an input that truly causes nothing gets no frame and no line, and the counters say why. Mutation:
+/// `settleInput` keeping every clean input.
+@Test @MainActor func aTrulyNoOpInputWritesNoLineAndIsCounted() throws {
+    let timing = FrameTiming()
+    timing.lateClaimWindow = 0
+    let window = try timedWindow(timing)
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    window.window.setNeedsRedraw(); window.tick()   // flush the setup frames' presentations first
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    let noInputBefore = timing.presentedNoInputCount
+    let before = timing.settledCleanCount
+    window.send(.modifiersChanged([]))
+    window.window.setNeedsRedraw()   // a timer frame, not the input
+    window.tick()
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    #expect(timing.last?.inputKind == nil)
+    #expect(!lines.contains { $0.hasPrefix("metalui-latency ") })
+    #expect(timing.settledCleanCount == before + 1)
+    #expect(timing.presentedNoInputCount == noInputBefore + 1)
+}
+
+/// 1.19 — the summary line: stable field order, on demand and every 100 presentation reports. Mutation: the
+/// automatic write removed; `traceLinesWritten` not incremented.
+@Test @MainActor func theTraceSummaryCountsAndIsWrittenOnDemandAndEveryHundredReports() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    window.typeKey("a")
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    #expect(timing.traceLinesWritten == 1)
+    timing.writeTraceSummary()
+    #expect(lines.last == "metalui-latency-summary written=1 presentedNoInput=\(timing.presentedNoInputCount) "
+        + "dropped=0 settledClean=\(timing.settledCleanCount) claimedLate=\(timing.claimedLateCount)")
+    lines.removeAll()
+    for _ in 0..<FrameTiming.summaryInterval {
+        window.window.setNeedsRedraw()
+        window.tick()
+        window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    }
+    #expect(lines.contains { $0.hasPrefix("metalui-latency-summary ") }, "automatic summary")
 }

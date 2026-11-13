@@ -9,6 +9,7 @@ window.frameTiming = FrameTiming()                         // record, no signpos
 window.frameTiming = FrameTiming(capacity: 2048, emitsSignposts: true)
 METALUI_LATENCY_TRACE=1 swift run MyApp                    // per-stage input-to-screen lines on stderr (or =<path>), see FP-I; applies to any FrameTiming, also one you assign (FP-J)
 frameTiming.enableTrace(destination: "/tmp/latency.txt")    // or turn the trace on from code (FP-J)
+frameTiming.writeTraceSummary()                            // write the summary line now (FP-K); also every 100 presentation reports
 METALUI_SIGNPOSTS=1 swift run MyApp                        // every window: record + signposts
 window.frameTiming = nil                                   // stop
 ```
@@ -77,3 +78,7 @@ In Instruments add the Points of Interest or os_signpost instrument and filter o
 - `presented` arrives a frame or two after the frame and fills the sample in place; read it after the fact, or in `onPresented`. A ring that wrapped meanwhile drops it.
 - A timing belongs to one window.
 - Recording is a few clock reads per frame (about 40 ns each); signposts add the OS's own cost, so do not leave them on when measuring the last microsecond.
+
+## The trace summary (`FP-K`)
+
+While a trace is on, a line `metalui-latency-summary written=N presentedNoInput=N dropped=N settledClean=N claimedLate=N` is written on `writeTraceSummary()` and after every 100 presentation reports, so a run explains itself. The field order is stable; new fields are appended. `written` data lines so far; `presentedNoInput` presented frames no input caused; `dropped` frames the platform reported never shown; `settledClean` inputs whose handler left the window clean and that no frame claimed; `claimedLate` clean inputs claimed by a frame that began within 100 ms (their effects dirtied the window after the handler). A clean pointer event is never claimed late. `written=0` with no summary line means no presentation report reached the timing.
