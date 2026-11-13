@@ -45,6 +45,7 @@ public struct CodeView: Element, StyledElement {
     var gutterClick: (@MainActor (CodeGutterHit) -> Void)?
     var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
     var caretBlink = CodeCaretBlink.on
+    var markerLane: Bool?
 
     /// A view of `buffer` drawn with `decorations`, whose buffer must be the same.
     public init(buffer: CodeBuffer, decorations: CodeDecorations) {
@@ -131,6 +132,16 @@ public struct CodeView: Element, StyledElement {
         @MenuContentBuilder _ content: @escaping @MainActor (CodeGutterHit) -> M) -> CodeView {
         var copy = self
         copy.gutterMenu = { hit in MenuItems([content(hit)]) }
+        return copy
+    }
+
+    /// Whether the gutter reserves a lane for ``CodeLineDecoration/gutterMarker``s (`CV-AP`). By default (not
+    /// called) the lane appears once any owner has given a marker and stays, so the text moves right once, by the
+    /// lane's width (two space advances), and never again as diagnostics come and go; `true` reserves it from the
+    /// first frame, so the text never moves; `false` has no lane and a marker replaces its row's line number.
+    public func gutterMarkerLane(_ reserved: Bool) -> CodeView {
+        var copy = self
+        copy.markerLane = reserved
         return copy
     }
 

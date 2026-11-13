@@ -47,18 +47,48 @@ public struct CodeLineDecoration: Sendable {
     public var gutterBar: Color?
     /// A tint across the rows' full width; `nil` draws none.
     public var background: Color?
+    /// A mark drawn in the gutter beside each of the rows (a diagnostic's severity glyph, say), in the marker
+    /// lane or, with ``CodeView/gutterMarkerLane(_:)`` off, in place of the line number (`CV-AP`). A press on it
+    /// is a ``CodeGutterHit`` with source ``CodeGutterHit/Source/gutterMarker``; `nil` draws none.
+    public var gutterMarker: CodeGutterMarker?
     /// An app-defined identifier handed back in the ``CodeGutterHit`` of a click or context menu on this
-    /// decoration's gutter bar (an edit's id, say); `nil` for none. Decorations with different tags never
+    /// decoration's gutter bar or marker (an edit's id, say); `nil` for none. Decorations with different tags never
     /// merge into one hit range.
     public var tag: UInt64?
 
     /// A decoration of `lines`.
-    public init(lines: Range<Int>, gutterBar: Color? = nil, background: Color? = nil, tag: UInt64? = nil) {
+    public init(lines: Range<Int>, gutterBar: Color? = nil, background: Color? = nil, gutterMarker: CodeGutterMarker? = nil,
+                tag: UInt64? = nil) {
         self.lines = lines
         self.gutterBar = gutterBar
         self.background = background
+        self.gutterMarker = gutterMarker
         self.tag = tag
     }
+}
+
+/// Who gave a set of line decorations or virtual rows to a ``CodeDecorations`` (`CV-AO`): a name and a priority.
+///
+/// Each owner's decorations are set, replaced and removed on their own, so a diff and a language server can both
+/// decorate one view without erasing each other. Owners are told apart by `name` (a second value with the same name
+/// is the same owner, with the priority it was last given). Where two owners decorate the same row, the **higher
+/// priority wins each field** (the tint, the gutter bar with its tag, the marker) with no blending, and a tie goes to
+/// the later name; virtual rows of two owners at one gap sit in ascending priority, the lower priority first. The
+/// default owner is ``default``: it is what every call without an `owner:` uses.
+public struct CodeDecorationOwner: Hashable, Sendable {
+    /// The owner's name, which identifies it ("diff", "lsp").
+    public var name: String
+    /// The owner's rank: the higher wins a row's tint, bar and marker, and sits later at a shared gap.
+    public var priority: Int
+
+    /// An owner called `name`.
+    public init(_ name: String, priority: Int = 0) {
+        self.name = name
+        self.priority = priority
+    }
+
+    /// The owner of every call that names none: priority 0.
+    public static let `default` = CodeDecorationOwner("")
 }
 
 /// An ordered family of highlight runs. A later layer's foreground wins; backgrounds are painted in layer
@@ -149,7 +179,13 @@ package struct LineDecorationPayload: Equatable {
     package var background: Color?
     /// The app's tag (`CodeLineDecoration.tag`); part of the payload so differently tagged neighbours stay apart.
     package var tag: UInt64?
-    var isEmpty: Bool { gutterBar == nil && background == nil }
+    /// The owner (a ``CodeDecorationOwner`` table index; 0 the default) that gave the bar and its tag (`CV-AO`).
+    package var owner: UInt16 = 0
+    /// The gutter marker, with its own tag and owner: after a merge they can come from another owner than the bar.
+    package var marker: CodeGutterMarker?
+    package var markerTag: UInt64?
+    package var markerOwner: UInt16 = 0
+    var isEmpty: Bool { gutterBar == nil && background == nil && marker == nil }
 }
 
 /// One edit's effect on rows, kept so decorations given `asOf` an older version can be shifted forward.
@@ -183,7 +219,20 @@ public final class CodeDecorations {
     /// Whether a layer has ever been given a styled run since its last reset: a layer that has not is skipped.
     @ObservationIgnored private var layerHasStyles: [Bool]
     @ObservationIgnored private var anyLayerHasStyles = false
+    /// What painting and hit-testing read: the one owner's tree itself while only one owner has line decorations,
+    /// else the materialised merge of every owner's (`CV-AO`).
     @ObservationIgnored private var lines: RunTree<LineDecorationPayload>
+    /// Each owner's line decorations, by owner id; the default owner (id 0) is always first.
+    @ObservationIgnored private var lineTrees: [(id: UInt16, tree: RunTree<LineDecorationPayload>)]
+    /// The owners, by id (the index): ids are never reused, so a payload's id stays valid.
+    @ObservationIgnored private var ownerTable: [CodeDecorationOwner] = [.default]
+    @ObservationIgnored private var ownerIDs: [String: UInt16] = ["": 0]
+    /// The ids that have given virtual rows: while only one has, a set builds in place like before.
+    @ObservationIgnored private var virtualOwners: Set<UInt16> = []
+    /// How many times several owners' decorations were merged into one (a counter, `CV-AO`): a set pays one, a frame none.
+    @ObservationIgnored package var ownerMerges = 0
+    /// Whether any owner has ever given a gutter marker: the marker lane is then reserved (sticky, `CV-AP`).
+    @ObservationIgnored package private(set) var markersEverSet = false
     /// The display rows: buffer rows and the read-only virtual lines between them (`CV-S`).
     @ObservationIgnored let rowMap: CodeRowMap
     @ObservationIgnored private var cursor: CodeEditCursor
@@ -226,7 +275,9 @@ public final class CodeDecorations {
         }
         layers = made
         layerHasStyles = styled
-        lines = RunTree(total: buffer.lineCount, payload: LineDecorationPayload())
+        let initialLines = RunTree(total: buffer.lineCount, payload: LineDecorationPayload())
+        lines = initialLines
+        lineTrees = [(0, initialLines)]
         rowMap = CodeRowMap(rowCount: buffer.lineCount)
         cursor = buffer.makeEditCursor()
         deltaBase = buffer.version
@@ -262,7 +313,8 @@ public final class CodeDecorations {
             for layer in layers { layer.reset(total: snapshot.utf8Count, payload: .unknown) }
             layerHasStyles = layerHasStyles.map { _ in false }
             anyLayerHasStyles = false
-            lines.reset(total: snapshot.lineCount, payload: LineDecorationPayload())
+            for entry in lineTrees { entry.tree.reset(total: snapshot.lineCount, payload: LineDecorationPayload()) }
+            if lineTrees.count > 1 { lines.reset(total: snapshot.lineCount, payload: LineDecorationPayload()) }
             rowMap.reset(rowCount: snapshot.lineCount)
             matches.removeAll()   // the log no longer reaches back: the matches' coordinates are unknown (`CV-AE`)
             currentIndex = nil
@@ -294,8 +346,14 @@ public final class CodeDecorations {
         let removedRows = edit.oldEndPoint.row - startRow
         let insertedRows = edit.newEndPoint.row - startRow
         if removedRows > 0 || insertedRows > 0 {
-            lines.splice(at: min(startRow + 1, lines.total), removing: min(removedRows, max(0, lines.total - startRow - 1)),
-                         inserting: insertedRows, empty: LineDecorationPayload())
+            // Every owner's tree, then the merge when it is a tree of its own: O((K + 1) log n) (`CV-AO`).
+            let at = min(startRow + 1, lines.total), cut = min(removedRows, max(0, lines.total - startRow - 1))
+            for entry in lineTrees {
+                entry.tree.splice(at: at, removing: cut, inserting: insertedRows, empty: LineDecorationPayload())
+            }
+            if lineTrees.count > 1 {
+                lines.splice(at: at, removing: cut, inserting: insertedRows, empty: LineDecorationPayload())
+            }
             rowMap.splice(at: min(startRow + 1, rowMap.rowCount),
                           removing: min(removedRows, max(0, rowMap.rowCount - startRow - 1)), inserting: insertedRows)
             deltas.append(RowDelta(version: edit.version, afterRow: startRow + 1, removed: removedRows, inserted: insertedRows))
@@ -510,48 +568,218 @@ public final class CodeDecorations {
 
     // MARK: Line decorations
 
-    /// Replaces every line decoration with `decorations`, whose rows are as of `version`; they are shifted
-    /// forward through the newlines added or removed since. Dropped if the edit log no longer reaches back.
-    public func setLineDecorations(_ decorations: [CodeLineDecoration], asOf version: UInt64) {
+    /// Replaces the line decorations `owner` gave with `decorations`, whose rows are as of `version`; they are
+    /// shifted forward through the newlines added or removed since. Dropped if the edit log no longer reaches back.
+    /// Other owners' decorations stay, already shifted to the text now; where owners overlap the higher priority
+    /// wins each of tint, bar and marker (`CV-AO`). Linear in the decorations given when they are sorted and
+    /// disjoint (and in every owner's runs for the merge), and O(log n) per edit afterwards, per owner.
+    public func setLineDecorations(_ decorations: [CodeLineDecoration], asOf version: UInt64,
+                                   owner: CodeDecorationOwner = .default) {
         sync()
         guard version >= deltaBase || version == buffer.version else { return }
+        let id = register(owner)
         // Build the tree at the rows of `version`, then replay what changed since.
         let sizeThen = lines.total - deltas.filter { $0.version > version }.reduce(0) { $0 + $1.inserted - $1.removed }
-        let tree = RunTree(total: max(0, sizeThen), payload: LineDecorationPayload())
+        let total = max(0, sizeThen)
+        func payload(_ d: CodeLineDecoration) -> LineDecorationPayload {
+            LineDecorationPayload(gutterBar: d.gutterBar, background: d.background, tag: d.tag, owner: id,
+                                  marker: d.gutterMarker, markerTag: d.tag, markerOwner: id)
+        }
+        // Sorted, disjoint decorations (the usual answer) build in one pass; anything else sets one by one, the
+        // later overwriting the earlier.
+        var runs: [(extent: Int, payload: LineDecorationPayload)] = []
+        var sorted = true
+        var cursor = 0
         for d in decorations where !d.lines.isEmpty {
-            let r = max(0, d.lines.lowerBound)..<min(tree.total, d.lines.upperBound)
-            if !r.isEmpty { tree.set(r, to: LineDecorationPayload(gutterBar: d.gutterBar, background: d.background, tag: d.tag)) }
+            let r = max(0, d.lines.lowerBound)..<min(total, d.lines.upperBound)
+            if r.isEmpty { continue }
+            if r.lowerBound < cursor { sorted = false; break }
+            if r.lowerBound > cursor { runs.append((r.lowerBound - cursor, LineDecorationPayload())) }
+            runs.append((r.count, payload(d)))
+            cursor = r.upperBound
+        }
+        let tree: RunTree<LineDecorationPayload>
+        if sorted {
+            if cursor < total { runs.append((total - cursor, LineDecorationPayload())) }
+            tree = RunTree(tiling: runs)
+        } else {
+            tree = RunTree(total: total, payload: LineDecorationPayload())
+            for d in decorations where !d.lines.isEmpty {
+                let r = max(0, d.lines.lowerBound)..<min(tree.total, d.lines.upperBound)
+                if !r.isEmpty { tree.set(r, to: payload(d)) }
+            }
         }
         for delta in deltas where delta.version > version {
             let at = min(delta.afterRow, tree.total)
             tree.splice(at: at, removing: min(delta.removed, max(0, tree.total - at)), inserting: delta.inserted,
                         empty: LineDecorationPayload())
         }
-        lines = tree
+        if decorations.contains(where: { $0.gutterMarker != nil && !$0.lines.isEmpty }) { markersEverSet = true }
+        if let slot = lineTrees.firstIndex(where: { $0.id == id }) { lineTrees[slot].tree = tree } else { lineTrees.append((id, tree)) }
+        rebuildLines()
         revision &+= 1
+    }
+
+    /// Removes everything `owner` gave, line decorations and virtual rows, and leaves the other owners' as they are
+    /// (`CV-AO`). An owner that gave nothing is a no-op.
+    public func removeDecorations(of owner: CodeDecorationOwner) {
+        sync()
+        guard let id = ownerIDs[owner.name] else { return }
+        var changed = false
+        if let slot = lineTrees.firstIndex(where: { $0.id == id }) {
+            if id == 0 {
+                lineTrees[slot].tree = RunTree(total: lines.total, payload: LineDecorationPayload())
+            } else {
+                lineTrees.remove(at: slot)
+            }
+            rebuildLines()
+            changed = true
+        }
+        if virtualOwners.contains(id) {
+            let kept = rowMap.allGroups().filter { $0.group.owner != id }
+            rowMap.build(rowCount: rowMap.rowCount, groups: kept)
+            changed = true
+        }
+        if changed { revision &+= 1 }
+    }
+
+    /// The id of `owner` in the owner table, registering it on first use and recording the priority it gives now.
+    private func register(_ owner: CodeDecorationOwner) -> UInt16 {
+        if let id = ownerIDs[owner.name] {
+            ownerTable[Int(id)].priority = owner.priority
+            return id
+        }
+        precondition(ownerTable.count < Int(UInt16.max), "CodeDecorations: too many owners")
+        let id = UInt16(ownerTable.count)
+        ownerTable.append(owner)
+        ownerIDs[owner.name] = id
+        return id
+    }
+
+    /// The owner an id names; `nil` for the default owner, which a ``CodeGutterHit`` reports as no owner.
+    package func owner(ofID id: UInt16) -> CodeDecorationOwner? {
+        id == 0 || Int(id) >= ownerTable.count ? nil : ownerTable[Int(id)]
+    }
+
+    /// Points `lines` at the one tree, or merges every owner's into a tree of its own: O(total runs x owners), at a
+    /// set only, never per frame or per edit (`CV-AO`).
+    private func rebuildLines() {
+        guard lineTrees.count > 1 else { lines = lineTrees[0].tree; return }
+        ownerMerges += 1
+        // Ascending (priority, name): a later owner overrides each field it has.
+        let ordered = lineTrees.sorted {
+            let a = ownerTable[Int($0.id)], b = ownerTable[Int($1.id)]
+            return (a.priority, a.name) < (b.priority, b.name)
+        }
+        let lists = ordered.map { $0.tree.allRuns }
+        var index = [Int](repeating: 0, count: lists.count)
+        let total = lines.total
+        var out: [(extent: Int, payload: LineDecorationPayload)] = []
+        var position = 0
+        while position < total {
+            var end = total
+            var k = 0
+            while k < lists.count {
+                if index[k] < lists[k].count { end = min(end, lists[k][index[k]].range.upperBound) }
+                k += 1
+            }
+            var merged = LineDecorationPayload()
+            k = 0
+            while k < lists.count {
+                if index[k] < lists[k].count {
+                    let layer = lists[k][index[k]].payload
+                    if layer.background != nil { merged.background = layer.background }
+                    if layer.gutterBar != nil { merged.gutterBar = layer.gutterBar; merged.tag = layer.tag; merged.owner = layer.owner }
+                    if layer.marker != nil {
+                        merged.marker = layer.marker; merged.markerTag = layer.markerTag; merged.markerOwner = layer.markerOwner
+                    }
+                    if lists[k][index[k]].range.upperBound == end { index[k] += 1 }
+                }
+                k += 1
+            }
+            if let last = out.last, last.payload == merged { out[out.count - 1].extent += end - position } else { out.append((end - position, merged)) }
+            position = end
+        }
+        lines = RunTree(tiling: out)
+    }
+
+    /// Whether the merged tree equals a fresh merge of the owners' trees: a test oracle for the edit path (`CV-AO`).
+    package func mergedLinesMatchOwners() -> Bool {
+        sync()
+        let saved = lines
+        rebuildLines()
+        let rebuilt = lines
+        lines = saved
+        guard lineTrees.count > 1 else { return true }
+        // Compare by rows (the runs of an edited tree are not coalesced).
+        var a = 0, b = 0
+        let left = saved.allRuns, right = rebuilt.allRuns
+        var row = 0
+        while row < saved.total {
+            while left[a].range.upperBound <= row { a += 1 }
+            while right[b].range.upperBound <= row { b += 1 }
+            if left[a].payload != right[b].payload { return false }
+            row = min(left[a].range.upperBound, right[b].range.upperBound)
+        }
+        return saved.total == rebuilt.total
     }
 
     // MARK: Virtual rows
 
-    /// Replaces every virtual row with `rows`, whose anchors are buffer rows as of `version`; they are shifted
-    /// forward through the newlines added or removed since, like line decorations, in O(log n) per edit
+    /// Replaces the virtual rows `owner` gave with `rows`, whose anchors are buffer rows as of `version`; they are
+    /// shifted forward through the newlines added or removed since, like line decorations, in O(log n) per edit
     /// (`CV-S`). Dropped if the edit log no longer reaches back. A group anchored inside rows an edit removes
     /// goes with them; give the rows again after such an edit.
-    public func setVirtualRows(_ rows: [CodeVirtualRow], asOf version: UInt64) {
+    ///
+    /// Other owners' rows stay where they are now (`CV-AO`). At one gap the groups of several owners sit in
+    /// ascending priority, a diff's removed lines before a diagnostic's note, and one owner's in the order given.
+    /// With a single owner the call builds in place; with several it takes time linear in all groups, at the call
+    /// only.
+    public func setVirtualRows(_ rows: [CodeVirtualRow], asOf version: UInt64, owner: CodeDecorationOwner = .default) {
         sync()
         guard version >= deltaBase || version == buffer.version else { return }
+        let id = register(owner)
         let sizeThen = max(0, rowMap.rowCount - deltas.filter { $0.version > version }.reduce(0) { $0 + $1.inserted - $1.removed })
         let ordered = rows.enumerated().sorted { ($0.element.anchor.gap, $0.offset) < ($1.element.anchor.gap, $1.offset) }
         var groups: [(position: Int, group: VirtualGroup)] = []
         groups.reserveCapacity(ordered.count)
         for entry in ordered where !entry.element.lines.isEmpty {
-            groups.append((min(entry.element.anchor.gap, sizeThen), resolveVirtualGroup(entry.element)))
+            groups.append((min(entry.element.anchor.gap, sizeThen), resolveVirtualGroup(entry.element, owner: id, priority: owner.priority)))
         }
-        rowMap.build(rowCount: sizeThen, groups: groups)
-        for delta in deltas where delta.version > version {
-            let at = min(delta.afterRow, rowMap.rowCount)
-            rowMap.splice(at: at, removing: min(delta.removed, max(0, rowMap.rowCount - at)), inserting: delta.inserted)
+        if virtualOwners.subtracting([id]).isEmpty {
+            rowMap.build(rowCount: sizeThen, groups: groups)
+            for delta in deltas where delta.version > version {
+                let at = min(delta.afterRow, rowMap.rowCount)
+                rowMap.splice(at: at, removing: min(delta.removed, max(0, rowMap.rowCount - at)), inserting: delta.inserted)
+            }
+        } else {
+            // This owner's groups, shifted to the text now on a scratch map; the others' read off the live map.
+            let scratch = CodeRowMap(rowCount: sizeThen)
+            scratch.build(rowCount: sizeThen, groups: groups)
+            for delta in deltas where delta.version > version {
+                let at = min(delta.afterRow, scratch.rowCount)
+                scratch.splice(at: at, removing: min(delta.removed, max(0, scratch.rowCount - at)), inserting: delta.inserted)
+            }
+            let mine = scratch.allGroups()
+            let theirs = rowMap.allGroups().filter { $0.group.owner != id }
+            ownerMerges += 1
+            var merged: [(position: Int, group: VirtualGroup)] = []
+            merged.reserveCapacity(mine.count + theirs.count)
+            var i = 0, j = 0
+            while i < theirs.count || j < mine.count {
+                if j == mine.count { merged.append(theirs[i]); i += 1; continue }
+                if i == theirs.count { merged.append(mine[j]); j += 1; continue }
+                let t = theirs[i], m = mine[j]
+                // Ascending (gap, priority, owner); one owner's groups keep the order given.
+                if (t.position, t.group.priority, t.group.owner) <= (m.position, m.group.priority, m.group.owner) {
+                    merged.append(t); i += 1
+                } else {
+                    merged.append(m); j += 1
+                }
+            }
+            rowMap.build(rowCount: rowMap.rowCount, groups: merged)
         }
+        virtualOwners.insert(id)
         revision &+= 1
     }
 
@@ -562,7 +790,7 @@ public final class CodeDecorations {
     }
 
     /// A group's lines with their colours resolved against the style table.
-    private func resolveVirtualGroup(_ row: CodeVirtualRow) -> VirtualGroup {
+    private func resolveVirtualGroup(_ row: CodeVirtualRow, owner: UInt16, priority: Int) -> VirtualGroup {
         var lines: [VirtualLine] = []
         lines.reserveCapacity(row.lines.count)
         for (index, raw) in row.lines.enumerated() {
@@ -594,7 +822,8 @@ public final class CodeDecorations {
             lines.append(VirtualLine(text: String(decoding: bytes, as: UTF8.self), bytes: bytes, hash: codeHash(bytes),
                                      styling: styling, marker: row.gutterMarker))
         }
-        return VirtualGroup(lines: lines, gutterBar: row.gutterBar, background: row.background, tag: row.tag, anchoredAfter: row.anchor.isAfter)
+        return VirtualGroup(lines: lines, gutterBar: row.gutterBar, background: row.background, tag: row.tag, anchoredAfter: row.anchor.isAfter,
+                            owner: owner, priority: priority)
     }
 
     /// The decoration of `row`, or `nil`.
@@ -606,10 +835,10 @@ public final class CodeDecorations {
     /// The gutter bar over `row` and the whole row range it spans, with its tag: the neighbouring runs with the same
     /// bar colour and tag are one bar, however an edit has split them. `nil` when the row has no bar. Walks outward
     /// by doubling windows, so it costs the bar's runs and a logarithm, and is called at a click, never per frame.
-    package func gutterBar(overRow row: Int) -> (lines: Range<Int>, tag: UInt64?)? {
+    package func gutterBar(overRow row: Int) -> (lines: Range<Int>, tag: UInt64?, owner: UInt16)? {
         sync()
         guard let payload = lines.payload(at: row), payload.gutterBar != nil else { return nil }
-        func same(_ other: LineDecorationPayload) -> Bool { other.gutterBar == payload.gutterBar && other.tag == payload.tag }
+        func same(_ other: LineDecorationPayload) -> Bool { other.gutterBar == payload.gutterBar && other.tag == payload.tag && other.owner == payload.owner }
         var lower = row, upper = row + 1
         var step = 64
         outer: while lower > 0 {
@@ -629,7 +858,7 @@ public final class CodeDecorations {
             }
             step *= 2
         }
-        return (lower..<upper, payload.tag)
+        return (lower..<upper, payload.tag, payload.owner)
     }
 
     /// The decorated runs in `rows`, clipped, for painting: tints merge across equal neighbours.

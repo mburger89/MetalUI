@@ -43,6 +43,29 @@ final class RunTree<Payload> {
         if total > 0 { root = RunNode(extent: total, payload: payload, priority: nextPriority()) }
     }
 
+    /// A tree of exactly `runs` (zero extents skipped, equal neighbours not joined), built in O(runs) with no
+    /// split or merge (`CV-AO`): a Cartesian tree over the random priorities, by one pass with a stack.
+    init(tiling runs: [(extent: Int, payload: Payload)]) {
+        var stack: [RunNode<Payload>] = []
+        for run in runs where run.extent > 0 {
+            RunTreeStats.nodesVisited += 1
+            let node = RunNode(extent: run.extent, payload: run.payload, priority: nextPriority())
+            var popped: RunNode<Payload>?
+            while let top = stack.last, top.priority < node.priority { popped = stack.removeLast() }
+            node.left = popped
+            stack.last?.right = node
+            stack.append(node)
+        }
+        func fix(_ node: RunNode<Payload>?) {
+            guard let node else { return }
+            fix(node.left)
+            fix(node.right)
+            node.update()
+        }
+        root = stack.first
+        fix(root)
+    }
+
     /// The total extent.
     var total: Int { root?.total ?? 0 }
     /// The number of runs.
