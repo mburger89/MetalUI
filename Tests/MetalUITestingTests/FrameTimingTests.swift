@@ -281,3 +281,54 @@ private struct WidthBox: Component {
     #expect(off.window.frameTiming == nil)
 }
 #endif
+
+/// 1.11 — the latency stages: a key then a tick stamps the tick after the input and no later than the frame
+/// start, the drawable between frame start and layout end, and a frame no tick drove has no tick. Mutations:
+/// `noteTick` not called by the window's tick closure; `stampDrawableAcquired` not called; the tick taken after
+/// `beginFrame`.
+@Test @MainActor func aKeyThenATickStampsTheTickAndTheDrawableInOrder() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.typeKey("a")
+    let s = try #require(timing.last)
+    let received = try #require(s.inputReceived), tick = try #require(s.tickStart)
+    #expect(received <= tick && tick <= s.buildStart, "input <= tick <= frame start")
+    #expect(s.buildStart <= s.drawableAcquired && s.drawableAcquired <= s.layoutEnd, "drawable between start and layout")
+    #expect(s.inputToTick != nil && s.drawableWait == s.drawableAcquired - s.buildStart)
+    // Not driven by a tick: drawn directly, no tick stamp.
+    window.send(.keyDown(KeyEvent(charactersIgnoringModifiers: "a", characters: "a", timestamp: 0)))
+    window.window.drawFrameIfNeeded()
+    #expect(timing.last?.tickStart == nil && timing.last?.inputToTick == nil)
+}
+
+/// 1.12 — the trace writes a header then one line per input-caused, presented frame, stages in order, and the
+/// refresh interval is the shortest gap between tick targets on our clock. Mutations: a line for a frame without
+/// input; the header written per line; the interval taken as the longest gap.
+@Test @MainActor func theLatencyTraceWritesAHeaderThenOneLinePerPresentedInputFrame() throws {
+    let window = try harnessWindow { VStack(spacing: 0) { TimingKeyBox() } }
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    let timing = FrameTiming()
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    window.window.frameTiming = timing
+    window.typeKey(.tab)
+    let base = Double(FrameTiming.now()) / 1e9
+    window.platformWindow.simulateTick(timestamp: base)
+    window.platformWindow.simulateTick(timestamp: base + 1.0 / 30)
+    window.platformWindow.simulateTick(timestamp: base + 1.0 / 30 + 1.0 / 60)
+    #expect(timing.refreshInterval.map { abs(Double($0) - 1e9 / 60) < 1e5 } == true, "shortest gap")
+    window.send(.keyDown(KeyEvent(charactersIgnoringModifiers: "a", characters: "a", timestamp: 0)))
+    window.tick()
+    window.window.setNeedsRedraw(); window.tick()   // a frame no input caused
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 10_000_000)
+    #expect(lines.first == FrameTiming.traceHeader)
+    let body = Array(lines.dropFirst())
+    #expect(body.count == timing.samples.filter { $0.inputKind != nil }.count && !body.isEmpty)
+    #expect(body.allSatisfy { $0.hasPrefix("metalui-latency ") })
+    #expect(body.last?.contains(" key ") == true)
+    let sample = try #require(timing.samples.last { $0.inputKind == .key })
+    let line = FrameTiming.traceLine(for: sample, interval: 16_666_667)
+    let total = try #require(sample.inputToPresented)
+    #expect(line.hasSuffix(String(format: "%.2f %.2f", Double(total) / 1e6, Double(total) / 16_666_667)))
+    #expect(FrameTiming.traceLine(for: sample, interval: nil).hasSuffix(" -"))
+}
