@@ -144,5 +144,9 @@ private func center(_ r: Bounds<Pixels>) -> Point<Pixels> {
     #expect(geometry.hit(at: pt(caret.origin.x.value, caret.origin.y.value + 1))?.offset == buffer.primarySelection.head)
     buffer.selections = [CodeSelection(caret: buffer.snapshot().utf8Count)]
     window.tick()
-    #expect(geometry.caretRect() == nil, "a caret far below the shown rows has no rectangle")
+    // Whether the last row is shown depends on the platform's font metrics, so assert the rule rather than
+    // one platform's layout: a rectangle exactly when the head's row is a shown row.
+    let headRow = buffer.snapshot().point(at: buffer.primarySelection.head).row
+    let shown = try #require(geometry.visibleRows)
+    #expect((geometry.caretRect() != nil) == shown.contains(headRow), "head row \(headRow), shown \(shown)")
 }
