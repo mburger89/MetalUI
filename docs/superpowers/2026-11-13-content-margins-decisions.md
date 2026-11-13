@@ -30,4 +30,4 @@ With no margin set a scroller registers no padding node, resolves zero insets an
 
 ## Carried
 
-`CodeView` reads the same environment in its own scroll model (PR 2, `CV-AV`). A horizontal margin on a horizontal scroller in right-to-left; the per-edge versus whole-placement override; `.automatic` and the indicators; the thumb length with an inset (all above, probe arms `M1`-`M9` to run). `ScrollView`'s `scrollTargetBehavior` does not exist here. `contentMargins(for:edges:alignment:)` and `ContentMarginGuide` (layout guides) are not offered.
+`CodeView` reads the same environment in its own scroll model (PR 2, `CV-AU`). A horizontal margin on a horizontal scroller in right-to-left; the per-edge versus whole-placement override; `.automatic` and the indicators; the thumb length with an inset (all above, probe arms `M1`-`M9` to run). `ScrollView`'s `scrollTargetBehavior` does not exist here. `contentMargins(for:edges:alignment:)` and `ContentMarginGuide` (layout guides) are not offered.
