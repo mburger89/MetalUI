@@ -162,8 +162,12 @@ final class CodeViewPlan {
     /// The byte offset nearest `point`, in window points as the window's hit test hands them over (the rows and the
     /// origin are in the same space). A virtual line resolves to the start of the buffer
     /// row it sits before: it is not text of the buffer.
-    func offset(at point: Point<Pixels>) -> Int {
-        guard !rows.isEmpty else { return 0 }
+    func offset(at point: Point<Pixels>) -> Int { hit(at: point).offset }
+
+    /// What is under `point` (bounds space, as ``offset(at:)``): the nearest caret boundary (what a press places), the
+    /// grapheme under the point, the buffer row and the region (`CV-AK`).
+    func hit(at point: Point<Pixels>) -> CodeHit {
+        guard !rows.isEmpty else { return CodeHit(offset: 0, character: nil, row: nil, region: .pastLineEnd) }
         let y = Int((Double(point.y.value) * Double(scale)).rounded(.down))
         var index = 0
         if y >= rows[0].top {
@@ -178,10 +182,51 @@ final class CodeViewPlan {
         let x = Int((Double(point.x.value) * Double(scale)).rounded(.down))
         let local = Double(x - textOriginX) / Double(scale)
         var byte = max(0, row.layout.byte(atX: local))
-        if let marked = row.marked {   // the layout has the marked text in it: a point in it is its start
-            byte = byte >= marked.at + marked.length ? byte - marked.length : min(byte, marked.at)
+        /// A layout byte (marked text inserted) to the buffer line's: a point in the marked text is its start.
+        func unmarked(_ layoutByte: Int) -> Int {
+            guard let marked = row.marked else { return layoutByte }
+            return layoutByte >= marked.at + marked.length ? layoutByte - marked.length : min(layoutByte, marked.at)
         }
-        return row.range.lowerBound + min(byte, row.range.count)
+        byte = unmarked(byte)
+        let offset = row.range.lowerBound + min(byte, row.range.count)
+        let rowIndex = row.isVirtual ? nil : row.buffer
+        if gutterPx > 0 && x - originX < gutterPx {
+            return CodeHit(offset: offset, character: nil, row: rowIndex, region: .gutter)
+        }
+        if row.isVirtual { return CodeHit(offset: offset, character: nil, row: nil, region: .virtualRow) }
+        let layout = row.layout
+        guard layout.caretX.count > 1, local < layout.caretX[layout.caretX.count - 1] else {
+            return CodeHit(offset: offset, character: nil, row: rowIndex, region: .pastLineEnd)
+        }
+        guard local >= layout.caretX[0] else { return CodeHit(offset: offset, character: nil, row: rowIndex, region: .text) }
+        var lo = 0, hi = layout.caretX.count - 1
+        while lo < hi {
+            let mid = (lo + hi + 1) / 2
+            if layout.caretX[mid] <= local { lo = mid } else { hi = mid - 1 }
+        }
+        let from = unmarked(layout.windowStart + layout.boundaries[lo])
+        let to = unmarked(layout.windowStart + layout.boundaries[lo + 1])
+        let base = row.range.lowerBound
+        let character = from < to ? (base + min(from, row.range.count))..<(base + min(to, row.range.count)) : nil
+        return CodeHit(offset: offset, character: character, row: rowIndex, region: .text)
+    }
+
+    /// The rectangles of `range` (buffer bytes) over the shown rows, one per row segment, in bounds space points; the
+    /// line break is not covered. An empty range is a zero-width rect at its position (`CV-AJ`).
+    func rects(forBounds range: Range<Int>) -> [Bounds<Pixels>] {
+        var out: [Bounds<Pixels>] = []
+        var i = shownFrom
+        while i < shownTo {
+            let row = rows[i]
+            i += 1
+            guard !row.isVirtual else { continue }
+            let lo = max(range.lowerBound, row.range.lowerBound), hi = min(range.upperBound, row.range.upperBound)
+            guard lo < hi || (range.isEmpty && lo == hi) else { continue }
+            let x0 = xPx(row, byte: lo), x1 = xPx(row, byte: hi)
+            out.append(Bounds(origin: Point(x: Pixels(Float(x0) / scale), y: Pixels(Float(row.top) / scale)),
+                              size: Size(width: Pixels(Float(max(0, x1 - x0)) / scale), height: Pixels(Float(pitchPx) / scale))))
+        }
+        return out
     }
 
     /// The device-pixel x of byte `byte` of `row`'s line, as the painter places it.
