@@ -360,3 +360,48 @@ private let lsp = CodeDecorationOwner("lsp", priority: 5)
         }
     }
 }
+
+/// 8 — an underline from the highlight layers and a line decoration of an owner both paint: the squiggle a
+/// diagnostics layer sets under row 13 (`CV-AM`) and the tint another owner puts on rows 10..<20 (`CV-AO`) are
+/// independent paths. **Mutation:** the merged-lines path (two owners) resetting the styling's underlines, or the
+/// underline loop skipped when the line tree is merged, leaves one of the two missing.
+@Test @MainActor func anUnderlineAndAnOwnersLineDecorationBothPaint() throws {
+    let buffer = CodeBuffer(plainText(lines: 40))
+    let decorations = CodeDecorations(buffer: buffer)
+    setTwoOwners(decorations, diffPriority: 1, lspPriority: 5)   // lsp wins rows 12..<15, the diff the rest
+    let line = buffer.snapshot().lineRange(13)
+    let squiggle = decorations.register(CodeStyle(underline: .wavy(Color(red: 0.9, green: 0.1, blue: 0.2))))
+    decorations.setHighlights([CodeStyleRun(range: line.lowerBound..<(line.lowerBound + 6), style: squiggle)],
+                              in: 0..<buffer.utf8Count, layer: .diagnostics, asOf: buffer.version)
+    let window = try harnessWindow(size: sz(400, 600)) { CodeView(buffer: buffer, decorations: decorations).font(size: 12).codeCaretBlink(.off) }
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(decorations.stylingOfLine(line).underlines.count == 1)
+    #expect(!tintRects(window, alpha: 0.31).isEmpty, "the diff's tint paints")
+    #expect(!tintRects(window, alpha: 0.32).isEmpty, "the lsp's tint paints")
+    #expect(window.scene.images.count == 1, "and so does the squiggle: \(window.scene.images.count)")
+}
+
+/// 9 — an underline lives in the highlight layers, not in any owner: setting, replacing and removing an owner's line
+/// decorations (and a text edit above) leave it alone, and only clearing its own layer removes it (`CV-AM` beside `CV-AO`).
+/// **Mutation:** `removeDecorations(of:)` or the owner merge also dropping the styling (e.g. bumping the highlight
+/// state) makes the underline count 0 after the owner's removal.
+@Test @MainActor func anUnderlineSurvivesAnotherOwnersChangesAndClearsWithItsOwnLayer() throws {
+    let buffer = CodeBuffer(plainText(lines: 40))
+    let decorations = CodeDecorations(buffer: buffer)
+    setTwoOwners(decorations, diffPriority: 1, lspPriority: 5)
+    let line = buffer.snapshot().lineRange(13)
+    let squiggle = decorations.register(CodeStyle(underline: .wavy(Color(red: 0.9, green: 0.1, blue: 0.2))))
+    decorations.setHighlights([CodeStyleRun(range: line.lowerBound..<(line.lowerBound + 6), style: squiggle)],
+                              in: 0..<buffer.utf8Count, layer: .diagnostics, asOf: buffer.version)
+    #expect(decorations.stylingOfLine(line).underlines.count == 1)
+    // Another owner replaces, then loses, its decorations: the underline stays.
+    setTwoOwners(decorations, diffPriority: 7, lspPriority: 2)
+    #expect(decorations.stylingOfLine(line).underlines.count == 1, "re-set owners")
+    decorations.removeDecorations(of: lsp)
+    #expect(decorations.stylingOfLine(line).underlines.count == 1, "one owner removed")
+    decorations.removeDecorations(of: diff)
+    #expect(decorations.stylingOfLine(line).underlines.count == 1, "every owner removed")
+    // Only its own layer takes it away.
+    decorations.setHighlights([], in: 0..<buffer.utf8Count, layer: .diagnostics, asOf: buffer.version)
+    #expect(decorations.stylingOfLine(line).underlines.isEmpty, "cleared with its layer")
+}

@@ -138,7 +138,7 @@ public struct CommandGroup<Content: MenuContent>: Commands {
 }
 
 /// A standard group of the menu bar a `CommandGroup` places its items against —
-/// SwiftUI's `CommandGroupPlacement`, the nine groups MetalUI builds (`MN-I`
+/// SwiftUI's `CommandGroupPlacement`, the ten groups MetalUI builds (`MN-I`
 /// item 2). `Hashable` where SwiftUI's is only `Sendable` — additive (`MN-X`
 /// item 3). Not offered, owner none: `.saveItem`, `.printItem`,
 /// `.textFormatting`, `.toolbar`, `.sidebar`, `.importExport`,
@@ -150,6 +150,11 @@ public struct CommandGroupPlacement: Sendable, Hashable {
 
     /// The application menu's About item.
     public static let appInfo = CommandGroupPlacement("appInfo")
+    /// The application menu's Settings group, between About and the
+    /// visibility group (`MN-AN`). Empty by default: MetalUI has no `Settings`
+    /// scene, so `CommandGroup(replacing:)`, `(before:)` and `(after:)` fill it
+    /// (a `Settings…` item with `⌘,`). An empty group draws no separator.
+    public static let appSettings = CommandGroupPlacement("appSettings")
     /// The application menu's Hide, Hide Others and Show All.
     public static let appVisibility = CommandGroupPlacement("appVisibility")
     /// The application menu's Quit.
@@ -179,7 +184,7 @@ enum MenuBarStyle {
     case appKit
     /// The desktop convention a drawn bar follows (Windows, GNOME): no
     /// application menu; File holds the new-item group and the additions at
-    /// `.appVisibility` and `.appTermination`; Edit; the `CommandMenu`s;
+    /// `.appSettings`, `.appVisibility` and `.appTermination`; Edit; the `CommandMenu`s;
     /// Window only with additions; Help holds the help group and the additions
     /// at `.appInfo`; a menu left empty is not shown.
     case drawn
@@ -217,7 +222,8 @@ struct MenuBarModel {
                           standard("Hide Others", .hideOthers, "h", [.command, .option]),
                           standard("Show All", .showAll)]
         let quit = [standard("Quit \(appName)", .quit, "q")]
-        let appGroups = [group(.appInfo, about), group(.appVisibility, visibility), group(.appTermination, quit)]
+        let appGroups = [group(.appInfo, about), group(.appSettings, []), group(.appVisibility, visibility),
+                         group(.appTermination, quit)]
         appendMenu(appName, groups: appGroups)
         let newItem = group(.newItem, [])
         let close = [standard("Close", .close, "w")]
@@ -257,6 +263,7 @@ struct MenuBarModel {
 
     private mutating func buildDrawn() {
         let newItem = group(.newItem, [])
+        let settings = group(.appSettings, [])
         let visibility = group(.appVisibility, [])
         // File ▸ Close and Quit/Exit (`SG-M`): the window's close (asks `onCloseRequest`) and
         // the app's terminate walk. No shortcut is shown: the drawn bar adds no shortcut path
@@ -264,7 +271,7 @@ struct MenuBarModel {
         let closeGroup = [standard("Close", .close)]
         let quit = [standard(Self.drawnQuitTitle, .quit)]
         let termination = group(.appTermination, quit)
-        appendMenu("File", groups: [newItem, visibility, closeGroup, termination], dropsEmpty: true)
+        appendMenu("File", groups: [newItem, settings, visibility, closeGroup, termination], dropsEmpty: true)
         let undoRedo = [standard("Undo", .undo, "z"), standard("Redo", .redo, "z", [.primary, .shift])]
         let pasteboard = [standard("Cut", .cut, "x"), standard("Copy", .copy, "c"), standard("Paste", .paste, "v"),
                           standard("Delete", .delete), standard("Select All", .selectAll, "a")]
