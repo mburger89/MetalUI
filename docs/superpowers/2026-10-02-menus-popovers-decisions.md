@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AN`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AO`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1370,3 +1370,27 @@ two in `appendMenuPanel` and one function in `Tooltip.swift`.
 `ContextualAttachment.init` reddens `anEmptyHelpIsNilOnTheMenuItemAndShowsNoTooltip`; `help` writing the hint unconditionally
 reddens it too (its `hint == nil` arm); removing the provider's `isEmpty` line reddens `aProviderAnsweringEmptyShowsNoTooltip`;
 removing the AppKit check reddens `anEmptyHelpLeavesNoAppKitToolTip`.
+
+## MN-AN — `CommandGroupPlacement.appSettings`: the application menu's Settings group (Alloy gap G37; record 276; class `A`, no divergence)
+
+**Ruling.**
+
+1. `CommandGroupPlacement.appSettings` exists. The AppKit-style application menu is built, in order, from `.appInfo` (About),
+   `.appSettings`, `.appVisibility` (Hide, Hide Others, Show All) and `.appTermination` (Quit); `appendMenu` puts one separator
+   between two non-empty groups, so an empty group draws none and none doubles or sits at either end.
+2. **Empty by default.** MetalUI has no `Settings` scene (no `Settings`, `SettingsLink` or `openSettings`), so there is no
+   default "Settings…" item; SwiftUI's default (`Settings…` `⌘,` wired to the `Settings` scene) is that scene's. An app fills the
+   group with `CommandGroup(replacing:)`, `(before:)` or `(after: .appSettings)`, the same three positions as every placement
+   (the group's items: `before`, then the replacement or the standard items, then `after`). An app that wants the ⌘, binding
+   gives its button `.keyboardShortcut(",")`; it runs through the command stage like any command.
+3. **No Services group.** MetalUI does not build the system Services submenu, so there is nothing between Settings and Hide
+   to order against; if one is added it goes between `.appSettings` and `.appVisibility`.
+4. **Drawn style** (no application menu, `SG-A` item 3): additions at `.appSettings` go in File after the new-item group and
+   before the `.appVisibility` additions, as the other app-menu placements' additions do.
+5. SwiftUI evidence: `CommandGroupPlacement.appSettings` is documented as "The application settings and preferences group"
+   (macOS 11), placed after `.appInfo`; on macOS its `Settings…` item exists only with a `Settings` scene. Not measured with a
+   probe here; the separators are AppKit's group boundaries.
+
+**Mutation** (`CommandsTests`): dropping the `.appSettings` group from the app menu reddens
+`theAppSettingsGroupIsItsOwnGroupBetweenAboutAndVisibility` and `aSettingsItemAtAppSettingsRunsOnCommandComma`; moving the group
+after `.appVisibility` reddens the first; dropping it from the drawn File menu reddens `theDrawnBarFollowsTheDesktopArrangement`.

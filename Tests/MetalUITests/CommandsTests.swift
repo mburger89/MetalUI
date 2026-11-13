@@ -175,6 +175,53 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
     ])
 }
 
+/// `MN-AN`. `.appSettings` is the application menu's own group between About
+/// and the visibility group: `replacing`, `before` and `after` each put the
+/// item there with one separator each side; the empty group (the default) adds
+/// none. Mutations: drop `group(.appSettings, [])` from the app menu (items
+/// vanish); build it into the info group (no separator after About); append
+/// the group after termination (order) - each reddens.
+@MainActor
+@Test func theAppSettingsGroupIsItsOwnGroupBetweenAboutAndVisibility() throws {
+    let (app, _) = try fakeApp()
+    #expect(describe(app.menuBarContent()).first == defaultApp, "empty by default: no extra separator")
+    let hide = "Hide \(appName) ⌘h [hide], Hide Others ⌥⌘h [hideOthers], Show All [showAll]"
+    let quit = "Quit \(appName) ⌘q [quit]"
+    let about = "\(appName): About \(appName) [about]"
+    for build in 0..<3 {
+        switch build {
+        case 0: app.commands { CommandGroup(replacing: .appSettings) { Button("Settings…") {}.keyboardShortcut(",") } }
+        case 1: app.commands { CommandGroup(after: .appSettings) { Button("Settings…") {}.keyboardShortcut(",") } }
+        default: app.commands { CommandGroup(before: .appSettings) { Button("Settings…") {}.keyboardShortcut(",") } }
+        }
+        #expect(describe(app.menuBarContent()).first
+                == "\(about), ---, Settings… ⌘,, ---, \(hide), ---, \(quit)", "form \(build)")
+    }
+    app.commands {
+        CommandGroup(replacing: .appSettings) { Button("Settings…") {} }
+        CommandGroup(replacing: .appVisibility) {}
+    }
+    #expect(describe(app.menuBarContent()).first == "\(about), ---, Settings…, ---, \(quit)",
+            "an emptied neighbour leaves one separator, none doubled")
+    app.commands { CommandGroup(replacing: .appInfo) {}; CommandGroup(replacing: .appSettings) { Button("S") {} } }
+    #expect(describe(app.menuBarContent()).first?.hasPrefix("\(appName): S, ---, Hide") == true, "none at the start")
+}
+
+/// `MN-AN`. The conventional ⌘, binding works through the command stage.
+/// Mutation: ignore `.appSettings` additions when numbering (no action runs).
+@MainActor
+@Test func aSettingsItemAtAppSettingsRunsOnCommandComma() throws {
+    let (app, platform) = try fakeApp()
+    let log = CLog()
+    app.commands {
+        CommandGroup(replacing: .appSettings) { Button("Settings…") { log.entries.append("settings") }.keyboardShortcut(",") }
+    }
+    let (window, fake) = try open(app, platform) { Box().frame(width: px(10), height: px(10)) }
+    #expect(fake.simulateInput(key(",", .command)))
+    #expect(log.entries == ["settings"])
+    withExtendedLifetime(window) {}
+}
+
 // MARK: - 2.17: installation (`MN-I` items 3–4)
 
 /// **2.17** (`MN-I` item 4). Every `App` installs the default bar once at
@@ -223,6 +270,7 @@ private let drawnFile = "File: Close [close], ---, Quit [quit]"
         CommandGroup(after: .newItem) { Button("New Note") {}.keyboardShortcut("n") }
         CommandGroup(after: .appVisibility) { Button("Vis") {} }
         CommandGroup(before: .appTermination) { Button("Prefs") {} }
+        CommandGroup(replacing: .appSettings) { Button("Settings…") {} }
         CommandMenu("Tools") { Button("Go") {} }
         CommandMenu("Empty") {}
         CommandGroup(after: .windowSize) { Button("Tile") {} }
@@ -230,7 +278,7 @@ private let drawnFile = "File: Close [close], ---, Quit [quit]"
         CommandGroup(after: .appInfo) { Button("About Me") {} }
     }
     #expect(drawn(app) == [
-        "File: New Note ⌘n, ---, Vis, ---, Close [close], ---, Prefs, Quit [quit]",
+        "File: New Note ⌘n, ---, Settings…, ---, Vis, ---, Close [close], ---, Prefs, Quit [quit]",
         String(defaultEdit),
         "Tools: Go",
         "Window: Tile",
