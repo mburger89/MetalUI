@@ -1,7 +1,7 @@
 # Split views - decisions
 
 Rulings for `HSplitView` / `VSplitView` (MetalFlow's palette | canvas | inspector layout). Prefix `HS-`. Branch `feat/mf-split`. Code: `Sources/MetalUI/SplitView.swift`; tests:
-`Tests/MetalUITestingTests/SplitViewTests.swift` (portable, plain imports). **Next unused: `HS-I`.** Divergence 206 (the orchestrator moves the label if another branch took it).
+`Tests/MetalUITestingTests/SplitViewTests.swift` (portable, plain imports). **Next unused: `HS-J`.** Divergence 206 (the orchestrator moves the label if another branch took it).
 
 ## HS-A - the shape: two ProposalElements over one engine, class D not A
 
@@ -74,6 +74,11 @@ a stored array whose length differs from the pane count is ignored.
 **Ruling.** `SplitLayout.axis` decides every read: width or height proposals, the divider's across/along, the row-resize pointer. The limits come from `.frame(minHeight:idealHeight:maxHeight:)`.
 **Pin.** `aVSplitViewIsTheSameOnTheVerticalAxis`.
 
+## HS-I - `splitViewDivider(_:thickness:)`: the divider's line and gutter, environment-propagated
+
+**Ruling.** MetalUI-only (SwiftUI has no spelling; precedent `windowTitleBarMetrics`, `AS-R`). `splitViewDivider(_ visibility: Visibility = .automatic, thickness: CGFloat? = nil)` is an `EnvironmentScope` write of an internal `SplitDividerStyle` (`hidden`, `thickness`), read by `SplitEngine.requestLayout` each frame, so it applies to the split view it modifies and to split views inside it (nearest writer wins) and a change relayouts it with no rebuild of the panes: the scope is transparent to identity, the style is a value in the `SplitLayout`/`SplitDivider` the engine rebuilds, so pane `@State` and ids are kept. `.hidden` draws no line (the line `Color` is `.clear`); `.automatic` and `.visible` draw today's `.separator`. `thickness` (default 1, negative clamps to 0) is the divider's layout thickness and so the panes' spacing; the hit area is `max(thickness, 6)` centred on the divider, overlaying the panes, so a gutter of 0 keeps a 6-point hit area straddling the boundary. Pointer and drag are unchanged; the divider has no accessibility node. Defaults are byte-identical (`theDefaultSplitViewDividerIsTheOneItAlwaysWas`). **Carried:** as the window root the scope breaks the drag (the `EV-B` root restriction): write it inside the root's first container.
+**Pins.** `theDefaultSplitViewDividerIsTheOneItAlwaysWas`, `aHiddenDividerDrawsNoLineButStillDrags`, `aThicknessOfSixSpacesThePanesBySixAndIsTheHitArea`, `aWideGutterIsItsOwnHitArea`, `aGutterOfZeroKeepsASixPointHitAreaOnTheBoundary`, `aVSplitViewTakesTheSameDividerStyle`, `changingTheGutterAtRunTimeRespacesAndKeepsPaneState`.
+
 ## Mutations
 
 Method: edit the named declaration in `Sources/MetalUI/SplitView.swift`, run `--filter SplitViewTests` under `--build-system native`, restore. Named tests are those that reddened.
@@ -92,6 +97,9 @@ Method: edit the named declaration in `Sources/MetalUI/SplitView.swift`, run `--
 | M7 | `SplitDivider`: `.rowResize` for the horizontal split | `theDividerShowsTheColumnResizePointerOverItsHitArea` |
 | M8 | `hitExtent` 6 to 1 | `theDividerShowsTheColumnResizePointerOverItsHitArea`, `aDragIsClampedToTheNeighboursLimits`, `aVSplitViewIsTheSameOnTheVerticalAxis` |
 | M9 | `dragEnded`: do not save | `autosaveRoundTripsThroughTheInjectedStore` |
+| M11 | `SplitDivider`: the line drawn although hidden | `aHiddenDividerDrawsNoLineButStillDrags` and four more |
+| M12 | `SplitDivider`: hit area `thickness`, not `max(thickness, 6)` | `aGutterOfZeroKeepsASixPointHitAreaOnTheBoundary` and the three older hit-area tests |
+| M13 | `requestLayout`: layout thickness 1 whatever the style | `aThicknessOfSixSpacesThePanesBySixAndIsTheHitArea`, `aWideGutterIsItsOwnHitArea`, `aGutterOfZeroKeepsASixPointHitAreaOnTheBoundary`, `aVSplitViewTakesTheSameDividerStyle`, `changingTheGutterAtRunTimeRespacesAndKeepsPaneState` |
 | M10 | `requestLayout`: do not read the store | `autosaveRoundTripsThroughTheInjectedStore` |
 | M11 | `dragChanged`: write sizes for a zero translation | **none, an equivalent mutant** (the written sizes equal the placed ones; a click only freezes them) |
 | M11b | `dragEnded`: `moved = true` | `aClickOnTheDividerChangesNothing` (after the test gained a click following a drag) |

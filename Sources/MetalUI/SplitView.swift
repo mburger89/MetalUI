@@ -227,15 +227,57 @@ struct SplitLayout: ProposalLayout {
 
 // MARK: - The divider
 
-/// One divider: a 1-point `.separator` line with a 6-point hit area centred on it that takes the
-/// resize pointer and the drag (`HS-F`). The hit area is an overlay, so it takes no layout room and
-/// overlaps the neighbouring panes by 2.5 points each side; the dividers register after the panes
-/// and so rank above them.
+/// What `splitViewDivider(_:thickness:)` writes (ruling `HS-I`): whether the divider draws its line and
+/// the layout thickness it takes between its panes. The default is the divider as it always was.
+struct SplitDividerStyle: Hashable, Sendable {
+    var hidden = false
+    var thickness: Double = SplitDivider.thickness
+}
+
+private struct SplitDividerStyleKey: EnvironmentKey {
+    static var defaultValue: SplitDividerStyle { SplitDividerStyle() }
+}
+
+extension EnvironmentValues {
+    /// The enclosing `splitViewDivider(_:thickness:)`; internal.
+    var splitDividerStyle: SplitDividerStyle {
+        get { self[SplitDividerStyleKey.self] }
+        set { self[SplitDividerStyleKey.self] = newValue }
+    }
+}
+
+extension ElementGroup {
+    /// How the dividers of the ``HSplitView`` or ``VSplitView`` this modifies, and of any split view
+    /// inside it, look and take room (MetalUI-only, ruling `HS-I`: SwiftUI has no spelling, as for
+    /// ``windowTitleBarMetrics(height:controlsLeading:)``). Write it on the split view, after
+    /// ``HSplitView/splitViewAutosaveName(_:store:)``.
+    ///
+    /// `.hidden` draws no line (no draw call at all) and keeps the drag and the resize pointer;
+    /// `.automatic` and `.visible` draw the 1-point `.separator` line. `thickness` is the divider's
+    /// layout thickness in points: the panes are spaced by it (`nil` keeps 1, and a negative value
+    /// is 0). The hit area is `max(thickness, 6)` points centred on the divider, so a thinner
+    /// divider keeps its 6-point hit area, overlapping the panes, and a gutter of 0 has a 6-point
+    /// hit area straddling the boundary. A line, when drawn, fills the thickness. Changing either
+    /// value relayouts the split view and keeps the panes' identity and state.
+    public func splitViewDivider(_ visibility: Visibility = .automatic, thickness: CGFloat? = nil)
+        -> EnvironmentScope<Self> {
+        let style = SplitDividerStyle(hidden: visibility == .hidden,
+                                      thickness: Swift.max(0, thickness.map { Double($0) } ?? SplitDivider.thickness))
+        return EnvironmentScope(content: self, write: .transform { $0.splitDividerStyle = style })
+    }
+}
+
+/// One divider: by default a 1-point `.separator` line with a 6-point hit area centred on it that takes the
+/// resize pointer and the drag (`HS-F`); `splitViewDivider(_:thickness:)` hides the line and sets the
+/// thickness (`HS-I`), the hit area then being `max(thickness, 6)`. The hit area is an overlay, so it takes
+/// no layout room and overlaps the neighbouring panes; the dividers register after the panes and so rank
+/// above them.
 struct SplitDivider: Component, ProposalElementGroup {
     nonisolated static let thickness: Double = 1
     nonisolated static let hitExtent: Float = 6
 
     var axis: ProposalStackAxis
+    var style = SplitDividerStyle()
     var onChanged: @MainActor (DragGesture.Value) -> Void
     var onEnded: @MainActor (DragGesture.Value) -> Void
     var onCancelled: @MainActor () -> Void
@@ -244,13 +286,16 @@ struct SplitDivider: Component, ProposalElementGroup {
         let vertical = axis == .horizontal   // a row of panes has vertical dividers
         let drag = DragGesture(minimumDistance: Pixels(0))
             .onChanged(onChanged).onEnded(onEnded).onCancelled(onCancelled)
-        return Color(.separator)
-            .frame(width: vertical ? Pixels(Float(Self.thickness)) : nil,
-                   height: vertical ? nil : Pixels(Float(Self.thickness)))
+        let thickness = Pixels(Float(style.thickness))
+        let hit = Pixels(Swift.max(Self.hitExtent, Float(style.thickness)))
+        let line: Color = style.hidden ? .clear : Color(.separator)
+        return line
+            .frame(width: vertical ? thickness : nil,
+                   height: vertical ? nil : thickness)
             .overlay {
                 Color.clear
-                    .frame(width: vertical ? Pixels(Self.hitExtent) : nil,
-                           height: vertical ? nil : Pixels(Self.hitExtent))
+                    .frame(width: vertical ? hit : nil,
+                           height: vertical ? nil : hit)
                     .gesture(drag)
                     .pointerStyle(vertical ? .columnResize : .rowResize)
             }
@@ -292,8 +337,9 @@ struct SplitEngine<Content: ProposalElementGroup> {
         let name = autosaveName
         let store = effectiveStore
         let axis = self.axis
+        let style = pass.frame.environmentTop.splitDividerStyle
         dividers = ArrayGroup((0..<Swift.max(0, paneNodes.count - 1)).map { index in
-            SplitDivider(axis: axis,
+            SplitDivider(axis: axis, style: style,
                          onChanged: { Self.dragChanged($0, index: index, axis: axis, report: report, model: model) },
                          onEnded: { Self.dragEnded($0, axis: axis, name: name, store: store, model: model) },
                          onCancelled: { var m = model.wrappedValue; m.drag = nil; model.wrappedValue = m })
@@ -302,7 +348,7 @@ struct SplitEngine<Content: ProposalElementGroup> {
         var preferred = model.wrappedValue.sizes
         if preferred == nil, let name { preferred = store.paneSizes(forName: name) }
         let layout = SplitLayout(axis: axis, paneCount: paneNodes.count, preferred: preferred,
-                                 thickness: SplitDivider.thickness, report: report)
+                                 thickness: style.thickness, report: report)
         let node = pass.requestNativeLayout(layout, children: paneNodes + dividerNodes)
         return (node, Layout(node: node, panes: paneLayout, dividers: dividerLayout))
     }
