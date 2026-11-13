@@ -69,6 +69,9 @@ public struct FrameTimingSample: Sendable, Equatable {
     /// `presentedTime`); `nil` where it does not (SDL, the headless renderer by default), when the frame was
     /// dropped, and until the platform reports it (the sample in the ring is updated in place).
     public var presented: UInt64?
+    /// `METALUI_EXP_LATE_DRAWABLE` (`FP-L`): when the drawable was acquired after paint; `nil` without the
+    /// experiment. Then ``drawableAcquired`` stamps the end of frame set-up, not a wait.
+    package var lateDrawableAcquired: UInt64?
 
     /// A sample whose phases all read `start`; the window stamps the rest.
     package init(frameIndex: UInt64, start: UInt64) {
@@ -77,6 +80,7 @@ public struct FrameTimingSample: Sendable, Equatable {
         tickStart = nil; tickTarget = nil
         buildStart = start; drawableAcquired = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
         presented = nil
+        lateDrawableAcquired = nil
     }
 
     /// Input to commit in nanoseconds, or `nil` for a frame no input caused: the keystroke-to-submit latency.
@@ -270,12 +274,19 @@ public final class FrameTiming {
     }
 
     /// The header ``traceLine(for:interval:)``'s columns follow.
-    package static let traceHeader = "metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build "
-        + "encode commit>screen | total frames"
+    package static var traceHeader: String { header(experiments: LatencyExperiments.environment) }
+
+    /// The header for `experiments`: `exp=` names the switches that are on (`FP-L`). `commit>screen` is the
+    /// platform's report; `est>screen` is MetalUI's own estimate (commit to the first vsync at or after it,
+    /// from the display link's tick targets), never mixed into the other and `-` without a known interval.
+    package static func header(experiments: LatencyExperiments) -> String {
+        "metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build "
+            + "encode commit>screen est>screen | total frames exp=\(experiments.label)"
+    }
 
     /// One line: each stage's duration in milliseconds, the input-to-screen total and that total in refresh
     /// intervals (`-` when no interval is known). Stages with no stamp print `-`.
-    package static func traceLine(for s: FrameTimingSample, interval: UInt64?) -> String {
+    package static func traceLine(for s: FrameTimingSample, interval: UInt64?, vsyncPhase: UInt64? = nil) -> String {
         func ms(_ ns: UInt64?) -> String { ns.map { String(format: "%.2f", Double($0) / 1e6) } ?? "-" }
         func gap(_ a: UInt64?, _ b: UInt64?) -> UInt64? {
             guard let a, let b else { return nil }
@@ -291,8 +302,18 @@ public final class FrameTiming {
             + [ms(gap(s.inputTimestamp, s.inputReceived)), ms(s.inputToTick),
                ms(gap(s.tickStart, s.buildStart)), ms(s.drawableWait),
                ms(gap(s.drawableAcquired, s.paintEnd)), ms(gap(s.paintEnd, s.commit)),
-               ms(gap(s.commit, s.presented))].joined(separator: " ")
+               ms(gap(s.commit, s.presented)), ms(gap(s.commit, estimatedVsync(for: s, interval: interval, phase: vsyncPhase)))]
+                .joined(separator: " ")
             + " | \(ms(total)) \(frames)"
+    }
+
+    /// The first vsync at or after the commit: the frame's own tick target (or `phase`, the last one seen) plus
+    /// whole refresh intervals. An estimate from the display link, not a presentation time (`FP-L`).
+    package static func estimatedVsync(for s: FrameTimingSample, interval: UInt64?, phase: UInt64?) -> UInt64? {
+        guard let interval, interval > 0, let reference = s.tickTarget ?? phase else { return nil }
+        if reference >= s.commit { return reference }
+        let intervals = (s.commit - reference + interval - 1) / interval
+        return reference + intervals * interval
     }
 
     // MARK: Reading
@@ -416,11 +437,23 @@ public final class FrameTiming {
         pendingTick = (now, targetNanos)
     }
 
+    /// The tick that just ran drew nothing (`FP-L`): forget it, so a frame drawn outside a tick (the immediate-input
+    /// experiment) does not claim it.
+    func discardTick() { pendingTick = nil }
+
     /// The drawable was acquired (or the platform has none to acquire).
     func stampDrawableAcquired() {
         current?.drawableAcquired = Self.now()
         #if canImport(os)
         signposts?.event("Drawable")
+        #endif
+    }
+
+    /// The drawable was acquired after paint (`METALUI_EXP_LATE_DRAWABLE`, `FP-L`).
+    func stampLateDrawable() {
+        current?.lateDrawableAcquired = Self.now()
+        #if canImport(os)
+        signposts?.event("LateDrawable")
         #endif
     }
 
@@ -504,7 +537,7 @@ public final class FrameTiming {
         if let traceSink {
             if ring[slot].inputKind != nil {
                 if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
-                traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval))
+                traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval, vsyncPhase: lastTickTarget))
                 traceLinesWritten += 1
             } else {
                 presentedNoInputCount += 1
