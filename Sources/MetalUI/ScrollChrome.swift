@@ -45,6 +45,23 @@ struct ScrollChrome {
     var crossAxis = false
     /// `mirrored` for the horizontal (cross) axis of a two-axis scroller (`LD-E`); `mirrored` itself stays the primary's.
     var crossMirrored = false
+    /// The scroll-content margins along this axis, logical (`CMG-D`); zero for a scroller with none.
+    var contentInset: (start: Double, end: Double) = (0, 0)
+    /// The scroll-indicator margins along this axis (`CMG-C`): the thumb's track is the viewport minus them.
+    var indicatorInset: (start: Double, end: Double) = (0, 0)
+    /// `contentInset` and `indicatorInset` of the horizontal axis of a two-axis scroller.
+    var crossContentInset: (start: Double, end: Double) = (0, 0)
+    var crossIndicatorInset: (start: Double, end: Double) = (0, 0)
+
+    /// Reads the environment's content margins (`CMG-A`): each axis' start and end insets, for content and indicators.
+    mutating func resolveMargins(_ margins: ContentMargins) {
+        contentInset = margins.scrollContent.along(axis)
+        indicatorInset = margins.scrollIndicators.along(axis)
+        if crossAxis {
+            crossContentInset = margins.scrollContent.along(.horizontal)
+            crossIndicatorInset = margins.scrollIndicators.along(.horizontal)
+        }
+    }
 
     /// Sets both mirrored flags from the environment (`LD-E`): the horizontal axis, whichever slot it is in, lays out right-to-left.
     mutating func resolveLayoutDirection(rightToLeft: Bool) {
@@ -63,7 +80,8 @@ struct ScrollChrome {
     /// The horizontal slot of the `ScrollerFrame` a two-axis scroller prepaints its content in (`XS-H`).
     func crossFrame(offset: Double, bounds: Bounds<Pixels>, contentSize: Size<Pixels>) -> ScrollerFrame.Cross {
         let horizontal = crossChrome
-        return ScrollerFrame.Cross(offset: offset, contentExtent: horizontal.extent(contentSize), mirrored: crossMirrored)
+        return ScrollerFrame.Cross(offset: offset, contentExtent: horizontal.extent(contentSize), mirrored: crossMirrored,
+                                   inset: crossContentInset)
     }
 
     /// The horizontal axis of a two-axis scroller as a one-axis chrome (`XS-D`): the SAME code reads its slot, so the cross axis
@@ -74,6 +92,8 @@ struct ScrollChrome {
         chrome.crossAxis = false
         chrome.mirrored = crossMirrored
         chrome.crossMirrored = false
+        chrome.contentInset = crossContentInset
+        chrome.indicatorInset = crossIndicatorInset
         return chrome
     }
 
@@ -349,9 +369,10 @@ struct ScrollChrome {
         // stayed as a comment instead of a condition that cannot fail.
         pass.frame.noteActiveAnimation()   // `HT-Z` item 1: a fade, not a change
 
-        let track = viewport - trackInset   // `XS-D`: shorter by the corner it shares with the other axis's thumb
+        // `XS-D`: shorter by the corner it shares with the other axis's thumb; `CMG-C`: and by the indicator margins
+        let track = max(0, viewport - trackInset - indicatorInset.start - indicatorInset.end)
         let thumb = max(20, track * (viewport / content))
-        let travel = (offset / scrollable) * (track - thumb)
+        let travel = (offset / scrollable) * (track - thumb) + indicatorInset.start
 
         var color = pass.theme[.scrollIndicator]
         color.a *= Float(alpha)
@@ -431,12 +452,16 @@ struct ScrollerFrame {
     /// Whether this frame IS the horizontal slot of a two-axis scroller, from `along(.horizontal)`: what a write to the
     /// scroller's state (`scrollTo`, an anchor adjustment) uses to pick the slot.
     var isCross = false
+    /// The scroll-content margins along `axis` (`CMG-D`): `scrollTo` and the reported position treat the visible
+    /// region as the viewport minus them.
+    var inset: (start: Double, end: Double) = (0, 0)
 
     /// What a two-axis scroller's horizontal axis adds to its frame.
     struct Cross {
         var offset: Double
         var contentExtent: Double
         var mirrored: Bool
+        var inset: (start: Double, end: Double) = (0, 0)
     }
 
     /// The frame along `other`, or `nil` when the scroller does not scroll that way (`XS-H`). Along its own axis it is `self`;
@@ -450,6 +475,7 @@ struct ScrollerFrame {
         frame.offset = cross.offset
         frame.contentExtent = cross.contentExtent
         frame.mirrored = cross.mirrored
+        frame.inset = cross.inset
         frame.cross = nil
         frame.isCross = true
         return frame

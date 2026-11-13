@@ -210,7 +210,7 @@ private let environmentFields: [String: String] = [
     "controlSize": "fingerprint", "font": "fingerprint",
     "truncationMode": "fingerprint", "multilineTextAlignment": "fingerprint", "foregroundStorage": "fingerprint (as foregroundStyle: the whole storage)", "tint": "fingerprint",
     "fontWeight": "fingerprint", "italic": "fingerprint", "isBold": "fingerprint", "textRichBox": "fingerprint (the fields it holds, as textRich)",
-    "textLineLimit": "fingerprint",
+    "textLineLimit": "fingerprint", "contentMargins": "fingerprint",
     "fieldStyles": "fingerprint (both styles)", "theme": "fingerprint", "textSystemBox": "fingerprint (presence)",
     "objects": "fingerprint (identities)", "custom": "fingerprint (readings), an uncomparable one a refusal",
     "fileDialogs": "irrelevant: a window-owned handle, constant for the window",
