@@ -16,7 +16,7 @@ package enum LucideIcons {
     package static let viewBoxSide: Float = 24
     /// Lucide's own stroke width on that grid (its regular weight).
     package static let strokeWidth: Float = 2
-    package static let names: [String] = ["search", "file", "file-text", "pencil", "square-pen", "file-plus", "square-terminal", "brain", "sparkles", "globe", "user", "circle-user", "triangle-alert", "x", "circle-x", "play", "square", "circle-stop", "check", "chevron-right", "chevron-down", "copy", "undo-2", "square-arrow-out-up-right", "columns-2", "cpu", "circle", "triangle", "star", "list-checks", "message-circle-question", "clipboard-list", "puzzle", "info", "paperclip", "image", "settings", "eye", "eye-off", "eye-circle", "eye-off-circle"]
+    package static let names: [String] = ["search", "file", "file-text", "pencil", "square-pen", "file-plus", "square-terminal", "brain", "sparkles", "globe", "user", "circle-user", "triangle-alert", "x", "circle-x", "play", "square", "circle-stop", "check", "chevron-right", "chevron-down", "copy", "undo-2", "square-arrow-out-up-right", "columns-2", "cpu", "circle", "triangle", "star", "list-checks", "message-circle-question", "clipboard-list", "puzzle", "info", "paperclip", "image", "settings", "eye", "eye-off", "redo-2", "share", "zoom-in", "zoom-out", "panel-left", "panel-bottom", "house", "camera", "eye-circle", "eye-off-circle", "panel-left-fill", "panel-bottom-fill"]
 
     package static func data(named name: String) -> IconPathData? {
         switch name {
@@ -59,8 +59,18 @@ package enum LucideIcons {
         case "settings": return settings
         case "eye": return eye
         case "eye-off": return eyeOff
+        case "redo-2": return redo2
+        case "share": return share
+        case "zoom-in": return zoomIn
+        case "zoom-out": return zoomOut
+        case "panel-left": return panelLeft
+        case "panel-bottom": return panelBottom
+        case "house": return house
+        case "camera": return camera
         case "eye-circle": return eyeCircle
         case "eye-off-circle": return eyeOffCircle
+        case "panel-left-fill": return panelLeftFill
+        case "panel-bottom-fill": return panelBottomFill
         default: return nil
         }
     }
@@ -182,10 +192,40 @@ package enum LucideIcons {
     private static let eyeOff = IconPathData(
         ops: [0, 2, 2, 2, 0, 2, 2, 0, 2, 2, 2, 2, 0, 1] as [UInt8],
         coords: [10.733, 5.076, 15.52, 4.506, 20.101, 7.194, 21.938, 11.651, 22.021, 11.876, 22.021, 12.122, 21.938, 12.347, 21.57, 13.238, 21.085, 14.076, 20.494, 14.837, 14.084, 14.158, 12.907, 15.295, 11.036, 15.279, 9.879, 14.121, 8.721, 12.964, 8.705, 11.093, 9.842, 9.916, 17.479, 17.499, 14.795, 19.089, 11.553, 19.434, 8.594, 18.446, 5.635, 17.457, 3.251, 15.232, 2.062, 12.348, 1.979, 12.123, 1.979, 11.877, 2.062, 11.652, 2.949, 9.502, 4.509, 7.697, 6.508, 6.509, 2, 2, 22, 22] as [Float])
+    private static let redo2 = IconPathData(
+        ops: [0, 1, 1, 0, 1, 2, 2, 1] as [UInt8],
+        coords: [15, 14, 20, 9, 15, 4, 20, 9, 9.5, 9, 6.462, 9, 4, 11.462, 4, 14.5, 4, 17.538, 6.462, 20, 9.5, 20, 13, 20] as [Float])
+    private static let share = IconPathData(
+        ops: [0, 1, 0, 1, 1, 0, 1, 2, 1, 2, 1] as [UInt8],
+        coords: [12, 2, 12, 15, 16, 6, 12, 2, 8, 6, 4, 12, 4, 20, 4, 21.105, 4.895, 22, 6, 22, 18, 22, 19.105, 22, 20, 21.105, 20, 20, 20, 12] as [Float])
+    private static let zoomIn = IconPathData(
+        ops: [0, 2, 2, 2, 2, 3, 0, 1, 0, 1, 0, 1] as [UInt8],
+        coords: [19, 11, 19, 15.418, 15.418, 19, 11, 19, 6.582, 19, 3, 15.418, 3, 11, 3, 6.582, 6.582, 3, 11, 3, 15.418, 3, 19, 6.582, 19, 11, 21, 21, 16.65, 16.65, 11, 8, 11, 14, 8, 11, 14, 11] as [Float])
+    private static let zoomOut = IconPathData(
+        ops: [0, 2, 2, 2, 2, 3, 0, 1, 0, 1] as [UInt8],
+        coords: [19, 11, 19, 15.418, 15.418, 19, 11, 19, 6.582, 19, 3, 15.418, 3, 11, 3, 6.582, 6.582, 3, 11, 3, 15.418, 3, 19, 6.582, 19, 11, 21, 21, 16.65, 16.65, 8, 11, 14, 11] as [Float])
+    private static let panelLeft = IconPathData(
+        ops: [0, 1, 2, 1, 2, 1, 2, 1, 2, 3, 0, 1] as [UInt8],
+        coords: [5, 3, 19, 3, 20.105, 3, 21, 3.895, 21, 5, 21, 19, 21, 20.105, 20.105, 21, 19, 21, 5, 21, 3.895, 21, 3, 20.105, 3, 19, 3, 5, 3, 3.895, 3.895, 3, 5, 3, 9, 3, 9, 21] as [Float])
+    private static let panelBottom = IconPathData(
+        ops: [0, 1, 2, 1, 2, 1, 2, 1, 2, 3, 0, 1] as [UInt8],
+        coords: [5, 3, 19, 3, 20.105, 3, 21, 3.895, 21, 5, 21, 19, 21, 20.105, 20.105, 21, 19, 21, 5, 21, 3.895, 21, 3, 20.105, 3, 19, 3, 5, 3, 3.895, 3.895, 3, 5, 3, 3, 15, 21, 15] as [Float])
+    private static let house = IconPathData(
+        ops: [0, 1, 2, 1, 2, 1, 0, 2, 1, 2, 1, 2, 1, 2, 1, 2, 3] as [UInt8],
+        coords: [15, 21, 15, 13, 15, 12.448, 14.552, 12, 14, 12, 10, 12, 9.448, 12, 9, 12.448, 9, 13, 9, 21, 3, 10, 3, 9.411, 3.259, 8.852, 3.709, 8.472, 10.709, 2.472, 11.454, 1.842, 12.546, 1.842, 13.291, 2.472, 20.291, 8.472, 20.741, 8.852, 21, 9.411, 21, 10, 21, 19, 21, 20.105, 20.105, 21, 19, 21, 5, 21, 3.895, 21, 3, 20.105, 3, 19] as [Float])
+    private static let camera = IconPathData(
+        ops: [0, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 3, 0, 2, 2, 2, 2, 3] as [UInt8],
+        coords: [13.997, 4, 14.732, 4, 15.408, 4.403, 15.757, 5.05, 16.243, 5.95, 16.592, 6.597, 17.268, 7, 18.003, 7, 20, 7, 21.105, 7, 22, 7.895, 22, 9, 22, 18, 22, 19.105, 21.105, 20, 20, 20, 4, 20, 2.895, 20, 2, 19.105, 2, 18, 2, 9, 2, 7.895, 2.895, 7, 4, 7, 5.997, 7, 6.731, 7, 7.406, 6.598, 7.756, 5.952, 8.245, 5.048, 8.595, 4.402, 9.27, 4, 10.004, 4, 15, 13, 15, 14.657, 13.657, 16, 12, 16, 10.343, 16, 9, 14.657, 9, 13, 9, 11.343, 10.343, 10, 12, 10, 13.657, 10, 15, 11.343, 15, 13] as [Float])
     private static let eyeCircle = IconPathData(
         ops: [0, 2, 2, 2, 2, 3, 0, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 3] as [UInt8],
         coords: [22, 12, 22, 17.523, 17.523, 22, 12, 22, 6.477, 22, 2, 17.523, 2, 12, 2, 6.477, 6.477, 2, 12, 2, 17.523, 2, 22, 6.477, 22, 12, 7.031, 12.174, 6.989, 12.062, 6.989, 11.938, 7.031, 11.826, 7.861, 9.813, 9.823, 8.5, 12, 8.5, 14.177, 8.5, 16.139, 9.813, 16.969, 11.826, 17.011, 11.938, 17.011, 12.062, 16.969, 12.174, 16.139, 14.187, 14.177, 15.5, 12, 15.5, 9.823, 15.5, 7.861, 14.187, 7.031, 12.174, 13.5, 12, 13.5, 12.828, 12.828, 13.5, 12, 13.5, 11.172, 13.5, 10.5, 12.828, 10.5, 12, 10.5, 11.172, 11.172, 10.5, 12, 10.5, 12.828, 10.5, 13.5, 11.172, 13.5, 12] as [Float])
     private static let eyeOffCircle = IconPathData(
         ops: [0, 2, 2, 2, 2, 3, 0, 2, 2, 2, 0, 2, 2, 0, 2, 2, 2, 2, 0, 1] as [UInt8],
         coords: [22, 12, 22, 17.523, 17.523, 22, 12, 22, 6.477, 22, 2, 17.523, 2, 12, 2, 6.477, 6.477, 2, 12, 2, 17.523, 2, 22, 6.477, 22, 12, 11.367, 8.538, 13.76, 8.253, 16.051, 9.597, 16.969, 11.825, 17.011, 11.938, 17.011, 12.061, 16.969, 12.174, 16.785, 12.619, 16.542, 13.038, 16.247, 13.418, 13.042, 13.079, 12.453, 13.647, 11.518, 13.639, 10.939, 13.061, 10.361, 12.482, 10.353, 11.547, 10.921, 10.958, 14.739, 14.749, 13.397, 15.544, 11.776, 15.717, 10.297, 15.223, 8.817, 14.729, 7.626, 13.616, 7.031, 12.174, 6.989, 12.062, 6.989, 11.938, 7.031, 11.826, 7.474, 10.751, 8.254, 9.849, 9.254, 9.255, 7, 7, 17, 17] as [Float])
+    private static let panelLeftFill = IconPathData(
+        ops: [0, 1, 2, 1, 2, 1, 3] as [UInt8],
+        coords: [9, 3, 5, 3, 3.895, 3, 3, 3.895, 3, 5, 3, 19, 3, 20.105, 3.895, 21, 5, 21, 9, 21] as [Float])
+    private static let panelBottomFill = IconPathData(
+        ops: [0, 1, 1, 2, 1, 2, 3] as [UInt8],
+        coords: [3, 15, 21, 15, 21, 19, 21, 20.105, 20.105, 21, 19, 21, 5, 21, 3.895, 21, 3, 20.105, 3, 19] as [Float])
 }
