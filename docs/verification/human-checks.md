@@ -2499,3 +2499,14 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **VT4.** Return sends (the draft is submitted once and not changed), Shift-Return and the keypad Enter too; Option-Return and Control-Return add a line break. Cmd-Return does nothing. On Linux or Windows: Enter sends, Shift-Enter sends, Alt-Enter adds a line break, Ctrl-Enter is left to the app. **Observed:**
 - [ ] **VT5.** Typing the eighth, ninth and tenth line grows the field one line each up to eight and then keeps the caret in view as it scrolls, with no flicker of the field's height. Delete back: it shrinks one line at a time down to one. **Observed:**
 - [ ] **VT6.** Replace the text from code (a button that clears it, one that sets a long text): the field shrinks to one line on clear; on a long text it shows the end with the caret there (SwiftUI does not scroll, divergence 235). **Observed:**
+
+## WB. Window container background (Alloy gap G40; record 285; rulings `WB-A`..`WB-H`; decisions `docs/superpowers/2026-11-13-window-backdrop-decisions.md`)
+
+*An agent cannot: the tests read the effect view, its material, blending and state, and the window's flags on an unordered window, and the headless window's requests; what the compositor draws behind a real window, how each material level compares with SwiftUI's, and Reduce Transparency and inactive looks need the screen. Run `METALUI_CHROME_DEMO=1 swift run MetalUIDemo` and press "Window backdrop".*
+
+- [ ] **WB1.** With the backdrop on, is the desktop (move a bright window behind it) visible **blurred** through the window, behind the bar and the text, with the bar's own surface still opaque? Compare the look with a SwiftUI window using `.containerBackground(.regularMaterial, for: .window)`: is the blur strength and tint close (the level mapping of `WB-B` is unmeasured; note which level, if any, looks wrong)? **Observed:**
+- [ ] **WB2.** Turn the backdrop off and on three times: the window goes back to the ordinary opaque look when off, with the title bar, shadow and corners unchanged, and the content does not jump or flicker. **Observed:**
+- [ ] **WB3.** Make the window inactive (click another app): the blur loses its vibrancy as a system window does (`.followsWindowActiveState`, `WB-E`); click back: it returns. **Observed:**
+- [ ] **WB4.** System Settings > Accessibility > Display > Reduce Transparency on, with the backdrop on: the window background is a flat opaque light grey (dark: dark grey) with nothing showing through, both immediately and after toggling the demo button; off again: the blur returns without relaunching. **Observed:**
+- [ ] **WB5.** Switch the system between light and dark with the backdrop on: the material follows the scheme. **Observed:**
+- [ ] **WB6.** On Linux or Windows (SDL), with the backdrop on: the window is a flat opaque grey, no desktop shows (divergence 241), and light/dark follows the scheme. **Observed:**

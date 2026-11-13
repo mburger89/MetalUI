@@ -31,6 +31,9 @@ enum EnvironmentWrite {
     /// (post-order), the first one winning.
     case windowTitleBarMetrics(TitleBarMetrics)
     case onOpenURL(@MainActor (URL) -> Void)
+    /// `.containerBackground(_:for: .window)` (ruling `WB-A`): reported after its content builds (post-order),
+    /// the first one winning.
+    case windowBackdrop(WindowBackdropSpec)
     /// `.presentationBackground(...)` (rulings `BG-B`): changes no value; reports after its content builds,
     /// into the slot an enclosing presentation's bracket opened.
     case presentationBackground(PresentationBackgroundSpec)
@@ -145,6 +148,10 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
         case .windowTitleBarMetrics(let metrics):
             let result = body()
             if frame.collectedTitleBarMetrics == nil { frame.collectedTitleBarMetrics = metrics }
+            return result
+        case .windowBackdrop(let spec):
+            let result = body()
+            if frame.collectedWindowBackdrop == nil { frame.collectedWindowBackdrop = spec }
             return result
         case .navigationDocument(let url):
             let result = body()
