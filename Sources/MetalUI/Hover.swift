@@ -34,9 +34,13 @@ final class HoverAttachment {
     let onContinuousHover: ((HoverPhase) -> Void)?
     /// The space `onContinuousHover`'s points are in (`OV-F`).
     let coordinateSpace: CoordinateSpace
+    /// A second continuous callback that always hears view-local points, whatever space the app's callback asked for
+    /// (`CV-AS`: a ``CodeView``'s text hover runs beside the app's own `onContinuousHover` in every space).
+    var localContinuous: ((HoverPhase) -> Void)?
 
     init(onHover: ((Bool) -> Void)?, onContinuousHover: ((HoverPhase) -> Void)?,
-         coordinateSpace: CoordinateSpace = .local) {
+         coordinateSpace: CoordinateSpace = .local, localContinuous: ((HoverPhase) -> Void)? = nil) {
+        self.localContinuous = localContinuous
         self.onHover = onHover
         self.onContinuousHover = onContinuousHover
         self.coordinateSpace = coordinateSpace
@@ -46,13 +50,14 @@ final class HoverAttachment {
     /// callback and its space are kept (`OV-F`).
     static func hover(_ action: @escaping (Bool) -> Void, over existing: HoverAttachment?) -> HoverAttachment {
         HoverAttachment(onHover: action, onContinuousHover: existing?.onContinuousHover,
-                        coordinateSpace: existing?.coordinateSpace ?? .local)
+                        coordinateSpace: existing?.coordinateSpace ?? .local, localContinuous: existing?.localContinuous)
     }
 
     /// `existing` with its `onContinuousHover` replaced by `action` in `space`.
     static func continuous(_ action: @escaping (HoverPhase) -> Void, in space: CoordinateSpace,
                            over existing: HoverAttachment?) -> HoverAttachment {
-        HoverAttachment(onHover: existing?.onHover, onContinuousHover: action, coordinateSpace: space)
+        HoverAttachment(onHover: existing?.onHover, onContinuousHover: action, coordinateSpace: space,
+                        localContinuous: existing?.localContinuous)
     }
 }
 
@@ -186,6 +191,12 @@ struct HoveredRegion {
     /// The named spaces in force at the region's registration (`OV-F`).
     let namedSpaces: [NamedSpace]
 
+    /// `point` (a window point) in the region's own space, as `.local` reports it.
+    func localPoint(_ point: Point<Pixels>) -> Point<Pixels> {
+        let local = region.localPoint(point)
+        return Point(x: Pixels(local.x.value - region.origin.x.value), y: Pixels(local.y.value - region.origin.y.value))
+    }
+
     /// `point` (a window point) in the continuous callback's space (`OV-F`).
     func point(_ point: Point<Pixels>) -> Point<Pixels> {
         switch attachment.coordinateSpace {
@@ -257,18 +268,20 @@ extension Window {
             StateDispatch.dispatching(to: region.key.id) {
                 region.attachment.onHover?(false)
                 region.attachment.onContinuousHover?(.ended)
+                region.attachment.localContinuous?(.ended)
             }
         }
         // Then enterings, outermost first; continuous moves in the same order.
         guard let point else { return }
         for region in next {
             let entering = !before.contains(region.key)
-            guard entering || (reportsMoves && region.attachment.onContinuousHover != nil) else { continue }
+            guard entering || (reportsMoves && (region.attachment.onContinuousHover != nil || region.attachment.localContinuous != nil)) else { continue }
             StateDispatch.dispatching(to: region.key.id) {
                 if entering { region.attachment.onHover?(true) }
                 if let continuous = region.attachment.onContinuousHover {
                     continuous(.active(region.point(point)))
                 }
+                region.attachment.localContinuous?(.active(region.localPoint(point)))
             }
         }
     }
