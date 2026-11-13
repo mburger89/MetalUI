@@ -31,6 +31,11 @@ public enum StandardMenuAction: Sendable, Equatable, CaseIterable {
     case about, hide, hideOthers, showAll, quit, close,
          undo, redo, cut, copy, paste, delete, selectAll,
          minimize, zoom, bringAllToFront
+    /// The application menu's Services submenu (`MN-AO`), carried by an empty
+    /// `.submenu` item: the platform fills it with the system's services
+    /// (AppKit's `NSApp.servicesMenu`). Not a command; no portable platform
+    /// shows it.
+    case services
 }
 
 /// One item of a `PlatformMenu` (ruling `MN-D`).
