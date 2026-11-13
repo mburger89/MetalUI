@@ -3047,6 +3047,8 @@ public final class Window {
         case .mouseDown(let mouse):
             var callbacks: [GestureCallback] = []
             let key = gestureArenaKey(at: mouse.position)
+            rowSelectionClick = nil
+            defer { rowSelectionClick = owedRowSelection(for: key) }
             if var arena = gestureArena, arena.isAlive {
                 // The no-target arena keys on its draggable region (`DN-U`
                 // item 5), so a continuing press compares against the same.
@@ -3082,6 +3084,7 @@ public final class Window {
             guard var arena = gestureArena, arena.isPressing else {
                 return dispatchClick(event, pressedBefore: pressed)
             }
+            runRowSelectionClick(mouse, pressedBefore: pressed)
             let callbacks = arena.release(at: mouse.position, clickCount: mouse.clickCount,
                                           modifiers: mouse.modifiers,
                                           click: completedClick(mouse, pressedBefore: pressed),
@@ -3092,6 +3095,41 @@ public final class Window {
         default:
             return false
         }
+    }
+
+    /// G39 (`DD-AJ`): the row-selection click a press under a multi-click tap
+    /// still owes — the target it was pressed on and the row's `onClick`.
+    private var rowSelectionClick: (target: GlobalElementID, handler: @MainActor () -> Void)?
+
+    /// The nearest `List` row above a press's target when the arena holds a
+    /// tap of two or more clicks and the target has no `onClick` of its own
+    /// (a `Button` keeps its press); `nil` otherwise. Read after the arena for
+    /// this press is in `gestureArena`.
+    private func owedRowSelection(for key: (target: Int, draggableAbove: Int?)?)
+        -> (target: GlobalElementID, handler: @MainActor () -> Void)? {
+        guard let key, let arena = gestureArena, arena.isAlive, arena.holdsMultiClickTap else { return nil }
+        let hit = lastHitboxes[key.target]
+        guard hit.handlers.onClick == nil else { return nil }
+        var cursor = hit.id.parent
+        while let id = cursor {
+            if let index = lastHitboxes.lastIndex(where: { $0.id == id && $0.layer == hit.layer
+                                                              && $0.handlers.axNode.isSelectableRow }),
+               let handler = lastHitboxes[index].handlers.onClick {
+                return (hit.id, handler)
+            }
+            cursor = id.parent
+        }
+        return nil
+    }
+
+    /// Runs the owed row selection when the release lands on the pressed
+    /// target — `dispatchClick`'s test, at the same moment (the release), so a
+    /// row with the tap selects exactly when a row without it does.
+    private func runRowSelectionClick(_ mouse: MouseEvent, pressedBefore pressed: GlobalElementID?) {
+        guard let owed = rowSelectionClick, owed.target == pressed,
+              let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position),
+              lastHitboxes[index].id == pressed else { return }
+        runClick(owed.handler, on: owed.target, modifiers: mouse.modifiers)
     }
 
     /// Ends the press's pointer bookkeeping when a drag begins or is handed

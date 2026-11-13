@@ -546,6 +546,7 @@ where Data.Element: Identifiable {
                 }
                 rowBox.handlers.onClick = Self.rowClick(list: id, row: datum.id, data: data,
                                                         selection: selection, table: table)
+                rowBox.handlers.axNode.isSelectableRow = true
             }
             return rowBox
         }
