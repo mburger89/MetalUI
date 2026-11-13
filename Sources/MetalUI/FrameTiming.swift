@@ -145,6 +145,10 @@ public final class FrameTiming {
     private var ring: ContiguousArray<FrameTimingSample>
     private var current: FrameTimingSample?
     private var candidate: (kind: FrameInputKind, received: UInt64, stamp: UInt64)?
+    /// Handlers currently running between ``noteInput(_:)`` and ``settleInput(dirtied:)``: more than one means a
+    /// handler dispatched another event re-entrantly (`FP-K`).
+    private var inputDepth = 0
+
     private var pending: (kind: FrameInputKind, received: UInt64, stamp: UInt64, count: Int)?
     private var inFlight: (kind: FrameInputKind, received: UInt64, stamp: UInt64, count: Int)?
     #if canImport(os)
@@ -235,6 +239,36 @@ public final class FrameTiming {
         if Self.traceHeadersWritten.insert(destination).inserted { traceSink?(Self.traceHeader) }
     }
 
+    /// Counters that explain a trace (`FP-K`), always kept: lines written, presented frames no input caused,
+    /// frames the platform reported dropped, inputs whose handler left the window clean.
+    package private(set) var traceLinesWritten = 0
+    package private(set) var presentedNoInputCount = 0
+    package private(set) var droppedCount = 0
+    package private(set) var settledCleanCount = 0
+    private var reportsSinceSummary = 0
+
+    /// Presentation reports between automatic summary lines.
+    package static let summaryInterval = 100
+
+    private func noteReport() {
+        reportsSinceSummary += 1
+        if reportsSinceSummary >= Self.summaryInterval { writeTraceSummary() }
+    }
+
+    /// The summary line: `metalui-latency-summary written=N presentedNoInput=N dropped=N settledClean=N`.
+    /// Fields never reorder; new ones are appended.
+    package var traceSummary: String {
+        "metalui-latency-summary written=\(traceLinesWritten) presentedNoInput=\(presentedNoInputCount) "
+            + "dropped=\(droppedCount) settledClean=\(settledCleanCount)"
+    }
+
+    /// Writes ``traceSummary`` to the trace now (nothing when tracing is off). Also written by itself after every
+    /// 100 presentation reports, so a trace explains why it has few lines (`FP-K`). MetalUI-only.
+    public func writeTraceSummary() {
+        reportsSinceSummary = 0
+        traceSink?(traceSummary)
+    }
+
     /// The header ``traceLine(for:interval:)``'s columns follow.
     package static let traceHeader = "metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build "
         + "encode commit>screen | total frames"
@@ -322,6 +356,10 @@ public final class FrameTiming {
     /// An input event arrived. It becomes the next frame's input only if ``settleInput(dirtied:)`` says it
     /// dirtied the window.
     func noteInput(_ event: InputEvent) {
+        inputDepth += 1
+        // `FP-K`: a re-entrant dispatch (a handler sending another event) must not replace the outer event:
+        // the outer one is the earlier.
+        if candidate != nil { return }
         let received = Self.now()
         var stamp = received
         // The platform's own timestamp counts only when it is on our clock: within the second before now.
@@ -337,15 +375,26 @@ public final class FrameTiming {
     /// The handler for the last ``noteInput(_:)`` returned. A dirtied window keeps it as input to the next frame
     /// (the earliest such event wins, the rest are counted); a clean one drops it: it caused no frame.
     func settleInput(dirtied: Bool) {
+        inputDepth -= 1
+        guard inputDepth <= 0 else { return }   // `FP-K`: the outermost handler settles for all that ran inside it
+        inputDepth = 0
         defer { candidate = nil }
-        guard dirtied, let candidate else { return }
+        guard let candidate else { return }
+        guard dirtied else {
+            settledCleanCount += 1
+            return
+        }
+        addPending(candidate)
+    }
+
+    private func addPending(_ input: (kind: FrameInputKind, received: UInt64, stamp: UInt64)) {
         if var existing = pending {
             existing.count += 1
             pending = existing
         } else {
-            pending = (candidate.kind, candidate.received, candidate.stamp, 1)
+            pending = (input.kind, input.received, input.stamp, 1)
             #if canImport(os)
-            signposts?.beginInput(kind: candidate.kind)
+            signposts?.beginInput(kind: input.kind)
             #endif
         }
     }
@@ -449,14 +498,19 @@ public final class FrameTiming {
     /// still holds it.
     func notePresented(index: UInt64, at time: UInt64?) {
         let slot = Int(index % UInt64(capacity))
-        guard index < framesRecorded, ring[slot].frameIndex == index, ring[slot].presented == nil, let time else {
-            return
-        }
+        guard index < framesRecorded, ring[slot].frameIndex == index, ring[slot].presented == nil else { return }
+        guard let time else { droppedCount += 1; noteReport(); return }
         ring[slot].presented = time
-        if let traceSink, ring[slot].inputKind != nil {
-            if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
-            traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval))
+        if let traceSink {
+            if ring[slot].inputKind != nil {
+                if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
+                traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval))
+                traceLinesWritten += 1
+            } else {
+                presentedNoInputCount += 1
+            }
         }
+        noteReport()
         #if canImport(os)
         signposts?.event("Present")
         #endif
