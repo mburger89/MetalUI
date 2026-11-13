@@ -9,6 +9,7 @@ window.frameTiming = FrameTiming()                         // record, no signpos
 window.frameTiming = FrameTiming(capacity: 2048, emitsSignposts: true)
 METALUI_LATENCY_TRACE=1 swift run MyApp                    // per-stage input-to-screen lines on stderr (or =<path>), see FP-I; applies to any FrameTiming, also one you assign (FP-J)
 frameTiming.enableTrace(destination: "/tmp/latency.txt")    // or turn the trace on from code (FP-J)
+frameTiming.writeTraceSummary()                            // write the summary line now (FP-K); also every 100 presentation reports
 METALUI_SIGNPOSTS=1 swift run MyApp                        // every window: record + signposts
 window.frameTiming = nil                                   // stop
 ```
@@ -77,3 +78,21 @@ In Instruments add the Points of Interest or os_signpost instrument and filter o
 - `presented` arrives a frame or two after the frame and fills the sample in place; read it after the fact, or in `onPresented`. A ring that wrapped meanwhile drops it.
 - A timing belongs to one window.
 - Recording is a few clock reads per frame (about 40 ns each); signposts add the OS's own cost, so do not leave them on when measuring the last microsecond.
+
+## The trace summary (`FP-K`)
+
+While a trace is on, a line `metalui-latency-summary written=N presentedNoInput=N dropped=N settledClean=N` is written on `writeTraceSummary()` and after every 100 presentation reports, so a run explains itself. The field order is stable; new fields are appended. `written` data lines so far; `presentedNoInput` presented frames no input caused; `dropped` frames the platform reported never shown; `settledClean` inputs whose handler left the window clean (dropped: they caused no frame). `written=0` with no summary line means no presentation report reached the timing.
+
+## Latency experiments (`FP-L`)
+
+Not API: environment variables read once when a window is created, for A/B runs of a benchmark. Unset, behaviour is unchanged and each costs one stored check. The trace header ends `exp=none` or the names of those that are on (`drawables2,late,immediate,transaction`).
+
+| Variable | Effect | Risk |
+|---|---|---|
+| `METALUI_EXP_DRAWABLES=2` | `CAMetalLayer.maximumDrawableCount = 2` (3 is the default) | `nextDrawable()` blocks more often, so `drawable` grows when the GPU is behind |
+| `METALUI_EXP_LATE_DRAWABLE=1` | `nextDrawable()` after build and paint, before `finishFrame`; no drawable: the frame is abandoned, the window stays dirty and retries | `drawable` reads about 0 and the wait appears in `encode`; the work of the frame is done before the failure is known |
+| `METALUI_EXP_IMMEDIATE_INPUT=1` | a key, text or button event at an idle window draws its frame at the end of the handler instead of at the next tick; the tick finds nothing to do | no tick pacing for those events: one frame per event; such frames have no `recv>tick`; gestures and tooltips advance only on ticks |
+| `METALUI_EXP_TRANSACTION=1` | `presentsWithTransaction`: commit, `waitUntilScheduled()`, `drawable.present()` | blocks the main thread until the frame is scheduled |
+
+`est>screen` (a trace column) is MetalUI's own estimate, commit to the first vsync at or after it, from the display link's tick targets; it is `-` without a known refresh interval and is never mixed into `commit>screen`, which is the platform's `presentedTime`. On a window where the platform reports `presentedTime` 0 for every frame (seen on macOS in a real window, cause unconfirmed), `commit>screen` and `total` stay `-` and the summary shows `dropped` equal to the frames drawn; use `est>screen` and an external probe.
+

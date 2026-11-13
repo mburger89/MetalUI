@@ -83,6 +83,11 @@ public final class HeadlessWindowRenderer: WindowRenderer {
         for token in tokens { presentationObserver(token, time ?? FrameTiming.now()) }
     }
 
+    /// A frame began with its drawable deferred and has not acquired it (`FP-L`).
+    package var drawableDeferred = false
+    /// How many deferred drawables were acquired, successfully or not (`FP-L`).
+    package var lateAcquisitions = 0
+
     /// The glyph atlas of the last presented frame (the window's own, shared, not a copy), or `nil` before one:
     /// what a renderer needs beside ``lastScene`` to draw the frame's text (`HT-AB`).
     public private(set) var lastAtlas: GlyphAtlas?
@@ -137,6 +142,30 @@ public final class HeadlessWindowRenderer: WindowRenderer {
             observedFrames += 1
         }
         onFramePresented?(self)
+        return true
+    }
+}
+
+extension HeadlessWindowRenderer: LateDrawableWindowRenderer {
+    /// `METALUI_EXP_LATE_DRAWABLE` (`FP-L`): the frame begins with no drawable; ``failsNextFrame`` then applies
+    /// to ``acquireDeferredDrawable()`` instead.
+    package func beginFrameDeferringDrawable() -> Float? {
+        if let setup = onFirstBeginFrame {
+            onFirstBeginFrame = nil
+            setup()
+        }
+        drawableDeferred = true
+        return scaleFactor
+    }
+
+    /// Acquires the deferred drawable: `false` once after ``failsNextFrame`` was set.
+    package func acquireDeferredDrawable() -> Bool {
+        drawableDeferred = false
+        lateAcquisitions += 1
+        if failsNextFrame {
+            failsNextFrame = false
+            return false
+        }
         return true
     }
 }

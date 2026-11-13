@@ -1,5 +1,6 @@
 import Foundation
 import MetalUI
+import MetalUIPlatform
 import MetalUIScene
 import MetalUITesting
 import MetalUITestSupport
@@ -405,4 +406,188 @@ private func readTrace(_ path: String) -> [String] {
         first.traceSink?("one"); second.traceSink?("two"); first.traceSink?("three")
         #expect(readTrace(path) == [FrameTiming.traceHeader, "one", "two", "three"])
     }
+}
+
+// MARK: Re-entrant attribution and the summary (`FP-K`)
+
+/// 1.16 — a handler that dispatches another event re-entrantly keeps the outer event as the candidate: the inner
+/// one (clean) used to replace it and the outer one's defer then settled nothing. Fails before `FP-K`.
+@Test @MainActor func aReentrantDispatchDoesNotClobberTheOuterInput() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.window.onInput = { [unowned window] event in
+        guard case .keyDown = event else { return false }   // inner: unclaimed, so clean
+        window.send(.modifiersChanged([]))
+        return true   // outer: claimed, so the window is dirtied
+    }
+    window.send(.keyDown(KeyEvent(charactersIgnoringModifiers: "z", characters: "z", timestamp: 0)))
+    window.tick()
+    let sample = try #require(timing.last)
+    #expect(sample.inputKind == .key)
+    #expect(sample.inputCount == 1)
+}
+
+/// 1.17 — an input that truly causes nothing gets no frame and no line, and the counters say why. Mutation:
+/// `settleInput` keeping every clean input.
+@Test @MainActor func aTrulyNoOpInputWritesNoLineAndIsCounted() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    window.window.setNeedsRedraw(); window.tick()   // flush the setup frames' presentations first
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    let noInputBefore = timing.presentedNoInputCount
+    let before = timing.settledCleanCount
+    window.send(.modifiersChanged([]))
+    window.window.setNeedsRedraw()   // a timer frame, not the input
+    window.tick()
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    #expect(timing.last?.inputKind == nil)
+    #expect(!lines.contains { $0.hasPrefix("metalui-latency ") })
+    #expect(timing.settledCleanCount == before + 1)
+    #expect(timing.presentedNoInputCount == noInputBefore + 1)
+}
+
+/// 1.18 — the summary line: stable field order, on demand and every 100 presentation reports. Mutation: the
+/// automatic write removed; `traceLinesWritten` not incremented.
+@Test @MainActor func theTraceSummaryCountsAndIsWrittenOnDemandAndEveryHundredReports() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    window.typeKey("a")
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    #expect(timing.traceLinesWritten == 1)
+    timing.writeTraceSummary()
+    #expect(lines.last == "metalui-latency-summary written=1 presentedNoInput=\(timing.presentedNoInputCount) "
+        + "dropped=0 settledClean=\(timing.settledCleanCount)")
+    lines.removeAll()
+    for _ in 0..<FrameTiming.summaryInterval {
+        window.window.setNeedsRedraw()
+        window.tick()
+        window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    }
+    #expect(lines.contains { $0.hasPrefix("metalui-latency-summary ") }, "automatic summary")
+}
+
+// MARK: Latency experiment switches (`FP-L`)
+
+private func keyA() -> InputEvent {
+    .keyDown(KeyEvent(charactersIgnoringModifiers: "a", characters: "a", timestamp: 0))
+}
+
+/// 1.20 — immediate input: an idle window draws the frame inside the input, the tick that follows draws none, and
+/// the sample has no tick. Off, the same key draws nothing until the tick. Mutations: the idle check dropped
+/// (a dirty window draws too); `drawImmediatelyAfterInput` not run; the draw placed before `settleInput` (the
+/// sample then has no input).
+@Test @MainActor func immediateInputDrawsInsideTheHandlerAndTheTickDrawsNothingMore() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.tick()   // idle: clean, nothing animating
+    window.window.experiments.immediateInput = true
+    let before = window.window.framesDrawn
+    window.send(keyA())
+    #expect(window.window.framesDrawn == before + 1, "drawn synchronously, before any tick")
+    let sample = try #require(timing.last)
+    #expect(sample.inputKind == .key && sample.tickStart == nil, "the input is claimed; no tick drove the frame")
+    window.tick()
+    #expect(window.window.framesDrawn == before + 1, "the following tick draws no duplicate")
+
+    window.window.experiments.immediateInput = false
+    window.send(keyA())
+    #expect(window.window.framesDrawn == before + 1, "off: nothing is drawn until the tick")
+    window.tick()
+    #expect(window.window.framesDrawn == before + 2)
+}
+
+/// 1.21 — immediate input never draws inside a frame and never for a pointer move. Mutation: the
+/// `isDrawingFrame` guard dropped (the nested send draws a frame inside the frame).
+@Test @MainActor func immediateInputNeverDrawsInsideAFrameOrForAMove() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.tick()
+    window.window.experiments.immediateInput = true
+    var nestedDraws: [Int] = []
+    timing.onFrame = { [unowned window] _ in
+        let drawn = window.window.framesDrawn
+        window.send(keyA())   // dispatched while the frame is still running
+        nestedDraws.append(window.window.framesDrawn - drawn)
+    }
+    window.window.setNeedsRedraw()
+    window.window.drawFrameIfNeeded()
+    #expect(nestedDraws == [0], "no frame inside a frame")
+    timing.onFrame = nil
+    window.window.drawFrameIfNeeded()   // the dirtied window's next frame
+    window.tick()
+    let before = window.window.framesDrawn
+    window.send(.mouseMoved(MouseEvent(position: pt(3, 3))))
+    #expect(window.window.framesDrawn == before, "a move keeps the display link's pacing")
+}
+
+/// 1.22 — late drawable: the drawable is acquired after paint and no later than the commit; without the switch
+/// the sample has no late stamp. A failed late acquisition abandons the frame and the window retries. Mutations:
+/// `acquireDeferredDrawable` not called (no stamp); the failure ignored (a frame is recorded).
+@Test @MainActor func aLateDrawableIsAcquiredAfterPaintAndAFailureRetries() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    let renderer = window.platformWindow.headlessRenderer
+    window.typeKey("a")
+    #expect(timing.last?.lateDrawableAcquired == nil && renderer.lateAcquisitions == 0)
+
+    window.window.experiments.lateDrawable = true
+    window.typeKey("a")
+    let s = try #require(timing.last)
+    let late = try #require(s.lateDrawableAcquired)
+    #expect(s.paintEnd <= late && late <= s.commit, "after paint, before the commit")
+    #expect(renderer.lateAcquisitions == 1)
+
+    renderer.failsNextFrame = true
+    let recorded = timing.framesRecorded
+    window.send(keyA()); window.tick()
+    #expect(timing.framesRecorded == recorded, "no drawable: no frame")
+    #expect(window.window.needsRedraw, "stays dirty")
+    window.tick()
+    #expect(timing.framesRecorded == recorded + 1, "the retry draws")
+    #expect(timing.last?.inputKind == .key, "the input waited for it")
+}
+
+/// 1.23 — the switches parse from the environment, ignore what is not a switch, and name themselves in the trace
+/// header. Mutations: `drawables=4` accepted; the label dropped from the header.
+@Test @MainActor func theExperimentSwitchesParseAndAppearInTheTraceHeader() {
+    #expect(LatencyExperiments(environment: [:]) == LatencyExperiments())
+    #expect(LatencyExperiments(environment: [:]).label == "none")
+    #expect(LatencyExperiments(environment: ["METALUI_EXP_DRAWABLES": "4", "METALUI_EXP_LATE_DRAWABLE": "0"]).label == "none")
+    let all = LatencyExperiments(environment: [
+        "METALUI_EXP_DRAWABLES": "2", "METALUI_EXP_LATE_DRAWABLE": "1",
+        "METALUI_EXP_IMMEDIATE_INPUT": "1", "METALUI_EXP_TRANSACTION": "1"])
+    #expect(all.label == "drawables2,late,immediate,transaction")
+    #expect(FrameTiming.header(experiments: all).hasSuffix(" exp=drawables2,late,immediate,transaction"))
+    #expect(FrameTiming.header(experiments: LatencyExperiments()).hasSuffix(" exp=none"))
+}
+
+/// 1.24 — the vsync estimate is the first tick target at or after the commit, in whole intervals, from the
+/// frame's tick or else the last seen one; unknown without an interval; and it is its own column. Mutations:
+/// rounding down; the estimate written into `commit>screen`.
+@Test @MainActor func theVsyncEstimateIsTheFirstTickAtOrAfterTheCommit() {
+    var s = FrameTimingSample(frameIndex: 0, start: 1_000)
+    s.commit = 1_000 + 20_000_000
+    s.tickTarget = 1_000 + 16_000_000
+    // Compared outside `#expect`: the macro's expansion of an optional-`UInt64` comparison crashes the Windows
+    // Swift 6.4 compiler (SILGen reabstraction thunk through `AnyHashable`).
+    let fromTick: UInt64? = FrameTiming.estimatedVsync(for: s, interval: 16_000_000, phase: nil)
+    let expectedFromTick: UInt64 = 1_000 + 32_000_000
+    let fromTickMatches = fromTick == expectedFromTick
+    #expect(fromTickMatches, "missed one: \(String(describing: fromTick))")
+    s.tickTarget = nil
+    let fromPhase: UInt64? = FrameTiming.estimatedVsync(for: s, interval: 16_000_000, phase: 1_000 + 48_000_000)
+    let expectedFromPhase: UInt64 = 1_000 + 48_000_000
+    let fromPhaseMatches = fromPhase == expectedFromPhase
+    #expect(fromPhaseMatches, "\(String(describing: fromPhase))")
+    let unknown: UInt64? = FrameTiming.estimatedVsync(for: s, interval: nil, phase: 1)
+    let isUnknown = unknown == nil
+    #expect(isUnknown)
+    let line = FrameTiming.traceLine(for: s, interval: 16_000_000, vsyncPhase: 1_000 + 48_000_000)
+    #expect(line.contains(" - 28.00 | "), "commit>screen unreported (-), est>screen 28.00")
 }

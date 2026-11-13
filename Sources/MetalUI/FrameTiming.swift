@@ -69,6 +69,9 @@ public struct FrameTimingSample: Sendable, Equatable {
     /// `presentedTime`); `nil` where it does not (SDL, the headless renderer by default), when the frame was
     /// dropped, and until the platform reports it (the sample in the ring is updated in place).
     public var presented: UInt64?
+    /// `METALUI_EXP_LATE_DRAWABLE` (`FP-L`): when the drawable was acquired after paint; `nil` without the
+    /// experiment. Then ``drawableAcquired`` stamps the end of frame set-up, not a wait.
+    package var lateDrawableAcquired: UInt64?
 
     /// A sample whose phases all read `start`; the window stamps the rest.
     package init(frameIndex: UInt64, start: UInt64) {
@@ -77,6 +80,7 @@ public struct FrameTimingSample: Sendable, Equatable {
         tickStart = nil; tickTarget = nil
         buildStart = start; drawableAcquired = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
         presented = nil
+        lateDrawableAcquired = nil
     }
 
     /// Input to commit in nanoseconds, or `nil` for a frame no input caused: the keystroke-to-submit latency.
@@ -145,6 +149,10 @@ public final class FrameTiming {
     private var ring: ContiguousArray<FrameTimingSample>
     private var current: FrameTimingSample?
     private var candidate: (kind: FrameInputKind, received: UInt64, stamp: UInt64)?
+    /// Handlers currently running between ``noteInput(_:)`` and ``settleInput(dirtied:)``: more than one means a
+    /// handler dispatched another event re-entrantly (`FP-K`).
+    private var inputDepth = 0
+
     private var pending: (kind: FrameInputKind, received: UInt64, stamp: UInt64, count: Int)?
     private var inFlight: (kind: FrameInputKind, received: UInt64, stamp: UInt64, count: Int)?
     #if canImport(os)
@@ -235,13 +243,50 @@ public final class FrameTiming {
         if Self.traceHeadersWritten.insert(destination).inserted { traceSink?(Self.traceHeader) }
     }
 
+    /// Counters that explain a trace (`FP-K`), always kept: lines written, presented frames no input caused,
+    /// frames the platform reported dropped, inputs whose handler left the window clean.
+    package private(set) var traceLinesWritten = 0
+    package private(set) var presentedNoInputCount = 0
+    package private(set) var droppedCount = 0
+    package private(set) var settledCleanCount = 0
+    private var reportsSinceSummary = 0
+
+    /// Presentation reports between automatic summary lines.
+    package static let summaryInterval = 100
+
+    private func noteReport() {
+        reportsSinceSummary += 1
+        if reportsSinceSummary >= Self.summaryInterval { writeTraceSummary() }
+    }
+
+    /// The summary line: `metalui-latency-summary written=N presentedNoInput=N dropped=N settledClean=N`.
+    /// Fields never reorder; new ones are appended.
+    package var traceSummary: String {
+        "metalui-latency-summary written=\(traceLinesWritten) presentedNoInput=\(presentedNoInputCount) "
+            + "dropped=\(droppedCount) settledClean=\(settledCleanCount)"
+    }
+
+    /// Writes ``traceSummary`` to the trace now (nothing when tracing is off). Also written by itself after every
+    /// 100 presentation reports, so a trace explains why it has few lines (`FP-K`). MetalUI-only.
+    public func writeTraceSummary() {
+        reportsSinceSummary = 0
+        traceSink?(traceSummary)
+    }
+
     /// The header ``traceLine(for:interval:)``'s columns follow.
-    package static let traceHeader = "metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build "
-        + "encode commit>screen | total frames"
+    package static var traceHeader: String { header(experiments: LatencyExperiments.environment) }
+
+    /// The header for `experiments`: `exp=` names the switches that are on (`FP-L`). `commit>screen` is the
+    /// platform's report; `est>screen` is MetalUI's own estimate (commit to the first vsync at or after it,
+    /// from the display link's tick targets), never mixed into the other and `-` without a known interval.
+    package static func header(experiments: LatencyExperiments) -> String {
+        "metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build "
+            + "encode commit>screen est>screen | total frames exp=\(experiments.label)"
+    }
 
     /// One line: each stage's duration in milliseconds, the input-to-screen total and that total in refresh
     /// intervals (`-` when no interval is known). Stages with no stamp print `-`.
-    package static func traceLine(for s: FrameTimingSample, interval: UInt64?) -> String {
+    package static func traceLine(for s: FrameTimingSample, interval: UInt64?, vsyncPhase: UInt64? = nil) -> String {
         func ms(_ ns: UInt64?) -> String { ns.map { String(format: "%.2f", Double($0) / 1e6) } ?? "-" }
         func gap(_ a: UInt64?, _ b: UInt64?) -> UInt64? {
             guard let a, let b else { return nil }
@@ -257,8 +302,18 @@ public final class FrameTiming {
             + [ms(gap(s.inputTimestamp, s.inputReceived)), ms(s.inputToTick),
                ms(gap(s.tickStart, s.buildStart)), ms(s.drawableWait),
                ms(gap(s.drawableAcquired, s.paintEnd)), ms(gap(s.paintEnd, s.commit)),
-               ms(gap(s.commit, s.presented))].joined(separator: " ")
+               ms(gap(s.commit, s.presented)), ms(gap(s.commit, estimatedVsync(for: s, interval: interval, phase: vsyncPhase)))]
+                .joined(separator: " ")
             + " | \(ms(total)) \(frames)"
+    }
+
+    /// The first vsync at or after the commit: the frame's own tick target (or `phase`, the last one seen) plus
+    /// whole refresh intervals. An estimate from the display link, not a presentation time (`FP-L`).
+    package static func estimatedVsync(for s: FrameTimingSample, interval: UInt64?, phase: UInt64?) -> UInt64? {
+        guard let interval, interval > 0, let reference = s.tickTarget ?? phase else { return nil }
+        if reference >= s.commit { return reference }
+        let intervals = (s.commit - reference + interval - 1) / interval
+        return reference + intervals * interval
     }
 
     // MARK: Reading
@@ -322,6 +377,10 @@ public final class FrameTiming {
     /// An input event arrived. It becomes the next frame's input only if ``settleInput(dirtied:)`` says it
     /// dirtied the window.
     func noteInput(_ event: InputEvent) {
+        inputDepth += 1
+        // `FP-K`: a re-entrant dispatch (a handler sending another event) must not replace the outer event:
+        // the outer one is the earlier.
+        if candidate != nil { return }
         let received = Self.now()
         var stamp = received
         // The platform's own timestamp counts only when it is on our clock: within the second before now.
@@ -337,15 +396,26 @@ public final class FrameTiming {
     /// The handler for the last ``noteInput(_:)`` returned. A dirtied window keeps it as input to the next frame
     /// (the earliest such event wins, the rest are counted); a clean one drops it: it caused no frame.
     func settleInput(dirtied: Bool) {
+        inputDepth -= 1
+        guard inputDepth <= 0 else { return }   // `FP-K`: the outermost handler settles for all that ran inside it
+        inputDepth = 0
         defer { candidate = nil }
-        guard dirtied, let candidate else { return }
+        guard let candidate else { return }
+        guard dirtied else {
+            settledCleanCount += 1
+            return
+        }
+        addPending(candidate)
+    }
+
+    private func addPending(_ input: (kind: FrameInputKind, received: UInt64, stamp: UInt64)) {
         if var existing = pending {
             existing.count += 1
             pending = existing
         } else {
-            pending = (candidate.kind, candidate.received, candidate.stamp, 1)
+            pending = (input.kind, input.received, input.stamp, 1)
             #if canImport(os)
-            signposts?.beginInput(kind: candidate.kind)
+            signposts?.beginInput(kind: input.kind)
             #endif
         }
     }
@@ -367,11 +437,23 @@ public final class FrameTiming {
         pendingTick = (now, targetNanos)
     }
 
+    /// The tick that just ran drew nothing (`FP-L`): forget it, so a frame drawn outside a tick (the immediate-input
+    /// experiment) does not claim it.
+    func discardTick() { pendingTick = nil }
+
     /// The drawable was acquired (or the platform has none to acquire).
     func stampDrawableAcquired() {
         current?.drawableAcquired = Self.now()
         #if canImport(os)
         signposts?.event("Drawable")
+        #endif
+    }
+
+    /// The drawable was acquired after paint (`METALUI_EXP_LATE_DRAWABLE`, `FP-L`).
+    func stampLateDrawable() {
+        current?.lateDrawableAcquired = Self.now()
+        #if canImport(os)
+        signposts?.event("LateDrawable")
         #endif
     }
 
@@ -449,14 +531,19 @@ public final class FrameTiming {
     /// still holds it.
     func notePresented(index: UInt64, at time: UInt64?) {
         let slot = Int(index % UInt64(capacity))
-        guard index < framesRecorded, ring[slot].frameIndex == index, ring[slot].presented == nil, let time else {
-            return
-        }
+        guard index < framesRecorded, ring[slot].frameIndex == index, ring[slot].presented == nil else { return }
+        guard let time else { droppedCount += 1; noteReport(); return }
         ring[slot].presented = time
-        if let traceSink, ring[slot].inputKind != nil {
-            if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
-            traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval))
+        if let traceSink {
+            if ring[slot].inputKind != nil {
+                if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
+                traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval, vsyncPhase: lastTickTarget))
+                traceLinesWritten += 1
+            } else {
+                presentedNoInputCount += 1
+            }
         }
+        noteReport()
         #if canImport(os)
         signposts?.event("Present")
         #endif
