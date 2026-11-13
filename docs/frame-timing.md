@@ -1,6 +1,6 @@
 # Frame timing and signposts
 
-Opt-in instrumentation for a benchmark harness or a profiling session: when did the input arrive, how long did layout, prepaint and paint take, when was the frame committed, and (on macOS) when did it reach the screen. MetalUI-only (SwiftUI has no equivalent); rulings `FP-A`..`FP-H` in [`superpowers/2026-11-07-frame-timing-decisions.md`](superpowers/2026-11-07-frame-timing-decisions.md). Off by default and free when off: one optional check per input event and per frame, no clock read, no allocation.
+Opt-in instrumentation for a benchmark harness or a profiling session: when did the input arrive, how long did layout, prepaint and paint take, when was the frame committed, and (on macOS) when did it reach the screen. MetalUI-only (SwiftUI has no equivalent); rulings `FP-A`..`FP-P` in [`superpowers/2026-11-07-frame-timing-decisions.md`](superpowers/2026-11-07-frame-timing-decisions.md). Off by default and free when off: one optional check per input event and per frame, no clock read, no allocation.
 
 ## Turn it on
 
@@ -45,6 +45,7 @@ All values are `UInt64` nanoseconds on `FrameTiming.now()`: the system's monoton
 | `buildStart` | Start of the frame function, before the drawable is acquired. |
 | `layoutEnd`, `prepaintEnd`, `paintEnd` | End of each phase. A frame that builds more than once keeps the last build's. |
 | `commit` | `finishFrame` returned: Metal's command buffer is committed, SDL's frame submitted. Not the time pixels changed. |
+| `gpuNanos` | Metal: the frame's command buffer GPU time, `gpuEndTime - gpuStartTime` (`FP-P`); one command buffer per window frame, so nothing is summed. Read on the completion handler's thread and delivered to the main actor into the same ring slot, so it is `nil` until then; `nil` for a GPU failure. SDL and headless: always `nil` (no cheap SDL_GPU timing; a test scripts it). Measured only while a `FrameTiming` is on: no completion handler is added otherwise. |
 | `presented` | Metal: the drawable's `presentedTime`, delivered later into the same ring slot, `nil` if the frame was dropped. SDL: always `nil` (SDL_GPU reports none). Headless: `nil` unless a test scripts it. |
 
 Derived: `inputToCommit` (keystroke to submit), `inputToPresented` (keystroke to screen, where reported), `frameDuration` (`buildStart` to `commit`).
@@ -91,3 +92,7 @@ Quality rules: at most one immediate frame per refresh interval (an event inside
 
 `est>screen` (a trace column) is MetalUI's own estimate, commit to the first vsync at or after it, from the display link's tick targets; it is `-` without a known refresh interval or with a phase over a second from the commit (`FP-O`: a later tick is stepped back to the first vsync after the commit), and is never mixed into `commit>screen`, which is the platform's `presentedTime`. On a window where the platform reports `presentedTime` 0 for every frame (seen on macOS in a real window, cause unconfirmed), each input frame still gets a line (`FP-M`): `commit>screen` and `total` are `-`, `est>screen` is filled, and the summary shows `dropped` equal to the frames drawn and `written` counting those lines too; use `est>screen` and an external probe.
 
+
+## The `gpu` column (`FP-P`)
+
+The trace line's last stage column, `gpu`, is the frame's GPU execution time in milliseconds (`FrameTimingSample.gpuNanos`), `-` where the renderer reports none (SDL, headless) or the GPU failed the frame. Line: `metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build encode commit>screen est>screen gpu | total frames`. It is not part of the latency chain: it overlaps `commit>screen` (the GPU runs between the commit and the presentation). A line is written when the frame is presented; if the GPU time comes later, the line waits for it and is written then, still in frame order; if a later frame is presented first, the older line is written with `gpu` `-` and counted in the summary's `gpuMissing=N` (appended after `settledClean`). Use it to compare scenes: the GPU time of a frame with a backdrop blur against the same frame without.
