@@ -161,6 +161,9 @@ layers, which lower onto the same kernel. `Pixels.infinity` is SwiftUI's
 The `Native…` names and `.native…` modifiers are deprecated aliases (X) —
 except `nativeFrame`, kept undeprecated (`SA-K`).
 
+`HSplitView`/`VSplitView` dividers: `.splitViewDivider(_:thickness:)` (M; hides the line and sets the
+gutter, environment-propagated, hit area `max(thickness, 6)`, `HS-I`, record 286).
+
 ## Layout, legacy vocabulary — M
 
 `Box`, `Row`, `Column`, `Stack`, `ScrollView` (54), `List` (13, 32, 84;
@@ -841,7 +844,11 @@ whose "Final spellings" table is the short form).
   `.navigationSubtitle(_:)` (A; `NSWindow.subtitle`, outer beats inner, SDL shows
   none, `AE-B`), `.windowDismissBehavior(_:)` (A; `.disabled` disables the close
   button and the user's close, `AE-D`), `.windowTitleBarMetrics(height:controlsLeading:)`
-  (M; the hidden title bar's band and the window buttons' left inset, `AS-R`) and
+  (M; the hidden title bar's band and the window buttons' left inset, `AS-R`),
+  `.containerBackground(_:for: .window)` (D; a `Material` is the behind-window
+  blur of the desktop on AppKit and the opaque grey on SDL, a `Color` the window's
+  background; first report wins from any depth, Reduce Transparency is the grey;
+  `WB-A`..`WB-H`, divergence 241) and
   `.navigationDocument(_ url: URL)` (A; the proxy icon, never the title) in
   the tree win while present; `Window.representedURL` and
   `Window.isDocumentEdited` (M; AppKit's edited dot). SDL records the edited

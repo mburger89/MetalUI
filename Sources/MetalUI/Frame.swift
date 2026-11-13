@@ -803,7 +803,7 @@ public final class Frame {
         case .preferredColorScheme:
             break   // values unchanged: a preference is reported, not written (`CR-L` item 1)
         case .navigationTitle, .navigationDocument, .onOpenURL, .navigationSubtitle, .windowDismissBehavior,
-             .windowTitleBarMetrics:
+             .windowTitleBarMetrics, .windowBackdrop:
             break   // values unchanged: window preferences are reported (`AS-D` item 6, `AS-G` item 1)
         case .presentationBackground:
             break   // values unchanged: reported into the presentation's slot (`BG-B`)
@@ -851,6 +851,11 @@ public final class Frame {
     var collectedDismissBehavior: WindowInteractionBehavior?
     /// The first `.windowTitleBarMetrics` reported in post-order (`AS-R`).
     var collectedTitleBarMetrics: TitleBarMetrics?
+    /// The first `.containerBackground(_:for: .window)` reported in post-order (`WB-D`).
+    var collectedWindowBackdrop: WindowBackdropSpec?
+    /// The opaque or translucent fill `Window` asks this frame to paint under the root because the platform
+    /// cannot show the window backdrop itself (`WB-C`); `nil` for every window that did not set one.
+    var windowBackdropFallback: Color?
     /// The first `.navigationDocument` reported in post-order (`AS-D` item 3).
     var collectedNavigationDocument: URL?
     /// Every `.onOpenURL` present this build, in post-order (`AS-G` item 2).
@@ -4511,6 +4516,9 @@ public final class Frame {
         timing?.stampPrepaintEnd()   // `FP-B`
         glyphAtlas.beginFrame()
         var paintPass = PaintPass(frame: self)
+        if let fill = windowBackdropFallback {   // `WB-C`: the platform shows no backdrop; the window's whole content is filled first
+            self.fill(Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: contentSize), color: resolve(fill))
+        }
         if !hiddenNodes.contains(root) {
             // The root is its own container for a ghost that sits directly in it (`XF-F`): a styled root draws it
             // inside its decoration, as every `StyledElement` does.

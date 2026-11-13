@@ -2087,6 +2087,7 @@ public final class Window {
             if let session = menuSession, !session.isNative {   // the open bar menu's title (SG-A item 5)
                 frame.menuBarOpenIndex = session.barIndex
             }
+            frame.windowBackdropFallback = shell.backdropFallback   // WB-C
             frame.menuBarOpen = { [weak self] index in self?.openMenuBarMenu(index: index, highlightFirst: false) }
             frame.windowControls = windowControlsSpec()   // the drawn window buttons (CW-C)
             withObservationTracking {
