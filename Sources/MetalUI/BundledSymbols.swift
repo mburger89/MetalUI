@@ -102,6 +102,9 @@ enum BundledSymbols {
         "rectangle.bottomhalf.inset.filled": Entry(lucide: "panel-bottom", fillShape: "panel-bottom-fill"),
         "house": Entry(lucide: "house"),
         "camera": Entry(lucide: "camera"),
+        // Record 288 (`SYM-R`): MetalCreator gap ICON-a.
+        "plus": Entry(lucide: "plus"),
+        "minus": Entry(lucide: "minus"),
     ]
 
     static func exists(_ name: String) -> Bool { table[name] != nil }

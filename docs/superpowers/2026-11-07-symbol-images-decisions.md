@@ -1,7 +1,7 @@
 # Symbol images - decisions (prefix `SYM-`)
 
 Rulings for Alloy gap G3, `Image(systemName:)`. Record 230. PR 0 is the probe (`SYM-A`); PR 1 (`SYM-B`..`SYM-M`) is the shared API and the
-macOS raster route, built after the coordinator ruled on the two stop conditions the probe reached. **Next unused id: `SYM-R`.**
+macOS raster route, built after the coordinator ruled on the two stop conditions the probe reached. **Next unused id: `SYM-S`.**
 
 ## SYM-A: the probe's verdicts
 
@@ -121,3 +121,7 @@ An icon or bundled symbol as a cursor or native toolbar image (paths have no ras
 ## SYM-Q: MetalCreator's toolbar symbols, and a filled-half panel is an outline over a vendored strip (record 279, MetalCreator gap G)
 
 Nine SF names draw on Linux and Windows: `arrow.uturn.forward` -> Lucide `redo-2` (the mirror of `arrow.uturn.backward` -> `undo-2`), `square.and.arrow.up` -> `share`, `plus.magnifyingglass` / `minus.magnifyingglass` -> `zoom-in` / `zoom-out`, `sidebar.left` -> `panel-left`, `house` -> `house`, `camera` -> `camera`, and the two filled-half names `rectangle.lefthalf.inset.filled` and `rectangle.bottomhalf.inset.filled` -> `panel-left` and `panel-bottom` (same 1.70.0 tarball, same licence, nothing new in `LICENSE`). Lucide 1.70.0 has no filled panel, and `Entry.filled` would fill the whole panel (SF fills only the inset half), so `Entry` gains `fillShape`: the name of a vendored closed region filled under the stroke instead of the whole outline. `scripts/vendor-lucide.py` gets a `SHAPES` table of hand-written path data, `panel-left-fill` (x 3...9, y 3...21 with the panel's r 2 corners on the left) and `panel-bottom-fill` (x 3...21, y 15...21, corners at the bottom), so the filled half is exactly the half of the panel the divider cuts off, and the stroke redraws the whole rounded rect over it. 51 icons are vendored. The `.fill` precedent (`play.fill`) is not extended: `sidebar.left`, `house` and the others have no `.fill` entry and `symbolVariant(.fill)` falls back to the outline (`SYM-F`). The look is Lucide's, not SF's, which divergence 230 already covers, so no new label. A segmented `Picker` with `Image` segments needed no change (tested, record 279). The nine names have no measured SwiftUI accessibility label (`SYM-H`'s table is a probe's reading, `S8b`), so on the bundled route they record none until a probe reads them; carried.
+
+## SYM-R: `plus` and `minus` are Lucide `plus` and `minus` (record 288, MetalCreator gap ICON-a)
+
+`Image(systemName: "plus")` and `"minus"` draw on Linux and Windows: the table rows `plus` -> Lucide `plus` and `minus` -> Lucide `minus` (same 1.70.0 tarball, sha256 re-verified, nothing new in `LICENSE`; both are on its Feather list, so under the MIT text, noted in `THIRD-PARTY-NOTICES.md` and `VENDORED.md`). 53 icons are vendored. `plus.circle` and `minus.circle` were not requested and are not added (Lucide has `circle-plus` and `circle-minus`, so a later request is a two-row change). No accessibility label is added: `SYM-H`'s table is a probe's reading (`S8b`), no existing data or probe output records SwiftUI's label for `plus` or `minus`, and a bundled name outside the table records none; carried until a probe reads them. Class M, no new divergence (230 covers the Lucide stand-in look).
