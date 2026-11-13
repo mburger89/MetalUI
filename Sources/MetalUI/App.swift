@@ -41,6 +41,9 @@ public final class App {
     var shell = AppShellState()
     /// Makes each window's text engine (ruling TS-A); `nil` is CoreText.
     private let makeTextSystem: (@MainActor () -> any TextSystem)?
+    /// Whether this app's platform draws a key at an idle window at once by default (`FP-M`): AppKit, yes.
+    /// `METALUI_IMMEDIATE_INPUT` overrides it. Package-only.
+    package private(set) var platformDrawsImmediately = false
     /// The menu bar's commands, `nil` until `commands(content:)` (ruling
     /// `MN-I`); re-evaluated whenever the bar's content is needed.
     var commandsContent: (@MainActor () -> any Commands)?
@@ -75,6 +78,7 @@ public final class App {
         self.device = device
         self.makeTextSystem = textSystem
         self.platform = AppKitPlatform(renderer: try Renderer(device: device))
+        self.platformDrawsImmediately = true   // `FP-M`: AppKit draws a key at an idle window at once
         installMenuBar()   // MN-I item 4: every app has the default bar
         installShellHandlers()   // AS-C item 6, AS-G item 4
     }
@@ -140,6 +144,7 @@ public final class App {
                             startsDisplayLink: startsDisplayLink,
                             textSystem: makeTextSystem?(),
                             content: content)
+        window.drawsImmediatelyOnInput = ImmediateInput.isEnabled(platformDefault: platformDrawsImmediately)   // `FP-M`
         // Before the first frame (`SV-L` item 4): the platform clamps the
         // window into explicit limits before anything is drawn at its size.
         window.applySizing(minSize: minSize, maxSize: maxSize, windowResizability: windowResizability)

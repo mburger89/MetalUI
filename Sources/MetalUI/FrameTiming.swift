@@ -69,9 +69,6 @@ public struct FrameTimingSample: Sendable, Equatable {
     /// `presentedTime`); `nil` where it does not (SDL, the headless renderer by default), when the frame was
     /// dropped, and until the platform reports it (the sample in the ring is updated in place).
     public var presented: UInt64?
-    /// `METALUI_EXP_LATE_DRAWABLE` (`FP-L`): when the drawable was acquired after paint; `nil` without the
-    /// experiment. Then ``drawableAcquired`` stamps the end of frame set-up, not a wait.
-    package var lateDrawableAcquired: UInt64?
 
     /// A sample whose phases all read `start`; the window stamps the rest.
     package init(frameIndex: UInt64, start: UInt64) {
@@ -80,7 +77,6 @@ public struct FrameTimingSample: Sendable, Equatable {
         tickStart = nil; tickTarget = nil
         buildStart = start; drawableAcquired = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
         presented = nil
-        lateDrawableAcquired = nil
     }
 
     /// Input to commit in nanoseconds, or `nil` for a frame no input caused: the keystroke-to-submit latency.
@@ -243,8 +239,10 @@ public final class FrameTiming {
         if Self.traceHeadersWritten.insert(destination).inserted { traceSink?(Self.traceHeader) }
     }
 
-    /// Counters that explain a trace (`FP-K`), always kept: lines written, presented frames no input caused,
-    /// frames the platform reported dropped, inputs whose handler left the window clean.
+    /// Counters that explain a trace (`FP-K`, `FP-M`), always kept: lines written, presented frames no input caused,
+    /// frames the platform reported with no presentation time (`presentedTime` 0: dropped, or on macOS every
+    /// frame; their input lines are still written and counted in `written` too), inputs whose handler left the
+    /// window clean.
     package private(set) var traceLinesWritten = 0
     package private(set) var presentedNoInputCount = 0
     package private(set) var droppedCount = 0
@@ -274,14 +272,16 @@ public final class FrameTiming {
     }
 
     /// The header ``traceLine(for:interval:)``'s columns follow.
-    package static var traceHeader: String { header(experiments: LatencyExperiments.environment) }
+    package static var traceHeader: String { header(immediate: ImmediateInput.label) }
 
-    /// The header for `experiments`: `exp=` names the switches that are on (`FP-L`). `commit>screen` is the
-    /// platform's report; `est>screen` is MetalUI's own estimate (commit to the first vsync at or after it,
-    /// from the display link's tick targets), never mixed into the other and `-` without a known interval.
-    package static func header(experiments: LatencyExperiments) -> String {
+    /// The header with `immediate=` set to `label` (`FP-M`): `on` or `off` when `METALUI_IMMEDIATE_INPUT` says so,
+    /// `default` for the platform's choice (on for AppKit, off for SDL). `commit>screen` is the platform's
+    /// report, `-` when it reports 0 (macOS does here); `est>screen` is MetalUI's own estimate (commit to the
+    /// first vsync at or after it, from the display link's tick targets), never mixed into the other and `-`
+    /// without a known interval.
+    package static func header(immediate label: String) -> String {
         "metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build "
-            + "encode commit>screen est>screen | total frames exp=\(experiments.label)"
+            + "encode commit>screen est>screen | total frames immediate=\(label)"
     }
 
     /// One line: each stage's duration in milliseconds, the input-to-screen total and that total in refresh
@@ -437,8 +437,8 @@ public final class FrameTiming {
         pendingTick = (now, targetNanos)
     }
 
-    /// The tick that just ran drew nothing (`FP-L`): forget it, so a frame drawn outside a tick (the immediate-input
-    /// experiment) does not claim it.
+    /// The tick that just ran drew nothing (`FP-L`): forget it, so a frame drawn outside a tick (an immediate-input
+    /// frame, `FP-M`) does not claim it.
     func discardTick() { pendingTick = nil }
 
     /// The drawable was acquired (or the platform has none to acquire).
@@ -446,14 +446,6 @@ public final class FrameTiming {
         current?.drawableAcquired = Self.now()
         #if canImport(os)
         signposts?.event("Drawable")
-        #endif
-    }
-
-    /// The drawable was acquired after paint (`METALUI_EXP_LATE_DRAWABLE`, `FP-L`).
-    func stampLateDrawable() {
-        current?.lateDrawableAcquired = Self.now()
-        #if canImport(os)
-        signposts?.event("LateDrawable")
         #endif
     }
 
@@ -532,18 +524,21 @@ public final class FrameTiming {
     func notePresented(index: UInt64, at time: UInt64?) {
         let slot = Int(index % UInt64(capacity))
         guard index < framesRecorded, ring[slot].frameIndex == index, ring[slot].presented == nil else { return }
-        guard let time else { droppedCount += 1; noteReport(); return }
-        ring[slot].presented = time
+        // `FP-M`: a report of 0 (dropped, or macOS giving no time for a windowed layer) still writes the input's
+        // line, with `-` for `commit>screen` and `total` and the `est>screen` estimate filled; it also counts as
+        // `dropped`. Before, such a run wrote no lines at all.
+        if time == nil { droppedCount += 1 } else { ring[slot].presented = time }
         if let traceSink {
             if ring[slot].inputKind != nil {
                 if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
                 traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval, vsyncPhase: lastTickTarget))
                 traceLinesWritten += 1
-            } else {
+            } else if time != nil {
                 presentedNoInputCount += 1
             }
         }
         noteReport()
+        guard time != nil else { return }
         #if canImport(os)
         signposts?.event("Present")
         #endif
