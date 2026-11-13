@@ -138,16 +138,20 @@ private func profile(_ scene: Scene, _ image: MUIImage) -> [Int: Int] {
     let buffer = CodeBuffer(letters())
     let decorations = CodeDecorations(buffer: buffer)
     let wave = CodeUnderline.wavy(squiggleColor)
-    diagnose(decorations, buffer, [(columns(buffer, row: 1, 3, 30), wave), (columns(buffer, row: 3, 6, 30), wave)])
+    let starts = [3, 5, 8, 11]   // four columns: at least one start is off the period's grid by a pixel or more
+    diagnose(decorations, buffer, starts.enumerated().map { (columns(buffer, row: 1 + 2 * $0.offset, $0.element, 30), wave) })
     let window = try codeWindow(buffer: buffer, decorations: decorations)
     window.window.setNeedsRedraw(); window.tick()
     let scene = window.scene
     let images = scene.images.sorted { $0.bounds.origin.y < $1.bounds.origin.y }
-    try #require(images.count == 2, "one path per run: \(images.count)")
-    let a = profile(scene, images[0]), b = profile(scene, images[1])
-    let shared = Set(a.keys).intersection(b.keys).sorted().dropFirst(2).dropLast(2)
-    try #require(shared.count > 40, "the runs overlap: \(shared.count)")
-    #expect(shared.allSatisfy { a[$0] == b[$0] }, "one wave for both: \(shared.map { "\($0):\(a[$0] ?? -1)/\(b[$0] ?? -1)" })")
+    try #require(images.count == 4, "one path per run: \(images.count)")
+    let a = profile(scene, images[0])
+    for image in images.dropFirst() {
+        let b = profile(scene, image)
+        let shared = Set(a.keys).intersection(b.keys).sorted().dropFirst(2).dropLast(2)
+        try #require(shared.count > 40, "the runs overlap: \(shared.count)")
+        #expect(shared.allSatisfy { a[$0] == b[$0] }, "one wave for both: \(shared.map { "\($0):\(a[$0] ?? -1)/\(b[$0] ?? -1)" })")
+    }
     let xs = a.keys.sorted().dropFirst(2).dropLast(2)
     #expect(xs.dropLast(4).allSatisfy { a[$0] == a[$0 + 4] }, "a 4-pixel period at 12 points: \(xs.map { a[$0] ?? 0 })")
 }
@@ -237,4 +241,3 @@ private func profile(_ scene: Scene, _ image: MUIImage) -> [Int: Int] {
     #expect(CodeUnderline.wavy().color == nil && CodeUnderline.wavy() == CodeUnderline(.wavy))
     #expect(CodeStyle(underline: .wavy()) != CodeStyle() && CodeStyle().underline == nil)
 }
-

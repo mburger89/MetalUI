@@ -820,9 +820,9 @@ extension CodeView {
                 let size = metrics.fontSize / 12
                 let period = max(2, Int((4 * size * scaleD).rounded()))
                 let half = Double(period) / 2
-                let amplitude = max(1.0, 1.5 * size * scaleD) / 2   // centre to crest
+                let amplitude = max(1.0, 1.5 * size * scaleD)   // centre to crest
                 let thickness = max(1, Int(scaleD.rounded()))
-                let centre = Double(baseline + Int((metrics.position * scaleD).rounded()) + thickness / 2) + amplitude
+                let centre = Double(baseline + Int((metrics.position * scaleD).rounded()))
                 let origin = plan.textOriginX
                 let firstPeriod = Int((Double(x0 - origin) / Double(period)).rounded(.down))
                 let lastPeriod = Int((Double(x1 - origin) / Double(period)).rounded(.up))

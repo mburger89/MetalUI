@@ -22,8 +22,9 @@ public struct CodeUnderline: Hashable, Sendable {
         /// A straight line in `pattern`, at the face's own underline position and thickness; a dashed
         /// pattern's cycle starts at the line's first column, so it does not shimmer as the view scrolls.
         case line(Text.LineStyle.Pattern)
-        /// A squiggle about 1.5 points high and 4 points per period at a 12-point face (both scale with the
-        /// font size), 1 point thick, its phase anchored at the line's first column.
+        /// A squiggle 1.5 points from its centre line to a crest and 4 points per period at a 12-point face (both
+        /// scale with the font size), 1 point thick, centred on the face's underline position, its phase anchored
+        /// at the line's first column.
         case wavy
     }
 

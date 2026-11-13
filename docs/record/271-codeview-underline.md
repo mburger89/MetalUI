@@ -31,7 +31,7 @@ As planned; `Text.LineStyle.Pattern` has no wavy case. No other public declarati
 ## Deviations from the plan, and why
 
 - The plan's mutation for the cache pin ("phase from run start causes cache misses") does not hold for this geometry: with integer periods and an integer origin the path a run needs is the same path translated by whole pixels whichever boundary it starts at, so the cache hits either way. The phase is pinned by the overlap test instead (`aWavyUnderlineIsOnePathPerRunAnchoredAtTheLineStart`), the cache by `aSquiggleIsCachedAcrossAScroll`; mutations are in the tests' doc comments.
-- Amplitude is read as 1.5 pt peak to peak (so about 2.5 pt with the stroke). Only the human check can say whether Zed's looks like this; CV19 asks.
+- Amplitude is read as 1.5 pt from the centre line to a crest (3 pt peak to peak, centred on the underline position). A first cut with 1.5 pt peak to peak drew a nearly flat three-pixel band at 1x. Only the human check can say whether this matches Zed's; CV19 asks.
 - The zero-width run at the very end of a text that ends in a newline attaches to the previous row's end; an adjacent same-style run starting on the next row's first byte merges with a tail and loses it. Both named in `CV-AM`.
 
 ## Counts
