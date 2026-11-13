@@ -899,7 +899,7 @@ menu closing) writes `false`; a click on the label writes `true`; writing `false
 cannot open (disabled, empty) writes `false` back. SwiftUI has no such API. A `Menu` used as a submenu item ignores it.
 
 **Menu bar (A / M).** `App.commands { CommandMenu("Name") { }; CommandGroup(after:/before:/replacing:) { } }`
-with `CommandGroupPlacement` (`.appInfo`, `.newItem`, `.undoRedo`, `.pasteboard`, …).
+with `CommandGroupPlacement` (`.appInfo`, `.appSettings` (empty by default), `.newItem`, `.undoRedo`, `.pasteboard`, …).
 Every AppKit app installs the standard main menu (About, Hide, Quit, File ▸ Close,
 Edit, Window); Edit reaches a focused `TextField`/`TextEditor` as its keys.
 `Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL's `setMenuBar` answers
