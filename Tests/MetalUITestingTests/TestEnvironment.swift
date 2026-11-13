@@ -13,3 +13,12 @@ func setTestEnvironment(_ name: String, _ value: String) {
     setenv(name, value, 1)
     #endif
 }
+
+/// Removes an environment variable from this process. On Windows `_putenv_s` with an empty value removes it.
+func unsetTestEnvironment(_ name: String) {
+    #if os(Windows)
+    _ = _putenv_s(name, "")
+    #else
+    unsetenv(name)
+    #endif
+}

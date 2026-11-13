@@ -456,7 +456,7 @@ public final class Window {
     /// Opt-in frame instrumentation (ruling `FP-A`): assign a ``FrameTiming`` to record, per frame, when the
     /// input that caused it arrived, when layout, prepaint and paint ended, when it was committed and, where the
     /// platform reports it, when it was presented; `nil` (the default) records nothing and costs one optional
-    /// check per input event and per frame. Setting the environment variable `METALUI_SIGNPOSTS=1` gives every
+    /// check per input event and per frame. Setting `METALUI_LATENCY_TRACE` (see ``FrameTiming/enableTrace(destination:)``) traces any timing assigned here. Setting the environment variable `METALUI_SIGNPOSTS=1` gives every
     /// new window a timing that also emits `os` signposts (macOS). MetalUI-only.
     public var frameTiming: FrameTiming? = FrameTiming.fromEnvironment()
     /// The timing the renderer's presentation observer is installed for (`FP-F`); compared by identity at the
