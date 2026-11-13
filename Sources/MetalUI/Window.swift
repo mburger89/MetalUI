@@ -1916,7 +1916,10 @@ public final class Window {
     private func bindFrameTimingObserver(_ timing: FrameTiming?) {
         observedFrameTiming = timing
         guard let timing else {
-            if frameTimingObserverInstalled { platformWindow.renderer.setPresentationObserver(nil) }
+            if frameTimingObserverInstalled {
+                platformWindow.renderer.setPresentationObserver(nil)
+                platformWindow.renderer.setGPUTimeObserver(nil)   // `FP-P`: no completion handler once off
+            }
             frameTimingObserverInstalled = false
             return
         }
@@ -1924,6 +1927,9 @@ public final class Window {
         let base = timing.framesRecorded
         platformWindow.renderer.setPresentationObserver { [weak timing] token, presentedAt in
             timing?.notePresented(index: base + token, at: presentedAt)
+        }
+        timing.expectsGPUTime = platformWindow.renderer.setGPUTimeObserver { [weak timing] token, gpuNanos in
+            timing?.noteGPU(index: base + token, nanos: gpuNanos)
         }
     }
 

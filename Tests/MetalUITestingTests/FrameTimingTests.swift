@@ -330,7 +330,7 @@ private struct WidthBox: Component {
     let sample = try #require(timing.samples.last { $0.inputKind == .key })
     let line = FrameTiming.traceLine(for: sample, interval: 16_666_667)
     let total = try #require(sample.inputToPresented)
-    #expect(line.hasSuffix(String(format: "%.2f %.2f", Double(total) / 1e6, Double(total) / 16_666_667)))
+    #expect(line.hasSuffix(String(format: " | %.2f %.2f", Double(total) / 1e6, Double(total) / 16_666_667)))
     #expect(FrameTiming.traceLine(for: sample, interval: nil).hasSuffix(" -"))
 }
 
@@ -462,7 +462,7 @@ private func readTrace(_ path: String) -> [String] {
     #expect(timing.traceLinesWritten == 1)
     timing.writeTraceSummary()
     #expect(lines.last == "metalui-latency-summary written=1 presentedNoInput=\(timing.presentedNoInputCount) "
-        + "dropped=0 settledClean=\(timing.settledCleanCount)")
+        + "dropped=0 settledClean=\(timing.settledCleanCount) gpuMissing=0")
     lines.removeAll()
     for _ in 0..<FrameTiming.summaryInterval {
         window.window.setNeedsRedraw()
@@ -695,11 +695,11 @@ private struct AnimatingBox: Component {
     let columns = line.components(separatedBy: " | ")
     #expect(columns.count == 3 && columns[2].hasPrefix("- "), "total is -: \(line)")
     let stages = columns[1].split(separator: " ")
-    #expect(stages.count == 8 && stages[6] == "-", "commit>screen is -: \(line)")
+    #expect(stages.count == 9 && stages[6] == "-", "commit>screen is -: \(line)")
     #expect(timing.traceLinesWritten == written + 1 && timing.droppedCount == dropped + 1)
     timing.writeTraceSummary()
     #expect(lines.last == "metalui-latency-summary written=\(written + 1) presentedNoInput=\(timing.presentedNoInputCount) "
-        + "dropped=\(dropped + 1) settledClean=\(timing.settledCleanCount)")
+        + "dropped=\(dropped + 1) settledClean=\(timing.settledCleanCount) gpuMissing=0")
 }
 
 /// 1.24 — the vsync estimate is the first tick target at or after the commit, in whole intervals, from the
@@ -724,7 +724,7 @@ private struct AnimatingBox: Component {
     let isUnknown = unknown == nil
     #expect(isUnknown)
     let line = FrameTiming.traceLine(for: s, interval: 16_000_000, vsyncPhase: 1_000 + 48_000_000)
-    #expect(line.contains(" - 12.00 | "), "commit>screen unreported (-), est>screen 12.00")
+    #expect(line.contains(" - 12.00 - | "), "commit>screen unreported (-), est>screen 12.00")
 }
 
 /// 1.26 — `FP-O`: the estimate is the first vsync after the commit whichever side of it the phase lies on. A
@@ -751,5 +751,78 @@ private struct AnimatingBox: Component {
     let staleIsUnknown = stale == nil
     #expect(staleIsUnknown, "a phase seconds away is no phase")
     let line = FrameTiming.traceLine(for: s, interval: period, vsyncPhase: 1_000)
-    #expect(line.contains(" - - | "), "est>screen is - for a stale phase: \(line)")
+    #expect(line.contains(" - - - | "), "est>screen is - for a stale phase: \(line)")
+}
+
+// MARK: GPU time (`FP-P`)
+
+/// 1.40 — a frame's GPU time lands in its sample and in the trace line's `gpu` column; a line whose GPU time
+/// has not arrived when the frame is presented waits for it (lines stay ordered), and one that never arrives
+/// is written with `-` before the next frame's line and counted in `gpuMissing`. Mutations: the hold removed
+/// (the line prints `-` although the time comes next); `noteGPU` not writing the held line (it is lost); the
+/// flush removed (a later line overtakes it).
+@Test @MainActor func aFramesGPUTimeJoinsItsTraceLineEvenWhenItArrivesAfterThePresentation() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(nil)
+    let renderer = window.platformWindow.headlessRenderer
+    renderer.reportsPresentation = true
+    renderer.reportsGPUTime = true
+    window.window.frameTiming = timing   // bound at the next frame, with the GPU observer on
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    func gpuColumn(_ line: String) -> String {
+        line.components(separatedBy: " | ")[1].split(separator: " ").last.map(String.init) ?? ""
+    }
+    // GPU first, then presentation.
+    window.typeKey("a")
+    renderer.deliverGPUTimes(nanos: 2_500_000)
+    renderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    var data = lines.filter { $0.hasPrefix("metalui-latency ") && !$0.contains(" idx ") }
+    #expect(data.count == 1 && gpuColumn(data[0]) == "2.50", "\(data)")
+    let stored: UInt64? = timing.last?.gpuNanos   // compared outside `#expect` (Windows compiler)
+    let storedMatches = stored == 2_500_000
+    #expect(storedMatches)
+    // Presentation first: the line waits, then is written by the GPU report.
+    lines.removeAll()
+    window.typeKey("b")
+    renderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    data = lines.filter { $0.hasPrefix("metalui-latency ") }
+    #expect(data.isEmpty, "the line waits for its GPU time")
+    renderer.deliverGPUTimes(nanos: 4_000_000)
+    data = lines.filter { $0.hasPrefix("metalui-latency ") }
+    #expect(data.count == 1 && gpuColumn(data[0]) == "4.00", "\(data)")
+    // A GPU time that never comes: the next presentation writes the older line first, with `-`.
+    lines.removeAll()
+    let missingBefore = timing.gpuMissingCount
+    window.typeKey("c")
+    renderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    window.typeKey("d")
+    renderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    data = lines.filter { $0.hasPrefix("metalui-latency ") }
+    #expect(data.count >= 1 && gpuColumn(data[0]) == "-", "\(data)")
+    #expect(timing.gpuMissingCount > missingBefore)
+    let indices = data.compactMap { Int($0.split(separator: " ")[1]) }
+    #expect(indices == indices.sorted(), "lines stay in frame order")
+}
+
+/// 1.41 — a renderer that reports no GPU time (SDL, headless by default) leaves `gpuNanos` `nil`, prints `-`
+/// and never holds a line. Mutation: `expectsGPUTime` defaulting to `true` (the lines wait forever).
+@Test @MainActor func aRendererWithNoGPUTimePrintsADashAndHoldsNothing() throws {
+    let timing = FrameTiming()
+    let window = try timedWindow(timing)
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    window.typeKey("a")
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    let line = try #require(lines.first { $0.hasPrefix("metalui-latency ") && !$0.contains(" idx ") })
+    #expect(line.components(separatedBy: " | ")[1].hasSuffix(" -"), "\(line)")
+    let none = timing.last?.gpuNanos == nil
+    #expect(none)
+    #expect(timing.gpuMissingCount == 0)
+    var sample = FrameTimingSample(frameIndex: 0, start: 1)
+    #expect(FrameTiming.traceLine(for: sample, interval: nil).contains(" - | "))
+    sample.gpuNanos = 1_234_000
+    #expect(FrameTiming.traceLine(for: sample, interval: nil).contains(" 1.23 | "))
+    #expect(FrameTiming.traceHeader.contains("est>screen gpu | total"))
 }
