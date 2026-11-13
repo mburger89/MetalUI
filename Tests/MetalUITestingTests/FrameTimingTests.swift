@@ -339,9 +339,9 @@ private struct WidthBox: Component {
 @MainActor private func withTraceEnvironment(_ body: (String) throws -> Void) rethrows {
     let path = NSTemporaryDirectory() + "metalui-trace-\(UUID().uuidString).txt"
     let old = getenv("METALUI_LATENCY_TRACE").map { String(cString: $0) }
-    setenv("METALUI_LATENCY_TRACE", path, 1)
+    setTestEnvironment("METALUI_LATENCY_TRACE", path)
     defer {
-        if let old { setenv("METALUI_LATENCY_TRACE", old, 1) } else { unsetenv("METALUI_LATENCY_TRACE") }
+        if let old { setTestEnvironment("METALUI_LATENCY_TRACE", old) } else { unsetTestEnvironment("METALUI_LATENCY_TRACE") }
         try? FileManager.default.removeItem(atPath: path)
     }
     try body(path)
