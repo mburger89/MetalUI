@@ -23,8 +23,6 @@ final class FakeRenderSurface: RenderSurface {
 
     private(set) var nextFrameCalls = 0
     private(set) var presentCalls = 0
-    /// `didCommit` calls (`FP-L`), counted by the extension below.
-    var commitCalls = 0
 
     private let texture: any MTLTexture
     private let size: Int
@@ -753,10 +751,4 @@ extension Window {
         focus(nil)
         drawFrameIfNeeded()
     }
-}
-
-/// The latency experiments' surface hooks (`FP-L`): the scale without a drawable, and what `didCommit` saw.
-extension FakeRenderSurface: ExperimentalRenderSurface {
-    var scaleFactorWithoutDrawable: Float? { scaleFactor }
-    func didCommit(_ frame: SurfaceFrame, commandBuffer: any MTLCommandBuffer) { commitCalls += 1 }
 }

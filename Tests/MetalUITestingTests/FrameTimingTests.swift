@@ -472,21 +472,38 @@ private func readTrace(_ path: String) -> [String] {
     #expect(lines.contains { $0.hasPrefix("metalui-latency-summary ") }, "automatic summary")
 }
 
-// MARK: Latency experiment switches (`FP-L`)
+// MARK: Immediate input (`FP-L`, `FP-M`)
 
 private func keyA() -> InputEvent {
     .keyDown(KeyEvent(charactersIgnoringModifiers: "a", characters: "a", timestamp: 0))
 }
 
-/// 1.20 — immediate input: an idle window draws the frame inside the input, the tick that follows draws none, and
-/// the sample has no tick. Off, the same key draws nothing until the tick. Mutations: the idle check dropped
-/// (a dirty window draws too); `drawImmediatelyAfterInput` not run; the draw placed before `settleInput` (the
-/// sample then has no input).
+/// The pacing clock a test drives by hand, in nanoseconds.
+@MainActor private final class PacingClock {
+    var now: UInt64 = 1_000_000_000
+    func advance(by nanos: UInt64) { now += nanos }
+}
+
+/// A window with immediate input on, a hand-driven clock, and a settled (clean, link paused) first state.
+@MainActor private func immediateWindow(_ timing: FrameTiming?) throws -> (TestWindow, PacingClock) {
+    let window = try timedWindow(timing)
+    let clock = PacingClock()
+    window.window.immediateInputClock = { clock.now }
+    window.window.drawsImmediatelyOnInput = true
+    window.tick()   // idle: clean, nothing animating
+    clock.advance(by: 1_000_000_000)   // long after any frame: the first key after idle
+    return (window, clock)
+}
+
+private let interval = ImmediateInput.fallbackInterval
+
+/// 1.20 — an idle window draws a key's frame inside the input; the tick that follows draws none (no double draw)
+/// and the sample has no tick. Off (the harness default), the same key draws nothing until the tick. Mutations:
+/// the idle check dropped (a dirty window draws too); `drawImmediatelyAfterInput` not run; the draw placed before
+/// `settleInput` (the sample then has no input); `discardTick` removed (the sample claims the idle tick).
 @Test @MainActor func immediateInputDrawsInsideTheHandlerAndTheTickDrawsNothingMore() throws {
     let timing = FrameTiming()
-    let window = try timedWindow(timing)
-    window.tick()   // idle: clean, nothing animating
-    window.window.experiments.immediateInput = true
+    let (window, _) = try immediateWindow(timing)
     let before = window.window.framesDrawn
     window.send(keyA())
     #expect(window.window.framesDrawn == before + 1, "drawn synchronously, before any tick")
@@ -495,22 +512,21 @@ private func keyA() -> InputEvent {
     window.tick()
     #expect(window.window.framesDrawn == before + 1, "the following tick draws no duplicate")
 
-    window.window.experiments.immediateInput = false
+    window.window.drawsImmediatelyOnInput = false
     window.send(keyA())
     #expect(window.window.framesDrawn == before + 1, "off: nothing is drawn until the tick")
     window.tick()
     #expect(window.window.framesDrawn == before + 2)
 }
 
-/// 1.21 — immediate input never draws inside a frame and never for a pointer move. Mutation: the
-/// `isDrawingFrame` guard dropped (the nested send draws a frame inside the frame).
+/// 1.21 — never inside a frame, never for a pointer move. Mutation: the `isDrawingFrame` guard dropped (the
+/// nested send draws a frame inside the frame).
 @Test @MainActor func immediateInputNeverDrawsInsideAFrameOrForAMove() throws {
     let timing = FrameTiming()
-    let window = try timedWindow(timing)
-    window.tick()
-    window.window.experiments.immediateInput = true
+    let (window, clock) = try immediateWindow(timing)
     var nestedDraws: [Int] = []
-    timing.onFrame = { [unowned window] _ in
+    timing.onFrame = { [unowned window, unowned clock] _ in
+        clock.advance(by: 10 * interval)
         let drawn = window.window.framesDrawn
         window.send(keyA())   // dispatched while the frame is still running
         nestedDraws.append(window.window.framesDrawn - drawn)
@@ -521,50 +537,169 @@ private func keyA() -> InputEvent {
     timing.onFrame = nil
     window.window.drawFrameIfNeeded()   // the dirtied window's next frame
     window.tick()
+    clock.advance(by: 10 * interval)
     let before = window.window.framesDrawn
     window.send(.mouseMoved(MouseEvent(position: pt(3, 3))))
     #expect(window.window.framesDrawn == before, "a move keeps the display link's pacing")
 }
 
-/// 1.22 — late drawable: the drawable is acquired after paint and no later than the commit; without the switch
-/// the sample has no late stamp. A failed late acquisition abandons the frame and the window retries. Mutations:
-/// `acquireDeferredDrawable` not called (no stamp); the failure ignored (a frame is recorded).
-@Test @MainActor func aLateDrawableIsAcquiredAfterPaintAndAFailureRetries() throws {
+/// 1.25 — pacing: at most one immediate frame per refresh interval. The first key after idle draws at once; keys
+/// inside the interval (a key repeat, a burst) draw nothing and leave the window dirty for the tick, which draws
+/// them as ONE frame; a key a whole interval after that frame draws at once again. Mutations: the interval check
+/// removed (the second key draws); `lastCommitForPacing` not stamped (every key draws); the comparison
+/// reversed.
+@Test @MainActor func immediateInputDrawsAtMostOneFramePerRefreshInterval() throws {
+    let (window, clock) = try immediateWindow(nil)
+    let w = window.window
+    let start = w.framesDrawn
+    window.send(keyA())
+    #expect(w.framesDrawn == start + 1, "the first key after idle")
+    for _ in 0..<5 {
+        clock.advance(by: interval / 10)
+        window.send(keyA())
+    }
+    #expect(w.framesDrawn == start + 1, "a burst inside one interval draws no more immediately")
+    #expect(w.needsRedraw, "left dirty for the tick")
+    window.tick()
+    #expect(w.framesDrawn == start + 2, "the tick draws the burst as one frame")
+    clock.advance(by: interval - 1)
+    window.send(keyA())
+    #expect(w.framesDrawn == start + 2, "one nanosecond short of an interval")
+    window.tick()
+    clock.advance(by: interval)
+    window.send(keyA())
+    #expect(w.framesDrawn == start + 4, "an interval later it draws at once")
+}
+
+/// 1.26 — the interval is the display link's: the smallest gap between tick targets of 2 to 50 ms, 60 Hz until
+/// known. At 8 ms (120 Hz) a key 9 ms after the last frame draws; at 60 Hz it would not. Mutation: the learned
+/// interval ignored (the fallback used).
+@Test @MainActor func theImmediateInputPacingFollowsTheDisplayLinksInterval() throws {
+    let window = try timedWindow(nil)
+    let w = window.window
+    let clock = PacingClock()
+    w.immediateInputClock = { clock.now }
+    w.drawsImmediatelyOnInput = true
+    let unknown: UInt64? = w.displayLinkInterval
+    #expect(unknown == nil)
+    window.advance(by: 0.008); window.advance(by: 0.008); window.advance(by: 0.5)   // the long gap is not an interval
+    let learned: UInt64? = w.displayLinkInterval
+    let expected: UInt64 = 8_000_000
+    #expect(learned == expected)
+    w.setNeedsRedraw(); w.drawFrameIfNeeded()   // stamps the last commit at `clock.now`
+    window.tick()
+    clock.advance(by: 9_000_000)
+    let before = w.framesDrawn
+    window.send(keyA())
+    #expect(w.framesDrawn == before + 1, "9 ms is past 8 ms")
+}
+
+/// 1.27 — IME: composition behaves like text input. The first composition update at an idle window draws, the
+/// next ones inside the interval do not (the tick draws them once), and the commit an interval later draws.
+/// Mutation: `.textComposition` dropped from the immediate kinds (the first update waits for the tick).
+@Test @MainActor func compositionUpdatesDrawAtMostOncePerIntervalAndTheCommitDraws() throws {
+    let (window, clock) = try immediateWindow(nil)
+    let w = window.window
+    let start = w.framesDrawn
+    window.send(.textComposition(TextComposition(text: "k", selection: 1..<1)))
+    #expect(w.framesDrawn == start + 1, "the first update draws")
+    clock.advance(by: interval / 4)
+    window.send(.textComposition(TextComposition(text: "ka", selection: 2..<2)))
+    clock.advance(by: interval / 4)
+    window.send(.textComposition(TextComposition(text: "kan", selection: 3..<3)))
+    #expect(w.framesDrawn == start + 1, "updates inside the interval wait")
+    window.tick()
+    #expect(w.framesDrawn == start + 2, "one frame for both")
+    clock.advance(by: interval)
+    window.send(.textInput("kan"))
+    #expect(w.framesDrawn == start + 3, "the commit draws at once")
+}
+
+private struct AnimatingBox: Component {
+    @State var wide = false
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(wide ? 100 : 20), height: Pixels(20)).background(.accent)
+            .focusable()
+            .onKeyPress("a") { withAnimation(.linear(duration: 1)) { wide.toggle() }; return .handled }
+    }
+}
+
+/// 1.28 — an animation in flight keeps the tick path: a window with a running animation does not draw a key
+/// immediately. Mutation: `hasActiveAnimations` dropped from the idle check.
+@Test @MainActor func immediateInputYieldsToARunningAnimation() throws {
+    let window = try harnessWindow { VStack(spacing: 0) { AnimatingBox() } }
+    let w = window.window
+    let clock = PacingClock()
+    w.immediateInputClock = { clock.now }
+    window.typeKey(.tab)
+    window.tick()
+    window.send(keyA())   // starts the 1 s animation (immediate input still off: the tick draws it)
+    window.tick()
+    w.drawsImmediatelyOnInput = true
+    #expect(w.hasActiveAnimations, "the animation is running")
+    clock.advance(by: 10 * interval)
+    let before = w.framesDrawn
+    window.send(keyA())
+    #expect(w.framesDrawn == before, "tick path while animating")
+    window.advance(by: 0.1)
+    #expect(w.framesDrawn > before)
+}
+
+/// 1.29 — idle cost: after an immediate frame, any number of idle ticks draw nothing and the display link pauses
+/// (each idle tick re-pauses it; none wakes it). Mutations: the immediate path leaving the window dirty (the
+/// tick draws again); `setDisplayLinkPaused(true)` removed from the idle branch.
+@Test @MainActor func idleTicksAfterAnImmediateFrameDrawNothingAndTheLinkPauses() throws {
+    let (window, _) = try immediateWindow(nil)
+    let w = window.window
+    window.send(keyA())
+    let drawn = w.framesDrawn
+    let pauses = w.pausesEntered
+    for _ in 0..<20 { window.tick() }
+    #expect(w.framesDrawn == drawn, "no frame from an idle tick")
+    #expect(!w.needsRedraw)
+    #expect(w.pausesEntered == pauses + 20, "each idle tick pauses the link")
+    #expect(window.platformWindow.displayLinkPauses.last == true, "and the last word to the link is pause")
+}
+
+/// 1.30 — the switch: `METALUI_IMMEDIATE_INPUT` `1` and `0` override the platform default, anything else keeps
+/// it; a harness window starts tick-driven; the trace header names the switch. Mutations: `0` ignored; the
+/// default inverted.
+@Test @MainActor func theImmediateInputSwitchOverridesThePlatformDefault() throws {
+    let on = ["METALUI_IMMEDIATE_INPUT": "1"], off = ["METALUI_IMMEDIATE_INPUT": "0"]
+    let junk = ["METALUI_IMMEDIATE_INPUT": "yes"]
+    #expect(ImmediateInput.isEnabled(platformDefault: true, environment: [:]))
+    #expect(!ImmediateInput.isEnabled(platformDefault: false, environment: [:]))
+    #expect(ImmediateInput.isEnabled(platformDefault: false, environment: on))
+    #expect(!ImmediateInput.isEnabled(platformDefault: true, environment: off))
+    #expect(ImmediateInput.isEnabled(platformDefault: true, environment: junk))
+    #expect(!ImmediateInput.isEnabled(platformDefault: false, environment: junk))
+    let window = try harnessWindow { VStack(spacing: 0) { TimingKeyBox() } }
+    #expect(!window.window.drawsImmediatelyOnInput, "the harness stays tick-driven until a test opts in")
+    #expect(FrameTiming.header(immediate: "on").hasSuffix(" immediate=on"))
+}
+
+/// 1.31 — a presentation report of 0 (dropped, or macOS giving no time) still writes the input's line: `-` for
+/// `commit>screen` and `total`; the summary counts it as written and dropped. Mutations: the nil path returning
+/// before the trace write (no line); the line not counted in `written`.
+@Test @MainActor func aZeroPresentationReportStillWritesTheInputsLine() throws {
     let timing = FrameTiming()
     let window = try timedWindow(timing)
     let renderer = window.platformWindow.headlessRenderer
-    window.typeKey("a")
-    #expect(timing.last?.lateDrawableAcquired == nil && renderer.lateAcquisitions == 0)
-
-    window.window.experiments.lateDrawable = true
-    window.typeKey("a")
-    let s = try #require(timing.last)
-    let late = try #require(s.lateDrawableAcquired)
-    #expect(s.paintEnd <= late && late <= s.commit, "after paint, before the commit")
-    #expect(renderer.lateAcquisitions == 1)
-
-    renderer.failsNextFrame = true
-    let recorded = timing.framesRecorded
-    window.send(keyA()); window.tick()
-    #expect(timing.framesRecorded == recorded, "no drawable: no frame")
-    #expect(window.window.needsRedraw, "stays dirty")
-    window.tick()
-    #expect(timing.framesRecorded == recorded + 1, "the retry draws")
-    #expect(timing.last?.inputKind == .key, "the input waited for it")
-}
-
-/// 1.23 — the switches parse from the environment, ignore what is not a switch, and name themselves in the trace
-/// header. Mutations: `drawables=4` accepted; the label dropped from the header.
-@Test @MainActor func theExperimentSwitchesParseAndAppearInTheTraceHeader() {
-    #expect(LatencyExperiments(environment: [:]) == LatencyExperiments())
-    #expect(LatencyExperiments(environment: [:]).label == "none")
-    #expect(LatencyExperiments(environment: ["METALUI_EXP_DRAWABLES": "4", "METALUI_EXP_LATE_DRAWABLE": "0"]).label == "none")
-    let all = LatencyExperiments(environment: [
-        "METALUI_EXP_DRAWABLES": "2", "METALUI_EXP_LATE_DRAWABLE": "1",
-        "METALUI_EXP_IMMEDIATE_INPUT": "1", "METALUI_EXP_TRANSACTION": "1"])
-    #expect(all.label == "drawables2,late,immediate,transaction")
-    #expect(FrameTiming.header(experiments: all).hasSuffix(" exp=drawables2,late,immediate,transaction"))
-    #expect(FrameTiming.header(experiments: LatencyExperiments()).hasSuffix(" exp=none"))
+    renderer.reportsPresentation = true
+    var lines: [String] = []
+    timing.traceSink = { lines.append($0) }
+    let written = timing.traceLinesWritten, dropped = timing.droppedCount
+    window.typeKey("a")   // (the renderer's first report token maps to the setup frame that took the Tab: it has input)
+    renderer.deliverUnreportedPresentations()
+    let line = try #require(lines.first { $0.hasPrefix("metalui-latency ") && !$0.contains(" idx ") })
+    let columns = line.components(separatedBy: " | ")
+    #expect(columns.count == 3 && columns[2].hasPrefix("- "), "total is -: \(line)")
+    let stages = columns[1].split(separator: " ")
+    #expect(stages.count == 8 && stages[6] == "-", "commit>screen is -: \(line)")
+    #expect(timing.traceLinesWritten == written + 1 && timing.droppedCount == dropped + 1)
+    timing.writeTraceSummary()
+    #expect(lines.last == "metalui-latency-summary written=\(written + 1) presentedNoInput=\(timing.presentedNoInputCount) "
+        + "dropped=\(dropped + 1) settledClean=\(timing.settledCleanCount)")
 }
 
 /// 1.24 — the vsync estimate is the first tick target at or after the commit, in whole intervals, from the
