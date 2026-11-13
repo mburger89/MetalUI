@@ -80,6 +80,13 @@ struct WindowShellState {
     var treeTitleBarMetrics: TitleBarMetrics?
     var sentTitleBarMetrics = TitleBarMetrics()
     var titleBarMetricsHonoured = false
+    /// The last build's `.containerBackground(_:for: .window)` (`WB-A`), what the platform was last sent
+    /// (`.none` initially, so a window that never sets one never calls it), whether the platform drew it,
+    /// and the fill `Window` paints itself when it did not (`WB-C`).
+    var treeBackdrop: WindowBackdropSpec?
+    var sentBackdrop = WindowBackdrop.none
+    var backdropHonoured = false
+    var backdropFallback: Color?
     /// What the platform was last sent: the subtitle (initially none) and whether dismissing is allowed.
     var sentSubtitle = ""
     var sentDismissEnabled = true
@@ -170,6 +177,8 @@ extension Window {
         shell.treeSubtitle = frame.collectedNavigationSubtitle
         shell.treeDismiss = frame.collectedDismissBehavior
         shell.treeTitleBarMetrics = frame.collectedTitleBarMetrics
+        shell.treeBackdrop = frame.collectedWindowBackdrop
+        reconcileWindowBackdrop()
         reconcileTitleBarMetrics()
         shell.openURLHandlers = frame.openURLHandlers
         reconcileTitleAndDocument()

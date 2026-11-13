@@ -38,6 +38,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         /// What `setTitleBarMetrics` answers: `true` (AppKit, SDL) or `false` for a platform that keeps
         /// the system band (`AS-R`).
         public var appliesTitleBarMetrics: Bool
+        /// What `setWindowBackdrop` answers: `true` (AppKit) or `false` (SDL: `Window` fills the window itself, `WB-C`).
+        public var appliesWindowBackdrop: Bool
         /// What `beginExternalDrag` answers: `false` (SDL) keeps a drag in the
         /// window.
         public var externalDragResult: Bool
@@ -93,8 +95,10 @@ public final class HeadlessPlatformWindow: PlatformWindow {
                     accessibilityDisplaySettings: AccessibilityDisplaySettings = AccessibilityDisplaySettings(playAnimatedImages: true),
                     usesWindowDragRegions: Bool = false, hasNativeWindowControls: Bool = true,
                     isZoomed: Bool = false, hiddenTitleBarInsets: Edges<Pixels>? = nil,
-                    clipboardExportsLazily: Bool = true, appliesTitleBarMetrics: Bool = true) {
+                    clipboardExportsLazily: Bool = true, appliesTitleBarMetrics: Bool = true,
+                    appliesWindowBackdrop: Bool = true) {
             self.appliesTitleBarMetrics = appliesTitleBarMetrics
+            self.appliesWindowBackdrop = appliesWindowBackdrop
             self.appearance = appearance
             self.scaleFactor = scaleFactor
             self.presentsMenusNatively = presentsMenusNatively
@@ -247,6 +251,15 @@ public final class HeadlessPlatformWindow: PlatformWindow {
         acceptedTitleBarMetrics = (height, controlsLeading)
         recomputeHiddenInsets()
         return true
+    }
+
+    /// Every `setWindowBackdrop` argument, in order (`WB-A`).
+    public private(set) var windowBackdropRequests: [WindowBackdrop] = []
+
+    /// Records the backdrop and answers ``Options/appliesWindowBackdrop``.
+    public func setWindowBackdrop(_ backdrop: WindowBackdrop) -> Bool {
+        windowBackdropRequests.append(backdrop)
+        return options.appliesWindowBackdrop
     }
 
     /// Every `performTitleBarPress` click count, in order.

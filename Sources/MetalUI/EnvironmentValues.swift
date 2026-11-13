@@ -425,6 +425,9 @@ public struct EnvironmentValues {
     /// `lineLimit(n, reservesSpace: true)` `(n, n)`, a range its bounds.
     var textLineLimit = TextLineLimit()
 
+    /// The content margins `contentMargins(_:_:for:)` wrote (`CMG-A`): read by the scrollers below, internal.
+    var contentMargins = ContentMargins()
+
     /// The theme tokens resolve against. **Internal, and paint-only**: the only
     /// public reader is `PaintPass.theme`, and the only public writer is
     /// `.theme(_:)` (ruling EV-G).
@@ -543,6 +546,7 @@ struct EnvironmentFingerprint: Equatable {
     var isBold: Bool
     var textRich: TextRichFields
     var textLineLimit: TextLineLimit
+    var contentMargins: ContentMargins
     var fieldStyle: TextFieldStyle
     var editorStyle: TextEditorStyle
     var theme: Theme
@@ -589,6 +593,7 @@ extension EnvironmentFingerprint {
         if isBold != other.isBold { out.append("isBold") }
         if textRich != other.textRich { out.append("textRich") }
         if textLineLimit != other.textLineLimit { out.append("textLineLimit") }
+        if contentMargins != other.contentMargins { out.append("contentMargins") }
         if fieldStyle != other.fieldStyle { out.append("fieldStyle") }
         if editorStyle != other.editorStyle { out.append("editorStyle") }
         if theme != other.theme { out.append("theme") }
@@ -618,7 +623,7 @@ extension EnvironmentValues {
             controlSize: controlSize, font: font, lineLimit: lineLimit, truncationMode: truncationMode,
             multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStorage, tint: tint,
             fontWeight: fontWeight, italic: italic, isBold: isBold, textRich: textRich,
-            textLineLimit: textLineLimit,
+            textLineLimit: textLineLimit, contentMargins: contentMargins,
             fieldStyle: fieldStyles.field, editorStyle: fieldStyles.editor, theme: theme,
             hasTextSystem: textSystemBox != nil,
             objects: objects.mapValues { ObjectIdentifier($0) },

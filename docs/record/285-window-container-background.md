@@ -1,0 +1,17 @@
+# 285 - Window container background (Alloy G40, `WB-A`..`WB-H`)
+
+Branch `feat/window-container-background` from master `e852cb12`. Decisions `docs/superpowers/2026-11-13-window-backdrop-decisions.md` (next unused `WB-I`). Class `D` (the spelling is SwiftUI's; SDL diverges); divergence 241 added (221 live, next label 242). Human check group WB.
+
+**What.** Alloy wants the desktop to show through the window, blurred by the system, behind its own translucent panels. `.containerBackground(_:for: .window)` (SwiftUI, macOS 15) in three overloads: `Material`, `Color`, `ColorToken` (no `ShapeStyle` generic, `SS-G`). A material is the behind-window blur; a colour is the window's background colour.
+
+**How.** The modifier is an `EnvironmentScope` window preference (the `windowDismissBehavior` family), first report in post-order from any depth (`WB-D`). `Window.reconcileWindowBackdrop()` resolves the last build's report against the scheme and Reduce Transparency and calls `PlatformWindow.setWindowBackdrop(_:) -> Bool` on change only. AppKit: an `NSVisualEffectView` (`.behindWindow`, `.followsWindowActiveState`, level mapped by `WB-B`) inserted under the content view in the frame view, the window `isOpaque = false` with a clear background; a colour sets `backgroundColor`; `.none` restores both. The `CAMetalLayer` is already non-opaque and the renderer already clears to transparent, so neither changed. Reduce Transparency sends the opaque material grey as a colour (`WB-F`). SDL answers `false` (the protocol default, `WB-H`): `Window` paints the opaque grey over the whole content first in the frame (`WB-C`, divergence 241), following the scheme.
+
+**Unset is unchanged.** A window that never sets a style sends nothing and draws nothing extra (`aWindowWithoutAContainerBackgroundNeverTouchesThePlatformBackdrop`).
+
+**Tests** (`Tests/MetalUITests/ContainerBackgroundTests.swift`, `AppKitContainerBackgroundTests.swift`; each shown to fail by mutation): `aWindowWithoutAContainerBackgroundNeverTouchesThePlatformBackdrop` (initial `sentBackdrop` not `.none`), `aMaterialContainerBackgroundIsSentAsItsLevelOnChangeOnly` (last report wins), `aColorContainerBackgroundIsTheWindowsBackgroundColor`, `aPlatformThatCannotShowTheBackdropGetsAnOpaqueFillFromTheWindow` (fill disabled; a first version missed a scheme change under a standing ask, fixed), `reduceTransparencyMakesTheWindowBackdropTheMaterialsOpaqueGrey` (setting ignored), `aMaterialBackdropPutsABehindWindowEffectViewUnderTheContent` (`.withinWindow`), `aColorBackdropSetsTheWindowBackgroundAndNoneRestoresIt` (`isOpaque` left false), `everyBackdropLevelHasItsOwnEffectMaterial`. No on-screen window.
+
+**Performance.** Headless frame (build, layout, paint, scene) of 120 text rows at 600 x 600, debug build, 5 interleaved rounds of 240 frames: unset median 11.4-11.7 ms (min 8.5-9.1), AppKit path with the style set 11.0-13.9 ms (min 8.8-9.1), SDL fallback 11.0-11.9 ms (min 8.7-8.9); the differences are inside the run-to-run noise (another agent's tests were running). The AppKit path adds no primitive (rects 0 either way); the fallback adds one rect. The compositor's blur cost is WindowServer's and cannot be measured here.
+
+**Unmeasured.** The material mapping (`WB-B`), `.followsWindowActiveState` against SwiftUI's own, and SwiftUI's rule for a style set below the root (`WB-D`) need the screen: human check WB1, WB3.
+
+**Demo.** `METALUI_CHROME_DEMO=1`: a "Window backdrop" button.

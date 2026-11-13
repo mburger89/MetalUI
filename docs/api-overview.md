@@ -139,7 +139,7 @@ controls, `Text`, `Box`, a `Component` — through `ProposalContentBuilder`
 divergence 637; the whole content outside a scroller), children of a `ForEach` or static, variable extents through `List`'s own `RowExtentIndex`, an adaptive
 `GridItem` resolved by `GridTrackSolver` (635–638); **`pinnedViews: PinnedScrollableViews` over `Section`** on `LazyVStack`/`LazyHStack` (A; `SP-G`…`SP-J`, record §177, divergence 915): a section's header/footer stays at the viewport's edge while the section is current, the stack stays windowed, a `ForEach` of sections is read as units; grids and a `List` take neither. `METALUI_LAZY_DEMO=1`; human checks group LZ, unrun.
 `ScrollView`/`ProposalScrollView` over `Axis.Set` (A; `ScrollView([.horizontal, .vertical])`, `XS-A`…`XS-U`, record 237: the wheel goes whole to the dominant axis, small content sits at (0, 0), one thumb per axis, `scrollTo`, `defaultScrollAnchor`, lazy containers and retained replay work per axis), `ProposalScrollView`, `ScrollViewReader`/`ScrollViewProxy.scrollTo(_:anchor:)` (animated under `withAnimation`, `SP-F`), **`.defaultScrollAnchor(_:)`** and **`(_:for:)`** with **`ScrollAnchorRole`** (A; `DSA-A`…`DSA-I`, record 224, divergence 226: `.bottom` starts a transcript at its end and follows it while the scroller is at the end; a wheel or `scrollTo` away releases it; on the scroll view itself, not an ancestor), **`.scrollPosition(id:anchor:)`** with **`.scrollTargetLayout()`** (A; `SP-A`…`SP-C`, divergence 916: the topmost `ForEach` target is written to the binding from the wheel, writing it scrolls; a two-axis scroller tracks its vertical axis, `XS-K`),
-`UnitPoint`, `.scrollIndicators`. `ProposalLayout` +
+`UnitPoint`, `.scrollIndicators`. **`contentMargins(_:_:for:)`** and `ContentMarginPlacement` (A; `CMG-A`…`CMG-F`, record 287, Alloy G43): scroll-content margins inset a `ScrollView`/`ProposalScrollView` (a `List` inside one, and a `CodeView` from PR 2) at its ends while the content still scrolls and draws under them, `.scrollIndicators` insets only the thumb's track, `scrollTo` and `scrollPosition(id:)` measure the viewport minus the margins, a bottom-pinned scroller stays pinned as a margin changes; no safe area (`PB-A`). `ProposalLayout` +
 `ProposalLayoutContainer` — SwiftUI's `Layout` without a cache (`SA-A`), over
 `MeasurementSubviews`/`PlacementSubviews` and `ProposedSize`.
 
@@ -844,7 +844,11 @@ whose "Final spellings" table is the short form).
   `.navigationSubtitle(_:)` (A; `NSWindow.subtitle`, outer beats inner, SDL shows
   none, `AE-B`), `.windowDismissBehavior(_:)` (A; `.disabled` disables the close
   button and the user's close, `AE-D`), `.windowTitleBarMetrics(height:controlsLeading:)`
-  (M; the hidden title bar's band and the window buttons' left inset, `AS-R`) and
+  (M; the hidden title bar's band and the window buttons' left inset, `AS-R`),
+  `.containerBackground(_:for: .window)` (D; a `Material` is the behind-window
+  blur of the desktop on AppKit and the opaque grey on SDL, a `Color` the window's
+  background; first report wins from any depth, Reduce Transparency is the grey;
+  `WB-A`..`WB-H`, divergence 241) and
   `.navigationDocument(_ url: URL)` (A; the proxy icon, never the title) in
   the tree win while present; `Window.representedURL` and
   `Window.isDocumentEdited` (M; AppKit's edited dot). SDL records the edited

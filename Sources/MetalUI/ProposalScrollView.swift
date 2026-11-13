@@ -100,13 +100,14 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         // CN-H, SC5) — rather than an explicit 8. The viewport answers this
         // content's size on its non-scrolling axis (ruling CN-M).
         let contentAxis: ProposalStackAxis = axis == .vertical ? .vertical : .horizontal
-        let contentNode: ProposalNodeID
+        var contentNode: ProposalNodeID
         if children.count == 1 {
             contentNode = children[0]
         } else {
             contentNode = pass.requestNativeLinearStack(children: children, axis: .vertical,
                                                          spacing: nil)
         }
+        contentNode = ProposalNodeID(pass.frame.paddedForContentMargins(contentNode.layoutNodeID))   // `CMG-A`
         let node = axes.isOneAxis
             ? pass.requestNativeScrollViewport(child: contentNode, axis: contentAxis)
             : pass.requestNativeScrollViewport(child: contentNode, horizontal: axes.contains(.horizontal),
@@ -130,6 +131,7 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var chrome = self.chrome
         chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
+        chrome.resolveMargins(pass.frame.environmentTop.contentMargins)   // `CMG-A`
         let (offset, crossOffset) = chrome.resolvedOffsets(id, bounds: bounds, contentNode: layout.contentNode,
                                                            pass: pass)
         if !axes.isEmpty {   // `ScrollView([])` scrolls nothing and registers nothing (probe `L3`)
@@ -142,7 +144,8 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
                                      viewport: bounds, offset: offset,
                                      contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size),
                                      tracksPosition: position != nil, mirrored: chrome.mirrored,
-                                     cross: chrome.crossAxis ? chrome.crossFrame(offset: crossOffset, bounds: bounds, contentSize: pass.bounds(of: layout.contentNode).size) : nil)
+                                     cross: chrome.crossAxis ? chrome.crossFrame(offset: crossOffset, bounds: bounds, contentSize: pass.bounds(of: layout.contentNode).size) : nil,
+                                     inset: chrome.contentInset)
         var result: Content.GroupPrepaint!
         let noteMark = pass.frame.scrollTargetNoteCount
         pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset, cross: crossOffset),
@@ -160,6 +163,7 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
                                pass: inout PaintPass) {
         var chrome = self.chrome
         chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
+        chrome.resolveMargins(pass.frame.environmentTop.contentMargins)   // `CMG-C`
         let (offset, crossOffset) = chrome.resolvedOffsets(id, bounds: bounds, contentNode: layout.contentNode,
                                                            pass: pass)
         pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset, cross: crossOffset),
