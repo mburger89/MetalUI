@@ -1,3 +1,4 @@
+import Foundation
 import MetalUI
 import MetalUIPlatform
 import MetalUIScene
@@ -263,4 +264,157 @@ import Testing
     #expect(columns(window) == [100, 100, 198], "\(columns(window))")
     window.drag(from: pt(100.5, 150), to: pt(0.5, 150))
     #expect(columns(window) == [80, 120, 198], "\(columns(window))")
+}
+
+// MARK: - HS-I: `splitViewDivider(_:thickness:)`
+
+/// Every rect in the scene wider than 0 whose width is exactly `width` and that spans the 300-point height
+/// (a divider line or its hit area), clear ones included.
+@MainActor private func allDividerRects(_ window: TestWindow) -> [MUIRect] {
+    window.scene.rects.filter { $0.bounds.size.height == 300 && $0.bounds.size.width <= 16 }
+}
+
+/// Two panes (ideal 100 | the rest); `nil` writes no divider modifier at all.
+@MainActor private func twoPanes(_ visibility: Visibility?, thickness: CGFloat? = nil) -> some Element {
+    let split = HSplitView {
+        Color.red.frame(minWidth: 50, idealWidth: 100, maxWidth: 300)
+        Color.green
+    }
+    return VStack(spacing: 0) {
+        if let visibility { split.splitViewDivider(visibility, thickness: thickness) } else { split }
+    }
+}
+
+/// HS-I — the default is the divider as it was: one 1-point `.separator` line, panes 100 and 299 in 400,
+/// and `.automatic` / `.visible` / `thickness: nil` change nothing. Mutation: the default style hidden.
+@Test @MainActor func theDefaultSplitViewDividerIsTheOneItAlwaysWas() throws {
+    let plain = try harnessWindow { twoPanes(nil) }
+    let explicit = try harnessWindow { twoPanes(.visible, thickness: 1) }
+    let automatic = try harnessWindow { twoPanes(.automatic) }
+    for window in [plain, explicit, automatic] {
+        #expect(columns(window) == [100, 299], "\(columns(window))")
+        #expect(dividerXs(window) == [100], "\(dividerXs(window))")
+    }
+    #expect(plain.scene.rects.map(xywh) == explicit.scene.rects.map(xywh))
+    #expect(plain.scene.rects.map(xywh) == automatic.scene.rects.map(xywh))
+}
+
+/// HS-I — hidden draws no line (no visible rect of divider width) but a drag still resizes and the pointer
+/// still shows. Mutation: `hidden` ignored (the line is drawn) or the hit area dropped with the line.
+@Test @MainActor func aHiddenDividerDrawsNoLineButStillDrags() throws {
+    let window = try harnessWindow { twoPanes(.hidden) }
+    #expect(painted(window).filter { $0.bounds.size.width <= 16 }.isEmpty, "\(allDividerRects(window).map(xywh))")
+    #expect(columns(window) == [100, 299])
+    window.hover(at: pt(100.5, 150))
+    #expect(window.pointerStyle == .columnResize)
+    window.drag(from: pt(100.5, 150), to: pt(130.5, 150))
+    #expect(columns(window) == [130, 269], "\(columns(window))")
+}
+
+/// HS-I — a thickness of 6 spaces the panes by 6 (100 | 6 | 294) and the hit area is those 6 points: the
+/// pointer shows at 101 and 105 and not at 99 or 107. Mutation: the layout keeps thickness 1; the hit area
+/// ignores the thickness.
+@Test @MainActor func aThicknessOfSixSpacesThePanesBySixAndIsTheHitArea() throws {
+    let window = try harnessWindow { twoPanes(.hidden, thickness: 6) }
+    #expect(columns(window) == [100, 294], "\(columns(window))")
+    #expect(painted(window).map { $0.bounds.origin.x }.sorted() == [0, 106])
+    window.hover(at: pt(101, 150)); #expect(window.pointerStyle == .columnResize)
+    window.hover(at: pt(105, 150)); #expect(window.pointerStyle == .columnResize)
+    window.hover(at: pt(99, 150)); #expect(window.pointerStyle == .arrow)
+    window.hover(at: pt(107, 150)); #expect(window.pointerStyle == .arrow)
+    window.drag(from: pt(103, 150), to: pt(123, 150))
+    #expect(columns(window) == [120, 274], "\(columns(window))")
+}
+
+/// HS-I — a thickness above the hit minimum is its own hit area, and a visible line fills the thickness.
+/// Mutation: the hit area stays 6 while the gutter is 12.
+@Test @MainActor func aWideGutterIsItsOwnHitArea() throws {
+    let window = try harnessWindow { twoPanes(.hidden, thickness: 12) }
+    #expect(columns(window) == [100, 288], "\(columns(window))")
+    window.hover(at: pt(101, 150)); #expect(window.pointerStyle == .columnResize)
+    window.hover(at: pt(111, 150)); #expect(window.pointerStyle == .columnResize)
+    window.hover(at: pt(113, 150)); #expect(window.pointerStyle == .arrow)
+    let visible = try harnessWindow { twoPanes(.visible, thickness: 12) }
+    #expect(painted(visible).contains { $0.bounds.size.width == 12 })
+}
+
+/// HS-I — a gutter of 0 puts the panes edge to edge (100 | 300) and keeps a 6-point hit area straddling the
+/// boundary (97 ... 103). Mutation: the hit area is `thickness` wide, so it vanishes.
+@Test @MainActor func aGutterOfZeroKeepsASixPointHitAreaOnTheBoundary() throws {
+    let window = try harnessWindow { twoPanes(.hidden, thickness: 0) }
+    #expect(columns(window) == [100, 300], "\(columns(window))")
+    window.hover(at: pt(98, 150)); #expect(window.pointerStyle == .columnResize)
+    window.hover(at: pt(102, 150)); #expect(window.pointerStyle == .columnResize)
+    window.hover(at: pt(95, 150)); #expect(window.pointerStyle == .arrow)
+    window.hover(at: pt(105, 150)); #expect(window.pointerStyle == .arrow)
+    window.drag(from: pt(100, 150), to: pt(140, 150))
+    #expect(columns(window) == [140, 260], "\(columns(window))")
+}
+
+/// HS-I — `VSplitView` reads the same style on the vertical axis: hidden draws no line, thickness 6 spaces
+/// the rows (60 | 6 | 234), the hit area is 6 and a drag resizes. Mutation: the vertical axis ignores it.
+@Test @MainActor func aVSplitViewTakesTheSameDividerStyle() throws {
+    let window = try harnessWindow {
+        VStack(spacing: 0) {
+            VSplitView {
+                Color.red.frame(minHeight: 40, idealHeight: 60, maxHeight: 200)
+                Color.green
+            }.splitViewDivider(.hidden, thickness: 6)
+        }
+    }
+    #expect(rows(window) == [60, 234], "\(rows(window))")
+    #expect(painted(window).filter { $0.bounds.size.height <= 16 }.isEmpty)
+    window.hover(at: pt(200, 63)); #expect(window.pointerStyle == .rowResize)
+    window.drag(from: pt(200, 63), to: pt(200, 83))
+    #expect(rows(window) == [80, 214], "\(rows(window))")
+}
+
+@MainActor private final class GutterModel { var thickness: CGFloat = 1; var hidden = false }
+
+/// A pane with its own state: a tap counts, the body logs what it saw.
+private struct CountingPane: Component, ProposalElementGroup {
+    @State var taps = 0
+    let log: HarnessLog
+    var content: some ProposalElementGroup {
+        log.add("pane taps=\(taps)")
+        return Color.red.frame(minWidth: 50, idealWidth: 100, maxWidth: 300)
+            .onTapGesture { taps += 1 }
+    }
+}
+
+private struct GutterRoot: Component {
+    let model: GutterModel
+    let log: HarnessLog
+    var content: some ElementGroup {
+        HSplitView {
+            CountingPane(log: log)
+            Color.green
+        }.splitViewDivider(model.hidden ? .hidden : .visible, thickness: model.thickness)
+    }
+}
+
+/// HS-I (Alloy's live gutter) — changing the thickness (and the visibility) at run time respaces the panes
+/// and keeps the pane's `@State` (its tap count) with no more builds of its body than one rebuild of the
+/// owner needs: one body run, and the frame builds once. Mutation: the thickness read once at init (the
+/// panes stay put), or the split view keyed by the style (the state resets to 0).
+@Test @MainActor func changingTheGutterAtRunTimeRespacesAndKeepsPaneState() throws {
+    let log = HarnessLog()
+    let model = GutterModel()
+    let window = try harnessWindow { VStack(spacing: 0) { GutterRoot(model: model, log: log) } }
+    window.click(at: pt(50, 150)); window.tick()
+    #expect(log.entries.last == "pane taps=1", "\(log.entries)")
+    #expect(columns(window) == [100, 299])
+    window.resetFrameWork()
+    log.entries.removeAll()
+    model.thickness = 8
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(columns(window) == [100, 8, 292], "\(columns(window))")
+    #expect(log.entries == ["pane taps=1"], "state kept, one body run: \(log.entries)")
+    #expect(window.frameWork.reduce(0) { $0 + $1.builds } == 1, "\(window.frameWork.map { $0.builds })")
+    log.entries.removeAll()
+    model.hidden = true; model.thickness = 0
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(columns(window) == [100, 300], "\(columns(window))")
+    #expect(painted(window).filter { $0.bounds.size.width <= 16 }.isEmpty)
+    #expect(log.entries == ["pane taps=1"], "\(log.entries)")
 }

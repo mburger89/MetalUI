@@ -527,6 +527,15 @@ final class FakePlatformWindow: PlatformWindow {
         return titleBarMetricsResult
     }
 
+    /// Every `setWindowBackdrop` argument, in order (`WB-A`).
+    private(set) var windowBackdropRequests: [WindowBackdrop] = []
+    /// What `setWindowBackdrop` answers; `true` (AppKit) by default, `false` is SDL's.
+    var windowBackdropResult = true
+    func setWindowBackdrop(_ backdrop: WindowBackdrop) -> Bool {
+        windowBackdropRequests.append(backdrop)
+        return windowBackdropResult
+    }
+
     /// How many times `Window` asked the platform to move the window for a
     /// `WindowDragGesture` (`WD-E`).
     private(set) var windowDrags = 0
@@ -675,10 +684,14 @@ final class FakePlatform: Platform {
     /// Every window's `toolbarIsNative` (`MD-J` item 5), set before the first
     /// frame `App.openWindow` draws; `true` by default.
     var windowsShowToolbars = true
+    /// Every window's `windowBackdropResult` (`WB-C`), set before the first frame; `true` (AppKit) by default,
+    /// `false` stands for SDL.
+    var windowsShowBackdrops = true
 
     func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
         let window = try FakePlatformWindow(device: device, size: windowSize)
         window.toolbarIsNative = windowsShowToolbars
+        window.windowBackdropResult = windowsShowBackdrops
         window.title = title
         openedWindows.append(window)
         return window
