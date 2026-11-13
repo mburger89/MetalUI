@@ -1370,7 +1370,11 @@ public final class Window {
             }
             let handled = self.onInput?(event) ?? false
             if !handled { self.answerUnclaimedTitleBarPress(event) }   // the band press (AS-J)
-            self.setNeedsRedraw()
+            // `FP-N`: a key release nothing claimed changes nothing on screen (no state moved, or observation
+            // already dirtied the window), so it asks for no frame: a keystroke is one frame, not two.
+            var isUnclaimedKeyUp = false
+            if !handled, case .keyUp = event { isUnclaimedKeyUp = true }
+            if !isUnclaimedKeyUp { self.setNeedsRedraw() }
             return handled
         }
         // Tests pass false so frame counts stay deterministic: a running link
