@@ -118,6 +118,9 @@ private let alloyNames = [
     "gearshape",
     // Record 252 (G16): the eye forms; the two circled ones are the script's ring composites (`SYM-P`).
     "eye", "eye.slash", "eye.circle", "eye.slash.circle",
+    // Record 279 (`SYM-Q`): MetalCreator's toolbar.
+    "arrow.uturn.forward", "square.and.arrow.up", "plus.magnifyingglass", "minus.magnifyingglass", "sidebar.left",
+    "rectangle.lefthalf.inset.filled", "rectangle.bottomhalf.inset.filled", "house", "camera",
 ]
 
 // MARK: - 3: the catalogue
@@ -145,13 +148,83 @@ private let alloyNames = [
     }
 }
 
+/// **Record 279 - MetalCreator's toolbar names (`SYM-Q`).** Each of the nine new names resolves in the bundled table to the
+/// Lucide icon recorded in the ruling, and draws on the portable route (one path raster with ink). The two filled-half names
+/// are the panel outline stroked over a filled half: the fill layer is the left strip (x 3...9) or the bottom strip (y 15...21),
+/// the stroke layer the whole panel, and a pixel inside the filled half is solid while one in the other half is empty.
+/// Mutations: **M279a** a table row dropped (`camera`): the resolve loop reddens; **M279b** `fillShape` ignored (the whole panel
+/// filled): the empty-half pixel reddens.
+@Test @MainActor func metalCreatorsToolbarSymbolsResolveAndDrawWithFilledHalves() throws {
+    let mapping: [(String, String)] = [
+        ("arrow.uturn.forward", "redo-2"), ("square.and.arrow.up", "share"), ("plus.magnifyingglass", "zoom-in"),
+        ("minus.magnifyingglass", "zoom-out"), ("sidebar.left", "panel-left"), ("rectangle.lefthalf.inset.filled", "panel-left"),
+        ("rectangle.bottomhalf.inset.filled", "panel-bottom"), ("house", "house"), ("camera", "camera"),
+    ]
+    for (sf, lucide) in mapping {
+        #expect(BundledSymbols.table[sf]?.lucide == lucide, "\(sf) maps to \(lucide)")
+        #expect(BundledSymbols.exists(sf) && LucideIcons.data(named: lucide) != nil, "\(sf): table row and vendored data")
+    }
+    try bundled {
+        for (sf, _) in mapping {
+            let (_, scene) = render(40, 40, Image(systemName: sf).font(.system(size: 20)).imageScale(.large).foregroundStyle(red))
+            let canvas = composite(scene, width: 40, height: 40)
+            #expect(stride(from: 3, to: canvas.count, by: 4).contains { canvas[$0] > 0 }, "\(sf) draws ink")
+        }
+        @MainActor func layers(_ name: String) throws -> [Icon.Layer] { try #require(Icon.bundled(name)).layers }
+        let left = try layers("rectangle.lefthalf.inset.filled"), bottom = try layers("rectangle.bottomhalf.inset.filled")
+        try #require(left.count == 2 && bottom.count == 2 && Icon.bundled("sidebar.left")?.layers.count == 1, "fill under stroke")
+        func box(_ layer: Icon.Layer) -> [Float] {
+            let b = layer.path.boundingRect
+            return [b.origin.x.value, b.origin.y.value, b.origin.x.value + b.size.width.value, b.origin.y.value + b.size.height.value]
+        }
+        #expect(box(left[0]) == [3, 3, 9, 21] && box(left[1]) == [3, 3, 21, 21], "left strip under the panel")
+        #expect(box(bottom[0]) == [3, 15, 21, 21] && box(bottom[1]) == [3, 3, 21, 21], "bottom strip under the panel")
+        // 20 pt at .large is a 29.2 pt box, so 29.2 / 24 points per grid unit.
+        let unit = 20 * 1.46 / 24
+        @MainActor func alpha(_ name: String, _ ux: Double, _ uy: Double) -> UInt8 {
+            let (_, scene) = render(40, 40, Image(systemName: name).font(.system(size: 20)).imageScale(.large).foregroundStyle(red))
+            let canvas = composite(scene, width: 40, height: 40)
+            // The glyph's ink box is units 2...22 (the outline's stroke), so its centre is unit (12, 12).
+            let ink = (0..<1600).filter { canvas[$0 * 4 + 3] > 0 }
+            let xs = ink.map { $0 % 40 }, ys = ink.map { $0 / 40 }
+            let cx = Double(xs.min()! + xs.max()! + 1) / 2, cy = Double(ys.min()! + ys.max()! + 1) / 2
+            return pixel(canvas, Int(cx + (ux - 12) * unit), Int(cy + (uy - 12) * unit), width: 40)[3]
+        }
+        #expect(alpha("rectangle.lefthalf.inset.filled", 6, 12) == 255, "inside the filled left half")
+        #expect(alpha("rectangle.lefthalf.inset.filled", 15, 12) == 0, "inside the empty right half")
+        #expect(alpha("rectangle.bottomhalf.inset.filled", 12, 18) == 255, "inside the filled bottom half")
+        #expect(alpha("rectangle.bottomhalf.inset.filled", 12, 9) == 0, "inside the empty top half")
+        #expect(alpha("sidebar.left", 6, 12) == 0, "the plain sidebar is an outline")
+    }
+}
+
+/// **Segmented `Picker` with `Image` segments (record 279).** Each segment's content is whatever element the caller wrote, so an
+/// `Image(systemName:)` renders its icon inside the segment, and the segment carries the image's accessibility label
+/// (the SwiftUI label of the resolved name: `play` is "Play", `arrow.uturn.backward` "Undo"; a name outside the measured label
+/// table, `house` or `camera`, records none, `SYM-H`). No mutation: the answer is pinned as found.
+@Test @MainActor func aSegmentedPickerShowsImageSegmentsWithTheirGlyphAndLabel() throws {
+    try bundled {
+        var root = Picker("", selection: .constant(0)) {
+            Image(systemName: "play").tag(0)
+            Image(systemName: "arrow.uturn.backward").tag(1)
+        }.pickerStyle(.segmented)
+        let frame = makeFrame(200, 60, collectsAccessibility: true)
+        frame.render(&root)
+        let scene = frame.finalizedScene()
+        #expect(scene.images.count >= 2, "one icon raster per segment: \(scene.images.count)")
+        let emitted = frame.axEmissions.map { "\($0.declared.role):\($0.declared.label ?? "")" }
+        #expect(frame.axEmissions.contains { $0.declared.role == .image && $0.declared.label == "Play" }, "image labels: \(emitted)")
+        #expect(frame.axEmissions.contains { $0.declared.role == .image && $0.declared.label == "Undo" }, "image labels: \(emitted)")
+    }
+}
+
 /// **Test 3 - every Alloy name is a bundled icon (`SYM-I`).** Each name of the set resolves to an `Icon` with at least one
 /// layer whose coordinates (control points included) are finite and inside the 24 x 24 view box, and whose path has ink; the
 /// `.fill` names add a fill layer under the stroke and the others do not; `robot` (which exists nowhere) and a `.fill` of an
 /// open outline are `nil`. The vendored data itself: 37 icons, each with ops for its coordinates. Mutations: **M3a** one table
 /// row dropped (`cpu`): the count and that name's arm redden; **M3b** the fill layer dropped from `play.fill`.
 @Test @MainActor func everyAlloyNameIsABundledIconInsideItsViewBox() throws {
-    try #require(alloyNames.count == 42, "the Alloy set is 42 names")
+    try #require(alloyNames.count == 51, "the Alloy set is 51 names")
     for name in alloyNames {
         let icon = try #require(Icon.bundled(name), "\(name) has no bundled icon")
         #expect(!icon.layers.isEmpty, "\(name): layers")
@@ -164,7 +237,7 @@ private let alloyNames = [
                     "\(name): path bounds (\(x0), \(y0))-(\(x1), \(y1)) leave the view box")
         }
     }
-    let data = try #require(LucideIcons.names.count == 41 ? LucideIcons.names : nil, "41 vendored icons: \(LucideIcons.names.count)")
+    let data = try #require(LucideIcons.names.count == 51 ? LucideIcons.names : nil, "51 vendored icons: \(LucideIcons.names.count)")
     for name in data {
         let icon = try #require(LucideIcons.data(named: name), "\(name) vendored but unreadable")
         let args = icon.ops.reduce(0) { $0 + [2, 2, 6, 0][Int($1)] }

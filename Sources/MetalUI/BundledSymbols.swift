@@ -33,6 +33,9 @@ enum BundledSymbols {
     struct Entry {
         var lucide: String
         var filled = false
+        /// A vendored shape (not a Lucide file) filled under the stroke instead of the whole outline: the filled half of
+        /// `rectangle.lefthalf.inset.filled` (`SYM-Q`). Wins over `filled`.
+        var fillShape: String?
     }
 
     /// SF name to Lucide icon. Only names that exist on macOS 27.2 (probe `S1`): `robot` does not, `cpu` does. A `.fill`
@@ -89,6 +92,16 @@ enum BundledSymbols {
         "eye.slash": Entry(lucide: "eye-off"),
         "eye.circle": Entry(lucide: "eye-circle"),
         "eye.slash.circle": Entry(lucide: "eye-off-circle"),
+        // Record 279 (`SYM-Q`): MetalCreator's toolbar.
+        "arrow.uturn.forward": Entry(lucide: "redo-2"),
+        "square.and.arrow.up": Entry(lucide: "share"),
+        "plus.magnifyingglass": Entry(lucide: "zoom-in"),
+        "minus.magnifyingglass": Entry(lucide: "zoom-out"),
+        "sidebar.left": Entry(lucide: "panel-left"),
+        "rectangle.lefthalf.inset.filled": Entry(lucide: "panel-left", fillShape: "panel-left-fill"),
+        "rectangle.bottomhalf.inset.filled": Entry(lucide: "panel-bottom", fillShape: "panel-bottom-fill"),
+        "house": Entry(lucide: "house"),
+        "camera": Entry(lucide: "camera"),
     ]
 
     static func exists(_ name: String) -> Bool { table[name] != nil }
@@ -101,7 +114,10 @@ enum BundledSymbols {
         guard let entry = table[name], let data = LucideIcons.data(named: entry.lucide) else { return nil }
         let path = Self.path(data)
         var layers: [Icon.Layer] = []
-        if entry.filled { layers.append(Icon.Layer(path, paint: .fill(FillStyle()))) }
+        if let shape = entry.fillShape {
+            guard let shapeData = LucideIcons.data(named: shape) else { return nil }
+            layers.append(Icon.Layer(Self.path(shapeData), paint: .fill(FillStyle())))
+        } else if entry.filled { layers.append(Icon.Layer(path, paint: .fill(FillStyle()))) }
         layers.append(Icon.Layer(path, paint: .stroke(width: Pixels(LucideIcons.strokeWidth), cap: .round, join: .round)))
         let side = Pixels(LucideIcons.viewBoxSide)
         let icon = Icon(viewBox: Size(width: side, height: side), layers: layers)

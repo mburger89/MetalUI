@@ -369,6 +369,34 @@ private let appName = ProcessInfo.processInfo.processName
     }
 }
 
+/// `MN-AO`. The installed application menu has a Services submenu between About
+/// and Hide (one separator each side) and `NSApp.servicesMenu` is that submenu,
+/// so AppKit fills it with the system's services; a rebuild when the menu opens
+/// keeps the assignment on the live submenu. Mutations: never assign
+/// `servicesMenu` (nil); skip the move to the rebuilt item (stale after
+/// `menuNeedsUpdate`); drop the item - each reddens.
+@MainActor
+@Test func theApplicationMenuHasTheServicesSubmenuAssignedToNSApp() throws {
+    try preservingMainMenu {
+        let (platform, _, _, _) = try hostWindow()
+        let app = App(platform: platform)
+        @MainActor func check(_ note: String) throws {
+            let menu = try mainMenu(appName)
+            let titles = menu.items.map { $0.isSeparatorItem ? "---" : $0.title }
+            let index = try #require(titles.firstIndex(of: "Services"), "\(note): \(titles)")
+            #expect(titles[index - 1] == "---" && titles[index + 1] == "---", "\(note): \(titles)")
+            #expect(titles[index - 2] == "About \(appName)" && titles[index + 2] == "Hide \(appName)", "\(note): \(titles)")
+            let submenu = try #require(menu.items[index].submenu)
+            #expect(NSApplication.shared.servicesMenu === submenu, "\(note): NSApp.servicesMenu is the submenu")
+        }
+        try check("installed")
+        let delegate = try #require(try mainMenu(appName).delegate)
+        delegate.menuNeedsUpdate?(try mainMenu(appName))
+        try check("after the menu opened")
+        withExtendedLifetime(app) {}
+    }
+}
+
 /// **2.14** (`MN-K`). The Edit items' actions on the host view deliver the
 /// key each item names to the window — one path into a focused field's
 /// existing editing keys — and `validateMenuItem` enables them only while a

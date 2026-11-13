@@ -138,11 +138,11 @@ public struct CommandGroup<Content: MenuContent>: Commands {
 }
 
 /// A standard group of the menu bar a `CommandGroup` places its items against —
-/// SwiftUI's `CommandGroupPlacement`, the ten groups MetalUI builds (`MN-I`
+/// SwiftUI's `CommandGroupPlacement`, the eleven groups MetalUI builds (`MN-I`
 /// item 2). `Hashable` where SwiftUI's is only `Sendable` — additive (`MN-X`
 /// item 3). Not offered, owner none: `.saveItem`, `.printItem`,
 /// `.textFormatting`, `.toolbar`, `.sidebar`, `.importExport`,
-/// `.systemServices`, `.singleWindowList`.
+/// `.singleWindowList`.
 public struct CommandGroupPlacement: Sendable, Hashable {
     let name: String
 
@@ -155,6 +155,12 @@ public struct CommandGroupPlacement: Sendable, Hashable {
     /// scene, so `CommandGroup(replacing:)`, `(before:)` and `(after:)` fill it
     /// (a `Settings…` item with `⌘,`). An empty group draws no separator.
     public static let appSettings = CommandGroupPlacement("appSettings")
+    /// The application menu's Services submenu (`MN-AO`), between the settings
+    /// and visibility groups; on AppKit the system fills it (`NSApp.servicesMenu`).
+    /// `CommandGroup(replacing:)` removes it; `before` and `after` add beside it.
+    /// Portable (SDL) and drawn menus have no Services: the group holds only
+    /// additions there.
+    public static let systemServices = CommandGroupPlacement("systemServices")
     /// The application menu's Hide, Hide Others and Show All.
     public static let appVisibility = CommandGroupPlacement("appVisibility")
     /// The application menu's Quit.
@@ -222,7 +228,10 @@ struct MenuBarModel {
                           standard("Hide Others", .hideOthers, "h", [.command, .option]),
                           standard("Show All", .showAll)]
         let quit = [standard("Quit \(appName)", .quit, "q")]
-        let appGroups = [group(.appInfo, about), group(.appSettings, []), group(.appVisibility, visibility),
+        // The system Services submenu (`MN-AO`): `.systemServices`, between Settings and
+        // visibility; the platform fills it.
+        let services = group(.systemServices, [servicesItem()])
+        let appGroups = [group(.appInfo, about), group(.appSettings, []), services, group(.appVisibility, visibility),
                          group(.appTermination, quit)]
         appendMenu(appName, groups: appGroups)
         let newItem = group(.newItem, [])
@@ -263,7 +272,7 @@ struct MenuBarModel {
 
     private mutating func buildDrawn() {
         let newItem = group(.newItem, [])
-        let settings = group(.appSettings, [])
+        let settings = group(.appSettings, []) + group(.systemServices, [])
         let visibility = group(.appVisibility, [])
         // File ▸ Close and Quit/Exit (`SG-M`): the window's close (asks `onCloseRequest`) and
         // the app's terminate walk. No shortcut is shown: the drawn bar adds no shortcut path
@@ -297,6 +306,13 @@ struct MenuBarModel {
         return PlatformMenuItem(id: next, kind: .action, title: title,
                                 shortcut: key.map { PlatformKeyEquivalent(key: $0, modifiers: modifiers) },
                                 standardAction: action)
+    }
+
+    /// The application menu's Services submenu (`MN-AO`): an empty submenu the
+    /// platform's native menu fills with the system's services.
+    private mutating func servicesItem() -> PlatformMenuItem {
+        defer { next += 1 }
+        return PlatformMenuItem(id: next, kind: .submenu([]), title: "Services", standardAction: .services)
     }
 
     /// A placement's items: every `before` addition, then the standard items
