@@ -172,6 +172,14 @@ public struct AXNode: Equatable {
     /// `Picker` option declares the public `.selected` trait instead.
     var selectionHint = false
 
+    /// Whether this element's `onClick` is a selectable `List` row's selection
+    /// click, which also runs when the press landed on a descendant whose arena
+    /// holds a multi-click tap (G39, `DD-AJ`: `Window.owedRowSelection`). Here
+    /// beside `selectionHint`, a Bool in `Handlers`' existing `axNode`, so
+    /// `Handlers`' stored layout (`IX-N`) does not grow. Stripped by
+    /// `Frame.registerHandlers` as `selectionHint` is: no `axNodes`, no `$ax`.
+    var isSelectableRow = false
+
     /// **A role hint, not a declaration** (menus, ruling `MN-H` item 2): set by
     /// `Menu`'s pull-down button, published as `.menuButton` (SwiftUI's
     /// `AXMenuButton`, arm M1) where the node would otherwise be a `.button`.

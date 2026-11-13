@@ -4,7 +4,7 @@ Rulings for [`specs/2026-09-25-data-and-scrolling-design.md`](specs/2026-09-25-d
 on `feat/data-and-scrolling` from `e7bc2e7` (part 1, `DD-A`…`DD-P`), and for
 [`specs/2026-09-26-controls-and-selection-design.md`](specs/2026-09-26-controls-and-selection-design.md),
 on `feat/controls-and-selection` from `27b2fcc` (part 2, `DD-Q` onward). Ids
-are **lettered**, `DD-A`…`DD-AI`; next unused is **`DD-AJ`**. A bare `DD-3`
+are **lettered**, `DD-A`…`DD-AJ`; next unused is **`DD-AK`**. A bare `DD-3`
 is a typo, not a citation. **A round that appends a ruling moves this line in
 the same commit.**
 
@@ -2011,3 +2011,31 @@ empty after.
 move either way. Item 2 is deferred work with a named owner; if plan task 15
 finds a different owner more fitting, this ruling's "plan task 15" is one
 citation to move, not a behaviour to undo.
+
+## DD-AJ — a multi-click tap on a row's child does not swallow the row's selection (Alloy G39)
+
+**Cause.** A row's selection is its `Box`'s `onClick`. A child with any
+gesture is the press's topmost opaque hitbox, so the arena is formed on it and
+"an ancestor's `onClick` never joins" (`IX-D` item 2); the row's click never
+ran. A `Text` without a gesture is no hitbox, so a click there reached the row.
+
+1. **A press whose arena holds a live tap of two or more clicks, on a target
+   with no `onClick` of its own, still owes the nearest `List` row above it
+   (the hitbox whose `axNode.isSelectableRow` is set) that row's click.**
+   It runs at the release, at the moment `dispatchClick` would have run it for
+   a row without the gesture, and only when the release lands on the pressed
+   element. `Window.owedRowSelection` records it at each press (a continuing
+   second press included); `runRowSelectionClick` runs it before the arena's
+   release callbacks. A second click selects the same row, which writes
+   nothing (`DD-Z` item 4), and the double tap fires once.
+2. **Unchanged, found and pinned**: a single-count `onTapGesture` on a row's
+   child still does not select (the same mechanism applies, one clause away:
+   `holdsMultiClickTap` would drop its `>= 2`). Left alone, since the SwiftUI
+   behaviour is only as reported by Alloy (the count-2 case; no probe was run)
+   and nothing proved a divergence. A `Button` (or any target with an
+   `onClick`) in a row keeps its press and does not select. Gestures outside a
+   `List` are untouched.
+3. **SwiftUI behaviour is as reported by Alloy**, not probed.
+
+**Cost if wrong.** Item 1 is one flag and one window pass; item 2 is one
+comparison.

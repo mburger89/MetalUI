@@ -2196,6 +2196,7 @@ public final class Frame {
         declaration.menuButtonHint = false   // MN-H item 2, stripped as the selection hint is
         declaration.popUpButtonHint = false  // SV-S, the same
         declaration.popoverHint = false      // MN-O, the same
+        declaration.isSelectableRow = false  // DD-AJ, the same
         declaration.colorWellHint = false    // LK-G, the same
         declaration.progressHint = nil       // LK-G, LK-V item 6, the same
         if !declaration.isEmpty {
