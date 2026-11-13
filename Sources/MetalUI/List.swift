@@ -513,7 +513,7 @@ where Data.Element: Identifiable {
         let keyed = !(Data.Element.ID.self is DescriptionInjectiveID.Type)
         if pass.frame.notesScrollKeys {
             for datum in data[windowStart..<windowEnd] {
-                let rowID = GlobalElementID.child(of: id, at: 0,
+                let rowID = GlobalElementID.internedChild(of: id, at: 0,
                                                   name: ElementID.forRow(datum.id, keyed: keyed))
                 pass.frame.noteScrollKey(rowID, AnyHashable(datum.id))
             }
@@ -1187,7 +1187,7 @@ extension List {
             var byRow: [GlobalElementID: Data.Element.ID] = [:]
             let keyed = !(Data.Element.ID.self is DescriptionInjectiveID.Type)   // `LH-B`, `LH-D` site 3
             for datum in data {
-                byRow[GlobalElementID.child(of: list, at: 0, name: ElementID.forRow(datum.id, keyed: keyed))] = datum.id
+                byRow[GlobalElementID.internedChild(of: list, at: 0, name: ElementID.forRow(datum.id, keyed: keyed))] = datum.id
             }
             let picked = request.rows.compactMap { byRow[$0] }
             guard picked.count == request.rows.count else { return }

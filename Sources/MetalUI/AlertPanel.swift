@@ -257,7 +257,7 @@ extension Window {
     static let alertPanelRoot = GlobalElementID(component: .named(ElementID("$alert-panel")), parent: nil)
 
     static func alertPanelButtonID(_ index: Int) -> GlobalElementID {
-        GlobalElementID.child(of: alertPanelRoot, at: index, name: nil)
+        GlobalElementID.internedChild(of: alertPanelRoot, at: index, name: nil)
     }
 
     /// Appends the drawn alert to `build` (`SV-J` item 4): one `.alert` root

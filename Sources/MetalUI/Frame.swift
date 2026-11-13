@@ -2291,7 +2291,7 @@ public final class Frame {
     /// than `id` itself. `at: 0` is inert: `GlobalElementID.child(of:at:name:)`
     /// always prefers `name` when one is supplied.
     private static func focusRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
-        .child(of: id, at: 0, name: ElementID("$focus"))
+        .internedChild(of: id, at: 0, name: ElementID("$focus"))
     }
 
     // MARK: - Accessibility (design spec §9)
@@ -2613,7 +2613,7 @@ public final class Frame {
     /// `GlobalElementID.child(of:at:name:)` always prefers `name` when one is
     /// supplied.
     static func axRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
-        .child(of: id, at: 0, name: ElementID("$ax"))
+        .internedChild(of: id, at: 0, name: ElementID("$ax"))
     }
 
     /// The durable accessibility record for `id` — design spec §9's actual
@@ -4381,7 +4381,7 @@ public final class Frame {
         // `.positional(0)`, which is what gives a `Row { … }` rendered straight
         // into a frame an identity for its children to hang from. A named root
         // takes `.named` instead — the constructor decides, here as everywhere.
-        let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
+        let rootID = GlobalElementID.internedChild(of: nil, at: 0, name: element.elementID)
         stateTable.noteNamed(rootID, at: 0)  // `ID-R`: a renamed root departs its old name
 
         // `Frame.render` calls the root's `requestLayout` directly rather than

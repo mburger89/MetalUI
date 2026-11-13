@@ -123,12 +123,12 @@ final class TimelineStore {
     func context<S: TimelineSchedule>(owner: GlobalElementID, schedule: S, timestamp: Double,
                                       stateTable: StateTable) -> (context: TimelineViewDefaultContext, live: Bool) {
         self.stateTable = stateTable
-        let base = GlobalElementID.child(of: owner, at: 0, name: ElementID("$timeline\(depth)"))
+        let base = GlobalElementID.internedChild(of: owner, at: 0, name: ElementID("$timeline\(depth)"))
         let occurrence = occurrences[base, default: 0]
         occurrences[base] = occurrence + 1
         let key = occurrence == 0
             ? base
-            : GlobalElementID.child(of: owner, at: 0, name: ElementID("$timeline\(depth)#\(occurrence)"))
+            : GlobalElementID.internedChild(of: owner, at: 0, name: ElementID("$timeline\(depth)#\(occurrence)"))
         touched.insert(key)
 
         let now = date(at: timestamp)

@@ -102,7 +102,7 @@ extension OptionalGroup: ProposalElementGroup where Wrapped: ProposalElementGrou
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], ConditionalLayout<Wrapped.GroupLayout>) {
-        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursor), parent: parent)
         cursor += 1
         guard var inner = wrapped else {
             pass.frame.stateTable.noteAbsent(slot)
@@ -128,8 +128,8 @@ extension EitherGroup: ProposalElementGroup where First: ProposalElementGroup, S
                                                     pass: inout LayoutPass) -> ([ProposalNodeID], Layout) {
         let branchIndex = cursor
         cursor += 2
-        let firstBranch = GlobalElementID(component: .positional(branchIndex), parent: parent)
-        let secondBranch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
+        let firstBranch = GlobalElementID.interned(component: .positional(branchIndex), parent: parent)
+        let secondBranch = GlobalElementID.interned(component: .positional(branchIndex + 1), parent: parent)
         switch self {
         case .first(var group):
             pass.frame.stateTable.noteProduced(firstBranch)
@@ -158,7 +158,7 @@ extension ArrayGroup: ProposalElementGroup where Group: ProposalElementGroup {
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], [Group.GroupLayout]) {
-        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursor), parent: parent)
         cursor += 1
         pass.frame.animationStore.transitions.beginArrayLoop(slot, animation: pass.frame.conditionalAnimation)  // `AN-AE`, the copy's own
         var innerCursor = 0

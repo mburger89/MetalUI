@@ -327,7 +327,7 @@ struct ColorPlane: Element, StyledElement {
                 let origin = Point(x: bounds.origin.x,
                                    y: child.half == .top ? bounds.origin.y : bounds.origin.y + half)
                 pass.registerAndScope(handlers, Decoration(), at: Bounds(origin: origin, size: Size(width: bounds.size.width, height: half)),
-                                      for: GlobalElementID.child(of: id, at: index, name: nil)) { }
+                                      for: GlobalElementID.internedChild(of: id, at: index, name: nil)) { }
             }
         }
     }

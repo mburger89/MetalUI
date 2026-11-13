@@ -41,7 +41,7 @@ public struct ScrollViewReader<Content: ElementGroup>: ElementGroup {
     /// The slot and the proxy both entries share.
     private func proxy(under parent: GlobalElementID?, at cursor: inout Int,
                        pass: LayoutPass) -> (GlobalElementID, ScrollViewProxy) {
-        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursor), parent: parent)
         cursor += 1
         return (slot, ScrollViewProxy(scope: slot, queue: pass.frame.scrollRequestQueue))
     }

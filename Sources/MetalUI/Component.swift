@@ -247,7 +247,7 @@ extension Component {
         // The component's own identity level. `child(of:at:name:)` decides
         // whether that is a `.named` component or a `.positional` one — the
         // name-replaces-position rule lives in the constructor, not here.
-        let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        let id = GlobalElementID.internedChild(of: parent, at: cursor, name: elementID)
         pass.frame.stateTable.noteNamed(id, at: cursor)  // `ID-R`
 
         // Binds the COMPONENT's own `@State`. Nothing else does this for a
@@ -442,7 +442,7 @@ extension Component where Self: Animatable {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], ComponentLayout<Self>) {
-        interpolateAnimatableComponent(&self, id: GlobalElementID.child(of: parent, at: cursor, name: elementID),
+        interpolateAnimatableComponent(&self, id: GlobalElementID.internedChild(of: parent, at: cursor, name: elementID),
                                        pass: &pass)
         let id = enterComponent(under: parent, at: &cursor, pass: &pass)
         var materialized = content
@@ -451,7 +451,7 @@ extension Component where Self: Animatable {
 
     /// Interpolates ``Animatable/animatableData`` into `self` (`VA-I`).
     public mutating func _interpolateAnimatableData(under parent: GlobalElementID?, at cursor: Int, pass: inout LayoutPass) {
-        interpolateAnimatableComponent(&self, id: GlobalElementID.child(of: parent, at: cursor, name: elementID),
+        interpolateAnimatableComponent(&self, id: GlobalElementID.internedChild(of: parent, at: cursor, name: elementID),
                                        pass: &pass)
     }
 }
@@ -609,7 +609,7 @@ public struct StyledComponent<C: Component>: ElementGroup {
         // The component's own id — computed, not minted: `Component.requestGroupLayout`
         // mints it from the same parent, cursor and name. Plan task 13
         // (`AN-AC`) keys the ops' animation tracks under it.
-        let componentID = GlobalElementID.child(of: parent, at: cursor, name: component.elementID)
+        let componentID = GlobalElementID.internedChild(of: parent, at: cursor, name: component.elementID)
         // `parent` and `cursor` forwarded UNCHANGED — see the type's own doc.
         let (nodes, layout) = component.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
         // Per member, in declaration order, with a current node: an amend

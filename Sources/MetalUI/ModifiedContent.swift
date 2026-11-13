@@ -201,11 +201,11 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
     private func innermostID(_ id: GlobalElementID, table: StateTable) -> GlobalElementID {
         var innermostID = id
         for k in inner.indices.reversed() {
-            innermostID = GlobalElementID.child(of: innermostID, at: 0, name: inner[k]._elementID)
+            innermostID = GlobalElementID.internedChild(of: innermostID, at: 0, name: inner[k]._elementID)
             table.noteNamed(innermostID, at: 0)
         }
         for _ in prefix.indices {
-            innermostID = GlobalElementID.child(of: innermostID, at: 0, name: nil)
+            innermostID = GlobalElementID.internedChild(of: innermostID, at: 0, name: nil)
         }
         return innermostID
     }

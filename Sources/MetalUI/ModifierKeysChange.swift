@@ -160,7 +160,7 @@ extension ModifierKeysScope: Element where Content: Element {
         let store = pass.frame.animationStore.lifecycle
         let depth = store.modifierDepth
         let (node, state) = store.withModifierKeysScope { content.requestLayout(id, pass: &pass) }
-        let key = GlobalElementID.child(of: id, at: 0, name: ElementID("$modkeys\(depth)"))
+        let key = GlobalElementID.internedChild(of: id, at: 0, name: ElementID("$modkeys\(depth)"))
         return (node, ModifierKeysScopeElementState(content: state, key: key, owner: id))
     }
 

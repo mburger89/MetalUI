@@ -340,7 +340,7 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], ConditionalLayout<Wrapped.GroupLayout>) {
-        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursor), parent: parent)
         cursor += 1
         guard var inner = wrapped else {
             pass.frame.stateTable.noteAbsent(slot)
@@ -479,8 +479,8 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
         let branchIndex = cursor
         cursor += 2
-        let firstBranch = GlobalElementID(component: .positional(branchIndex), parent: parent)
-        let secondBranch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
+        let firstBranch = GlobalElementID.interned(component: .positional(branchIndex), parent: parent)
+        let secondBranch = GlobalElementID.interned(component: .positional(branchIndex + 1), parent: parent)
         switch self {
         case .first(var group):
             pass.frame.stateTable.noteProduced(firstBranch)
@@ -614,7 +614,7 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], [Group.GroupLayout]) {
-        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursor), parent: parent)
         cursor += 1
         pass.frame.animationStore.transitions.beginArrayLoop(slot, animation: pass.frame.conditionalAnimation)  // `AN-AE`
         var innerCursor = 0
@@ -724,7 +724,7 @@ extension AnyElement: ElementGroup {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], GroupLayout) {
-        let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        let id = GlobalElementID.internedChild(of: parent, at: cursor, name: elementID)
         pass.frame.stateTable.noteNamed(id, at: cursor)  // `ID-R`, the copy of `enteringGroupMember`'s
         cursor += 1
         // `ER-A`: the wrapped element runs one keyed level below the position, noted so a changed type departs the

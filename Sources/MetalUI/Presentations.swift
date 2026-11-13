@@ -157,7 +157,7 @@ extension Frame {
     func notePresentation(isPresented: Binding<Bool>, request: PresentationRequest,
                           under parent: GlobalElementID?, at cursor: Int, span: (low: Int, high: Int)) {
         notePresentation(isPresented: isPresented, request: request,
-                         owner: GlobalElementID.child(of: parent, at: cursor, name: nil), span: span)
+                         owner: GlobalElementID.internedChild(of: parent, at: cursor, name: nil), span: span)
     }
 
     /// The same, with the owner given (the `Element` path, `ES-A`).
@@ -166,7 +166,7 @@ extension Frame {
     /// with it, so a candidate that is not chosen retracts it before anything dispatches (`VF-D`).
     func notePresentation(isPresented: Binding<Bool>, request: PresentationRequest, owner: GlobalElementID,
                           span: (low: Int, high: Int)) {
-        let scope = GlobalElementID.child(of: owner, at: 0, name: ElementID("$presentation\(presentationDepth)"))
+        let scope = GlobalElementID.internedChild(of: owner, at: 0, name: ElementID("$presentation\(presentationDepth)"))
         let occurrence = presentationOccurrences[scope, default: 0]
         presentationOccurrences[scope] = occurrence + 1
         let key = PresentationRecord.Key(scope: scope, occurrence: occurrence)

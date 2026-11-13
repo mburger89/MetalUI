@@ -454,7 +454,7 @@ final class StateTable {
             guard let previous = previousLoopExtents[slot], previous > extent else { continue }
             subtreeResetScans += 1
             for index in extent..<previous {
-                departedRoots.insert(GlobalElementID(component: .positional(index), parent: slot))
+                departedRoots.insert(GlobalElementID.interned(component: .positional(index), parent: slot))
             }
         }
         for (position, name) in previousNamedPositions {

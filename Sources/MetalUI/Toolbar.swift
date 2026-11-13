@@ -570,7 +570,7 @@ extension Frame {
     /// scope's (`SV-K` item 2). Evaluated under the scope's `isEnabled`.
     func noteToolbar(_ declaration: ToolbarDeclaration, under parent: GlobalElementID?, at cursor: Int,
                      insertingAt mark: Int) {
-        noteToolbar(declaration, owner: GlobalElementID.child(of: parent, at: cursor, name: nil), insertingAt: mark)
+        noteToolbar(declaration, owner: GlobalElementID.internedChild(of: parent, at: cursor, name: nil), insertingAt: mark)
     }
 
     /// The same, with the owner given (the `Element` path, `ES-A`).

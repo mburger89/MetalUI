@@ -42,7 +42,7 @@ extension Frame {
             guard let destination = resolved.paints[segment.run].link, let url = URL(string: destination) else { continue }
             let line = lines[segment.line]
             let top = y + line.top
-            let runID = GlobalElementID.child(of: id, at: segment.run, name: ElementID("$link\(segment.run)"))
+            let runID = GlobalElementID.internedChild(of: id, at: segment.run, name: ElementID("$link\(segment.run)"))
             var handlers = Handlers()
             handlers.onClick = { action(url) }
             handlers.pointer = PointerAttachment.style(.link, over: nil)

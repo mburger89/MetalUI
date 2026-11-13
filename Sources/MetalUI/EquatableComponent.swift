@@ -54,7 +54,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         if let stateOrdinals = StateBinder.memoShape(of: C.self),
            !readings.contains(where: \.isUncomparable) {   // an uncomparable reading is refused (`EE-B`)
             let stateIDs = stateOrdinals.map {
-                GlobalElementID.child(of: id, at: $0, name: ElementID("$state\($0)"))
+                GlobalElementID.internedChild(of: id, at: $0, name: ElementID("$state\($0)"))
             }
             materialized = store.materialize(component, id: id, stateIDs: stateIDs, table: table, readings: readings) {
                 component.content

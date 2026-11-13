@@ -270,7 +270,7 @@ final class TransitionStore {
     /// sits at, `.animation(_:value:)`'s keying (`AN-Y`), so it collides with
     /// no id its content mints.
     static func key(under parent: GlobalElementID?, at cursor: Int) -> GlobalElementID {
-        .child(of: .child(of: parent, at: cursor, name: nil), at: 0, name: ElementID("$transition"))
+        .internedChild(of: .internedChild(of: parent, at: cursor, name: nil), at: 0, name: ElementID("$transition"))
     }
 
     /// Claims the position `(parent, cursor)` for a group carrying `transition`
@@ -282,7 +282,7 @@ final class TransitionStore {
         guard let parent, records[key] == nil else { return false }
         let unit: GlobalElementID, evaluator: GlobalElementID, arrayIndex: Int?
         if arrayExtents[parent] != nil {
-            unit = .child(of: parent, at: cursor, name: nil)
+            unit = .internedChild(of: parent, at: cursor, name: nil)
             evaluator = parent
             arrayIndex = cursor
         } else if let p = produced[parent] {
@@ -370,7 +370,7 @@ final class TransitionStore {
 
     /// The key of the ghost a removed default unit leaves.
     static func defaultKey(_ unit: GlobalElementID) -> GlobalElementID {
-        .child(of: unit, at: 0, name: ElementID("$default-transition"))
+        .internedChild(of: unit, at: 0, name: ElementID("$default-transition"))
     }
 
     private static let zeroRect = MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0))
@@ -441,7 +441,7 @@ final class TransitionStore {
     /// The key of the ghost a matched-geometry leaver gets of its own (`XF-M`): under the leaver's position, so the
     /// anchor walk of `XF-F` and the lifecycle's parking (`key.parent`) read it as they read an annotated ghost's.
     static func leaverKey(_ position: GlobalElementID) -> GlobalElementID {
-        .child(of: position, at: 0, name: ElementID("$matched-leaver"))
+        .internedChild(of: position, at: 0, name: ElementID("$matched-leaver"))
     }
 
     /// A matched-geometry leaver moves toward the group's source as it fades out (`XF-M`, divergence 897, probes `S1`,

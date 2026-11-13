@@ -250,7 +250,7 @@ extension Frame {
     /// `StateTable` one: no reserved name and no table entry.
     func scopedTransaction(applying write: TransactionWrite,
                            under parent: GlobalElementID?, at cursor: Int) -> Transaction {
-        scopedTransaction(applying: write, at: GlobalElementID.child(of: parent, at: cursor, name: nil))
+        scopedTransaction(applying: write, at: GlobalElementID.internedChild(of: parent, at: cursor, name: nil))
     }
 
     /// `scopedTransaction(applying:under:at:)` keyed at `position` itself — the
@@ -261,7 +261,7 @@ extension Frame {
         case .transform(let transform):
             transform(&transaction)
         case .animation(let animation, let value, let isEqual):
-            let key = GlobalElementID.child(of: position, at: 0,
+            let key = GlobalElementID.internedChild(of: position, at: 0,
                                             name: ElementID("$anim-value\(transactionDepth)"))
             let changed = animationStore.value(at: key).map { !isEqual($0) } ?? false
             animationStore.set(value, at: key)

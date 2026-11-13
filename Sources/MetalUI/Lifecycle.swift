@@ -129,7 +129,7 @@ extension Frame {
     /// position.
     func noteLifecycle(_ write: LifecycleWrite?, order: Int, under parent: GlobalElementID?, at cursor: Int,
                        span: (low: Int, high: Int)) {
-        noteLifecycle(write, order: order, owner: GlobalElementID.child(of: parent, at: cursor, name: nil), span: span)
+        noteLifecycle(write, order: order, owner: GlobalElementID.internedChild(of: parent, at: cursor, name: nil), span: span)
     }
 
     /// The same, with the owner given: the `Element` path of a decorated
@@ -138,7 +138,7 @@ extension Frame {
     /// `span` is the node-index interval the scope's content registered; while a `ViewThatFits` is being built the
     /// entry is journaled with it so a candidate that is not chosen can retract the entry (`VF-D`).
     func noteLifecycle(_ write: LifecycleWrite?, order: Int, owner: GlobalElementID, span: (low: Int, high: Int)) {
-        let scope = GlobalElementID.child(of: owner, at: 0, name: ElementID("$lifecycle\(lifecycleDepth)"))
+        let scope = GlobalElementID.internedChild(of: owner, at: 0, name: ElementID("$lifecycle\(lifecycleDepth)"))
         let key = animationStore.lifecycle.note(write, scope: scope, owner: owner, order: order)
         if fitDepth > 0 { fitNotes.append(FitNote(kind: .lifecycle(key), low: span.low, high: span.high)) }
     }

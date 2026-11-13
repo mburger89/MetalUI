@@ -91,7 +91,7 @@ import MetalUICore
 /// ruling P's `mark`-when-there-is-nothing-to-write.
 @MainActor
 func animColorRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
-    .child(of: id, at: 0, name: ElementID("$anim-color"))
+    .internedChild(of: id, at: 0, name: ElementID("$anim-color"))
 }
 
 /// One element's whole `$anim-color` slot.

@@ -79,7 +79,7 @@ public struct BackgroundModifier<Content: ElementGroup, Background: ElementGroup
     /// The id the background side numbers under: `MC-P`'s `-1`, which no
     /// cursor can produce.
     static func backgroundSide(of id: GlobalElementID) -> GlobalElementID {
-        GlobalElementID.child(of: id, at: -1, name: nil)
+        GlobalElementID.internedChild(of: id, at: -1, name: nil)
     }
 
     /// Both sides lowered (`lowerAttachmentChildren`), then the attachment.

@@ -122,7 +122,7 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
     /// `.child(of: parent, at: cursor)` (`cursor` as it was on entry).
     func reportingPreference<R>(_ frame: Frame, under parent: GlobalElementID?, at cursor: Int,
                                 _ body: () -> R) -> R {
-        reportingPreference(frame, owner: GlobalElementID.child(of: parent, at: cursor, name: nil), body)
+        reportingPreference(frame, owner: GlobalElementID.internedChild(of: parent, at: cursor, name: nil), body)
     }
 
     /// The same, with the `.onOpenURL` owner given: the scope's position on

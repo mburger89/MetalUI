@@ -37,10 +37,17 @@ struct G33DeepLeaf: Component {
     return steps
 }
 
-/// The instrument: a rebuilt deep tree compares chains (the baseline G33 (c) removes), and prints the figure.
-@Test @MainActor func aRebuiltDeepTreeSpendsChainWalkSteps() throws {
+/// G33 (c), T1: once the tree's ids are interned, a rebuilt deep tree compares no chains. Frame 3 and after: 20,628 steps per frame
+/// before the interner (record 277); the control proves the counter still counts when two separately built chains are compared.
+@Test @MainActor func aRebuiltDeepTreeWalksNoIdChains() throws {
+    var a: GlobalElementID?, b: GlobalElementID?
+    for i in 0..<5 { a = GlobalElementID(component: .positional(i), parent: a); b = GlobalElementID(component: .positional(i), parent: b) }
+    let before = GlobalElementID.chainWalkSteps
+    #expect(a == b)
+    #expect(GlobalElementID.chainWalkSteps - before == 5, "control: the counter counts a five-deep walk")
+
     let steps = g33ChainWalkStepsPerFrame(try g33DeepWindow(), frames: 3)
     print("G33CHAIN chainWalkSteps per frame: \(steps)")
-    #expect(steps.allSatisfy { $0 > 0 }, "the counter is live: \(steps)")
+    #expect(steps.allSatisfy { $0 == 0 }, "chain-walk steps per rebuilt frame: \(steps)")
 }
 #endif

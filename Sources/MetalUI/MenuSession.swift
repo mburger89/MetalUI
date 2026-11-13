@@ -627,11 +627,11 @@ extension Window {
     static let menuPanelRoot = GlobalElementID(component: .named(ElementID("$menu-panel")), parent: nil)
 
     static func menuPanelID(level: Int) -> GlobalElementID {
-        GlobalElementID.child(of: menuPanelRoot, at: level, name: nil)
+        GlobalElementID.internedChild(of: menuPanelRoot, at: level, name: nil)
     }
 
     static func menuPanelID(level: Int, row: Int) -> GlobalElementID {
-        GlobalElementID.child(of: menuPanelID(level: level), at: row, name: nil)
+        GlobalElementID.internedChild(of: menuPanelID(level: level), at: row, name: nil)
     }
 
     /// The `(level, row)` a menu row's node names, if it is one.

@@ -225,12 +225,12 @@ struct LazyForEachSource<Data: RandomAccessCollection, ID: Hashable, Content: Pr
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
                          cursorBase: Int, pass: inout LayoutPass) -> LazyUnitBox {
-        let slot = GlobalElementID(component: .positional(cursorBase), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursorBase), parent: parent)
         let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
         let element = forEach.data[index]
         let key = element[keyPath: forEach.idKeyPath]
         let needsKey = !(ID.self is DescriptionInjectiveID.Type)   // `FI-B`
-        let scope = GlobalElementID.child(
+        let scope = GlobalElementID.internedChild(
             of: slot, at: unit,
             name: ElementID(name: String(describing: key), key: needsKey ? IdentityKey(AnyHashable(key)) : nil))
         pass.frame.stateTable.noteNamed(scope, at: unit)   // a no-op under a windowed parent, `LZ-H`
@@ -286,12 +286,12 @@ struct LazyLegacyForEachSource<Data: RandomAccessCollection, ID: Hashable, Conte
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
                          cursorBase: Int, pass: inout LayoutPass) -> LazyUnitBox {
-        let slot = GlobalElementID(component: .positional(cursorBase), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursorBase), parent: parent)
         let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
         let element = forEach.data[index]
         let key = element[keyPath: forEach.idKeyPath]
         let needsKey = !(ID.self is DescriptionInjectiveID.Type)   // `FI-B`
-        let scope = GlobalElementID.child(
+        let scope = GlobalElementID.internedChild(
             of: slot, at: unit,
             name: ElementID(name: String(describing: key), key: needsKey ? IdentityKey(AnyHashable(key)) : nil))
         pass.frame.stateTable.noteNamed(scope, at: unit)
@@ -366,7 +366,7 @@ struct LazyUnitTable {
     /// Calls each source's once-per-frame hook.
     func begin(parent: GlobalElementID, pass: inout LayoutPass) {
         for (segment, source) in sources.enumerated() {
-            source.beginLazyFrame(slot: GlobalElementID(component: .positional(segment), parent: parent), pass: &pass)
+            source.beginLazyFrame(slot: GlobalElementID.interned(component: .positional(segment), parent: parent), pass: &pass)
         }
     }
 }

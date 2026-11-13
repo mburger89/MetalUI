@@ -157,7 +157,7 @@ extension State {
     /// path where the id gets bound but the mark does not follow it.
     func bind(to table: StateTable, id: GlobalElementID, slot: Int) {
         box.table = table
-        let slotID = GlobalElementID.child(of: id, at: slot,
+        let slotID = GlobalElementID.internedChild(of: id, at: slot,
                                            name: ElementID("$state\(slot)"))
         // **One element VALUE placed twice aliases one box.** `Box` is a class,
         // so `Row { sep; sep }` gives two occurrences that share it; the second

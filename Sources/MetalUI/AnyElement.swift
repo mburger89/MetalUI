@@ -224,7 +224,7 @@ public struct AnyElement {
     /// same one. `.id("$erased")` has no key and cannot collide. A direct `requestLayout(_:pass:)` caller does not
     /// get this level and keeps the id it passes (`ER-B`).
     func contentID(under id: GlobalElementID) -> GlobalElementID {
-        GlobalElementID.child(of: id, at: 0, name: ElementID(name: "$erased", key: IdentityKey(AnyHashable(wrappedType))))
+        GlobalElementID.internedChild(of: id, at: 0, name: ElementID(name: "$erased", key: IdentityKey(AnyHashable(wrappedType))))
     }
 
     /// The erased element's local identity (§4.3).

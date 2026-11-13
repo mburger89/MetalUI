@@ -142,7 +142,7 @@ public struct FocusState<Value: Hashable> {
 extension FocusState: BindableFocusState {
     func bind(to table: StateTable, id: GlobalElementID, slot: Int) {
         box.table = table
-        let slotID = GlobalElementID.child(of: id, at: slot, name: ElementID("$state\(slot)"))
+        let slotID = GlobalElementID.internedChild(of: id, at: slot, name: ElementID("$state\(slot)"))
         box.slotID = slotID
         table.mark(slotID)
         table.noteFocusState(box, at: slotID)
