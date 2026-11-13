@@ -161,6 +161,9 @@ public final class FrameTiming {
         #if canImport(os)
         signposts = emitsSignposts ? Signposts() : nil
         #endif
+        // `FP-J`: the environment applies to every timing, not only the one a window builds by default, so an
+        // app that assigns its own recorder to `Window.frameTiming` still traces.
+        if let destination = Self.environmentTraceDestination() { enableTrace(destination: destination) }
     }
 
     /// Whether this timing emits `OSSignposter` signposts: `true` only where the `os` framework exists and the
@@ -176,12 +179,8 @@ public final class FrameTiming {
     /// The timing `METALUI_SIGNPOSTS=1` asks for (signposts on), else `nil`. Read once per window.
     static func fromEnvironment() -> FrameTiming? {
         let signposts = getenv("METALUI_SIGNPOSTS").map { String(cString: $0) == "1" } ?? false
-        let trace = getenv("METALUI_LATENCY_TRACE").map { String(cString: $0) } ?? ""
-        let traces = !trace.isEmpty && trace != "0"
-        guard signposts || traces else { return nil }
-        let timing = FrameTiming(emitsSignposts: signposts)
-        if traces { timing.enableTrace(destination: trace) }
-        return timing
+        guard signposts || Self.environmentTraceDestination() != nil else { return nil }
+        return FrameTiming(emitsSignposts: signposts)   // `init` applies `METALUI_LATENCY_TRACE`
     }
 
     // MARK: Latency trace (`METALUI_LATENCY_TRACE`)
@@ -195,18 +194,45 @@ public final class FrameTiming {
     package private(set) var refreshInterval: UInt64?
     private var pendingTick: (start: UInt64, target: UInt64?)?
 
-    /// Turns the trace on: `"1"` writes to standard error, any other value is a file path lines are appended to.
-    func enableTrace(destination: String) {
+    /// `METALUI_LATENCY_TRACE`'s destination, or `nil` when it is unset, empty or `0`.
+    private static func environmentTraceDestination() -> String? {
+        let trace = getenv("METALUI_LATENCY_TRACE").map { String(cString: $0) } ?? ""
+        return trace.isEmpty || trace == "0" ? nil : trace
+    }
+
+    /// One open append-only descriptor per destination, shared by every timing in the process (several windows
+    /// must not each hold an offset into one file), and the destinations whose header is already written.
+    private static var traceFiles: [String: FileHandle] = [:]
+    private static var traceHeadersWritten: Set<String> = []
+
+    /// Turns the latency trace on (ruling `FP-J`): one line per input-caused frame once the platform reports it
+    /// presented, preceded by a header. `destination` `"1"` writes to standard error; any other value is a file
+    /// path lines are appended to (created if absent; an unwritable path falls back to standard error). The
+    /// header is written at once and each line when it is produced, unbuffered, so the file is readable while
+    /// the app runs and survives a kill. `METALUI_LATENCY_TRACE` does this for every new ``FrameTiming``;
+    /// call this to turn it on from code. MetalUI-only.
+    public func enableTrace(destination: String) {
+        let handle: FileHandle
         if destination == "1" {
-            traceSink = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
-        } else if let handle = FileHandle(forWritingAtPath: destination)
-                    ?? (FileManager.default.createFile(atPath: destination, contents: nil)
-                        ? FileHandle(forWritingAtPath: destination) : nil) {
-            handle.seekToEndOfFile()
-            traceSink = { handle.write(Data(($0 + "\n").utf8)) }
+            handle = .standardError
+        } else if let shared = Self.traceFiles[destination] {
+            handle = shared
         } else {
-            traceSink = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+            // Foundation only, no POSIX `open` (the Windows CRT's `_open` aborts on Unix mode bits). One handle
+            // per path, shared by every timing in the process and positioned at the end, so lines append.
+            if !FileManager.default.fileExists(atPath: destination) {
+                _ = FileManager.default.createFile(atPath: destination, contents: nil)
+            }
+            if let file = FileHandle(forWritingAtPath: destination), (try? file.seekToEnd()) != nil {
+                handle = file
+                Self.traceFiles[destination] = handle
+            } else {
+                handle = .standardError
+            }
         }
+        traceSink = { line in try? handle.write(contentsOf: Data((line + "\n").utf8)) }
+        traceHeaderWritten = true
+        if Self.traceHeadersWritten.insert(destination).inserted { traceSink?(Self.traceHeader) }
     }
 
     /// The header ``traceLine(for:interval:)``'s columns follow.
