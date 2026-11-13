@@ -365,12 +365,14 @@ public final class Frame {
         let length = Double(vertical ? target.size.height.value : target.size.width.value)
         let viewport = scroller.viewportExtent
         let offset: Double
+        // `CMG-D`: the visible region is the viewport minus the scroll-content margins; zero margins are the old arithmetic.
+        let (head, tail) = scroller.inset
         if let anchor {
-            offset = start - (vertical ? anchor.y : anchor.x) * (viewport - length)
-        } else if start < scroller.offset {
-            offset = start
-        } else if start + length > scroller.offset + viewport {
-            offset = start + length - viewport
+            offset = start - head - (vertical ? anchor.y : anchor.x) * (viewport - head - tail - length)
+        } else if start < scroller.offset + head {
+            offset = start - head
+        } else if start + length > scroller.offset + viewport - tail {
+            offset = start + length - viewport + tail
         } else {
             offset = scroller.offset
         }

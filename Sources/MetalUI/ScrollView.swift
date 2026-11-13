@@ -421,8 +421,9 @@ public struct ScrollView<Content: ElementGroup>: Element {
         var contentStyle = declaredContent
         (contentStyle, _) = animated(contentStyle, Decoration(), for: scrollViewContentAnimID(for: id),
                                      pass: &pass)
-        let contentNode = pass.lowerLegacyNode(contentStyle, declared: declaredContent,
+        var contentNode = pass.lowerLegacyNode(contentStyle, declared: declaredContent,
                                                children: children, site: .scrollView)
+        contentNode = pass.frame.paddedForContentMargins(contentNode)   // `CMG-A`: a node only when a margin is set
 
         var viewportStyle = Style()
         viewportStyle.flexDirection = axes == .horizontal ? .row : .column
@@ -442,6 +443,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var chrome = self.chrome
         chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
+        chrome.resolveMargins(pass.frame.environmentTop.contentMargins)   // `CMG-A`
         let (offset, crossOffset) = chrome.resolvedOffsets(id, bounds: bounds, contentNode: layout.contentNode,
                                                            pass: pass)
         // Registered OUTSIDE `clipped(to:offsetBy:)`, using the bounds handed
@@ -474,7 +476,8 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                      viewport: bounds, offset: offset,
                                      contentExtent: chrome.extent(pass.bounds(of: layout.contentNode).size),
                                      tracksPosition: position != nil, mirrored: chrome.mirrored,
-                                     cross: chrome.crossAxis ? chrome.crossFrame(offset: crossOffset, bounds: bounds, contentSize: pass.bounds(of: layout.contentNode).size) : nil)
+                                     cross: chrome.crossAxis ? chrome.crossFrame(offset: crossOffset, bounds: bounds, contentSize: pass.bounds(of: layout.contentNode).size) : nil,
+                                     inset: chrome.contentInset)
         var result: Content.GroupPrepaint!
         let noteMark = pass.frame.scrollTargetNoteCount
         pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset, cross: crossOffset),
@@ -492,6 +495,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                pass: inout PaintPass) {
         var chrome = self.chrome
         chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
+        chrome.resolveMargins(pass.frame.environmentTop.contentMargins)   // `CMG-C`: the indicator's track
         let (offset, crossOffset) = chrome.resolvedOffsets(id, bounds: bounds, contentNode: layout.contentNode,
                                                            pass: pass)
         // The clip is rounded to `cornerRadius` — the same curve the caller's

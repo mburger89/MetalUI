@@ -2510,3 +2510,14 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **WB4.** System Settings > Accessibility > Display > Reduce Transparency on, with the backdrop on: the window background is a flat opaque light grey (dark: dark grey) with nothing showing through, both immediately and after toggling the demo button; off again: the blur returns without relaunching. **Observed:**
 - [ ] **WB5.** Switch the system between light and dark with the backdrop on: the material follows the scheme. **Observed:**
 - [ ] **WB6.** On Linux or Windows (SDL), with the backdrop on: the window is a flat opaque grey, no desktop shows (divergence 241), and light/dark follows the scheme. **Observed:**
+
+## CMG. Content under a glass bar - tabs and a header over a code view, a composer over a chat (Alloy gap G43; record 287; rulings `CMG-A`, `CMG-C`, `CMG-D`, `CMG-E`; decisions `docs/superpowers/2026-11-13-content-margins-decisions.md`)
+
+*An agent cannot: the tests drive the headless window and read positions and drawn quads; whether the content really shows through a translucent bar, how the inset thumb looks and whether a reveal feels right are looks. Build a window whose root is a `ScrollView` of 40 rows under a 44-point glass bar (`.glassEffect`) at the top and a 60-point one at the bottom, with `.contentMargins(.top, 44, for: .scrollContent)` and `.contentMargins(.bottom, 60, for: .scrollContent)`.*
+
+- [ ] **CMG1.** At the top the first row starts just below the top bar; scroll down a little: do the rows pass visibly **under** the translucent bar (blurred, not cut off at its edge)? At the very end the last row stops just above the bottom bar, fully readable. **Observed:**
+- [ ] **CMG2.** Add `.contentMargins(.vertical, 44, for: .scrollIndicators)` and scroll: the thumb stays between the bars, never under them, and its travel feels proportional. Without it, is the thumb drawn under the bars (as SwiftUI's is)? **Observed:**
+- [ ] **CMG3.** A button that calls `scrollTo(row, anchor: .top)` and one with `.bottom`: the row lands just below the top bar and just above the bottom one, not under either. **Observed:**
+- [ ] **CMG4.** With `defaultScrollAnchor(.bottom)` and a bottom bar that grows as you type (a multi-line composer), the last row stays just above the bar as it grows and shrinks, with no jump and no frame where it is hidden behind it. Scroll up a little first: the rows in view do not move while the bar grows. **Observed:**
+- [ ] **CMG5.** (PR 2, `CodeView`) A caret moved to the first or last visible line by the arrow keys, and a find (Cmd-G) that lands near an edge, reveal the line outside the bars, never behind one. **Observed:**
+
