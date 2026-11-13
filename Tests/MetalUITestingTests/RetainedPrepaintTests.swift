@@ -246,7 +246,10 @@ struct RPCard: Component, @MainActor Equatable {
 
     func compare(_ step: String) throws {
         let differences = try RPSnapshot(on, accessibility: accessibility).differences(from: RPSnapshot(off, accessibility: accessibility))
-        #expect(differences.isEmpty, "after \(step): \(differences)")
+        // Diagnostic only (the timeline redo flake): what differed, each window's timeline clock offset, its simulated time
+        // and the frame count, so a CI failure names its cause. Costs nothing when passing.
+        let clocks = "clock offsets \(String(describing: on.window.testingTimelineClockOffset)) / \(String(describing: off.window.testingTimelineClockOffset)), now \(on.now) / \(off.now), frames \(frames.count)"
+        #expect(differences.isEmpty, "after \(step): \(differences); \(clocks)")
         #expect(onSide.log.entries == offSide.log.entries, "log after \(step): \(onSide.log.entries) vs \(offSide.log.entries)")
         #expect(off.lastFrameWork.retainedHits == 0 && off.lastFrameWork.retainedPrepaintHits == 0)
     }
