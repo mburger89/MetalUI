@@ -316,9 +316,11 @@ private struct AnchorHost: Component, @MainActor Equatable {
     for _ in 0..<4 { tick.value += 1; window.window.setNeedsRedraw(); window.tick() }
     if !rsVerifying { #expect(window.frameWork.reduce(FrameWork(), +).retainedHits >= 4, "the host replays while the popover is closed") }
     model.shown = true
-    window.tick(); window.tick(); window.tick()
-    let caret = try #require(geometry.caretRect())
+    window.tick()
+    // Placed in the very frame it was presented in: the replayed frames before it kept the anchor (a ledger without it
+    // leaves the popover one frame late, `RW-K`).
     let box = try popoverFrame(window)
+    let caret = try #require(geometry.caretRect())
     #expect(near(box.origin.x.value, caret.origin.x.value) && near(box.origin.y.value, caret.bottom + 2 + 10),
             "at the caret under the 10 pt row: \(box) vs \(caret)")
 }

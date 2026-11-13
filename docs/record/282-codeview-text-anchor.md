@@ -1,0 +1,13 @@
+# 282 - CodeView text-anchored popovers and suggestion overlay (Alloy G35 E, `CV-AQ`, `CV-AR`)
+
+Branch `feat/codeview-text-anchor` from master `ca5dce27` (after G35 A, record 270, and D, record 272). Class `M`, no divergence added or retired.
+
+**What.** Alloy's LSP client shows a hover, a code action and a completion list at the caret or a range. `CodeTextAnchor` (`.caret`, `.range(_, asOf:)`) and three `CodeView` overloads (`popover(isPresented:)`, `popover(item:)`, `suggestionOverlay(isPresented:)`, each with a non-defaulted `attachmentAnchor:`) return the existing `PopoverModifier`; only the recorded anchor changes (`CV-AQ`). The key order of an open overlay is pinned (`CV-AR`).
+
+**How.** A per-build `CodeTextAnchorBox` is shared by the view copy and the wrapper. `CodeView.prepaint` resolves the anchor against its plan and writes the window rect; `PopoverModifier.prepaint` records it with `Frame.replayPresentationAnchor`, which journals it for retained replay (`RW-K`), so nothing new is needed in the ledger. A text anchor sets `consumesAnchorPress: false`.
+
+**Plan points that changed against the code.** (1) "Nothing intercepted while composing": the window already withholds a typed character during composition (`KF-Q`) and delivers keys that reach it as SwiftUI does (`KF-AB`, record 247); a composition gate on `dispatchKeyPress` was tried and removed because it contradicts `KF-AB`. (2) The key routing needed no code: `dispatchKeyPress` already precedes `dispatchTextKey`; the tests pin it for a `CodeView`, with the swap mutation. (3) The hover-popover grace (Alloy answer 1) goes with `onTextHover` (G35 F). (4) A focused or hovered view never replays (`RW-`), so the retained test uses an unfocused view and a closed popover, then opens it and requires placement in the very frame it was presented.
+
+**Tests** (`Tests/MetalUITestingTests/CodeViewTextAnchorTests.swift`, each shown to fail once by mutation): `aSuggestionOverlayFollowsTheCaretWithinOneFrameOfTyping` (wrapper ignoring the box), `aRangePopoverFollowsAnEditAboveWithAsOf` (map skipped), `aPressOnTheAnchoredWordPlacesTheCaretAndDismisses` (`consumesAnchorPress` true), `theNavigationKeysReachOnKeyPressBeforeTheViewWhileHandledAndTheViewEditsWhenIgnored` (dispatch swap), `aTypedCharacterReachesOnKeyPressFirst` (typed dispatch after text input), `anOpenPopoverTakesEscapeBeforeOnKeyPress`, `anItemPopoverAnchorsAtTheRangeAndDismissesToNil`, `anOffscreenRangeAnchorsAtTheNearestVisibleEdge` (edge fallback removed), `retainedReplayKeepsTheAnchor` (anchor not journaled).
+
+**Human check** `CV20`: the popover and the overlay look at the caret and at a range, at scale 1, 2 and 1.25.
