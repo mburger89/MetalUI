@@ -121,6 +121,8 @@ private let alloyNames = [
     // Record 279 (`SYM-Q`): MetalCreator's toolbar.
     "arrow.uturn.forward", "square.and.arrow.up", "plus.magnifyingglass", "minus.magnifyingglass", "sidebar.left",
     "rectangle.lefthalf.inset.filled", "rectangle.bottomhalf.inset.filled", "house", "camera",
+    // Record 288 (`SYM-R`): the plain plus and minus.
+    "plus", "minus",
 ]
 
 // MARK: - 3: the catalogue
@@ -198,6 +200,24 @@ private let alloyNames = [
     }
 }
 
+/// **Record 288 - `plus` and `minus` (`SYM-R`).** Each name resolves in the bundled table to the Lucide icon of the same name,
+/// the vendored data exists, and the name draws ink on the portable route. Mutation **M288a**: the `minus` row dropped.
+@Test @MainActor func plusAndMinusResolveAndDrawOnTheBundledRoute() throws {
+    for name in ["plus", "minus"] {
+        #expect(BundledSymbols.table[name]?.lucide == name, "\(name) maps to Lucide \(name)")
+        #expect(BundledSymbols.exists(name) && LucideIcons.data(named: name) != nil, "\(name): table row and vendored data")
+        let icon = try #require(Icon.bundled(name), "\(name) has no bundled icon")
+        #expect(!icon.layers.isEmpty && icon.layers.allSatisfy { $0.path.boundingRect.size.width.value > 0 }, "\(name): a non-empty path")
+    }
+    try bundled {
+        for name in ["plus", "minus"] {
+            let (_, scene) = render(40, 40, Image(systemName: name).font(.system(size: 20)).imageScale(.large).foregroundStyle(red))
+            let canvas = composite(scene, width: 40, height: 40)
+            #expect(stride(from: 3, to: canvas.count, by: 4).contains { canvas[$0] > 0 }, "\(name) draws ink")
+        }
+    }
+}
+
 /// **Segmented `Picker` with `Image` segments (record 279).** Each segment's content is whatever element the caller wrote, so an
 /// `Image(systemName:)` renders its icon inside the segment, and the segment carries the image's accessibility label
 /// (the SwiftUI label of the resolved name: `play` is "Play", `arrow.uturn.backward` "Undo"; a name outside the measured label
@@ -221,10 +241,10 @@ private let alloyNames = [
 /// **Test 3 - every Alloy name is a bundled icon (`SYM-I`).** Each name of the set resolves to an `Icon` with at least one
 /// layer whose coordinates (control points included) are finite and inside the 24 x 24 view box, and whose path has ink; the
 /// `.fill` names add a fill layer under the stroke and the others do not; `robot` (which exists nowhere) and a `.fill` of an
-/// open outline are `nil`. The vendored data itself: 37 icons, each with ops for its coordinates. Mutations: **M3a** one table
+/// open outline are `nil` (a bound may be a line, `minus` is one: record 288). The vendored data itself: 37 icons, each with ops for its coordinates. Mutations: **M3a** one table
 /// row dropped (`cpu`): the count and that name's arm redden; **M3b** the fill layer dropped from `play.fill`.
 @Test @MainActor func everyAlloyNameIsABundledIconInsideItsViewBox() throws {
-    try #require(alloyNames.count == 51, "the Alloy set is 51 names")
+    try #require(alloyNames.count == 53, "the Alloy set is 53 names")
     for name in alloyNames {
         let icon = try #require(Icon.bundled(name), "\(name) has no bundled icon")
         #expect(!icon.layers.isEmpty, "\(name): layers")
@@ -233,11 +253,11 @@ private let alloyNames = [
             let bounds = layer.path.boundingRect
             let (x0, y0) = (bounds.origin.x.value, bounds.origin.y.value)
             let (x1, y1) = (x0 + bounds.size.width.value, y0 + bounds.size.height.value)
-            #expect([x0, y0, x1, y1].allSatisfy(\.isFinite) && x0 >= 0 && y0 >= 0 && x1 <= 24 && y1 <= 24 && x1 > x0 && y1 > y0,
-                    "\(name): path bounds (\(x0), \(y0))-(\(x1), \(y1)) leave the view box")
+            #expect([x0, y0, x1, y1].allSatisfy(\.isFinite) && x0 >= 0 && y0 >= 0 && x1 <= 24 && y1 <= 24 && (x1 > x0 || y1 > y0),
+                    "\(name): path bounds (\(x0), \(y0))-(\(x1), \(y1)) leave the view box or are a point")
         }
     }
-    let data = try #require(LucideIcons.names.count == 51 ? LucideIcons.names : nil, "51 vendored icons: \(LucideIcons.names.count)")
+    let data = try #require(LucideIcons.names.count == 53 ? LucideIcons.names : nil, "53 vendored icons: \(LucideIcons.names.count)")
     for name in data {
         let icon = try #require(LucideIcons.data(named: name), "\(name) vendored but unreadable")
         let args = icon.ops.reduce(0) { $0 + [2, 2, 6, 0][Int($1)] }
