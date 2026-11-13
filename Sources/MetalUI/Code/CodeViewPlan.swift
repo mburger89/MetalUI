@@ -124,6 +124,8 @@ final class CodeViewPlan {
         }
     }
 
+    /// Where underlines sit; set in prepaint only while some run underlines (`CV-AM`).
+    var underlineMetrics: CodeUnderlineMetrics?
     var scale: Float = 1
     var snapshot: CodeSnapshot
     var rows: [Row] = []
@@ -357,6 +359,7 @@ extension CodeView {
         plan.heightPx = Int((Double(bounds.size.height.value) * scaleD).rounded())
         plan.padPx = Int((6 * scaleD).rounded())
         plan.spaceAdvance = metrics.space
+        if decorations.hasUnderlines { plan.underlineMetrics = cache.underlineMetrics(of: font, scale: scale, system: system) }
         let digits = max(2, String(snap.lineCount).count)
         let digitPx = Int((metrics.digit * scaleD).rounded(.up))
         plan.gutterPx = showsNumbers ? digits * digitPx + 2 * plan.padPx : 0
@@ -754,6 +757,98 @@ extension CodeView {
         return visible
     }
 
+    /// Draws `row`'s underlines (`CV-AM`, `CV-AN`). A straight line is whole-pixel rectangles: one for a solid
+    /// pattern, the pattern's dashes otherwise, their cycle starting at the first column. A squiggle is one stroked
+    /// path per run: whole periods from the period boundary at or before the run's start, counted from the first
+    /// column, so its shape depends on the period count and the scale alone, the same stretch of any run scrolls by
+    /// whole pixels (a raster-cache hit), and the run is cut by a clip.
+    @MainActor
+    func paintUnderlines(row: CodeViewPlan.Row, plan: CodeViewPlan, metrics: CodeUnderlineMetrics, tokens: Hsla,
+                         pass: inout PaintPass) {
+        let scale = plan.scale
+        let scaleD = Double(scale)
+        let decorations = decorations
+        let zero = Point(x: Pixels(0), y: Pixels(0))
+        let lineEnd = row.isVirtual ? Int.max : row.range.upperBound
+        let spacePx = max(1, Int((plan.spaceAdvance * scaleD).rounded()))
+        let baseline = row.top + metrics.baselinePx
+        func x(_ byte: Int) -> Int {
+            let local = row.layoutByte(byte)
+            let points = row.layout.x(ofByte: local)
+                ?? (local < row.layout.windowStart ? row.layout.caretX.first : row.layout.caretX.last) ?? 0
+            return plan.textOriginX + Int((points * scaleD).rounded())
+        }
+        func box(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) -> Bounds<Pixels> {
+            Bounds(origin: Point(x: Pixels(Float(x0) / scale), y: Pixels(Float(y0) / scale)),
+                   size: Size(width: Pixels(Float(max(0, x1 - x0)) / scale), height: Pixels(Float(max(0, y1 - y0)) / scale)))
+        }
+        for entry in row.styling.underlines {
+            let lo = entry.range.lowerBound, hi = entry.range.upperBound
+            let x0 = x(min(lo, lineEnd))
+            let x1 = x(min(hi, lineEnd)) + (hi > lineEnd ? spacePx : 0)
+            guard x1 > x0 else { continue }
+            // The colour: the underline's own, else the text colour where the run starts.
+            let color: Hsla
+            if let own = entry.underline.color {
+                color = pass.resolve(own)
+            } else {
+                var position = row.textStart, found = tokens
+                for part in row.styling.foreground {
+                    if lo < position + part.bytes {
+                        if let style = part.style, let foreground = decorations.style(style).foreground { found = pass.resolve(foreground) }
+                        break
+                    }
+                    position += part.bytes
+                }
+                color = found
+            }
+            switch entry.underline.shape {
+            case .line(let pattern):
+                let thickness = max(1, Int((metrics.thickness * scaleD).rounded()))
+                let top = baseline + Int((metrics.position * scaleD).rounded()) - thickness / 2
+                if pattern == .solid {
+                    pass.fill(box(x0, top, x1, top + thickness), color: color)
+                } else {
+                    let unit = linePatternUnit(thickness: metrics.thickness) * scaleD
+                    for piece in linePatternSegments(pattern, unit: unit, origin: Double(plan.textOriginX),
+                                                     from: Double(x0), to: Double(x1)) {
+                        let a = Int(piece.min.rounded()), b = Int(piece.max.rounded())
+                        if b > a { pass.fill(box(a, top, b, top + thickness), color: color) }
+                    }
+                }
+            case .wavy:
+                let size = metrics.fontSize / 12
+                let period = max(2, Int((4 * size * scaleD).rounded()))
+                let half = Double(period) / 2
+                let amplitude = max(1.0, 1.5 * size * scaleD) / 2   // centre to crest
+                let thickness = max(1, Int(scaleD.rounded()))
+                let centre = Double(baseline + Int((metrics.position * scaleD).rounded()) + thickness / 2) + amplitude
+                let origin = plan.textOriginX
+                let firstPeriod = Int((Double(x0 - origin) / Double(period)).rounded(.down))
+                let lastPeriod = Int((Double(x1 - origin) / Double(period)).rounded(.up))
+                let periods = max(1, lastPeriod - firstPeriod)
+                let startX = Double(origin + firstPeriod * period)
+                func point(_ px: Double, _ py: Double) -> Point<Pixels> { Point(x: Pixels(Float(px / scaleD)), y: Pixels(Float(py / scaleD))) }
+                let path = Path { p in
+                    p.move(to: point(startX, centre + amplitude))
+                    var h = 0
+                    while h < periods * 2 {
+                        let from = startX + Double(h) * half, rising = h % 2 == 0
+                        let ya = centre + (rising ? amplitude : -amplitude), yb = centre + (rising ? -amplitude : amplitude)
+                        p.addCurve(to: point(from + half, yb), control1: point(from + 0.3642 * half, ya),
+                                   control2: point(from + 0.6358 * half, yb))
+                        h += 1
+                    }
+                }
+                let reach = Int(amplitude.rounded(.up)) + thickness
+                pass.clipped(to: box(x0, Int(centre) - reach, x1, Int(centre) + reach + 1), offsetBy: zero) {
+                    pass.drawPath(path, stroke: StrokeStyle(lineWidth: Pixels(Float(Double(thickness) / scaleD)), lineJoin: .round),
+                                  color: color)
+                }
+            }
+        }
+    }
+
     @MainActor
     func paintContent(_ id: GlobalElementID, bounds: Bounds<Pixels>, plan: CodeViewPlan, pass: inout PaintPass) {
         let scale = plan.scale
@@ -880,7 +975,24 @@ extension CodeView {
                         g += 1
                     }
                     frame.codeWork.glyphsEmitted += emitted
-                    // 6. The input method's marked text: underlined, the selected clause doubly.
+                }
+                // 6. Underlines, after every row's glyphs and backgrounds so a squiggle that reaches into the next row is
+                // not covered by that row's tint (`CV-AM`).
+                if let underlineMetrics = plan.underlineMetrics {
+                    var r = from
+                    while r < to {
+                        let row = plan.rows[r]
+                        r += 1
+                        if !row.styling.underlines.isEmpty {
+                            paintUnderlines(row: row, plan: plan, metrics: underlineMetrics, tokens: tokens, pass: &pass)
+                        }
+                    }
+                }
+                // 7. The input method's marked text: underlined, the selected clause doubly.
+                var markedRow = from
+                while markedRow < to {
+                    let row = plan.rows[markedRow]
+                    markedRow += 1
                     if let marked = row.marked {
                         func xl(_ local: Int) -> Int {
                             let points = row.layout.x(ofByte: local)
@@ -896,14 +1008,14 @@ extension CodeView {
                         }
                     }
                 }
-                // 7. The caret: a bar a point wide at the head, while the view has focus and nothing is selected.
+                // 8. The caret: a bar a point wide at the head, while the view has focus and nothing is selected.
                 if plan.selection.isEmpty, pass.isFocused(id), let caret = plan.caretPosition(), caretIsShown(id, pass: &pass) {
                     let width = max(1, Int(scaleD.rounded()))
                     pass.fill(rect(caret.x, caret.top, caret.x + width, caret.top + plan.pitchPx),
                               color: pass.resolve(theme.caret ?? theme.foreground))
                 }
             }
-            // 8. The gutter: numbers and markers, then the author bars.
+            // 9. The gutter: numbers and markers, then the author bars.
             if plan.gutterPx > 0 {
                 let numbers = pass.resolve(theme.gutterForeground)
                 pass.clipped(to: rect(plan.originX, viewTop, textLeft, viewBottom), offsetBy: zero) {
@@ -937,7 +1049,7 @@ extension CodeView {
                 }
             }
         }
-        // 9. The scroll indicators: numeric extents, faded from the last wheel (`CV-O`).
+        // 10. The scroll indicators: numeric extents, faded from the last wheel (`CV-O`).
         let lastScroll = pass.readState(id, initial: CodeViewState()).lastScrollTime
         let vertical = ScrollChrome(axis: .vertical, cornerRadius: Pixels(0), indicatorVisibility: .automatic)
         vertical.paintIndicator(bounds: bounds, offset: Double(plan.topPx) / scaleD,

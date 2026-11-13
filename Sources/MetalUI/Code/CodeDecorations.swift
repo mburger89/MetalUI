@@ -10,18 +10,59 @@ public struct CodeStyleID: Hashable, Sendable {
     public init(rawValue: UInt16) { self.rawValue = rawValue }
 }
 
-/// What a highlight run looks like: a text colour, a background, or both. Colour only: v1 has no weight
-/// or slope, because a different face would change where glyphs go (`CV-L`).
+/// A line drawn under a highlight run: a straight line in one of ``Text/LineStyle/Pattern``'s patterns, or the
+/// wavy squiggle an editor shows under a diagnostic (`CV-AM`, `CV-AN`).
+///
+/// It never changes where glyphs go, so a style that differs only in its underline reshapes no line. Where
+/// layers overlap, the highest layer's underline wins per stretch. A run with no characters (a diagnostic at
+/// an offset) draws one character wide; at the end of a line it draws one space advance past the last glyph.
+public struct CodeUnderline: Hashable, Sendable {
+    /// What the line looks like.
+    public enum Shape: Hashable, Sendable {
+        /// A straight line in `pattern`, at the face's own underline position and thickness; a dashed
+        /// pattern's cycle starts at the line's first column, so it does not shimmer as the view scrolls.
+        case line(Text.LineStyle.Pattern)
+        /// A squiggle about 1.5 points high and 4 points per period at a 12-point face (both scale with the
+        /// font size), 1 point thick, its phase anchored at the line's first column.
+        case wavy
+    }
+
+    /// The line's shape.
+    public var shape: Shape
+    /// The line's colour; `nil` is the colour of the text the line starts under.
+    public var color: Color?
+
+    /// An underline of `shape`, coloured `color` (`nil`: the text's colour).
+    public init(_ shape: Shape = .line(.solid), color: Color? = nil) {
+        self.shape = shape
+        self.color = color
+    }
+
+    /// A squiggle coloured `color` (`nil`: the text's colour).
+    public static func wavy(_ color: Color? = nil) -> CodeUnderline { CodeUnderline(.wavy, color: color) }
+
+    /// The straight underline `style` names: its pattern and colour.
+    public init(_ style: Text.LineStyle) {
+        self.init(.line(style.pattern), color: style.color)
+    }
+}
+
+/// What a highlight run looks like: a text colour, a background, an underline, or any of them. Colour and lines
+/// only: v1 has no weight or slope, because a different face would change where glyphs go (`CV-L`).
 public struct CodeStyle: Hashable, Sendable {
     /// The glyph colour; `nil` keeps the layer below's, else the theme's.
     public var foreground: Color?
     /// A background painted under the run's text; `nil` paints none.
     public var background: Color?
+    /// A line drawn under the run's text; `nil` draws none. Never part of what a cached line layout depends
+    /// on (`CV-AM`).
+    public var underline: CodeUnderline?
 
-    /// A style of `foreground` text over `background`.
-    public init(foreground: Color? = nil, background: Color? = nil) {
+    /// A style of `foreground` text over `background`, underlined by `underline`.
+    public init(foreground: Color? = nil, background: Color? = nil, underline: CodeUnderline? = nil) {
         self.foreground = foreground
         self.background = background
+        self.underline = underline
     }
 }
 
@@ -183,6 +224,8 @@ public final class CodeDecorations {
     /// Whether a layer has ever been given a styled run since its last reset: a layer that has not is skipped.
     @ObservationIgnored private var layerHasStyles: [Bool]
     @ObservationIgnored private var anyLayerHasStyles = false
+    /// Whether any layer has ever been given a run whose style underlines: until then no line asks for underlines.
+    @ObservationIgnored private var anyLayerHasUnderlines = false
     @ObservationIgnored private var lines: RunTree<LineDecorationPayload>
     /// The display rows: buffer rows and the read-only virtual lines between them (`CV-S`).
     @ObservationIgnored let rowMap: CodeRowMap
@@ -191,6 +234,8 @@ public final class CodeDecorations {
     @ObservationIgnored private var deltaBase: UInt64
     @ObservationIgnored private var lastRequest: (rows: Range<Int>, version: UInt64, revision: UInt64)?
     @ObservationIgnored package var lineCache = CodeLineCache()
+    /// Whether any run given to a layer underlines: until then no row asks for underlines or their metrics (`CV-AM`).
+    package var hasUnderlines: Bool { anyLayerHasUnderlines }
     /// The bytes of text the line cache has shaped since creation (test observability, `CV-M`).
     package var shapedBytes: Int { lineCache.shapedBytesTotal }
     /// How many highlight runs ``stylingOfLine(_:)`` visited since reset (a counter, `CV-N`).
@@ -262,6 +307,7 @@ public final class CodeDecorations {
             for layer in layers { layer.reset(total: snapshot.utf8Count, payload: .unknown) }
             layerHasStyles = layerHasStyles.map { _ in false }
             anyLayerHasStyles = false
+            anyLayerHasUnderlines = false
             lines.reset(total: snapshot.lineCount, payload: LineDecorationPayload())
             rowMap.reset(rowCount: snapshot.lineCount)
             matches.removeAll()   // the log no longer reaches back: the matches' coordinates are unknown (`CV-AE`)
@@ -486,13 +532,41 @@ public final class CodeDecorations {
         if runs.isEmpty, tree.runs(in: mapped).allSatisfy({ $0.payload == HighlightPayload(style: nil, state: .valid) }) { return }
         tree.set(mapped, to: HighlightPayload(style: nil, state: .valid))
         if !runs.isEmpty { layerHasStyles[layer.rawValue] = true; anyLayerHasStyles = true }
+        var snapshot: CodeSnapshot?
         for run in runs {
             guard let a = buffer.map(run.range.lowerBound, from: version, bias: .after),
                   let b = buffer.map(run.range.upperBound, from: version, bias: .before) else { continue }
+            let underlines = style(run.style).underline != nil
+            if underlines { anyLayerHasUnderlines = true }
             let clipped = max(a, mapped.lowerBound)..<min(max(a, b), mapped.upperBound)
-            if !clipped.isEmpty { tree.set(clipped, to: HighlightPayload(style: run.style, state: .valid)) }
+            if !clipped.isEmpty {
+                tree.set(clipped, to: HighlightPayload(style: run.style, state: .valid))
+            } else if underlines, run.range.isEmpty {
+                // A run with no characters would vanish from the tree: an underlining one is given the
+                // character at its offset (the line break's first byte at a line's end), or the last
+                // character at the end of the text (`CV-AM`).
+                let text = snapshot ?? buffer.snapshot()
+                snapshot = text
+                if let width = Self.minimumUnderline(at: a, in: text, total: tree.total) {
+                    tree.set(width, to: HighlightPayload(style: run.style, state: .valid))
+                }
+            }
         }
         revision &+= 1
+    }
+
+    /// The bytes an empty underlined run at `offset` occupies: the character there (a line break counts as one
+    /// byte, so the run sits at the line's end), else the last character of the text; `nil` for an empty text.
+    private static func minimumUnderline(at offset: Int, in text: CodeSnapshot, total: Int) -> Range<Int>? {
+        guard total > 0 else { return nil }
+        if offset < total {
+            let lead = text.byte(at: offset)
+            let length = lead == 0x0A || lead == 0x0D || lead < 0x80 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4
+            return offset..<min(total, offset + length)
+        }
+        var start = total - 1
+        while start > 0, text.byte(at: start) & 0xC0 == 0x80 { start -= 1 }
+        return start..<total
     }
 
     /// Marks `range` of `layer` stale: the rows are asked from the provider again, drawing their old colours
@@ -586,6 +660,14 @@ public final class CodeDecorations {
                     let resolved = style(run.style)
                     add(hi - lo, resolved.foreground != nil ? run.style : nil)
                     if let background = resolved.background { styling.backgrounds.append((lo..<hi, background)) }
+                    if let underline = resolved.underline {
+                        anyLayerHasUnderlines = true
+                        if let last = styling.underlines.last, last.underline == underline, last.range.upperBound == lo {
+                            styling.underlines[styling.underlines.count - 1].range = last.range.lowerBound..<hi
+                        } else {
+                            styling.underlines.append((lo..<hi, underline))
+                        }
+                    }
                     position = hi
                 }
                 if position < bytes.count { add(bytes.count - position, nil) }
@@ -647,6 +729,10 @@ public final class CodeDecorations {
     package struct LineStyling {
         package var foreground: [(bytes: Int, style: CodeStyleID?)] = []
         package var backgrounds: [(range: Range<Int>, color: Color)] = []
+        /// The underlines, sorted and disjoint, in the coordinates of ``backgrounds``; the highest layer's wins per
+        /// stretch (`CV-AM`). A range that reaches past the line's end (over its line break) draws one space advance
+        /// past the last glyph. Not in ``digest``: an underline never reshapes a line.
+        package var underlines: [(range: Range<Int>, underline: CodeUnderline)] = []
         /// A digest of the foreground partition: what a cached layout depends on.
         package var digest: UInt64 = 0xCBF2_9CE4_8422_2325
     }
@@ -673,6 +759,71 @@ public final class CodeDecorations {
 
     private func computeStylingOfLine(_ range: Range<Int>) -> LineStyling {
         stylingComputations += 1
+        var styling = computeForeground(of: range)
+        if anyLayerHasUnderlines { styling.underlines = underlinesOfLine(range) }
+        return styling
+    }
+
+    /// The underlines of the line `range`: per stretch the highest layer's, adjacent equal ones joined, and a
+    /// run over the line break that starts at the line's end last (`CV-AM`).
+    private func underlinesOfLine(_ range: Range<Int>) -> [(range: Range<Int>, underline: CodeUnderline)] {
+        var perLayer: [[(range: Range<Int>, underline: CodeUnderline)]] = []
+        var cuts: [Int] = [range.lowerBound, range.upperBound]
+        var tail: CodeUnderline?
+        let total = layers[0].total
+        var layerIndex = 0
+        while layerIndex < layers.count {
+            var found: [(range: Range<Int>, underline: CodeUnderline)] = []
+            if layerHasStyles[layerIndex] {
+                for run in layers[layerIndex].runs(in: range) {
+                    guard let id = run.payload.style, let underline = style(id).underline else { continue }
+                    found.append((run.range, underline))
+                    cuts.append(run.range.lowerBound)
+                    cuts.append(run.range.upperBound)
+                }
+                // The line break's first byte: an underlined run that ends there and does not go on into the
+                // next line is a run with no characters at the line's end.
+                if range.upperBound < total {
+                    let after = layers[layerIndex].runs(in: range.upperBound..<min(total, range.upperBound + 2))
+                    if let first = after.first, first.range.lowerBound == range.upperBound, first.range.count == 1,
+                       let id = first.payload.style, let underline = style(id).underline,
+                       after.count == 2 || range.upperBound + 1 >= total {
+                        tail = underline
+                    }
+                }
+            }
+            perLayer.append(found)
+            layerIndex += 1
+        }
+        cuts.sort()
+        var result: [(range: Range<Int>, underline: CodeUnderline)] = []
+        var point = 0
+        while point + 1 < cuts.count {
+            let segment = cuts[point]..<cuts[point + 1]
+            point += 1
+            if segment.isEmpty { continue }
+            var winner: CodeUnderline?
+            for runs in perLayer {   // ascending layer order: the last underline wins
+                if let run = runs.first(where: { $0.range.contains(segment.lowerBound) }) { winner = run.underline }
+            }
+            guard let winner else { continue }
+            if let last = result.last, last.underline == winner, last.range.upperBound == segment.lowerBound {
+                result[result.count - 1].range = last.range.lowerBound..<segment.upperBound
+            } else {
+                result.append((segment, winner))
+            }
+        }
+        if let tail {
+            if let last = result.last, last.underline == tail, last.range.upperBound == range.upperBound {
+                result[result.count - 1].range = last.range.lowerBound..<(range.upperBound + 1)
+            } else {
+                result.append((range.upperBound..<(range.upperBound + 1), tail))
+            }
+        }
+        return result
+    }
+
+    private func computeForeground(of range: Range<Int>) -> LineStyling {
         var styling = LineStyling()
         guard !range.isEmpty else { return styling }
         // No layer holds a styled run (the common case until a provider answers): one unstyled part, with
