@@ -602,6 +602,73 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         if enabled { window.styleMask.insert(.closable) } else { window.styleMask.remove(.closable) }
     }
 
+    // MARK: Window backdrop (`WB-A`, `WB-B`)
+
+    /// The behind-window effect view while a material backdrop is set, a sibling under the content view in
+    /// the window's frame view (`WB-A`): the content view is untouched, so the host view, its first-responder
+    /// state and its layer are as without a backdrop.
+    private(set) var backdropEffectView: NSVisualEffectView?
+    /// The window's own background, taken when the first backdrop applies and put back by `.none` (`WB-A`).
+    private var savedBackground: (color: NSColor, isOpaque: Bool)?
+
+    /// `NSVisualEffectView.Material` for each level (`WB-B`; unmeasured against SwiftUI, human check WB1),
+    /// ordered by how much of the desktop the system material shows.
+    static func effectMaterial(for level: WindowBackdropMaterial) -> NSVisualEffectView.Material {
+        switch level {
+        case .ultraThin: .underWindowBackground
+        case .thin: .sidebar
+        case .regular: .popover
+        case .thick: .sheet
+        case .ultraThick: .windowBackground
+        case .bar: .titlebar
+        }
+    }
+
+    func setWindowBackdrop(_ backdrop: WindowBackdrop) -> Bool {
+        if backdrop == .none {
+            backdropEffectView?.removeFromSuperview()
+            backdropEffectView = nil
+            if let saved = savedBackground {
+                window.backgroundColor = saved.color
+                window.isOpaque = saved.isOpaque
+                savedBackground = nil
+                window.invalidateShadow()
+            }
+            return true
+        }
+        if savedBackground == nil { savedBackground = (window.backgroundColor, window.isOpaque) }
+        switch backdrop {
+        case .none:
+            break
+        case .color(let red, let green, let blue, let alpha):
+            backdropEffectView?.removeFromSuperview()
+            backdropEffectView = nil
+            window.backgroundColor = NSColor(srgbRed: CGFloat(red), green: CGFloat(green), blue: CGFloat(blue),
+                                             alpha: CGFloat(alpha))
+            window.isOpaque = alpha >= 1
+        case .material(let level):
+            let view: NSVisualEffectView
+            if let existing = backdropEffectView {
+                view = existing
+            } else {
+                view = NSVisualEffectView()
+                view.blendingMode = .behindWindow
+                view.state = .followsWindowActiveState
+                view.autoresizingMask = [.width, .height]
+                if let frame = window.contentView?.superview, let content = window.contentView {
+                    view.frame = frame.bounds
+                    frame.addSubview(view, positioned: .below, relativeTo: content)
+                }
+                backdropEffectView = view
+            }
+            view.material = Self.effectMaterial(for: level)
+            window.backgroundColor = .clear
+            window.isOpaque = false
+        }
+        window.invalidateShadow()
+        return true
+    }
+
     /// The style last applied, so the insets and the band observation know it.
     private var titleBarStyle: PlatformTitleBarStyle = .standard
 

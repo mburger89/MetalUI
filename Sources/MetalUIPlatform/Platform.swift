@@ -456,6 +456,20 @@ public protocol PlatformWindow: AnyObject {
     /// `func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool { false }`.
     func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool
 
+    /// Shows `backdrop` behind the window's content, answering whether the platform did (ruling `WB-A`,
+    /// `.containerBackground(_:for: .window)`): `.material` is the compositor's behind-window blur of the
+    /// desktop, `.color` the window's background colour (translucent when its alpha is below 1), `.none`
+    /// removes whatever was set and restores the window's own opaque background. `Window` sends only a
+    /// change, and sends nothing for a window that never set one.
+    ///
+    /// `true` means the platform draws the backdrop; `false` means it cannot, and `Window` fills the
+    /// window's whole content with the opaque tint itself (`WB-C`; SDL answers `false`, divergence 241).
+    /// AppKit puts a behind-window `NSVisualEffectView` under the content and makes the window non-opaque.
+    ///
+    /// **Migration** (`docs/migration.md`): a requirement with a default — a conformer outside this
+    /// repository changes nothing and gets the `false` answer.
+    func setWindowBackdrop(_ backdrop: WindowBackdrop) -> Bool
+
     // **Migration** (`WD-E`, `docs/migration.md`): a conformer outside this
     // repository adds `func performWindowDrag() -> Bool { false }`.
 
@@ -703,4 +717,26 @@ extension WindowRenderer {
     public func finishFrame(scene: Scene, atlas: GlyphAtlas) -> Bool {
         finishFrame(scene: scene, atlas: atlas, surfaces: [])
     }
+}
+
+// MARK: - Window backdrop (`WB-A`)
+
+/// The material level of a ``WindowBackdrop/material(_:)``: SwiftUI's `Material` levels, by name.
+public enum WindowBackdropMaterial: Sendable, Hashable {
+    case ultraThin, thin, regular, thick, ultraThick, bar
+}
+
+/// What shows behind a window's content (ruling `WB-A`; `PlatformWindow.setWindowBackdrop(_:)`).
+public enum WindowBackdrop: Sendable, Hashable {
+    /// Nothing: the window's own opaque background.
+    case none
+    /// The compositor's blur of what lies behind the window, in a material level.
+    case material(WindowBackdropMaterial)
+    /// A flat window background colour: gamma-encoded sRGB components, alpha below 1 shows the desktop unblurred.
+    case color(red: Float, green: Float, blue: Float, alpha: Float)
+}
+
+extension PlatformWindow {
+    /// The default: the platform cannot show a backdrop (`WB-C`).
+    public func setWindowBackdrop(_ backdrop: WindowBackdrop) -> Bool { false }
 }

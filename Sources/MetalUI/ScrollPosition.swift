@@ -47,6 +47,8 @@ final class ScrollPositionRegistry {
         var viewport: Double
         var content: Double
         var anchor: UnitPoint?
+        /// The scroll-content margins along the axis (`CMG-D`): the visible region is the viewport minus them.
+        var inset: (start: Double, end: Double) = (0, 0)
         var write: @MainActor (AnyHashable?) -> Void
         var read: @MainActor () -> AnyHashable?
         /// A wheel or a `scrollTo` moved the scroller to somewhere this frame's targets may not cover: the frame
@@ -81,11 +83,12 @@ final class ScrollPositionRegistry {
     /// the viewport's end; otherwise the target holding the anchor's point. `nil` when `offset` is outside what
     /// the targets cover (a lazy container's unrealised range) or there are none.
     static func target(in targets: [ScrollTargetNote], offset: Double, viewport: Double, content: Double,
-                       anchor: UnitPoint?, axis: ScrollAxis, fresh: Bool = false) -> AnyHashable? {
+                       anchor: UnitPoint?, axis: ScrollAxis, fresh: Bool = false,
+                       inset: (start: Double, end: Double) = (0, 0)) -> AnyHashable? {
         guard let first = targets.min(by: { $0.start < $1.start }),
               let last = targets.max(by: { $0.end < $1.end }) else { return nil }
         let fraction = (axis == .vertical ? anchor?.y : anchor?.x) ?? 0
-        let reference = offset + fraction * viewport
+        let reference = offset + inset.start + fraction * (viewport - inset.start - inset.end)   // `CMG-D`
         // The ends of the content are always covered (a header above the first target, a footer below the last).
         // `fresh`: the targets are those the frame built around this very offset (a lazy window starts above the
         // leading edge), so whatever lies before the first one is a static prelude and the first one leads.
@@ -105,7 +108,7 @@ final class ScrollPositionRegistry {
         let clamped = min(max(0, offset), max(0, entry.content - entry.viewport))
         entry.offset = clamped
         if let id = Self.target(in: entry.targets, offset: clamped, viewport: entry.viewport,
-                                content: entry.content, anchor: entry.anchor, axis: entry.axis) {
+                                content: entry.content, anchor: entry.anchor, axis: entry.axis, inset: entry.inset) {
             entry.needsReport = false
             entries[scroller] = entry
             report(id, for: scroller, entry)
@@ -122,7 +125,8 @@ final class ScrollPositionRegistry {
         for scroller in Array(entries.keys) where touched.contains(scroller) {
             guard var entry = entries[scroller], entry.needsReport, !entry.gliding else { continue }
             if let id = Self.target(in: entry.targets, offset: entry.offset, viewport: entry.viewport,
-                                    content: entry.content, anchor: entry.anchor, axis: entry.axis, fresh: true) {
+                                    content: entry.content, anchor: entry.anchor, axis: entry.axis, fresh: true,
+                                    inset: entry.inset) {
                 entry.needsReport = false
                 entries[scroller] = entry
                 report(id, for: scroller, entry)
@@ -283,7 +287,7 @@ extension ScrollPositionBinding {
         pass.frame.scrollRequestQueue.positions.update(id, ScrollPositionRegistry.Entry(
             targets: Array(notes), axis: scroller.axis, offset: scroller.offset,
             viewport: scroller.viewportExtent, content: scroller.contentExtent, anchor: anchor,
-            write: write, read: read,
+            inset: scroller.inset, write: write, read: read,
             needsReport: false,
             gliding: pass.readState(id, initial: ScrollState()).glide != nil))
     }

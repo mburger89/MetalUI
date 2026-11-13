@@ -22,9 +22,14 @@ public func chromeDemoContent() -> some Element {
     Column(gap: Pixels(0)) {
         ChromeDemoBar()
         ChromeDemoBody()
+        if chromeDemoModel.windowBackdrop {   // a zero-size carrier: the modifier reports from anywhere in the tree (`WB-D`)
+            Box().frame(width: Pixels(0), height: Pixels(0)).containerBackground(.regularMaterial, for: .window)
+        }
     }
     .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity), alignment: .topLeading)
-    .background(.background)
+    // `WB-A` (human check WB1): with the backdrop on, the root fill goes clear and the window's own background
+    // is the regular material, so the desktop shows blurred behind the bar and the cards.
+    .background(chromeDemoModel.windowBackdrop ? Color.clear : Color.background)
     // The band and the buttons' inset the app chose (`AS-R`, group TBH): 68 and 27 while "Metrics" is on,
     // the system layout when it is off.
     .windowTitleBarMetrics(height: chromeDemoModel.titleBarMetrics ? Pixels(68) : nil,
@@ -60,6 +65,8 @@ public final class ChromeDemoModel {
     public var backgroundDrag = true
     /// Whether the app-chosen title-bar band (68) and buttons' inset (27) are on (`AS-R`); on at launch.
     public var titleBarMetrics = true
+    /// Whether the window's background is the regular material over the desktop (`WB-A`); off at launch.
+    public var windowBackdrop = false
     /// Applies `backgroundDrag` to the demo's window (set by ``openChromeDemoWindow(_:title:startsDisplayLink:)``).
     var applyBackgroundDrag: (@MainActor (Bool) -> Void)?
 
@@ -73,6 +80,7 @@ public final class ChromeDemoModel {
         search = ""
         backgroundDrag = true
         titleBarMetrics = true
+        windowBackdrop = false
     }
 }
 
@@ -116,6 +124,9 @@ struct ChromeDemoBody: Component {
             Text("Drag the empty bar or the handle at its end; resize from any edge or corner.")
             Button("Title bar metrics: \(chromeDemoModel.titleBarMetrics ? "on" : "off")") {
                 chromeDemoModel.titleBarMetrics.toggle()
+            }
+            Button("Window backdrop: \(chromeDemoModel.windowBackdrop ? "on" : "off")") {
+                chromeDemoModel.windowBackdrop.toggle()
             }
             Text("Button presses: \(chromeDemoModel.presses), taps: \(chromeDemoModel.taps), search: “\(chromeDemoModel.search)”")
             ChromeDemoBackground()
