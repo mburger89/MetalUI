@@ -104,9 +104,8 @@ require reproducing a text.
 Text: `Sources/MetalUIIconData/LICENSE`, copied verbatim from the `lucide-static` 1.70.0
 tarball (`VENDORED.md` gives its sha256). It is the ISC licence of "Lucide Icons and
 Contributors" (copyright 2026), followed by the list of Lucide icons derived from the Feather
-project, which are under the MIT License, copyright (c) 2013-present Cole Bemis. Of the 29
-bundled icons, `check`, `chevron-down`, `chevron-right`, `circle`, `search`, `square`,
-`triangle` and `x` are on that list. Both licences require the copyright and permission
+project, which are under the MIT License, copyright (c) 2013-present Cole Bemis. Of the bundled icons, `check`, `chevron-down`, `chevron-right`, `circle`, `search`, `square`,
+`triangle`, `x`, `share`, `zoom-in` and `zoom-out` are on that list (the last three added by record 279). Both licences require the copyright and permission
 notice to travel with copies; ship `Sources/MetalUIIconData/LICENSE` with a binary that
 contains the icons (every `MetalUI` product does).
 

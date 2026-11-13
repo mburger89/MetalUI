@@ -63,8 +63,8 @@ private func describe(_ menus: [PlatformMenu]) -> [String] {
 }
 
 /// The default bar (`MN-I` item 2), menu by menu.
-private let defaultApp = "\(appName): About \(appName) [about], ---, Hide \(appName) ⌘h [hide], "
-    + "Hide Others ⌥⌘h [hideOthers], Show All [showAll], ---, Quit \(appName) ⌘q [quit]"
+private let defaultApp = "\(appName): About \(appName) [about], ---, Services [services], ---, "
+    + "Hide \(appName) ⌘h [hide], Hide Others ⌥⌘h [hideOthers], Show All [showAll], ---, Quit \(appName) ⌘q [quit]"
 private let defaultFile = "File: Close ⌘w [close]"
 private let defaultEdit = "Edit: Undo ⌘z [undo], Redo ⇧⌘z [redo], ---, Cut ⌘x [cut], Copy ⌘c [copy], "
     + "Paste ⌘v [paste], Delete [delete], Select All ⌘a [selectAll]"
@@ -166,8 +166,8 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
         CommandGroup(replacing: .help) { Button("Guide") {} }
     }
     #expect(describe(app.menuBarContent()) == [
-        "\(appName): About \(appName) [about], ---, Hide \(appName) ⌘h [hide], Hide Others ⌥⌘h [hideOthers], "
-            + "Show All [showAll], ---, Prefs, Quit \(appName) ⌘q [quit]",
+        "\(appName): About \(appName) [about], ---, Services [services], ---, Hide \(appName) ⌘h [hide], "
+            + "Hide Others ⌥⌘h [hideOthers], Show All [showAll], ---, Prefs, Quit \(appName) ⌘q [quit]",
         "File: New Note ⌘n, ---, Close ⌘w [close]",
         "Edit: Undo ⌘z [undo], Redo ⇧⌘z [redo], ---, Only Paste",
         defaultWindow,
@@ -185,7 +185,7 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
 @Test func theAppSettingsGroupIsItsOwnGroupBetweenAboutAndVisibility() throws {
     let (app, _) = try fakeApp()
     #expect(describe(app.menuBarContent()).first == defaultApp, "empty by default: no extra separator")
-    let hide = "Hide \(appName) ⌘h [hide], Hide Others ⌥⌘h [hideOthers], Show All [showAll]"
+    let hide = "Services [services], ---, Hide \(appName) ⌘h [hide], Hide Others ⌥⌘h [hideOthers], Show All [showAll]"
     let quit = "Quit \(appName) ⌘q [quit]"
     let about = "\(appName): About \(appName) [about]"
     for build in 0..<3 {
@@ -200,11 +200,49 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
     app.commands {
         CommandGroup(replacing: .appSettings) { Button("Settings…") {} }
         CommandGroup(replacing: .appVisibility) {}
+        CommandGroup(replacing: .systemServices) {}
     }
     #expect(describe(app.menuBarContent()).first == "\(about), ---, Settings…, ---, \(quit)",
             "an emptied neighbour leaves one separator, none doubled")
     app.commands { CommandGroup(replacing: .appInfo) {}; CommandGroup(replacing: .appSettings) { Button("S") {} } }
-    #expect(describe(app.menuBarContent()).first?.hasPrefix("\(appName): S, ---, Hide") == true, "none at the start")
+    #expect(describe(app.menuBarContent()).first?.hasPrefix("\(appName): S, ---, Services") == true, "none at the start")
+}
+
+/// `MN-AO`. The Services submenu (`.systemServices`) is its own group between the Settings group and
+/// the visibility group: one separator each side, an empty `.appSettings`
+/// leaves it after About, a filled one puts it after Settings, and replacing
+/// `.appVisibility` leaves it before Quit. Mutations: build the group after
+/// `.appVisibility` (order); build it into the settings group (no separator
+/// before it); drop it (item vanishes) - each reddens.
+@MainActor
+@Test func theServicesSubmenuSitsBetweenSettingsAndVisibility() throws {
+    let (app, _) = try fakeApp()
+    let services = "Services [services]"
+    let quit = "Quit \(appName) ⌘q [quit]"
+    let hide = "Hide \(appName) ⌘h [hide], Hide Others ⌥⌘h [hideOthers], Show All [showAll]"
+    let about = "\(appName): About \(appName) [about]"
+    #expect(describe(app.menuBarContent()).first == "\(about), ---, \(services), ---, \(hide), ---, \(quit)",
+            "empty Settings: Services follows About with one separator")
+    let item = try #require(app.menuBarContent().first?.items.first { $0.standardAction == .services })
+    guard case .submenu(let children) = item.kind else { Issue.record("Services is a submenu"); return }
+    #expect(children.isEmpty && item.isEnabled, "the platform fills it")
+    app.commands { CommandGroup(replacing: .appSettings) { Button("Settings…") {} } }
+    #expect(describe(app.menuBarContent()).first
+            == "\(about), ---, Settings…, ---, \(services), ---, \(hide), ---, \(quit)")
+    app.commands { CommandGroup(replacing: .appVisibility) {} }
+    #expect(describe(app.menuBarContent()).first == "\(about), ---, \(services), ---, \(quit)",
+            "an emptied visibility group leaves one separator")
+    app.commands { CommandGroup(replacing: .appInfo) {} }
+    #expect(describe(app.menuBarContent()).first == "\(appName): \(services), ---, \(hide), ---, \(quit)",
+            "none at the start")
+    // SwiftUI's `.systemServices` placement: replacing removes the submenu, before/after sit beside it.
+    app.commands { CommandGroup(replacing: .systemServices) {} }
+    #expect(describe(app.menuBarContent()).first == "\(about), ---, \(hide), ---, \(quit)", "replaced away")
+    app.commands { CommandGroup(replacing: .systemServices) { Button("Mine") {} } }
+    #expect(describe(app.menuBarContent()).first == "\(about), ---, Mine, ---, \(hide), ---, \(quit)")
+    app.commands { CommandGroup(before: .systemServices) { Button("B") {} }
+                   CommandGroup(after: .systemServices) { Button("A") {} } }
+    #expect(describe(app.menuBarContent()).first == "\(about), ---, B, \(services), A, ---, \(hide), ---, \(quit)")
 }
 
 /// `MN-AN`. The conventional ⌘, binding works through the command stage.
@@ -271,6 +309,7 @@ private let drawnFile = "File: Close [close], ---, Quit [quit]"
         CommandGroup(after: .appVisibility) { Button("Vis") {} }
         CommandGroup(before: .appTermination) { Button("Prefs") {} }
         CommandGroup(replacing: .appSettings) { Button("Settings…") {} }
+        CommandGroup(after: .systemServices) { Button("Svc") {} }
         CommandMenu("Tools") { Button("Go") {} }
         CommandMenu("Empty") {}
         CommandGroup(after: .windowSize) { Button("Tile") {} }
@@ -278,7 +317,7 @@ private let drawnFile = "File: Close [close], ---, Quit [quit]"
         CommandGroup(after: .appInfo) { Button("About Me") {} }
     }
     #expect(drawn(app) == [
-        "File: New Note ⌘n, ---, Settings…, ---, Vis, ---, Close [close], ---, Prefs, Quit [quit]",
+        "File: New Note ⌘n, ---, Settings…, Svc, ---, Vis, ---, Close [close], ---, Prefs, Quit [quit]",
         String(defaultEdit),
         "Tools: Go",
         "Window: Tile",

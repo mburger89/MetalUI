@@ -1394,3 +1394,34 @@ removing the AppKit check reddens `anEmptyHelpLeavesNoAppKitToolTip`.
 **Mutation** (`CommandsTests`): dropping the `.appSettings` group from the app menu reddens
 `theAppSettingsGroupIsItsOwnGroupBetweenAboutAndVisibility` and `aSettingsItemAtAppSettingsRunsOnCommandComma`; moving the group
 after `.appVisibility` reddens the first; dropping it from the drawn File menu reddens `theDrawnBarFollowsTheDesktopArrangement`.
+
+## MN-AO — The Services submenu: `CommandGroupPlacement.systemServices` (Alloy gap G38; record 278; class `A`, no divergence)
+
+**Ruling.**
+
+1. `CommandGroupPlacement.systemServices` exists (SwiftUI's, macOS 11: "Placement for commands that expose services other apps
+   provide"; by default "Services submenu (managed automatically)"). `MN-AN` item 3 anticipated the group: the AppKit-style
+   application menu is now About, `.appSettings`, `.systemServices`, `.appVisibility`, `.appTermination`, one separator between
+   non-empty groups (so About, Services, Hide when Settings is empty; Quit follows Services when visibility is replaced away).
+2. **Default content** is one enabled item titled "Services": a `.submenu([])` `PlatformMenuItem` carrying the new
+   `StandardMenuAction.services`. It is not a command and has no `perform` id use. `replacing:` removes it, `before:`/`after:`
+   add beside it, as for every placement.
+3. **AppKit**: `AppKitMenuBar` builds an `NSMenu` for it and assigns it to `NSApp.servicesMenu` (the standard AppKit wiring: AppKit
+   then fills it with the system's services, which act on the first responder's `validRequestor`). Observed in
+   the suite: AppKit honours only the first `servicesMenu` assignment of the process (later ones, even after `nil`, leave
+   the first), so that one `NSMenu` is moved to the new Services item at every rebuild (`menuNeedsUpdate`) and every new bar
+   (`setMenuBar`), the old item losing it; `NSApp.servicesMenu` names the live submenu. MetalUI has no other
+   `servicesMenu` or `NSServicesMenuRequestor` code; `METALUI_SERVICES_DEMO` is the unrelated platform-services demo (dialogs,
+   alerts, pickers). Whether a MetalUI text field answers a service's request (the host view as requestor) is not part of this
+   ruling: the menu lists services; acting on a selection is human check `MN`-group "Services".
+4. **Portable (SDL) and drawn menus** have no Services (a macOS concept): the drawn style never builds the item; additions at
+   `.systemServices` go in File after the `.appSettings` additions.
+5. SwiftUI evidence: sosumi `CommandGroupPlacement` lists `systemServices` under App interactions. Placement order is AppKit's
+   default application menu (About, Settings, Services, Hide group, Quit); not measured with a probe here.
+
+**Mutation** (`CommandsTests`, `AppKitMenuTests`): building the group after `.appVisibility` or into the settings group reddens
+`theServicesSubmenuSitsBetweenSettingsAndVisibility`; never assigning `servicesMenu` (or not reassigning on rebuild) reddens
+`theApplicationMenuHasTheServicesSubmenuAssignedToNSApp`; the drawn arm of `theDrawnBarFollowsTheDesktopArrangement` pins the
+File additions.
+
+Next unused: `MN-AP`.

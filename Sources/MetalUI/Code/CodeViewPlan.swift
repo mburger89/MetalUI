@@ -104,6 +104,16 @@ final class CodeViewPlan {
         var anchorLine = 0
         /// Where the input method's marked text sits in this row's layout, when it is the composing row (`CV-AA`).
         var marked: Marked? = nil
+        /// The bar's owner (``CodeDecorations`` owner id; 0 the default) of a buffer row's decoration or a virtual group (`CV-AO`).
+        var owner: UInt16 = 0
+        /// A buffer row's gutter marker drawn in the lane (`CV-AP`): its layout, width, colour, tag and owner id.
+        var laneMarker: CodeLineLayout? = nil
+        var laneMarkerWidthPx = 0
+        var laneMarkerColor: Color? = nil
+        var markerTag: UInt64? = nil
+        var markerOwner: UInt16 = 0
+        /// Whether a buffer row has a marker (in the lane, or in place of its number).
+        var hasMarker = false
 
         /// The marked text inserted into this row's layout for display.
         struct Marked {
@@ -145,7 +155,13 @@ final class CodeViewPlan {
     /// x read in input, where the frame's own rows may be older than the buffer (`CV-X`).
     var layoutRow: (Int, CodeSnapshot) -> CodeLineLayout = { _, _ in fatalError("CodeViewPlan.layoutRow is set by makePlan") }
     /// The rows and tag of the gutter bar over a buffer row (`CodeDecorations`), read at click time (`CV-AB`).
-    var gutterBarOf: (Int) -> (lines: Range<Int>, tag: UInt64?)? = { _ in nil }
+    var gutterBarOf: (Int) -> (lines: Range<Int>, tag: UInt64?, owner: UInt16)? = { _ in nil }
+    /// The owner an id names, `nil` for the default (`CV-AO`).
+    var ownerOf: (UInt16) -> CodeDecorationOwner? = { _ in nil }
+    /// The width of the marker lane at the gutter's left, device pixels; 0 when none is reserved (`CV-AP`).
+    var laneWidthPx = 0
+    /// Whether markers replace the line number (the lane is off by the app's choice, `CV-AP`).
+    var markersReplaceNumbers = false
     /// The caret's blink: whether this frame draws it, and when the next toggle is (`CV-AC`).
     var caretVisible = true
     /// While a drag autoscrolls, the selection the frame computed from the pointer and the frame time (`CV-AD`).
@@ -164,8 +180,12 @@ final class CodeViewPlan {
     /// The byte offset nearest `point`, in window points as the window's hit test hands them over (the rows and the
     /// origin are in the same space). A virtual line resolves to the start of the buffer
     /// row it sits before: it is not text of the buffer.
-    func offset(at point: Point<Pixels>) -> Int {
-        guard !rows.isEmpty else { return 0 }
+    func offset(at point: Point<Pixels>) -> Int { hit(at: point).offset }
+
+    /// What is under `point` (bounds space, as ``offset(at:)``): the nearest caret boundary (what a press places), the
+    /// grapheme under the point, the buffer row and the region (`CV-AK`).
+    func hit(at point: Point<Pixels>) -> CodeHit {
+        guard !rows.isEmpty else { return CodeHit(offset: 0, character: nil, row: nil, region: .pastLineEnd) }
         let y = Int((Double(point.y.value) * Double(scale)).rounded(.down))
         var index = 0
         if y >= rows[0].top {
@@ -180,10 +200,51 @@ final class CodeViewPlan {
         let x = Int((Double(point.x.value) * Double(scale)).rounded(.down))
         let local = Double(x - textOriginX) / Double(scale)
         var byte = max(0, row.layout.byte(atX: local))
-        if let marked = row.marked {   // the layout has the marked text in it: a point in it is its start
-            byte = byte >= marked.at + marked.length ? byte - marked.length : min(byte, marked.at)
+        /// A layout byte (marked text inserted) to the buffer line's: a point in the marked text is its start.
+        func unmarked(_ layoutByte: Int) -> Int {
+            guard let marked = row.marked else { return layoutByte }
+            return layoutByte >= marked.at + marked.length ? layoutByte - marked.length : min(layoutByte, marked.at)
         }
-        return row.range.lowerBound + min(byte, row.range.count)
+        byte = unmarked(byte)
+        let offset = row.range.lowerBound + min(byte, row.range.count)
+        let rowIndex = row.isVirtual ? nil : row.buffer
+        if gutterPx > 0 && x - originX < gutterPx {
+            return CodeHit(offset: offset, character: nil, row: rowIndex, region: .gutter)
+        }
+        if row.isVirtual { return CodeHit(offset: offset, character: nil, row: nil, region: .virtualRow) }
+        let layout = row.layout
+        guard layout.caretX.count > 1, local < layout.caretX[layout.caretX.count - 1] else {
+            return CodeHit(offset: offset, character: nil, row: rowIndex, region: .pastLineEnd)
+        }
+        guard local >= layout.caretX[0] else { return CodeHit(offset: offset, character: nil, row: rowIndex, region: .text) }
+        var lo = 0, hi = layout.caretX.count - 1
+        while lo < hi {
+            let mid = (lo + hi + 1) / 2
+            if layout.caretX[mid] <= local { lo = mid } else { hi = mid - 1 }
+        }
+        let from = unmarked(layout.windowStart + layout.boundaries[lo])
+        let to = unmarked(layout.windowStart + layout.boundaries[lo + 1])
+        let base = row.range.lowerBound
+        let character = from < to ? (base + min(from, row.range.count))..<(base + min(to, row.range.count)) : nil
+        return CodeHit(offset: offset, character: character, row: rowIndex, region: .text)
+    }
+
+    /// The rectangles of `range` (buffer bytes) over the shown rows, one per row segment, in bounds space points; the
+    /// line break is not covered. An empty range is a zero-width rect at its position (`CV-AJ`).
+    func rects(forBounds range: Range<Int>) -> [Bounds<Pixels>] {
+        var out: [Bounds<Pixels>] = []
+        var i = shownFrom
+        while i < shownTo {
+            let row = rows[i]
+            i += 1
+            guard !row.isVirtual else { continue }
+            let lo = max(range.lowerBound, row.range.lowerBound), hi = min(range.upperBound, row.range.upperBound)
+            guard lo < hi || (range.isEmpty && lo == hi) else { continue }
+            let x0 = xPx(row, byte: lo), x1 = xPx(row, byte: hi)
+            out.append(Bounds(origin: Point(x: Pixels(Float(x0) / scale), y: Pixels(Float(row.top) / scale)),
+                              size: Size(width: Pixels(Float(max(0, x1 - x0)) / scale), height: Pixels(Float(pitchPx) / scale))))
+        }
+        return out
     }
 
     /// The device-pixel x of byte `byte` of `row`'s line, as the painter places it.
@@ -268,18 +329,29 @@ final class CodeViewPlan {
         let barWidth = max(1, Int((3 * Double(scale)).rounded()))
         let reach = Int((4 * Double(scale)).rounded())
         let textLeft = originX + gutterPx
-        guard x >= textLeft - barWidth - reach - Int(Double(scale).rounded()), x < textLeft, y >= originY, y < originY + heightPx else { return nil }
+        guard x < textLeft, y >= originY, y < originY + heightPx else { return nil }
+        let onBar = x >= textLeft - barWidth - reach - Int(Double(scale).rounded())
+        // The marker's own place: the lane, or the number column when markers replace the numbers (`CV-AP`).
+        let onMarker = !onBar && x >= originX && (laneWidthPx > 0 ? x < originX + laneWidthPx : markersReplaceNumbers)
+        guard onBar || onMarker else { return nil }
         var i = shownFrom
         while i < shownTo {
             let row = rows[i]
             i += 1
             guard y >= row.top, y < row.top + pitchPx else { continue }
+            if onMarker {
+                guard row.hasMarker, !row.isVirtual else { return nil }
+                return CodeGutterHit(lines: row.buffer..<(row.buffer + 1), tag: row.markerTag, source: .gutterMarker,
+                                     displayRow: row.display, owner: ownerOf(row.markerOwner))
+            }
             guard row.bar != nil else { return nil }
             if row.isVirtual {
-                return CodeGutterHit(lines: row.anchorLine..<(row.anchorLine + 1), tag: row.tag, source: .virtualRow, displayRow: row.display)
+                return CodeGutterHit(lines: row.anchorLine..<(row.anchorLine + 1), tag: row.tag, source: .virtualRow, displayRow: row.display,
+                                     owner: ownerOf(row.owner))
             }
             guard let bar = gutterBarOf(row.buffer) else { return nil }
-            return CodeGutterHit(lines: bar.lines, tag: bar.tag, source: .lineDecoration, displayRow: row.display)
+            return CodeGutterHit(lines: bar.lines, tag: bar.tag, source: .lineDecoration, displayRow: row.display,
+                                 owner: ownerOf(bar.owner))
         }
         return nil
     }
@@ -362,7 +434,14 @@ extension CodeView {
         if decorations.hasUnderlines { plan.underlineMetrics = cache.underlineMetrics(of: font, scale: scale, system: system) }
         let digits = max(2, String(snap.lineCount).count)
         let digitPx = Int((metrics.digit * scaleD).rounded(.up))
-        plan.gutterPx = showsNumbers ? digits * digitPx + 2 * plan.padPx : 0
+        // The marker lane (`CV-AP`): reserved from the first frame (`true`), from the first marker ever given (the
+        // default), or never (`false`, markers replace numbers). A pure function of the view and the decorations'
+        // sticky flag, so the text moves by the lane's width at most once. Never read when the view is measured.
+        let laneOn = markerLane == true || (markerLane == nil && decorations.markersEverSet)
+        plan.laneWidthPx = laneOn ? max(1, Int((metrics.space * 2 * scaleD).rounded(.up))) : 0
+        plan.markersReplaceNumbers = markerLane == false
+        let numbersPx = showsNumbers ? digits * digitPx + 2 * plan.padPx : 0
+        plan.gutterPx = numbersPx + plan.laneWidthPx + (laneOn && numbersPx == 0 ? plan.padPx : 0)
         let primary = buffer.primarySelection   // one read: each is an observed access
         plan.selection = primary.range
         plan.head = primary.head
@@ -524,6 +603,7 @@ extension CodeView {
         plan.layoutRow = { row, snapshot in layoutOfRow(row, snapshot, settledScrollX) }
         let decorationsForHits = decorations
         plan.gutterBarOf = { row in decorationsForHits.gutterBar(overRow: row) }
+        plan.ownerOf = { id in decorationsForHits.owner(ofID: id) }
 
         // The rows: the visible ones and one of overscan each side.
         let remainder = topPx % pitchPx
@@ -575,16 +655,35 @@ extension CodeView {
                 widest = max(widest, Int((layout.width * scaleD).rounded(.up)))
                 var label: CodeLineLayout?
                 var labelWidth = 0
-                if decorated {
-                    let made = cache.number(row + 1, font: font, system: system, scale: scale, spaceAdvance: metrics.space)
-                    label = made
-                    labelWidth = Int((made.width * scaleD).rounded())
-                }
                 let payload = decorations.lineDecoration(row: row)
+                let marker = payload?.marker.flatMap { $0.text.isEmpty ? nil : $0 }
+                var laneMarker: CodeLineLayout?
+                var laneMarkerWidth = 0
+                if let marker, plan.laneWidthPx > 0 {
+                    let made = cache.marker(marker.text, font: font, system: system, scale: scale, spaceAdvance: metrics.space)
+                    laneMarker = made
+                    laneMarkerWidth = Int((made.width * scaleD).rounded())
+                }
+                var labelColor: Color?
+                if decorated {
+                    if let marker, plan.markersReplaceNumbers {   // the marker takes the number's place
+                        let made = cache.marker(marker.text, font: font, system: system, scale: scale, spaceAdvance: metrics.space)
+                        label = made
+                        labelWidth = Int((made.width * scaleD).rounded())
+                        labelColor = marker.color
+                    } else {
+                        let made = cache.number(row + 1, font: font, system: system, scale: scale, spaceAdvance: metrics.space)
+                        label = made
+                        labelWidth = Int((made.width * scaleD).rounded())
+                    }
+                }
                 plan.rows.append(.init(display: display, buffer: row, isVirtual: false, top: top, range: range, textStart: range.lowerBound,
                                        layout: layout, styling: styling, tint: payload?.background, bar: payload?.gutterBar,
-                                       label: label, labelWidthPx: labelWidth, labelColor: nil, virtualText: nil,
-                                       tag: payload?.tag, anchorLine: row, marked: rowMarked))
+                                       label: label, labelWidthPx: labelWidth, labelColor: labelColor, virtualText: nil,
+                                       tag: payload?.tag, anchorLine: row, marked: rowMarked, owner: payload?.owner ?? 0,
+                                       laneMarker: laneMarker, laneMarkerWidthPx: laneMarkerWidth, laneMarkerColor: marker?.color,
+                                       markerTag: payload?.markerTag, markerOwner: payload?.markerOwner ?? 0,
+                                       hasMarker: marker != nil && (plan.laneWidthPx > 0 || plan.markersReplaceNumbers)))
             case .virtual(let group, let lineIndex, let gap):
                 let line = group.lines[lineIndex]
                 let layout = lineLayout(bytes: line.bytes, knownHash: line.hash, parts: line.styling.foreground, digest: line.styling.digest,
@@ -602,7 +701,7 @@ extension CodeView {
                 plan.rows.append(.init(display: display, buffer: gap, isVirtual: true, top: top, range: start..<start, textStart: 0,
                                        layout: layout, styling: line.styling, tint: group.background, bar: group.gutterBar,
                                        label: label, labelWidthPx: labelWidth, labelColor: line.marker?.color, virtualText: line.text,
-                                       tag: group.tag, anchorLine: group.anchoredAfter ? max(0, gap - 1) : gap))
+                                       tag: group.tag, anchorLine: group.anchoredAfter ? max(0, gap - 1) : gap, owner: group.owner))
             }
             display += 1
         }
@@ -1023,6 +1122,16 @@ extension CodeView {
                     while rowIndex < to {
                         let row = plan.rows[rowIndex]
                         rowIndex += 1
+                        if let marker = row.laneMarker {   // a marker in the lane, centred (`CV-AP`)
+                            let color = row.laneMarkerColor.map { pass.resolve($0) } ?? numbers
+                            let dx = plan.originX + (plan.laneWidthPx - row.laneMarkerWidthPx) / 2
+                            var g = 0
+                            while g < marker.glyphs.count {
+                                let glyph = marker.glyphs[g]
+                                pass.draw(TextGlyph(key: glyph.key, pixelX: glyph.pixelX + dx, baselineY: glyph.baselineY + row.top), color: color)
+                                g += 1
+                            }
+                        }
                         guard let label = row.label else { continue }
                         let color = row.labelColor.map { pass.resolve($0) } ?? numbers
                         let dx = textLeft - plan.padPx - row.labelWidthPx

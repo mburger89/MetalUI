@@ -43,8 +43,11 @@ public struct CodeView: Element, StyledElement {
     var scrollStateObject: CodeScrollState?
     var onScrollAction: (@MainActor (CodeScrollPosition) -> Void)?
     var gutterClick: (@MainActor (CodeGutterHit) -> Void)?
+    var textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)?
     var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
     var caretBlink = CodeCaretBlink.on
+    var markerLane: Bool?
+    var geometryObject: CodeViewGeometry?
 
     /// A view of `buffer` drawn with `decorations`, whose buffer must be the same.
     public init(buffer: CodeBuffer, decorations: CodeDecorations) {
@@ -124,6 +127,19 @@ public struct CodeView: Element, StyledElement {
         return copy
     }
 
+    /// Calls `action` when the primary button is pressed on the text of a buffer row while exactly `modifiers` are
+    /// held (`CV-AL`): ⌘ on Apple platforms and Ctrl elsewhere by default (``EventModifiers/primary``), the
+    /// go-to-definition click. The ``CodeHit`` is what ``CodeViewGeometry/hit(at:)`` answers for the point. The
+    /// press is consumed: no caret move, no selection change, no drag. Any other press, including one with extra
+    /// modifiers (shift-⌘), one past the end of a line, on a ``CodeVirtualRow`` or in the gutter, behaves as it
+    /// does without the handler. It runs from input, never in a frame phase, so it may write state.
+    public func onTextClick(modifiers: EventModifiers = .primary,
+                            perform action: @escaping @MainActor (CodeHit) -> Void) -> CodeView {
+        var copy = self
+        copy.textClick = (modifiers, action)
+        return copy
+    }
+
     /// A context menu for the gutter bars (`CV-AB`): a secondary press on a bar opens the menu `content` builds
     /// for the ``CodeGutterHit``, evaluated at each open, in input (`MN-D`). A secondary press anywhere else
     /// opens the view's own ``StyledElement/contextMenu(menuItems:)``, if it has one, and nothing otherwise.
@@ -131,6 +147,16 @@ public struct CodeView: Element, StyledElement {
         @MenuContentBuilder _ content: @escaping @MainActor (CodeGutterHit) -> M) -> CodeView {
         var copy = self
         copy.gutterMenu = { hit in MenuItems([content(hit)]) }
+        return copy
+    }
+
+    /// Whether the gutter reserves a lane for ``CodeLineDecoration/gutterMarker``s (`CV-AP`). By default (not
+    /// called) the lane appears once any owner has given a marker and stays, so the text moves right once, by the
+    /// lane's width (two space advances), and never again as diagnostics come and go; `true` reserves it from the
+    /// first frame, so the text never moves; `false` has no lane and a marker replaces its row's line number.
+    public func gutterMarkerLane(_ reserved: Bool) -> CodeView {
+        var copy = self
+        copy.markerLane = reserved
         return copy
     }
 
@@ -207,7 +233,7 @@ public struct CodeView: Element, StyledElement {
         // The text stage's target: the session does the editing from input (`CV-W`); the caret rect is the input
         // method's area, under the view's own render effects (`GX-I`).
         let session = CodeEditSession(buffer: buffer, id: id, table: table, plan: plan, editable: isEditable,
-                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick,
+                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick, textClick: textClick,
                                       decorations: decorations)
         if let menu = gutterMenu {
             let existing = handlers.contextual
@@ -232,6 +258,10 @@ public struct CodeView: Element, StyledElement {
             handlers.axNode.fillControl(role: .textArea, label: nil, value: plan.accessibilityText())
         }
         layout.plan = plan
+        if let geometry = geometryObject {   // unobserved, like `CodeDecorations.sync()` (`CV-K`)
+            geometry.plan = plan
+            geometry.origin = bounds.origin
+        }
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
     }
 
