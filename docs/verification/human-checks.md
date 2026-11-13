@@ -590,6 +590,7 @@ Windows.
 - [ ] **R8. A right click presses nothing**: a right click on Show popover does
   not present the popover (divergence 110; a SwiftUI `Button` would press).
   Pinned by `aSecondaryPressNeverRunsOnClickOrATap`. **Observed:**
+- [ ] **R9. Services submenu** (`MN-AO`, record 278): in any macOS app with a text field (`METALUI_TEXT_INPUT_DEMO=1 swift run MetalUIDemo`), the application menu reads About, Services, Hide, Hide Others, Show All, Quit with a separator each side of Services. Does Services open and list the system's services (for a selected text field: Look Up, Search With Google or the like; with nothing selected, "No Services Apply")? Select text in a field and choose a text service (for example "Convert Text to Simplified Chinese" or New Note): does it act on the selection? (Whether a service can read or replace the field's selection depends on the host view answering as a services requestor, which `MN-AO` does not add; note what happens.) SDL (Linux/Windows): no Services item. **Observed:**
 
 ## S. Colour and colour scheme (user request 2026-10-02, not a plan task)
 

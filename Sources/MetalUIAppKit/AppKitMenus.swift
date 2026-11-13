@@ -86,7 +86,7 @@ enum AppKitMenuBuilder {
     /// AppKit's own action for a standard item (`MN-I` item 3; the commands
     /// probe's PLAIN arm), and whether it targets `NSApp` rather than the
     /// responder chain.
-    static func selector(for action: StandardMenuAction) -> (selector: Selector, targetsApplication: Bool) {
+    static func selector(for action: StandardMenuAction) -> (selector: Selector?, targetsApplication: Bool) {
         switch action {
         case .about: (#selector(NSApplication.orderFrontStandardAboutPanel(_:)), true)
         case .hide: (#selector(NSApplication.hide(_:)), true)
@@ -104,6 +104,7 @@ enum AppKitMenuBuilder {
         case .minimize: (#selector(NSWindow.performMiniaturize(_:)), false)
         case .zoom: (#selector(NSWindow.performZoom(_:)), false)
         case .bringAllToFront: (#selector(NSApplication.arrangeInFront(_:)), true)
+        case .services: (nil, false)   // a submenu, not a command (`MN-AO`)
         }
     }
 }
@@ -115,6 +116,8 @@ enum AppKitMenuBuilder {
 @MainActor
 final class AppKitMenuBar: NSObject, NSMenuDelegate {
     private let bar: PlatformMenuBar
+    /// The item currently holding the Services submenu (`MN-AO`).
+    private static weak var servicesHolder: NSMenuItem?
 
     init(_ bar: PlatformMenuBar) { self.bar = bar }
 
@@ -150,6 +153,19 @@ final class AppKitMenuBar: NSObject, NSMenuDelegate {
                 built.action = #selector(performCommand(_:))
                 built.target = self
             }
+        }
+        // The Services submenu (`MN-AO`): AppKit fills the menu `NSApp.servicesMenu` names with the
+        // system's services and honours only the first assignment of the process, so that one
+        // `NSMenu` is the Services submenu of every bar and rebuild: it moves from the item that
+        // held it to the new item.
+        for (item, built) in zip(items, menu.items) where item.standardAction == .services {
+            if let services = NSApplication.shared.servicesMenu {
+                if let holder = Self.servicesHolder, holder !== built, holder.submenu === services { holder.submenu = nil }
+                built.submenu = services
+            } else {
+                NSApplication.shared.servicesMenu = built.submenu
+            }
+            Self.servicesHolder = built
         }
     }
 
