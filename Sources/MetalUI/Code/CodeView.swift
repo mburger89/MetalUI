@@ -227,13 +227,11 @@ public struct CodeView: Element, StyledElement {
             let runtime = CodeTextHoverRuntime(id: id, table: table, plan: plan, origin: bounds.origin, buffer: buffer,
                                                perform: hover.perform, box: textAnchorBox)
             textAnchorBox?.hover = runtime
+            // The view's own `onHover` and `onContinuousHover` keep their space and run beside it (`CV-AS`).
             let existing = handlers.hover
-            // The view's own continuous hover keeps running beside it when it is in the same (local) space.
-            let chained = existing?.coordinateSpace == .local ? existing?.onContinuousHover : nil
-            handlers.hover = HoverAttachment.continuous({ phase in
-                chained?(phase)
-                MainActor.assumeIsolated { runtime.pointer(phase) }
-            }, in: .local, over: existing)
+            handlers.hover = HoverAttachment(onHover: existing?.onHover, onContinuousHover: existing?.onContinuousHover,
+                                             coordinateSpace: existing?.coordinateSpace ?? .local,
+                                             localContinuous: { phase in MainActor.assumeIsolated { runtime.pointer(phase) } })
             hoverRuntime = runtime
         }
         handlers.pointer = PointerAttachment.wheel({ [plan, hoverRuntime] event in

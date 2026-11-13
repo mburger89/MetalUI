@@ -331,3 +331,31 @@ private let hoverText = (0..<3).map { "row\($0) alpha beta gamma\n" }.joined() +
     settle(w)
     #expect(f.model.ends == 2, "\(f.model.phases)")
 }
+
+/// 9 — the app's own `onContinuousHover` on the view is never dropped, in any coordinate space: with a `.global` one beside
+/// `onTextHover` both hear the pointer (the app's in window points, the text hover's in the view's) and the leave, and the text hover
+/// still reports `.active` and `.ended`. **Mutation:** the text hover replacing the app's callback (as it did for a non-local space)
+/// leaves the app's phases empty.
+@Test @MainActor func anAppsGlobalContinuousHoverStillRunsBesideTheTextHover() throws {
+    let buffer = CodeBuffer(hoverText)
+    let model = HoverModel()
+    let geometry = CodeViewGeometry()
+    let app = Cell<[HoverPhase]>([])
+    let window = try harnessWindow(size: sz(400, 300)) {
+        CodeView(buffer: buffer, decorations: CodeDecorations(buffer: buffer)).font(size: 12).showsLineNumbers(false)
+            .codeCaretBlink(.off).geometry(geometry)
+            .onContinuousHover(coordinateSpace: .global) { app.value.append($0) }
+            .onTextHover(delay: .milliseconds(300)) { model.phases.append($0) }
+            .frame(width: Pixels(400), height: Pixels(200))
+    }
+    window.tick(); window.tick(); window.tick()
+    let f = HoverFixture(window: window, buffer: buffer, geometry: geometry, model: model, scroll: CodeScrollState())
+    let target = try f.word("target")
+    window.hover(at: target)
+    window.advance(by: 0.3)
+    #expect(model.actives == 1, "the text hover works: \(model.phases)")
+    #expect(app.value.first == .active(target), "the app's callback hears window points: \(app.value)")
+    window.exitPointer()
+    #expect(model.ends == 1, "\(model.phases)")
+    #expect(app.value.last == .ended, "\(app.value)")
+}
