@@ -717,12 +717,39 @@ private struct AnimatingBox: Component {
     #expect(fromTickMatches, "missed one: \(String(describing: fromTick))")
     s.tickTarget = nil
     let fromPhase: UInt64? = FrameTiming.estimatedVsync(for: s, interval: 16_000_000, phase: 1_000 + 48_000_000)
-    let expectedFromPhase: UInt64 = 1_000 + 48_000_000
+    let expectedFromPhase: UInt64 = 1_000 + 32_000_000   // `FP-O`: stepped back from the later tick, not that tick
     let fromPhaseMatches = fromPhase == expectedFromPhase
     #expect(fromPhaseMatches, "\(String(describing: fromPhase))")
     let unknown: UInt64? = FrameTiming.estimatedVsync(for: s, interval: nil, phase: 1)
     let isUnknown = unknown == nil
     #expect(isUnknown)
     let line = FrameTiming.traceLine(for: s, interval: 16_000_000, vsyncPhase: 1_000 + 48_000_000)
-    #expect(line.contains(" - 28.00 | "), "commit>screen unreported (-), est>screen 28.00")
+    #expect(line.contains(" - 12.00 | "), "commit>screen unreported (-), est>screen 12.00")
+}
+
+/// 1.26 — `FP-O`: the estimate is the first vsync after the commit whichever side of it the phase lies on. A
+/// phase later than the commit (a tick that ran before the frame was reported) steps back; a phase stale by more
+/// than a second, and an exact hit, are handled. Mutation: the step back removed (the later tick is returned,
+/// 21-32 ms for a 16.7 ms display); the distance cap removed.
+@Test @MainActor func theVsyncEstimateStepsBackFromALaterPhaseAndIsUnknownWhenStale() {
+    let period: UInt64 = 16_666_667
+    var s = FrameTimingSample(frameIndex: 0, start: 1_000)
+    s.commit = 5_000_000_000
+    for k: UInt64 in 0...3 {   // a later tick k periods past the first vsync after the commit
+        let first = s.commit + 4_000_000
+        let result: UInt64? = FrameTiming.estimatedVsync(for: s, interval: period, phase: first + k * period)
+        let matches = result == first
+        #expect(matches, "k=\(k): \(String(describing: result))")
+    }
+    let exact: UInt64? = FrameTiming.estimatedVsync(for: s, interval: period, phase: s.commit + 2 * period)
+    let exactMatches = exact == s.commit
+    #expect(exactMatches, "a vsync at the commit itself")
+    let earlier: UInt64? = FrameTiming.estimatedVsync(for: s, interval: period, phase: s.commit - 3 * period + 1)
+    let earlierMatches = earlier == s.commit + 1
+    #expect(earlierMatches, "an earlier phase steps forward: \(String(describing: earlier))")
+    let stale: UInt64? = FrameTiming.estimatedVsync(for: s, interval: period, phase: 1_000)
+    let staleIsUnknown = stale == nil
+    #expect(staleIsUnknown, "a phase seconds away is no phase")
+    let line = FrameTiming.traceLine(for: s, interval: period, vsyncPhase: 1_000)
+    #expect(line.contains(" - - | "), "est>screen is - for a stale phase: \(line)")
 }

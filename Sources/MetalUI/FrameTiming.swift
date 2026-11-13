@@ -307,14 +307,26 @@ public final class FrameTiming {
             + " | \(ms(total)) \(frames)"
     }
 
-    /// The first vsync at or after the commit: the frame's own tick target (or `phase`, the last one seen) plus
-    /// whole refresh intervals. An estimate from the display link, not a presentation time (`FP-L`).
+    /// The first vsync at or after the commit: the frame's own tick target (or `phase`, the last one seen) moved
+    /// by whole refresh intervals, **forward or back** (`FP-O`). A tick target after the commit is stepped back
+    /// to the earliest vsync still at or after it: a frame drawn outside a tick (an immediate-input frame) is
+    /// reported after later ticks have moved `phase` on, and returning that tick was 21-32 ms off. Unknown (`nil`)
+    /// without an interval or a reference, and when the reference is more than ``maxPhaseDistance`` from the
+    /// commit (a stale phase: the error of the interval multiplies). An estimate from the display link, not a
+    /// presentation time (`FP-L`).
     package static func estimatedVsync(for s: FrameTimingSample, interval: UInt64?, phase: UInt64?) -> UInt64? {
         guard let interval, interval > 0, let reference = s.tickTarget ?? phase else { return nil }
-        if reference >= s.commit { return reference }
+        if reference >= s.commit {
+            guard reference - s.commit <= maxPhaseDistance else { return nil }
+            return reference - (reference - s.commit) / interval * interval
+        }
+        guard s.commit - reference <= maxPhaseDistance else { return nil }
         let intervals = (s.commit - reference + interval - 1) / interval
         return reference + intervals * interval
     }
+
+    /// How far a phase may lie from the commit it estimates for: one second.
+    package static let maxPhaseDistance: UInt64 = 1_000_000_000
 
     // MARK: Reading
 
