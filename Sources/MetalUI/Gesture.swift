@@ -1226,6 +1226,12 @@ struct GestureArena {
         }
     }
 
+    /// Whether a live tap of two or more clicks is in the arena (G39): the
+    /// press a `List` row still selects on, though the tap's owner is the target.
+    var holdsMultiClickTap: Bool {
+        leaves.contains { ($0.tapCount ?? 0) >= 2 && $0.status != .failed }
+    }
+
     /// Something is still undecided, or the press is still down; a pinch arena
     /// while a begun kind has not ended (`CI-D` item 4).
     var isAlive: Bool {

@@ -66,14 +66,18 @@ final class CodeEditSession {
     let tabColumns: Int
     /// The gutter-bar click callback (`CV-AB`), run from input.
     let gutterClick: (@MainActor (CodeGutterHit) -> Void)?
+    /// The modifiers and action of ``CodeView/onTextClick(modifiers:perform:)`` (`CV-AL`).
+    let textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)?
     /// The decorations whose find matches ⌘G steps through (`CV-AE`).
     let decorations: CodeDecorations?
 
     init(buffer: CodeBuffer, id: GlobalElementID, table: StateTable, plan: CodeViewPlan,
          editable: Bool, indentUsingSpaces: Bool, tabColumns: Int,
          gutterClick: (@MainActor (CodeGutterHit) -> Void)? = nil,
+         textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)? = nil,
          decorations: CodeDecorations? = nil) {
         self.gutterClick = gutterClick
+        self.textClick = textClick
         self.decorations = decorations
         self.buffer = buffer
         self.id = id
@@ -142,7 +146,16 @@ final class CodeEditSession {
 
     /// A primary press at a view-local point: places the caret, selects a word (two clicks) or a line (three,
     /// or a press in the gutter); shift extends from the current anchor.
-    func press(at point: Point<Pixels>, clickCount: Int, extend: Bool) {
+    func press(at point: Point<Pixels>, clickCount: Int, extend: Bool, modifiers: EventModifiers = []) {
+        // A press whose modifiers are exactly the handler's, on text, is the app's (`CV-AL`): nothing else happens.
+        if let click = textClick, modifiers == click.modifiers, !plan.rows.isEmpty {
+            let hit = plan.hit(at: point)
+            if hit.region == .text {
+                update { $0.dragging = false }
+                click.action(hit)
+                return
+            }
+        }
         if let click = gutterClick, let hit = plan.gutterHit(at: point) {   // a bar's press is the app's (`CV-AB`)
             update { $0.dragging = false }
             click(hit)

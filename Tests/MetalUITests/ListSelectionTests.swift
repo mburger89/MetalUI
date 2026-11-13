@@ -805,3 +805,106 @@ private struct CountingItems: RandomAccessCollection {
     try #require(small > 0, "control: a warm frame reads its realised rows")
     #expect(small == large, "a warm frame's accesses do not grow with the data: \(small) vs \(large)")
 }
+
+// MARK: - A multi-click tap on a row's child (Alloy G39, `DD-AJ`)
+
+@MainActor
+private final class DoubleTapLog {
+    var doubles = 0
+    var singles = 0
+}
+
+private func isAncestor(_ ancestor: GlobalElementID, of id: GlobalElementID) -> Bool {
+    var cursor = id.parent
+    while let current = cursor {
+        if current == ancestor { return true }
+        cursor = current.parent
+    }
+    return false
+}
+
+/// Presses and releases the centre of row `row`'s gesture-carrying child, with
+/// `clickCount` on both halves and `time` as the timestamp.
+@MainActor
+private func clickChild(_ window: Window, _ platform: FakePlatformWindow, in row: GlobalElementID,
+                        clickCount: Int = 1, time: Double) throws {
+    let hitbox = try #require(window.lastHitboxes.first { !$0.handlers.gestures.isEmpty && isAncestor(row, of: $0.id) },
+                              "row \(row) has no gesture-carrying child")
+    let point = controlCentre(hitbox.bounds)
+    platform.simulateInput(.mouseDown(MouseEvent(position: point, clickCount: clickCount, timestamp: time)))
+    platform.simulateInput(.mouseUp(MouseEvent(position: point, clickCount: clickCount, timestamp: time + 0.05)))
+    controlRedraw(window)
+}
+
+@MainActor
+private func doubleTapList(_ model: Selection, _ log: DoubleTapLog, count: Int = 2) -> some Element {
+    List(model.items, selection: model.singleBinding, rowHeight: controlPx(20)) { item in
+        Text("Row \(item.id)").onTapGesture(count: count) { log.doubles += 1 }
+    }
+}
+
+/// **G39.1.** A single click on a row's count-2 child selects the row at once,
+/// and again after the double-click interval has passed (the pending tap does
+/// not swallow it). Removing the `Window` row-selection pass reddens both.
+@Test @MainActor func aSingleClickOnACountTwoChildSelectsTheRow() throws {
+    let model = Selection()
+    let log = DoubleTapLog()
+    let (window, platform) = try unboundedWindow { doubleTapList(model, log) }
+    let row = rowID(unboundedListID, 2)
+    try clickChild(window, platform, in: row, time: 1)
+    #expect(model.single == 2, "selected immediately after the click: \(model.singleWrites)")
+    try #require(model.singleWrites == [2])
+    window.advanceGestures(to: 10)
+    #expect(model.singleWrites == [2], "no second write after the interval: \(model.singleWrites)")
+    #expect(log.doubles == 0, "a single click is no double tap")
+
+    let other = Selection(single: 4)
+    let (otherWindow, otherPlatform) = try unboundedWindow { doubleTapList(other, DoubleTapLog()) }
+    try clickChild(otherWindow, otherPlatform, in: row, time: 1)
+    otherWindow.advanceGestures(to: 10)
+    #expect(other.single == 2, "after the interval the row is selected: \(other.single.map(String.init) ?? "nil")")
+}
+
+/// **G39.2.** A double click selects the row and fires the double tap exactly
+/// once; the second click's selection writes nothing more.
+@Test @MainActor func aDoubleClickOnACountTwoChildSelectsAndFiresTheDoubleTapOnce() throws {
+    let model = Selection()
+    let log = DoubleTapLog()
+    let (window, platform) = try unboundedWindow { doubleTapList(model, log) }
+    let row = rowID(unboundedListID, 2)
+    try clickChild(window, platform, in: row, clickCount: 1, time: 1)
+    try clickChild(window, platform, in: row, clickCount: 2, time: 1.2)
+    window.advanceGestures(to: 10)
+    #expect(model.single == 2)
+    #expect(model.singleWrites == [2], "selected once: \(model.singleWrites)")
+    #expect(log.doubles == 1, "the double tap fired \(log.doubles) times")
+}
+
+/// **G39.3.** A count-2 tap outside a `List` is unaffected: it fires on the
+/// double click and nothing else runs.
+@Test @MainActor func aCountTwoTapOutsideAListStillFiresOnTheDoubleClick() throws {
+    let log = DoubleTapLog()
+    let (window, platform) = try unboundedWindow {
+        Text("Plain").onTapGesture(count: 2) { log.doubles += 1 }
+    }
+    let hitbox = try #require(window.lastHitboxes.first { !$0.handlers.gestures.isEmpty })
+    let point = controlCentre(hitbox.bounds)
+    for (count, time) in [(1, 1.0), (2, 1.2)] {
+        platform.simulateInput(.mouseDown(MouseEvent(position: point, clickCount: count, timestamp: time)))
+        platform.simulateInput(.mouseUp(MouseEvent(position: point, clickCount: count, timestamp: time + 0.05)))
+    }
+    window.advanceGestures(to: 10)
+    #expect(log.doubles == 1)
+}
+
+/// **G39.4.** The single-count tap's behaviour is pinned as found: it does
+/// not select (the target's arena owns the press, `IX-D` item 2).
+@Test @MainActor func aSingleCountTapOnARowChildKeepsItsCurrentBehaviour() throws {
+    let model = Selection()
+    let log = DoubleTapLog()
+    let (window, platform) = try unboundedWindow { doubleTapList(model, log, count: 1) }
+    try clickChild(window, platform, in: rowID(unboundedListID, 2), time: 1)
+    window.advanceGestures(to: 10)
+    #expect(log.doubles == 1, "the single tap fires")
+    #expect(model.singleWrites.isEmpty, "single-count unchanged (see the report): \(model.singleWrites)")
+}

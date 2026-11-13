@@ -1039,6 +1039,12 @@ wrapping in a real window, the wheel, the scroll thumb, a live resize.
   `DD-Z`). **Observed:**
 - [ ] **VL5. Live resize.** Drag the window's width continuously: the text rows
   re-wrap and the top row keeps its place (`VL-E`, `VL-G`). **Observed:**
+- [ ] **VL6. A count-2 tap inside a selectable row (`DD-AJ`, Alloy G39).** In a
+  `List(selection:)` whose row `Text` has `.onTapGesture(count: 2)` (Alloy's
+  session sidebar): a single click on that text selects the row on release,
+  also after the double-click interval; a double click selects it and fires
+  the double tap once. Compare SwiftUI on macOS, which Alloy reported but no
+  probe confirmed. **Observed:**
 
 ## WS. AccessKit before the first show (item C11, user request 2026-10-02, not a plan task)
 
