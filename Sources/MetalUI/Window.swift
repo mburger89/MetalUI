@@ -3617,7 +3617,8 @@ public final class Window {
             focus(id)
             if let session = target.codeSession {
                 StateDispatch.dispatching(to: id) {   // ID-F: the pressed code view
-                    session.press(at: local, clickCount: mouse.clickCount, extend: mouse.modifiers.contains(.shift))
+                    session.press(at: local, clickCount: mouse.clickCount, extend: mouse.modifiers.contains(.shift),
+                                  modifiers: mouse.modifiers)
                 }
                 return true
             }

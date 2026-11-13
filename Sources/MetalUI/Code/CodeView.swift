@@ -43,6 +43,7 @@ public struct CodeView: Element, StyledElement {
     var scrollStateObject: CodeScrollState?
     var onScrollAction: (@MainActor (CodeScrollPosition) -> Void)?
     var gutterClick: (@MainActor (CodeGutterHit) -> Void)?
+    var textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)?
     var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
@@ -123,6 +124,19 @@ public struct CodeView: Element, StyledElement {
     public func onGutterBarClick(_ action: @escaping @MainActor (CodeGutterHit) -> Void) -> CodeView {
         var copy = self
         copy.gutterClick = action
+        return copy
+    }
+
+    /// Calls `action` when the primary button is pressed on the text of a buffer row while exactly `modifiers` are
+    /// held (`CV-AL`): ⌘ on Apple platforms and Ctrl elsewhere by default (``EventModifiers/primary``), the
+    /// go-to-definition click. The ``CodeHit`` is what ``CodeViewGeometry/hit(at:)`` answers for the point. The
+    /// press is consumed: no caret move, no selection change, no drag. Any other press, including one with extra
+    /// modifiers (shift-⌘), one past the end of a line, on a ``CodeVirtualRow`` or in the gutter, behaves as it
+    /// does without the handler. It runs from input, never in a frame phase, so it may write state.
+    public func onTextClick(modifiers: EventModifiers = .primary,
+                            perform action: @escaping @MainActor (CodeHit) -> Void) -> CodeView {
+        var copy = self
+        copy.textClick = (modifiers, action)
         return copy
     }
 
@@ -219,7 +233,7 @@ public struct CodeView: Element, StyledElement {
         // The text stage's target: the session does the editing from input (`CV-W`); the caret rect is the input
         // method's area, under the view's own render effects (`GX-I`).
         let session = CodeEditSession(buffer: buffer, id: id, table: table, plan: plan, editable: isEditable,
-                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick,
+                                      indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick, textClick: textClick,
                                       decorations: decorations)
         if let menu = gutterMenu {
             let existing = handlers.contextual
