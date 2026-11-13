@@ -103,3 +103,50 @@ private struct Model {
     // The first gap was at row 20; after the newline it is at 21, so buffer row 20 still has no virtual line before it.
     #expect(map.displayRow(ofBufferRow: 20) == 20 && map.displayRow(ofBufferRow: 21) == 22, "\(map.displayRow(ofBufferRow: 21))")
 }
+
+/// Owners (`CV-AO`): every group keeps the owner and priority it was built with, and `allGroups()` lists the groups
+/// with their gap positions in order, against the array model, after seeded random builds and splices. This is what
+/// the owner merge reads (another owner's groups off the live map), so a wrong position or order after an edit would
+/// put a diagnostic's note on the wrong line. **Mutation:** `allGroups()` reporting the node's own extent instead of
+/// the running position.
+@MainActor @Test func theGroupsOfSeveralOwnersListInOrderWithTheirPositionsUnderRandomSplices() {
+    var rng = Lcg(state: 0x0A11)
+    for round in 0..<40 {
+        let rows = 1 + rng.next(80)
+        var positions: [Int] = []
+        for _ in 0..<(1 + rng.next(25)) { positions.append(rng.next(rows + 1)) }
+        positions.sort()
+        var model = Model(rows: rows, gaps: [])
+        var owners: [Int: UInt16] = [:]
+        var entries: [(position: Int, group: VirtualGroup)] = []
+        for (i, position) in positions.enumerated() {
+            let height = 1 + rng.next(3)
+            let owner = UInt16(rng.next(3))
+            let line = VirtualLine(text: "g\(i + 1)", bytes: Array("g\(i + 1)".utf8), hash: UInt64(i + 1), styling: CodeDecorations.LineStyling(), marker: nil)
+            model.gaps.append((position, i + 1, height))
+            owners[i + 1] = owner
+            entries.append((position, VirtualGroup(lines: Array(repeating: line, count: height), gutterBar: nil, background: nil,
+                                                   owner: owner, priority: Int(owner) * 3)))
+        }
+        let map = CodeRowMap(rowCount: rows)
+        map.build(rowCount: rows, groups: entries)
+        func check(_ label: String) {
+            let listed = map.allGroups()
+            #expect(listed.count == model.gaps.count, "round \(round) \(label): \(listed.count) groups, model \(model.gaps.count)")
+            for (got, want) in zip(listed, model.gaps) {
+                #expect(got.position == want.position && got.group.lines[0].text == "g\(want.id)"
+                        && got.group.owner == owners[want.id] && got.group.priority == Int(owners[want.id]!) * 3,
+                        "round \(round) \(label): \(got.position) \(got.group.lines[0].text) vs \(want)")
+            }
+        }
+        check("built")
+        for step in 0..<10 {
+            let p = rng.next(model.rows + 1)
+            let removed = rng.next(min(4, model.rows - p) + 1)
+            let added = rng.next(4)
+            map.splice(at: p, removing: removed, inserting: added)
+            model.splice(at: p, removing: removed, inserting: added)
+            check("splice \(step)")
+        }
+    }
+}
