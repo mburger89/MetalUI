@@ -133,6 +133,22 @@ public struct CodeDecorationOwner: Hashable, Sendable {
     public static let `default` = CodeDecorationOwner("")
 }
 
+/// One stretch of the buffer as ``CodeView`` paints it: the merged style of every highlight layer
+/// (``CodeDecorations/paintedRuns(in:)``, `CV-AT`).
+public struct CodePaintedRun: Equatable, Sendable {
+    /// The bytes the style covers, in the buffer's current version.
+    public var range: Range<Int>
+    /// The style painted there: the highest layer's foreground, the background painted last (the topmost
+    /// layer that sets one; a translucent one over a lower layer's is not blended here), and the highest layer's underline. A field no layer sets is `nil`.
+    public var style: CodeStyle
+
+    /// A painted run.
+    public init(range: Range<Int>, style: CodeStyle) {
+        self.range = range
+        self.style = style
+    }
+}
+
 /// An ordered family of highlight runs. A later layer's foreground wins; backgrounds are painted in layer
 /// order, so `annotations` (authorship tints, say) sit under the syntax text colours (`CV-K`).
 public enum CodeHighlightLayer: Int, Comparable, CaseIterable, Sendable {
@@ -951,6 +967,78 @@ public final class CodeDecorations {
 
     /// The row count the line-decoration tree currently covers (test observability).
     var lineDecorationRowCount: Int { lines.total }
+
+    // MARK: Reading styling back (`CV-AT`)
+
+    /// The runs `layer` holds that intersect `range`, clipped to it, in order: bytes of the buffer's current
+    /// version, mapped through every edit since they were set, exactly as the layer is painted. Bytes the
+    /// layer holds no style for are absent, and adjacent runs of one style stay separate as the layer stores
+    /// them. An empty layer, or an empty `range`, answers `[]`. A read only: it allocates the result and
+    /// nothing else, and nothing on the paint path changes for it.
+    public func highlights(in range: Range<Int>, layer: CodeHighlightLayer) -> [CodeStyleRun] {
+        sync()
+        let tree = layers[layer.rawValue]
+        let lower = max(0, range.lowerBound), upper = min(range.upperBound, tree.total)
+        let clamped = lower..<max(lower, upper)
+        guard layerHasStyles[layer.rawValue], !clamped.isEmpty else { return [] }
+        return tree.runs(in: clamped).compactMap { run in
+            run.payload.style.map { CodeStyleRun(range: run.range, style: $0) }
+        }
+    }
+
+    /// The style ``CodeView`` paints over `range`, as ordered, disjoint runs clipped to it: the merged result of
+    /// every layer, from the same per-line computation the paint reads (``stylingOfLine(_:)``), so the highest
+    /// layer's foreground, the backgrounds and the highest layer's underline (`CV-AM`) cannot drift from the
+    /// frame. Stretches with no style at all are absent; adjacent stretches with equal styles are joined.
+    /// A read only, per line of `range`: no cache of its own.
+    public func paintedRuns(in range: Range<Int>) -> [CodePaintedRun] {
+        sync()
+        let text = buffer.snapshot()
+        let total = text.utf8Count
+        let lower = max(0, range.lowerBound), upper = min(range.upperBound, total)
+        let clamped = lower..<max(lower, upper)
+        guard !clamped.isEmpty, anyLayerHasStyles else { return [] }
+        var result: [CodePaintedRun] = []
+        var row = text.point(at: clamped.lowerBound).row
+        while row < text.lineCount {
+            let line = text.lineRange(row)
+            if line.lowerBound >= clamped.upperBound { break }
+            row += 1
+            let styling = stylingOfLine(line)
+            var cuts: Set<Int> = [line.lowerBound, line.upperBound]
+            var foreground: [(range: Range<Int>, id: CodeStyleID?)] = []
+            var at = line.lowerBound
+            for part in styling.foreground {
+                foreground.append((at..<(at + part.bytes), part.style))
+                at += part.bytes
+                cuts.insert(at)
+            }
+            for b in styling.backgrounds { cuts.insert(b.range.lowerBound); cuts.insert(b.range.upperBound) }
+            for u in styling.underlines { cuts.insert(u.range.lowerBound); cuts.insert(u.range.upperBound) }
+            let ordered = cuts.sorted()
+            for (i, lower) in ordered.enumerated() where i + 1 < ordered.count {
+                let segment = lower..<ordered[i + 1]
+                var painted = CodeStyle()
+                if let id = foreground.first(where: { $0.range.contains(segment.lowerBound) })?.id {
+                    painted.foreground = style(id).foreground
+                }
+                for b in styling.backgrounds where b.range.contains(segment.lowerBound) { painted.background = b.color }
+                if let u = styling.underlines.first(where: { $0.range.contains(segment.lowerBound) }) {
+                    painted.underline = u.underline
+                }
+                guard painted != CodeStyle() else { continue }
+                let lo = max(segment.lowerBound, clamped.lowerBound), hi = min(segment.upperBound, clamped.upperBound)
+                if lo >= hi { continue }
+                let clip = lo..<hi
+                if let last = result.last, last.style == painted, last.range.upperBound == clip.lowerBound {
+                    result[result.count - 1].range = last.range.lowerBound..<clip.upperBound
+                } else {
+                    result.append(CodePaintedRun(range: clip, style: painted))
+                }
+            }
+        }
+        return result
+    }
 
     // MARK: Styling a line
 
