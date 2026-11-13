@@ -7,6 +7,7 @@ Opt-in instrumentation for a benchmark harness or a profiling session: when did 
 ```text
 window.frameTiming = FrameTiming()                         // record, no signposts
 window.frameTiming = FrameTiming(capacity: 2048, emitsSignposts: true)
+METALUI_LATENCY_TRACE=1 swift run MyApp                    // per-stage input-to-screen lines on stderr (or =<path>), see FP-I
 METALUI_SIGNPOSTS=1 swift run MyApp                        // every window: record + signposts
 window.frameTiming = nil                                   // stop
 ```
