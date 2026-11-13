@@ -14,6 +14,8 @@ public final class MetalWindowRenderer: WindowRenderer {
     /// The surface that supplies each frame's drawable.
     public let surface: any RenderSurface
     private var pending: (frame: SurfaceFrame, view: SurfaceView, commandBuffer: any MTLCommandBuffer)?
+    /// `METALUI_EXP_LATE_DRAWABLE` (`FP-L`): the command buffer of a frame whose drawable is not acquired yet.
+    private var deferred: (scaleFactor: Float, commandBuffer: any MTLCommandBuffer)?
 
     /// A window renderer drawing with `renderer` into `surface` (`RS-B`).
     public init(renderer: Renderer, surface: any RenderSurface) {
@@ -25,6 +27,7 @@ public final class MetalWindowRenderer: WindowRenderer {
     /// when no drawable is available (the window stays dirty and retries).
     public func beginFrame() -> Float? {
         pending = nil
+        deferred = nil
         // No drawable is an ordinary condition: the window retries.
         guard let frame = try? surface.nextFrame(),
               let view = frame.views.first,
@@ -77,6 +80,7 @@ public final class MetalWindowRenderer: WindowRenderer {
     public func finishFrame(scene: Scene, atlas: GlyphAtlas, surfaces: [SurfaceDrawRequest]) -> Bool {
         guard let pending else { return false }
         self.pending = nil
+        deferred = nil
         let device = renderer.device
         let commandBuffer = pending.commandBuffer
         let toDraw = surfaceTable.update(
@@ -139,6 +143,7 @@ public final class MetalWindowRenderer: WindowRenderer {
         }
         surface.present(pending.frame, in: commandBuffer, onPresented: onPresented)
         commandBuffer.commit()
+        (surface as? any ExperimentalRenderSurface)?.didCommit(pending.frame, commandBuffer: commandBuffer)
         observedFrames += 1
         // Recorded only once the frame is committed: a failed encode drops
         // the buffer and the draws in it, so an `.onDemand` surface must draw
@@ -163,5 +168,26 @@ public final class MetalWindowRenderer: WindowRenderer {
         descriptor.usage = [.renderTarget, .shaderRead]
         descriptor.storageMode = .private
         return device.makeTexture(descriptor: descriptor)
+    }
+}
+
+extension MetalWindowRenderer: LateDrawableWindowRenderer {
+    /// `FP-L`: the frame's command buffer and scale factor without `nextDrawable()`, when the surface can give
+    /// the scale without one; otherwise the ordinary ``beginFrame()``.
+    package func beginFrameDeferringDrawable() -> Float? {
+        guard let scale = (surface as? any ExperimentalRenderSurface)?.scaleFactorWithoutDrawable,
+              let commandBuffer = renderer.commandQueue.makeCommandBuffer() else { return beginFrame() }
+        pending = nil
+        deferred = (scale, commandBuffer)
+        return scale
+    }
+
+    /// `FP-L`: acquires the drawable now. `false` (none available) drops the frame's command buffer.
+    package func acquireDeferredDrawable() -> Bool {
+        guard let waiting = deferred else { return pending != nil }
+        deferred = nil
+        guard let frame = try? surface.nextFrame(), let view = frame.views.first else { return false }
+        pending = (frame, view, waiting.commandBuffer)
+        return true
     }
 }
