@@ -108,10 +108,15 @@ public final class GlobalElementID: Hashable, Sendable {
     public init(component: PathComponent, parent: GlobalElementID?) {
         self.component = component
         self.parent = parent
+        self.cachedHash = GlobalElementID.pathHash(component: component, parent: parent)
+    }
+
+    /// The hash `init` stores, so the interner can key a lookup without allocating.
+    static func pathHash(component: PathComponent, parent: GlobalElementID?) -> Int {
         var hasher = Hasher()
         hasher.combine(parent?.cachedHash ?? 0)
         hasher.combine(component)
-        self.cachedHash = hasher.finalize()
+        return hasher.finalize()
     }
 
     /// The identity of a child at `index` under `parent`, named or not.

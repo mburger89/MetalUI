@@ -1986,6 +1986,7 @@ public final class Window {
         // A `@FocusState` write made from input since the last frame moves focus
         // now, before the frame that validates it is built (ruling `IX-J`).
         applyPendingFocusStateWrites()
+        IdentityInterner.shared.advance()
         let focusHandedIn = focusedElement
         // Spec §3's hand-off, and the whole reason production can animate at
         // all. `withAnimation` parked this and returned; the mutation inside
