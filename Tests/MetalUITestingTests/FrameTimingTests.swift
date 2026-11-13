@@ -332,3 +332,77 @@ private struct WidthBox: Component {
     #expect(line.hasSuffix(String(format: "%.2f %.2f", Double(total) / 1e6, Double(total) / 16_666_667)))
     #expect(FrameTiming.traceLine(for: sample, interval: nil).hasSuffix(" -"))
 }
+
+// MARK: Latency trace in an app (`FP-J`)
+
+/// Runs `body` with `METALUI_LATENCY_TRACE` set to a fresh file path, then restores the environment.
+@MainActor private func withTraceEnvironment(_ body: (String) throws -> Void) rethrows {
+    let path = NSTemporaryDirectory() + "metalui-trace-\(UUID().uuidString).txt"
+    let old = getenv("METALUI_LATENCY_TRACE").map { String(cString: $0) }
+    setenv("METALUI_LATENCY_TRACE", path, 1)
+    defer {
+        if let old { setenv("METALUI_LATENCY_TRACE", old, 1) } else { unsetenv("METALUI_LATENCY_TRACE") }
+        try? FileManager.default.removeItem(atPath: path)
+    }
+    try body(path)
+}
+
+private func readTrace(_ path: String) -> [String] {
+    ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+}
+
+/// 1.13 — a committed-text input frame (`insertText`, the `.textInput` event) reaches the trace file once its
+/// presentation arrives through the renderer's observer, the path a real window uses; the file is read back with
+/// no close. Mutations: `.textInput` mapped to no kind; the sink not called from `notePresented`.
+@Test @MainActor func aTextInputFrameWritesATraceLineToTheFile() throws {
+    try withTraceEnvironment { path in
+        let window = try harnessWindow { VStack(spacing: 0) { TimingKeyBox() } }
+        window.platformWindow.headlessRenderer.reportsPresentation = true
+        window.window.frameTiming = FrameTiming()
+        window.window.onInput = { _ in true }
+        window.send(.textInput("x"))
+        window.tick()
+        window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+        let lines = readTrace(path)
+        #expect(lines.first == FrameTiming.traceHeader)
+        #expect(lines.contains { $0.hasPrefix("metalui-latency ") && $0.contains(" text ") }, "\(lines)")
+    }
+}
+
+/// 1.14 — the environment applies to any `FrameTiming(capacity:)`, so an app that replaces `Window.frameTiming`
+/// with its own recorder still traces; explicit `enableTrace` works without the environment. Mutation: the
+/// environment read only in `fromEnvironment()`.
+@Test @MainActor func anAppBuiltFrameTimingTracesWhenTheEnvironmentIsSet() throws {
+    try withTraceEnvironment { path in
+        let window = try harnessWindow { VStack(spacing: 0) { TimingKeyBox() } }
+        window.platformWindow.headlessRenderer.reportsPresentation = true
+        window.window.frameTiming = FrameTiming(capacity: 8192)
+        window.typeKey(.tab)
+        window.typeKey("a")
+        window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+        #expect(readTrace(path).count >= 2, "header and a line")
+    }
+    let explicit = NSTemporaryDirectory() + "metalui-trace-\(UUID().uuidString).txt"
+    defer { try? FileManager.default.removeItem(atPath: explicit) }
+    let window = try harnessWindow { VStack(spacing: 0) { TimingKeyBox() } }
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    let timing = FrameTiming(capacity: 64)
+    timing.enableTrace(destination: explicit)
+    window.window.frameTiming = timing
+    window.typeKey(.tab)
+    window.typeKey("a")
+    window.platformWindow.headlessRenderer.deliverPresentations(at: FrameTiming.now() + 1_000_000)
+    #expect(readTrace(explicit).count >= 2)
+}
+
+/// 1.15 — enabling writes the header at once (before any frame), a line is on disk the moment it is produced,
+/// and two timings on one file neither repeat the header nor overwrite each other. Mutations: the header left
+/// lazy; a per-timing file offset instead of an appending shared descriptor.
+@Test @MainActor func theTraceHeaderIsWrittenOnEnableAndLinesAreOnDiskAsProduced() throws {
+    try withTraceEnvironment { path in
+        let first = FrameTiming(), second = FrameTiming()
+        #expect(readTrace(path) == [FrameTiming.traceHeader], "header at enable, once for two timings")
+        first.traceSink?("one"); second.traceSink?("two"); first.traceSink?("three")
+        #expect(readTrace(path) == [FrameTiming.traceHeader, "one", "two", "three"])
+    }
+}
