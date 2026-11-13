@@ -60,6 +60,8 @@ struct CodeViewState: Equatable {
     var blinkComposition = ""
     /// A drag selection that left the view (`CV-AD`): written from input, a function of the frame time in every phase.
     var autoscroll: Autoscroll?
+    /// The text hover's timers and phase (`CV-AS`); idle for a view with no handler.
+    var hover = CodeHoverTrack()
 
     /// Scrolling while a drag is held outside the view: from `baseTopPx` and `baseXPx` at `start`, at `vy` and `vx`
     /// points a second. The pointer (window points) keeps the selection's head under it.
