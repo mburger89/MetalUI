@@ -24,6 +24,24 @@ struct CodeLineKey: Hashable {
     var windowEnd: Int
 }
 
+/// What an underline cache entry depends on.
+struct CodeDecorationKey: Hashable {
+    var font: FontKey
+    var scaleBits: UInt32
+}
+
+/// Where a face's underlines sit in a laid-out line (`CV-AN`).
+struct CodeUnderlineMetrics {
+    /// The baseline, in device pixels from the row's top.
+    var baselinePx: Int
+    /// The underline's centre below the baseline, in points.
+    var position: Double
+    /// The face's underline thickness, in points.
+    var thickness: Double
+    /// The face's size in points: the squiggle's amplitude and period scale with it.
+    var fontSize: Double
+}
+
 /// What a cached gutter number depends on.
 struct CodeNumberKey: Hashable {
     var number: Int
@@ -178,6 +196,21 @@ package final class CodeLineCache {
         precondition(cached.glyphs == fresh.glyphs && cached.glyphParts == fresh.glyphParts
                      && cached.boundaries == fresh.boundaries && cached.caretX == fresh.caretX,
                      "METALUI_VERIFY_CODE_CACHE: a cached line layout differs from a fresh one (CV-M)")
+    }
+
+    private var decorations: [CodeDecorationKey: CodeUnderlineMetrics] = [:]
+
+    /// Where underlines sit for `font` at `scale`, cached per face and scale (`CV-AN`).
+    func underlineMetrics(of font: FontKey, scale: Float, system: any TextSystem) -> CodeUnderlineMetrics {
+        let key = CodeDecorationKey(font: font, scaleBits: scale.bitPattern)
+        if let known = decorations[key] { return known }
+        let face = system.decorationMetrics(font)
+        let laid = system.layOut(StyledText(keepingNeighbours: "0", runs: [StyledTextRun(length: 1, style: TextRunStyle(font: font))]),
+                                 wrappingAt: nil, options: TextLayoutOptions(), origin: (x: 0, y: 0), scaleFactor: scale)
+        let made = CodeUnderlineMetrics(baselinePx: laid.glyphs.first?.glyph.baselineY ?? 0, position: -face.underlinePosition,
+                                        thickness: max(face.underlineThickness, 0.5), fontSize: font.size)
+        decorations[key] = made
+        return made
     }
 
     /// The space advance, digit advance and line height of `font`, in points (cached per face).
