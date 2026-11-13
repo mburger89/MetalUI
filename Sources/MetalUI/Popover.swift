@@ -77,7 +77,7 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
             case .popover(let attachment, let edge):
                 if let previous {
                     slot = PopoverSlot(AnchoredPresentation(
-                        content: Self.chrome(body, name: name, padding: PopoverChrome.padding), owner: id,
+                        content: Self.chrome(body, name: name, padding: PopoverChrome.padding, textAnchor: textAnchor), owner: id,
                         anchor: previous, placement: .popover(anchor: attachment.resolve(in: previous), edge: edge),
                         chrome: true, consumesAnchorPress: textAnchor == nil, dismiss: dismiss))
                 } else {
@@ -96,7 +96,7 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
             case .suggestion(let edge, let alignment, let spacing):
                 if let previous {
                     slot = PopoverSlot(AnchoredPresentation(
-                        content: Self.chrome(body, name: name, padding: 0, popoverHint: false), owner: id,
+                        content: Self.chrome(body, name: name, padding: 0, popoverHint: false, textAnchor: textAnchor), owner: id,
                         anchor: previous,
                         placement: .suggestion(anchor: previous, edge: edge, alignment: alignment, spacing: spacing),
                         chrome: false, consumesAnchorPress: false, dismiss: dismiss))
@@ -137,8 +137,13 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
     /// one bordered rect (a legacy `Box` would paint its fill and border as two
     /// primitives, each with its own shadow).
     static func chrome(_ body: PopoverContent, name: String?, padding: Float,
-                       popoverHint: Bool = true) -> Box<PopoverContent> {
+                       popoverHint: Bool = true, textAnchor: CodeTextAnchorBox? = nil) -> Box<PopoverContent> {
         var box = Box(content: body)
+        if let textAnchor {   // a text-anchored panel tells the view's hover the pointer is in it (`CV-AS`)
+            box.handlers.hover = HoverAttachment.hover({ [weak textAnchor] inside in
+                MainActor.assumeIsolated { textAnchor?.hover?.panel(inside) }
+            }, over: nil)
+        }
         box.style.padding = Edges(all: .pixels(Pixels(padding)))
         box.elementID = name.map { ElementID($0) }
         box.handlers.axNode.popoverHint = popoverHint
@@ -160,6 +165,7 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         } else {
             frame.recordPresentationAnchor(id, bounds: bounds)
         }
+        textAnchor?.isPresented = layout.slot.wrapped != nil   // the view's hover holds its end only while it is (`CV-AS`)
         if layout.slot.wrapped != nil, let previous, frame.presentationAnchors[id] != previous {
             frame.requestAnotherFrame()
         }

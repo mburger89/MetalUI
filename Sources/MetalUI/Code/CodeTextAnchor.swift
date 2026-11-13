@@ -26,6 +26,10 @@ final class CodeTextAnchorBox {
     /// The anchor in window points as drawn, or `nil` when it cannot be resolved (the wrapper then records the
     /// view's bounds).
     var windowRect: Bounds<Pixels>?
+    /// Whether the wrapper presents its popover or overlay in this build (`CV-AS`: the hover's grace applies only then).
+    var isPresented = false
+    /// The view's text hover, when it has a handler: the panel's hover and a dismissal report to it.
+    var hover: CodeTextHoverRuntime?
 
     init(_ anchor: CodeTextAnchor) { self.anchor = anchor }
 }
@@ -113,7 +117,7 @@ extension CodeView {
         let (view, box) = anchored(to: attachmentAnchor)
         return PopoverModifier(content: view, kind: .popover(.rect(.bounds), arrowEdge ?? .top),
                                presented: presenting(isPresented, content),
-                               dismiss: { isPresented.wrappedValue = false }, textAnchor: box)
+                               dismiss: { isPresented.wrappedValue = false; box.hover?.hardEnd() }, textAnchor: box)
     }
 
     /// Presents a popover built from `item` while it is non-`nil`, pointing at the caret or a range of this view's
@@ -126,7 +130,7 @@ extension CodeView {
         let (view, box) = anchored(to: attachmentAnchor)
         return PopoverModifier(content: view, kind: .popover(.rect(.bounds), arrowEdge ?? .top),
                                presented: presenting(item, content),
-                               dismiss: { item.wrappedValue = nil }, textAnchor: box)
+                               dismiss: { item.wrappedValue = nil; box.hover?.hardEnd() }, textAnchor: box)
     }
 
     /// Shows `content` beside the caret or a range of this view's text on `edge`'s side while `isPresented` is `true`,

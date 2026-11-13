@@ -70,12 +70,15 @@ final class CodeEditSession {
     let textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)?
     /// The decorations whose find matches ⌘G steps through (`CV-AE`).
     let decorations: CodeDecorations?
+    /// The text hover's input side, which a press, a key and typed text end (`CV-AS`).
+    let hover: CodeTextHoverRuntime?
 
     init(buffer: CodeBuffer, id: GlobalElementID, table: StateTable, plan: CodeViewPlan,
          editable: Bool, indentUsingSpaces: Bool, tabColumns: Int,
          gutterClick: (@MainActor (CodeGutterHit) -> Void)? = nil,
          textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)? = nil,
-         decorations: CodeDecorations? = nil) {
+         decorations: CodeDecorations? = nil, hover: CodeTextHoverRuntime? = nil) {
+        self.hover = hover
         self.gutterClick = gutterClick
         self.textClick = textClick
         self.decorations = decorations
@@ -121,6 +124,7 @@ final class CodeEditSession {
     /// replaces) through the caret line's layout alone, and never in the buffer or its edit stream until
     /// `insert` commits it. An empty composition ends it; a view that cannot edit takes none.
     func compose(_ composition: TextComposition) {
+        hover?.hardEnd()
         guard isEditable else { return }
         let text = String(composition.text.map { $0.isNewline ? " " : $0 })
         guard !text.isEmpty else {
@@ -147,6 +151,7 @@ final class CodeEditSession {
     /// A primary press at a view-local point: places the caret, selects a word (two clicks) or a line (three,
     /// or a press in the gutter); shift extends from the current anchor.
     func press(at point: Point<Pixels>, clickCount: Int, extend: Bool, modifiers: EventModifiers = []) {
+        hover?.hardEnd()   // a press ends a hover (`CV-AS`)
         // A press whose modifiers are exactly the handler's, on text, is the app's (`CV-AL`): nothing else happens.
         if let click = textClick, modifiers == click.modifiers, !plan.rows.isEmpty {
             let hit = plan.hit(at: point)
@@ -240,6 +245,7 @@ final class CodeEditSession {
 
     /// Committed text replaces the selection. Line breaks become the buffer's.
     func insert(_ text: String) {
+        hover?.hardEnd()   // typed text ends a hover (`CV-AS`)
         guard isEditable, !text.isEmpty else { return }
         let normalized = CodeEditing.normalizingLineBreaks(text, to: buffer.lineEnding.text)
         buffer.replaceSelections(with: normalized, origin: text.count == 1 ? .typing : .paste)
@@ -252,6 +258,7 @@ final class CodeEditSession {
     /// travelling (Tab still moves focus).
     func key(_ event: KeyEvent, clipboard: () -> String?,
              platform: TextEditing.Platform = TextEditing.platform) -> CodeKeyOutcome {
+        hover?.hardEnd()   // a key ends a hover (`CV-AS`)
         guard let command = CodeEditing.command(for: event, platform: platform) else {
             return CodeKeyOutcome(handled: false)
         }

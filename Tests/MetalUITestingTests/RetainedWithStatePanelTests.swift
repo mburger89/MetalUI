@@ -408,7 +408,8 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
         // arm for it is `Window`'s sixth plain write (input).
         // `CodeView` (`CV-W`): the wheel's plain write and the session's one are input; the prepaint's is compared; the plan reads the
         // scroll fade and the caret's blink epoch in paint (`CV-AC`), and an autoscroll's offsets are computed from input's state (`CV-AD`), written nowhere in a phase.
-        "Code/CodeEditSession.swift": (1, 0, 1, 0), "Code/CodeView.swift": (1, 1, 1, 0), "Code/CodeViewPlan.swift": (0, 0, 2, 0), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 2, 3, 0), "Window.swift": (6, 0, 0, 0),
+        // The text hover (`CV-AS`): its input side writes the hover track plain (one site) and reads it; the prepaint's timers go through `CodeView`'s compared write.
+        "Code/CodeEditSession.swift": (1, 0, 1, 0), "Code/CodeTextHover.swift": (1, 0, 1, 0), "Code/CodeView.swift": (1, 1, 1, 0), "Code/CodeViewPlan.swift": (0, 0, 2, 0), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 2, 3, 0), "Window.swift": (6, 0, 0, 0),
     ]
     let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Sources/MetalUI")

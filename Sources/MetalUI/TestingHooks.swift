@@ -209,6 +209,10 @@ extension Window {
     package func testingStateVersion(_ id: GlobalElementID) -> UInt64 { stateTable.entryVersion(id) }
     package func testingStateIsLive(_ id: GlobalElementID) -> Bool { stateTable.isLive(id) }
 
+    /// How many plain state writes (not compared ones) the table has taken: what input writes (`CV-AS`: a view with no hover
+    /// handler writes none as the pointer moves).
+    package var testingStatePlainWriteCount: Int { stateTable.writeCount - stateTable.comparedWriteCount }
+
     /// Every field of the last build's hitboxes that is not a closure, in registration order, as one string
     /// each: identity, bounds, layer, opacity, scroll axis, origin, shape, transform, the contextual flag and
     /// which handler members were present (`RK-E`).

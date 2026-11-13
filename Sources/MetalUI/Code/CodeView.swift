@@ -44,6 +44,7 @@ public struct CodeView: Element, StyledElement {
     var onScrollAction: (@MainActor (CodeScrollPosition) -> Void)?
     var gutterClick: (@MainActor (CodeGutterHit) -> Void)?
     var textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)?
+    var textHover: CodeTextHover?
     var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
@@ -205,9 +206,11 @@ public struct CodeView: Element, StyledElement {
                                   layout: inout Layout, pass: inout PrepaintPass) {
         let frame = pass.frame
         let stored = pass.readState(id, initial: CodeViewState())   // a read, not a write (`RW-J`)
-        let (plan, state) = makePlan(id, bounds: bounds, stored: stored, environment: pass.environment, frame: frame)
+        let (plan, planState) = makePlan(id, bounds: bounds, stored: stored, environment: pass.environment, frame: frame)
+        var state = planState
         // The anchor, the clamps and the measured width are written back in the phase, **compared**: a
         // function of the state, the buffer and the size, so it converges in one frame (`TextEditor`'s precedent).
+        if let hover = textHover { advanceTextHover(&state.hover, hover, id: id, plan: plan, frame: frame) }   // `CV-AS`
         if state != stored {
             pass.withState(id, initial: CodeViewState(), unchanged: ==) { $0 = state }
         }
@@ -218,7 +221,23 @@ public struct CodeView: Element, StyledElement {
             handlers.keyboard = KeyboardAttachment.interactions(.edit, over: handlers.keyboard)
         }
         let table = frame.stateTable
-        handlers.pointer = PointerAttachment.wheel({ [plan] event in
+        // A text hover (`CV-AS`): its input side, registered only for a view with a handler.
+        var hoverRuntime: CodeTextHoverRuntime?
+        if let hover = textHover {
+            let runtime = CodeTextHoverRuntime(id: id, table: table, plan: plan, origin: bounds.origin, buffer: buffer,
+                                               perform: hover.perform, box: textAnchorBox)
+            textAnchorBox?.hover = runtime
+            let existing = handlers.hover
+            // The view's own continuous hover keeps running beside it when it is in the same (local) space.
+            let chained = existing?.coordinateSpace == .local ? existing?.onContinuousHover : nil
+            handlers.hover = HoverAttachment.continuous({ phase in
+                chained?(phase)
+                MainActor.assumeIsolated { runtime.pointer(phase) }
+            }, in: .local, over: existing)
+            hoverRuntime = runtime
+        }
+        handlers.pointer = PointerAttachment.wheel({ [plan, hoverRuntime] event in
+            hoverRuntime?.hardEnd()   // a wheel scroll ends a hover (`CV-AS`)
             let scale = Double(plan.scale)
             table.withState(id, initial: CodeViewState()) { state in
                 let lineY = Double(plan.topPx) / scale, columnX = Double(plan.scrollXPx) / scale
@@ -236,7 +255,7 @@ public struct CodeView: Element, StyledElement {
         // method's area, under the view's own render effects (`GX-I`).
         let session = CodeEditSession(buffer: buffer, id: id, table: table, plan: plan, editable: isEditable,
                                       indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick, textClick: textClick,
-                                      decorations: decorations)
+                                      decorations: decorations, hover: hoverRuntime)
         if let menu = gutterMenu {
             let existing = handlers.contextual
             // The menu's point is relative to the region's origin (`CI-R` item 3); the plan hits in the view's
