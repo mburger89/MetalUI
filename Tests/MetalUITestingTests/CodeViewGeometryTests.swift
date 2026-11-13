@@ -143,10 +143,12 @@ private func center(_ r: Bounds<Pixels>) -> Point<Pixels> {
     #expect(caret.size.width.value == bar.bounds.size.width && caret.size.height.value == bar.bounds.size.height)
     #expect(geometry.hit(at: pt(caret.origin.x.value, caret.origin.y.value + 1))?.offset == buffer.primarySelection.head)
     buffer.selections = [CodeSelection(caret: buffer.snapshot().utf8Count)]
-    window.tick()
-    // Whether the last row is shown depends on the platform's font metrics, so assert the rule rather than
-    // one platform's layout: a rectangle exactly when the head's row is a shown row.
+    // A write after a click-driven first frame does not dirty the window on the portable harness (no observation
+    // session is armed yet there), so ask for the frame as the editing tests do; without it `geometry` is the
+    // previous frame's and still answers for the old head.
+    window.window.setNeedsRedraw(); window.tick()
     let headRow = buffer.snapshot().point(at: buffer.primarySelection.head).row
     let shown = try #require(geometry.visibleRows)
-    #expect((geometry.caretRect() != nil) == shown.contains(headRow), "head row \(headRow), shown \(shown)")
+    #expect(!shown.contains(headRow), "the premise: the last row (\(headRow)) is outside the shown rows \(shown)")
+    #expect(geometry.caretRect() == nil, "a caret far below the shown rows has no rectangle")
 }
