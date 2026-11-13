@@ -456,13 +456,19 @@ public final class Window {
     /// Opt-in frame instrumentation (ruling `FP-A`): assign a ``FrameTiming`` to record, per frame, when the
     /// input that caused it arrived, when layout, prepaint and paint ended, when it was committed and, where the
     /// platform reports it, when it was presented; `nil` (the default) records nothing and costs one optional
-    /// check per input event and per frame. Setting the environment variable `METALUI_SIGNPOSTS=1` gives every
+    /// check per input event and per frame. Setting `METALUI_LATENCY_TRACE` (see ``FrameTiming/enableTrace(destination:)``) traces any timing assigned here. Setting the environment variable `METALUI_SIGNPOSTS=1` gives every
     /// new window a timing that also emits `os` signposts (macOS). MetalUI-only.
     public var frameTiming: FrameTiming? = FrameTiming.fromEnvironment()
     /// The timing the renderer's presentation observer is installed for (`FP-F`); compared by identity at the
     /// start of each frame.
     private weak var observedFrameTiming: FrameTiming?
     private var frameTimingObserverInstalled = false
+
+    /// The latency experiment switches (`FP-L`), read once from the environment when the window is created. A
+    /// test sets them. Package-only: experiments, not API.
+    package var experiments = LatencyExperiments.environment
+    /// Inside `drawFrameIfNeeded` past its guard: an immediate draw never nests in a frame (`FP-L`).
+    private var isDrawingFrame = false
 
     /// How many times the loop has found nothing to do and paused the display
     /// link. Test and debug observability, not API.
@@ -1062,6 +1068,10 @@ public final class Window {
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
+            // `METALUI_EXP_IMMEDIATE_INPUT` (`FP-L`): declared first so it runs last, after the selection is
+            // published and the timing has claimed the input. One stored check when the experiment is off.
+            let drawsImmediately = self.experiments.immediateInput && self.isIdleForImmediateInput(event)
+            defer { if drawsImmediately { self.drawImmediatelyAfterInput() } }
             // A bound text selection is published after every input that moved it
             // (`SL-B`); one site covers press, drag, key, ⌘A, Tab, text and undo.
             defer { self.publishFocusedSelection() }
@@ -1589,6 +1599,24 @@ public final class Window {
     /// the frame (a hover's tooltip, set in `updateHover`) counts at the next tick.
     var awaitsATimer: Bool { gestureArena?.needsTicks == true || tooltipTracker.isPending }
 
+    /// `METALUI_EXP_IMMEDIATE_INPUT` (`FP-L`): whether `event`, arriving now, may draw its frame at the end of its
+    /// handler: a key, text or button event, to a window that is idle (clean, nothing animating, no timer) and
+    /// not inside a frame. Moves, drags and scrolls keep the display link's pacing.
+    private func isIdleForImmediateInput(_ event: InputEvent) -> Bool {
+        guard !isDrawingFrame, !needsRedraw, !hasActiveAnimations, !awaitsATimer else { return false }
+        switch event {
+        case .keyDown, .keyUp, .textInput, .textComposition, .mouseDown, .mouseUp: return true
+        default: return false
+        }
+    }
+
+    /// Draws the frame the input just asked for, on the spot, if it asked for one. The tick that follows finds
+    /// the window clean and draws nothing (it only pauses the link): one frame, not two.
+    private func drawImmediatelyAfterInput() {
+        guard needsRedraw, !isDrawingFrame else { return }
+        drawFrameIfNeeded()
+    }
+
     /// Builds and draws one frame if the window is dirty, an animation is
     /// running or a gesture's or tooltip's timer is pending (`HT-Z` item 2);
     /// otherwise pauses the display link.
@@ -1605,8 +1633,11 @@ public final class Window {
             // Nothing to do: let the display idle rather than spinning.
             platformWindow.setDisplayLinkPaused(true)
             pausesEntered += 1
+            frameTiming?.discardTick()   // `FP-L`: an idle tick must not become a later, tickless frame's tick
             return
         }
+        isDrawingFrame = true
+        defer { isDrawingFrame = false }
 
         // Flush every observation session armed by an earlier frame, so
         // registrations stay bounded at one outstanding session instead of
@@ -1700,7 +1731,9 @@ public final class Window {
 
         // No drawable is an ordinary condition: stay dirty and retry (the
         // window's `WindowRenderer` says so with `nil`, ruling RS-A).
-        guard let drawScaleFactor = platformWindow.renderer.beginFrame() else {
+        // `METALUI_EXP_LATE_DRAWABLE` (`FP-L`): without the drawable here; `acquireDeferredDrawable` gets it after paint.
+        let lateRenderer = experiments.lateDrawable ? platformWindow.renderer as? any LateDrawableWindowRenderer : nil
+        guard let drawScaleFactor = lateRenderer?.beginFrameDeferringDrawable() ?? platformWindow.renderer.beginFrame() else {
             timing?.abandonFrame()
             setNeedsRedraw()
             return
@@ -1835,6 +1868,15 @@ public final class Window {
         // The frame's app-owned surfaces' requests ride along (MetalView,
         // `MV-F`): the renderer runs them into this frame's command buffer
         // after its atlas upload and before it encodes `scene`.
+        if let lateRenderer {
+            let acquired = lateRenderer.acquireDeferredDrawable()
+            timing?.stampLateDrawable()
+            guard acquired else {   // as no drawable at the start: stay dirty and retry
+                timing?.abandonFrame()
+                setNeedsRedraw()
+                return
+            }
+        }
         guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas,
                                                   surfaces: frame.surfaceRequests) else {
             timing?.abandonFrame()
