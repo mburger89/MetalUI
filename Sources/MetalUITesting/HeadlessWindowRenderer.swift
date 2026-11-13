@@ -92,6 +92,32 @@ public final class HeadlessWindowRenderer: WindowRenderer {
         for token in tokens { presentationObserver(token, nil) }
     }
 
+    /// Whether this renderer answers `WindowRenderer.setGPUTimeObserver(_:)` (ruling `FP-P`). `false`, the default:
+    /// there is no GPU, so ``FrameTimingSample/gpuNanos`` stays `nil` and the trace prints `-`. A test of the GPU
+    /// path sets `true` and plays the GPU with ``deliverGPUTimes(nanos:)``.
+    public var reportsGPUTime = false
+    private var gpuTimeObserver: (@MainActor @Sendable (UInt64, UInt64?) -> Void)?
+    private var gpuObservedFrames: UInt64 = 0
+    private var gpuUndelivered: [UInt64] = []
+
+    /// Stores the observer; answers ``reportsGPUTime``.
+    @discardableResult
+    public func setGPUTimeObserver(_ observer: (@MainActor @Sendable (UInt64, UInt64?) -> Void)?) -> Bool {
+        gpuTimeObserver = observer
+        gpuObservedFrames = 0
+        gpuUndelivered = []
+        return reportsGPUTime
+    }
+
+    /// Reports every frame finished since the last call as having taken `nanos` of GPU time (`nil`: the GPU failed
+    /// it), in order, outside any frame. Reports nothing unless ``reportsGPUTime`` is `true`.
+    public func deliverGPUTimes(nanos: UInt64? = 1_000_000) {
+        guard let gpuTimeObserver else { return }
+        let tokens = gpuUndelivered
+        gpuUndelivered = []
+        for token in tokens { gpuTimeObserver(token, nanos) }
+    }
+
     /// The glyph atlas of the last presented frame (the window's own, shared, not a copy), or `nil` before one:
     /// what a renderer needs beside ``lastScene`` to draw the frame's text (`HT-AB`).
     public private(set) var lastAtlas: GlyphAtlas?
@@ -144,6 +170,10 @@ public final class HeadlessWindowRenderer: WindowRenderer {
         if reportsPresentation, presentationObserver != nil {
             undelivered.append(observedFrames)
             observedFrames += 1
+        }
+        if reportsGPUTime, gpuTimeObserver != nil {
+            gpuUndelivered.append(gpuObservedFrames)
+            gpuObservedFrames += 1
         }
         onFramePresented?(self)
         return true

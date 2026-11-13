@@ -36,6 +36,8 @@ ICONS = [
     "eye", "eye-off",
     # Record 279 (MetalCreator gap G): the toolbar symbols.
     "redo-2", "share", "zoom-in", "zoom-out", "panel-left", "panel-bottom", "house", "camera",
+    # Record 288 (MetalCreator gap ICON-a): the plain plus and minus.
+    "plus", "minus",
 ]
 
 # Filled-half shapes (record 279, SYM-Q): Lucide has no filled panel, so the SF names `rectangle.lefthalf.inset.filled` and

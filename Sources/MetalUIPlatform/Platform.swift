@@ -688,9 +688,26 @@ public protocol WindowRenderer: AnyObject {
     /// which exposes none) keeps `FrameTiming/presented` `nil`, which is the honest answer; a third-party
     /// conformer compiles unchanged.
     func setPresentationObserver(_ observer: (@MainActor @Sendable (_ frameToken: UInt64, _ presentedAt: UInt64?) -> Void)?)
+
+    /// Asks the renderer to report each frame's GPU execution time (ruling `FP-P`), for `FrameTiming`. `nil` stops
+    /// reporting and installs nothing on later frames: a renderer adds no completion handler while no observer is
+    /// set. `frameToken` counts as in ``setPresentationObserver(_:)`` (0-based, frames finished since installation);
+    /// `gpuNanos` is the frame's GPU time in nanoseconds (Metal: its command buffer's `gpuEndTime - gpuStartTime`),
+    /// or `nil` when the GPU failed it. The observer runs on the main actor, after the frame was committed,
+    /// before or after its presentation report.
+    ///
+    /// Answers whether this renderer reports GPU times at all. **Defaulted to `false`, installing nothing** (`FP-P`):
+    /// SDL_GPU and a third-party conformer keep `FrameTimingSample/gpuNanos` `nil` and compile unchanged.
+    @discardableResult
+    func setGPUTimeObserver(_ observer: (@MainActor @Sendable (_ frameToken: UInt64, _ gpuNanos: UInt64?) -> Void)?) -> Bool
 }
 
 extension WindowRenderer {
+    /// Reports no GPU times (`FP-P`).
+    @discardableResult
+    public func setGPUTimeObserver(
+        _ observer: (@MainActor @Sendable (_ frameToken: UInt64, _ gpuNanos: UInt64?) -> Void)?) -> Bool { false }
+
     /// Reports no presentation times (`FP-F`).
     public func setPresentationObserver(
         _ observer: (@MainActor @Sendable (_ frameToken: UInt64, _ presentedAt: UInt64?) -> Void)?) {}
