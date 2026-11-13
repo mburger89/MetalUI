@@ -574,10 +574,17 @@ private func keyA() -> InputEvent {
     var s = FrameTimingSample(frameIndex: 0, start: 1_000)
     s.commit = 1_000 + 20_000_000
     s.tickTarget = 1_000 + 16_000_000
-    #expect(FrameTiming.estimatedVsync(for: s, interval: 16_000_000, phase: nil) == 1_000 + 32_000_000, "missed one")
+    // Results are bound to typed locals first: an `#expect` comparing the optional call to an integer literal
+    // crashes the Windows Swift 6.4 compiler (SILGen reabstraction thunk through `AnyHashable`).
+    let fromTick: UInt64? = FrameTiming.estimatedVsync(for: s, interval: 16_000_000, phase: nil)
+    let expectedFromTick: UInt64 = 1_000 + 32_000_000
+    #expect(fromTick == expectedFromTick, "missed one")
     s.tickTarget = nil
-    #expect(FrameTiming.estimatedVsync(for: s, interval: 16_000_000, phase: 1_000 + 48_000_000) == 1_000 + 48_000_000)
-    #expect(FrameTiming.estimatedVsync(for: s, interval: nil, phase: 1) == nil)
+    let fromPhase: UInt64? = FrameTiming.estimatedVsync(for: s, interval: 16_000_000, phase: 1_000 + 48_000_000)
+    let expectedFromPhase: UInt64 = 1_000 + 48_000_000
+    #expect(fromPhase == expectedFromPhase)
+    let unknown: UInt64? = FrameTiming.estimatedVsync(for: s, interval: nil, phase: 1)
+    #expect(unknown == nil)
     let line = FrameTiming.traceLine(for: s, interval: 16_000_000, vsyncPhase: 1_000 + 48_000_000)
     #expect(line.contains(" - 28.00 | "), "commit>screen unreported (-), est>screen 28.00")
 }
