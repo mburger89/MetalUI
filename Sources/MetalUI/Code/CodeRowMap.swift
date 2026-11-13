@@ -26,7 +26,14 @@ final class VirtualGroup {
     let tag: UInt64?
     /// Whether the group was given `.after(line:)`: its anchor line is the buffer row above the gap, not below it.
     let anchoredAfter: Bool
-    init(lines: [VirtualLine], gutterBar: Color?, background: Color?, tag: UInt64? = nil, anchoredAfter: Bool = false) {
+    /// The owner that gave the group (`CodeDecorations`' owner table; 0 is the default owner) and its priority then
+    /// (`CV-AO`): groups at one gap sit in ascending priority.
+    let owner: UInt16
+    let priority: Int
+    init(lines: [VirtualLine], gutterBar: Color?, background: Color?, tag: UInt64? = nil, anchoredAfter: Bool = false,
+         owner: UInt16 = 0, priority: Int = 0) {
+        self.owner = owner
+        self.priority = priority
         self.lines = lines
         self.gutterBar = gutterBar
         self.background = background
@@ -145,12 +152,42 @@ final class CodeRowMap {
         self.rowCount = rowCount
         root = nil
         var previous = 0
+        // O(groups), not O(groups log): a Cartesian tree over the random priorities by one pass with a stack (`CV-AO`).
+        var stack: [RowMapNode] = []
         for entry in groups where !entry.group.lines.isEmpty {
             let position = min(max(entry.position, previous), rowCount)
+            RunTreeStats.nodesVisited += 1
             let node = RowMapNode(extent: position - previous, group: entry.group, priority: nextPriority())
-            root = merge(root, node)
+            var popped: RowMapNode?
+            while let top = stack.last, top.priority < node.priority { popped = stack.removeLast() }
+            node.left = popped
+            stack.last?.right = node
+            stack.append(node)
             previous = position
         }
+        func fix(_ node: RowMapNode?) {
+            guard let node else { return }
+            fix(node.left)
+            fix(node.right)
+            node.update()
+        }
+        root = stack.first
+        fix(root)
+    }
+
+    /// Every group with its gap position, in display order: O(groups).
+    func allGroups() -> [(position: Int, group: VirtualGroup)] {
+        var out: [(position: Int, group: VirtualGroup)] = []
+        func visit(_ node: RowMapNode?, base: Int) {
+            guard let n = node else { return }
+            RunTreeStats.nodesVisited += 1
+            visit(n.left, base: base)
+            let position = base + (n.left?.totalExtent ?? 0) + n.extent
+            out.append((position, n.group))
+            visit(n.right, base: position)
+        }
+        visit(root, base: 0)
+        return out
     }
 
     /// No groups over `rowCount` rows.
