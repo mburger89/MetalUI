@@ -11,12 +11,7 @@ final class MetalLayerSurface: RenderSurface {
     private let layer: CAMetalLayer
     private var currentDrawable: (any CAMetalDrawable)?
 
-    /// `METALUI_EXP_TRANSACTION` (`FP-L`): present with the layer's transaction, after the buffer is scheduled.
-    private let presentsWithTransaction: Bool
-    private var transactionDrawable: (any CAMetalDrawable)?
-
-    init(device: any MTLDevice, experiments: LatencyExperiments = .environment) {
-        presentsWithTransaction = experiments.transaction
+    init(device: any MTLDevice) {
         layer = CAMetalLayer()
         layer.device = device
         // Gamma-encoded sRGB compositing; see Renderer.pixelFormat and spec 7.8.
@@ -26,9 +21,6 @@ final class MetalLayerSurface: RenderSurface {
         layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         layer.isOpaque = false
         layer.framebufferOnly = true
-        // Experiments (`FP-L`), each one stored check at creation and nothing per frame.
-        if let drawables = experiments.drawables { layer.maximumDrawableCount = drawables }
-        if experiments.transaction { layer.presentsWithTransaction = true }
     }
 
     var backingLayer: CAMetalLayer { layer }
@@ -65,25 +57,9 @@ final class MetalLayerSurface: RenderSurface {
             if let onPresented {
                 drawable.addPresentedHandler { onPresented($0.presentedTime) }
             }
-            if presentsWithTransaction {
-                transactionDrawable = drawable   // presented by `didCommit`, after the buffer is scheduled
-            } else {
-                commandBuffer.present(drawable)
-            }
+            commandBuffer.present(drawable)
             currentDrawable = nil
         }
-    }
-}
-
-extension MetalLayerSurface: ExperimentalRenderSurface {
-    var scaleFactorWithoutDrawable: Float? { Float(layer.contentsScale) }
-
-    /// The documented `presentsWithTransaction` pattern: commit, wait until scheduled, then `present()`.
-    func didCommit(_ frame: SurfaceFrame, commandBuffer: any MTLCommandBuffer) {
-        guard let drawable = transactionDrawable else { return }
-        transactionDrawable = nil
-        commandBuffer.waitUntilScheduled()
-        drawable.present()
     }
 }
 #endif

@@ -467,19 +467,3 @@ import MetalUIRender
     #expect(space.name == CGColorSpace.sRGB)
     #expect(layer.pixelFormat == .bgra8Unorm)
 }
-
-
-/// The layer experiments (`FP-L`) reach the `CAMetalLayer`; the defaults are untouched. Mutations: the
-/// `maximumDrawableCount` assignment dropped; the transaction flag ignored.
-@MainActor
-@Test func theLatencyExperimentsConfigureTheMetalLayerAndTheDefaultsDoNot() throws {
-    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
-    let plain = MetalLayerSurface(device: device, experiments: LatencyExperiments())
-    #expect(plain.backingLayer.maximumDrawableCount == 3)
-    #expect(plain.backingLayer.presentsWithTransaction == false)
-    var on = LatencyExperiments()
-    on.drawables = 2; on.transaction = true
-    let tuned = MetalLayerSurface(device: device, experiments: on)
-    #expect(tuned.backingLayer.maximumDrawableCount == 2)
-    #expect(tuned.backingLayer.presentsWithTransaction == true)
-}
