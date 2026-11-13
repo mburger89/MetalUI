@@ -46,6 +46,7 @@ public struct CodeView: Element, StyledElement {
     var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
+    var geometryObject: CodeViewGeometry?
 
     /// A view of `buffer` drawn with `decorations`, whose buffer must be the same.
     public init(buffer: CodeBuffer, decorations: CodeDecorations) {
@@ -243,6 +244,10 @@ public struct CodeView: Element, StyledElement {
             handlers.axNode.fillControl(role: .textArea, label: nil, value: plan.accessibilityText())
         }
         layout.plan = plan
+        if let geometry = geometryObject {   // unobserved, like `CodeDecorations.sync()` (`CV-K`)
+            geometry.plan = plan
+            geometry.origin = bounds.origin
+        }
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
     }
 
