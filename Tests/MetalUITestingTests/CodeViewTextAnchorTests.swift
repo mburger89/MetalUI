@@ -100,6 +100,7 @@ private let plainText = (0..<60).map { "row\($0) alpha beta gamma\n" }.joined()
     let (window, buffer, geometry) = try anchorWindow(model, .suggestion, anchor: .caret, text: plainText)
     window.click(at: pt(60, 6))
     buffer.selections = [CodeSelection(caret: 0)]
+    window.window.setNeedsRedraw()
     window.tick(); window.tick()
     let first = try #require(geometry.caretRect())
     var box = try popoverFrame(window)
@@ -133,6 +134,7 @@ private let plainText = (0..<60).map { "row\($0) alpha beta gamma\n" }.joined()
     var box = try popoverFrame(window)
     #expect(near(box.origin.x.value, before.origin.x.value) && near(box.origin.y.value, before.bottom + 2), "\(box) vs \(before)")
     buffer.replace(0..<0, with: "inserted line\nand another\n")
+    window.window.setNeedsRedraw()   // an observed write dirties the window asynchronously off Apple (as in G35 A's tests)
     window.tick(); window.tick(); window.tick()
     let moved = try #require(geometry.rects(for: buffer.map(word.lowerBound, from: version, bias: .after)!..<buffer.map(word.upperBound, from: version, bias: .before)!).first)
     #expect(moved.origin.y.value > before.origin.y.value + 10, "the word is two rows lower: \(moved) vs \(before)")
@@ -166,6 +168,7 @@ private let plainText = (0..<60).map { "row\($0) alpha beta gamma\n" }.joined()
     let (window, buffer, _) = try anchorWindow(model, .suggestion, anchor: .caret, text: plainText)
     window.click(at: pt(60, 6))
     buffer.selections = [CodeSelection(caret: 4)]
+    window.window.setNeedsRedraw()
     window.tick()
     let text = buffer.snapshot().text
     for key in [KeyEquivalent.downArrow, .upArrow, .return, .tab, .escape] { window.typeKey(key) }
@@ -192,6 +195,7 @@ private let plainText = (0..<60).map { "row\($0) alpha beta gamma\n" }.joined()
     let (window, buffer, _) = try anchorWindow(model, .suggestion, anchor: .caret, text: "hello\n")
     window.click(at: pt(60, 6))
     buffer.selections = [CodeSelection(caret: 0)]
+    window.window.setNeedsRedraw()
     window.tick()
     window.typeText("a")
     #expect(model.keys == ["a"] && buffer.snapshot().text == "hello\n", "handled: not inserted: \(model.keys)")
@@ -215,6 +219,7 @@ private let plainText = (0..<60).map { "row\($0) alpha beta gamma\n" }.joined()
     let (window, buffer, _) = try anchorWindow(model, .popover, anchor: .caret, text: plainText)
     window.click(at: pt(60, 6))   // not on the popover
     model.shown = true
+    window.window.setNeedsRedraw()   // see 2: the write to the model dirties asynchronously off Apple
     window.tick(); window.tick()
     window.typeKey(.escape)
     #expect(!model.shown && model.keys.isEmpty, "Esc dismissed it and went no further: \(model.keys)")
@@ -310,12 +315,14 @@ private struct AnchorHost: Component, @MainActor Equatable {
         }
     }
     buffer.selections = [CodeSelection(caret: 9)]
+    window.window.setNeedsRedraw()
     try window.click(try window.element(identifier: "other"))   // the view starts focused; a focused view never replays
     #expect(try window.focusedElement?.identifier == "other")   // the view starts focused; a focused or hovered view never replays
     window.resetFrameWork()
     for _ in 0..<4 { tick.value += 1; window.window.setNeedsRedraw(); window.tick() }
     if !rsVerifying { #expect(window.frameWork.reduce(FrameWork(), +).retainedHits >= 4, "the host replays while the popover is closed") }
     model.shown = true
+    window.window.setNeedsRedraw()   // see 2
     window.tick()
     // Placed in the very frame it was presented in: the replayed frames before it kept the anchor (a ledger without it
     // leaves the popover one frame late, `RW-K`).
