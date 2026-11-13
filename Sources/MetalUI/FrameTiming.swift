@@ -43,9 +43,19 @@ public struct FrameTimingSample: Sendable, Equatable {
     public var inputReceived: UInt64?
     /// How many input events dirtied the window since the previous frame (this frame covers all of them).
     public var inputCount: Int
+    /// When the display-link callback that drove this frame ran (``FrameTiming/now()``'s clock), or `nil` for a
+    /// frame not driven by a tick (a direct `drawFrameIfNeeded()`). With ``inputReceived`` this is the wait for
+    /// the next tick: the largest single term of key-to-screen latency on a display-link-paced window.
+    public var tickStart: UInt64?
+    /// The display link's `targetTimestamp` for that tick: when the frame being built is expected on screen
+    /// (``FrameTiming/now()``'s clock), or `nil` where the platform reports none or off our clock.
+    public var tickTarget: UInt64?
     /// The frame function started drawing (before the platform's drawable is acquired, so a stalled
-    /// `nextDrawable()` shows as the gap before ``layoutEnd``).
+    /// `nextDrawable()` shows as the gap before ``drawableAcquired``).
     public var buildStart: UInt64
+    /// The platform's drawable (Metal: `CAMetalLayer.nextDrawable()`) was acquired. ``drawableAcquired`` minus
+    /// ``buildStart`` is the time `nextDrawable()` blocked.
+    public var drawableAcquired: UInt64
     /// Layout finished (the last build, when a frame builds more than once).
     public var layoutEnd: UInt64
     /// Prepaint finished (hitboxes, hover and focus resolved).
@@ -64,7 +74,8 @@ public struct FrameTimingSample: Sendable, Equatable {
     package init(frameIndex: UInt64, start: UInt64) {
         self.frameIndex = frameIndex
         inputKind = nil; inputTimestamp = nil; inputReceived = nil; inputCount = 0
-        buildStart = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
+        tickStart = nil; tickTarget = nil
+        buildStart = start; drawableAcquired = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
         presented = nil
     }
 
@@ -79,6 +90,17 @@ public struct FrameTimingSample: Sendable, Equatable {
         guard let inputTimestamp, let presented else { return nil }
         return presented >= inputTimestamp ? presented - inputTimestamp : 0
     }
+
+    /// Input arrival to the display-link tick that built the frame, in nanoseconds, or `nil` with no input or no
+    /// tick: how long the event waited for the next tick.
+    public var inputToTick: UInt64? {
+        guard let inputReceived, let tickStart else { return nil }
+        return tickStart >= inputReceived ? tickStart - inputReceived : 0
+    }
+
+    /// How long acquiring the platform's drawable took, in nanoseconds (`nextDrawable()` blocks when every
+    /// drawable is in flight).
+    public var drawableWait: UInt64 { drawableAcquired >= buildStart ? drawableAcquired - buildStart : 0 }
 
     /// Frame start to commit in nanoseconds: what the frame cost the process.
     public var frameDuration: UInt64 { commit >= buildStart ? commit - buildStart : 0 }
@@ -153,8 +175,64 @@ public final class FrameTiming {
 
     /// The timing `METALUI_SIGNPOSTS=1` asks for (signposts on), else `nil`. Read once per window.
     static func fromEnvironment() -> FrameTiming? {
-        guard let value = getenv("METALUI_SIGNPOSTS"), String(cString: value) == "1" else { return nil }
-        return FrameTiming(emitsSignposts: true)
+        let signposts = getenv("METALUI_SIGNPOSTS").map { String(cString: $0) == "1" } ?? false
+        let trace = getenv("METALUI_LATENCY_TRACE").map { String(cString: $0) } ?? ""
+        let traces = !trace.isEmpty && trace != "0"
+        guard signposts || traces else { return nil }
+        let timing = FrameTiming(emitsSignposts: signposts)
+        if traces { timing.enableTrace(destination: trace) }
+        return timing
+    }
+
+    // MARK: Latency trace (`METALUI_LATENCY_TRACE`)
+
+    /// Receives one line per input-caused frame once it is presented, plus a header before the first. `nil`: no
+    /// trace. Set by ``enableTrace(destination:)``; a test sets it directly.
+    package var traceSink: ((String) -> Void)?
+    private var traceHeaderWritten = false
+    private var lastTickTarget: UInt64?
+    /// The shortest gap seen between consecutive tick targets: the display's refresh interval, nanoseconds.
+    package private(set) var refreshInterval: UInt64?
+    private var pendingTick: (start: UInt64, target: UInt64?)?
+
+    /// Turns the trace on: `"1"` writes to standard error, any other value is a file path lines are appended to.
+    func enableTrace(destination: String) {
+        if destination == "1" {
+            traceSink = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+        } else if let handle = FileHandle(forWritingAtPath: destination)
+                    ?? (FileManager.default.createFile(atPath: destination, contents: nil)
+                        ? FileHandle(forWritingAtPath: destination) : nil) {
+            handle.seekToEndOfFile()
+            traceSink = { handle.write(Data(($0 + "\n").utf8)) }
+        } else {
+            traceSink = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+        }
+    }
+
+    /// The header ``traceLine(for:interval:)``'s columns follow.
+    package static let traceHeader = "metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build "
+        + "encode commit>screen | total frames"
+
+    /// One line: each stage's duration in milliseconds, the input-to-screen total and that total in refresh
+    /// intervals (`-` when no interval is known). Stages with no stamp print `-`.
+    package static func traceLine(for s: FrameTimingSample, interval: UInt64?) -> String {
+        func ms(_ ns: UInt64?) -> String { ns.map { String(format: "%.2f", Double($0) / 1e6) } ?? "-" }
+        func gap(_ a: UInt64?, _ b: UInt64?) -> UInt64? {
+            guard let a, let b else { return nil }
+            return b >= a ? b - a : 0
+        }
+        let total = s.inputToPresented
+        let frames: String
+        if let total, let interval, interval > 0 {
+            frames = String(format: "%.2f", Double(total) / Double(interval))
+        } else { frames = "-" }
+        let kind = s.inputKind.map { String(describing: $0) } ?? "none"
+        return "metalui-latency \(s.frameIndex) \(kind) \(s.inputCount) | "
+            + [ms(gap(s.inputTimestamp, s.inputReceived)), ms(s.inputToTick),
+               ms(gap(s.tickStart, s.buildStart)), ms(s.drawableWait),
+               ms(gap(s.drawableAcquired, s.paintEnd)), ms(gap(s.paintEnd, s.commit)),
+               ms(gap(s.commit, s.presented))].joined(separator: " ")
+            + " | \(ms(total)) \(frames)"
     }
 
     // MARK: Reading
@@ -246,9 +324,36 @@ public final class FrameTiming {
         }
     }
 
+    /// The display link fired; `target` is its `targetTimestamp` in seconds. The next ``beginFrame()`` takes it.
+    func noteTick(target: Double) {
+        let now = Self.now()
+        var targetNanos: UInt64?
+        let nanos = target * 1_000_000_000
+        // On our clock only: within a second either side of now (a test's arbitrary timestamp is dropped).
+        if nanos.isFinite, nanos > 0, abs(nanos - Double(now)) <= 1_000_000_000 { targetNanos = UInt64(nanos) }
+        if let targetNanos {
+            if let last = lastTickTarget, targetNanos > last {
+                let gap = targetNanos - last
+                if gap >= 2_000_000, gap <= 50_000_000 { refreshInterval = min(refreshInterval ?? gap, gap) }
+            }
+            lastTickTarget = targetNanos
+        }
+        pendingTick = (now, targetNanos)
+    }
+
+    /// The drawable was acquired (or the platform has none to acquire).
+    func stampDrawableAcquired() {
+        current?.drawableAcquired = Self.now()
+        #if canImport(os)
+        signposts?.event("Drawable")
+        #endif
+    }
+
     /// A frame starts: takes the pending input.
     func beginFrame() {
         var sample = FrameTimingSample(frameIndex: framesRecorded, start: Self.now())
+        if let tick = pendingTick { sample.tickStart = tick.start; sample.tickTarget = tick.target }
+        pendingTick = nil
         if let input = pending {
             sample.inputKind = input.kind; sample.inputReceived = input.received
             sample.inputTimestamp = input.stamp; sample.inputCount = input.count
@@ -322,6 +427,10 @@ public final class FrameTiming {
             return
         }
         ring[slot].presented = time
+        if let traceSink, ring[slot].inputKind != nil {
+            if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
+            traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval))
+        }
         #if canImport(os)
         signposts?.event("Present")
         #endif

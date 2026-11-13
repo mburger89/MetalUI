@@ -1359,6 +1359,7 @@ public final class Window {
         if startsDisplayLink {
             platformWindow.startDisplayLink { [weak self] t in
                 self?.lastTick = t
+                self?.frameTiming?.noteTick(target: t)   // latency trace: when the tick ran
                 // Ahead of the frame build (plan task 12 part 1, `IX-C` item 4):
                 // a long press or a deferred tap that matures at this tick runs
                 // its callback from input's footing, so a `@State` write lands
@@ -1704,6 +1705,7 @@ public final class Window {
             setNeedsRedraw()
             return
         }
+        timing?.stampDrawableAcquired()
         let resizesBeforeBuild = resizeCount
         reclaimAtlasIfNeeded()   // GL-A: between frames, before anything holds a rect
 
