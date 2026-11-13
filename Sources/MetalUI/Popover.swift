@@ -28,12 +28,16 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
     /// What is presented and where (`OV-A`, `OV-B`): a popover against its
     /// attachment anchor, or a chrome-less overlay at a point.
     var kind: PopoverKind
+    /// The rectangle of a ``CodeView``'s text this popover points at, resolved by the view in this build's prepaint
+    /// (`CV-AQ`); `nil` for every other anchor.
+    var textAnchor: CodeTextAnchorBox?
 
     init(content: Content, kind: PopoverKind,
          presented: @escaping @MainActor () -> (name: String?, content: PopoverContent)?,
-         dismiss: @escaping @MainActor () -> Void) {
+         dismiss: @escaping @MainActor () -> Void, textAnchor: CodeTextAnchorBox? = nil) {
         self.content = content
         self.kind = kind
+        self.textAnchor = textAnchor
         self.presented = presented
         self.dismiss = dismiss
     }
@@ -75,7 +79,7 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
                     slot = PopoverSlot(AnchoredPresentation(
                         content: Self.chrome(body, name: name, padding: PopoverChrome.padding), owner: id,
                         anchor: previous, placement: .popover(anchor: attachment.resolve(in: previous), edge: edge),
-                        chrome: true, consumesAnchorPress: true, dismiss: dismiss))
+                        chrome: true, consumesAnchorPress: textAnchor == nil, dismiss: dismiss))
                 } else {
                     frame.requestAnotherFrame()
                 }
@@ -149,7 +153,13 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         // one more frame, which places it at the new bounds.
         let frame = pass.frame
         let previous = frame.previousPresentationAnchors[id]
-        frame.recordPresentationAnchor(id, bounds: bounds)
+        if let rect = textAnchor?.windowRect {
+            // A text anchor (`CV-AQ`): the view resolved it in window points this prepaint, so it is recorded as
+            // window space (and journaled for retained replay, `RW-K`), never scrolled twice.
+            frame.replayPresentationAnchor(id, windowBounds: rect)
+        } else {
+            frame.recordPresentationAnchor(id, bounds: bounds)
+        }
         if layout.slot.wrapped != nil, let previous, frame.presentationAnchors[id] != previous {
             frame.requestAnotherFrame()
         }

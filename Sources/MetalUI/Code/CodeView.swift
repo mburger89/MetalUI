@@ -48,6 +48,8 @@ public struct CodeView: Element, StyledElement {
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
     var geometryObject: CodeViewGeometry?
+    /// Where a text-anchored popover or suggestion overlay points, resolved in prepaint (`CV-AQ`).
+    var textAnchorBox: CodeTextAnchorBox?
 
     /// A view of `buffer` drawn with `decorations`, whose buffer must be the same.
     public init(buffer: CodeBuffer, decorations: CodeDecorations) {
@@ -261,6 +263,11 @@ public struct CodeView: Element, StyledElement {
         if let geometry = geometryObject {   // unobserved, like `CodeDecorations.sync()` (`CV-K`)
             geometry.plan = plan
             geometry.origin = bounds.origin
+        }
+        if let box = textAnchorBox {   // a text-anchored presentation (`CV-AQ`); unused: this one check
+            box.windowRect = plan.textAnchorRect(for: box.anchor, buffer: buffer).map {
+                frame.effectBoundingBox(of: frame.scrolled($0), ownEffects: decoration.renderEffects, bounds: bounds)
+            }
         }
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
     }
