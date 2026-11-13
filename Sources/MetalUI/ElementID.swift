@@ -183,6 +183,9 @@ public final class GlobalElementID: Hashable, Sendable {
         var a: GlobalElementID? = l
         var b: GlobalElementID? = r
         while let x = a, let y = b {
+            #if DEBUG
+            GlobalElementID.chainWalkSteps &+= 1
+            #endif
             if x === y { return true }
             if x.component != y.component { return false }
             a = x.parent
@@ -192,4 +195,10 @@ public final class GlobalElementID: Hashable, Sendable {
     }
 
     public func hash(into hasher: inout Hasher) { hasher.combine(cachedHash) }
+
+    #if DEBUG
+    /// G33 (c): how many ancestor pairs `==` has compared since the process began (debug builds only; one step per loop turn, so a
+    /// `===` short-circuit or a hash reject adds none). Unsynchronised: read it from the main actor with nothing else comparing ids.
+    nonisolated(unsafe) package static var chainWalkSteps = 0
+    #endif
 }
