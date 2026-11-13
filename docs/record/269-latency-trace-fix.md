@@ -12,7 +12,7 @@ Alloy ran `METALUI_LATENCY_TRACE=<path>` in a release build with a real window a
 
 - `FrameTiming.init` reads the variable (`FrameTiming.swift`), so any timing traces.
 - New public `FrameTiming.enableTrace(destination:)` (inventory class `M`, covered by the `frame-timing` row).
-- Header written on enable, once per destination per process; the file is opened once per path with `O_APPEND` and the descriptor shared, each line one unbuffered `write`. The earlier per-instance `FileHandle` with `seekToEndOfFile` would also have let two windows overwrite each other.
+- Header written on enable, once per destination per process; the file is opened once per path through Foundation's `FileHandle(forWritingAtPath:)` at its end (not POSIX `open`, whose Unix mode bits abort in the Windows CRT, which crashed the Windows test run) and the handle shared, each line one unbuffered write. The earlier per-instance `FileHandle` with `seekToEndOfFile` would also have let two windows overwrite each other.
 
 ## Ruled out
 

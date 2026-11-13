@@ -218,9 +218,13 @@ public final class FrameTiming {
         } else if let shared = Self.traceFiles[destination] {
             handle = shared
         } else {
-            let fd = open(destination, O_WRONLY | O_CREAT | O_APPEND, 0o644)
-            if fd >= 0 {
-                handle = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
+            // Foundation only, no POSIX `open` (the Windows CRT's `_open` aborts on Unix mode bits). One handle
+            // per path, shared by every timing in the process and positioned at the end, so lines append.
+            if !FileManager.default.fileExists(atPath: destination) {
+                _ = FileManager.default.createFile(atPath: destination, contents: nil)
+            }
+            if let file = FileHandle(forWritingAtPath: destination), (try? file.seekToEnd()) != nil {
+                handle = file
                 Self.traceFiles[destination] = handle
             } else {
                 handle = .standardError
