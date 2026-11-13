@@ -148,9 +148,7 @@ public final class FrameTiming {
     /// Handlers currently running between ``noteInput(_:)`` and ``settleInput(dirtied:)``: more than one means a
     /// handler dispatched another event re-entrantly (`FP-K`).
     private var inputDepth = 0
-    /// The last input whose handler returned with the window clean, kept for ``lateClaimWindow`` in case its
-    /// effects dirty the window afterwards (`FP-K`).
-    private var lateCandidate: (kind: FrameInputKind, received: UInt64, stamp: UInt64)?
+
     private var pending: (kind: FrameInputKind, received: UInt64, stamp: UInt64, count: Int)?
     private var inFlight: (kind: FrameInputKind, received: UInt64, stamp: UInt64, count: Int)?
     #if canImport(os)
@@ -242,13 +240,11 @@ public final class FrameTiming {
     }
 
     /// Counters that explain a trace (`FP-K`), always kept: lines written, presented frames no input caused,
-    /// frames the platform reported dropped, inputs that left the window clean (and were not claimed by a frame
-    /// within ``lateClaimWindow``), inputs that were.
+    /// frames the platform reported dropped, inputs whose handler left the window clean.
     package private(set) var traceLinesWritten = 0
     package private(set) var presentedNoInputCount = 0
     package private(set) var droppedCount = 0
     package private(set) var settledCleanCount = 0
-    package private(set) var claimedLateCount = 0
     private var reportsSinceSummary = 0
 
     /// Presentation reports between automatic summary lines.
@@ -259,11 +255,11 @@ public final class FrameTiming {
         if reportsSinceSummary >= Self.summaryInterval { writeTraceSummary() }
     }
 
-    /// The summary line: `metalui-latency-summary written=N presentedNoInput=N dropped=N settledClean=N
-    /// claimedLate=N`. Fields never reorder; new ones are appended.
+    /// The summary line: `metalui-latency-summary written=N presentedNoInput=N dropped=N settledClean=N`.
+    /// Fields never reorder; new ones are appended.
     package var traceSummary: String {
         "metalui-latency-summary written=\(traceLinesWritten) presentedNoInput=\(presentedNoInputCount) "
-            + "dropped=\(droppedCount) settledClean=\(settledCleanCount) claimedLate=\(claimedLateCount)"
+            + "dropped=\(droppedCount) settledClean=\(settledCleanCount)"
     }
 
     /// Writes ``traceSummary`` to the trace now (nothing when tracing is off). Also written by itself after every
@@ -386,13 +382,8 @@ public final class FrameTiming {
         guard let candidate else { return }
         guard dirtied else {
             settledCleanCount += 1
-            // `FP-K`: its effects may dirty the window after the handler returned (an observation hop, an
-            // asynchronous flush). Held for `lateClaimWindow`; the next frame to begin claims it. Pointer
-            // events are not held: a hover over nothing is followed by timer frames all the time.
-            if candidate.kind != .pointer, lateCandidate == nil { lateCandidate = candidate }
             return
         }
-        lateCandidate = nil
         addPending(candidate)
     }
 
@@ -407,10 +398,6 @@ public final class FrameTiming {
             #endif
         }
     }
-
-    /// How long a clean input stays eligible to be claimed by the next frame (`FP-K`), nanoseconds. 100 ms by
-    /// default; a test sets 0 to switch the late claim off.
-    package var lateClaimWindow: UInt64 = 100_000_000
 
     /// The display link fired; `target` is its `targetTimestamp` in seconds. The next ``beginFrame()`` takes it.
     func noteTick(target: Double) {
@@ -439,17 +426,7 @@ public final class FrameTiming {
 
     /// A frame starts: takes the pending input.
     func beginFrame() {
-        let started = Self.now()
-        var sample = FrameTimingSample(frameIndex: framesRecorded, start: started)
-        if let late = lateCandidate {
-            lateCandidate = nil
-            // `FP-K`: a clean input followed by a frame within the bound is that frame's input.
-            if pending == nil, started >= late.received, started - late.received <= lateClaimWindow {
-                claimedLateCount += 1
-                settledCleanCount -= 1
-                addPending(late)
-            }
-        }
+        var sample = FrameTimingSample(frameIndex: framesRecorded, start: Self.now())
         if let tick = pendingTick { sample.tickStart = tick.start; sample.tickTarget = tick.target }
         pendingTick = nil
         if let input = pending {
