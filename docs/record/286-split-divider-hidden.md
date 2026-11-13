@@ -1,0 +1,9 @@
+# 286 - `splitViewDivider(_:thickness:)` (Alloy G41, `HS-I`)
+
+Branch `feat/split-divider-hidden` from master `e852cb12`. Class `M`, no divergence added or retired.
+
+**What.** Alloy's "islands" sit in an `HSplitView` with a user gutter of 0 to 16 points. `SplitDivider` always drew a 1-point `.separator` and took 1 point of layout. `splitViewDivider(_ visibility: Visibility = .automatic, thickness: CGFloat? = nil)` hides the line and sets the layout thickness, so the panes are spaced by the gutter and need no padding. SwiftUI has no spelling (precedent `windowTitleBarMetrics`).
+
+**How.** An `EnvironmentScope` writes an internal `SplitDividerStyle` (`hidden`, `thickness`); `SplitEngine.requestLayout` reads it from the frame's environment and hands it to `SplitLayout` (the spacing) and each `SplitDivider` (line colour and hit extent). The line is `Color.clear` when hidden, a frame of the thickness either way; the hit overlay is `max(thickness, 6)` wide and centred, so a gutter of 0 has a 6-point hit area straddling the boundary. The scope is identity-transparent and the style only a value in the layout the engine rebuilds, so a live change (Alloy passes the user's gutter) relayouts and keeps the panes' `@State`; the test pins one body run of the pane and one frame build. The divider has no accessibility node. Nested split views inherit the style. As the window root the scope loses the drag (the `EV-B` root restriction); write it inside a container.
+
+**Tests** (`Tests/MetalUITestingTests/SplitViewTests.swift`, each shown to fail by mutation, `HS-I` mutations M11 to M13): the default unchanged (`.visible` and `.automatic` byte-identical rects), hidden draws no visible rect but the drag and pointer remain, thickness 6 spaces by 6 with a 6-point hit area, a 12-point gutter is its own hit area, 0 keeps a 6-point hit area, the vertical variant, and the live change keeping pane state with no extra pane builds.
