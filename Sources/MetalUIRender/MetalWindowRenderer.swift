@@ -15,6 +15,36 @@ public final class MetalWindowRenderer: WindowRenderer {
     public let surface: any RenderSurface
     private var pending: (frame: SurfaceFrame, view: SurfaceView, commandBuffer: any MTLCommandBuffer)?
 
+    /// This window's backdrop frame target and blur pool (`BB-C`, `BB-K`): per window, as the surface table is, so
+    /// two windows sharing one ``renderer`` neither share a frame target nor drop each other's pool every frame.
+    let backdropState = BackdropFrameState()
+    /// How long a window draws no frame before it frees its backdrop textures (`BB-U`); the next backdrop frame
+    /// makes them again. Longer than a caret's blink, so a window that is typing keeps them.
+    package var idleReleaseDelay: Duration = .seconds(1)
+    private var lastFrameInstant = ContinuousClock.now
+    private var idleWatch: Task<Void, Never>?
+
+    /// Frees the backdrop textures when no frame has been drawn for ``idleReleaseDelay``; one watcher at a time,
+    /// started by the first frame that leaves textures behind and ended by the release (a frame costs one clock read).
+    private func watchForIdle() {
+        lastFrameInstant = .now
+        guard idleWatch == nil, backdropState.isResident else { return }
+        idleWatch = Task { @MainActor [weak self] in
+            while let window = self {
+                let due = window.lastFrameInstant.advanced(by: window.idleReleaseDelay)
+                if ContinuousClock.now >= due {
+                    window.releaseBackdropResources()
+                    window.idleWatch = nil
+                    return
+                }
+                try? await Task.sleep(until: due, clock: .continuous)
+            }
+        }
+    }
+
+    /// Drops this window's backdrop frame target and pool now (`BB-U`).
+    package func releaseBackdropResources() { backdropState.releaseAll() }
+
     /// A window renderer drawing with `renderer` into `surface` (`RS-B`).
     public init(renderer: Renderer, surface: any RenderSurface) {
         self.renderer = renderer
@@ -122,7 +152,7 @@ public final class MetalWindowRenderer: WindowRenderer {
             precondition(commandBuffer.status == .notEnqueued,
                          "MetalWindowRenderer: a surface text pass left the frame's command buffer "
                          + "\(commandBuffer.status) (MV-F item 5)")
-            try renderer.encode(scene, view: pending.view, in: commandBuffer, surfaces: targets)
+            try renderer.encode(scene, view: pending.view, in: commandBuffer, surfaces: targets, backdropState: backdropState)
         } catch {
             return false
         }
@@ -146,6 +176,7 @@ public final class MetalWindowRenderer: WindowRenderer {
         // item 2).
         for drawn in toDraw { surfaceTable.didDraw(drawn.request) }
         finishedFrames += 1
+        watchForIdle()
         return true
     }
 
