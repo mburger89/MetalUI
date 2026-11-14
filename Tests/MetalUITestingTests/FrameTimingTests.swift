@@ -330,8 +330,10 @@ private struct WidthBox: Component {
     let sample = try #require(timing.samples.last { $0.inputKind == .key })
     let line = FrameTiming.traceLine(for: sample, interval: 16_666_667)
     let total = try #require(sample.inputToPresented)
-    #expect(line.hasSuffix(String(format: " | %.2f %.2f", Double(total) / 1e6, Double(total) / 16_666_667)))
-    #expect(FrameTiming.traceLine(for: sample, interval: nil).hasSuffix(" -"))
+    // `FP-Q`: the optional `why=` and `dirty=` fields trail the `total frames` columns.
+    func columns(_ line: String) -> String { line.components(separatedBy: " why=")[0].components(separatedBy: " dirty=")[0] }
+    #expect(columns(line).hasSuffix(String(format: " | %.2f %.2f", Double(total) / 1e6, Double(total) / 16_666_667)))
+    #expect(columns(FrameTiming.traceLine(for: sample, interval: nil)).hasSuffix(" -"))
 }
 
 // MARK: Latency trace in an app (`FP-J`)

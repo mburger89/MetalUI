@@ -24,6 +24,24 @@ public enum FrameInputKind: Sendable, Equatable {
     case other
 }
 
+/// What asked for a frame (`FP-Q`), the tag the latency trace's `dirty=` field carries. Package-only.
+package enum DirtySource: String, Sendable, Equatable {
+    /// A state write or `@Observable` change the last frame read.
+    case observation
+    /// Something the input handler did: the event itself, a binding or `@State` write it ran.
+    case input
+    /// An element asked for another frame (`wantsAnotherFrame`).
+    case animation
+    /// A gesture's or tooltip's timer maturing on a tick.
+    case timer
+    /// A sheet, popover, alert or menu presenting or dismissing after a frame.
+    case presentation
+    /// The platform: no drawable, a failed encode.
+    case platform
+    /// A `setNeedsRedraw()` call nothing above claimed.
+    case explicit
+}
+
 /// One frame's timestamps (ruling `FP-B`): when the input that caused it arrived, when each phase ended, when the
 /// frame was committed to the platform and, later and only where the platform reports it, when it reached the
 /// screen. Every time is **nanoseconds on ``FrameTiming/now()``'s clock**.
@@ -74,6 +92,14 @@ public struct FrameTimingSample: Sendable, Equatable {
     /// headless renderer by default), when the GPU failed the frame, and **until the platform reports it** (the
     /// sample in the ring is updated in place, usually before ``presented``, possibly after).
     public var gpuNanos: UInt64?
+    /// What first dirtied the window since the previous frame began, and how often (`FP-Q`); recorded only while a
+    /// trace is on, `nil` otherwise and for a frame nothing dirtied (a pending animation or timer).
+    package var dirtySource: DirtySource?
+    package var dirtyCount = 0
+    /// Why the input that caused this frame was not drawn at once (`FP-Q`), for the trace's `why=`: `needsRedraw`,
+    /// `animations`, `timer`, `drawing` or `pacing(<ms>ms)`. `nil` for an immediate frame, a tick frame no input
+    /// caused, and when no trace is on.
+    package var declineReason: String?
 
     /// A sample whose phases all read `start`; the window stamps the rest.
     package init(frameIndex: UInt64, start: UInt64) {
@@ -82,6 +108,7 @@ public struct FrameTimingSample: Sendable, Equatable {
         tickStart = nil; tickTarget = nil
         buildStart = start; drawableAcquired = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
         presented = nil; gpuNanos = nil
+        dirtySource = nil; declineReason = nil
     }
 
     /// Input to commit in nanoseconds, or `nil` for a frame no input caused: the keystroke-to-submit latency.
@@ -155,6 +182,12 @@ public final class FrameTiming {
     private var inputDepth = 0
 
     private var pending: (kind: FrameInputKind, received: UInt64, stamp: UInt64, count: Int)?
+    /// `FP-Q`: what dirtied the window since the last frame began, and the decline reason of the earliest
+    /// input that waited; taken by the next ``beginFrame()``. Written only while a trace is on.
+    private var dirtyFirst: DirtySource?
+    private var dirtyTotal = 0
+    private var pendingWhy: String?
+    private var candidateWhy: String?
     private var inFlight: (kind: FrameInputKind, received: UInt64, stamp: UInt64, count: Int)?
     #if canImport(os)
     private let signposts: Signposts?
@@ -198,6 +231,8 @@ public final class FrameTiming {
     /// trace. Set by ``enableTrace(destination:)``; a test sets it directly.
     package var traceSink: ((String) -> Void)?
     private var traceHeaderWritten = false
+    /// `METALUI_LATENCY_TRACE_ALL=1` (`FP-Q`): frames no input caused get lines too. A test sets it directly.
+    package var tracesAllFrames = getenv("METALUI_LATENCY_TRACE_ALL").map { String(cString: $0) == "1" } ?? false
     private var lastTickTarget: UInt64?
     /// The shortest gap seen between consecutive tick targets: the display's refresh interval, nanoseconds.
     package private(set) var refreshInterval: UInt64?
@@ -313,7 +348,14 @@ public final class FrameTiming {
         if let total, let interval, interval > 0 {
             frames = String(format: "%.2f", Double(total) / Double(interval))
         } else { frames = "-" }
-        let kind = s.inputKind.map { String(describing: $0) } ?? "none"
+        // `FP-Q`: a frame no input caused (written only with `METALUI_LATENCY_TRACE_ALL=1`) is `tick` when a tick
+        // drove it, `frame` otherwise.
+        let kind = s.inputKind.map { String(describing: $0) } ?? (s.tickStart != nil ? "tick" : "frame")
+        // `FP-Q`: trailing fields, after every column the line always had: `why=` (a declined input) and
+        // `dirty=<source>/<count>`.
+        var trailer = ""
+        if let why = s.declineReason { trailer += " why=\(why)" }
+        if let source = s.dirtySource { trailer += " dirty=\(source.rawValue)/\(s.dirtyCount)" }
         return "metalui-latency \(s.frameIndex) \(kind) \(s.inputCount) | "
             + [ms(gap(s.inputTimestamp, s.inputReceived)), ms(s.inputToTick),
                ms(gap(s.tickStart, s.buildStart)), ms(s.drawableWait),
@@ -321,7 +363,7 @@ public final class FrameTiming {
                ms(gap(s.commit, s.presented)), ms(gap(s.commit, estimatedVsync(for: s, interval: interval, phase: vsyncPhase))),
                ms(s.gpuNanos)]
                 .joined(separator: " ")
-            + " | \(ms(total)) \(frames)"
+            + " | \(ms(total)) \(frames)" + trailer
     }
 
     /// The first vsync at or after the commit: the frame's own tick target (or `phase`, the last one seen) moved
@@ -403,6 +445,23 @@ public final class FrameTiming {
         }
     }
 
+    /// Whether a trace is on: the one condition the `FP-Q` bookkeeping checks, so it does nothing otherwise.
+    package var isTracing: Bool { traceSink != nil }
+
+    /// The window was marked dirty by `source` (`FP-Q`). Counts, and keeps the first source, until the next frame.
+    func noteDirty(_ source: DirtySource) {
+        guard traceSink != nil else { return }
+        if dirtyFirst == nil { dirtyFirst = source }
+        dirtyTotal += 1
+    }
+
+    /// The event now being handled was not drawn at once, for `reason` (`FP-Q`). Kept only if ``settleInput(dirtied:)``
+    /// finds the event dirtied the window (a release that changed nothing declined too, and means nothing).
+    func noteDecline(_ reason: String) {
+        guard candidateWhy == nil else { return }   // the caller checks `isTracing`
+        candidateWhy = reason
+    }
+
     /// An input event arrived. It becomes the next frame's input only if ``settleInput(dirtied:)`` says it
     /// dirtied the window.
     func noteInput(_ event: InputEvent) {
@@ -428,7 +487,8 @@ public final class FrameTiming {
         inputDepth -= 1
         guard inputDepth <= 0 else { return }   // `FP-K`: the outermost handler settles for all that ran inside it
         inputDepth = 0
-        defer { candidate = nil }
+        defer { candidate = nil; candidateWhy = nil }
+        if dirtied, pendingWhy == nil { pendingWhy = candidateWhy }
         guard let candidate else { return }
         guard dirtied else {
             settledCleanCount += 1
@@ -483,6 +543,8 @@ public final class FrameTiming {
         var sample = FrameTimingSample(frameIndex: framesRecorded, start: Self.now())
         if let tick = pendingTick { sample.tickStart = tick.start; sample.tickTarget = tick.target }
         pendingTick = nil
+        sample.dirtySource = dirtyFirst; sample.dirtyCount = dirtyTotal; sample.declineReason = pendingWhy
+        dirtyFirst = nil; dirtyTotal = 0; pendingWhy = nil
         if let input = pending {
             sample.inputKind = input.kind; sample.inputReceived = input.received
             sample.inputTimestamp = input.stamp; sample.inputCount = input.count
@@ -500,6 +562,11 @@ public final class FrameTiming {
     /// The frame did not commit (no drawable, `finishFrame` refused): its input stays pending for the retry.
     func abandonFrame() {
         if let inFlight, pending == nil { pending = inFlight }
+        if let c = current {   // `FP-Q`: the attribution waits for the retry
+            if dirtyFirst == nil { dirtyFirst = c.dirtySource }
+            dirtyTotal += c.dirtyCount
+            if pendingWhy == nil { pendingWhy = c.declineReason }
+        }
         inFlight = nil
         current = nil
         #if canImport(os)
@@ -594,7 +661,7 @@ public final class FrameTiming {
         if time == nil { droppedCount += 1 } else { ring[slot].presented = time }
         if traceSink != nil {
             flushHeldLines()   // `FP-P`: a line still waiting for its GPU time is written, with `-`, before a later frame's
-            if ring[slot].inputKind != nil {
+            if ring[slot].inputKind != nil || tracesAllFrames {
                 if expectsGPUTime, ring[slot].gpuNanos == nil, !gpuSettled.contains(index) {
                     heldLines.append((ring[slot], refreshInterval, lastTickTarget))   // written by `noteGPU`
                 } else {
