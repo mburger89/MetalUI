@@ -4,7 +4,7 @@ Rulings for round 3, item R3-1: `ButtonStyle` and `PrimitiveButtonStyle` as open
 `.link`, `toggleStyle(_:)` with an open `ToggleStyle`, and `.pickerStyle(.inline)`. Branch `feat/button-styles`. Code:
 `Sources/MetalUI/ButtonStyle.swift`, `ToggleStyle.swift`, `Button.swift`, `Toggle.swift`, `PasteButton.swift`,
 `Picker.swift`, `Frame.pointerOwner` (stamped in `Window.swift`). Tests: `ButtonStyleTests.swift`, `ToggleStyleTests.swift`,
-`StyleCompileGuards.swift`. **Next unused: `BY-N`.** Divergence 885 (reserved 885–894; 886–894 unused). Supersedes `IX-E` item 2
+`StyleCompileGuards.swift`. **Next unused: `BY-O`.** Divergence 885 (reserved 885–894; 886–894 unused). Supersedes `IX-E` item 2
 (the closed `ButtonStyle` struct) and `DD-AB` item 7 / `IX-M` (the absent toggle styles and `.inline`).
 **None of the looks is measured** (the probe capture draws no text and SwiftUI's chrome for these styles was not probed
 in this round): sizes, fills and the pressed looks are MetalUI's, human check group BY.
@@ -135,6 +135,19 @@ SwiftUI's `buttonBorderShape(_:)` (iOS 15, macOS 12) writes an environment value
 ## BY-M: which controls read it (Alloy gap G46)
 
 `Menu` and the menu `Picker` (`.pickerStyle(.menu)`, the automatic one) are drawn by an internal bordered `Button` reading the environment's style (`MN-H` item 1, `SV-P`), so both honour `buttonBorderShape` with no code of their own; `.menuStyle(_:)` does not exist in MetalUI, so the "button" menu is the only menu. The pressed look and the focus ring follow the shape. The radio-group and inline pickers, `Toggle` and `Stepper` have no border shape and ignore it. The segmented `Picker` ignores it and has its own MetalUI-only option (`SD-E`): SwiftUI's segmented control on macOS is an `NSSegmentedControl`, which the macOS 27 SDK documents no `buttonBorderShape` for, and a capture to read it is blank, so MetalUI does not guess that a container's `.buttonBorderShape(.capsule)` reshapes it. Probe evidence for which SwiftUI controls honour it on macOS: none could be captured (every offscreen capture is blank, record 260); the declarations and availability above are the evidence.
+
+## BY-N: a menu `Picker` is exactly its ideal at or above it, and its chevron never wraps (Alloy composer pills, record 302)
+
+Alloy's composer row (`HStack { Picker("Mode", ...).buttonBorderShape(.capsule); Menu("Model") { ... }.buttonBorderShape(.capsule) }`) drew the picker 36 tall beside a 24-tall `Menu`, its value at the top left and the chevron wrapped under it at the bottom right. **Not the shape's**: `.automatic` drew the same. Two causes, both fixed:
+
+1. **The title row was the generic flex row.** A labelled menu `Picker` laid its title and button as a legacy row whose children were compressed by an even share, so a lone picker proposed 200 (ideal 152.2: the title, 8 and a 109-wide button) came out 98 wide. It now uses the segmented picker's title row (`PickerTitleRow`, `SR-G`, probe SG3): the title at its ideal, the button the remainder; a proposal of at least the ideal gives exactly the ideal (109 x 24 button), below it the title is squeezed last, the floors unchanged (the `Picker.menu` pins at 0 and 50 stay 67 and 67 x 64).
+2. **The chevron wrapped.** ` ⌄` is a separate text in the label row; when the button was narrower than title plus chevron it wrapped under the value (36 tall). It is `lineLimit(1)`: a compressed button stays one line (24 tall, the chevron on the value's line), so a picker is as tall as a `Menu` at every width.
+
+**What remains, and matches SwiftUI.** An `HStack` serves its least flexible child first and offers it half the remaining width. The probe-measured pins give the picker 67 to 112.56 (flexibility 45.6) and `Menu(Actions)` 24 to 80.66 (56.7); in the Alloy row the numbers are 106 to 152.2 (46.2) and 24 to 73.5 (49.5). The picker goes first and is offered (W - 8) / 2, so for a row narrower than 2 x 152.2 + 8 (about 312) it is narrower than its ideal even though the leftover after the Menu would fit it (W = 300: 101 wide). That is the algorithm on SwiftUI's own measured flexibilities, so it stands; an app that wants the ideal writes `.fixedSize()` on the picker (verified: 109 x 24 at every width). `.automatic` and every shape draw the same scene as before at and above the ideal.
+
+Pinned by `aMenuPickerBesideAMenuIsOneLineAndAsTallAsTheMenu` and `aMenuPickerGivenItsIdealWidthIsExactlyItsIdeal`. No divergence label.
+
+**Cost if wrong.** The menu `Picker`'s title row is the segmented one and its chevron has a line limit; reverting both restores the 98 x 36.
 
 ## Carried
 

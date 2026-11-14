@@ -120,7 +120,7 @@ struct OptionSink<Content: ElementGroup>: ElementGroup {
 /// width is measured through `Frame.textSystem` (`TS-A`) once per change of
 /// the titles, the font or the scale (`PickerTitleWidths`).
 struct PickerMenuLabel: Element {
-    typealias Inner = Box<Pair<Box<Text>, Text>>
+    typealias Inner = Box<Pair<Box<Text>, EnvironmentScope<Text>>>
     let scope: PickerScope
     let pickerID: GlobalElementID
 
@@ -143,8 +143,9 @@ struct PickerMenuLabel: Element {
         var row = Style()
         row.flexDirection = .row
         row.alignItems = .center
+        // `BY-N`: the chevron is one line, so a narrow button is 24 tall with it inline, never wrapped under the value.
         var inner = Inner(style: row, content: Pair(Box(style: titleStyle, content: Text(scope.selectedTitle)),
-                                                    Text(" \u{2304}").accessibilityHidden(true)))
+                                                    Text(" \u{2304}").accessibilityHidden(true).lineLimit(1)))
         let (node, layout) = inner.requestLayout(id, pass: &pass)
         return (node, LayoutState(inner: inner, layout: layout))
     }

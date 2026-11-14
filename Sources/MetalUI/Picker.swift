@@ -92,7 +92,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
 
     /// The menu style's structure (`SV-P` item 2): the title, then the
     /// pull-down button — built in `requestLayout` from `box`'s content.
-    typealias MenuBox = Box<Pair<OptionalGroup<Text>, PickerMenuButton<Content>>>
+    typealias MenuBox = Box<PickerTitleRow<Pair<OptionalGroup<Text>, PickerMenuButton<Content>>>>
 
     public struct Layout {
         var inner: Inner
@@ -106,7 +106,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         var inner: Inner
         enum Inner {
             case options(PickerTitleRow<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>.GroupPrepaint)
-            case menu(Pair<OptionalGroup<Text>, PickerMenuButton<Content>>.Prepaint)
+            case menu(PickerTitleRow<Pair<OptionalGroup<Text>, PickerMenuButton<Content>>>.GroupPrepaint)
         }
     }
 
@@ -219,9 +219,11 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         scope.tags.removeAll()
         let labelHidden = pass.frame.environmentTop.labelsHidden   // `LB-A`
         var menuBox = MenuBox(style: style, decoration: decoration,
-                              content: Pair(OptionalGroup(labelHidden ? nil : label),
-                                            PickerMenuButton(content: box.content.content.second.content.content,
-                                                             scope: scope, title: title, pickerID: id)))
+                              // `BY-N`: the title row of the segmented picker (`SR-G`): the title at its ideal, the button the rest.
+                              content: PickerTitleRow(content: Pair(OptionalGroup(labelHidden ? nil : label),
+                                                                    PickerMenuButton(content: box.content.content.second.content.content,
+                                                                                     scope: scope, title: title, pickerID: id)),
+                                                      isSegmented: true))
         PickerScope.stack.append(scope)
         defer { PickerScope.stack.removeLast() }
         let (node, inner) = menuBox.requestLayout(id, pass: &pass)
