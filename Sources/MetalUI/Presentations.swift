@@ -177,10 +177,10 @@ extension Frame {
             fileDialogLabel: environmentTop.fileDialogConfirmationLabel,
             fileDialogMessage: environmentTop.fileDialogMessage)
         presentationRecords.append(record)
-        // `RW-V`: a closed code-driven menu is an anchor, not a presentation: a graft window journals it (and checks the
+        // `RW-V`: a closed scope (a code-driven menu, an alert, a dialog, a file dialog) is an anchor, not a presentation: a graft window journals it (and checks the
         // binding is still closed when it grafts) instead of refusing by the `presentation` channel.
         let journal = stateTable.contentMemos.journal
-        if journal.isRecording, fitDepth == 0, !record.isShown, record.request.isMenu {
+        if journal.isRecording, fitDepth == 0, !record.isShown {
             journal.record(.presentationNote(record))
             journaledPresentationNotes += 1
         }

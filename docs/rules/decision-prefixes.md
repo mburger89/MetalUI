@@ -52,7 +52,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
   `2026-10-13-incremental-invalidation-decisions.md`, next `IV-S`), `SB-` (retained subtrees:
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `RK-` (retained build skip, prepaint replay, the graft:
-  `2026-10-13-retained-build-skip-decisions.md`, next `RK-AG`), `HP-` (hot paths:
+  `2026-10-13-retained-build-skip-decisions.md`, next `RK-AH`), `HP-` (hot paths:
   `2026-10-13-hot-paths-decisions.md`, next `HP-L`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
@@ -64,7 +64,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-14-layout-allocations-decisions.md`, next `PA-S`), `EE-` (environment epoch:
   `2026-10-14-environment-epoch-decisions.md`, next `EE-P`), `SN-` (single-instance launch on SDL:
   `2026-10-19-single-instance-decisions.md`, next `SN-Q`), `RW-` (retained read-only state:
-  `2026-10-19-retained-withstate-decisions.md`, next `RW-V`), `MO-` (memo and retained observation off the main thread:
+  `2026-10-19-retained-withstate-decisions.md`, next `RW-W`), `MO-` (memo and retained observation off the main thread:
   `2026-10-19-memo-observation-thread-decisions.md`, next `MO-I`), `OS-` (raster overscan, pooled rasterizer scratch:
   `2026-10-20-raster-overscan-decisions.md`, next `OS-Q`), `FS-` (finer retention scopes:
   `2026-10-20-finer-scopes-decisions.md`, next `FS-U`), `GL-` (glyph atlas reclaim: growth in place, a rebuild between frames, the cap and the drop counter, retained keying on the atlas generation: `2026-11-01-atlas-reclaim-decisions.md`, next `GL-K`), `GE-` (gesture composition: `sequenced(before:)`, a custom `body`, composed `updating`, `DragGesture.Value` velocity:

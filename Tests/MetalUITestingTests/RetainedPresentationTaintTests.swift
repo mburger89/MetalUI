@@ -11,7 +11,7 @@ import Testing
 private let verifyingNote: Comment =
     "METALUI_VERIFY_RETAINED=1 builds a replayed frame twice and presents the second: the counts this test pins are not its to read"
 
-enum RPTKind: String, CaseIterable { case plainMenu, codeMenu, picker, composer }
+enum RPTKind: String, CaseIterable { case plainMenu, codeMenu, picker, composer, closedAlert, closedFileImporter }
 
 /// A composer-shaped occurrence: a menu-style picker and a menu in a row, and a text under them.
 private struct RPTCard: Component, @MainActor Equatable {
@@ -32,6 +32,14 @@ private struct RPTCard: Component, @MainActor Equatable {
                 }
                 if kind == .plainMenu {
                     Menu("Model") { Button("Sonnet") {} ; Button("Opus") {} }
+                }
+                if kind == .closedAlert {
+                    Box().frame(width: Pixels(20), height: Pixels(8)).background(.accent)
+                        .alert("Delete?", isPresented: open) { Button("OK") {} }
+                }
+                if kind == .closedFileImporter {
+                    Box().frame(width: Pixels(20), height: Pixels(8)).background(.accent)
+                        .fileImporter(isPresented: open, allowedContentTypes: [.plainText], allowsMultipleSelection: false) { _ in }
                 }
                 if kind == .codeMenu || kind == .composer {
                     Menu("Model") { Button("Sonnet") {} ; Button("Opus") {} }.menuPresented(open)
@@ -87,11 +95,11 @@ func aCodeDrivenMenuOpensUnderAGraftAndTheGraftReturnsOnClose() throws {
 }
 
 /// A code-driven menu that is already open when its occurrence is built is a presentation: no graft record, by name.
-@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
-func anOpenCodeDrivenMenuStillRefusesTheGraftByName() throws {
+@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [RPTKind.codeMenu, .closedAlert]) @MainActor
+func anOpenCodeDrivenMenuStillRefusesTheGraftByName(kind: RPTKind) throws {
     let pair = try RPPair(size: sz(240, 160), warm: 0) { side in
         side.menuOpen = true
-        return VStack(spacing: 0) { RPTCard(kind: .codeMenu, side: side).equatable() }
+        return VStack(spacing: 0) { RPTCard(kind: kind, side: side).equatable() }
     }
     for _ in 0..<6 { pair.redraw() }
     try pair.compare("open")
@@ -99,4 +107,45 @@ func anOpenCodeDrivenMenuStillRefusesTheGraftByName() throws {
     #expect(f.retainedGrafts == 0, "an open menu does not graft: \(f.retainedGrafts)")
     #expect(f.retainedGraftIneligible >= 1 && pair.on.window.testingGraftRefusals.contains("presentation"),
             "\(f.retainedGraftIneligible) \(pair.on.window.testingGraftRefusals)")
+}
+
+// MARK: Alloy-shaped: the closed menu deep in a retained column
+
+private struct RPTColumn: Component, @MainActor Equatable {
+    let side: RPSide
+    var content: some ElementGroup {
+        VStack(spacing: 4) {
+            RPCard(title: "files", shade: 2, log: side.log).equatable()
+            RPCard(title: "chat", shade: 3, log: side.log).equatable()
+            RPTCard(kind: .composer, side: side).equatable()
+        }
+    }
+    static func == (l: RPTColumn, r: RPTColumn) -> Bool { l.side === r.side }
+}
+
+/// A plain root that reads `model.n` (the typed text) above a retained column that holds the composer's leaves: the column
+/// grafts every frame the text changes, where the closed `.menuPresented` menu in its range used to make it, and the root's
+/// other retained ancestor, ineligible "because presentation". Counted per frame; the off window is the differential.
+/// **Before (the audit not subtracting, taken by mutation):** every frame builds the column, 19 element requests per frame; after: 2.
+@Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
+func aClosedMenuDeepInARetainedColumnLeavesTheColumnGrafted() async throws {
+    let pair = try RPPair(size: sz(260, 400), warm: 6) { side in
+        let model = side.model
+        return VStack(spacing: 4) {
+            Text("typed \(model.n)").frame(width: Pixels(80), height: Pixels(12))
+            RPTColumn(side: side).equatable()
+        }
+    }
+    try pair.compare("warm")
+    var requests: [Int] = []
+    for step in 0..<6 {
+        pair.onSide.model.n += 1; pair.offSide.model.n += 1
+        await rsSettle()
+        pair.redraw()
+        requests.append(pair.frames.last?.elementRequests ?? -1)
+        try pair.compare("typed \(step)")
+        #expect(pair.frames.last?.retainedGrafts ?? 0 >= 1, "the column grafts: \(String(describing: pair.frames.last?.retainedGrafts))")
+    }
+    print("PROBE column requests per frame: \(requests)")
+    #expect(requests.allSatisfy { $0 < 10 }, "the column's build is skipped: \(requests)")
 }
