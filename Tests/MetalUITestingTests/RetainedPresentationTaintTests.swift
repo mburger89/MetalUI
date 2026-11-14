@@ -13,6 +13,40 @@ private let verifyingNote: Comment =
 
 enum RPTKind: String, CaseIterable { case plainMenu, codeMenu, picker, composer, closedAlert, closedFileImporter }
 
+// Each variant's subtree is its own `Component`: held inline in one `content` getter the six `if` branches reserved ~1.2 MB of
+// debug stack for a picker (measured by `StackMeter`: 1 227 840 bytes before, 442 432 after) and overflowed Windows' 1 MB test
+// thread (`PE-K`; CI run 43550538626).
+private struct RPTPicker: Component {
+    let mode: Binding<Int>
+    var content: some ElementGroup {
+        Picker("Mode", selection: mode) {
+            Text("Ask").tag(0)
+            Text("Plan").tag(1)
+        }
+    }
+}
+private struct RPTPlainMenu: Component {
+    var content: some ElementGroup { Menu("Model") { Button("Sonnet") {} ; Button("Opus") {} } }
+}
+private struct RPTCodeMenu: Component {
+    let open: Binding<Bool>
+    var content: some ElementGroup { Menu("Model") { Button("Sonnet") {} ; Button("Opus") {} }.menuPresented(open) }
+}
+private struct RPTAlert: Component {
+    let open: Binding<Bool>
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(20), height: Pixels(8)).background(.accent)
+            .alert("Delete?", isPresented: open) { Button("OK") {} }
+    }
+}
+private struct RPTImporter: Component {
+    let open: Binding<Bool>
+    var content: some ElementGroup {
+        Box().frame(width: Pixels(20), height: Pixels(8)).background(.accent)
+            .fileImporter(isPresented: open, allowedContentTypes: [.plainText], allowsMultipleSelection: false) { _ in }
+    }
+}
+
 /// A composer-shaped occurrence: a menu-style picker and a menu in a row, and a text under them.
 private struct RPTCard: Component, @MainActor Equatable {
     let kind: RPTKind
@@ -24,26 +58,11 @@ private struct RPTCard: Component, @MainActor Equatable {
         VStack(spacing: 2) {
             Text("composer").frame(width: Pixels(80), height: Pixels(12))
             HStack(spacing: 4) {
-                if kind == .picker || kind == .composer {
-                    Picker("Mode", selection: mode) {
-                        Text("Ask").tag(0)
-                        Text("Plan").tag(1)
-                    }
-                }
-                if kind == .plainMenu {
-                    Menu("Model") { Button("Sonnet") {} ; Button("Opus") {} }
-                }
-                if kind == .closedAlert {
-                    Box().frame(width: Pixels(20), height: Pixels(8)).background(.accent)
-                        .alert("Delete?", isPresented: open) { Button("OK") {} }
-                }
-                if kind == .closedFileImporter {
-                    Box().frame(width: Pixels(20), height: Pixels(8)).background(.accent)
-                        .fileImporter(isPresented: open, allowedContentTypes: [.plainText], allowsMultipleSelection: false) { _ in }
-                }
-                if kind == .codeMenu || kind == .composer {
-                    Menu("Model") { Button("Sonnet") {} ; Button("Opus") {} }.menuPresented(open)
-                }
+                if kind == .picker || kind == .composer { RPTPicker(mode: mode) }
+                if kind == .plainMenu { RPTPlainMenu() }
+                if kind == .closedAlert { RPTAlert(open: open) }
+                if kind == .closedFileImporter { RPTImporter(open: open) }
+                if kind == .codeMenu || kind == .composer { RPTCodeMenu(open: open) }
             }
         }
     }
