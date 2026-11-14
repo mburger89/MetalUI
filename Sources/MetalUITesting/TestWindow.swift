@@ -107,6 +107,22 @@ public final class TestWindow {
     /// The last presented frame's scene, in device pixels.
     public var scene: Scene { platformWindow.headlessRenderer.lastScene }
 
+    /// Every glyph the last presented frame draws: ``scene``'s own glyphs and, recursively, those of each offscreen
+    /// group (`CT-A`). Text inside a masked shape clip (an ellipse or a path, two crossing rounded clips), an opacity
+    /// group, a blur or a shadow is not in `scene.glyphs`: it lives in `scene.groupScenes`, in the parent's
+    /// coordinates, with its colour already resolved in the window's theme. A mask scene's glyphs (a gradient
+    /// text's coverage) are not ink and are left out. Read this where a test asks what colour or where the window's
+    /// text is, whatever clips and effects surround it.
+    public var allGlyphs: [MUIGlyph] {
+        func collect(_ scene: Scene, into out: inout [MUIGlyph]) {
+            out.append(contentsOf: scene.glyphs)
+            for group in scene.groupScenes { collect(group, into: &out) }
+        }
+        var glyphs: [MUIGlyph] = []
+        collect(scene, into: &glyphs)
+        return glyphs
+    }
+
     /// The glyph atlas of the last presented frame, or `nil` before one: pair it with ``scene`` to draw the
     /// frame's text (`HT-AB`; ``HeadlessWindowRenderer/lastAtlas``).
     public var glyphAtlas: GlyphAtlas? { platformWindow.headlessRenderer.lastAtlas }
