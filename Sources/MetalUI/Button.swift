@@ -58,6 +58,9 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
     /// This button's own style (`.buttonStyle(_:)` directly on a `Button`), nearer than the environment's.
     var ownStyle: ResolvedButtonStyle?
     var shortcut: KeyboardShortcut?
+    /// The border shape this layout resolved (`BY-L`): painted at the bounds' own height, so a capsule is half of the
+    /// real height, not of the strut's minimum.
+    private var borderShape: ButtonBorderShape = .automatic
 
     /// A button that runs `action` when pressed (a click, Space or Return when
     /// focused, or an accessibility press), drawn around `label` with the
@@ -180,7 +183,18 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
             if decorated.background == Color(Self.chromeBackground) { decorated.background = nil }
             if decorated.border == Self.chromeBorder { decorated.border = nil }
             decorated.cornerRadius = Pixels(metrics.height / 2)
-            if decorated.backgroundGlass == nil { decorated.backgroundGlass = GlassBox(glassStyle, Capsule()) }
+            if decorated.backgroundGlass == nil {
+                decorated.backgroundGlass = GlassBox(glassStyle, environment.buttonBorderShape.glassShape)   // `BY-L`
+            }
+        }
+        // `.buttonBorderShape` (`BY-L`): only a bordered or glass chrome has a border; the radius is written at paint,
+        // from the bounds, unless the caller wrote a radius of their own.
+        borderShape = .automatic
+        if bordered || glassStyle != nil {
+            let shape = environment.buttonBorderShape
+            if shape != .automatic, decorated.cornerRadius == Self.chromeCornerRadius || glassStyle != nil {
+                borderShape = shape
+            }
         }
         // The focus ring (`IX-H` item 2), unless the caller declared one.
         if decorated.focusBorder == nil { decorated.focusBorder = controlRing(environment) }
@@ -279,6 +293,9 @@ public struct Button<Label: ElementGroup>: Element, StyledElement {
             let bordered = look.isBordered
             // A glass button lifts its own tint while pressed (`LG-J`) and neither dims nor washes.
             let isGlass = look.isGlass
+            if let radius = borderShape.radius(forWidth: bounds.size.width.value, height: bounds.size.height.value) {
+                box.decoration.cornerRadius = Pixels(radius)   // `BY-L`: the fill, border, ring and wash follow it
+            }
             let radius = box.decoration.cornerRadius
             pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {
                 if pressed && !bordered && !isGlass {

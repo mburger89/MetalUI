@@ -1,6 +1,6 @@
 # Tab strip - decisions (prefix `TBS-`)
 
-Alloy gap G4: a closable, reorderable tab strip for an editor's file panel. Branch `feat/tab-strip` from master `7523f587`; record 238. Class `M` (SwiftUI's `TabView` is a page switcher with no closable strip). No divergence added. Next unused: `TBS-L`.
+Alloy gap G4: a closable, reorderable tab strip for an editor's file panel. Branch `feat/tab-strip` from master `7523f587`; record 238. Class `M` (SwiftUI's `TabView` is a page switcher with no closable strip). No divergence added. Next unused: `TBS-N`.
 
 ## TBS-A: the API (agreed with the app)
 
@@ -52,3 +52,7 @@ An unselected tab's ink is the theme's `Theme.textSecondary` when it is set (`CR
 
 **The segmented `Picker` is a non-change:** its unselected labels stay full `textPrimary`, as AppKit's `NSSegmentedControl` draws them in `labelColor`; no code was touched there.
 
+
+## TBS-M: a selected-tab shape, `selectedTabShape(_:)` (Alloy gap G46, record 294)
+
+`TabStrip.selectedTabShape(_ shape: TabStripSelectionShape) -> TabStrip` (an instance method like `onCloseTab`, MetalUI-only class M, no divergence label) draws the selected tab, and the hover wash, in a shape. `TabStripSelectionShape` is `.rectangle` (the default, today's full-bleed cell between hairlines: the tree and the scene are unchanged, pinned), `.capsule` and `.roundedRectangle(radius:)`. A shape other than `.rectangle` draws the fill as the shape inset 4 points above and below and 3 at the sides of the tab's cell (`TabStripFill`, under the row in a `ZStack`, so the label, close slot and gestures keep their frames and hit areas, which stay the whole cell) and drops the tabs' trailing hairlines (a pill needs none); the bar's lower rule, the drop marker and the dim of a dragged tab are unchanged. The shape takes part in `==`, so an `.equatable()` strip rebuilds when it changes. Colours (`TBS-K`, `TBS-L`) are unchanged.

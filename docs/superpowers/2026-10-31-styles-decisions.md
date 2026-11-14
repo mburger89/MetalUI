@@ -4,7 +4,7 @@ Rulings for round 3, item R3-1: `ButtonStyle` and `PrimitiveButtonStyle` as open
 `.link`, `toggleStyle(_:)` with an open `ToggleStyle`, and `.pickerStyle(.inline)`. Branch `feat/button-styles`. Code:
 `Sources/MetalUI/ButtonStyle.swift`, `ToggleStyle.swift`, `Button.swift`, `Toggle.swift`, `PasteButton.swift`,
 `Picker.swift`, `Frame.pointerOwner` (stamped in `Window.swift`). Tests: `ButtonStyleTests.swift`, `ToggleStyleTests.swift`,
-`StyleCompileGuards.swift`. **Next unused: `BY-L`.** Divergence 885 (reserved 885–894; 886–894 unused). Supersedes `IX-E` item 2
+`StyleCompileGuards.swift`. **Next unused: `BY-N`.** Divergence 885 (reserved 885–894; 886–894 unused). Supersedes `IX-E` item 2
 (the closed `ButtonStyle` struct) and `DD-AB` item 7 / `IX-M` (the absent toggle styles and `.inline`).
 **None of the looks is measured** (the probe capture draws no text and SwiftUI's chrome for these styles was not probed
 in this round): sizes, fills and the pressed looks are MetalUI's, human check group BY.
@@ -119,6 +119,22 @@ A style is not an element, but SwiftUI styles may hold `@Environment` (the commo
 erased element, so a style's `@Environment` reads the button's environment (a `.controlSize(.large)` scope reaches it) and its
 `@State` slots are the button's `$state<n>` entries (the button declares none of its own). Pinned by
 `aStyleStructsEnvironmentPropertiesAreBound`. No divergence label.
+
+## BY-L: `buttonBorderShape(_:)` and `ButtonBorderShape` (Alloy gap G46, record 294)
+
+SwiftUI's `buttonBorderShape(_:)` (iOS 15, macOS 12) writes an environment value that the bordered button styles read; `ButtonBorderShape` has `.automatic`, `.capsule` and `.roundedRectangle(radius:)` (macOS 14), `.roundedRectangle` and `.circle` (macOS 14), read from the macOS 27 SDK's `SwiftUI.swiftinterface`. MetalUI offers all five spellings as a `Hashable, Sendable` value (`radius:` is `Pixels`) and `ElementGroup.buttonBorderShape(_:)`, an environment write (`EnvironmentValues.buttonBorderShape`, internal as SwiftUI's `_buttonBorderShape` is), the nearest writer winning, reaching a retained subtree through the key's `Equatable` value (`EE-F`).
+
+**Who reads it.** A `Button` drawing the **bordered chrome** (`.bordered`, `.borderedProminent`, the automatic style) writes the radius at paint from its own bounds, so the fill, the 1-point border, the pressed wash and the 2-point focus ring all follow it: `.capsule` and `.circle` are half the shorter side, `.roundedRectangle` is 5 (the chrome's), `.roundedRectangle(radius:)` is the radius clamped to half the shorter side. `.glass` and `.glassProminent` already drew a capsule: `.automatic`, `.capsule` and `.circle` keep it (the same `GlassBox`, so `.automatic` is byte-identical) and `.roundedRectangle` draws a `RoundedRectangle` glass (the radius written to the decoration for the fallback). `.plain`, `.borderless`, `.link` and a custom `ButtonStyle`/`PrimitiveButtonStyle` draw no border of the button's own and ignore it. A caller's own `.cornerRadius(_:)` on a bordered `Button` outranks it (the shape applies only where the radius is still the chrome's own, as `dropChrome` treats the other chrome fields); a glass button has no such field and always follows the shape. Metrics (padding, strut height) are unchanged by the shape. Hit areas stay the button's rectangle: MetalUI's hitboxes are rectangles for every rounded control (a corner's few pixels are the only difference).
+
+**`.automatic` is today's look**, pinned by `anAutomaticBorderShapeDrawsTheSameSceneAsNoModifier`.
+
+**Absent (class R, `docs/divergences.md` "Not offered").** SwiftUI's `ButtonBorderShape` is also a `Shape` (macOS 14) and `Shape.buttonBorder` returns the environment's shape; MetalUI's `Shape` protocol is main-actor isolated, so a `Shape` cannot be the default of an environment key, and a shape cannot read the environment. `ButtonBorderShape` is a plain value there. `.circle` on a non-square button: SwiftUI's is unmeasured (a probe capture is blank on macOS 27, `swiftui-segmented-thumb.swift`'s record); MetalUI draws half the shorter side, a circle on a square label and a capsule on a wider one.
+
+**Cost if wrong.** One environment key and one paint-time radius; deleting it restores the old fixed radii.
+
+## BY-M: which controls read it (Alloy gap G46)
+
+`Menu` and the menu `Picker` (`.pickerStyle(.menu)`, the automatic one) are drawn by an internal bordered `Button` reading the environment's style (`MN-H` item 1, `SV-P`), so both honour `buttonBorderShape` with no code of their own; `.menuStyle(_:)` does not exist in MetalUI, so the "button" menu is the only menu. The pressed look and the focus ring follow the shape. The radio-group and inline pickers, `Toggle` and `Stepper` have no border shape and ignore it. The segmented `Picker` ignores it and has its own MetalUI-only option (`SD-E`): SwiftUI's segmented control on macOS is an `NSSegmentedControl`, which the macOS 27 SDK documents no `buttonBorderShape` for, and a capture to read it is blank, so MetalUI does not guess that a container's `.buttonBorderShape(.capsule)` reshapes it. Probe evidence for which SwiftUI controls honour it on macOS: none could be captured (every offscreen capture is blank, record 260); the declarations and availability above are the evidence.
 
 ## Carried
 

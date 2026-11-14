@@ -164,7 +164,9 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         options.flexDirection = pickerStyle.kind == .segmented ? .row : .column
         switch pickerStyle.kind {
         case .segmented:
-            box.content.content.second.decoration = Decoration(background: .surfaceSecondary, cornerRadius: Pixels(6))
+            let radii = Self.segmentRadii(pass.frame.environmentTop.segmentedPickerShape)
+            scope.thumbRadius = radii.thumb
+            box.content.content.second.decoration = Decoration(background: .surfaceSecondary, cornerRadius: Pixels(radii.track))
         case .radioGroup:
             options.gap = Axes(both: .pixels(Pixels(6)))
             options.alignItems = .flexStart
@@ -191,6 +193,20 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         let (node, inner) = box.requestLayout(id, pass: &pass)
         pass.frame.markControlSpacing(node)   // DS-H: a standard edge (probe DS7)
         return (node, Layout(inner: .options(inner)))
+    }
+
+    /// The segmented track's and selected segment's corner radii for `shape` (`SD-E`): 6 and 5 for `.automatic`; a
+    /// capsule is half the segment row's 24 points; a rounded rectangle's radius for the track and one less for the
+    /// segment, as the default's.
+    static func segmentRadii(_ shape: ButtonBorderShape) -> (track: Float, thumb: Float) {
+        let height = PickerScope.segmentHeight
+        switch shape.kind {
+        case .automatic: return (6, 5)
+        case .capsule, .circle: return (height / 2, height / 2)
+        case .roundedRectangle(let radius):
+            let track = min(radius ?? ButtonBorderShape.defaultRadius, height / 2)
+            return (track, max(track - 1, 0))
+        }
     }
 
     /// The menu style (`SV-P` items 2–3): the title, 8, a `PickerMenuButton`
@@ -307,6 +323,9 @@ final class PickerScope {
     let matches: @MainActor (AnyHashable) -> Bool
     let write: @MainActor (AnyHashable) -> Void
     var kind: PickerStyle.Kind = .segmented
+    /// A segmented picker's row height, and the selected segment's corner radius (`SD-E`; 5 unless `.segmentedPickerShape`).
+    static let segmentHeight: Float = 24
+    var thumbRadius: Float = 5
     /// The selected radio's fill: `.accent` in the key window, `.separator`
     /// otherwise (`controlAccent(_:)`, `IX-H` item 1). A segmented picker's
     /// selected segment is `.surface` in every window — it has no accent.
@@ -601,9 +620,9 @@ public struct TaggedElement<Content: Element>: Element {
             row.justifyContent = .center
             row.padding.left = .pixels(Pixels(12))
             row.padding.right = .pixels(Pixels(12))
-            lead.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(24))))
+            lead.size = Size(width: .length(.pixels(Pixels(0))), height: .length(.pixels(Pixels(PickerScope.segmentHeight))))
             chrome = Box(style: row,
-                         decoration: Decoration(background: selected ? PickerScope.selectedSegmentFill : nil, cornerRadius: Pixels(5),
+                         decoration: Decoration(background: selected ? PickerScope.selectedSegmentFill : nil, cornerRadius: Pixels(scope.thumbRadius),
                                                     border: selected ? BorderStyle(PickerScope.selectedSegmentEdge, width: Pixels(1)) : nil),
                          content: Pair(Box(style: lead), content))
         case .menu:
