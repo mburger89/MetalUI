@@ -252,3 +252,77 @@ private struct SegmentedSecondTree: Component {
     #expect(fills(rounded).contains { $0.cornerRadii.topLeft == 6 }, "a 6-point rounded fill")
     _ = theme
 }
+
+/// BY-N: a labelled menu `Picker` beside a `Menu`, as Alloy's composer row is.
+private struct BesideTree: Component {
+    let shape: ButtonBorderShape
+    var content: some ElementGroup {
+        HStack(spacing: Pixels(8)) {
+            Picker("Mode", selection: .constant(3)) { Text("Default").tag(0); Text("Accept edits").tag(1); Text("Auto").tag(3) }
+                .buttonBorderShape(shape)
+            Menu("Model") { Button("x") {} }.buttonBorderShape(shape)
+        }
+    }
+}
+private struct LoneInFrame: Component {
+    let width: Float
+    var content: some ElementGroup {
+        Picker("Mode", selection: .constant(3)) { Text("Default").tag(0); Text("Accept edits").tag(1); Text("Auto").tag(3) }
+            .buttonBorderShape(.capsule).frame(width: Pixels(width))
+    }
+}
+
+/// One window per tree, each built in its own small function: a debug build reserves a frame slot for every temporary of a
+/// builder closure, and Windows test threads have about 1 MB (`PE-K`).
+@MainActor @inline(never) private func besideWindow(_ width: Int, _ shape: ButtonBorderShape) throws -> TestWindow {
+    let w = try TestWindow(size: Size(width: Pixels(Float(width)), height: Pixels(200)), colorScheme: .light,
+                           textSystem: harnessTextSystem) { VStack { BesideTree(shape: shape) } }
+    redraw(w)
+    return w
+}
+@MainActor @inline(never) private func loneChrome(_ width: Float) throws -> MUIBounds {
+    let w = try window { VStack { LoneInFrame(width: width) } }
+    return try #require(chromeRects(w).first { $0.background.a > 0 }).bounds
+}
+
+/// The picker's and the menu's chrome (fills only), and the glyphs inside the picker's, left to right.
+@MainActor private func pickerAndMenu(_ w: TestWindow) -> (picker: MUIBounds, menu: MUIBounds, glyphs: [MUIGlyph])? {
+    let chrome = Array(chromeRects(w).filter { $0.background.a > 0 })
+    guard chrome.count == 2 else { return nil }
+    let picker = chrome[0].bounds
+    let inside = w.allGlyphs.filter { $0.bounds.origin.x >= picker.origin.x && $0.bounds.origin.x < picker.origin.x + picker.size.width + 20 }
+    return (picker, chrome[1].bounds, inside)
+}
+
+/// BY-N: the menu `Picker`'s value and chevron share one line at every width, so the picker is as tall as a `Menu` (24, not 36
+/// with the chevron wrapped under the value, the shape irrelevant). The chevron is one line (`lineLimit(1)`): it used to wrap
+/// whenever the proposal left it less than its width. Before the fix a row 234 to 440 wide drew 98 x 36 with the chevron 9 lower.
+/// Mutation: dropping `.lineLimit(1)` from the chevron reddens every arm.
+@Test @MainActor func aMenuPickerBesideAMenuIsOneLineAndAsTallAsTheMenu() throws {
+    for shape in [ButtonBorderShape.capsule, .automatic] {
+        for width in [200, 234, 260, 300, 400, 440, 480, 1000] as [Int] {
+            let w = try besideWindow(width, shape)
+            let found = try #require(pickerAndMenu(w), "\(width): the picker's and the menu's chrome")
+            #expect(found.picker.size.height == found.menu.size.height, "\(width) \(shape): picker \(found.picker.size.height) vs menu \(found.menu.size.height)")
+            let chevron = try #require(found.glyphs.last)
+            let first = try #require(found.glyphs.first)
+            #expect(abs(chevron.bounds.origin.y - first.bounds.origin.y) <= 4, "\(width) \(shape): chevron y \(chevron.bounds.origin.y) vs text \(first.bounds.origin.y)")
+        }
+    }
+}
+
+/// BY-N: a proposal at or above its ideal gives the picker exactly its ideal (a 152.2-wide row: the title, 8 and the 109-wide
+/// button), at the menu's 24 height; below the ideal it compresses and stays one line. The two arms before the fix: a lone
+/// picker in a 160 or 200 frame drew 98 x 36 (the stack-width-derived compression of the chevron, which wrapped).
+/// Mutation: dropping `.lineLimit(1)` reddens the compressed arm; reverting the menu picker to a bare `Pair` title row
+/// (no `PickerTitleRow`) reddens the ideal arm.
+@Test @MainActor func aMenuPickerGivenItsIdealWidthIsExactlyItsIdeal() throws {
+    for width in [160, 200, 300, 600] as [Float] {
+        let b = try loneChrome(width)
+        #expect(b.size.width == 109 && b.size.height == 24, "\(width): \(b.size.width) x \(b.size.height)")
+    }
+    for width in [60, 100, 130] as [Float] {
+        let b = try loneChrome(width)
+        #expect(b.size.height == 24 && b.size.width < 109, "\(width) compresses on one line: \(b.size.width) x \(b.size.height)")
+    }
+}
