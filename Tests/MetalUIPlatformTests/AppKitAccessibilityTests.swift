@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -88,6 +89,7 @@ private typealias Request = MetalUIPlatform.AccessibilityRequest
 @MainActor private func makeHarness(signal initial: Bool, width: Int = 200, height: Int = 200) throws -> Harness {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let signal = ScriptedAccessibilitySignal(initial)
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { signal })
     let window = try platform.openWindow(title: "AX \(UUID().uuidString)",
                                          size: Size(width: Pixels(Float(width)), height: Pixels(Float(height))))
@@ -606,6 +608,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
 
     // `true` at creation, through the real platform path.
     let running = ScriptedAccessibilitySignal(true)
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { running })
     let window = try platform.openWindow(title: "AX \(UUID().uuidString)",
                                          size: Size(width: Pixels(100), height: Pixels(100)))

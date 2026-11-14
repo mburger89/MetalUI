@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -29,6 +30,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// A real 400 × 200 AppKit window, its `onInput` declining everything.
 @MainActor private func shellWindow(_ name: String) throws -> (AppKitPlatform, AppKitWindow, NSWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "App shell \(name) \(UUID().uuidString)",
                                                  size: Size(width: px(400), height: px(200)))
@@ -256,6 +258,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 @MainActor
 @Test func appKitApplicationDelegateMapsTheTerminateReply() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let delegate = platform.applicationDelegate
     var replies: [Bool] = []
@@ -288,6 +291,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 @MainActor
 @Test func appKitTerminateIsApprovedAndAsksNobody() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let delegate = platform.applicationDelegate
     var terminated = 0, asked = 0
@@ -309,6 +313,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 @MainActor
 @Test func appKitOpenURLsReachOnOpenURLsAndParkUntilAHandler() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let delegate = platform.applicationDelegate
     let file = URL(fileURLWithPath: "/tmp/a b.mcgraph")
@@ -331,6 +336,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 @MainActor
 @Test func runInstallsTheApplicationDelegate() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let previous = NSApplication.shared.delegate
     defer { NSApplication.shared.delegate = previous }
@@ -612,6 +618,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// An unordered `AppKitWindow` (nothing on screen), opened with `style` or opened standard and changed.
 @MainActor private func unorderedWindow(_ style: PlatformTitleBarStyle, changeAfter: Bool = false) throws -> AppKitWindow {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let window = try AppKitWindow(device: device, renderer: try Renderer(device: device),
                                   title: "AS-T \(UUID().uuidString)",
                                   size: Size(width: px(400), height: px(200)),

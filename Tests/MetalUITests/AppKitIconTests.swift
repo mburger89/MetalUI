@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import AppKit
 import Metal
@@ -115,6 +116,7 @@ private func square(_ side: Int) -> ImageTexture {
     let before = try #require(app.applicationIconImage?.size)
     try #require(before != NSSize(width: 40, height: 40), "the pre-test icon cannot tell 40×40 apart")
 
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     platform.setApplicationIcon([square(20), square(40)])
     let image = try #require(platform.iconImage)

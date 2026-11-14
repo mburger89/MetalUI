@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -18,6 +19,7 @@ import MetalUIRender
 
 @MainActor private func backdropWindow() throws -> (AppKitWindow, NSWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { QuietSignal() })
     let platformWindow = try platform.openWindow(title: "Backdrop \(UUID().uuidString)",
                                                  size: Size(width: Pixels(200), height: Pixels(100)))

@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -31,6 +32,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// A real 400 × 200 AppKit window with nothing drawn, its `onInput` logging.
 @MainActor private func hostWindow() throws -> (AppKitPlatform, AppKitWindow, NSWindow, Log) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "Input APIs \(UUID().uuidString)",
                                                  size: Size(width: px(400), height: px(200)))

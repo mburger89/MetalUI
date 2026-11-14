@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -11,6 +12,7 @@ import MetalUIRender
 @Test func openWindowProducesASurfaceSizedToItsContent() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let window = try platform.openWindow(title: "Test",
                                          size: Size(width: Pixels(400), height: Pixels(300)))
@@ -34,6 +36,7 @@ import MetalUIRender
 @MainActor
 @Test func windowTitleRoundTrips() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let window = try platform.openWindow(title: "Initial",
                                          size: Size(width: Pixels(200), height: Pixels(200)))
@@ -60,6 +63,7 @@ import MetalUIRender
 @Test func theWindowFollowsTheApplicationsEffectiveAppearance() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let window = try platform.openWindow(title: "Appearance",
                                          size: Size(width: Pixels(200), height: Pixels(200)))
@@ -101,6 +105,7 @@ import MetalUIRender
 @Test func theWindowReportsAContentSizeChangeThroughOnResize() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let title = "Resize \(UUID().uuidString)"
     let window = try platform.openWindow(title: title,
@@ -140,6 +145,7 @@ import MetalUIRender
 @MainActor
 @Test func aVibrantDarkAppearanceIsReportedAsDark() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let title = "Vibrant \(UUID().uuidString)"
     let window = try platform.openWindow(title: title,
@@ -187,6 +193,7 @@ import MetalUIRender
 @Test func closingAWindowDoesNotOverReleaseTheOneARCAlreadyOwns() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let title = "Ownership \(UUID().uuidString)"
     _ = try platform.openWindow(title: title,
@@ -280,6 +287,7 @@ import MetalUIRender
 @MainActor
 @Test func settingAPreferredColorSchemeSetsTheNSWindowsAppearanceAndReportsIt() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let saved = NSApplication.shared.appearance
     defer { NSApplication.shared.appearance = saved }

@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -20,6 +21,7 @@ import MetalUIRender
 
 @MainActor private func dragWindow(_ name: String) throws -> (AppKitWindow, NSWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "Window drag \(name) \(UUID().uuidString)",
                                                  size: Size(width: Pixels(400), height: Pixels(200)))

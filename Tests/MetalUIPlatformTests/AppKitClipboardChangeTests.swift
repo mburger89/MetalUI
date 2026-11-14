@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -13,6 +14,7 @@ import MetalUICore
 @MainActor
 private func changeWindow() throws -> (AppKitWindow, NSPasteboard, Counter) {
     let device = try #require(MTLCreateSystemDefaultDevice())
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let window = try #require(try platform.openWindow(title: "CP", size: Size(width: Pixels(200), height: Pixels(100)))
         as? AppKitWindow)

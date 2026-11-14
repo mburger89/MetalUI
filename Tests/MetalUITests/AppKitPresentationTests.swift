@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -95,6 +96,7 @@ private func turn(until done: () -> Bool) -> Bool {
 @MainActor private func hostWindow(width: Float = 400, height: Float = 300)
     throws -> (AppKitPlatform, AppKitWindow, NSWindow, Log) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "Services \(UUID().uuidString)",
                                                  size: Size(width: px(width), height: px(height)))
