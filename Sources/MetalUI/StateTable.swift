@@ -661,6 +661,10 @@ final class StateTable {
     /// strong capture here would be a retain cycle.
     var onWrite: (@MainActor () -> Void)?
 
+    /// Who made the write `onWrite` is firing for (`FP-S`): set by `write(_:_:by:)` around the call and by
+    /// `TimelineStore`'s wake, `nil` otherwise. A metatype and a number: nothing is formatted unless a trace prints it.
+    var writer: DirtyOwner?
+
     init() {}
 
     /// How many entries survive. Test observability; not part of the contract.
@@ -977,7 +981,7 @@ final class StateTable {
     /// `withState(id, initial:)`'s own long-standing clobber semantics — `S`
     /// was never anchored to the slot's stored type there either — so this
     /// is not a new hazard `write` introduces, only one it inherits.
-    func write<S>(_ id: GlobalElementID, _ value: S) {
+    func write<S>(_ id: GlobalElementID, _ value: S, by owner: DirtyOwner? = nil) {
         retainLog?.taint("stateWrite")
         prepaintLog?.taint("stateWrite")
         contentMemos.journal.taint("stateWrite")   // `RK-F`
@@ -989,7 +993,9 @@ final class StateTable {
         storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true,
                             version: versionCounter)
         isDirty = true
+        writer = owner
         onWrite?()
+        writer = nil
     }
 
     /// Clear `isDirty`. `Window.drawFrameIfNeeded` calls this at the same
