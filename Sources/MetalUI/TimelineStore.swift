@@ -212,7 +212,9 @@ final class TimelineStore {
         let cancel = scheduler(earliest) { [weak self] in
             guard let self else { return }
             self.pendingWake = nil
+            self.stateTable?.writer = DirtyOwner(named: "TimelineSchedule")   // `FP-S`
             self.stateTable?.onWrite?()
+            self.stateTable?.writer = nil
         }
         pendingWake = (earliest, cancel)
     }

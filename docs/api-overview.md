@@ -700,7 +700,7 @@ where it would leave the window and clamped horizontally. It takes **no focus an
 **never dismissed by input** (the app writes `isPresented`; route ↑ ↓ Return Tab Esc with
 `.onKeyPress` on the field); a press on it keeps the focused field focused and never reaches what
 lies beneath, rows and a `ScrollView` work, and its nodes are ordinary siblings, not a popover.
-**Tab strip** (M, `TBS-A`..`TBS-J`, `TBS-M`, records 238, 246 and 294; `.selectedTabShape(_:)` draws the selected tab as a `.capsule` or `.roundedRectangle(radius:)` pill, `.rectangle` by default): `TabStrip(selection:tabs:)` over `TabStripItem(id:title:icon:isDirty:isClosable:accent:accessibilityIdentifier:closeAccessibilityIdentifier:)`
+**Tab strip** (M, `TBS-A`..`TBS-J`, `TBS-M`, `TBS-N`, records 238, 246, 294 and 299; `.selectedTabShape(_:)` draws the selected tab as a `.capsule` or `.roundedRectangle(radius:)` pill, `.rectangle` by default; `.stripBackground(_:)` and `.selectedTabFill(_:)` take a `TabStripPaint`, `.automatic` (today's `.surfaceSecondary` bar and `.background` tab), `.clear` (the bar draws no rectangle, for a glass bar behind it), `.color(_:)` or `.material(_:)`): `TabStrip(selection:tabs:)` over `TabStripItem(id:title:icon:isDirty:isClosable:accent:accessibilityIdentifier:closeAccessibilityIdentifier:)`
 (the last two, `TBS-J`, are the identifiers of the tab button and its close button; `nil` sets none and none is derived from `id`),
 an editor's closable tab bar. A click on a tab writes `selection`; the × (on a hovered or selected tab) and a middle click call
 `.onCloseTab { id in }` and select nothing (the app removes the tab); a drag of more than 4 points calls

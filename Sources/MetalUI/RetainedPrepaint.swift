@@ -493,7 +493,7 @@ extension Frame {
         if recorder.taint == nil, let moved = recorder.audit.movedChannel(to: prepaintAudit()) { recorder.taint = moved }
         let hitboxes = hitboxes(from: recorder.hitboxLow)
         if recorder.taint == nil,
-           hitboxes.contains(where: { $0.handlers.hasDraggable || $0.handlers.dropDestination != nil }) {
+           hitboxes.contains(where: { $0.handlers.hasDraggable }) {
             recorder.taint = "dragAndDrop"
         }
         guard recorder.taint == nil, let key = phase.prepaintKey else {

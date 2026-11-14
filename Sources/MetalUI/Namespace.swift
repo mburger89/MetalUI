@@ -29,7 +29,7 @@ public struct Namespace {
 }
 
 extension Namespace: BindableState {
-    func bind(to table: StateTable, id: GlobalElementID, slot index: Int) {
-        slot.bind(to: table, id: id, slot: index)
+    func bind(to table: StateTable, id: GlobalElementID, slot index: Int, owner: Any.Type) {
+        slot.bind(to: table, id: id, slot: index, owner: Optional(owner))
     }
 }

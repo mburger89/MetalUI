@@ -81,7 +81,8 @@ public struct FocusState<Value: Hashable> {
             guard let table = box.table, let slot = box.slotID else { return }
             // A dirtying write, as `@State`'s is: the window draws the frame that
             // applies it (`Window.applyPendingFocusStateWrites`).
-            table.write(slot, FocusStateValue(value: newValue, pending: true))
+            table.write(slot, FocusStateValue(value: newValue, pending: true),
+                        by: box.owner.map { DirtyOwner(type: $0, ordinal: box.ordinal) })
         }
     }
 
@@ -114,6 +115,8 @@ public struct FocusState<Value: Hashable> {
         let defaultValue: Value
         var table: StateTable?
         var slotID: GlobalElementID?
+        var owner: Any.Type?   // `FP-S`
+        var ordinal = 0
 
         init(defaultValue: Value) { self.defaultValue = defaultValue }
 
@@ -134,14 +137,15 @@ public struct FocusState<Value: Hashable> {
             let current = table.peek(slot, as: FocusStateValue<Value>.self)
             if current == nil, expected == defaultValue { return }
             guard current?.value != expected || current?.pending == true else { return }
-            table.write(slot, FocusStateValue(value: expected, pending: false))
+            table.write(slot, FocusStateValue(value: expected, pending: false), by: DirtyOwner(named: "FocusReconcile"))
         }
     }
 }
 
 extension FocusState: BindableFocusState {
-    func bind(to table: StateTable, id: GlobalElementID, slot: Int) {
+    func bind(to table: StateTable, id: GlobalElementID, slot: Int, owner: Any.Type) {
         box.table = table
+        box.owner = owner; box.ordinal = slot
         let slotID = GlobalElementID.child(of: id, at: slot, name: ElementID("$state\(slot)"))
         box.slotID = slotID
         table.mark(slotID)

@@ -19,7 +19,7 @@ import MetalUICore
 /// `State.bind` marks itself now; see its own doc comment.
 @MainActor
 protocol BindableState {
-    func bind(to table: StateTable, id: GlobalElementID, slot: Int)
+    func bind(to table: StateTable, id: GlobalElementID, slot: Int, owner: Any.Type)
 }
 
 /// A `BindableState` that is a `@FocusState`: the content memo refuses a
@@ -27,7 +27,11 @@ protocol BindableState {
 @MainActor
 protocol BindableFocusState: BindableState {}
 
-extension State: BindableState {}
+extension State: BindableState {
+    func bind(to table: StateTable, id: GlobalElementID, slot: Int, owner: Any.Type) {
+        bind(to: table, id: id, slot: slot, owner: Optional(owner))
+    }
+}
 
 /// Seeds every `@State` an element declares with this frame's `StateTable`
 /// and the element's own identity — the thing that makes `@State` work at
@@ -84,6 +88,8 @@ enum StateBinder {
         /// their slots' versions, `IV-D`, `RZ-I`): a focus slot is a `$state<n>` sibling,
         /// written with a version bump on every focus change the window reconciles.
         var stateOrdinals: [Int] = []
+        /// Property labels by ordinal, kept for the latency trace's `dirty=state@Type.property` (`FP-S`); read only then.
+        var labels: [Int: String] = [:]
     }
 
     /// What the content memo needs of a type's cached shape (`IV-D`): the
@@ -92,6 +98,14 @@ enum StateBinder {
     /// `RZ-I`). `nil` before the type has been bound once — callers bind first.
     static func memoShape(of type: Any.Type) -> [Int]? {
         shapes[ObjectIdentifier(type)]?.stateOrdinals
+    }
+
+    /// The declared name of the wrapper at `ordinal` in `type` (the wrapper's backing `_name` without its
+    /// underscore), or `nil` before the type was bound or for an unlabelled child (`FP-S`). Called only to print.
+    static func label(of type: Any.Type, ordinal: Int) -> String? {
+        guard var label = shapes[ObjectIdentifier(type)]?.labels[ordinal] else { return nil }
+        if label.hasPrefix("_") { label.removeFirst() }
+        return label
     }
 
     private static var shapes: [ObjectIdentifier: Shape] = [:]
@@ -135,9 +149,10 @@ enum StateBinder {
         var snapshot: EnvironmentValues?
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
             if let bindable = child.value as? BindableState {
+                if let label = child.label { shape.labels[index] = label }
                 shape.ordinals.append(index)
                 shape.stateOrdinals.append(index)
-                bindable.bind(to: frame.stateTable, id: id, slot: index)
+                bindable.bind(to: frame.stateTable, id: id, slot: index, owner: E.self)
             } else if let bindable = child.value as? BindableEnvironment {
                 shape.ordinals.append(index)
                 shape.hasEnvironment = true
@@ -191,7 +206,7 @@ enum StateBinder {
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
             guard index == ordinals[next] else { continue }
             if let bindable = child.value as? BindableState {
-                bindable.bind(to: table, id: id, slot: index)
+                bindable.bind(to: table, id: id, slot: index, owner: E.self)
             } else if let bindable = child.value as? BindableEnvironment,
                       let environment {
                 // The element id and generation let an aliased box keep one
