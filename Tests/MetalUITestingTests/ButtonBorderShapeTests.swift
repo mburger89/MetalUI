@@ -155,20 +155,44 @@ private let blue = Color(red: 0, green: 0, blue: 1)
     #expect(prominent.scene.backdrops.first?.cornerRadii.topLeft == 7)
 }
 
+/// A `Picker` is the heaviest control in a debug build (a segmented one reserves ~0.5 MB of stack, a menu one ~0.6 MB, measured
+/// by `StackMeter`), so each tree here is its own `Component`: held inline in one builder (the scoped pair below) they summed to
+/// 1.2 MB and overflowed Windows' 1 MB test thread (`PE-K`; CI run 43550349821).
+private struct MenuPickerTree: Component {
+    var content: some ElementGroup {
+        Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.menu)
+    }
+}
+private struct RadioPickerTree: Component {
+    var content: some ElementGroup {
+        Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.radioGroup)
+    }
+}
+private struct SegmentedThreeTree: Component {
+    var content: some ElementGroup {
+        Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1); Text("C").tag(2) }.pickerStyle(.segmented)
+    }
+}
+private struct SegmentedFirstTree: Component {
+    var content: some ElementGroup {
+        Picker("A", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.segmented)
+    }
+}
+private struct SegmentedSecondTree: Component {
+    var content: some ElementGroup {
+        Picker("B", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.segmented)
+            .segmentedPickerShape(.automatic)
+    }
+}
+
 /// BY-M: `Menu` and the menu `Picker` are bordered buttons and take the shape; the radio group ignores it.
 @Test @MainActor func aMenuAndAMenuPickerFollowTheShape() throws {
     let menu = try window { Menu("More") { Button("x") {} }.buttonBorderShape(.capsule) }
     #expect(radii(menu) == [12], "Menu: \(radii(menu))")
-    let picker = try window {
-        Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.menu).buttonBorderShape(.capsule)
-    }
+    let picker = try window { VStack { MenuPickerTree().buttonBorderShape(.capsule) } }
     #expect(radii(picker) == [12], "menu Picker: \(radii(picker))")
-    let radio = try window {
-        Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.radioGroup).buttonBorderShape(.capsule)
-    }
-    let plainRadio = try window {
-        Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.radioGroup)
-    }
+    let radio = try window { VStack { RadioPickerTree().buttonBorderShape(.capsule) } }
+    let plainRadio = try window { VStack { RadioPickerTree() } }
     #expect(signature(radio) == signature(plainRadio), "the radio group ignores it")
 }
 
@@ -187,29 +211,17 @@ private let blue = Color(red: 0, green: 0, blue: 1)
 /// capsule, 8 and 7 for a radius of 8; the selected segment keeps its hairline edge.
 /// Mutation: reading `buttonBorderShape` for the segmented track reddens the first arm.
 @Test @MainActor func aSegmentedPickerTakesItsOwnShapeAndIgnoresTheButtonBorderShape() throws {
-    typealias Three = Picker<Int, Pair<Pair<TaggedElement<Text>, TaggedElement<Text>>, TaggedElement<Text>>>
-    @MainActor func segmented<R: Element>(_ configure: @escaping @MainActor (Three) -> R) throws -> TestWindow {
-        try window {
-            configure(Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1); Text("C").tag(2) }.pickerStyle(.segmented))
-        }
-    }
-    let plain = try segmented { $0 }
+    let plain = try window { VStack { SegmentedThreeTree() } }
     #expect(radii(plain) == [6, 5], "today's: \(radii(plain))")
-    let ignoring = try segmented { $0.buttonBorderShape(.capsule) }
+    let ignoring = try window { VStack { SegmentedThreeTree().buttonBorderShape(.capsule) } }
     #expect(signature(ignoring) == signature(plain), "buttonBorderShape does not reshape it")
-    let capsule = try segmented { $0.segmentedPickerShape(.capsule) }
+    let capsule = try window { VStack { SegmentedThreeTree().segmentedPickerShape(.capsule) } }
     #expect(radii(capsule) == [12], "\(radii(capsule))")
-    let rounded = try segmented { $0.segmentedPickerShape(.roundedRectangle(radius: 8)) }
+    let rounded = try window { VStack { SegmentedThreeTree().segmentedPickerShape(.roundedRectangle(radius: 8)) } }
     #expect(radii(rounded) == [8, 7], "\(radii(rounded))")
     let edges = capsule.scene.rects.filter { $0.borderWidths.top == 1 && $0.cornerRadii.topLeft == 12 }
     #expect(edges.count == 1, "the selected segment keeps its 1-pixel edge: \(edges.count)")
-    let scoped = try window {
-        VStack {
-            Picker("A", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.segmented)
-            Picker("B", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.segmented)
-                .segmentedPickerShape(.automatic)
-        }.segmentedPickerShape(.capsule)
-    }
+    let scoped = try window { VStack { SegmentedFirstTree(); SegmentedSecondTree() }.segmentedPickerShape(.capsule) }
     #expect(radii(scoped) == [12, 6, 5], "the inner writer wins: \(radii(scoped))")
 }
 
