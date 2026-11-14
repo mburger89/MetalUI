@@ -158,7 +158,42 @@ private struct SendsInputWhileBuilding: Component {
     rig.window.window.setNeedsRedraw(); rig.window.window.setNeedsRedraw()
     rig.window.tick(); rig.settle()
     let line = try #require(rig.lines.last)
-    #expect(line.contains(" dirty=explicit/2"), "\(line)")
+    #expect(line.contains(" dirty=explicit@FrameTimingWhyTests.swift:"), "\(line)")
+    #expect(line.hasSuffix("/2") || line.contains("/2 "), "\(line)")
+}
+
+/// 2.4 (`FP-R`) — an untagged call names its file and line, the first call's. Mutations: the site not stored (no `@`);
+/// the last call's kept instead of the first's; the full `#fileID` printed (a `/` inside the field).
+@Test @MainActor func anExplicitDirtyingNamesItsCallSite() throws {
+    let rig = try WhyRig()
+    rig.timing.tracesAllFrames = true
+    let first: UInt = #line + 1
+    rig.window.window.setNeedsRedraw()
+    rig.window.window.setNeedsRedraw()
+    rig.window.tick(); rig.settle()
+    let line = try #require(rig.lines.last)
+    #expect(line.contains(" dirty=explicit@FrameTimingWhyTests.swift:\(first)/2"), "\(line)")
+}
+
+@MainActor private final class WhyBinding { var width: Binding<Float>? }
+private struct WhyStateBox: Component {
+    let holder: WhyBinding
+    @State var width: Float = 20
+    var content: some ElementGroup {
+        let _ = holder.width = $width
+        Box().frame(width: Pixels(width), height: Pixels(10))
+    }
+}
+
+/// 2.5 (`FP-R`) — a `@State` write is `state`, not `explicit`. Mutation: the table's write hook back to the bare call.
+@Test @MainActor func aStateWriteIsTaggedState() throws {
+    let holder = WhyBinding()
+    let rig = try WhyRig { WhyStateBox(holder: holder) }
+    rig.timing.tracesAllFrames = true
+    holder.width?.wrappedValue = 30
+    rig.window.tick(); rig.settle()
+    let line = try #require(rig.lines.last)
+    #expect(line.contains(" dirty=state/1"), "\(line)")
 }
 
 /// 3.1 — frames no input caused get a line only with `METALUI_LATENCY_TRACE_ALL`, kind `tick` or `frame`.
@@ -182,6 +217,7 @@ private struct SendsInputWhileBuilding: Component {
     let sample = try #require(rig.timing.last)
     #expect(sample.dirtySource == nil)
     #expect(sample.dirtyCount == 0)
+    #expect(sample.dirtySite == nil)
     #expect(sample.declineReason == nil)
     #expect(!rig.timing.isTracing)
 }
