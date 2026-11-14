@@ -57,6 +57,30 @@ package struct DirtySite: Equatable, Sendable {
     package var text: String { "\(file.description.split(separator: "/").last.map(String.init) ?? file.description):\(line)" }
 }
 
+/// Who wrote the state that dirtied the window (`FP-S`): the type that declares the `@State` and the property's
+/// ordinal among its stored properties, or a MetalUI-internal name for a write no `@State` property made. Kept as a
+/// metatype and a number so recording one builds no string; the trace prints `Editor.height` or `Editor#2`.
+package struct DirtyOwner: Equatable, Sendable {
+    package var type: Any.Type?
+    package var ordinal: Int
+    package var name: StaticString?
+    package init(type: Any.Type, ordinal: Int) { self.type = type; self.ordinal = ordinal; self.name = nil }
+    package init(named name: StaticString) { self.type = nil; self.ordinal = 0; self.name = name }
+    package static func == (a: DirtyOwner, b: DirtyOwner) -> Bool {
+        a.ordinal == b.ordinal && a.type.map(ObjectIdentifier.init) == b.type.map(ObjectIdentifier.init)
+            && a.name?.description == b.name?.description
+    }
+    /// `Type.property` when the property's label is known, else `Type#ordinal`; an internal owner prints its name.
+    @MainActor package var text: String {
+        if let type {
+            let typeName = String(describing: type)
+            if let label = StateBinder.label(of: type, ordinal: ordinal) { return "\(typeName).\(label)" }
+            return "\(typeName)#\(ordinal)"
+        }
+        return name?.description ?? "?"
+    }
+}
+
 /// One frame's timestamps (ruling `FP-B`): when the input that caused it arrived, when each phase ended, when the
 /// frame was committed to the platform and, later and only where the platform reports it, when it reached the
 /// screen. Every time is **nanoseconds on ``FrameTiming/now()``'s clock**.
@@ -113,6 +137,8 @@ public struct FrameTimingSample: Sendable, Equatable {
     package var dirtyCount = 0
     /// The call site of the first `explicit` dirtying (`FP-R`), `nil` for any other source.
     package var dirtySite: DirtySite?
+    /// The writer of the first `state` dirtying (`FP-S`), `nil` for any other source or an unattributed write.
+    package var dirtyOwner: DirtyOwner?
     /// Why the input that caused this frame was not drawn at once (`FP-Q`), for the trace's `why=`: `needsRedraw`,
     /// `animations`, `timer`, `drawing` or `pacing(<ms>ms)`. `nil` for an immediate frame, a tick frame no input
     /// caused, and when no trace is on.
@@ -125,7 +151,7 @@ public struct FrameTimingSample: Sendable, Equatable {
         tickStart = nil; tickTarget = nil
         buildStart = start; drawableAcquired = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
         presented = nil; gpuNanos = nil
-        dirtySource = nil; dirtySite = nil; declineReason = nil
+        dirtySource = nil; dirtySite = nil; dirtyOwner = nil; declineReason = nil
     }
 
     /// Input to commit in nanoseconds, or `nil` for a frame no input caused: the keystroke-to-submit latency.
@@ -203,6 +229,7 @@ public final class FrameTiming {
     /// input that waited; taken by the next ``beginFrame()``. Written only while a trace is on.
     private var dirtyFirst: DirtySource?
     private var dirtyFirstSite: DirtySite?
+    private var dirtyFirstOwner: DirtyOwner?
     private var dirtyTotal = 0
     private var pendingWhy: String?
     private var candidateWhy: String?
@@ -373,7 +400,7 @@ public final class FrameTiming {
         // `dirty=<source>/<count>`.
         var trailer = ""
         if let why = s.declineReason { trailer += " why=\(why)" }
-        if let source = s.dirtySource { trailer += " dirty=\(source.rawValue)\(s.dirtySite.map { "@" + $0.text } ?? "")/\(s.dirtyCount)" }
+        if let source = s.dirtySource { trailer += " dirty=\(source.rawValue)\(s.dirtySite.map { "@" + $0.text } ?? s.dirtyOwner.map { "@" + $0.text } ?? "")/\(s.dirtyCount)" }
         return "metalui-latency \(s.frameIndex) \(kind) \(s.inputCount) | "
             + [ms(gap(s.inputTimestamp, s.inputReceived)), ms(s.inputToTick),
                ms(gap(s.tickStart, s.buildStart)), ms(s.drawableWait),
@@ -467,9 +494,9 @@ public final class FrameTiming {
     package var isTracing: Bool { traceSink != nil }
 
     /// The window was marked dirty by `source` (`FP-Q`). Counts, and keeps the first source, until the next frame.
-    func noteDirty(_ source: DirtySource, site: DirtySite? = nil) {
+    func noteDirty(_ source: DirtySource, site: DirtySite? = nil, owner: DirtyOwner? = nil) {
         guard traceSink != nil else { return }
-        if dirtyFirst == nil { dirtyFirst = source; dirtyFirstSite = site }
+        if dirtyFirst == nil { dirtyFirst = source; dirtyFirstSite = site; dirtyFirstOwner = owner }
         dirtyTotal += 1
     }
 
@@ -561,9 +588,9 @@ public final class FrameTiming {
         var sample = FrameTimingSample(frameIndex: framesRecorded, start: Self.now())
         if let tick = pendingTick { sample.tickStart = tick.start; sample.tickTarget = tick.target }
         pendingTick = nil
-        sample.dirtySource = dirtyFirst; sample.dirtySite = dirtyFirstSite
+        sample.dirtySource = dirtyFirst; sample.dirtySite = dirtyFirstSite; sample.dirtyOwner = dirtyFirstOwner
         sample.dirtyCount = dirtyTotal; sample.declineReason = pendingWhy
-        dirtyFirst = nil; dirtyFirstSite = nil; dirtyTotal = 0; pendingWhy = nil
+        dirtyFirst = nil; dirtyFirstSite = nil; dirtyFirstOwner = nil; dirtyTotal = 0; pendingWhy = nil
         if let input = pending {
             sample.inputKind = input.kind; sample.inputReceived = input.received
             sample.inputTimestamp = input.stamp; sample.inputCount = input.count
@@ -582,7 +609,7 @@ public final class FrameTiming {
     func abandonFrame() {
         if let inFlight, pending == nil { pending = inFlight }
         if let c = current {   // `FP-Q`: the attribution waits for the retry
-            if dirtyFirst == nil { dirtyFirst = c.dirtySource; dirtyFirstSite = c.dirtySite }
+            if dirtyFirst == nil { dirtyFirst = c.dirtySource; dirtyFirstSite = c.dirtySite; dirtyFirstOwner = c.dirtyOwner }
             dirtyTotal += c.dirtyCount
             if pendingWhy == nil { pendingWhy = c.declineReason }
         }
