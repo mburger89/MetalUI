@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -33,6 +34,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// (an overflowed field has no field editor).
 @MainActor private func toolbarWindow() throws -> (AppKitPlatform, AppKitWindow, NSWindow, EventLog) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "Toolbar \(UUID().uuidString)",
                                                  size: Size(width: px(900), height: px(200)))
@@ -225,6 +227,7 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
 @MainActor
 @Test func aNativeToolbarFieldTakingFirstResponderLeavesMetalUIFocusAlone() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "Toolbar focus \(UUID().uuidString)",
                                                  size: Size(width: px(400), height: px(200)))

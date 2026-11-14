@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -12,6 +13,7 @@ import MetalUICore
 @MainActor
 private func itemsWindow() throws -> (AppKitWindow, NSPasteboard) {
     let device = try #require(MTLCreateSystemDefaultDevice())
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device)
     let window = try #require(try platform.openWindow(title: "CP items", size: Size(width: Pixels(200), height: Pixels(100)))
         as? AppKitWindow)

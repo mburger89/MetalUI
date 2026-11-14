@@ -394,7 +394,7 @@ targets += [
             dependencies: ["MetalUICore", "MetalUIPlatform", "MetalUIRender"]
         ),
         .testTarget(name: "MetalUIPlatformTests",
-                    dependencies: ["MetalUIPlatform", "MetalUIAppKit", "MetalUIRender"]),
+                    dependencies: ["MetalUIPlatform", "MetalUIAppKit", "MetalUIRender", "MetalUITestSupport"]),
 
         // `MetalUIText` is a dependency of `MetalUI` already; it is named again
         // here so the tests may `@testable import` it. `ShapingCache.misses` is

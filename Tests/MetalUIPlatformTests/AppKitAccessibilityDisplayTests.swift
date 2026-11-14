@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -50,6 +51,7 @@ private func swizzleDisplayOptions() throws -> () -> Void {
 private func openAppKitWindow(_ label: String) throws -> (AppKitWindow, NSWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let signal = ScriptedAccessibilitySignal(false)
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { signal })
     let window = try platform.openWindow(title: "\(label) \(UUID().uuidString)",
                                          size: Size(width: Pixels(160), height: Pixels(120)))

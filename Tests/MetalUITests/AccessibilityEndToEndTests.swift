@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -52,6 +53,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     width: Int = 200, height: Int = 200, content: @escaping @MainActor () -> Root
 ) throws -> (Window, AppKitWindow, NSWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal(false) })
     let platformWindow = try platform.openWindow(
         title: "AX end-to-end \(UUID().uuidString)",

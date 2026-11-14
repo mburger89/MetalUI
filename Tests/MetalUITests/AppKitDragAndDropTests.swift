@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -66,6 +67,7 @@ private final class FakeDrag: NSObject, NSDraggingInfo {
     _ content: @escaping @MainActor () -> Root
 ) throws -> (Window, AppKitWindow, NSWindow) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "DnD \(UUID().uuidString)",
                                                  size: Size(width: px(400), height: px(200)))

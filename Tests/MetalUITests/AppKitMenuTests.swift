@@ -1,3 +1,4 @@
+import MetalUITestSupport
 import Testing
 import Foundation
 import Metal
@@ -59,6 +60,7 @@ private func describe(_ event: InputEvent) -> String {
 @MainActor private func hostWindow(answer: @escaping (InputEvent) -> Bool = { _ in true })
     throws -> (AppKitPlatform, AppKitWindow, NSWindow, Log) {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    installAppKitEventSignal()
     let platform = AppKitPlatform(device: device, accessibilitySignal: { ConstantSignal() })
     let platformWindow = try platform.openWindow(title: "Menus \(UUID().uuidString)",
                                                  size: Size(width: px(400), height: px(200)))
