@@ -5,7 +5,7 @@ import MetalUITesting
 import Observation
 import Testing
 
-// Alloy G33(a) A0 follow-ups (`RW-K`, `RW-V`; record 292): a closed menu or menu picker anchors replay and does not taint its
+// Alloy G33(a) A0 follow-ups (`RW-K`, `RW-V`; record 295): a closed menu or menu picker anchors replay and does not taint its
 // ancestors' graft; an open one still does. Two windows over one builder as in `RetainedGraftTests`.
 
 private let verifyingNote: Comment =

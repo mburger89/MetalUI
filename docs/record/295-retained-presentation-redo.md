@@ -1,6 +1,6 @@
-# 292. A closed code-driven menu no longer taints the graft (`RW-V`)
+# 295. A closed code-driven menu no longer taints the graft (`RW-V`)
 
-Branch `fix/retained-presentation-taint` (master `de44a640`). Ruling `RW-V`. Class `M`; no public API, no divergence.
+Renumbered 292 to 295 at its merge with `master` (record 292 is `292-three-clipped-islands.md`, published first). Branch `fix/retained-presentation-taint` (master `de44a640`). Ruling `RW-V`. Class `M`; no public API, no divergence.
 Source: Alloy G33(a) A0 follow-ups, from `METALUI_TRACE_RETAINED=1` traces of 20 keys typed into a `CodeView`.
 
 ## What the traces showed, and what was already there
