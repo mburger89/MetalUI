@@ -380,3 +380,30 @@ extension Window {
         setNeedsRedraw()
     }
 }
+
+// MARK: - Window preference reports (`AS-D`, `AS-G`, `AE-C`, `RW-X`)
+
+/// One window preference a build reported through `EnvironmentScope.reportingPreference`.
+enum WindowPreferenceReport {
+    case title(String), subtitle(String), dismiss(WindowInteractionBehavior), titleBarMetrics(TitleBarMetrics)
+    case backdrop(WindowBackdropSpec), document(URL), openURL(OpenURLHandler)
+}
+
+extension Frame {
+    /// Applies a report: the first title, subtitle, dismiss behavior, metrics, backdrop and document win (the order the
+    /// calls arrive in is the scope's pre- or post-order), an `.onOpenURL` appends. A graft window journals the
+    /// report whether or not it won, so a replay under a different earlier report decides again (`RW-X`).
+    func reportWindowPreference(_ report: WindowPreferenceReport) {
+        let journal = stateTable.contentMemos.journal
+        if journal.isRecording { journal.record(.windowPreference(report)) }
+        switch report {
+        case .title(let title): if collectedNavigationTitle == nil { collectedNavigationTitle = title }
+        case .subtitle(let subtitle): if collectedNavigationSubtitle == nil { collectedNavigationSubtitle = subtitle }
+        case .dismiss(let behavior): if collectedDismissBehavior == nil { collectedDismissBehavior = behavior }
+        case .titleBarMetrics(let metrics): if collectedTitleBarMetrics == nil { collectedTitleBarMetrics = metrics }
+        case .backdrop(let spec): if collectedWindowBackdrop == nil { collectedWindowBackdrop = spec }
+        case .document(let url): if collectedNavigationDocument == nil { collectedNavigationDocument = url }
+        case .openURL(let handler): openURLHandlers.append(handler)
+        }
+    }
+}

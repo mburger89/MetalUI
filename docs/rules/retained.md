@@ -179,4 +179,6 @@ miss** (`ContentMemoStore.Entry.needsObservation` also reads `record.contentSeri
 
 **Closed presentation scopes (`RW-V`, record 295).** A closed `Menu(isPresented:)`/`.menuPresented`, `.alert`, dialog or `fileImporter` scope journals its `PresentationRecord` (`.presentationNote`) and the graft re-reads the binding; an open one still refuses by `presentation`.
 
+**Window preferences (`RW-X`, record 303).** `.navigationTitle`/`Subtitle`/`Document`, `.windowDismissBehavior`, `.windowTitleBarMetrics`, `.containerBackground(for: .window)` and `.onOpenURL` report through `Frame.reportWindowPreference(_:)`, which journals each report (won or not) and a graft replays them in order, first-wins decided again; the `windowMetadata` refusal and `BuildAudit.openURLs`/`.navigation` are gone.
+
 **Drop destinations (`RW-W`, record 297).** A `.dropDestination`/`.onDrop` hitbox rides a prepaint ledger like any other (so its ancestors replay and graft); only a draggable still refuses (`dragAndDrop`).

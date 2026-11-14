@@ -136,30 +136,30 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
             return frame.withColorSchemePreference(value, body)
         case .navigationTitle(let title):
             let result = body()
-            if frame.collectedNavigationTitle == nil { frame.collectedNavigationTitle = title }
+            frame.reportWindowPreference(.title(title))
             return result
         case .navigationSubtitle(let subtitle):
-            if frame.collectedNavigationSubtitle == nil { frame.collectedNavigationSubtitle = subtitle }
+            frame.reportWindowPreference(.subtitle(subtitle))
             return body()
         case .windowDismissBehavior(let behavior):
             let result = body()
-            if frame.collectedDismissBehavior == nil { frame.collectedDismissBehavior = behavior }
+            frame.reportWindowPreference(.dismiss(behavior))
             return result
         case .windowTitleBarMetrics(let metrics):
             let result = body()
-            if frame.collectedTitleBarMetrics == nil { frame.collectedTitleBarMetrics = metrics }
+            frame.reportWindowPreference(.titleBarMetrics(metrics))
             return result
         case .windowBackdrop(let spec):
             let result = body()
-            if frame.collectedWindowBackdrop == nil { frame.collectedWindowBackdrop = spec }
+            frame.reportWindowPreference(.backdrop(spec))
             return result
         case .navigationDocument(let url):
             let result = body()
-            if frame.collectedNavigationDocument == nil { frame.collectedNavigationDocument = url }
+            frame.reportWindowPreference(.document(url))
             return result
         case .onOpenURL(let action):
             let result = body()
-            frame.openURLHandlers.append(OpenURLHandler(owner: owner, action: action))
+            frame.reportWindowPreference(.openURL(OpenURLHandler(owner: owner, action: action)))
             return result
         case .presentationBackground(let spec):
             let result = body()
