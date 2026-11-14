@@ -590,6 +590,9 @@ public final class Frame {
     var presentationRecords: [PresentationRecord] = []
     /// Records noted per key this build — the occurrence rule (`MV-M` item 5).
     var presentationOccurrences: [GlobalElementID: Int] = [:]
+    /// The records of ``presentationRecords`` a graft window journals (`RW-V`): `buildAudit` leaves them out of the
+    /// `presentation` channel.
+    var journaledPresentationNotes = 0
 
     /// The toolbar scopes this build noted, in build pre-order (ruling `MD-I`
     /// item 5) — the main tree's only: a presentation root's are dropped when
