@@ -10,7 +10,7 @@ Record: [`../record/94-backdrop-blur.md`](../record/94-backdrop-blur.md) (landed
 from `f2fe54a`; divergence labels reserved for this branch: **245–254**
 (used: 245–249, planned below).
 
-**Next unused id: `BB-U`.** (Moves in the commit that appends a ruling; read the
+**Next unused id: `BB-V`.** (Moves in the commit that appends a ruling; read the
 last `## BB-` heading, not this line, if they disagree.)
 
 Evidence: [`../probes/swiftui-backdrop-blur.swift`](../probes/swiftui-backdrop-blur.swift)
@@ -578,3 +578,67 @@ added in the next row.
 | M22 | the Gaussian always horizontal | 3.3, 3.3h, 3.3f, 3.5 |
 | M23 | the Gaussian's weights not normalized | 3.3, 3.3h, 3.3f, 3.5 |
 | M24 / M24b | the transform index read as 0 in `backdrop.vertex` | M24 **survived** the suite (only replay frame 10 saw it); M24b with 3.3i: `aTurnedBackdropIsTheBackdropOfItsTurnedBounds` |
+
+## BB-U — Backdrop memory: region-sized targets, an idle release, a window's own state (Alloy "glass memory", record 290)
+
+**Ruling.**
+
+1. **Measured first (Metal, 2800×1800 device pixels, two records of 1200×180 and 720×140, debug build).** The frame
+   target `F` is 21.17 MB (`allocatedSize`); the whole pool is 13 textures of 2 KB to 606 KB, 1.5 MB together (the
+   pool was already region-sized: a record's textures are its region halved `L` times, the scratch and result at
+   level `L`, the lens's sharp copy at the region). `F` is 90 % of what a backdrop frame holds, so it is what an
+   app sees as "glass memory" (about 5 MiB in Alloy's smaller window, which is `F` plus the pool at that size).
+2. **A frame whose backdrop regions are small draws into region-sized targets and has no frame target and no
+   copy** (`regionTargetPlan`, `encodeWithRegionTargets`). Conditions: at most `regionTargetRunLimit` = 4
+   backdrop runs, and the regions together at most `1 / regionTargetAreaDivisor` = 1/4 of the frame; a test hook
+   (`backdropRegionTargetsDisabled`) and `routesEveryFrameThroughTheFrameTarget` force `BB-C`'s path. Otherwise
+   the frame target draws exactly as `BB-C` says.
+3. **Structure.** The scene is drawn straight into the drawable (cleared transparent first, as the single pass is),
+   so the final copy pass is gone. Each record's region has a pool texture of its size; **phase `k`** (what lies
+   between backdrop run `k-1` and run `k`, led by run `k-1`'s quads) is encoded into the drawable and again into
+   the region target of every record of runs `k...`, the target's viewport origin shifted by `-region.origin` (a
+   draw keeps its frame coordinates; the texture's bounds cut the rest, and `rect_shade` and the glyph clip read
+   `pixelPosition`, not `[[position]]`, so nothing else moves). At run `k`'s split each region target holds what
+   the frame held there. The blur's first pass reads the region target from `(0, 0)`; **the lens's sharp copy is the
+   region target itself** (no blit: no later pass writes it), and the targets and the blurred textures go back to the
+   pool after the run's quads are encoded into every target. A glass over a material (two runs) works because the
+   material's quad is part of phase 1 and is drawn into the glass's region target too.
+4. **Cost.** A region target costs one more encoder per phase before its run: a content run is encoded `1 + (runs
+   still to come)` times, on the CPU, and its vertex stage runs once per target on the GPU; the fragments are cut
+   to the region. That is why the limits in item 2 exist; past them `F` is cheaper. Measured, the steady frame takes
+   1.1 ms (region) against 1.25 ms (frame target): the copy pass of 5 M pixels costs more than the extra encoders.
+5. **`MetalWindowRenderer` owns its backdrop state.** It passed `nil`, so every window on one `Renderer` shared the
+   renderer's one default state (`BB-K`'s "per window" was true of the doc, not the code): two backdrop windows
+   evicted each other's frame target and pool at every frame. It passes its own `BackdropFrameState` now.
+6. **An idle window frees its backdrop textures.** After `idleReleaseDelay` = 1 s without a finished frame the
+   window drops its frame target and pool (`releaseAll`), and the next backdrop frame makes them again (counted in
+   `lastBackdropTexturesMade`, so `BB-S`'s "a steady frame makes none" is unchanged: frames that keep coming
+   never let the watcher fire). One watcher task a window, started by a frame that leaves textures behind; a
+   frame costs one clock read. 1 s is above a caret's 0.53 s blink and the 0.5 s app timers (a typing or blinking
+   window keeps its textures, which is the case Alloy measured), and far below the time anyone notices an idle
+   window's memory. First frame after an idle release, measured: 1.29 ms with region targets (steady 1.1-1.3),
+   1.93 ms with the frame target.
+7. **Not done, with numbers.** (b) Rendering the last segment into the drawable only saves the copy pass, not `F`:
+   the blur reads `F` as it stands at each split, so `F` must still hold everything under every region; item 2
+   subsumes it (the copy pass is gone) without needing `F`. (c) is item 2, with one target per record instead of
+   the union's box (two regions far apart would make the union nearly the window). (d) `setPurgeableState(.volatile)`
+   between frames: not tried on the region path (the targets are rewritten every frame, so their contents are never
+   worth keeping and the idle release is the stronger form of the same thing).
+8. **SDL.** `SDLBridge.c` keeps `BB-T`'s frame target and copy; the region path and the idle release are Metal-only
+   for now (`BB-J`/`LG-O` structural parity is deliberately open on this item, recorded here, not hidden). The
+   same plan applies to `encode_frame` (`SDL_GPU` render passes with a viewport origin; the window's own state is
+   already per renderer there).
+
+**Reasoning.** The pool was never the problem and a smaller `F` is a different frame, not a smaller texture: only
+the regions are ever read, so only they need to exist. Drawing the content once more into each region costs less
+than holding and copying a window-sized target.
+
+**Cost if wrong.** A scene with many backdrop runs and a long content list pays the extra encodes before the limits
+catch it (the limits are counts, not time); the follow-up is a cost estimate over the run list instead of constants.
+A window drawing once a second pays one re-allocation round per second (1.3 ms).
+
+**Pins.** `Tests/MetalUIRenderTests/BackdropMemoryTests.swift`: `regionTargetsDrawTheFrameTargetFrameByteForByte`
+(byte equality with the frame-target path over a field, a material, a glass over it, a lens and content between and
+after; mutations: viewport shift, quads of earlier runs), `aRegionFrameHoldsRegionsOnlyAndASteadyFrameMakesNoTextures`,
+`bigRegionsAndManyRunsTakeTheFrameTarget` (each limit removed fails it), `aWindowFreesItsBackdropTexturesWhenIdleAndMakesThemAgainWithTheSamePixels`
+(shared state, no watcher, no release each fail it).

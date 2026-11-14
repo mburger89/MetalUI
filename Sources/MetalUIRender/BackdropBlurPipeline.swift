@@ -102,6 +102,18 @@ final class BackdropFrameState {
     /// Whether a frame target exists.
     var hasFrameTarget: Bool { frame != nil }
 
+    /// Whether any texture is held (frame target or pool), i.e. whether an idle release has anything to free.
+    var isResident: Bool { frame != nil || free.values.contains { !$0.isEmpty } }
+
+    /// Every texture this state holds right now (the frame target and the free pool), as `(label, allocatedSize)`:
+    /// what the memory measurements and the pins read (`BB-U`).
+    var residentTextures: [(label: String, width: Int, height: Int, bytes: Int)] {
+        var out: [(label: String, width: Int, height: Int, bytes: Int)] = []
+        if let frame { out.append(("frame", frame.width, frame.height, frame.allocatedSize)) }
+        for (key, list) in free { for t in list { out.append(("pool", key.width, key.height, t.allocatedSize)) } }
+        return out.sorted { ($0.label, $0.width, $0.height) < ($1.label, $1.width, $1.height) }
+    }
+
     func beginFrame() {
         texturesMade = 0
         usedThisFrame.removeAll(keepingCapacity: true)

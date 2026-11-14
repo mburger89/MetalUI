@@ -123,6 +123,8 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
 @Test @MainActor func reduceTransparencyCostsNoBlurWork() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let renderer = try Renderer(device: device)
+    // The frame target's copy is the instrument's fourth counter; region targets (`BB-U`) take no copy.
+    renderer.backdropRegionTargetsDisabled = true
     let tree = Column {
         Color.clear.frame(width: px(40), height: px(20)).background(.ultraThinMaterial)
         Box().frame(width: px(40), height: px(20)).background(.regularMaterial)

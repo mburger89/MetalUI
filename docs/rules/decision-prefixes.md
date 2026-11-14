@@ -38,7 +38,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-P`), `FI-` (`ForEach` identity:
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
-  `2026-10-10-backdrop-blur-decisions.md`, next `BB-U`), `WD-` (window drag:
+  `2026-10-10-backdrop-blur-decisions.md`, next `BB-V`), `WD-` (window drag:
   `2026-10-12-window-drag-decisions.md`, next `WD-L`), `SL-` (text selection:
   `2026-10-12-text-selection-decisions.md`, next `SL-R`), `GT-` (text over a GPU surface:
   `2026-10-12-surface-text-decisions.md`, next `GT-J`), `GC-` (continuing press cancel:

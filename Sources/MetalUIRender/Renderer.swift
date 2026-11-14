@@ -111,6 +111,11 @@ public final class Renderer {
     var backdropPoolFailsAllocation = false
     /// Test hook (`LG-W`): only the glass lens's sharp copy fails, the blur succeeds.
     var glassSharpCopyFailsAllocation = false
+    /// Test hook (`BB-U`): never take the region-sized targets, always the full-size frame target (`BB-C`).
+    var backdropRegionTargetsDisabled = false
+    /// Region-sized targets the last frame drew its backdrop regions into instead of a full-size frame target (`BB-U`):
+    /// one per blurred record, 0 on a frame that took the frame target.
+    private(set) var lastBackdropRegionTargets = 0
     /// Test hook (test 2.3): route every scene, backdrop or not, through the frame target.
     var routesEveryFrameThroughTheFrameTarget = false
     /// Whether the default state holds a frame target (test 2.3).
@@ -277,7 +282,7 @@ public final class Renderer {
                 backdropState: BackdropFrameState?) throws {
         lastBackdropSplits = 0; lastBackdropBlurs = 0; lastBackdropPasses = 0
         lastGlassRecords = 0; lastGlassSharpCopies = 0
-        lastFrameTargetCopies = 0; lastBackdropTexturesMade = 0
+        lastFrameTargetCopies = 0; lastBackdropTexturesMade = 0; lastBackdropRegionTargets = 0
         lastGroupPasses = 0; lastGroupTexturesMade = 0; lastGroupAllocationFailures = 0
         lastFilterPasses = 0; lastFilteredGroups = 0; lastFilterAllocationFailures = 0
         lastMaskPasses = 0; lastMaskAllocationFailures = 0
@@ -665,6 +670,17 @@ public final class Renderer {
         let imageTextures = try prepareImageTextures(for: scene)
         let width = view.colorTexture.width, height = view.colorTexture.height
         if beginsFrame { state.beginFrame() }
+        if let regions = regionTargetPlan(scene, width: width, height: height),
+           let done = try encodeWithRegionTargets(scene, view: view, in: commandBuffer, surfaces: surfaces, state: state,
+                                                  groupTextures: groupTextures, pipelines: pipelines,
+                                                  imageTextures: imageTextures, regions: regions,
+                                                  width: width, height: height), done {
+            // A frame that drew into region targets holds no frame target: the one a previous frame made is dropped.
+            state.releaseFrameTarget()
+            if beginsFrame { state.endFrame() }
+            lastBackdropTexturesMade = state.texturesMade
+            return true
+        }
         guard let frame = state.frameTarget(device: device, width: width, height: height) else {
             lastBackdropTexturesMade = state.texturesMade
             return false
@@ -742,12 +758,137 @@ public final class Renderer {
         return true
     }
 
+    /// The most backdrop runs a frame may have and still draw into region-sized targets (`BB-U`): each run's region
+    /// target is drawn once per segment before it, so the encode cost grows with the runs.
+    static let regionTargetRunLimit = 4
+    /// A frame takes region targets only when its regions together cover at most `1 / regionTargetAreaDivisor` of
+    /// the frame (`BB-U`): past that the full-size frame target costs about what the regions do, and draws once.
+    static let regionTargetAreaDivisor = 4
+
+    /// The device-pixel region of each backdrop record that has one, when the frame qualifies for region targets
+    /// (`BB-U`): few backdrop runs, regions that together are a small part of the frame, a drawable-sized projection
+    /// handled by the caller. `nil` takes the frame target (`BB-C`).
+    private func regionTargetPlan(_ scene: Scene, width: Int, height: Int) -> [Int: Scene.BackdropRegion]? {
+        guard !backdropRegionTargetsDisabled, !routesEveryFrameThroughTheFrameTarget else { return nil }
+        var runs = 0, area = 0
+        var regions: [Int: Scene.BackdropRegion] = [:]
+        for run in scene.drawList where run.kind == .backdrop {
+            runs += 1
+            for index in run.start..<(run.start + run.count) {
+                if let region = scene.backdropRegion(index, target: (width, height)) {
+                    regions[index] = region
+                    area += region.width * region.height
+                }
+            }
+        }
+        guard runs > 0, runs <= Self.regionTargetRunLimit, !regions.isEmpty,
+              area * Self.regionTargetAreaDivisor <= width * height else { return nil }
+        return regions
+    }
+
+    /// The scene drawn straight into `view`, with each backdrop record's region also drawn, translated, into its own
+    /// region-sized target that the blur and the lens read (`BB-U`): the memory of a full-size frame target and its
+    /// copy to the drawable become the memory of the regions. Phase `k` draws what lies between backdrop run `k - 1`
+    /// and run `k` (and run `k - 1`'s quads) into the drawable and into the region targets of runs `k...`, so a
+    /// region target holds exactly what the frame held at its run's split. Returns `nil`, having encoded nothing,
+    /// when a region target cannot be made (the caller takes the frame target).
+    private func encodeWithRegionTargets(_ scene: Scene, view: SurfaceView, in commandBuffer: any MTLCommandBuffer,
+                                         surfaces: [SurfaceID: any MTLTexture], state: BackdropFrameState,
+                                         groupTextures: [(any MTLTexture)?], pipelines: BackdropPipelines,
+                                         imageTextures: [any MTLTexture], regions: [Int: Scene.BackdropRegion],
+                                         width: Int, height: Int) throws -> Bool? {
+        var targets: [Int: any MTLTexture] = [:]
+        for (index, region) in regions.sorted(by: { $0.key < $1.key }) {
+            guard let texture = state.acquire(device: device, width: region.width, height: region.height,
+                                              failing: backdropPoolFailsAllocation) else {
+                for texture in targets.values { state.release(texture) }
+                return nil
+            }
+            targets[index] = texture
+        }
+        let drawList = scene.drawList
+        let backdropRuns = drawList.indices.filter { drawList[$0].kind == .backdrop }
+        var viewport = MUISize(width: Float(view.viewport.width), height: Float(view.viewport.height))
+        var projection = view.projection
+        let transformBuffer = try transformTable(for: scene)
+
+        func open(_ texture: any MTLTexture, load: MTLLoadAction, origin: (x: Int, y: Int)) throws -> any MTLRenderCommandEncoder {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = texture
+            pass.colorAttachments[0].loadAction = load
+            pass.colorAttachments[0].storeAction = .store
+            pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+                throw RendererError.encoderUnavailable
+            }
+            // A region target is the frame shifted by its origin: the viewport moves, every draw stays in frame
+            // coordinates, and the texture's bounds cut what falls outside.
+            var port = view.viewport
+            port.originX -= Double(origin.x)
+            port.originY -= Double(origin.y)
+            encoder.setViewport(port)
+            return encoder
+        }
+
+        var previous: [(index: Int, blurred: (any MTLTexture)?, sharp: (any MTLTexture)?, draw: SIMD4<Float>)] = []
+        var cursor = 0
+        for phase in 0...backdropRuns.count {
+            let end = phase < backdropRuns.count ? backdropRuns[phase] : drawList.count
+            func encodePhase(into encoder: any MTLRenderCommandEncoder) throws {
+                for item in previous {
+                    try encodeBackdrop(scene.backdrops[item.index], blurred: item.blurred, sharp: item.sharp, draw: item.draw,
+                                       into: encoder, viewport: &viewport, projection: &projection,
+                                       transforms: transformBuffer, pipelines: pipelines)
+                }
+                for d in cursor..<end {
+                    try encodeRun(drawList[d], of: scene, into: encoder, imageTextures: imageTextures, surfaces: surfaces,
+                                  groupTextures: groupTextures,
+                                  viewport: &viewport, projection: &projection, transforms: transformBuffer)
+                }
+            }
+            let drawable = try open(view.colorTexture, load: phase == 0 ? .clear : .load, origin: (0, 0))
+            try encodePhase(into: drawable)
+            drawable.endEncoding()
+            // The regions of the runs still to come: what they will blur is what this phase drew under them.
+            for run in backdropRuns[phase...] {
+                for index in drawList[run].start..<(drawList[run].start + drawList[run].count) {
+                    guard let texture = targets[index], let region = regions[index] else { continue }
+                    let encoder = try open(texture, load: phase == 0 ? .clear : .load, origin: (region.x, region.y))
+                    try encodePhase(into: encoder)
+                    encoder.endEncoding()
+                }
+            }
+            for item in previous {
+                if let texture = item.blurred { state.release(texture) }
+                if let texture = targets[item.index] { state.release(texture) }
+            }
+            previous.removeAll(keepingCapacity: true)
+            guard phase < backdropRuns.count else { break }
+            lastBackdropSplits += 1
+            let run = drawList[backdropRuns[phase]]
+            for index in run.start..<(run.start + run.count) {
+                let blurred = try blur(record: index, of: scene, from: view.colorTexture, width: width, height: height,
+                                       regionTexture: targets[index], commandBuffer: commandBuffer, pipelines: pipelines,
+                                       state: state)
+                let record = scene.backdrops[index]
+                if record.isGlass { lastGlassRecords += 1 }
+                // The lens reads the region unblurred: the region target itself, which no later pass writes.
+                let sharp = record.isGlass && record.glassFlags & 2 != 0 && blurred.texture != nil ? targets[index] : nil
+                previous.append((index, blurred.texture, sharp, blurred.draw))
+            }
+            cursor = backdropRuns[phase] + 1
+        }
+        lastBackdropRegionTargets = regions.count
+        return true
+    }
+
     /// Blurs backdrop `index`'s region of `frame` into a pool texture
     /// (`BB-D`): `L` downsamples, then a horizontal and a vertical Gaussian at
     /// level `L`. The texture and the quad's `(origin, uvScale)` constant
     /// (`BB-R`), or `nil` and a zero constant when the region is empty or a
     /// texture cannot be allocated (the quad then draws its flat tint).
     private func blur(record index: Int, of scene: Scene, from frame: any MTLTexture, width: Int, height: Int,
+                      regionTexture: (any MTLTexture)? = nil,
                       commandBuffer: any MTLCommandBuffer, pipelines: BackdropPipelines,
                       state: BackdropFrameState) throws -> (texture: (any MTLTexture)?, draw: SIMD4<Float>) {
         let none: (texture: (any MTLTexture)?, draw: SIMD4<Float>) = (nil, .zero)
@@ -777,8 +918,9 @@ public final class Renderer {
             lastBackdropPasses += 1
         }
 
-        var source = frame
-        var origin = (region.x, region.y)
+        // A region target holds just the region, so the first pass reads it from its own origin (`BB-U`).
+        var source = regionTexture ?? frame
+        var origin = regionTexture == nil ? (region.x, region.y) : (0, 0)
         var (w, h) = (region.width, region.height)
         for _ in 0..<levels {
             let (nw, nh) = ((w + 1) / 2, (h + 1) / 2)

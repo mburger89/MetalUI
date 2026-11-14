@@ -66,14 +66,14 @@ private enum Content: String, CaseIterable, Sendable { case text, attributed, fe
     let size = Size(width: Pixels(300), height: Pixels(300))
     let w: TestWindow
     switch wrap {
-    case .none: w = try TestWindow(size: size, colorScheme: .dark) { VStack { body(content) } }
-    case .clipped: w = try TestWindow(size: size, colorScheme: .dark) { VStack { body(content) }.clipped() }
+    case .none: w = try TestWindow(size: size, colorScheme: .dark, textSystem: harnessTextSystem) { VStack { body(content) } }
+    case .clipped: w = try TestWindow(size: size, colorScheme: .dark, textSystem: harnessTextSystem) { VStack { body(content) }.clipped() }
     case .roundedShape:
-        w = try TestWindow(size: size, colorScheme: .dark) { VStack { body(content) }.clipShape(RoundedRectangle(cornerRadius: Pixels(10))) }
-    case .roundedClip: w = try TestWindow(size: size, colorScheme: .dark) { VStack { body(content) }.clip(cornerRadius: Pixels(10)) }
-    case .ellipse: w = try TestWindow(size: size, colorScheme: .dark) { VStack { body(content) }.clipShape(Ellipse()) }
+        w = try TestWindow(size: size, colorScheme: .dark, textSystem: harnessTextSystem) { VStack { body(content) }.clipShape(RoundedRectangle(cornerRadius: Pixels(10))) }
+    case .roundedClip: w = try TestWindow(size: size, colorScheme: .dark, textSystem: harnessTextSystem) { VStack { body(content) }.clip(cornerRadius: Pixels(10)) }
+    case .ellipse: w = try TestWindow(size: size, colorScheme: .dark, textSystem: harnessTextSystem) { VStack { body(content) }.clipShape(Ellipse()) }
     case .crossing:
-        w = try TestWindow(size: size, colorScheme: .dark) {
+        w = try TestWindow(size: size, colorScheme: .dark, textSystem: harnessTextSystem) {
             VStack { body(content) }.frame(width: Pixels(150), height: Pixels(60), alignment: .topLeading).clipShape(RoundedRectangle(cornerRadius: Pixels(4)))
                 .frame(width: Pixels(200), height: Pixels(200), alignment: .topLeading).clipShape(RoundedRectangle(cornerRadius: Pixels(80)))
         }
@@ -136,14 +136,14 @@ struct ClipThemeKeyGlyphTests {
         let w: TestWindow
         func text() -> some ElementGroup { Text("func hello").foregroundStyle(Color(CTSchemeKey.self)) }
         switch wrap {
-        case .none: w = try TestWindow(size: size, colorScheme: .light) { VStack { text() } }
-        case .clipped: w = try TestWindow(size: size, colorScheme: .light) { VStack { text() }.clipped() }
+        case .none: w = try TestWindow(size: size, colorScheme: .light, textSystem: harnessTextSystem) { VStack { text() } }
+        case .clipped: w = try TestWindow(size: size, colorScheme: .light, textSystem: harnessTextSystem) { VStack { text() }.clipped() }
         case .roundedShape:
-            w = try TestWindow(size: size, colorScheme: .light) { VStack { text() }.clipShape(RoundedRectangle(cornerRadius: Pixels(10))) }
-        case .roundedClip: w = try TestWindow(size: size, colorScheme: .light) { VStack { text() }.clip(cornerRadius: Pixels(10)) }
-        case .ellipse: w = try TestWindow(size: size, colorScheme: .light) { VStack { text() }.clipShape(Ellipse()) }
+            w = try TestWindow(size: size, colorScheme: .light, textSystem: harnessTextSystem) { VStack { text() }.clipShape(RoundedRectangle(cornerRadius: Pixels(10))) }
+        case .roundedClip: w = try TestWindow(size: size, colorScheme: .light, textSystem: harnessTextSystem) { VStack { text() }.clip(cornerRadius: Pixels(10)) }
+        case .ellipse: w = try TestWindow(size: size, colorScheme: .light, textSystem: harnessTextSystem) { VStack { text() }.clipShape(Ellipse()) }
         case .crossing:
-            w = try TestWindow(size: size, colorScheme: .light) {
+            w = try TestWindow(size: size, colorScheme: .light, textSystem: harnessTextSystem) {
                 VStack { text() }.frame(width: Pixels(150), height: Pixels(60), alignment: .topLeading)
                     .clipShape(RoundedRectangle(cornerRadius: Pixels(4)))
                     .frame(width: Pixels(200), height: Pixels(200), alignment: .topLeading).clipShape(RoundedRectangle(cornerRadius: Pixels(80)))
