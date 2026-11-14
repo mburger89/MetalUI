@@ -131,11 +131,12 @@ private struct SendsInputWhileBuilding: Component {
 
 /// 2.1 — a state write the last frame read names `observation`, with a count. Mutation: `markDirtyFromObservation`
 /// calling the untagged `setNeedsRedraw()`.
-@Test @MainActor func anObservedWriteIsTaggedObservation() throws {
+@Test @MainActor func anObservedWriteIsTaggedObservation() async throws {
     let observed = WhyObserved()
     let rig = try WhyRig { Text("\(observed.label)") }
     rig.timing.tracesAllFrames = true
     observed.label = 1
+    await rsSettle()   // Linux and Windows: the observation hop lands before the tick
     rig.window.tick(); rig.settle()
     let tick = try #require(rig.lines.last { $0.contains(" tick ") || $0.contains(" frame ") })
     #expect(tick.contains(" dirty=observation/1"), "\(tick)")
