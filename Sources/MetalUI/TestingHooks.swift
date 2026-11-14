@@ -332,3 +332,21 @@ extension Window {
         animationStore.timeline.fireDueSimulatedWake(atTimestamp: timestamp)
     }
 }
+
+extension Window {
+    /// Takes the timeline off the simulated clock (`TW-A`): the clock anchors on the wall clock at the first
+    /// frame with a timestamp, as in an app, and a wake is only recorded (read by ``testingTimelineWakeDate``),
+    /// never slept on. For pinning the anchor, which a simulated clock sets before any frame.
+    package func testingAnchorTimelineOnWallClock() {
+        let store = animationStore.timeline
+        store.scheduler = { [weak store] date, _ in
+            store?.recordedWake = date
+            return { store?.recordedWake = nil }
+        }
+        store.clockOffset = nil
+        store.resetCursors()
+    }
+
+    /// The date the one timeline wake is set for, or `nil` (see ``testingAnchorTimelineOnWallClock()``).
+    package var testingTimelineWakeDate: Date? { animationStore.timeline.recordedWake }
+}
