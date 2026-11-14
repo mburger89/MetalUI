@@ -2,7 +2,7 @@
 
 Rulings for the selected segment of a segmented `Picker` in the dark theme (MetalFlow's report: it read as *less* selected). Prefix `SD-`. Branch `fix/segmented-dark`. Code:
 `Sources/MetalUI/Picker.swift` (`PickerScope.selectedSegmentFill`, `TaggedElement.makeChrome`); tests: `Tests/MetalUITests/SegmentedPickerFillTests.swift`; probe:
-`docs/probes/swiftui-segmented-dark.swift`. Record: `../record/187-segmented-dark.md`. **Next unused: `SD-D`.** No divergence label was taken (SD-B).
+`docs/probes/swiftui-segmented-dark.swift`. Record: `../record/187-segmented-dark.md`. **Next unused: `SD-F`.** No divergence label was taken (SD-B).
 
 ## SD-A - the probe, and what could not be sampled
 
@@ -71,6 +71,14 @@ stronger edge for 3:1 non-text contrast, which `SD-C` showed AppKit's alphas can
 | SD-M6 | default alphas 0.5 | `theDefaultEdgeIsTextPrimaryAtTheSDCAlphas`, `theDefaultEdgeFollowsAThemesTextPrimary`, `theSelectedSegmentDrawsAHairlineEdgeAtItsRect` |
 | SD-M7 | default a fixed black/white at the alphas | `theDefaultEdgeFollowsAThemesTextPrimary`, `changingTheEdgeOverrideRepaintsTheEdge`, `theDefaultEdgeIsTextPrimaryAtTheSDCAlphas`, `theSelectedSegmentDrawsAHairlineEdgeAtItsRect` |
 | SD-M8 | picker paints a literal (the old non-key colour) | `anOverrideOfTheEdgeKeyIsThePaintedEdge`, `changingTheEdgeOverrideRepaintsTheEdge` |
+
+## SD-E - the segmented picker's shape, `segmentedPickerShape(_:)` (Alloy gap G46, record 294)
+
+**Ruling.** A segmented `Picker` ignores `buttonBorderShape(_:)` (`BY-M`) and takes its own MetalUI-only environment modifier `segmentedPickerShape(_:)` (class M, no divergence label) over the same `ButtonBorderShape` values: `.automatic` is today's track radius 6 and selected-segment radius 5 (unchanged, pinned); `.capsule` and `.circle` round both to 12, half the segment row's 24 points (`PickerScope.segmentHeight`); `.roundedRectangle(radius:)` gives the track that radius (clamped to 12) and the segment one less, as the default's 6 and 5. The thumb keeps its `SegmentedThumbEdge` hairline (`SD-D`) and fill (`SD-A`/`SD-B`); the edge follows the shape's radius. An environment write, the nearest writer winning. The radii are fixed at layout (the row is 24 tall unless a label is taller, which the picker never has), unlike a button's, which are written at paint.
+
+**Why not honour `buttonBorderShape`.** One `.buttonBorderShape(.capsule)` high in a tree would silently re-shape every segmented control, and SwiftUI's own behaviour for it is unmeasured; the separate modifier is the explicit MetalUI option the request allowed.
+
+**Cost if wrong.** One environment key and one radius pair.
 
 ## Mutations (SD-B)
 
