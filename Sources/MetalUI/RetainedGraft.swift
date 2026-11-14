@@ -42,6 +42,8 @@ final class BuildJournal {
         /// A closed code-driven menu's presentation record (`RW-V`): replayed as the same note, and checked by the graft
         /// (its binding must still read closed).
         case presentationNote(PresentationRecord)
+        /// A window preference the build reported (`RW-X`): replayed through the same first-wins report.
+        case windowPreference(WindowPreferenceReport)
     }
 
     var events: [Event] = []
@@ -100,8 +102,8 @@ struct BuildKey: Equatable {
 /// a window's open and close makes the occurrence graft-ineligible, by the channel's name.
 struct BuildAudit: Equatable {
     var timeVarying = 0, presentations = 0, hiddenNodes = 0
-    var scrollKeys = 0, elementBounds = 0, presentationRecords = 0, toolbarRecords = 0, openURLs = 0
-    var navigation = 0, colorScheme = 0, limits = 0, anotherFrame = 0, unlowerable = 0
+    var scrollKeys = 0, elementBounds = 0, presentationRecords = 0, toolbarRecords = 0
+    var colorScheme = 0, limits = 0, anotherFrame = 0, unlowerable = 0
     var lifecycle = 0, timeline = 0, transitions = 0, matched = 0, surfaces = 0, hasScrollRequests = 0
     /// `ViewThatFits` containers registered (`VF-H`): their spans, elisions and retractions are made by the build.
     var fitContainers = 0
@@ -113,7 +115,6 @@ struct BuildAudit: Equatable {
         if scrollKeys != other.scrollKeys { return "scrollKeys" }
         if elementBounds != other.elementBounds { return "elementBounds" }
         if toolbarRecords != other.toolbarRecords { return "toolbar" }
-        if openURLs != other.openURLs || navigation != other.navigation { return "windowMetadata" }
         if colorScheme != other.colorScheme { return "colorScheme" }
         if limits != other.limits { return "contentLimits" }
         if anotherFrame != other.anotherFrame { return "anotherFrame" }
@@ -204,10 +205,6 @@ extension Frame {
         a.elementBounds = elementBounds.count
         a.presentationRecords = presentationRecords.count - journaledPresentationNotes
         a.toolbarRecords = toolbarRecords.count
-        a.openURLs = openURLHandlers.count
-        a.navigation = (collectedNavigationTitle == nil ? 0 : 1) + (collectedNavigationDocument == nil ? 0 : 1)
-            + (collectedNavigationSubtitle == nil ? 0 : 1) + (collectedDismissBehavior == nil ? 0 : 1)
-            + (collectedTitleBarMetrics == nil ? 0 : 1) + (collectedWindowBackdrop == nil ? 0 : 1)
         a.colorScheme = collectedColorSchemePreference == nil ? 0 : 1
         a.limits = (contentMinimum == nil ? 0 : 1) + (contentMaximum == nil ? 0 : 1)
         a.anotherFrame = (wantsAnotherFrame ? 1 : 0) + (hasActiveAnimations ? 1 : 0)
@@ -303,6 +300,7 @@ extension Frame {
             case .lifecycleNote(let write, let scope, let owner, let order):
                 animationStore.lifecycle.note(write, scope: scope, owner: owner, order: lifecycleBase + order)   // `RL-A`, `RL-C`
             case .presentationNote(let note): replayPresentationNote(note)   // `RW-V`
+            case .windowPreference(let report): reportWindowPreference(report)   // `RW-X`
             }
         }
         animationStore.lifecycle.advanceOrder(by: lifecycleOrders)
