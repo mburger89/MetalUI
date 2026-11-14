@@ -228,3 +228,28 @@ private let rsVerifyingForAtlas = ProcessInfo.processInfo.environment["METALUI_V
     redraw(window)
     #expect(window.window.atlasLayoutGenerationSeen == 1)
 }
+
+/// 2.6 (`FP-R`) — a frame that dropped glyphs a rebuild can place asks for one more, tagged `atlas`. Mutation: the
+/// request back to the bare call (`explicit@Window.swift`).
+@Test @MainActor func anAtlasReclaimRequestIsTaggedAtlas() throws {
+    let model = ZoomModel()
+    model.text = "pack my box"
+    let window = try harnessWindow(size: sz(400, 100), scaleFactor: 2) {
+        Text(model.text).font(size: 14).frame(width: Pixels(380), height: Pixels(40))
+    }
+    let timing = FrameTiming()
+    var lines: [String] = []
+    window.window.frameTiming = timing
+    window.window.glyphAtlas = GlyphAtlas(width: 112, height: 112, maximumExtent: 112)
+    window.window.setNeedsRedraw(); window.tick()
+    try #require(window.window.glyphAtlas.droppedGlyphs == 0, "the first text must fit, or the fixture proves nothing")
+    timing.tracesAllFrames = true
+    timing.traceSink = { lines.append($0) }
+    window.platformWindow.headlessRenderer.reportsPresentation = true
+    model.text = "with five dozen liquor jugs"
+    window.window.setNeedsRedraw(); window.tick()
+    try #require(window.window.glyphAtlas.droppedGlyphs > 0, "the second text must overflow, or the fixture proves nothing")
+    window.tick()
+    let sample = try #require(timing.last)
+    #expect(sample.dirtySource == .atlas && sample.dirtySite == nil && sample.dirtyCount == 1, "\(sample.dirtySource.map { "\($0)" } ?? "nil") \(lines)")
+}

@@ -169,6 +169,8 @@ func theBracketNodeDragIsCountedAfterPrepaintReplay(arm: BracketArm) throws {
     let model = RSModel()
     let log = HarnessLog()
     let inputs = RPInputs()
+    /// A plain, unobservable flag a test flips from outside the tree (`RetainedPresentationTaintTests`).
+    var menuOpen = false
 }
 
 /// A card: text, a button (a hitbox, a focus stop, an accessibility record, a tally) with a context menu, and a bar.

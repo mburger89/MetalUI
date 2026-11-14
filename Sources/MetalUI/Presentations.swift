@@ -171,11 +171,36 @@ extension Frame {
         presentationOccurrences[scope] = occurrence + 1
         let key = PresentationRecord.Key(scope: scope, occurrence: occurrence)
         if fitDepth > 0 { fitNotes.append(FitNote(kind: .presentation(key), low: span.low, high: span.high)) }
-        presentationRecords.append(PresentationRecord(
+        let record = PresentationRecord(
             key: key, owner: owner,
             isPresented: isPresented, isShown: isPresented.wrappedValue, request: request,
             fileDialogLabel: environmentTop.fileDialogConfirmationLabel,
-            fileDialogMessage: environmentTop.fileDialogMessage))
+            fileDialogMessage: environmentTop.fileDialogMessage)
+        presentationRecords.append(record)
+        // `RW-V`: a closed scope (a code-driven menu, an alert, a dialog, a file dialog) is an anchor, not a presentation: a graft window journals it (and checks the
+        // binding is still closed when it grafts) instead of refusing by the `presentation` channel.
+        let journal = stateTable.contentMemos.journal
+        if journal.isRecording, fitDepth == 0, !record.isShown {
+            journal.record(.presentationNote(record))
+            journaledPresentationNotes += 1
+        }
+    }
+
+    /// Notes a journaled closed menu's record again for a graft (`RW-V`): the same append as the build's, under the key the
+    /// scope's occurrence count gives now, and journaled for any window that encloses the graft.
+    func replayPresentationNote(_ note: PresentationRecord) {
+        let scope = note.key.scope
+        let occurrence = presentationOccurrences[scope, default: 0]
+        presentationOccurrences[scope] = occurrence + 1
+        presentationRecords.append(PresentationRecord(
+            key: PresentationRecord.Key(scope: scope, occurrence: occurrence), owner: note.owner,
+            isPresented: note.isPresented, isShown: note.isShown, request: note.request,
+            fileDialogLabel: note.fileDialogLabel, fileDialogMessage: note.fileDialogMessage))
+        let journal = stateTable.contentMemos.journal
+        if journal.isRecording {
+            journal.record(.presentationNote(note))
+            journaledPresentationNotes += 1
+        }
     }
 }
 
