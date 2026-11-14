@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba`. Spec:
 [`specs/2026-10-08-app-shell-design.md`](specs/2026-10-08-app-shell-design.md).
 Record: `../record/87-app-shell.md` (written in the Record phase).
 
-**Next unused id: `AS-T`.**
+**Next unused id: `AS-U`.**
 
 ## Final spellings (MetalCreator swaps its stopgaps by these names)
 
@@ -982,4 +982,23 @@ enabled ancestor's click.
    compares them.
 5. Pinned by `DisabledControlChromeTests`. Mutations: record 251.
 
-**Next unused id: `AS-T`.**
+## AS-T — A title-bar style known at open is built into the `NSWindow` (Alloy launch +15 ms; record 300)
+
+Class M, no divergence: `.windowStyle(.hiddenTitleBar)` still lays the content under a transparent bar from the
+first frame; only how AppKit gets there changes.
+
+1. **Measured cost.** `openWindow(..., windowStyle: .hiddenTitleBar)` made a standard window, ordered it in, then
+   `setTitleBarStyle(.hidden)` ran `setStyleMask:` on a visible window: a blocking frame animation
+   (`_setFrameCommon:`, `NSAnimation _runBlocking`, `NSPerformVisuallyAtomicChange`), about 10 ms of Alloy's launch.
+2. **The contract.** `Platform.openWindow(title:size:titleBarStyle:)` (default: the old `openWindow` — SDL and
+   headless unchanged; `Window` then asks `setTitleBarStyle` as before). `AppKitWindow.init` takes the style: `.hidden`
+   builds the `NSWindow` with `.fullSizeContentView`, `titlebarAppearsTransparent` and a hidden title, and starts the
+   `contentLayoutRect` observation. The content rect is the frame a standard window of that content size has, so the
+   frame, centring, content size and insets equal what `setTitleBarStyle(.hidden)` ended with (`AS-O` item 1).
+3. **`setTitleBarStyle` is idempotent** for the style already shown (answers `true`, touches nothing), so `Window`'s
+   own call after the open is free. A runtime change still sets the flags and keeps the frame (`AS-E`, `AS-O`).
+4. Pinned by `aHiddenStyleGivenAtOpenIsBuiltIntoTheNSWindow` (an unordered `AppKitWindow`; a KVO spy on `styleMask`
+   and `titleBarStyleMaskChanges` see no change after init, and mask, flags, frame, content rect and insets equal the
+   post-open path).
+
+**Next unused id: `AS-U`.**
