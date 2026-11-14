@@ -96,3 +96,13 @@ Quality rules: at most one immediate frame per refresh interval (an event inside
 ## The `gpu` column (`FP-P`)
 
 The trace line's last stage column, `gpu`, is the frame's GPU execution time in milliseconds (`FrameTimingSample.gpuNanos`), `-` where the renderer reports none (SDL, headless) or the GPU failed the frame. Line: `metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build encode commit>screen est>screen gpu | total frames`. It is not part of the latency chain: it overlaps `commit>screen` (the GPU runs between the commit and the presentation). A line is written when the frame is presented; if the GPU time comes later, the line waits for it and is written then, still in frame order; if a later frame is presented first, the older line is written with `gpu` `-` and counted in the summary's `gpuMissing=N` (appended after `settledClean`). Use it to compare scenes: the GPU time of a frame with a backdrop blur against the same frame without.
+
+
+## Why a frame was late, and what asked for it (`FP-Q`)
+
+Two trailing fields follow `total frames` on a trace line, after every column the line always had:
+
+- `why=<reason>`: the input was not drawn immediately. One of `drawing`, `needsRedraw`, `animations`, `timer`, or `pacing(<ms>ms)` (the time since the last commit, under one refresh interval), the first that applied, in that order. Absent on an immediate frame.
+- `dirty=<source>/<count>`: the first thing that marked the window dirty since the previous frame began, and how many times. Sources: `observation` (an `@Observable`/state change the last frame read), `input`, `animation` (`wantsAnotherFrame`), `timer` (a gesture or tooltip maturing), `presentation`, `platform` (no drawable, a failed encode), `state` (a `@State` write, `FP-R`), `atlas` (the glyph atlas asking for one more frame after a drop), `explicit` (a bare `setNeedsRedraw()`). An `explicit` dirtying names its call site, `dirty=explicit@Window.swift:143/1` (the first such call since the previous frame; `FP-R`): read it to find what keeps asking for frames. The site costs nothing with the trace off.
+
+`METALUI_LATENCY_TRACE_ALL=1` also writes the frames no input caused, kind `tick` (a display-link tick drove it) or `frame`, so the follow-up frames after a key (`dirty=observation` is the usual one) are visible. Read a paced key as `why=pacing(...)` after a `tick` line a few ms earlier: the follow-up frame set the pacing clock. Everything is off with the trace.

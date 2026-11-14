@@ -123,6 +123,35 @@ public final class TestWindow {
         return glyphs
     }
 
+    /// Every rectangle the last presented frame draws: ``scene``'s own rects and, recursively, those of each offscreen
+    /// group (`CT-D`), as ``allGlyphs`` does for text. A rect inside a masked shape clip (an ellipse, a path, two
+    /// crossing rounded clips), an opacity group, a blur or a shadow is not in `scene.rects`: it lives in
+    /// `scene.groupScenes`, in the parent's coordinates (the window's, in device pixels), with its colour resolved. A
+    /// mask scene's rects (the white coverage a clip multiplies by) are not ink and are left out. Read this where a
+    /// test asks what colour or where the window's rectangles are, whatever clips and effects surround them.
+    public var allRects: [MUIRect] {
+        func collect(_ scene: Scene, into out: inout [MUIRect]) {
+            out.append(contentsOf: scene.rects)
+            for group in scene.groupScenes { collect(group, into: &out) }
+        }
+        var rects: [MUIRect] = []
+        collect(scene, into: &rects)
+        return rects
+    }
+
+    /// Every image quad the last presented frame draws: ``scene``'s own images and, recursively, those of each
+    /// offscreen group (`CT-D`); the counterpart of ``allRects`` for `scene.images`. The group quads themselves
+    /// (`scene.groups`) and a mask scene's images are not included.
+    public var allImages: [MUIImage] {
+        func collect(_ scene: Scene, into out: inout [MUIImage]) {
+            out.append(contentsOf: scene.images)
+            for group in scene.groupScenes { collect(group, into: &out) }
+        }
+        var images: [MUIImage] = []
+        collect(scene, into: &images)
+        return images
+    }
+
     /// The glyph atlas of the last presented frame, or `nil` before one: pair it with ``scene`` to draw the
     /// frame's text (`HT-AB`; ``HeadlessWindowRenderer/lastAtlas``).
     public var glyphAtlas: GlyphAtlas? { platformWindow.headlessRenderer.lastAtlas }

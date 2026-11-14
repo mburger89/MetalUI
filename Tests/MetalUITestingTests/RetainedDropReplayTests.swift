@@ -6,7 +6,7 @@ import MetalUITesting
 import Observation
 import Testing
 
-// Alloy G45 (`RW-W`, record 293): an `.equatable()` occurrence holding a drop destination leaves a prepaint ledger, so its
+// Alloy G45 (`RW-W`, record 297): an `.equatable()` occurrence holding a drop destination leaves a prepaint ledger, so its
 // ancestors replay and graft. Two windows over one builder as in `RetainedGraftTests`: the retaining one and one with retention
 // off; every behaviour (a drop's items and location, the targeting callbacks, a code-opened menu) is compared by log against the
 // retention-off window after the ancestors replayed. The counts are not read under `METALUI_VERIFY_RETAINED=1`.
@@ -25,20 +25,29 @@ private func textItem(_ text: String) -> DropItem {
     return DropItem(types: [type]) { $0 == type.identifier ? [UInt8](text.utf8) : nil }
 }
 
+/// The picker and the code-driven menu in their own Component (PE-K: a Picker or Menu inline with the rest of the composer
+/// overflows the Windows debug 1 MB test-thread stack).
+private struct RDControls: Component {
+    let side: RPSide
+    var content: some ElementGroup {
+        let open = Binding<Bool>(get: { side.menuOpen }, set: { side.menuOpen = $0 })
+        let mode = Binding<Int>(get: { 0 }, set: { _ in })
+        HStack(spacing: 4) {
+            Picker("Mode", selection: mode) { Text("Ask").tag(0); Text("Plan").tag(1) }
+            Menu("Model") { Button("Sonnet") {}; Button("Opus") {} }.menuPresented(open)
+        }
+    }
+}
+
 /// The composer, shaped as Alloy's: a drop destination over the whole card, a code-driven menu, a menu picker.
 private struct RDComposer: Component, @MainActor Equatable {
     let side: RPSide
     let draggable: Bool
     var content: some ElementGroup {
         let log = side.log
-        let open = Binding<Bool>(get: { side.menuOpen }, set: { side.menuOpen = $0 })
-        let mode = Binding<Int>(get: { 0 }, set: { _ in })
         VStack(alignment: .leading, spacing: 4) {
             Text("composer").frame(width: Pixels(120), height: Pixels(12))
-            HStack(spacing: 4) {
-                Picker("Mode", selection: mode) { Text("Ask").tag(0); Text("Plan").tag(1) }
-                Menu("Model") { Button("Sonnet") {}; Button("Opus") {} }.menuPresented(open)
-            }
+            RDControls(side: side)
             if draggable {
                 Text("source").frame(width: Pixels(60), height: Pixels(12)).draggable("payload")
             }

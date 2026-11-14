@@ -140,7 +140,7 @@ public final class Window {
     /// can place (`GL-A`), and says once, in a debug build, that glyphs were
     /// dropped (`GL-E`).
     private func noteAtlasPressureAfterFrame() {
-        if glyphAtlas.reclaimRequested { setNeedsRedraw() }
+        if glyphAtlas.reclaimRequested { setNeedsRedraw(from: .atlas) }
         #if DEBUG
         if glyphAtlas.droppedGlyphs > atlasDropsLogged, atlasDropsLogged == 0 {
             FileHandle.standardError.write(Data("MetalUI: the glyph atlas is at its \(glyphAtlas.maximumExtent)x\(glyphAtlas.maximumExtent) cap and a glyph was dropped (GlyphAtlas.droppedGlyphs)\n".utf8))
@@ -1019,7 +1019,7 @@ public final class Window {
         // in this file or in `StateTable` itself; see its own doc comment.
         // Captured weakly: `self` owns `stateTable`, so a strong capture here
         // would be a retain cycle.
-        stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
+        stateTable.onWrite = { [weak self] in self?.setNeedsRedraw(from: .state) }
         // `IV-C`: a memo session reports through the observation entry point
         // (the `isFlushing` guard and `observationDirtyings` included).
         stateTable.contentMemos.markDirty = { [weak self] in self?.markDirtyFromObservation() }
@@ -1080,6 +1080,12 @@ public final class Window {
             // Immediate input (`FP-M`): declared first so it runs last, after the selection is published and the
             // timing has claimed the input. One stored check when it is off.
             let drawsImmediately = self.drawsImmediatelyOnInput && self.mayDrawImmediately(for: event)
+            self.dirtyContext = .input   // `FP-Q`: every untagged dirtying below is the input's
+            defer { self.dirtyContext = nil }
+            if self.drawsImmediatelyOnInput, !drawsImmediately, let timing = self.frameTiming, timing.isTracing,
+               let why = self.immediateDeclineReason(for: event) {
+                timing.noteDecline(why)
+            }
             defer { if drawsImmediately { self.drawImmediatelyAfterInput() } }
             // A bound text selection is published after every input that moved it
             // (`SL-B`); one site covers press, drag, key, ⌘A, Tab, text and undo.
@@ -1388,8 +1394,10 @@ public final class Window {
                 // a long press or a deferred tap that matures at this tick runs
                 // its callback from input's footing, so a `@State` write lands
                 // in the frame drawn below and is not a phase write.
+                self?.dirtyContext = .timer
                 self?.advanceGestures(to: t)
                 self?.advanceTooltip(to: t)   // the tooltip's timer, on the same footing (MN-P item 2)
+                self?.dirtyContext = nil
                 self?.drawFrameIfNeeded()
             }
         }
@@ -1513,8 +1521,25 @@ public final class Window {
 
     /// Marks the window dirty and wakes its display link, so the next tick
     /// builds a frame.
-    public func setNeedsRedraw() {
+    ///
+    /// The two defaulted arguments are the caller's `#fileID` and `#line`; call without them. They reach the
+    /// latency trace's `dirty=explicit@<file>:<line>/<n>` while a trace is on (`FP-R`), and cost nothing otherwise.
+    public func setNeedsRedraw(_ file: StaticString = #fileID, _ line: UInt = #line) {
+        markDirty(dirtyContext ?? .explicit, file: file, line: line)
+    }
+
+    /// `setNeedsRedraw()` naming what asked (`FP-Q`): the tag reaches the latency trace's `dirty=` field.
+    func setNeedsRedraw(from source: DirtySource) { markDirty(source, file: nil, line: 0) }
+
+    /// What the calls that carry no tag of their own are attributed to (`FP-Q`): set around the input handler,
+    /// the tick's gesture and tooltip advance and the presentation reconcile, `nil` elsewhere.
+    private var dirtyContext: DirtySource?
+
+    private func markDirty(_ source: DirtySource, file: StaticString?, line: UInt) {
         Window.redrawRequests &+= 1
+        if let timing = frameTiming, timing.isTracing {   // `FP-Q`/`FP-R`: recorded only while a trace is on
+            timing.noteDirty(source, site: source == .explicit ? file.map { DirtySite(file: $0, line: line) } : nil)
+        }
         needsRedraw = true
         platformWindow.setDisplayLinkPaused(false)
     }
@@ -1591,13 +1616,13 @@ public final class Window {
             MainActor.assumeIsolated {
                 guard !self.isFlushing else { return }
                 self.observationDirtyings += 1
-                self.setNeedsRedraw()
+                self.setNeedsRedraw(from: .observation)
             }
         } else {
             Task { @MainActor [weak self] in
                 guard let self, !self.isFlushing else { return }
                 self.observationDirtyings += 1
-                self.setNeedsRedraw()
+                self.setNeedsRedraw(from: .observation)
             }
         }
     }
@@ -1627,6 +1652,24 @@ public final class Window {
         guard let last = lastCommitForPacing else { return true }
         let now = immediateInputClock()
         return now >= last && now - last >= (displayLinkInterval ?? ImmediateInput.fallbackInterval)
+    }
+
+    /// Why ``mayDrawImmediately(for:)`` said no (`FP-Q`), for the latency trace's `why=`: `drawing`, `needsRedraw`,
+    /// `animations`, `timer`, or `pacing(<ms since the last commit>ms)`, checked in the guard's order; `nil` for an
+    /// event that is never drawn immediately (a move, a scroll) and for one that may be. Read only while a trace is on.
+    private func immediateDeclineReason(for event: InputEvent) -> String? {
+        switch event {
+        case .keyDown, .keyUp, .textInput, .textComposition, .mouseDown, .mouseUp: break
+        default: return nil
+        }
+        if isDrawingFrame { return "drawing" }
+        if needsRedraw { return "needsRedraw" }
+        if hasActiveAnimations { return "animations" }
+        if awaitsATimer { return "timer" }
+        guard let last = lastCommitForPacing else { return nil }
+        let now = immediateInputClock()
+        guard !(now >= last && now - last >= (displayLinkInterval ?? ImmediateInput.fallbackInterval)) else { return nil }
+        return String(format: "pacing(%.1fms)", Double(now >= last ? now - last : 0) / 1e6)
     }
 
     /// Learns the refresh interval from the gap between consecutive tick targets (`FP-M`).
@@ -1764,7 +1807,7 @@ public final class Window {
         // window's `WindowRenderer` says so with `nil`, ruling RS-A).
         guard let drawScaleFactor = platformWindow.renderer.beginFrame() else {
             timing?.abandonFrame()
-            setNeedsRedraw()
+            setNeedsRedraw(from: .platform)
             return
         }
         timing?.stampDrawableAcquired()
@@ -1843,7 +1886,9 @@ public final class Window {
         // this frame's hitboxes (content moved, appeared or left under a still
         // pointer; a presented drawn alert empties it). Writes their callbacks
         // make schedule the next frame.
+        dirtyContext = .presentation
         reconcilePresentations()
+        dirtyContext = nil
         updateHover(at: lastMousePosition, reportsMoves: false)
 
         // After the focus read-back, so a published focus is the frame's
@@ -1900,7 +1945,7 @@ public final class Window {
         guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas,
                                                   surfaces: frame.surfaceRequests) else {
             timing?.abandonFrame()
-            setNeedsRedraw()
+            setNeedsRedraw(from: .platform)
             return
         }
         timing?.commitFrame()   // `FP-B`: stamped the moment `finishFrame` returned
@@ -2244,7 +2289,7 @@ public final class Window {
         // the display link running: without it, a fade stops the instant the
         // last input event stops arriving, because `needsRedraw` above already
         // went false for this pass and nothing else would flip it back.
-        if frame.wantsAnotherFrame { setNeedsRedraw() }
+        if frame.wantsAnotherFrame { setNeedsRedraw(from: .animation) }
         // A pending long press, tap sequence or tooltip needs the next tick to
         // reach `advanceGestures`/`advanceTooltip` (`IX-C` item 4, `MN-P` item
         // 2): `awaitsATimer`, read by the guard at the top of

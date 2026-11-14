@@ -1,6 +1,8 @@
-# 293. A drop destination rides the prepaint ledger (`RW-W`)
+# 297. A drop destination rides the prepaint ledger (`RW-W`)
 
-Branch `fix/retained-drop-replay` (on `fix/retained-presentation-taint`, PR #294). Ruling `RW-W`. Class `M`; no public API, no divergence.
+Renumbered 293 to 297 at its merge with `master` (record 293 is `293-glass-immediate-input.md`, published first).
+
+Branch `fix/retained-drop-replay` (built on `fix/retained-presentation-taint`, PR #294, now merged). Ruling `RW-W`. Class `M`; no public API, no divergence.
 Source: Alloy G45 (the composer split into a drop-destination shell and `.equatable()` leaves: "because dragAndDrop" 97, steady frame 132 requests).
 
 ## Why

@@ -190,7 +190,7 @@ vocabulary: [`migration.md`](migration.md).
 `ButtonStyle`/`PrimitiveButtonStyle`/`ToggleStyle` with their configurations, `StyleLabel` (M) and the
 built-ins (`.automatic`, `.bordered`, `.borderedProminent`, `.borderless`, `.plain`, `.link`, `.glass`, `.glassProminent`;
 `.automatic`, `.checkbox`, `.switch`, `.button`), applied by `.buttonStyle(_:)`/`.toggleStyle(_:)` through the environment
-(`BY-A`–`BY-K`, 886), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
+(`BY-A`–`BY-K`, 886), `.buttonBorderShape(_:)`/`ButtonBorderShape` (`.automatic`, `.capsule`, `.roundedRectangle`, `.roundedRectangle(radius:)`, `.circle`; read by bordered, prominent and glass buttons, `Menu` and the menu `Picker`; a plain value, not a `Shape`, `BY-L`, `BY-M`), the MetalUI-only `.segmentedPickerShape(_:)` (`SD-E`), `Toggle`, `Slider`, `Stepper` (80, 82), `Picker`/`PickerStyle`/`.tag`
 (81, 82; `.inline` is the radio group, `BY-J`), `List(_:selection:rowHeight:row:)` and the content-sized
 `List(_:selection:estimatedRowHeight:rowContent:)` (M; `VL-A`), `TextField` and
 `TextEditor` (the `Binding<String>` initialisers A; the controlled
@@ -700,7 +700,7 @@ where it would leave the window and clamped horizontally. It takes **no focus an
 **never dismissed by input** (the app writes `isPresented`; route ↑ ↓ Return Tab Esc with
 `.onKeyPress` on the field); a press on it keeps the focused field focused and never reaches what
 lies beneath, rows and a `ScrollView` work, and its nodes are ordinary siblings, not a popover.
-**Tab strip** (M, `TBS-A`..`TBS-J`, records 238 and 246): `TabStrip(selection:tabs:)` over `TabStripItem(id:title:icon:isDirty:isClosable:accent:accessibilityIdentifier:closeAccessibilityIdentifier:)`
+**Tab strip** (M, `TBS-A`..`TBS-J`, `TBS-M`, records 238, 246 and 294; `.selectedTabShape(_:)` draws the selected tab as a `.capsule` or `.roundedRectangle(radius:)` pill, `.rectangle` by default): `TabStrip(selection:tabs:)` over `TabStripItem(id:title:icon:isDirty:isClosable:accent:accessibilityIdentifier:closeAccessibilityIdentifier:)`
 (the last two, `TBS-J`, are the identifiers of the tab button and its close button; `nil` sets none and none is derived from `id`),
 an editor's closable tab bar. A click on a tab writes `selection`; the × (on a hovered or selected tab) and a middle click call
 `.onCloseTab { id in }` and select nothing (the app removes the tab); a drag of more than 4 points calls

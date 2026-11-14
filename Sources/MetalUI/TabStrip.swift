@@ -59,6 +59,25 @@ public struct TabStripItem<ID: Hashable> {
     }
 }
 
+/// The shape a ``TabStrip`` draws its selected tab (and the hover wash) in (MetalUI-only, class M; ruling `TBS-M`).
+public struct TabStripSelectionShape: Hashable, Sendable {
+    enum Kind: Hashable, Sendable {
+        case rectangle
+        case capsule
+        case roundedRectangle(Float)
+    }
+    let kind: Kind
+
+    /// Today's look: the cell's full-bleed rectangle between hairlines. The default.
+    public static let rectangle = TabStripSelectionShape(kind: .rectangle)
+    /// A pill: a capsule inset 4 points above and below and 3 at the sides of each tab's cell, with no hairlines.
+    public static let capsule = TabStripSelectionShape(kind: .capsule)
+    /// A rounded rectangle of corner `radius` points, inset as ``capsule`` is, with no hairlines.
+    public static func roundedRectangle(radius: Pixels) -> TabStripSelectionShape {
+        TabStripSelectionShape(kind: .roundedRectangle(max(radius.value, 0)))
+    }
+}
+
 /// The measures of a tab strip, in points.
 enum TabStripMetrics {
     static let barHeight: Float = 32
@@ -139,6 +158,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     var tabs: [TabStripItem<ID>]
     var closeHandler: (@MainActor (ID) -> Void)?
     var moveHandler: (@MainActor (Int, Int) -> Void)?
+    var selectionShape: TabStripSelectionShape = .rectangle
     /// Each tab's laid-out width, written from `onGeometryChange` (a lifecycle action, never a phase): a drag finds the
     /// tab under the pointer from them.
     @State private var widths: [ID: Float] = [:]
@@ -167,6 +187,14 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
         return copy
     }
 
+    /// Draws the selected tab (and the hover wash) in `shape` (`TBS-M`): `.capsule` or `.roundedRectangle(radius:)` insets
+    /// the fill in each cell and drops the tabs' hairlines; `.rectangle`, the default, is the full-bleed cell.
+    public func selectedTabShape(_ shape: TabStripSelectionShape) -> TabStrip<ID> {
+        var copy = self
+        copy.selectionShape = shape
+        return copy
+    }
+
     /// The index tab `from` would take if released with its pointer moved `translation` points along the strip, from the
     /// recorded widths: the number of other tabs whose middle lies left of the dragged tab's middle.
     static func destination(from: Int, translation: Float, tabs: [TabStripItem<ID>], widths: [ID: Float]) -> Int {
@@ -188,7 +216,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     public var content: some ElementGroup {
         let tabs = tabs, selection = selection, closeHandler = closeHandler, moveHandler = moveHandler
         let selected = selection.wrappedValue
-        let drag = drag
+        let drag = drag, shape = selectionShape
         let widths = $widths
         let dragBinding = $drag
         let target = drag.flatMap { current in
@@ -203,7 +231,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
                     HStack(spacing: Pixels(0)) {
                         ForEach(Array(tabs.enumerated()), id: \.element.id) { index, item in
                             TabStripTab(
-                                item: item, isSelected: item.id == selected,
+                                item: item, isSelected: item.id == selected, shape: shape,
                                 isDragSource: drag?.id == item.id,
                                 dropEdge: Self.dropEdge(index: index, target: target),
                                 select: { selection.wrappedValue = item.id },
@@ -241,7 +269,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     }
 
     public static func == (l: TabStrip<ID>, r: TabStrip<ID>) -> Bool {
-        guard l.selection.wrappedValue == r.selection.wrappedValue, l.tabs.count == r.tabs.count else { return false }
+        guard l.selectionShape == r.selectionShape, l.selection.wrappedValue == r.selection.wrappedValue, l.tabs.count == r.tabs.count else { return false }
         for (a, b) in zip(l.tabs, r.tabs) where !a.isSame(as: b) { return false }
         return true
     }
@@ -251,6 +279,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
 struct TabStripTab<ID: Hashable>: Component {
     let item: TabStripItem<ID>
     let isSelected: Bool
+    let shape: TabStripSelectionShape
     let isDragSource: Bool
     let dropEdge: TabStripDropEdge?
     let select: @MainActor () -> Void
@@ -268,19 +297,31 @@ struct TabStripTab<ID: Hashable>: Component {
         let dragChanged = dragChanged, dragEnded = dragEnded, dragCancelled = dragCancelled
         let ink = isSelected ? Color(.textPrimary) : Color.tabStripUnselectedInk
         let fill = isSelected ? Color(.background) : (isHovered ? Color(.textPrimary).opacity(0.06) : Color.clear)
+        let shape = shape
+        let row = HStack(spacing: Pixels(0)) {
+            TabStripLabel(item: item, isSelected: isSelected, select: select)
+            if item.isClosable || item.isDirty {
+                TabStripCloseSlot(item: item, showsClose: item.isClosable && (isHovered || isSelected),
+                                  showsDot: item.isDirty && !(item.isClosable && isHovered), close: close)
+            }
+        }
         return TabStripWidthLayout()() {
-            HStack(spacing: Pixels(0)) {
-                TabStripLabel(item: item, isSelected: isSelected, select: select)
-                if item.isClosable || item.isDirty {
-                    TabStripCloseSlot(item: item, showsClose: item.isClosable && (isHovered || isSelected),
-                                      showsDot: item.isDirty && !(item.isClosable && isHovered), close: close)
+            if shape.kind == .rectangle {
+                row   // the default: the cell's own rectangle fill, unchanged
+            } else {
+                // The pill or rounded fill under the cell's content (`TBS-M`).
+                ZStack {
+                    TabStripFill(shape: shape, fill: fill)
+                    row
                 }
             }
         }
         .foregroundStyle(ink)
         .frame(height: Pixels(TabStripMetrics.barHeight - 1))
-        .background(fill)
-        .overlay(alignment: .trailing) { Color(.separator).frame(width: Pixels(1)) }
+        .background(shape.kind == .rectangle ? fill : Color.clear)
+        .overlay(alignment: .trailing) {
+            if shape.kind == .rectangle { Color(.separator).frame(width: Pixels(1)) }
+        }
         .overlay(alignment: dropEdge == .leading ? .leading : .trailing) {
             if dropEdge != nil { Color(.accent).frame(width: Pixels(2)) }
         }
@@ -371,6 +412,24 @@ struct TabStripCloseSlot<ID: Hashable>: Component {
         .accessibilityAction { if item.isClosable { close() } }
         return VStack(spacing: Pixels(0)) {
             if let identifier = item.closeAccessibilityIdentifier { body.accessibilityIdentifier(identifier) } else { body }
+        }
+    }
+}
+
+/// A tab's fill when it is not the full-bleed rectangle: the shape inset in the cell (`TBS-M`).
+struct TabStripFill: Component {
+    let shape: TabStripSelectionShape
+    let fill: Color
+
+    var content: some ElementGroup {
+        let fill = fill
+        let inset = Edges(top: Pixels(4), right: Pixels(3), bottom: Pixels(4), left: Pixels(3))
+        return VStack(spacing: Pixels(0)) {
+            switch shape.kind {
+            case .rectangle: Color.clear
+            case .capsule: Capsule().fill(fill).padding(inset)
+            case .roundedRectangle(let radius): RoundedRectangle(cornerRadius: Pixels(radius)).fill(fill).padding(inset)
+            }
         }
     }
 }
