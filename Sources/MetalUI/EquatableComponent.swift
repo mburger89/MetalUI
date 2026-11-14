@@ -143,7 +143,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         // keyboard focus, a quarantine) decided against the replay the graft counted on, so the frame is built
         // again with every graft and replay off (`RK-C`, `RK-D`).
         if grafted {
-            frame.requestRedo(phase.entry)
+            frame.requestRedo(phase.entry, at: phase.build.key.id)
             phase.abandoned = true
             return ComponentPrepaint<C>(replayedBy: phase)
         }
@@ -183,7 +183,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
             frame.replayPaint(record, translated: phase.translatedPaint, scene: phase.translatedScene)
         case .plain:
             if phase.replayed != nil || phase.grafted {
-                frame.requestRedo(phase.entry)
+                frame.requestRedo(phase.entry, at: phase.build.key.id)
                 frame.retainLog?.noteRedoHole()
                 return
             }
@@ -191,7 +191,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         case .record(let recorder, let key, let old):
             // A replayed prepaint left no element state to paint from: the frame is redone (`RK-C`).
             if phase.replayed != nil || phase.grafted {
-                frame.requestRedo(phase.entry)
+                frame.requestRedo(phase.entry, at: phase.build.key.id)
                 frame.retainLog?.noteRedoHole()
                 return
             }

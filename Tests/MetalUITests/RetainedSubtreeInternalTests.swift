@@ -110,6 +110,8 @@ private let frameChannels: [String: Channel] = [
     // `BuildAudit.fitContainers`, and a window opened inside a candidate is tainted); the elided set is derived from the
     // layout's choices once per frame; the elided ids are appended by prepaint and read by `resolveFocus` in the same frame
     // (a newly elided candidate moves the choice, which is in the prepaint key, so a replay cannot hide one).
+    // `RW-V`: how many of `presentationRecords` a graft window journals; `BuildAudit.presentationRecords` counts them out.
+    "journaledPresentationNotes": .buildOnly,
     "fitSpans": .buildOnly, "fitDepth": .buildOnly, "fitNotes": .buildOnly,
     "elidedNodes": .frameLocal, "elidedIDs": .prepaintOnly,
     // Surfaces.
@@ -130,7 +132,7 @@ private let frameChannels: [String: Channel] = [
     "pendingGhostAnchors": .frameLocal, "ghostAnchorSeen": .frameLocal, "hasGhostAnchors": .frameLocal,
     // C14b-2 (`RK-E`, `RK-D`): the prepaint journal is open only inside a recorder's window; the redo list is
     // read by `Frame.render` after the root's paint and by the window, never replayed.
-    "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "verifySnapshot": .frameLocal,
+    "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "redoScopes": .frameLocal, "verifySnapshot": .frameLocal,
     "verifyAbandoned": .frameLocal,
     // C14-g (`AT-G`): the open effects as steps, a cache dropped whenever the stack changes.
     "axEffectChain": .frameLocal,

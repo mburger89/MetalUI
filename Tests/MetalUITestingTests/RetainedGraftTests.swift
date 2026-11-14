@@ -565,7 +565,7 @@ func aRedoAfterAGraftMismatchRestoresEverything(arm: String) async throws {
     stateAgrees(pair, arm)
     for index in 1...8 {
         pair.redraw()
-        #expect(pair.frames.last?.retainedGrafts == 0, "\(arm): backoff build \(index)")
+        #expect(pair.frames.last?.retainedGrafts == (arm == "opacity above" ? 1 : 0), "\(arm): backoff build \(index): only what the redo did not touch grafts (`RK-AG`)")
         try pair.compare("\(arm), backoff build \(index)")
         stateAgrees(pair, "\(arm), backoff build \(index)")
     }
