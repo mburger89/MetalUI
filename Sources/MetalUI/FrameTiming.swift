@@ -38,8 +38,23 @@ package enum DirtySource: String, Sendable, Equatable {
     case presentation
     /// The platform: no drawable, a failed encode.
     case platform
-    /// A `setNeedsRedraw()` call nothing above claimed.
+    /// A `@State` write: the window's state table's write hook (`FP-R`).
+    case state
+    /// The glyph atlas asking to be reclaimed (`FP-R`).
+    case atlas
+    /// A `setNeedsRedraw()` call nothing above claimed; the trace names its call site (`FP-R`).
     case explicit
+}
+
+/// The call site of an untagged `setNeedsRedraw()` (`FP-R`): the `#fileID` and `#line` defaults, kept as a
+/// `StaticString` and a number so recording one builds no string; the trace prints `Window.swift:143`.
+package struct DirtySite: Equatable, Sendable {
+    package var file: StaticString
+    package var line: UInt
+    package init(file: StaticString, line: UInt) { self.file = file; self.line = line }
+    package static func == (a: DirtySite, b: DirtySite) -> Bool { a.line == b.line && a.file.description == b.file.description }
+    /// `Window.swift:143`: the file's last path component and the line.
+    package var text: String { "\(file.description.split(separator: "/").last.map(String.init) ?? file.description):\(line)" }
 }
 
 /// One frame's timestamps (ruling `FP-B`): when the input that caused it arrived, when each phase ended, when the
@@ -96,6 +111,8 @@ public struct FrameTimingSample: Sendable, Equatable {
     /// trace is on, `nil` otherwise and for a frame nothing dirtied (a pending animation or timer).
     package var dirtySource: DirtySource?
     package var dirtyCount = 0
+    /// The call site of the first `explicit` dirtying (`FP-R`), `nil` for any other source.
+    package var dirtySite: DirtySite?
     /// Why the input that caused this frame was not drawn at once (`FP-Q`), for the trace's `why=`: `needsRedraw`,
     /// `animations`, `timer`, `drawing` or `pacing(<ms>ms)`. `nil` for an immediate frame, a tick frame no input
     /// caused, and when no trace is on.
@@ -108,7 +125,7 @@ public struct FrameTimingSample: Sendable, Equatable {
         tickStart = nil; tickTarget = nil
         buildStart = start; drawableAcquired = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
         presented = nil; gpuNanos = nil
-        dirtySource = nil; declineReason = nil
+        dirtySource = nil; dirtySite = nil; declineReason = nil
     }
 
     /// Input to commit in nanoseconds, or `nil` for a frame no input caused: the keystroke-to-submit latency.
@@ -185,6 +202,7 @@ public final class FrameTiming {
     /// `FP-Q`: what dirtied the window since the last frame began, and the decline reason of the earliest
     /// input that waited; taken by the next ``beginFrame()``. Written only while a trace is on.
     private var dirtyFirst: DirtySource?
+    private var dirtyFirstSite: DirtySite?
     private var dirtyTotal = 0
     private var pendingWhy: String?
     private var candidateWhy: String?
@@ -355,7 +373,7 @@ public final class FrameTiming {
         // `dirty=<source>/<count>`.
         var trailer = ""
         if let why = s.declineReason { trailer += " why=\(why)" }
-        if let source = s.dirtySource { trailer += " dirty=\(source.rawValue)/\(s.dirtyCount)" }
+        if let source = s.dirtySource { trailer += " dirty=\(source.rawValue)\(s.dirtySite.map { "@" + $0.text } ?? "")/\(s.dirtyCount)" }
         return "metalui-latency \(s.frameIndex) \(kind) \(s.inputCount) | "
             + [ms(gap(s.inputTimestamp, s.inputReceived)), ms(s.inputToTick),
                ms(gap(s.tickStart, s.buildStart)), ms(s.drawableWait),
@@ -449,9 +467,9 @@ public final class FrameTiming {
     package var isTracing: Bool { traceSink != nil }
 
     /// The window was marked dirty by `source` (`FP-Q`). Counts, and keeps the first source, until the next frame.
-    func noteDirty(_ source: DirtySource) {
+    func noteDirty(_ source: DirtySource, site: DirtySite? = nil) {
         guard traceSink != nil else { return }
-        if dirtyFirst == nil { dirtyFirst = source }
+        if dirtyFirst == nil { dirtyFirst = source; dirtyFirstSite = site }
         dirtyTotal += 1
     }
 
@@ -543,8 +561,9 @@ public final class FrameTiming {
         var sample = FrameTimingSample(frameIndex: framesRecorded, start: Self.now())
         if let tick = pendingTick { sample.tickStart = tick.start; sample.tickTarget = tick.target }
         pendingTick = nil
-        sample.dirtySource = dirtyFirst; sample.dirtyCount = dirtyTotal; sample.declineReason = pendingWhy
-        dirtyFirst = nil; dirtyTotal = 0; pendingWhy = nil
+        sample.dirtySource = dirtyFirst; sample.dirtySite = dirtyFirstSite
+        sample.dirtyCount = dirtyTotal; sample.declineReason = pendingWhy
+        dirtyFirst = nil; dirtyFirstSite = nil; dirtyTotal = 0; pendingWhy = nil
         if let input = pending {
             sample.inputKind = input.kind; sample.inputReceived = input.received
             sample.inputTimestamp = input.stamp; sample.inputCount = input.count
@@ -563,7 +582,7 @@ public final class FrameTiming {
     func abandonFrame() {
         if let inFlight, pending == nil { pending = inFlight }
         if let c = current {   // `FP-Q`: the attribution waits for the retry
-            if dirtyFirst == nil { dirtyFirst = c.dirtySource }
+            if dirtyFirst == nil { dirtyFirst = c.dirtySource; dirtyFirstSite = c.dirtySite }
             dirtyTotal += c.dirtyCount
             if pendingWhy == nil { pendingWhy = c.declineReason }
         }

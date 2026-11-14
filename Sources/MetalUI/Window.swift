@@ -140,7 +140,7 @@ public final class Window {
     /// can place (`GL-A`), and says once, in a debug build, that glyphs were
     /// dropped (`GL-E`).
     private func noteAtlasPressureAfterFrame() {
-        if glyphAtlas.reclaimRequested { setNeedsRedraw() }
+        if glyphAtlas.reclaimRequested { setNeedsRedraw(from: .atlas) }
         #if DEBUG
         if glyphAtlas.droppedGlyphs > atlasDropsLogged, atlasDropsLogged == 0 {
             FileHandle.standardError.write(Data("MetalUI: the glyph atlas is at its \(glyphAtlas.maximumExtent)x\(glyphAtlas.maximumExtent) cap and a glyph was dropped (GlyphAtlas.droppedGlyphs)\n".utf8))
@@ -1019,7 +1019,7 @@ public final class Window {
         // in this file or in `StateTable` itself; see its own doc comment.
         // Captured weakly: `self` owns `stateTable`, so a strong capture here
         // would be a retain cycle.
-        stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
+        stateTable.onWrite = { [weak self] in self?.setNeedsRedraw(from: .state) }
         // `IV-C`: a memo session reports through the observation entry point
         // (the `isFlushing` guard and `observationDirtyings` included).
         stateTable.contentMemos.markDirty = { [weak self] in self?.markDirtyFromObservation() }
@@ -1521,18 +1521,25 @@ public final class Window {
 
     /// Marks the window dirty and wakes its display link, so the next tick
     /// builds a frame.
-    public func setNeedsRedraw() { markDirty(dirtyContext ?? .explicit) }
+    ///
+    /// The two defaulted arguments are the caller's `#fileID` and `#line`; call without them. They reach the
+    /// latency trace's `dirty=explicit@<file>:<line>/<n>` while a trace is on (`FP-R`), and cost nothing otherwise.
+    public func setNeedsRedraw(_ file: StaticString = #fileID, _ line: UInt = #line) {
+        markDirty(dirtyContext ?? .explicit, file: file, line: line)
+    }
 
     /// `setNeedsRedraw()` naming what asked (`FP-Q`): the tag reaches the latency trace's `dirty=` field.
-    func setNeedsRedraw(from source: DirtySource) { markDirty(source) }
+    func setNeedsRedraw(from source: DirtySource) { markDirty(source, file: nil, line: 0) }
 
     /// What the calls that carry no tag of their own are attributed to (`FP-Q`): set around the input handler,
     /// the tick's gesture and tooltip advance and the presentation reconcile, `nil` elsewhere.
     private var dirtyContext: DirtySource?
 
-    private func markDirty(_ source: DirtySource) {
+    private func markDirty(_ source: DirtySource, file: StaticString?, line: UInt) {
         Window.redrawRequests &+= 1
-        frameTiming?.noteDirty(source)   // `FP-Q`: one optional check; recorded only while a trace is on
+        if let timing = frameTiming, timing.isTracing {   // `FP-Q`/`FP-R`: recorded only while a trace is on
+            timing.noteDirty(source, site: source == .explicit ? file.map { DirtySite(file: $0, line: line) } : nil)
+        }
         needsRedraw = true
         platformWindow.setDisplayLinkPaused(false)
     }
