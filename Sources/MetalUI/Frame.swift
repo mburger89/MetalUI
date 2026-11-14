@@ -116,8 +116,6 @@ public final class Frame {
     /// The occurrences whose replayed prepaint met a paint-time ambient that differed and so could not paint
     /// (`RK-C`, `RK-D`): non-empty at the end of paint means the frame is abandoned and built again.
     var redoEntries: [ContentMemoStore.Entry] = []
-    /// Where each of ``redoEntries`` stands (`RK-AG`): the backoff suspends replay under these identities.
-    var redoScopes: [GlobalElementID] = []
 
     /// Verify mode (`RK-N`, `METALUI_VERIFY_RETAINED=1`): what this frame held after the root's paint, taken only
     /// when a prepaint was replayed, and whether the frame was abandoned there so the window builds it again with

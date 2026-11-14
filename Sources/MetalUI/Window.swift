@@ -2117,7 +2117,7 @@ public final class Window {
         if !frame.redoEntries.isEmpty {
             // What the abandoned attempt consumed and the redo must see again (`RK-D`, `RK-M`): the parked
             // transaction (the same value is passed), the window's `scrollTo` queue, the build counters.
-            memos.noteRedo(frame.redoEntries, at: frame.redoScopes)
+            memos.noteRedo(frame.redoEntries)
             scrollRequests.restore(pendingScrollRequests)
             if let checkpoint { animationStore.rollbackBuild(checkpoint) }
             surfaceRegistry.rollbackBuild()

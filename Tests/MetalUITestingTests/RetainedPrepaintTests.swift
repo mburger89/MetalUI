@@ -127,9 +127,7 @@ func theBracketNodeDragIsCountedAfterPrepaintReplay(arm: BracketArm) throws {
         // rasters in another order: the slot's size and the glyph's every other field are still compared, its origin in an
         // atlas of its own is not (an origin names no pixel two atlases share).
         var glyphRecords = window.scene.glyphs
-        // `RK-AG`: a redo no longer rebuilds the whole window, so the retaining window can first rasterize a glyph (a pressed
-        // button's, in `aZoomedNodeIsHitWhereItIsDrawn`) in another order than the retention-off one: the same origin argument.
-        for i in glyphRecords.indices { glyphRecords[i].atlasBounds.origin = MUIPoint(x: 0, y: 0) }
+        if rsVerifying { for i in glyphRecords.indices { glyphRecords[i].atlasBounds.origin = MUIPoint(x: 0, y: 0) } }
         rects = bytes(window.scene.rects); glyphs = bytes(glyphRecords); images = bytes(window.scene.images)
         counts = [window.scene.rects.count, window.scene.glyphs.count, window.scene.images.count]
         tree = accessibility ? try window.accessibilityTree : nil
@@ -362,11 +360,11 @@ func aChangedPaintOnlyAmbientRedoesTheFrameOnce(arm: RPAmbient) async throws {
     #expect(f.retainedRedos == 1, "the change redoes the frame once: \(f.retainedRedos)")
     #expect(f.retainedPrepaintHits == 0, "the redo replays no prepaint: \(f.retainedPrepaintHits)")
     try pair.compare("the changed ambient")
-    // Eight builds with replay suspended under the occurrence that caused the redo (`RK-AG`): the neighbour replays, then both do.
+    // Eight builds with prepaint replay suspended, then both replay again.
     for index in 1...8 {
         pair.redraw()
         let g = try #require(pair.frames.last)
-        #expect(g.retainedPrepaintHits == 1 && g.retainedRedos == 0, "backoff build \(index): \(g.retainedPrepaintHits)/\(g.retainedRedos)")
+        #expect(g.retainedPrepaintHits == 0 && g.retainedRedos == 0, "backoff build \(index): \(g.retainedPrepaintHits)/\(g.retainedRedos)")
         #expect(g.retainedBackoffFrames == 1, "backoff build \(index) is counted: \(g.retainedBackoffFrames)")
         try pair.compare("backoff build \(index)")
     }
@@ -647,14 +645,13 @@ private struct RPStateCard: Component, @MainActor Equatable {
 
 // MARK: Redo coverage added by the mutation batch (record 110 section 5)
 
-/// 6c — a redo suspends replay under the occurrences that caused it, not window-wide (`RK-D` item 3 as amended by `RK-AG`): two
-/// cards under two different ancestors; the first ancestor's opacity changes (one redo), and in the next frame, inside the nine
-/// builds of A's suspension, the second's changes too: B was not suspended, replays, meets its changed ambient and is redone once
-/// more (the price of the scope: one redo per independent change, where the window-wide suspension had hidden it), then B is
-/// quarantined in turn. Every frame equals the retention-off window's. Mutation: the suspension widened back to every identity
-/// (the second change costs no redo: `retainedRedos == 0` at step 2).
+/// 6c — a redo suspends prepaint replay for **every** occurrence, not only the one that caused it (`RK-D` item 3): two cards
+/// under two different ancestors; the first ancestor's opacity changes (one redo), and in the next frame, inside the eight
+/// builds of backoff, the second's changes too: the second card's prepaint is not replayed, so its changed ambient meets a
+/// freshly prepainted card and costs no redo. Mutation: the window-wide suspension removed from `noteRedo` (the second
+/// card replays, meets its changed ambient and redoes the next frame too: `retainedRedos == 1` at step 2).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
-func aRedoSuspendsReplayOnlyUnderItsOwnOccurrence() async throws {
+func aRedoSuspendsPrepaintReplayForEveryOccurrence() async throws {
     let pair = try RPPair(size: sz(220, 200), warm: 4) { side in
         let first = side.model.n % 2 == 1, second = side.model.tint % 2 == 1
         return VStack(spacing: 4) {
@@ -673,14 +670,8 @@ func aRedoSuspendsReplayOnlyUnderItsOwnOccurrence() async throws {
     await rsSettle()
     pair.redraw()
     let f = try #require(pair.frames.last)
-    #expect(f.retainedRedos == 1 && f.retainedPrepaintHits == 0, "B replayed and met its changed ambient: \(f.retainedRedos)/\(f.retainedPrepaintHits)")
-    try pair.compare("second change inside the first's suspension")
-    for step in 0..<10 {
-        pair.redraw()
-        #expect(pair.frames.last?.retainedRedos == 0, "no third redo at \(step)")
-        try pair.compare("settling \(step)")
-    }
-    #expect(pair.frames.last?.retainedPrepaintHits == 2, "both replay again: \(String(describing: pair.frames.last))")
+    #expect(f.retainedRedos == 0 && f.retainedPrepaintHits == 0, "inside the backoff the second change costs no redo: \(f.retainedRedos)/\(f.retainedPrepaintHits)")
+    try pair.compare("second change inside the backoff")
 }
 
 /// 5b — a redo with a **transition** inserted in the same frame equals a fresh frame (`RK-U`: `TransitionStore.claim` answers

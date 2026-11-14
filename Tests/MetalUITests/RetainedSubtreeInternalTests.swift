@@ -132,7 +132,7 @@ private let frameChannels: [String: Channel] = [
     "pendingGhostAnchors": .frameLocal, "ghostAnchorSeen": .frameLocal, "hasGhostAnchors": .frameLocal,
     // C14b-2 (`RK-E`, `RK-D`): the prepaint journal is open only inside a recorder's window; the redo list is
     // read by `Frame.render` after the root's paint and by the window, never replayed.
-    "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "redoScopes": .frameLocal, "verifySnapshot": .frameLocal,
+    "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "verifySnapshot": .frameLocal,
     "verifyAbandoned": .frameLocal,
     // C14-g (`AT-G`): the open effects as steps, a cache dropped whenever the stack changes.
     "axEffectChain": .frameLocal,

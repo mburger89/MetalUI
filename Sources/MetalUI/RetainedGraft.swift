@@ -342,7 +342,7 @@ extension Frame {
     /// ambient are **not** known here: a mismatch is the redo (`RK-C`, `RK-D`).
     func graftRecord(for entry: ContentMemoStore.Entry, id: GlobalElementID, key: BuildKey) -> GraftRecord? {
         let memos = stateTable.contentMemos
-        guard memos.graftAllowed, memos.prepaintReplayAllowed(under: id), let graft = entry.graft, let old = entry.record, let ledger = old.prepaint else {
+        guard memos.graftAllowed, let graft = entry.graft, let old = entry.record, let ledger = old.prepaint else {
             return nil
         }
 

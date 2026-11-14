@@ -289,7 +289,7 @@ extension Frame {
         let old = entry.record
         let ledgerOfRecord = old?.prepaint
         var inputs = PrepaintInvalidation.Inputs()
-        inputs.replayDisallowed = !memos.prepaintReplayAllowed(under: build.key.id)
+        inputs.replayDisallowed = !memos.prepaintReplayAllowed
         inputs.quarantined = entry.quarantineUntil > memos.buildSerial
         inputs.hasRecord = old != nil
         inputs.hasLedger = ledgerOfRecord != nil
@@ -538,9 +538,8 @@ extension Frame {
     // MARK: The redo
 
     /// A replayed prepaint cannot paint under this frame's ambient: the frame is abandoned after paint (`RK-C`).
-    func requestRedo(_ entry: ContentMemoStore.Entry, at id: GlobalElementID) {
+    func requestRedo(_ entry: ContentMemoStore.Entry) {
         redoEntries.append(entry)
-        redoScopes.append(id)
     }
 }
 
@@ -549,30 +548,15 @@ extension Frame {
 extension ContentMemoStore {
     /// Whether prepaint replay is in force for the build in progress: on, not in a redo, not backed off (`RK-D`).
     var prepaintReplayAllowed: Bool {
-        replaysPrepaint && windowRedoes && !redoInProgress
-    }
-
-    /// Whether the occurrence at `id` may replay now (`RK-AG`): replay is in force and `id` is not under an occurrence a
-    /// redo suspended. Only what sits under a redo's occurrence is suspended: a nested occurrence the abandoned attempt
-    /// could not check (its outer one replayed) is decided afresh and could mismatch, a sibling could not have.
-    func prepaintReplayAllowed(under id: GlobalElementID) -> Bool {
-        guard prepaintReplayAllowed else { return false }
-        if suspendedScopes.isEmpty { return true }
-        var current: GlobalElementID? = id
-        while let c = current {
-            if suspendedScopes.contains(where: { $0.id == c && $0.until > buildSerial }) { return false }
-            current = c.parent
-        }
-        return true
+        replaysPrepaint && windowRedoes && !redoInProgress && buildSerial >= prepaintSuspendedUntil
     }
 
     /// The frame was abandoned for `entries` (`RK-D` item 3): prepaint replay is suspended window-wide for the
     /// next eight builds, each entry for 8, 16 … 256, and this build's counters restart (the abandoned attempt's
     /// work was thrown away; `redos` counts the redo).
-    func noteRedo(_ entries: [Entry], at scopes: [GlobalElementID]) {
+    func noteRedo(_ entries: [Entry]) {
         let serial = buildSerial
-        suspendedScopes.removeAll { $0.until <= serial }
-        for id in scopes { suspendedScopes.append((id: id, until: serial + 9)) }
+        prepaintSuspendedUntil = serial + 9
         var seen = Set<ObjectIdentifier>()
         for entry in entries where seen.insert(ObjectIdentifier(entry)).inserted {
             entry.quarantineUntil = serial + 1 + (8 << entry.redoExponent)

@@ -224,8 +224,7 @@ package final class ContentMemoStore {
     /// Builds completed (`endFrame`), the window-wide backoff's clock (`RK-D` item 3), the first build at which
     /// prepaint replay may run again, and whether the build in progress is a redo.
     var buildSerial = 0
-    /// The occurrences a redo suspended replay under, and the first build at which each may replay again (`RK-AG`).
-    var suspendedScopes: [(id: GlobalElementID, until: Int)] = []
+    var prepaintSuspendedUntil = 0
     var redoInProgress = false
     /// Whether a window drives this store's frames and so builds an abandoned frame again (`RK-D`): a bare
     /// `Frame.render` has no one to redo it, so it never replays a prepaint.
@@ -372,7 +371,7 @@ package final class ContentMemoStore {
     /// The end of a build (`StateTable.sweep()`): snapshot the counters, and drop
     /// every entry no component touched, firing its session so it is spent.
     func endFrame() {
-        if replaysPrepaint, retainsSubtrees, suspendedScopes.contains(where: { buildSerial < $0.until }) { retained.backoffFrames = 1 }
+        if replaysPrepaint, retainsSubtrees, buildSerial < prepaintSuspendedUntil { retained.backoffFrames = 1 }
         buildSerial &+= 1
         lastEvaluations = evaluations + carriedEvaluations; lastSkips = skips; lastRefusals = refusals
         carriedEvaluations = 0

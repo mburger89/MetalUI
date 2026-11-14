@@ -31,7 +31,7 @@ private struct RRCounter: Component, @MainActor Equatable {
     }
 }
 
-@MainActor private func rrRedoFrames(refused: Bool) async throws -> (pair: RPPair<some Element>, redo: FrameWork, after: FrameWork, offRedo: FrameWork) {
+@MainActor private func rrRedoFrames(refused: Bool) async throws -> (pair: RPPair<some Element>, redo: FrameWork, after: FrameWork) {
     let pair = try RPPair(size: sz(200, 260), warm: 4) { rrRoot($0, refused: refused) }
     pair.redraw()
     try #require(pair.frames.last?.retainedPrepaintHits == 3, "all three replay before the change: \(String(describing: pair.frames.last))")
@@ -39,11 +39,10 @@ private struct RRCounter: Component, @MainActor Equatable {
     await rsSettle()
     pair.redraw()
     let redo = try #require(pair.frames.last)
-    let offRedo = pair.off.lastFrameWork
     try #require(redo.retainedRedos == 1, "the ambient change redoes the frame once: \(redo.retainedRedos)")
     pair.redraw()
     let after = try #require(pair.frames.last)
-    return (pair, redo, after, offRedo)
+    return (pair, redo, after)
 }
 
 /// R1 — the content getter the abandoned attempt evaluated is reported on the redo frame. **Red before (679f5d7d):**
@@ -63,19 +62,17 @@ private struct RRCounter: Component, @MainActor Equatable {
     #expect(r.redo.contentRefusals == 1, "refusals \(r.redo.contentRefusals)")
 }
 
-/// R3 — everything else on a redo frame is the redo's work alone: the rebuild with every replay off, so more element and layout
-/// work than the next build of the unchanged tree, in which the occurrences the redo did not touch replay again (`RK-AG`).
-/// Mutation: every counter carried.
+/// R3 — everything else on a redo frame is the redo's work alone: the rebuild with every replay off, so the same
+/// element and layout work as the next (backoff) build of the unchanged tree. Mutation: every counter carried.
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the counts this test pins are not its to read"))
 @MainActor func aRedoFrameKeepsTheRedosOtherCounters() async throws {
     let r = try await rrRedoFrames(refused: false)
     #expect(r.redo.builds == 1)
-    // The retention-off window's frame of the same step is the full build's work: the redo reports exactly that.
-    #expect(r.redo.elementRequests == r.offRedo.elementRequests, "requests \(r.redo.elementRequests) vs \(r.offRedo.elementRequests)")
-    #expect(r.redo.elementPrepaints == r.offRedo.elementPrepaints, "prepaints \(r.redo.elementPrepaints) vs \(r.offRedo.elementPrepaints)")
+    #expect(r.redo.elementRequests == r.after.elementRequests, "requests \(r.redo.elementRequests) vs \(r.after.elementRequests)")
+    #expect(r.redo.elementPrepaints == r.after.elementPrepaints, "prepaints \(r.redo.elementPrepaints) vs \(r.after.elementPrepaints)")
     // Paints differ by design: the backoff build still replays paint records, the redo (every replay off) repaints.
     #expect(r.redo.retainedRedos == 1 && r.redo.retainedPrepaintHits == 0, "the redo replays no prepaint: \(r.redo.retainedPrepaintHits)")
-    #expect(r.redo.layoutMeasureCalls >= r.after.layoutMeasureCalls, "measures \(r.redo.layoutMeasureCalls) vs \(r.after.layoutMeasureCalls)")
+    #expect(r.redo.layoutMeasureCalls == r.after.layoutMeasureCalls, "measures \(r.redo.layoutMeasureCalls) vs \(r.after.layoutMeasureCalls)")
 }
 
 /// R4 — the frame after a redo (backoff) reports no carried count. Mutation: the carry not cleared.
