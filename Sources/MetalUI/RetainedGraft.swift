@@ -39,6 +39,9 @@ final class BuildJournal {
         /// A lifecycle scope's store note: `(write, scope, owner, order)` (`RL-C`). The order is the build's while the journal
         /// records and relative to the window's first reserved order in a `GraftRecord`.
         case lifecycleNote(LifecycleWrite?, GlobalElementID, GlobalElementID, Int)
+        /// A closed code-driven menu's presentation record (`RW-V`): replayed as the same note, and checked by the graft
+        /// (its binding must still read closed).
+        case presentationNote(PresentationRecord)
     }
 
     var events: [Event] = []
@@ -144,6 +147,8 @@ final class GraftRecord {
     let animationIDs: [GlobalElementID]
     /// The entries the build read and their versions (`RW-D`), from the journal's `.stateRead` events.
     let stateReads: [(GlobalElementID, UInt64)]
+    /// The closed menus' records the build noted (`RW-V`): the graft stands only while each binding still reads closed.
+    let presentationNotes: [PresentationRecord]
     /// The lowered-item records of the top-level nodes, by top index (`RK-F`): a legacy top is consumed by its parent
     /// container after the occurrence returns, so the graft records it again for the new node. The interior
     /// records are consumed and never read again.
@@ -159,12 +164,14 @@ final class GraftRecord {
         var live: [GlobalElementID] = []
         var animation: [GlobalElementID] = []
         var reads: [(GlobalElementID, UInt64)] = []
+        var notes: [PresentationRecord] = []
         for event in events {
             switch event {
             case .memoTouch(let key): nested.append(key)
             case .liveState(let id): live.append(id)
             case .stateRead(let id, let version): reads.append((id, version))
             case .animationTouch(let id): animation.append(id)
+            case .presentationNote(let note): notes.append(note)
             default: break
             }
         }
@@ -172,6 +179,7 @@ final class GraftRecord {
         liveStates = live
         animationIDs = animation
         stateReads = reads
+        presentationNotes = notes
     }
 }
 
@@ -194,7 +202,7 @@ extension Frame {
         a.hiddenNodes = hiddenNodes.count
         a.scrollKeys = scrollKeyCount
         a.elementBounds = elementBounds.count
-        a.presentationRecords = presentationRecords.count
+        a.presentationRecords = presentationRecords.count - journaledPresentationNotes
         a.toolbarRecords = toolbarRecords.count
         a.openURLs = openURLHandlers.count
         a.navigation = (collectedNavigationTitle == nil ? 0 : 1) + (collectedNavigationDocument == nil ? 0 : 1)
@@ -294,6 +302,7 @@ extension Frame {
             case .transitionArray(let slot, let extent): animationStore.transitions.replayArray(slot, extent)
             case .lifecycleNote(let write, let scope, let owner, let order):
                 animationStore.lifecycle.note(write, scope: scope, owner: owner, order: lifecycleBase + order)   // `RL-A`, `RL-C`
+            case .presentationNote(let note): replayPresentationNote(note)   // `RW-V`
             }
         }
         animationStore.lifecycle.advanceOrder(by: lifecycleOrders)
@@ -308,6 +317,8 @@ extension Frame {
         for id in record.liveStates where !stateTable.hasEntry(id) { return false }
         for id in record.animationIDs where !animationStore.hasEntry(id) { return false }
         for (id, version) in record.stateReads where stateTable.entryVersion(id) != version { return false }
+        // `RW-V`: a menu opened from code since the build (its binding turned true) is a presentation: the build runs.
+        for note in record.presentationNotes where note.isPresented.wrappedValue != note.isShown { return false }
         return true
     }
 }

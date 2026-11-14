@@ -205,6 +205,11 @@ extension Window {
         lastPresentationAnchors.map { "\($0.key) \($0.value)" }.sorted()
     }
 
+    /// The presentation records the window adopted from the last build, sorted, as strings (`RW-V`).
+    package var testingPresentationRecordKeys: [String] {
+        presentations.records.map { "\($0.key.scope) #\($0.key.occurrence) shown=\($0.isShown)" }.sorted()
+    }
+
     /// The version of the entry at `id` (0 when absent) and whether it is live (`RW-`).
     package func testingStateVersion(_ id: GlobalElementID) -> UInt64 { stateTable.entryVersion(id) }
     package func testingStateIsLive(_ id: GlobalElementID) -> Bool { stateTable.isLive(id) }

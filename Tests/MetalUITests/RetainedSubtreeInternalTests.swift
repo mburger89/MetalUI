@@ -110,6 +110,8 @@ private let frameChannels: [String: Channel] = [
     // `BuildAudit.fitContainers`, and a window opened inside a candidate is tainted); the elided set is derived from the
     // layout's choices once per frame; the elided ids are appended by prepaint and read by `resolveFocus` in the same frame
     // (a newly elided candidate moves the choice, which is in the prepaint key, so a replay cannot hide one).
+    // `RW-V`: how many of `presentationRecords` a graft window journals; `BuildAudit.presentationRecords` counts them out.
+    "journaledPresentationNotes": .buildOnly,
     "fitSpans": .buildOnly, "fitDepth": .buildOnly, "fitNotes": .buildOnly,
     "elidedNodes": .frameLocal, "elidedIDs": .prepaintOnly,
     // Surfaces.
