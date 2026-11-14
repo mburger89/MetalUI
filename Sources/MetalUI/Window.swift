@@ -1019,7 +1019,10 @@ public final class Window {
         // in this file or in `StateTable` itself; see its own doc comment.
         // Captured weakly: `self` owns `stateTable`, so a strong capture here
         // would be a retain cycle.
-        stateTable.onWrite = { [weak self] in self?.setNeedsRedraw(from: .state) }
+        stateTable.onWrite = { [weak self] in
+            guard let self else { return }
+            self.markDirty(.state, file: nil, line: 0, owner: self.stateTable.writer)   // `FP-S`
+        }
         // `IV-C`: a memo session reports through the observation entry point
         // (the `isFlushing` guard and `observationDirtyings` included).
         stateTable.contentMemos.markDirty = { [weak self] in self?.markDirtyFromObservation() }
@@ -1535,10 +1538,11 @@ public final class Window {
     /// the tick's gesture and tooltip advance and the presentation reconcile, `nil` elsewhere.
     private var dirtyContext: DirtySource?
 
-    private func markDirty(_ source: DirtySource, file: StaticString?, line: UInt) {
+    private func markDirty(_ source: DirtySource, file: StaticString?, line: UInt, owner: DirtyOwner? = nil) {
         Window.redrawRequests &+= 1
         if let timing = frameTiming, timing.isTracing {   // `FP-Q`/`FP-R`: recorded only while a trace is on
-            timing.noteDirty(source, site: source == .explicit ? file.map { DirtySite(file: $0, line: line) } : nil)
+            timing.noteDirty(source, site: source == .explicit ? file.map { DirtySite(file: $0, line: line) } : nil,
+                            owner: source == .state ? owner : nil)
         }
         needsRedraw = true
         platformWindow.setDisplayLinkPaused(false)
