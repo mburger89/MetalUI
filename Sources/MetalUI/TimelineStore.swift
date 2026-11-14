@@ -99,6 +99,9 @@ final class TimelineStore {
     /// The date the pending wake fires at, or `nil` — test observability.
     var scheduledWake: Date? { pendingWake?.date }
 
+    /// The wake date a recording scheduler last saw (`testingAnchorTimelineOnWallClock()`).
+    var recordedWake: Date?
+
     /// Timeline positions the last completed build kept — test observability.
     var count: Int { cursors.count }
 
@@ -238,9 +241,17 @@ extension TimelineStore {
     /// `noteActiveAnimation`: the one wake is set to the earliest of this build's deadlines and the timelines'
     /// next entries (`CV-AC`, a code view's caret toggling twice a second). A deadline lives for the build that
     /// noted it; the frame it wakes notes the next.
-    package func noteDeadline(atTimestamp timestamp: Double, owner: GlobalElementID, stateTable: StateTable) {
+    ///
+    /// `frameTimestamp` is the timestamp of the frame noting it: **the clock is anchored on that, never on the
+    /// deadline** (`TW-A`). A deadline lies up to half a second ahead of the frame, so anchoring on it left every
+    /// date that much early, the wake fired before its frame's clock reached the deadline, and each such frame
+    /// asked for the next at once. Frame 0 carries timestamp 0, which anchors nothing (`KF-Y`): its deadline is
+    /// then the real clock plus its distance from the frame.
+    package func noteDeadline(atTimestamp timestamp: Double, frameTimestamp: Double, owner: GlobalElementID,
+                              stateTable: StateTable) {
         self.stateTable = stateTable   // the table a wake writes through, as a timeline's build hands it in
-        let date = self.date(at: timestamp)
+        let frame = date(at: frameTimestamp)   // anchors the clock on the frame, when it has a timestamp
+        let date = clockOffset == nil ? frame.addingTimeInterval(timestamp - frameTimestamp) : self.date(at: timestamp)
         if let known = deadlines[owner], known <= date { return }
         deadlines[owner] = date
     }

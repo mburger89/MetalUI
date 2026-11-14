@@ -233,7 +233,7 @@ extension CodeView {
             track.timerStart = start
             let due = start + hover.delay
             if now < due {
-                frame.animationStore.timeline.noteDeadline(atTimestamp: due, owner: id, stateTable: frame.stateTable)
+                frame.animationStore.timeline.noteDeadline(atTimestamp: due, frameTimestamp: now, owner: id, stateTable: frame.stateTable)
                 return
             }
             let hit = plan.hit(at: Point(x: Pixels(Float(track.pointX)), y: Pixels(Float(track.pointY))))
@@ -250,7 +250,7 @@ extension CodeView {
             track.timerStart = start
             let due = start + CodeTextHover.grace
             if now < due {
-                frame.animationStore.timeline.noteDeadline(atTimestamp: due, owner: id, stateTable: frame.stateTable)
+                frame.animationStore.timeline.noteDeadline(atTimestamp: due, frameTimestamp: now, owner: id, stateTable: frame.stateTable)
                 return
             }
             track = CodeHoverTrack()
