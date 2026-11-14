@@ -550,6 +550,13 @@ public enum PlatformWindowAction: Sendable, Equatable {
 @MainActor
 public protocol Platform: AnyObject {
     func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow
+
+    /// Opens a window already showing `titleBarStyle` (ruling `AS-T`): a
+    /// platform whose title-bar flags cost a visible, blocking frame change
+    /// once the window is on screen builds the window with them. The default
+    /// opens a standard window; `setTitleBarStyle(_:)` then makes the change.
+    func openWindow(title: String, size: Size<Pixels>,
+                    titleBarStyle: PlatformTitleBarStyle) throws -> any PlatformWindow
     func run()
 
     /// Shows `images` as the application's icon (ruling `AI-B`) — on AppKit
@@ -734,6 +741,15 @@ public enum WindowBackdrop: Sendable, Hashable {
     case material(WindowBackdropMaterial)
     /// A flat window background colour: gamma-encoded sRGB components, alpha below 1 shows the desktop unblurred.
     case color(red: Float, green: Float, blue: Float, alpha: Float)
+}
+
+extension Platform {
+    /// The default of ``openWindow(title:size:titleBarStyle:)`` (ruling `AS-T`): a standard window; the
+    /// style is then applied with ``PlatformWindow/setTitleBarStyle(_:)``.
+    public func openWindow(title: String, size: Size<Pixels>,
+                           titleBarStyle: PlatformTitleBarStyle) throws -> any PlatformWindow {
+        try openWindow(title: title, size: size)
+    }
 }
 
 extension PlatformWindow {

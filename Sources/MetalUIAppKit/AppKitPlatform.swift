@@ -719,16 +719,17 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// `onResize` by the host view's resize. Pinned by
     /// `appKitHiddenTitleBarSetsSwiftUIsFlagsAndReportsTheBand`.
     func setTitleBarStyle(_ style: PlatformTitleBarStyle) -> Bool {
+        // Already showing it — built in at open (ruling `AS-T`).
+        if style == titleBarStyle { return true }
         let frame = window.frame
         titleBarStyle = style
+        titleBarStyleMaskChanges += 1
         switch style {
         case .hidden:
             window.styleMask.insert(.fullSizeContentView)
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
-            contentLayoutObservation = window.observe(\.contentLayoutRect, options: []) { [weak self] _, _ in
-                MainActor.assumeIsolated { self?.syncSurfaceGeometry() }
-            }
+            enterHiddenTitleBarObservation()
         case .standard:
             contentLayoutObservation = nil
             window.styleMask.remove(.fullSizeContentView)
@@ -738,6 +739,16 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         if window.frame != frame { window.setFrame(frame, display: true) }
         reconcileTitleBarPlacement()
         return true
+    }
+
+    /// How many times `setTitleBarStyle` changed the window's style mask after init (`AS-T`; tests).
+    private(set) var titleBarStyleMaskChanges = 0
+
+    private func enterHiddenTitleBarObservation() {
+        titleBarStyle = .hidden
+        contentLayoutObservation = window.observe(\.contentLayoutRect, options: []) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.syncSurfaceGeometry() }
+        }
     }
 
     /// Under the hidden style: `top` the band's height (`frame −
@@ -1093,6 +1104,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// (AB-AC). It is observed synchronously here, so a running screen reader
     /// activates the bridge before `Window.init` has assigned a handler.
     init(device: any MTLDevice, renderer: Renderer, title: String, size: Size<Pixels>,
+         titleBarStyle: PlatformTitleBarStyle = .standard,
          accessibilitySignal: any AccessibilityClientSignal) throws {
         metalSurface = MetalLayerSurface(device: device)
         windowRenderer = MetalWindowRenderer(renderer: renderer, surface: metalSurface)
@@ -1100,14 +1112,24 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         accessibilityBridge = AppKitAccessibilityBridge(signal: accessibilitySignal,
                                                         poster: SystemAccessibilityNotificationPoster())
 
-        window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0,
-                                width: CGFloat(size.width.value),
-                                height: CGFloat(size.height.value)),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false)
+        // The style known at open is built in (ruling `AS-T`): a style-mask change on a
+        // ordered-in window runs a blocking frame animation (~10 ms measured). The window's
+        // frame is the one a standard window of this content size has (the frame a later
+        // `setTitleBarStyle(.hidden)` keeps, `AS-O` item 1), so the content is that tall.
+        let standardMask: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable]
+        var contentRect = NSRect(x: 0, y: 0, width: CGFloat(size.width.value), height: CGFloat(size.height.value))
+        var mask = standardMask
+        if titleBarStyle == .hidden {
+            contentRect = NSRect(origin: .zero,
+                                 size: NSWindow.frameRect(forContentRect: contentRect, styleMask: standardMask).size)
+            mask.insert(.fullSizeContentView)
+        }
+        window = NSWindow(contentRect: contentRect, styleMask: mask, backing: .buffered, defer: false)
         window.title = title
+        if titleBarStyle == .hidden {
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+        }
         // `NSWindow(contentRect:…)` defaults `isReleasedWhenClosed` to **true**,
         // a manual-retain-release convention that predates ARC. `window` above is
         // a strong stored property, so ARC already owns this object: leaving the
@@ -1132,6 +1154,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
         super.init()
         window.delegate = self
+        if titleBarStyle == .hidden { enterHiddenTitleBarObservation() }
         lastControlActiveState = controlActiveState
         observeControlActiveState()
         lastAccessibilityReduceMotion = accessibilityReduceMotion
@@ -1452,9 +1475,16 @@ public final class AppKitPlatform: Platform {
     /// Opens an AppKit window titled `title` with a content size of `size`
     /// points, drawn by the shared renderer.
     public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
+        try openWindow(title: title, size: size, titleBarStyle: .standard)
+    }
+
+    /// As ``openWindow(title:size:)``, the title-bar style built into the `NSWindow` (ruling `AS-T`).
+    public func openWindow(title: String, size: Size<Pixels>,
+                           titleBarStyle: PlatformTitleBarStyle) throws -> any PlatformWindow {
         let renderer = try sharedRenderer ?? Renderer(device: device)
         sharedRenderer = renderer
         let window = try AppKitWindow(device: device, renderer: renderer, title: title, size: size,
+                                      titleBarStyle: titleBarStyle,
                                       accessibilitySignal: makeAccessibilitySignal())
         windows.append(window)
         window.makeKeyAndVisible()

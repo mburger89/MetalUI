@@ -606,3 +606,70 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     nsWindow.close()
     drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
 }
+
+// MARK: - AS-T — the style known at open is built into the NSWindow
+
+/// An unordered `AppKitWindow` (nothing on screen), opened with `style` or opened standard and changed.
+@MainActor private func unorderedWindow(_ style: PlatformTitleBarStyle, changeAfter: Bool = false) throws -> AppKitWindow {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let window = try AppKitWindow(device: device, renderer: try Renderer(device: device),
+                                  title: "AS-T \(UUID().uuidString)",
+                                  size: Size(width: px(400), height: px(200)),
+                                  titleBarStyle: changeAfter ? .standard : style,
+                                  accessibilitySignal: ConstantSignal())
+    if changeAfter { _ = window.setTitleBarStyle(style) }
+    return window
+}
+
+/// **AS-T.** A `.hidden` style given at open ends as the post-open `setTitleBarStyle(.hidden)` does — style
+/// mask, transparent bar, hidden title, frame, content size, insets — with **no** style-mask change after
+/// init (`titleBarStyleMaskChanges`, and a KVO spy on `styleMask`); a standard open changes nothing either.
+/// Mutation: build the window standard and call `setTitleBarStyle` → the spy and counter arms red.
+@MainActor
+@Test func aHiddenStyleGivenAtOpenIsBuiltIntoTheNSWindow() throws {
+    let built = try unorderedWindow(.hidden)
+    let changed = try unorderedWindow(.hidden, changeAfter: true)
+    let writes = Counter()
+    let spy = built.window.observe(\.styleMask, options: []) { _, _ in MainActor.assumeIsolated { writes.count += 1 } }
+    #expect(built.setTitleBarStyle(.hidden) == true, "Window's own call answers true")
+    spy.invalidate()
+    #expect(writes.count == 0, "no setStyleMask after init")
+    #expect(built.titleBarStyleMaskChanges == 0)
+    #expect(changed.titleBarStyleMaskChanges == 1, "the counter counts the post-open path")
+
+    #expect(built.window.styleMask == changed.window.styleMask)
+    #expect(built.window.styleMask.contains(.fullSizeContentView))
+    #expect(built.window.titlebarAppearsTransparent && built.window.titleVisibility == .hidden)
+    #expect(built.window.frame == changed.window.frame, "\(built.window.frame) vs \(changed.window.frame)")
+    #expect(built.window.contentLayoutRect == changed.window.contentLayoutRect)
+    #expect(built.contentSize == changed.contentSize)
+    #expect(built.titleBarInsets == changed.titleBarInsets)
+    #expect(built.titleBarInsets.top.value > 0)
+
+    // The runtime change keeps working from a built-in hidden window.
+    #expect(built.setTitleBarStyle(.standard) == true)
+    #expect(!built.window.styleMask.contains(.fullSizeContentView) && !built.window.titlebarAppearsTransparent)
+    let standard = try unorderedWindow(.standard)
+    #expect(built.window.frame == standard.window.frame)
+    #expect(built.contentSize == standard.contentSize)
+    #expect(standard.titleBarStyleMaskChanges == 0)
+}
+
+/// `METALUI_WINDOW_OPEN_BENCH=1`: median wall time of an unordered window opened hidden-styled by building it
+/// (`AS-T`) against building it standard and changing the style (the earlier path). Prints; asserts nothing.
+@MainActor
+@Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_WINDOW_OPEN_BENCH"] == "1"))
+func windowOpenStyleBench() throws {
+    func median(_ changeAfter: Bool) throws -> Double {
+        var times: [Double] = []
+        for _ in 0..<15 {
+            let start = DispatchTime.now().uptimeNanoseconds
+            let window = try unorderedWindow(.hidden, changeAfter: changeAfter)
+            times.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6)
+            window.window.close()
+        }
+        return times.sorted()[times.count / 2]
+    }
+    _ = try median(false)   // warm-up
+    print("WINDOW-OPEN-BENCH built-in \(try median(false)) ms, post-open change \(try median(true)) ms")
+}
