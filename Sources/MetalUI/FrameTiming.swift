@@ -69,6 +69,11 @@ public struct FrameTimingSample: Sendable, Equatable {
     /// `presentedTime`); `nil` where it does not (SDL, the headless renderer by default), when the frame was
     /// dropped, and until the platform reports it (the sample in the ring is updated in place).
     public var presented: UInt64?
+    /// The frame's GPU execution time in nanoseconds (`FP-P`): its command buffer's `gpuEndTime - gpuStartTime`
+    /// on Metal (one buffer per window frame, so no summing), `nil` where the renderer reports none (SDL, the
+    /// headless renderer by default), when the GPU failed the frame, and **until the platform reports it** (the
+    /// sample in the ring is updated in place, usually before ``presented``, possibly after).
+    public var gpuNanos: UInt64?
 
     /// A sample whose phases all read `start`; the window stamps the rest.
     package init(frameIndex: UInt64, start: UInt64) {
@@ -76,7 +81,7 @@ public struct FrameTimingSample: Sendable, Equatable {
         inputKind = nil; inputTimestamp = nil; inputReceived = nil; inputCount = 0
         tickStart = nil; tickTarget = nil
         buildStart = start; drawableAcquired = start; layoutEnd = start; prepaintEnd = start; paintEnd = start; commit = start
-        presented = nil
+        presented = nil; gpuNanos = nil
     }
 
     /// Input to commit in nanoseconds, or `nil` for a frame no input caused: the keystroke-to-submit latency.
@@ -197,6 +202,14 @@ public final class FrameTiming {
     /// The shortest gap seen between consecutive tick targets: the display's refresh interval, nanoseconds.
     package private(set) var refreshInterval: UInt64?
     private var pendingTick: (start: UInt64, target: UInt64?)?
+    /// Whether the renderer reports GPU times (`FP-P`): set by the window when it installs the GPU observer. When
+    /// `true` a trace line waits (bounded) for its frame's GPU time.
+    package var expectsGPUTime = false
+    /// Frames whose GPU report arrived (with or without a value) and whose line is not yet written.
+    private var gpuSettled: Set<UInt64> = []
+    /// Lines waiting for their GPU time (`FP-P`), oldest first: the sample, and the interval and phase the line
+    /// is formatted with, taken when the presentation arrived.
+    private var heldLines: [(sample: FrameTimingSample, interval: UInt64?, phase: UInt64?)] = []
 
     /// `METALUI_LATENCY_TRACE`'s destination, or `nil` when it is unset, empty or `0`.
     private static func environmentTraceDestination() -> String? {
@@ -247,6 +260,9 @@ public final class FrameTiming {
     package private(set) var presentedNoInputCount = 0
     package private(set) var droppedCount = 0
     package private(set) var settledCleanCount = 0
+    /// Written lines whose `gpu` is `-` although the renderer reports GPU times: the report failed or came after
+    /// the next presentation (`FP-P`).
+    package private(set) var gpuMissingCount = 0
     private var reportsSinceSummary = 0
 
     /// Presentation reports between automatic summary lines.
@@ -257,11 +273,11 @@ public final class FrameTiming {
         if reportsSinceSummary >= Self.summaryInterval { writeTraceSummary() }
     }
 
-    /// The summary line: `metalui-latency-summary written=N presentedNoInput=N dropped=N settledClean=N`.
+    /// The summary line: `metalui-latency-summary written=N presentedNoInput=N dropped=N settledClean=N gpuMissing=N`.
     /// Fields never reorder; new ones are appended.
     package var traceSummary: String {
         "metalui-latency-summary written=\(traceLinesWritten) presentedNoInput=\(presentedNoInputCount) "
-            + "dropped=\(droppedCount) settledClean=\(settledCleanCount)"
+            + "dropped=\(droppedCount) settledClean=\(settledCleanCount) gpuMissing=\(gpuMissingCount)"
     }
 
     /// Writes ``traceSummary`` to the trace now (nothing when tracing is off). Also written by itself after every
@@ -281,7 +297,7 @@ public final class FrameTiming {
     /// without a known interval.
     package static func header(immediate label: String) -> String {
         "metalui-latency idx kind n | ms: ev>recv recv>tick tick>build drawable build "
-            + "encode commit>screen est>screen | total frames immediate=\(label)"
+            + "encode commit>screen est>screen gpu | total frames immediate=\(label)"
     }
 
     /// One line: each stage's duration in milliseconds, the input-to-screen total and that total in refresh
@@ -302,7 +318,8 @@ public final class FrameTiming {
             + [ms(gap(s.inputTimestamp, s.inputReceived)), ms(s.inputToTick),
                ms(gap(s.tickStart, s.buildStart)), ms(s.drawableWait),
                ms(gap(s.drawableAcquired, s.paintEnd)), ms(gap(s.paintEnd, s.commit)),
-               ms(gap(s.commit, s.presented)), ms(gap(s.commit, estimatedVsync(for: s, interval: interval, phase: vsyncPhase)))]
+               ms(gap(s.commit, s.presented)), ms(gap(s.commit, estimatedVsync(for: s, interval: interval, phase: vsyncPhase))),
+               ms(s.gpuNanos)]
                 .joined(separator: " ")
             + " | \(ms(total)) \(frames)"
     }
@@ -531,6 +548,41 @@ public final class FrameTiming {
         onFrame(sample)
     }
 
+    private func writeTraceLine(_ sample: FrameTimingSample, interval: UInt64?, phase: UInt64?) {
+        guard let traceSink else { return }
+        if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
+        if expectsGPUTime, sample.gpuNanos == nil { gpuMissingCount += 1 }
+        traceSink(Self.traceLine(for: sample, interval: interval, vsyncPhase: phase))
+        traceLinesWritten += 1
+    }
+
+    private func flushHeldLines() {
+        guard !heldLines.isEmpty else { return }
+        let held = heldLines
+        heldLines = []
+        for line in held { writeTraceLine(line.sample, interval: line.interval, phase: line.phase) }
+    }
+
+    /// The renderer reported frame `index`'s GPU time (`FP-P`), in nanoseconds, or `nil` when the GPU failed the
+    /// frame. Called on the main actor after the frame was committed, before or after its presentation. Fills the
+    /// slot while the ring still holds it; if the frame's trace line was waiting, writes it now.
+    func noteGPU(index: UInt64, nanos: UInt64?) {
+        let slot = Int(index % UInt64(capacity))
+        if index < framesRecorded, ring[slot].frameIndex == index { ring[slot].gpuNanos = nanos }
+        if let at = heldLines.firstIndex(where: { $0.sample.frameIndex == index }) {
+            // Lines stay ordered: everything older than this one goes first.
+            var held = heldLines
+            held[at].sample.gpuNanos = nanos
+            heldLines = []
+            for line in held[...at] { writeTraceLine(line.sample, interval: line.interval, phase: line.phase) }
+            heldLines = Array(held[(at + 1)...])
+            return
+        }
+        // Not presented yet: remember that the report came, so the presentation does not wait for it.
+        gpuSettled.insert(index)
+        if gpuSettled.count > capacity { gpuSettled.removeAll() }
+    }
+
     /// The platform reported frame `index` on screen at `time` (`nil`: dropped). Updates its slot while the ring
     /// still holds it.
     func notePresented(index: UInt64, at time: UInt64?) {
@@ -540,15 +592,19 @@ public final class FrameTiming {
         // line, with `-` for `commit>screen` and `total` and the `est>screen` estimate filled; it also counts as
         // `dropped`. Before, such a run wrote no lines at all.
         if time == nil { droppedCount += 1 } else { ring[slot].presented = time }
-        if let traceSink {
+        if traceSink != nil {
+            flushHeldLines()   // `FP-P`: a line still waiting for its GPU time is written, with `-`, before a later frame's
             if ring[slot].inputKind != nil {
-                if !traceHeaderWritten { traceHeaderWritten = true; traceSink(Self.traceHeader) }
-                traceSink(Self.traceLine(for: ring[slot], interval: refreshInterval, vsyncPhase: lastTickTarget))
-                traceLinesWritten += 1
+                if expectsGPUTime, ring[slot].gpuNanos == nil, !gpuSettled.contains(index) {
+                    heldLines.append((ring[slot], refreshInterval, lastTickTarget))   // written by `noteGPU`
+                } else {
+                    writeTraceLine(ring[slot], interval: refreshInterval, phase: lastTickTarget)
+                }
             } else if time != nil {
                 presentedNoInputCount += 1
             }
         }
+        gpuSettled.remove(index)
         noteReport()
         guard time != nil else { return }
         #if canImport(os)

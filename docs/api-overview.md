@@ -1236,7 +1236,7 @@ no product, imports nothing, `GX-B`), and
 
 ## Frame timing — M
 
-`Window.frameTiming: FrameTiming?` (off by default), `FrameTiming` (a ring of `FrameTimingSample`s, `samples`, `last`, `framesRecorded`, `removeAll()`, `onFrame`, `onPresented`, `FrameTiming.now()`, optional `os` signposts under `com.metalui`), `FrameTimingSample` and `FrameInputKind`; the renderer seam `WindowRenderer.setPresentationObserver(_:)`; the headless renderer's `reportsPresentation` and `deliverPresentations(at:)`. MetalUI-only (`FP-A`..`FP-H`, record 222); guide [`frame-timing.md`](frame-timing.md).
+`Window.frameTiming: FrameTiming?` (off by default), `FrameTiming` (a ring of `FrameTimingSample`s, `samples`, `last`, `framesRecorded`, `removeAll()`, `onFrame`, `onPresented`, `FrameTiming.now()`, optional `os` signposts under `com.metalui`), `FrameTimingSample` and `FrameInputKind`; the renderer seams `WindowRenderer.setPresentationObserver(_:)` and `setGPUTimeObserver(_:)` (`FrameTimingSample.gpuNanos`, the trace's `gpu` column, `FP-P`); the headless renderer's `reportsPresentation`, `deliverPresentations(at:)`, `reportsGPUTime` and `deliverGPUTimes(nanos:)`. MetalUI-only (`FP-A`..`FP-H`, record 222); guide [`frame-timing.md`](frame-timing.md).
 
 ## Block Markdown — M
 

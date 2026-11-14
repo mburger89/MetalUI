@@ -343,7 +343,7 @@ final class CodeEditSession {
         let target: Int
         switch motion {
         case .up, .down, .pageUp, .pageDown:
-            let rows = motion == .up || motion == .down ? 1 : max(1, plan.heightPx / max(1, plan.pitchPx) - 1)
+            let rows = motion == .up || motion == .down ? 1 : max(1, plan.visibleHeightPx / max(1, plan.pitchPx) - 1)
             let step = (motion == .up || motion == .pageUp) ? -rows : rows
             let x = state().goalX ?? caretX(head, snap: snap)
             let row = snap.point(at: head).row + step

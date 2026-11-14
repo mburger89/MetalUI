@@ -81,6 +81,23 @@ public final class MetalWindowRenderer: WindowRenderer {
         observedFrames = 0
     }
 
+    private var gpuTimeObserver: (@MainActor @Sendable (UInt64, UInt64?) -> Void)?
+    private var gpuObservedFrames: UInt64 = 0
+    /// How many frames got a GPU-time completion handler since this renderer was made: **zero while no observer
+    /// is set** (`FP-P`), which the tests pin.
+    package private(set) var gpuCompletionHandlersInstalled = 0
+
+    /// Reports each frame's GPU time to `observer` (`FP-P`): the frame's one command buffer's
+    /// `gpuEndTime - gpuStartTime`, read in a completed handler (an arbitrary thread) and handed to the main
+    /// actor under the frame's token. One buffer per frame, so nothing is summed. Without an observer no handler
+    /// is added.
+    @discardableResult
+    public func setGPUTimeObserver(_ observer: (@MainActor @Sendable (UInt64, UInt64?) -> Void)?) -> Bool {
+        gpuTimeObserver = observer
+        gpuObservedFrames = 0
+        return true
+    }
+
     /// Frames finished, ever — each draw context's `frameIndex`.
     private var finishedFrames: UInt64 = 0
 
@@ -168,6 +185,16 @@ public final class MetalWindowRenderer: WindowRenderer {
             }
         }
         surface.present(pending.frame, in: commandBuffer, onPresented: onPresented)
+        if let observer = gpuTimeObserver {   // `FP-P`
+            let token = gpuObservedFrames
+            gpuObservedFrames += 1
+            gpuCompletionHandlersInstalled += 1
+            commandBuffer.addCompletedHandler { buffer in
+                let seconds = buffer.gpuEndTime - buffer.gpuStartTime
+                let nanos: UInt64? = buffer.status == .completed && seconds > 0 ? UInt64(seconds * 1_000_000_000) : nil
+                Task { @MainActor in observer(token, nanos) }
+            }
+        }
         commandBuffer.commit()
         observedFrames += 1
         // Recorded only once the frame is committed: a failed encode drops

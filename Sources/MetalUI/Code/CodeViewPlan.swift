@@ -148,6 +148,14 @@ final class CodeViewPlan {
     var originX = 0, originY = 0, widthPx = 0, heightPx = 0
     var gutterPx = 0, padPx = 0
     var topPx = 0, maxTopPx = 0
+    /// The vertical scroll-content margins, device pixels (`CV-AU`): row 0 sits `insetTopPx` below the view's top at
+    /// scroll 0, the last row ends `insetBottomPx` above its bottom at the end, and rows draw under both. Zero is the
+    /// unmargined view exactly.
+    var insetTopPx = 0, insetBottomPx = 0
+    /// The scroll-indicator margins, points (`CV-AU`).
+    var indicatorInset: (start: Double, end: Double) = (0, 0)
+    /// The height between the margins, device pixels: what a reveal and a page treat as the visible area.
+    var visibleHeightPx: Int { max(pitchPx, heightPx - insetTopPx - insetBottomPx) }
     var scrollXPx = 0, maxScrollXPx = 0
     var selection: Range<Int> = 0..<0
     /// The primary selection's moving end.
@@ -432,6 +440,12 @@ extension CodeView {
         plan.widthPx = Int((Double(bounds.size.width.value) * scaleD).rounded())
         plan.heightPx = Int((Double(bounds.size.height.value) * scaleD).rounded())
         plan.padPx = Int((6 * scaleD).rounded())
+        do {   // `CV-AU`: the environment's vertical margins; unset reads zero and changes nothing below
+            let margins = environment.contentMargins
+            plan.insetTopPx = max(0, Int((Double(margins.scrollContent.top.value) * scaleD).rounded()))
+            plan.insetBottomPx = max(0, Int((Double(margins.scrollContent.bottom.value) * scaleD).rounded()))
+            plan.indicatorInset = (Double(margins.scrollIndicators.top.value), Double(margins.scrollIndicators.bottom.value))
+        }
         plan.spaceAdvance = metrics.space
         if decorations.hasUnderlines { plan.underlineMetrics = cache.underlineMetrics(of: font, scale: scale, system: system) }
         let digits = max(2, String(snap.lineCount).count)
@@ -475,7 +489,7 @@ extension CodeView {
         let map = decorations.rowMap   // the one place a display row becomes a buffer row or a virtual line (`CV-S`)
         let bufferRows = snap.lineCount
         let displayRows = map.displayRowCount
-        plan.maxTopPx = max(0, displayRows * pitchPx - plan.heightPx)
+        plan.maxTopPx = max(0, displayRows * pitchPx + plan.insetTopPx + plan.insetBottomPx - plan.heightPx)
 
         // The anchor (a buffer row), mapped through the edits since it was taken.
         var anchorRow = 0
@@ -532,7 +546,7 @@ extension CodeView {
         let serial = buffer.revealSerial
         if let seen = state.revealSeen, seen != serial {
             let head = snap.point(at: min(primary.head, snap.utf8Count)).row
-            topPx = map.displayRow(ofBufferRow: head) * pitchPx - (plan.heightPx - pitchPx) / 2
+            topPx = map.displayRow(ofBufferRow: head) * pitchPx - (plan.visibleHeightPx - pitchPx) / 2   // `CV-AU`: centred between the margins
         }
         state.revealSeen = serial
         // A key or an edit asked for the caret to be in view (`CV-X`): the least scroll that shows its row.
@@ -543,8 +557,8 @@ extension CodeView {
             let rowTop = map.displayRow(ofBufferRow: headRow) * pitchPx
             if rowTop < topPx {
                 topPx = rowTop
-            } else if rowTop + pitchPx > topPx + plan.heightPx {
-                topPx = rowTop + pitchPx - plan.heightPx
+            } else if rowTop + pitchPx > topPx + plan.visibleHeightPx {   // `CV-AU`: out from under the bottom margin
+                topPx = rowTop + pitchPx - plan.visibleHeightPx
             }
         }
         topPx = min(max(0, topPx), plan.maxTopPx)
@@ -608,9 +622,13 @@ extension CodeView {
         plan.ownerOf = { id in decorationsForHits.owner(ofID: id) }
 
         // The rows: the visible ones and one of overscan each side.
-        let remainder = topPx % pitchPx
+        // `CV-AU`: a display row's screen y is `insetTop + row * pitch - topPx`, so the first row that can show (under the
+        // top margin included) is the one at `topPx - insetTop`, negative while the margin is uncovered. Unset: `firstRow`.
+        let drawBase = topPx - plan.insetTopPx
+        let drawFirst = drawBase >= 0 ? drawBase / pitchPx : -((-drawBase + pitchPx - 1) / pitchPx)
+        let remainder = drawBase - drawFirst * pitchPx
         let visible = (plan.heightPx + remainder + pitchPx - 1) / pitchPx
-        let lower = max(0, firstRow - 1), upper = min(displayRows, firstRow + visible + 1)
+        let lower = max(0, drawFirst - 1), upper = min(displayRows, drawFirst + visible + 1)
         var widest = 0
         let decorated = showsNumbers
         plan.rows.reserveCapacity(max(0, upper - lower))
@@ -631,7 +649,7 @@ extension CodeView {
         }
         var display = lower
         while display < upper {
-            let top = plan.originY + (display - firstRow) * pitchPx - remainder
+            let top = plan.originY + (display - drawFirst) * pitchPx - remainder
             switch map.row(atDisplay: display) {
             case .buffer(let row):
                 let range = rangeOf(row)
@@ -1162,7 +1180,8 @@ extension CodeView {
         }
         // 10. The scroll indicators: numeric extents, faded from the last wheel (`CV-O`).
         let lastScroll = pass.readState(id, initial: CodeViewState()).lastScrollTime
-        let vertical = ScrollChrome(axis: .vertical, cornerRadius: Pixels(0), indicatorVisibility: .automatic)
+        var vertical = ScrollChrome(axis: .vertical, cornerRadius: Pixels(0), indicatorVisibility: .automatic)
+        vertical.indicatorInset = plan.indicatorInset   // `CV-AU`
         vertical.paintIndicator(bounds: bounds, offset: Double(plan.topPx) / scaleD,
                                 content: Double(plan.maxTopPx + plan.heightPx) / scaleD, viewport: Double(plan.heightPx) / scaleD,
                                 lastScroll: lastScroll, pass: &pass)
