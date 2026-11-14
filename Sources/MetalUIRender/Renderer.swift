@@ -911,7 +911,13 @@ public final class Renderer {
                 src: SIMD4(Int32(sourceOrigin.0), Int32(sourceOrigin.1), Int32(sourceSize.0), Int32(sourceSize.1)),
                 sigma: sigma, horizontal: horizontal ? 1 : 0)
             encoder.setRenderPipelineState(pipeline)
-            encoder.setFragmentBytes(&constants, length: MemoryLayout<BackdropBlurPass>.stride, index: 0)
+            // The shader's struct is 32 bytes (an `int4` aligns it); the Swift value is 24 plus 8 of padding, so the bytes go through
+            // a zeroed buffer of the stride rather than a read past the local (Address Sanitizer, record 292).
+            withUnsafeTemporaryAllocation(byteCount: MemoryLayout<BackdropBlurPass>.stride, alignment: MemoryLayout<BackdropBlurPass>.alignment) { buffer in
+                buffer.initializeMemory(as: UInt8.self, repeating: 0)
+                withUnsafeBytes(of: &constants) { UnsafeMutableRawBufferPointer(buffer).copyMemory(from: $0) }
+                encoder.setFragmentBytes(buffer.baseAddress!, length: buffer.count, index: 0)
+            }
             encoder.setFragmentTexture(source, index: 0)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             encoder.endEncoding()
