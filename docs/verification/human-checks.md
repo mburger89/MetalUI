@@ -2445,6 +2445,7 @@ Run `METALUI_MARKDOWN_DEMO=1 swift run MetalUIDemo` with "Wrap code" off, on a t
 - [ ] **TBS4.** With a dozen tabs, scroll the strip with a trackpad swipe (sideways) and with the wheel (vertical should scroll the page beneath, not the strip); press the demo's next-tab key at the end of the strip: does the selected tab glide into view? **Observed:**
 - [ ] **TBS5.** VoiceOver: is the strip a group named Tabs, each tab a button announced with its title, selected state and "edited", and each x a "Close <title>" button? Is a real tab-group role missed? **Observed:**
 - [ ] **TBS6.** Linux and Windows (SDL): the x is the bundled Lucide icon; is it crisp at 9 points beside the 12-point title? **Observed:**
+- [ ] **TBS7.** (`TBS-N`, record 299) A `TabStrip` with `.stripBackground(.clear)` inside a glass bar: does the glass show through the bar with no band, the hairline still closing the strip? With `.selectedTabFill(.color(...))` and `.selectedTabShape(.capsule)`, is the pill the chosen colour and legible against the ink, light and dark, and does a material bar read as glass? **Observed:**
 
 ## HL. Model-driven tooltip - a graph canvas explains the socket under the pointer (MetalCreator gap; record 239; ruling `MN-AJ`; decisions `docs/superpowers/2026-10-02-menus-popovers-decisions.md`)
 

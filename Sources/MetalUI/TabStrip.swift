@@ -78,6 +78,26 @@ public struct TabStripSelectionShape: Hashable, Sendable {
     }
 }
 
+/// What a ``TabStrip`` paints its bar, or its selected tab, with (MetalUI-only, class M; ruling `TBS-N`).
+public struct TabStripPaint: Hashable {
+    enum Kind: Hashable {
+        case automatic
+        case clear
+        case color(Color)
+        case material(Material)
+    }
+    let kind: Kind
+
+    /// Today's look: the bar is `.surfaceSecondary`, the selected tab `.background` (`TBS-I`). The default.
+    public static var automatic: TabStripPaint { TabStripPaint(kind: .automatic) }
+    /// Paints nothing: no rectangle is drawn, so whatever is behind the strip (a glass bar, a window backdrop) shows through.
+    public static var clear: TabStripPaint { TabStripPaint(kind: .clear) }
+    /// A flat `color` (a `Color(.token)`, an opacity, a themed colour).
+    public static func color(_ color: Color) -> TabStripPaint { TabStripPaint(kind: .color(color)) }
+    /// A `material`, drawn as it is anywhere else (its tint and its backdrop record).
+    public static func material(_ material: Material) -> TabStripPaint { TabStripPaint(kind: .material(material)) }
+}
+
 /// The measures of a tab strip, in points.
 enum TabStripMetrics {
     static let barHeight: Float = 32
@@ -142,7 +162,8 @@ struct TabStripDrag<ID: Hashable> {
 /// (`XS-F`); a trackpad's sideways swipe scrolls the strip. The selected tab is scrolled into view whenever `selection`
 /// changes, by the app or by a click, and once on appearing.
 ///
-/// **Look.** The bar is `.surfaceSecondary`; the selected tab is `.background` (the colour of the panel under it), the others
+/// **Look.** The bar is `.surfaceSecondary` and the selected tab `.background` (the colour of the panel under it) unless
+/// ``stripBackground(_:)`` and ``selectedTabFill(_:)`` say otherwise (`TBS-N`); the others
 /// show a faint wash while hovered. Hairlines in `.separator` close each tab and the bar's lower edge. The dragged tab dims and
 /// an `.accent` bar marks where it would land.
 ///
@@ -159,6 +180,8 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     var closeHandler: (@MainActor (ID) -> Void)?
     var moveHandler: (@MainActor (Int, Int) -> Void)?
     var selectionShape: TabStripSelectionShape = .rectangle
+    var barPaint: TabStripPaint = .automatic
+    var selectedPaint: TabStripPaint = .automatic
     /// Each tab's laid-out width, written from `onGeometryChange` (a lifecycle action, never a phase): a drag finds the
     /// tab under the pointer from them.
     @State private var widths: [ID: Float] = [:]
@@ -195,6 +218,24 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
         return copy
     }
 
+    /// Paints the bar behind the tabs with `paint` (`TBS-N`): `.automatic`, the default, is `.surfaceSecondary`; `.clear` draws
+    /// no rectangle, for a strip inside a glass bar or over a window backdrop. The hairlines, the hover wash and the
+    /// selected tab's fill are separate and unchanged.
+    public func stripBackground(_ paint: TabStripPaint) -> TabStrip<ID> {
+        var copy = self
+        copy.barPaint = paint
+        return copy
+    }
+
+    /// Fills the selected tab with `paint` (`TBS-N`) in whatever ``selectedTabShape(_:)`` draws it: `.automatic`, the
+    /// default, is `.background`; `.clear` draws no fill, leaving only the ink to mark it. The hover wash of the other tabs is
+    /// unchanged.
+    public func selectedTabFill(_ paint: TabStripPaint) -> TabStrip<ID> {
+        var copy = self
+        copy.selectedPaint = paint
+        return copy
+    }
+
     /// The index tab `from` would take if released with its pointer moved `translation` points along the strip, from the
     /// recorded widths: the number of other tabs whose middle lies left of the dragged tab's middle.
     static func destination(from: Int, translation: Float, tabs: [TabStripItem<ID>], widths: [ID: Float]) -> Int {
@@ -216,7 +257,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     public var content: some ElementGroup {
         let tabs = tabs, selection = selection, closeHandler = closeHandler, moveHandler = moveHandler
         let selected = selection.wrappedValue
-        let drag = drag, shape = selectionShape
+        let drag = drag, shape = selectionShape, barPaint = barPaint, selectedPaint = selectedPaint
         let widths = $widths
         let dragBinding = $drag
         let target = drag.flatMap { current in
@@ -231,7 +272,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
                     HStack(spacing: Pixels(0)) {
                         ForEach(Array(tabs.enumerated()), id: \.element.id) { index, item in
                             TabStripTab(
-                                item: item, isSelected: item.id == selected, shape: shape,
+                                item: item, isSelected: item.id == selected, shape: shape, selectedPaint: selectedPaint,
                                 isDragSource: drag?.id == item.id,
                                 dropEdge: Self.dropEdge(index: index, target: target),
                                 select: { selection.wrappedValue = item.id },
@@ -256,7 +297,14 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
             Color(.separator).frame(height: Pixels(1))
         }
         .frame(height: Pixels(TabStripMetrics.barHeight))
-        .background(.surfaceSecondary)
+        .background {
+            switch barPaint.kind {
+            case .automatic: Color(.surfaceSecondary)
+            case .clear: EmptyGroup()
+            case .color(let color): color
+            case .material(let material): Rectangle().fill(material)
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tabs")
     }
@@ -269,7 +317,8 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     }
 
     public static func == (l: TabStrip<ID>, r: TabStrip<ID>) -> Bool {
-        guard l.selectionShape == r.selectionShape, l.selection.wrappedValue == r.selection.wrappedValue, l.tabs.count == r.tabs.count else { return false }
+        guard l.selectionShape == r.selectionShape, l.barPaint == r.barPaint, l.selectedPaint == r.selectedPaint,
+              l.selection.wrappedValue == r.selection.wrappedValue, l.tabs.count == r.tabs.count else { return false }
         for (a, b) in zip(l.tabs, r.tabs) where !a.isSame(as: b) { return false }
         return true
     }
@@ -280,6 +329,7 @@ struct TabStripTab<ID: Hashable>: Component {
     let item: TabStripItem<ID>
     let isSelected: Bool
     let shape: TabStripSelectionShape
+    let selectedPaint: TabStripPaint
     let isDragSource: Bool
     let dropEdge: TabStripDropEdge?
     let select: @MainActor () -> Void
@@ -296,7 +346,16 @@ struct TabStripTab<ID: Hashable>: Component {
         let item = item, close = close, width = width
         let dragChanged = dragChanged, dragEnded = dragEnded, dragCancelled = dragCancelled
         let ink = isSelected ? Color(.textPrimary) : Color.tabStripUnselectedInk
-        let fill = isSelected ? Color(.background) : (isHovered ? Color(.textPrimary).opacity(0.06) : Color.clear)
+        let selectedFill: Color
+        var material: Material?
+        switch selectedPaint.kind {
+        case .automatic: selectedFill = Color(.background)
+        case .clear: selectedFill = Color.clear
+        case .color(let color): selectedFill = color
+        case .material(let m): selectedFill = Color.clear; material = m
+        }
+        let fill = isSelected ? selectedFill : (isHovered ? Color(.textPrimary).opacity(0.06) : Color.clear)
+        let selectedMaterial = isSelected ? material : nil
         let shape = shape
         let row = HStack(spacing: Pixels(0)) {
             TabStripLabel(item: item, isSelected: isSelected, select: select)
@@ -306,19 +365,19 @@ struct TabStripTab<ID: Hashable>: Component {
             }
         }
         return TabStripWidthLayout()() {
-            if shape.kind == .rectangle {
+            if shape.kind == .rectangle && selectedMaterial == nil {
                 row   // the default: the cell's own rectangle fill, unchanged
             } else {
                 // The pill or rounded fill under the cell's content (`TBS-M`).
                 ZStack {
-                    TabStripFill(shape: shape, fill: fill)
+                    TabStripFill(shape: shape, fill: fill, material: selectedMaterial)
                     row
                 }
             }
         }
         .foregroundStyle(ink)
         .frame(height: Pixels(TabStripMetrics.barHeight - 1))
-        .background(shape.kind == .rectangle ? fill : Color.clear)
+        .background(shape.kind == .rectangle && selectedMaterial == nil ? fill : Color.clear)
         .overlay(alignment: .trailing) {
             if shape.kind == .rectangle { Color(.separator).frame(width: Pixels(1)) }
         }
@@ -420,15 +479,21 @@ struct TabStripCloseSlot<ID: Hashable>: Component {
 struct TabStripFill: Component {
     let shape: TabStripSelectionShape
     let fill: Color
+    let material: Material?
 
     var content: some ElementGroup {
-        let fill = fill
+        let fill = fill, material = material
         let inset = Edges(top: Pixels(4), right: Pixels(3), bottom: Pixels(4), left: Pixels(3))
         return VStack(spacing: Pixels(0)) {
             switch shape.kind {
-            case .rectangle: Color.clear
-            case .capsule: Capsule().fill(fill).padding(inset)
-            case .roundedRectangle(let radius): RoundedRectangle(cornerRadius: Pixels(radius)).fill(fill).padding(inset)
+            case .rectangle:
+                // Only a material reaches here (a flat fill is the cell's own background): full bleed.
+                if let material { Rectangle().fill(material) } else { Color.clear }
+            case .capsule:
+                if let material { Capsule().fill(material).padding(inset) } else { Capsule().fill(fill).padding(inset) }
+            case .roundedRectangle(let radius):
+                if let material { RoundedRectangle(cornerRadius: Pixels(radius)).fill(material).padding(inset) }
+                else { RoundedRectangle(cornerRadius: Pixels(radius)).fill(fill).padding(inset) }
             }
         }
     }
