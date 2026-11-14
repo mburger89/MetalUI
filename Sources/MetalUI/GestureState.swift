@@ -103,8 +103,8 @@ extension GestureState where Value: ExpressibleByNilLiteral {
 }
 
 extension GestureState: BindableState {
-    func bind(to table: StateTable, id: GlobalElementID, slot: Int) {
-        state.bind(to: table, id: id, slot: slot)
+    func bind(to table: StateTable, id: GlobalElementID, slot: Int, owner: Any.Type) {
+        state.bind(to: table, id: id, slot: slot, owner: Optional(owner))
     }
 
     /// Runs one `updating` body for an event (`GS-D`): from the event's base, writing the copy back always, under

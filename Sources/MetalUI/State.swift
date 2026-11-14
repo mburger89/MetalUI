@@ -71,6 +71,9 @@ public struct State<Value> {
         /// unaliased box allocates nothing; cleared by the first bind of a
         /// later generation.
         var occurrences: [GlobalElementID]?
+        /// The type that declares this `@State` and the property's ordinal, for the latency trace (`FP-S`).
+        var owner: Any.Type?
+        var ordinal = 0
 
         /// The slot `wrappedValue` reads and writes: while input dispatch runs
         /// a handler (`StateDispatch.owner`), an aliased box serves the
@@ -115,7 +118,7 @@ public struct State<Value> {
             // `write`, not `withState` — §2.6: a `@State` write must mark the
             // window dirty, and `withState` is also `ScrollView`'s per-frame
             // offset path, which must NOT (see `StateTable.write`'s doc).
-            table.write(slotID, newValue)
+            table.write(slotID, newValue, by: box.owner.map { DirtyOwner(type: $0, ordinal: box.ordinal) })
         }
     }
 
@@ -155,8 +158,9 @@ extension State {
     /// same call that sets `box.slotID`, rather than from a caller re-reading
     /// it back out through a second existential dispatch, means there is no
     /// path where the id gets bound but the mark does not follow it.
-    func bind(to table: StateTable, id: GlobalElementID, slot: Int) {
+    func bind(to table: StateTable, id: GlobalElementID, slot: Int, owner: Any.Type? = nil) {
         box.table = table
+        box.owner = owner; box.ordinal = slot
         let slotID = GlobalElementID.child(of: id, at: slot,
                                            name: ElementID("$state\(slot)"))
         // **One element VALUE placed twice aliases one box.** `Box` is a class,

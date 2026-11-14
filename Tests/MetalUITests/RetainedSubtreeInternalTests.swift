@@ -181,7 +181,7 @@ private let stateTableChannels: [String: Channel] = [
     "loopExtents": .buildOnly, "previousLoopExtents": .buildOnly, "retainsDepartedValues": .buildOnly,
     "departedValues": .buildOnly, "departedRootsKept": .buildOnly, "lastDepartedValueCount": .buildOnly,
     "departedOverlay": .buildOnly, "focusStates": .buildOnly, "departedRoots": .buildOnly, "prepaintLog": .frameLocal,
-    "doomedKeys": .buildOnly, "resetFocusSlots": .buildOnly, "isDirty": .ledger, "onWrite": .frameLocal,
+    "doomedKeys": .buildOnly, "resetFocusSlots": .buildOnly, "isDirty": .ledger, "onWrite": .frameLocal, "writer": .frameLocal,
     "writeCount": .ledger,
 ]
 

@@ -185,7 +185,8 @@ private struct WhyStateBox: Component {
     }
 }
 
-/// 2.5 (`FP-R`) — a `@State` write is `state`, not `explicit`. Mutation: the table's write hook back to the bare call.
+/// 2.5 (`FP-R`, `FP-S`) — a `@State` write is `state`, not `explicit`, and names its component and property.
+/// Mutations: the table's write hook back to the bare call; the owner not passed by `State`'s setter (no `@`).
 @Test @MainActor func aStateWriteIsTaggedState() throws {
     let holder = WhyBinding()
     let rig = try WhyRig { WhyStateBox(holder: holder) }
@@ -193,7 +194,41 @@ private struct WhyStateBox: Component {
     holder.width?.wrappedValue = 30
     rig.window.tick(); rig.settle()
     let line = try #require(rig.lines.last)
-    #expect(line.contains(" dirty=state/1"), "\(line)")
+    #expect(line.contains(" dirty=state@WhyStateBox.width/1"), "\(line)")
+}
+
+@MainActor private final class WhyGeoDriver { var size: Binding<Float>? }
+private struct WhyGeoBox: Component {
+    let driver: WhyGeoDriver
+    @State var side: Float = 20
+    @State var seen: Float = 0
+    var content: some ElementGroup {
+        let _ = driver.size = $side
+        Box().frame(width: Pixels(side), height: Pixels(10))
+            .onGeometryChange(for: Float.self, of: { $0.size.width.value }) { measured in
+                if measured != seen { seen = measured }
+            }
+    }
+}
+
+/// 2.6 (`FP-S`) — a write an `onGeometryChange` action makes names the component that owns the written `@State`.
+/// Mutation: the label cache not filled (prints `#1`); the owner left at the first writer.
+@Test @MainActor func anOnGeometryChangeWriteNamesItsOwner() throws {
+    let driver = WhyGeoDriver()
+    let rig = try WhyRig { WhyGeoBox(driver: driver) }
+    rig.timing.tracesAllFrames = true
+    driver.size?.wrappedValue = 40
+    rig.window.tick(); rig.settle()   // the frame the driver's write asked for; the action's write lands inside it
+    rig.window.window.setNeedsRedraw(); rig.window.tick(); rig.settle()   // the next frame reports who dirtied since
+    #expect(rig.lines.contains { $0.contains(" dirty=state@WhyGeoBox.side/") }, "\(rig.lines)")
+    #expect(rig.lines.contains { $0.contains(" dirty=state@WhyGeoBox.seen/") }, "\(rig.lines)")
+}
+
+/// 2.7 (`FP-S`) — a write with no label is named by ordinal, and an internal writer by its own name. Mutations: the
+/// `#` form dropped; the timeline wake's writer not set.
+@Test @MainActor func anUnlabelledOwnerPrintsItsOrdinalAndInternalWritersTheirName() throws {
+    #expect(DirtyOwner(type: WhyGeoBox.self, ordinal: 9).text == "WhyGeoBox#9")
+    #expect(DirtyOwner(named: "TimelineSchedule").text == "TimelineSchedule")
 }
 
 /// 3.1 — frames no input caused get a line only with `METALUI_LATENCY_TRACE_ALL`, kind `tick` or `frame`.
@@ -211,13 +246,16 @@ private struct WhyStateBox: Component {
 /// 4.1 — with no trace the bookkeeping records nothing: a timing with no sink has no dirty source, reason or
 /// count on its samples. Mutation: `noteDirty` / `noteDecline` not guarded by `traceSink`.
 @Test @MainActor func withNoTraceNothingIsRecorded() throws {
-    let rig = try WhyRig()
+    let holder = WhyBinding()
+    let rig = try WhyRig { WhyStateBox(holder: holder) }
     rig.timing.traceSink = nil
+    holder.width?.wrappedValue = 31
     rig.advance(0.5); rig.type("a"); rig.release("a"); rig.window.tick()
     let sample = try #require(rig.timing.last)
     #expect(sample.dirtySource == nil)
     #expect(sample.dirtyCount == 0)
     #expect(sample.dirtySite == nil)
+    #expect(sample.dirtyOwner == nil)
     #expect(sample.declineReason == nil)
     #expect(!rig.timing.isTracing)
 }
