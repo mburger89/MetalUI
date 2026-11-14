@@ -127,7 +127,9 @@ func theBracketNodeDragIsCountedAfterPrepaintReplay(arm: BracketArm) throws {
         // rasters in another order: the slot's size and the glyph's every other field are still compared, its origin in an
         // atlas of its own is not (an origin names no pixel two atlases share).
         var glyphRecords = window.scene.glyphs
-        if rsVerifying { for i in glyphRecords.indices { glyphRecords[i].atlasBounds.origin = MUIPoint(x: 0, y: 0) } }
+        // An origin names no pixel two windows' atlases share, so it is never compared (verify mode needed this alone; any
+        // window that first rasterizes a glyph in another order than its twin shows the same bytes-differ symptom).
+        for i in glyphRecords.indices { glyphRecords[i].atlasBounds.origin = MUIPoint(x: 0, y: 0) }
         rects = bytes(window.scene.rects); glyphs = bytes(glyphRecords); images = bytes(window.scene.images)
         counts = [window.scene.rects.count, window.scene.glyphs.count, window.scene.images.count]
         tree = accessibility ? try window.accessibilityTree : nil
