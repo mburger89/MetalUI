@@ -38,7 +38,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-10-overlays-coords-decisions.md`, next `OV-U`), `IF-` (input follow-ups:
   `2026-10-10-input-followups-decisions.md`, next `IF-P`), `FI-` (`ForEach` identity:
   `2026-10-10-foreach-identity-decisions.md`, next `FI-L`), `BB-` (backdrop blur behind a `Material`:
-  `2026-10-10-backdrop-blur-decisions.md`, next `BB-U`), `WD-` (window drag:
+  `2026-10-10-backdrop-blur-decisions.md`, next `BB-V`), `WD-` (window drag:
   `2026-10-12-window-drag-decisions.md`, next `WD-L`), `SL-` (text selection:
   `2026-10-12-text-selection-decisions.md`, next `SL-R`), `GT-` (text over a GPU surface:
   `2026-10-12-surface-text-decisions.md`, next `GT-J`), `GC-` (continuing press cancel:
@@ -142,3 +142,5 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
 **Vertical `TextField` (`VT-`, record 255).** Class `A`; Alloy gap G18; divergences 232-238; decisions `2026-11-09-vertical-text-field-decisions.md`, next `VT-L`. `VT-A` the API and the `MultilineText` extraction (`TextEditor`'s scene byte-identical), `VT-B` the height (`VerticalFieldMetrics`: lines between the `lineLimit` bounds, a floor only with a lower bound, exact in between), `VT-C` `lineLimit` written on the field, `VT-D` geometry, paint and the compared scroll write (unfocused draws from the top), `VT-E` the wheel, `VT-F` the keys (`TextEditing.KeyMode`), `VT-G` divergences, `VT-H` carried, `VT-I` the placeholder colour, `VT-J` `prompt:` (record 257), `VT-K` `selectedOffsets:` with `prompt:` (record 261).
 
 **Window container background (`WB-`, record 285).** Class `A`; Alloy gap G40; divergence 241; decisions `2026-11-13-window-backdrop-decisions.md`, next `WB-I`. `WB-A` the API (`containerBackground(_:for: .window)`), `WB-B` the AppKit material mapping, `WB-C` SDL's opaque fill, `WB-D` first-in-post-order from any depth, `WB-E` the effect view under the content view, `WB-F` Reduce Transparency sends the opaque grey, `WB-G` unset changes nothing, `WB-H` the protocol default.
+
+**Theme-key glyph colours under a clip (`CT-`, record 291).** Class `M`, no divergence; Alloy gap G44; decisions `2026-11-13-clip-theme-key-glyphs-decisions.md`, next `CT-D`. `CT-A` `TestWindow.allGlyphs` (the root scene's glyphs and every offscreen group's; `scene.glyphs` alone misses text inside a masked clip, an opacity group, a blur or a shadow), `CT-B` colours resolve before a group opens (nothing resolves a key after paint), `CT-C` a theme or scheme change recolours under a clip.

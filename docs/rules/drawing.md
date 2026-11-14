@@ -147,6 +147,10 @@ count `L + 2` passes a record, never time (`BB-E`, `BB-S` 1). **It degrades to t
 `.shadow`/`.blur`/`.compositingGroup()` (divergence 248), and wherever a renderer cannot blur
 (`BB-I`); Reduce Transparency is not honoured (249). **A shader test needs a field that varies on both
 axes**: a vertical step let four mutations survive (§94 §6).
+**Backdrop memory (`BB-U`, record 290).** A frame with at most four backdrop runs whose regions are at most a
+quarter of the frame draws straight into the drawable and into one region-sized target per record (no frame
+target, no copy); otherwise `BB-C`'s frame target. A window owns its `BackdropFrameState` and frees it after 1 s
+without a frame. Metal-only so far (SDL keeps `BB-T`).
 
 **Material follow-ups (`MT-`, record §101).** `Material.tint(in: ColorScheme) -> Color` is the
 fitted table's tint as API (MetalUI-only, class `M`; SwiftUI has no read, probe
