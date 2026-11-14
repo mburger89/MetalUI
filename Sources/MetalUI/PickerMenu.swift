@@ -93,24 +93,34 @@ struct PickerMenuOptions: MenuContent {
 /// themselves into the picker's scope and register no node; its children
 /// number from 0 under the sink's own id.
 struct OptionSink<Content: ElementGroup>: ElementGroup {
-    var content: Content
+    /// The caller's content lives on the heap (`BY-N`, `PE-K`): a debug build holds a stack slot for every copy of a
+    /// value this size (three options are about 12 KB) in every frame between here and the deepest leaf, and the sink is
+    /// copied through the button, its label pair and the picker's box. A fresh holder is made per frame from the picker's
+    /// own content, so a layout never writes through to the picker.
+    private final class Holder {
+        var content: Content
+        init(_ content: Content) { self.content = content }
+    }
+    private let holder: Holder
+
+    init(content: Content) { holder = Holder(content) }
 
     mutating func requestGroupLayout(under parent: GlobalElementID?, at cursor: inout Int,
                                      pass: inout LayoutPass) -> ([LayoutNodeID], Content.GroupLayout) {
         let id = GlobalElementID.child(of: parent, at: cursor, name: nil)
         cursor += 1
         var inner = 0
-        return content.requestGroupLayout(under: id, at: &inner, pass: &pass)
+        return holder.content.requestGroupLayout(under: id, at: &inner, pass: &pass)
     }
 
     mutating func prepaintGroup(layout: inout Content.GroupLayout,
                                 pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        content.prepaintGroup(layout: &layout, pass: &pass)
+        holder.content.prepaintGroup(layout: &layout, pass: &pass)
     }
 
     mutating func paintGroup(layout: inout Content.GroupLayout, prepaint: inout Content.GroupPrepaint,
                              pass: inout PaintPass) {
-        content.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+        holder.content.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
     }
 }
 

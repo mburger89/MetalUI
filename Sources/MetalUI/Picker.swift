@@ -94,11 +94,19 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
     /// pull-down button — built in `requestLayout` from `box`'s content.
     typealias MenuBox = Box<PickerTitleRow<Pair<OptionalGroup<Text>, PickerMenuButton<Content>>>>
 
+    /// A menu picker's box and its layout, on the heap (`BY-N`, `PE-K`): about 10 KB that a debug build would hold in
+    /// every frame of the recursion and in each copy of the picker's layout. One owner: the picker's `Layout`.
+    final class MenuState {
+        var box: MenuBox
+        var layout: MenuBox.Layout?
+        init(box: MenuBox) { self.box = box }
+    }
+
     public struct Layout {
         var inner: Inner
         enum Inner {
             case options(Box<PickerTitleRow<Pair<OptionalGroup<Text>, Box<OptionRow<Content>>>>>.Layout)
-            case menu(MenuBox, MenuBox.Layout)
+            case menu(MenuState)
         }
     }
 
@@ -218,26 +226,33 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         scope.options.removeAll(keepingCapacity: true)
         scope.tags.removeAll()
         let labelHidden = pass.frame.environmentTop.labelsHidden   // `LB-A`
-        var menuBox = MenuBox(style: style, decoration: decoration,
-                              // `BY-N`: the title row of the segmented picker (`SR-G`): the title at its ideal, the button the rest.
-                              content: PickerTitleRow(content: Pair(OptionalGroup(labelHidden ? nil : label),
-                                                                    PickerMenuButton(content: box.content.content.second.content.content,
-                                                                                     scope: scope, title: title, pickerID: id)),
-                                                      isSegmented: true))
+        let state = makeMenuState(id, labelHidden: labelHidden)
         PickerScope.stack.append(scope)
         defer { PickerScope.stack.removeLast() }
-        let (node, inner) = menuBox.requestLayout(id, pass: &pass)
+        let (node, inner) = state.box.requestLayout(id, pass: &pass)
+        state.layout = inner
         pass.frame.markControlSpacing(node)   // DS-H: a standard edge (probe DS7)
-        return (node, Layout(inner: .menu(menuBox, inner)))
+        return (node, Layout(inner: .menu(state)))
+    }
+
+    /// The menu style's box, built out of line (`BY-N`, `PE-K`): the caller's content is copied into the option sink's heap
+    /// holder here, so none of those 12 KB temporaries stays in `requestMenuLayout`'s frame under the recursion.
+    @inline(never)
+    private func makeMenuState(_ id: GlobalElementID, labelHidden: Bool) -> MenuState {
+        MenuState(box: MenuBox(style: style, decoration: decoration,
+                // `BY-N`: the title row of the segmented picker (`SR-G`): the title at its ideal, the button the rest.
+                content: PickerTitleRow(content: Pair(OptionalGroup(labelHidden ? nil : label),
+                                                      PickerMenuButton(content: box.content.content.second.content.content,
+                                                                       scope: scope, title: title, pickerID: id)),
+                                        isSegmented: true)))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) -> PrepaintState {
         guard case .options(var optionsLayout) = layout.inner else {
-            guard case .menu(var menuBox, var inner) = layout.inner else { preconditionFailure() }
-            menuBox.handlers = handlers
-            let prepaint = menuBox.prepaint(id, bounds: bounds, layout: &inner, pass: &pass)
-            layout.inner = .menu(menuBox, inner)
+            guard case .menu(let state) = layout.inner else { preconditionFailure() }
+            state.box.handlers = handlers
+            let prepaint = state.box.prepaint(id, bounds: bounds, layout: &state.layout!, pass: &pass)
             return PrepaintState(inner: .menu(prepaint))
         }
         let scope = self.scope
@@ -269,10 +284,9 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
             }
             layout.inner = .options(inner)
             prepaint.inner = .options(innerPrepaint)
-        case (.menu(var menuBox, var inner), .menu(var innerPrepaint)):
+        case (.menu(let state), .menu(var innerPrepaint)):
             // The button is a `Button`: it paints its own disabled look.
-            menuBox.paint(id, bounds: bounds, layout: &inner, prepaint: &innerPrepaint, pass: &pass)
-            layout.inner = .menu(menuBox, inner)
+            state.box.paint(id, bounds: bounds, layout: &state.layout!, prepaint: &innerPrepaint, pass: &pass)
             prepaint.inner = .menu(innerPrepaint)
         default:
             preconditionFailure("Picker: the phase states disagree about the style")
@@ -379,8 +393,19 @@ final class PickerScope {
 /// options `Box`, which consumes it, and a report can be reached only through
 /// its options, which are internal `Box`es declaring no item field.
 struct OptionRow<Content: ElementGroup>: ElementGroup {
-    var content: Content
+    /// The caller's options, on the heap with copy-on-write (`BY-N`, `PE-K`): three options are about 12 KB, which made a
+    /// `Picker` 16 KB, and a debug build holds a stack slot for every copy of a builder value in every frame of a tree.
+    private var heap: HeapContent<Content>
+    var content: Content {
+        get { heap.content }
+        _modify { yield &heap.content }
+    }
     var equalWidth: Bool
+
+    init(content: Content, equalWidth: Bool) {
+        heap = HeapContent(content)
+        self.equalWidth = equalWidth
+    }
 
     mutating func requestGroupLayout(under parent: GlobalElementID?, at cursor: inout Int,
                                      pass: inout LayoutPass) -> ([LayoutNodeID], Content.GroupLayout) {
@@ -414,6 +439,27 @@ struct OptionRow<Content: ElementGroup>: ElementGroup {
     mutating func paintGroup(layout: inout Content.GroupLayout, prepaint: inout Content.GroupPrepaint,
                              pass: inout PaintPass) {
         content.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+/// A value held on the heap with copy-on-write semantics (`BY-N`): copies share the storage until one writes, so a large
+/// generic value (a picker's options) costs a pointer in each builder temporary and layout frame, and a write through
+/// one copy never shows in another.
+struct HeapContent<Value> {
+    private final class Holder {
+        var value: Value
+        init(_ value: Value) { self.value = value }
+    }
+    private var holder: Holder
+
+    init(_ value: Value) { holder = Holder(value) }
+
+    var content: Value {
+        get { holder.value }
+        _modify {
+            if !isKnownUniquelyReferenced(&holder) { holder = Holder(holder.value) }
+            yield &holder.value
+        }
     }
 }
 

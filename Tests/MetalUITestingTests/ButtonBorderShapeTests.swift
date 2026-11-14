@@ -272,6 +272,19 @@ private struct LoneInFrame: Component {
     }
 }
 
+/// One window per tree, each built in its own small function: a debug build reserves a frame slot for every temporary of a
+/// builder closure, and Windows test threads have about 1 MB (`PE-K`).
+@MainActor @inline(never) private func besideWindow(_ width: Int, _ shape: ButtonBorderShape) throws -> TestWindow {
+    let w = try TestWindow(size: Size(width: Pixels(Float(width)), height: Pixels(200)), colorScheme: .light,
+                           textSystem: harnessTextSystem) { VStack { BesideTree(shape: shape) } }
+    redraw(w)
+    return w
+}
+@MainActor @inline(never) private func loneChrome(_ width: Float) throws -> MUIBounds {
+    let w = try window { VStack { LoneInFrame(width: width) } }
+    return try #require(chromeRects(w).first { $0.background.a > 0 }).bounds
+}
+
 /// The picker's and the menu's chrome (fills only), and the glyphs inside the picker's, left to right.
 @MainActor private func pickerAndMenu(_ w: TestWindow) -> (picker: MUIBounds, menu: MUIBounds, glyphs: [MUIGlyph])? {
     let chrome = Array(chromeRects(w).filter { $0.background.a > 0 })
@@ -288,9 +301,7 @@ private struct LoneInFrame: Component {
 @Test @MainActor func aMenuPickerBesideAMenuIsOneLineAndAsTallAsTheMenu() throws {
     for shape in [ButtonBorderShape.capsule, .automatic] {
         for width in [200, 234, 260, 300, 400, 440, 480, 1000] as [Int] {
-            let w = try TestWindow(size: Size(width: Pixels(Float(width)), height: Pixels(200)), colorScheme: .light,
-                                   textSystem: harnessTextSystem) { VStack { BesideTree(shape: shape) } }
-            redraw(w)
+            let w = try besideWindow(width, shape)
             let found = try #require(pickerAndMenu(w), "\(width): the picker's and the menu's chrome")
             #expect(found.picker.size.height == found.menu.size.height, "\(width) \(shape): picker \(found.picker.size.height) vs menu \(found.menu.size.height)")
             let chevron = try #require(found.glyphs.last)
@@ -306,16 +317,12 @@ private struct LoneInFrame: Component {
 /// Mutation: dropping `.lineLimit(1)` reddens the compressed arm; reverting the menu picker to a bare `Pair` title row
 /// (no `PickerTitleRow`) reddens the ideal arm.
 @Test @MainActor func aMenuPickerGivenItsIdealWidthIsExactlyItsIdeal() throws {
-    func chrome(_ width: Float) throws -> MUIBounds {
-        let w = try window { VStack { LoneInFrame(width: width) } }
-        return try #require(chromeRects(w).first { $0.background.a > 0 }).bounds
-    }
     for width in [160, 200, 300, 600] as [Float] {
-        let b = try chrome(width)
+        let b = try loneChrome(width)
         #expect(b.size.width == 109 && b.size.height == 24, "\(width): \(b.size.width) x \(b.size.height)")
     }
     for width in [60, 100, 130] as [Float] {
-        let b = try chrome(width)
+        let b = try loneChrome(width)
         #expect(b.size.height == 24 && b.size.width < 109, "\(width) compresses on one line: \(b.size.width) x \(b.size.height)")
     }
 }
