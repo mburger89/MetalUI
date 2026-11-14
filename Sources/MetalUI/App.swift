@@ -139,7 +139,8 @@ public final class App {
         startsDisplayLink: Bool = true,
         content: @escaping @MainActor () -> Root
     ) throws -> Window {
-        let platformWindow = try platform.openWindow(title: title, size: size)
+        let platformWindow = try platform.openWindow(title: title, size: size,
+                                                     titleBarStyle: windowStyle.platformStyle)
         let window = Window(platformWindow: platformWindow,
                             startsDisplayLink: startsDisplayLink,
                             textSystem: makeTextSystem?(),
