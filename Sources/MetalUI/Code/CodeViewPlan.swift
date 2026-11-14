@@ -870,7 +870,7 @@ extension CodeView {
         guard elapsed >= 0 else { return true }
         let halves = (elapsed / CodeCaretBlink.halfPeriod).rounded(.down)
         let visible = Int(halves) % 2 == 0
-        pass.frame.animationStore.timeline.noteDeadline(atTimestamp: epoch + (halves + 1) * CodeCaretBlink.halfPeriod, owner: id,
+        pass.frame.animationStore.timeline.noteDeadline(atTimestamp: epoch + (halves + 1) * CodeCaretBlink.halfPeriod, frameTimestamp: now, owner: id,
                                                               stateTable: pass.frame.stateTable)
         pass.frame.taintRetention("codeCaretBlink")
         return visible
