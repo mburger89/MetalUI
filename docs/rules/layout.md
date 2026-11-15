@@ -41,7 +41,7 @@ the extent measured rows plus an estimate (divergence 147) through a per-list
 row on top anchored across measurements and data changes by
 `Frame.noteScrollAnchorAdjustment` after paint (`VL-G`, divergence 146); the
 `rowHeight:` spelling is the untouched fast path (`VL-I`) — a change to one
-branch must leave the other's pins and work literals unmoved.
+branch must leave the other's pins and work literals unmoved. **The content form** (`List(selection:content:)`, `List(content:)`, the outline `List(_:children:...)` inits; `OG-A`, `OG-E`, `OG-J`, `OG-L`, record 314, divergences 84 and 1085) is `List<ListContentRows<S>, ListContentBody<C>>`: lane 2's lazy tree (`LazyStackEngine`, spacing 0) behind a `ListContentEngine` in `.sidebar` rows (32 pt, the first 10 below the top, 12 per depth, a chevron cell 13 wide, a leaf reserves it); the data list's selection, key and accessibility code is `ListSelectionController<ID>` over a row space (count, id at, index of), shared by both forms. A row's value is its `.tag`, else its `ForEach`/outline element id; the list is the one focusable; a hidden selection stays in the binding and shows none (`P-K7`); a `scrollTo` in the transaction that expands and selects lands the row one frame after the writes (1085).
 
 **Controls in SwiftUI stacks (`PE-`, record §78).** The SwiftUI-named
 containers (`HStack`, `VStack`, `ZStack`, `Grid`, `GridRow`, `ProposalScrollView`,

@@ -234,11 +234,14 @@ extension DisclosureGroupBody {
         var cursor = sources.count
         let id = enterComponent(under: parent, at: &cursor, pass: &pass)
         let stack = GlobalElementID.child(of: id, at: 0, name: nil)   // the body's `VStack` (no name)
-        var level: [any LazyUnitSource] = [LazyLegacyStaticSource(group: header)]
+        // `OG-J`: inside a content `List` the label row is the list's (chevron cell in the lead slot, no standalone look).
+        var level: [any LazyUnitSource] = [ListRowChrome.isActive
+            ? LazyLegacyStaticSource(group: listHeader, marksHeader: true) : LazyLegacyStaticSource(group: header)]
         let slot = GlobalElementID(component: .positional(1), parent: stack)
         if isExpanded {
             pass.frame.stateTable.noteProduced(slot)
-            guard let nested = lazyNested(makeContent(), scope: slot, pass: &pass) else { return false }
+            guard var nested = lazyNested(makeContent(), scope: slot, pass: &pass) else { return false }
+            nested.depthStep = 1
             level.append(nested)
         } else {
             pass.frame.stateTable.noteAbsent(slot)
@@ -277,15 +280,21 @@ struct LazyEmptySource: LazyUnitSource {
 struct LazyNestedSource: LazyUnitSource {
     let scope: GlobalElementID
     let table: LazyUnitTable
+    /// The levels of disclosure this level adds to its units' `depth` (`OG-J`): 1 for a disclosure group's content, 0 for
+    /// a component's, an `if`'s or a branch's.
+    var depthStep = 0
 
     var lazyUnitCount: Int { table.count }
     func lazyUnitID(_ unit: Int) -> AnyHashable { table.key(unit) }
     func lazyScrollID(_ unit: Int) -> AnyHashable { table.rawID(unit) }
+    func lazySelectionTag(_ unit: Int) -> AnyHashable? { table.selectionTag(unit) }
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {}   // the level's hooks ran when it was built
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
                          cursorBase: Int, pass: inout LayoutPass) -> LazyUnitBox {
-        table.realize(unit, globalIndex: globalIndex, parent: scope, pass: &pass)
+        let box = table.realize(unit, globalIndex: globalIndex, parent: scope, pass: &pass)
+        box.depth += depthStep
+        return box
     }
 }
 
@@ -358,6 +367,11 @@ struct LazyTreeForEachSource<Data: RandomAccessCollection, ID: Hashable, Content
     func lazyScrollID(_ unit: Int) -> AnyHashable {
         let (element, local) = locate(unit)
         return local == 0 ? AnyHashable(elements[element].key) : elements[element].table.rawID(local)
+    }
+
+    func lazySelectionTag(_ unit: Int) -> AnyHashable? {
+        let (element, local) = locate(unit)
+        return elements[element].table.selectionTag(local)
     }
 
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {

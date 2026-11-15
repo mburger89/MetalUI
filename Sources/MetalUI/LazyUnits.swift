@@ -42,6 +42,13 @@ final class LazyUnitBox {
     let key: AnyHashable
     /// The nodes the unit registered, in order (0, 1 or several).
     let nodes: [ProposalNodeID]
+    /// How many disclosure levels the unit sits below (`OG-J`): each `DisclosureGroup` content level its source passed
+    /// through adds one, an outline row adds its own depth. Read by a content `List`'s row chrome; nothing else reads it.
+    var depth = 0
+    /// Whether the unit is a disclosure group's label row (a content `List` draws its chevron in the row's lead slot).
+    var isDisclosureHeader = false
+    /// The value `.tag(_:)` gave the unit's element (`OG-E`), if its content is tagged.
+    var selectionTag: AnyHashable?
     private let prepaintBody: @MainActor (inout PrepaintPass) -> Void
     private let paintBody: @MainActor (inout PaintPass) -> Void
 
@@ -64,14 +71,16 @@ final class LazyUnitBox {
         var content = content
         var layout = layout
         var prepainted: G.GroupPrepaint?
-        return LazyUnitBox(unit: unit, key: key, nodes: nodes,
-                           prepaint: { pass in prepainted = content.prepaintGroup(layout: &layout, pass: &pass) },
-                           paint: { pass in
-                               guard var held = prepainted else { return }
-                               prepainted = nil
-                               content.paintGroup(layout: &layout, prepaint: &held, pass: &pass)
-                               prepainted = held
-                           })
+        let box = LazyUnitBox(unit: unit, key: key, nodes: nodes,
+                              prepaint: { pass in prepainted = content.prepaintGroup(layout: &layout, pass: &pass) },
+                              paint: { pass in
+                                  guard var held = prepainted else { return }
+                                  prepainted = nil
+                                  content.paintGroup(layout: &layout, prepaint: &held, pass: &pass)
+                                  prepainted = held
+                              })
+        box.selectionTag = (content as? any ListRowTagged)?.listRowTag
+        return box
     }
 }
 
@@ -90,6 +99,11 @@ protocol LazyUnitSource {
     /// units whose own ids repeat (a `ForEach` of sections).
     func lazyScrollID(_ unit: Int) -> AnyHashable
 
+    /// The `.tag(_:)` value of unit `unit`'s element, or `nil` (`OG-E`): what a content `List` selects by before it falls
+    /// back to the unit's id. Called at input time, for units that may not be realised, so it builds the element but lays
+    /// nothing out.
+    func lazySelectionTag(_ unit: Int) -> AnyHashable?
+
     /// Called once per frame before any of this source's units is realised, with the source's one
     /// structural slot (`LZ-H`: `noteWindowedParent`).
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass)
@@ -102,6 +116,7 @@ protocol LazyUnitSource {
 
 extension LazyUnitSource {
     func lazyScrollID(_ unit: Int) -> AnyHashable { lazyUnitID(unit) }
+    func lazySelectionTag(_ unit: Int) -> AnyHashable? { nil }
 }
 
 /// A content group that can list its units (conformers: `ForEach` over proposal content, `Pair`,
@@ -193,6 +208,7 @@ struct LazyStaticSource<G: ProposalElementGroup>: LazyUnitSource {
     let group: G
     var lazyUnitCount: Int { 1 }
     func lazyUnitID(_ unit: Int) -> AnyHashable { AnyHashable(LazyStaticUnitID()) }
+    func lazySelectionTag(_ unit: Int) -> AnyHashable? { (group as? any ListRowTagged)?.listRowTag }
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {}
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
@@ -217,6 +233,11 @@ struct LazyForEachSource<Data: RandomAccessCollection, ID: Hashable, Content: Pr
     func lazyUnitID(_ unit: Int) -> AnyHashable {
         let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
         return AnyHashable(forEach.data[index][keyPath: forEach.idKeyPath])
+    }
+
+    func lazySelectionTag(_ unit: Int) -> AnyHashable? {
+        let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
+        return (forEach.content(forEach.data[index]) as? any ListRowTagged)?.listRowTag
     }
 
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {
@@ -251,8 +272,11 @@ struct LazyForEachSource<Data: RandomAccessCollection, ID: Hashable, Content: Pr
 @MainActor
 struct LazyLegacyStaticSource<G: ElementGroup>: LazyUnitSource {
     let group: G
+    /// Whether the unit is a disclosure group's label row (`OG-J`).
+    var marksHeader = false
     var lazyUnitCount: Int { 1 }
     func lazyUnitID(_ unit: Int) -> AnyHashable { AnyHashable(LazyStaticUnitID()) }
+    func lazySelectionTag(_ unit: Int) -> AnyHashable? { (group as? any ListRowTagged)?.listRowTag }
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {}
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
@@ -260,10 +284,12 @@ struct LazyLegacyStaticSource<G: ElementGroup>: LazyUnitSource {
         var member = group
         var cursor = cursorBase
         let (nodes, layout) = member.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
-        return LazyUnitBox.make(unit: globalIndex,
-                                key: AnyHashable(LazyUnitKey(segment: segment, id: lazyUnitID(unit))),
-                                nodes: pass.frame.lowering.droppingPresentations(nodes).map(ProposalNodeID.init),
-                                content: member, layout: layout)
+        let box = LazyUnitBox.make(unit: globalIndex,
+                                   key: AnyHashable(LazyUnitKey(segment: segment, id: lazyUnitID(unit))),
+                                   nodes: pass.frame.lowering.droppingPresentations(nodes).map(ProposalNodeID.init),
+                                   content: member, layout: layout)
+        box.isDisclosureHeader = marksHeader
+        return box
     }
 }
 
@@ -278,6 +304,11 @@ struct LazyLegacyForEachSource<Data: RandomAccessCollection, ID: Hashable, Conte
     func lazyUnitID(_ unit: Int) -> AnyHashable {
         let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
         return AnyHashable(forEach.data[index][keyPath: forEach.idKeyPath])
+    }
+
+    func lazySelectionTag(_ unit: Int) -> AnyHashable? {
+        let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
+        return (forEach.content(forEach.data[index]) as? any ListRowTagged)?.listRowTag
     }
 
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {
@@ -354,6 +385,12 @@ struct LazyUnitTable {
     func rawID(_ unit: Int) -> AnyHashable {
         let (segment, local) = locate(unit)
         return sources[segment].lazyScrollID(local)
+    }
+
+    /// The `.tag(_:)` value of global unit `unit`'s element, or `nil` (`OG-E`).
+    func selectionTag(_ unit: Int) -> AnyHashable? {
+        let (segment, local) = locate(unit)
+        return sources[segment].lazySelectionTag(local)
     }
 
     /// Realises global unit `unit` under `parent`.

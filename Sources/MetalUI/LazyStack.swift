@@ -160,6 +160,9 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
     var axis: ProposalStackAxis
     var alignment: ProposalAlignment
     var pinnedViews: PinnedScrollableViews = []
+    /// Wraps each realised unit before it joins the layout (a content `List`'s row chrome, `OG-J`); `nil` for a plain lazy
+    /// stack. Called with the container's units so the wrapper can ask a unit's id and tag.
+    var unitWrapper: (@MainActor (LazyUnitBox, LazyUnitWrapContext, inout LayoutPass) -> LazyUnitBox)?
 
     private var scrollAxis: ScrollAxis { axis == .vertical ? .vertical : .horizontal }
 
@@ -201,7 +204,10 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
                 // `LZ-G`: duplicate ids dedupe within the realised window only, first wins.
                 guard seen.insert(table.key(unit)).inserted else { continue }
                 if unit < plan.anchorLine { anchorSlot += 1 }
-                let box = table.realize(unit, parent: id, pass: &pass)
+                var box = table.realize(unit, parent: id, pass: &pass)
+                if let wrap = unitWrapper {
+                    box = wrap(box, LazyUnitWrapContext(table: table, bounded: plan.mode == .bounded), &pass)
+                }
                 if notesTargets, !(table.rawID(unit).base is LazyStaticUnitID) { targetKeys[unit] = table.rawID(unit) }
                 boxes.append(box)
                 nodes.append(contentsOf: box.nodes)

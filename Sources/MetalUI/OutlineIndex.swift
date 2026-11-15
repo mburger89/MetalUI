@@ -340,14 +340,19 @@ struct OutlineGroupSource<Data: RandomAccessCollection, ID: Hashable, Leaf: Elem
                 index.stale = true
                 pass.frame.requestAnotherFrame()
             }
-            return LazyLegacyStaticSource(group: body.header)
-                .realizeLazyUnit(0, globalIndex: globalIndex, segment: 0, parent: OutlineScopes.stack(of: group),
-                                 cursorBase: 0, pass: &pass)
+            let source: any LazyUnitSource = ListRowChrome.isActive
+                ? LazyLegacyStaticSource(group: body.listHeader, marksHeader: true) : LazyLegacyStaticSource(group: body.header)
+            let box = source.realizeLazyUnit(0, globalIndex: globalIndex, segment: 0, parent: OutlineScopes.stack(of: group),
+                                             cursorBase: 0, pass: &pass)
+            box.depth += entry.depth
+            return box
         }
         pass.frame.stateTable.noteProduced(leafBranch)
         pass.frame.stateTable.noteAbsent(groupBranch)
-        return outlineRowSource(spec.content(element))
+        let box = outlineRowSource(spec.content(element))
             .realizeLazyUnit(0, globalIndex: globalIndex, segment: 0, parent: leafBranch, cursorBase: 0, pass: &pass)
+        box.depth += entry.depth
+        return box
     }
 }
 
