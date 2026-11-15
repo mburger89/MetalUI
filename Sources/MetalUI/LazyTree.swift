@@ -130,6 +130,8 @@ private func lazyFlattenComponent<C: Component>(_ component: C, into sources: in
                                                 parent: GlobalElementID, pass: inout LayoutPass) -> Bool {
     var cursor = sources.count
     let id = component.enterComponent(under: parent, at: &cursor, pass: &pass)
+    OutlineWalk.note(component: component, bindsEnvironment: StateBinder.declaresEnvironment(C.self))   // `OG-O`
+    pass.frame.lazyWork.contentEvaluations += 1
     guard let nested = lazyNested(component.content, scope: id, pass: &pass) else { return false }
     sources.append(nested)
     return true
@@ -263,6 +265,7 @@ extension DisclosureGroupBody {
         }
         if open {
             pass.frame.stateTable.noteProduced(slot)
+            pass.frame.lazyWork.contentEvaluations += 1
             guard var nested = OutlineCascade.forcing(cascade, { lazyNested(makeContent(), scope: slot, pass: &pass) })
             else { return false }
             nested.depthStep = 1
@@ -346,6 +349,7 @@ struct LazyTreeForEachSource<Data: RandomAccessCollection, ID: Hashable, Content
         pass.frame.stateTable.noteWindowedParent(slot)   // `LZ-H`; never `noteLoop`
         let needsKey = !(ID.self is DescriptionInjectiveID.Type)   // `FI-B`
         self.needsKey = needsKey
+        OutlineWalk.note(elementType: Data.Element.self)   // `OG-O`
         var built: [Built] = []
         built.reserveCapacity(forEach.data.count)
         var prefix: [Int] = []
@@ -358,6 +362,7 @@ struct LazyTreeForEachSource<Data: RandomAccessCollection, ID: Hashable, Content
                 of: slot, at: index,
                 name: ElementID(name: String(describing: key), key: needsKey ? IdentityKey(AnyHashable(key)) : nil))
             pass.frame.stateTable.noteNamed(scope, at: index)   // a no-op under a windowed parent, `LZ-H`
+            pass.frame.lazyWork.contentEvaluations += 1
             guard let table = lazyNestedTable(forEach.content(element), scope: scope, pass: &pass) else { return nil }
             prefix.append(total)
             total += table.count

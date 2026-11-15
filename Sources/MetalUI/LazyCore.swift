@@ -47,6 +47,13 @@ struct LazyWork: Equatable {
     var indexRebuilds = 0
     /// Outline index validations (`OG-K`): the root, each expanded group and each row of the last window.
     var indexValidations = 0
+    /// A content list's flatten (`OG-O`): row bodies, `ForEach` closures and group contents the walk evaluated.
+    var contentEvaluations = 0
+    /// Walks run (a cache miss, or a list the cache refuses) and walks a cache stood in for.
+    var contentRebuilds = 0
+    var contentHits = 0
+    /// `ForEach` closures called at the top level to compare the list's own content with the cache's.
+    var contentChecks = 0
 }
 
 /// A lazy container's origin within its scroller's content, in points along the scrolling axis,
