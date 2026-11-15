@@ -1,7 +1,7 @@
 # Split views - decisions
 
 Rulings for `HSplitView` / `VSplitView` (MetalFlow's palette | canvas | inspector layout). Prefix `HS-`. Branch `feat/mf-split`. Code: `Sources/MetalUI/SplitView.swift`; tests:
-`Tests/MetalUITestingTests/SplitViewTests.swift` (portable, plain imports). **Next unused: `HS-J`.** Divergence 206 (the orchestrator moves the label if another branch took it).
+`Tests/MetalUITestingTests/SplitViewTests.swift` (portable, plain imports). **Next unused: `HS-K`.** Divergence 206 (the orchestrator moves the label if another branch took it).
 
 ## HS-A - the shape: two ProposalElements over one engine, class D not A
 
@@ -79,6 +79,12 @@ a stored array whose length differs from the pane count is ignored.
 **Ruling.** MetalUI-only (SwiftUI has no spelling; precedent `windowTitleBarMetrics`, `AS-R`). `splitViewDivider(_ visibility: Visibility = .automatic, thickness: CGFloat? = nil)` is an `EnvironmentScope` write of an internal `SplitDividerStyle` (`hidden`, `thickness`), read by `SplitEngine.requestLayout` each frame, so it applies to the split view it modifies and to split views inside it (nearest writer wins) and a change relayouts it with no rebuild of the panes: the scope is transparent to identity, the style is a value in the `SplitLayout`/`SplitDivider` the engine rebuilds, so pane `@State` and ids are kept. `.hidden` draws no line (the line `Color` is `.clear`); `.automatic` and `.visible` draw today's `.separator`. `thickness` (default 1, negative clamps to 0) is the divider's layout thickness and so the panes' spacing; the hit area is `max(thickness, 6)` centred on the divider, overlaying the panes, so a gutter of 0 keeps a 6-point hit area straddling the boundary. Pointer and drag are unchanged; the divider has no accessibility node. Defaults are byte-identical (`theDefaultSplitViewDividerIsTheOneItAlwaysWas`). **Carried:** as the window root the scope breaks the drag (the `EV-B` root restriction): write it inside the root's first container.
 **Pins.** `theDefaultSplitViewDividerIsTheOneItAlwaysWas`, `aHiddenDividerDrawsNoLineButStillDrags`, `aThicknessOfSixSpacesThePanesBySixAndIsTheHitArea`, `aWideGutterIsItsOwnHitArea`, `aGutterOfZeroKeepsASixPointHitAreaOnTheBoundary`, `aVSplitViewTakesTheSameDividerStyle`, `changingTheGutterAtRunTimeRespacesAndKeepsPaneState`.
 
+## HS-J - a split view answers the proposal it is offered, so a bare nested split view is flexible
+
+**Ruling.** Probe `docs/probes/swiftui-nested-split-sizing.swift` (record 310): SwiftUI's `HSplitView`/`VSplitView` answer `sizeThatFits` with the proposal itself, whatever their panes (fixed, flexible or min/ideal/max frames give identical rows): zero is 0, a finite size is itself, **infinity is infinity**, nil is 0. `SplitLayout.sizeThatFits` now answers infinity for an infinite proposal on either axis (it answered the sum of the panes' ideals, so its maximum equalled its ideal and a split view that was a pane of another never stretched: 10 of 600 wide beside a plain pane). A nil proposal keeps the sum of the panes' ideals (SwiftUI answers 0; kept because a split view in a fit-content parent needs a size; divergence 206). No frame wrapper is needed around a nested split view; one still works.
+**Pins.** `aBareNestedSplitViewStretchesLikeSwiftUIs` (literals from the probe: 300 / 299 wide at x 301), `aBareNestedHSplitViewInAVSplitViewStretches` (was already green: the cross axis never hit the bug), and the other tests of `NestedSplitViewTests`.
+**Mutation.** Restoring the sum-of-ideals answer for an infinite proposal reddens `aBareNestedSplitViewStretchesLikeSwiftUIs` alone.
+
 ## Mutations
 
 Method: edit the named declaration in `Sources/MetalUI/SplitView.swift`, run `--filter SplitViewTests` under `--build-system native`, restore. Named tests are those that reddened.
@@ -114,6 +120,6 @@ The mutated spelling was applied to the declaration named; the 1 MB-stack and Ap
 - No pane collapse or hide, no double-click-to-reset, no keyboard resize, no divider accessibility node (a `separator` role with a value), no hover highlight on the divider.
 - Autosave is per split view and not environment-propagated, so `.frame(...).splitViewAutosaveName(...)` does not compile; two split views must take two names.
 - Autosave saves at drag end only (a window resize does not write), so the saved array can sum to a different total than a later window; the solver reconciles it.
-- Nested split views are not tested; the divider overlay of an inner view overlaps its own panes only.
+- Nested split views are tested to depth 5 (`HS-J`); the divider overlay of an inner view overlaps its own panes only.
 - No demo section and no human-check group were added.
 - `docs/rules/` and `CLAUDE.md` are untouched (orchestrator): the rule to add is "a split view's sizes are written only by its divider handler; `SplitLayout` is non-Hashable".

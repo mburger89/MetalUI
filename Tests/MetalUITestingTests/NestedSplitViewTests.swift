@@ -7,9 +7,8 @@ import Testing
 
 // Nested `HSplitView` / `VSplitView` to arbitrary depth inside one clipped island (Alloy's editor-group tree), through the
 // public harness. Leaves are `Color`s with a distinct alpha (0.11, 0.12, ...) so a leaf's presented rect is found by its
-// alpha. A nested split view must be wrapped in a flexible `.frame(maxWidth: .infinity, maxHeight: .infinity)` to take
-// its share of the parent's axis: bare, it answers min 0 and ideal = max = the sum of its panes' ideals (see
-// `aBareNestedSplitViewStretchesLikeSwiftUIs`).
+// alpha. The nested splits below carry a flexible frame as Alloy's
+// would; bare ones are covered by `aBareNestedSplitViewStretchesLikeSwiftUIs` (`HS-J`).
 
 private typealias Frame = (x: Float, y: Float, w: Float, h: Float)
 
@@ -275,7 +274,7 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
     #expect(after[11]!.w == f[11]!.w + 20 && after[12]!.w == f[12]!.w - 20 && after[13]!.w == f[13]!.w)
 }
 
-// MARK: - The finding: a bare nested split view is rigid
+// MARK: - HS-J: a bare nested split view is flexible, as SwiftUI's is
 
 @inline(never) @MainActor private func bareNest() -> some ElementGroup {
     HSplitView {
@@ -283,19 +282,30 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
         leafBare(13)
     }
 }
+@inline(never) @MainActor private func bareNestVertical() -> some ElementGroup {
+    VSplitView {
+        HSplitView { leafBare(11); leafBare(12) }
+        leafBare(13)
+    }
+}
 @MainActor private func leafBare(_ tag: Int) -> some ElementGroup { Color.red.opacity(Double(tag) / 100) }
 
-/// A `VSplitView` that is a pane of an `HSplitView` should stretch like any flexible pane (SwiftUI's does); here it
-/// stays at its ideal width (10, the `Color` ideal) while the plain pane takes the rest, because
-/// `SplitLayout.sizeThatFits` answers a sum of ideals for a non-finite proposal on its main axis and the widest
-/// child's ideal on its cross axis, so the pane's maximum equals its ideal. Pinned as a known issue; remove the
-/// `withKnownIssue` when `SplitLayout` answers min/ideal/max from its panes.
+/// HS-J -- a `VSplitView` that is a pane of an `HSplitView`, with no frame around it, takes its share like any flexible
+/// pane. Literals from `docs/probes/swiftui-nested-split-sizing.swift` (600 x 400 window, `H{V{red, green}, blue}`):
+/// V 300 wide, blue 299 wide at x 301, one 1-point divider each way. Mutation: `SplitLayout.sizeThatFits` answers the
+/// sum of ideals for an infinite proposal (the pane's width was 10).
 @Test @MainActor func aBareNestedSplitViewStretchesLikeSwiftUIs() throws {
     let w = try harnessWindow(size: sz(600, 400)) { VStack(spacing: 0) { bareNest() } }
     let f = leaves(w)
-    withKnownIssue("SplitLayout answers max == ideal for a nested split view (no flexible width/height)") {
-        #expect(f[11]!.w > 100, "nested split pane width \(f[11]!.w) of 600")
-    }
-    // What does hold: it is still laid out, at its ideal size, without overlap.
-    #expect(f[11]!.w == 10 && f[13]!.x > f[11]!.x + f[11]!.w)
+    #expect(f[11]!.w == 300 && f[12]!.w == 300, "\(f[11]!) \(f[12]!)")
+    #expect(f[13]!.x == 301 && f[13]!.w == 299 && f[13]!.h == 400, "\(f[13]!)")
+    #expect(f[11]!.h + f[12]!.h == 399, "\(f[11]!) \(f[12]!)")
+}
+
+/// HS-J -- the same on the other axis (probe `V{H{red, green}, blue}`: red 300, green 299 at x 301, blue 600 wide).
+@Test @MainActor func aBareNestedHSplitViewInAVSplitViewStretches() throws {
+    let w = try harnessWindow(size: sz(600, 400)) { VStack(spacing: 0) { bareNestVertical() } }
+    let f = leaves(w)
+    #expect(f[11]!.w == 300 && f[12]!.x == 301 && f[12]!.w == 299, "\(f[11]!) \(f[12]!)")
+    #expect(f[13]!.w == 600 && f[13]!.h > 100, "\(f[13]!)")
 }
