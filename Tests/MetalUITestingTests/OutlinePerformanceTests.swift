@@ -121,6 +121,11 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
     (0..<3).map { r in PNode("r\(r)", expanded: true, children: leaves("r\(r)/l", 6)) }
 }
 
+// A model write dirties the window through the observation `onChange`. On Apple the handler runs on the writer's (main) thread
+// and marks the window at once; off Apple the Swift Testing main actor is a pool thread, so the mark hops (`ContentMemoHandle`
+// record 123) and a bare `tick()` right after the write draws nothing. The flag the cache reads is set synchronously either
+// way, so the cache is never stale; the tests wait with `runUntilIdle()` after a model write.
+
 // MARK: - the idle frame
 
 /// **Alloy's requirement: an idle frame does zero outline evaluation.** Three expanded folders of six leaves: after the tree
@@ -190,13 +195,13 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
 
 /// **Renaming a visible node shows the next frame**, with one walk (the session fired), and nothing is evaluated the frame
 /// after it. Mutation: the session not run (`entry.buildSession.run` replaced by the bare walk): the label stays.
-@Test @MainActor func renamingAVisibleNodeShowsNextFrame() throws {
+@Test @MainActor func renamingAVisibleNodeShowsNextFrame() async throws {
     let model = PModel(smallTree())
     let window = try listWindow(model)
     let leaf = model.roots[1].children[2]
     window.resetFrameWork()
     leaf.name = "renamed"
-    window.tick()
+    try await window.runUntilIdle()
     #expect(texts(window)["renamed"] != nil && texts(window)["r1/l2"] == nil, "\(visible(window))")
     #expect(rebuilds(window.frameWork) == 1 && hits(window.frameWork) == 0, "rebuilds \(window.frameWork.map(\.outlineContentRebuilds))")
     window.resetFrameWork()
@@ -206,12 +211,12 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
 
 /// **Renaming an offscreen node is right when scrolled to**, and costs one walk at the change, not at the scroll. 500 leaves,
 /// leaf 300 renamed; scrolling to it evaluates nothing and shows the new name.
-@Test @MainActor func renamingAnOffscreenNodeIsRightWhenScrolledTo() throws {
+@Test @MainActor func renamingAnOffscreenNodeIsRightWhenScrolledTo() async throws {
     let model = PModel([PNode("R", expanded: true, children: leaves("k", 500))])
     let window = try listWindow(model)
     window.resetFrameWork()
     model.roots[0].children[300].name = "renamed300"
-    settle(window)
+    try await window.runUntilIdle()
     #expect(rebuilds(window.frameWork) == 1, "one walk at the change: \(window.frameWork.map(\.outlineContentRebuilds))")
     window.resetFrameWork()
     window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: -9_650)
@@ -222,31 +227,31 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
 
 /// **Adding and removing a child of an expanded folder changes the row count the next frame.** The rows are the folder, its
 /// children and the other roots'; one walk each.
-@Test @MainActor func addingAndRemovingAChildChangesTheRowsNextFrame() throws {
+@Test @MainActor func addingAndRemovingAChildChangesTheRowsNextFrame() async throws {
     let model = PModel([PNode("A", expanded: true, children: leaves("A/a", 2)), PNode("Z", children: nil)])
     let window = try listWindow(model)
     #expect(visible(window) == ["A", "A/a0", "A/a1", "Z"], "\(visible(window))")
     window.resetFrameWork()
     model.roots[0].children.append(PNode("A/new"))
-    window.tick()
+    try await window.runUntilIdle()
     #expect(visible(window) == ["A", "A/a0", "A/a1", "A/new", "Z"], "\(visible(window))")
     #expect(rebuilds(window.frameWork) == 1, "\(window.frameWork.map(\.outlineContentRebuilds))")
     model.roots[0].children.removeFirst()
-    window.tick()
+    try await window.runUntilIdle()
     #expect(visible(window) == ["A", "A/a1", "A/new", "Z"], "\(visible(window))")
     model.roots.append(PNode("Y"))
-    window.tick()
+    try await window.runUntilIdle()
     #expect(visible(window) == ["A", "A/a1", "A/new", "Z", "Y"], "\(visible(window))")
 }
 
 /// **Expanding by the model, the chevron and the keys all re-walk once and show the rows.**
-@Test @MainActor func expandingByTheModelTheChevronAndTheKeysShowsTheRows() throws {
+@Test @MainActor func expandingByTheModelTheChevronAndTheKeysShowsTheRows() async throws {
     let tree = [PNode("A", children: [PNode("A/B", children: leaves("A/B/", 2)), PNode("A/C")]), PNode("Z")]
     let model = PModel(tree)
     let window = try listWindow(model)
     #expect(visible(window) == ["A", "Z"], "\(visible(window))")
     model.roots[0].isExpanded = true                           // the model
-    window.tick()
+    try await window.runUntilIdle()
     #expect(visible(window) == ["A", "A/B", "A/C", "Z"], "model: \(visible(window))")
     window.resetFrameWork()
     chevron(window, "A/B")                                       // the chevron
@@ -277,7 +282,7 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
 /// threshold (256), so an entry nothing marks for three frames is dropped. Twelve idle frames of hits, then a rename (a
 /// walk): every row reads the serial it had, because a hit replays the walk's marks. Mutation: a hit that applies no journal
 /// (`frame.reapply` removed): the rows' states are reaped and the walk reads new serials.
-@Test @MainActor func aHitKeepsTheStatesItsRowsHold() throws {
+@Test @MainActor func aHitKeepsTheStatesItsRowsHold() async throws {
     Bodies.seen = [:]
     let model = PModel([PNode("R", expanded: true, children: leaves("k", 400))])
     let window = try listWindow(model)
@@ -287,7 +292,7 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
     for _ in 0..<12 { idleFrame(window) }
     #expect(hits(window.frameWork) == 12 && evaluations(window.frameWork) == 0, "\(hits(window.frameWork))")
     model.roots[0].children[5].name = "renamed"
-    window.tick()
+    try await window.runUntilIdle()
     #expect(rebuilds(window.frameWork) == 1)
     #expect(Bodies.seen == before, "serials moved: \(Bodies.seen.filter { before[$0.key] != $0.value }.count) rows")
 }
@@ -296,7 +301,7 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
 
 /// **The reveal still lands the row the same frame.** Expanding two groups by the model, selecting a row and `scrollTo` it in
 /// ONE transaction: the observation fires, the walk runs once, and the row is in view after two frames.
-@Test @MainActor func theRevealLandsTheRowOverTheCache() throws {
+@Test @MainActor func theRevealLandsTheRowOverTheCache() async throws {
     let tree = (0..<3).map { r in PNode("R\(r)", children: [PNode("R\(r)/S", children: leaves("R\(r)/S/L", 20))]) }
     let model = PModel(tree)
     let window = try listWindow(model)
@@ -305,8 +310,8 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
     model.roots[2].children[0].isExpanded = true
     model.selection = "R2/S/L15"
     model.proxy?.scrollTo("R2/S/L15")
-    window.tick()
-    window.tick()
+    try await window.runUntilIdle()
+    
     let rows = ((try? window.elements(role: .row)) ?? []).filter(\.isSelected)
     let target = try #require(rows.first, "the selected row is realised")
     let top = target.frame.origin.y.value, bottom = top + target.frame.size.height.value
