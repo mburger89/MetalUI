@@ -1,6 +1,13 @@
 import MetalUICore
 import MetalUILayout
 
+/// **A `List` is data-driven or content-driven** (divergence 84, amended; `OG-A`, record 314). Everything below is the
+/// DATA form, `List(_ data:rowHeight:row:)` and its siblings. The CONTENT form, `List(selection:content:)`,
+/// `List(content:)` and the outline `List(_:children:...)` inits, is `List<ListContentRows<SelectionValue>,
+/// ListContentBody<Content>>`: lane 2's lazy tree (a `ForEach`, `DisclosureGroup`, `OutlineGroup`) run by a
+/// ``ListContentEngine`` in `.sidebar` rows (32 points high, indented 12 per level, a leaf reserving the chevron slot),
+/// sharing this form's selection controller (``ListSelectionController``). See `ListContent.swift`.
+///
 /// A vertically stacked sequence of rows built from data — uniformly sized
 /// (`List(_:rowHeight:row:)`) or sized by their content (`List(_:rowContent:)`,
 /// rulings `VL-A`…`VL-T`).

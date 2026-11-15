@@ -23,8 +23,11 @@ public struct ListContentRow<SelectionValue: Hashable>: Identifiable {
 /// empty collection that only names the selection type, `List<ListContentRows<SelectionValue>, ListContentBody<Content>>`
 /// (class `M`; SwiftUI's `List<SelectionValue, Content>` has no collection parameter).
 public struct ListContentRows<SelectionValue: Hashable>: RandomAccessCollection {
+    /// Always 0: the collection is empty.
     public var startIndex: Int { 0 }
+    /// Always 0: the collection is empty.
     public var endIndex: Int { 0 }
+    /// Never reachable: the collection has no rows.
     public subscript(position: Int) -> ListContentRow<SelectionValue> {
         preconditionFailure("a content List has no data rows")
     }
