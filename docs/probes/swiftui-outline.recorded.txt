@@ -1,0 +1,904 @@
+--- P-L1 / P-L2: row height, indentation, chevron cell, label x (window 300x400, expanded A, A/B, M)
+sidebar/data: rows=8 indentationPerLevel=12 intercell=(0,0 3x0) rowSizeStyle=2 style=3 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A [group] level=0 rect=(0,10 300x32) outlineCell=(12,10 13x32) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 1 A/B [group] level=1 rect=(0,42 300x32) outlineCell=(24,42 13x32) cellMinX=37 labelX(swiftui .global)=37 labelH=16
+  row 2 A/B/D [leaf] level=2 rect=(0,74 300x32) outlineCell=(0,0 0x0) cellMinX=49 labelX(swiftui .global)=49 labelH=16
+  row 3 A/B/E [leaf] level=2 rect=(0,106 300x32) outlineCell=(0,0 0x0) cellMinX=49 labelX(swiftui .global)=49 labelH=16
+  row 4 A/C [leaf] level=1 rect=(0,138 300x32) outlineCell=(0,0 0x0) cellMinX=37 labelX(swiftui .global)=37 labelH=16
+  row 5 Z [leaf] level=0 rect=(0,170 300x32) outlineCell=(0,0 0x0) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 6 M [group] level=0 rect=(0,202 300x32) outlineCell=(12,202 13x32) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 7 M/N [leaf] level=1 rect=(0,234 300x32) outlineCell=(0,0 0x0) cellMinX=37 labelX(swiftui .global)=37 labelH=16
+sidebar/content: rows=8 indentationPerLevel=12 intercell=(0,0 3x0) rowSizeStyle=2 style=3 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A [group] level=0 rect=(0,10 300x32) outlineCell=(12,10 13x32) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 1 A/B [group] level=1 rect=(0,42 300x32) outlineCell=(24,42 13x32) cellMinX=37 labelX(swiftui .global)=37 labelH=16
+  row 2 A/B/D [leaf] level=2 rect=(0,74 300x32) outlineCell=(0,0 0x0) cellMinX=49 labelX(swiftui .global)=49 labelH=16
+  row 3 A/B/E [leaf] level=2 rect=(0,106 300x32) outlineCell=(0,0 0x0) cellMinX=49 labelX(swiftui .global)=49 labelH=16
+  row 4 A/C [leaf] level=1 rect=(0,138 300x32) outlineCell=(0,0 0x0) cellMinX=37 labelX(swiftui .global)=37 labelH=16
+  row 5 Z [leaf] level=0 rect=(0,170 300x32) outlineCell=(0,0 0x0) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 6 M [group] level=0 rect=(0,202 300x32) outlineCell=(12,202 13x32) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 7 M/N [leaf] level=1 rect=(0,234 300x32) outlineCell=(0,0 0x0) cellMinX=37 labelX(swiftui .global)=37 labelH=16
+automatic/data: rows=8 indentationPerLevel=13 intercell=(0,0 17x0) rowSizeStyle=0 style=2 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A [group] level=0 rect=(0,10 300x24) outlineCell=(12,10 13x24) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 1 A/B [group] level=1 rect=(0,34 300x24) outlineCell=(25,34 13x24) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+  row 2 A/B/D [leaf] level=2 rect=(0,58 300x24) outlineCell=(0,0 0x0) cellMinX=51 labelX(swiftui .global)=51 labelH=16
+  row 3 A/B/E [leaf] level=2 rect=(0,82 300x24) outlineCell=(0,0 0x0) cellMinX=51 labelX(swiftui .global)=51 labelH=16
+  row 4 A/C [leaf] level=1 rect=(0,106 300x24) outlineCell=(0,0 0x0) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+  row 5 Z [leaf] level=0 rect=(0,130 300x24) outlineCell=(0,0 0x0) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 6 M [group] level=0 rect=(0,154 300x24) outlineCell=(12,154 13x24) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 7 M/N [leaf] level=1 rect=(0,178 300x24) outlineCell=(0,0 0x0) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+automatic/content: rows=8 indentationPerLevel=13 intercell=(0,0 17x0) rowSizeStyle=0 style=2 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A [group] level=0 rect=(0,10 300x24) outlineCell=(12,10 13x24) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 1 A/B [group] level=1 rect=(0,34 300x24) outlineCell=(25,34 13x24) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+  row 2 A/B/D [leaf] level=2 rect=(0,58 300x24) outlineCell=(0,0 0x0) cellMinX=51 labelX(swiftui .global)=51 labelH=16
+  row 3 A/B/E [leaf] level=2 rect=(0,82 300x24) outlineCell=(0,0 0x0) cellMinX=51 labelX(swiftui .global)=51 labelH=16
+  row 4 A/C [leaf] level=1 rect=(0,106 300x24) outlineCell=(0,0 0x0) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+  row 5 Z [leaf] level=0 rect=(0,130 300x24) outlineCell=(0,0 0x0) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 6 M [group] level=0 rect=(0,154 300x24) outlineCell=(12,154 13x24) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 7 M/N [leaf] level=1 rect=(0,178 300x24) outlineCell=(0,0 0x0) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+inset/data: rows=8 indentationPerLevel=13 intercell=(0,0 17x0) rowSizeStyle=0 style=2 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A [group] level=0 rect=(0,10 300x24) outlineCell=(12,10 13x24) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 1 A/B [group] level=1 rect=(0,34 300x24) outlineCell=(25,34 13x24) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+  row 2 A/B/D [leaf] level=2 rect=(0,58 300x24) outlineCell=(0,0 0x0) cellMinX=51 labelX(swiftui .global)=51 labelH=16
+  row 3 A/B/E [leaf] level=2 rect=(0,82 300x24) outlineCell=(0,0 0x0) cellMinX=51 labelX(swiftui .global)=51 labelH=16
+  row 4 A/C [leaf] level=1 rect=(0,106 300x24) outlineCell=(0,0 0x0) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+  row 5 Z [leaf] level=0 rect=(0,130 300x24) outlineCell=(0,0 0x0) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 6 M [group] level=0 rect=(0,154 300x24) outlineCell=(12,154 13x24) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 7 M/N [leaf] level=1 rect=(0,178 300x24) outlineCell=(0,0 0x0) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+inset/content: rows=8 indentationPerLevel=13 intercell=(0,0 17x0) rowSizeStyle=0 style=2 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A [group] level=0 rect=(0,10 300x24) outlineCell=(12,10 13x24) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 1 A/B [group] level=1 rect=(0,34 300x24) outlineCell=(25,34 13x24) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+  row 2 A/B/D [leaf] level=2 rect=(0,58 300x24) outlineCell=(0,0 0x0) cellMinX=51 labelX(swiftui .global)=51 labelH=16
+  row 3 A/B/E [leaf] level=2 rect=(0,82 300x24) outlineCell=(0,0 0x0) cellMinX=51 labelX(swiftui .global)=51 labelH=16
+  row 4 A/C [leaf] level=1 rect=(0,106 300x24) outlineCell=(0,0 0x0) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+  row 5 Z [leaf] level=0 rect=(0,130 300x24) outlineCell=(0,0 0x0) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 6 M [group] level=0 rect=(0,154 300x24) outlineCell=(12,154 13x24) cellMinX=25 labelX(swiftui .global)=25 labelH=16
+  row 7 M/N [leaf] level=1 rect=(0,178 300x24) outlineCell=(0,0 0x0) cellMinX=38 labelX(swiftui .global)=38 labelH=16
+plain/data: rows=8 indentationPerLevel=13 intercell=(0,0 17x0) rowSizeStyle=0 style=4 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A [group] level=0 rect=(0,0 300x24) outlineCell=(2,0 12x24) cellMinX=26 labelX(swiftui .global)=26 labelH=16
+  row 1 A/B [group] level=1 rect=(0,24 300x24) outlineCell=(15,24 12x24) cellMinX=39 labelX(swiftui .global)=39 labelH=16
+  row 2 A/B/D [leaf] level=2 rect=(0,48 300x24) outlineCell=(0,0 0x0) cellMinX=52 labelX(swiftui .global)=52 labelH=16
+  row 3 A/B/E [leaf] level=2 rect=(0,72 300x24) outlineCell=(0,0 0x0) cellMinX=52 labelX(swiftui .global)=52 labelH=16
+  row 4 A/C [leaf] level=1 rect=(0,96 300x24) outlineCell=(0,0 0x0) cellMinX=39 labelX(swiftui .global)=39 labelH=16
+  row 5 Z [leaf] level=0 rect=(0,120 300x24) outlineCell=(0,0 0x0) cellMinX=26 labelX(swiftui .global)=26 labelH=16
+  row 6 M [group] level=0 rect=(0,144 300x24) outlineCell=(2,144 12x24) cellMinX=26 labelX(swiftui .global)=26 labelH=16
+  row 7 M/N [leaf] level=1 rect=(0,168 300x24) outlineCell=(0,0 0x0) cellMinX=39 labelX(swiftui .global)=39 labelH=16
+plain/content: rows=8 indentationPerLevel=13 intercell=(0,0 17x0) rowSizeStyle=0 style=4 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A [group] level=0 rect=(0,0 300x24) outlineCell=(2,0 12x24) cellMinX=26 labelX(swiftui .global)=26 labelH=16
+  row 1 A/B [group] level=1 rect=(0,24 300x24) outlineCell=(15,24 12x24) cellMinX=39 labelX(swiftui .global)=39 labelH=16
+  row 2 A/B/D [leaf] level=2 rect=(0,48 300x24) outlineCell=(0,0 0x0) cellMinX=52 labelX(swiftui .global)=52 labelH=16
+  row 3 A/B/E [leaf] level=2 rect=(0,72 300x24) outlineCell=(0,0 0x0) cellMinX=52 labelX(swiftui .global)=52 labelH=16
+  row 4 A/C [leaf] level=1 rect=(0,96 300x24) outlineCell=(0,0 0x0) cellMinX=39 labelX(swiftui .global)=39 labelH=16
+  row 5 Z [leaf] level=0 rect=(0,120 300x24) outlineCell=(0,0 0x0) cellMinX=26 labelX(swiftui .global)=26 labelH=16
+  row 6 M [group] level=0 rect=(0,144 300x24) outlineCell=(2,144 12x24) cellMinX=26 labelX(swiftui .global)=26 labelH=16
+  row 7 M/N [leaf] level=1 rect=(0,168 300x24) outlineCell=(0,0 0x0) cellMinX=39 labelX(swiftui .global)=39 labelH=16
+sidebar/flat (control: List of rows without children): rows=8 indentationPerLevel=13 intercell=(0,0 3x0) rowSizeStyle=2 style=3 autoresizesOutlineColumn=false indentationMarkerFollowsCell=true
+  row 0 A level=0 rect=(0,10 300x32) outlineCell=(0,0 0x0) cellMinX=16 labelX(swiftui .global)=16 labelH=16
+  row 1 A/B level=0 rect=(0,42 300x32) outlineCell=(0,0 0x0) cellMinX=16 labelX(swiftui .global)=16 labelH=16
+  row 2 A/B/D level=0 rect=(0,74 300x32) outlineCell=(0,0 0x0) cellMinX=16 labelX(swiftui .global)=16 labelH=16
+  row 3 A/B/E level=0 rect=(0,106 300x32) outlineCell=(0,0 0x0) cellMinX=16 labelX(swiftui .global)=16 labelH=16
+  row 4 A/C level=0 rect=(0,138 300x32) outlineCell=(0,0 0x0) cellMinX=16 labelX(swiftui .global)=16 labelH=16
+  row 5 Z level=0 rect=(0,170 300x32) outlineCell=(0,0 0x0) cellMinX=16 labelX(swiftui .global)=16 labelH=16
+  row 6 M level=0 rect=(0,202 300x32) outlineCell=(0,0 0x0) cellMinX=16 labelX(swiftui .global)=16 labelH=16
+  row 7 M/N level=0 rect=(0,234 300x32) outlineCell=(0,0 0x0) cellMinX=16 labelX(swiftui .global)=16 labelH=16
+  flat control NSOutlineView? true  NSTableView? true
+--- P-L3: chevron glyph, colour, angle (sidebar, light then dark)
+      collapsed |..........................|
+      collapsed |..........................|
+      collapsed |..........................|
+      collapsed |..........................|
+      collapsed |..........................|
+      collapsed |..........................|
+      collapsed |..........................|
+      collapsed |..........................|
+      collapsed |..........++++............|
+      collapsed |..........++++............|
+      collapsed |..........+###++..........|
+      collapsed |..........++##++..........|
+      collapsed |............+###++........|
+      collapsed |............++##++........|
+      collapsed |..............+###++......|
+      collapsed |..............+###++......|
+      collapsed |...............+####......|
+      collapsed |...............+####......|
+      collapsed |.............+####++......|
+      collapsed |............++####+.......|
+      collapsed |...........+####++........|
+      collapsed |..........++####+.........|
+      collapsed |..........####++..........|
+      collapsed |..........####+...........|
+      collapsed |..........++++............|
+      collapsed |...........+..............|
+      collapsed |..........................|
+      collapsed |..........................|
+  light/data collapsed: cell=(12,10 13x32) glyph bbox=(17,23 5x8) (w x h) colour=#808080 a=0.94 imageView layer angle=0° button image=nil symbol desc=- button state=0 isTemplate=true imageSize=(13.0, 13.0)
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |......++...........+......|
+      expanded |....++##++.......+##++....|
+      expanded |....++##++......++###+....|
+      expanded |......+###++....####++....|
+      expanded |......++##++...+####+.....|
+      expanded |.......+####++####++......|
+      expanded |........+###++####+.......|
+      expanded |.........+######++........|
+      expanded |..........######+.........|
+      expanded |...........+++++..........|
+      expanded |............+++...........|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+      expanded |..........................|
+  light/data expanded: cell=(12,10 13x32) glyph bbox=(14.5,26 8.5x5) (w x h) colour=#808080 a=0.93 imageView layer angle=0° button image=nil symbol desc=- button state=1 isTemplate=true imageSize=(13.0, 13.0)
+  light/content collapsed: cell=(12,10 13x32) glyph bbox=(17,23 5x8) (w x h) colour=#808080 a=0.94 imageView layer angle=0° button image=nil symbol desc=- button state=0 isTemplate=true imageSize=(13.0, 13.0)
+  light/content expanded: cell=(12,10 13x32) glyph bbox=(14.5,26 8.5x5) (w x h) colour=#808080 a=0.93 imageView layer angle=0° button image=nil symbol desc=- button state=1 isTemplate=true imageSize=(13.0, 13.0)
+  dark/data collapsed: cell=(12,10 13x32) glyph bbox=(17,23 5x8) (w x h) colour=#7C7C7C a=0.94 imageView layer angle=0° button image=nil symbol desc=- button state=0 isTemplate=true imageSize=(13.0, 13.0)
+  dark/data expanded: cell=(12,10 13x32) glyph bbox=(14.5,26 8.5x5) (w x h) colour=#7B7B7B a=0.93 imageView layer angle=0° button image=nil symbol desc=- button state=1 isTemplate=true imageSize=(13.0, 13.0)
+  dark/content collapsed: cell=(12,10 13x32) glyph bbox=(17,23 5x8) (w x h) colour=#7C7C7C a=0.94 imageView layer angle=0° button image=nil symbol desc=- button state=0 isTemplate=true imageSize=(13.0, 13.0)
+  dark/content expanded: cell=(12,10 13x32) glyph bbox=(14.5,26 8.5x5) (w x h) colour=#7B7B7B a=0.93 imageView layer angle=0° button image=nil symbol desc=- button state=1 isTemplate=true imageSize=(13.0, 13.0)
+--- P-L4: selection highlight (sidebar, key window), scanning an outline snapshot at 2x
+  light: row rect=(0,138 300x32) highlight x 10...290 (left inset 10, right inset 10), y 138...170 (top inset 0, bottom inset 0)
+       corner profile (2x px offset of first lit pixel for the first 14 columns): [13, 9, 7, 6, 5, 4, 3, 2, 2, 1, 1, 1, 1, 0] snapshot pixel=#000000 a=1.00 (NOT the drawn colour: the selection blends against the sidebar material, which a snapshot does not capture) windowIsKey=true selectionHighlightStyle=1
+       rowView=ListTableRowView isEmphasized=false isSelected=true interiorBackgroundStyle=0 layer.cornerRadius=0 layer.masksToBounds=true
+       AppKit colours for the same states (not read from the drawing): selectedContentBackground=#0059D1 a=1.00 unemphasizedSelectedContentBackground=#464646 a=1.00 controlAccent=#007AFF a=1.00
+  dark: row rect=(0,138 300x32) highlight x 10...290 (left inset 10, right inset 10), y 138...170 (top inset 0, bottom inset 0)
+       corner profile (2x px offset of first lit pixel for the first 14 columns): [13, 9, 7, 6, 5, 4, 3, 2, 2, 1, 1, 1, 1, 0] snapshot pixel=#000000 a=1.00 (NOT the drawn colour: the selection blends against the sidebar material, which a snapshot does not capture) windowIsKey=true selectionHighlightStyle=1
+       rowView=ListTableRowView isEmphasized=false isSelected=true interiorBackgroundStyle=0 layer.cornerRadius=0 layer.masksToBounds=true
+       AppKit colours for the same states (not read from the drawing): selectedContentBackground=#0059D1 a=1.00 unemphasizedSelectedContentBackground=#464646 a=1.00 controlAccent=#007AFF a=1.00
+--- P-K1..K7: keys (events sent to the window with NSEvent; first responder = the outline view)
+  K1 down,down,down,up from A (A, A/B open) [List(_:children:)]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | A/B+ | A/B/D | *A/B/E | A/C | Z | M-
+      after:  A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      model.sel = A/B/D
+  [run-loop turn +0] selection = A/B
+  [run-loop turn +4] selection = A/B/D
+  [run-loop turn +8] selection = A/B/E
+  [run-loop turn +12] selection = A/B/D
+  K1 down,down,down,up from A (A, A/B open) [List { OutlineGroup }]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | A/B+ | A/B/D | *A/B/E | A/C | Z | M-
+      after:  A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      model.sel = A/B/D
+  [run-loop turn +0] selection = A/B
+  [run-loop turn +4] selection = A/B/D
+  [run-loop turn +8] selection = A/B/E
+  [run-loop turn +12] selection = A/B/D
+  K1 down,down,down,up from A (A, A/B open) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after down: A+ | A/B+ | A/B/D | *A/B/E | A/C | Z | M-
+      after:  A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      model.expanded = ["A", "A/B"]  model.sel = A/B/D
+  [run-loop turn +0] selection = A/B
+  [run-loop turn +4] selection = A/B/D
+  [run-loop turn +8] selection = A/B/E
+  [run-loop turn +12] selection = A/B/D
+  K2a right on collapsed A [List(_:children:)]
+      before: *A- | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  K2a right on collapsed A [List { OutlineGroup }]
+      before: *A- | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  K2a right on collapsed A [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A- | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = A
+  [run-loop turn +0] isExpanded[A] = true
+  K2b right on expanded A [List(_:children:)]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  K2b right on expanded A [List { OutlineGroup }]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  K2b right on expanded A [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = A
+  K2c right on leaf Z [List(_:children:)]
+      before: A- | *Z | M-
+      after:  A- | *Z | M-
+      model.sel = Z
+  K2c right on leaf Z [List { OutlineGroup }]
+      before: A- | *Z | M-
+      after:  A- | *Z | M-
+      model.sel = Z
+  K2c right on leaf Z [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A- | *Z | M-
+      after:  A- | *Z | M-
+      model.expanded = []  model.sel = Z
+  K3a left on expanded A [List(_:children:)]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  K3a left on expanded A [List { OutlineGroup }]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  K3a left on expanded A [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A- | Z | M-
+      model.expanded = []  model.sel = A
+  [run-loop turn +0] isExpanded[A] = false
+  K3b left on collapsed A (a root) [List(_:children:)]
+      before: *A- | Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  K3b left on collapsed A (a root) [List { OutlineGroup }]
+      before: *A- | Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  K3b left on collapsed A (a root) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A- | Z | M-
+      after:  *A- | Z | M-
+      model.expanded = []  model.sel = A
+  K3c left on leaf child A/C [List(_:children:)]
+      before: A+ | A/B- | *A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  [run-loop turn +0] selection = A
+  K3c left on leaf child A/C [List { OutlineGroup }]
+      before: A+ | A/B- | *A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  [run-loop turn +0] selection = A
+  K3c left on leaf child A/C [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | A/B- | *A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = A
+  [run-loop turn +0] selection = A
+  K3d left on collapsed child group A/B [List(_:children:)]
+      before: A+ | *A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  [run-loop turn +0] selection = A
+  K3d left on collapsed child group A/B [List { OutlineGroup }]
+      before: A+ | *A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  [run-loop turn +0] selection = A
+  K3d left on collapsed child group A/B [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | *A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = A
+  [run-loop turn +0] selection = A
+  K3e left on expanded child group A/B [List(_:children:)]
+      before: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | *A/B- | A/C | Z | M-
+      model.sel = A/B
+  K3e left on expanded child group A/B [List { OutlineGroup }]
+      before: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | *A/B- | A/C | Z | M-
+      model.sel = A/B
+  K3e left on expanded child group A/B [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | *A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = A/B
+  [run-loop turn +0] isExpanded[A/B] = false
+  K4a option-right on collapsed A (descendants collapsed) [List(_:children:)]
+      before: *A- | Z | M-
+      after 1 settle: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      model.sel = A
+  K4a option-right on collapsed A (descendants collapsed) [List { OutlineGroup }]
+      before: *A- | Z | M-
+      after 1 settle: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      model.sel = A
+  K4a option-right on collapsed A (descendants collapsed) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A- | Z | M-
+      after 1 settle: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      model.expanded = ["A", "A/B"]  model.sel = A
+  [run-loop turn +1] isExpanded[A] = true
+  [run-loop turn +1] isExpanded[A/B] = true
+  K4b option-right on expanded A (A/B collapsed) [List(_:children:)]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  K4b option-right on expanded A (A/B collapsed) [List { OutlineGroup }]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.sel = A
+  K4b option-right on expanded A (A/B collapsed) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A+ | A/B- | A/C | Z | M-
+      after:  *A+ | A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = A
+  K4c option-right on collapsed A, no settle between turns (log shows turn spread) [List(_:children:)]
+      before: *A- | Z | M-
+      after:  *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      model.sel = A
+  K4c option-right on collapsed A, no settle between turns (log shows turn spread) [List { OutlineGroup }]
+      before: *A- | Z | M-
+      after:  *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      model.sel = A
+  K4c option-right on collapsed A, no settle between turns (log shows turn spread) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A- | Z | M-
+      after:  *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      model.expanded = ["A", "A/B"]  model.sel = A
+  [run-loop turn +1] isExpanded[A] = true
+  [run-loop turn +1] isExpanded[A/B] = true
+  K4d option-right on collapsed A over a 5-deep chain [List(_:children:)]
+      before: *A- | Z
+      after the key + 4 turns: *A+ | A/B+ | A/B/F+ | A/B/F/G+ | A/B/F/G/H | A/C | Z
+      after:  *A+ | A/B+ | A/B/F+ | A/B/F/G+ | A/B/F/G/H | A/C | Z
+      model.sel = A
+  K4d option-right on collapsed A over a 5-deep chain [List { OutlineGroup }]
+      before: *A- | Z
+      after the key + 4 turns: *A+ | A/B+ | A/B/F+ | A/B/F/G+ | A/B/F/G/H | A/C | Z
+      after:  *A+ | A/B+ | A/B/F+ | A/B/F/G+ | A/B/F/G/H | A/C | Z
+      model.sel = A
+  K4d option-right on collapsed A over a 5-deep chain [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A- | Z
+      after the key + 4 turns: *A+ | A/B+ | A/B/F+ | A/B/F/G+ | A/B/F/G/H | A/C | Z
+      after:  *A+ | A/B+ | A/B/F+ | A/B/F/G+ | A/B/F/G/H | A/C | Z
+      model.expanded = ["A", "A/B", "A/B/F", "A/B/F/G"]  model.sel = A
+  [run-loop turn +1] isExpanded[A] = true
+  [run-loop turn +1] isExpanded[A/B] = true
+  [run-loop turn +1] isExpanded[A/B/F] = true
+  [run-loop turn +1] isExpanded[A/B/F/G] = true
+  K5 option-left on A (A, A/B open) [List(_:children:)]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  K5 option-left on A (A, A/B open) [List { OutlineGroup }]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  K5 option-left on A (A, A/B open) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  *A- | Z | M-
+      model.expanded = []  model.sel = A
+  [run-loop turn +1] isExpanded[A] = false
+  [run-loop turn +1] isExpanded[A/B] = false
+  K5b option-left on A/B (A, A/B open): descendants only [List(_:children:)]
+      before: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | *A/B- | A/C | Z | M-
+      model.sel = A/B
+  K5b option-left on A/B (A, A/B open): descendants only [List { OutlineGroup }]
+      before: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | *A/B- | A/C | Z | M-
+      model.sel = A/B
+  K5b option-left on A/B (A, A/B open): descendants only [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | *A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | *A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = A/B
+  [run-loop turn +1] isExpanded[A/B] = false
+--- P-K7: collapsing an ancestor of the selection (A, A/B open, selection A/B/D)
+  K7a chevron click on A [List(_:children:)]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | M-
+      model.sel = A/B/D
+  K7a chevron click on A [List { OutlineGroup }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | M-
+      model.sel = A/B/D
+  K7a chevron click on A [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | M-
+      model.expanded = ["A/B"]  model.sel = A/B/D
+  [run-loop turn +3] isExpanded[A] = false
+  K7b programmatic collapse of A [List(_:children:)]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | M-
+      model.sel = A/B/D
+  K7b programmatic collapse of A [List { OutlineGroup }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | M-
+      model.sel = A/B/D
+  K7b programmatic collapse of A [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | M-
+      model.expanded = ["A/B"]  model.sel = A/B/D
+  K7c chevron click on A/B (selection A/B/D, one level down) [List(_:children:)]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | A/B- | A/C | Z | M-
+      model.sel = A/B/D
+  K7c chevron click on A/B (selection A/B/D, one level down) [List { OutlineGroup }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | A/B- | A/C | Z | M-
+      model.sel = A/B/D
+  K7c chevron click on A/B (selection A/B/D, one level down) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A+ | A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = A/B/D
+  [run-loop turn +3] isExpanded[A/B] = false
+  K7e the selection is hidden by a chevron click on A, then down arrow [List(_:children:)]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after the chevron click: A- | Z | M- model.sel = A/B/D
+      after:  *A- | Z | M-
+      model.sel = A
+  [run-loop turn +16] selection = A
+  K7e the selection is hidden by a chevron click on A, then down arrow [List { OutlineGroup }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after the chevron click: A- | Z | M- model.sel = A/B/D
+      after:  *A- | Z | M-
+      model.sel = A
+  [run-loop turn +16] selection = A
+  K7e the selection is hidden by a chevron click on A, then down arrow [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after the chevron click: A- | Z | M- model.sel = A/B/D
+      after:  *A- | Z | M-
+      model.expanded = ["A/B"]  model.sel = A
+  [run-loop turn +3] isExpanded[A] = false
+  [run-loop turn +16] selection = A
+  K7f the selection is hidden by a chevron click on A, then up arrow [List(_:children:)]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | *M-
+      model.sel = M
+  [run-loop turn +16] selection = M
+  K7f the selection is hidden by a chevron click on A, then up arrow [List { OutlineGroup }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | *M-
+      model.sel = M
+  [run-loop turn +16] selection = M
+  K7f the selection is hidden by a chevron click on A, then up arrow [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | A/B+ | *A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | Z | *M-
+      model.expanded = ["A/B"]  model.sel = M
+  [run-loop turn +3] isExpanded[A] = false
+  [run-loop turn +17] selection = M
+  K7d keyboard: select A, collapse with left, then down (is a collapsed A's selection kept?) [List(_:children:)]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | *Z | M-
+      model.sel = Z
+  [run-loop turn +9] selection = Z
+  K7d keyboard: select A, collapse with left, then down (is a collapsed A's selection kept?) [List { OutlineGroup }]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | *Z | M-
+      model.sel = Z
+  [run-loop turn +9] selection = Z
+  K7d keyboard: select A, collapse with left, then down (is a collapsed A's selection kept?) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: *A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      after:  A- | *Z | M-
+      model.expanded = ["A/B"]  model.sel = Z
+  [run-loop turn +0] isExpanded[A] = false
+  [run-loop turn +9] selection = Z
+--- P-C1: does a chevron click select the row? option-click on a chevron?
+  C1a chevron click on A, nothing selected [List(_:children:)]
+      before: A- | Z | M-
+      after:  A+ | A/B- | A/C | Z | M-
+      model.sel = nil
+  C1a chevron click on A, nothing selected [List { OutlineGroup }]
+      before: A- | Z | M-
+      after:  A+ | A/B- | A/C | Z | M-
+      model.sel = nil
+  C1a chevron click on A, nothing selected [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A- | Z | M-
+      after:  A+ | A/B- | A/C | Z | M-
+      model.expanded = ["A"]  model.sel = nil
+  [run-loop turn +3] isExpanded[A] = true
+  C1b chevron click on A, selection on Z [List(_:children:)]
+      before: A- | *Z | M-
+      after:  A+ | A/B- | A/C | *Z | M-
+      model.sel = Z
+  C1b chevron click on A, selection on Z [List { OutlineGroup }]
+      before: A- | *Z | M-
+      after:  A+ | A/B- | A/C | *Z | M-
+      model.sel = Z
+  C1b chevron click on A, selection on Z [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A- | *Z | M-
+      after:  A+ | A/B- | A/C | *Z | M-
+      model.expanded = ["A"]  model.sel = Z
+  [run-loop turn +3] isExpanded[A] = true
+  C1c option-click on the chevron of A (descendants collapsed) [List(_:children:)]
+      before: A- | *Z | M-
+      after:  A+ | A/B+ | A/B/D | A/B/E | A/C | *Z | M-
+      model.sel = Z
+  C1c option-click on the chevron of A (descendants collapsed) [List { OutlineGroup }]
+      before: A- | *Z | M-
+      after:  A+ | A/B+ | A/B/D | A/B/E | A/C | *Z | M-
+      model.sel = Z
+  C1c option-click on the chevron of A (descendants collapsed) [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A- | *Z | M-
+      after:  A+ | A/B+ | A/B/D | A/B/E | A/C | *Z | M-
+      model.expanded = ["A", "A/B"]  model.sel = Z
+  [run-loop turn +4] isExpanded[A] = true
+  [run-loop turn +4] isExpanded[A/B] = true
+  C1d plain click on the row of A (not the chevron), selection Z [List(_:children:)]
+      before: A- | *Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  [run-loop turn +1] selection = A
+  C1d plain click on the row of A (not the chevron), selection Z [List { OutlineGroup }]
+      before: A- | *Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  [run-loop turn +1] selection = A
+  C1d plain click on the row of A (not the chevron), selection Z [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A- | *Z | M-
+      after:  *A- | Z | M-
+      model.expanded = []  model.sel = A
+  [run-loop turn +1] selection = A
+  C1e double-click on the row of A, no primaryAction installed [List(_:children:)]
+      before: A- | *Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  [run-loop turn +1] selection = A
+  C1e double-click on the row of A, no primaryAction installed [List { OutlineGroup }]
+      before: A- | *Z | M-
+      after:  *A- | Z | M-
+      model.sel = A
+  [run-loop turn +1] selection = A
+  C1e double-click on the row of A, no primaryAction installed [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A- | *Z | M-
+      after:  *A- | Z | M-
+      model.expanded = []  model.sel = A
+  [run-loop turn +1] selection = A
+--- P-E5: uncontrolled expansion retention (chevron clicks): expand A, expand A/B, collapse A, re-expand A
+  E5 [List(_:children:)]
+      start:               A- | Z | M-
+      expand A:            A+ | A/B- | A/C | Z | M-
+      expand A/B:          A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      collapse A:          A- | Z | M-
+      re-expand A:         A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+  E5 [List { OutlineGroup }]
+      start:               A- | Z | M-
+      expand A:            A+ | A/B- | A/C | Z | M-
+      expand A/B:          A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      collapse A:          A- | Z | M-
+      re-expand A:         A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+  E5 [List { ForEach { DisclosureGroup } } (no isExpanded)]
+      start:               A- | Z | M-
+      expand A:            A+ | A/B- | A/C | Z | M-
+      expand A/B:          A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+      collapse A:          A- | Z | M-
+      re-expand A:         A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+--- P-I1: move a node between parents; does a row's @State reset? (born#n = the n-th @State created; X moves A -> M)
+  I1 [List(_:children:)]
+      before: A+ | X | Y | M+ | N  born#: X=3 Y=4 N=5
+      after:  A+ | Y | M+ | N | X  born# (last appear): X=6 Y=4 N=5  (counter now 6)
+  [run-loop turn +1] disappear X
+  [run-loop turn +1] appear X @State born#6
+  I1 [List { OutlineGroup }]
+      before: A+ | X | Y | M+ | N  born#: X=3 Y=4 N=5
+      after:  A+ | Y | M+ | N | X  born# (last appear): X=6 Y=4 N=5  (counter now 6)
+  [run-loop turn +1] disappear X
+  [run-loop turn +1] appear X @State born#6
+  I1 [List { ForEach { DisclosureGroup(isExpanded:) } }]
+      before: A+ | X | Y | M+ | N  born#: X=3 Y=4 N=5
+      after:  A+ | Y | M+ | N | X  born# (last appear): X=6 Y=4 N=5  (counter now 6)
+  [run-loop turn +1] disappear X
+  [run-loop turn +1] appear X @State born#6
+--- P-N1..N3: animation (A collapsed above Z; samples every ~7 ms for ~1 s)
+  N1a chevron click, List(_:children:): Z row 1 -> 3  rows 5 (1 distinct)
+      Z row y in the outline (rect(ofRow:)): 106 (1 distinct)  first change at none, settled at none
+      Z row view presentation-layer y:       42.5 43.5 46 48 50.5 54 57.5 63.5 66.5 71 74.5 77 80.5 83.5 ... (32 distinct)  moving from 15 ms to 259 ms
+      chevron image-view presentation transform angle: 0 (1 distinct)  button.state: 1
+  N1b chevron click, content form: Z row 1 -> 3  rows 5 (1 distinct)
+      Z row y in the outline (rect(ofRow:)): 106 (1 distinct)  first change at none, settled at none
+      Z row view presentation-layer y:       42.5 44 45.5 48.5 51.5 54 58 63.5 66.5 71.5 74.5 78.5 81 84.5 ... (32 distinct)  moving from 16 ms to 254 ms
+      chevron image-view presentation transform angle: 0 (1 distinct)  button.state: 1
+  [run-loop turn +3] isExpanded[A] = true
+  N2  bare isExpanded = true (content form): Z row 1 -> 3  rows 5 (1 distinct)
+      Z row y in the outline (rect(ofRow:)): 106 (1 distinct)  first change at none, settled at none
+      Z row view presentation-layer y:       106 (1 distinct)  moving from - ms to - ms
+      chevron image-view presentation transform angle: 0 (1 distinct)  button.state: 1
+  N3  withAnimation(.easeInOut(duration: 0.6)) { isExpanded = true } (content form): Z row 1 -> 3  rows 5 (1 distinct)
+      Z row y in the outline (rect(ofRow:)): 106 (1 distinct)  first change at none, settled at none
+      Z row view presentation-layer y:       43 44 46.5 48.5 52.5 55.5 59 63.5 68 70.5 76 78.5 81 84.5 ... (32 distinct)  moving from 15 ms to 262 ms
+      chevron image-view presentation transform angle: 0 (1 distinct)  button.state: 1
+  N3b withAnimation(.linear(duration: 0.6)) around a chevron click (content form): Z row 1 -> 3  rows 5 (1 distinct)
+      Z row y in the outline (rect(ofRow:)): 106 (1 distinct)  first change at none, settled at none
+      Z row view presentation-layer y:       42.5 44 45.5 48 50.5 55 58 62.5 67 71 73.5 78 80 84 ... (32 distinct)  moving from 16 ms to 261 ms
+      chevron image-view presentation transform angle: 0 (1 distinct)  button.state: 1
+  [run-loop turn +5] isExpanded[A] = true
+  N4  bare NSOutlineView.expandItem (data form, AppKit control): Z row 1 -> 3  rows 5 (1 distinct)
+      Z row y in the outline (rect(ofRow:)): 106 (1 distinct)  first change at none, settled at none
+      Z row view presentation-layer y:       43 44 46 49 52 54.5 60 62.5 68 71.5 75 79 81.5 84.5 ... (32 distinct)  moving from 16 ms to 255 ms
+      chevron image-view presentation transform angle: 0 (1 distinct)  button.state: 1
+--- P-A1/A2: AX of outline rows, the disclosure triangle, and settable AXExpanded (macOS legacy attribute API in-process)
+  A [List(_:children:)]  snap: A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+    outline (SwiftUIOutlineListView): attributes = AXRole AXRoleDescription AXHelp AXFocused AXParent AXChildren AXChildrenInNavigationOrder AXWindow AXTopLevelUIElement AXPosition AXSize AXEnabled AXRows AXVisibleRows AXSelectedRows AXColumns AXVisibleColumns AXSelectedColumns AXHeader AXSelectedCells
+        AXRole = AXOutline settable=false
+        AXRows = [7: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, ...] settable=false
+        AXColumns = [1: <NSTableColumn AXColumn ->] settable=false
+        AXSelectedRows = [0] settable=true
+        AXVisibleRows = [7: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, ...] settable=false
+        actions = 
+    AXRows count = 7
+    row A (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 0 settable=false
+        AXDisclosing = 1 settable=true
+        AXDisclosedByRow = nil settable=false
+        AXDisclosedRows = [2: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 0 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        cell child[0] NSOutlineButtonCell role=AXDisclosureTriangle label=- value=1 title=-
+        cell attributes = AXRole AXRoleDescription AXParent AXChildren AXChildrenInNavigationOrder AXWindow AXTopLevelUIElement AXPosition AXSize AXFocused AXEnabled AXSelected AXRowIndexRange AXColumnIndexRange AXTitleUIElement AXDescription AXScrollToVisible
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/B (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 1 settable=false
+        AXDisclosing = 1 settable=true
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [2: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 1 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/C (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 1 settable=false
+        AXDisclosing = 0 settable=false
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [0] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 4 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/B/D (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 2 settable=false
+        AXDisclosing = 0 settable=false
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [0] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 2 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    AXExpanded among the row's attributes: false
+    set AXDisclosing=true on row M (settable=true): A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M+ | M/N
+    triangle: NSOutlineButtonCell subrole=- value=1 title=- description=- actions=["AXPress"] attributes=AXRole AXRoleDescription AXHelp AXValue AXEnabled AXFocused AXParent AXWindow AXTopLevelUIElement AXPosition AXSize
+    press on A's AXDisclosureTriangle: A- | Z | M+ | M/N  (triangle value now 0)
+  A [List { OutlineGroup }]  snap: A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+    outline (SwiftUIOutlineListView): attributes = AXRole AXRoleDescription AXHelp AXFocused AXParent AXChildren AXChildrenInNavigationOrder AXWindow AXTopLevelUIElement AXPosition AXSize AXEnabled AXRows AXVisibleRows AXSelectedRows AXColumns AXVisibleColumns AXSelectedColumns AXHeader AXSelectedCells
+        AXRole = AXOutline settable=false
+        AXRows = [7: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, ...] settable=false
+        AXColumns = [1: <NSTableColumn AXColumn ->] settable=false
+        AXSelectedRows = [0] settable=true
+        AXVisibleRows = [7: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, ...] settable=false
+        actions = 
+    AXRows count = 7
+    row A (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 0 settable=false
+        AXDisclosing = 1 settable=true
+        AXDisclosedByRow = nil settable=false
+        AXDisclosedRows = [2: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 0 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        cell child[0] NSOutlineButtonCell role=AXDisclosureTriangle label=- value=1 title=-
+        cell attributes = AXRole AXRoleDescription AXParent AXChildren AXChildrenInNavigationOrder AXWindow AXTopLevelUIElement AXPosition AXSize AXFocused AXEnabled AXSelected AXRowIndexRange AXColumnIndexRange AXTitleUIElement AXDescription AXScrollToVisible
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/B (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 1 settable=false
+        AXDisclosing = 1 settable=true
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [2: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 1 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/C (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 1 settable=false
+        AXDisclosing = 0 settable=false
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [0] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 4 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/B/D (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 2 settable=false
+        AXDisclosing = 0 settable=false
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [0] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 2 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    AXExpanded among the row's attributes: false
+    set AXDisclosing=true on row M (settable=true): A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M+ | M/N
+    triangle: NSOutlineButtonCell subrole=- value=1 title=- description=- actions=["AXPress"] attributes=AXRole AXRoleDescription AXHelp AXValue AXEnabled AXFocused AXParent AXWindow AXTopLevelUIElement AXPosition AXSize
+    press on A's AXDisclosureTriangle: A- | Z | M+ | M/N  (triangle value now 0)
+  A [List { ForEach { DisclosureGroup(isExpanded:) } }]  snap: A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M-
+    outline (SwiftUIOutlineListView): attributes = AXRole AXRoleDescription AXHelp AXFocused AXParent AXChildren AXChildrenInNavigationOrder AXWindow AXTopLevelUIElement AXPosition AXSize AXEnabled AXRows AXVisibleRows AXSelectedRows AXColumns AXVisibleColumns AXSelectedColumns AXHeader AXSelectedCells
+        AXRole = AXOutline settable=false
+        AXRows = [7: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, ...] settable=false
+        AXColumns = [1: <NSTableColumn AXColumn ->] settable=false
+        AXSelectedRows = [0] settable=true
+        AXVisibleRows = [7: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->, ...] settable=false
+        actions = 
+    AXRows count = 7
+    row A (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 0 settable=false
+        AXDisclosing = 1 settable=true
+        AXDisclosedByRow = nil settable=false
+        AXDisclosedRows = [2: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 0 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        cell child[0] NSOutlineButtonCell role=AXDisclosureTriangle label=- value=1 title=-
+        cell attributes = AXRole AXRoleDescription AXParent AXChildren AXChildrenInNavigationOrder AXWindow AXTopLevelUIElement AXPosition AXSize AXFocused AXEnabled AXSelected AXRowIndexRange AXColumnIndexRange AXTitleUIElement AXDescription AXScrollToVisible
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/B (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 1 settable=false
+        AXDisclosing = 1 settable=true
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [2: <NSOutlineRow AXRow ->, <NSOutlineRow AXRow ->] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 1 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/C (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 1 settable=false
+        AXDisclosing = 0 settable=false
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [0] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 4 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    row A/B/D (NSOutlineRow): attributes = AXRole AXRoleDescription AXSubrole AXParent AXChildren AXChildrenInNavigationOrder AXVisibleChildren AXWindow AXTopLevelUIElement AXPosition AXSize AXSelected AXIndex AXDisclosing AXDisclosedRows AXDisclosedByRow AXDisclosureLevel
+        AXRole = AXRow settable=false
+        AXSubrole = AXOutlineRow settable=false
+        AXRoleDescription = outline row settable=false
+        AXDisclosureLevel = 2 settable=false
+        AXDisclosing = 0 settable=false
+        AXDisclosedByRow = <NSOutlineRow AXRow -> settable=false
+        AXDisclosedRows = [0] settable=false
+        AXSelected = 0 settable=true
+        AXIndex = 2 settable=false
+        AXChildren = [1: <NSTableViewCellMockElement AXCell ->] settable=false
+        actions = 
+        child[0] NSTableViewCellMockElement role=AXCell subrole=- label=- value=- actions=[]
+    AXExpanded among the row's attributes: false
+    set AXDisclosing=true on row M (settable=true): A+ | A/B+ | A/B/D | A/B/E | A/C | Z | M+ | M/N
+  [run-loop turn +0] isExpanded[M] = true
+    triangle: NSOutlineButtonCell subrole=- value=1 title=- description=- actions=["AXPress"] attributes=AXRole AXRoleDescription AXHelp AXValue AXEnabled AXFocused AXParent AXWindow AXTopLevelUIElement AXPosition AXSize
+    press on A's AXDisclosureTriangle: A- | Z | M+ | M/N  (triangle value now 0)
+  [run-loop turn +0] isExpanded[A] = false
+--- P-M1..M4: contextMenu(forSelectionType:menu:primaryAction:) (menus built with NSOutlineView.menu(for:); right-click popups are not driven)
+  M [List(_:children:)]  start: A+ | A/B- | A/C | *Z | M-
+    M1  right-click on unselected row A/C: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = ["A/C"]
+    M1b right-click on the selected row: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = ["Z"]
+    M2  right-click on empty space below the rows: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = []
+    M3  double-click on leaf row A/C: snap A+ | A/B- | *A/C | Z | M-; model.sel = A/C
+  [run-loop turn +1] selection = A/C
+  [run-loop turn +4] primaryAction items = ["A/C"]
+    M3b double-click on group row A: snap *A+ | A/B- | A/C | Z | M-; model.sel = A
+  [run-loop turn +1] selection = A
+  [run-loop turn +4] primaryAction items = ["A"]
+    M4  Return with Z selected: model.sel = Z
+  [run-loop turn +0] primaryAction items = ["Z"]
+    M4b Return with group A selected: snap *A+ | A/B- | A/C | Z | M-
+  [run-loop turn +0] primaryAction items = ["A"]
+  M [List { OutlineGroup }]  start: A+ | A/B- | A/C | *Z | M-
+    M1  right-click on unselected row A/C: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = ["A/C"]
+    M1b right-click on the selected row: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = ["Z"]
+    M2  right-click on empty space below the rows: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = []
+    M3  double-click on leaf row A/C: snap A+ | A/B- | *A/C | Z | M-; model.sel = A/C
+  [run-loop turn +1] selection = A/C
+  [run-loop turn +4] primaryAction items = ["A/C"]
+    M3b double-click on group row A: snap *A+ | A/B- | A/C | Z | M-; model.sel = A
+  [run-loop turn +1] selection = A
+  [run-loop turn +4] primaryAction items = ["A"]
+    M4  Return with Z selected: model.sel = Z
+  [run-loop turn +0] primaryAction items = ["Z"]
+    M4b Return with group A selected: snap *A+ | A/B- | A/C | Z | M-
+  [run-loop turn +0] primaryAction items = ["A"]
+  M [List { ForEach { DisclosureGroup(isExpanded:) } }]  start: A+ | A/B- | A/C | *Z | M-
+    M1  right-click on unselected row A/C: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = ["A/C"]
+    M1b right-click on the selected row: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = ["Z"]
+    M2  right-click on empty space below the rows: menu = ["Act"]; snap: A+ | A/B- | A/C | *Z | M-; model.sel = Z
+  [run-loop turn +0] menu closure items = []
+    M3  double-click on leaf row A/C: snap A+ | A/B- | *A/C | Z | M-; model.sel = A/C
+  [run-loop turn +1] selection = A/C
+  [run-loop turn +4] primaryAction items = ["A/C"]
+    M3b double-click on group row A: snap *A+ | A/B- | A/C | Z | M-; model.sel = A
+  [run-loop turn +1] selection = A
+  [run-loop turn +4] primaryAction items = ["A"]
+    M4  Return with Z selected: model.sel = Z
+  [run-loop turn +0] primaryAction items = ["Z"]
+    M4b Return with group A selected: snap *A+ | A/B- | A/C | Z | M-
+  [run-loop turn +0] primaryAction items = ["A"]
+--- P-R1: in one transaction: ancestors isExpanded = true, selection = id, ScrollViewReader.scrollTo(id) (content form, 3 x 3 x 20 leaves, window 300x400)
+  R1a same transaction, scrollTo(id) default anchor
+      +16 ms (frame 0): row 20 at y=650 of 400 (out of view) scrollY=0 rows=26
+      model.sel = R2/S1/L15
+  [run-loop turn +0] selection = R2/S1/L15
+  R1b same transaction, anchor .center
+      +16 ms (frame 0): row 20 at y=650 of 400 (out of view) scrollY=0 rows=26
+      model.sel = R2/S1/L15
+  [run-loop turn +0] selection = R2/S1/L15
+  R1c same transaction, anchor .top
+      +20 ms (frame 0): row 20 at y=650 of 400 (out of view) scrollY=0 rows=26
+      model.sel = R2/S1/L15
+  [run-loop turn +0] selection = R2/S1/L15
+  R1d control: expand, 6 turns, then selection + scrollTo
+      +175 ms (frame 0): row 20 at y=368 of 400 (in view) scrollY=282 rows=26
+      model.sel = R2/S1/L15
+  [run-loop turn +10] selection = R2/S1/L15
+  R1f expansion + selection in one transaction, scrollTo 0 ms later (main queue)
+      +16 ms (frame 0): row 20 at y=650 of 400 (out of view) scrollY=0 rows=26
+      model.sel = R2/S1/L15
+  [run-loop turn +0] selection = R2/S1/L15
+  R1f expansion + selection in one transaction, scrollTo 20 ms later (main queue)
+      +19 ms (frame 0): row 20 at y=650 of 400 (out of view) scrollY=0 rows=26
+      +42 ms (frame 1): row 20 at y=368 of 400 (in view) scrollY=282 rows=26
+      model.sel = R2/S1/L15
+  [run-loop turn +0] selection = R2/S1/L15
+  R1f expansion + selection in one transaction, scrollTo 60 ms later (main queue)
+      +16 ms (frame 0): row 20 at y=650 of 400 (out of view) scrollY=0 rows=26
+      +66 ms (frame 3): row 20 at y=368 of 400 (in view) scrollY=282 rows=26
+      model.sel = R2/S1/L15
+  [run-loop turn +0] selection = R2/S1/L15
+  R1f expansion + selection in one transaction, scrollTo 120 ms later (main queue)
+      +16 ms (frame 0): row 20 at y=650 of 400 (out of view) scrollY=0 rows=26
+      +129 ms (frame 6): row 20 at y=368 of 400 (in view) scrollY=282 rows=26
+      model.sel = R2/S1/L15
+  [run-loop turn +0] selection = R2/S1/L15
+  R1e control: already expanded and offscreen, selection + scrollTo
+      +18 ms (frame 0): row 166 at y=368 of 400 (in view) scrollY=4954 rows=192
+      model.sel = R2/S1/L15
+  [run-loop turn +0] selection = R2/S1/L15
