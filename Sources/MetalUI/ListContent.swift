@@ -216,6 +216,7 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         hierarchical = lazyTreeCapableType(Content.self)
         stack = LazyStackEngine(content: content, spacing: Pixels(0), axis: .vertical,
                                 alignment: HorizontalAlignment.leading.proposalAlignment)
+        stack.cachesFlatten = true   // `OG-O`
     }
 
     // MARK: ids

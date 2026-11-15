@@ -163,13 +163,16 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
     /// Wraps each realised unit before it joins the layout (a content `List`'s row chrome, `OG-J`); `nil` for a plain lazy
     /// stack. Called with the container's units so the wrapper can ask a unit's id and tag.
     var unitWrapper: (@MainActor (LazyUnitBox, LazyUnitWrapContext, inout LayoutPass) -> LazyUnitBox)?
+    /// Whether the content's tree is flattened behind the content-form cache (a content `List`, `OG-O`).
+    var cachesFlatten = false
 
     private var scrollAxis: ScrollAxis { axis == .vertical ? .vertical : .horizontal }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, LazyStackState<Content>) {
         let spacing = spacing.map { Double($0.value) } ?? ProposalSpacing.platformDefault
         let axis = self.axis
-        guard let sources = lazyFlattenRoot(content, parent: id, pass: &pass) else {
+        guard let sources = cachesFlatten ? lazyFlattenRootCached(content, parent: id, pass: &pass)
+                : lazyFlattenRoot(content, parent: id, pass: &pass) else {
             // `LZ-B`, divergence 636: a member that is not a unit source makes the container eager.
             var cursor = 0
             let (children, contentLayout) = pass.frame.withStackAxis(axis) {

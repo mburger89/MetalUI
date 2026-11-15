@@ -108,6 +108,11 @@ enum StateBinder {
         return label
     }
 
+    /// Whether `type` declares an `@Environment` (known once the type has been bound; `false` before).
+    static func declaresEnvironment(_ type: Any.Type) -> Bool {
+        shapes[ObjectIdentifier(type)]?.hasEnvironment ?? false
+    }
+
     private static var shapes: [ObjectIdentifier: Shape] = [:]
 
     /// Test observability for the per-type cache. Not part of any contract.
