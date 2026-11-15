@@ -181,15 +181,24 @@ struct SplitLayout: ProposalLayout {
         let cross = offeredCross.flatMap { $0.isFinite ? $0 : nil }
         let measure: (Int, ProposedSize) -> SizeD = { subviews[$0].sizeThatFits($1).size }
         let paneLimits = limits(measure, cross: cross)
+        // `HS-J`: SwiftUI's split view answers the proposal it is offered, infinity included (probe
+        // `swiftui-nested-split-sizing.swift`), so a nested split view takes its share of its parent's axis. A nil
+        // proposal keeps the sum of the panes' ideals (SwiftUI answers 0).
         let main: Double
         if let offeredMain, offeredMain.isFinite {
             main = offeredMain
+        } else if offeredMain == .infinity {
+            main = .infinity
         } else {
             main = paneLimits.map(\.ideal).reduce(0, +) + dividersExtent
         }
-        let sizes = SplitSolver.solve(paneLimits, preferred: preferred, available: main - dividersExtent)
+        let sizes = main.isFinite
+            ? SplitSolver.solve(paneLimits, preferred: preferred, available: main - dividersExtent)
+            : paneLimits.map(\.ideal)
         let answerCross: Double
-        if let cross {
+        if offeredCross == .infinity {
+            answerCross = .infinity
+        } else if let cross {
             answerCross = cross
         } else {
             answerCross = sizes.indices.map {
