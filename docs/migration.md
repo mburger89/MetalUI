@@ -839,3 +839,7 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 ## Record 310 (nested split views, `HS-J`)
 
 **Behaviour change, no API.** A `HSplitView`/`VSplitView` used as a pane of another split view, or in any container that proposes infinity (a stack child with `.frame(maxWidth: .infinity)`, a `ScrollView` axis), now reports an infinite maximum as SwiftUI's does, where it used to report the sum of its panes' ideals. A nested split view with no `.frame` now takes its share of the parent's axis instead of staying at its ideal size; apps that wrapped each nested split in `.frame(maxWidth: .infinity, maxHeight: .infinity)` see no change. An app that relied on a bare nested split staying small should give it `.frame(width:)` or a `maxWidth`.
+
+## Record 319 (`onKeyPress` folded into a proposal modifier chain, `KF-AD`)
+
+**API addition, one build hazard.** `LayoutModifier` gains a case, `.keyboard(KeyboardLayer)`: an exhaustive `switch` over `LayoutModifier` outside the package needs a new arm. `onKeyPress` on a proposal modifier chain now returns the chain itself (`Self`) instead of `KeyboardModifier<Self>`; code that named the `KeyboardModifier<…>` type of such an expression must name the chain's type (or use `some ElementGroup`). Behaviour is unchanged: the handlers run in the same order, the content is still not focusable, and a `.focusable()` written after them still hears them.

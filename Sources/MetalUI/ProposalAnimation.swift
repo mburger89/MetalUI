@@ -331,7 +331,7 @@ extension LayoutModifier {
             let v = numbers("blur", [raw(radius)], size)
             self = .blur(radius: px(v[0])!)
         case .fixedSize, .aspectRatio, .layoutPriority, .background, .backgroundMaterial, .glassEffect, .clipShape, .allowsHitTesting,
-             .compositingGroup:
+             .compositingGroup, .keyboard:
             break
         }
     }
