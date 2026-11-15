@@ -186,7 +186,7 @@ vocabulary: [`migration.md`](migration.md).
 
 ## Controls — A
 
-`Button` (`ButtonRole`, `.keyboardShortcut`; 76, 80), the open style protocols
+`DisclosureGroup` (`Label: ElementGroup, Content: ElementGroup`; `init(content:label:)`, `init(isExpanded:content:label:)` and the `Label == Text` forms with `LocalizedStringKey` or `StringProtocol`; content evaluated only while expanded, uncontrolled state collapsed initially, the binding written only by input; `OG-A`, `OG-D`; `DisclosureGroupStyle` is not offered), `Button` (`ButtonRole`, `.keyboardShortcut`; 76, 80), the open style protocols
 `ButtonStyle`/`PrimitiveButtonStyle`/`ToggleStyle` with their configurations, `StyleLabel` (M) and the
 built-ins (`.automatic`, `.bordered`, `.borderedProminent`, `.borderless`, `.plain`, `.link`, `.glass`, `.glassProminent`;
 `.automatic`, `.checkbox`, `.switch`, `.button`), applied by `.buttonStyle(_:)`/`.toggleStyle(_:)` through the environment

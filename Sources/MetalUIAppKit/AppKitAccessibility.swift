@@ -445,6 +445,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .progressIndicator: .progressIndicator
         case .busyIndicator: .busyIndicator
         case .colorWell: .colorWell
+        case .disclosureTriangle: .disclosureTriangle
         }
     }
 

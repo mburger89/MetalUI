@@ -371,8 +371,13 @@ final class AXDeclarationsBox: Equatable {
     static func == (lhs: AXDeclarationsBox, rhs: AXDeclarationsBox) -> Bool { lhs.value == rhs.value }
 }
 
-/// Which of the two progress roles a `ProgressView`'s indicator publishes
-/// (`AXNode.progressHint`, `LK-G`).
+/// Which role hint a node publishes through `AXNode.progressHint`: one of the two progress roles of a `ProgressView`'s
+/// indicator (`LK-G`), or a `DisclosureGroup`'s label row (`OG-F`: published as `.disclosureTriangle` where the node
+/// would otherwise be a `.button`, its value `"1"` expanded and `"0"` collapsed). **One field for both, deliberately:**
+/// a seventh `Bool` on `AXNode` grew it past `theNewDeclarationsCostHandlersAtMostOnePointer`'s 121 bytes, and the
+/// optional enum costs nothing. Stripped by `Frame.registerHandlers` as the other role hints are.
 enum ProgressRoleHint: Equatable, Sendable {
     case determinate, busy
+    /// A `DisclosureGroup`'s label row.
+    case disclosureTriangle
 }
