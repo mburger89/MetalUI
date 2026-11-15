@@ -114,6 +114,11 @@ public struct DisclosureGroupBody<Label: ElementGroup, Content: ElementGroup>: C
     let label: Label
     let makeContent: @MainActor () -> Content
     @State private var local = false
+    /// An `OutlineGroup`'s disclosure keeps what is below it while collapsed (`OG-D`, probe `P-E5`): its content is not
+    /// evaluated, but its slot is not noted absent, so a descendant's expansion survives the collapse.
+    var keepsHiddenState = false
+    /// Called by input's toggle after the write: an outline index's generation bump (`OG-K`).
+    var onToggle: (@MainActor () -> Void)?
 
     init(expansion: Binding<Bool>?, label: Label, makeContent: @escaping @MainActor () -> Content) {
         self.expansion = expansion
@@ -138,6 +143,7 @@ public struct DisclosureGroupBody<Label: ElementGroup, Content: ElementGroup>: C
         } else {
             local.toggle()
         }
+        onToggle?()
     }
 
     /// The label row: a chevron slot, then the label, 24 high, as wide as the group (`D1`). Its click, Space and
@@ -168,9 +174,30 @@ public struct DisclosureGroupBody<Label: ElementGroup, Content: ElementGroup>: C
     @ElementBuilder public var content: some ElementGroup {
         VStack(alignment: .center, spacing: Pixels(0)) {
             header
-            if isExpanded {
-                makeContent()
-            }
+            expandedContent
         }
+    }
+
+    /// The `if isExpanded { content }` slot, by hand so an outline's can retain (`keepsHiddenState`).
+    private var expandedContent: OptionalGroup<LegacyContent<Content>> {
+        var group = OptionalGroup(builder: isExpanded ? LegacyContent(makeContent()) : nil)
+        group.retainsStateWhenAbsent = keepsHiddenState
+        return group
+    }
+}
+
+/// Where a `DisclosureGroupBody` keeps its uncontrolled expansion, so an outline can read a group's state without
+/// building the group (`OG-K`): the slot of its `@State local` under the group's component id.
+@MainActor
+enum DisclosureSlot {
+    /// The ordinal of `local` among the body's stored properties (the `@State` slot's number).
+    static let ordinal: Int = {
+        let probe = DisclosureGroupBody<EmptyGroup, EmptyGroup>(expansion: nil, label: EmptyGroup(), makeContent: { EmptyGroup() })
+        return Mirror(reflecting: probe).children.enumerated().first { $0.element.label == "_local" }!.offset
+    }()
+
+    /// The slot `local` lives at, for the group whose component id is `group`.
+    static func slot(of group: GlobalElementID) -> GlobalElementID {
+        GlobalElementID.child(of: group, at: ordinal, name: ElementID("$state\(ordinal)"))
     }
 }

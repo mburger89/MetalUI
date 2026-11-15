@@ -319,6 +319,11 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
     /// builder's `if` only. A framework slot built with ``init(_:)`` (a popover, a control's label) never fades.
     let fades: Bool
 
+    /// Whether an absent slot leaves what is below it alone (`OG-D`): set only by an `OutlineGroup`'s disclosure, whose
+    /// collapsed content is not evaluated and whose descendants keep their expansion (probe `P-E5`). Every other `if`
+    /// resets (`ID-C`).
+    var retainsStateWhenAbsent = false
+
     /// The group an `if` with no `else` builds when written by hand: it does not fade by default, only an explicit
     /// `.transition(_:)` on its content animates (divergence 98).
     public init(_ wrapped: Wrapped?) {
@@ -343,7 +348,7 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
         cursor += 1
         guard var inner = wrapped else {
-            pass.frame.stateTable.noteAbsent(slot)
+            if !retainsStateWhenAbsent { pass.frame.stateTable.noteAbsent(slot) }   // `OG-D`
             pass.frame.animationStore.transitions.noteOptional(slot, produced: false,  // `AN-AE`
                                                                animation: pass.frame.conditionalAnimation,
                                                                fades: fades)

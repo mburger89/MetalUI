@@ -105,7 +105,7 @@ extension OptionalGroup: ProposalElementGroup where Wrapped: ProposalElementGrou
         let slot = GlobalElementID(component: .positional(cursor), parent: parent)
         cursor += 1
         guard var inner = wrapped else {
-            pass.frame.stateTable.noteAbsent(slot)
+            if !retainsStateWhenAbsent { pass.frame.stateTable.noteAbsent(slot) }   // `OG-D`
             pass.frame.animationStore.transitions.noteOptional(slot, produced: false,  // `AN-AE`, the copy's own
                                                                animation: pass.frame.conditionalAnimation,
                                                                fades: fades)

@@ -49,6 +49,10 @@ package struct BuildWork: Sendable, Equatable {
     package var lazyUnitsRealized = 0
     package var lazyLinesRealized = 0
     package var lazyUnbounded = 0
+    /// What the build's outline indexes did (`OG-K`).
+    package var outlineChildrenReads = 0
+    package var outlineIndexRebuilds = 0
+    package var outlineIndexValidations = 0
     /// What the build's `CodeView`s did (`CV-Q`).
     package var codeLinesShaped = 0
     package var codeLinesPainted = 0
@@ -101,6 +105,9 @@ extension Window {
                                lazyUnitsRealized: frame.lazyWork.unitsRealized,
                                lazyLinesRealized: frame.lazyWork.linesRealized,
                                lazyUnbounded: frame.lazyWork.unbounded,
+                               outlineChildrenReads: frame.lazyWork.childrenReads,
+                               outlineIndexRebuilds: frame.lazyWork.indexRebuilds,
+                               outlineIndexValidations: frame.lazyWork.indexValidations,
                                codeLinesShaped: frame.codeWork.linesShaped, codeLinesPainted: frame.codeWork.linesPainted,
                                codeGlyphsEmitted: frame.codeWork.glyphsEmitted,
                                codeHighlightRunsVisited: frame.codeWork.highlightRunsVisited,

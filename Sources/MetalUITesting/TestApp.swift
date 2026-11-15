@@ -198,6 +198,9 @@ final class FrameWorkRecorder {
         pending.lazyUnitsRealized += work.lazyUnitsRealized
         pending.lazyLinesRealized += work.lazyLinesRealized
         pending.lazyUnbounded += work.lazyUnbounded
+        pending.outlineChildrenReads += work.outlineChildrenReads
+        pending.outlineIndexRebuilds += work.outlineIndexRebuilds
+        pending.outlineIndexValidations += work.outlineIndexValidations
         pending.codeLinesShaped += work.codeLinesShaped
         pending.codeLinesPainted += work.codeLinesPainted
         pending.codeGlyphsEmitted += work.codeGlyphsEmitted

@@ -40,6 +40,13 @@ struct LazyWork: Equatable {
     var linesRealized = 0
     /// Containers that realised everything: no scroller, the other axis, a `Deferred`, an eager member.
     var unbounded = 0
+    /// `OutlineGroup`'s `children` key path reads (`OG-K`): the rows' own at a rebuild, an expanded group's and a window row's
+    /// at a validation. Never a collapsed group's contents.
+    var childrenReads = 0
+    /// Outline indexes rebuilt (`OG-K`): once on the frame after an expansion changes or a validation fails, never on a scroll.
+    var indexRebuilds = 0
+    /// Outline index validations (`OG-K`): the root, each expanded group and each row of the last window.
+    var indexValidations = 0
 }
 
 /// A lazy container's origin within its scroller's content, in points along the scrolling axis,
