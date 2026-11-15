@@ -326,3 +326,42 @@ private struct LoneInFrame: Component {
         #expect(b.size.height == 24 && b.size.width < 109, "\(width) compresses on one line: \(b.size.width) x \(b.size.height)")
     }
 }
+
+private struct AlloyRow: Component {
+    var content: some ElementGroup {
+        HStack(spacing: Pixels(8)) {
+            Picker("Mode", selection: .constant(3)) { Text("Default").tag(0); Text("Accept edits").tag(1); Text("Plan").tag(2); Text("Auto").tag(3); Text("Don't ask").tag(4) }
+                .buttonBorderShape(.capsule)
+            Menu("claude-opus") { Button("x") {} }.buttonBorderShape(.capsule)
+            Menu("High") { Button("x") {} }.buttonBorderShape(.capsule)
+        }
+    }
+}
+@MainActor @inline(never) private func alloyWindow(_ width: Int) throws -> TestWindow {
+    let w = try TestWindow(size: Size(width: Pixels(Float(width)), height: Pixels(200)), colorScheme: .light,
+                           textSystem: harnessTextSystem) { VStack { AlloyRow() } }
+    redraw(w)
+    return w
+}
+/// BY-O: a menu `Picker` beside two `Menu`s, as Alloy's composer row is, always paints its chevron inside its capsule: a glyph
+/// with width, wholly within the chrome, right of every title glyph and in the chrome's right padding. Before the fix the
+/// chevron shared the title row's shrink, so a row too narrow for the three controls squeezed it to nothing and the capsule
+/// drew "Auto" and empty space (widths 340 down to 200 here; at 600 and 440 the chevron was fine).
+/// Mutation: the old `PickerMenuLabel` (a rigid-width title, a shrinkable chevron) reddens the 340 to 200 arms.
+@Test @MainActor func aMenuPickerBesideMenusAlwaysPaintsItsChevronInsideItsCapsule() throws {
+    for width in [600, 440, 340, 300, 260, 200] {
+        let w = try alloyWindow(width)
+        let picker = try #require(chromeRects(w).first { $0.background.a > 0 }, "\(width): the picker's chrome").bounds
+        let right = picker.origin.x + picker.size.width
+        let top = picker.origin.y, bottom = picker.origin.y + picker.size.height
+        let inside = w.allGlyphs.filter {
+            $0.bounds.origin.x >= picker.origin.x && $0.bounds.origin.x < right
+                && $0.bounds.origin.y >= top - 2 && $0.bounds.origin.y < bottom
+        }
+        let chevron = try #require(inside.max { $0.bounds.origin.x < $1.bounds.origin.x }, "\(width): a glyph in the capsule")
+        #expect(chevron.bounds.size.width > 0, "\(width): chevron width \(chevron.bounds.size.width)")
+        #expect(chevron.bounds.origin.x + chevron.bounds.size.width <= right, "\(width): chevron past the capsule \(chevron.bounds) in \(picker)")
+        #expect(chevron.bounds.origin.x + chevron.bounds.size.width >= right - 16, "\(width): no chevron at the capsule's right edge: last glyph \(chevron.bounds) in \(picker)")
+        #expect(picker.size.height == 24, "\(width): picker height \(picker.size.height)")
+    }
+}

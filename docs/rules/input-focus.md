@@ -255,4 +255,6 @@ flattenings (`multiplyAlpha`, `RenderEffect.apply`).
 
 **Button border shape (`BY-L`, `BY-M`, `SD-E`, `TBS-M`, record 294).** `.buttonBorderShape(_:)` (`ButtonBorderShape`: `.automatic`, `.capsule`, `.roundedRectangle`, `.roundedRectangle(radius:)`, `.circle`) is an environment write read by bordered, prominent and glass `Button`s and so by `Menu` and the menu `Picker`; the radius is written at paint from the bounds (ring, wash, border follow), `.automatic` is byte-identical, `.plain`/`.borderless`/`.link`/custom styles and the segmented `Picker` ignore it. A segmented picker's shape is the MetalUI-only `.segmentedPickerShape(_:)`; a tab strip's selected tab is `TabStrip.selectedTabShape(_:)` (`.rectangle` default).
 
+**Menu picker chevron (`BY-O`, record 306).** A menu `Picker`'s ` ⌄` is in a `flexShrink = 0` box and the title truncates first (min width the widest title less the chevron): the indicator never disappears.
+
 **Tab strip paint (`TBS-N`, record 299).** `TabStrip.stripBackground(_:)` and `.selectedTabFill(_:)` take a `TabStripPaint` (`.automatic` byte-identical, `.clear` draws no bar rectangle, `.color`, `.material`); never name a strip modifier `background`. `ButtonBorderShape` is not a `Shape` and has no `.buttonBorder` (class R).
