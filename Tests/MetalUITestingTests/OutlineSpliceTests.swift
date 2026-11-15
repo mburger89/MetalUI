@@ -119,6 +119,17 @@ private func rowY(_ index: Int) -> Float { 10 + 32 * Float(index) + 16 }
     return glyphs.count == 3 ? glyphs[1].y : -1
 }
 
+/// A write inside `withAnimation`, made so the transaction reaches the frame on every platform. `withAnimation` parks its
+/// transaction only if the body dirtied the window SYNCHRONOUSLY (`parkTransaction`'s rule); off Apple an `@Observable` write's
+/// dirty mark hops through a `Task` (record 123), so a bare model write in the body parks nothing and the write snaps. The body
+/// therefore also asks the window for a redraw, which is what a `@State` write does on every platform.
+@MainActor private func animatedWrite(_ window: TestWindow, _ animation: Animation, _ write: () -> Void) {
+    withAnimation(animation) {
+        write()
+        window.window.setNeedsRedraw()
+    }
+}
+
 private func near(_ value: Float, _ expected: Float, _ tolerance: Float = 1.0) -> Bool { abs(value - expected) <= tolerance }
 
 // MARK: the measured slide
@@ -261,7 +272,7 @@ private func near(_ value: Float, _ expected: Float, _ tolerance: Float = 1.0) -
     let other = try listWindow(animated)
     defer { withExtendedLifetime(other) {} }
     let start = zY(other)
-    withAnimation(.linear(duration: 2)) { animated.roots[0].isExpanded = true }
+    animatedWrite(other, .linear(duration: 2)) { animated.roots[0].isExpanded = true }
     try await other.runUntilIdle()
     #expect(near(zY(other), start, 0.6), "the animated write starts at the old place: \(zY(other) - start)")
     other.advance(by: 0.098)
@@ -394,7 +405,7 @@ private func near(_ value: Float, _ expected: Float, _ tolerance: Float = 1.0) -
     let window = try listWindow(model)
     defer { withExtendedLifetime(window) {} }
     let drawn = window.framesDrawn
-    withAnimation(.linear(duration: 1)) { model.roots[50].isExpanded = true }
+    animatedWrite(window, .linear(duration: 1)) { model.roots[50].isExpanded = true }
     try await window.runUntilIdle()
     window.advance(by: 0.05)
     window.advance(by: 0.05)
@@ -408,7 +419,7 @@ private func near(_ value: Float, _ expected: Float, _ tolerance: Float = 1.0) -
     }
     #expect(!visible(window).contains("top"), "control: the folder is above the realised window: \(visible(window).prefix(4))")
     let top = window.framesDrawn
-    withAnimation(.linear(duration: 1)) { model.roots[0].isExpanded = true }   // above the viewport: every visible row shifts
+    animatedWrite(window, .linear(duration: 1)) { model.roots[0].isExpanded = true }   // above the viewport: every visible row shifts
     try await window.runUntilIdle()
     let still = column(window, depth: 0)
     window.advance(by: 0.05)
@@ -422,7 +433,7 @@ private func near(_ value: Float, _ expected: Float, _ tolerance: Float = 1.0) -
         settle(window)
     }
     let ready = window.framesDrawn
-    withAnimation(.linear(duration: 1)) { model.roots[1].isExpanded = true }
+    animatedWrite(window, .linear(duration: 1)) { model.roots[1].isExpanded = true }
     try await window.runUntilIdle()
     window.advance(by: 0.05)
     #expect(window.framesDrawn > ready + 1, "control: a visible folder's write animates")
