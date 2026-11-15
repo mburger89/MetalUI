@@ -207,6 +207,9 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
     private var awaitsViewport = false
     /// The rows this frame realised, by their chrome id, for an accessibility selection.
     private var rowValues: [GlobalElementID: SelectionValue] = [:]
+    /// The `contextMenu(forSelectionType:)` this list took in layout (`OG-N`), kept only when its identifier type is the
+    /// list's selection type.
+    private var menuSpec: SelectionContextMenu?
 
     init(content: Content, selection: ListSelection<SelectionValue>) {
         self.selection = selection
@@ -281,6 +284,9 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
                 table.write(cascadeID, current)
             })
         rowValues = [:]
+        let menuSpec = (handlers.contextual?.selection ?? pass.frame.environmentTop.selectionContextMenu)
+            .flatMap { $0.applies(to: SelectionValue.self) ? $0 : nil }
+        self.menuSpec = menuSpec
         let reader = selection.reader()
         let highlight = pass.frame.environmentTop.tint ?? Color(.accent)
         let stateTable = pass.frame.stateTable
@@ -313,6 +319,13 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
                 if context.bounded && pass.collectsAccessibility { handlers.axNode.logicalIndex = box.unit }
                 rowHandlers = handlers
                 values[rowID] = value
+            }
+            // `OG-N`: the row's menu and its double-click primary action.
+            if let menuSpec, let value {
+                var handlers = rowHandlers ?? Handlers()
+                handlers.onClick = menuSpec.clickHandler(wrapping: handlers.onClick, row: value)
+                handlers.contextual = menuSpec.rowAttachment(row: value) { selection.currentSet() }
+                rowHandlers = handlers
             }
             // An outline row tells a client its level, whether it is a group and open, and (a group) can expand or collapse
             // (`OG-F`); a row of an outline with no selection is published too.
@@ -388,6 +401,7 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         var listHandlers = handlers
         if listHandlers.axNode.isEmpty { listHandlers.axNode = AXNode(role: .container) }
         if hierarchical { listHandlers.axNode.outlineHint = AXOutlineHint(level: 0, state: .list) }   // `OG-F`: a tree
+        if let menuSpec { listHandlers.contextual = menuSpec.listAttachment(over: handlers.contextual) }   // `OG-N`
         if let table = laidOut.table {
             listHandlers.axNode.logicalCount = table.count
             if !selection.isNone { compose(&listHandlers, table: table, id: id, pass: pass) }
@@ -438,8 +452,14 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         let callerKey = handlers.onKey
         listHandlers.isFocusable = true
         let hierarchical = self.hierarchical
+        let menuSpec = self.menuSpec
+        let selection = self.selection
         listHandlers.onKey = { [weak queue] event in
             if let callerKey, callerKey(event) { return true }
+            // Return runs the primary action on the selection (`OG-N`, `P-M4`).
+            if let menuSpec, menuSpec.returnKey(event, selection: Set(selection.currentSet().map { AnyHashable($0) })) {
+                return true
+            }
             // The new lead is revealed like any `scrollTo` of its id (`OG-E`: the key moves reveal the lead).
             @MainActor func reveal(_ index: Int) {
                 if let scope = id.parent {
