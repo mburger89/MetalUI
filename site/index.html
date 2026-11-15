@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetalUI - SwiftUI-style apps on macOS, Linux and Windows</title>
+<meta name="description" content="MetalUI is a GPU-accelerated UI framework for Swift that follows SwiftUI's semantics and runs on macOS (AppKit and Metal), Linux and Windows (SDL3).">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="brand" href="./">MetalUI</a>
+  <nav aria-label="Primary">
+    <a href="#quick-start">Quick start</a>
+    <a href="#swiftui">SwiftUI</a>
+    <a href="#built-with">Built with it</a>
+    <a href="api/documentation/metalui/">API</a>
+    <a href="https://github.com/mburger89/MetalUI">GitHub</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="wrap hero">
+  <h1>Write SwiftUI-style apps once. Run them on macOS, Linux and Windows.</h1>
+  <p class="lede">MetalUI is a GPU-accelerated UI framework for Swift. It follows SwiftUI's semantics, draws with Metal on the Mac and through SDL3 on Linux and Windows, and every place it differs from SwiftUI is written down.</p>
+  <ul class="platforms" aria-label="Platforms">
+    <li>macOS 14+ <small>AppKit and Metal</small></li>
+    <li>Linux <small>SDL3</small></li>
+    <li>Windows <small>SDL3</small></li>
+  </ul>
+</section>
+
+<section class="wrap" id="quick-start">
+  <h2>Run a window in three commands</h2>
+  <p class="note"><strong>Experimental &mdash; the API still changes.</strong> The generated app pins MetalUI to one commit until you move it. Needs Swift 6.4.</p>
+
+  <div class="tabs">
+    <input type="radio" name="platform" id="tab-macos" checked>
+    <input type="radio" name="platform" id="tab-linux">
+    <input type="radio" name="platform" id="tab-windows">
+    <div class="tabbar" role="presentation">
+      <label for="tab-macos">macOS</label>
+      <label for="tab-linux">Linux</label>
+      <label for="tab-windows">Windows</label>
+    </div>
+
+    <div class="panel panel-macos">
+      <div class="codebox"><pre data-copy><code>git clone https://github.com/mburger89/MetalUI.git
+swift run --package-path MetalUI metalui new MyApp
+cd MyApp &amp;&amp; swift run MyApp</code></pre></div>
+      <p class="small">Checked from a fresh clone on macOS 27.2 (Apple Silicon) with Swift 6.4.2: the window opens and the generated test passes.</p>
+    </div>
+
+    <div class="panel panel-linux">
+      <p>Install SDL 3.4 or later first (Ubuntu 24.04 only ships SDL2, so build it from source), then create the app with <code>--cross-platform</code> and fetch AccessKit's C bindings once.</p>
+      <div class="codebox"><pre data-copy><code>git clone https://github.com/mburger89/MetalUI.git
+swift run --package-path MetalUI metalui new MyApp --cross-platform
+cd MyApp
+swift package resolve
+python3 .build/checkouts/MetalUI/Backends/SDL/scripts/fetch-accesskit.py --prefix /usr
+swift run MyApp</code></pre></div>
+      <p class="small">The SDL3 build commands, with the package list, are in <a href="https://github.com/mburger89/MetalUI/blob/master/docs/getting-started.md">getting-started.md</a>. <code>metalui new --cross-platform --no-accesskit</code> skips the AccessKit step. Checked in a clean Swift 6.4.2 Linux container (aarch64): <code>swift build</code> and <code>swift test</code> pass; the window itself was not opened there because the container has no display.</p>
+    </div>
+
+    <div class="panel panel-windows">
+      <div class="codebox"><pre data-copy><code>git clone https://github.com/mburger89/MetalUI.git
+swift run --package-path MetalUI metalui new MyApp --cross-platform</code></pre></div>
+      <p class="small"><strong>CI-verified</strong>, not run by hand for this page. Windows needs SDL3's prebuilt Visual C++ package unpacked and its paths handed to SwiftPM; <a href="https://github.com/mburger89/MetalUI/blob/master/docs/guides/cross-platform.md">the cross-platform guide</a> has the exact steps.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="generated">
+  <h2>What you get</h2>
+  <p>The scaffold is one file of UI. <code>@State</code>, a component with a <code>content</code> builder, stacks and a button, as in SwiftUI.</p>
+  <div class="pair">
+    <div class="codebox"><pre><code><span class="k">import</span> MetalUI
+
+<span class="k">struct</span> ContentView: Component {
+    <span class="k">@State var</span> presses = <span class="n">0</span>
+
+    <span class="k">var</span> content: <span class="k">some</span> ElementGroup {
+        Text(<span class="s">"Hello from MyApp"</span>).font(size: <span class="n">24</span>)
+        Row(gap: Pixels(<span class="n">12</span>)) {
+            Button(<span class="s">"Press me"</span>) { presses += <span class="n">1</span> }
+            Text(<span class="s">"pressed \(presses) times"</span>)
+        }
+    }
+}</code></pre></div>
+    <figure>
+      <img src="img/myapp-macos.webp" width="640" height="428" alt="The generated MyApp window on macOS: the text Hello from MyApp, a Press me button and the label pressed 0 times, on a dark navy background.">
+      <figcaption>The generated app, running on macOS.</figcaption>
+    </figure>
+  </div>
+
+  <div class="pair pair-flip">
+    <figure>
+      <img src="img/demo-linux.webp" width="920" height="560" loading="lazy" alt="The MetalUIDemo window drawn on Linux by the SDL backend.">
+      <figcaption>The same code path on Linux. This is the MetalUIDemo scene (not MyApp) drawn by the SDL backend on Vulkan with Mesa's software renderer (llvmpipe), inside a Linux container.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/jotter-macos.webp" width="900" height="652" loading="lazy" alt="Jotter, a notes sample app, on macOS, showing a list of notes and an editor.">
+      <figcaption>A fuller sample, <a href="https://github.com/mburger89/MetalUI/tree/master/Examples/Jotter">Examples/Jotter</a>, with its built-in sample notes. Both screenshots are 1x captures.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="wrap" id="swiftui">
+  <h2>If you know SwiftUI, you know most of this</h2>
+  <p>The stacks, controls and modifiers keep SwiftUI's names and layout rules. What changes is mostly spelling: lengths are <code>Pixels</code>, and a custom component implements <code>content</code> where a view implements <code>body</code>.</p>
+
+  <div class="cmp">
+    <div>
+      <h3>SwiftUI</h3>
+      <div class="codebox"><pre><code><span class="k">struct</span> Counter: View {
+    <span class="k">@State private var</span> presses = <span class="n">0</span>
+    <span class="k">var</span> body: <span class="k">some</span> View {
+        VStack {
+            Text(<span class="s">"Hello"</span>).font(.title)
+            Button(<span class="s">"Press me"</span>) { presses += <span class="n">1</span> }
+        }
+    }
+}</code></pre></div>
+    </div>
+    <div>
+      <h3>MetalUI</h3>
+      <div class="codebox"><pre><code><span class="k">struct</span> Counter: Component {
+    <span class="k">@State var</span> presses = <span class="n">0</span>
+    <span class="k">var</span> content: <span class="k">some</span> ElementGroup {
+        VStack {
+            Text(<span class="s">"Hello"</span>).font(size: <span class="n">24</span>)
+            Button(<span class="s">"Press me"</span>) { presses += <span class="n">1</span> }
+        }
+    }
+}</code></pre></div>
+    </div>
+  </div>
+
+  <div class="cmp">
+    <div>
+      <h3>SwiftUI</h3>
+      <div class="codebox"><pre><code>VStack(alignment: .leading) {
+    HStack { Text(<span class="s">"Name"</span>); TextField(<span class="s">"Name"</span>, text: $name) }
+    HStack { Toggle(<span class="s">"Enabled"</span>, isOn: $on); Spacer(); Button(<span class="s">"Apply"</span>) { apply() } }
+    HStack { Text(<span class="s">"Speed"</span>); Slider(value: $speed) }
+    Divider()
+}
+.padding(<span class="n">16</span>)</code></pre></div>
+    </div>
+    <div>
+      <h3>MetalUI</h3>
+      <div class="codebox"><pre><code>VStack(alignment: .leading) {
+    HStack { Text(<span class="s">"Name"</span>); TextField(<span class="s">"Name"</span>, text: $name) }
+    HStack { Toggle(<span class="s">"Enabled"</span>, isOn: $on); Spacer(); Button(<span class="s">"Apply"</span>) { apply() } }
+    HStack { Text(<span class="s">"Speed"</span>); Slider(value: $speed) }
+    Divider()
+}
+.padding(Edges(all: Pixels(<span class="n">16</span>)))</code></pre></div>
+    </div>
+  </div>
+
+  <div class="cmp">
+    <div>
+      <h3>SwiftUI</h3>
+      <div class="codebox"><pre><code>content
+    .padding(<span class="n">24</span>)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(.windowBackgroundColor))</code></pre></div>
+    </div>
+    <div>
+      <h3>MetalUI</h3>
+      <div class="codebox"><pre><code>content
+    .padding(Pixels(<span class="n">24</span>))
+    .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity))
+    .background(.surface)</code></pre></div>
+    </div>
+  </div>
+
+  <p>These are the common cases, not a promise of identical behaviour everywhere. Every live difference is listed, with the test that pins it, in <a href="https://github.com/mburger89/MetalUI/blob/master/docs/divergences.md">divergences.md</a>. Moving from the older flexbox-style vocabulary is covered in <a href="https://github.com/mburger89/MetalUI/blob/master/docs/migration.md">migration.md</a>.</p>
+</section>
+
+<section class="wrap" id="built-with">
+  <h2>Apps built on MetalUI</h2>
+  <div class="shots">
+    <article>
+      <img src="img/alloy.webp" width="1440" height="900" loading="lazy" alt="Alloy, a macOS editor with several Claude Code sessions open on one project.">
+      <h3><a href="https://github.com/mburger89/Alloy">Alloy</a></h3>
+      <p>Alloy &mdash; a native macOS editor for working with several Claude Code sessions on one project, built entirely on MetalUI.</p>
+    </article>
+    <article>
+      <img src="img/metalcreator.webp" width="1440" height="932" loading="lazy" alt="MetalCreator editing a node graph for a bracket part, with the parametric model beside it.">
+      <h3><a href="https://github.com/mburger89/MetalCreator">MetalCreator</a></h3>
+      <p>MetalCreator: a node-based parametric CAD app for macOS, Linux and Windows, built on MetalUI.</p>
+    </article>
+    <article>
+      <img src="img/metalflow.webp" width="1440" height="928" loading="lazy" alt="MetalFlow's Flow Studio showing a flow of coding agents as a node graph.">
+      <h3><a href="https://github.com/mburger89/MetalFlow">MetalFlow</a></h3>
+      <p>MetalFlow: a macOS app for building flows of coding agents as node graphs and running many of them at once, built on MetalUI.</p>
+    </article>
+  </div>
+</section>
+
+<section class="wrap" id="performance">
+  <h2>Measured, with what was measured</h2>
+  <p>Each figure comes from a record in the repository, which says how it was taken.</p>
+  <dl class="facts">
+    <div>
+      <dt>1 frame per keystroke, down from 2</dt>
+      <dd>Typing 200 characters into a <code>TextField</code> and into a <code>CodeView</code>, headless: 400 frames before, 200 after. A stray key-up no longer redraws an unchanged window. <a href="https://github.com/mburger89/MetalUI/blob/master/docs/record/277-keystroke-single-frame.md">Record 277</a></dd>
+    </div>
+    <div>
+      <dt>4.3 ms to open a window, down from 9.7 ms</dt>
+      <dd>Setting the title-bar style when the window is built instead of after. Median of 15 runs on an unordered <code>AppKitWindow</code>. <a href="https://github.com/mburger89/MetalUI/blob/master/docs/record/300-window-open-style.md">Record 300</a></dd>
+    </div>
+    <div>
+      <dt>239 KB of stack, down from 482 KB</dt>
+      <dd>A menu <code>Picker</code> measured with <code>StackMeter</code> in a macOS debug build, before and after slimming the <code>Picker</code> value. <a href="https://github.com/mburger89/MetalUI/blob/master/docs/record/302-menu-picker-ideal.md">Record 302</a></dd>
+    </div>
+  </dl>
+</section>
+
+</main>
+
+<footer class="wrap foot">
+  <ul>
+    <li><a href="https://github.com/mburger89/MetalUI">GitHub</a></li>
+    <li><a href="https://github.com/mburger89/MetalUI/blob/master/docs/getting-started.md">Getting started</a></li>
+    <li><a href="https://github.com/mburger89/MetalUI/blob/master/docs/guides/README.md">Guides</a></li>
+    <li><a href="https://github.com/mburger89/MetalUI/blob/master/docs/divergences.md">Differences from SwiftUI</a></li>
+    <li><a href="api/documentation/metalui/">API reference</a></li>
+    <li><a href="api/testing/documentation/metaluitesting/">Testing API</a></li>
+  </ul>
+  <p>MetalUI is MIT licensed. It runs on macOS, Linux and Windows only. This page loads no scripts from elsewhere and tracks nothing.</p>
+</footer>
+
+<script src="copy.js" defer></script>
+</body>
+</html>

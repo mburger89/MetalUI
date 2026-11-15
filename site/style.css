@@ -1,0 +1,114 @@
+:root {
+  --bg: #f5f7fa;
+  --panel: #ffffff;
+  --ink: #131a2b;
+  --muted: #4d5870;
+  --line: #d5dbe6;
+  --accent: #0b6b66;
+  --accent-ink: #ffffff;
+  --code-bg: #141a2e;
+  --code-ink: #dbe3f5;
+  --k: #8ab4ff;
+  --s: #7ee0c3;
+  --n: #f0c987;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", system-ui, "Helvetica Neue", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1220;
+    --panel: #151c30;
+    --ink: #e8edf8;
+    --muted: #a3aec7;
+    --line: #2a3350;
+    --accent: #5eead4;
+    --accent-ink: #0d1220;
+    --code-bg: #0a0f1c;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 1.0625rem/1.6 var(--sans); }
+a { color: var(--accent); text-underline-offset: 0.18em; }
+a:focus-visible, label:focus-within, .copy:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--mono); font-size: 0.9em; }
+img { max-width: 100%; height: auto; display: block; }
+
+.wrap { width: min(100% - 2rem, 70rem); margin-inline: auto; }
+main > section { padding-block: 3rem 1rem; }
+h1, h2, h3 { line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 0.6em; }
+h1 { font-size: clamp(2.1rem, 5.6vw, 4rem); font-weight: 800; max-width: 17ch; letter-spacing: -0.025em; word-spacing: 0.04em; }
+h2 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); font-weight: 750; }
+h3 { font-size: 1.05rem; letter-spacing: 0; }
+p { max-width: 62ch; margin: 0 0 1em; }
+
+.top { display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; justify-content: space-between; align-items: baseline; padding-block: 1.2rem; }
+.brand { font: 800 1.25rem var(--mono); color: var(--ink); text-decoration: none; letter-spacing: -0.04em; }
+.top nav { display: flex; flex-wrap: wrap; gap: 0.3rem 1.3rem; }
+.top nav a { color: var(--muted); text-decoration: none; }
+.top nav a:hover { color: var(--accent); text-decoration: underline; }
+
+.hero { padding-top: 3rem; }
+.lede { font-size: 1.25rem; color: var(--muted); max-width: 46ch; }
+.platforms { display: flex; flex-wrap: wrap; gap: 0.6rem; list-style: none; padding: 0; margin: 1.6rem 0 0; }
+.platforms li { border: 1px solid var(--line); background: var(--panel); border-radius: 0.5rem; padding: 0.35rem 0.8rem; font-weight: 650; }
+.platforms small { color: var(--muted); font-weight: 400; margin-left: 0.35em; }
+
+.note { border-left: 4px solid var(--accent); padding: 0.1rem 0 0.1rem 0.9rem; }
+
+/* CSS-only tabs: the radios come first so sibling selectors reach the panels. */
+.tabs input { position: absolute; opacity: 0; pointer-events: none; }
+.tabbar { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--line); margin-bottom: 1rem; }
+.tabbar label { padding: 0.5rem 1.1rem; cursor: pointer; font-weight: 650; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px; }
+#tab-macos:checked ~ .tabbar label[for="tab-macos"],
+#tab-linux:checked ~ .tabbar label[for="tab-linux"],
+#tab-windows:checked ~ .tabbar label[for="tab-windows"] { color: var(--ink); border-bottom-color: var(--accent); }
+#tab-macos:focus-visible ~ .tabbar label[for="tab-macos"],
+#tab-linux:focus-visible ~ .tabbar label[for="tab-linux"],
+#tab-windows:focus-visible ~ .tabbar label[for="tab-windows"] { outline: 3px solid var(--accent); outline-offset: 2px; }
+.panel { display: none; }
+#tab-macos:checked ~ .panel-macos,
+#tab-linux:checked ~ .panel-linux,
+#tab-windows:checked ~ .panel-windows { display: block; }
+.small { font-size: 0.92rem; color: var(--muted); }
+
+.codebox { position: relative; min-width: 0; }
+pre { margin: 0 0 1rem; padding: 1rem 1.1rem; background: var(--code-bg); color: var(--code-ink); border-radius: 0.6rem; border: 1px solid var(--line); overflow-x: auto; font: 0.9rem/1.55 var(--mono); tab-size: 4; }
+pre code { font: inherit; }
+.has-copy pre { padding-top: 2.6rem; }
+.copy { position: absolute; top: 0.5rem; right: 0.5rem; font: 600 0.8rem var(--sans); padding: 0.3rem 0.7rem; border-radius: 0.4rem; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.copy:hover { background: var(--accent); color: var(--accent-ink); }
+.k { color: var(--k); } .s { color: var(--s); } .n { color: var(--n); }
+
+.pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; align-items: start; margin-top: 1.5rem; }
+@media (min-width: 56rem) {
+  .pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+figure { margin: 0; min-width: 0; }
+figure img, .shots img { border-radius: 0.5rem; border: 1px solid var(--line); box-shadow: 0 0 0 1px var(--bg); }
+figure img { width: 100%; max-width: 640px; }
+figcaption { font-size: 0.92rem; color: var(--muted); margin-top: 0.6rem; max-width: 62ch; }
+
+.cmp { display: grid; gap: 0 1.5rem; grid-template-columns: minmax(0, 1fr); margin-top: 1.25rem; }
+@media (min-width: 56rem) { .cmp { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.cmp h3 { color: var(--muted); font-family: var(--mono); font-weight: 600; font-size: 0.9rem; margin-bottom: 0.4rem; }
+
+.shots { display: grid; gap: 2rem 1.5rem; grid-template-columns: minmax(0, 1fr); margin-top: 1.5rem; }
+@media (min-width: 56rem) { .shots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.shots img { width: 100%; }
+.shots h3 { margin: 0.9rem 0 0.3rem; font-size: 1.2rem; }
+.shots p { font-size: 0.98rem; color: var(--muted); }
+
+.facts { margin: 1.5rem 0 0; display: grid; gap: 1.5rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 56rem) { .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.facts div { border-top: 3px solid var(--accent); padding-top: 0.8rem; }
+.facts dt { font-weight: 750; font-size: 1.2rem; line-height: 1.25; letter-spacing: -0.01em; }
+.facts dd { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.97rem; }
+
+.foot { margin-top: 4rem; padding-block: 2rem 3rem; border-top: 1px solid var(--line); }
+.foot ul { display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; list-style: none; padding: 0; margin: 0 0 1rem; }
+.foot p { color: var(--muted); font-size: 0.92rem; }
+.lost { padding-block: 6rem; }
+@media (prefers-reduced-motion: no-preference) { .copy { transition: background 0.15s; } }
