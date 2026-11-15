@@ -332,7 +332,9 @@ private enum CWith { case menuAndAction, menuOnly, mismatched, noSelection }
         let model = CModel()
         let window = try cWindow(form, model, multi: true)
         selectByClick(window, "A", model)
-        window.click(at: rowPoint(window, "Z"), modifierFlags: .command)
+        // The platform's toggle modifier (`DD-Z` item 4): ⌘ on Apple, ctrl elsewhere.
+        let toggle: EventModifiers = ControlKeys.selectionToggleModifier() == .command ? .command : .control
+        window.click(at: rowPoint(window, "Z"), modifierFlags: toggle)
         settle(window)
         window.typeKey(.return)
         #expect(model.primary == [["A", "Z"]], "\(form): \(model.primary)")
