@@ -160,6 +160,19 @@ compiler reports "argument type 'SDLPlatform' does not conform to expected type
    `-Xcc -I<prefix>/include -Xlinker -L<prefix>/lib` to every `swift build` and
    `swift run`: the Swift importer ignores `CPATH`, and gold does not search
    `/usr/local/lib`.
+
+   On Ubuntu 24.04 (verified 2026-11-15 in a clean `swift:6.4-noble` container, which has
+   none of this; `git`, `python3`, `curl` and `ca-certificates` are needed too):
+
+   ```sh
+   sudo apt-get install -y cmake ninja-build pkg-config libx11-dev libxext-dev libxrandr-dev \
+     libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libxkbcommon-dev \
+     libwayland-dev wayland-protocols libegl-dev libdecor-0-dev
+   git clone --depth 1 --branch release-3.4.16 https://github.com/libsdl-org/SDL.git
+   cmake -S SDL -B SDL/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+     -DSDL_AUDIO=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+   cmake --build SDL/build && sudo cmake --install SDL/build && sudo ldconfig
+   ```
 2. **AccessKit's C bindings**, once, after SwiftPM has fetched MetalUI:
 
    ```sh
