@@ -822,3 +822,32 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
                                                       from: MTLRegionMake2D(0, 0, atlasA.width, atlasA.height), mipmapLevel: 0) }
     #expect(bytesA == atlasA.pixels, "window A's texture holds window A's atlas")
 }
+
+/// The image-texture cache is per window too (`WA-A`): it drops every texture the current scene does not
+/// reference, so one shared cache made two windows showing different images re-upload both every frame.
+/// Mutation: route `MetalWindowRenderer`'s `encode` back to `atlasState: nil`; the upload count then grows.
+@Test @MainActor func twoWindowsOnOneRendererDoNotReuploadEachOthersImages() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let shared = try Renderer(device: device)
+    let atlas = GlyphAtlas(width: 64, height: 64)
+    let windowA = MetalWindowRenderer(renderer: shared, surface: try AtlasProbeSurface(device: device, side: 16))
+    let windowB = MetalWindowRenderer(renderer: shared, surface: try AtlasProbeSurface(device: device, side: 16))
+    let red = ImageTexture(width: 1, height: 1, straightRGBA: [255, 0, 0, 255])
+    let blue = ImageTexture(width: 1, height: 1, straightRGBA: [0, 0, 255, 255])
+    func scene(_ texture: ImageTexture) -> Scene {
+        var scene = Scene()
+        let box = Bounds<ScaledPixels>(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
+                                       size: Size(width: ScaledPixels(8), height: ScaledPixels(8)))
+        scene.insert(MUIImage(bounds: box, contentMask: box, maskCornerRadii: Corners(all: ScaledPixels(0)),
+                              opacity: 1, filter: .linear, order: 0), texture: texture)
+        scene.finalize()
+        return scene
+    }
+    for _ in 0..<3 {
+        for (window, texture) in [(windowA, red), (windowB, blue)] {
+            try #require(window.beginFrame() != nil)
+            try #require(window.finishFrame(scene: scene(texture), atlas: atlas, surfaces: []))
+        }
+    }
+    #expect(shared.imageTextureUploadCount == 2, "each image uploaded once, not once per alternating frame")
+}
