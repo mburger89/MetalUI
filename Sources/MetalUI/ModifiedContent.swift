@@ -563,6 +563,13 @@ extension LayoutModifier: ModifierLayerKind {
             // emits the merged blobs at its paint (`LG-I`); outside one this registers nothing.
             pass.frame.registerGlassMember(glass, shape: shape, bounds: bounds)
             return inside()
+        case let .keyboard(layer):
+            // `KeyboardModifier.prepaint`'s registration, at this layer's bounds (`KF-AD`).
+            guard let handlers = layer.handlers else { return inside() }
+            return pass.frame.sharingRegistrationsWithEffects(at: bounds, register: {
+                pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                                      synthesizesAccessibility: false)
+            }, content: inside)
         default:
             return inside()
         }
@@ -665,7 +672,7 @@ extension LayoutModifier: ModifierLayerKind {
             pass.frame.lowering.forward(child.layoutNodeID, to: node.layoutNodeID, priority: priority)
             return node
         case .background, .backgroundMaterial, .glassEffect, .clip, .clipShape, .border, .opacity, .allowsHitTesting,
-             .rotationEffect, .scaleEffect, .offset, .rotation3DEffect, .projectionEffect, .shadow, .blur, .compositingGroup:
+             .keyboard, .rotationEffect, .scaleEffect, .offset, .rotation3DEffect, .projectionEffect, .shadow, .blur, .compositingGroup:
             // A paint-only modifier has no independent layout footprint.
             // Returning the content node lets the layer observe its resolved
             // bounds during paint while preserving the layer's own identity level.

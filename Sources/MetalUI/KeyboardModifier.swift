@@ -24,6 +24,7 @@ extension ProposalElementGroup {
     /// `StyledElement.onKeyPress(_:action:)` on the proposal path: wraps once
     /// in a `KeyboardModifier` (ruling `KF-H` item 1). A later keyboard
     /// modifier joins the same layer.
+    @_disfavoredOverload
     public func onKeyPress(_ key: KeyEquivalent,
                            action: @escaping @MainActor () -> KeyPress.Result) -> KeyboardModifier<Self> {
         keyboardLayer { _ in }.onKeyPress(key, action: action)
@@ -31,6 +32,7 @@ extension ProposalElementGroup {
 
     /// `StyledElement.onKeyPress(_:phases:action:)` on the proposal path: wraps
     /// once in a `KeyboardModifier`.
+    @_disfavoredOverload
     public func onKeyPress(_ key: KeyEquivalent, phases: KeyPress.Phases,
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> KeyboardModifier<Self> {
         keyboardLayer { _ in }.onKeyPress(key, phases: phases, action: action)
@@ -38,6 +40,7 @@ extension ProposalElementGroup {
 
     /// `StyledElement.onKeyPress(keys:phases:action:)` on the proposal path:
     /// wraps once in a `KeyboardModifier`.
+    @_disfavoredOverload
     public func onKeyPress(keys: Set<KeyEquivalent>, phases: KeyPress.Phases = [.down, .repeat],
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> KeyboardModifier<Self> {
         keyboardLayer { _ in }.onKeyPress(keys: keys, phases: phases, action: action)
@@ -45,6 +48,7 @@ extension ProposalElementGroup {
 
     /// `StyledElement.onKeyPress(characters:phases:action:)` on the proposal
     /// path: wraps once in a `KeyboardModifier`.
+    @_disfavoredOverload
     public func onKeyPress(characters: CharacterSet, phases: KeyPress.Phases = [.down, .repeat],
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> KeyboardModifier<Self> {
         keyboardLayer { _ in }.onKeyPress(characters: characters, phases: phases, action: action)
@@ -52,6 +56,7 @@ extension ProposalElementGroup {
 
     /// `StyledElement.onKeyPress(phases:action:)` on the proposal path: wraps
     /// once in a `KeyboardModifier`.
+    @_disfavoredOverload
     public func onKeyPress(phases: KeyPress.Phases = [.down, .repeat],
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> KeyboardModifier<Self> {
         keyboardLayer { _ in }.onKeyPress(phases: phases, action: action)
@@ -238,6 +243,17 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
 
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+        // An `onKeyPress` layer the chain below holds as its outermost (`KF-AD`) is this layer's:
+        // this is the focus target, and a handler inside it would not hear.
+        if var holder = content as? KeyboardLayerHolder, let taken = holder.takeKeyPresses() {
+            content = holder as! Content
+            handlers.keyboard = KeyboardAttachment.make(
+                keyPresses: taken + (handlers.keyboard?.keyPresses ?? []),
+                focusInteractions: handlers.keyboard?.focusInteractions,
+                isKeyRegion: handlers.keyboard?.isKeyRegion ?? false,
+                resignsOnPress: handlers.keyboard?.resignsOnPress ?? false,
+                clipboard: handlers.keyboard?.clipboard)
+        }
         var cursor = 0
         let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
                                                                            pass: &pass)
