@@ -68,6 +68,6 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor100kPathsAsFor500
 ```
 
-- **Counts (2026-11-13, `feat/window-container-background` on master e852cb12 + record 285): root 5930 tests in 28 suites (`--build-system native`, unfiltered, `--no-parallel`): the one failure, `everyFrameChannelIsClassified` (two new `Frame` fields), was fixed and the 250 related tests re-run green, the full run not repeated; guards not re-counted; the portable image not re-run; divergences 221 live, next label 242.**
+- **Counts (2026-11-15, `feat/outline-performance` on master aad96831 + record 318): root 6155 tests in 32 suites (`--build-system native`, unfiltered, `--no-parallel`), all green; the gated 100k outline test run once and green; guards not re-counted; the portable image not re-run; divergences 224 live, next label 242.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.
