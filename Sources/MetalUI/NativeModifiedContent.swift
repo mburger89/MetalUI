@@ -82,6 +82,10 @@ public enum LayoutModifier: Sendable {
     /// accessibility unchanged (ruling `PF-E`). **New since the shadow cache**
     /// — an exhaustive `switch` outside the package gains one arm.
     case compositingGroup
+    /// The `onKeyPress` handlers a proposal chain's `.onKeyPress(…)` wrote: no layout node and no paint, one
+    /// identity level, the handlers registered at the layer's bounds (`KF-AD`). `indirect`: a handler list would
+    /// widen every layer. **New since the key-press fold** — an exhaustive `switch` outside the package gains one arm.
+    indirect case keyboard(KeyboardLayer)
 }
 
 /// **The wrapper these modifiers build is `ModifiedContent<Content,

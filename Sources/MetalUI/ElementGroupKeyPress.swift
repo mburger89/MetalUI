@@ -28,6 +28,7 @@ extension ElementGroup {
     /// (`focusable(_:)`), as on a `StyledElement` and as in SwiftUI. The more
     /// specific `StyledElement` and `ProposalElementGroup` spellings are still
     /// chosen for their conformers (`KF-AC` item 3).
+    @_disfavoredOverload
     public func onKeyPress(_ key: KeyEquivalent,
                            action: @escaping @MainActor () -> KeyPress.Result) -> ModifiedElement<LayerBase> {
         keyPressLayer().onKeyPress(key, action: action)
@@ -35,6 +36,7 @@ extension ElementGroup {
 
     /// SwiftUI's `onKeyPress(_:phases:action:)` on any `ElementGroup`;
     /// otherwise as `onKeyPress(_:action:)`.
+    @_disfavoredOverload
     public func onKeyPress(_ key: KeyEquivalent, phases: KeyPress.Phases,
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> ModifiedElement<LayerBase> {
         keyPressLayer().onKeyPress(key, phases: phases, action: action)
@@ -42,6 +44,7 @@ extension ElementGroup {
 
     /// SwiftUI's `onKeyPress(keys:phases:action:)` on any `ElementGroup`;
     /// otherwise as `onKeyPress(_:action:)`.
+    @_disfavoredOverload
     public func onKeyPress(keys: Set<KeyEquivalent>, phases: KeyPress.Phases = [.down, .repeat],
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> ModifiedElement<LayerBase> {
         keyPressLayer().onKeyPress(keys: keys, phases: phases, action: action)
@@ -49,6 +52,7 @@ extension ElementGroup {
 
     /// SwiftUI's `onKeyPress(characters:phases:action:)` on any `ElementGroup`;
     /// otherwise as `onKeyPress(_:action:)`.
+    @_disfavoredOverload
     public func onKeyPress(characters: CharacterSet, phases: KeyPress.Phases = [.down, .repeat],
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> ModifiedElement<LayerBase> {
         keyPressLayer().onKeyPress(characters: characters, phases: phases, action: action)
@@ -56,6 +60,7 @@ extension ElementGroup {
 
     /// SwiftUI's `onKeyPress(phases:action:)` on any `ElementGroup`; otherwise
     /// as `onKeyPress(_:action:)`.
+    @_disfavoredOverload
     public func onKeyPress(phases: KeyPress.Phases = [.down, .repeat],
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> ModifiedElement<LayerBase> {
         keyPressLayer().onKeyPress(phases: phases, action: action)
