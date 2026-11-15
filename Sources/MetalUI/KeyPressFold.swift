@@ -131,3 +131,19 @@ extension _KeyPressFolding {
         addingKeyPress(phases, .any, action)
     }
 }
+
+/// One `onKeyPress` handler on its way to `ElementGroup._addingKeyPress(_:)`. MetalUI-only and opaque: made by the
+/// `onKeyPress` spellings, never directly (ruling `KF-AE`).
+public struct KeyPressRegistration: @unchecked Sendable {
+    let handler: KeyPressHandler
+    init(_ handler: KeyPressHandler) { self.handler = handler }
+}
+
+extension ElementGroup where KeyPressed == ModifiedElement<LayerBase> {
+    /// A group with no layer of its own: one wrapper layer (a default `Style`, one node, one identity level) holding
+    /// the handler, the `KF-AC` shape.
+    public func _addingKeyPress(_ registration: KeyPressRegistration) -> ModifiedElement<LayerBase> {
+        let h = registration.handler
+        return _wrap(ModifierLayer(style: Style())).addingKeyPress(h.phases, h.filter, h.action)
+    }
+}

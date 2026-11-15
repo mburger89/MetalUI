@@ -60,6 +60,14 @@ public struct LifecycleScope<Content: ElementGroup>: ElementGroup {
         self.write = write
     }
 
+    /// The scope stays transparent: the handler goes to its content's `onKeyPress` (ruling `KF-AE`).
+    public typealias KeyPressed = LifecycleScope<Content.KeyPressed>
+
+    /// The scope around its content with the handler added.
+    public func _addingKeyPress(_ registration: KeyPressRegistration) -> LifecycleScope<Content.KeyPressed> {
+        LifecycleScope<Content.KeyPressed>(content: content._addingKeyPress(registration), write: write)
+    }
+
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)

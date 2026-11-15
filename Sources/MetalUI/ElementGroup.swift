@@ -98,6 +98,18 @@ public protocol ElementGroup {
     /// spelling closes, since a requirement is as visible as its protocol
     /// (ruling MC-A).
     func _wrap(_ layer: ModifierLayer) -> ModifiedElement<LayerBase>
+
+    /// What `onKeyPress` returns on this group (ruling `KF-AE`): `Self` where the handler joins a layer this
+    /// group already owns (a modifier chain, a lifecycle scope, an accessibility wrapper, an overlay, a
+    /// `StyledElement`), `ModifiedElement<LayerBase>` — one wrapper layer — for every other. **A requirement
+    /// rather than a fixed type so a call in generic code (`extension ElementGroup { … onKeyPress … }`), which
+    /// overload resolution can only send to the `ElementGroup` spelling, still reaches the conformer's own fold.**
+    /// MetalUI-only. Not for conformers to name: the default is right for a conformer without a layer of its own.
+    associatedtype KeyPressed: ElementGroup = ModifiedElement<LayerBase>
+
+    /// Framework entry point for `onKeyPress` (ruling `KF-AE`): this group with `registration` added. **Not for
+    /// conformers to implement**, as `_wrap(_:)`.
+    func _addingKeyPress(_ registration: KeyPressRegistration) -> KeyPressed
 }
 
 // MARK: - Every element is a group of one
