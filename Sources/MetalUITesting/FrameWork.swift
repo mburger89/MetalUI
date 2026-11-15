@@ -105,6 +105,13 @@ public struct FrameWork: Sendable, Equatable {
     /// Lazy containers that realised everything: outside a scroller, in one of the other axis, under a `Deferred`,
     /// or holding an `if`, `switch` or `for` member (`LZ-I`).
     public var lazyUnbounded: Int
+    /// Reads of an `OutlineGroup`'s `children` key path (`OG-K`): the rows' own (leaf or group) at a rebuild, an expanded
+    /// group's and each row of the last window's at a validation. A collapsed group's contents are never read.
+    public var outlineChildrenReads: Int
+    /// Outline indexes rebuilt: once on the frame after an expansion or the data changes, never on a scroll (`OG-K`).
+    public var outlineIndexRebuilds: Int
+    /// Outline index validations: the root, each expanded group and each row of the last window (`OG-K`).
+    public var outlineIndexValidations: Int
     /// Lines the `CodeView`s shaped: a miss in the two-frame line-layout cache (`CV-M`). A scroll shapes the
     /// rows that entered; a warm frame shapes none.
     public var codeLinesShaped: Int
@@ -147,6 +154,7 @@ public struct FrameWork: Sendable, Equatable {
                 retainedGraftedNodes: Int = 0, retainedIneligibleReasons: [String: Int] = [:],
                 retainedTranslationRefusedReasons: [String: Int] = [:],
                 lazyUnitsRealized: Int = 0, lazyLinesRealized: Int = 0, lazyUnbounded: Int = 0,
+                outlineChildrenReads: Int = 0, outlineIndexRebuilds: Int = 0, outlineIndexValidations: Int = 0,
                 codeLinesShaped: Int = 0, codeLinesPainted: Int = 0, codeGlyphsEmitted: Int = 0,
                 codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0) {
         self.builds = builds
@@ -194,6 +202,9 @@ public struct FrameWork: Sendable, Equatable {
         self.lazyUnitsRealized = lazyUnitsRealized
         self.lazyLinesRealized = lazyLinesRealized
         self.lazyUnbounded = lazyUnbounded
+        self.outlineChildrenReads = outlineChildrenReads
+        self.outlineIndexRebuilds = outlineIndexRebuilds
+        self.outlineIndexValidations = outlineIndexValidations
         self.codeLinesShaped = codeLinesShaped
         self.codeLinesPainted = codeLinesPainted
         self.codeGlyphsEmitted = codeGlyphsEmitted
@@ -246,6 +257,9 @@ public struct FrameWork: Sendable, Equatable {
                   lazyUnitsRealized: l.lazyUnitsRealized + r.lazyUnitsRealized,
                   lazyLinesRealized: l.lazyLinesRealized + r.lazyLinesRealized,
                   lazyUnbounded: l.lazyUnbounded + r.lazyUnbounded,
+                  outlineChildrenReads: l.outlineChildrenReads + r.outlineChildrenReads,
+                  outlineIndexRebuilds: l.outlineIndexRebuilds + r.outlineIndexRebuilds,
+                  outlineIndexValidations: l.outlineIndexValidations + r.outlineIndexValidations,
                   codeLinesShaped: l.codeLinesShaped + r.codeLinesShaped,
                   codeLinesPainted: l.codeLinesPainted + r.codeLinesPainted,
                   codeGlyphsEmitted: l.codeGlyphsEmitted + r.codeGlyphsEmitted,

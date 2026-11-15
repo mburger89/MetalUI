@@ -270,6 +270,15 @@ final class StateTable {
         absentSlots.insert(slot)
     }
 
+    /// An evaluated owner dropped the element at `scope` from its data (an outline's rebuild, `OG-D`): every entry
+    /// strictly under `scope` is deleted by this frame's `sweep()`, so the element returning starts fresh. Unlike
+    /// `noteAbsent` it needs no earlier produced slot, because the owner (the outline index) is what knows the
+    /// element was there.
+    func noteRemovedSubtree(_ scope: GlobalElementID) {
+        subtreeResetScans += 1
+        absentSlots.insert(scope)
+    }
+
     // MARK: A name that returns (the closeout, ruling `ID-R`)
 
     /// One structural position a name can sit at: the parent's id and the
