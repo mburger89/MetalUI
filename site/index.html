@@ -187,7 +187,7 @@ swift run --package-path MetalUI metalui new MyApp --cross-platform</code></pre>
   <h2>Apps built on MetalUI</h2>
   <div class="shots">
     <article>
-      <img src="img/alloy.webp" width="1440" height="900" loading="lazy" alt="Alloy, a macOS editor with several Claude Code sessions open on one project.">
+      <img src="img/alloy.webp" width="1200" height="828" loading="lazy" alt="Alloy, a macOS editor built on MetalUI, with a Claude Code session and a Swift file open in a demo project.">
       <h3><a href="https://github.com/mburger89/Alloy">Alloy</a></h3>
       <p>Alloy &mdash; a native macOS editor for working with several Claude Code sessions on one project, built entirely on MetalUI.</p>
     </article>
@@ -218,7 +218,7 @@ swift run --package-path MetalUI metalui new MyApp --cross-platform</code></pre>
     </div>
     <div>
       <dt>16.7 KB per <code>Picker</code>, down to 4.9 KB</dt>
-      <dd>The size of a <code>Picker</code> value after its options moved to a copy-on-write heap box, as the record states it. The same change cut the stack a lone menu <code>Picker</code> needs in a macOS debug build (measured with <code>StackMeter</code>) from 482 KB to 239 KB. <a href="https://github.com/mburger89/MetalUI/blob/master/docs/record/302-menu-picker-ideal.md">Record 302</a></dd>
+      <dd>The size of a <code>Picker</code> value after its options moved to a copy-on-write heap box, as the record states it. <a href="https://github.com/mburger89/MetalUI/blob/master/docs/record/302-menu-picker-ideal.md">Record 302</a></dd>
     </div>
   </dl>
 </section>
