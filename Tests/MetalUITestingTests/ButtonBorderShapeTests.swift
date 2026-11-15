@@ -365,3 +365,44 @@ private struct AlloyRow: Component {
         #expect(picker.size.height == 24, "\(width): picker height \(picker.size.height)")
     }
 }
+
+private struct ModelRow: Component {
+    var content: some ElementGroup {
+        HStack(spacing: Pixels(8)) {
+            Picker("Mode", selection: .constant(3)) { Text("Default").tag(0); Text("Accept edits").tag(1); Text("Plan").tag(2); Text("Auto").tag(3); Text("Don't ask").tag(4) }
+                .buttonBorderShape(.capsule)
+            Menu("Model") { Button("x") {} }.buttonBorderShape(.capsule)
+            Menu("Effort") { Button("x") {} }.buttonBorderShape(.capsule)
+        }
+    }
+}
+@MainActor @inline(never) private func modelWindow(_ width: Int) throws -> TestWindow {
+    let w = try TestWindow(size: Size(width: Pixels(Float(width)), height: Pixels(200)), colorScheme: .light,
+                           textSystem: harnessTextSystem) { VStack { ModelRow() } }
+    redraw(w)
+    return w
+}
+
+/// The picker's title ("Mode", left of its capsule) as glyph origins: x < the capsule's left edge.
+@MainActor private func pickerTitleGlyphs(_ w: TestWindow) throws -> (glyphs: [MUIGlyph], chrome: MUIBounds) {
+    let chrome = try #require(chromeRects(w).first { $0.background.a > 0 }).bounds
+    return (w.allGlyphs.filter { $0.bounds.origin.x < chrome.origin.x }, chrome)
+}
+
+/// BY-P: a menu `Picker`'s title ("Mode") stays on one line, whole, in the rows SwiftUI's does not wrap it (probe
+/// `swiftui-picker-label-compression.swift`: the capsule shortens first). Before the fix the capsule's title box would not
+/// go below the widest option less the chevron, so a row narrower than about 360 squeezed the label to 12 wide and wrapped it mid-word ("Mod" / "e"). Four glyphs, one line (their origins within 4 of
+/// each other vertically), the first to the last advancing rightwards, at Alloy's widths.
+/// Mutation: the old floor (`width - chevronWidth` for the title's `minWidth`, no cap) reddens 360 to 280.
+@Test @MainActor func aMenuPickersTitleNeverWrapsWhenTheRowIsNarrow() throws {
+    for width in [600, 420, 360, 320, 300, 280] {
+        let w = try modelWindow(width)
+        let (glyphs, chrome) = try pickerTitleGlyphs(w)
+        #expect(glyphs.count == 4, "\(width): the title's glyphs \(glyphs.count)")
+        let ys = glyphs.map(\.bounds.origin.y)
+        #expect((ys.max() ?? 0) - (ys.min() ?? 0) <= 4, "\(width): title on several lines, ys \(ys)")
+        let xs = glyphs.map(\.bounds.origin.x)
+        #expect(xs == xs.sorted() && Set(xs).count == 4, "\(width): title glyphs xs \(xs)")
+        #expect(chrome.size.height == 24 && chrome.size.width > 0, "\(width): capsule \(chrome)")
+    }
+}
