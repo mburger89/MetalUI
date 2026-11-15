@@ -357,9 +357,10 @@ struct LazyUnitTable {
     }
 
     /// Realises global unit `unit` under `parent`.
-    func realize(_ unit: Int, parent: GlobalElementID, pass: inout LayoutPass) -> LazyUnitBox {
+    /// `globalIndex` is the unit's index in the OUTERMOST table when this one is a nested level (`OG-C`).
+    func realize(_ unit: Int, globalIndex: Int? = nil, parent: GlobalElementID, pass: inout LayoutPass) -> LazyUnitBox {
         let (segment, local) = locate(unit)
-        return sources[segment].realizeLazyUnit(local, globalIndex: unit, segment: segment, parent: parent,
+        return sources[segment].realizeLazyUnit(local, globalIndex: globalIndex ?? unit, segment: segment, parent: parent,
                                                 cursorBase: segment, pass: &pass)
     }
 
