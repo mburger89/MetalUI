@@ -112,6 +112,14 @@ public struct FrameWork: Sendable, Equatable {
     public var outlineIndexRebuilds: Int
     /// Outline index validations: the root, each expanded group and each row of the last window (`OG-K`).
     public var outlineIndexValidations: Int
+    /// A content `List`'s flatten (`OG-O`): row bodies, `ForEach` closures and group contents it evaluated.
+    public var outlineContentEvaluations: Int
+    /// Content flattens run (a cache miss, or a list the cache refuses).
+    public var outlineContentRebuilds: Int
+    /// Content flattens the cache stood in for: no row body, no `ForEach` closure below the top level (`OG-O`).
+    public var outlineContentHits: Int
+    /// Top-level `ForEach` closures called to compare the list's own content with the cache's.
+    public var outlineContentChecks: Int
     /// Lines the `CodeView`s shaped: a miss in the two-frame line-layout cache (`CV-M`). A scroll shapes the
     /// rows that entered; a warm frame shapes none.
     public var codeLinesShaped: Int
@@ -155,6 +163,8 @@ public struct FrameWork: Sendable, Equatable {
                 retainedTranslationRefusedReasons: [String: Int] = [:],
                 lazyUnitsRealized: Int = 0, lazyLinesRealized: Int = 0, lazyUnbounded: Int = 0,
                 outlineChildrenReads: Int = 0, outlineIndexRebuilds: Int = 0, outlineIndexValidations: Int = 0,
+                outlineContentEvaluations: Int = 0, outlineContentRebuilds: Int = 0, outlineContentHits: Int = 0,
+                outlineContentChecks: Int = 0,
                 codeLinesShaped: Int = 0, codeLinesPainted: Int = 0, codeGlyphsEmitted: Int = 0,
                 codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0) {
         self.builds = builds
@@ -205,6 +215,10 @@ public struct FrameWork: Sendable, Equatable {
         self.outlineChildrenReads = outlineChildrenReads
         self.outlineIndexRebuilds = outlineIndexRebuilds
         self.outlineIndexValidations = outlineIndexValidations
+        self.outlineContentEvaluations = outlineContentEvaluations
+        self.outlineContentRebuilds = outlineContentRebuilds
+        self.outlineContentHits = outlineContentHits
+        self.outlineContentChecks = outlineContentChecks
         self.codeLinesShaped = codeLinesShaped
         self.codeLinesPainted = codeLinesPainted
         self.codeGlyphsEmitted = codeGlyphsEmitted
@@ -260,6 +274,10 @@ public struct FrameWork: Sendable, Equatable {
                   outlineChildrenReads: l.outlineChildrenReads + r.outlineChildrenReads,
                   outlineIndexRebuilds: l.outlineIndexRebuilds + r.outlineIndexRebuilds,
                   outlineIndexValidations: l.outlineIndexValidations + r.outlineIndexValidations,
+                  outlineContentEvaluations: l.outlineContentEvaluations + r.outlineContentEvaluations,
+                  outlineContentRebuilds: l.outlineContentRebuilds + r.outlineContentRebuilds,
+                  outlineContentHits: l.outlineContentHits + r.outlineContentHits,
+                  outlineContentChecks: l.outlineContentChecks + r.outlineContentChecks,
                   codeLinesShaped: l.codeLinesShaped + r.codeLinesShaped,
                   codeLinesPainted: l.codeLinesPainted + r.codeLinesPainted,
                   codeGlyphsEmitted: l.codeGlyphsEmitted + r.codeGlyphsEmitted,

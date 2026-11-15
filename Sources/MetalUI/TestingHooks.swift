@@ -53,6 +53,11 @@ package struct BuildWork: Sendable, Equatable {
     package var outlineChildrenReads = 0
     package var outlineIndexRebuilds = 0
     package var outlineIndexValidations = 0
+    /// What the build's content-form flatten did (`OG-O`).
+    package var outlineContentEvaluations = 0
+    package var outlineContentRebuilds = 0
+    package var outlineContentHits = 0
+    package var outlineContentChecks = 0
     /// What the build's `CodeView`s did (`CV-Q`).
     package var codeLinesShaped = 0
     package var codeLinesPainted = 0
@@ -108,6 +113,10 @@ extension Window {
                                outlineChildrenReads: frame.lazyWork.childrenReads,
                                outlineIndexRebuilds: frame.lazyWork.indexRebuilds,
                                outlineIndexValidations: frame.lazyWork.indexValidations,
+                               outlineContentEvaluations: frame.lazyWork.contentEvaluations,
+                               outlineContentRebuilds: frame.lazyWork.contentRebuilds,
+                               outlineContentHits: frame.lazyWork.contentHits,
+                               outlineContentChecks: frame.lazyWork.contentChecks,
                                codeLinesShaped: frame.codeWork.linesShaped, codeLinesPainted: frame.codeWork.linesPainted,
                                codeGlyphsEmitted: frame.codeWork.glyphsEmitted,
                                codeHighlightRunsVisited: frame.codeWork.highlightRunsVisited,

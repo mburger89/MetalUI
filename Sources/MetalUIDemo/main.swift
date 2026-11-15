@@ -112,6 +112,10 @@ func runDemo() throws {
     // close, reorder and overflow scrolling.
     let tabsDemo = ProcessInfo.processInfo.environment["METALUI_TABS_DEMO"] == "1"
 
+    // The outline performance demo (`OG-O`, record 318, human checks group OG): a content `List` over a synthetic tree of
+    // 100 000 paths in Alloy's shape, with buttons that rename, add and expand through the `@Observable` model.
+    let outlineDemo = ProcessInfo.processInfo.environment["METALUI_OUTLINE_DEMO"] == "1"
+
     // Liquid Glass (`LG-P`, `LG-V`, spec `2026-10-23-liquid-glass-design.md` section 6, human checks group LG):
     // regular, clear and tinted capsules, `.glass` and `.glassProminent` buttons and a container of three circles
     // with a spacing control, over a striped backdrop.
@@ -138,6 +142,10 @@ func runDemo() throws {
         window = try app.openWindow(title: "MetalUI — Code View",
                                     size: Size(width: Pixels(1100), height: Pixels(700)),
                                     content: { codeViewDemoContent() })
+    } else if outlineDemo {
+        window = try app.openWindow(title: "MetalUI — Outline (100 000 paths)",
+                                    size: Size(width: Pixels(520), height: Pixels(640)),
+                                    content: outlineDemoContent)
     } else if tabsDemo {
         window = try app.openWindow(title: "MetalUI — Tab Strip",
                                     size: Size(width: Pixels(720), height: Pixels(360)),

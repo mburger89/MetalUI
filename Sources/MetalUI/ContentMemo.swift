@@ -162,6 +162,8 @@ package final class ContentMemoStore {
             return !record.coverageComplete || record.contentSerial != serial || observedChange
         }
         let buildSession = RetainedSession("build")
+        /// A content `List`'s flatten cache (`OG-O`), on the entry `flattenEntry(for:)` made for the list; nothing else reads it.
+        var outlineCache: OutlineFlattenCache?
         let prepaintSession = RetainedSession("prepaint")
         let paintSession = RetainedSession("paint")
         init(previous: Any, pristine: Any, versions: [UInt64], readings: [EnvironmentReading]) {
@@ -265,6 +267,23 @@ package final class ContentMemoStore {
 
     /// The memo entry of an occurrence, or `nil` (retained subtrees, `SB-`).
     func entry(for key: Key) -> Entry? { entries[key] }
+
+    /// Test switch (`OG-O`): off, a content `List` flattens its tree on every frame, as it did before lane 8.
+    package var cachesOutlineContent = true
+
+    /// The entry a content `List` keeps its flatten cache and its observation session on (`OG-O`): made on first use, kept
+    /// for this build like a memoized component's (journalled, so a grafting ancestor keeps it), swept with the list.
+    func flattenEntry(for list: GlobalElementID) -> Entry {
+        let key = Key(id: list, type: ObjectIdentifier(OutlineFlattenCache.self))
+        journal.record(.memoTouch(key))
+        if let entry = entries[key] {
+            entry.touched = true
+            return entry
+        }
+        let entry = Entry(previous: (), pristine: (), versions: [], readings: [])
+        entries[key] = entry
+        return entry
+    }
 
     /// The content of `component` for this build: the pristine copy of the last
     /// evaluation when nothing it depends on changed, else the getter's result,

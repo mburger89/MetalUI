@@ -201,6 +201,10 @@ final class FrameWorkRecorder {
         pending.outlineChildrenReads += work.outlineChildrenReads
         pending.outlineIndexRebuilds += work.outlineIndexRebuilds
         pending.outlineIndexValidations += work.outlineIndexValidations
+        pending.outlineContentEvaluations += work.outlineContentEvaluations
+        pending.outlineContentRebuilds += work.outlineContentRebuilds
+        pending.outlineContentHits += work.outlineContentHits
+        pending.outlineContentChecks += work.outlineContentChecks
         pending.codeLinesShaped += work.codeLinesShaped
         pending.codeLinesPainted += work.codeLinesPainted
         pending.codeGlyphsEmitted += work.codeGlyphsEmitted

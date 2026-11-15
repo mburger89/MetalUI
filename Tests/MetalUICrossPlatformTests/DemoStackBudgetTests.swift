@@ -49,6 +49,7 @@ private func buildEveryProductionTree() {
     buildTheCodeViewDemo()         // the read-only code view (CV-, record 227)
     buildTheMarkdownDemo()         // the block Markdown transcript (BM-, record 235)
     buildTheTabStripDemo()         // the tab strip (TBS-, record 238)
+    buildTheOutlineDemo()          // the outline performance demo (OG-O, record 318)
     buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
     buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
     buildTheGroupFilterStrip()     // a filter over a group (GF-)
@@ -142,6 +143,13 @@ private func buildTheMarkdownDemo() {
 @MainActor @inline(never)
 private func buildTheTabStripDemo() {
     _ = tabStripDemoContent()
+}
+
+/// The outline demo's tree, in its own frame. Its components read the demo's observable model (built on first use, 100 000
+/// nodes), which traps off the main thread, so only the root is built here.
+@MainActor @inline(never)
+private func buildTheOutlineDemo() {
+    _ = outlineDemoContent()
 }
 
 /// The Liquid Glass demo's tree and its container component, in its own frame.
