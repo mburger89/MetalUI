@@ -21,9 +21,14 @@ final class ContextualAttachment {
     /// in input, with the pointer in the region's local space; `nil` is no
     /// tooltip there. Mutually exclusive with `help` (the later modifier wins).
     let helpProvider: (@MainActor (Point<Pixels>) -> String?)?
+    /// A `contextMenu(forSelectionType:)` waiting for a `List` to take it (`OG-N`): the list reads it in layout and
+    /// gives its rows and its own region their menus. On anything but a list it does nothing; `menu` is `nil`.
+    let selection: SelectionContextMenu?
 
     init(locatedMenu menu: (@MainActor (Point<Pixels>?) -> MenuItems)?, help: String?,
-         helpProvider: (@MainActor (Point<Pixels>) -> String?)? = nil) {
+         helpProvider: (@MainActor (Point<Pixels>) -> String?)? = nil,
+         selection: SelectionContextMenu? = nil) {
+        self.selection = selection
         self.menu = menu
         self.help = help?.isEmpty == true ? nil : help   // MN-AM: an empty help is no help
         self.helpProvider = helpProvider

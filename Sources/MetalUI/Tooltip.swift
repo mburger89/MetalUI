@@ -35,7 +35,8 @@ extension StyledElement {
     public func help(_ text: String) -> Self {
         handling { handlers in
             if !text.isEmpty { handlers.axNode.declarations.hint = text }
-            handlers.contextual = ContextualAttachment(locatedMenu: handlers.contextual?.menu, help: text)
+            handlers.contextual = ContextualAttachment(locatedMenu: handlers.contextual?.menu, help: text,
+                                                       selection: handlers.contextual?.selection)
         }
     }
 
@@ -62,7 +63,7 @@ extension StyledElement {
     public func help(_ text: @escaping @MainActor (_ location: Point<Pixels>) -> String?) -> Self {
         handling { handlers in
             handlers.contextual = ContextualAttachment(locatedMenu: handlers.contextual?.menu, help: nil,
-                                                       helpProvider: text)
+                                                       helpProvider: text, selection: handlers.contextual?.selection)
         }
     }
 }

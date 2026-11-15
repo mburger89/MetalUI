@@ -795,7 +795,7 @@ enum ArenaMode: Equatable {
 /// `ClickDispatch`'s modifiers and focus request exactly as today.
 enum GestureCallback {
     case gesture(owner: GlobalElementID, run: @MainActor () -> Void)
-    case click(owner: GlobalElementID, handler: @MainActor () -> Void, modifiers: Modifiers)
+    case click(owner: GlobalElementID, handler: @MainActor () -> Void, modifiers: Modifiers, clickCount: Int)
     /// A draggable won the arena (ruling `DN-D` item 7): `Window` opens a drag
     /// session from `owner` with `source`'s payload, pressed at `at`.
     case beginDrag(owner: GlobalElementID, source: DragSource, at: Point<Pixels>)
@@ -1418,7 +1418,7 @@ struct GestureArena {
         }
         switch leaf.recognizer {
         case .click:
-            if let click { leaf.click = click; leaf.ready = true } else { fail(leaf) }
+            if let click { leaf.click = click; leaf.pressClickCount = clickCount; leaf.ready = true } else { fail(leaf) }
         case .gesture(let g):
             switch g.kind {
             case .tap(let count, let spatial):
@@ -1749,7 +1749,8 @@ struct GestureArena {
         case .click:
             guard leaf.ready, let click = leaf.click else { return false }
             leaf.status = .ended
-            callbacks.append(.click(owner: leaf.owner, handler: click.handler, modifiers: click.modifiers))
+            callbacks.append(.click(owner: leaf.owner, handler: click.handler, modifiers: click.modifiers,
+                                    clickCount: leaf.pressClickCount))
             return true
         case .gesture(let g):
             if leaf.owesPressing && isPressing {

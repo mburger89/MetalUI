@@ -26,17 +26,25 @@ enum ClickDispatch {
     /// `[]` otherwise.
     private(set) static var modifiers: Modifiers = []
 
+    /// The completing mouse event's click count while a click handler runs (1 for a single click, 2 for the second of a
+    /// double-click, the platform's own count: `NSEvent.clickCount` on AppKit, `SDL_MouseButtonEvent.clicks` on SDL);
+    /// 1 for an accessibility `.press` and outside a click (`OG-N`).
+    private(set) static var clickCount = 1
+
     /// Set by a click handler to have the window focus an id after it returns.
     static var focusRequest: GlobalElementID?
 
     /// Runs `body` with `modifiers` published, and returns the focus request it
     /// left, cleared. Both are reset even if `body` throws.
-    static func running(modifiers: Modifiers, _ body: () -> Void) -> GlobalElementID? {
+    static func running(modifiers: Modifiers, clickCount: Int = 1, _ body: () -> Void) -> GlobalElementID? {
         let outerModifiers = self.modifiers
+        let outerClickCount = self.clickCount
         self.modifiers = modifiers
+        self.clickCount = clickCount
         focusRequest = nil
         defer {
             self.modifiers = outerModifiers
+            self.clickCount = outerClickCount
             focusRequest = nil
         }
         body()

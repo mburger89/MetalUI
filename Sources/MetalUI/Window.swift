@@ -2824,7 +2824,7 @@ public final class Window {
         }
         let hit = lastHitboxes[index]
         guard hit.id == pressed, let handler = hit.handlers.onClick else { return false }
-        runClick(handler, on: hit.id, modifiers: mouse.modifiers)
+        runClick(handler, on: hit.id, modifiers: mouse.modifiers, clickCount: mouse.clickCount)
         return true
     }
 
@@ -3185,7 +3185,7 @@ public final class Window {
         guard let owed = rowSelectionClick, owed.target == pressed,
               let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position),
               lastHitboxes[index].id == pressed else { return }
-        runClick(owed.handler, on: owed.target, modifiers: mouse.modifiers)
+        runClick(owed.handler, on: owed.target, modifiers: mouse.modifiers, clickCount: mouse.clickCount)
     }
 
     /// Ends the press's pointer bookkeeping when a drag begins or is handed
@@ -3470,8 +3470,8 @@ public final class Window {
         GestureStateBatch.current &+= 1
         for callback in callbacks {
             switch callback {
-            case .click(let owner, let handler, let modifiers):
-                runClick(handler, on: owner, modifiers: modifiers)
+            case .click(let owner, let handler, let modifiers, let clickCount):
+                runClick(handler, on: owner, modifiers: modifiers, clickCount: clickCount)
             case .gesture(let owner, let run):
                 StateDispatch.dispatching(to: owner) { run() }
             case .beginDrag(let owner, let source, let point):
@@ -3500,8 +3500,8 @@ public final class Window {
     /// with `ClickDispatch` set for it, then honours the focus request it left
     /// (ruling `DD-Z` item 9). The one place both click paths run a handler, so
     /// the two cannot drift.
-    func runClick(_ handler: @MainActor () -> Void, on id: GlobalElementID, modifiers: Modifiers) {
-        let request = ClickDispatch.running(modifiers: modifiers) {
+    func runClick(_ handler: @MainActor () -> Void, on id: GlobalElementID, modifiers: Modifiers, clickCount: Int = 1) {
+        let request = ClickDispatch.running(modifiers: modifiers, clickCount: clickCount) {
             // The clicked element owns the dispatch, so an aliased `@State` box
             // writes this occurrence (ruling ID-F, `StateDispatch`).
             StateDispatch.dispatching(to: id) { handler() }

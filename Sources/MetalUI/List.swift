@@ -319,6 +319,10 @@ where Data.Element: Identifiable {
     /// (`OG-A`, `OG-E`, `OG-J`). `nil` for a data list, which the rest of this type is.
     private var contentRunner: (any ListContentRunning)?
 
+    /// The `contextMenu(forSelectionType:)` this list took in layout (`OG-N`): the list's own attachment or the
+    /// environment's, kept only when its identifier type is this list's row id.
+    private var selectionMenu: SelectionContextMenu?
+
     /// `List`'s layout state, as a **public wrapper around an internal one**.
     ///
     /// `Element.LayoutState` is inferred from `requestLayout`'s return, and
@@ -567,6 +571,10 @@ where Data.Element: Identifiable {
         // handlers (input), never here.
         let reader = selection.reader()
         let table = pass.frame.stateTable
+        let menuSpec = (handlers.contextual?.selection ?? pass.frame.environmentTop.selectionContextMenu)
+            .flatMap { $0.applies(to: Data.Element.ID.self) ? $0 : nil }
+        selectionMenu = menuSpec
+        let currentSelection = selection
         let rows: [Box<Row>] = data[windowStart..<windowEnd].enumerated().map { offset, datum in
             // `LH-A`: the row is named by its id's Hashable value, as a `ForEach`
             // element is (`FI-A`): ids that print alike and differ in value are two rows.
@@ -589,6 +597,12 @@ where Data.Element: Identifiable {
                 rowBox.handlers.onClick = Self.rowClick(list: id, row: datum.id, data: data,
                                                         selection: selection, table: table)
                 rowBox.handlers.axNode.isSelectableRow = true
+            }
+            if let menuSpec {
+                // `OG-N`: the row's menu and its double-click primary action; a list with no selection has a click
+                // only when there is an action to run.
+                rowBox.handlers.onClick = menuSpec.clickHandler(wrapping: rowBox.handlers.onClick, row: datum.id)
+                rowBox.handlers.contextual = menuSpec.rowAttachment(row: datum.id) { currentSelection.currentSet() }
             }
             return rowBox
         }
@@ -626,6 +640,9 @@ where Data.Element: Identifiable {
             listHandlers.axNode = AXNode(role: .container)
         }
         listHandlers.axNode.logicalCount = count
+        // The list's own region (empty space) takes the selection menu's `[]` form (`OG-N`, `P-M2`); a modifier of
+        // another identifier type leaves the attachment with no menu, so it is inert.
+        if let menuSpec { listHandlers.contextual = menuSpec.listAttachment(over: handlers.contextual) }
         // An accessibility client's selection (plan task 12 part 2, `IX-AA`
         // item 1): registered beside the click selection, through the action
         // registry, so the disabled gate refuses it as it refuses every action.
@@ -1210,9 +1227,14 @@ extension List {
         let callerKey = box.handlers.onKey
         let table = pass.frame.stateTable
         let queue = pass.frame.scrollRequestQueue
+        let menuSpec = selectionMenu
         box.handlers.isFocusable = true
         box.handlers.onKey = { [weak table, weak queue] event in
             if let callerKey, callerKey(event) { return true }
+            // Return runs the primary action on the selection (`OG-N`, `P-M4`).
+            if let menuSpec, menuSpec.returnKey(event, selection: Set(selection.currentSet().map { AnyHashable($0) })) {
+                return true
+            }
             guard let move = ControlKeys.listMove(event), let table else { return false }
             guard let moved = Self.controller(list: id, data: data, selection: selection, table: table)
                 .move(move.direction, extends: move.extends) else { return false }

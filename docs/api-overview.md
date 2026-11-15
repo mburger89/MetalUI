@@ -895,6 +895,14 @@ defaultless `PlatformWindow.presentMenu(_:at:)`; the choice returns as
 `InputEvent.menuAction`. A secondary press never presses a `Button` (D 110).
 `Section` and image items are not offered (a `.menu`-style `Picker` is a view, below).
 
+**A list's selection-typed context menu and primary action (A; `OG-G`, `OG-N`).**
+`.contextMenu(forSelectionType: I.self, menu: { (ids: Set<I>) in … }, primaryAction:)`
+on a `List` (either form), or over proposal content holding one. A secondary press
+on a row builds the menu for that row, or for the whole selection when the row is
+in it, without selecting; on the list's empty space the set is `[]`. Double-clicking
+a row selects it and runs `primaryAction([row])` on the second click (a folder does
+not toggle); Return runs it with the selection. Inert for another identifier type.
+
 **Pull-down (A).** `Menu("Title") { }` as a view: a button that opens its items
 below itself, published as a menu button.
 
