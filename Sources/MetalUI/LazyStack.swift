@@ -166,7 +166,7 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, LazyStackState<Content>) {
         let spacing = spacing.map { Double($0.value) } ?? ProposalSpacing.platformDefault
         let axis = self.axis
-        guard let sources = lazyFlatten(content) else {
+        guard let sources = lazyFlattenRoot(content, parent: id, pass: &pass) else {
             // `LZ-B`, divergence 636: a member that is not a unit source makes the container eager.
             var cursor = 0
             let (children, contentLayout) = pass.frame.withStackAxis(axis) {
