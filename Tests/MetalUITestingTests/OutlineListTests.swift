@@ -306,6 +306,7 @@ private func f(_ value: Pixels) -> Float { value.value }
     func ids<Root: Element>(_ root: @escaping @MainActor () -> Root) throws -> Set<AccessibilityNodeID> {
         let window = try harnessWindow(size: sz(300, 400)) { ProposalScrollView { root() } }
         settle(window)
+        #expect(visible(window) == ["A", "Z", "M"], "every form shows the same labels: \(visible(window))")
         return Set(try window.elements(where: { _ in true }).map(\.id))
     }
     let literal = try ids {
